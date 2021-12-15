@@ -4,4 +4,4 @@
 -- source include/have_innodb.inc
 let $engine_type=innodb;
 let $engine_type2=myisam;
--- source extra/rpl_tests/rpl_auto_increment.test
+-- source include/rpl_auto_increment.test

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "mariadb.h"
 #include <my_bit.h>
@@ -42,6 +42,12 @@ max_display_length_for_temporal2_field(uint32 int_display_length,
    @param sql_type Type of the field
    @param metadata The metadata from the master for the field.
    @return Maximum length of the field in bytes.
+
+   The precise values calculated by field->max_display_length() and
+   calculated by max_display_length_for_field() can differ (by +1 or -1)
+   for integer data types (TINYINT, SMALLINT, MEDIUMINT, INT, BIGINT).
+   This slight difference is not important here, because we call
+   this function only for two *different* integer data types.
  */
 static uint32
 max_display_length_for_field(enum_field_types sql_type, unsigned int metadata)
@@ -346,7 +352,8 @@ uint32 table_def::calc_field_size(uint col, uchar *master_data) const
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 /**
  */
-void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_INFO *field_cs)
+void show_sql_type(enum_field_types type, uint16 metadata, String *str,
+                   bool char_with_octets)
 {
   DBUG_ENTER("show_sql_type");
   DBUG_PRINT("enter", ("type: %d, metadata: 0x%x", type, metadata));
@@ -414,11 +421,13 @@ void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_
   case MYSQL_TYPE_VARCHAR_COMPRESSED:
     {
       CHARSET_INFO *cs= str->charset();
-      size_t length=
-        cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
-                           "varchar(%u)%s", metadata,
-                           type == MYSQL_TYPE_VARCHAR_COMPRESSED ? " compressed"
-                                                                 : "");
+      size_t length=0;
+      if (char_with_octets)
+        length= cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
+                                   "varchar(%u octets)", metadata);
+      else
+        length= cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
+                                   "varbinary(%u)", metadata);
       str->length(length);
     }
     break;
@@ -469,22 +478,22 @@ void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_
       it is necessary to check the pack length to figure out what kind
       of blob it really is.
      */
-    switch (get_blob_type_from_length(metadata))
+    switch (metadata)
     {
-    case MYSQL_TYPE_TINY_BLOB:
+    case 1:
       str->set_ascii(STRING_WITH_LEN("tinyblob"));
       break;
 
-    case MYSQL_TYPE_MEDIUM_BLOB:
+    case 2:
+      str->set_ascii(STRING_WITH_LEN("blob"));
+      break;
+
+    case 3:
       str->set_ascii(STRING_WITH_LEN("mediumblob"));
       break;
 
-    case MYSQL_TYPE_LONG_BLOB:
+    case 4:
       str->set_ascii(STRING_WITH_LEN("longblob"));
-      break;
-
-    case MYSQL_TYPE_BLOB:
-      str->set_ascii(STRING_WITH_LEN("blob"));
       break;
 
     default:
@@ -503,9 +512,13 @@ void show_sql_type(enum_field_types type, uint16 metadata, String *str, CHARSET_
       */
       CHARSET_INFO *cs= str->charset();
       uint bytes= (((metadata >> 4) & 0x300) ^ 0x300) + (metadata & 0x00ff);
-      size_t length=
-        cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
-                           "char(%d)", bytes / field_cs->mbmaxlen);
+      size_t length=0;
+      if (char_with_octets)
+        length= cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
+                                   "char(%u octets)", bytes);
+      else
+        length= cs->cset->snprintf(cs, (char*) str->ptr(), str->alloced_length(),
+                                   "binary(%u)", bytes);
       str->length(length);
     }
     break;
@@ -737,6 +750,16 @@ can_convert_field_to(Field *field,
     case MYSQL_TYPE_INT24:
     case MYSQL_TYPE_LONG:
     case MYSQL_TYPE_LONGLONG:
+      /*
+        max_display_length_for_field() is not fully precise for the integer
+        data types. So its result cannot be compared to the result of
+        field->max_dispay_length() when the table field and the binlog field
+        are of the same type.
+        This code should eventually be rewritten not to use
+        compare_lengths(), to detect subtype/supetype relations
+        just using the type codes.
+      */
+      DBUG_ASSERT(source_type != field->real_type());
       *order_var= compare_lengths(field, source_type, metadata);
       DBUG_ASSERT(*order_var != 0);
       DBUG_RETURN(is_conversion_ok(*order_var, rli));
@@ -801,14 +824,44 @@ can_convert_field_to(Field *field,
   case MYSQL_TYPE_TIME:
   case MYSQL_TYPE_DATETIME:
   case MYSQL_TYPE_YEAR:
-  case MYSQL_TYPE_NEWDATE:
   case MYSQL_TYPE_NULL:
   case MYSQL_TYPE_ENUM:
   case MYSQL_TYPE_SET:
   case MYSQL_TYPE_TIMESTAMP2:
-  case MYSQL_TYPE_DATETIME2:
   case MYSQL_TYPE_TIME2:
     DBUG_RETURN(false);
+  case MYSQL_TYPE_NEWDATE:
+    {
+      if (field->real_type() == MYSQL_TYPE_DATETIME2 ||
+          field->real_type() == MYSQL_TYPE_DATETIME)
+      {
+        *order_var= -1;
+        DBUG_RETURN(is_conversion_ok(*order_var, rli));
+      }
+      else
+      {
+        DBUG_RETURN(false);
+      }
+    }
+    break;
+
+  //case MYSQL_TYPE_DATETIME: TODO: fix MDEV-17394 and uncomment.
+  //
+  //The "old" type does not specify the fraction part size which is required
+  //for correct conversion.
+  case MYSQL_TYPE_DATETIME2:
+    {
+      if (field->real_type() == MYSQL_TYPE_NEWDATE)
+      {
+        *order_var= 1;
+        DBUG_RETURN(is_conversion_ok(*order_var, rli));
+      }
+      else
+      {
+        DBUG_RETURN(false);
+      }
+    }
+    break;
   }
   DBUG_RETURN(false);                                 // To keep GCC happy
 }
@@ -902,9 +955,13 @@ table_def::compatible_with(THD *thd, rpl_group_info *rgi,
       String source_type(source_buf, sizeof(source_buf), &my_charset_latin1);
       String target_type(target_buf, sizeof(target_buf), &my_charset_latin1);
       THD *thd= table->in_use;
+      bool char_with_octets= field->cmp_type() == STRING_RESULT ?
+                             field->has_charset() : true;
 
-      show_sql_type(type(col), field_metadata(col), &source_type, field->charset());
-      field->sql_type(target_type);
+      show_sql_type(type(col), field_metadata(col), &source_type,
+                    char_with_octets);
+      field->sql_rpl_type(&target_type);
+
       rli->report(ERROR_LEVEL, ER_SLAVE_CONVERSION_FAILED, rgi->gtid_info(),
                   ER_THD(thd, ER_SLAVE_CONVERSION_FAILED),
                   col, db_name, tbl_name,

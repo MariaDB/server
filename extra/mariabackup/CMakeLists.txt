@@ -11,14 +11,15 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 
 OPTION(WITH_MARIABACKUP "Include mariabackup" ON)
+ADD_FEATURE_INFO(MARIABACKUP WITH_MARIABACKUP "MariaDB Backup Utility")
+
 IF(NOT WITH_MARIABACKUP)
   RETURN()
 ENDIF()
-
 
 IF(NOT WIN32)
   CHECK_SYMBOL_EXISTS(regcomp regex.h HAVE_SYSTEM_REGEX)
@@ -26,7 +27,6 @@ IF(NOT WIN32)
     ADD_DEFINITIONS(-DHAVE_SYSTEM_REGEX)
   ENDIF()
 ENDIF()
-
 
 INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/include
@@ -40,6 +40,10 @@ IF(NOT HAVE_SYSTEM_REGEX)
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/pcre)
 ENDIF()
 
+IF(WITH_WSREP)
+  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/wsrep)
+ENDIF()
+
 ADD_DEFINITIONS(-UMYSQL_SERVER)
 ########################################################################
 # xtrabackup binary
@@ -51,25 +55,25 @@ ELSE()
   SET(NT_SERVICE_SOURCE)
 ENDIF()
 
-ADD_DEFINITIONS(-DPCRE_STATIC=1)
+ADD_DEFINITIONS(-DPCRE_STATIC=1 -DHAVE_OPENSSL=1)
 
 MYSQL_ADD_EXECUTABLE(mariabackup
   xtrabackup.cc
   innobackupex.cc
   changed_page_bitmap.cc
-  datasink.c
-  ds_buffer.c
-  ds_compress.c
-  ds_local.c
-  ds_stdout.c
-  ds_tmpfile.c
-  ds_xbstream.c
+  datasink.cc
+  ds_buffer.cc
+  ds_compress.cc
+  ds_local.cc
+  ds_stdout.cc
+  ds_tmpfile.cc
+  ds_xbstream.cc
   fil_cur.cc
   quicklz/quicklz.c
   read_filt.cc
   write_filt.cc
   wsrep.cc
-  xbstream_write.c
+  xbstream_write.cc
   backup_mysql.cc
   backup_copy.cc
   encryption_plugin.cc
@@ -93,16 +97,16 @@ ENDIF()
 
 
 ########################################################################
-# xbstream binary
+# mbstream binary
 ########################################################################
 MYSQL_ADD_EXECUTABLE(mbstream
-  ds_buffer.c
-  ds_local.c
-  ds_stdout.c
-  datasink.c
-  xbstream.c
-  xbstream_read.c
-  xbstream_write.c
+  ds_buffer.cc
+  ds_local.cc
+  ds_stdout.cc
+  datasink.cc
+  xbstream.cc
+  xbstream_read.cc
+  xbstream_write.cc
   COMPONENT backup
   )
 
@@ -111,6 +115,7 @@ TARGET_LINK_LIBRARIES(mbstream
   mysys
   crc
 )
+ADD_DEPENDENCIES(mbstream GenError)
 
 IF(MSVC)
   SET_TARGET_PROPERTIES(mbstream PROPERTIES LINK_FLAGS setargv.obj)

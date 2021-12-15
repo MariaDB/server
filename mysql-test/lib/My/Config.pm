@@ -13,13 +13,24 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335 USA
 
 package My::Config::Option;
 
 use strict;
 use warnings;
 use Carp;
+
+# Define all MariaDB options that the user should be able to specify
+# many times in the config file. Note that options must be written
+# using '-' instead of '_' here!
+
+my %multipart_options=
+  (
+   "plugin-load-add" => 1,
+   "optimizer-switch" => 1,
+);
+
 
 sub new {
   my ($class, $option_name, $option_value)= @_;
@@ -195,14 +206,10 @@ sub value {
   my ($self, $option_name)= @_;
   my $option= $self->option($option_name);
 
-  if (! defined($option) and defined $ENV{$option_name}) {
+  if (! defined($option)) {
     my $value= $ENV{$option_name};
     $option= My::Config::Option->new($option_name, $value);
   }
-
-  croak "No option named '$option_name' in group '$self->{name}'"
-    if ! defined($option);
-
   return $option->value();
 }
 
@@ -331,7 +338,13 @@ sub new {
       # Skip comment
       next;
     }
-    
+    # Correctly process Replication Filter when they are defined
+    # with connection name.
+    elsif ( $line =~ /^([\w]+.[\w]+)\s*=\s*(.*)\s*/){
+       my $option= $1;
+       my $value= $2;
+       $self->insert($group_name, $option, $value);
+    }
     else {
       croak "Unexpected line '$line' found in '$path'";
     }
@@ -359,6 +372,11 @@ sub insert {
 
   if ( defined $option ) {
     #print "option: $option, value: $value\n";
+    my $tmp_option= $option;
+    $tmp_option =~ s/_/-/g;
+
+    # If the option is an option that one can specify many times, always add
+    $if_not_exist= 1 if ($multipart_options{$tmp_option});
 
     # Add the option to the group
     $group->insert($option, $value, $if_not_exist);

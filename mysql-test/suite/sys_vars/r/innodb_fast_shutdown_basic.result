@@ -33,6 +33,10 @@ SET @@global.innodb_fast_shutdown = 2;
 SELECT @@global.innodb_fast_shutdown;
 @@global.innodb_fast_shutdown
 2
+SET @@global.innodb_fast_shutdown = 3;
+SELECT @@global.innodb_fast_shutdown;
+@@global.innodb_fast_shutdown
+3
 '#--------------------FN_DYNVARS_042_04-------------------------#'
 SET @@global.innodb_fast_shutdown = -1;
 Warnings:

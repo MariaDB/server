@@ -1,1 +1,1 @@
---plugin-load-add=test_versioning
+--plugin-load-add=$TEST_VERSIONING_SO

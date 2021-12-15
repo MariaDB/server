@@ -1,0 +1,50 @@
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+
+--let $MYSQLD_DATADIR= `select @@datadir`
+
+CREATE TABLE t (a TEXT);
+# events of interest are guaranteed to stay in 000001 log
+RESET MASTER;
+--eval INSERT INTO t SET a=repeat('a', 1024)
+SELECT a from t into @a;
+FLUSH LOGS;
+DELETE FROM t;
+
+--exec $MYSQL_BINLOG --verbose --debug-binlog-row-event-max-encoded-size=256 $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+
+--let SEARCH_PATTERN= BINLOG @binlog_fragment_0, @binlog_fragment_1
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+--source include/search_pattern_in_file.inc
+
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+
+SELECT a LIKE @a as 'true' FROM t;
+
+# improper syntax error
+--echo BINLOG number-of-fragments must be exactly two
+--error ER_PARSE_ERROR
+BINLOG @binlog_fragment;
+--error ER_PARSE_ERROR
+BINLOG @binlog_fragment, @binlog_fragment, @binlog_fragment;
+
+# corrupted fragments error check (to the expected error code notice,
+# the same error code occurs in a similar unfragmented case)
+SET @binlog_fragment_0='012345';
+SET @binlog_fragment_1='012345';
+--error ER_SYNTAX_ERROR
+BINLOG @binlog_fragment_0, @binlog_fragment_1;
+
+# Not existing fragment is not allowed
+SET @binlog_fragment_0='012345';
+--error ER_WRONG_TYPE_FOR_VAR
+BINLOG @binlog_fragment_0, @binlog_fragment_not_exist;
+
+# MDEV-22520
+SET @a= '42';
+--error ER_SYNTAX_ERROR
+BINLOG @a, @a;
+
+--echo # Cleanup
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+DROP TABLE t;

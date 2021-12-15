@@ -20,13 +20,13 @@
 #include "sql_class.h"
 //#include "sql_time.h"
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -241,7 +241,7 @@ int BLKFILARI::BlockEval(PGLOBAL)
       break;
     } // endswitch Opc
 
-  if (trace)
+  if (trace(1))
     htrc("BlockEval: op=%d n=%d rc=%d\n", Opc, n, Result);
 
   return Result;
@@ -338,7 +338,7 @@ int BLKFILAR2::BlockEval(PGLOBAL)
       break;
     } // endswitch Opc
 
-  if (trace)
+  if (trace(1))
     htrc("BlockEval2: op=%d n=%d rc=%d\n", Opc, n, Result);
 
   return Result;
@@ -474,7 +474,7 @@ int BLKFILMR2::BlockEval(PGLOBAL)
       break;
     } // endswitch Opc
 
-  if (trace)
+  if (trace(1))
     htrc("BlockEval2: op=%d n=%d rc=%d\n", Opc, n, Result);
 
   return Result;
@@ -567,7 +567,7 @@ int BLKSPCARI::BlockEval(PGLOBAL)
       break;
     } // endswitch Opc
 
-  if (trace)
+  if (trace(1))
     htrc("BlockEval: op=%d n=%d rc=%d\n", Opc, n, Result);
 
   return Result;

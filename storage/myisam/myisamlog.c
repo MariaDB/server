@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* write whats in isam.log */
 
@@ -63,7 +63,7 @@ static int test_if_open(struct file_info *key,element_count count,
 static void fix_blob_pointers(MI_INFO *isam,uchar *record);
 static int test_when_accessed(struct file_info *key,element_count count,
 			      struct st_access_param *access_param);
-static void file_info_free(struct file_info *info);
+static int file_info_free(void*, TREE_FREE, void *);
 static int close_some_file(TREE *tree);
 static int reopen_closed_file(TREE *tree,struct file_info *file_info);
 static int find_record_with_key(struct file_info *file_info,uchar *record);
@@ -330,8 +330,7 @@ static int examine_log(char * file_name, char **table_names)
   init_io_cache(&cache,file,0,READ_CACHE,start_offset,0,MYF(0));
   bzero((uchar*) com_count,sizeof(com_count));
   init_tree(&tree,0,0,sizeof(file_info),(qsort_cmp2) file_info_compare,
-	    (tree_element_free) file_info_free, NULL,
-            MYF(MY_TREE_WITH_DELETE));
+	          file_info_free, NULL, MYF(MY_TREE_WITH_DELETE));
   (void) init_key_cache(dflt_key_cache,KEY_CACHE_BLOCK_SIZE,KEY_CACHE_SIZE,
                         0, 0, 0, 0);
 
@@ -416,7 +415,7 @@ static int examine_log(char * file_name, char **table_names)
 		     left_root_right);
       file_info.id=open_param.max_id+1;
       /*
-       * In the line below +10 is added to accomodate '<' and '>' chars
+       * In the line below +10 is added to accommodate '<' and '>' chars
        * plus '\0' at the end, so that there is place for 7 digits.
        * It is  improbable that same table can have that many entries in 
        * the table cache.
@@ -751,8 +750,9 @@ static int test_when_accessed (struct file_info *key,
 }
 
 
-static void file_info_free(struct file_info *fileinfo)
+static int file_info_free(void* arg, TREE_FREE mode, void *unused)
 {
+  struct file_info *fileinfo= arg;
   DBUG_ENTER("file_info_free");
   if (update)
   {
@@ -763,7 +763,7 @@ static void file_info_free(struct file_info *fileinfo)
   }
   my_free(fileinfo->name);
   my_free(fileinfo->show_name);
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(0);
 }
 
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -30,8 +30,14 @@ Created Apr 25, 2012 Vasil Dimov
 #include "dict0defrag_bg.h"
 #include "row0mysql.h"
 #include "srv0start.h"
-#include "ut0new.h"
 #include "fil0fil.h"
+#ifdef WITH_WSREP
+# include "trx0trx.h"
+# include "mysql/service_wsrep.h"
+# include "wsrep.h"
+# include "log.h"
+# include "wsrep_mysqld.h"
+#endif
 
 #include <vector>
 
@@ -76,40 +82,31 @@ typedef recalc_pool_t::iterator
 
 /** Pool where we store information on which tables are to be processed
 by background statistics gathering. */
-static recalc_pool_t*		recalc_pool;
-
-
-/*****************************************************************//**
-Initialize the recalc pool, called once during thread initialization. */
-static
-void
-dict_stats_recalc_pool_init()
-/*=========================*/
-{
-	ut_ad(!srv_read_only_mode);
-	/* JAN: TODO: MySQL 5.7 PSI
-	const PSI_memory_key	key = mem_key_dict_stats_bg_recalc_pool_t;
-
-	recalc_pool = UT_NEW(recalc_pool_t(recalc_pool_allocator_t(key)), key);
-
-	recalc_pool->reserve(RECALC_POOL_INITIAL_SLOTS);
-	*/
-	recalc_pool = new std::vector<table_id_t, recalc_pool_allocator_t>();
-}
+static recalc_pool_t		recalc_pool;
+/** Whether the global data structures have been initialized */
+static bool			stats_initialised;
 
 /*****************************************************************//**
 Free the resources occupied by the recalc pool, called once during
 thread de-initialization. */
-static
-void
-dict_stats_recalc_pool_deinit()
-/*===========================*/
+static void dict_stats_recalc_pool_deinit()
 {
 	ut_ad(!srv_read_only_mode);
 
-	recalc_pool->clear();
-
-	UT_DELETE(recalc_pool);
+	recalc_pool.clear();
+	defrag_pool.clear();
+        /*
+          recalc_pool may still have its buffer allocated. It will free it when
+          its destructor is called.
+          The problem is, memory leak detector is run before the recalc_pool's
+          destructor is invoked, and will report recalc_pool's buffer as leaked
+          memory.  To avoid that, we force recalc_pool to surrender its buffer
+          to empty_pool object, which will free it when leaving this function:
+        */
+	recalc_pool_t recalc_empty_pool;
+	defrag_pool_t defrag_empty_pool;
+	recalc_pool.swap(recalc_empty_pool);
+	defrag_pool.swap(defrag_empty_pool);
 }
 
 /*****************************************************************//**
@@ -129,8 +126,8 @@ dict_stats_recalc_pool_add(
 	mutex_enter(&recalc_pool_mutex);
 
 	/* quit if already in the list */
-	for (recalc_pool_iterator_t iter = recalc_pool->begin();
-	     iter != recalc_pool->end();
+	for (recalc_pool_iterator_t iter = recalc_pool.begin();
+	     iter != recalc_pool.end();
 	     ++iter) {
 
 		if (*iter == table->id) {
@@ -139,21 +136,43 @@ dict_stats_recalc_pool_add(
 		}
 	}
 
-	recalc_pool->push_back(table->id);
+	recalc_pool.push_back(table->id);
 
 	mutex_exit(&recalc_pool_mutex);
 
 	os_event_set(dict_stats_event);
 }
 
+#ifdef WITH_WSREP
+/** Update the table modification counter and if necessary,
+schedule new estimates for table and index statistics to be calculated.
+@param[in,out]	table	persistent or temporary table
+@param[in]	thd	current session */
+void dict_stats_update_if_needed(dict_table_t *table, const trx_t &trx)
+#else
 /** Update the table modification counter and if necessary,
 schedule new estimates for table and index statistics to be calculated.
 @param[in,out]	table	persistent or temporary table */
-void
-dict_stats_update_if_needed(dict_table_t* table)
+void dict_stats_update_if_needed_func(dict_table_t *table)
+#endif
 {
-	ut_ad(table->stat_initialized);
 	ut_ad(!mutex_own(&dict_sys->mutex));
+
+	if (UNIV_UNLIKELY(!table->stat_initialized)) {
+		/* The table may have been evicted from dict_sys
+		and reloaded internally by InnoDB for FOREIGN KEY
+		processing, but not reloaded by the SQL layer.
+
+		We can (re)compute the transient statistics when the
+		table is actually loaded by the SQL layer.
+
+		Note: If InnoDB persistent statistics are enabled,
+		we will skip the updates. We must do this, because
+		dict_table_get_n_rows() below assumes that the
+		statistics have been initialized. The DBA may have
+		to execute ANALYZE TABLE. */
+		return;
+	}
 
 	ulonglong	counter = table->stat_modified_counter++;
 	ulonglong	n_rows = dict_table_get_n_rows(table);
@@ -161,6 +180,30 @@ dict_stats_update_if_needed(dict_table_t* table)
 	if (dict_stats_is_persistent_enabled(table)) {
 		if (counter > n_rows / 10 /* 10% */
 		    && dict_stats_auto_recalc_is_enabled(table)) {
+
+#ifdef WITH_WSREP
+			/* Do not add table to background
+			statistic calculation if this thread is not a
+			applier (as all DDL, which is replicated (i.e
+			is binlogged in master node), will be executed
+			with high priority (a.k.a BF) in slave nodes)
+			and is BF. This could again lead BF lock
+			waits in applier node but it is better than
+			no persistent index/table statistics at
+			applier nodes. TODO: allow BF threads
+			wait for these InnoDB internal SQL-parser
+			generated row locks and allow BF thread
+			lock waits to be enqueued at head of waiting
+			queue. */
+			if (trx.is_wsrep()
+			    && !wsrep_thd_is_applier(trx.mysql_thd)
+			    && wsrep_thd_is_BF(trx.mysql_thd, 0)) {
+				WSREP_DEBUG("Avoiding background statistics"
+					    " calculation for table %s.",
+					table->name.m_name);
+				return;
+			}
+#endif /* WITH_WSREP */
 
 			dict_stats_recalc_pool_add(table);
 			table->stat_modified_counter = 0;
@@ -199,14 +242,14 @@ dict_stats_recalc_pool_get(
 
 	mutex_enter(&recalc_pool_mutex);
 
-	if (recalc_pool->empty()) {
+	if (recalc_pool.empty()) {
 		mutex_exit(&recalc_pool_mutex);
 		return(false);
 	}
 
-	*id = recalc_pool->at(0);
+	*id = recalc_pool.at(0);
 
-	recalc_pool->erase(recalc_pool->begin());
+	recalc_pool.erase(recalc_pool.begin());
 
 	mutex_exit(&recalc_pool_mutex);
 
@@ -228,13 +271,13 @@ dict_stats_recalc_pool_del(
 
 	ut_ad(table->id > 0);
 
-	for (recalc_pool_iterator_t iter = recalc_pool->begin();
-	     iter != recalc_pool->end();
+	for (recalc_pool_iterator_t iter = recalc_pool.begin();
+	     iter != recalc_pool.end();
 	     ++iter) {
 
 		if (*iter == table->id) {
 			/* erase() invalidates the iterator */
-			recalc_pool->erase(iter);
+			recalc_pool.erase(iter);
 			break;
 		}
 	}
@@ -273,7 +316,6 @@ dict_stats_thread_init()
 
 	dict_stats_event = os_event_create(0);
 	dict_stats_shutdown_event = os_event_create(0);
-
 	ut_d(dict_stats_disabled_event = os_event_create(0));
 
 	/* The recalc_pool_mutex is acquired from:
@@ -292,9 +334,8 @@ dict_stats_thread_init()
 
 	mutex_create(LATCH_ID_RECALC_POOL, &recalc_pool_mutex);
 
-	dict_stats_recalc_pool_init();
 	dict_defrag_pool_init();
-
+	stats_initialised = true;
 }
 
 /*****************************************************************//**
@@ -306,6 +347,12 @@ dict_stats_thread_deinit()
 {
 	ut_a(!srv_read_only_mode);
 	ut_ad(!srv_dict_stats_thread_active);
+
+	if (!stats_initialised) {
+		return;
+	}
+
+	stats_initialised = false;
 
 	dict_stats_recalc_pool_deinit();
 	dict_defrag_pool_deinit();
@@ -349,7 +396,7 @@ dict_stats_process_entry_from_recalc_pool()
 		return;
 	}
 
-	ut_ad(!dict_table_is_temporary(table));
+	ut_ad(!table->is_temporary());
 
 	if (!fil_table_accessible(table)) {
 		dict_table_close(table, TRUE, FALSE);
@@ -361,14 +408,14 @@ dict_stats_process_entry_from_recalc_pool()
 
 	mutex_exit(&dict_sys->mutex);
 
-	/* ut_time() could be expensive, the current function
+	/* time() could be expensive, the current function
 	is called once every time a table has been changed more than 10% and
 	on a system with lots of small tables, this could become hot. If we
 	find out that this is a problem, then the check below could eventually
 	be replaced with something else, though a time interval is the natural
 	approach. */
 
-	if (ut_difftime(ut_time(), table->stats_last_recalc)
+	if (difftime(time(NULL), table->stats_last_recalc)
 	    < MIN_RECALC_INTERVAL) {
 
 		/* Stats were (re)calculated not long ago. To avoid
@@ -394,16 +441,9 @@ dict_stats_process_entry_from_recalc_pool()
 #ifdef UNIV_DEBUG
 /** Disables dict stats thread. It's used by:
 	SET GLOBAL innodb_dict_stats_disabled_debug = 1 (0).
-@param[in]	thd		thread handle
-@param[in]	var		pointer to system variable
-@param[out]	var_ptr		where the formal string goes
 @param[in]	save		immediate result from check function */
-void
-dict_stats_disabled_debug_update(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				var_ptr,
-	const void*			save)
+void dict_stats_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
+				      const void* save)
 {
 	/* This method is protected by mutex, as every SET GLOBAL .. */
 	ut_ad(dict_stats_disabled_event != NULL);

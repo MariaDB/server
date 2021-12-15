@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* Describe, check and repair of MyISAM tables */
 
@@ -21,9 +21,6 @@
 #include <stdarg.h>
 #include <my_getopt.h>
 #include <my_bit.h>
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
 
 static uint decode_bits;
 static char **default_argv;
@@ -378,7 +375,7 @@ static void usage(void)
 
   puts("Check options (check is the default action for myisamchk):\n\
   -c, --check	      Check table for errors.\n\
-  -e, --extend-check  Check the table VERY throughly.  Only use this in\n\
+  -e, --extend-check  Check the table VERY thoroughly.  Only use this in\n\
                       extreme cases as myisamchk should normally be able to\n\
                       find out if the table is ok even without this switch.\n\
   -F, --fast	      Check only tables that haven't been closed properly.\n\
@@ -752,9 +749,7 @@ static void get_options(register int *argc,register char ***argv)
 {
   int ho_error;
 
-  if (load_defaults("my", load_default_groups, argc, argv))
-    exit(1);
-
+  load_defaults_or_exit("my", load_default_groups, argc, argv);
   default_argv= *argv;
   if (isatty(fileno(stdout)))
     check_param.testflag|=T_WRITE_LOOP;
@@ -1407,8 +1402,8 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
 	null_bit[0]=null_pos[0]=0;
 	if (keyseg->null_bit)
 	{
-	  sprintf(null_bit,"%d",keyseg->null_bit);
-	  sprintf(null_pos,"%ld",(long) keyseg->null_pos+1);
+	  my_snprintf(null_bit, sizeof(null_bit), "%d", keyseg->null_bit);
+	  my_snprintf(null_pos, sizeof(null_pos), "%ld", (long) keyseg->null_pos+1);
 	}
 	printf("%-7ld%-5d%-9s%-10s%-30s\n",
 	       (long) keyseg->start+1,keyseg->length,

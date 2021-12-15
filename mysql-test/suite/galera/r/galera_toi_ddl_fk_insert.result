@@ -1,31 +1,26 @@
-CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE ten (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 CREATE TABLE parent (
 id INT PRIMARY KEY AUTO_INCREMENT,
-f2 INTEGER,
-KEY (id)
+f2 INTEGER
 ) ENGINE=InnoDB;
 CREATE TABLE child (
 id INT PRIMARY KEY AUTO_INCREMENT,
 parent_id INT
 ) ENGINE=InnoDB;
-INSERT INTO parent VALUES (DEFAULT, 0);
+INSERT INTO parent VALUES (1, 0);
+connection node_2;
 INSERT INTO child (parent_id) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;;
+connection node_1a;
 INSERT INTO parent (f2) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;;
+connection node_2a;
 INSERT INTO parent (f2) SELECT 2 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;;
+connection node_1b;
 ALTER TABLE child ADD FOREIGN KEY (parent_id) REFERENCES parent(id);;
-SELECT COUNT(*) = 20001 FROM parent;
-COUNT(*) = 20001
-1
-SELECT COUNT(*) = 10000 FROM child;
-COUNT(*) = 10000
-1
-SELECT COUNT(*) = 20001 FROM parent;
-COUNT(*) = 20001
-1
-SELECT COUNT(*) = 10000 FROM child;
-COUNT(*) = 10000
-1
+connection node_1a;
+connection node_1b;
+connection node_2;
+connection node_2a;
 DROP TABLE child;
 DROP TABLE parent;
 DROP TABLE ten;

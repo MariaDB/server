@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 import sys
 def supported(from_int, from_modifier, to_int, to_modifer):
     if from_modifier != to_modifer:

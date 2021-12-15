@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB Corporation
+   Copyright (c) 2000, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -70,11 +70,12 @@ bool cmp_items(Item *a, Item *b)
 /**
   Set max_sum_func_level if it is needed
 */
-inline void set_max_sum_func_level(THD *thd, SELECT_LEX *select)
+inline void set_max_sum_func_level(SELECT_LEX *select)
 {
-  if (thd->lex->in_sum_func &&
-      thd->lex->in_sum_func->nest_level >= select->nest_level)
-    set_if_bigger(thd->lex->in_sum_func->max_sum_func_level,
+  LEX *lex_s= select->parent_lex;
+  if (lex_s->in_sum_func &&
+      lex_s->in_sum_func->nest_level >= select->nest_level)
+    set_if_bigger(lex_s->in_sum_func->max_sum_func_level,
                   select->nest_level - 1);
 }
 
@@ -96,6 +97,15 @@ void item_init(void)
 {
   item_func_sleep_init();
   uuid_short_init();
+}
+
+
+void Item::raise_error_not_evaluable()
+{
+  Item::Print tmp(this, QT_ORDINARY);
+  // TODO-10.5: add an error message to errmsg-utf8.txt
+  my_printf_error(ER_UNKNOWN_ERROR,
+                  "'%s' is not allowed in this context", MYF(0), tmp.ptr());
 }
 
 
@@ -149,19 +159,21 @@ bool Item::get_time_with_conversion(THD *thd, MYSQL_TIME *ltime,
         - truncate the YYYYMMDD part
         - add (MM*33+DD)*24 to hours
         - add (MM*31+DD)*24 to hours
-        Let's return NULL here, to disallow equal field propagation.
+        Let's return TRUE here, to disallow equal field propagation.
         Note, If we start to use this method in more pieces of the code other
-        than eqial field propagation, we should probably return
-        NULL only if some flag in fuzzydate is set.
+        than equal field propagation, we should probably return
+        TRUE only if some flag in fuzzydate is set.
       */
-      return (null_value= true);
+      return true;
     }
     if (datetime_to_time_with_warn(thd, ltime, &ltime2, TIME_SECOND_PART_DIGITS))
     {
       /*
-        Time difference between CURRENT_DATE and ltime
-        did not fit into the supported TIME range
+        If the time difference between CURRENT_DATE and ltime
+        did not fit into the supported TIME range, then we set the
+        difference to the maximum possible value in the supported TIME range
       */
+      DBUG_ASSERT(0);
       return (null_value= true);
     }
     *ltime= ltime2;
@@ -197,6 +209,19 @@ String *Item::val_str_ascii(String *str)
   }
 
   return str;
+}
+
+
+String *Item::val_str_ascii_revert_empty_string_is_null(THD *thd, String *str)
+{
+  String *res= val_str_ascii(str);
+  if (!res && (thd->variables.sql_mode & MODE_EMPTY_STRING_IS_NULL))
+  {
+    null_value= false;
+    str->set("", 0, &my_charset_latin1);
+    return str;
+  }
+  return res;
 }
 
 
@@ -293,7 +318,7 @@ longlong Item::val_int_signed_typecast_from_str()
 {
   int error;
   longlong value= val_int_from_str(&error);
-  if (!null_value && value < 0 && error == 0)
+  if (unlikely(!null_value && value < 0 && error == 0))
     push_note_converted_to_negative_complement(current_thd);
   return value;
 }
@@ -303,7 +328,7 @@ longlong Item::val_int_unsigned_typecast_from_str()
 {
   int error;
   longlong value= val_int_from_str(&error);
-  if (!null_value && error < 0)
+  if (unlikely(!null_value && error < 0))
     push_note_converted_to_positive_complement(current_thd);
   return value;
 }
@@ -314,6 +339,15 @@ longlong Item::val_int_unsigned_typecast_from_int()
   longlong value= val_int();
   if (!null_value && unsigned_flag == 0 && value < 0)
     push_note_converted_to_positive_complement(current_thd);
+  return value;
+}
+
+
+longlong Item::val_int_signed_typecast_from_int()
+{
+  longlong value= val_int();
+  if (!null_value && unsigned_flag && value < 0)
+    push_note_converted_to_negative_complement(current_thd);
   return value;
 }
 
@@ -506,6 +540,8 @@ Item::Item(THD *thd):
   marker= 0;
   maybe_null=null_value=with_sum_func=with_window_func=with_field=0;
   in_rollup= 0;
+  with_param= 0;
+
    /* Initially this item is not attached to any JOIN_TAB. */
   join_tab_idx= MAX_TABLES;
 
@@ -524,6 +560,15 @@ Item::Item(THD *thd):
     if (place == SELECT_LIST || place == IN_HAVING)
       thd->lex->current_select->select_n_having_items++;
   }
+}
+
+
+const TABLE_SHARE *Item::field_table_or_null()
+{
+  if (real_item()->type() != Item::FIELD_ITEM)
+    return NULL;
+
+  return ((Item_field *) this)->field->table->s;
 }
 
 
@@ -547,6 +592,7 @@ Item::Item(THD *thd, Item *item):
   in_rollup(item->in_rollup),
   null_value(item->null_value),
   with_sum_func(item->with_sum_func),
+  with_param(item->with_param),
   with_window_func(item->with_window_func),
   with_field(item->with_field),
   fixed(item->fixed),
@@ -701,12 +747,11 @@ Item* Item::set_expr_cache(THD *thd)
 {
   DBUG_ENTER("Item::set_expr_cache");
   Item_cache_wrapper *wrapper;
-  if ((wrapper= new (thd->mem_root) Item_cache_wrapper(thd, this)) &&
-      !wrapper->fix_fields(thd, (Item**)&wrapper))
+  if (likely((wrapper= new (thd->mem_root) Item_cache_wrapper(thd, this))) &&
+      likely(!wrapper->fix_fields(thd, (Item**)&wrapper)))
   {
-    if (wrapper->set_cache(thd))
-      DBUG_RETURN(NULL);
-    DBUG_RETURN(wrapper);
+    if (likely(!wrapper->set_cache(thd)))
+      DBUG_RETURN(wrapper);
   }
   DBUG_RETURN(NULL);
 }
@@ -724,6 +769,7 @@ Item_ident::Item_ident(THD *thd, Name_resolution_context *context_arg,
    cached_table(0), depended_from(0), can_be_depended(TRUE)
 {
   name= *field_name_arg;
+  DBUG_ASSERT(!context || context->select_lex);
 }
 
 
@@ -739,6 +785,7 @@ Item_ident::Item_ident(THD *thd, TABLE_LIST *view_arg,
    cached_table(NULL), depended_from(NULL), can_be_depended(TRUE)
 {
   name= *field_name_arg;
+  DBUG_ASSERT(!context || context->select_lex);
 }
 
 
@@ -760,7 +807,9 @@ Item_ident::Item_ident(THD *thd, Item_ident *item)
    cached_table(item->cached_table),
    depended_from(item->depended_from),
    can_be_depended(item->can_be_depended)
-{}
+{
+  DBUG_ASSERT(!context || context->select_lex);
+}
 
 void Item_ident::cleanup()
 {
@@ -966,7 +1015,7 @@ bool Item_field::register_field_in_write_map(void *arg)
 }
 
 /**
-  Check that we are not refering to any not yet initialized fields
+  Check that we are not referring to any not yet initialized fields
 
   Fields are initialized in this order:
   - All fields that have default value as a constant are initialized first.
@@ -1168,6 +1217,80 @@ bool Item::check_type_scalar(const char *opname) const
 }
 
 
+extern "C" {
+
+/*
+  All values greater than MY_NAME_BINARY_VALUE are
+  interpreted as binary bytes.
+  The exact constant value does not matter,
+  but it must be greater than 0x10FFFF,
+  which is the maximum possible character in Unicode.
+*/
+#define MY_NAME_BINARY_VALUE 0x200000
+
+/*
+  Print all binary bytes as well as zero character U+0000 in hex notation.
+  Print other characters normally.
+*/
+static int
+my_wc_mb_item_name(CHARSET_INFO *cs, my_wc_t wc, uchar *str, uchar *end)
+{
+  if (wc == 0 || wc >= MY_NAME_BINARY_VALUE)
+  {
+    if (str + 4 >= end)
+      return MY_CS_TOOSMALL3;
+    str[0]= '\\';
+    str[1]= 'x';
+    str[2]= _dig_vec_upper[(uchar) (wc >> 4)];
+    str[3]= _dig_vec_upper[(uchar) wc & 0x0F];
+    return 4;
+  }
+  return my_charset_utf8_handler.wc_mb(cs, wc, str, end);
+}
+
+
+/*
+  Scan characters and mark all illegal sequences as binary byte values,
+  to have my_wc_mb_utf8_escape_name() print them using HEX notation.
+*/
+static int
+my_mb_wc_item_name(CHARSET_INFO *cs, my_wc_t *pwc,
+                   const uchar *str, const uchar *end)
+{
+  int rc= cs->cset->mb_wc(cs, pwc, str, end);
+  if (rc == MY_CS_ILSEQ)
+  {
+    *pwc= MY_NAME_BINARY_VALUE + *str;
+    return 1;
+  }
+  return rc;
+}
+
+}
+
+
+static LEX_CSTRING
+make_name(THD *thd,
+          const char *str, size_t length, CHARSET_INFO *cs,
+          size_t max_octet_length)
+{
+  uint errors;
+  size_t dst_nbytes= length * system_charset_info->mbmaxlen;
+  set_if_smaller(dst_nbytes, max_octet_length);
+  char *dst= (char*) thd->alloc(dst_nbytes + 1);
+  if (!dst)
+    return null_clex_str;
+  uint32 cnv_length= my_convert_using_func(dst, dst_nbytes, system_charset_info,
+                                           my_wc_mb_item_name,
+                                           str, length,
+                                           cs == &my_charset_bin ?
+                                             system_charset_info : cs,
+                                           my_mb_wc_item_name, &errors);
+  dst[cnv_length]= '\0';
+  return Lex_cstring(dst, cnv_length);
+}
+
+
 void Item::set_name(THD *thd, const char *str, size_t length, CHARSET_INFO *cs)
 {
   if (!length)
@@ -1218,32 +1341,14 @@ void Item::set_name(THD *thd, const char *str, size_t length, CHARSET_INFO *cs)
                           ER_REMOVED_SPACES, ER_THD(thd, ER_REMOVED_SPACES),
                           buff);
   }
-  if (!my_charset_same(cs, system_charset_info))
-  {
-    size_t res_length;
-    name.str= sql_strmake_with_convert(thd, str, length, cs,
-                                       MAX_ALIAS_NAME, system_charset_info,
-                                       &res_length);
-    name.length= res_length;
-  }
-  else
-    name.str= thd->strmake(str, (name.length= MY_MIN(length,MAX_ALIAS_NAME)));
+  name= make_name(thd, str, length, cs, MAX_ALIAS_NAME - 1);
 }
 
 
 void Item::set_name_no_truncate(THD *thd, const char *str, uint length,
                                 CHARSET_INFO *cs)
 {
-  if (!my_charset_same(cs, system_charset_info))
-  {
-    size_t res_length;
-    name.str= sql_strmake_with_convert(thd, str, length, cs,
-                                       UINT_MAX, system_charset_info,
-                                       &res_length);
-    name.length= res_length;
-  }
-  else
-    name.str= thd->strmake(str, (name.length= length));
+  name= make_name(thd, str, length, cs, UINT_MAX - 1);
 }
 
 
@@ -1305,7 +1410,7 @@ Item *Item_cache::safe_charset_converter(THD *thd, CHARSET_INFO *tocs)
     return this;
   Item_cache *cache;
   if (!conv || conv->fix_fields(thd, (Item **) NULL) ||
-      !(cache= new (thd->mem_root) Item_cache_str(thd, conv)))
+      unlikely(!(cache= new (thd->mem_root) Item_cache_str(thd, conv))))
     return NULL; // Safe conversion is not possible, or OEM
   cache->setup(thd, conv);
   cache->fixed= false; // Make Item::fix_fields() happy
@@ -1387,7 +1492,7 @@ Item *Item::const_charset_converter(THD *thd, CHARSET_INFO *tocs,
                                   collation.derivation,
                                   collation.repertoire));
 
-  if (!conv || (conv_errors && lossless))
+  if (unlikely(!conv || (conv_errors && lossless)))
   {
     /*
       Safe conversion is not possible (or EOM).
@@ -1433,6 +1538,7 @@ bool Item::get_date_from_int(MYSQL_TIME *ltime, ulonglong fuzzydate)
   bool neg= !unsigned_flag && value < 0;
   if (null_value || int_to_datetime_with_warn(neg, neg ? -value : value,
                                               ltime, fuzzydate,
+                                              field_table_or_null(),
                                               field_name_or_null()))
     return null_value|= make_zero_date(ltime, fuzzydate);
   return null_value= false;
@@ -1453,6 +1559,7 @@ bool Item::get_date_from_year(MYSQL_TIME *ltime, ulonglong fuzzydate)
   value*= 10000; /* make it YYYYMMHH */
   if (null_value || int_to_datetime_with_warn(false, value,
                                               ltime, fuzzydate,
+                                              field_table_or_null(),
                                               field_name_or_null()))
     return null_value|= make_zero_date(ltime, fuzzydate);
   return null_value= false;
@@ -1463,6 +1570,7 @@ bool Item::get_date_from_real(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
   double value= val_real();
   if (null_value || double_to_datetime_with_warn(value, ltime, fuzzydate,
+                                                 field_table_or_null(),
                                                  field_name_or_null()))
     return null_value|= make_zero_date(ltime, fuzzydate);
   return null_value= false;
@@ -1474,6 +1582,7 @@ bool Item::get_date_from_decimal(MYSQL_TIME *ltime, ulonglong fuzzydate)
   my_decimal value, *res;
   if (!(res= val_decimal(&value)) ||
       decimal_to_datetime_with_warn(res, ltime, fuzzydate,
+                                    field_table_or_null(),
                                     field_name_or_null()))
     return null_value|= make_zero_date(ltime, fuzzydate);
   return null_value= false;
@@ -1495,7 +1604,7 @@ bool Item::get_date_from_string(MYSQL_TIME *ltime, ulonglong fuzzydate)
 bool Item::make_zero_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
   /*
-    if the item was not null and convertion failed, we return a zero date
+    if the item was not null and conversion failed, we return a zero date
     if allowed, otherwise - null.
   */
   bzero((char*) ltime,sizeof(*ltime));
@@ -1572,18 +1681,13 @@ int Item::save_in_field_no_warnings(Field *field, bool no_conversions)
   int res;
   TABLE *table= field->table;
   THD *thd= table->in_use;
-  enum_check_fields tmp= thd->count_cuted_fields;
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->write_set);
-  sql_mode_t sql_mode= thd->variables.sql_mode;
+  Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
+  Sql_mode_save sql_mode(thd);
   thd->variables.sql_mode&= ~(MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
   thd->variables.sql_mode|= MODE_INVALID_DATES;
-  thd->count_cuted_fields= CHECK_FIELD_IGNORE;
-
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
   res= save_in_field(field, no_conversions);
-
-  thd->count_cuted_fields= tmp;
-  dbug_tmp_restore_column_map(table->write_set, old_map);
-  thd->variables.sql_mode= sql_mode;
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
   return res;
 }
 
@@ -1630,7 +1734,14 @@ Query_fragment::Query_fragment(THD *thd, sp_head *sphead,
                                const char *start, const char *end)
 {
   DBUG_ASSERT(start <= end);
-  if (sphead)
+  if (thd->lex->clone_spec_offset)
+  {
+    Lex_input_stream *lip= (& thd->m_parser_state->m_lip);
+    DBUG_ASSERT(lip->get_buf() <= start);
+    DBUG_ASSERT(end <= lip->get_end_of_query());
+    set(start - lip->get_buf(), end - start);
+  }
+  else if (sphead)
   {
     if (sphead->m_tmp_query)
     {
@@ -1686,6 +1797,9 @@ bool Item_sp_variable::fix_fields_from_item(THD *thd, Item **, const Item *it)
   max_length= it->max_length;
   decimals= it->decimals;
   unsigned_flag= it->unsigned_flag;
+  with_param= 1;
+  if (thd->lex->current_select && thd->lex->current_select->master_unit()->item)
+    thd->lex->current_select->master_unit()->item->with_param= 1;
   fixed= 1;
   collation.set(it->collation.collation, it->collation.derivation);
 
@@ -1774,11 +1888,11 @@ bool Item_sp_variable::is_null()
   return this_item()->is_null();
 }
 
-void Item_sp_variable::make_field(THD *thd, Send_field *field)
+void Item_sp_variable::make_send_field(THD *thd, Send_field *field)
 {
   Item *it= this_item();
 
-  it->make_field(thd, field);
+  it->make_send_field(thd, field);
   if (name.str)
     field->col_name= name;
   else
@@ -1789,13 +1903,16 @@ void Item_sp_variable::make_field(THD *thd, Send_field *field)
   Item_splocal methods
 *****************************************************************************/
 
-Item_splocal::Item_splocal(THD *thd, const LEX_CSTRING *sp_var_name,
+Item_splocal::Item_splocal(THD *thd,
+                           const Sp_rcontext_handler *rh,
+                           const LEX_CSTRING *sp_var_name,
                            uint sp_var_idx,
                            const Type_handler *handler,
                            uint pos_in_q, uint len_in_q):
   Item_sp_variable(thd, sp_var_name),
   Rewritable_query_parameter(pos_in_q, len_in_q),
   Type_handler_hybrid_field_type(handler),
+  m_rcontext_handler(rh),
   m_var_idx(sp_var_idx)
 {
   maybe_null= TRUE;
@@ -1803,9 +1920,22 @@ Item_splocal::Item_splocal(THD *thd, const LEX_CSTRING *sp_var_name,
 }
 
 
+sp_rcontext *Item_splocal::get_rcontext(sp_rcontext *local_ctx) const
+{
+  return m_rcontext_handler->get_rcontext(local_ctx);
+}
+
+
+Item_field *Item_splocal::get_variable(sp_rcontext *ctx) const
+{
+  return get_rcontext(ctx)->get_variable(m_var_idx);
+}
+
+
 bool Item_splocal::fix_fields(THD *thd, Item **ref)
 {
-  Item_field *item= thd->spcont->get_variable(m_var_idx);
+  DBUG_ASSERT(!fixed);
+  Item *item= get_variable(thd->spcont);
   set_handler(item->type_handler());
   return fix_fields_from_item(thd, ref, item);
 }
@@ -1816,7 +1946,7 @@ Item_splocal::this_item()
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
-  return m_thd->spcont->get_variable(m_var_idx);
+  return get_variable(m_thd->spcont);
 }
 
 const Item *
@@ -1824,7 +1954,7 @@ Item_splocal::this_item() const
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
-  return m_thd->spcont->get_variable(m_var_idx);
+  return get_variable(m_thd->spcont);
 }
 
 
@@ -1833,13 +1963,15 @@ Item_splocal::this_item_addr(THD *thd, Item **)
 {
   DBUG_ASSERT(m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
-  return thd->spcont->get_variable_addr(m_var_idx);
+  return get_rcontext(thd->spcont)->get_variable_addr(m_var_idx);
 }
 
 
 void Item_splocal::print(String *str, enum_query_type)
 {
-  str->reserve(m_name.length+8);
+  const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
+  str->reserve(m_name.length + 8 + prefix->length);
+  str->append(prefix);
   str->append(&m_name);
   str->append('@');
   str->qs_append(m_var_idx);
@@ -1848,7 +1980,7 @@ void Item_splocal::print(String *str, enum_query_type)
 
 bool Item_splocal::set_value(THD *thd, sp_rcontext *ctx, Item **it)
 {
-  return ctx->set_variable(thd, get_var_idx(), it);
+  return get_rcontext(ctx)->set_variable(thd, get_var_idx(), it);
 }
 
 
@@ -1930,7 +2062,8 @@ bool Item_splocal::check_cols(uint n)
 
 bool Item_splocal_row_field::fix_fields(THD *thd, Item **ref)
 {
-  Item *item= thd->spcont->get_variable(m_var_idx)->element_index(m_field_idx);
+  DBUG_ASSERT(!fixed);
+  Item *item= get_variable(thd->spcont)->element_index(m_field_idx);
   return fix_fields_from_item(thd, ref, item);
 }
 
@@ -1940,7 +2073,7 @@ Item_splocal_row_field::this_item()
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
-  return m_thd->spcont->get_variable(m_var_idx)->element_index(m_field_idx);
+  return get_variable(m_thd->spcont)->element_index(m_field_idx);
 }
 
 
@@ -1949,7 +2082,7 @@ Item_splocal_row_field::this_item() const
 {
   DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
-  return m_thd->spcont->get_variable(m_var_idx)->element_index(m_field_idx);
+  return get_variable(m_thd->spcont)->element_index(m_field_idx);
 }
 
 
@@ -1958,13 +2091,15 @@ Item_splocal_row_field::this_item_addr(THD *thd, Item **)
 {
   DBUG_ASSERT(m_sp == thd->spcont->m_sp);
   DBUG_ASSERT(fixed);
-  return thd->spcont->get_variable(m_var_idx)->addr(m_field_idx);
+  return get_variable(thd->spcont)->addr(m_field_idx);
 }
 
 
 void Item_splocal_row_field::print(String *str, enum_query_type)
 {
-  str->reserve(m_name.length + m_field_name.length + 8);
+  const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
+  str->reserve(m_name.length + m_field_name.length + 8 + prefix->length);
+  str->append(prefix);
   str->append(&m_name);
   str->append('.');
   str->append(&m_field_name);
@@ -1978,18 +2113,20 @@ void Item_splocal_row_field::print(String *str, enum_query_type)
 
 bool Item_splocal_row_field::set_value(THD *thd, sp_rcontext *ctx, Item **it)
 {
-  return ctx->set_variable_row_field(thd, m_var_idx, m_field_idx, it);
+  return get_rcontext(ctx)->set_variable_row_field(thd, m_var_idx, m_field_idx,
+                                                   it);
 }
 
 
 bool Item_splocal_row_field_by_name::fix_fields(THD *thd, Item **it)
 {
+  DBUG_ASSERT(!fixed);
   m_thd= thd;
-  if (thd->spcont->find_row_field_by_name_or_error(&m_field_idx,
-                                                   m_var_idx,
-                                                   m_field_name))
+  if (get_rcontext(thd->spcont)->find_row_field_by_name_or_error(&m_field_idx,
+                                                                 m_var_idx,
+                                                                 m_field_name))
     return true;
-  Item *item= thd->spcont->get_variable(m_var_idx)->element_index(m_field_idx);
+  Item *item= get_variable(thd->spcont)->element_index(m_field_idx);
   set_handler(item->type_handler());
   return fix_fields_from_item(thd, it, item);
 }
@@ -1997,9 +2134,12 @@ bool Item_splocal_row_field_by_name::fix_fields(THD *thd, Item **it)
 
 void Item_splocal_row_field_by_name::print(String *str, enum_query_type)
 {
+  const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
   // +16 should be enough for .NNN@[""]
-  if (str->reserve(m_name.length + 2 * m_field_name.length + 16))
+  if (str->reserve(m_name.length + 2 * m_field_name.length +
+                   prefix->length + 16))
     return;
+  str->qs_append(prefix);
   str->qs_append(&m_name);
   str->qs_append('.');
   str->qs_append(&m_field_name);
@@ -2131,10 +2271,14 @@ bool Item_name_const::is_null()
 Item_name_const::Item_name_const(THD *thd, Item *name_arg, Item *val):
   Item(thd), value_item(val), name_item(name_arg)
 {
+  StringBuffer<128> name_buffer;
+  String *name_str;
   Item::maybe_null= TRUE;
   valid_args= true;
-  if (!name_item->basic_const_item())
+  if (!name_item->basic_const_item() ||
+      !(name_str= name_item->val_str(&name_buffer))) // Can't have a NULL name
     goto err;
+  set_name(thd, name_str->ptr(), name_str->length(), name_str->charset());
 
   if (value_item->basic_const_item())
     return; // ok
@@ -2196,26 +2340,15 @@ Item::Type Item_name_const::type() const
 
 bool Item_name_const::fix_fields(THD *thd, Item **ref)
 {
-  char buf[128];
-  String *item_name;
-  String s(buf, sizeof(buf), &my_charset_bin);
-  s.length(0);
-
   if ((!value_item->fixed &&
        value_item->fix_fields(thd, &value_item)) ||
       (!name_item->fixed &&
        name_item->fix_fields(thd, &name_item)) ||
       !value_item->const_item() ||
-      !name_item->const_item() ||
-      !(item_name= name_item->val_str(&s))) // Can't have a NULL name 
+      !name_item->const_item())
   {
     my_error(ER_RESERVED_SYNTAX, MYF(0), "NAME_CONST");
     return TRUE;
-  }
-  if (is_autogenerated_name)
-  {
-    set_name(thd, item_name->c_ptr(), (uint) item_name->length(),
-             system_charset_info);
   }
   if (value_item->collation.derivation == DERIVATION_NUMERIC)
     collation.set_numeric();
@@ -2223,6 +2356,7 @@ bool Item_name_const::fix_fields(THD *thd, Item **ref)
     collation.set(value_item->collation.collation, DERIVATION_IMPLICIT);
   max_length= value_item->max_length;
   decimals= value_item->decimals;
+  unsigned_flag= value_item->unsigned_flag;
   fixed= 1;
   return FALSE;
 }
@@ -2341,7 +2475,6 @@ void Item::split_sum_func2(THD *thd, Ref_ptr_array ref_pointer_array,
     }
 
     if (unlikely((!(used_tables() & ~PARAM_TABLE_BIT) ||
-                  type() == SUBSELECT_ITEM ||
                   (type() == REF_ITEM &&
                    ((Item_ref*)this)->ref_type() != Item_ref::VIEW_REF))))
         return;
@@ -2659,22 +2792,13 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
   bool res= FALSE;
   uint i;
 
-  /*
-    In case we're in statement prepare, create conversion item
-    in its memory: it will be reused on each execute.
-  */
-  Query_arena backup;
-  Query_arena *arena= thd->stmt_arena->is_stmt_prepare() ?
-                      thd->activate_stmt_arena_if_needed(&backup) :
-                      NULL;
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
   for (i= 0, arg= args; i < nargs; i++, arg+= item_sep)
   {
     Item* conv= (*arg)->safe_charset_converter(thd, coll.collation);
     if (conv == *arg)
       continue;
-    if (!conv && ((*arg)->collation.repertoire == MY_REPERTOIRE_ASCII))
-      conv= new (thd->mem_root) Item_func_conv_charset(thd, *arg, coll.collation, 1);
 
     if (!conv)
     {
@@ -2688,20 +2812,8 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
       res= TRUE;
       break; // we cannot return here, we need to restore "arena".
     }
-    /*
-      If in statement prepare, then we create a converter for two
-      constant items, do it once and then reuse it.
-      If we're in execution of a prepared statement, arena is NULL,
-      and the conv was created in runtime memory. This can be
-      the case only if the argument is a parameter marker ('?'),
-      because for all true constants the charset converter has already
-      been created in prepare. In this case register the change for
-      rollback.
-    */
-    if (thd->stmt_arena->is_stmt_prepare())
-      *arg= conv;
-    else
-      thd->change_item_tree(arg, conv);
+
+    thd->change_item_tree(arg, conv);
 
     if (conv->fix_fields(thd, arg))
     {
@@ -2709,8 +2821,6 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
       break; // we cannot return here, we need to restore "arena".
     }
   }
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
   return res;
 }
 
@@ -2718,42 +2828,46 @@ bool Type_std_attributes::agg_item_set_converter(const DTCollation &coll,
 /**
   @brief
     Building clone for Item_func_or_sum
-    
+
   @param thd        thread handle
-  @param mem_root   part of the memory for the clone   
+  @param mem_root   part of the memory for the clone
 
   @details
-    This method gets copy of the current item and also 
-    build clones for its referencies. For the referencies 
-    build_copy is called again.
-      
-   @retval
-     clone of the item
-     0 if an error occured
-*/ 
+    This method first builds clones of the arguments. If it is successful with
+    buiding the clones then it constructs a copy of this Item_func_or_sum object
+    and attaches to it the built clones of the arguments.
+
+   @return clone of the item
+   @retval 0 on a failure
+*/
 
 Item* Item_func_or_sum::build_clone(THD *thd)
 {
-  Item_func_or_sum *copy= (Item_func_or_sum *) get_copy(thd);
-  if (!copy)
-    return 0;
+  Item *copy_tmp_args[2]= {0,0};
+  Item **copy_args= copy_tmp_args;
   if (arg_count > 2)
   {
-    copy->args= 
-      (Item**) alloc_root(thd->mem_root, sizeof(Item*) * arg_count);
-    if (!copy->args)
+    copy_args= static_cast<Item**>
+      (alloc_root(thd->mem_root, sizeof(Item*) * arg_count));
+    if (unlikely(!copy_args))
       return 0;
   }
-  else if (arg_count > 0)
-    copy->args= copy->tmp_arg;
-
-   
   for (uint i= 0; i < arg_count; i++)
   {
     Item *arg_clone= args[i]->build_clone(thd);
-    if (!arg_clone)
+    if (unlikely(!arg_clone))
       return 0;
-    copy->args[i]= arg_clone;
+    copy_args[i]= arg_clone;
+  }
+  Item_func_or_sum *copy= static_cast<Item_func_or_sum *>(get_copy(thd));
+  if (unlikely(!copy))
+    return 0;
+  if (arg_count > 2)
+    copy->args= copy_args;
+  else if (arg_count > 0)
+  {
+    copy->args= copy->tmp_arg;
+    memcpy(copy->args, copy_args, sizeof(Item *) * arg_count);
   }
   return copy;
 }
@@ -2768,6 +2882,17 @@ Item_sp::Item_sp(THD *thd, Name_resolution_context *context_arg,
   dummy_table->s= (TABLE_SHARE*) (dummy_table + 1);
   /* TODO(cvicentiu) Move this sp_query_arena in the class as a direct member.
      Currently it can not be done due to header include dependencies. */
+  sp_query_arena= (Query_arena *) (dummy_table->s + 1);
+  memset(&sp_mem_root, 0, sizeof(sp_mem_root));
+}
+
+Item_sp::Item_sp(THD *thd, Item_sp *item):
+         context(item->context), m_name(item->m_name),
+         m_sp(item->m_sp), func_ctx(NULL), sp_result_field(NULL)
+{
+  dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE) +
+                                    sizeof(Query_arena));
+  dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
   sp_query_arena= (Query_arena *) (dummy_table->s + 1);
   memset(&sp_mem_root, 0, sizeof(sp_mem_root));
 }
@@ -2838,7 +2963,7 @@ Item_sp::sp_check_access(THD *thd)
 */
 bool Item_sp::execute(THD *thd, bool *null_value, Item **args, uint arg_count)
 {
-  if (execute_impl(thd, args, arg_count))
+  if (unlikely(execute_impl(thd, args, arg_count)))
   {
     *null_value= 1;
     context->process_error(thd);
@@ -2880,7 +3005,7 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
     thd->security_ctx= context->security_ctx;
   }
 
-  if (sp_check_access(thd))
+  if (unlikely(sp_check_access(thd)))
   {
     thd->security_ctx= save_security_ctx;
     DBUG_RETURN(TRUE);
@@ -2891,10 +3016,10 @@ Item_sp::execute_impl(THD *thd, Item **args, uint arg_count)
     statement-based replication (SBR) is active.
   */
 
-  if (!m_sp->detistic() && !trust_function_creators &&
-      (access == SP_CONTAINS_SQL || access == SP_MODIFIES_SQL_DATA) &&
-      (mysql_bin_log.is_open() &&
-       thd->variables.binlog_format == BINLOG_FORMAT_STMT))
+  if (unlikely(!m_sp->detistic() && !trust_function_creators &&
+               (access == SP_CONTAINS_SQL || access == SP_MODIFIES_SQL_DATA) &&
+               (mysql_bin_log.is_open() &&
+                thd->variables.binlog_format == BINLOG_FORMAT_STMT)))
   {
     my_error(ER_BINLOG_UNSAFE_ROUTINE, MYF(0));
     thd->security_ctx= save_security_ctx;
@@ -3018,21 +3143,22 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
       
    @retval
      clone of the item
-     0 if an error occured
+     0 if an error occurred
 */ 
 
 Item* Item_ref::build_clone(THD *thd)
 {
   Item_ref *copy= (Item_ref *) get_copy(thd);
-  if (!copy ||
-      !(copy->ref= (Item**) alloc_root(thd->mem_root, sizeof(Item*))) ||
-      !(*copy->ref= (* ref)->build_clone(thd)))
+  if (unlikely(!copy) ||
+      unlikely(!(copy->ref= (Item**) alloc_root(thd->mem_root,
+                                                sizeof(Item*)))) ||
+      unlikely(!(*copy->ref= (* ref)->build_clone(thd))))
     return 0;
   return copy;
 }
 
 
-void Item_ident_for_show::make_field(THD *thd, Send_field *tmp_field)
+void Item_ident_for_show::make_send_field(THD *thd, Send_field *tmp_field)
 {
   tmp_field->table_name= tmp_field->org_table_name= table_name;
   tmp_field->db_name= db_name;
@@ -3052,12 +3178,9 @@ Item_field::Item_field(THD *thd, Field *f)
    have_privileges(0), any_privileges(0)
 {
   set_field(f);
-  /*
-    field_name and table_name should not point to garbage
-    if this item is to be reused
-  */
-  orig_table_name= "";
-  orig_field_name= null_clex_str;
+
+  orig_table_name= table_name;
+  orig_field_name= field_name;
   with_field= 1;
 }
 
@@ -3143,71 +3266,15 @@ Item_field::Item_field(THD *thd, Item_field *item)
 }
 
 
-/**
-  Calculate the max column length not taking into account the
-  limitations over integer types.
-
-  When storing data into fields the server currently just ignores the
-  limits specified on integer types, e.g. 1234 can safely be stored in
-  an int(2) and will not cause an error.
-  Thus when creating temporary tables and doing transformations
-  we must adjust the maximum field length to reflect this fact.
-  We take the un-restricted maximum length and adjust it similarly to
-  how the declared length is adjusted wrt unsignedness etc.
-  TODO: this all needs to go when we disable storing 1234 in int(2).
-
-  @param field_par   Original field the use to calculate the lengths
-  @param max_length  Item's calculated explicit max length
-  @return            The adjusted max length
-*/
-
-inline static uint32
-adjust_max_effective_column_length(Field *field_par, uint32 max_length)
-{
-  uint32 new_max_length= field_par->max_display_length();
-  uint32 sign_length= (field_par->flags & UNSIGNED_FLAG) ? 0 : 1;
-
-  switch (field_par->type())
-  {
-  case MYSQL_TYPE_INT24:
-    /*
-      Compensate for MAX_MEDIUMINT_WIDTH being 1 too long (8)
-      compared to the actual number of digits that can fit into
-      the column.
-    */
-    new_max_length+= 1;
-    /* fall through */
-  case MYSQL_TYPE_LONG:
-  case MYSQL_TYPE_TINY:
-  case MYSQL_TYPE_SHORT:
-
-    /* Take out the sign and add a conditional sign */
-    new_max_length= new_max_length - 1 + sign_length;
-    break;
-
-  /* BINGINT is always 20 no matter the sign */
-  case MYSQL_TYPE_LONGLONG:
-  /* make gcc happy */
-  default:
-    break;
-  }
-
-  /* Adjust only if the actual precision based one is bigger than specified */
-  return new_max_length > max_length ? new_max_length : max_length;
-}
-
-
 void Item_field::set_field(Field *field_par)
 {
   field=result_field=field_par;			// for easy coding with fields
   maybe_null=field->maybe_null();
-  Type_std_attributes::set(field_par);
+  Type_std_attributes::set(field_par->type_std_attributes());
   table_name= *field_par->table_name;
   field_name= field_par->field_name;
   db_name= field_par->table->s->db.str;
   alias_name_used= field_par->table->alias_name_used;
-
-  max_length= adjust_max_effective_column_length(field_par, max_length);
 
   fixed= 1;
   if (field->table->s->tmp_table == SYSTEM_TMP_TABLE)
@@ -3226,6 +3293,31 @@ void Item_field::reset_field(Field *f)
   set_field(f);
   /* 'name' is pointing at field->field_name of old field */
   name= f->field_name;
+}
+
+
+void Item_field::load_data_print_for_log_event(THD *thd, String *to) const
+{
+  append_identifier(thd, to, name.str, name.length);
+}
+
+
+bool Item_field::load_data_set_no_data(THD *thd, const Load_data_param *param)
+{
+  if (field->load_data_set_no_data(thd, param->is_fixed_length()))
+    return true;
+  /*
+    TODO: We probably should not throw warning for each field.
+    But how about intention to always have the same number
+    of warnings in THD::cuted_fields (and get rid of cuted_fields
+    in the end ?)
+  */
+  thd->cuted_fields++;
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_WARN_TOO_FEW_RECORDS,
+                      ER_THD(thd, ER_WARN_TOO_FEW_RECORDS),
+                      thd->get_stmt_da()->current_row_for_warning());
+  return false;
 }
 
 
@@ -3415,12 +3507,13 @@ bool Item_field::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 
 bool Item_field::get_date_result(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
-  if (result_field->is_null() || result_field->get_date(ltime,fuzzydate))
+  if ((null_value= result_field->is_null()) ||
+      result_field->get_date(ltime, fuzzydate))
   {
     bzero((char*) ltime,sizeof(*ltime));
-    return (null_value= 1);
+    return true;
   }
-  return (null_value= 0);
+  return false;
 }
 
 
@@ -3913,8 +4006,48 @@ void Item_string::print(String *str, enum_query_type query_type)
   }
   else
   {
-    // Caller wants a result in the charset of str_value.
-    str_value.print(str);
+    /*
+      We're restoring a parse-able statement from an Item tree.
+      Make sure to revert character set conversions that previously
+      happened in the parser when Item_string was created.
+    */
+    if (print_introducer)
+    {
+      /*
+        Print the string as is, without conversion:
+        Strings with introducers are not converted in the parser.
+      */
+      str_value.print(str);
+    }
+    else
+    {
+      /*
+        Print the string with conversion.
+        Strings without introducers are converted in the parser,
+        from character_set_client to character_set_connection.
+
+        When restoring a CREATE VIEW statement,
+        - str_value.charsets() contains parse time character_set_connection
+        - str->charset() contains parse time character_set_client
+        So we convert the string back from parse-time character_set_connection
+        to parse time character_set_client.
+
+        In some cases, e.g. SHOW PROCEDURE CODE, it's also possible
+        that str->charset() is "utf8mb3" instead of parse time
+        character_set_client. In these cases we convert
+        here from the parse-time character_set_connection to utf8mb3.
+
+        QQ: perhaps the code behind SHOW PROCEDURE CODE should
+        also request the result in the parse-time character_set_client
+        (like the code restoring CREATE VIEW statements does),
+        rather than in utf8mb3:
+        - utf8mb3 does not work well with non-BMP characters (e.g. emoji).
+        - Simply changing utf8mb3 to utf8mb4 will not fully help:
+          some character sets have unassigned characters,
+          they get lost during during cs->utf8mb4->cs round trip.
+      */
+      str_value.print_with_conversion(str, str->charset());
+    }
   }
 
   str->append('\'');
@@ -3974,6 +4107,20 @@ my_decimal *Item_null::val_decimal(my_decimal *decimal_value)
 }
 
 
+longlong Item_null::val_datetime_packed()
+{
+  null_value= true;
+  return 0;
+}
+
+
+longlong Item_null::val_time_packed()
+{
+  null_value= true;
+  return 0;
+}
+
+
 bool Item_null::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
   // following assert is redundant, because fixed=1 assigned in constructor
@@ -3992,6 +4139,23 @@ Item *Item_null::clone_item(THD *thd)
 {
   return new (thd->mem_root) Item_null(thd, name.str);
 }
+
+
+Item_basic_constant *
+Item_null::make_string_literal_concat(THD *thd, const LEX_CSTRING *str)
+{
+  DBUG_ASSERT(thd->variables.sql_mode & MODE_EMPTY_STRING_IS_NULL);
+  if (str->length)
+  {
+    CHARSET_INFO *cs= thd->variables.collation_connection;
+    uint repertoire= my_string_repertoire(cs, str->str, str->length);
+    return new (thd->mem_root) Item_string(thd,
+                                           str->str, (uint) str->length, cs,
+                                           DERIVATION_COERCIBLE, repertoire);
+  }
+  return this;
+}
+
 
 /*********************** Item_param related ******************************/
 
@@ -4022,7 +4186,8 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
     For dynamic SQL, settability depends on the type of Item passed
     as an actual parameter. See Item_param::set_from_item().
   */
-  m_is_settable_routine_parameter(true)
+  m_is_settable_routine_parameter(true),
+  m_clones(thd->mem_root)
 {
   name= *name_arg;
   /*
@@ -4031,6 +4196,60 @@ Item_param::Item_param(THD *thd, const LEX_CSTRING *name_arg,
     value is set.
   */
   maybe_null= 1;
+}
+
+
+/* Add reference to Item_param used in a copy of CTE to its master as a clone */
+
+bool Item_param::add_as_clone(THD *thd)
+{
+  LEX *lex= thd->lex;
+  my_ptrdiff_t master_pos= pos_in_query + lex->clone_spec_offset;
+  List_iterator_fast<Item_param> it(lex->param_list);
+  Item_param *master_param;
+  while ((master_param = it++))
+  {
+    if (master_pos == master_param->pos_in_query)
+      return master_param->register_clone(this);
+  }
+  DBUG_ASSERT(false);
+  return false;
+}
+
+
+/* Update all clones of Item_param to sync their values with the item's value */
+
+void Item_param::sync_clones()
+{
+  Item_param **c_ptr= m_clones.begin();
+  Item_param **end= m_clones.end();
+  for ( ; c_ptr < end; c_ptr++)
+  {
+    Item_param *c= *c_ptr;
+    /* Scalar-type members: */
+    c->maybe_null= maybe_null;
+    c->null_value= null_value;
+    c->Type_std_attributes::operator=(*this);
+    c->Type_handler_hybrid_field_type::operator=(*this);
+    c->Type_geometry_attributes::operator=(*this);
+
+    c->state= state;
+    c->item_type= item_type;
+    c->m_empty_string_is_null= m_empty_string_is_null;
+
+    c->value.PValue_simple::operator=(value);
+    c->value.Type_handler_hybrid_field_type::operator=(value);
+    type_handler()->Item_param_setup_conversion(current_thd, c);
+
+    /* Class-type members: */
+    c->value.m_decimal= value.m_decimal;
+    /*
+      Note that String's assignment op properly sets m_is_alloced to 'false',
+      which is correct here: c->str_value doesn't own anything.
+    */
+    c->value.m_string= value.m_string;
+    c->value.m_string_ptr= value.m_string_ptr;
+  }
 }
 
 
@@ -4184,7 +4403,7 @@ void Item_param::set_time(MYSQL_TIME *tm, timestamp_type time_type,
   {
     ErrConvTime str(&value.time);
     make_truncated_value_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                                 &str, time_type, 0);
+                                 &str, time_type, NULL, NULL, NULL);
     set_zero_time(&value.time, time_type);
   }
   maybe_null= 0;
@@ -4205,7 +4424,7 @@ bool Item_param::set_str(const char *str, ulong length,
     been written to the binary log.
   */
   uint dummy_errors;
-  if (value.m_string.copy(str, length, fromcs, tocs, &dummy_errors))
+  if (unlikely(value.m_string.copy(str, length, fromcs, tocs, &dummy_errors)))
     DBUG_RETURN(TRUE);
   /*
     Set str_value_ptr to make sure it's in sync with str_value.
@@ -4410,6 +4629,23 @@ int Item_param::save_in_field(Field *field, bool no_conversions)
 }
 
 
+bool Item_param::is_evaluable_expression() const
+{
+  switch (state) {
+  case SHORT_DATA_VALUE:
+  case LONG_DATA_VALUE:
+  case NULL_VALUE:
+    return true;
+  case NO_VALUE:
+    return true; // Not assigned yet, so we don't know
+  case IGNORE_VALUE:
+  case DEFAULT_VALUE:
+    break;
+  }
+  return false;
+}
+
+
 bool Item_param::can_return_value() const
 {
   // There's no "default". See comments in Item_param::save_in_field().
@@ -4457,13 +4693,15 @@ bool Item_param::get_date(MYSQL_TIME *res, ulonglong fuzzydate)
 }
 
 
-double Item_param::PValue::val_real() const
+double Item_param::PValue::val_real(const Type_std_attributes *attr) const
 {
   switch (type_handler()->cmp_type()) {
   case REAL_RESULT:
     return real;
   case INT_RESULT:
-    return (double) integer;
+    return attr->unsigned_flag
+      ? (double) (ulonglong) integer
+      : (double) integer;
   case DECIMAL_RESULT:
   {
     double result;
@@ -4490,7 +4728,7 @@ longlong Item_param::PValue::val_int(const Type_std_attributes *attr) const
 {
   switch (type_handler()->cmp_type()) {
   case REAL_RESULT:
-    return (longlong) rint(real);
+    return Converter_double_to_longlong(real, attr->unsigned_flag).result();
   case INT_RESULT:
     return integer;
   case DECIMAL_RESULT:
@@ -4545,7 +4783,7 @@ String *Item_param::PValue::val_str(String *str,
     str->set_real(real, NOT_FIXED_DEC, &my_charset_bin);
     return str;
   case INT_RESULT:
-    str->set(integer, &my_charset_bin);
+    str->set_int(integer, attr->unsigned_flag, &my_charset_bin);
     return str;
   case DECIMAL_RESULT:
     if (my_decimal2string(E_DEC_FATAL_ERROR, &m_decimal, 0, 0, 0, str) <= 1)
@@ -4969,9 +5207,9 @@ Item_param::get_out_param_info() const
   @param field container for meta-data to be filled
 */
 
-void Item_param::make_field(THD *thd, Send_field *field)
+void Item_param::make_send_field(THD *thd, Send_field *field)
 {
-  Item::make_field(thd, field);
+  Item::make_send_field(thd, field);
 
   if (!m_out_param_info)
     return;
@@ -5000,32 +5238,6 @@ bool Item_param::append_for_log(THD *thd, String *str)
   return str->append(*val);
 }
 
-/****************************************************************************
-  Item_copy
-****************************************************************************/
-
-Item_copy *Item_copy::create(THD *thd, Item *item)
-{
-  MEM_ROOT *mem_root= thd->mem_root;
-  switch (item->result_type())
-  {
-    case STRING_RESULT:
-      return new (mem_root) Item_copy_string(thd, item);
-    case REAL_RESULT:
-      return new (mem_root) Item_copy_float(thd, item);
-    case INT_RESULT:
-      return item->unsigned_flag ?
-        new (mem_root) Item_copy_uint(thd, item) :
-        new (mem_root) Item_copy_int(thd, item);
-    case DECIMAL_RESULT:
-      return new (mem_root) Item_copy_decimal(thd, item);
-    case TIME_RESULT:
-    case ROW_RESULT:
-      DBUG_ASSERT (0);
-  }
-  /* should not happen */
-  return NULL;
-}
 
 /****************************************************************************
   Item_copy_string
@@ -5080,156 +5292,6 @@ my_decimal *Item_copy_string::val_decimal(my_decimal *decimal_value)
     return (my_decimal *) 0;
   string2my_decimal(E_DEC_FATAL_ERROR, &str_value, decimal_value);
   return (decimal_value);
-}
-
-
-/****************************************************************************
-  Item_copy_int
-****************************************************************************/
-
-void Item_copy_int::copy()
-{
-  cached_value= item->val_int();
-  null_value=item->null_value;
-}
-
-static int save_int_value_in_field (Field *, longlong, bool, bool);
-
-int Item_copy_int::save_in_field(Field *field, bool no_conversions)
-{
-  return save_int_value_in_field(field, cached_value, 
-                                 null_value, unsigned_flag);
-}
-
-
-String *Item_copy_int::val_str(String *str)
-{
-  if (null_value)
-    return (String *) 0;
-
-  str->set(cached_value, &my_charset_bin);
-  return str;
-}
-
-
-my_decimal *Item_copy_int::val_decimal(my_decimal *decimal_value)
-{
-  if (null_value)
-    return (my_decimal *) 0;
-
-  int2my_decimal(E_DEC_FATAL_ERROR, cached_value, unsigned_flag, decimal_value);
-  return decimal_value;
-}
-
-
-/****************************************************************************
-  Item_copy_uint
-****************************************************************************/
-
-String *Item_copy_uint::val_str(String *str)
-{
-  if (null_value)
-    return (String *) 0;
-
-  str->set((ulonglong) cached_value, &my_charset_bin);
-  return str;
-}
-
-
-/****************************************************************************
-  Item_copy_float
-****************************************************************************/
-
-String *Item_copy_float::val_str(String *str)
-{
-  if (null_value)
-    return (String *) 0;
-  else
-  {
-    double nr= val_real();
-    str->set_real(nr,decimals, &my_charset_bin);
-    return str;
-  }
-}
-
-
-my_decimal *Item_copy_float::val_decimal(my_decimal *decimal_value)
-{
-  if (null_value)
-    return (my_decimal *) 0;
-  else
-  {
-    double nr= val_real();
-    double2my_decimal(E_DEC_FATAL_ERROR, nr, decimal_value);
-    return decimal_value;
-  }
-}
-
-
-int Item_copy_float::save_in_field(Field *field, bool no_conversions)
-{
-  if (null_value)
-    return set_field_to_null(field);
-  field->set_notnull();
-  return field->store(cached_value);
-}
-
-
-/****************************************************************************
-  Item_copy_decimal
-****************************************************************************/
-
-int Item_copy_decimal::save_in_field(Field *field, bool no_conversions)
-{
-  if (null_value)
-    return set_field_to_null(field);
-  field->set_notnull();
-  return field->store_decimal(&cached_value);
-}
-
-
-String *Item_copy_decimal::val_str(String *result)
-{
-  if (null_value)
-    return (String *) 0;
-  result->set_charset(&my_charset_bin);
-  my_decimal2string(E_DEC_FATAL_ERROR, &cached_value, 0, 0, 0, result);
-  return result;
-}
-
-
-double Item_copy_decimal::val_real()
-{
-  if (null_value)
-    return 0.0;
-  else
-  {
-    double result;
-    my_decimal2double(E_DEC_FATAL_ERROR, &cached_value, &result);
-    return result;
-  }
-}
-
-
-longlong Item_copy_decimal::val_int()
-{
-  if (null_value)
-    return 0;
-  else
-  {
-    longlong result;
-    my_decimal2int(E_DEC_FATAL_ERROR, &cached_value, unsigned_flag, &result);
-    return result;
-  }
-}
-
-
-void Item_copy_decimal::copy()
-{
-  my_decimal *nr= item->val_decimal(&cached_value);
-  if (nr && nr != &cached_value)
-    my_decimal2decimal (nr, &cached_value);
-  null_value= item->null_value;
 }
 
 
@@ -5317,13 +5379,19 @@ bool Item_ref_null_helper::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   @param resolved_item   item which was resolved in outer SELECT(for warning)
   @param mark_item       item which should be marked (can be differ in case of
                          substitution)
+  @param suppress_warning_output  flag specifying whether to suppress output of
+                                  a warning message
 */
 
 static bool mark_as_dependent(THD *thd, SELECT_LEX *last, SELECT_LEX *current,
                               Item_ident *resolved_item,
-                              Item_ident *mark_item)
+                              Item_ident *mark_item,
+                              bool suppress_warning_output)
 {
   DBUG_ENTER("mark_as_dependent");
+  DBUG_PRINT("info", ("current select: %d (%p)  last: %d (%p)",
+                      current->select_number, current,
+                      (last ? last->select_number : 0), last));
 
   /* store pointer on SELECT_LEX from which item is dependent */
   if (mark_item && mark_item->can_be_depended)
@@ -5334,7 +5402,7 @@ static bool mark_as_dependent(THD *thd, SELECT_LEX *last, SELECT_LEX *current,
   if (current->mark_as_dependent(thd, last,
                                  /** resolved_item psergey-thu **/ mark_item))
     DBUG_RETURN(TRUE);
-  if (thd->lex->describe & DESCRIBE_EXTENDED)
+  if ((thd->lex->describe & DESCRIBE_EXTENDED) && !suppress_warning_output)
   {
     const char *db_name= (resolved_item->db_name ?
                           resolved_item->db_name : "");
@@ -5363,10 +5431,12 @@ static bool mark_as_dependent(THD *thd, SELECT_LEX *last, SELECT_LEX *current,
   @param found_item      Item which was found during resolving (if resolved
                          identifier belongs to VIEW)
   @param resolved_item   Identifier which was resolved
+  @param suppress_warning_output  flag specifying whether to suppress output of
+                                  a warning message
 
   @note
     We have to mark all items between current_sel (including) and
-    last_select (excluding) as dependend (select before last_select should
+    last_select (excluding) as dependent (select before last_select should
     be marked with actual table mask used by resolved item, all other with
     OUTER_REF_TABLE_BIT) and also write dependence information to Item of
     resolved identifier.
@@ -5376,7 +5446,8 @@ void mark_select_range_as_dependent(THD *thd,
                                     SELECT_LEX *last_select,
                                     SELECT_LEX *current_sel,
                                     Field *found_field, Item *found_item,
-                                    Item_ident *resolved_item)
+                                    Item_ident *resolved_item,
+                                    bool suppress_warning_output)
 {
   /*
     Go from current SELECT to SELECT where field was resolved (it
@@ -5411,7 +5482,7 @@ void mark_select_range_as_dependent(THD *thd,
         found_field->table->map;
     prev_subselect_item->const_item_cache= 0;
     mark_as_dependent(thd, last_select, current_sel, resolved_item,
-                      dependent);
+                      dependent, suppress_warning_output);
   }
 }
 
@@ -5559,9 +5630,11 @@ static Item** find_field_in_group_list(Item *find_item, ORDER *group_list)
     in the SELECT clause of Q.
     - Search for a column named col_ref_i [in table T_j]
     in the GROUP BY clause of Q.
-    - If found different columns with the same name in GROUP BY and SELECT
-    - issue a warning and return the GROUP BY column,
-    - otherwise
+    - If found different columns with the same name in GROUP BY and SELECT:
+    - if the condition that uses this column name is pushed down into
+    the HAVING clause return the SELECT column
+    - else issue a warning and return the GROUP BY column.
+    - Otherwise
     - if the MODE_ONLY_FULL_GROUP_BY mode is enabled return error
     - else return the found SELECT column.
 
@@ -5600,7 +5673,8 @@ resolve_ref_in_select_and_group(THD *thd, Item_ident *ref, SELECT_LEX *select)
     
     /* Check if the fields found in SELECT and GROUP BY are the same field. */
     if (group_by_ref && (select_ref != not_found_item) &&
-        !((*group_by_ref)->eq(*select_ref, 0)))
+        !((*group_by_ref)->eq(*select_ref, 0)) &&
+        (!select->having_fix_field_for_pushed_cond))
     {
       ambiguous_fields= TRUE;
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -5739,7 +5813,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   bool upward_lookup= FALSE;
   TABLE_LIST *table_list;
 
-  /* Calulate the TABLE_LIST for the table */
+  /* Calculate the TABLE_LIST for the table */
   table_list= (cached_table ? cached_table :
                field_found && (*from_field) != view_ref_found ?
                (*from_field)->table->pos_in_table_list : 0);
@@ -5754,7 +5828,14 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   */
   Name_resolution_context *last_checked_context= context;
   Item **ref= (Item **) not_found_item;
-  SELECT_LEX *current_sel= thd->lex->current_select;
+  /*
+    There are cases when name resolution context is absent (when we are not
+    doing name resolution), but here the name resolution context should
+    be present because we are doing name resolution
+  */
+  DBUG_ASSERT(context);
+  SELECT_LEX *current_sel=  context->select_lex;
+  LEX *lex_s= context->select_lex->parent_lex;
   Name_resolution_context *outer_context= 0;
   SELECT_LEX *select= 0;
   /* Currently derived tables cannot be correlated */
@@ -5855,18 +5936,18 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
               return -1;
             thd->change_item_tree(reference, rf);
             select->inner_refs_list.push_back(rf, thd->mem_root);
-            rf->in_sum_func= thd->lex->in_sum_func;
+            rf->in_sum_func= lex_s->in_sum_func;
           }
           /*
             A reference is resolved to a nest level that's outer or the same as
             the nest level of the enclosing set function : adjust the value of
             max_arg_level for the function if it's needed.
           */
-          if (thd->lex->in_sum_func &&
-              thd->lex->in_sum_func->nest_level >= select->nest_level)
+          if (lex_s->in_sum_func &&
+              lex_s->in_sum_func->nest_level >= select->nest_level)
           {
             Item::Type ref_type= (*reference)->type();
-            set_if_bigger(thd->lex->in_sum_func->max_arg_level,
+            set_if_bigger(lex_s->in_sum_func->max_arg_level,
                           select->nest_level);
             set_field(*from_field);
             fixed= 1;
@@ -5874,7 +5955,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
                               context->select_lex, this,
                               ((ref_type == REF_ITEM ||
                                 ref_type == FIELD_ITEM) ?
-                               (Item_ident*) (*reference) : 0));
+                               (Item_ident*) (*reference) : 0), false);
             return 0;
           }
         }
@@ -5886,11 +5967,11 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
                             context->select_lex, this,
                             ((ref_type == REF_ITEM || ref_type == FIELD_ITEM) ?
                              (Item_ident*) (*reference) :
-                             0));
-          if (thd->lex->in_sum_func &&
-              thd->lex->in_sum_func->nest_level >= select->nest_level)
+                             0), false);
+          if (lex_s->in_sum_func &&
+              lex_s->in_sum_func->nest_level >= select->nest_level)
           {
-            set_if_bigger(thd->lex->in_sum_func->max_arg_level,
+            set_if_bigger(lex_s->in_sum_func->max_arg_level,
                           select->nest_level);
           }
           /*
@@ -5982,7 +6063,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     {
       outer_context->select_lex->inner_refs_list.push_back((Item_outer_ref*)rf,
                                                            thd->mem_root);
-      ((Item_outer_ref*)rf)->in_sum_func= thd->lex->in_sum_func;
+      ((Item_outer_ref*)rf)->in_sum_func= lex_s->in_sum_func;
     }
     thd->change_item_tree(reference, rf);
     /*
@@ -5997,10 +6078,10 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       We can not "move" aggregate function in the place where
       its arguments are not defined.
     */
-    set_max_sum_func_level(thd, select);
+    set_max_sum_func_level(select);
     mark_as_dependent(thd, last_checked_context->select_lex,
                       context->select_lex, rf,
-                      rf);
+                      rf, false);
 
     return 0;
   }
@@ -6010,10 +6091,10 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       We can not "move" aggregate function in the place where
       its arguments are not defined.
     */
-    set_max_sum_func_level(thd, select);
+    set_max_sum_func_level(select);
     mark_as_dependent(thd, last_checked_context->select_lex,
                       context->select_lex,
-                      this, (Item_ident*)*reference);
+                      this, (Item_ident*)*reference, false);
     if (last_checked_context->select_lex->having_fix_field)
     {
       Item_ref *rf;
@@ -6088,8 +6169,21 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   DBUG_ASSERT(fixed == 0);
   Field *from_field= (Field *)not_found_field;
   bool outer_fixed= false;
-  SELECT_LEX *select= thd->lex->current_select;
-  
+  SELECT_LEX *select;
+  LEX *lex_s;
+  if (context)
+  {
+    select= context->select_lex;
+    lex_s= context->select_lex->parent_lex;
+  }
+  else
+  {
+    // No real name resolution, used somewhere in SP
+    DBUG_ASSERT(field);
+    select= NULL;
+    lex_s= NULL;
+  }
+
   if (select && select->in_tvc)
   {
     my_error(ER_FIELD_REFERENCE_IN_TVC, MYF(0), full_name());
@@ -6144,7 +6238,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
 
             Field *new_field= (*((Item_field**)res))->field;
 
-            if (new_field == NULL)
+            if (unlikely(new_field == NULL))
             {
               /* The column to which we link isn't valid. */
               my_error(ER_BAD_FIELD_ERROR, MYF(0), (*res)->name.str,
@@ -6156,8 +6250,9 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
               We can not "move" aggregate function in the place where
               its arguments are not defined.
             */
-            set_max_sum_func_level(thd, select);
+            set_max_sum_func_level(select);
             set_field(new_field);
+            depended_from= (*((Item_field**)res))->depended_from;
             return 0;
           }
           else
@@ -6183,13 +6278,13 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
               We can not "move" aggregate function in the place where
               its arguments are not defined.
             */
-            set_max_sum_func_level(thd, select);
+            set_max_sum_func_level(select);
             return FALSE;
           }
         }
       }
 
-      if (!select)
+      if (unlikely(!select))
       {
         my_error(ER_BAD_FIELD_ERROR, MYF(0), full_name(), thd->where);
         goto error;
@@ -6220,10 +6315,11 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
         goto mark_non_agg_field;
     }
 
-    if (thd->lex->in_sum_func &&
-        thd->lex->in_sum_func->nest_level == 
+    if (lex_s &&
+        lex_s->in_sum_func &&
+        lex_s->in_sum_func->nest_level ==
         select->nest_level)
-      set_if_bigger(thd->lex->in_sum_func->max_arg_level,
+      set_if_bigger(lex_s->in_sum_func->max_arg_level,
                     select->nest_level);
     /*
       if it is not expression from merged VIEW we will set this field.
@@ -6289,8 +6385,9 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   if (field->vcol_info)
     fix_session_vcol_expr_for_read(thd, field, field->vcol_info);
   if (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY &&
-      !outer_fixed && !thd->lex->in_sum_func &&
+      !outer_fixed &&
       select &&
+      !lex_s->in_sum_func &&
       select->cur_pos_in_select_list != UNDEF_POS &&
       select->join)
   {
@@ -6325,13 +6422,13 @@ mark_non_agg_field:
       */
       select_lex= context->select_lex;
     }
-    if (!thd->lex->in_sum_func)
+    if (!lex_s || !lex_s->in_sum_func)
       select_lex->set_non_agg_field_used(true);
     else
     {
       if (outer_fixed)
-        thd->lex->in_sum_func->outer_fields.push_back(this, thd->mem_root);
-      else if (thd->lex->in_sum_func->nest_level !=
+        lex_s->in_sum_func->outer_fields.push_back(this, thd->mem_root);
+      else if (lex_s->in_sum_func->nest_level !=
           select->nest_level)
         select_lex->set_non_agg_field_used(true);
     }
@@ -6343,19 +6440,15 @@ error:
   return TRUE;
 }
 
-
-/*
-  @brief
-  Mark virtual columns as used in a partitioning expression 
-*/
-
-bool Item_field::vcol_in_partition_func_processor(void *int_arg)
+bool Item_field::post_fix_fields_part_expr_processor(void *int_arg)
 {
   DBUG_ASSERT(fixed);
   if (field->vcol_info)
-  {
     field->vcol_info->mark_as_in_partitioning_expr();
-  }
+  /*
+    Update table_name to be real table name, not the alias. Because alias is
+    reallocated for every statement, and this item has a long life time */
+  table_name= field->table->s->table_name.str;
   return FALSE;
 }
 
@@ -6479,7 +6572,7 @@ Item *Item_field::propagate_equal_fields(THD *thd,
       but failed to create a valid DATE literal from the given string literal.
 
       Do not do constant propagation in such cases and unlink
-      "this" from the found Item_equal (as this equality not usefull).
+      "this" from the found Item_equal (as this equality not useful).
     */
     item_equal= NULL;
     return this;
@@ -6549,8 +6642,8 @@ Item *Item_field::replace_equal_field(THD *thd, uchar *arg)
 }
 
 
-void Item::init_make_field(Send_field *tmp_field,
-			   enum enum_field_types field_type_arg)
+void Item::init_make_send_field(Send_field *tmp_field,
+                                enum enum_field_types field_type_arg)
 {
   tmp_field->db_name=		"";
   tmp_field->org_table_name=	"";
@@ -6567,15 +6660,15 @@ void Item::init_make_field(Send_field *tmp_field,
     tmp_field->flags |= UNSIGNED_FLAG;
 }
 
-void Item::make_field(THD *thd, Send_field *tmp_field)
+void Item::make_send_field(THD *thd, Send_field *tmp_field)
 {
-  init_make_field(tmp_field, field_type());
+  init_make_send_field(tmp_field, field_type());
 }
 
 
-void Item_empty_string::make_field(THD *thd, Send_field *tmp_field)
+void Item_empty_string::make_send_field(THD *thd, Send_field *tmp_field)
 {
-  init_make_field(tmp_field, string_type_handler()->field_type());
+  init_make_send_field(tmp_field, string_type_handler()->field_type());
 }
 
 
@@ -6597,7 +6690,7 @@ String *Item::check_well_formed_result(String *str, bool send_error)
   CHARSET_INFO *cs= str->charset();
   uint wlen= str->well_formed_length();
   null_value= false;
-  if (wlen < str->length())
+  if (unlikely(wlen < str->length()))
   {
     THD *thd= current_thd;
     char hexbuf[7];
@@ -6636,9 +6729,10 @@ String_copier_for_item::copy_with_warn(CHARSET_INFO *dstcs, String *dst,
                                        CHARSET_INFO *srccs, const char *src,
                                        uint32 src_length, uint32 nchars)
 {
-  if ((dst->copy(dstcs, srccs, src, src_length, nchars, this)))
+  if (unlikely((dst->copy(dstcs, srccs, src, src_length, nchars, this))))
     return true; // EOM
-  if (const char *pos= well_formed_error_pos())
+  const char *pos;
+  if (unlikely(pos= well_formed_error_pos()))
   {
     ErrConvString err(pos, src_length - (pos - src), &my_charset_bin);
     push_warning_printf(m_thd, Sql_condition::WARN_LEVEL_WARN,
@@ -6649,7 +6743,7 @@ String_copier_for_item::copy_with_warn(CHARSET_INFO *dstcs, String *dst,
                         err.ptr());
     return false;
   }
-  if (const char *pos= cannot_convert_error_pos())
+  if (unlikely(pos= cannot_convert_error_pos()))
   {
     char buf[16];
     int mblen= my_charlen(srccs, pos, src + src_length);
@@ -6710,9 +6804,9 @@ bool Item::eq_by_collation(Item *item, bool binary_cmp, CHARSET_INFO *cs)
 
 
 /* ARGSUSED */
-void Item_field::make_field(THD *thd, Send_field *tmp_field)
+void Item_field::make_send_field(THD *thd, Send_field *tmp_field)
 {
-  field->make_field(tmp_field);
+  field->make_send_field(tmp_field);
   DBUG_ASSERT(tmp_field->table_name != 0);
   if (name.str)
   {
@@ -6782,6 +6876,11 @@ fast_field_copier Item_field::setup_fast_field_copier(Field *to)
   return to->get_fast_field_copier(field);
 }
 
+void Item_field::save_in_result_field(bool no_conversions)
+{
+  bool unused;
+  save_field_in_field(field, &unused, result_field, no_conversions);
+}
 
 /**
   Set a field's value from a item.
@@ -6948,7 +7047,42 @@ Item *Item_string::clone_item(THD *thd)
 }
 
 
-static int save_int_value_in_field (Field *field, longlong nr, 
+Item_basic_constant *
+Item_string::make_string_literal_concat(THD *thd, const LEX_CSTRING *str)
+{
+  append(str->str, (uint32) str->length);
+  if (!(collation.repertoire & MY_REPERTOIRE_EXTENDED))
+  {
+    // If the string has been pure ASCII so far, check the new part.
+    CHARSET_INFO *cs= thd->variables.collation_connection;
+    collation.repertoire|= my_string_repertoire(cs, str->str, str->length);
+  }
+  return this;
+}
+
+
+/*
+  If "this" is a reasonably short pure ASCII string literal,
+  try to parse known ODBC-style date, time or timestamp literals,
+  e.g:
+  SELECT {d'2001-01-01'};
+  SELECT {t'10:20:30'};
+  SELECT {ts'2001-01-01 10:20:30'};
+*/
+Item *Item_string::make_odbc_literal(THD *thd, const LEX_CSTRING *typestr)
+{
+  enum_field_types type= odbc_temporal_literal_type(typestr);
+  Item *res= type == MYSQL_TYPE_STRING ? this :
+             create_temporal_literal(thd, val_str(NULL), type, false);
+  /*
+    create_temporal_literal() returns NULL if failed to parse the string,
+    or the string format did not match the type, e.g.:  {d'2001-01-01 10:10:10'}
+  */
+  return res ? res : this;
+}
+
+
+static int save_int_value_in_field (Field *field, longlong nr,
                                     bool null_value, bool unsigned_flag)
 {
   if (null_value)
@@ -7137,10 +7271,10 @@ Item_float::Item_float(THD *thd, const char *str_arg, size_t length):
   char *end_not_used;
   value= my_strntod(&my_charset_bin, (char*) str_arg, length, &end_not_used,
                     &error);
-  if (error)
+  if (unlikely(error))
   {
-    char tmp[NAME_LEN + 1];
-    my_snprintf(tmp, sizeof(tmp), "%.*s", (int)length, str_arg);
+    char tmp[NAME_LEN + 2];
+    my_snprintf(tmp, sizeof(tmp), "%.*s", static_cast<int>(length), str_arg);
     my_error(ER_ILLEGAL_VALUE_FOR_TYPE, MYF(0), "double", tmp);
   }
   presentation= name.str= str_arg;
@@ -7571,6 +7705,12 @@ Item *get_field_item_for_having(THD *thd, Item *item, st_select_lex *sel)
   return NULL; 
 }
 
+Item *Item_ident::derived_field_transformer_for_having(THD *thd, uchar *arg)
+{
+  st_select_lex *sel= (st_select_lex *)arg;
+  context= &sel->context;
+  return this;
+}
 
 Item *Item_field::derived_field_transformer_for_having(THD *thd, uchar *arg)
 {
@@ -7580,7 +7720,10 @@ Item *Item_field::derived_field_transformer_for_having(THD *thd, uchar *arg)
     return this;
   if (!item_equal && used_tables() != tab_map)
     return this;
-  return get_field_item_for_having(thd, this, sel);
+  Item *item= get_field_item_for_having(thd, this, sel);
+  if (item)
+    item->marker|= SUBSTITUTION_FL;
+  return item;
 }
 
 
@@ -7588,6 +7731,12 @@ Item *Item_direct_view_ref::derived_field_transformer_for_having(THD *thd,
                                                                  uchar *arg)
 {
   st_select_lex *sel= (st_select_lex *)arg;
+  context= &sel->context;
+  if ((*ref)->marker & SUBSTITUTION_FL)
+  {
+    this->marker|= SUBSTITUTION_FL;
+    return this;
+  }
   table_map tab_map= sel->master_unit()->derived->table->map;
   if ((item_equal && !(item_equal->used_tables() & tab_map)) ||
       !item_equal)
@@ -7602,7 +7751,6 @@ Item *find_producing_item(Item *item, st_select_lex *sel)
   DBUG_ASSERT(item->type() == Item::FIELD_ITEM ||
               (item->type() == Item::REF_ITEM &&
                ((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF)); 
-  Item *producing_item;
   Item_field *field_item= NULL;
   Item_equal *item_equal= item->get_item_equal();
   table_map tab_map= sel->master_unit()->derived->table->map;
@@ -7624,6 +7772,7 @@ Item *find_producing_item(Item *item, st_select_lex *sel)
   List_iterator_fast<Item> li(sel->item_list);
   if (field_item)
   {
+    Item *producing_item= NULL;
     uint field_no= field_item->field->field_index;
     for (uint i= 0; i <= field_no; i++)
       producing_item= li++;
@@ -7637,13 +7786,20 @@ Item *Item_field::derived_field_transformer_for_where(THD *thd, uchar *arg)
   st_select_lex *sel= (st_select_lex *)arg;
   Item *producing_item= find_producing_item(this, sel);
   if (producing_item)
-    return producing_item->build_clone(thd);
+  {
+    Item *producing_clone= producing_item->build_clone(thd);
+    if (producing_clone)
+      producing_clone->marker|= SUBSTITUTION_FL;
+    return producing_clone;
+  }
   return this;
 }
 
 Item *Item_direct_view_ref::derived_field_transformer_for_where(THD *thd,
                                                                 uchar *arg)
 {
+  if ((*ref)->marker & SUBSTITUTION_FL)
+    return (*ref);
   if (item_equal)
   {
     st_select_lex *sel= (st_select_lex *)arg;
@@ -7651,7 +7807,7 @@ Item *Item_direct_view_ref::derived_field_transformer_for_where(THD *thd,
     DBUG_ASSERT (producing_item != NULL);
     return producing_item->build_clone(thd);
   }
-  return this;
+  return (*ref);
 }
 
 static
@@ -7695,7 +7851,13 @@ Item *Item_field::derived_grouping_field_transformer_for_where(THD *thd,
   st_select_lex *sel= (st_select_lex *)arg;
   Grouping_tmp_field *gr_field= find_matching_grouping_field(this, sel);
   if (gr_field)
-    return gr_field->producing_item->build_clone(thd);
+  {
+    Item *producing_clone=
+            gr_field->producing_item->build_clone(thd);
+    if (producing_clone)
+      producing_clone->marker|= SUBSTITUTION_FL;
+    return producing_clone;
+  }
   return this;
 }
 
@@ -7704,6 +7866,11 @@ Item *
 Item_direct_view_ref::derived_grouping_field_transformer_for_where(THD *thd,
                                                                    uchar *arg)
 {
+  if ((*ref)->marker & SUBSTITUTION_FL)
+  {
+    this->marker|= SUBSTITUTION_FL;
+    return this;
+  }
   if (!item_equal)
     return this;
   st_select_lex *sel= (st_select_lex *)arg;
@@ -7714,7 +7881,7 @@ Item_direct_view_ref::derived_grouping_field_transformer_for_where(THD *thd,
 void Item_field::print(String *str, enum_query_type query_type)
 {
   if (field && field->table->const_table &&
-      !(query_type & QT_NO_DATA_EXPANSION))
+      !(query_type & (QT_NO_DATA_EXPANSION | QT_VIEW_INTERNAL)))
   {
     print_value(str);
     return;
@@ -7775,7 +7942,7 @@ public:
         if (tbl->table == item->field->table)
         {
           if (sel != current_select)
-            mark_as_dependent(thd, sel, current_select, item, item);
+            mark_as_dependent(thd, sel, current_select, item, item, false);
           return;
         }
       }
@@ -7866,7 +8033,9 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
 {
   enum_parsing_place place= NO_MATTER;
   DBUG_ASSERT(fixed == 0);
-  SELECT_LEX *current_sel= thd->lex->current_select;
+
+  SELECT_LEX *current_sel= context->select_lex;
+  LEX *lex_s= context->select_lex->parent_lex;
 
   if (set_properties_only)
   {
@@ -7886,7 +8055,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       Field *from_field;
       ref= 0;
 
-      if (!outer_context)
+      if (unlikely(!outer_context))
       {
         /* The current reference cannot be resolved in this query. */
         my_error(ER_BAD_FIELD_ERROR,MYF(0),
@@ -7971,7 +8140,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
                               ((refer_type == REF_ITEM ||
                                 refer_type == FIELD_ITEM) ?
                                (Item_ident*) (*reference) :
-                               0));
+                               0), false);
             /*
               view reference found, we substituted it instead of this
               Item, so can quit
@@ -7987,7 +8156,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
               /*
                 Due to cache, find_field_in_tables() can return field which
                 doesn't belong to provided outer_context. In this case we have
-                to find proper field context in order to fix field correcly.
+                to find proper field context in order to fix field correctly.
               */
               do
               {
@@ -8021,20 +8190,20 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
           goto error;
         thd->change_item_tree(reference, fld);
         mark_as_dependent(thd, last_checked_context->select_lex,
-                          current_sel, fld, fld);
+                          current_sel, fld, fld, false);
         /*
           A reference is resolved to a nest level that's outer or the same as
           the nest level of the enclosing set function : adjust the value of
           max_arg_level for the function if it's needed.
         */
-        if (thd->lex->in_sum_func &&
-            thd->lex->in_sum_func->nest_level >= 
+        if (lex_s->in_sum_func &&
+            lex_s->in_sum_func->nest_level >=
             last_checked_context->select_lex->nest_level)
-          set_if_bigger(thd->lex->in_sum_func->max_arg_level,
+          set_if_bigger(lex_s->in_sum_func->max_arg_level,
                         last_checked_context->select_lex->nest_level);
         return FALSE;
       }
-      if (ref == 0)
+      if (unlikely(ref == 0))
       {
         /* The item was not a table field and not a reference */
         my_error(ER_BAD_FIELD_ERROR, MYF(0),
@@ -8044,16 +8213,16 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       /* Should be checked in resolve_ref_in_select_and_group(). */
       DBUG_ASSERT(*ref && (*ref)->fixed);
       mark_as_dependent(thd, last_checked_context->select_lex,
-                        context->select_lex, this, this);
+                        context->select_lex, this, this, false);
       /*
         A reference is resolved to a nest level that's outer or the same as
         the nest level of the enclosing set function : adjust the value of
         max_arg_level for the function if it's needed.
       */
-      if (thd->lex->in_sum_func &&
-          thd->lex->in_sum_func->nest_level >= 
+      if (lex_s->in_sum_func &&
+          lex_s->in_sum_func->nest_level >=
           last_checked_context->select_lex->nest_level)
-        set_if_bigger(thd->lex->in_sum_func->max_arg_level,
+        set_if_bigger(lex_s->in_sum_func->max_arg_level,
                       last_checked_context->select_lex->nest_level);
     }
   }
@@ -8100,6 +8269,7 @@ void Item_ref::set_properties()
     split_sum_func() doesn't try to change the reference.
   */
   with_sum_func= (*ref)->with_sum_func;
+  with_param= (*ref)->with_param;
   with_window_func= (*ref)->with_window_func;
   with_field= (*ref)->with_field;
   fixed= 1;
@@ -8171,9 +8341,9 @@ Item* Item_ref::transform(THD *thd, Item_transformer transformer, uchar *arg)
   callback functions.
 
   First the function applies the analyzer to the Item_ref object. Then
-  if the analizer succeeeds we first applies the compile method to the
+  if the analyzer succeeds we first apply the compile method to the
   object the Item_ref object is referencing. If this returns a new
-  item the old item is substituted for a new one.  After this the
+  item the old item is substituted for a new one. After this the
   transformer is applied to the Item_ref object itself.
   The compile function is not called if the analyzer returns NULL
   in the parameter arg_p. 
@@ -8214,7 +8384,9 @@ void Item_ref::print(String *str, enum_query_type query_type)
 {
   if (ref)
   {
-    if ((*ref)->type() != Item::CACHE_ITEM && ref_type() != VIEW_REF &&
+    if ((*ref)->type() != Item::CACHE_ITEM &&
+        (*ref)->type() != Item::WINDOW_FUNC_ITEM &&
+        ref_type() != VIEW_REF &&
         !table_name && name.str && alias_name_used)
     {
       THD *thd= current_thd;
@@ -8376,6 +8548,24 @@ bool Item_ref::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 }
 
 
+longlong Item_ref::val_datetime_packed()
+{
+  DBUG_ASSERT(fixed);
+  longlong tmp= (*ref)->val_datetime_packed_result();
+  null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
+longlong Item_ref::val_time_packed()
+{
+  DBUG_ASSERT(fixed);
+  longlong tmp= (*ref)->val_time_packed_result();
+  null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
 my_decimal *Item_ref::val_decimal(my_decimal *decimal_value)
 {
   my_decimal *val= (*ref)->val_decimal_result(decimal_value);
@@ -8411,9 +8601,9 @@ void Item_ref::save_org_in_field(Field *field, fast_field_copier optimizer_data)
 }
 
 
-void Item_ref::make_field(THD *thd, Send_field *field)
+void Item_ref::make_send_field(THD *thd, Send_field *field)
 {
-  (*ref)->make_field(thd, field);
+  (*ref)->make_send_field(thd, field);
   /* Non-zero in case of a view */
   if (name.str)
     field->col_name= name;
@@ -8513,6 +8703,22 @@ bool Item_direct_ref::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 }
 
 
+longlong Item_direct_ref::val_time_packed()
+{
+  longlong tmp = (*ref)->val_time_packed();
+  null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
+longlong Item_direct_ref::val_datetime_packed()
+{
+  longlong tmp = (*ref)->val_datetime_packed();
+  null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
 Item_cache_wrapper::~Item_cache_wrapper()
 {
   DBUG_ASSERT(expr_cache == 0);
@@ -8525,9 +8731,11 @@ Item_cache_wrapper::Item_cache_wrapper(THD *thd, Item *item_arg):
   Type_std_attributes::set(orig_item);
   maybe_null= orig_item->maybe_null;
   with_sum_func= orig_item->with_sum_func;
+  with_param= orig_item->with_param;
   with_field= orig_item->with_field;
   name= item_arg->name;
   m_with_subquery= orig_item->with_subquery();
+  with_window_func= orig_item->with_window_func;
 
   if ((expr_value= orig_item->get_cache(thd)))
     expr_value->setup(thd, orig_item);
@@ -8958,8 +9166,7 @@ bool Item_direct_view_ref::fix_fields(THD *thd, Item **reference)
         bitmap_set_bit(fld->table->read_set, fld->field_index);
     }
   }
-  else if (!(*ref)->fixed &&
-           ((*ref)->fix_fields(thd, ref)))
+  else if ((*ref)->fix_fields_if_needed(thd, ref))
     return TRUE;
 
   if (Item_direct_ref::fix_fields(thd, reference))
@@ -8987,7 +9194,7 @@ bool Item_outer_ref::fix_fields(THD *thd, Item **reference)
 {
   bool err;
   /* outer_ref->check_cols() will be made in Item_direct_ref::fix_fields */
-  if ((*ref) && !(*ref)->fixed && ((*ref)->fix_fields(thd, reference)))
+  if ((*ref) && (*ref)->fix_fields_if_needed(thd, reference))
     return TRUE;
   err= Item_direct_ref::fix_fields(thd, reference);
   if (!outer_ref)
@@ -9207,6 +9414,46 @@ bool Item_direct_view_ref::excl_dep_on_grouping_fields(st_select_lex *sel)
 }
 
 
+double Item_direct_view_ref::val_result()
+{
+  double tmp=(*ref)->val_result();
+  null_value=(*ref)->null_value;
+  return tmp;
+}
+
+
+longlong Item_direct_view_ref::val_int_result()
+{
+  longlong tmp=(*ref)->val_int_result();
+  null_value=(*ref)->null_value;
+  return tmp;
+}
+
+
+String *Item_direct_view_ref::str_result(String* tmp)
+{
+  tmp=(*ref)->str_result(tmp);
+  null_value=(*ref)->null_value;
+  return tmp;
+}
+
+
+my_decimal *Item_direct_view_ref::val_decimal_result(my_decimal *val)
+{
+  my_decimal *tmp= (*ref)->val_decimal_result(val);
+  null_value=(*ref)->null_value;
+  return tmp;
+}
+
+
+bool Item_direct_view_ref::val_bool_result()
+{
+  bool tmp= (*ref)->val_bool_result();
+  null_value=(*ref)->null_value;
+  return tmp;
+}
+
+
 bool Item_default_value::eq(const Item *item, bool binary_cmp) const
 {
   return item->type() == DEFAULT_VALUE_ITEM && 
@@ -9220,15 +9467,24 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   Item_field *field_arg;
   Field *def_field;
   DBUG_ASSERT(fixed == 0);
+  DBUG_ASSERT(arg);
 
-  if (!arg)
+  /*
+    DEFAULT() do not need table field so should not ask handler to bring
+    field value (mark column for read)
+  */
+  enum_column_usage save_column_usage= thd->column_usage;
+  /*
+    Fields which has defult value could be read, so it is better hide system
+    invisible columns.
+  */
+  thd->column_usage= COLUMNS_WRITE;
+  if (arg->fix_fields_if_needed(thd, &arg))
   {
-    fixed= 1;
-    return FALSE;
-  }
-  if (!arg->fixed && arg->fix_fields(thd, &arg))
+    thd->column_usage= save_column_usage;
     goto error;
-
+  }
+  thd->column_usage= save_column_usage;
 
   real_arg= arg->real_item();
   if (real_arg->type() != FIELD_ITEM)
@@ -9246,17 +9502,24 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
   }
   if (!(def_field= (Field*) thd->alloc(field_arg->field->size_of())))
     goto error;
+  cached_field= def_field;
   memcpy((void *)def_field, (void *)field_arg->field,
          field_arg->field->size_of());
-  IF_DBUG_ASSERT(def_field->is_stat_field=1,); // a hack to fool ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED
-  if (def_field->default_value && def_field->default_value->flags)
+  def_field->reset_fields();
+  // If non-constant default value expression or a blob
+  if (def_field->default_value &&
+      (def_field->default_value->flags || (def_field->flags & BLOB_FLAG)))
   {
     uchar *newptr= (uchar*) thd->alloc(1+def_field->pack_length());
     if (!newptr)
       goto error;
+    /*
+      Even if DEFAULT() do not read tables fields, the default value
+      expression can do it.
+    */
     fix_session_vcol_expr_for_read(thd, def_field, def_field->default_value);
     if (should_mark_column(thd->column_usage))
-      def_field->default_value->expr->walk(&Item::register_field_in_read_map, 1, 0);
+      def_field->default_value->expr->update_used_tables();
     def_field->move_field(newptr+1, def_field->maybe_null() ? newptr : 0, 1);
   }
   else
@@ -9271,21 +9534,30 @@ error:
   return TRUE;
 }
 
+void Item_default_value::cleanup()
+{
+  delete cached_field;                        // Free cached blob data
+  cached_field= 0;
+  Item_field::cleanup();
+}
 
 void Item_default_value::print(String *str, enum_query_type query_type)
 {
-  if (!arg)
-  {
-    str->append(STRING_WITH_LEN("default"));
-    return;
-  }
+  DBUG_ASSERT(arg);
   str->append(STRING_WITH_LEN("default("));
+  /*
+    We take DEFAULT from a field so do not need it value in case of const
+    tables but its name so we set QT_NO_DATA_EXPANSION (as we print for
+    table definition, also we do not need table and database name)
+  */
+  query_type= (enum_query_type) (query_type | QT_NO_DATA_EXPANSION);
   arg->print(str, query_type);
   str->append(')');
 }
 
 void Item_default_value::calculate()
 {
+  DBUG_ASSERT(arg);
   if (field->default_value)
     field->set_default();
   DEBUG_SYNC(field->table->in_use, "after_Item_default_value_calculate");
@@ -9329,23 +9601,57 @@ bool Item_default_value::send(Protocol *protocol, st_value *buffer)
 
 int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
 {
-  if (arg)
-  {
-    calculate();
-    return Item_field::save_in_field(field_arg, no_conversions);
-  }
+  calculate();
+  return Item_field::save_in_field(field_arg, no_conversions);
+}
 
-  if (field_arg->default_value && field_arg->default_value->flags)
-    return 0; // defaut fields will be set later, no need to do it twice
-  return field_arg->save_in_field_default_value(context->error_processor ==
-                                                &view_error_processor);
+double Item_default_value::val_result()
+{
+  calculate();
+  return Item_field::val_result();
+}
+
+longlong Item_default_value::val_int_result()
+{
+  calculate();
+  return Item_field::val_int_result();
+}
+
+String *Item_default_value::str_result(String* tmp)
+{
+  calculate();
+  return Item_field::str_result(tmp);
+}
+
+bool Item_default_value::val_bool_result()
+{
+  calculate();
+  return Item_field::val_bool_result();
+}
+
+bool Item_default_value::is_null_result()
+{
+  calculate();
+  return Item_field::is_null_result();
+}
+
+my_decimal *Item_default_value::val_decimal_result(my_decimal *decimal_value)
+{
+  calculate();
+  return Item_field::val_decimal_result(decimal_value);
+}
+
+bool Item_default_value::get_date_result(MYSQL_TIME *ltime,ulonglong fuzzydate)
+{
+  calculate();
+  return Item_field::get_date_result(ltime, fuzzydate);
 }
 
 table_map Item_default_value::used_tables() const
 {
   if (!field || !field->default_value)
     return static_cast<table_map>(0);
-  if (!field->default_value->expr)                      // not fully parsed field
+  if (!field->default_value->expr)           // not fully parsed field
     return static_cast<table_map>(RAND_TABLE_BIT);
   return field->default_value->expr->used_tables();
 }
@@ -9359,13 +9665,7 @@ Item *Item_default_value::transform(THD *thd, Item_transformer transformer,
                                     uchar *args)
 {
   DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
-
-  /*
-    If the value of arg is NULL, then this object represents a constant,
-    so further transformation is unnecessary (and impossible).
-  */
-  if (!arg)
-    return 0;
+  DBUG_ASSERT(arg);
 
   Item *new_item= arg->transform(thd, transformer, args);
   if (!new_item)
@@ -9382,57 +9682,6 @@ Item *Item_default_value::transform(THD *thd, Item_transformer transformer,
   return (this->*transformer)(thd, args);
 }
 
-void Item_ignore_value::print(String *str, enum_query_type query_type)
-{
-    str->append(STRING_WITH_LEN("ignore"));
-}
-
-int Item_ignore_value::save_in_field(Field *field_arg, bool no_conversions)
-{
-  return field_arg->save_in_field_ignore_value(context->error_processor ==
-                                               &view_error_processor);
-}
-
-String *Item_ignore_value::val_str(String *str)
-{
-  DBUG_ASSERT(0); // never should be called
-  null_value= 1;
-  return 0;
-}
-
-double Item_ignore_value::val_real()
-{
-  DBUG_ASSERT(0); // never should be called
-  null_value= 1;
-  return 0.0;
-}
-
-longlong Item_ignore_value::val_int()
-{
-  DBUG_ASSERT(0); // never should be called
-  null_value= 1;
-  return 0;
-}
-
-my_decimal *Item_ignore_value::val_decimal(my_decimal *decimal_value)
-{
-  DBUG_ASSERT(0); // never should be called
-  null_value= 1;
-  return 0;
-}
-
-bool Item_ignore_value::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
-{
-  DBUG_ASSERT(0); // never should be called
-  null_value= 1;
-  return TRUE;
-}
-
-bool Item_ignore_value::send(Protocol *protocol, st_value *buffer)
-{
-  DBUG_ASSERT(0); // never should be called
-  return TRUE;
-}
 
 bool Item_insert_value::eq(const Item *item, bool binary_cmp) const
 {
@@ -9458,7 +9707,7 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
 
   if (arg->type() == REF_ITEM)
     arg= static_cast<Item_ref *>(arg)->ref[0];
-  if (arg->type() != FIELD_ITEM)
+  if (unlikely(arg->type() != FIELD_ITEM))
   {
     my_error(ER_BAD_FIELD_ERROR, MYF(0), "", "VALUES() function");
     return TRUE;
@@ -9480,10 +9729,10 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
   }
   else
   {
-    Field *tmp_field= field_arg->field;
-    /* charset doesn't matter here, it's to avoid sigsegv only */
-    tmp_field= new Field_null(0, 0, Field::NONE, &field_arg->field->field_name,
-                          &my_charset_bin);
+    static uchar null_bit=1;
+    /* charset doesn't matter here */
+    Field *tmp_field= new Field_string(0, 0, &null_bit, 1, Field::NONE,
+                                &field_arg->field->field_name, &my_charset_bin);
     if (tmp_field)
     {
       tmp_field->init(field_arg->field->table);
@@ -9571,14 +9820,8 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
 {
   Item *item= thd->sp_prepare_func_item(it);
 
-  if (!item)
+  if (!item || fix_fields_if_needed(thd, NULL))
     return true;
-
-  if (!fixed)
-  {
-    if (fix_fields(thd, NULL))
-      return true;
-  }
 
   // NOTE: field->table->copy_blobs should be false here, but let's
   // remember the value at runtime to avoid subtle bugs.
@@ -9589,7 +9832,7 @@ bool Item_trigger_field::set_value(THD *thd, sp_rcontext * /*ctx*/, Item **it)
   int err_code= item->save_in_field(field, 0);
 
   field->table->copy_blobs= copy_blobs_saved;
-  field->set_explicit_default(item);
+  field->set_has_explicit_value();
 
   return err_code < 0;
 }
@@ -9607,7 +9850,7 @@ bool Item_trigger_field::fix_fields(THD *thd, Item **items)
 
   /* Set field. */
 
-  if (field_idx != (uint)-1)
+  if (likely(field_idx != (uint)-1))
   {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     /*
@@ -9669,13 +9912,11 @@ void Item_trigger_field::cleanup()
 
 Item_result item_cmp_type(Item_result a,Item_result b)
 {
-  if (a == STRING_RESULT && b == STRING_RESULT)
-    return STRING_RESULT;
-  if (a == INT_RESULT && b == INT_RESULT)
-    return INT_RESULT;
-  else if (a == ROW_RESULT || b == ROW_RESULT)
+  if (a == b)
+    return a;
+  if (a == ROW_RESULT || b == ROW_RESULT)
     return ROW_RESULT;
-  else if (a == TIME_RESULT || b == TIME_RESULT)
+  if (a == TIME_RESULT || b == TIME_RESULT)
     return TIME_RESULT;
   if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
       (b == INT_RESULT || b == DECIMAL_RESULT))
@@ -9845,7 +10086,7 @@ bool  Item_cache_int::cache_value()
     return FALSE;
   value_cached= TRUE;
   value= example->val_int_result();
-  null_value= example->null_value;
+  null_value_inside= null_value= example->null_value;
   unsigned_flag= example->unsigned_flag;
   return TRUE;
 }
@@ -9903,6 +10144,8 @@ Item *Item_cache_int::convert_to_basic_const_item(THD *thd)
 {
   Item *new_item;
   DBUG_ASSERT(value_cached || example != 0);
+  if (!value_cached)
+    cache_value();
   new_item= null_value ?
             (Item*) new (thd->mem_root) Item_null(thd) :
 	    (Item*) new (thd->mem_root) Item_int(thd, val_int(), max_length);
@@ -9994,13 +10237,13 @@ double Item_cache_temporal::val_real()
 }
 
 
-bool  Item_cache_temporal::cache_value()
+bool Item_cache_temporal::cache_value()
 {
   if (!example)
     return false;
   value_cached= true;
   value= example->val_datetime_packed_result();
-  null_value= example->null_value;
+  null_value_inside= null_value= example->null_value;
   return true;
 }
 
@@ -10011,7 +10254,7 @@ bool Item_cache_time::cache_value()
     return false;
   value_cached= true;
   value= example->val_time_packed_result();
-  null_value= example->null_value;
+  null_value_inside= null_value= example->null_value;
   return true;
 }
 
@@ -10023,12 +10266,11 @@ bool Item_cache_temporal::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   if (!has_value())
   {
     bzero((char*) ltime,sizeof(*ltime));
-    return 1;
+    return (null_value= true);
   }
 
   unpack_time(value, ltime, mysql_timestamp_type());
   return 0;
- 
 }
 
 
@@ -10066,18 +10308,35 @@ Item *Item_cache_temporal::convert_to_basic_const_item(THD *thd)
 {
   Item *new_item;
   DBUG_ASSERT(value_cached || example != 0);
+  if (!value_cached)
+    cache_value();
   if (null_value)
-    new_item= (Item*) new (thd->mem_root) Item_null(thd);
+    return new (thd->mem_root) Item_null(thd);
   else
-  {
-    MYSQL_TIME ltime;
-    unpack_time(val_datetime_packed(), &ltime, MYSQL_TIMESTAMP_DATETIME);
-    new_item= (Item*) new (thd->mem_root) Item_datetime_literal(thd, &ltime,
-                                                                decimals);
-  }
+    return make_literal(thd);
   return new_item;
 }
 
+Item *Item_cache_datetime::make_literal(THD *thd)
+{
+  MYSQL_TIME ltime;
+  unpack_time(val_datetime_packed(), &ltime, MYSQL_TIMESTAMP_DATETIME);
+  return new (thd->mem_root) Item_datetime_literal(thd, &ltime, decimals);
+}
+
+Item *Item_cache_date::make_literal(THD *thd)
+{
+  MYSQL_TIME ltime;
+  unpack_time(val_datetime_packed(), &ltime, MYSQL_TIMESTAMP_DATE);
+  return new (thd->mem_root) Item_date_literal(thd, &ltime);
+}
+
+Item *Item_cache_time::make_literal(THD *thd)
+{
+  MYSQL_TIME ltime;
+  unpack_time(val_time_packed(), &ltime, MYSQL_TIMESTAMP_TIME);
+  return new (thd->mem_root) Item_time_literal(thd, &ltime, decimals);
+}
 
 bool Item_cache_real::cache_value()
 {
@@ -10085,7 +10344,7 @@ bool Item_cache_real::cache_value()
     return FALSE;
   value_cached= TRUE;
   value= example->val_result();
-  null_value= example->null_value;
+  null_value_inside= null_value= example->null_value;
   return TRUE;
 }
 
@@ -10103,16 +10362,26 @@ longlong Item_cache_real::val_int()
   DBUG_ASSERT(fixed == 1);
   if (!has_value())
     return 0;
-  return (longlong) rint(value);
+  return Converter_double_to_longlong(value, unsigned_flag).result();
 }
 
 
-String* Item_cache_real::val_str(String *str)
+String* Item_cache_double::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   if (!has_value())
     return NULL;
   str->set_real(value, decimals, default_charset());
+  return str;
+}
+
+
+String* Item_cache_float::val_str(String *str)
+{
+  DBUG_ASSERT(fixed == 1);
+  if (!has_value())
+    return NULL;
+  Float(value).to_string(str, decimals);
   return str;
 }
 
@@ -10131,6 +10400,8 @@ Item *Item_cache_real::convert_to_basic_const_item(THD *thd)
 {
   Item *new_item;
   DBUG_ASSERT(value_cached || example != 0);
+  if (!value_cached)
+    cache_value();
   new_item= null_value ?
             (Item*) new (thd->mem_root) Item_null(thd) :
 	    (Item*) new (thd->mem_root) Item_float(thd, val_real(),
@@ -10145,7 +10416,8 @@ bool Item_cache_decimal::cache_value()
     return FALSE;
   value_cached= TRUE;
   my_decimal *val= example->val_decimal_result(&decimal_value);
-  if (!(null_value= example->null_value) && val != &decimal_value)
+  if (!(null_value_inside= null_value= example->null_value) &&
+        val != &decimal_value)
     my_decimal2decimal(val, &decimal_value);
   return TRUE;
 }
@@ -10194,6 +10466,8 @@ Item *Item_cache_decimal::convert_to_basic_const_item(THD *thd)
 {
   Item *new_item;
   DBUG_ASSERT(value_cached || example != 0);
+  if (!value_cached)
+    cache_value();
   if (null_value)
     new_item= (Item*) new (thd->mem_root) Item_null(thd);
   else
@@ -10209,11 +10483,14 @@ Item *Item_cache_decimal::convert_to_basic_const_item(THD *thd)
 bool Item_cache_str::cache_value()
 {
   if (!example)
+  {
+    DBUG_ASSERT(value_cached == FALSE);
     return FALSE;
+  }
   value_cached= TRUE;
   value_buff.set(buffer, sizeof(buffer), example->collation.collation);
   value= example->str_result(&value_buff);
-  if ((null_value= example->null_value))
+  if ((null_value= null_value_inside= example->null_value))
     value= 0;
   else if (value != &value_buff)
   {
@@ -10228,6 +10505,8 @@ bool Item_cache_str::cache_value()
     value_buff.copy(*value);
     value= &value_buff;
   }
+  else
+    value_buff.copy();
   return TRUE;
 }
 
@@ -10289,6 +10568,8 @@ Item *Item_cache_str::convert_to_basic_const_item(THD *thd)
 {
   Item *new_item;
   DBUG_ASSERT(value_cached || example != 0);
+  if (!value_cached)
+    cache_value();
   if (null_value)
     new_item= (Item*) new (thd->mem_root) Item_null(thd);
   else
@@ -10308,6 +10589,8 @@ Item *Item_cache_str::convert_to_basic_const_item(THD *thd)
 bool Item_cache_row::setup(THD *thd, Item *item)
 {
   example= item;
+  null_value= true;
+
   if (!values && allocate(thd, item->cols()))
     return 1;
   for (uint i= 0; i < item_count; i++)
@@ -10340,12 +10623,19 @@ bool Item_cache_row::cache_value()
   if (!example)
     return FALSE;
   value_cached= TRUE;
-  null_value= 0;
+  null_value= TRUE;
+  null_value_inside= false;
   example->bring_value();
+
+  /*
+    For Item_cache_row null_value is set to TRUE only when ALL the values
+    inside the cache are NULL
+  */
   for (uint i= 0; i < item_count; i++)
   {
     values[i]->cache_value();
-    null_value|= values[i]->null_value;
+    null_value&= values[i]->null_value;
+    null_value_inside|= values[i]->null_value;
   }
   return TRUE;
 }
@@ -10529,11 +10819,14 @@ table_map Item_direct_view_ref::used_tables() const
 
 table_map Item_direct_view_ref::not_null_tables() const
 {
-  return get_depended_from() ?
-         0 :
-         ((view->is_merged_derived() || view->merged || !view->table) ?
-          (*ref)->not_null_tables() :
-          view->table->map);
+  if (get_depended_from())
+    return 0;
+  if  (!( view->merged || !view->table))
+    return view->table->map;
+  TABLE *tab= get_null_ref_table();
+  if (tab == NO_NULL_TABLE || (*ref)->used_tables())
+    return (*ref)->not_null_tables();
+   return get_null_ref_table()->map;
 }
 
 /*
@@ -10618,6 +10911,9 @@ const char *dbug_print_unit(SELECT_LEX_UNIT *un)
     return "Couldn't fit into buffer";
 }
 
+const char *dbug_print(Item *x)            { return dbug_print_item(x);   }
+const char *dbug_print(SELECT_LEX *x)      { return dbug_print_select(x); }
+const char *dbug_print(SELECT_LEX_UNIT *x) { return dbug_print_unit(x);   }
 
 #endif /*DBUG_OFF*/
 
@@ -10633,11 +10929,6 @@ Item_field::excl_dep_on_grouping_fields(st_select_lex *sel)
   return find_matching_grouping_field(this, sel) != NULL;
 }
 
-bool Item_field::vers_trx_id() const
-{
-  DBUG_ASSERT(field);
-  return field->vers_trx_id();
-}
 
 void Item::register_in(THD *thd)
 {

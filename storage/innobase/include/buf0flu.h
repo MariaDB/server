@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,7 +27,6 @@ Created 11/5/1995 Heikki Tuuri
 #ifndef buf0flu_h
 #define buf0flu_h
 
-#include "univ.i"
 #include "ut0byte.h"
 #include "log0log.h"
 #include "buf0types.h"
@@ -70,25 +69,21 @@ buf_flush_relocate_on_flush_list(
 /*=============================*/
 	buf_page_t*	bpage,	/*!< in/out: control block being moved */
 	buf_page_t*	dpage);	/*!< in/out: destination block */
-/********************************************************************//**
-Updates the flush system data structures when a write is completed. */
-void
-buf_flush_write_complete(
-/*=====================*/
-	buf_page_t*	bpage);	/*!< in: pointer to the block in question */
+/** Update the flush system data structures when a write is completed.
+@param[in,out]	bpage	flushed page
+@param[in]	dblwr	whether the doublewrite buffer was used */
+void buf_flush_write_complete(buf_page_t* bpage, bool dblwr);
 /** Initialize a page for writing to the tablespace.
 @param[in]	block		buffer block; NULL if bypassing the buffer pool
 @param[in,out]	page		page frame
 @param[in,out]	page_zip_	compressed page, or NULL if uncompressed
-@param[in]	newest_lsn	newest modification LSN to the page
-@param[in]	skip_checksum	whether to disable the page checksum */
+@param[in]	newest_lsn	newest modification LSN to the page */
 void
 buf_flush_init_for_writing(
 	const buf_block_t*	block,
 	byte*			page,
 	void*			page_zip_,
-	lsn_t			newest_lsn,
-	bool			skip_checksum = false);
+	lsn_t			newest_lsn);
 
 # if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 /********************************************************************//**
@@ -172,16 +167,6 @@ void
 buf_flush_wait_flushed(
 	lsn_t		new_oldest);
 
-/******************************************************************//**
-Waits until a flush batch of the given type ends. This is called by
-a thread that only wants to wait for a flush to end but doesn't do
-any flushing itself. */
-void
-buf_flush_wait_batch_end_wait_only(
-/*===============================*/
-	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
-	buf_flush_t	type);		/*!< in: BUF_FLUSH_LRU
-					or BUF_FLUSH_LIST */
 /********************************************************************//**
 This function should be called at a mini-transaction commit, if a page was
 modified in it. Puts the block to the list of modified blocks, if it not
@@ -221,16 +206,10 @@ buf_flush_ready_for_replace(
 #ifdef UNIV_DEBUG
 /** Disables page cleaner threads (coordinator and workers).
 It's used by: SET GLOBAL innodb_page_cleaner_disabled_debug = 1 (0).
-@param[in]	thd		thread handle
-@param[in]	var		pointer to system variable
-@param[out]	var_ptr		where the formal string goes
 @param[in]	save		immediate result from check function */
-void
-buf_flush_page_cleaner_disabled_debug_update(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				var_ptr,
-	const void*			save);
+void buf_flush_page_cleaner_disabled_debug_update(THD*,
+						  st_mysql_sys_var*, void*,
+						  const void* save);
 #endif /* UNIV_DEBUG */
 
 /******************************************************************//**
@@ -349,12 +328,12 @@ flushed to disk before any redo logged operations go to the index. */
 class FlushObserver {
 public:
 	/** Constructor
-	@param[in]	space_id	table space id
+	@param[in,out]	space		tablespace
 	@param[in]	trx		trx instance
 	@param[in]	stage		performance schema accounting object,
 	used by ALTER TABLE. It is passed to log_preflush_pool_modified_pages()
 	for accounting. */
-	FlushObserver(ulint space_id, trx_t* trx, ut_stage_alter_t* stage);
+	FlushObserver(fil_space_t* space, trx_t* trx, ut_stage_alter_t* stage);
 
 	/** Deconstructor */
 	~FlushObserver();
@@ -381,9 +360,8 @@ public:
 		m_interrupted = true;
 	}
 
-	/** Check whether trx is interrupted
-	@return true if trx is interrupted */
-	bool check_interrupted();
+	/** Check whether the operation has been interrupted */
+	void check_interrupted();
 
 	/** Flush dirty pages. */
 	void flush();
@@ -401,11 +379,11 @@ public:
 		buf_pool_t*	buf_pool,
 		buf_page_t*	bpage);
 private:
-	/** Table space id */
-	const ulint		m_space_id;
+	/** Tablespace */
+	fil_space_t*		m_space;
 
 	/** Trx instance */
-	trx_t* const		m_trx;
+	const trx_t* const	m_trx;
 
 	/** Performance schema accounting object, used by ALTER TABLE.
 	If not NULL, then stage->begin_phase_flush() will be called initially,
@@ -423,57 +401,6 @@ private:
 	/* True if the operation was interrupted. */
 	bool			m_interrupted;
 };
-
-/******************************************************************//**
-Start a buffer flush batch for LRU or flush list */
-ibool
-buf_flush_start(
-/*============*/
-	buf_pool_t*	buf_pool,	/*!< buffer pool instance */
-	buf_flush_t	flush_type);	/*!< in: BUF_FLUSH_LRU
-					or BUF_FLUSH_LIST */
-/******************************************************************//**
-End a buffer flush batch for LRU or flush list */
-void
-buf_flush_end(
-/*==========*/
-	buf_pool_t*	buf_pool,	/*!< buffer pool instance */
-	buf_flush_t	flush_type);	/*!< in: BUF_FLUSH_LRU
-					or BUF_FLUSH_LIST */
-/******************************************************************//**
-Gather the aggregated stats for both flush list and LRU list flushing */
-void
-buf_flush_common(
-/*=============*/
-	buf_flush_t	flush_type,	/*!< in: type of flush */
-	ulint		page_count);	/*!< in: number of pages flushed */
-
-/*******************************************************************//**
-This utility flushes dirty blocks from the end of the LRU list or flush_list.
-NOTE 1: in the case of an LRU flush the calling thread may own latches to
-pages: to avoid deadlocks, this function must be written so that it cannot
-end up waiting for these latches! NOTE 2: in the case of a flush list flush,
-the calling thread is not allowed to own any latches on pages! */
-__attribute__((nonnull))
-void
-buf_flush_batch(
-/*============*/
-	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
-	buf_flush_t	flush_type,	/*!< in: BUF_FLUSH_LRU or
-					BUF_FLUSH_LIST; if BUF_FLUSH_LIST,
-					then the caller must not own any
-					latches on pages */
-	ulint		min_n,		/*!< in: wished minimum mumber of blocks
-					flushed (it is not guaranteed that the
-					actual number is that big, though) */
-	lsn_t		lsn_limit,	/*!< in: in the case of BUF_FLUSH_LIST
-					all blocks whose oldest_modification is
-					smaller than this should be flushed
-					(if their number does not exceed
-					min_n), otherwise ignored */
-	flush_counters_t*	n);	/*!< out: flushed/evicted page
-					counts  */
-
 
 #include "buf0flu.ic"
 

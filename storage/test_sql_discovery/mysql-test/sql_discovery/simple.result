@@ -82,7 +82,7 @@ select * from t1;
 ERROR HY000: Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 (a uint)'
 show warnings;
 Level	Code	Message
-Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'uint)' at line 1
+Error	1064	You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ')' at line 1
 Error	1939	Engine TEST_SQL_DISCOVERY failed to discover table `test`.`t1` with 'create table t1 (a uint)'
 set @@test_sql_discovery_statement='t1:create table t1 (a int)';
 select * from t1;

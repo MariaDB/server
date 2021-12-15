@@ -1,6 +1,9 @@
+--source include/default_charset.inc
+
 #
 # MDEV-13209 Cross-database operation with virtual columns fails
 #
+
 create database mysqltest1;
 create table mysqltest1.t1 (i int, j int as (i) persistent);
 show create table mysqltest1.t1;

@@ -1,0 +1,27 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-16234
+--echo # CREATE TABLE .. SELECT LASTVAL is written to binlog as single
+--echo # statement, causes discrepancy between master and slave
+--echo #
+
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+SELECT NEXTVAL(s1);
+CREATE TABLE t1 ENGINE=InnoDB SELECT LASTVAL(s1) AS a;
+INSERT INTO t1 VALUES (NEXTVAL(s1));
+INSERT INTO t1 VALUES (LASTVAL(s1));
+SELECT * FROM t1;
+SELECT * from s1;
+--sync_slave_with_master
+SELECT * FROM t1;
+SELECT * from s1;
+
+# Cleanup
+--connection master
+DROP TABLE t1;
+DROP SEQUENCE s1;
+
+--source include/rpl_end.inc

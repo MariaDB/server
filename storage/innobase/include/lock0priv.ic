@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -31,6 +32,8 @@ methods but they are used only in that file. */
 #ifndef LOCK_MODULE_IMPLEMENTATION
 #error Do not include lock0priv.ic outside of the lock/ module
 #endif
+
+#include "row0row.h"
 
 /*********************************************************************//**
 Gets the type of a lock.
@@ -56,7 +59,7 @@ lock_clust_rec_some_has_impl(
 /*=========================*/
 	const rec_t*		rec,	/*!< in: user record */
 	const dict_index_t*	index,	/*!< in: clustered index */
-	const ulint*		offsets)/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*		offsets)/*!< in: rec_get_offsets(rec, index) */
 {
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(page_rec_is_user_rec(rec));
@@ -386,17 +389,10 @@ lock_table_has(
 	const dict_table_t*	table,	/*!< in: table */
 	lock_mode		in_mode)/*!< in: lock mode */
 {
-	if (trx->lock.table_locks.empty()) {
-		return(NULL);
-	}
-
-	typedef lock_pool_t::const_reverse_iterator iterator;
-
-	iterator	end = trx->lock.table_locks.rend();
-
 	/* Look for stronger locks the same trx already has on the table */
 
-	for (iterator it = trx->lock.table_locks.rbegin(); it != end; ++it) {
+	for (lock_list::const_iterator it = trx->lock.table_locks.begin(),
+             end = trx->lock.table_locks.end(); it != end; ++it) {
 
 		const lock_t*	lock = *it;
 

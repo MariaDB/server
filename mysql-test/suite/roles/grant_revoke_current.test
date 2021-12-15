@@ -25,5 +25,7 @@ show grants;
 grant r1 to current_user() identified by 'barfoo';
 show grants;
 set password='';
+#cleanup after MDEV-16238
+update mysql.user set plugin='';
 
 drop role r1;

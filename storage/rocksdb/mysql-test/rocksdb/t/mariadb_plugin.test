@@ -1,0 +1,59 @@
+--source include/have_log_bin.inc
+--source include/have_binlog_format_row.inc
+--source include/not_windows.inc
+
+--echo #
+--echo # MDEV-14843: Assertion `s_tx_list.size() == 0' failed in myrocks::Rdb_transaction::term_mutex
+--echo #
+
+#
+# On Linux, wsrep plugin is always loaded so XA is enabled at this point.
+# On Windows, there is no wsrep, so we get this warning:
+#   Warning	1105	Cannot enable tc-log at run-time. XA features of ROCKSDB are disabled
+#
+--disable_warnings
+INSTALL SONAME 'ha_rocksdb';
+--enable_warnings
+
+connect (con1,localhost,root,,test);
+CREATE TABLE t1 (i INT) ENGINE=RocksDB;
+insert into t1 values (1);
+DROP TABLE t1;
+
+connection default;
+# Cleanup
+UNINSTALL SONAME 'ha_rocksdb';
+SELECT ENGINE, SUPPORT FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE='ROCKSDB';
+disconnect con1;
+# Unfortunately this is the only more or less reliable way to wait until
+# connection done ha_close_connections(). It doesn't work on Windows due
+# to different thread handling.
+let $wait_condition= SELECT VARIABLE_VALUE=1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME='Threads_cached';
+--source include/wait_condition.inc
+
+--echo #
+--echo # MDEV-15686: Loading MyRocks plugin back after it has been unloaded causes a crash
+--echo #
+call mtr.add_suppression("Plugin 'ROCKSDB.*' init function returned error.");
+call mtr.add_suppression("Plugin 'ROCKSDB.*' registration as a INFORMATION SCHEMA failed.");
+call mtr.add_suppression("Plugin 'ROCKSDB' registration as a STORAGE ENGINE failed");
+
+--echo #
+--echo # There are two possible scenarios:
+
+--echo #  ha_rocksdb.{dll,so} is still loaded into mysqld's address space. Its
+--echo #  global variables are in the state that doesn't allow it to be
+--echo #  initialized back (this is what MDEV-15686 is about). This is handled 
+--echo #  by intentionally returning an error from rocksdb_init_func.
+--echo #
+--echo #  The second case is when ha_rocksdb.{ddl,so} has been fully unloaded 
+--echo #  and so it will be now loaded as if it happens for the first time.
+
+--error 0,ER_INTERNAL_ERROR
+INSTALL SONAME 'ha_rocksdb';
+
+--echo # Whatever happened on the previous step, restore things to the way they
+--echo # were at testcase start.
+--error 0,ER_SP_DOES_NOT_EXIST
+UNINSTALL SONAME 'ha_rocksdb';
+

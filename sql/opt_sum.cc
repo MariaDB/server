@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /**
@@ -316,7 +316,7 @@ int opt_sum_query(THD *thd,
     else
     {
       error= tl->table->file->info(HA_STATUS_VARIABLE | HA_STATUS_NO_LOCK);
-      if(error)
+      if (unlikely(error))
       {
         tl->table->file->print_error(error, MYF(ME_FATALERROR));
         DBUG_RETURN(error);
@@ -399,19 +399,28 @@ int opt_sum_query(THD *thd,
             break;
           }
           longlong info_limit= 1;
-          table->file->info_push(INFO_KIND_FORCE_LIMIT_BEGIN, &info_limit);
-          if (!(error= table->file->ha_index_init((uint) ref.key, 1)))
-            error= (is_max ? 
-                    get_index_max_value(table, &ref, range_fl) :
-                    get_index_min_value(table, &ref, item_field, range_fl,
-                                        prefix_len));
+          error= 0;
 
+          table->file->info_push(INFO_KIND_FORCE_LIMIT_BEGIN, &info_limit);
+          if (!table->const_table)
+          {
+            if (likely(!(error= table->file->ha_index_init((uint) ref.key,
+                                                           1))))
+              error= (is_max ?
+                      get_index_max_value(table, &ref, range_fl) :
+                      get_index_min_value(table, &ref, item_field, range_fl,
+                                          prefix_len));
+          }
           /* Verify that the read tuple indeed matches the search key */
-	  if (!error && reckey_in_range(is_max, &ref, item_field->field, 
-			                conds, range_fl, prefix_len))
+	  if (!error &&
+              reckey_in_range(is_max, &ref, item_field->field,
+                              conds, range_fl, prefix_len))
 	    error= HA_ERR_KEY_NOT_FOUND;
-          table->file->ha_end_keyread();
-          table->file->ha_index_end();
+          if (!table->const_table)
+          {
+            table->file->ha_end_keyread();
+            table->file->ha_index_end();
+          }
           table->file->info_push(INFO_KIND_FORCE_LIMIT_END, NULL);
           if (error)
 	  {
@@ -478,7 +487,7 @@ int opt_sum_query(THD *thd,
     }
   }
 
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
     DBUG_RETURN(thd->get_stmt_da()->sql_errno());
 
   /*
@@ -833,7 +842,10 @@ static bool matching_cond(bool max_fl, TABLE_REF *ref, KEY *keyinfo,
     if (is_field_part)
     {
       if (between || eq_type)
+      {
         *range_fl&= ~(NO_MAX_RANGE | NO_MIN_RANGE);
+        *range_fl&= ~(max_fl ? NEAR_MAX : NEAR_MIN);
+      }
       else
       {
         *range_fl&= ~(max_fl ? NO_MAX_RANGE : NO_MIN_RANGE);

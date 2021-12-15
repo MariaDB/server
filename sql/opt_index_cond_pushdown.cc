@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "mariadb.h"
 #include "sql_select.h"
@@ -393,7 +393,22 @@ void push_index_cond(JOIN_TAB *tab, uint keyno)
            ~(tab->table->map | tab->join->const_table_map)))
         tab->cache_idx_cond= idx_cond;
       else
+      {
         idx_remainder_cond= tab->table->file->idx_cond_push(keyno, idx_cond);
+
+        /*
+          If (1) there is an index condition that we couldn't push using ICP,
+             (2) we are using Join Buffering
+             (3) and we are using BKA
+          then use BKA's Index Condition Pushdown mechanism to check it.
+        */
+        if (idx_remainder_cond && tab->use_join_cache &&   // (1) && (2)
+            tab->icp_other_tables_ok)                      // (3)
+        {
+          tab->cache_idx_cond= idx_remainder_cond;
+          idx_remainder_cond= NULL;
+        }
+      }
 
       /*
         Disable eq_ref's "lookup cache" if we've pushed down an index

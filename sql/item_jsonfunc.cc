@@ -173,7 +173,7 @@ static int json_nice(json_engine_t *je, String *nice_js,
           key_end= je->s.c_str;
         } while (json_read_keyname_chr(je) == 0);
         
-        if (je->s.error)
+        if (unlikely(je->s.error))
           goto error;
 
         if (!first_value)
@@ -388,11 +388,13 @@ longlong Item_func_json_valid::val_int()
 }
 
 
-void Item_func_json_exists::fix_length_and_dec()
+bool Item_func_json_exists::fix_length_and_dec()
 {
-  Item_bool_func::fix_length_and_dec();
+  if (Item_bool_func::fix_length_and_dec())
+    return TRUE;
   maybe_null= 1;
   path.set_constant_flag(args[1]->const_item());
+  return FALSE;
 }
 
 
@@ -439,12 +441,13 @@ err_return:
 }
 
 
-void Item_func_json_value::fix_length_and_dec()
+bool Item_func_json_value::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
   path.set_constant_flag(args[1]->const_item());
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -476,7 +479,7 @@ String *Item_func_json_value::val_str(String *str)
                   (const uchar *) js->ptr() + js->length());
 
   str->length(0);
-  str->set_charset(&my_charset_utf8mb4_bin);
+  str->set_charset(collation.collation);
 
   path.cur_step= path.p.steps;
 continue_search:
@@ -492,7 +495,7 @@ continue_search:
   if (json_read_value(&je))
     goto err_return;
 
-  if (check_and_get_value(&je, str, &error))
+  if (unlikely(check_and_get_value(&je, str, &error)))
   {
     if (error)
       goto err_return;
@@ -510,6 +513,10 @@ err_return:
 bool Item_func_json_value::check_and_get_value(json_engine_t *je, String *res,
                                                int *error)
 {
+  CHARSET_INFO *json_cs;
+  const uchar *js;
+  uint js_len;
+
   if (!json_value_scalar(je))
   {
     /* We only look for scalar values! */
@@ -518,7 +525,22 @@ bool Item_func_json_value::check_and_get_value(json_engine_t *je, String *res,
     return true;
   }
 
-  return st_append_json(res, je->s.cs, je->value, je->value_len); 
+  if (je->value_type == JSON_VALUE_TRUE ||
+      je->value_type == JSON_VALUE_FALSE)
+  {
+    json_cs= &my_charset_utf8mb4_bin;
+    js= (const uchar *) ((je->value_type == JSON_VALUE_TRUE) ? "1" : "0");
+    js_len= 1;
+  }
+  else
+  {
+    json_cs= je->s.cs;
+    js= je->value;
+    js_len= je->value_len;
+  }
+
+
+  return st_append_json(res, json_cs, js, js_len); 
 }
 
 
@@ -546,14 +568,15 @@ bool Item_func_json_query::check_and_get_value(json_engine_t *je, String *res,
 }
 
 
-void Item_func_json_quote::fix_length_and_dec()
+bool Item_func_json_quote::fix_length_and_dec()
 {
   collation.set(&my_charset_utf8mb4_bin);
   /*
     Odd but realistic worst case is when all characters
     of the argument turn into '\uXXXX\uXXXX', which is 12.
   */
-  max_length= args[0]->max_length * 12 + 2;
+  fix_char_length_ulonglong((ulonglong) args[0]->max_char_length() * 12 + 2);
+  return FALSE;
 }
 
 
@@ -581,12 +604,13 @@ String *Item_func_json_quote::val_str(String *str)
 }
 
 
-void Item_func_json_unquote::fix_length_and_dec()
+bool Item_func_json_unquote::fix_length_and_dec()
 {
   collation.set(&my_charset_utf8_general_ci,
                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= args[0]->max_length;
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -623,7 +647,7 @@ String *Item_func_json_unquote::val_str(String *str)
   if (!(js= read_json(&je)))
     return NULL;
 
-  if (je.s.error || je.value_type != JSON_VALUE_STRING)
+  if (unlikely(je.s.error) || je.value_type != JSON_VALUE_STRING)
     return js;
 
   str->length(0);
@@ -656,11 +680,11 @@ static int alloc_tmp_paths(THD *thd, uint n_paths,
 
       *paths= (json_path_with_flags *) alloc_root(root,
           sizeof(json_path_with_flags) * n_paths);
-      *tmp_paths= (String *) alloc_root(root, sizeof(String) * n_paths);
+
+      *tmp_paths= new (root) String[n_paths];
       if (*paths == 0 || *tmp_paths == 0)
         return 1;
 
-      bzero(*tmp_paths, sizeof(String) * n_paths);
       for (uint c_path=0; c_path < n_paths; c_path++)
         (*tmp_paths)[c_path].set_charset(&my_charset_utf8_general_ci);
     }
@@ -702,13 +726,14 @@ void Item_json_str_multipath::cleanup()
 }
 
 
-void Item_func_json_extract::fix_length_and_dec()
+bool Item_func_json_extract::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length * (arg_count - 1);
 
   mark_constant_paths(paths, args+1, arg_count-1);
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -835,7 +860,7 @@ String *Item_func_json_extract::read_json(String *str,
     }
   }
 
-  if (je.s.error)
+  if (unlikely(je.s.error))
     goto error;
 
   if (!not_first_value)
@@ -937,14 +962,49 @@ double Item_func_json_extract::val_real()
 }
 
 
-void Item_func_json_contains::fix_length_and_dec()
+my_decimal *Item_func_json_extract::val_decimal(my_decimal *to)
+{
+  json_value_types type;
+  char *value;
+  int value_len;
+
+  if (read_json(NULL, &type, &value, &value_len) != NULL)
+  {
+    switch (type)
+    {
+      case JSON_VALUE_STRING:
+      case JSON_VALUE_NUMBER:
+      {
+        my_decimal *res= decimal_from_string_with_check(to, collation.collation,
+                                                        value,
+                                                        value + value_len);
+        null_value= res == NULL;
+        return res;
+      }
+      case JSON_VALUE_TRUE:
+        int2my_decimal(E_DEC_FATAL_ERROR, 1, false/*unsigned_flag*/, to);
+        return to;
+      case JSON_VALUE_OBJECT:
+      case JSON_VALUE_ARRAY:
+      case JSON_VALUE_FALSE:
+      case JSON_VALUE_NULL:
+        break;
+    };
+  }
+  int2my_decimal(E_DEC_FATAL_ERROR, 0, false/*unsigned_flag*/, to);
+  return to;
+}
+
+
+
+bool Item_func_json_contains::fix_length_and_dec()
 {
   a2_constant= args[1]->const_item();
   a2_parsed= FALSE;
   maybe_null= 1;
   if (arg_count > 2)
     path.set_constant_flag(args[2]->const_item());
-  Item_bool_func::fix_length_and_dec();
+  return Item_bool_func::fix_length_and_dec();
 }
 
 
@@ -994,7 +1054,7 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
         k_end= value->s.c_str;
       } while (json_read_keyname_chr(value) == 0);
 
-      if (value->s.error || json_read_value(value))
+      if (unlikely(value->s.error) || json_read_value(value))
         return FALSE;
 
       if (set_js)
@@ -1037,7 +1097,7 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
             return FALSE;
           return TRUE;
         }
-        if (value->s.error || js->s.error ||
+        if (unlikely(value->s.error) || unlikely(js->s.error) ||
             (!v_scalar && json_skip_to_level(js, c_level)))
           return FALSE;
       }
@@ -1165,7 +1225,7 @@ longlong Item_func_json_contains::val_int()
     goto error;
 
   result= check_contains(&je, &ve);
-  if (je.s.error || ve.s.error)
+  if (unlikely(je.s.error || ve.s.error))
     goto error;
 
   return result;
@@ -1190,13 +1250,13 @@ bool Item_func_json_contains_path::fix_fields(THD *thd, Item **ref)
 }
 
 
-void Item_func_json_contains_path::fix_length_and_dec()
+bool Item_func_json_contains_path::fix_length_and_dec()
 {
   ooa_constant= args[1]->const_item();
   ooa_parsed= FALSE;
   maybe_null= 1;
   mark_constant_paths(paths, args+2, arg_count-2);
-  Item_bool_func::fix_length_and_dec();
+  return Item_bool_func::fix_length_and_dec();
 }
 
 
@@ -1385,7 +1445,7 @@ longlong Item_func_json_contains_path::val_int()
     }
   }
 
-  if (je.s.error == 0)
+  if (likely(je.s.error == 0))
     return result;
 
   report_json_error(js, &je, 0);
@@ -1455,7 +1515,7 @@ append_null:
 }
 
 
-void Item_func_json_array::fix_length_and_dec()
+bool Item_func_json_array::fix_length_and_dec()
 {
   ulonglong char_length= 2;
   uint n_arg;
@@ -1464,21 +1524,23 @@ void Item_func_json_array::fix_length_and_dec()
 
   if (arg_count == 0)
   {
-    collation.set(&my_charset_utf8_general_ci,
+    THD* thd= current_thd;
+    collation.set(thd->variables.collation_connection,
                   DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
-    tmp_val.set_charset(&my_charset_utf8_general_ci);
+    tmp_val.set_charset(thd->variables.collation_connection);
     max_length= 2;
-    return;
+    return FALSE;
   }
 
   if (agg_arg_charsets_for_string_result(collation, args, arg_count))
-    return;
+    return TRUE;
 
   for (n_arg=0 ; n_arg < arg_count ; n_arg++)
     char_length+= args[n_arg]->max_char_length() + 4;
 
   fix_char_length_ulonglong(char_length);
   tmp_val.set_charset(collation.collation);
+  return FALSE;
 }
 
 
@@ -1522,7 +1584,7 @@ err_return:
 }
 
 
-void Item_func_json_array_append::fix_length_and_dec()
+bool Item_func_json_array_append::fix_length_and_dec()
 {
   uint n_arg;
   ulonglong char_length;
@@ -1537,6 +1599,8 @@ void Item_func_json_array_append::fix_length_and_dec()
   }
 
   fix_char_length_ulonglong(char_length);
+  maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -1595,13 +1659,15 @@ String *Item_func_json_array_append::val_str(String *str)
 
     if (je.value_type == JSON_VALUE_ARRAY)
     {
-      if (json_skip_level(&je))
+      int n_items;
+      if (json_skip_level_and_count(&je, &n_items))
         goto js_error;
 
       ar_end= je.s.c_str - je.sav_c_len;
       str_rest_len= js->length() - (ar_end - (const uchar *) js->ptr());
       str->q_append(js->ptr(), ar_end-(const uchar *) js->ptr());
-      str->append(", ", 2);
+      if (n_items)
+        str->append(", ", 2);
       if (append_json_value(str, args[n_arg+1], &tmp_val))
         goto return_null; /* Out of memory. */
 
@@ -1749,7 +1815,7 @@ String *Item_func_json_array_insert::val_str(String *str)
         goto js_error;
     }
 
-    if (je.s.error)
+    if (unlikely(je.s.error))
       goto js_error;
 
     str->length(0);
@@ -1881,7 +1947,7 @@ static int do_merge(String *str, json_engine_t *je1, json_engine_t *je2)
         key_end= je1->s.c_str;
       } while (json_read_keyname_chr(je1) == 0);
 
-      if (je1->s.error)
+      if (unlikely(je1->s.error))
         return 1;
 
       if (first_key)
@@ -1916,7 +1982,7 @@ static int do_merge(String *str, json_engine_t *je1, json_engine_t *je2)
           return ires;
         goto merged_j1;
       }
-      if (je2->s.error)
+      if (unlikely(je2->s.error))
         return 2;
 
       key_start= je1->s.c_str;
@@ -1946,7 +2012,7 @@ merged_j1:
         key_end= je2->s.c_str;
       } while (json_read_keyname_chr(je2) == 0);
 
-      if (je2->s.error)
+      if (unlikely(je2->s.error))
         return 1;
 
       *je1= sav_je1;
@@ -1957,7 +2023,7 @@ merged_j1:
         json_string_set_str(&key_name, key_start, key_end);
         if (!json_key_matches(je1, &key_name))
         {
-          if (je1->s.error || json_skip_key(je1))
+          if (unlikely(je1->s.error || json_skip_key(je1)))
             return 2;
           continue;
         }
@@ -1967,7 +2033,7 @@ merged_j1:
         goto continue_j2;
       }
 
-      if (je1->s.error)
+      if (unlikely(je1->s.error))
         return 2;
 
       if (first_key)
@@ -1992,23 +2058,14 @@ continue_j2:
   else
   {
     const uchar *end1, *beg1, *end2, *beg2;
-    int empty_array= 0;
+    int n_items1=1, n_items2= 1;
 
     beg1= je1->value_begin;
 
     /* Merge as a single array. */
     if (je1->value_type == JSON_VALUE_ARRAY)
     {
-      int cur_level= je1->stack_p;
-      empty_array= 1;
-      while (json_scan_next(je1) == 0)
-      {
-        if (je1->stack_p < cur_level)
-          break;
-        empty_array= 0;
-      }
-
-      if (je1->s.error)
+      if (json_skip_level_and_count(je1, &n_items1))
         return 1;
 
       end1= je1->s.c_str - je1->sav_c_len;
@@ -2027,8 +2084,7 @@ continue_j2:
         end1= je1->value_end;
     }
 
-    if (str->append((const char*) beg1, end1 - beg1) ||
-        (!empty_array && str->append(", ", 2)))
+    if (str->append((const char*) beg1, end1 - beg1))
       return 3;
 
     if (json_value_scalar(je2))
@@ -2039,15 +2095,22 @@ continue_j2:
     else
     {
       if (je2->value_type == JSON_VALUE_OBJECT)
+      {
         beg2= je2->value_begin;
+        if (json_skip_level(je2))
+          return 2;
+      }
       else
+      {
         beg2= je2->s.c_str;
-      if (json_skip_level(je2))
-        return 2;
+        if (json_skip_level_and_count(je2, &n_items2))
+          return 2;
+      }
       end2= je2->s.c_str;
     }
 
-    if (str->append((const char*) beg2, end2 - beg2))
+    if ((n_items1 && n_items2 && str->append(", ", 2)) ||
+        str->append((const char*) beg2, end2 - beg2))
       return 3;
 
     if (je2->value_type != JSON_VALUE_ARRAY &&
@@ -2124,12 +2187,340 @@ null_return:
 }
 
 
-void Item_func_json_length::fix_length_and_dec()
+static int copy_value_patch(String *str, json_engine_t *je)
+{
+  int first_key= 1;
+
+  if (je->value_type != JSON_VALUE_OBJECT)
+  {
+    const uchar *beg, *end;
+
+    beg= je->value_begin;
+
+    if (!json_value_scalar(je))
+    {
+      if (json_skip_level(je))
+        return 1;
+      end= je->s.c_str;
+    }
+    else
+      end= je->value_end;
+
+    if (append_simple(str, beg, end-beg))
+      return 1;
+
+    return 0;
+  }
+  /* JSON_VALUE_OBJECT */
+
+  if (str->append("{", 1))
+    return 1;
+  while (json_scan_next(je) == 0 && je->state != JST_OBJ_END)
+  {
+    const uchar *key_start;
+    /* Loop through the Json_1 keys and compare with the Json_2 keys. */
+    DBUG_ASSERT(je->state == JST_KEY);
+    key_start= je->s.c_str;
+
+    if (json_read_value(je))
+      return 1;
+
+    if (je->value_type == JSON_VALUE_NULL)
+      continue;
+
+    if (!first_key)
+    {
+      if (str->append(", ", 2))
+        return 3;
+    }
+    else
+      first_key= 0;
+
+    if (str->append("\"", 1) ||
+        append_simple(str, key_start, je->value_begin - key_start) ||
+        copy_value_patch(str, je))
+      return 1;
+  }
+  if (str->append("}", 1))
+    return 1;
+
+  return 0;
+}
+
+
+static int do_merge_patch(String *str, json_engine_t *je1, json_engine_t *je2,
+                          bool *empty_result)
+{
+  if (json_read_value(je1) || json_read_value(je2))
+    return 1;
+
+  if (je1->value_type == JSON_VALUE_OBJECT &&
+      je2->value_type == JSON_VALUE_OBJECT)
+  {
+    json_engine_t sav_je1= *je1;
+    json_engine_t sav_je2= *je2;
+
+    int first_key= 1;
+    json_string_t key_name;
+    size_t sav_len;
+    bool mrg_empty;
+  
+    *empty_result= FALSE;
+    json_string_set_cs(&key_name, je1->s.cs);
+
+    if (str->append("{", 1))
+      return 3;
+    while (json_scan_next(je1) == 0 &&
+           je1->state != JST_OBJ_END)
+    {
+      const uchar *key_start, *key_end;
+      /* Loop through the Json_1 keys and compare with the Json_2 keys. */
+      DBUG_ASSERT(je1->state == JST_KEY);
+      key_start= je1->s.c_str;
+      do
+      {
+        key_end= je1->s.c_str;
+      } while (json_read_keyname_chr(je1) == 0);
+
+      if (je1->s.error)
+        return 1;
+
+      sav_len= str->length();
+
+      if (!first_key)
+      {
+        if (str->append(", ", 2))
+          return 3;
+        *je2= sav_je2;
+      }
+
+      if (str->append("\"", 1) ||
+          append_simple(str, key_start, key_end - key_start) ||
+          str->append("\":", 2))
+        return 3;
+
+      while (json_scan_next(je2) == 0 &&
+          je2->state != JST_OBJ_END)
+      {
+        int ires;
+        DBUG_ASSERT(je2->state == JST_KEY);
+        json_string_set_str(&key_name, key_start, key_end);
+        if (!json_key_matches(je2, &key_name))
+        {
+          if (je2->s.error || json_skip_key(je2))
+            return 2;
+          continue;
+        }
+
+        /* Json_2 has same key as Json_1. Merge them. */
+        if ((ires= do_merge_patch(str, je1, je2, &mrg_empty)))
+          return ires;
+
+        if (mrg_empty)
+          str->length(sav_len);
+        else
+          first_key= 0;
+
+        goto merged_j1;
+      }
+
+      if (je2->s.error)
+        return 2;
+
+      key_start= je1->s.c_str;
+      /* Just append the Json_1 key value. */
+      if (json_skip_key(je1))
+        return 1;
+      if (append_simple(str, key_start, je1->s.c_str - key_start))
+        return 3;
+      first_key= 0;
+
+merged_j1:
+      continue;
+    }
+
+    *je2= sav_je2;
+    /*
+      Now loop through the Json_2 keys.
+      Skip if there is same key in Json_1
+    */
+    while (json_scan_next(je2) == 0 &&
+           je2->state != JST_OBJ_END)
+    {
+      const uchar *key_start, *key_end;
+      DBUG_ASSERT(je2->state == JST_KEY);
+      key_start= je2->s.c_str;
+      do
+      {
+        key_end= je2->s.c_str;
+      } while (json_read_keyname_chr(je2) == 0);
+
+      if (je2->s.error)
+        return 1;
+
+      *je1= sav_je1;
+      while (json_scan_next(je1) == 0 &&
+             je1->state != JST_OBJ_END)
+      {
+        DBUG_ASSERT(je1->state == JST_KEY);
+        json_string_set_str(&key_name, key_start, key_end);
+        if (!json_key_matches(je1, &key_name))
+        {
+          if (je1->s.error || json_skip_key(je1))
+            return 2;
+          continue;
+        }
+        if (json_skip_key(je2) ||
+            json_skip_level(je1))
+          return 1;
+        goto continue_j2;
+      }
+
+      if (je1->s.error)
+        return 2;
+
+
+      sav_len= str->length();
+
+      if (!first_key && str->append(", ", 2))
+        return 3;
+
+      if (str->append("\"", 1) ||
+          append_simple(str, key_start, key_end - key_start) ||
+          str->append("\":", 2))
+        return 3;
+
+      if (json_read_value(je2))
+        return 1;
+
+      if (je2->value_type == JSON_VALUE_NULL)
+        str->length(sav_len);
+      else
+      {
+        if (copy_value_patch(str, je2))
+          return 1;
+        first_key= 0;
+      }
+
+continue_j2:
+      continue;
+    }
+
+    if (str->append("}", 1))
+      return 3;
+  }
+  else
+  {
+    if (!json_value_scalar(je1) && json_skip_level(je1))
+      return 1;
+
+    *empty_result= je2->value_type == JSON_VALUE_NULL;
+    if (!(*empty_result) && copy_value_patch(str, je2))
+      return 1;
+  }
+
+  return 0;
+}
+
+
+String *Item_func_json_merge_patch::val_str(String *str)
+{
+  DBUG_ASSERT(fixed == 1);
+  json_engine_t je1, je2;
+  String *js1= args[0]->val_json(&tmp_js1), *js2=NULL;
+  uint n_arg;
+  bool empty_result, merge_to_null;
+
+  /* To report errors properly if some JSON is invalid. */
+  je1.s.error= je2.s.error= 0;
+  merge_to_null= args[0]->null_value;
+
+  for (n_arg=1; n_arg < arg_count; n_arg++)
+  {
+    js2= args[n_arg]->val_json(&tmp_js2);
+    if (args[n_arg]->null_value)
+    {
+      merge_to_null= true;
+      goto cont_point;
+    }
+
+    json_scan_start(&je2, js2->charset(),(const uchar *) js2->ptr(),
+                    (const uchar *) js2->ptr() + js2->length());
+
+    if (merge_to_null)
+    {
+      if (json_read_value(&je2))
+        goto error_return;
+      if (je2.value_type == JSON_VALUE_OBJECT)
+      {
+        merge_to_null= true;
+        goto cont_point;
+      }
+      merge_to_null= false;
+      str->set(js2->ptr(), js2->length(), js2->charset());
+      goto cont_point;
+    }
+
+    str->set_charset(js1->charset());
+    str->length(0);
+
+
+    json_scan_start(&je1, js1->charset(),(const uchar *) js1->ptr(),
+                    (const uchar *) js1->ptr() + js1->length());
+
+    if (do_merge_patch(str, &je1, &je2, &empty_result))
+      goto error_return;
+
+    if (empty_result)
+      str->append("null");
+
+cont_point:
+    {
+      /* Swap str and js1. */
+      if (str == &tmp_js1)
+      {
+        str= js1;
+        js1= &tmp_js1;
+      }
+      else
+      {
+        js1= str;
+        str= &tmp_js1;
+      }
+    }
+  }
+
+  if (merge_to_null)
+    goto null_return;
+
+  json_scan_start(&je1, js1->charset(),(const uchar *) js1->ptr(),
+                  (const uchar *) js1->ptr() + js1->length());
+  str->length(0);
+  str->set_charset(js1->charset());
+  if (json_nice(&je1, str, Item_func_json_format::LOOSE))
+    goto error_return;
+
+  null_value= 0;
+  return str;
+
+error_return:
+  if (je1.s.error)
+    report_json_error(js1, &je1, 0);
+  if (je2.s.error)
+    report_json_error(js2, &je2, n_arg);
+null_return:
+  null_value= 1;
+  return NULL;
+}
+
+
+bool Item_func_json_length::fix_length_and_dec()
 {
   if (arg_count > 1)
     path.set_constant_flag(args[1]->const_item());
   maybe_null= 1;
   max_length= 10;
+  return FALSE;
 }
 
 
@@ -2206,7 +2597,7 @@ longlong Item_func_json_length::val_int()
     while (json_scan_next(&je) == 0) {}
   }
 
-  if (!je.s.error)
+  if (likely(!je.s.error))
     return length;
 
 err_return:
@@ -2260,7 +2651,7 @@ longlong Item_func_json_depth::val_int()
     }
   } while (json_scan_next(&je) == 0);
 
-  if (!je.s.error)
+  if (likely(!je.s.error))
     return depth;
 
   report_json_error(js, &je, 0);
@@ -2269,11 +2660,12 @@ longlong Item_func_json_depth::val_int()
 }
 
 
-void Item_func_json_type::fix_length_and_dec()
+bool Item_func_json_type::fix_length_and_dec()
 {
   collation.set(&my_charset_utf8_general_ci);
   max_length= 12;
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -2326,7 +2718,7 @@ error:
 }
 
 
-void Item_func_json_insert::fix_length_and_dec()
+bool Item_func_json_insert::fix_length_and_dec()
 {
   uint n_arg;
   ulonglong char_length;
@@ -2342,6 +2734,7 @@ void Item_func_json_insert::fix_length_and_dec()
 
   fix_char_length_ulonglong(char_length);
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -2357,8 +2750,9 @@ String *Item_func_json_insert::val_str(String *str)
   if ((null_value= args[0]->null_value))
     return 0;
 
-  str->set_charset(js->charset());
-  json_string_set_cs(&key_name, js->charset());
+  str->set_charset(collation.collation);
+  tmp_js.set_charset(collation.collation);
+  json_string_set_cs(&key_name, collation.collation);
 
   for (n_arg=1, n_path=0; n_arg < arg_count; n_arg+=2, n_path++)
   {
@@ -2475,7 +2869,7 @@ String *Item_func_json_insert::val_str(String *str)
         }
       }
 
-      if (je.s.error)
+      if (unlikely(je.s.error))
         goto js_error;
 
       if (!mode_insert)
@@ -2513,7 +2907,7 @@ String *Item_func_json_insert::val_str(String *str)
         }
       }
 
-      if (je.s.error)
+      if (unlikely(je.s.error))
         goto js_error;
 
       if (!mode_insert)
@@ -2572,7 +2966,6 @@ continue_point:
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
   str->length(0);
-  str->set_charset(js->charset());
   if (json_nice(&je, str, Item_func_json_format::LOOSE))
     goto js_error;
 
@@ -2586,13 +2979,14 @@ return_null:
 }
 
 
-void Item_func_json_remove::fix_length_and_dec()
+bool Item_func_json_remove::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
 
   mark_constant_paths(paths, args+1, arg_count-1);
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -2615,7 +3009,7 @@ String *Item_func_json_remove::val_str(String *str)
   {
     uint array_counters[JSON_DEPTH_LIMIT];
     json_path_with_flags *c_path= paths + n_path;
-    const char *rem_start, *rem_end;
+    const char *rem_start= 0, *rem_end;
     const json_path_step_t *lp;
     uint n_item= 0;
 
@@ -2686,7 +3080,7 @@ String *Item_func_json_remove::val_str(String *str)
         }
       }
 
-      if (je.s.error)
+      if (unlikely(je.s.error))
         goto js_error;
 
       continue;
@@ -2718,7 +3112,7 @@ String *Item_func_json_remove::val_str(String *str)
         }
       }
 
-      if (je.s.error)
+      if (unlikely(je.s.error))
         goto js_error;
 
       continue;
@@ -2772,13 +3166,14 @@ null_return:
 }
 
 
-void Item_func_json_keys::fix_length_and_dec()
+bool Item_func_json_keys::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
   max_length= args[0]->max_length;
   maybe_null= 1;
   if (arg_count > 1)
     path.set_constant_flag(args[1]->const_item());
+  return FALSE;
 }
 
 
@@ -2883,7 +3278,7 @@ skip_search:
       {
         key_end= je.s.c_str;
       } while (json_read_keyname_chr(&je) == 0);
-      if (je.s.error)
+      if (unlikely(je.s.error))
         goto err_return;
       key_len= (int)(key_end - key_start);
 
@@ -2907,7 +3302,7 @@ skip_search:
     }
   }
 
-  if (je.s.error || str->append("]", 1))
+  if (unlikely(je.s.error || str->append("]", 1)))
     goto err_return;
 
   null_value= 0;
@@ -2939,7 +3334,7 @@ bool Item_func_json_search::fix_fields(THD *thd, Item **ref)
 
 static const uint SQR_MAX_BLOB_WIDTH= (uint) sqrt(MAX_BLOB_WIDTH);
 
-void Item_func_json_search::fix_length_and_dec()
+bool Item_func_json_search::fix_length_and_dec()
 {
   collation.set(args[0]->collation);
 
@@ -2961,6 +3356,7 @@ void Item_func_json_search::fix_length_and_dec()
   if (arg_count > 4)
     mark_constant_paths(paths, args+4, arg_count-4);
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -3024,7 +3420,7 @@ static int append_json_path(String *str, const json_path_t *p)
 String *Item_func_json_search::val_str(String *str)
 {
   String *js= args[0]->val_json(&tmp_js);
-  String *s_str= args[2]->val_str(&tmp_js);
+  String *s_str= args[2]->val_str(&tmp_path);
   json_engine_t je;
   json_path_t p, sav_path;
   uint n_arg;
@@ -3091,7 +3487,7 @@ String *Item_func_json_search::val_str(String *str)
     }
   }
 
-  if (je.s.error)
+  if (unlikely(je.s.error))
     goto js_error;
 
 end:
@@ -3138,11 +3534,13 @@ const char *Item_func_json_format::func_name() const
 }
 
 
-void Item_func_json_format::fix_length_and_dec()
+bool Item_func_json_format::fix_length_and_dec()
 {
   decimals= 0;
+  collation.set(args[0]->collation);
   max_length= args[0]->max_length;
   maybe_null= 1;
+  return FALSE;
 }
 
 
@@ -3198,34 +3596,44 @@ String *Item_func_json_format::val_json(String *str)
 
 int Arg_comparator::compare_json_str_basic(Item *j, Item *s)
 {
-  String *res1,*res2;
-  json_value_types type;
-  char *value;
-  int value_len, c_len;
-  Item_func_json_extract *e= (Item_func_json_extract *) j;
+  String *js,*str;
+  int c_len;
+  json_engine_t je;
 
-  if ((res1= e->read_json(&value1, &type, &value, &value_len)))
+  if ((js= j->val_str(&value1)))
   {
-    if ((res2= s->val_str(&value2)))
-    {
-      if (type == JSON_VALUE_STRING)
-      {
-        if (value1.realloc_with_extra_if_needed(value_len) ||
-            (c_len= json_unescape(value1.charset(), (uchar *) value,
-                                  (uchar *) value+value_len,
-                                  &my_charset_utf8_general_ci,
-                                  (uchar *) value1.ptr(),
-                                  (uchar *) (value1.ptr() + value_len))) < 0)
-          goto error;
-        value1.length(c_len);
-        res1= &value1;
-      }
+    json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
+                    (const uchar *) js->ptr()+js->length());
+     if (json_read_value(&je))
+       goto error;
+     if (je.value_type == JSON_VALUE_STRING)
+     {
+       if (value2.realloc_with_extra_if_needed(je.value_len) ||
+         (c_len= json_unescape(js->charset(), je.value,
+                               je.value + je.value_len,
+                               &my_charset_utf8_general_ci,
+                               (uchar *) value2.ptr(),
+                               (uchar *) (value2.ptr() + je.value_len))) < 0)
+         goto error;
 
-      if (set_null)
-        owner->null_value= 0;
-      return sortcmp(res1, res2, compare_collation());
-    }
+       value2.length(c_len);
+       js= &value2;
+       str= &value1;
+     }
+     else
+     {
+       str= &value2;
+     }
+
+
+     if ((str= s->val_str(str)))
+     {
+       if (set_null)
+         owner->null_value= 0;
+       return sortcmp(js, str, compare_collation());
+     }
   }
+
 error:
   if (set_null)
     owner->null_value= 1;
@@ -3262,5 +3670,3 @@ int Arg_comparator::compare_e_json_str_basic(Item *j, Item *s)
 
   return MY_TEST(sortcmp(res1, res2, compare_collation()) == 0);
 }
-
-

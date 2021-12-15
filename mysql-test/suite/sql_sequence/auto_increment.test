@@ -1,0 +1,30 @@
+--source include/have_sequence.inc
+
+#
+# tests with auto_increment_increment and auto_increment_offset
+#
+
+set global auto_increment_increment= 2, auto_increment_offset= 2;
+
+create sequence s start with -3 minvalue= -1000 increment 0;
+
+select nextval(s);
+select nextval(s);
+flush tables;
+select nextval(s);
+drop sequence s;
+
+set global auto_increment_increment= 2, auto_increment_offset= 1;
+
+create sequence s start with -3 minvalue= -1000 increment 0;
+
+select nextval(s);
+select nextval(s);
+select nextval(s);
+flush tables;
+select nextval(s);
+drop sequence s;
+
+# Clean up
+
+set global auto_increment_increment= default, auto_increment_offset= default;

@@ -1,5 +1,6 @@
 --source suite/versioning/engines.inc
 --source suite/versioning/common.inc
+--source include/default_optimizer_switch.inc
 
 # test_01
 
@@ -41,14 +42,14 @@ if ($MTR_COMBINATION_TRX_ID)
 {
 --disable_query_log
   set @x1= @t1;
-  select vtq_commit_ts(@x1) into @t1;
+  select trt_commit_ts(@x1) into @t1;
 --enable_query_log
 }
 
 select x, y from t1;
 select x as ASOF_x, y from t1 for system_time as of timestamp @t0;
-select x as FROMTO_x, y from t1 for system_time from timestamp '0-0-0 0:0:0' to timestamp @t1;
-select x as BETWAND_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
+select x as FROMTO_x, y from t1 for system_time from timestamp '1970-01-01 00:00:00' to timestamp @t1;
+select x as BETWAND_x, y from t1 for system_time between timestamp '1970-01-01 00:00:00' and timestamp @t1;
 select x as ALL_x, y from t1 for system_time all;
 
 --disable_query_log
@@ -61,8 +62,8 @@ if ($MTR_COMBINATION_TRX_ID)
 if ($MTR_COMBINATION_TIMESTAMP)
 {
   select x as ASOF2_x, y from t1 for system_time as of @t0;
-  select x as FROMTO2_x, y from t1 for system_time from timestamp '0-0-0 0:0:0' to timestamp @t1;
-  select x as BETWAND2_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
+  select x as FROMTO2_x, y from t1 for system_time from timestamp '1970-01-01 00:00:00' to timestamp @t1;
+  select x as BETWAND2_x, y from t1 for system_time between timestamp '1970-01-01 00:00:00' and timestamp @t1;
 }
 --enable_query_log
 
@@ -122,6 +123,7 @@ select * from t1 for system_time all;
 
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1);
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
 select * from t1 for system_time all for update;
 
 create or replace table t1 (a int not null auto_increment primary key) with system versioning;
@@ -159,7 +161,7 @@ insert into t1 values (1);
 insert into t2 values (2);
 select * from (select * from t1 cross join t2) as tmp;
 select * from (select * from (select * from t1 cross join t2) as tmp1) as tmp2;
-select * from (select * from t1 cross join t2 for system_time as of timestamp ('0-0-0')) as tmp;
+select * from (select * from t1 cross join t2 for system_time as of timestamp ('1970-01-01 00:00:00')) as tmp;
 
 create or replace table t1(a1 int) with system versioning;
 create or replace table t2(a2 int) with system versioning;
@@ -182,6 +184,8 @@ create or replace table t1 (a int) with system versioning;
 insert into t1 values (1);
 insert into t1 values (2);
 insert into t1 values (3);
+explain extended
+select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
 select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
 
 create or replace table t1 (x int) with system versioning;
@@ -199,6 +203,21 @@ for system_time all as t;
 create or replace table t1 (x int) with system versioning engine myisam;
 --error ER_VERS_ENGINE_UNSUPPORTED
 select * from t1 for system_time as of transaction 1;
+--echo # MDEV-18929 2nd execution of SP does not detect ER_VERS_NOT_VERSIONED
+create or replace procedure sp()
+select * from t1 for system_time as of transaction 1;
+--error ER_VERS_ENGINE_UNSUPPORTED
+call sp;
+--error ER_VERS_ENGINE_UNSUPPORTED
+call sp;
+create or replace table t1 (a int);
+create or replace procedure sp()
+select * from t1 for system_time all;
+--error ER_VERS_NOT_VERSIONED
+call sp;
+--error ER_VERS_NOT_VERSIONED
+call sp;
+drop procedure sp;
 
 create or replace table t1 (
   x int,
@@ -218,6 +237,8 @@ select @trx_start < unix_timestamp(@ts) - 100 as trx_start_good;
 select x from t1 for system_time as of timestamp @ts;
 
 set @ts= timestamp'1-1-1 0:0:0';
+
+select x from t1 for system_time as of timestamp @ts;
 
 --echo ## TRANSACTION specifier
 select x from t1 for system_time as of transaction @trx_start;
@@ -269,7 +290,9 @@ create or replace table t2 (b int);
 create or replace view v1 as select a, row_start, row_end from t1 where a > round(rand()*1000);
 select * from v1 natural join t2;
 
---echo ### Issue #406, MDEV-14633 Assertion on TRT read
+--echo #
+--echo # Issue #406, MDEV-14633 Assertion on TRT read
+--echo #
 create or replace table t1 (pk int primary key, i int, t time, key (i)) with system versioning;
 insert into t1 values (1, 10, '15:01:53'), (2, 20, '00:00:00');
 delete from t1;
@@ -277,7 +300,9 @@ delete from t1;
 select * from t1 where t = '00:00:00' and i > 0 and row_end <> '2012-12-12 00:00:00';
 --enable_warnings
 
---echo ### MDEV-14816 Assertion `join->best_read < double(1.797...e+308L)' failed in bool greedy_search
+--echo #
+--echo # MDEV-14816 Assertion `join->best_read < double(1.797...e+308L)' failed in bool greedy_search
+--echo #
 create or replace table t1 (f1 int) with system versioning;
 create or replace table t2 (f2 int) with system versioning;
 create or replace table t3 (f3 int);
@@ -291,7 +316,9 @@ select * from
     left join t2 as t2a left join (t3 as t3a inner join t1) on t2a.f2 = t3a.f3  on t1a.f1 = t2a.f2
     left join (t2 join t3 inner join t4) on t2a.f2 = t1a.f1;
 
---echo ### MDEV-15004 parser greedily parses AS OF TIMESTAMP
+--echo #
+--echo # MDEV-15004 parser greedily parses AS OF TIMESTAMP
+--echo #
 --error ER_WRONG_VALUE
 select timestamp'2016-02-30 08:07:06';
 --error ER_WRONG_VALUE
@@ -299,9 +326,123 @@ select * from t1 for system_time as of timestamp'2016-02-30 08:07:06';
 select timestamp('2003-12-31 12:00:00','12:00:00');
 select * from t1 for system_time as of timestamp('2003-12-31 12:00:00','12:00:00');
 
+
+--echo #
+--echo # MDEV-15391 Server crashes in JOIN::fix_all_splittings_in_plan or Assertion `join->best_read < double(1.79...e+308L)' failed [tempesta-tech#475]
+--echo #
+create or replace table t1 (f1 int) with system versioning;
+insert t1 values (1),(2);
+create or replace table t2 (f2 int);
+create or replace table t3 (f3 int);
+create or replace table t4 (f4 int) with system versioning;
+select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
+insert t2 values (1),(2);
+insert t3 values (1),(2);
+insert t4 values (1),(2);
+explain extended
+select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
+
 drop view v1;
 drop table t1, t2, t3, t4;
 
-call verify_vtq_dummy(34);
+--echo #
+--echo # MDEV-15980 FOR SYSTEM_TIME BETWEEN and FROM .. TO work with negative intervals
+--echo #
+--replace_result $sys_datatype_expl SYS_DATATYPE
+eval create or replace table t1 (
+  a int,
+  row_start $sys_datatype_expl as row start invisible,
+  row_end $sys_datatype_expl as row end invisible,
+  period for system_time (row_start, row_end)
+) with system versioning;
+insert into t1 values (1);
+delete from t1;
+select row_start from t1 for system_time all into @t1;
+select row_end from t1 for system_time all into @t2;
+select * from t1 for system_time between @t1 and @t2;
+select * from t1 for system_time between @t2 and @t1;
+select * from t1 for system_time from @t1 to @t2;
+select * from t1 for system_time from @t2 to @t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-15991 Server crashes in setup_on_expr upon calling SP or function executing DML on versioned tables
+--echo #
+create or replace table t1 (i int);
+insert into t1 values (1);
+--delimiter $
+create or replace procedure p(n int)
+begin
+  select * from t1;
+end $
+--delimiter ;
+call p(1);
+alter table t1 add system versioning;
+call p(2);
+call p(3);
+
+--echo #
+--echo # MDEV-15947 ASAN heap-use-after-free in Item_ident::print or in my_strcasecmp_utf8 or unexpected ER_BAD_FIELD_ERROR upon call of stored procedure reading from versioned table
+--echo #
+create or replace table t1 (i int) with system versioning;
+create or replace procedure p() select * from t1;
+call p;
+flush tables;
+call p;
+call p;
+drop procedure p;
+drop table t1;
+
+--echo #
+--echo # MDEV-21234 Server crashes in in setup_on_expr upon 3rd execution of SP
+--echo #
+create table t1 (a varchar(8));
+insert into t1 values ('foo'),('bar');
+create table t2 (b date);
+
+create procedure pr() insert into t2 select * from t1;
+--error ER_TRUNCATED_WRONG_VALUE
+call pr;
+prepare stmt from 'insert into t2 select * from t1';
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+alter table t1 add system versioning;
+--error ER_TRUNCATED_WRONG_VALUE
+call pr;
+--error ER_TRUNCATED_WRONG_VALUE
+call pr;
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+--error ER_TRUNCATED_WRONG_VALUE
+execute stmt;
+drop prepare stmt;
+
+# cleanup
+drop procedure pr;
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-23799 CREATE .. SELECT wrong result on join versioned table
+--echo #
+create or replace table x (id Int) with system versioning;
+create or replace table x_p (elementId Int, pkey varchar(20), pvalue varchar(20)) with system versioning;
+
+insert into x values (1), (2), (3);
+insert into x_p values (1, 'gender', 'male');
+insert into x_p values (2, 'gender', 'female');
+insert into x_p values (3, 'gender', 'male');
+
+create table tmp1
+select xgender.pvalue as gender, xtitle.pvalue as title
+from x
+    left join x_p as xgender on x.id = xgender.elementId and xgender.pkey = 'gender'
+    left join x_p as xtitle on x.id = xtitle.elementId and xtitle.pkey = 'title';
+
+select * from tmp1;
+
+drop table tmp1;
+drop tables x, x_p;
+
+call verify_trt_dummy(34);
 
 -- source suite/versioning/common_finish.inc

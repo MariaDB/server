@@ -11,7 +11,7 @@
    
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /* Execute DO statement */
@@ -35,7 +35,7 @@ bool mysql_do(THD *thd, List<Item> &values)
     (void) value->is_null();
   free_underlaid_joins(thd, &thd->lex->select_lex);
 
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
   {
     /*
       Rollback the effect of the statement, since next instruction

@@ -519,3 +519,32 @@ create temporary table tmp (i int);
 select next value for tmp;
 ERROR 42S02: 'test.tmp' is not a SEQUENCE
 drop table tmp;
+#
+# Test negative numbers
+#
+create sequence s start with 1 minvalue=-1000 maxvalue=1000 increment -1;
+select next value for s;
+next value for s
+1
+select next value for s;
+next value for s
+0
+flush tables;
+select next value for s;
+next value for s
+-999
+drop sequence s;
+#
+# MDEV-23823 NEXT VALUE crash on locked view
+#
+CREATE VIEW v AS SELECT 1;
+LOCK TABLE v READ;
+SELECT NEXT VALUE FOR v;
+ERROR 42S02: 'test.v' is not a SEQUENCE
+#
+# MDEV-24018: SIGSEGV in Item_func_nextval::update_table on SELECT SETVAL
+#
+SELECT SETVAL (v,0);
+ERROR 42S02: 'test.v' is not a SEQUENCE
+UNLOCK TABLES;
+DROP VIEW v;

@@ -1,0 +1,90 @@
+# Can't run test of external client with embedded server
+--source include/not_embedded.inc
+
+--exec $MYSQL_SLAP --silent --concurrency=5 --iterations=20 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql
+
+--exec $MYSQL_SLAP --silent --concurrency=5 --iterations=20 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql
+
+--exec $MYSQL_SLAP --only-print --iterations=20  --query="select * from t1" --create="CREATE TABLE t1 (id int, name varchar(64)); INSERT INTO t1 VALUES (1, 'This is a test')" --delimiter=";"
+--exec $MYSQL_SLAP --silent --concurrency=5 --iterations=20 --query="select * from t1" --create="CREATE TABLE t1 (id int, name varchar(64)); INSERT INTO t1 VALUES (1, 'This is a test')" --delimiter=";"
+
+--exec $MYSQL_SLAP --only-print --delimiter=";" --query="select * from t1;select * from t2" --create="CREATE TABLE t1 (id int, name varchar(64)); create table t2(foo1 varchar(32), foo2 varchar(32)); INSERT INTO t1 VALUES (1, 'This is a test'); insert into t2 values ('test', 'test2')" --engine="heap,myisam"
+
+--exec $MYSQL_SLAP --silent --concurrency=5 --iterations=20 --delimiter=";" --query="select * from t1;select * from t2" --create="CREATE TABLE t1 (id int, name varchar(64)); create table t2(foo1 varchar(32), foo2 varchar(32)); INSERT INTO t1 VALUES (1, 'This is a test'); insert into t2 values ('test', 'test2')"
+
+--exec $MYSQL_SLAP --silent --concurrency=5 --iterations=20 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql --create-schema=test_env
+
+--exec $MYSQL_SLAP --silent --concurrency=5 --iterations=20 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql --create-schema=test_env --auto-generate-sql-add-autoincrement 
+
+--exec $MYSQL_SLAP --silent --concurrency=5 --iterations=1 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql --auto-generate-sql-add-autoincrement 
+
+--exec $MYSQL_SLAP --silent --concurrency=5 --iterations=1 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql --auto-generate-sql-add-autoincrement --auto-generate-sql-load-type=update
+
+--exec $MYSQL_SLAP --silent --concurrency=5 --iterations=1 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql --auto-generate-sql-add-autoincrement --auto-generate-sql-load-type=read
+
+--exec $MYSQL_SLAP --silent --concurrency=5 --iterations=1 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql --auto-generate-sql-add-autoincrement --auto-generate-sql-load-type=write
+
+--exec $MYSQL_SLAP --silent --concurrency=5 --iterations=1 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql --auto-generate-sql-add-autoincrement --auto-generate-sql-load-type=mixed
+
+--exec $MYSQL_SLAP --silent --concurrency=5 --iterations=1 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql --auto-generate-sql-guid-primary --auto-generate-sql-load-type=update
+
+--exec $MYSQL_SLAP --silent --concurrency=5 --iterations=1 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql --auto-generate-sql-guid-primary --auto-generate-sql-load-type=update --auto-generate-sql-execute-number=5
+
+--exec $MYSQL_SLAP --silent --concurrency=5 --iterations=1 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql --auto-generate-sql-guid-primary --auto-generate-sql-load-type=key --auto-generate-sql-execute-number=5
+
+--exec $MYSQL_SLAP --silent --concurrency=5 --iterations=1 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql --auto-generate-sql-guid-primary --auto-generate-sql-load-type=key --auto-generate-sql-execute-number=5 --auto-generate-sql-secondary-indexes=3
+
+--exec $MYSQL_SLAP --only-print --delimiter=";" --query="select * from t1;select * from t2" --create="CREATE TABLE t1 (id int, name varchar(64)); create table t2(foo1 varchar(32), foo2 varchar(32)); INSERT INTO t1 VALUES (1, 'This is a test'); insert into t2 values ('test', 'test2')" --engine="heap,myisam" --post-query="SHOW TABLES" --pre-query="SHOW TABLES";
+
+ --exec $MYSQL_SLAP --only-print --delimiter=";" --query="select * from t1;select * from t2" --create="CREATE TABLE t1 (id int, name varchar(64)); create table t2(foo1 varchar(32), foo2 varchar(32)); INSERT INTO t1 VALUES (1, 'This is a test'); insert into t2 values ('test', 'test2')" --engine="heap,myisam" --post-query="SHOW TABLES" --pre-query="SHOW TABLES" --number-of-queries=6 --commit=1
+
+--exec $MYSQL_SLAP --silent --concurrency=5 --iterations=1 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql --auto-generate-sql-add-autoincrement --auto-generate-sql-load-type=write --detach=2
+
+--echo #
+--echo # Bug #29985: mysqlslap -- improper handling of resultsets in SPROCs
+--echo #
+
+--disable_warnings
+DROP PROCEDURE IF EXISTS p1;
+--enable_warnings
+CREATE PROCEDURE p1() SELECT 1;
+
+--exec $MYSQL_SLAP --create-schema=test --delimiter=";" --query="CALL p1; SELECT 1;" --silent 2>&1 
+
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Bug #11765157 - 58090: mysqlslap drops schema specified in
+--echo #                 create_schema if auto-generate-sql also set.
+--echo #
+
+--exec $MYSQL_SLAP --silent --create-schema=bug58090 --concurrency=5 --iterations=20 --auto-generate-sql
+--echo # 'bug58090' database should not be present.
+SHOW DATABASES;
+--exec $MYSQL_SLAP --silent --create-schema=bug58090 --no-drop --auto-generate-sql
+--echo # 'bug58090' database should be present.
+SHOW DATABASES;
+DROP DATABASE bug58090;
+
+--echo #
+--echo # Bug #11766072 - 59107: MYSQLSLAP CRASHES IF STARTED WITH NO ARGUMENTS ON WINDOWS
+--echo #
+
+--replace_regex /queries: [0-9]+.[0-9]+/queries: TIME/
+--exec $MYSQL_SLAP
+
+--echo #
+--echo # MDEV-4684 - Enhancement request: --init-command support for mysqlslap
+--echo #
+
+--exec $MYSQL_SLAP --create-schema=test --init-command="CREATE TABLE t1(a INT)" --silent --concurrency=1 --iterations=1
+DROP TABLE t1;
+
+--echo #
+--echo # Bug MDEV-15789 (Upstream: #80329): MYSQLSLAP OPTIONS --AUTO-GENERATE-SQL-GUID-PRIMARY and --AUTO-GENERATE-SQL-SECONDARY-INDEXES DONT WORK
+--echo #
+
+--exec $MYSQL_SLAP --concurrency=1 --silent --iterations=1 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql --auto-generate-sql-guid-primary --create-schema=slap
+
+--exec $MYSQL_SLAP --concurrency=1 --silent --iterations=1 --number-int-cols=2 --number-char-cols=3 --auto-generate-sql --auto-generate-sql-secondary-indexes=1 --create-schema=slap

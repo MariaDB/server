@@ -1,0 +1,69 @@
+--echo #
+--echo # Test of function defaults for any server, including embedded.
+--echo #
+
+--echo #
+--echo # Function defaults run 1. No microsecond precision.
+--echo #
+let $current_timestamp=CURRENT_TIMESTAMP;
+let $now=NOW();
+let $timestamp=TIMESTAMP;
+let $datetime=DATETIME;
+source 'include/function_defaults.inc';
+
+--echo #
+--echo # Function defaults run 2. Six digits scale on seconds precision.
+--echo #
+let $current_timestamp=CURRENT_TIMESTAMP(6);
+let $now=NOW(6);
+let $timestamp=TIMESTAMP(6);
+let $datetime=DATETIME(6);
+source 'include/function_defaults.inc';
+
+#
+# MDEV-20403 Assertion `0' or Assertion `btr_validate_index(index, 0)' failed in row_upd_sec_index_entry or error code 126: Index is corrupted upon UPDATE with TIMESTAMP..ON UPDATE
+#
+
+# ON UPDATE NOW and indexed virtual columns
+create table t1 (t timestamp, i int, v timestamp as (t) virtual, key(v));
+insert t1 (t,i) values ('2006-03-01 23:59:59',1);
+update t1 set i = 2;
+check table t1;
+drop table t1;
+
+# ON UPDATE NOW and triggers
+create table t1 (t timestamp, i int);
+create trigger tr1 before update on t1 for each row set @new:=new.t;
+insert t1 (t,i) values ('2006-03-01 23:59:59', 1);
+update t1 set i = 2;
+select if(@new = t, 'correct', 'wrong') from t1;
+drop table t1;
+
+# triggers, virtual columns, multi-update
+create table t1 (i int, j int as (i));
+create trigger tr1 before update on t1 for each row set @new:=new.j;
+insert t1 (i) values (1);
+update t1, t1 as t2 set t1.i = 2;
+select if(@new = j, 'correct', 'wrong') from t1;
+drop table t1;
+
+# SET xxx=DEFAULT
+create table t1 (a int, b varchar(20) default 'foo');
+insert t1 values (1,'bla'),(2, 'bar');
+select * from t1;
+update t1 set b=default where a=1;
+select * from t1;
+drop table t1;
+
+# ON UPDATE NOW and SET xxx=DEFAULT
+create table t1 (
+  a int,
+  b timestamp default '2010-10-10 10:10:10' on update now(),
+  c varchar(100) default 'x');
+insert t1 (a) values (1),(2);
+select * from t1;
+set timestamp=unix_timestamp('2011-11-11 11-11-11');
+update t1 set b=default, c=default(b) where a=1;
+select * from t1;
+drop table t1;
+set timestamp=default;

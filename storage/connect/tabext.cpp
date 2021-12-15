@@ -1,7 +1,7 @@
 /************* Tabext C++ Functions Source Code File (.CPP) ************/
-/*  Name: TABEXT.CPP  Version 1.0                                      */
+/*  Name: TABEXT.CPP  Version 1.1                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2017         */
+/*  (C) Copyright to the author Olivier BERTRAND          2017 - 2019  */
 /*                                                                     */
 /*  This file contains the TBX, TDB and OPJOIN classes functions.      */
 /***********************************************************************/
@@ -14,7 +14,7 @@
 #include "sql_class.h"
 #include "sql_servers.h"
 #include "sql_string.h"
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #include "osutil.h"
 #endif
 
@@ -125,6 +125,12 @@ EXTDEF::EXTDEF(void)
 /***********************************************************************/
 bool EXTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 {
+	if (g->Createas) {
+		strcpy(g->Message,
+			"Multiple-table UPDATE/DELETE commands are not supported");
+		return true;
+	}	// endif multi
+
 	Desc = NULL;
 	Tabname = GetStringCatInfo(g, "Name",
 		(Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
@@ -286,7 +292,7 @@ bool TDBEXT::MakeSrcdef(PGLOBAL g)
 	char *catp = strstr(Srcdef, "%s");
 
 	if (catp) {
-		char *fil1= 0, *fil2;
+		char *fil1 = 0, *fil2;
 		PCSZ  ph = ((EXTDEF*)To_Def)->Phpos;
 
 		if (!ph)
@@ -433,11 +439,48 @@ bool TDBEXT::MakeSQL(PGLOBAL g, bool cnt)
 	} else
 		Query->Resize(len);
 
-	if (trace)
+	if (trace(33))
 		htrc("Query=%s\n", Query->GetStr());
 
 	return false;
 } // end of MakeSQL
+
+/***********************************************************************/
+/*  Remove the NAME_CONST functions that are added by procedures.      */
+/***********************************************************************/
+void TDBEXT::RemoveConst(PGLOBAL g, char *stmt)
+{
+	char *p, *p2;
+	char  val[1025], nval[1025];
+	int   n, nc;
+
+	while ((p = strstr(stmt, "NAME_CONST")))
+		if ((n = sscanf(p, "%*[^,],%1024[^)])%n", val, &nc))) {
+			if (trace(33))
+				htrc("p=%s\nn=%d val=%s nc=%d\n", p, n, val, nc);
+
+			*p = 0;
+
+			if ((p2 = strstr(val, "'"))) {
+				if ((n = sscanf(p2, "%*['\\]%1024[^'\\]", nval))) {
+					if (trace(33))
+						htrc("p2=%s\nn=%d nval=%s\n", p2, n, nval);
+
+					strcat(strcat(strcat(strcat(stmt, "'"), nval), "'"), p + nc);
+				} else
+					break;
+
+			} else
+				strcat(strcat(strcat(strcat(stmt, "("), val), ")"), p + nc);
+
+			if (trace(33))
+				htrc("stmt=%s\n", stmt);
+
+		} else
+			break;
+
+		return;
+} // end of RemoveConst
 
 /***********************************************************************/
 /*  MakeCommand: make the Update or Delete statement to send to the    */
@@ -518,6 +561,8 @@ bool TDBEXT::MakeCommand(PGLOBAL g)
 			stmt[i++] = (Qrystr[k] == '`') ? q : Qrystr[k];
 		} while (Qrystr[k++]);
 
+		RemoveConst(g, stmt);
+
 		if (body)
 			strcat(stmt, body);
 
@@ -527,7 +572,7 @@ bool TDBEXT::MakeCommand(PGLOBAL g)
 		return true;
 	} // endif p
 
-	if (trace)
+	if (trace(33))
 		htrc("Command=%s\n", stmt);
 
 	Query = new(g)STRING(g, 0, stmt);
@@ -585,7 +630,7 @@ EXTCOL::EXTCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
 		tdbp->SetColumns(this);
 	} // endif cprec
 
-	if (trace)
+	if (trace(1))
 		htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
 
 	// Set additional remote access method information for column.

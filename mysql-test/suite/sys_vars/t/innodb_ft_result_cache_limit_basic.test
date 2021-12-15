@@ -4,6 +4,7 @@
 #
 
 --source include/have_innodb.inc
+--source include/word_size.inc
 
 #
 # show the global and session values;
@@ -21,7 +22,7 @@ select * from information_schema.session_variables where variable_name='innodb_f
 #
 # test default, min, max value
 #
-let $innodb_ft_result_cache_limit_orig=`select @@innodb_ft_result_cache_limit`;
+SET @save_limit = @@innodb_ft_result_cache_limit;
 
 set global innodb_ft_result_cache_limit=900000;
 select @@innodb_ft_result_cache_limit;
@@ -35,4 +36,4 @@ select @@innodb_ft_result_cache_limit;
 set global innodb_ft_result_cache_limit=4*1024*1024*1024;
 select @@innodb_ft_result_cache_limit;
 
-eval set global innodb_ft_result_cache_limit=$innodb_ft_result_cache_limit_orig;
+set global innodb_ft_result_cache_limit = @save_limit;

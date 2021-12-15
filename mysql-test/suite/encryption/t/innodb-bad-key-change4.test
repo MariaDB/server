@@ -12,6 +12,7 @@ call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page n
 call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\]");
 # Suppression for builds where file_key_management plugin is linked statically
 call mtr.add_suppression("Couldn't load plugins from 'file_key_management");
+call mtr.add_suppression("InnoDB: Table `test`\\.`t1` is corrupted");
 
 --let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 --source include/restart_mysqld.inc
@@ -25,14 +26,14 @@ INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
 --let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys3.txt
 --source include/restart_mysqld.inc
 
---replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
+--replace_regex /key_id [1-9][0-9]*/\1 /
 OPTIMIZE TABLE t1;
---replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
+--replace_regex /key_id [1-9][0-9]*/\1 /
 SHOW WARNINGS;
- 
---replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
+
+--replace_regex /key_id [1-9][0-9]*/\1 /
 CHECK TABLE t1;
---replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
+--replace_regex /key_id [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 
 --let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt

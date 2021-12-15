@@ -39,7 +39,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 
 #include "malloc_utils.hpp"
 
-#if !HAVE_BITS_FUNCTEXCEPT_H
+#if !defined(HAVE_BITS_FUNCTEXCEPT_H) || !HAVE_BITS_FUNCTEXCEPT_H
 
 namespace std {
 

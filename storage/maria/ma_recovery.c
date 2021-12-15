@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   WL#3072 Maria recovery
@@ -49,7 +49,6 @@ static LSN current_group_end_lsn;
 /** Current group of REDOs is about this table and only this one */
 static MARIA_HA *current_group_table;
 #endif
-static TrID max_long_trid= 0; /**< max long trid seen by REDO phase */
 static my_bool skip_DDLs; /**< if REDO phase should skip DDL records */
 /** @brief to avoid writing a checkpoint if recovery did nothing. */
 static my_bool checkpoint_useful;
@@ -58,10 +57,10 @@ static my_bool trns_created;
 static ulong skipped_undo_phase;
 static ulonglong now; /**< for tracking execution time of phases */
 static void (*save_error_handler_hook)(uint, const char *,myf);
-static uint recovery_warnings; /**< count of warnings */
-static uint recovery_found_crashed_tables;
+static ulong recovery_warnings; /**< count of warnings */
 HASH tables_to_redo;                          /* For maria_read_log */
 ulong maria_recovery_force_crash_counter;
+TrID max_long_trid= 0; /**< max long trid seen by REDO phase */
 
 #define prototype_redo_exec_hook(R)                                          \
   static int exec_REDO_LOGREC_ ## R(const TRANSLOG_HEADER_BUFFER *rec)
@@ -291,6 +290,7 @@ int maria_apply_log(LSN from_lsn, LSN end_lsn,
   DBUG_ASSERT(apply == MARIA_LOG_APPLY || !should_run_undo_phase);
   DBUG_ASSERT(!maria_multi_threaded);
   recovery_warnings= recovery_found_crashed_tables= 0;
+  skipped_lsn_err_count= 0;
   maria_recovery_changed_data= 0;
   /* checkpoints can happen only if TRNs have been built */
   DBUG_ASSERT(should_run_undo_phase || !take_checkpoints);
@@ -473,6 +473,13 @@ int maria_apply_log(LSN from_lsn, LSN end_lsn,
     fflush(stderr);
   }
 
+  if (max_long_trid > max_trid_in_control_file)
+  {
+    if (ma_control_file_write_and_force(last_checkpoint_lsn, last_logno,
+                                        max_long_trid, recovery_failures))
+      goto err;
+  }
+
   if (take_checkpoints && checkpoint_useful)
   {
     /* No dirty pages, all tables are closed, no active transactions, save: */
@@ -531,8 +538,6 @@ end:
 
   if (error && !abort_message_printed)
   {
-    if (!trace_file)
-      fputc('\n', stderr);
     my_message(HA_ERR_INITIALIZATION,
                "Aria recovery failed. Please run aria_chk -r on all Aria "
                "tables and delete all aria_log.######## files", MYF(0));
@@ -667,13 +672,16 @@ prototype_redo_exec_hook(INCOMPLETE_LOG)
 {
   MARIA_HA *info;
 
+  /* We try to get table first, so that we get the table in in the trace log */
+  info= get_MARIA_HA_from_REDO_record(rec);
+
   if (skip_DDLs)
   {
     tprint(tracef, "we skip DDLs\n");
     return 0;
   }
 
-  if ((info= get_MARIA_HA_from_REDO_record(rec)) == NULL)
+  if (!info)
   {
     /* no such table, don't need to warn */
     return 0;
@@ -948,6 +956,7 @@ prototype_redo_exec_hook(REDO_RENAME_TABLE)
   char *old_name, *new_name;
   int error= 1;
   MARIA_HA *info= NULL;
+  my_bool from_table_is_crashed= 0;
   DBUG_ENTER("exec_REDO_LOGREC_REDO_RENAME_TABLE");
 
   if (skip_DDLs)
@@ -1017,15 +1026,15 @@ prototype_redo_exec_hook(REDO_RENAME_TABLE)
     }
     if (maria_is_crashed(info))
     {
-      tprint(tracef, ", is crashed, can't rename it");
-      ALERT_USER();
-      goto end;
+      tprint(tracef, "is crashed, can't be used for rename ; new-name table ");
+      from_table_is_crashed= 1;
     }
     if (close_one_table(info->s->open_file_name.str, rec->lsn) ||
         maria_close(info))
       goto end;
     info= NULL;
-    tprint(tracef, ", is ok for renaming; new-name table ");
+    if (!from_table_is_crashed)
+      tprint(tracef, "is ok for renaming; new-name table ");
   }
   else /* one or two files absent, or header corrupted... */
   {
@@ -1090,11 +1099,19 @@ prototype_redo_exec_hook(REDO_RENAME_TABLE)
       goto end;
     info= NULL;
     /* abnormal situation */
-    tprint(tracef, ", exists but is older than record, can't rename it");
+    tprint(tracef, "exists but is older than record, can't rename it");
     goto end;
   }
   else /* one or two files absent, or header corrupted... */
-    tprint(tracef, ", can't be opened, probably does not exist");
+    tprint(tracef, "can't be opened, probably does not exist");
+
+  if (from_table_is_crashed)
+  {
+    eprint(tracef, "Aborting rename as old table was crashed");
+    ALERT_USER();
+    goto end;
+  }
+
   tprint(tracef, ", renaming '%s'", old_name);
   if (maria_rename(old_name, new_name))
   {
@@ -1144,6 +1161,9 @@ prototype_redo_exec_hook(REDO_REPAIR_TABLE)
   my_bool quick_repair;
   DBUG_ENTER("exec_REDO_LOGREC_REDO_REPAIR_TABLE");
 
+  /* We try to get table first, so that we get the table in in the trace log */
+  info= get_MARIA_HA_from_REDO_record(rec);
+
   if (skip_DDLs)
   {
     /*
@@ -1153,8 +1173,13 @@ prototype_redo_exec_hook(REDO_REPAIR_TABLE)
     tprint(tracef, "we skip DDLs\n");
     DBUG_RETURN(0);
   }
-  if ((info= get_MARIA_HA_from_REDO_record(rec)) == NULL)
-    DBUG_RETURN(0);
+
+  if (!info)
+  {
+    /* no such table, don't need to warn */
+    return 0;
+  }
+
   if (maria_is_crashed(info))
   {
     tprint(tracef, "we skip repairing crashed table\n");
@@ -1403,6 +1428,11 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
   }
   if (cmp_translog_addr(lsn_of_file_id, share->state.create_rename_lsn) <= 0)
   {
+    /*
+      This can happen if the table was dropped and re-created since this
+      redo entry or if the table had a bulk insert directly after create,
+      in which case the create_rename_lsn changed.
+    */
     tprint(tracef, ", has create_rename_lsn " LSN_FMT " more recent than"
            " LOGREC_FILE_ID's LSN " LSN_FMT ", ignoring open request",
            LSN_IN_PARTS(share->state.create_rename_lsn),
@@ -1417,6 +1447,7 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
   }
   if (maria_is_crashed(info))
   {
+    tprint(tracef, "\n");
     eprint(tracef, "Table '%s' is crashed, skipping it. Please repair it with"
            " aria_chk -r", share->open_file_name.str);
     recovery_found_crashed_tables++;
@@ -1443,17 +1474,21 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
   }
   if (share->state.state.data_file_length != dfile_len)
   {
-    tprint(tracef, ", has wrong state.data_file_length (fixing it)");
+    tprint(tracef, ", has wrong state.data_file_length "
+           "(fixing it from %llu to %llu)",
+           (ulonglong) share->state.state.data_file_length, (ulonglong) dfile_len);
     share->state.state.data_file_length= dfile_len;
   }
   if (share->state.state.key_file_length != kfile_len)
   {
-    tprint(tracef, ", has wrong state.key_file_length (fixing it)");
+    tprint(tracef, ", has wrong state.key_file_length "
+           "(fixing it from %llu to %llu)",
+           (ulonglong) share->state.state.key_file_length, (ulonglong) kfile_len);
     share->state.state.key_file_length= kfile_len;
   }
   if ((dfile_len % share->block_size) || (kfile_len % share->block_size))
   {
-    tprint(tracef, ", has too short last page\n");
+    tprint(tracef, ", has too short last page");
     /* Recovery will fix this, no error */
     ALERT_USER();
   }
@@ -2764,7 +2799,7 @@ static int run_redo_phase(LSN lsn, LSN lsn_end, enum maria_apply_log_way apply)
   {
     fprintf(stderr, " 100%%");
     fflush(stderr);
-    procent_printed= 1;
+    procent_printed= 1;                         /* Will be follwed by time */
   }
   DBUG_RETURN(0);
 
@@ -2914,7 +2949,6 @@ static int run_undo_phase(uint uncommitted)
       recovery_message_printed= REC_MSG_UNDO;
     }
     tprint(tracef, "%u transactions will be rolled back\n", uncommitted);
-    procent_printed= 1;
     for( ; ; )
     {
       char llbuf[22];
@@ -2967,7 +3001,6 @@ static int run_undo_phase(uint uncommitted)
       /* In the future, we want to have this phase *online* */
     }
   }
-  procent_printed= 0;
   DBUG_RETURN(0);
 }
 
@@ -3467,6 +3500,11 @@ static int close_all_tables(void)
     }
   }
 end:
+  if (recovery_message_printed == REC_MSG_FLUSH)
+  {
+    fputc('\n', stderr);
+    fflush(stderr);
+  }
   mysql_mutex_unlock(&THR_LOCK_maria);
   DBUG_RETURN(error);
 }
@@ -3520,6 +3558,14 @@ void _ma_tmp_disable_logging_for_table(MARIA_HA *info,
 {
   MARIA_SHARE *share= info->s;
   DBUG_ENTER("_ma_tmp_disable_logging_for_table");
+
+  /*
+    We have to ensure that bitmap is flushed, as it's checking
+    that share->now_transactional is set
+  */
+  if (share->now_transactional && share->data_file_type == BLOCK_RECORD)
+    _ma_bitmap_flush_all(share);
+
   if (log_incomplete)
   {
     uchar log_data[FILEID_STORE_SIZE];
@@ -3543,8 +3589,8 @@ void _ma_tmp_disable_logging_for_table(MARIA_HA *info,
     info->state may point to a state that was deleted by
     _ma_trnman_end_trans_hook()
    */
-  share->state.common= *info->state;
-  info->state= &share->state.common;
+  share->state.no_logging= *info->state;
+  info->state= &share->state.no_logging;
   info->switched_transactional= TRUE;
 
   /*
@@ -3583,7 +3629,10 @@ my_bool _ma_reenable_logging_for_table(MARIA_HA *info, my_bool flush_pages)
 
   if (share->now_transactional == share->base.born_transactional ||
       !info->switched_transactional)
+  {
+    info->switched_transactional= FALSE;
     DBUG_RETURN(0);
+  }
   info->switched_transactional= FALSE;
 
   if ((share->now_transactional= share->base.born_transactional))
@@ -3597,12 +3646,24 @@ my_bool _ma_reenable_logging_for_table(MARIA_HA *info, my_bool flush_pages)
     _ma_copy_nontrans_state_information(info);
     _ma_reset_history(info->s);
 
+    /* Reset state to point to state.common, as on open() */
+    info->state=  &share->state.common;
+    *info->state=  share->state.state;
+
     if (flush_pages)
     {
       /* Ensure that recover is not executing any redo before this */
       if (!maria_in_recovery)
+      {
+        if (share->id != 0)
+        {
+          mysql_mutex_lock(&share->intern_lock);
+          translog_deassign_id_from_share(share);
+          mysql_mutex_unlock(&share->intern_lock);
+        }
         share->state.is_of_horizon= share->state.create_rename_lsn=
           share->state.skip_redo_lsn= translog_get_horizon();
+      }
       /*
         We are going to change callbacks; if a page is flushed at this moment
         this can cause race conditions, that's one reason to flush pages

@@ -1,13 +1,11 @@
-#------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
 # Test With alter/create/drop index
-#------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
+
 --source include/have_innodb.inc
+--source include/default_charset.inc
 let collation=UTF8_UNICODE_CI;
 --source include/have_collation.inc
-
---disable_warnings
-drop table if exists t1;
---enable_warnings
 
 # Create FTS table
 CREATE TABLE t1 (
@@ -401,10 +399,6 @@ DROP TABLE t1;
 #------------------------------------------------------------------------------
 # More FTS test from peter's testing
 #------------------------------------------------------------------------------
---disable_warnings
-drop table if exists t50;
---enable_warnings
-
 set names utf8;
 
 
@@ -606,7 +600,6 @@ CREATE FULLTEXT INDEX i ON t1 (s1);
 INSERT INTO t1 VALUES
 ('a'),('b'),('c'),('d'),('ŁŁŁŁ'),('LLLL'),(NULL),('ŁŁŁŁ ŁŁŁŁ'),('LLLLLLLL');
 SELECT * FROM t1 WHERE MATCH(s1) AGAINST ('LLLL' COLLATE UTF8_UNICODE_520_CI);
-DROP TABLE if EXISTS t2;
 CREATE TABLE t2 (s1 VARCHAR(60) CHARACTER SET UTF8 COLLATE UTF8_POLISH_CI) ENGINE = InnoDB;
 CREATE FULLTEXT INDEX i ON t2 ( s1);
 INSERT INTO t2 VALUES
@@ -648,6 +641,7 @@ CREATE TABLE t1 ( id INT , char_column VARCHAR(60) CHARACTER SET UTF8) ENGINE = 
 INSERT INTO t1 VALUES (1,'aaa'),(2,'bbb'),(3,'ccc');
 CREATE FULLTEXT INDEX i ON t1 (char_column);
 HANDLER t1 OPEN;
+--error ER_KEY_DOESNT_SUPPORT
 HANDLER t1 READ i = ('aaa');
 DROP TABLE t1;
 #23. Duplicate key error when there are no unique indexes (procedure test)
@@ -667,18 +661,30 @@ DROP TABLE t1;
 --echo "----------Test27---------"
 #27 Crash after server restart
 CREATE TABLE t1 (id INT,char_column VARCHAR(60));
+CREATE TABLE t2 (FTS_DOC_ID BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, a TEXT)ENGINE=InnoDB;
+ALTER TABLE t2 DROP a;
 SET @@autocommit=0;
 CREATE FULLTEXT INDEX i ON t1 (char_column);
 INSERT INTO t1 values (1,'aaa');
-echo "restart server..."
-# Restart the server
+
+CREATE TABLE mdev20987_1(f1 INT NOT NULL, PRIMARY KEY(f1))ENGINE=InnoDB;
+CREATE TABLE mdev20987_2(f1 INT NOT NULL, f2 CHAR(100),
+                FULLTEXT(f2),
+                FOREIGN KEY(f1) REFERENCES mdev20987_1(f1))ENGINE=InnoDB;
+INSERT INTO mdev20987_1 VALUES(1);
+INSERT INTO mdev20987_2 VALUES(1, 'mariadb');
+
+CREATE TABLE mdev22358 (a INT, b TEXT, FULLTEXT KEY ftidx (b)) ENGINE=InnoDB;
+ALTER TABLE mdev22358 DROP KEY ftidx;
+INSERT INTO mdev22358 (a) VALUES (2),(2);
+--error ER_DUP_ENTRY
+ALTER TABLE mdev22358 ADD UNIQUE KEY uidx (a), ADD FULLTEXT KEY ftidx (b);
 --source include/restart_mysqld.inc
+SHOW CREATE TABLE t2;
 DELETE FROM t1 WHERE MATCH(char_column) AGAINST ('bbb');
-SET @@autocommit=1;
-DROP TABLE t1;
+DROP TABLE t1, t2, mdev20987_2, mdev20987_1, mdev22358;
 
 --echo "----------Test28---------"
-drop table if exists `fts_test`;
 create table `fts_test`(`a` text,fulltext key(`a`))engine=innodb;
 set session autocommit=0;
 insert into `fts_test` values ('');
@@ -866,8 +872,6 @@ DROP TABLE articles;
 
 # Test for Bug 13940669 - 64901: INNODB: ASSERTION FAILURE IN
 # THREAD 34387022112 IN FILE REM0CMP.CC LINE 5
-
-drop table if exists t1;
 
 create table t1 (FTS_DOC_ID bigint unsigned auto_increment not null primary key,
 title varchar(200),body text,fulltext(title,body)) engine=innodb;
@@ -1330,3 +1334,11 @@ INSERT INTO t1 (a) VALUES
 SELECT * FROM t1 WHERE MATCH (a) AGAINST ('+"good database"' IN BOOLEAN MODE);
 
 DROP TABLE t1;
+
+# MDEV-19974 InnoDB: Cannot load compressed BLOB
+CREATE TABLE t1(f1 TEXT, FULLTEXT KEY(f1))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(repeat("this is the test case", 500));
+ALTER TABLE t1 KEY_BLOCK_SIZE=4;
+ALTER TABLE t1 KEY_BLOCK_SIZE=0;
+DROP TABLE t1;
+

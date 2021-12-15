@@ -1,4 +1,4 @@
-# See the top of mysql-test/extra/rpl_tests/rpl_conflicts.test for
+# See the top of mysql-test/include/rpl_conflicts.test for
 # explanation of what this test does.
 #
 # This test file is for row-logging mode. It runs the test twice, with
@@ -18,7 +18,7 @@ SET @old_slave_exec_mode= @@global.slave_exec_mode;
 --echo ######## Run with slave_exec_mode=STRICT ########
 
 SET @@global.slave_exec_mode = 'STRICT';
-source extra/rpl_tests/rpl_conflicts.test;
+source include/rpl_conflicts.test;
 
 --source include/rpl_reset.inc
 
@@ -26,7 +26,7 @@ source extra/rpl_tests/rpl_conflicts.test;
 --echo ######## Run with slave_exec_mode=IDEMPOTENT ########
 
 set @@global.slave_exec_mode= 'IDEMPOTENT';
-source extra/rpl_tests/rpl_conflicts.test;
+source include/rpl_conflicts.test;
 
 
 SET @@global.slave_exec_mode= @old_slave_exec_mode;

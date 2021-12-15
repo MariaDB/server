@@ -14,7 +14,9 @@ create table t1 (a datetime,
   # other issues
   e int as ((a,1) in ((1,1),(2,1),(NULL,1)))    # cmp_item_row::alloc_comparators()
 );
+enable_prepare_warnings;
 show create table t1;
+disable_prepare_warnings;
 connect con1, localhost, root;
 disable_warnings;
 insert t1 (a) values ('2010-10-10 10:10:10');

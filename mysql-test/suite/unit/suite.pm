@@ -20,7 +20,6 @@ sub start_test {
     ($path, $args) = ($cmd, , [ ])
   }
 
-
   my $oldpwd=getcwd();
   chdir $::opt_vardir;
   my $proc=My::SafeProcess->new
@@ -40,19 +39,21 @@ sub start_test {
   my $bin=$ENV{MTR_BINDIR} || '..';
   return "Not run for embedded server" if $::opt_embedded_server;
   return "Not configured to run ctest" unless -f "$bin/CTestTestfile.cmake";
-  my ($ctest_vs)= $opt_vs_config ? "-C $opt_vs_config" : "";
+  my ($ctest_vs)= $::multiconfig ? "-C ".substr($::multiconfig,1) : "";
   my (@ctest_list)= `cd "$bin" && ctest $ctest_vs --show-only --verbose`;
   return "No ctest" if $?;
+
+  $ENV{MYSQL_TEST_PLUGINDIR}=$::plugindir;
 
   my ($command, %tests, $prefix);
   for (@ctest_list) {
     chomp;
-    if (/^\d+: Test command: +/) {
-      $command= $';
+    if (/^\d+: Test command: +([^ \t]+.*)/) {
+      $command= $1;
       $prefix= /libmariadb/ ? 'conc_' : '';
-    } elsif (/^ +Test +#\d+: +/) {
-      if ($command ne "NOT_AVAILABLE") {
-        $tests{$prefix.$'}=$command;
+    } elsif (/^ +Test +#\d+: ([^ \t]+.*)/) {
+      if ($command ne "NOT_AVAILABLE" && $command ne "/bin/sh") {
+        $tests{$prefix.$1}=$command;
       }
     }
   }

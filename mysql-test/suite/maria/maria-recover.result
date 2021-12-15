@@ -27,7 +27,6 @@ ThursdayMorningsMarket
 ThursdayMorningsMarketb
 Warnings:
 Error	145	t_corrupted2' is marked as crashed and should be repaired
-Error	1194	t_corrupted2' is marked as crashed and should be repaired
 Error	1034	1 client is using or hasn't closed the table properly
 Error	1034	Wrong base information on indexpage at page: 1
 select * from t_corrupted2;

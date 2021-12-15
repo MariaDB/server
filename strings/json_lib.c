@@ -185,7 +185,7 @@ static int read_array(json_engine_t *j)
 /*
   Character classes inside the JSON string constant.
   We mostly need this to parse escaping properly.
-  Escapings availabe in JSON are:
+  Escapings available in JSON are:
   \" - quotation mark
   \\ - backslash
   \b - backspace UNICODE 8
@@ -320,15 +320,17 @@ static int json_handle_esc(json_string_t *s)
     if (s->c_next != '\\')
       return s->error= JE_SYN;
 
+    s->c_str+= c_len;
     if ((c_len= json_next_char(s)) <= 0)
       return s->error= json_eos(s) ? JE_EOS : JE_BAD_CHR;
     if (s->c_next != 'u')
       return s->error= JE_SYN;
+    s->c_str+= c_len;
 
     if (read_4_hexdigits(s, code+2))
       return 1;
 
-    if ((c_len= my_utf16_uni(0, &s->c_next, code, code+4)) == 2)
+    if ((c_len= my_utf16_uni(0, &s->c_next, code, code+4)) == 4)
       return 0;
   }
   return s->error= JE_BAD_CHR;
@@ -473,8 +475,8 @@ static int json_num_states[NS_NUM_STATES][N_NUM_CLASSES]=
 /*ZE1*/  { JE_SYN,  JE_SYN, JE_SYN,   JE_SYN, NS_FRAC, JE_SYN, NS_OK,  JE_BAD_CHR },
 /*INT*/  { JE_SYN,  JE_SYN, NS_INT,   NS_INT, NS_FRAC, NS_EX,  NS_OK,  JE_BAD_CHR },
 /*FRAC*/ { JE_SYN,  JE_SYN, NS_FRAC,  NS_FRAC,JE_SYN,  NS_EX,  NS_OK,  JE_BAD_CHR },
-/*EX*/   { NS_EX1,  NS_EX1, NS_EX1,   NS_EX1, JE_SYN,  JE_SYN, JE_SYN, JE_BAD_CHR }, 
-/*EX1*/  { JE_SYN,  JE_SYN, NS_EX1,   NS_EX1, JE_SYN,  JE_SYN, JE_SYN, JE_BAD_CHR }
+/*EX*/   { NS_EX,   NS_EX,  NS_EX1,   NS_EX1, JE_SYN,  JE_SYN, JE_SYN, JE_BAD_CHR }, 
+/*EX1*/  { JE_SYN,  JE_SYN, NS_EX1,   NS_EX1, JE_SYN,  JE_SYN, NS_OK,  JE_BAD_CHR }
 };
 
 
@@ -772,7 +774,7 @@ static json_state_handler json_actions[NR_JSON_STATES][NR_C_CLASSES]=
     syntax_error,   syntax_error, syntax_error, syntax_error, syntax_error,
     syntax_error,   syntax_error, syntax_error, not_json_chr, bad_chr},
   {/*OBJ_CONT*/
-    unexpected_eos, syntax_error, end_object,    syntax_error,   end_array,
+    unexpected_eos, syntax_error, end_object,    syntax_error,   syntax_error,
     syntax_error,   next_key,     syntax_error,  syntax_error,   syntax_error,
     syntax_error,    syntax_error,    syntax_error,    not_json_chr, bad_chr},
   {/*ARRAY_CONT*/
@@ -823,6 +825,11 @@ static int skip_colon(json_engine_t *j)
 static int skip_key(json_engine_t *j)
 {
   int t_next, c_len;
+
+  if (json_instr_chr_map[j->s.c_next] == S_BKSL &&
+      json_handle_esc(&j->s))
+    return 1;
+
   while (json_read_keyname_chr(j) == 0) {}
 
   if (j->s.error)
@@ -888,7 +895,7 @@ int json_read_keyname_chr(json_engine_t *j)
     case S_QUOTE:
       for (;;)  /* Skip spaces until ':'. */
       {
-        if ((c_len= json_next_char(&j->s) > 0))
+        if ((c_len= json_next_char(&j->s)) > 0)
         {
           if (j->s.c_next == ':')
           {
@@ -1195,6 +1202,27 @@ int json_skip_to_level(json_engine_t *j, int level)
 }
 
 
+/*
+  works as json_skip_level() but also counts items on the current
+  level skipped.
+*/
+int json_skip_level_and_count(json_engine_t *j, int *n_items_skipped)
+{
+  int level= j->stack_p;
+
+  *n_items_skipped= 0;
+  while (json_scan_next(j) == 0)
+  {
+    if (j->stack_p < level)
+      return 0;
+    if (j->stack_p == level && j->state == JST_VALUE)
+      (*n_items_skipped)++;
+  }
+
+  return 1;
+}
+
+
 int json_skip_key(json_engine_t *j)
 {
   if (json_read_value(j))
@@ -1386,7 +1414,7 @@ int json_find_paths_next(json_engine_t *je, json_find_paths_t *state)
           if (!json_key_matches(je, &key_name))
             continue;
         }
-        if ((uint) (cur_step - state->paths[p_c].last_step) == state->cur_depth)
+        if (cur_step == state->paths[p_c].last_step + state->cur_depth)
           path_found= TRUE;
         else
         {
@@ -1419,7 +1447,7 @@ int json_find_paths_next(json_engine_t *je, json_find_paths_t *state)
             cur_step->n_item == state->array_counters[state->cur_depth])
         {
           /* Array item matches. */
-          if ((uint) (cur_step - state->paths[p_c].last_step) == state->cur_depth)
+          if (cur_step == state->paths[p_c].last_step + state->cur_depth)
             path_found= TRUE;
           else
           {
@@ -1643,6 +1671,8 @@ int json_escape(CHARSET_INFO *str_cs,
         return -1;
       }
     }
+    else /* c_len == 0, an illegal symbol. */
+      return -1;
   }
 
   return (int)(json - json_start);
@@ -1822,4 +1852,3 @@ int json_path_compare(const json_path_t *a, const json_path_t *b,
   return json_path_parts_compare(a->steps+1, a->last_step,
                                  b->steps+1, b->last_step, vt);
 }
-

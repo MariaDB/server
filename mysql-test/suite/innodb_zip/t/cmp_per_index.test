@@ -19,12 +19,9 @@ if (`SELECT @@innodb_log_compressed_pages = 0`)
 # include/restart_mysqld.inc does not work in embedded mode
 -- source include/not_embedded.inc
 
-# ensure that all history gets purged on shutdown
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
-SET GLOBAL innodb_fast_shutdown=0;
-
 -- vertical_results
 
+SET @save_enabled= @@GLOBAL.innodb_cmp_per_index_enabled;
 SET GLOBAL innodb_cmp_per_index_enabled=ON;
 
 # reset any leftover stats from previous tests
@@ -96,27 +93,6 @@ ELSE compress_ops_ok END as compress_ops_ok,
 uncompress_ops
 FROM information_schema.innodb_cmp_per_index
 ORDER BY 1, 2, 3;
-
-# restart mysqld and see that uncompress ops also gets increased when
-# selecting from the table again
-
--- source include/restart_mysqld.inc
-
-SET GLOBAL innodb_cmp_per_index_enabled=ON;
-
-SELECT COUNT(*) FROM t;
-
-SELECT
-database_name,
-table_name,
-index_name,
-compress_ops,
-compress_ops_ok,
-CASE WHEN uncompress_ops=6 and @@innodb_compression_level IN (4,8,9) THEN 9
-ELSE uncompress_ops END as uncompress_ops
-FROM information_schema.innodb_cmp_per_index
-ORDER BY 1, 2, 3;
-
 DROP TABLE t;
 
-SET GLOBAL innodb_cmp_per_index_enabled=default;
+SET GLOBAL innodb_cmp_per_index_enabled=@save_enabled;

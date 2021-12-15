@@ -1,0 +1,71 @@
+SET timestamp=UNIX_TIMESTAMP('2014-09-30 08:00:00');
+CREATE FUNCTION f1(str char(20))
+RETURNS CHAR(100)
+RETURN CONCAT('Hello, ', str, '!');
+SELECT * FROM mysql.proc WHERE name like 'f1';
+db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+test	f1	FUNCTION	f1	SQL	CONTAINS_SQL	NO	DEFINER	str char(20)	char(100) CHARSET latin1	RETURN CONCAT('Hello, ', str, '!')	root@localhost	2014-09-30 08:00:00	2014-09-30 08:00:00	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION		latin1	latin1_swedish_ci	latin1_swedish_ci	RETURN CONCAT('Hello, ', str, '!')	NONE
+SELECT f1('world');
+f1('world')
+Hello, world!
+CREATE FUNCTION f1(str char(20))
+RETURNS TEXT
+RETURN CONCAT('Hello2, ', str, '!');
+ERROR 42000: FUNCTION f1 already exists
+SELECT body FROM mysql.proc WHERE name like 'f1';
+body
+RETURN CONCAT('Hello, ', str, '!')
+CREATE FUNCTION IF NOT EXISTS f1(str char(20))
+RETURNS CHAR(100)
+RETURN CONCAT('Hello3, ', str, '!');
+Warnings:
+Note	1304	FUNCTION f1 already exists
+SELECT body FROM mysql.proc WHERE name like 'f1';
+body
+RETURN CONCAT('Hello, ', str, '!')
+CREATE OR REPLACE FUNCTION IF NOT EXISTS f1(str char(20))
+RETURNS CHAR(100)
+RETURN CONCAT('Hello4, ', str, '!');
+ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
+SELECT body FROM mysql.proc WHERE name like 'f1';
+body
+RETURN CONCAT('Hello, ', str, '!')
+CREATE OR REPLACE FUNCTION f1(str char(20))
+RETURNS CHAR(100)
+RETURN CONCAT('Hello5, ', str, '!');
+SELECT body FROM mysql.proc WHERE name like 'f1';
+body
+RETURN CONCAT('Hello5, ', str, '!')
+DROP FUNCTION f1;
+CREATE FUNCTION IF NOT EXISTS f1(str char(20))
+RETURNS CHAR(100)
+RETURN CONCAT('Hello6, ', str, '!');
+SELECT body FROM mysql.proc WHERE name like 'f1';
+body
+RETURN CONCAT('Hello6, ', str, '!')
+SELECT f1('world');
+f1('world')
+Hello6, world!
+DROP FUNCTION IF EXISTS f1;
+SELECT body FROM mysql.proc WHERE name like 'f1';
+body
+DROP FUNCTION IF EXISTS f1;
+Warnings:
+Note	1305	FUNCTION test.f1 does not exist
+#
+# 10.1 Test
+#
+# MDEV-22654: Assertion `!is_set() || (m_status == DA_OK_BULK &&
+# is_bulk_op())' failed in Diagnostics_area::set_ok_status on FUNCTION replace
+#
+SET GLOBAL log_bin_trust_function_creators=0;
+CREATE FUNCTION f(c INT) RETURNS NUMERIC NO SQL RETURN 0;
+CREATE OR REPLACE FUNCTION f(c INT) RETURNS INT RETURN 0;
+ERROR HY000: This function has none of DETERMINISTIC, NO SQL, or READS SQL DATA in its declaration and binary logging is enabled (you *might* want to use the less safe log_bin_trust_function_creators variable)
+CREATE OR REPLACE FUNCTION sp1_thisisaveryverylongnamelongnameverylongname_thisisaveryverylongname234872934(a INT) RETURNS INT RETURN 0;
+ERROR 42000: Identifier name 'sp1_thisisaveryverylongnamelongnameverylongname_thisisaveryverylongname234872934' is too long
+DROP FUNCTION IF EXISTS f;
+Warnings:
+Note	1305	FUNCTION test.f does not exist
+SET GLOBAL log_bin_trust_function_creators=1;
+# End of 10.1 Test

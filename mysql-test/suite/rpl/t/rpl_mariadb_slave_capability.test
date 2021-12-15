@@ -5,9 +5,7 @@
 --source include/master-slave.inc
 
 connection master;
-
 set @old_master_binlog_checksum= @@global.binlog_checksum;
-set @old_slave_dbug= @@global.debug_dbug;
 
 # MDEV-4475: Cannot replicate to old server when binlog contains
 # empty Gtid_list event
@@ -16,6 +14,7 @@ set @old_slave_dbug= @@global.debug_dbug;
 connection slave;
 --source include/stop_slave.inc
 --echo # Test slave with no capability gets dummy event, which is ignored.
+set @old_dbug= @@global.debug_dbug;
 SET @@global.debug_dbug='+d,simulate_slave_capability_none';
 --source include/start_slave.inc
 
@@ -52,7 +51,7 @@ let $binlog_file= query_get_value(SHOW SLAVE STATUS, Relay_Log_File, 1);
 let $binlog_start= $relaylog_start;
 let $binlog_limit=0,10;
 --source include/show_relaylog_events.inc
-set @@global.debug_dbug= @old_slave_dbug;
+set @@global.debug_dbug= @old_dbug;
 
 --echo # Test dummy event is checksummed correctly.
 
@@ -150,11 +149,10 @@ let $binlog_limit=0,5;
 select @@global.log_slave_updates;
 select @@global.replicate_annotate_row_events;
 
-set @@global.debug_dbug= @old_slave_dbug;
-
 --echo Clean up.
 connection master;
 set @@global.binlog_checksum = @old_master_binlog_checksum;
 DROP TABLE t1, t2;
 sync_slave_with_master;
+set @@global.debug_dbug= @old_dbug;
 --source include/rpl_end.inc

@@ -53,10 +53,13 @@ START SLAVE IO_THREAD;
 # adjust the master binlog state
 FLUSH BINARY LOGS;
 --let $purge_to_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
---eval PURGE BINARY LOGS TO '$purge_to_binlog';
+--let $purge_binlogs_to=$purge_to_binlog
+--source include/wait_for_purge.inc 
+
 # with final removal of the extra domain
 --eval FLUSH BINARY LOGS DELETE_DOMAIN_ID=($extra_domain_id)
 SELECT @@global.gtid_binlog_pos, @@global.gtid_binlog_state;
+
 --connection slave
 SELECT @@global.gtid_slave_pos;
 # start the slave sucessfully

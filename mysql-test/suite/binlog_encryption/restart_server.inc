@@ -22,7 +22,7 @@
 --enable_reconnect
 --exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.$rpl_server_number.expect
 
-shutdown_server 10;
+shutdown_server;
 
 --source include/wait_until_disconnected.inc
 

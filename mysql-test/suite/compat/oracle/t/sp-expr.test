@@ -1,0 +1,165 @@
+# Testing expressions of different kinds in various parts of SP syntax
+
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+#
+# Subselects in SP control structures
+#
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+DELIMITER $$;
+
+BEGIN
+  CASE ((1) IN (SELECT a FROM t1)) WHEN 1 THEN SELECT 1;
+  ELSE SELECT NULL;
+  END CASE;
+END;
+$$
+BEGIN
+  CASE (EXISTS (SELECT a FROM t1)) WHEN 1 THEN SELECT 1;
+  ELSE SELECT NULL;
+  END CASE;
+END;
+$$
+
+BEGIN
+  IF ((1) IN (SELECT a FROM t1)) THEN SELECT 1;
+  ELSE SELECT NULL;
+  END IF;
+END;
+$$
+BEGIN
+  IF (EXISTS (SELECT a FROM t1)) THEN SELECT 1;
+  ELSE SELECT NULL;
+  END IF;
+END;
+$$
+
+BEGIN
+  WHILE ((1234) IN (SELECT * FROM t1)) LOOP
+    SELECT 1;
+  END LOOP;
+END;
+$$
+BEGIN
+  WHILE (EXISTS (SELECT * FROM t1 WHERE a=1234)) LOOP
+    SELECT 1;
+  END LOOP;
+END;
+$$
+
+BEGIN
+  REPEAT
+    SELECT 1;
+  UNTIL (1 IN (SELECT * FROM t1))
+  END REPEAT;
+END;
+$$
+BEGIN
+  REPEAT
+    SELECT 1;
+  UNTIL EXISTS (SELECT * FROM t1 WHERE a=1)
+  END REPEAT;
+END;
+$$
+
+BEGIN
+  FOR i IN 0..(1 IN (SELECT * FROM t1))
+  LOOP
+    SELECT i;
+  END LOOP;
+END;
+$$
+BEGIN
+  FOR i IN 0..EXISTS (SELECT * FROM t1 WHERE a=1)
+  LOOP
+    SELECT i;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+#
+# Subselects as SP variable default values
+#
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+DELIMITER $$;
+DECLARE
+  a INT DEFAULT ((10) IN (SELECT * FROM t1));
+BEGIN
+  SELECT a;
+END;
+$$
+DECLARE
+  a INT DEFAULT EXISTS (SELECT * FROM t1);
+BEGIN
+  SELECT a;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+#
+# Subselects SP function return values
+#
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURN INT AS
+BEGIN
+  RETURN ((1) IN (SELECT * FROM t1));
+END;
+$$
+CREATE FUNCTION f2() RETURN INT AS
+BEGIN
+  RETURN EXISTS (SELECT * FROM t1 WHERE a=1);
+END;
+$$
+DELIMITER ;$$
+SELECT f1();
+SELECT f2();
+DROP FUNCTION f1;
+DROP FUNCTION f2;
+DROP TABLE t1;
+
+
+#
+# Subselects in CURSOR parameters
+#
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2),(3);
+DELIMITER $$;
+DECLARE
+  va INT;
+  CURSOR cur(amin INT) IS SELECT a FROM t1 WHERE a>amin ORDER BY a;
+BEGIN
+  OPEN cur(1 IN (SELECT * FROM t1));
+  FETCH cur INTO va;
+  SELECT va;
+  CLOSE cur;
+END;
+$$
+DECLARE
+  va INT;
+  CURSOR cur(amin INT) IS SELECT a FROM t1 WHERE a>amin ORDER BY a;
+BEGIN
+  OPEN cur(EXISTS (SELECT * FROM t1));
+  FETCH cur INTO va;
+  SELECT va;
+  CLOSE cur;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;

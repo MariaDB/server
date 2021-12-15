@@ -87,7 +87,7 @@ a	b
 CREATE TABLE total (a int, b char(10))
 ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2,t3,t4,t5'
 OPTION_LIST='thread=yes,port=PORT';
-set connect_xtrace=1;
+set connect_xtrace=96;
 SELECT * FROM total order by a desc;
 a	b
 19	test19
@@ -129,7 +129,7 @@ SELECT * FROM t2;
 v
 22
 CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=PORT';;
-set connect_xtrace=1;
+set connect_xtrace=96;
 SELECT * FROM total order by v desc;
 v
 22
@@ -148,7 +148,7 @@ SELECT * FROM t2;
 v
 22
 CREATE TABLE total (v BIGINT(20) UNSIGNED NOT NULL) ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t1,t2' OPTION_LIST='thread=yes,port=PORT';;
-set connect_xtrace=1;
+set connect_xtrace=96;
 SELECT * FROM total order by v desc;
 v
 22

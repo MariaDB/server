@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2017, Aliyun and/or its affiliates.
-   Copyright (c) 2017, MariaDB corporation
+   Copyright (c) 2017, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -81,17 +81,21 @@ int ha_sequence::open(const char *name, int mode, uint flags)
   DBUG_ASSERT(table->s == table_share && file);
 
   file->table= table;
-  if (!(error= file->open(name, mode, flags)))
+  if (likely(!(error= file->open(name, mode, flags))))
   {
     /*
-      Copy values set by handler::open() in the underlying handler
-      Reuse original storage engine data for duplicate key reference
-      It would be easier to do this if we would have another handler
-      call:  fixup_after_open()...
-    */
-    ref=        file->ref;
+      Allocate ref in table's mem_root. We can't use table's ref
+      as it's allocated by ha_ caller that allocates this.
+     */
     ref_length= file->ref_length;
-    dup_ref=    file->dup_ref;
+    if (!(ref= (uchar*) alloc_root(&table->mem_root,ALIGN_SIZE(ref_length)*2)))
+    {
+      file->ha_close();
+      error=HA_ERR_OUT_OF_MEM;
+      DBUG_RETURN(error);
+    }
+    file->ref= ref;
+    file->dup_ref= dup_ref= ref+ALIGN_SIZE(file->ref_length);
 
     /*
       ha_open() sets the following for us. We have to set this for the
@@ -104,14 +108,14 @@ int ha_sequence::open(const char *name, int mode, uint flags)
       MY_TEST(flags & HA_OPEN_INTERNAL_TABLE);
     reset_statistics();
 
-    /* Don't try to read the inital row the call is part of create code */
+    /* Don't try to read the initial row the call is part of create code */
     if (!(flags & (HA_OPEN_FOR_CREATE | HA_OPEN_FOR_REPAIR)))
     {
-      if ((error= table->s->sequence->read_initial_values(table)))
+      if (unlikely((error= table->s->sequence->read_initial_values(table))))
         file->ha_close();
     }
-    else
-      table->m_needs_reopen= true;
+    else if (!table->s->tmp_table)
+      table->internal_set_needs_reopen(true);
 
     /*
       The following is needed to fix comparison of rows in
@@ -212,7 +216,7 @@ int ha_sequence::write_row(uchar *buf)
     if (tmp_seq.check_and_adjust(0))
       DBUG_RETURN(HA_ERR_SEQUENCE_INVALID_DATA);
     sequence->copy(&tmp_seq);
-    if (!(error= file->write_row(buf)))
+    if (likely(!(error= file->write_row(buf))))
       sequence->initialized= SEQUENCE::SEQ_READY_TO_USE;
     DBUG_RETURN(error);
   }
@@ -229,17 +233,16 @@ int ha_sequence::write_row(uchar *buf)
       - Get an exclusive lock for the table. This is needed to ensure that
         we excute all full inserts (same as ALTER SEQUENCE) in same order
         on master and slaves
-      - Check that we are only using one table.
-        This is to avoid deadlock problems when upgrading lock to exlusive.
       - Check that the new row is an accurate SEQUENCE object
     */
 
     THD *thd= table->in_use;
-    if (thd->lock->table_count != 1)
-      DBUG_RETURN(ER_WRONG_INSERT_INTO_SEQUENCE);
-    if (thd->mdl_context.upgrade_shared_lock(table->mdl_ticket, MDL_EXCLUSIVE,
-                                             thd->variables.lock_wait_timeout))
-      DBUG_RETURN(ER_LOCK_WAIT_TIMEOUT);
+    if (table->s->tmp_table == NO_TMP_TABLE &&
+        thd->mdl_context.upgrade_shared_lock(table->mdl_ticket,
+                                             MDL_EXCLUSIVE,
+                                             thd->variables.
+                                             lock_wait_timeout))
+        DBUG_RETURN(ER_LOCK_WAIT_TIMEOUT);
 
     tmp_seq.read_fields(table);
     if (tmp_seq.check_and_adjust(0))
@@ -252,15 +255,14 @@ int ha_sequence::write_row(uchar *buf)
     sequence->write_lock(table);
   }
 
-  if (!(error= file->update_first_row(buf)))
+  if (likely(!(error= file->update_first_row(buf))))
   {
     Log_func *log_func= Write_rows_log_event::binlog_row_logging_function;
     if (!sequence_locked)
       sequence->copy(&tmp_seq);
     rows_changed++;
     /* We have to do the logging while we hold the sequence mutex */
-    if (table->file->check_table_binlog_row_based(1))
-      error= binlog_log_row(table, 0, buf, log_func);
+    error= binlog_log_row(table, 0, buf, log_func);
     row_already_logged= 1;
   }
 
@@ -320,7 +322,8 @@ int ha_sequence::external_lock(THD *thd, int lock_type)
     Copy lock flag to satisfy DBUG_ASSERT checks in ha_* functions in
     handler.cc when we later call it with file->ha_..()
   */
-  file->m_lock_type= lock_type;
+  if (!error)
+    file->m_lock_type= lock_type;
   return error;
 }
 
@@ -440,6 +443,6 @@ maria_declare_plugin(sql_sequence)
   NULL,                       /* status variables                */
   NULL,                       /* system variables                */
   "1.0",                      /* string version                  */
-  MariaDB_PLUGIN_MATURITY_ALPHA /* maturity                     */
+  MariaDB_PLUGIN_MATURITY_STABLE /* maturity                     */
 }
 maria_declare_plugin_end;

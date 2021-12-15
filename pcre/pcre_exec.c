@@ -6,7 +6,7 @@
 and semantics are as close as possible to those of the Perl 5 language.
 
                        Written by Philip Hazel
-           Copyright (c) 1997-2014 University of Cambridge
+           Copyright (c) 1997-2021 University of Cambridge
 
 -----------------------------------------------------------------------------
 Redistribution and use in source and binary forms, with or without
@@ -764,7 +764,7 @@ for (;;)
     md->mark = NULL;    /* In case previously set by assertion */
     RMATCH(eptr, ecode + PRIV(OP_lengths)[*ecode] + ecode[1], offset_top, md,
       eptrb, RM55);
-    if ((rrc == MATCH_MATCH || rrc == MATCH_ACCEPT) &&
+    if ((rrc == MATCH_MATCH || rrc == MATCH_ACCEPT || rrc == MATCH_KETRPOS) &&
          md->mark == NULL) md->mark = ecode + 2;
 
     /* A return of MATCH_SKIP_ARG means that matching failed at SKIP with an
@@ -2086,7 +2086,7 @@ for (;;)
     case OP_CIRC:
     if (md->notbol && eptr == md->start_subject) RRETURN(MATCH_NOMATCH);
 
-    /* Start of subject assertion */
+    /* Fall through. Start of subject assertion */
 
     case OP_SOD:
     if (eptr != md->start_subject) RRETURN(MATCH_NOMATCH);
@@ -2313,7 +2313,7 @@ for (;;)
     case OP_ANY:
     if (IS_NEWLINE(eptr)) RRETURN(MATCH_NOMATCH);
     if (md->partial != 0 &&
-        eptr + 1 >= md->end_subject &&
+        eptr == md->end_subject - 1 &&
         NLBLOCK->nltype == NLTYPE_FIXED &&
         NLBLOCK->nllen == 2 &&
         UCHAR21TEST(eptr) == NLBLOCK->nl[0])
@@ -3061,7 +3061,7 @@ for (;;)
             {
             RMATCH(eptr, ecode, offset_top, md, eptrb, RM18);
             if (rrc != MATCH_NOMATCH) RRETURN(rrc);
-            if (eptr-- == pp) break;        /* Stop if tried at original pos */
+            if (eptr-- <= pp) break;        /* Stop if tried at original pos */
             BACKCHAR(eptr);
             }
           }
@@ -3218,7 +3218,7 @@ for (;;)
           {
           RMATCH(eptr, ecode, offset_top, md, eptrb, RM21);
           if (rrc != MATCH_NOMATCH) RRETURN(rrc);
-          if (eptr-- == pp) break;        /* Stop if tried at original pos */
+          if (eptr-- <= pp) break;        /* Stop if tried at original pos */
 #ifdef SUPPORT_UTF
           if (utf) BACKCHAR(eptr);
 #endif

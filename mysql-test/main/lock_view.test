@@ -1,0 +1,94 @@
+source include/not_embedded.inc;
+source include/have_perfschema.inc;
+#
+# LOCK TABLES and privileges on views
+#
+create database mysqltest1;
+create database mysqltest2;
+create database mysqltest3;
+create user invoker@localhost;
+create user definer@localhost;
+grant select,show view on mysqltest1.* to invoker@localhost;
+grant select,show view on mysqltest1.* to definer@localhost;
+grant select,show view on mysqltest2.* to invoker@localhost;
+grant select,show view on mysqltest2.* to definer@localhost;
+grant select,show view on mysqltest3.* to invoker@localhost;
+grant select on performance_schema.* to definer@localhost;
+create table mysqltest1.t1 (a int);
+create definer=definer@localhost view mysqltest2.v2 as select * from mysqltest1.t1;
+create definer=definer@localhost view mysqltest3.v3 as select * from mysqltest2.v2;
+create definer=definer@localhost view mysqltest3.v3is as select schema_name from information_schema.schemata order by schema_name;
+create definer=definer@localhost view mysqltest3.v3ps as select user from performance_schema.users where current_connections>0 order by user;
+create definer=definer@localhost view mysqltest3.v3nt as select 1;
+create definer=definer@localhost sql security invoker view mysqltest3.v3i as select * from mysqltest1.t1;
+
+exec $MYSQL_DUMP --compact -B mysqltest1 mysqltest2 mysqltest3;
+
+connect inv,localhost,invoker;
+error ER_DBACCESS_DENIED_ERROR;
+lock table mysqltest3.v3 write;
+disconnect inv;
+connection default;
+
+grant lock tables on mysqltest3.* to invoker@localhost;
+connect inv,localhost,invoker;
+show create view mysqltest3.v3;
+show create view mysqltest3.v3is;
+show create view mysqltest3.v3ps;
+show create view mysqltest3.v3nt;
+show create view mysqltest3.v3i;
+error ER_VIEW_INVALID;
+lock table mysqltest3.v3 write;
+error ER_VIEW_INVALID;
+lock table mysqltest3.v3i write;
+lock table mysqltest3.v3is write; select * from mysqltest3.v3is;
+lock table mysqltest3.v3ps write; select * from mysqltest3.v3ps;
+lock table mysqltest3.v3nt write; select * from mysqltest3.v3nt;
+disconnect inv;
+connection default;
+
+grant lock tables on mysqltest2.* to invoker@localhost;
+connect inv,localhost,invoker;
+error ER_VIEW_INVALID;
+lock table mysqltest3.v3 write;
+error ER_VIEW_INVALID;
+lock table mysqltest3.v3i write;
+disconnect inv;
+connection default;
+
+grant lock tables on mysqltest1.* to definer@localhost;
+connect inv,localhost,invoker;
+lock table mysqltest3.v3 write; select * from mysqltest3.v3;
+error ER_VIEW_INVALID;
+lock table mysqltest3.v3i write;
+disconnect inv;
+connection default;
+
+grant lock tables on mysqltest1.* to invoker@localhost;
+connect inv,localhost,invoker;
+lock table mysqltest3.v3i write; select * from mysqltest3.v3i;
+disconnect inv;
+connection default;
+
+drop user invoker@localhost;
+drop user definer@localhost;
+drop database mysqltest1;
+drop database mysqltest2;
+drop database mysqltest3;
+
+--echo #
+--echo # MDEV-24331 mysqldump fails with "Got error: 1356" if the database contains a view with a subquery
+--echo #
+create user u1@localhost;
+grant all privileges on test.* to u1@localhost;
+connect con1,localhost,u1;
+use test;
+create table t1 (id int not null);
+create view v1 as select * from (select * from t1) dt;
+lock table v1 read;
+disconnect con1;
+connection default;
+exec $MYSQL_DUMP test v1 -uu1 --compact;
+drop view v1;
+drop table t1;
+drop user u1@localhost;

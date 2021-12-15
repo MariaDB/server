@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef MY_BIT_INCLUDED
 #define MY_BIT_INCLUDED
@@ -45,7 +45,7 @@ Count bits in 32bit integer
   http://graphics.stanford.edu/~seander/bithacks.html
   under "Counting bits set, in parallel"
 
- (Orignal code public domain).
+ (Original code public domain).
 */
 static inline uint my_count_bits_uint32(uint32 v)
 {
@@ -77,7 +77,7 @@ static inline uint my_count_bits(ulonglong x)
   NOTES
     Algorithm by Sean Anderson, according to:
     http://graphics.stanford.edu/~seander/bithacks.html
-    (Orignal code public domain)
+    (Original code public domain)
 
     Comments shows how this works with 01100000000000000000000000001011
 */
@@ -106,11 +106,11 @@ static inline uint32 my_clear_highest_bit(uint32 v)
 
 static inline uint32 my_reverse_bits(uint32 key)
 {
-  return (uint32)
-    (_my_bits_reverse_table[ key      & 255] << 24) |
-    (_my_bits_reverse_table[(key>> 8) & 255] << 16) |
-    (_my_bits_reverse_table[(key>>16) & 255] <<  8) |
-     _my_bits_reverse_table[(key>>24)      ];
+  return
+    ((uint32)_my_bits_reverse_table[ key      & 255] << 24) |
+    ((uint32)_my_bits_reverse_table[(key>> 8) & 255] << 16) |
+    ((uint32)_my_bits_reverse_table[(key>>16) & 255] <<  8) |
+     (uint32)_my_bits_reverse_table[(key>>24)      ];
 }
 
 /*

@@ -1,0 +1,54 @@
+# ==== Purpose ====
+#
+# Test verifies that plain DROP TEMPORARY TABLE IF EXISTS statements are not
+# replicated during row based replication.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - Have a read_only master and slave. Binlog format should be "ROW".
+#    1 - Create a procedure which executes DROP TEMPORARY TABLE IF EXISTS
+#        statements prior to CREATE TEMPORARY TABLE.
+#    2 - Execute the procedure.
+#    3 - Verify that the DROP TEMPORARY TABLE IF EXISTS statements within the
+#        procedure are not written to the binary log.
+#
+# ==== References ====
+#
+# MDEV-20091: DROP TEMPORARY table is logged despite no CREATE was logged
+#
+
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+connection slave;
+SET GLOBAL read_only=1;
+
+connection master;
+DELIMITER |;
+CREATE PROCEDURE testproc()
+BEGIN
+   DROP TEMPORARY TABLE IF EXISTS t1_tmp;
+   DROP TEMPORARY TABLE IF EXISTS t2_tmp;
+   CREATE TEMPORARY TABLE IF NOT EXISTS t1_tmp ( t1 varchar(400) DEFAULT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+   CREATE TEMPORARY TABLE IF NOT EXISTS t2_tmp ( t2 varchar(16) NOT NULL ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+END|
+DELIMITER ;|
+SET GLOBAL read_only=1;
+CALL testproc();
+--echo ******** None of the above DROP TEMPORARY TABLE statement should be found in binary log ********
+--source include/show_binlog_events.inc
+--sync_slave_with_master
+SELECT @@read_only;
+
+--echo ======== CLEAN UP =========
+connection master;
+DROP TEMPORARY TABLE t1_tmp;
+DROP TEMPORARY TABLE t2_tmp;
+DROP PROCEDURE testproc;
+SET GLOBAL read_only=0;
+--sync_slave_with_master
+SET GLOBAL read_only=0;
+
+--source include/rpl_end.inc

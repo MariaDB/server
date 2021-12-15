@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License along
    with this program; if not, write to the Free Software Foundation, Inc.,
-   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA. */
 
 #ifndef WSREP_UTILS_H
 #define WSREP_UTILS_H
@@ -108,7 +108,8 @@ private:
           /* Hostname with port (host:port) */
           start= addr_in;
           end= colon;
-          parse_port(colon + 1);
+          if (parse_port(colon + 1))
+            return;                             /* Error: invalid port */
           break;
         default:
           /* IPv6 address */
@@ -297,7 +298,7 @@ class thd
 
 public:
 
-  thd(my_bool wsrep_on);
+  thd(my_bool wsrep_on, bool system_thread=false);
   ~thd();
   THD* const ptr;
 };

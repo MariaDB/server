@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mysys_priv.h"
 #include "my_static.h"
@@ -122,6 +122,9 @@ my_bool my_init(void)
 #ifdef __WIN__
     win32_init_tcp_ip();
 #endif
+#ifdef CHECK_UNLIKELY
+    init_my_likely();
+#endif
     DBUG_RETURN(0);
   }
 } /* my_init */
@@ -155,17 +158,36 @@ void my_end(int infoflag)
   }
 
   if ((infoflag & MY_CHECK_ERROR) || print_info)
+  {                                     /* Test if some file is left open */
+    char ebuff[512];
+    uint i, open_files, open_streams;
 
-  {					/* Test if some file is left open */
-    if (my_file_opened | my_stream_opened)
+    for (open_streams= open_files= i= 0 ; i < my_file_limit ; i++)
     {
-      char ebuff[512];
+      if (my_file_info[i].type == UNOPEN)
+        continue;
+      if (my_file_info[i].type == STREAM_BY_FOPEN ||
+          my_file_info[i].type == STREAM_BY_FDOPEN)
+        open_streams++;
+      else
+        open_files++;
+
+#ifdef EXTRA_DEBUG
+      fprintf(stderr, EE(EE_FILE_NOT_CLOSED), my_file_info[i].name, i);
+      fputc('\n', stderr);
+#endif
+    }
+    if (open_files || open_streams)
+    {
       my_snprintf(ebuff, sizeof(ebuff), EE(EE_OPEN_WARNING),
-                  my_file_opened, my_stream_opened);
+                  open_files, open_streams);
       my_message_stderr(EE_OPEN_WARNING, ebuff, ME_BELL);
       DBUG_PRINT("error", ("%s", ebuff));
-      my_print_open_files();
     }
+
+#ifdef CHECK_UNLIKELY
+    end_my_likely(info_file);
+#endif
   }
   free_charsets();
   my_error_unregister_all();

@@ -32,4 +32,3 @@ set time_zone= @time_zone, default_week_format= @default_week_format, character_
 --sorted_result
 --replace_column 5 # 19 # 23 #
 select * from information_schema.query_cache_info;
-

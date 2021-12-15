@@ -1,0 +1,47 @@
+--source include/big_test.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_sequence.inc
+
+CREATE TABLE t1(f1 char(200), f2 char(200), f3 char(200),
+		f4 char(200), f5 char(200), f6 char(200),
+		f7 char(200), f8 char(200))ENGINE=InnoDB;
+
+INSERT INTO t1 SELECT '','','','','','','','' FROM seq_1_to_16384;
+
+SET DEBUG_SYNC = 'inplace_after_index_build SIGNAL rebuilt WAIT_FOR dml_pause';
+SET DEBUG_SYNC = 'alter_table_inplace_before_lock_upgrade SIGNAL dml_restart WAIT_FOR  dml_done';
+SET DEBUG_SYNC = 'row_log_table_apply2_before SIGNAL ddl_start';
+--send
+ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
+
+--connect(con1,localhost,root,,test)
+SET DEBUG_SYNC = 'now WAIT_FOR rebuilt';
+BEGIN;
+INSERT INTO t1 SELECT '','','','','','','','' FROM seq_1_to_16384;
+SET DEBUG_SYNC = 'now SIGNAL dml_pause';
+SET DEBUG_SYNC = 'now WAIT_FOR dml_restart';
+ROLLBACK;
+
+BEGIN;
+INSERT INTO t1 SELECT '','','','','','','','' FROM seq_1_to_81920;
+ROLLBACK;
+
+BEGIN;
+INSERT INTO t1 SELECT '','','','','','','','' FROM seq_1_to_114688;
+ROLLBACK;
+
+SET DEBUG_SYNC = 'now SIGNAL dml_done';
+
+--connect(con2, localhost,root,,test)
+SET DEBUG_SYNC = 'now WAIT_FOR ddl_start';
+CREATE TABLE t2(f1 INT NOT NULL)ENGINE=InnoDB;
+
+connection default;
+reap;
+SHOW CREATE TABLE t1;
+
+SELECT COUNT(*) FROM t1;
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1, t2;

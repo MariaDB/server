@@ -30,39 +30,39 @@ transaction_id = @tx2
 1
 set @ts3= now(6);
 select
-vtq_trx_id(@ts0) < @tx0 as A,
-vtq_trx_id(@ts0, true) = @tx0 as B,
-vtq_trx_id(@ts1) = @tx0 as C,
-vtq_trx_id(@ts1, true) = @tx1 as D,
-vtq_trx_id(@ts2) = @tx1 as E,
-vtq_trx_id(@ts2, true) = @tx2 as F,
-vtq_trx_id(@ts3) = @tx2 as G,
-vtq_trx_id(@ts3, true) is null as H;
+trt_trx_id(@ts0) < @tx0 as A,
+trt_trx_id(@ts0, true) = @tx0 as B,
+trt_trx_id(@ts1) = @tx0 as C,
+trt_trx_id(@ts1, true) = @tx1 as D,
+trt_trx_id(@ts2) = @tx1 as E,
+trt_trx_id(@ts2, true) = @tx2 as F,
+trt_trx_id(@ts3) = @tx2 as G,
+trt_trx_id(@ts3, true) is null as H;
 A	B	C	D	E	F	G	H
 1	1	1	1	1	1	1	1
 select
-vtq_commit_id(@ts0) < @tx0 as A,
-vtq_commit_id(@ts0, true) = vtq_commit_id(null, @tx0) as B,
-vtq_commit_id(@ts1) = vtq_commit_id(null, @tx0) as C,
-vtq_commit_id(@ts1, true) = vtq_commit_id(null, @tx1) as D,
-vtq_commit_id(@ts2) = vtq_commit_id(null, @tx1) as E,
-vtq_commit_id(@ts2, true) = vtq_commit_id(null, @tx2) as F,
-vtq_commit_id(@ts3) = vtq_commit_id(null, @tx2) as G,
-vtq_commit_id(@ts3, true) is null as H;
+trt_commit_id(@ts0) < @tx0 as A,
+trt_commit_id(@ts0, true) = trt_commit_id(null, @tx0) as B,
+trt_commit_id(@ts1) = trt_commit_id(null, @tx0) as C,
+trt_commit_id(@ts1, true) = trt_commit_id(null, @tx1) as D,
+trt_commit_id(@ts2) = trt_commit_id(null, @tx1) as E,
+trt_commit_id(@ts2, true) = trt_commit_id(null, @tx2) as F,
+trt_commit_id(@ts3) = trt_commit_id(null, @tx2) as G,
+trt_commit_id(@ts3, true) is null as H;
 A	B	C	D	E	F	G	H
 1	1	1	1	1	1	1	1
 select
-vtq_trx_sees(@tx1, @tx0) as A,
-not vtq_trx_sees(@tx0, @tx1) as B,
-vtq_trx_sees_eq(@tx1, @tx1) as C,
-not vtq_trx_sees(@tx1, @tx1) as D,
-vtq_trx_sees(@tx2, 0) as E,
-vtq_trx_sees(-1, @tx2) as F;
+trt_trx_sees(@tx1, @tx0) as A,
+not trt_trx_sees(@tx0, @tx1) as B,
+trt_trx_sees_eq(@tx1, @tx1) as C,
+not trt_trx_sees(@tx1, @tx1) as D,
+trt_trx_sees(@tx2, 0) as E,
+trt_trx_sees(-1, @tx2) as F;
 A	B	C	D	E	F
 1	1	1	1	1	1
-select vtq_trx_sees(0, @tx2);
-vtq_trx_sees(0, @tx2)
-NULL
+select trt_trx_sees(0, @tx2);
+trt_trx_sees(0, @tx2)
+0
 set transaction isolation level read uncommitted;
 insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx3;
@@ -88,7 +88,7 @@ select isolation_level = 'REPEATABLE-READ' from mysql.transaction_registry where
 isolation_level = 'REPEATABLE-READ'
 1
 drop table t1;
-call verify_vtq;
+call verify_trt;
 No	A	B	C	D
 1	1	1	1	1
 2	1	1	1	1

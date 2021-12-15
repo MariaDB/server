@@ -1,0 +1,124 @@
+--source include/have_debug_sync.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/big_test.inc
+
+# Establish connection to the third node:
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+# Establish additional connection to the second node
+# (which is used in the test for synchronization control):
+--let $galera_connection_name = node_2a
+--let $galera_server_number = 2
+--source include/galera_connect.inc
+
+# Save original auto_increment_offset values:
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+# Create a file for LOAD DATA with 95K entries
+--connection node_1
+--perl
+open(FILE, ">", "$ENV{'MYSQLTEST_VARDIR'}/tmp/galera_var_load_data_splitting.csv") or die;
+foreach  my $i (1..95000) {
+	print FILE "$i\n";
+}
+EOF
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+# Let's wait for the completion of the formation of a cluster
+# of three nodes:
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--connection node_2
+--source include/wait_until_ready.inc
+--connection node_3
+--source include/wait_until_ready.inc
+
+# Disconnect the third node from the cluster:
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
+SET SESSION wsrep_on = OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'non-Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 0;
+
+# Disable sync wait for control connection:
+--connection node_2a
+SET SESSION wsrep_sync_wait = 0;
+
+# Let's wait until the other nodes stop seeing the third
+# node in the cluster:
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+# Record wsrep_last_committed as it was before LOAD DATA:
+--connection node_2
+--let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+# Enable splitting for LOAD DATA:
+--let $wsrep_load_data_splitting_orig = `SELECT @@wsrep_load_data_splitting`
+SET GLOBAL wsrep_load_data_splitting = TRUE;
+
+# Stop after the first commit and wait for the IST signal:
+SET DEBUG_SYNC='intermediate_transaction_commit SIGNAL commited WAIT_FOR ist';
+
+# Perform the LOAD DATA statement:
+--disable_query_log
+let v1='$MYSQLTEST_VARDIR/tmp/galera_var_load_data_splitting.csv';
+--send_eval LOAD DATA INFILE $v1 INTO TABLE t1;
+--enable_query_log
+
+# Wait for the first commit:
+--connection node_2a
+SET DEBUG_SYNC='now WAIT_FOR commited';
+
+# Initiate the IST:
+--connection node_3
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 0';
+
+# Continue the execution of LOAD DATA:
+--connection node_2a
+SET DEBUG_SYNC='now SIGNAL ist';
+
+# Let's wait for the recovery of the cluster
+# of three nodes:
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+# Save the LOAD DATA results:
+--connection node_2
+--reap
+
+# Reset all synchronization points and signals:
+SET DEBUG_SYNC='RESET';
+
+# Read the wsrep_last_commited after LOAD DATA:
+--let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
+
+# Check the records:
+SELECT COUNT(*) = 95000 FROM t1;
+
+# LOAD-ing 95K rows should causes 10 commits to be registered:
+--disable_query_log
+--eval SELECT $wsrep_last_committed_after = $wsrep_last_committed_before + 10 AS wsrep_last_committed_diff;
+--enable_query_log
+
+# Restore the original splitting:
+--connection node_1
+--eval SET GLOBAL wsrep_load_data_splitting = $wsrep_load_data_splitting_orig;
+
+# Drop test table:
+DROP TABLE t1;
+
+# Restore original auto_increment_offset values:
+--source ../galera/include/auto_increment_offset_restore.inc
+
+--let $galera_cluster_size=3
+--source include/galera_end.inc

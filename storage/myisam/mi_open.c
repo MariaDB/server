@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   open a isam-database
@@ -139,13 +139,13 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
 
     DEBUG_SYNC_C("mi_open_kfile");
     if ((kfile= mysql_file_open(mi_key_file_kfile, name_buff,
-                                (open_mode= O_RDWR) | O_SHARE | O_NOFOLLOW,
+                                (open_mode= O_RDWR) | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
                                 MYF(MY_NOSYMLINKS))) < 0)
     {
       if ((errno != EROFS && errno != EACCES) ||
 	  mode != O_RDONLY ||
           (kfile= mysql_file_open(mi_key_file_kfile, name_buff,
-                                  (open_mode= O_RDONLY) | O_SHARE| O_NOFOLLOW,
+                                  (open_mode= O_RDONLY) | O_SHARE| O_NOFOLLOW | O_CLOEXEC,
                                   MYF(MY_NOSYMLINKS))) < 0)
 	goto err;
     }
@@ -1270,7 +1270,7 @@ int mi_open_datafile(MI_INFO *info, MYISAM_SHARE *share)
   myf flags= MY_WME | (share->mode & O_NOFOLLOW ? MY_NOSYMLINKS: 0);
   DEBUG_SYNC_C("mi_open_datafile");
   info->dfile= mysql_file_open(mi_key_file_dfile, share->data_file_name,
-                               share->mode | O_SHARE, MYF(flags));
+                               share->mode | O_SHARE | O_CLOEXEC, MYF(flags));
   return info->dfile >= 0 ? 0 : 1;
 }
 
@@ -1279,7 +1279,7 @@ int mi_open_keyfile(MYISAM_SHARE *share)
 {
   if ((share->kfile= mysql_file_open(mi_key_file_kfile,
                                      share->unique_file_name,
-                                     share->mode | O_SHARE | O_NOFOLLOW,
+                                     share->mode | O_SHARE | O_NOFOLLOW | O_CLOEXEC,
                                      MYF(MY_NOSYMLINKS | MY_WME))) < 0)
     return 1;
   return 0;

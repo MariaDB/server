@@ -31,7 +31,7 @@ skip Require rpl files from MySQL;
 -- let $row_img_set=server_1:NOBLOB:N,server_2:NOBLOB:Y,server_3:NOBLOB:Y
 -- source include/rpl_row_img_set.inc
 
--- let $row_img_test_script= extra/rpl_tests/rpl_row_img_blobs.test
+-- let $row_img_test_script= suite/rpl/include/rpl_row_img_blobs.test
 -- source suite/tokudb.rpl/include/rpl_tokudb_row_img_general_loop.inc
 
 ## MINIMAL
@@ -39,7 +39,7 @@ skip Require rpl files from MySQL;
 -- let $row_img_set=server_1:MINIMAL:N,server_2:MINIMAL:Y,server_3:MINIMAL:Y
 -- source include/rpl_row_img_set.inc
 
--- let $row_img_test_script= extra/rpl_tests/rpl_row_img_blobs.test
+-- let $row_img_test_script= suite/rpl/include/rpl_row_img_blobs.test
 -- source suite/tokudb.rpl/include/rpl_tokudb_row_img_general_loop.inc
 
 ## FULL
@@ -47,7 +47,7 @@ skip Require rpl files from MySQL;
 -- let $row_img_set=server_1:FULL:N,server_2:FULL:Y,server_3:FULL:Y
 -- source include/rpl_row_img_set.inc
 
--- let $row_img_test_script= extra/rpl_tests/rpl_row_img_blobs.test
+-- let $row_img_test_script= suite/rpl/include/rpl_row_img_blobs.test
 -- source suite/tokudb.rpl/include/rpl_tokudb_row_img_general_loop.inc
 
 

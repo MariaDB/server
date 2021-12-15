@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "maria_def.h"
 
@@ -251,7 +251,8 @@ my_bool maria_page_crc_check_index(int res, PAGECACHE_IO_HOOK_ARGS *args)
   if (length > share->block_size - CRC_SIZE)
   {
     DBUG_PRINT("error", ("Wrong page length: %u", length));
-    return (my_errno= HA_ERR_WRONG_CRC);
+    my_errno= HA_ERR_WRONG_CRC;
+    return 1;
   }
   return maria_page_crc_check(page, (uint32) page_no, share,
                                MARIA_NO_CRC_NORMAL_PAGE,

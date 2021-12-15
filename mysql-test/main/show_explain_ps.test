@@ -1,0 +1,61 @@
+#
+# Test how SHOW EXPLAIN is represented in performance schema
+#
+--source include/have_debug.inc
+--source include/have_perfschema.inc
+# Like all other perfschema tests, we don't work on embedded server:
+--source include/not_embedded.inc
+
+# There is a query below that selects from P_S tables.
+# Remove possible history that could confuse it
+truncate table performance_schema.events_statements_history_long;
+truncate table performance_schema.events_stages_history_long;
+
+--disable_warnings
+drop table if exists t0, t1;
+--enable_warnings
+
+select * from performance_schema.setup_instruments where name like '%show_explain%';
+
+--echo # We've got no instances
+select * from performance_schema.cond_instances where name like '%show_explain%';
+
+--echo # Check out if our cond is hit.
+
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+let $thr1=`select connection_id()`;
+connect (con1, localhost, root,,);
+connection con1;
+let $thr2=`select connection_id()`;
+connection default;
+
+let $wait_condition= select State='show_explain_trap' from information_schema.processlist where id=$thr2;
+
+#
+# Test SHOW EXPLAIN for simple queries
+#
+connection con1;
+set @show_explain_probe_select_id=1;
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET debug_dbug='d,show_explain_probe_join_exec_start';
+send select count(*) from t0 where a < 100000;
+
+connection default;
+--source include/wait_condition.inc
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+SET debug_dbug= @saved_dbug;
+
+evalp select event_name
+        from
+        performance_schema.events_stages_history_long join
+        performance_schema.threads using (thread_id)
+        where
+          event_name like '%show explain' and
+          processlist_id=$thr1;
+
+drop table t0;

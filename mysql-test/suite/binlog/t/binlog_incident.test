@@ -1,1 +1,1 @@
---source extra/binlog_tests/binlog_incident.inc
+--source include/binlog_incident.inc

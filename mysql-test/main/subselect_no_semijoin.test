@@ -1,0 +1,35 @@
+# 
+# Run subselect.test without semi-join optimization (test materialize)
+#
+set @optimizer_switch_for_subselect_test='semijoin=off,mrr=on,mrr_sort_keys=on,index_condition_pushdown=on'; 
+
+set join_cache_level=1;
+set @join_cache_level_for_subselect_test=@@join_cache_level;
+
+--source subselect.test
+
+--echo #
+--echo # MDEV-19714: JOIN::pseudo_bits_cond is not visible in EXPLAIN FORMAT=JSON
+--echo #
+CREATE TABLE t1 ( a INT );
+INSERT INTO t1 VALUES (1),(5);
+
+# t2 must be MyISAM or Aria and contain 1 row
+CREATE TABLE t2 ( b INT ) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1);
+
+CREATE TABLE t3 ( c INT );
+INSERT INTO t3 VALUES (4),(5);
+
+SET @tmp19714=@@optimizer_switch;
+SET optimizer_switch='subquery_cache=off';
+
+explain format=json
+SELECT ( SELECT b FROM t2 WHERE b = a OR EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
+
+SET optimizer_switch=@tmp19714;
+
+drop table t1,t2,t3;
+
+set @optimizer_switch_for_subselect_test=null; 
+set @join_cache_level_for_subselect_test=NULL;

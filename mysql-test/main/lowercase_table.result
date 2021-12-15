@@ -1,0 +1,166 @@
+create table T1 (id int primary key, Word varchar(40) not null, Index(Word));
+create table t4 (id int primary key, Word varchar(40) not null);
+INSERT INTO T1 VALUES (1, 'a'), (2, 'b'), (3, 'c');
+INSERT INTO T4 VALUES(1,'match');
+SELECT * FROM t1;
+id	Word
+1	a
+2	b
+3	c
+SELECT T1.id from T1 LIMIT 1;
+id
+1
+SELECT T2.id from t1 as T2 LIMIT 1;
+id
+1
+SELECT * from t1 left join t4 on (test.t1.id= TEST.t4.id) where TEST.t1.id >= test.t4.id;
+id	Word	id	Word
+1	a	1	match
+SELECT T2.id from t1 as t2 LIMIT 1;
+id
+1
+RENAME TABLE T1 TO T2;
+ALTER TABLE T2 ADD new_col int not null;
+ALTER TABLE T2 RENAME T3;
+show tables like 't_';
+Tables_in_test (t_)
+t3
+t4
+drop table t3,t4;
+create table t1 (a int);
+select count(*) from T1;
+count(*)
+0
+select count(*) from t1;
+count(*)
+0
+select count(T1.a) from t1;
+count(T1.a)
+0
+select count(bags.a) from t1 as Bags;
+count(bags.a)
+0
+drop table t1;
+create database mysqltest;
+use MYSQLTEST;
+create table t1 (a int);
+select T1.a from MYSQLTEST.T1;
+a
+select t1.a from MYSQLTEST.T1;
+a
+select mysqltest.t1.* from MYSQLTEST.t1;
+a
+select MYSQLTEST.t1.* from MYSQLTEST.t1;
+a
+select MYSQLTEST.T1.* from MYSQLTEST.T1;
+a
+select MYSQLTEST.T1.* from T1;
+a
+alter table t1 rename to T1;
+select MYSQLTEST.t1.* from MYSQLTEST.t1;
+a
+drop database mysqltest;
+use test;
+create table t1 (a int);
+create table t2 (a int);
+delete p1.*,P2.* from t1 as p1, t2 as p2 where p1.a=P2.a;
+delete P1.*,p2.* from t1 as P1, t2 as P2 where P1.a=p2.a;
+update t1 as p1, t2 as p2 SET p1.a=1,P2.a=1 where p1.a=P2.a;
+update t1 as P1, t2 as P2 SET P1.a=1,p2.a=1 where P1.a=p2.a;
+drop table t1,t2;
+create table t1 (a int);
+create table t2 (a int);
+select * from t1 c, t2 C;
+ERROR 42000: Not unique table/alias: 'C'
+select C.a, c.a from t1 c, t2 C;
+ERROR 42000: Not unique table/alias: 'C'
+drop table t1, t2;
+#
+# Bug #9761: CREATE TABLE ... LIKE ... not handled correctly when lower_case_table_names is set
+#
+create table t1 (a int);
+create table t2 like T1;
+drop table t1, t2;
+show tables;
+Tables_in_test
+#
+# End of 4.1 tests
+#
+#
+# Bug#20404: SHOW CREATE TABLE fails with Turkish I
+#
+set names utf8;
+create table İ (s1 int);
+show create table İ;
+Table	Create Table
+İ	CREATE TABLE `i` (
+  `s1` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+show tables;
+Tables_in_test
+i
+drop table İ;
+create table İİ (s1 int);
+show create table İİ;
+Table	Create Table
+İİ	CREATE TABLE `ii` (
+  `s1` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+show tables;
+Tables_in_test
+ii
+drop table İİ;
+set names latin1;
+#
+# End of 5.0 tests
+#
+#
+# Bug#21317: SHOW CREATE DATABASE does not obey to lower_case_table_names
+#
+create database mysql_TEST character set latin2;
+create table mysql_TEST.T1 (a int);
+show create database mysql_TEST;
+Database	Create Database
+mysql_TEST	CREATE DATABASE `mysql_test` /*!40100 DEFAULT CHARACTER SET latin2 */
+show create table mysql_TEST.T1;
+Table	Create Table
+T1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin2
+show databases like "mysql%";
+Database (mysql%)
+mysql
+mysql_test
+show databases like "mysql_TE%";
+Database (mysql_TE%)
+mysql_test
+drop database mysql_TEST;
+#
+# End of 10.0 tests
+#
+#
+# MDEV-17148 DROP DATABASE throw "Directory not empty" after changed lower_case_table_names.
+#
+create database db1;
+create table t1 (a int);
+drop database db1;
+drop table t1;
+#
+# End of 10.2 tests
+#
+#
+# MDEV-25109 Server crashes in sp_name::sp_name upon invalid data in mysql.proc
+#
+call mtr.add_suppression("Stored routine ''.'': invalid value in column");
+insert ignore into mysql.proc () values ();
+Warnings:
+Warning	1364	Field 'param_list' doesn't have a default value
+Warning	1364	Field 'returns' doesn't have a default value
+Warning	1364	Field 'body' doesn't have a default value
+Warning	1364	Field 'comment' doesn't have a default value
+show function status;
+ERROR 42000: Incorrect routine name ''
+delete from mysql.proc where name = '';
+#
+# End of 10.3 tests
+#

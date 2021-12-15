@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -129,7 +129,7 @@ bool Events::check_if_system_tables_error()
 
 /**
   Reconstructs interval expression from interval type and expression
-  value that is in form of a value of the smalles entity:
+  value that is in form of a value of the smallest entity:
   For
     YEAR_MONTH - expression is in months
     DAY_MINUTE - expression is in minutes
@@ -320,7 +320,7 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
   enum_binlog_format save_binlog_format;
   DBUG_ENTER("Events::create_event");
 
-  if (check_if_system_tables_error())
+  if (unlikely(check_if_system_tables_error()))
     DBUG_RETURN(TRUE);
 
   /*
@@ -418,11 +418,17 @@ Events::create_event(THD *thd, Event_parse_data *parse_data)
 
   thd->restore_stmt_binlog_format(save_binlog_format);
 
+  if (!ret && Events::opt_event_scheduler == Events::EVENTS_OFF)
+  {
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, 
+      "Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.");
+  }
+
   DBUG_RETURN(ret);
-#ifdef WITH_WSREP
- error:
+
+WSREP_ERROR_LABEL:
   DBUG_RETURN(TRUE);
-#endif /* WITH_WSREP */
+
 }
 
 
@@ -455,7 +461,7 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
 
   DBUG_ENTER("Events::update_event");
 
-  if (check_if_system_tables_error())
+  if (unlikely(check_if_system_tables_error()))
     DBUG_RETURN(TRUE);
 
   if (parse_data->check_parse_data(thd) || parse_data->do_not_create)
@@ -464,7 +470,7 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
   if (check_access(thd, EVENT_ACL, parse_data->dbname.str, NULL, NULL, 0, 0))
     DBUG_RETURN(TRUE);
 
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   if (lock_object_name(thd, MDL_key::EVENT,
                        parse_data->dbname.str, parse_data->name.str))
@@ -550,10 +556,9 @@ Events::update_event(THD *thd, Event_parse_data *parse_data,
 
   thd->restore_stmt_binlog_format(save_binlog_format);
   DBUG_RETURN(ret);
-#ifdef WITH_WSREP
-error:
+
+WSREP_ERROR_LABEL:
   DBUG_RETURN(TRUE);
-#endif /* WITH_WSREP */
 }
 
 
@@ -589,13 +594,13 @@ Events::drop_event(THD *thd, const LEX_CSTRING *dbname,
   enum_binlog_format save_binlog_format;
   DBUG_ENTER("Events::drop_event");
 
-  if (check_if_system_tables_error())
+  if (unlikely(check_if_system_tables_error()))
     DBUG_RETURN(TRUE);
 
   if (check_access(thd, EVENT_ACL, dbname->str, NULL, NULL, 0, 0))
     DBUG_RETURN(TRUE);
 
-  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /*
     Turn off row binlogging of this statement and use statement-based so
@@ -618,10 +623,9 @@ Events::drop_event(THD *thd, const LEX_CSTRING *dbname,
 
   thd->restore_stmt_binlog_format(save_binlog_format);
   DBUG_RETURN(ret);
-#ifdef WITH_WSREP
-error:
+
+WSREP_ERROR_LABEL:
   DBUG_RETURN(TRUE);
-#endif
 }
 
 
@@ -761,7 +765,7 @@ Events::show_create_event(THD *thd, const LEX_CSTRING *dbname,
   DBUG_ENTER("Events::show_create_event");
   DBUG_PRINT("enter", ("name: %s@%s", dbname->str, name->str));
 
-  if (check_if_system_tables_error())
+  if (unlikely(check_if_system_tables_error()))
     DBUG_RETURN(TRUE);
 
   if (check_access(thd, EVENT_ACL, dbname->str, NULL, NULL, 0, 0))
@@ -817,7 +821,7 @@ Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
   if (opt_noacl)
     DBUG_RETURN(0);
 
-  if (check_if_system_tables_error())
+  if (unlikely(check_if_system_tables_error()))
     DBUG_RETURN(1);
 
   /*
@@ -1195,6 +1199,46 @@ Events::load_events_from_db(THD *thd)
       delete et;
       goto end;
     }
+
+#ifdef WITH_WSREP
+    /**
+      If SST is done from a galera node that is also acting as MASTER
+      newly synced node in galera eco-system will also copy-over the
+      event state enabling duplicate event in galera eco-system.
+      DISABLE such events if the current node is not event orginator.
+      (Also, make sure you skip disabling it if is already disabled to avoid
+       creation of redundant action)
+      NOTE:
+      This complete system relies on server-id. Ideally server-id should be
+      same for all nodes of galera eco-system but they aren't same.
+      Infact, based on galera use-case it seems like it recommends to have each
+      node with different server-id.
+    */
+    if (WSREP(thd) && et->originator != thd->variables.server_id)
+    {
+        if (et->status == Event_parse_data::SLAVESIDE_DISABLED)
+          continue;
+
+        store_record(table, record[1]);
+        table->field[ET_FIELD_STATUS]->
+                store((longlong) Event_parse_data::SLAVESIDE_DISABLED,
+                      TRUE);
+
+	/* All the dmls to mysql.events tables are stmt bin-logged. */
+        bool save_binlog_row_based;
+        if ((save_binlog_row_based= thd->is_current_stmt_binlog_format_row()))
+	  thd->set_current_stmt_binlog_format_stmt();
+
+        (void) table->file->ha_update_row(table->record[1], table->record[0]);
+
+        if (save_binlog_row_based)
+          thd->set_current_stmt_binlog_format_row();
+
+        delete et;
+        continue;
+    }
+#endif /* WITH_WSREP */
+
     /**
       Since the Event_queue_element object could be deleted inside
       Event_queue::create_event we should save the value of dropped flag

@@ -27,6 +27,7 @@ BEGIN
         SET SESSION wsrep_sync_wait = 0;
         WHILE 1 DO
 		INSERT INTO t1 (f1) VALUES (FLOOR( 1 + RAND( ) * 65535 ));
+		SELECT SLEEP(0.1);
         END WHILE;
 END|
 DELIMITER ;|
@@ -34,6 +35,8 @@ DELIMITER ;|
 --connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connection node_1b
 --let $connection_id = `SELECT CONNECTION_ID()`
+--disable_query_log
+--disable_result_log
 --send CALL proc_insert();
 
 #
@@ -78,6 +81,8 @@ SELECT VARIABLE_VALUE > 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_N
 --connection node_1b
 --error 0,2013,1317
 --reap
+--enable_query_log
+--enable_result_log
 
 --connection node_1
 DROP PROCEDURE proc_insert;
@@ -85,3 +90,5 @@ DROP TABLE t1;
 
 # Due to MW-330, Multiple "conflict state 3 after post commit" warnings if table is dropped while SP is running
 CALL mtr.add_suppression("conflict state 3 after post commit");
+
+set global innodb_status_output=Default;

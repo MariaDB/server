@@ -1,5 +1,6 @@
 include/rpl_init.inc [topology=1->2]
 connection server_2;
+call mtr.add_suppression("The automatically created table.*name may not be entirely in lowercase");
 SET GLOBAL gtid_pos_auto_engines="innodb";
 ERROR HY000: This operation cannot be performed as you have a running slave ''; run STOP SLAVE '' first
 include/stop_slave.inc
@@ -152,12 +153,12 @@ a
 1
 2
 *** Verify that mysql.gtid_slave_pos_InnoDB is auto-created ***
-SELECT table_name, engine FROM information_schema.tables
+SELECT lower(table_name), engine FROM information_schema.tables
 WHERE table_schema='mysql' AND table_name LIKE 'gtid_slave_pos%'
  ORDER BY table_name;
-table_name	engine
+lower(table_name)	engine
 gtid_slave_pos	MyISAM
-gtid_slave_pos_InnoDB	InnoDB
+gtid_slave_pos_innodb	InnoDB
 include/stop_slave.inc
 SET sql_log_bin=0;
 INSERT INTO mysql.gtid_slave_pos SELECT * FROM mysql.gtid_slave_pos_InnoDB;
@@ -245,15 +246,24 @@ a
 3
 4
 *** Verify that mysql.gtid_slave_pos_InnoDB is auto-created ***
-SELECT table_name, engine FROM information_schema.tables
+SELECT lower(table_name), engine FROM information_schema.tables
 WHERE table_schema='mysql' AND table_name LIKE 'gtid_slave_pos%'
  ORDER BY table_name;
-table_name	engine
+lower(table_name)	engine
 gtid_slave_pos	MyISAM
-gtid_slave_pos_InnoDB	InnoDB
+gtid_slave_pos_innodb	InnoDB
 SELECT domain_id, max(seq_no) FROM mysql.gtid_slave_pos GROUP BY domain_id;
 domain_id	max(seq_no)
 0	13
+connection server_2;
+*** Restart the slave server to prove 'gtid_slave_pos_innodb' autodiscovery ***
+connection server_2;
+SELECT max(seq_no) FROM mysql.gtid_slave_pos_InnoDB into @seq_no;
+connection server_1;
+INSERT INTO t2(a) SELECT 1+MAX(a) FROM t2;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 include/stop_slave.inc
 SET GLOBAL gtid_pos_auto_engines="";
 SET sql_log_bin=0;

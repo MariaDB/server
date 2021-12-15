@@ -1,0 +1,56 @@
+--disable_warnings
+let $MYSQLD_DATADIR= `select @@datadir`;
+let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
+let $error_log= $MYSQLTEST_VARDIR/log/my_restart.err;
+select variable_name, variable_value from information_schema.global_variables where variable_name="rocksdb_ignore_unknown_options";
+
+#
+# MariaDB: The following shell commands are not portable so we are 
+# using perl instead:
+#--exec find $MYSQLD_DATADIR/#rocksdb/OPTIONS* | sort -t- -k 2 -n | tail -1 | xargs -0 -I {} -t sh -c "sed -i 's/rocksdb_version=.*/rocksdb_version=99.9.9/' {}"
+#--exec find $MYSQLD_DATADIR/#rocksdb/OPTIONS* | sort -t- -k 2 -n | tail -1 | xargs -0 -I {} -t sh -c "echo hello=world>>{}"
+
+perl;
+ my $path=$ENV{MYSQLTEST_VARDIR} . "/mysqld.1/data/\#rocksdb";
+ opendir(my $dh, $path) || die "Can't opendir $some_dir: $!";
+ my @files = grep { /^OPTIONS/  } readdir($dh);
+ closedir($dh);
+
+ sub compare_second_as_number {
+    local $aa= shift;
+    local $bb= shift;
+    $aa =~ s/OPTIONS-//;
+    $bb =~ s/OPTIONS-//;
+    return $aa <=> $bb;
+ }
+  
+ @sorted_files = sort { compare_second_as_number($a, $b); } @files;
+ my $last_file= $sorted_files[-1];
+  
+ my $contents="";
+ open(my $fh, "<", "$path/$last_file") || die ("Couldn't open $path/$last_file");
+ while (<$fh>) {
+   $_ =~ s/rocksdb_version=.*/rocksdb_version=99.9.9/;
+   $contents .= $_;
+ }
+ close($fh);
+ $contents .= "hello=world\n";
+ open(my $fh, ">", "$path/$last_file") || die("Can't open $path/$file for writing");
+ print $fh $contents;
+ close($fh);
+EOF
+
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server
+
+--error 1
+--exec $MYSQLD_CMD --plugin_load=$HA_ROCKSDB_SO --rocksdb_ignore_unknown_options=0 --log-error=$error_log
+
+let SEARCH_FILE= $error_log;
+let SEARCH_PATTERN= RocksDB: Compatibility check against existing database options failed;
+--source include/search_pattern_in_file.inc
+--remove_file $error_log
+--enable_reconnect
+--exec echo "restart" > $restart_file
+--source include/wait_until_connected_again.inc
+select variable_name, variable_value from information_schema.global_variables where variable_name="rocksdb_ignore_unknown_options";

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -29,9 +29,7 @@ Created 3/26/1996 Heikki Tuuri
 
 #include "ut0byte.h"
 #include "ut0mutex.h"
-#include "ut0new.h"
 
-#include <queue>
 #include <vector>
 
 /** printf(3) format used for printing DB_TRX_ID and other system fields */
@@ -50,21 +48,6 @@ static const ulint TRX_SYS_SPACE = 0;
 /** Random value to check for corruption of trx_t */
 static const ulint TRX_MAGIC_N = 91118598;
 
-/** If this flag is set then the transaction cannot be rolled back
-asynchronously. */
-static const ib_uint32_t TRX_FORCE_ROLLBACK_DISABLE = 1 << 29;
-
-/** Was the transaction rolled back asynchronously or by the
-owning thread. This flag is relevant only if TRX_FORCE_ROLLBACK
-is set.  */
-static const ib_uint32_t TRX_FORCE_ROLLBACK_ASYNC = 1 << 30;
-
-/** Mark the transaction for forced rollback */
-static const ib_uint32_t TRX_FORCE_ROLLBACK = 1U << 31;
-
-/** For masking out the above four flags */
-static const ib_uint32_t TRX_FORCE_ROLLBACK_MASK = 0x1FFFFFFF;
-
 /** Transaction execution states when trx->state == TRX_STATE_ACTIVE */
 enum trx_que_t {
 	TRX_QUE_RUNNING,		/*!< transaction is running */
@@ -76,18 +59,14 @@ enum trx_que_t {
 
 /** Transaction states (trx_t::state) */
 enum trx_state_t {
-
 	TRX_STATE_NOT_STARTED,
 
-	/** Same as not started but with additional semantics that it
-	was rolled back asynchronously the last time it was active. */
-	TRX_STATE_FORCED_ROLLBACK,
-
 	TRX_STATE_ACTIVE,
-
-	/** Support for 2PC/XA */
+	/** XA PREPARE has been executed; only XA COMMIT or XA ROLLBACK
+	are possible */
 	TRX_STATE_PREPARED,
-
+	/** XA PREPARE transaction that was returned to ha_recover() */
+	TRX_STATE_PREPARED_RECOVERED,
 	TRX_STATE_COMMITTED_IN_MEMORY
 };
 
@@ -112,8 +91,6 @@ enum trx_dict_op_t {
 struct trx_t;
 /** The locks and state of an active transaction */
 struct trx_lock_t;
-/** Signal */
-struct trx_sig_t;
 /** Rollback segment */
 struct trx_rseg_t;
 /** Transaction undo log */
@@ -158,7 +135,6 @@ typedef	byte	trx_undo_rec_t;
 
 typedef ib_mutex_t RsegMutex;
 typedef ib_mutex_t TrxMutex;
-typedef ib_mutex_t UndoMutex;
 typedef ib_mutex_t PQMutex;
 typedef ib_mutex_t TrxSysMutex;
 

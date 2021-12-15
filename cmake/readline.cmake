@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 INCLUDE(CheckCXXSourceCompiles)
 
@@ -52,7 +52,7 @@ MACRO (MYSQL_CHECK_MULTIBYTE)
 ENDMACRO()
 
 MACRO (FIND_CURSES)
- FIND_PACKAGE(Curses) 
+ FIND_PACKAGE(Curses REQUIRED)
  MARK_AS_ADVANCED(CURSES_CURSES_H_PATH CURSES_FORM_LIBRARY CURSES_HAVE_CURSES_H)
  IF(NOT CURSES_FOUND)
    SET(ERRORMSG "Curses library not found. Please install appropriate package,
@@ -134,7 +134,7 @@ MACRO (MYSQL_FIND_SYSTEM_READLINE)
         SET(USE_NEW_READLINE_INTERFACE 1)
       ELSE()
         IF(NOT_FOR_DISTRIBUTION)
-          SET(NON_DISTRIBUTABLE_WARNING 1)
+          SET(NON_DISTRIBUTABLE_WARNING "GPLv3")
           SET(USE_NEW_READLINE_INTERFACE 1)
         ELSE()
           SET(USE_NEW_READLINE_INTERFACE 0)

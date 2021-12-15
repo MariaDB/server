@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -120,7 +120,7 @@ page_zip_get_size(
 	size = (UNIV_ZIP_SIZE_MIN >> 1) << page_zip->ssize;
 
 	ut_ad(size >= UNIV_ZIP_SIZE_MIN);
-	ut_ad(size <= UNIV_PAGE_SIZE);
+	ut_ad(size <= srv_page_size);
 
 	return(size);
 }
@@ -164,6 +164,9 @@ page_zip_rec_needs_ext(
 	ulint			n_fields,
 	const page_size_t&	page_size)
 {
+	/* FIXME: row size check is this function seems to be the most correct.
+	Put it in a separate function and use in more places of InnoDB */
+
 	ut_ad(rec_size
 	      > ulint(comp ? REC_N_NEW_EXTRA_BYTES : REC_N_OLD_EXTRA_BYTES));
 	ut_ad(comp || !page_size.is_compressed());
@@ -228,7 +231,7 @@ page_zip_get_trailer_len(
 	ulint	uncompressed_size;
 
 	ut_ad(page_zip_simple_validate(page_zip));
-	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
+	MEM_CHECK_DEFINED(page_zip->data, page_zip_get_size(page_zip));
 
 	if (!page_is_leaf(page_zip->data)) {
 		uncompressed_size = PAGE_ZIP_DIR_SLOT_SIZE
@@ -242,9 +245,9 @@ page_zip_get_trailer_len(
 		ut_ad(!page_zip->n_blobs);
 	}
 
-	return((page_dir_get_n_heap(page_zip->data) - 2)
-	       * uncompressed_size
-	       + page_zip->n_blobs * BTR_EXTERN_FIELD_REF_SIZE);
+	return (ulint(page_dir_get_n_heap(page_zip->data)) - 2)
+		* uncompressed_size
+		+ ulint(page_zip->n_blobs) * BTR_EXTERN_FIELD_REF_SIZE;
 }
 
 /**********************************************************************//**
@@ -353,7 +356,7 @@ page_zip_write_header(
 	ulint	pos;
 
 	ut_ad(page_zip_simple_validate(page_zip));
-	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
+	MEM_CHECK_DEFINED(page_zip->data, page_zip_get_size(page_zip));
 
 	pos = page_offset(str);
 

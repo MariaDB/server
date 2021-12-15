@@ -1,0 +1,98 @@
+# ==== Purpose ====
+#
+# Test verifies that when an admin command execution is interrupted by KILL
+# command it should stop its execution. The admin command in binary log should
+# contain only the list of tables which have successfully executed admin
+# command prior to kill.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - Create two table t1,t2.
+#    1 - Execute OPTIMIZE TABLE t1,t2 command.
+#    2 - Using debug sync mechanism kill OPTIMIZE TABLE command at a stage
+#        where it has not optimized any table.
+#    3 - Check that OPTIMIZE TABLE command is not written to binary log.
+#    4 - Using debug sync mechanism hold the execution of OPTIMIZE TABLE after
+#        t1 table optimization. Now kill the OPTIMIZE TABLE command.
+#    5 - Observe the binlog output, the OPTIMIZE TABLE command should display `t1,t2`.
+#    6 - Please note that, we binlog the entire query even if at least one
+#        table is modified as admin commands are safe to replicate and they will
+#        not make the slave to diverge.
+#
+# ==== References ====
+#
+# MDEV-22530: Aborting OPTIMIZE TABLE still logs in binary log and replicates to the Slave server.
+#
+--source include/have_log_bin.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # Kill OPTIMIZE command prior to table modification
+--echo #
+RESET MASTER;
+
+CREATE TABLE t1 (f INT) ENGINE=INNODB;
+CREATE TABLE t2 (f INT) ENGINE=INNODB;
+
+--connect(con1,127.0.0.1,root,,test,$MASTER_MYPORT,)
+--connection con1
+SET debug_sync='admin_command_kill_before_modify SIGNAL ready_to_be_killed WAIT_FOR master_cont';
+--send OPTIMIZE TABLE t1,t2
+
+--connection default
+SET debug_sync='now WAIT_FOR ready_to_be_killed';
+--let $thd_id= `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO LIKE '%OPTIMIZE TABLE %'`
+
+# Now kill.
+--replace_result $thd_id THD_ID
+eval KILL $thd_id;
+
+SET debug_sync = 'reset';
+--disconnect con1
+
+--source include/show_binlog_events.inc
+DROP TABLE t1,t2;
+
+RESET MASTER;
+
+--echo #
+--echo # Kill OPTIMIZE command after table modification
+--echo #
+
+CREATE TABLE t1 (f INT) ENGINE=INNODB;
+CREATE TABLE t2 (f INT) ENGINE=INNODB;
+
+--connect(con1,127.0.0.1,root,,test,$MASTER_MYPORT,)
+--connection con1
+SET debug_sync='admin_command_kill_after_modify SIGNAL ready_to_be_killed WAIT_FOR master_cont';
+--send OPTIMIZE TABLE t1,t2
+
+--connection default
+SET debug_sync='now WAIT_FOR ready_to_be_killed';
+--let $thd_id= `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO LIKE '%OPTIMIZE TABLE %'`
+
+# Now kill.
+--replace_result $thd_id THD_ID
+eval KILL $thd_id;
+
+SET debug_sync = 'reset';
+--disconnect con1
+
+--let $wait_binlog_event= OPTIMIZE
+--source include/wait_for_binlog_event.inc
+
+DROP TABLE t1,t2;
+let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
+FLUSH LOGS;
+
+--let $MYSQLD_DATADIR= `select @@datadir`
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/$binlog_file > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
+
+--let SEARCH_PATTERN= OPTIMIZE TABLE t1,t2
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
+--source include/search_pattern_in_file.inc
+
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out

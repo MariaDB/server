@@ -13,7 +13,10 @@ utf8
 disconnect con1;
 '#--------------------FN_DYNVARS_009_02-------------------------#'
 connection default;
-'---global character_set_server should not effects current connection---'
+'--global character_set_server should not effects current connection--'
+select @@character_set_database=@@character_set_connection;
+@@character_set_database=@@character_set_connection
+1
 SET @@global.character_set_server = utf8;
 CREATE DATABASE db1;
 USE db1;

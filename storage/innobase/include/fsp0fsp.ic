@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -33,7 +33,7 @@ Created 12/18/1995 Heikki Tuuri
 UNIV_INLINE
 ibool
 fsp_descr_page(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size)
 {
 	return((page_id.page_no() & (page_size.physical() - 1))
@@ -92,21 +92,15 @@ xdes_calc_descriptor_page(
 	const page_size_t&	page_size,
 	ulint			offset)
 {
-#ifndef DOXYGEN /* Doxygen gets confused by these */
-# if UNIV_PAGE_SIZE_MAX <= XDES_ARR_OFFSET				\
-			   + (UNIV_PAGE_SIZE_MAX / FSP_EXTENT_SIZE_MAX)	\
-			   * XDES_SIZE_MAX
-#  error
-# endif
-# if UNIV_ZIP_SIZE_MIN <= XDES_ARR_OFFSET				\
-			  + (UNIV_ZIP_SIZE_MIN / FSP_EXTENT_SIZE_MIN)	\
-			  * XDES_SIZE_MIN
-#  error
-# endif
-#endif /* !DOXYGEN */
+	compile_time_assert(UNIV_PAGE_SIZE_MAX > XDES_ARR_OFFSET
+			    + (UNIV_PAGE_SIZE_MAX / FSP_EXTENT_SIZE_MAX)
+			    * XDES_SIZE_MAX);
+	compile_time_assert(UNIV_PAGE_SIZE_MIN > XDES_ARR_OFFSET
+			    + (UNIV_PAGE_SIZE_MIN / FSP_EXTENT_SIZE_MIN)
+			    * XDES_SIZE_MIN);
 
-	ut_ad(UNIV_PAGE_SIZE > XDES_ARR_OFFSET
-	      + (UNIV_PAGE_SIZE / FSP_EXTENT_SIZE)
+	ut_ad(srv_page_size > XDES_ARR_OFFSET
+	      + (srv_page_size / FSP_EXTENT_SIZE)
 	      * XDES_SIZE);
 	ut_ad(UNIV_ZIP_SIZE_MIN > XDES_ARR_OFFSET
 	      + (UNIV_ZIP_SIZE_MIN / FSP_EXTENT_SIZE)

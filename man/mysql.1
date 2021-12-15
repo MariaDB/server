@@ -206,7 +206,14 @@ option\&.
 .\" binary-mode option: mysql
 \fB\-\-binary\-mode\fR
 .sp
-By default, ASCII '\e0' is disallowed and '\er\en' is translated to '\en'\&. This switch turns off both features, and also turns off parsing of all client commands except \eC and DELIMITER, in non-interactive mode (for input piped to mysql or loaded using the 'source' command)\&. This is necessary when processing output from mysqlbinlog that may contain blobs\&.
+Binary mode allows certain character sequences to be processed as data that
+would otherwise be treated with a special meaning by the parser\&.
+Specifically, this switch turns off parsing of all client commands except \eC
+and DELIMITER in non-interactive mode (i\&.e\&., when binary mode is combined
+with either 1) piped input, 2) the --batch mysql option, or 3) the 'source'
+command)\&. Also, in binary mode, occurrences of '\er\en' and ASCII '\e0' are
+preserved within strings, whereas by default, '\er\en' is translated to '\en'
+and '\e0' is disallowed in user input\&.
 .RE
 .sp
 .RS 4
@@ -3098,7 +3105,7 @@ This documentation is free software; you can redistribute it and/or modify it on
 .PP
 This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 .PP
-You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "NOTES"
 .IP " 1." 4

@@ -1585,7 +1585,7 @@ a	b
 drop table t1;
 create table t1 (v varchar(65530), key(v));
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 drop table if exists t1;
 set statement sql_mode = 'NO_ENGINE_SUBSTITUTION' for
 create table t1 (v varchar(65536));
@@ -1855,7 +1855,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (a varchar(2048), key `a` (a));
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1865,7 +1865,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (a varchar(2048), key `a` (a) key_block_size=1024);
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1875,7 +1875,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (a int not null, b varchar(2048), key (a), key(b)) key_block_size=1024;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1904,7 +1904,28 @@ t1	CREATE TABLE `t1` (
   KEY `b` (`b`(1000)) KEY_BLOCK_SIZE=8192,
   KEY `c` (`c`) KEY_BLOCK_SIZE=8192
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0 KEY_BLOCK_SIZE=2048
+alter table t1 key_block_size=4096;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(2048) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`) KEY_BLOCK_SIZE=8192,
+  KEY `b` (`b`(1000)) KEY_BLOCK_SIZE=8192,
+  KEY `c` (`c`) KEY_BLOCK_SIZE=8192
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0 KEY_BLOCK_SIZE=4096
 alter table t1 key_block_size=0;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(2048) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`) KEY_BLOCK_SIZE=8192,
+  KEY `b` (`b`(1000)) KEY_BLOCK_SIZE=8192,
+  KEY `c` (`c`) KEY_BLOCK_SIZE=8192
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
 alter table t1 add d int, add key (d);
 show create table t1;
 Table	Create Table
@@ -1921,7 +1942,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (a int not null, b varchar(2048), key (a), key(b)) key_block_size=8192;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1933,7 +1954,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (a int not null, b varchar(2048), key (a) key_block_size=1024, key(b)) key_block_size=8192;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -1963,7 +1984,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (a varchar(2048), key `a` (a) key_block_size=1000000000000000000);
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -2206,9 +2227,9 @@ Block_size:                      8192
 Recordlength:                      99
 
 Table description:
-Key Start Len Index   Type
-1   2     30  multip. varchar                
-2   33    30  multip. char NULL              
+Key Start Len Index    Type
+1   2     30  multip.  varchar                
+2   33    30  multip.  char NULL              
 DROP TABLE t1;
 create table t1 (n int not null, c char(1)) transactional=1;
 show create table t1;
@@ -2745,6 +2766,39 @@ INSERT INTO t1 (b) VALUES ('');
 ALTER TABLE t1 ENABLE KEYS;
 DROP TABLE t1;
 #
+# Start of 5.5 tests
+#
+#
+# MDEV-16534 PPC64: Unexpected error with a negative values into auto-increment columns in HEAP, MyISAM, ARIA
+#
+CREATE TABLE t1 (
+id TINYINT NOT NULL AUTO_INCREMENT,
+name CHAR(30) NOT NULL,
+PRIMARY KEY (id)
+) ENGINE=ARIA;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` tinyint(4) NOT NULL AUTO_INCREMENT,
+  `name` char(30) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=0
+INSERT INTO t1 (name) VALUES ('dog');
+UPDATE t1 SET id=-1 WHERE id=1;
+INSERT INTO t1 (name) VALUES ('cat');
+SELECT * FROM t1;
+id	name
+-1	dog
+2	cat
+DROP TABLE t1;
+CREATE TABLE t1 (pk int, i2 int) ENGINE=Aria;
+INSERT INTO t1 VALUES (1,2), (2,3),(3,4);
+DELETE FROM tt.*, t1.* USING t1 AS tt LEFT JOIN t1 ON (tt.i2 = t1.pk);
+DROP TABLE t1;
+#
+# End of 5.5 tests
+#
+#
 # BUG#47444 - --myisam_repair_threads > 1 can result in all index
 #             cardinalities=1
 #
@@ -2816,4 +2870,15 @@ flush tables test.t1 for export;
 insert into t1 values (8,'0');
 ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
 unlock tables;
+drop table t1;
+#
+# MDEV-22284 Aria table key read crash because wrong index used
+#
+create table t1 (
+a int auto_increment,
+b int, c int,
+key(c, a), unique(b)
+) engine aria
+partition by hash (b);
+replace into t1 values (1, 0, 0), (2, 0, 0), (0, 0, 0);
 drop table t1;

@@ -5,9 +5,9 @@ SET NAMES utf8;
 # Testing expanded values
 #
 CREATE TABLE `bookstore` (
-`category` CHAR(16) NOT NULL FIELD_FORMAT='@',
+`category` CHAR(16) NOT NULL XPATH='@',
 `title` VARCHAR(50) NOT NULL,
-`lang` char(2) NOT NULL FIELD_FORMAT='title/@',
+`lang` char(2) NOT NULL XPATH='title/@',
 `author` VARCHAR(24) NOT NULL,
 `year` INT(4) NOT NULL,
 `price` DOUBLE(8,2) NOT NULL)
@@ -51,14 +51,14 @@ WEB	XQuery Kick Start	en	Per Bothner	2003	49.99
 WEB	XQuery Kick Start	en	Kurt Cagle	2003	49.99
 WEB	Learning XML	en	Erik T. Ray	2003	39.95
 Warnings:
-Warning	1105	Mutiple values limited to 3
+Warning	1105	Multiple values limited to 3
 # One line lost because the where clause is applied only on the first 3 rows
 SELECT category, title, author, price FROM bookstore WHERE author LIKE 'J%';
 category	title	author	price
 CHILDREN	Harry Potter	J K. Rowling	29.99
 WEB	XQuery Kick Start	James McGovern	49.99
 Warnings:
-Warning	1105	Mutiple values limited to 3
+Warning	1105	Multiple values limited to 3
 #
 # Testing concatenated values
 #
@@ -91,12 +91,12 @@ CHILDREN	Harry Potter	en	J K. Rowling	2005	29.99
 WEB	XQuery Kick Start	en	James McGovern, Per Bothner, Kurt Cagle, James Linn	2003	49.99
 WEB	Learning XML	en	Erik T. Ray	2003	39.95
 Warnings:
-Warning	1105	Mutiple values limited to 4
+Warning	1105	Multiple values limited to 4
 # The where clause is applied on the concatenated column result
 SELECT category, title, author, price FROM bookstore WHERE author LIKE 'J%';
 category	title	author	price
 CHILDREN	Harry Potter	J K. Rowling	29.99
 WEB	XQuery Kick Start	James McGovern, Per Bothner, Kurt Cagle, James Linn	49.99
 Warnings:
-Warning	1105	Mutiple values limited to 4
+Warning	1105	Multiple values limited to 4
 DROP TABLE bookstore;

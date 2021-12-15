@@ -11,7 +11,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -42,11 +42,7 @@ Creates an event semaphore, i.e., a semaphore which may just have two states:
 signaled and nonsignaled. The created event is manual reset: it must be reset
 explicitly by calling os_event_reset().
 @return	the event handle */
-os_event_t
-os_event_create(
-/*============*/
-	const char*	name);	/*!< in: the name of the event, if NULL
-				the event is created without a name */
+os_event_t os_event_create(const char*);
 
 /**
 Sets an event semaphore to the signaled state: lets waiting threads

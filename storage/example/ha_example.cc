@@ -12,7 +12,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file ha_example.cc
@@ -225,9 +225,9 @@ static void init_example_psi_keys()
   used by the default rename_table and delete_table method in
   handler.cc and by the default discover_many method.
 
-  For engines that have two file name extentions (separate meta/index file
+  For engines that have two file name extensions (separate meta/index file
   and data file), the order of elements is relevant. First element of engine
-  file name extentions array should be meta/index file extention. Second
+  file name extensions array should be meta/index file extention. Second
   element - data file extention. This order is assumed by
   prepare_for_repair() when REPAIR TABLE ... USE_FRM is issued.
 
@@ -928,7 +928,7 @@ ha_example::check_if_supported_inplace_alter(TABLE* altered_table,
   HA_CREATE_INFO *info= ha_alter_info->create_info;
   DBUG_ENTER("ha_example::check_if_supported_inplace_alter");
 
-  if (ha_alter_info->handler_flags & Alter_inplace_info::CHANGE_CREATE_OPTION)
+  if (ha_alter_info->handler_flags & ALTER_CHANGE_CREATE_OPTION)
   {
     /*
       This example shows how custom engine specific table and field
@@ -964,7 +964,7 @@ ha_example::check_if_supported_inplace_alter(TABLE* altered_table,
     }
   }
 
-  if (ha_alter_info->handler_flags & Alter_inplace_info::ALTER_COLUMN_OPTION)
+  if (ha_alter_info->handler_flags & ALTER_COLUMN_OPTION)
   {
     for (uint i= 0; i < table->s->fields; i++)
     {

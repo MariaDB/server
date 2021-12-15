@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -28,16 +29,8 @@ Created 9/7/2013 Jimmy Yang
 #include "lock0lock.h"
 #include "lock0priv.h"
 #include "lock0prdt.h"
-#include "ha_prototypes.h"
-#include "trx0purge.h"
 #include "dict0mem.h"
-#include "dict0boot.h"
-#include "trx0sys.h"
-#include "srv0mon.h"
-#include "ut0vec.h"
-#include "btr0btr.h"
-#include "dict0boot.h"
-#include <set>
+#include "que0que.h"
 
 /*********************************************************************//**
 Get a minimum bounding box from a Predicate
@@ -494,15 +487,24 @@ lock_prdt_add_to_queue(
 		}
 	}
 
-	RecLock	rec_lock(index, block, PRDT_HEAPNO, type_mode);
+	lock = lock_rec_create(
+#ifdef WITH_WSREP
+		NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
+#endif
+		type_mode, block, PRDT_HEAPNO, index, trx,
+		caller_owns_trx_mutex);
 
-	return(rec_lock.create(trx, caller_owns_trx_mutex, true, prdt));
+	if (lock->type_mode & LOCK_PREDICATE) {
+		lock_prdt_set_prdt(lock, prdt);
+	}
+
+	return lock;
 }
 
 /*********************************************************************//**
 Checks if locks of other transactions prevent an immediate insert of
 a predicate record.
-@return	DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return	DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_prdt_insert_check_and_lock(
 /*============================*/
@@ -523,7 +525,7 @@ lock_prdt_insert_check_and_lock(
 		return(DB_SUCCESS);
 	}
 
-	ut_ad(!dict_table_is_temporary(index->table));
+	ut_ad(!index->table->is_temporary());
 	ut_ad(!dict_index_is_clust(index));
 
 	trx_t*	trx = thr_get_trx(thr);
@@ -564,7 +566,7 @@ lock_prdt_insert_check_and_lock(
 
 	const ulint	mode = LOCK_X | LOCK_PREDICATE | LOCK_INSERT_INTENTION;
 
-	lock_t*	wait_for = lock_prdt_other_has_conflicting(
+	const lock_t*	wait_for = lock_prdt_other_has_conflicting(
 		mode, block, prdt, trx);
 
 	if (wait_for != NULL) {
@@ -573,16 +575,17 @@ lock_prdt_insert_check_and_lock(
 		/* Allocate MBR on the lock heap */
 		lock_init_prdt_from_mbr(prdt, mbr, 0, trx->lock.lock_heap);
 
-		RecLock	rec_lock(thr, index, block, PRDT_HEAPNO, mode);
-
 		/* Note that we may get DB_SUCCESS also here! */
-
 		trx_mutex_enter(trx);
 
-		err = rec_lock.add_to_waitq(wait_for, prdt);
+		err = lock_rec_enqueue_waiting(
+#ifdef WITH_WSREP
+			NULL, /* FIXME: replicate SPATIAL INDEX locks */
+#endif
+			LOCK_X | LOCK_PREDICATE | LOCK_INSERT_INTENTION,
+			block, PRDT_HEAPNO, index, thr, prdt);
 
 		trx_mutex_exit(trx);
-
 	} else {
 		err = DB_SUCCESS;
 	}
@@ -616,7 +619,6 @@ lock_prdt_update_parent(
         buf_block_t*    right_block,	/*!< in/out: the new half page */
         lock_prdt_t*	left_prdt,	/*!< in: MBR on the old page */
         lock_prdt_t*	right_prdt,	/*!< in: MBR on the new page */
-	lock_prdt_t*	parent_prdt,	/*!< in: original parent MBR */
 	ulint		space,		/*!< in: parent space id */
 	ulint		page_no)	/*!< in: parent page number */
 {
@@ -670,7 +672,6 @@ static
 void
 lock_prdt_update_split_low(
 /*=======================*/
-	buf_block_t*	block,		/*!< in/out: page to be split */
 	buf_block_t*	new_block,	/*!< in/out: the new half page */
 	lock_prdt_t*	prdt,		/*!< in: MBR on the old page */
 	lock_prdt_t*	new_prdt,	/*!< in: MBR on the new page */
@@ -747,17 +748,16 @@ Update predicate lock when page splits */
 void
 lock_prdt_update_split(
 /*===================*/
-	buf_block_t*	block,		/*!< in/out: page to be split */
 	buf_block_t*	new_block,	/*!< in/out: the new half page */
 	lock_prdt_t*	prdt,		/*!< in: MBR on the old page */
 	lock_prdt_t*	new_prdt,	/*!< in: MBR on the new page */
 	ulint		space,		/*!< in: space id */
 	ulint		page_no)	/*!< in: page number */
 {
-	lock_prdt_update_split_low(block, new_block, prdt, new_prdt,
+	lock_prdt_update_split_low(new_block, prdt, new_prdt,
 				   space, page_no, LOCK_PREDICATE);
 
-	lock_prdt_update_split_low(block, new_block, NULL, NULL,
+	lock_prdt_update_split_low(new_block, NULL, NULL,
 				   space, page_no, LOCK_PRDT_PAGE);
 }
 
@@ -785,7 +785,7 @@ lock_init_prdt_from_mbr(
 
 /*********************************************************************//**
 Acquire a predicate lock on a block
-@return	DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return	DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_prdt_lock(
 /*===========*/
@@ -799,15 +799,14 @@ lock_prdt_lock(
 				SELECT FOR UPDATE */
 	ulint		type_mode,
 				/*!< in: LOCK_PREDICATE or LOCK_PRDT_PAGE */
-	que_thr_t*	thr,	/*!< in: query thread
+	que_thr_t*	thr)	/*!< in: query thread
 				(can be NULL if BTR_NO_LOCKING_FLAG) */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
 	trx_t*		trx = thr_get_trx(thr);
 	dberr_t		err = DB_SUCCESS;
 	lock_rec_req_status	status = LOCK_REC_SUCCESS;
 
-	if (trx->read_only || dict_table_is_temporary(index->table)) {
+	if (trx->read_only || index->table->is_temporary()) {
 		return(DB_SUCCESS);
 	}
 
@@ -826,17 +825,18 @@ lock_prdt_lock(
 
 	lock_mutex_enter();
 
-	const ulint	prdt_mode = mode | type_mode;
+	const ulint	prdt_mode = ulint(mode) | type_mode;
 	lock_t*		lock = lock_rec_get_first_on_page(hash, block);
 
 	if (lock == NULL) {
-
-		RecLock	rec_lock(index, block, PRDT_HEAPNO, prdt_mode);
-
-		lock = rec_lock.create(trx, false, true);
+		lock = lock_rec_create(
+#ifdef WITH_WSREP
+			NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
+#endif
+			ulint(mode) | type_mode, block, PRDT_HEAPNO,
+			index, trx, FALSE);
 
 		status = LOCK_REC_SUCCESS_CREATED;
-
 	} else {
 		trx_mutex_enter(trx);
 
@@ -860,12 +860,14 @@ lock_prdt_lock(
 
 				if (wait_for != NULL) {
 
-					RecLock	rec_lock(
-						thr, index, block, PRDT_HEAPNO,
-						prdt_mode, prdt);
-
-					err = rec_lock.add_to_waitq(wait_for);
-
+					err = lock_rec_enqueue_waiting(
+#ifdef WITH_WSREP
+						NULL, /* FIXME: replicate
+						      SPATIAL INDEX locks */
+#endif
+						ulint(mode) | type_mode,
+						block, PRDT_HEAPNO,
+						index, thr, prdt);
 				} else {
 
 					lock_prdt_add_to_queue(
@@ -900,7 +902,7 @@ lock_prdt_lock(
 
 /*********************************************************************//**
 Acquire a "Page" lock on a block
-@return	DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return	DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_place_prdt_page_lock(
 /*======================*/
@@ -946,10 +948,12 @@ lock_place_prdt_page_lock(
 	}
 
 	if (lock == NULL) {
-		RecID	rec_id(space, page_no, PRDT_HEAPNO);
-		RecLock	rec_lock(index, rec_id, mode);
-
-		rec_lock.create(trx, false, true);
+		lock = lock_rec_create_low(
+#ifdef WITH_WSREP
+			NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
+#endif
+			mode, space, page_no, NULL, PRDT_HEAPNO,
+			index, trx, FALSE);
 
 #ifdef PRDT_DIAG
 		printf("GIS_DIAGNOSTIC: page lock %d\n", (int) page_no);
@@ -1011,7 +1015,8 @@ lock_prdt_rec_move(
 		const ulint     type_mode = lock->type_mode;
 		lock_prdt_t*	lock_prdt = lock_get_prdt_from_lock(lock);
 
-		lock_rec_trx_wait(lock, PRDT_HEAPNO, type_mode);
+		lock_rec_reset_nth_bit(lock, PRDT_HEAPNO);
+		lock_reset_lock_and_trx_wait(lock);
 
 		lock_prdt_add_to_queue(
 			type_mode, receiver, lock->index, lock->trx,
@@ -1049,4 +1054,3 @@ lock_prdt_page_free_from_discard(
 		lock = next_lock;
 	}
 }
-

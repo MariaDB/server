@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -62,6 +62,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    slave_running(MYSQL_SLAVE_NOT_RUN), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
    sql_delay(0), sql_delay_end(0),
+   until_relay_log_names_defer(false),
    m_flags(0)
 {
   DBUG_ENTER("Relay_log_info::Relay_log_info");
@@ -142,7 +143,7 @@ int Relay_log_info::init(const char* info_fname)
   log_space_limit= relay_log_space_limit;
   log_space_total= 0;
 
-  if (error_on_rli_init_info)
+  if (unlikely(error_on_rli_init_info))
     goto err;
 
   char pattern[FN_REFLEN];
@@ -206,8 +207,8 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       */
       sql_print_warning("Neither --relay-log nor --relay-log-index were used;"
                         " so replication "
-                        "may break when this MySQL server acts as a "
-                        "slave and has his hostname changed!! Please "
+                        "may break when this MariaDB server acts as a "
+                        "replica and has its hostname changed. Please "
                         "use '--log-basename=#' or '--relay-log=%s' to avoid "
                         "this problem.", ln);
       name_warning_sent= 1;
@@ -306,7 +307,7 @@ Failed to open the existing relay log info file '%s' (errno %d)",
                         fname);
         error= 1;
       }
-      if (error)
+      if (unlikely(error))
       {
         if (info_fd >= 0)
           mysql_file_close(info_fd, MYF(0));
@@ -415,7 +416,7 @@ Failed to open the existing relay log info file '%s' (errno %d)",
     before Relay_log_info::flush()
   */
   reinit_io_cache(&info_file, WRITE_CACHE,0L,0,1);
-  if ((error= flush()))
+  if (unlikely((error= flush())))
   {
     msg= "Failed to flush relay log info file";
     goto err;
@@ -457,7 +458,8 @@ static inline int add_relay_log(Relay_log_info* rli,LOG_INFO* linfo)
                     linfo->log_file_name);
     DBUG_RETURN(1);
   }
-  rli->log_space_total += s.st_size;
+  my_atomic_add64_explicit((volatile int64*)(&rli->log_space_total),
+                           s.st_size, MY_MEMORY_ORDER_RELAXED);
   DBUG_PRINT("info",("log_space_total: %llu", rli->log_space_total));
   DBUG_RETURN(0);
 }
@@ -467,7 +469,8 @@ static int count_relay_log_space(Relay_log_info* rli)
 {
   LOG_INFO linfo;
   DBUG_ENTER("count_relay_log_space");
-  rli->log_space_total= 0;
+  my_atomic_store64_explicit((volatile int64*)(&rli->log_space_total), 0,
+                             MY_MEMORY_ORDER_RELAXED);
   if (rli->relay_log.find_log_pos(&linfo, NullS, 1))
   {
     sql_print_error("Could not find first log while counting relay log space");
@@ -503,6 +506,8 @@ void Relay_log_info::clear_until_condition()
   until_condition= Relay_log_info::UNTIL_NONE;
   until_log_name[0]= 0;
   until_log_pos= 0;
+  until_relay_log_names_defer= false;
+
   DBUG_VOID_RETURN;
 }
 
@@ -988,12 +993,11 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
   if (rgi->is_parallel_exec)
   {
     /* In case of parallel replication, do not update the position backwards. */
-    int cmp= strcmp(group_relay_log_name, rgi->event_relay_log_name);
+    int cmp= compare_log_name(group_relay_log_name, rgi->event_relay_log_name);
     if (cmp < 0)
     {
       group_relay_log_pos= rgi->future_event_relay_log_pos;
       strmake_buf(group_relay_log_name, rgi->event_relay_log_name);
-      notify_group_relay_log_name_update();
     } else if (cmp == 0 && group_relay_log_pos < rgi->future_event_relay_log_pos)
       group_relay_log_pos= rgi->future_event_relay_log_pos;
 
@@ -1001,7 +1005,7 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
       In the parallel case we need to update the master_log_name here, rather
       than in Rotate_log_event::do_update_pos().
     */
-    cmp= strcmp(group_master_log_name, rgi->future_event_master_log_name);
+    cmp= compare_log_name(group_master_log_name, rgi->future_event_master_log_name);
     if (cmp <= 0)
     {
       if (cmp < 0)
@@ -1225,8 +1229,8 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
     strmake_buf(rli->group_relay_log_name, rli->relay_log.get_log_fname());
     strmake_buf(rli->event_relay_log_name, rli->relay_log.get_log_fname());
     rli->group_relay_log_pos= rli->event_relay_log_pos= BIN_LOG_HEADER_SIZE;
-    rli->log_space_total= 0;
-
+    my_atomic_store64_explicit((volatile int64*)(&rli->log_space_total), 0,
+                               MY_MEMORY_ORDER_RELAXED);
     if (count_relay_log_space(rli))
     {
       *errmsg= "Error counting relay log space";
@@ -1283,29 +1287,78 @@ err:
      autoincrement or if we have transactions).
 
      Should be called ONLY if until_condition != UNTIL_NONE !
+
+     In the parallel execution mode and UNTIL_MASTER_POS the file name is
+     presented by future_event_master_log_name which may be ahead of
+     group_master_log_name. Log_event::log_pos does relate to it nevertheless
+     so the pair comprises a correct binlog coordinate.
+     Internal group events and events that have zero log_pos also
+     produce the zero for the local log_pos which may not lead to the
+     function falsely return true.
+     In UNTIL_RELAY_POS the original caching and notification are simplified
+     to straightforward files comparison when the current event can't be
+     a part of an event group.
+
    RETURN VALUE
      true - condition met or error happened (condition seems to have
             bad log file name)
      false - condition not met
 */
 
-bool Relay_log_info::is_until_satisfied(my_off_t master_beg_pos)
+bool Relay_log_info::is_until_satisfied(Log_event *ev)
 {
   const char *log_name;
   ulonglong log_pos;
+  /* Prevents stopping within transaction; needed solely for Relay UNTIL. */
+  bool in_trans= false;
+
   DBUG_ENTER("Relay_log_info::is_until_satisfied");
 
   if (until_condition == UNTIL_MASTER_POS)
   {
     log_name= (mi->using_parallel() ? future_event_master_log_name
                                     : group_master_log_name);
-    log_pos= master_beg_pos;
+    log_pos= (get_flag(Relay_log_info::IN_TRANSACTION) || !ev || !ev->log_pos) ?
+      (mi->using_parallel() ? 0 : group_master_log_pos) :
+      ev->log_pos - ev->data_written;
   }
   else
   {
     DBUG_ASSERT(until_condition == UNTIL_RELAY_POS);
-    log_name= group_relay_log_name;
-    log_pos= group_relay_log_pos;
+    if (!mi->using_parallel())
+    {
+      log_name= group_relay_log_name;
+      log_pos= group_relay_log_pos;
+    }
+    else
+    {
+      log_name= event_relay_log_name;
+      log_pos=  event_relay_log_pos;
+      in_trans= get_flag(Relay_log_info::IN_TRANSACTION);
+      /*
+        until_log_names_cmp_result is set to UNKNOWN either
+        -  by a non-group event *and* only when it is in the middle of a group
+        -  or by a group event when the preceding group made the above
+           non-group event to defer the resetting.
+      */
+      if ((ev && !Log_event::is_group_event(ev->get_type_code())))
+      {
+        if (in_trans)
+        {
+          until_relay_log_names_defer= true;
+        }
+        else
+        {
+          until_log_names_cmp_result= UNTIL_LOG_NAMES_CMP_UNKNOWN;
+          until_relay_log_names_defer= false;
+        }
+      }
+      else if (!in_trans && until_relay_log_names_defer)
+      {
+        until_log_names_cmp_result= UNTIL_LOG_NAMES_CMP_UNKNOWN;
+        until_relay_log_names_defer= false;
+      }
+    }
   }
 
   DBUG_PRINT("info", ("group_master_log_name='%s', group_master_log_pos=%llu",
@@ -1359,8 +1412,8 @@ bool Relay_log_info::is_until_satisfied(my_off_t master_beg_pos)
   }
 
   DBUG_RETURN(((until_log_names_cmp_result == UNTIL_LOG_NAMES_CMP_EQUAL &&
-           log_pos >= until_log_pos) ||
-          until_log_names_cmp_result == UNTIL_LOG_NAMES_CMP_GREATER));
+                (log_pos >= until_log_pos && !in_trans)) ||
+               until_log_names_cmp_result == UNTIL_LOG_NAMES_CMP_GREATER));
 }
 
 
@@ -1420,8 +1473,14 @@ bool Relay_log_info::stmt_done(my_off_t event_master_log_pos, THD *thd,
     }
     DBUG_EXECUTE_IF("inject_crash_before_flush_rli", DBUG_SUICIDE(););
     if (mi->using_gtid == Master_info::USE_GTID_NO)
+    {
+      if (rgi->is_parallel_exec)
+        mysql_mutex_lock(&data_lock);
       if (flush())
         error= 1;
+      if (rgi->is_parallel_exec)
+        mysql_mutex_unlock(&data_lock);
+    }
     DBUG_EXECUTE_IF("inject_crash_after_flush_rli", DBUG_SUICIDE(););
   }
   DBUG_RETURN(error);
@@ -1520,7 +1579,7 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
                               LEX_CSTRING *tablename, void **out_hton)
 {
   TABLE_LIST tlist;
-  TABLE *table;
+  TABLE *UNINIT_VAR(table);
   bool table_opened= false;
   bool table_scanned= false;
   struct gtid_pos_element tmp_entry, *entry;
@@ -1537,11 +1596,9 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
     goto end;
 
   bitmap_set_all(table->read_set);
-  if ((err= table->file->ha_rnd_init_with_error(1)))
-  {
-    table->file->print_error(err, MYF(0));
+  if (unlikely(err= table->file->ha_rnd_init_with_error(1)))
     goto end;
-  }
+
   table_scanned= true;
   for (;;)
   {
@@ -1551,9 +1608,7 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
 
     if ((err= table->file->ha_rnd_next(table->record[0])))
     {
-      if (err == HA_ERR_RECORD_DELETED)
-        continue;
-      else if (err == HA_ERR_END_OF_FILE)
+      if (err == HA_ERR_END_OF_FILE)
         break;
       else
       {
@@ -1565,7 +1620,7 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
     sub_id= (ulonglong)table->field[1]->val_int();
     server_id= (uint32)table->field[2]->val_int();
     seq_no= (ulonglong)table->field[3]->val_int();
-    DBUG_PRINT("info", ("Read slave state row: %u-%u-%lu sub_id=%lu\n",
+    DBUG_PRINT("info", ("Read slave state row: %u-%u-%lu sub_id=%lu",
                         (unsigned)domain_id, (unsigned)server_id,
                         (ulong)seq_no, (ulong)sub_id));
 
@@ -1653,7 +1708,7 @@ scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_CSTRING *, void *),
   {
     my_error(ER_FILE_NOT_FOUND, MYF(0), path, my_errno);
     close_thread_tables(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
     return 1;
   }
   else
@@ -1666,7 +1721,7 @@ scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_CSTRING *, void *),
     err= ha_discover_table_names(thd, &MYSQL_SCHEMA_NAME, dirp, &tl, false);
     my_dirend(dirp);
     close_thread_tables(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
     if (err)
       return err;
 
@@ -1784,6 +1839,8 @@ gtid_pos_auto_create_tables(rpl_slave_state::gtid_pos_table **list_ptr)
     p= strmake(p, plugin_name(*auto_engines)->str, FN_REFLEN - (p - buf));
     table_name.str= buf;
     table_name.length= p - buf;
+    table_case_convert(const_cast<char*>(table_name.str),
+                       static_cast<uint>(table_name.length));
     entry= rpl_global_gtid_slave_state->alloc_gtid_pos_table
       (&table_name, hton, rpl_slave_state::GTID_POS_AUTO_CREATE);
     if (!entry)
@@ -1941,7 +1998,7 @@ end:
     ha_commit_trans(thd, FALSE);
     ha_commit_trans(thd, TRUE);
     close_thread_tables(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
   }
 
   return err;
@@ -2088,6 +2145,7 @@ rpl_group_info::reinit(Relay_log_info *rli)
   long_find_row_note_printed= false;
   did_mark_start_commit= false;
   gtid_ev_flags2= 0;
+  pending_gtid_delete_list= NULL;
   last_master_timestamp = 0;
   gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
   speculation= SPECULATE_NO;
@@ -2208,7 +2266,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
     to rollback before continuing with the next events.
     4) so we need this "context cleanup" function.
   */
-  if (error)
+  if (unlikely(error))
   {
     trans_rollback_stmt(thd); // if a "statement transaction"
     /* trans_rollback() also resets OPTION_GTID_BEGIN */
@@ -2218,13 +2276,19 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
       erroneously update the GTID position.
     */
     gtid_pending= false;
+
+    /*
+      Rollback will have undone any deletions of old rows we might have made
+      in mysql.gtid_slave_pos. Put those rows back on the list to be deleted.
+    */
+    pending_gtid_deletes_put_back();
   }
   m_table_map.clear_tables();
   slave_close_thread_tables(thd);
 
-  if (error)
+  if (unlikely(error))
   {
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
 
     if (thd == rli->sql_driver_thd)
     {
@@ -2338,10 +2402,10 @@ void rpl_group_info::slave_close_thread_tables(THD *thd)
   if (thd->transaction_rollback_request)
   {
     trans_rollback_implicit(thd);
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
   }
   else if (! thd->in_multi_stmt_transaction_mode())
-    thd->mdl_context.release_transactional_locks();
+    thd->release_transactional_locks();
   else
     thd->mdl_context.release_statement_locks();
 
@@ -2440,6 +2504,78 @@ rpl_group_info::unmark_start_commit()
   mysql_mutex_lock(&e->LOCK_parallel_entry);
   --e->count_committing_event_groups;
   mysql_mutex_unlock(&e->LOCK_parallel_entry);
+}
+
+
+/*
+  When record_gtid() has deleted any old rows from the table
+  mysql.gtid_slave_pos as part of a replicated transaction, save the list of
+  rows deleted here.
+
+  If later the transaction fails (eg. optimistic parallel replication), the
+  deletes will be undone when the transaction is rolled back. Then we can
+  put back the list of rows into the rpl_global_gtid_slave_state, so that
+  we can re-do the deletes and avoid accumulating old rows in the table.
+*/
+void
+rpl_group_info::pending_gtid_deletes_save(uint32 domain_id,
+                                          rpl_slave_state::list_element *list)
+{
+  /*
+    We should never get to a state where we try to save a new pending list of
+    gtid deletes while we still have an old one. But make sure we handle it
+    anyway just in case, so we avoid leaving stray entries in the
+    mysql.gtid_slave_pos table.
+  */
+  DBUG_ASSERT(!pending_gtid_delete_list);
+  if (unlikely(pending_gtid_delete_list))
+    pending_gtid_deletes_put_back();
+
+  pending_gtid_delete_list= list;
+  pending_gtid_delete_list_domain= domain_id;
+}
+
+
+/*
+  Take the list recorded by pending_gtid_deletes_save() and put it back into
+  rpl_global_gtid_slave_state. This is needed if deletion of the rows was
+  rolled back due to transaction failure.
+*/
+void
+rpl_group_info::pending_gtid_deletes_put_back()
+{
+  if (pending_gtid_delete_list)
+  {
+    rpl_global_gtid_slave_state->put_back_list(pending_gtid_delete_list_domain,
+                                               pending_gtid_delete_list);
+    pending_gtid_delete_list= NULL;
+  }
+}
+
+
+/*
+  Free the list recorded by pending_gtid_deletes_save(). Done when the deletes
+  in the list have been permanently committed.
+*/
+void
+rpl_group_info::pending_gtid_deletes_clear()
+{
+  pending_gtid_deletes_free(pending_gtid_delete_list);
+  pending_gtid_delete_list= NULL;
+}
+
+
+void
+rpl_group_info::pending_gtid_deletes_free(rpl_slave_state::list_element *list)
+{
+  rpl_slave_state::list_element *next;
+
+  while (list)
+  {
+    next= list->next;
+    my_free(list);
+    list= next;
+  }
 }
 
 

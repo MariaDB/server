@@ -235,7 +235,7 @@ CREATE TABLE t1 (
   b CHAR(10) NULL DEFAULT NULL,
   c blob NULL DEFAULT NULL,
   blob_a blob GENERATED ALWAYS AS (a) VIRTUAL,
-  blob_b blob GENERATED ALWAYS AS (b) VIRTUAL,
+  blob_b blob GENERATED ALWAYS AS (RTRIM(b)) VIRTUAL,
   blob_c blob GENERATED ALWAYS AS (c) VIRTUAL,
   key (a),
   key (blob_a(10)),

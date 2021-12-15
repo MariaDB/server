@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -23,8 +23,6 @@ The interface to the operating system file io
 
 Created 2/20/2010 Jimmy Yang
 *******************************************************/
-
-#include "univ.i"
 
 #ifdef UNIV_PFS_IO
 /** NOTE! Please use the corresponding macro os_file_create_simple(),
@@ -340,49 +338,6 @@ pfs_os_file_read_no_error_handling_func(
 	return(result);
 }
 
-/** NOTE! Please use the corresponding macro
-os_file_read_no_error_handling_int_fd() to request
-a synchronous read operation.
-@param[in]	type		read request
-@param[in]      file            file handle
-@param[out]     buf             buffer where to read
-@param[in]      offset          file offset where to read
-@param[in]      n               number of bytes to read
-@param[in]      src_file        caller file name
-@param[in]      src_line        caller line number
-@return	whether the request was successful */
-UNIV_INLINE
-bool
-pfs_os_file_read_no_error_handling_int_fd_func(
-	const IORequest&	type,
-	int			file,
-	void*			buf,
-	os_offset_t		offset,
-	ulint			n,
-	const char*		src_file,
-	uint			src_line)
-{
-	PSI_file_locker_state	state;
-
-	PSI_file_locker* locker = PSI_FILE_CALL(
-		get_thread_file_descriptor_locker)(
-			&state, file, PSI_FILE_READ);
-	if (locker != NULL) {
-		PSI_FILE_CALL(start_file_wait)(
-			locker, n,
-			__FILE__, __LINE__);
-	}
-	ulint fulfilled;
-	bool success = DB_SUCCESS == os_file_read_no_error_handling_func(
-		type, OS_FILE_FROM_FD(file), buf, offset, n, &fulfilled);
-
-	if (locker != NULL) {
-		PSI_FILE_CALL(end_file_wait)(locker, n);
-	}
-
-	return(success);
-}
-
 /** NOTE! Please use the corresponding macro os_file_write(), not directly
 this function!
 This is the performance schema instrumented wrapper function for
@@ -425,51 +380,6 @@ pfs_os_file_write_func(
 	return(result);
 }
 
-/** NOTE! Please use the corresponding macro os_file_write_int_fd(),
-not directly this function!
-This is the performance schema instrumented wrapper function for
-os_file_write_int_fd() which requests a synchronous write operation.
-@param[in]	type		write request
-@param[in]	name		file name
-@param[in]	file		file handle
-@param[in]	buf		buffer to write
-@param[in]	offset		file offset
-@param[in]	n		number of bytes
-@param[in]	src_file	file name where func invoked
-@param[in]	src_line	line where the func invoked
-@return	whether the request was successful */
-UNIV_INLINE
-bool
-pfs_os_file_write_int_fd_func(
-	const IORequest&	type,
-	const char*		name,
-	int			file,
-	const void*		buf,
-	os_offset_t		offset,
-	ulint			n,
-	const char*		src_file,
-	uint			src_line)
-{
-	PSI_file_locker_state   state;
-	struct PSI_file_locker* locker;
-
-	locker = PSI_FILE_CALL(get_thread_file_descriptor_locker)(
-		&state, file, PSI_FILE_WRITE);
-	if (locker != NULL) {
-                PSI_FILE_CALL(start_file_wait)(
-			locker, n,
-			__FILE__, __LINE__);
-	}
-
-        bool success = DB_SUCCESS == os_file_write_func(
-		type, name, OS_FILE_FROM_FD(file), buf, offset, n);
-
-        if (locker != NULL) {
-                PSI_FILE_CALL(end_file_wait)(locker, n);
-        }
-
-        return(success);
-}
 
 /** NOTE! Please use the corresponding macro os_file_flush(), not directly
 this function!

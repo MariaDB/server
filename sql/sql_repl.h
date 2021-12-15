@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef SQL_REPL_INCLUDED
 #define SQL_REPL_INCLUDED
@@ -56,6 +56,7 @@ bool show_binlogs(THD* thd);
 extern int init_master_info(Master_info* mi);
 void kill_zombie_dump_threads(uint32 slave_server_id);
 int check_binlog_magic(IO_CACHE* log, const char** errmsg);
+int compare_log_name(const char *log_1, const char *log_2);
 
 struct LOAD_FILE_IO_CACHE : public IO_CACHE
 {

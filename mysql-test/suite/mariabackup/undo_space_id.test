@@ -1,0 +1,25 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+--echo # Create 2 UNDO TABLESPACE(UNDO003, UNDO004)
+
+let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
+
+CREATE TABLE t1(a varchar(60)) ENGINE INNODB;
+start transaction;
+INSERT INTO t1 VALUES(1);
+
+--echo # xtrabackup backup
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+--enable_result_log
+--echo # Display undo log files from target directory
+list_files $basedir undo*;
+
+--echo # xtrabackup prepare
+exec $XTRABACKUP --prepare --apply-log-only --target-dir=$basedir;
+--echo # Display undo log files from targer directory
+list_files $basedir undo*;
+
+DROP TABLE t1;
+rmdir $basedir;

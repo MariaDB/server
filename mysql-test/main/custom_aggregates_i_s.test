@@ -1,0 +1,75 @@
+--source include/default_optimizer_switch.inc
+
+flush status;
+show  status like "%custom_aggregate%";
+create table t2 (sal int(10));
+create table t3 (sal int(10),id int);
+insert into t3 values (0,1),(1,2),(2,3),(3,4);
+delimiter |;
+
+create aggregate function f1(x INT) returns int
+begin
+  declare tot_sum int default 0;
+  declare continue handler for not found return tot_sum;
+  loop
+    fetch group next row;
+    set tot_sum= tot_sum + x;
+  end loop;
+end|
+
+create aggregate function f2 (x int) returns int
+begin
+  declare counter int default 0;
+  declare continue handler for not found return 0;
+  loop
+    fetch group next row;
+    set counter =counter + (select f1(sal) from t1); 
+  end loop;
+end|
+
+delimiter ;|
+
+create table t1 (sal int(10),id int(10));
+INSERT INTO t1 (sal,id) VALUES (5000,1);
+INSERT INTO t1 (sal,id) VALUES (2000,2);
+INSERT INTO t1 (sal,id) VALUES (1000,3);
+
+--echo Normal select with custom aggregate function
+select f1(sal) from t1 where id>= 1;
+show  status like "%custom_aggregate%";
+
+
+--echo subqueries with custom aggregates
+explain
+select * from t1, (select f1(sal) as a  from t1 where id>= 1) q where q.a=t1.sal;
+show  status like "%custom_aggregate%";
+
+explain
+select * from t1, (select sal as a from t1 where (select f1(t3.sal) from t3) >=-1 ) q where q.a=t1.sal;
+show  status like "%custom_aggregate%";
+
+explain
+select (select f1(sal) as a from t3 where t3.id= t1.id )  from t1 ;
+show  status like "%custom_aggregate%";
+
+explain
+select (select f1(sal) as a from t3 where t3.id= t1.id )  from t1 ;
+show  status like "%custom_aggregate%";
+
+--echo custom aggregates inside other customm aggregates
+
+explain
+select f2(sal) from t1;
+show  status like "%custom_aggregate%";
+
+--echo cte with custom aggregates
+
+with agg_sum as (
+  select f1(sal) from t1 where t1.id >=1 group by t1.id
+)
+select * from agg_sum;
+show  status like "%custom_aggregate%";
+
+drop table t2,t1,t3;
+drop function f1;
+drop function f2;

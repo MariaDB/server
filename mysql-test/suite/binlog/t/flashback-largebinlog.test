@@ -1,0 +1,114 @@
+# mysqlbinlog_big.test
+#
+# Show that mysqlbinlog can handle big rows.
+#
+
+#
+# The *huge* output of mysqlbinlog will be redirected to
+# $MYSQLTEST_VARDIR/$mysqlbinlog_output
+#
+--let $mysqlbinlog_output= tmp/mysqlbinlog_big_1.out
+
+--source include/have_binlog_format_row.inc
+
+--source include/have_log_bin.inc
+
+# This is a big test.
+--source include/big_test.inc
+# Test needs more than 4G of memory
+--source include/have_64bit.inc
+
+--echo #
+--echo # Preparatory cleanup.
+--echo #
+--disable_warnings
+drop database if exists mysqltest;
+create database mysqltest;
+use mysqltest;
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+--echo #
+--echo # We need a fixed timestamp to avoid varying results.
+--echo #
+SET timestamp=1000000000;
+
+--echo #
+--echo # We need big packets.
+--echo #
+--echo # Capture initial value to reset at the end of the test
+# use let $<var> = query_get_value as FLUSH statements
+# in the test will set @<var> values to NULL
+let $orig_max_allowed_packet = 
+query_get_value(SELECT @@global.max_allowed_packet, @@global.max_allowed_packet, 1);
+
+--echo # Now adjust max_allowed_packet
+SET @@global.max_allowed_packet= 10*1024*1024*1024;
+
+--echo max_allowed_packet is a global variable.
+--echo In order for the preceding change in max_allowed_packets' value
+--echo to be seen and used, we must start a new connection.
+--echo The change does not take effect with the current one.
+--echo For simplicity, we just disconnect / reconnect connection default here.
+disconnect default;
+connect (default, localhost,root,,);
+
+--echo #
+--echo # Delete all existing binary logs.
+--echo #
+RESET MASTER;
+
+--echo #
+--echo # Create a test table.
+--echo #
+use mysqltest;
+eval CREATE TABLE t1 (
+  c1 LONGTEXT
+  ) DEFAULT CHARSET latin1;
+
+--echo #
+--echo # Show how many rows are affected by each statement.
+--echo #
+--enable_info
+
+--echo #
+--echo # Insert some big rows.
+--echo #
+
+--echo insert 1024MB data twice
+INSERT INTO t1 VALUES (REPEAT('ManyMegaByteBlck', 67108864));
+INSERT INTO t1 VALUES (REPEAT('MegaByteBlckMany', 67108864));
+
+--echo #
+--echo # Flush all log buffers to the log file.
+--echo #
+FLUSH LOGS;
+
+--echo #
+--echo # Call mysqlbinlog to display the log file contents.
+--echo # NOTE: The output of mysqlbinlog is redirected to
+--echo #       \$MYSQLTEST_VARDIR/$mysqlbinlog_output
+--echo #       If you want to examine it, disable remove_file
+--echo #       at the bottom of the test script.
+--echo #
+let $MYSQLD_DATADIR= `select @@datadir`;
+--replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
+--replace_regex /SQL_LOAD_MB-[0-9]-[0-9]/SQL_LOAD_MB-#-#/ /exec_time=[0-9]*/exec_time=#/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /Xid = [0-9]*/Xid = #/
+--exec $MYSQL_BINLOG -B -v -v $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/$mysqlbinlog_output
+
+--echo #
+--echo # Cleanup.
+--echo #
+--echo # reset variable value to pass testcase checks
+--disable_query_log
+eval SET @@global.max_allowed_packet = $orig_max_allowed_packet;
+--enable_query_log
+DROP TABLE t1;
+drop database if exists mysqltest;
+
+--echo remove_file \$MYSQLTEST_VARDIR/$mysqlbinlog_output
+#
+# NOTE: If you want to see the *huge* mysqlbinlog output, disable next line:
+#
+--remove_file $MYSQLTEST_VARDIR/$mysqlbinlog_output
+

@@ -9,8 +9,6 @@ INSERT INTO t SET t=REPEAT(_utf8 0xefbc90,84);
 INSERT INTO t SET t=REPEAT('befor',17);
 INSERT INTO t SET t='BeforeTheIndexCreation';
 CREATE FULLTEXT INDEX ft ON t(t);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 INSERT INTO t SET t='this was inserted after creating the index';
 INSERT INTO t SET t=REPEAT(_utf8 0xefbc91,84);
 INSERT INTO t SET t=REPEAT('after',17);
@@ -18,10 +16,10 @@ INSERT INTO t SET t=REPEAT(_utf8mb3 0xe794b2e9aaa8e69687, 15);
 # The data below is not 3-byte UTF-8, but 4-byte chars.
 INSERT IGNORE INTO t SET t=REPEAT(_utf8mb4 0xf09f9695, 84);
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9F\x96\x95\xF0\x9F...' for column 't' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9F\x96\x95\xF0\x9F...' for column `test`.`t`.`t` at row 1
 INSERT IGNORE INTO t SET t=REPEAT(_utf8mb4 0xf09f9696, 85);
 Warnings:
-Warning	1366	Incorrect string value: '\xF0\x9F\x96\x96\xF0\x9F...' for column 't' at row 1
+Warning	1366	Incorrect string value: '\xF0\x9F\x96\x96\xF0\x9F...' for column `test`.`t`.`t` at row 1
 SELECT COUNT(*) FROM t WHERE MATCH t AGAINST
 (REPEAT(CONCAT(REPEAT(_utf8mb3 0xE0B987, 4), REPEAT(_utf8mb3 0xE0B989, 5)), 5));
 COUNT(*)
@@ -90,8 +88,6 @@ INSERT INTO t SET t=REPEAT(_utf8 0xefbc90,84);
 INSERT INTO t SET t=REPEAT('befor',17);
 INSERT INTO t SET t='BeforeTheIndexCreation';
 CREATE FULLTEXT INDEX ft ON t(t);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 INSERT INTO t SET t='this was inserted after creating the index';
 INSERT INTO t SET t=REPEAT(_utf8 0xefbc91,84);
 INSERT INTO t SET t=REPEAT('after',17);
@@ -166,3 +162,29 @@ SELECT len,COUNT(*) FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS where name='word'
 len	COUNT(*)
 84	6
 DROP TABLE t;
+#
+# MDEV-17923 Assertion memcmp(field, field_ref_zero, 7) failed in
+# trx_undo_page_report_modify upon optimizing table
+# under innodb_optimize_fulltext_only
+#
+CREATE TABLE t1 (f1 TEXT, f2 TEXT, FULLTEXT KEY (f2)) ENGINE=InnoDB;
+INSERT INTO t1 (f1) VALUES ('foo'),('bar');
+DELETE FROM t1 LIMIT 1;
+ALTER TABLE t1 ADD FULLTEXT KEY (f1);
+SET @optimize_fulltext.save= @@innodb_optimize_fulltext_only;
+SET GLOBAL innodb_optimize_fulltext_only= 1;
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+DROP TABLE t1;
+SET GLOBAL innodb_optimize_fulltext_only= @optimize_fulltext.save;
+#
+# MDEV-24403 Segfault on CREATE TABLE with explicit FTS_DOC_ID_INDEX by multiple fields
+#
+create table t1 (
+f1 int, f2 text,
+FTS_DOC_ID bigint unsigned not null,
+unique key FTS_DOC_ID_INDEX(FTS_DOC_ID, f1),
+fulltext (f2))
+engine=innodb;
+ERROR 42000: Incorrect index name 'FTS_DOC_ID_INDEX'

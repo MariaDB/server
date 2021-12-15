@@ -6,3 +6,4 @@ execute stmt;
 set password = '';
 set default role NONE;
 drop role r1;
+update mysql.user set plugin='';

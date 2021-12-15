@@ -16,7 +16,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************/
 
@@ -27,13 +27,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include "common.h"
 #include "write_filt.h"
 #include "fil_cur.h"
-#include "xtrabackup.h"
 #include <os0proc.h>
 
 /************************************************************************
 Write-through page write filter. */
 static my_bool wf_wt_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
-			  xb_fil_cur_t *cursor);
+			  xb_fil_cur_t *cursor, CorruptedPages *corrupted_pages);
 static my_bool wf_wt_process(xb_write_filt_ctxt_t *ctxt, ds_file_t *dstfile);
 
 xb_write_filt_t wf_write_through = {
@@ -46,7 +45,7 @@ xb_write_filt_t wf_write_through = {
 /************************************************************************
 Incremental page write filter. */
 static my_bool wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
-				   xb_fil_cur_t *cursor);
+				   xb_fil_cur_t *cursor, CorruptedPages *corrupted_pages);
 static my_bool wf_incremental_process(xb_write_filt_ctxt_t *ctxt,
 				      ds_file_t *dstfile);
 static my_bool wf_incremental_finalize(xb_write_filt_ctxt_t *ctxt,
@@ -66,11 +65,11 @@ Initialize incremental page write filter.
 @return TRUE on success, FALSE on error. */
 static my_bool
 wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
-		    xb_fil_cur_t *cursor)
+		    xb_fil_cur_t *cursor, CorruptedPages *corrupted_pages)
 {
 	char				meta_name[FN_REFLEN];
 	xb_wf_incremental_ctxt_t	*cp =
-		&(ctxt->u.wf_incremental_ctxt);
+		&(ctxt->wf_incremental_ctxt);
 
 	ctxt->cursor = cursor;
 
@@ -80,9 +79,8 @@ wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
 	cp->delta_buf = (unsigned char *)os_mem_alloc_large(&cp->delta_buf_size);
 
 	if (!cp->delta_buf) {
-		msg("[%02u] mariabackup: Error: "
-			"cannot allocate %zu bytes\n",
-			cursor->thread_n, (size_t) cp->delta_buf_size);
+		msg(cursor->thread_n,"Can't allocate %zu bytes",
+			(size_t) cp->delta_buf_size);
 		return (FALSE);
 	}
 
@@ -91,9 +89,9 @@ wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
 		 XB_DELTA_INFO_SUFFIX);
 	const xb_delta_info_t	info(cursor->page_size, cursor->space_id);
 	if (!xb_write_delta_metadata(meta_name, &info)) {
-		msg("[%02u] mariabackup: Error: "
-		    "failed to write meta info for %s\n",
-		    cursor->thread_n, cursor->rel_path);
+		msg(cursor->thread_n,"Error: "
+		    "failed to write meta info for %s",
+		    cursor->rel_path);
 		return(FALSE);
 	}
 
@@ -102,7 +100,9 @@ wf_incremental_init(xb_write_filt_ctxt_t *ctxt, char *dst_name,
 	strcat(dst_name, ".delta");
 
 	mach_write_to_4(cp->delta_buf, 0x78747261UL); /*"xtra"*/
+
 	cp->npages = 1;
+	cp->corrupted_pages = corrupted_pages;
 
 	return(TRUE);
 }
@@ -119,15 +119,16 @@ wf_incremental_process(xb_write_filt_ctxt_t *ctxt, ds_file_t *dstfile)
 	byte				*page;
 	const ulint			page_size
 		= cursor->page_size.physical();
-	xb_wf_incremental_ctxt_t	*cp = &(ctxt->u.wf_incremental_ctxt);
+	xb_wf_incremental_ctxt_t	*cp = &(ctxt->wf_incremental_ctxt);
 
 	for (i = 0, page = cursor->buf; i < cursor->buf_npages;
 	     i++, page += page_size) {
 
-		if (incremental_lsn >= mach_read_from_8(page + FIL_PAGE_LSN)) {
-
+		if ((!cp->corrupted_pages ||
+				!cp->corrupted_pages->contains(cursor->node->space->id,
+					cursor->buf_page_no + i)) &&
+				incremental_lsn >= mach_read_from_8(page + FIL_PAGE_LSN))
 			continue;
-		}
 
 		/* updated page */
 		if (cp->npages == page_size / 4) {
@@ -165,7 +166,7 @@ wf_incremental_finalize(xb_write_filt_ctxt_t *ctxt, ds_file_t *dstfile)
 	xb_fil_cur_t			*cursor = ctxt->cursor;
 	const ulint			page_size
 		= cursor->page_size.physical();
-	xb_wf_incremental_ctxt_t	*cp = &(ctxt->u.wf_incremental_ctxt);
+	xb_wf_incremental_ctxt_t	*cp = &(ctxt->wf_incremental_ctxt);
 
 	if (cp->npages != page_size / 4) {
 		mach_write_to_4(cp->delta_buf + cp->npages * 4, 0xFFFFFFFFUL);
@@ -187,7 +188,7 @@ Free the incremental page write filter's buffer. */
 static void
 wf_incremental_deinit(xb_write_filt_ctxt_t *ctxt)
 {
-	xb_wf_incremental_ctxt_t	*cp = &(ctxt->u.wf_incremental_ctxt);
+	xb_wf_incremental_ctxt_t	*cp = &(ctxt->wf_incremental_ctxt);
 	os_mem_free_large(cp->delta_buf, cp->delta_buf_size);
 }
 
@@ -197,7 +198,7 @@ Initialize the write-through page write filter.
 @return TRUE on success, FALSE on error. */
 static my_bool
 wf_wt_init(xb_write_filt_ctxt_t *ctxt, char *dst_name __attribute__((unused)),
-	   xb_fil_cur_t *cursor)
+	   xb_fil_cur_t *cursor, CorruptedPages *)
 {
 	ctxt->cursor = cursor;
 

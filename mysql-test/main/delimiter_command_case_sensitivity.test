@@ -1,0 +1,4 @@
+source include/not_embedded.inc;
+
+# MDEV-10728
+--exec $MYSQL --default-character-set=binary < "main/delimiter_case_mdev_10728.sql"

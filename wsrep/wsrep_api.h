@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License along
    with this program; if not, write to the Free Software Foundation, Inc.,
-   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA.
  */
 
 /*!
@@ -990,7 +990,7 @@ struct wsrep {
     void (*stats_free) (wsrep_t* wsrep, struct wsrep_stats_var* var_array);
 
   /*!
-   * @brief Reset some stats variables to inital value, provider-dependent.
+   * @brief Reset some stats variables to initial value, provider-dependent.
    *
    * @param wsrep provider handle.
    */

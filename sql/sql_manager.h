@@ -11,13 +11,13 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef SQL_MANAGER_INCLUDED
 #define SQL_MANAGER_INCLUDED
 
 void start_handle_manager();
 void stop_handle_manager();
-bool mysql_manager_submit(void (*action)());
+bool mysql_manager_submit(void (*action)(void *), void *data);
 
 #endif /* SQL_MANAGER_INCLUDED */

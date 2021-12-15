@@ -1,0 +1,125 @@
+# This test file tests events counter like Slave_ddl_groups,
+# Slave_non_transactional_groups, Slave_transactional_groups
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--let $rpl_server_count= 0
+
+--connect (master1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--connect (master2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+--connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
+
+#save state
+--let $par_thd= `select @@slave_parallel_threads;`
+
+set global slave_parallel_threads=10;
+
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval change master 'master1' to
+master_port=$SERVER_MYPORT_1,
+master_host='127.0.0.1',
+master_user='root';
+
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval change master 'master2' to
+master_port=$SERVER_MYPORT_2,
+master_host='127.0.0.1',
+master_user='root';
+
+
+#start all slaves
+--disable_warnings
+start all slaves;
+--enable_warnings
+set default_master_connection = 'master1';
+--source include/wait_for_slave_to_start.inc
+
+set default_master_connection = 'master2';
+--source include/wait_for_slave_to_start.inc
+
+--echo ## Slave status variable
+
+set default_master_connection = 'master1';
+show status like 'slave_running';
+
+set default_master_connection = 'master2';
+show status like 'slave_running';
+
+
+--echo #master 1
+--connection master1
+
+--let $loop_counter=10
+--let $table_engine=myisam
+--source multi_parallel_loop.inc
+--save_master_pos
+
+--connection slave
+
+--sync_with_master 0,'master1'
+--let $status= query_get_value(show slave 'master1' status, Slave_DDL_Groups, 1)
+--echo Slave_DDL_Groups= $status;
+
+--let $status= query_get_value(show slave 'master1' status, Slave_Non_Transactional_Groups, 1)
+--echo Slave_Non_Transactional_Groups= $status;
+
+--let $status= query_get_value(show slave 'master1' status, Slave_Transactional_Groups, 1)
+--echo Slave_Transactional_Groups= $status;
+
+--echo #master 2
+--connection master2
+
+--let $loop_counter=10
+--let $table_engine=myisam
+--source multi_parallel_loop.inc
+--save_master_pos
+
+--connection slave
+--sync_with_master 0,'master2'
+--let $status= query_get_value(show slave 'master2' status, Slave_DDL_Groups, 1)
+--echo Slave_DDL_Groups= $status;
+
+--let $status= query_get_value(show slave 'master2' status, Slave_Non_Transactional_Groups, 1)
+--echo Slave_Non_Transactional_Groups= $status;
+
+--let $status= query_get_value(show slave 'master2' status, Slave_Transactional_Groups, 1)
+--echo Slave_Transactional_Groups= $status;
+
+--echo #master 1
+--connection master1
+
+--let $loop_counter=10
+--let $table_engine=innodb
+--source multi_parallel_loop.inc
+--save_master_pos
+
+--connection slave
+
+--sync_with_master 0,'master1'
+--let $status= query_get_value(show slave 'master1' status, Slave_DDL_Groups, 1)
+--echo Slave_DDL_Groups= $status;
+
+--let $status= query_get_value(show slave 'master1' status, Slave_Non_Transactional_Groups, 1)
+--echo Slave_Non_Transactional_Groups= $status;
+
+--let $status= query_get_value(show slave 'master1' status, Slave_Transactional_Groups, 1)
+--echo Slave_Transactional_Groups= $status;
+
+
+# Cleanup
+stop all slaves;
+set default_master_connection = 'master1';
+--source include/wait_for_slave_to_stop.inc
+
+set default_master_connection = 'master2';
+--source include/wait_for_slave_to_stop.inc
+
+--eval set global slave_parallel_threads=$par_thd
+
+--source include/reset_master_slave.inc
+--disconnect slave
+--connection master1
+--source include/reset_master_slave.inc
+--disconnect master1
+--connection master2
+--source include/reset_master_slave.inc
+--disconnect master2

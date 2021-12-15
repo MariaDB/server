@@ -1,0 +1,2 @@
+interest-noawait /etc/mysql
+interest-noawait /etc/systemd/system/mariadb.service.d

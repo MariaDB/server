@@ -35,3 +35,13 @@ ALTER TABLE t1 REORGANIZE PARTITION p1 INTO
   PARTITION p3 VALUES IN (4,5,6)
 );
 DROP TABLE t1;
+
+#
+# MDEV-15456 Server crashes upon adding or dropping a partition in ALTER under LOCK TABLE after ER_SAME_NAME_PARTITION
+#
+--eval create table t1 (i int) engine=$engine partition by range(i) (partition p0 values less than (10))
+lock table t1 write;
+--error ER_SAME_NAME_PARTITION
+alter table t1 add partition (partition p0 values less than (20));
+alter table t1 add partition (partition p1 values less than (20)) /* comment */;
+drop table t1;

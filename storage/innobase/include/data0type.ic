@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -43,9 +43,9 @@ dtype_get_charset_coll(
 Determines if a MySQL string type is a subset of UTF-8.  This function
 may return false negatives, in case further character-set collation
 codes are introduced in MySQL later.
-@return TRUE if a subset of UTF-8 */
+@return whether a subset of UTF-8 */
 UNIV_INLINE
-ibool
+bool
 dtype_is_utf8(
 /*==========*/
 	ulint	prtype)	/*!< in: precise data type */
@@ -58,10 +58,10 @@ dtype_is_utf8(
 	case 33: /* utf8_general_ci */
 	case 83: /* utf8_bin */
 	case 254: /* utf8_general_cs */
-			return(TRUE);
+		return true;
 	}
 
-	return(FALSE);
+	return false;
 }
 
 /*********************************************************************//**
@@ -235,9 +235,8 @@ dtype_new_store_for_order_and_null_size(
 	ulint		prefix_len)/*!< in: prefix length to
 				replace type->len, or 0 */
 {
-#if 6 != DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE
-#error "6 != DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE"
-#endif
+	compile_time_assert(6 == DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE);
+
 	ulint	len;
 
 	ut_ad(type);
@@ -280,10 +279,7 @@ dtype_read_for_order_and_null_size(
 	dtype_t*	type,	/*!< in: type struct */
 	const byte*	buf)	/*!< in: buffer for stored type order info */
 {
-#if 4 != DATA_ORDER_NULL_TYPE_BUF_SIZE
-# error "4 != DATA_ORDER_NULL_TYPE_BUF_SIZE"
-#endif
-
+	compile_time_assert(4 == DATA_ORDER_NULL_TYPE_BUF_SIZE);
 	type->mtype = buf[0] & 63;
 	type->prtype = buf[1];
 
@@ -309,11 +305,7 @@ dtype_new_read_for_order_and_null_size(
 	dtype_t*	type,	/*!< in: type struct */
 	const byte*	buf)	/*!< in: buffer for stored type order info */
 {
-	ulint	charset_coll;
-
-#if 6 != DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE
-#error "6 != DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE"
-#endif
+	compile_time_assert(6 == DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE);
 
 	type->mtype = buf[0] & 63;
 	type->prtype = buf[1];
@@ -328,7 +320,7 @@ dtype_new_read_for_order_and_null_size(
 
 	type->len = mach_read_from_2(buf + 2);
 
-	charset_coll = mach_read_from_2(buf + 4) & CHAR_COLL_MASK;
+	ulint charset_coll = mach_read_from_2(buf + 4) & CHAR_COLL_MASK;
 
 	if (dtype_is_string_type(type->mtype)) {
 		ut_a(charset_coll <= MAX_CHAR_COLL_NUM);
@@ -479,6 +471,7 @@ dtype_get_fixed_size_low(
 			return(0);
 		}
 #endif /* UNIV_DEBUG */
+		/* fall through */
 	case DATA_CHAR:
 	case DATA_FIXBINARY:
 	case DATA_INT:
@@ -552,6 +545,7 @@ dtype_get_min_size_low(
 			return(0);
 		}
 #endif /* UNIV_DEBUG */
+		/* fall through */
 	case DATA_CHAR:
 	case DATA_FIXBINARY:
 	case DATA_INT:

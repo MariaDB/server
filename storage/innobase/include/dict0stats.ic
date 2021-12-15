@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2015, Oracle and/or its affiliates. All rights reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -25,7 +25,6 @@ Created Jan 23, 2012 Vasil Dimov
 *******************************************************/
 
 #include "dict0dict.h"
-#include "dict0types.h"
 #include "srv0srv.h"
 
 /*********************************************************************//**
@@ -76,7 +75,7 @@ dict_stats_is_persistent_enabled(const dict_table_t* table)
 	+ dict_stats_update(DICT_STATS_RECALC_TRANSIENT) on a table that has
 	  just been PS-enabled.
 	This is acceptable. Avoiding this would mean that we would have to
-	protect the ::stat_persistent with dict_table_stats_lock() like the
+	protect the ::stat_persistent with dict_sys->mutex like the
 	other ::stat_ members which would be too big performance penalty,
 	especially when this function is called from
 	dict_stats_update_if_needed(). */
@@ -179,50 +178,44 @@ dict_stats_deinit(
 
 	ut_a(table->get_ref_count() == 0);
 
-	dict_table_stats_lock(table, RW_X_LATCH);
-
 	if (!table->stat_initialized) {
-		dict_table_stats_unlock(table, RW_X_LATCH);
 		return;
 	}
 
 	table->stat_initialized = FALSE;
 
-#ifdef UNIV_DEBUG_VALGRIND
-	UNIV_MEM_INVALID(&table->stat_n_rows,
-			 sizeof(table->stat_n_rows));
-	UNIV_MEM_INVALID(&table->stat_clustered_index_size,
-			 sizeof(table->stat_clustered_index_size));
-	UNIV_MEM_INVALID(&table->stat_sum_of_other_index_sizes,
-			 sizeof(table->stat_sum_of_other_index_sizes));
-	UNIV_MEM_INVALID(&table->stat_modified_counter,
-			 sizeof(table->stat_modified_counter));
+#ifdef HAVE_valgrind
+	MEM_UNDEFINED(&table->stat_n_rows, sizeof table->stat_n_rows);
+	MEM_UNDEFINED(&table->stat_clustered_index_size,
+		      sizeof table->stat_clustered_index_size);
+	MEM_UNDEFINED(&table->stat_sum_of_other_index_sizes,
+		      sizeof table->stat_sum_of_other_index_sizes);
+	MEM_UNDEFINED(&table->stat_modified_counter,
+		      sizeof table->stat_modified_counter);
 
 	dict_index_t*   index;
 
 	for (index = dict_table_get_first_index(table);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
-
-		ulint	n_uniq = dict_index_get_n_unique(index);
-
-		UNIV_MEM_INVALID(
+		MEM_UNDEFINED(
 			index->stat_n_diff_key_vals,
-			n_uniq * sizeof(index->stat_n_diff_key_vals[0]));
-		UNIV_MEM_INVALID(
+			index->n_uniq
+			* sizeof(index->stat_n_diff_key_vals[0]));
+		MEM_UNDEFINED(
 			index->stat_n_sample_sizes,
-			n_uniq * sizeof(index->stat_n_sample_sizes[0]));
-		UNIV_MEM_INVALID(
+			index->n_uniq
+			* sizeof(index->stat_n_sample_sizes[0]));
+		MEM_UNDEFINED(
 			index->stat_n_non_null_key_vals,
-			n_uniq * sizeof(index->stat_n_non_null_key_vals[0]));
-		UNIV_MEM_INVALID(
+			index->n_uniq
+			* sizeof(index->stat_n_non_null_key_vals[0]));
+		MEM_UNDEFINED(
 			&index->stat_index_size,
 			sizeof(index->stat_index_size));
-		UNIV_MEM_INVALID(
+		MEM_UNDEFINED(
 			&index->stat_n_leaf_pages,
 			sizeof(index->stat_n_leaf_pages));
 	}
-#endif /* UNIV_DEBUG_VALGRIND */
-
-	dict_table_stats_unlock(table, RW_X_LATCH);
+#endif /* HAVE_valgrind */
 }

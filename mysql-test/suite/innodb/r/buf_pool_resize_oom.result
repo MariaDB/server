@@ -1,0 +1,8 @@
+#
+# Bug #21348684 SIGABRT DURING RESIZING THE INNODB BUFFER POOL
+# ONLINE WITH MEMORY FULL CONDITION
+#
+call mtr.add_suppression("InnoDB: .* failed to allocate the chunk array");
+SET GLOBAL innodb_disable_resize_buffer_pool_debug=OFF;
+SET GLOBAL debug_dbug='+d,buf_pool_resize_chunk_null';
+SET GLOBAL innodb_buffer_pool_size=@@innodb_buffer_pool_size + 1048576;

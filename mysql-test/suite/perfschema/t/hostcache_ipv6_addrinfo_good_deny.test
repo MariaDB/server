@@ -10,6 +10,7 @@
 --source include/have_debug.inc
 --source include/check_ipv6.inc
 --source include/have_perfschema.inc
+--source include/have_hostname_cache.inc
 
 # Enforce a clean state
 --source ../include/wait_for_pfs_thread_count.inc
@@ -21,6 +22,7 @@ select current_user();
 disconnect con1;
 
 --connection default
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6";
 
 --disable_query_log
@@ -39,5 +41,5 @@ connect (con3,"::1",root,,test,$MASTER_MYPORT,);
 --connection default
 --source ../include/hostcache_dump.inc
 
-set global debug_dbug= default;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 

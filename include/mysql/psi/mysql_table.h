@@ -2,17 +2,24 @@
    Copyright (c) 2017, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifndef MYSQL_TABLE_H
 #define MYSQL_TABLE_H
@@ -87,7 +94,7 @@
 #ifdef HAVE_PSI_TABLE_INTERFACE
   #define MYSQL_TABLE_IO_WAIT(PSI, OP, INDEX, FLAGS, PAYLOAD) \
     {                                                         \
-      if (PSI != NULL)                                        \
+      if (psi_likely(PSI != NULL))                            \
       {                                                       \
         PSI_table_locker *locker;                             \
         PSI_table_locker_state state;                         \
@@ -120,7 +127,7 @@
 #ifdef HAVE_PSI_TABLE_INTERFACE
   #define MYSQL_TABLE_LOCK_WAIT(PSI, OP, FLAGS, PAYLOAD) \
     {                                                    \
-      if (PSI != NULL)                                   \
+      if (psi_likely(PSI != NULL))                       \
       {                                                  \
         PSI_table_locker *locker;                        \
         PSI_table_locker_state state;                    \
@@ -186,7 +193,7 @@ inline_mysql_start_table_lock_wait(PSI_table_locker_state *state,
                                    enum PSI_table_lock_operation op,
                                    ulong flags, const char *src_file, uint src_line)
 {
-  if (psi != NULL)
+  if (psi_likely(psi != NULL))
   {
     struct PSI_table_locker *locker;
     locker= PSI_TABLE_CALL(start_table_lock_wait)
@@ -203,7 +210,7 @@ inline_mysql_start_table_lock_wait(PSI_table_locker_state *state,
 static inline void
 inline_mysql_end_table_lock_wait(struct PSI_table_locker *locker)
 {
-  if (locker != NULL)
+  if (psi_likely(locker != NULL))
     PSI_TABLE_CALL(end_table_lock_wait)(locker);
 }
 #endif

@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface                               /* gcc class implementation */
@@ -68,7 +68,6 @@ public:
   uint max_supported_key_part_length() const
   { return max_supported_key_length(); }
   enum row_type get_row_type() const;
-  uint checksum() const;
   void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share);
   virtual double scan_time();
 
@@ -152,15 +151,9 @@ public:
 
   }
   int optimize(THD * thd, HA_CHECK_OPT * check_opt);
-  int restore(THD * thd, HA_CHECK_OPT * check_opt);
-  int backup(THD * thd, HA_CHECK_OPT * check_opt);
   int assign_to_keycache(THD * thd, HA_CHECK_OPT * check_opt);
   int preload_keys(THD * thd, HA_CHECK_OPT * check_opt);
   bool check_if_incompatible_data(HA_CREATE_INFO * info, uint table_changes);
-#ifdef HAVE_REPLICATION
-  int dump(THD * thd, int fd);
-  int net_read_dump(NET * net);
-#endif
 #ifdef HAVE_QUERY_CACHE
   my_bool register_query_cache_table(THD *thd, const char *table_key,
                                      uint key_length,
@@ -195,6 +188,7 @@ public:
 private:
   DsMrr_impl ds_mrr;
   friend ICP_RESULT index_cond_func_maria(void *arg);
+  friend void reset_thd_trn(THD *thd);
 };
 
 #endif /* HA_MARIA_INCLUDED */

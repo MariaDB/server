@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License along
    with this program; if not, write to the Free Software Foundation, Inc.,
-   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA. */
 
 #include "mariadb.h"
 #include "wsrep_binlog.h"
@@ -322,13 +322,28 @@ int wsrep_write_cache(wsrep_t*  const wsrep,
 
 void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len)
 {
-  char filename[PATH_MAX]= {0};
-  int len= snprintf(filename, PATH_MAX, "%s/GRA_%lld_%lld.log",
+  int len= snprintf(NULL, 0, "%s/GRA_%lld_%lld.log",
                     wsrep_data_home_dir, (longlong) thd->thread_id,
                     (longlong) wsrep_thd_trx_seqno(thd));
-  if (len >= PATH_MAX)
+  if (len < 0)
   {
-    WSREP_ERROR("RBR dump path too long: %d, skipping dump.", len);
+    WSREP_ERROR("snprintf error: %d, skipping dump.", len);
+    return;
+  }
+  /*
+    len doesn't count the \0 end-of-string. Use len+1 below
+    to alloc and pass as an argument to snprintf.
+  */
+
+  char *filename= (char *)malloc(len+1);
+  int len1= snprintf(filename, len+1, "%s/GRA_%lld_%lld.log",
+                    wsrep_data_home_dir, (longlong) thd->thread_id,
+                    (long long)wsrep_thd_trx_seqno(thd));
+
+  if (len > len1)
+  {
+    WSREP_ERROR("RBR dump path truncated: %d, skipping dump.", len);
+    free(filename);
     return;
   }
 
@@ -347,6 +362,7 @@ void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len)
     WSREP_ERROR("Failed to open file '%s': %d (%s)",
                 filename, errno, strerror(errno));
   }
+  free(filename);
 }
 
 /*
@@ -362,20 +378,6 @@ int wsrep_binlog_close_connection(THD* thd)
   if (thd_get_ha_data(thd, binlog_hton) != NULL)
     binlog_hton->close_connection (binlog_hton, thd);
   DBUG_RETURN(0);
-}
-
-int wsrep_binlog_savepoint_set(THD *thd,  void *sv)
-{
-  if (!wsrep_emulate_bin_log) return 0;
-  int rcode = binlog_hton->savepoint_set(binlog_hton, thd, sv);
-  return rcode;
-}
-
-int wsrep_binlog_savepoint_rollback(THD *thd, void *sv)
-{
-  if (!wsrep_emulate_bin_log) return 0;
-  int rcode = binlog_hton->savepoint_rollback(binlog_hton, thd, sv);
-  return rcode;
 }
 
 #if 0
@@ -425,7 +427,7 @@ void wsrep_dump_rbr_direct(THD* thd, IO_CACHE* cache)
       break;
     }
   } while ((bytes_in_cache= my_b_fill(cache)));
-  if(cache->error == -1)
+  if (cache->error == -1)
   {
     WSREP_ERROR("RBR inconsistent");
     goto cleanup;
@@ -452,19 +454,34 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
 {
   DBUG_ENTER("wsrep_dump_rbr_buf_with_header");
 
-  char filename[PATH_MAX]= {0};
   File file;
   IO_CACHE cache;
   Log_event_writer writer(&cache, 0);
   Format_description_log_event *ev= 0;
 
-  int len= my_snprintf(filename, PATH_MAX, "%s/GRA_%lld_%lld_v2.log",
-                       wsrep_data_home_dir, (longlong) thd->thread_id,
-                       (long long) wsrep_thd_trx_seqno(thd));
-
-  if (len >= PATH_MAX)
+  longlong thd_trx_seqno= (long long)wsrep_thd_trx_seqno(thd);
+  int len= snprintf(NULL, 0, "%s/GRA_%lld_%lld_v2.log",
+                    wsrep_data_home_dir, (longlong)thd->thread_id,
+                    thd_trx_seqno);
+  /*
+    len doesn't count the \0 end-of-string. Use len+1 below
+    to alloc and pass as an argument to snprintf.
+  */
+  char *filename;
+  if (len < 0 || !(filename= (char*)malloc(len+1)))
   {
-    WSREP_ERROR("RBR dump path too long: %d, skipping dump.", len);
+    WSREP_ERROR("snprintf error: %d, skipping dump.", len);
+    DBUG_VOID_RETURN;
+  }
+
+  int len1= snprintf(filename, len+1, "%s/GRA_%lld_%lld_v2.log",
+                     wsrep_data_home_dir, (longlong) thd->thread_id,
+                     thd_trx_seqno);
+
+  if (len > len1)
+  {
+    WSREP_ERROR("RBR dump path truncated: %d, skipping dump.", len);
+    free(filename);
     DBUG_VOID_RETURN;
   }
 
@@ -478,7 +495,6 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
 
   if (init_io_cache(&cache, file, 0, WRITE_CACHE, 0, 0, MYF(MY_WME | MY_NABP)))
   {
-    mysql_file_close(file, MYF(MY_WME));
     goto cleanup2;
   }
 
@@ -505,6 +521,7 @@ cleanup2:
   end_io_cache(&cache);
 
 cleanup1:
+  free(filename);
   mysql_file_close(file, MYF(MY_WME));
 
   if (!thd->wsrep_applier) delete ev;

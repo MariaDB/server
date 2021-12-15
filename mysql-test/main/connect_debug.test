@@ -1,0 +1,39 @@
+source include/not_embedded.inc;
+source include/have_debug.inc;
+set @old_dbug=@@global.debug_dbug;
+
+#
+# use after free if need plugin change and auth aborted
+#
+set global debug_dbug='+d,auth_disconnect';
+create user 'bad' identified by 'worse';
+--error 1
+--exec $MYSQL --default-auth=mysql_old_password --user=bad --password=worse
+set global debug_dbug=@old_dbug;
+drop user bad;
+
+#
+# malicious server, invalid plugin name
+#
+set global debug_dbug='+d,auth_invalid_plugin';
+create user 'bad' identified by 'worse';
+--replace_regex /loaded: [^\n]*/loaded: invalid plugin name/
+--error 1
+--exec $MYSQL --default-auth=mysql_old_password --user=bad --password=worse 2>&1
+set global debug_dbug=@old_dbug;
+drop user bad;
+
+#
+# Bug#29630767 - USE OF UNINITIALIZED VALUE IN LIBMYSQL (CLIENT.CC FUNCTION RUN_PLUGIN_AUTH)
+#
+set global debug_dbug='+d,increase_srv_handshake_scramble_len';
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR $MASTER_MYPORT MASTER_MYPORT
+--error 2027
+connect con1,localhost,root;
+set global debug_dbug=@old_dbug;
+
+set global debug_dbug='+d,poison_srv_handshake_scramble_len';
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR $MASTER_MYPORT MASTER_MYPORT
+--error 2027
+connect con2,localhost,root;
+set global debug_dbug=@old_dbug;

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mysys_priv.h"
 #include "mysys_err.h"
@@ -76,17 +76,20 @@ File my_open(const char *FileName, int Flags, myf MyFlags)
 int my_close(File fd, myf MyFlags)
 {
   int err;
+  char *name= NULL;
   DBUG_ENTER("my_close");
   DBUG_PRINT("my",("fd: %d  MyFlags: %lu",fd, MyFlags));
   if (!(MyFlags & (MY_WME | MY_FAE)))
     MyFlags|= my_global_flags;
 
-  mysql_mutex_lock(&THR_LOCK_open);
-#ifndef _WIN32
-  do
+  if ((uint) fd < my_file_limit && my_file_info[fd].type != UNOPEN)
   {
-    err= close(fd);
-  } while (err == -1 && errno == EINTR);
+    name= my_file_info[fd].name;
+    my_file_info[fd].name= NULL;
+    my_file_info[fd].type= UNOPEN;
+  }
+#ifndef _WIN32
+  err= close(fd);
 #else
   err= my_win_close(fd);
 #endif
@@ -96,15 +99,13 @@ int my_close(File fd, myf MyFlags)
     my_errno=errno;
     if (MyFlags & (MY_FAE | MY_WME))
       my_error(EE_BADCLOSE, MYF(ME_BELL | ME_WAITTANG | (MyFlags & (ME_JUST_INFO | ME_NOREFRESH))),
-               my_filename(fd),errno);
+               name,errno);
   }
-  if ((uint) fd < my_file_limit && my_file_info[fd].type != UNOPEN)
+  if (name)
   {
-    my_free(my_file_info[fd].name);
-    my_file_info[fd].type = UNOPEN;
+    my_free(name);
   }
-  my_file_opened--;
-  mysql_mutex_unlock(&THR_LOCK_open);
+  thread_safe_decrement32(&my_file_opened);
   DBUG_RETURN(err);
 } /* my_close */
 
@@ -132,17 +133,12 @@ File my_register_filename(File fd, const char *FileName, enum file_type
   DBUG_ENTER("my_register_filename");
   if ((int) fd >= MY_FILE_MIN)
   {
+    thread_safe_increment32(&my_file_opened);
     if ((uint) fd >= my_file_limit)
-    {
-      thread_safe_increment(my_file_opened,&THR_LOCK_open);
-      DBUG_RETURN(fd);				/* safeguard */
-    }
-    mysql_mutex_lock(&THR_LOCK_open);
+      DBUG_RETURN(fd);
     my_file_info[fd].name = (char*) my_strdup(FileName, MyFlags);
-    my_file_opened++;
-    my_file_total_opened++;
+    statistic_increment(my_file_total_opened,&THR_LOCK_open);
     my_file_info[fd].type = type_of_file;
-    mysql_mutex_unlock(&THR_LOCK_open);
     DBUG_PRINT("exit",("fd: %d",fd));
     DBUG_RETURN(fd);
   }
@@ -159,26 +155,3 @@ File my_register_filename(File fd, const char *FileName, enum file_type
   }
   DBUG_RETURN(-1);
 }
-
-
-
-
-#ifdef EXTRA_DEBUG
-
-void my_print_open_files(void)
-{
-  if (my_file_opened | my_stream_opened)
-  {
-    uint i;
-    for (i= 0 ; i < my_file_limit ; i++)
-    {
-      if (my_file_info[i].type != UNOPEN)
-      {
-        fprintf(stderr, EE(EE_FILE_NOT_CLOSED), my_file_info[i].name, i);
-        fputc('\n', stderr);
-      }
-    }
-  }
-}
-
-#endif

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -23,8 +23,6 @@ Query graph
 
 Created 5/27/1996 Heikki Tuuri
 *******************************************************/
-
-#include "ha_prototypes.h"
 
 #include "que0que.h"
 #include "trx0trx.h"
@@ -37,9 +35,6 @@ Created 5/27/1996 Heikki Tuuri
 #include "dict0crea.h"
 #include "log0log.h"
 #include "eval0proc.h"
-#include "lock0lock.h"
-#include "eval0eval.h"
-#include "pars0types.h"
 
 #define QUE_MAX_LOOPS_WITHOUT_CHECK	16
 
@@ -354,7 +349,6 @@ que_fork_start_command(
 
 		case QUE_THR_RUNNING:
 		case QUE_THR_LOCK_WAIT:
-		case QUE_THR_PROCEDURE_WAIT:
 			ut_error;
 		}
 	}
@@ -465,6 +459,8 @@ que_graph_free_recursive(
 		que_graph_free_recursive(ins->select);
 		ins->select = NULL;
 
+		ins->~ins_node_t();
+
 		if (ins->entry_sys_heap != NULL) {
 			mem_heap_free(ins->entry_sys_heap);
 			ins->entry_sys_heap = NULL;
@@ -484,7 +480,7 @@ que_graph_free_recursive(
 		if (upd->in_mysql_interface) {
 
 			btr_pcur_free_for_mysql(upd->pcur);
-			upd->in_mysql_interface = FALSE;
+			upd->in_mysql_interface = false;
 		}
 
 		que_graph_free_recursive(upd->cascade_node);
@@ -688,10 +684,6 @@ que_thr_stop(
 
 		trx->lock.wait_thr = thr;
 		thr->state = QUE_THR_LOCK_WAIT;
-
-	} else if (trx->duplicates && trx->error_state == DB_DUPLICATE_KEY) {
-
-		return(FALSE);
 
 	} else if (trx->error_state != DB_SUCCESS
 		   && trx->error_state != DB_LOCK_WAIT) {
@@ -1005,11 +997,6 @@ que_thr_step(
 		} else if (type == QUE_NODE_FOR) {
 			for_step(thr);
 		} else if (type == QUE_NODE_PROC) {
-
-			/* We can access trx->undo_no without reserving
-			trx->undo_mutex, because there cannot be active query
-			threads doing updating or inserting at the moment! */
-
 			if (thr->prev_node == que_node_get_parent(node)) {
 				trx->last_sql_stat_start.least_undo_no
 					= trx->undo_no;
@@ -1238,8 +1225,6 @@ que_eval_sql(
 	if (reserve_dict_mutex) {
 		mutex_exit(&dict_sys->mutex);
 	}
-
-	ut_a(trx->error_state != 0);
 
 	DBUG_RETURN(trx->error_state);
 }

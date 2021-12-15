@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -180,7 +180,7 @@ will mark their views as closed but not actually free their views.
 
   @param[in,out] trx transaction
 */
-void ReadView::snapshot(trx_t *trx)
+inline void ReadView::snapshot(trx_t *trx)
 {
   trx_sys.snapshot_ids(trx, &m_ids, &m_low_limit_id, &m_low_limit_no);
   std::sort(m_ids.begin(), m_ids.end());
@@ -193,7 +193,7 @@ void ReadView::snapshot(trx_t *trx)
   Opens a read view where exactly the transactions serialized before this
   point in time are seen in the view.
 
-  View becomes visible to purge thread via trx_sys.m_views.
+  View becomes visible to purge thread.
 
   @param[in,out] trx transaction
 */
@@ -205,8 +205,9 @@ void ReadView::open(trx_t *trx)
   case READ_VIEW_STATE_OPEN:
     ut_ad(!srv_read_only_mode);
     return;
-  case READ_VIEW_STATE_REGISTERED:
-    ut_ad(!srv_read_only_mode);
+  case READ_VIEW_STATE_CLOSED:
+    if (srv_read_only_mode)
+      return;
     /*
       Reuse closed view if there were no read-write transactions since (and at)
       its creation time.
@@ -224,18 +225,6 @@ void ReadView::open(trx_t *trx)
 
       What bad things can happen because we allow this race?
 
-      First, purge thread may be affected by this race condition only if this
-      view is the oldest open view. In other words this view is either last in
-      m_views list or there're no open views beyond.
-
-      In this case purge may not catch this view and clone some younger view
-      instead. It might be kind of alright, because there were no read-write
-      transactions and there should be nothing to purge. Besides younger view
-      must have exactly the same values.
-
-      Second, scary things start when there's a read-write transaction starting
-      concurrently.
-
       Speculative execution may reorder state change before get_max_trx_id().
       In this case purge thread has short gap to clone outdated view. Which is
       probably not that bad: it just won't be able to purge things that it was
@@ -246,7 +235,7 @@ void ReadView::open(trx_t *trx)
       may get started, committed and purged meanwhile. It is acceptable as
       well, since this view doesn't see it.
     */
-    if (trx_is_autocommit_non_locking(trx) && m_ids.empty() &&
+    if (trx->is_autocommit_non_locking() && m_ids.empty() &&
         m_low_limit_id == trx_sys.get_max_trx_id())
       goto reopen;
 
@@ -268,12 +257,6 @@ void ReadView::open(trx_t *trx)
     my_atomic_store32_explicit(&m_state, READ_VIEW_STATE_SNAPSHOT,
                                MY_MEMORY_ORDER_RELAXED);
     break;
-  case READ_VIEW_STATE_CLOSED:
-    if (srv_read_only_mode)
-      return;
-    m_state= READ_VIEW_STATE_SNAPSHOT;
-    trx_sys.register_view(this);
-    break;
   default:
     ut_ad(0);
   }
@@ -287,51 +270,27 @@ reopen:
 
 
 /**
-  Closes the view.
-
-  The view will become invisible to purge (deregistered from trx_sys).
-*/
-void ReadView::close()
-{
-  ut_ad(m_state == READ_VIEW_STATE_OPEN ||
-        m_state == READ_VIEW_STATE_REGISTERED ||
-        m_state == READ_VIEW_STATE_CLOSED);
-  if (m_state != READ_VIEW_STATE_CLOSED)
-  {
-    trx_sys.deregister_view(this);
-    m_state= READ_VIEW_STATE_CLOSED;
-  }
-}
-
-
-/**
   Clones the oldest view and stores it in view.
 
   No need to call ReadView::close(). The caller owns the view that is passed
   in. This function is called by purge thread to determine whether it should
   purge the delete marked record or not.
-
-  Since foreign views are accessed under the mutex protection, the only
-  possible state transfers are
-  READ_VIEW_STATE_SNAPSHOT -> READ_VIEW_STATE_OPEN
-  READ_VIEW_STATE_OPEN -> READ_VIEW_STATE_REGISTERED
-  All other state transfers are eliminated by the mutex.
 */
 void trx_sys_t::clone_oldest_view()
 {
   purge_sys.view.snapshot(0);
   mutex_enter(&mutex);
   /* Find oldest view. */
-  for (const ReadView *v= UT_LIST_GET_FIRST(m_views); v;
-       v= UT_LIST_GET_NEXT(m_view_list, v))
+  for (const trx_t *trx= UT_LIST_GET_FIRST(trx_list); trx;
+       trx= UT_LIST_GET_NEXT(trx_list, trx))
   {
     int32_t state;
 
-    while ((state= v->get_state()) == READ_VIEW_STATE_SNAPSHOT)
+    while ((state= trx->read_view.get_state()) == READ_VIEW_STATE_SNAPSHOT)
       ut_delay(1);
 
     if (state == READ_VIEW_STATE_OPEN)
-      purge_sys.view.copy(*v);
+      purge_sys.view.copy(trx->read_view);
   }
   mutex_exit(&mutex);
 }

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #define MYSQL_LEX 1
 #include "mariadb.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
@@ -159,7 +159,7 @@ Event_creation_ctx::load_from_db(THD *thd,
 /*************************************************************************/
 
 /*
-  Initiliazes dbname and name of an Event_queue_element_for_exec
+  Initializes dbname and name of an Event_queue_element_for_exec
   object
 
   SYNOPSIS
@@ -178,6 +178,7 @@ Event_queue_element_for_exec::init(const LEX_CSTRING *db, const LEX_CSTRING *n)
   if (!(name.str= my_strndup(n->str, name.length= n->length, MYF(MY_WME))))
   {
     my_free(const_cast<char*>(dbname.str));
+    dbname.str= NULL;
     return TRUE;
   }
   return FALSE;
@@ -1284,7 +1285,11 @@ Event_job_data::construct_sp_sql(THD *thd, String *sp_sql)
   */
   sp_sql->append(STRING_WITH_LEN("() SQL SECURITY INVOKER "));
 
+  if (thd->variables.sql_mode & MODE_ORACLE)
+    sp_sql->append(STRING_WITH_LEN(" AS BEGIN "));
   sp_sql->append(&body);
+  if (thd->variables.sql_mode & MODE_ORACLE)
+    sp_sql->append(STRING_WITH_LEN("; END"));
 
   DBUG_RETURN(thd->is_fatal_error);
 }
@@ -1387,9 +1392,6 @@ Event_job_data::execute(THD *thd, bool drop)
     goto end;
   }
 
-  if (construct_sp_sql(thd, &sp_sql))
-    goto end;
-
   /*
     Set up global thread attributes to reflect the properties of
     this Event. We can simply reset these instead of usual
@@ -1400,6 +1402,9 @@ Event_job_data::execute(THD *thd, bool drop)
 
   thd->variables.sql_mode= sql_mode;
   thd->variables.time_zone= time_zone;
+
+  if (construct_sp_sql(thd, &sp_sql))
+    goto end;
 
   thd->set_query(sp_sql.c_ptr_safe(), sp_sql.length());
 
@@ -1444,7 +1449,7 @@ Event_job_data::execute(THD *thd, bool drop)
   }
 
 end:
-  if (drop && !thd->is_fatal_error)
+  if (drop && likely(!thd->is_fatal_error))
   {
     /*
       We must do it here since here we're under the right authentication

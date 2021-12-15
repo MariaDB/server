@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2014, 2019, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -29,9 +29,13 @@ Created 03/11/2014 Shaohua Wang
 #include "btr0cur.h"
 #include "btr0pcur.h"
 #include "ibuf0ibuf.h"
+#include "page0page.h"
+#include "trx0trx.h"
 
 /** Innodb B-tree index fill factor for bulk load. */
-long	innobase_fill_factor;
+uint	innobase_fill_factor;
+/** whether to reduce redo logging during ALTER TABLE */
+my_bool	innodb_log_optimize_ddl;
 
 /** Initialize members, allocate page if needed and start mtr.
 Note: we commit all mtrs on failure.
@@ -39,7 +43,6 @@ Note: we commit all mtrs on failure.
 dberr_t
 PageBulk::init()
 {
-	mtr_t*		mtr;
 	buf_block_t*	new_block;
 	page_t*		new_page;
 	page_zip_des_t*	new_page_zip;
@@ -48,12 +51,14 @@ PageBulk::init()
 	ut_ad(m_heap == NULL);
 	m_heap = mem_heap_create(1000);
 
-	mtr = static_cast<mtr_t*>(
-		mem_heap_alloc(m_heap, sizeof(mtr_t)));
-	mtr_start(mtr);
-	mtr_x_lock(dict_index_get_lock(m_index), mtr);
-	mtr_set_log_mode(mtr, MTR_LOG_NO_REDO);
-	mtr_set_flush_observer(mtr, m_flush_observer);
+	m_mtr.start();
+
+	if (m_flush_observer) {
+		m_mtr.set_log_mode(MTR_LOG_NO_REDO);
+		m_mtr.set_flush_observer(m_flush_observer);
+	} else {
+		m_index->set_modified(m_mtr);
+	}
 
 	if (m_page_no == FIL_NULL) {
 		mtr_t	alloc_mtr;
@@ -62,29 +67,27 @@ PageBulk::init()
 		because we don't guarantee pages are committed following
 		the allocation order, and we will always generate redo log
 		for page allocation, even when creating a new tablespace. */
-		mtr_start(&alloc_mtr);
-		alloc_mtr.set_named_space(dict_index_get_space(m_index));
+		alloc_mtr.start();
+		m_index->set_modified(alloc_mtr);
 
 		ulint	n_reserved;
 		bool	success;
-		success = fsp_reserve_free_extents(&n_reserved, m_index->space,
+		success = fsp_reserve_free_extents(&n_reserved,
+						   m_index->table->space,
 						   1, FSP_NORMAL, &alloc_mtr);
 		if (!success) {
-			mtr_commit(&alloc_mtr);
-			mtr_commit(mtr);
+			alloc_mtr.commit();
+			m_mtr.commit();
 			return(DB_OUT_OF_FILE_SPACE);
 		}
 
 		/* Allocate a new page. */
 		new_block = btr_page_alloc(m_index, 0, FSP_UP, m_level,
-					   &alloc_mtr, mtr);
+					   &alloc_mtr, &m_mtr);
 
-		if (n_reserved > 0) {
-			fil_space_release_free_extents(m_index->space,
-						       n_reserved);
-		}
+		m_index->table->space->release_free_extents(n_reserved);
 
-		mtr_commit(&alloc_mtr);
+		alloc_mtr.commit();
 
 		new_page = buf_block_get_frame(new_block);
 		new_page_zip = buf_block_get_page_zip(new_block);
@@ -92,25 +95,35 @@ PageBulk::init()
 
 		if (new_page_zip) {
 			page_create_zip(new_block, m_index, m_level, 0,
-					NULL, mtr);
+					NULL, &m_mtr);
+			memset(FIL_PAGE_PREV + new_page, 0xff, 8);
+			page_zip_write_header(new_page_zip,
+					      FIL_PAGE_PREV + new_page,
+					      8, &m_mtr);
+			mach_write_to_8(PAGE_HEADER + PAGE_INDEX_ID + new_page,
+					m_index->id);
+			page_zip_write_header(new_page_zip,
+					      PAGE_HEADER + PAGE_INDEX_ID
+					      + new_page, 8, &m_mtr);
 		} else {
 			ut_ad(!dict_index_is_spatial(m_index));
-			page_create(new_block, mtr,
+			page_create(new_block, &m_mtr,
 				    dict_table_is_comp(m_index->table),
 				    false);
-			btr_page_set_level(new_page, NULL, m_level, mtr);
+			mlog_write_ulint(FIL_PAGE_PREV + new_page, FIL_NULL,
+					 MLOG_4BYTES, &m_mtr);
+			mlog_write_ulint(FIL_PAGE_NEXT + new_page, FIL_NULL,
+					 MLOG_4BYTES, &m_mtr);
+			mlog_write_ulint(PAGE_HEADER + PAGE_LEVEL + new_page,
+					 m_level, MLOG_2BYTES, &m_mtr);
+			mlog_write_ull(PAGE_HEADER + PAGE_INDEX_ID + new_page,
+				       m_index->id, &m_mtr);
 		}
-
-		btr_page_set_next(new_page, NULL, FIL_NULL, mtr);
-		btr_page_set_prev(new_page, NULL, FIL_NULL, mtr);
-
-		btr_page_set_index_id(new_page, NULL, m_index->id, mtr);
 	} else {
-		page_id_t	page_id(dict_index_get_space(m_index), m_page_no);
-		page_size_t	page_size(dict_table_page_size(m_index->table));
-
-		new_block = btr_block_get(page_id, page_size,
-					  RW_X_LATCH, m_index, mtr);
+		new_block = btr_block_get(
+			page_id_t(m_index->table->space_id, m_page_no),
+			page_size_t(m_index->table->space->flags),
+			RW_X_LATCH, m_index, &m_mtr);
 
 		new_page = buf_block_get_frame(new_block);
 		new_page_zip = buf_block_get_page_zip(new_block);
@@ -119,18 +132,15 @@ PageBulk::init()
 
 		ut_ad(page_dir_get_n_heap(new_page) == PAGE_HEAP_NO_USER_LOW);
 
-		btr_page_set_level(new_page, NULL, m_level, mtr);
+		btr_page_set_level(new_page, new_page_zip, m_level, &m_mtr);
 	}
 
-	if (dict_index_is_sec_or_ibuf(m_index)
-	    && !dict_table_is_temporary(m_index->table)
-	    && page_is_leaf(new_page)) {
-		page_update_max_trx_id(new_block, NULL, m_trx_id, mtr);
+	if (!m_level && dict_index_is_sec_or_ibuf(m_index)) {
+		page_update_max_trx_id(new_block, new_page_zip, m_trx_id,
+				       &m_mtr);
 	}
 
-	m_mtr = mtr;
 	m_block = new_block;
-	m_block->skip_flush_check = true;
 	m_page = new_page;
 	m_page_zip = new_page_zip;
 	m_page_no = new_page_no;
@@ -143,16 +153,22 @@ PageBulk::init()
 		m_reserved_space = dict_index_get_space_reserve();
 	} else {
 		m_reserved_space =
-			UNIV_PAGE_SIZE * (100 - innobase_fill_factor) / 100;
+			srv_page_size * (100 - innobase_fill_factor) / 100;
 	}
 
 	m_padding_space =
-		UNIV_PAGE_SIZE - dict_index_zip_pad_optimal_page_size(m_index);
+		srv_page_size - dict_index_zip_pad_optimal_page_size(m_index);
 	m_heap_top = page_header_get_ptr(new_page, PAGE_HEAP_TOP);
 	m_rec_no = page_header_get_field(new_page, PAGE_N_RECS);
-
+	/* Temporarily reset PAGE_DIRECTION_B from PAGE_NO_DIRECTION to 0,
+	without writing redo log, to ensure that needs_finish() will hold
+	on an empty page. */
+	ut_ad(m_page[PAGE_HEADER + PAGE_DIRECTION_B] == PAGE_NO_DIRECTION);
+	m_page[PAGE_HEADER + PAGE_DIRECTION_B] = 0;
 	ut_d(m_total_data = 0);
-	page_header_set_field(m_page, NULL, PAGE_HEAP_TOP, UNIV_PAGE_SIZE - 1);
+	/* See page_copy_rec_list_end_to_created_page() */
+	ut_d(page_header_set_field(m_page, NULL, PAGE_HEAP_TOP,
+				   srv_page_size - 1));
 
 	return(DB_SUCCESS);
 }
@@ -163,7 +179,7 @@ PageBulk::init()
 void
 PageBulk::insert(
 	const rec_t*		rec,
-	ulint*			offsets)
+	rec_offs*		offsets)
 {
 	ulint		rec_size;
 
@@ -174,10 +190,11 @@ PageBulk::insert(
 
 #ifdef UNIV_DEBUG
 	/* Check whether records are in order. */
-	if (!page_rec_is_infimum(m_cur_rec)) {
+	if (!page_rec_is_infimum_low(page_offset(m_cur_rec))) {
 		rec_t*	old_rec = m_cur_rec;
-		ulint*	old_offsets = rec_get_offsets(
-			old_rec, m_index, NULL,	is_leaf,
+		rec_offs* old_offsets = rec_get_offsets(
+			old_rec, m_index, NULL,	is_leaf
+			? m_index->n_core_fields : 0,
 			ULINT_UNDEFINED, &m_heap);
 
 		ut_ad(cmp_rec_rec(rec, old_rec, offsets, old_offsets, m_index)
@@ -192,18 +209,21 @@ PageBulk::insert(
 	rec_offs_make_valid(insert_rec, m_index, is_leaf, offsets);
 
 	/* 2. Insert the record in the linked list. */
-	rec_t*	next_rec = page_rec_get_next(m_cur_rec);
-
-	page_rec_set_next(insert_rec, next_rec);
-	page_rec_set_next(m_cur_rec, insert_rec);
-
 	/* 3. Set the n_owned field in the inserted record to zero,
 	and set the heap_no field. */
 	if (m_is_comp) {
+		ulint next_offs = rec_get_next_offs(m_cur_rec, TRUE);
+		rec_set_next_offs_new(insert_rec, next_offs);
+		rec_set_next_offs_new(m_cur_rec, page_offset(insert_rec));
+
 		rec_set_n_owned_new(insert_rec, NULL, 0);
 		rec_set_heap_no_new(insert_rec,
 				    PAGE_HEAP_NO_USER_LOW + m_rec_no);
 	} else {
+		ulint next_offs = rec_get_next_offs(m_cur_rec, FALSE);
+		rec_set_next_offs_old(insert_rec, next_offs);
+		rec_set_next_offs_old(m_cur_rec, page_offset(insert_rec));
+
 		rec_set_n_owned_old(insert_rec, 0);
 		rec_set_heap_no_old(insert_rec,
 				    PAGE_HEAP_NO_USER_LOW + m_rec_no);
@@ -215,12 +235,46 @@ PageBulk::insert(
 		- page_dir_calc_reserved_space(m_rec_no);
 
 	ut_ad(m_free_space >= rec_size + slot_size);
-	ut_ad(m_heap_top + rec_size < m_page + UNIV_PAGE_SIZE);
+	ut_ad(m_heap_top + rec_size < m_page + srv_page_size);
 
 	m_free_space -= rec_size + slot_size;
 	m_heap_top += rec_size;
 	m_rec_no += 1;
+
+	if (!m_flush_observer && !m_page_zip) {
+		/* For ROW_FORMAT=COMPRESSED, redo log may be written
+		in PageBulk::compress(). */
+		page_cur_insert_rec_write_log(insert_rec, rec_size,
+					      m_cur_rec, m_index, &m_mtr);
+	}
+
 	m_cur_rec = insert_rec;
+}
+
+inline bool PageBulk::needs_finish() const
+{
+  ut_ad(page_align(m_cur_rec) == m_block->frame);
+  ut_ad(m_page == m_block->frame);
+  if (!m_page[PAGE_HEADER + PAGE_DIRECTION_B])
+    return true;
+  ulint heap_no, n_heap= page_header_get_field(m_page, PAGE_N_HEAP);
+  ut_ad((n_heap & 0x7fff) >= PAGE_HEAP_NO_USER_LOW);
+  if (n_heap & 0x8000)
+  {
+    n_heap&= 0x7fff;
+    heap_no= rec_get_heap_no_new(m_cur_rec);
+    if (heap_no == PAGE_HEAP_NO_INFIMUM &&
+	page_header_get_field(m_page, PAGE_HEAP_TOP) == PAGE_NEW_SUPREMUM_END)
+      return false;
+  }
+  else
+  {
+    heap_no= rec_get_heap_no_old(m_cur_rec);
+    if (heap_no == PAGE_HEAP_NO_INFIMUM &&
+	page_header_get_field(m_page, PAGE_HEAP_TOP) == PAGE_OLD_SUPREMUM_END)
+      return false;
+  }
+  return heap_no != n_heap - 1;
 }
 
 /** Mark end of insertion to the page. Scan all records to set page dirs,
@@ -229,15 +283,21 @@ Note: we refer to page_copy_rec_list_end_to_created_page. */
 void
 PageBulk::finish()
 {
-	ut_ad(m_rec_no > 0);
+	ut_ad(!dict_index_is_spatial(m_index));
 
-#ifdef UNIV_DEBUG
+	if (!needs_finish()) {
+		return;
+	}
+
 	ut_ad(m_total_data + page_dir_calc_reserved_space(m_rec_no)
 	      <= page_get_free_space_of_empty(m_is_comp));
-
-	/* To pass the debug tests we have to set these dummy values
-	in the debug version */
-	page_dir_set_n_slots(m_page, NULL, UNIV_PAGE_SIZE / 2);
+#ifdef UNIV_DEBUG
+	/* See page_copy_rec_list_end_to_created_page() */
+	if (m_rec_no) {
+		page_dir_set_n_slots(m_page, NULL, srv_page_size / 2);
+	}
+	mach_write_to_2(PAGE_HEADER + PAGE_HEAP_TOP + m_page,
+			ulint(m_heap_top - m_page));
 #endif
 
 	ulint	count = 0;
@@ -247,8 +307,7 @@ PageBulk::finish()
 	page_dir_slot_t* slot = NULL;
 
 	/* Set owner & dir. */
-	do {
-
+	while (!page_rec_is_supremum(insert_rec)) {
 		count++;
 		n_recs++;
 
@@ -265,7 +324,7 @@ PageBulk::finish()
 		}
 
 		insert_rec = page_rec_get_next(insert_rec);
-	} while (!page_rec_is_supremum(insert_rec));
+	}
 
 	if (slot_index > 0
 	    && (count + 1 + (PAGE_DIR_SLOT_MAX_N_OWNED + 1) / 2
@@ -288,38 +347,62 @@ PageBulk::finish()
 	page_dir_slot_set_rec(slot, page_get_supremum_rec(m_page));
 	page_dir_slot_set_n_owned(slot, NULL, count + 1);
 
-	ut_ad(!dict_index_is_spatial(m_index));
-	page_dir_set_n_slots(m_page, NULL, 2 + slot_index);
-	page_header_set_ptr(m_page, NULL, PAGE_HEAP_TOP, m_heap_top);
-	page_dir_set_n_heap(m_page, NULL, PAGE_HEAP_NO_USER_LOW + m_rec_no);
-	page_header_set_ptr(m_page, NULL, PAGE_LAST_INSERT, m_cur_rec);
-	mach_write_to_2(PAGE_HEADER + PAGE_N_RECS + m_page, m_rec_no);
 	ut_ad(!page_get_instant(m_page));
-	m_page[PAGE_HEADER + PAGE_DIRECTION_B] = PAGE_RIGHT;
-	*reinterpret_cast<uint16_t*>(PAGE_HEADER + PAGE_N_DIRECTION + m_page)
-		= 0;
-	m_block->skip_flush_check = false;
+
+	if (!m_rec_no) {
+		/* Restore PAGE_DIRECTION_B from 0 to
+		PAGE_NO_DIRECTION like it should be on an empty page,
+		again without writing redo log. */
+		m_page[PAGE_HEADER + PAGE_DIRECTION_B] = PAGE_NO_DIRECTION;
+	} else if (!m_flush_observer && !m_page_zip) {
+		mlog_write_ulint(PAGE_HEADER + PAGE_N_DIR_SLOTS + m_page,
+				 2 + slot_index, MLOG_2BYTES, &m_mtr);
+		mlog_write_ulint(PAGE_HEADER + PAGE_HEAP_TOP + m_page,
+				 ulint(m_heap_top - m_page),
+				 MLOG_2BYTES, &m_mtr);
+		mlog_write_ulint(PAGE_HEADER + PAGE_N_HEAP + m_page,
+				 (PAGE_HEAP_NO_USER_LOW + m_rec_no)
+				 | ulint(m_is_comp) << 15,
+				 MLOG_2BYTES, &m_mtr);
+		mlog_write_ulint(PAGE_HEADER + PAGE_N_RECS + m_page, m_rec_no,
+				 MLOG_2BYTES, &m_mtr);
+		mlog_write_ulint(PAGE_HEADER + PAGE_LAST_INSERT + m_page,
+				 ulint(m_cur_rec - m_page),
+				 MLOG_2BYTES, &m_mtr);
+		mlog_write_ulint(PAGE_HEADER + PAGE_DIRECTION_B - 1 + m_page,
+				 PAGE_RIGHT, MLOG_2BYTES, &m_mtr);
+		mlog_write_ulint(PAGE_HEADER + PAGE_N_DIRECTION + m_page, 0,
+				 MLOG_2BYTES, &m_mtr);
+	} else {
+		/* For ROW_FORMAT=COMPRESSED, redo log may be written
+		in PageBulk::compress(). */
+		mach_write_to_2(PAGE_HEADER + PAGE_N_DIR_SLOTS + m_page,
+				2 + slot_index);
+		mach_write_to_2(PAGE_HEADER + PAGE_HEAP_TOP + m_page,
+				ulint(m_heap_top - m_page));
+		mach_write_to_2(PAGE_HEADER + PAGE_N_HEAP + m_page,
+				(PAGE_HEAP_NO_USER_LOW + m_rec_no)
+				| ulint(m_is_comp) << 15);
+		mach_write_to_2(PAGE_HEADER + PAGE_N_RECS + m_page, m_rec_no);
+		mach_write_to_2(PAGE_HEADER + PAGE_LAST_INSERT + m_page,
+				ulint(m_cur_rec - m_page));
+		mach_write_to_2(PAGE_HEADER + PAGE_DIRECTION_B - 1 + m_page,
+				PAGE_RIGHT);
+		mach_write_to_2(PAGE_HEADER + PAGE_N_DIRECTION + m_page, 0);
+	}
+
+	ut_ad(!needs_finish());
+	ut_ad(page_validate(m_page, m_index));
 }
 
 /** Commit inserts done to the page
 @param[in]	success		Flag whether all inserts succeed. */
-void
-PageBulk::commit(
-	bool	success)
+void PageBulk::commit(bool success)
 {
-	if (success) {
-		ut_ad(page_validate(m_page, m_index));
-
-		/* Set no free space left and no buffered changes in ibuf. */
-		if (!dict_index_is_clust(m_index)
-		    && !dict_table_is_temporary(m_index->table)
-		    && page_is_leaf(m_page)) {
-			ibuf_set_bitmap_for_bulk_load(
-				m_block, innobase_fill_factor == 100);
-		}
-	}
-
-	mtr_commit(m_mtr);
+  finish();
+  if (success && !dict_index_is_clust(m_index) && page_is_leaf(m_page))
+    ibuf_set_bitmap_for_bulk_load(m_block, innobase_fill_factor == 100);
+  m_mtr.commit();
 }
 
 /** Compress a page of compressed table
@@ -331,7 +414,7 @@ PageBulk::compress()
 	ut_ad(m_page_zip != NULL);
 
 	return(page_zip_compress(m_page_zip, m_page, m_index,
-				 page_zip_level, NULL, m_mtr));
+				 page_zip_level, NULL, &m_mtr));
 }
 
 /** Get node pointer
@@ -358,13 +441,14 @@ rec_t*
 PageBulk::getSplitRec()
 {
 	rec_t*		rec;
-	ulint*		offsets;
+	rec_offs*	offsets;
 	ulint		total_used_size;
 	ulint		total_recs_size;
 	ulint		n_recs;
 
 	ut_ad(m_page_zip != NULL);
 	ut_ad(m_rec_no >= 2);
+	ut_ad(!m_index->is_instant());
 
 	ut_ad(page_get_free_space_of_empty(m_is_comp) > m_free_space);
 	total_used_size = page_get_free_space_of_empty(m_is_comp)
@@ -374,13 +458,13 @@ PageBulk::getSplitRec()
 	n_recs = 0;
 	offsets = NULL;
 	rec = page_get_infimum_rec(m_page);
+	const ulint n_core = page_is_leaf(m_page) ? m_index->n_core_fields : 0;
 
 	do {
 		rec = page_rec_get_next(rec);
 		ut_ad(page_rec_is_user_rec(rec));
 
-		offsets = rec_get_offsets(rec, m_index, offsets,
-					  page_is_leaf(m_page),
+		offsets = rec_get_offsets(rec, m_index, offsets, n_core,
 					  ULINT_UNDEFINED, &m_heap);
 		total_recs_size += rec_offs_size(offsets);
 		n_recs++;
@@ -404,14 +488,16 @@ PageBulk::copyIn(
 {
 
 	rec_t*		rec = split_rec;
-	ulint*		offsets = NULL;
+	rec_offs*	offsets = NULL;
 
 	ut_ad(m_rec_no == 0);
 	ut_ad(page_rec_is_user_rec(rec));
 
+	const ulint n_core = page_rec_is_leaf(rec)
+		? m_index->n_core_fields : 0;
+
 	do {
-		offsets = rec_get_offsets(rec, m_index, offsets,
-					  page_rec_is_leaf(split_rec),
+		offsets = rec_get_offsets(rec, m_index, offsets, n_core,
 					  ULINT_UNDEFINED, &m_heap);
 
 		insert(rec, offsets);
@@ -450,10 +536,12 @@ PageBulk::copyOut(
 	ut_ad(n > 0);
 
 	/* Set last record's next in page */
-	ulint*		offsets = NULL;
+	rec_offs*	offsets = NULL;
 	rec = page_rec_get_prev(split_rec);
-	offsets = rec_get_offsets(rec, m_index, offsets,
-				  page_rec_is_leaf(split_rec),
+	const ulint n_core = page_rec_is_leaf(split_rec)
+		? m_index->n_core_fields : 0;
+
+	offsets = rec_get_offsets(rec, m_index, offsets, n_core,
 				  ULINT_UNDEFINED, &m_heap);
 	page_rec_set_next(rec, page_get_supremum_rec(m_page));
 
@@ -461,38 +549,46 @@ PageBulk::copyOut(
 	m_cur_rec = rec;
 	m_heap_top = rec_get_end(rec, offsets);
 
-	offsets = rec_get_offsets(last_rec, m_index, offsets,
-				  page_rec_is_leaf(split_rec),
+	offsets = rec_get_offsets(last_rec, m_index, offsets, n_core,
 				  ULINT_UNDEFINED, &m_heap);
 
-	m_free_space += rec_get_end(last_rec, offsets)
-		- m_heap_top
+	m_free_space += ulint(rec_get_end(last_rec, offsets) - m_heap_top)
 		+ page_dir_calc_reserved_space(m_rec_no)
 		- page_dir_calc_reserved_space(n);
-	ut_ad(m_free_space > 0);
+	ut_ad(lint(m_free_space) > 0);
 	m_rec_no = n;
 
 #ifdef UNIV_DEBUG
-	m_total_data -= rec_get_end(last_rec, offsets) - m_heap_top;
+	m_total_data -= ulint(rec_get_end(last_rec, offsets) - m_heap_top);
 #endif /* UNIV_DEBUG */
 }
 
 /** Set next page
 @param[in]	next_page_no	next page no */
-void
-PageBulk::setNext(
-	ulint		next_page_no)
+inline void PageBulk::setNext(ulint next_page_no)
 {
-	btr_page_set_next(m_page, NULL, next_page_no, m_mtr);
+	if (UNIV_LIKELY_NULL(m_page_zip)) {
+		/* For ROW_FORMAT=COMPRESSED, redo log may be written
+		in PageBulk::compress(). */
+		mach_write_to_4(m_page + FIL_PAGE_NEXT, next_page_no);
+	} else {
+		mlog_write_ulint(m_page + FIL_PAGE_NEXT, next_page_no,
+				 MLOG_4BYTES, &m_mtr);
+	}
 }
 
 /** Set previous page
 @param[in]	prev_page_no	previous page no */
-void
-PageBulk::setPrev(
-	ulint		prev_page_no)
+inline void PageBulk::setPrev(ulint prev_page_no)
 {
-	btr_page_set_prev(m_page, NULL, prev_page_no, m_mtr);
+	if (UNIV_LIKELY_NULL(m_page_zip)) {
+		/* For ROW_FORMAT=COMPRESSED, redo log may be written
+		in PageBulk::compress(). */
+		mach_write_to_4(m_page + FIL_PAGE_PREV, prev_page_no);
+	} else {
+		mlog_write_ulint(m_page + FIL_PAGE_PREV, prev_page_no,
+				 MLOG_4BYTES, &m_mtr);
+	}
 }
 
 /** Check if required space is available in the page for the rec to be inserted.
@@ -550,29 +646,29 @@ the blob data is logged first, then the record is logged in bulk mode.
 dberr_t
 PageBulk::storeExt(
 	const big_rec_t*	big_rec,
-	ulint*			offsets)
+	rec_offs*		offsets)
 {
-	/* Note: not all fileds are initialized in btr_pcur. */
+	finish();
+
+	/* Note: not all fields are initialized in btr_pcur. */
 	btr_pcur_t	btr_pcur;
 	btr_pcur.pos_state = BTR_PCUR_IS_POSITIONED;
 	btr_pcur.latch_mode = BTR_MODIFY_LEAF;
 	btr_pcur.btr_cur.index = m_index;
-
-	page_cur_t*	page_cur = &btr_pcur.btr_cur.page_cur;
-	page_cur->index = m_index;
-	page_cur->rec = m_cur_rec;
-	page_cur->offsets = offsets;
-	page_cur->block = m_block;
+	btr_pcur.btr_cur.page_cur.index = m_index;
+	btr_pcur.btr_cur.page_cur.rec = m_cur_rec;
+	btr_pcur.btr_cur.page_cur.offsets = offsets;
+	btr_pcur.btr_cur.page_cur.block = m_block;
 
 	dberr_t	err = btr_store_big_rec_extern_fields(
-		&btr_pcur, offsets, big_rec, m_mtr, BTR_STORE_INSERT_BULK);
-
-	ut_ad(page_offset(m_cur_rec) == page_offset(page_cur->rec));
+		&btr_pcur, offsets, big_rec, &m_mtr, BTR_STORE_INSERT_BULK);
 
 	/* Reset m_block and m_cur_rec from page cursor, because
-	block may be changed during blob insert. */
-	m_block = page_cur->block;
-	m_cur_rec = page_cur->rec;
+	block may be changed during blob insert. (FIXME: Can it really?) */
+	ut_ad(m_block == btr_pcur.btr_cur.page_cur.block);
+
+	m_block = btr_pcur.btr_cur.page_cur.block;
+	m_cur_rec = btr_pcur.btr_cur.page_cur.rec;
 	m_page = buf_block_get_frame(m_block);
 
 	return(err);
@@ -583,7 +679,7 @@ Note: log_free_check requires holding no lock/latch in current thread. */
 void
 PageBulk::release()
 {
-	ut_ad(!dict_index_is_spatial(m_index));
+	finish();
 
 	/* We fix the block because we will re-pin it soon. */
 	buf_block_buf_fix_inc(m_block, __FILE__, __LINE__);
@@ -591,31 +687,32 @@ PageBulk::release()
 	/* No other threads can modify this block. */
 	m_modify_clock = buf_block_get_modify_clock(m_block);
 
-	mtr_commit(m_mtr);
+	m_mtr.commit();
 }
 
 /** Start mtr and latch the block */
 dberr_t
 PageBulk::latch()
 {
-	ibool	ret;
+	m_mtr.start();
 
-	mtr_start(m_mtr);
-	mtr_x_lock(dict_index_get_lock(m_index), m_mtr);
-	mtr_set_log_mode(m_mtr, MTR_LOG_NO_REDO);
-	mtr_set_flush_observer(m_mtr, m_flush_observer);
+	if (m_flush_observer) {
+		m_mtr.set_log_mode(MTR_LOG_NO_REDO);
+		m_mtr.set_flush_observer(m_flush_observer);
+	} else {
+		m_index->set_modified(m_mtr);
+	}
 
-	/* TODO: need a simple and wait version of buf_page_optimistic_get. */
-	ret = buf_page_optimistic_get(RW_X_LATCH, m_block, m_modify_clock,
-				      __FILE__, __LINE__, m_mtr);
+	ut_ad(m_block->page.buf_fix_count);
+
 	/* In case the block is S-latched by page_cleaner. */
-	if (!ret) {
-		page_id_t       page_id(dict_index_get_space(m_index), m_page_no);
-		page_size_t     page_size(dict_table_page_size(m_index->table));
-
-		m_block = buf_page_get_gen(page_id, page_size, RW_X_LATCH,
+	if (!buf_page_optimistic_get(RW_X_LATCH, m_block, m_modify_clock,
+				     __FILE__, __LINE__, &m_mtr)) {
+		m_block = buf_page_get_gen(page_id_t(m_index->table->space_id,
+						     m_page_no),
+					   univ_page_size, RW_X_LATCH,
 					   m_block, BUF_GET_IF_IN_POOL,
-					   __FILE__, __LINE__, m_mtr, &m_err);
+					   __FILE__, __LINE__, &m_mtr, &m_err);
 
 		if (m_err != DB_SUCCESS) {
 			return (m_err);
@@ -625,6 +722,8 @@ PageBulk::latch()
 	}
 
 	buf_block_buf_fix_dec(m_block);
+
+	ut_ad(m_block->page.buf_fix_count);
 
 	ut_ad(m_cur_rec > m_page && m_cur_rec < m_heap_top);
 
@@ -642,32 +741,30 @@ BtrBulk::pageSplit(
 {
 	ut_ad(page_bulk->getPageZip() != NULL);
 
-	/* 1. Check if we have only one user record on the page. */
 	if (page_bulk->getRecNo() <= 1) {
 		return(DB_TOO_BIG_RECORD);
 	}
 
-	/* 2. create a new page. */
-	PageBulk new_page_bulk(m_index, m_trx_id, FIL_NULL,
+	/* Initialize a new page */
+	PageBulk new_page_bulk(m_index, m_trx->id, FIL_NULL,
 			       page_bulk->getLevel(), m_flush_observer);
 	dberr_t	err = new_page_bulk.init();
 	if (err != DB_SUCCESS) {
 		return(err);
 	}
 
-	/* 3. copy the upper half to new page. */
+	/* Copy the upper half to the new page. */
 	rec_t*	split_rec = page_bulk->getSplitRec();
 	new_page_bulk.copyIn(split_rec);
 	page_bulk->copyOut(split_rec);
 
-	/* 4. commit the splitted page. */
+	/* Commit the pages after split. */
 	err = pageCommit(page_bulk, &new_page_bulk, true);
 	if (err != DB_SUCCESS) {
 		pageAbort(&new_page_bulk);
 		return(err);
 	}
 
-	/* 5. commit the new page. */
 	err = pageCommit(&new_page_bulk, next_page_bulk, true);
 	if (err != DB_SUCCESS) {
 		pageAbort(&new_page_bulk);
@@ -705,6 +802,10 @@ BtrBulk::pageCommit(
 		page_bulk->setNext(FIL_NULL);
 	}
 
+	ut_ad(!rw_lock_own_flagged(&m_index->lock,
+				   RW_LOCK_FLAG_X | RW_LOCK_FLAG_SX
+				   | RW_LOCK_FLAG_S));
+
 	/* Compress page if it's a compressed table. */
 	if (page_bulk->getPageZip() != NULL && !page_bulk->compress()) {
 		return(pageSplit(page_bulk, next_page_bulk));
@@ -727,10 +828,9 @@ BtrBulk::pageCommit(
 }
 
 /** Log free check */
-void
-BtrBulk::logFreeCheck()
+inline void BtrBulk::logFreeCheck()
 {
-	if (log_sys->check_flush_or_checkpoint) {
+	if (log_sys.check_flush_or_checkpoint) {
 		release();
 
 		log_free_check();
@@ -743,10 +843,10 @@ BtrBulk::logFreeCheck()
 void
 BtrBulk::release()
 {
-	ut_ad(m_root_level + 1 == m_page_bulks->size());
+	ut_ad(m_root_level + 1 == m_page_bulks.size());
 
 	for (ulint level = 0; level <= m_root_level; level++) {
-		PageBulk*    page_bulk = m_page_bulks->at(level);
+		PageBulk*    page_bulk = m_page_bulks.at(level);
 
 		page_bulk->release();
 	}
@@ -756,10 +856,10 @@ BtrBulk::release()
 void
 BtrBulk::latch()
 {
-	ut_ad(m_root_level + 1 == m_page_bulks->size());
+	ut_ad(m_root_level + 1 == m_page_bulks.size());
 
 	for (ulint level = 0; level <= m_root_level; level++) {
-		PageBulk*    page_bulk = m_page_bulks->at(level);
+		PageBulk*    page_bulk = m_page_bulks.at(level);
 		page_bulk->latch();
 	}
 }
@@ -776,28 +876,27 @@ BtrBulk::insert(
 	bool		is_left_most = false;
 	dberr_t		err = DB_SUCCESS;
 
-	ut_ad(m_heap != NULL);
-
 	/* Check if we need to create a PageBulk for the level. */
-	if (level + 1 > m_page_bulks->size()) {
+	if (level + 1 > m_page_bulks.size()) {
 		PageBulk*	new_page_bulk
-			= UT_NEW_NOKEY(PageBulk(m_index, m_trx_id, FIL_NULL,
+			= UT_NEW_NOKEY(PageBulk(m_index, m_trx->id, FIL_NULL,
 						level, m_flush_observer));
 		err = new_page_bulk->init();
 		if (err != DB_SUCCESS) {
+			UT_DELETE(new_page_bulk);
 			return(err);
 		}
 
-		m_page_bulks->push_back(new_page_bulk);
-		ut_ad(level + 1 == m_page_bulks->size());
+		m_page_bulks.push_back(new_page_bulk);
+		ut_ad(level + 1 == m_page_bulks.size());
 		m_root_level = level;
 
 		is_left_most = true;
 	}
 
-	ut_ad(m_page_bulks->size() > level);
+	ut_ad(m_page_bulks.size() > level);
 
-	PageBulk*	page_bulk = m_page_bulks->at(level);
+	PageBulk*	page_bulk = m_page_bulks.at(level);
 
 	if (is_left_most && level > 0 && page_bulk->getRecNo() == 0) {
 		/* The node pointer must be marked as the predefined minimum
@@ -811,7 +910,7 @@ BtrBulk::insert(
 	ulint		rec_size = rec_get_converted_size(m_index, tuple, n_ext);
 	big_rec_t*	big_rec = NULL;
 	rec_t*		rec = NULL;
-	ulint*		offsets = NULL;
+	rec_offs*	offsets = NULL;
 
 	if (page_bulk->needExt(tuple, rec_size)) {
 		/* The record is so big that we have to store some fields
@@ -834,7 +933,7 @@ BtrBulk::insert(
 	if (!page_bulk->isSpaceAvailable(rec_size)) {
 		/* Create a sibling page_bulk. */
 		PageBulk*	sibling_page_bulk;
-		sibling_page_bulk = UT_NEW_NOKEY(PageBulk(m_index, m_trx_id,
+		sibling_page_bulk = UT_NEW_NOKEY(PageBulk(m_index, m_trx->id,
 							  FIL_NULL, level,
 							  m_flush_observer));
 		err = sibling_page_bulk->init();
@@ -853,15 +952,18 @@ BtrBulk::insert(
 
 		/* Set new page bulk to page_bulks. */
 		ut_ad(sibling_page_bulk->getLevel() <= m_root_level);
-		m_page_bulks->at(level) = sibling_page_bulk;
+		m_page_bulks.at(level) = sibling_page_bulk;
 
 		UT_DELETE(page_bulk);
 		page_bulk = sibling_page_bulk;
 
 		/* Important: log_free_check whether we need a checkpoint. */
 		if (page_is_leaf(sibling_page_bulk->getPage())) {
-			/* Check whether trx is interrupted */
-			if (m_flush_observer->check_interrupted()) {
+			if (trx_is_interrupted(m_trx)) {
+				if (m_flush_observer) {
+					m_flush_observer->interrupted();
+				}
+
 				err = DB_INTERRUPTED;
 				goto func_exit;
 			}
@@ -878,7 +980,8 @@ BtrBulk::insert(
 	/* Convert tuple to rec. */
         rec = rec_convert_dtuple_to_rec(static_cast<byte*>(mem_heap_alloc(
 		page_bulk->m_heap, rec_size)), m_index, tuple, n_ext);
-        offsets = rec_get_offsets(rec, m_index, offsets, !level,
+        offsets = rec_get_offsets(rec, m_index, offsets, level
+				  ? 0 : m_index->n_core_fields,
 				  ULINT_UNDEFINED, &page_bulk->m_heap);
 
 	page_bulk->insert(rec, offsets);
@@ -886,20 +989,18 @@ BtrBulk::insert(
 	if (big_rec != NULL) {
 		ut_ad(dict_index_is_clust(m_index));
 		ut_ad(page_bulk->getLevel() == 0);
-		ut_ad(page_bulk == m_page_bulks->at(0));
+		ut_ad(page_bulk == m_page_bulks.at(0));
 
-		/* Release all latched but leaf node. */
+		/* Release all pages above the leaf level */
 		for (ulint level = 1; level <= m_root_level; level++) {
-			PageBulk*    page_bulk = m_page_bulks->at(level);
-
-			page_bulk->release();
+			m_page_bulks.at(level)->release();
 		}
 
 		err = page_bulk->storeExt(big_rec, offsets);
 
 		/* Latch */
 		for (ulint level = 1; level <= m_root_level; level++) {
-			PageBulk*    page_bulk = m_page_bulks->at(level);
+			PageBulk*    page_bulk = m_page_bulks.at(level);
 			page_bulk->latch();
 		}
 	}
@@ -922,19 +1023,19 @@ BtrBulk::finish(dberr_t	err)
 {
 	ulint		last_page_no = FIL_NULL;
 
-	ut_ad(!dict_table_is_temporary(m_index->table));
+	ut_ad(!m_index->table->is_temporary());
 
-	if (m_page_bulks->size() == 0) {
+	if (m_page_bulks.size() == 0) {
 		/* The table is empty. The root page of the index tree
 		is already in a consistent state. No need to flush. */
 		return(err);
 	}
 
-	ut_ad(m_root_level + 1 == m_page_bulks->size());
+	ut_ad(m_root_level + 1 == m_page_bulks.size());
 
 	/* Finish all page bulks */
 	for (ulint level = 0; level <= m_root_level; level++) {
-		PageBulk*	page_bulk = m_page_bulks->at(level);
+		PageBulk*	page_bulk = m_page_bulks.at(level);
 
 		last_page_no = page_bulk->getPageNo();
 
@@ -954,41 +1055,39 @@ BtrBulk::finish(dberr_t	err)
 		rec_t*		first_rec;
 		mtr_t		mtr;
 		buf_block_t*	last_block;
-		page_t*		last_page;
-		page_id_t	page_id(dict_index_get_space(m_index),
-					last_page_no);
-		page_size_t	page_size(dict_table_page_size(m_index->table));
-		ulint		root_page_no = dict_index_get_page(m_index);
-		PageBulk	root_page_bulk(m_index, m_trx_id,
-					       root_page_no, m_root_level,
+		PageBulk	root_page_bulk(m_index, m_trx->id,
+					       m_index->page, m_root_level,
 					       m_flush_observer);
 
-		mtr_start(&mtr);
-		mtr.set_named_space(dict_index_get_space(m_index));
-		mtr_x_lock(dict_index_get_lock(m_index), &mtr);
+		mtr.start();
+		m_index->set_modified(mtr);
+		mtr_x_lock_index(m_index, &mtr);
 
 		ut_ad(last_page_no != FIL_NULL);
-		last_block = btr_block_get(page_id, page_size,
-					   RW_X_LATCH, m_index, &mtr);
-		last_page = buf_block_get_frame(last_block);
-		first_rec = page_rec_get_next(page_get_infimum_rec(last_page));
+		last_block = btr_block_get(
+			page_id_t(m_index->table->space_id, last_page_no),
+			page_size_t(m_index->table->space->flags),
+			RW_X_LATCH, m_index, &mtr);
+		first_rec = page_rec_get_next(
+			page_get_infimum_rec(last_block->frame));
 		ut_ad(page_rec_is_user_rec(first_rec));
 
 		/* Copy last page to root page. */
 		err = root_page_bulk.init();
 		if (err != DB_SUCCESS) {
-			mtr_commit(&mtr);
+			mtr.commit();
 			return(err);
 		}
 		root_page_bulk.copyIn(first_rec);
+		root_page_bulk.finish();
 
 		/* Remove last page. */
-		btr_page_free_low(m_index, last_block, m_root_level, false, &mtr);
+		btr_page_free(m_index, last_block, &mtr);
 
 		/* Do not flush the last page. */
 		last_block->page.flush_observer = NULL;
 
-		mtr_commit(&mtr);
+		mtr.commit();
 
 		err = pageCommit(&root_page_bulk, NULL, false);
 		ut_ad(err == DB_SUCCESS);
@@ -996,6 +1095,7 @@ BtrBulk::finish(dberr_t	err)
 
 	ut_ad(!sync_check_iterate(dict_sync_check()));
 
-	ut_ad(err != DB_SUCCESS || btr_validate_index(m_index, NULL, false));
+	ut_ad(err != DB_SUCCESS
+	      || btr_validate_index(m_index, NULL, false) == DB_SUCCESS);
 	return(err);
 }

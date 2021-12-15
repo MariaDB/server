@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /****************************************************************
 
@@ -269,7 +269,7 @@ size_t my_gcvt(double x, my_gcvt_arg_type type, int width, char *to,
     Assume that we don't have enough space to place all significant digits in
     the 'f' format. We have to choose between the 'e' format and the 'f' one
     to keep as many significant digits as possible.
-    Let E and F be the lengths of decimal representaion in the 'e' and 'f'
+    Let E and F be the lengths of decimal representation in the 'e' and 'f'
     formats, respectively. We want to use the 'f' format if, and only if F <= E.
     Consider the following cases:
     1. decpt <= 0.

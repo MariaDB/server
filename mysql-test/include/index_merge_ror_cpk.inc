@@ -2,10 +2,6 @@
 #
 # Clustered PK ROR-index_merge tests
 #
-# The variable
-#     $engine_type       -- storage engine to be tested
-# has to be set before sourcing this script.
-#
 # Note: The comments/expectations refer to InnoDB.
 #       They might be not valid for other storage engines.
 #
@@ -15,13 +11,9 @@
 #               main code went into include/index_merge_ror_cpk.inc
 #
 
+--source include/have_sequence.inc
+
 --echo #---------------- Clustered PK ROR-index_merge tests -----------------------------
-
-eval SET SESSION STORAGE_ENGINE = $engine_type;
-
---disable_warnings
-drop table if exists  t1;
---enable_warnings
 
 create table t1
 (
@@ -56,14 +48,14 @@ create table t1
 );
 
 --disable_query_log
-set autocommit=0;
+begin;
 let $1=10000;
 while ($1)
 {
   eval insert into t1 values ($1 div 10,$1 mod 100,   $1/100,$1/100,   $1/100,$1/100,$1/100,$1/100,$1/100, $1 mod 100, $1/1000,'filler-data-$1','filler2');
   dec $1;
 }
-set autocommit=1;
+commit;
 --enable_query_log
 
 # Verify that range scan on CPK is ROR

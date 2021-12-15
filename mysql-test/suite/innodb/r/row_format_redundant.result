@@ -5,8 +5,7 @@ SET GLOBAL innodb_file_per_table=1;
 #
 SET GLOBAL innodb_file_per_table=ON;
 create table t1 (a int not null, d varchar(15) not null, b
-varchar(198) not null, c char(156),
-fulltext ftsic(c)) engine=InnoDB
+varchar(198) not null, c char(156)) engine=InnoDB
 row_format=redundant;
 insert into t1 values(123, 'abcdef', 'jghikl', 'mnop');
 insert into t1 values(456, 'abcdef', 'jghikl', 'mnop');
@@ -72,8 +71,9 @@ DROP TABLE t1;
 Warnings:
 Warning	1932	Table 'test.t1' doesn't exist in engine
 DROP TABLE t2,t3;
-FOUND 49 /\[ERROR\] InnoDB: Table `test`\.`t1` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=1 SYS_TABLES\.MIX_LEN=511\b/ in mysqld.1.err
+FOUND 6 /\[ERROR\] InnoDB: Table `test`\.`t1` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=1 SYS_TABLES\.MIX_LEN=511\b/ in mysqld.1.err
 ib_buffer_pool
 ib_logfile0
 ib_logfile1
 ibdata1
+db.opt

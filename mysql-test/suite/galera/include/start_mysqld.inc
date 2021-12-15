@@ -12,11 +12,4 @@ if ($galera_wsrep_start_position == '') {
 	--exec echo "restart:$start_mysqld_params" > $_expect_file_name
 }
 
-# Turn on reconnect
---enable_reconnect
-
-# Call script that will poll the server waiting for it to be back online again
---source include/wait_until_connected_again.inc
-
-# Turn off reconnect again
---disable_reconnect
+--source include/galera_wait_ready.inc

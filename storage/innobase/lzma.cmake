@@ -10,7 +10,7 @@
 #
 # You should have received a copy of the GNU General Public License along with
 # this program; if not, write to the Free Software Foundation, Inc.,
-# 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+# 51 Franklin St, Fifth Floor, Boston, MA 02110-1335 USA
 
 SET(WITH_INNODB_LZMA AUTO CACHE STRING
   "Build with lzma. Possible values are 'ON', 'OFF', 'AUTO' and default is 'AUTO'")
@@ -22,12 +22,14 @@ MACRO (MYSQL_CHECK_LZMA)
     CHECK_LIBRARY_EXISTS(lzma lzma_easy_buffer_encode "" HAVE_LZMA_ENCODE)
 
     IF (HAVE_LZMA_DECODE AND HAVE_LZMA_ENCODE AND HAVE_LZMA_H)
+      SET(HAVE_INNODB_LZMA TRUE)
       ADD_DEFINITIONS(-DHAVE_LZMA=1)
       LINK_LIBRARIES(lzma) 
     ELSE()
       IF (WITH_INNODB_LZMA STREQUAL "ON")
-	MESSAGE(FATAL_ERROR "Required lzma library is not found")
+        MESSAGE(FATAL_ERROR "Required lzma library is not found")
       ENDIF()
     ENDIF()
   ENDIF()
+  ADD_FEATURE_INFO(INNODB_LZMA HAVE_INNODB_LZMA "LZMA compression in the InnoDB storage engine")
 ENDMACRO()

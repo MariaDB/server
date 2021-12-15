@@ -1,0 +1,930 @@
+SET NAMES utf8;
+#
+# MDEV-4425 REGEXP enhancements
+#
+#
+# Checking RLIKE
+#
+SELECT 'à' RLIKE '^.$';
+'à' RLIKE '^.$'
+1
+SELECT 'à' RLIKE '\\x{00E0}';
+'à' RLIKE '\\x{00E0}'
+1
+SELECT 'À' RLIKE '\\x{00E0}';
+'À' RLIKE '\\x{00E0}'
+1
+SELECT 'à' RLIKE '\\x{00C0}';
+'à' RLIKE '\\x{00C0}'
+1
+SELECT 'À' RLIKE '\\x{00C0}';
+'À' RLIKE '\\x{00C0}'
+1
+SELECT 'à' RLIKE '\\x{00E0}' COLLATE utf8_bin;
+'à' RLIKE '\\x{00E0}' COLLATE utf8_bin
+1
+SELECT 'À' RLIKE '\\x{00E0}' COLLATE utf8_bin;
+'À' RLIKE '\\x{00E0}' COLLATE utf8_bin
+0
+SELECT 'à' RLIKE '\\x{00C0}' COLLATE utf8_bin;
+'à' RLIKE '\\x{00C0}' COLLATE utf8_bin
+0
+SELECT 'À' RLIKE '\\x{00C0}' COLLATE utf8_bin;
+'À' RLIKE '\\x{00C0}' COLLATE utf8_bin
+1
+CREATE TABLE t1 (s VARCHAR(10) CHARACTER SET utf8);
+INSERT INTO t1 VALUES ('a'),('A');
+CREATE TABLE t2 (p VARCHAR(10) CHARACTER SET utf8);
+INSERT INTO t2 VALUES ('a'),('(?i)a'),('(?-i)a'),('A'),('(?i)A'),('(?-i)A');
+SELECT s,p,s RLIKE p, s COLLATE utf8_bin RLIKE p FROM t1,t2 ORDER BY BINARY s, BINARY p;
+s	p	s RLIKE p	s COLLATE utf8_bin RLIKE p
+A	(?-i)A	1	1
+A	(?-i)a	0	0
+A	(?i)A	1	1
+A	(?i)a	1	1
+A	A	1	1
+A	a	1	0
+a	(?-i)A	0	0
+a	(?-i)a	1	1
+a	(?i)A	1	1
+a	(?i)a	1	1
+a	A	1	0
+a	a	1	1
+DROP TABLE t1,t2;
+CREATE TABLE t1 (ch VARCHAR(22)) CHARACTER SET utf8;
+CREATE TABLE t2 (class VARCHAR(32)) CHARACTER SET utf8;
+INSERT INTO t1 VALUES ('Я'),('Σ'),('A'),('À');
+INSERT INTO t1 VALUES ('я'),('σ'),('a'),('à');
+INSERT INTO t1 VALUES ('㐗'),('갷'),('ප');
+INSERT INTO t1 VALUES ('1'),('௨');
+INSERT INTO t2 VALUES ('\\p{Cyrillic}'),('\\p{Greek}'),('\\p{Latin}');
+INSERT INTO t2 VALUES ('\\p{Han}'),('\\p{Hangul}');
+INSERT INTO t2 VALUES ('\\p{Sinhala}'), ('\\p{Tamil}');
+INSERT INTO t2 VALUES ('\\p{L}'),('\\p{Ll}'),('\\p{Lu}'),('\\p{L&}');
+INSERT INTO t2 VALUES ('[[:alpha:]]'),('[[:digit:]]');
+SELECT class, ch, ch RLIKE class FROM t1, t2 ORDER BY class, BINARY ch;
+class	ch	ch RLIKE class
+[[:alpha:]]	1	0
+[[:alpha:]]	A	1
+[[:alpha:]]	a	1
+[[:alpha:]]	À	1
+[[:alpha:]]	à	1
+[[:alpha:]]	Σ	1
+[[:alpha:]]	σ	1
+[[:alpha:]]	Я	1
+[[:alpha:]]	я	1
+[[:alpha:]]	௨	0
+[[:alpha:]]	ප	1
+[[:alpha:]]	㐗	1
+[[:alpha:]]	갷	1
+[[:digit:]]	1	1
+[[:digit:]]	A	0
+[[:digit:]]	a	0
+[[:digit:]]	À	0
+[[:digit:]]	à	0
+[[:digit:]]	Σ	0
+[[:digit:]]	σ	0
+[[:digit:]]	Я	0
+[[:digit:]]	я	0
+[[:digit:]]	௨	1
+[[:digit:]]	ප	0
+[[:digit:]]	㐗	0
+[[:digit:]]	갷	0
+\p{Cyrillic}	1	0
+\p{Cyrillic}	A	0
+\p{Cyrillic}	a	0
+\p{Cyrillic}	À	0
+\p{Cyrillic}	à	0
+\p{Cyrillic}	Σ	0
+\p{Cyrillic}	σ	0
+\p{Cyrillic}	Я	1
+\p{Cyrillic}	я	1
+\p{Cyrillic}	௨	0
+\p{Cyrillic}	ප	0
+\p{Cyrillic}	㐗	0
+\p{Cyrillic}	갷	0
+\p{Greek}	1	0
+\p{Greek}	A	0
+\p{Greek}	a	0
+\p{Greek}	À	0
+\p{Greek}	à	0
+\p{Greek}	Σ	1
+\p{Greek}	σ	1
+\p{Greek}	Я	0
+\p{Greek}	я	0
+\p{Greek}	௨	0
+\p{Greek}	ප	0
+\p{Greek}	㐗	0
+\p{Greek}	갷	0
+\p{Hangul}	1	0
+\p{Hangul}	A	0
+\p{Hangul}	a	0
+\p{Hangul}	À	0
+\p{Hangul}	à	0
+\p{Hangul}	Σ	0
+\p{Hangul}	σ	0
+\p{Hangul}	Я	0
+\p{Hangul}	я	0
+\p{Hangul}	௨	0
+\p{Hangul}	ප	0
+\p{Hangul}	㐗	0
+\p{Hangul}	갷	1
+\p{Han}	1	0
+\p{Han}	A	0
+\p{Han}	a	0
+\p{Han}	À	0
+\p{Han}	à	0
+\p{Han}	Σ	0
+\p{Han}	σ	0
+\p{Han}	Я	0
+\p{Han}	я	0
+\p{Han}	௨	0
+\p{Han}	ප	0
+\p{Han}	㐗	1
+\p{Han}	갷	0
+\p{L&}	1	0
+\p{L&}	A	1
+\p{L&}	a	1
+\p{L&}	À	1
+\p{L&}	à	1
+\p{L&}	Σ	1
+\p{L&}	σ	1
+\p{L&}	Я	1
+\p{L&}	я	1
+\p{L&}	௨	0
+\p{L&}	ප	0
+\p{L&}	㐗	0
+\p{L&}	갷	0
+\p{Latin}	1	0
+\p{Latin}	A	1
+\p{Latin}	a	1
+\p{Latin}	À	1
+\p{Latin}	à	1
+\p{Latin}	Σ	0
+\p{Latin}	σ	0
+\p{Latin}	Я	0
+\p{Latin}	я	0
+\p{Latin}	௨	0
+\p{Latin}	ප	0
+\p{Latin}	㐗	0
+\p{Latin}	갷	0
+\p{Ll}	1	0
+\p{Ll}	A	0
+\p{Ll}	a	1
+\p{Ll}	À	0
+\p{Ll}	à	1
+\p{Ll}	Σ	0
+\p{Ll}	σ	1
+\p{Ll}	Я	0
+\p{Ll}	я	1
+\p{Ll}	௨	0
+\p{Ll}	ප	0
+\p{Ll}	㐗	0
+\p{Ll}	갷	0
+\p{Lu}	1	0
+\p{Lu}	A	1
+\p{Lu}	a	0
+\p{Lu}	À	1
+\p{Lu}	à	0
+\p{Lu}	Σ	1
+\p{Lu}	σ	0
+\p{Lu}	Я	1
+\p{Lu}	я	0
+\p{Lu}	௨	0
+\p{Lu}	ප	0
+\p{Lu}	㐗	0
+\p{Lu}	갷	0
+\p{L}	1	0
+\p{L}	A	1
+\p{L}	a	1
+\p{L}	À	1
+\p{L}	à	1
+\p{L}	Σ	1
+\p{L}	σ	1
+\p{L}	Я	1
+\p{L}	я	1
+\p{L}	௨	0
+\p{L}	ප	1
+\p{L}	㐗	1
+\p{L}	갷	1
+\p{Sinhala}	1	0
+\p{Sinhala}	A	0
+\p{Sinhala}	a	0
+\p{Sinhala}	À	0
+\p{Sinhala}	à	0
+\p{Sinhala}	Σ	0
+\p{Sinhala}	σ	0
+\p{Sinhala}	Я	0
+\p{Sinhala}	я	0
+\p{Sinhala}	௨	0
+\p{Sinhala}	ප	1
+\p{Sinhala}	㐗	0
+\p{Sinhala}	갷	0
+\p{Tamil}	1	0
+\p{Tamil}	A	0
+\p{Tamil}	a	0
+\p{Tamil}	À	0
+\p{Tamil}	à	0
+\p{Tamil}	Σ	0
+\p{Tamil}	σ	0
+\p{Tamil}	Я	0
+\p{Tamil}	я	0
+\p{Tamil}	௨	1
+\p{Tamil}	ප	0
+\p{Tamil}	㐗	0
+\p{Tamil}	갷	0
+DROP TABLE t1, t2;
+SELECT 0xFF RLIKE '\\w';
+0xFF RLIKE '\\w'
+0
+SELECT 0xFF RLIKE '(*UCP)\\w';
+0xFF RLIKE '(*UCP)\\w'
+1
+SELECT '\n' RLIKE '(*CR)';
+'\n' RLIKE '(*CR)'
+1
+SELECT '\n' RLIKE '(*LF)';
+'\n' RLIKE '(*LF)'
+1
+SELECT '\n' RLIKE '(*CRLF)';
+'\n' RLIKE '(*CRLF)'
+1
+SELECT '\n' RLIKE '(*ANYCRLF)';
+'\n' RLIKE '(*ANYCRLF)'
+1
+SELECT '\n' RLIKE '(*ANY)';
+'\n' RLIKE '(*ANY)'
+1
+SELECT 'a\nb' RLIKE '(*LF)(?m)^a$';
+'a\nb' RLIKE '(*LF)(?m)^a$'
+1
+SELECT 'a\nb' RLIKE '(*CR)(?m)^a$';
+'a\nb' RLIKE '(*CR)(?m)^a$'
+0
+SELECT 'a\nb' RLIKE '(*CRLF)(?m)^a$';
+'a\nb' RLIKE '(*CRLF)(?m)^a$'
+0
+SELECT 'a\nb' RLIKE '(*ANYCRLF)(?m)^a$';
+'a\nb' RLIKE '(*ANYCRLF)(?m)^a$'
+1
+SELECT 'a\rb' RLIKE '(*LF)(?m)^a$';
+'a\rb' RLIKE '(*LF)(?m)^a$'
+0
+SELECT 'a\rb' RLIKE '(*CR)(?m)^a$';
+'a\rb' RLIKE '(*CR)(?m)^a$'
+1
+SELECT 'a\rb' RLIKE '(*CRLF)(?m)^a$';
+'a\rb' RLIKE '(*CRLF)(?m)^a$'
+0
+SELECT 'a\rb' RLIKE '(*ANYCRLF)(?m)^a$';
+'a\rb' RLIKE '(*ANYCRLF)(?m)^a$'
+1
+SELECT 'a\r\nb' RLIKE '(*LF)(?m)^a$';
+'a\r\nb' RLIKE '(*LF)(?m)^a$'
+0
+SELECT 'a\r\nb' RLIKE '(*CR)(?m)^a$';
+'a\r\nb' RLIKE '(*CR)(?m)^a$'
+1
+SELECT 'a\r\nb' RLIKE '(*CRLF)(?m)^a$';
+'a\r\nb' RLIKE '(*CRLF)(?m)^a$'
+1
+SELECT 'a\r\nb' RLIKE '(*ANYCRLF)(?m)^a$';
+'a\r\nb' RLIKE '(*ANYCRLF)(?m)^a$'
+1
+SELECT 'aa' RLIKE '(a)\\g1';
+'aa' RLIKE '(a)\\g1'
+1
+SELECT 'aa bb' RLIKE '(a)\\g1 (b)\\g2';
+'aa bb' RLIKE '(a)\\g1 (b)\\g2'
+1
+SELECT 'aaaaa' RLIKE 'a{0,5}';
+'aaaaa' RLIKE 'a{0,5}'
+1
+SELECT 'aaaaa' RLIKE 'a{1,3}';
+'aaaaa' RLIKE 'a{1,3}'
+1
+SELECT 'aaaaa' RLIKE 'a{0,}';
+'aaaaa' RLIKE 'a{0,}'
+1
+SELECT 'aaaaa' RLIKE 'a{10,20}';
+'aaaaa' RLIKE 'a{10,20}'
+0
+SELECT 'aabb' RLIKE 'a(?R)?b';
+'aabb' RLIKE 'a(?R)?b'
+1
+SELECT 'aabb' RLIKE 'aa(?R)?bb';
+'aabb' RLIKE 'aa(?R)?bb'
+1
+SELECT 'abcc' RLIKE 'a(?>bc|b)c';
+'abcc' RLIKE 'a(?>bc|b)c'
+1
+SELECT 'abc' RLIKE 'a(?>bc|b)c';
+'abc' RLIKE 'a(?>bc|b)c'
+0
+SELECT 'ab' RLIKE 'a(?!b)';
+'ab' RLIKE 'a(?!b)'
+0
+SELECT 'ac' RLIKE 'a(?!b)';
+'ac' RLIKE 'a(?!b)'
+1
+SELECT 'ab' RLIKE 'a(?=b)';
+'ab' RLIKE 'a(?=b)'
+1
+SELECT 'ac' RLIKE 'a(?=b)';
+'ac' RLIKE 'a(?=b)'
+0
+SELECT 'ab' RLIKE '(?<!a)b';
+'ab' RLIKE '(?<!a)b'
+0
+SELECT 'cb' RLIKE '(?<!a)b';
+'cb' RLIKE '(?<!a)b'
+1
+SELECT 'ab' RLIKE '(?<=a)b';
+'ab' RLIKE '(?<=a)b'
+1
+SELECT 'cb' RLIKE '(?<=a)b';
+'cb' RLIKE '(?<=a)b'
+0
+SELECT 'aa' RLIKE '(?P<pattern>a)(?P=pattern)';
+'aa' RLIKE '(?P<pattern>a)(?P=pattern)'
+1
+SELECT 'aba' RLIKE '(?P<pattern>a)b(?P=pattern)';
+'aba' RLIKE '(?P<pattern>a)b(?P=pattern)'
+1
+SELECT 'a' RLIKE 'a(?#comment)';
+'a' RLIKE 'a(?#comment)'
+1
+SELECT 'aa' RLIKE 'a(?#comment)a';
+'aa' RLIKE 'a(?#comment)a'
+1
+SELECT 'aba' RLIKE 'a(?#b)a';
+'aba' RLIKE 'a(?#b)a'
+0
+SELECT 'aaa' RLIKE '\\W\\W\\W';
+'aaa' RLIKE '\\W\\W\\W'
+0
+SELECT '%' RLIKE '\\W';
+'%' RLIKE '\\W'
+1
+SELECT '%a$' RLIKE '\\W.\\W';
+'%a$' RLIKE '\\W.\\W'
+1
+SELECT '123' RLIKE '\\d\\d\\d';
+'123' RLIKE '\\d\\d\\d'
+1
+SELECT 'aaa' RLIKE '\\d\\d\\d';
+'aaa' RLIKE '\\d\\d\\d'
+0
+SELECT '1a3' RLIKE '\\d.\\d';
+'1a3' RLIKE '\\d.\\d'
+1
+SELECT 'a1b' RLIKE '\\d.\\d';
+'a1b' RLIKE '\\d.\\d'
+0
+SELECT '8' RLIKE '\\D';
+'8' RLIKE '\\D'
+0
+SELECT 'a' RLIKE '\\D';
+'a' RLIKE '\\D'
+1
+SELECT '%' RLIKE '\\D';
+'%' RLIKE '\\D'
+1
+SELECT 'a1' RLIKE '\\D\\d';
+'a1' RLIKE '\\D\\d'
+1
+SELECT 'a1' RLIKE '\\d\\D';
+'a1' RLIKE '\\d\\D'
+0
+SELECT '\t' RLIKE '\\s';
+'\t' RLIKE '\\s'
+1
+SELECT '\r' RLIKE '\\s';
+'\r' RLIKE '\\s'
+1
+SELECT '\n' RLIKE '\\s';
+'\n' RLIKE '\\s'
+1
+SELECT '\v' RLIKE '\\s';
+'\v' RLIKE '\\s'
+0
+SELECT 'a' RLIKE '\\S';
+'a' RLIKE '\\S'
+1
+SELECT '1' RLIKE '\\S';
+'1' RLIKE '\\S'
+1
+SELECT '!' RLIKE '\\S';
+'!' RLIKE '\\S'
+1
+SELECT '.' RLIKE '\\S';
+'.' RLIKE '\\S'
+1
+SELECT 'abc\0def' REGEXP 'def';
+'abc\0def' REGEXP 'def'
+1
+SELECT 'abc\0def' REGEXP 'abc\\x{00}def';
+'abc\0def' REGEXP 'abc\\x{00}def'
+1
+SELECT HEX(REGEXP_SUBSTR('abc\0def','abc\\x{00}def'));
+HEX(REGEXP_SUBSTR('abc\0def','abc\\x{00}def'))
+61626300646566
+#
+# Checking REGEXP_REPLACE
+#
+CREATE TABLE t1 AS SELECT REGEXP_REPLACE('abc','b','x');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `REGEXP_REPLACE('abc','b','x')` longtext CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXPLAIN EXTENDED SELECT REGEXP_REPLACE('abc','b','x');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select regexp_replace('abc','b','x') AS `REGEXP_REPLACE('abc','b','x')`
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t1 AS SELECT REGEXP_REPLACE('abc','b','x')+0;
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'axc'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `REGEXP_REPLACE('abc','b','x')+0` double NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SELECT REGEXP_REPLACE(NULL,'b','c');
+REGEXP_REPLACE(NULL,'b','c')
+NULL
+SELECT REGEXP_REPLACE('a',NULL,'c');
+REGEXP_REPLACE('a',NULL,'c')
+NULL
+SELECT REGEXP_REPLACE('a','b',NULL);
+REGEXP_REPLACE('a','b',NULL)
+NULL
+SELECT REGEXP_REPLACE('a','x','b');
+REGEXP_REPLACE('a','x','b')
+a
+SELECT REGEXP_REPLACE('a','','b');
+REGEXP_REPLACE('a','','b')
+a
+SELECT REGEXP_REPLACE('a5b ab a5b','(?<=a)5*(?=b)','x');
+REGEXP_REPLACE('a5b ab a5b','(?<=a)5*(?=b)','x')
+axb ab a5b
+SELECT REGEXP_REPLACE('a5b a5b a5b','(?<=a)5*(?=b)','x');
+REGEXP_REPLACE('a5b a5b a5b','(?<=a)5*(?=b)','x')
+axb axb axb
+SELECT REGEXP_REPLACE('A','a','b');
+REGEXP_REPLACE('A','a','b')
+b
+SELECT REGEXP_REPLACE('a','A','b');
+REGEXP_REPLACE('a','A','b')
+b
+SELECT REGEXP_REPLACE('A' COLLATE utf8_bin,'a','b');
+REGEXP_REPLACE('A' COLLATE utf8_bin,'a','b')
+A
+SELECT REGEXP_REPLACE('a' COLLATE utf8_bin,'A','b');
+REGEXP_REPLACE('a' COLLATE utf8_bin,'A','b')
+a
+SELECT REGEXP_REPLACE('James Bond', '(.*) (.*)', '\\2, \\1 \\2');
+REGEXP_REPLACE('James Bond', '(.*) (.*)', '\\2, \\1 \\2')
+Bond, James Bond
+SELECT REGEXP_REPLACE('абвгд','в','ц');
+REGEXP_REPLACE('абвгд','в','ц')
+абцгд
+SELECT REGEXP_REPLACE('г',0xB3,0xB4);
+REGEXP_REPLACE('г',0xB3,0xB4)
+д
+SELECT REGEXP_REPLACE('aaaa','a','b');
+REGEXP_REPLACE('aaaa','a','b')
+bbbb
+SELECT REGEXP_REPLACE('aaaa','(?<=.)a','b');
+REGEXP_REPLACE('aaaa','(?<=.)a','b')
+abbb
+SELECT REGEXP_REPLACE('aaaa','a(?=.)','b');
+REGEXP_REPLACE('aaaa','a(?=.)','b')
+bbba
+SELECT REGEXP_REPLACE('aaaa','(?<=.)a(?=.)','b');
+REGEXP_REPLACE('aaaa','(?<=.)a(?=.)','b')
+abba
+SELECT REGEXP_REPLACE('a\nb','(*LF)(?m)^a$','c');
+REGEXP_REPLACE('a\nb','(*LF)(?m)^a$','c')
+c
+b
+SELECT REGEXP_REPLACE('a\nb','(*CR)(?m)^a$','c');
+REGEXP_REPLACE('a\nb','(*CR)(?m)^a$','c')
+a
+b
+SELECT REGEXP_REPLACE('a\nb','(*CRLF)(?m)^a$','c');
+REGEXP_REPLACE('a\nb','(*CRLF)(?m)^a$','c')
+a
+b
+SELECT REGEXP_REPLACE('a\nb','(*ANYCRLF)(?m)^a$','c');
+REGEXP_REPLACE('a\nb','(*ANYCRLF)(?m)^a$','c')
+c
+b
+SELECT REGEXP_REPLACE('a\rb','(*LF)(?m)^a$','c');
+REGEXP_REPLACE('a\rb','(*LF)(?m)^a$','c')
+ab
+SELECT REGEXP_REPLACE('a\rb','(*CR)(?m)^a$','c');
+REGEXP_REPLACE('a\rb','(*CR)(?m)^a$','c')
+cb
+SELECT REGEXP_REPLACE('a\rb','(*CRLF)(?m)^a$','c');
+REGEXP_REPLACE('a\rb','(*CRLF)(?m)^a$','c')
+ab
+SELECT REGEXP_REPLACE('a\rb','(*ANYCRLF)(?m)^a$','c');
+REGEXP_REPLACE('a\rb','(*ANYCRLF)(?m)^a$','c')
+cb
+SELECT REGEXP_REPLACE('a\r\nb','(*LF)(?m)^a$','c');
+REGEXP_REPLACE('a\r\nb','(*LF)(?m)^a$','c')
+a
+b
+SELECT REGEXP_REPLACE('a\r\nb','(*CR)(?m)^a$','c');
+REGEXP_REPLACE('a\r\nb','(*CR)(?m)^a$','c')
+c
+b
+SELECT REGEXP_REPLACE('a\r\nb','(*CRLF)(?m)^a$','c');
+REGEXP_REPLACE('a\r\nb','(*CRLF)(?m)^a$','c')
+c
+b
+SELECT REGEXP_REPLACE('a\r\nb','(*ANYCRLF)(?m)^a$','c');
+REGEXP_REPLACE('a\r\nb','(*ANYCRLF)(?m)^a$','c')
+c
+b
+SELECT REGEXP_REPLACE('aa','(a)\\g1','b');
+REGEXP_REPLACE('aa','(a)\\g1','b')
+b
+SELECT REGEXP_REPLACE('aa bb','(a)\\g1 (b)\\g2','c');
+REGEXP_REPLACE('aa bb','(a)\\g1 (b)\\g2','c')
+c
+SELECT REGEXP_REPLACE('aaaaa','a{1,3}','b');
+REGEXP_REPLACE('aaaaa','a{1,3}','b')
+bb
+SELECT REGEXP_REPLACE('aaaaa','a{10,20}','b');
+REGEXP_REPLACE('aaaaa','a{10,20}','b')
+aaaaa
+SELECT REGEXP_REPLACE('daabbd','a(?R)?b','c');
+REGEXP_REPLACE('daabbd','a(?R)?b','c')
+dcd
+SELECT REGEXP_REPLACE('daabbd','aa(?R)?bb','c');
+REGEXP_REPLACE('daabbd','aa(?R)?bb','c')
+dcd
+SELECT REGEXP_REPLACE('dabccd','a(?>bc|b)c','e');
+REGEXP_REPLACE('dabccd','a(?>bc|b)c','e')
+ded
+SELECT REGEXP_REPLACE('dabcd','a(?>bc|b)c','e');
+REGEXP_REPLACE('dabcd','a(?>bc|b)c','e')
+dabcd
+SELECT REGEXP_REPLACE('ab','a(?!b)','e');
+REGEXP_REPLACE('ab','a(?!b)','e')
+ab
+SELECT REGEXP_REPLACE('ac','a(?!b)','e');
+REGEXP_REPLACE('ac','a(?!b)','e')
+ec
+SELECT REGEXP_REPLACE('ab','a(?=b)','e');
+REGEXP_REPLACE('ab','a(?=b)','e')
+eb
+SELECT REGEXP_REPLACE('ac','a(?=b)','e');
+REGEXP_REPLACE('ac','a(?=b)','e')
+ac
+SELECT REGEXP_REPLACE('ab','(?<!a)b','e');
+REGEXP_REPLACE('ab','(?<!a)b','e')
+ab
+SELECT REGEXP_REPLACE('cb','(?<!a)b','e');
+REGEXP_REPLACE('cb','(?<!a)b','e')
+ce
+SELECT REGEXP_REPLACE('ab','(?<=a)b','e');
+REGEXP_REPLACE('ab','(?<=a)b','e')
+ae
+SELECT REGEXP_REPLACE('cb','(?<=a)b','e');
+REGEXP_REPLACE('cb','(?<=a)b','e')
+cb
+SELECT REGEXP_REPLACE('aa','(?P<pattern>a)(?P=pattern)','b');
+REGEXP_REPLACE('aa','(?P<pattern>a)(?P=pattern)','b')
+b
+SELECT REGEXP_REPLACE('aba','(?P<pattern>a)b(?P=pattern)','c');
+REGEXP_REPLACE('aba','(?P<pattern>a)b(?P=pattern)','c')
+c
+SELECT REGEXP_REPLACE('a','a(?#comment)','e');
+REGEXP_REPLACE('a','a(?#comment)','e')
+e
+SELECT REGEXP_REPLACE('aa','a(?#comment)a','e');
+REGEXP_REPLACE('aa','a(?#comment)a','e')
+e
+SELECT REGEXP_REPLACE('aba','a(?#b)a','e');
+REGEXP_REPLACE('aba','a(?#b)a','e')
+aba
+SELECT REGEXP_REPLACE('ddd<ab>cc</ab>eee','<.+?>','*');
+REGEXP_REPLACE('ddd<ab>cc</ab>eee','<.+?>','*')
+ddd*cc*eee
+SELECT REGEXP_REPLACE('aaa','\\W\\W\\W','e');
+REGEXP_REPLACE('aaa','\\W\\W\\W','e')
+aaa
+SELECT REGEXP_REPLACE('aaa','\\w\\w\\w','e');
+REGEXP_REPLACE('aaa','\\w\\w\\w','e')
+e
+SELECT REGEXP_REPLACE('%','\\W','e');
+REGEXP_REPLACE('%','\\W','e')
+e
+SELECT REGEXP_REPLACE('%a$','\\W.\\W','e');
+REGEXP_REPLACE('%a$','\\W.\\W','e')
+e
+SELECT REGEXP_REPLACE('%a$','\\W\\w\\W','e');
+REGEXP_REPLACE('%a$','\\W\\w\\W','e')
+e
+SELECT REGEXP_REPLACE('123','\\d\\d\\d\\d\\d\\d','e');
+REGEXP_REPLACE('123','\\d\\d\\d\\d\\d\\d','e')
+123
+SELECT REGEXP_REPLACE('123','\\d\\d\\d','e');
+REGEXP_REPLACE('123','\\d\\d\\d','e')
+e
+SELECT REGEXP_REPLACE('aaa','\\d\\d\\d','e');
+REGEXP_REPLACE('aaa','\\d\\d\\d','e')
+aaa
+SELECT REGEXP_REPLACE('1a3','\\d.\\d\\d.\\d','e');
+REGEXP_REPLACE('1a3','\\d.\\d\\d.\\d','e')
+1a3
+SELECT REGEXP_REPLACE('1a3','\\d.\\d','e');
+REGEXP_REPLACE('1a3','\\d.\\d','e')
+e
+SELECT REGEXP_REPLACE('a1b','\\d.\\d','e');
+REGEXP_REPLACE('a1b','\\d.\\d','e')
+a1b
+SELECT REGEXP_REPLACE('8','\\D','e');
+REGEXP_REPLACE('8','\\D','e')
+8
+SELECT REGEXP_REPLACE('a','\\D','e');
+REGEXP_REPLACE('a','\\D','e')
+e
+SELECT REGEXP_REPLACE('%','\\D','e');
+REGEXP_REPLACE('%','\\D','e')
+e
+SELECT REGEXP_REPLACE('a1','\\D\\d','e');
+REGEXP_REPLACE('a1','\\D\\d','e')
+e
+SELECT REGEXP_REPLACE('a1','\\d\\D','e');
+REGEXP_REPLACE('a1','\\d\\D','e')
+a1
+SELECT REGEXP_REPLACE('\t','\\s','e');
+REGEXP_REPLACE('\t','\\s','e')
+e
+SELECT REGEXP_REPLACE('\r','\\s','e');
+REGEXP_REPLACE('\r','\\s','e')
+e
+SELECT REGEXP_REPLACE('\n','\\s','e');
+REGEXP_REPLACE('\n','\\s','e')
+e
+SELECT REGEXP_REPLACE('a','\\S','e');
+REGEXP_REPLACE('a','\\S','e')
+e
+SELECT REGEXP_REPLACE('1','\\S','e');
+REGEXP_REPLACE('1','\\S','e')
+e
+SELECT REGEXP_REPLACE('!','\\S','e');
+REGEXP_REPLACE('!','\\S','e')
+e
+SELECT REGEXP_REPLACE('.','\\S','e');
+REGEXP_REPLACE('.','\\S','e')
+e
+#
+# Checking REGEXP_INSTR
+#
+SELECT REGEXP_INSTR('abcd','X');
+REGEXP_INSTR('abcd','X')
+0
+SELECT REGEXP_INSTR('abcd','a');
+REGEXP_INSTR('abcd','a')
+1
+SELECT REGEXP_INSTR('abcd','b');
+REGEXP_INSTR('abcd','b')
+2
+SELECT REGEXP_INSTR('abcd','c');
+REGEXP_INSTR('abcd','c')
+3
+SELECT REGEXP_INSTR('abcd','d');
+REGEXP_INSTR('abcd','d')
+4
+SELECT REGEXP_INSTR('aaaa','(?<=a)a');
+REGEXP_INSTR('aaaa','(?<=a)a')
+2
+SELECT REGEXP_INSTR('вася','в');
+REGEXP_INSTR('вася','в')
+1
+SELECT REGEXP_INSTR('вася','а');
+REGEXP_INSTR('вася','а')
+2
+SELECT REGEXP_INSTR('вася','с');
+REGEXP_INSTR('вася','с')
+3
+SELECT REGEXP_INSTR('вася','я');
+REGEXP_INSTR('вася','я')
+4
+SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('в' USING koi8r));
+REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('в' USING koi8r))
+1
+SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('а' USING koi8r));
+REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('а' USING koi8r))
+2
+SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('с' USING koi8r));
+REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('с' USING koi8r))
+3
+SELECT REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('я' USING koi8r));
+REGEXP_INSTR(CONVERT('вася' USING koi8r), CONVERT('я' USING koi8r))
+4
+#
+# Checking REGEXP_SUBSTR
+#
+CREATE TABLE t1 AS SELECT REGEXP_SUBSTR('abc','b');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `REGEXP_SUBSTR('abc','b')` varchar(3) CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+EXPLAIN EXTENDED SELECT REGEXP_SUBSTR('abc','b');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select regexp_substr('abc','b') AS `REGEXP_SUBSTR('abc','b')`
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
+CREATE TABLE t1 AS SELECT REGEXP_SUBSTR('abc','b')+0;
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'b'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `REGEXP_SUBSTR('abc','b')+0` double NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+SELECT REGEXP_SUBSTR('See https://mariadb.org/en/foundation/ for details', 'https?://[^/]*');
+REGEXP_SUBSTR('See https://mariadb.org/en/foundation/ for details', 'https?://[^/]*')
+https://mariadb.org
+#
+# MDEV-6027 RLIKE: "." no longer matching new line
+#
+SELECT  'cat and\ndog'  RLIKE 'cat.*dog';
+'cat and\ndog'  RLIKE 'cat.*dog'
+0
+SELECT  'cat and\r\ndog'  RLIKE 'cat.*dog';
+'cat and\r\ndog'  RLIKE 'cat.*dog'
+0
+SELECT 'a\nb' RLIKE 'a.b';
+'a\nb' RLIKE 'a.b'
+0
+SELECT 'a\nb' RLIKE '(?-s)a.b';
+'a\nb' RLIKE '(?-s)a.b'
+0
+SET default_regex_flags='DOTALL';
+SELECT @@default_regex_flags;
+@@default_regex_flags
+DOTALL
+SELECT  'cat and\ndog'  RLIKE 'cat.*dog';
+'cat and\ndog'  RLIKE 'cat.*dog'
+1
+SELECT  'cat and\r\ndog'  RLIKE 'cat.*dog';
+'cat and\r\ndog'  RLIKE 'cat.*dog'
+1
+SELECT 'a\nb' RLIKE 'a.b';
+'a\nb' RLIKE 'a.b'
+1
+SELECT 'a\nb' RLIKE '(?-s)a.b';
+'a\nb' RLIKE '(?-s)a.b'
+0
+SET default_regex_flags=DEFAULT;
+SELECT REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$');
+ERROR 42000: Got error 'two named subpatterns have the same name at offset 29' from regexp
+SET default_regex_flags='DUPNAMES';
+SELECT REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$');
+REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$')
+Monday Mon
+SELECT REGEXP_SUBSTR('Tuesday Tue','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$');
+REGEXP_SUBSTR('Tuesday Tue','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$')
+Tuesday Tue
+SET default_regex_flags=DEFAULT;
+SELECT 'AB' RLIKE 'A B';
+'AB' RLIKE 'A B'
+0
+SELECT 'AB' RLIKE 'A# this is a comment\nB';
+'AB' RLIKE 'A# this is a comment\nB'
+0
+SET default_regex_flags='EXTENDED';
+SELECT 'AB' RLIKE 'A B';
+'AB' RLIKE 'A B'
+1
+SELECT 'AB' RLIKE 'A# this is a comment\nB';
+'AB' RLIKE 'A# this is a comment\nB'
+1
+SET default_regex_flags=DEFAULT;
+SELECT 'Aq' RLIKE 'A\\q';
+'Aq' RLIKE 'A\\q'
+1
+SET default_regex_flags='EXTRA';
+SELECT 'Aq' RLIKE 'A\\q';
+ERROR 42000: Got error 'unrecognized character follows \ at offset 2' from regexp
+SET default_regex_flags=DEFAULT;
+SELECT 'a\nb\nc' RLIKE '^b$';
+'a\nb\nc' RLIKE '^b$'
+0
+SET default_regex_flags='MULTILINE';
+SELECT 'a\nb\nc' RLIKE '^b$';
+'a\nb\nc' RLIKE '^b$'
+1
+SET default_regex_flags=DEFAULT;
+SELECT REGEXP_SUBSTR('abc','.+');
+REGEXP_SUBSTR('abc','.+')
+abc
+SELECT REGEXP_REPLACE('abc','^(.*)(.*)$','\\1/\\2');
+REGEXP_REPLACE('abc','^(.*)(.*)$','\\1/\\2')
+abc/
+SET default_regex_flags='UNGREEDY';
+SELECT REGEXP_SUBSTR('abc','.+');
+REGEXP_SUBSTR('abc','.+')
+a
+SELECT REGEXP_REPLACE('abc','^(.*)(.*)$','\\1/\\2');
+REGEXP_REPLACE('abc','^(.*)(.*)$','\\1/\\2')
+/abc
+SET default_regex_flags=DEFAULT;
+#
+# MDEV-6965 non-captured group \2 in regexp_replace
+#
+SELECT REGEXP_REPLACE('1 foo and bar', '(\\d+) foo and (\\d+ )?bar', '\\1 this and \\2that');
+REGEXP_REPLACE('1 foo and bar', '(\\d+) foo and (\\d+ )?bar', '\\1 this and \\2that')
+1 this and that
+#
+# MDEV-8102 REGEXP function fails to match hex values when expression is stored as a variable
+#
+# Testing a warning
+SET NAMES latin1;
+SET @regCheck= '\\xE0\\x01';
+SELECT 0xE001 REGEXP @regCheck;
+0xE001 REGEXP @regCheck
+0
+Warnings:
+Warning	1139	Got error 'pcre_exec: Invalid utf8 byte sequence in the subject string' from regexp
+# Testing workaround N1: This makes the pattern to be a binary string:
+SET NAMES latin1;
+SET @regCheck= X'E001';
+SELECT 0xE001 REGEXP @regCheck;
+0xE001 REGEXP @regCheck
+1
+# Testing workaround N2: This also makes the pattern to be a binary string, using a different syntax:
+SET NAMES latin1;
+SET @regCheck= _binary '\\xE0\\x01';
+SELECT 0xE001 REGEXP @regCheck;
+0xE001 REGEXP @regCheck
+1
+# Testing workarond N3: This makes derivation of the subject string stronger (IMLICIT instead of COERCIBLE)
+SET NAMES latin1;
+SET @regCheck= '\\xE0\\x01';
+SELECT CAST(0xE001 AS BINARY) REGEXP @regCheck;
+CAST(0xE001 AS BINARY) REGEXP @regCheck
+1
+# MDEV-12420: Testing recursion overflow
+SELECT 1 FROM dual WHERE ('Alpha,Bravo,Charlie,Delta,Echo,Foxtrot,StrataCentral,Golf,Hotel,India,Juliet,Kilo,Lima,Mike,StrataL3,November,Oscar,StrataL2,Sand,P3,P4SwitchTest,Arsys,Poppa,ExtensionMgr,Arp,Quebec,Romeo,StrataApiV2,PtReyes,Sierra,SandAcl,Arrow,Artools,BridgeTest,Tango,SandT,PAlaska,Namespace,Agent,Qos,PatchPanel,ProjectReport,Ark,Gimp,Agent,SliceAgent,Arnet,Bgp,Ale,Tommy,Central,AsicPktTestLib,Hsc,SandL3,Abuild,Pca9555,Standby,ControllerDut,CalSys,SandLib,Sb820,PointV2,BfnLib,Evpn,BfnSdk,Sflow,ManagementActive,AutoTest,GatedTest,Bgp,Sand,xinetd,BfnAgentLib,bf-utils,Hello,BfnState,Eos,Artest,Qos,Scd,ThermoMgr,Uniform,EosUtils,Eb,FanController,Central,BfnL3,BfnL2,tcp_wrappers,Victor,Environment,Route,Failover,Whiskey,Xray,Gimp,BfnFixed,Strata,SoCal,XApi,Msrp,XpProfile,tcpdump,PatchPanel,ArosTest,FhTest,Arbus,XpAcl,MacConc,XpApi,telnet,QosTest,Alpha2,BfnVlan,Stp,VxlanControllerTest,MplsAgent,Bravo2,Lanz,BfnMbb,Intf,XCtrl,Unicast,SandTunnel,L3Unicast,Ipsec,MplsTest,Rsvp,EthIntf,StageMgr,Sol,MplsUtils,Nat,Ira,P4NamespaceDut,Counters,Charlie2,Aqlc,Mlag,Power,OpenFlow,Lag,RestApi,BfdTest,strongs,Sfa,CEosUtils,Adt746,MaintenanceMode,MlagDut,EosImage,IpEth,MultiProtocol,Launcher,Max3179,Snmp,Acl,IpEthTest,PhyEee,bf-syslibs,tacc,XpL2,p4-ar-switch,p4-bf-switch,LdpTest,BfnPhy,Mirroring,Phy6,Ptp'  REGEXP '^((?!\b(Strata|StrataApi|StrataApiV2)\b).)*$');
+1
+Warnings:
+Warning	1139	Got error 'pcre_exec: recursion limit of NUM exceeded' from regexp
+SELECT CONCAT(REPEAT('100,',60),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$';
+CONCAT(REPEAT('100,',60),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$'
+1
+SELECT CONCAT(REPEAT('100,',400),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$';
+CONCAT(REPEAT('100,',400),'101') RLIKE '^(([1-9][0-9]*),)*[1-9][0-9]*$'
+0
+Warnings:
+Warning	1139	Got error 'pcre_exec: recursion limit of NUM exceeded' from regexp
+SELECT REGEXP_INSTR(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$');
+REGEXP_INSTR(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$')
+1
+SELECT REGEXP_INSTR(CONCAT(REPEAT('100,',400),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$');
+REGEXP_INSTR(CONCAT(REPEAT('100,',400),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$')
+0
+Warnings:
+Warning	1139	Got error 'pcre_exec: recursion limit of NUM exceeded' from regexp
+SELECT LENGTH(REGEXP_SUBSTR(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$'));
+LENGTH(REGEXP_SUBSTR(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$'))
+243
+SELECT LENGTH(REGEXP_SUBSTR(CONCAT(REPEAT('100,',400),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$'));
+LENGTH(REGEXP_SUBSTR(CONCAT(REPEAT('100,',400),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$'))
+0
+Warnings:
+Warning	1139	Got error 'pcre_exec: recursion limit of NUM exceeded' from regexp
+SELECT LENGTH(REGEXP_REPLACE(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$', ''));
+LENGTH(REGEXP_REPLACE(CONCAT(REPEAT('100,',60),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$', ''))
+0
+SELECT LENGTH(REGEXP_REPLACE(CONCAT(REPEAT('100,',400),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$', ''));
+LENGTH(REGEXP_REPLACE(CONCAT(REPEAT('100,',400),'101'), '^(([1-9][0-9]*),)*[1-9][0-9]*$', ''))
+1603
+Warnings:
+Warning	1139	Got error 'pcre_exec: recursion limit of NUM exceeded' from regexp
+SELECT REGEXP_INSTR('a_kollision', 'oll');
+REGEXP_INSTR('a_kollision', 'oll')
+4
+SELECT REGEXP_INSTR('a_kollision', '(oll)');
+REGEXP_INSTR('a_kollision', '(oll)')
+4
+SELECT REGEXP_INSTR('a_kollision', 'o([lm])\\1');
+REGEXP_INSTR('a_kollision', 'o([lm])\\1')
+4
+SELECT a FROM (SELECT "aa" a) t WHERE a REGEXP '[0-9]';
+a

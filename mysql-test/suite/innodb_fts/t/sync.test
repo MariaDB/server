@@ -123,7 +123,9 @@ INSERT INTO t1(title) VALUES('mysql');
 --source include/start_mysqld.inc
 
 -- echo After restart
-SELECT * FROM t1 WHERE MATCH(title) AGAINST ('mysql database');
+# PAGE_ROOT_AUTO_INC could contain last failed autoinc value. Avoid
+# doing show the result of auto increment field
+SELECT title FROM t1 WHERE MATCH(title) AGAINST ('mysql database');
 
 SET @old_dbug = @@SESSION.debug_dbug;
 
@@ -133,7 +135,7 @@ INSERT INTO t1(title) VALUES('mysql');
 
 SET debug_dbug = @old_dbug;
 
-SELECT * FROM t1 WHERE MATCH(title) AGAINST ('mysql database');
+SELECT title FROM t1 WHERE MATCH(title) AGAINST ('mysql database');
 
 DROP TABLE t1;
 

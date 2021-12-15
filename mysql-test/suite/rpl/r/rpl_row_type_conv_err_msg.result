@@ -1,0 +1,164 @@
+include/master-slave.inc
+[connection master]
+####################################################################
+# Test Case1: Improved error message with charset information
+####################################################################
+connection master;
+SET SQL_LOG_BIN=0;
+CREATE TABLE t1 (c1 VARCHAR(1) CHARACTER SET 'utf8mb3');
+SET SQL_LOG_BIN=1;
+connection slave;
+CREATE TABLE t1 (c1 VARCHAR(1) CHARACTER SET 'utf8mb4');
+connection master;
+INSERT INTO t1 VALUES ('a');
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1677]
+FOUND 1 /\'varchar\(3 octets\)\' to type \'varchar\(4 octets\) character set utf8mb4\'/ in mysqld.2.err
+connection master;
+DROP TABLE t1;
+connection slave;
+DROP TABLE t1;
+include/rpl_reset.inc
+####################################################################
+# Test Case2: Improved error message with charset information for CHAR
+# type
+####################################################################
+connection master;
+SET SQL_LOG_BIN=0;
+CREATE TABLE t1 (c1 CHAR(1) CHARACTER SET 'utf8mb3');
+SET SQL_LOG_BIN=1;
+connection slave;
+CREATE TABLE t1 (c1 CHAR(1) CHARACTER SET 'utf8mb4');
+connection master;
+INSERT INTO t1 VALUES ('a');
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1677]
+FOUND 1 /\'char\(3 octets\)\' to type \'char\(4 octets\) character set utf8mb4\'/ in mysqld.2.err
+connection master;
+DROP TABLE t1;
+connection slave;
+DROP TABLE t1;
+include/rpl_reset.inc
+####################################################################
+# Test Case3: For BLOB type fileds, when type conversion failed on
+# slave, the errormessage had incorrect type names.
+####################################################################
+connection master;
+SET SQL_LOG_BIN=0;
+CREATE TABLE t1 (c1 LONGBLOB);
+SET SQL_LOG_BIN=1;
+connection slave;
+CREATE TABLE t1 (c1 TINYBLOB);
+connection master;
+INSERT INTO t1 VALUES ('a');
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1677]
+FOUND 1 /\'longblob\' to type \'tinyblob\'/ in mysqld.2.err
+connection master;
+DROP TABLE t1;
+connection slave;
+DROP TABLE t1;
+include/rpl_reset.inc
+####################################################################
+# Test Case4: Verifies varbinary to binary type conversion failure
+#             specific error message.
+####################################################################
+connection master;
+SET SQL_LOG_BIN=0;
+CREATE TABLE t1 (c1 VARBINARY(10));
+SET SQL_LOG_BIN=1;
+connection slave;
+CREATE TABLE t1 (c1 BINARY(10));
+connection master;
+INSERT INTO t1 VALUES ('a');
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1677]
+FOUND 1 /\'varbinary\(10\)\' to type \'binary\(10\)\'/ in mysqld.2.err
+connection master;
+DROP TABLE t1;
+connection slave;
+DROP TABLE t1;
+include/rpl_reset.inc
+####################################################################
+# Test Case5: Verifies binary to varbinary type conversion failure
+#             specific error message.
+####################################################################
+connection master;
+SET SQL_LOG_BIN=0;
+CREATE TABLE t1 (c1 BINARY(10));
+SET SQL_LOG_BIN=1;
+connection slave;
+CREATE TABLE t1 (c1 VARBINARY(10));
+connection master;
+INSERT INTO t1 VALUES ('a');
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1677]
+FOUND 1 /\'binary\(10\)\' to type \'varbinary\(10\)\'/ in mysqld.2.err
+connection master;
+DROP TABLE t1;
+connection slave;
+DROP TABLE t1;
+include/rpl_reset.inc
+####################################################################
+# Test Case6: Verifies binary to binary type conversion failure
+#             specific error message.
+####################################################################
+connection master;
+SET SQL_LOG_BIN=0;
+CREATE TABLE t1 (c1 BINARY(1));
+SET SQL_LOG_BIN=1;
+connection slave;
+CREATE TABLE t1 (c1 BINARY(10));
+connection master;
+INSERT INTO t1 VALUES ('a');
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1677]
+FOUND 1 /\'binary\(1\)\' to type \'binary\(10\)\'/ in mysqld.2.err
+connection master;
+DROP TABLE t1;
+connection slave;
+DROP TABLE t1;
+include/rpl_reset.inc
+####################################################################
+# Test Case7: Verifies char to blob type conversion failure
+#             specific error message. BLOB field on slave has no
+#             associated character set hence the master side field
+#             is also considered as binary.
+####################################################################
+connection master;
+SET SQL_LOG_BIN=0;
+CREATE TABLE t1 (c1 CHAR(1));
+SET SQL_LOG_BIN=1;
+connection slave;
+CREATE TABLE t1 (c1 BLOB);
+connection master;
+INSERT INTO t1 VALUES ('a');
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1677]
+FOUND 1 /\'binary\(1\)\' to type \'blob\'/ in mysqld.2.err
+connection master;
+DROP TABLE t1;
+connection slave;
+DROP TABLE t1;
+include/rpl_reset.inc
+####################################################################
+# Test Case8: Verifies char to text type conversion failure
+#             specific error message.
+####################################################################
+connection master;
+SET SQL_LOG_BIN=0;
+CREATE TABLE t1 (c1 CHAR(1));
+SET SQL_LOG_BIN=1;
+connection slave;
+CREATE TABLE t1 (c1 TEXT);
+connection master;
+INSERT INTO t1 VALUES ('a');
+connection slave;
+include/wait_for_slave_sql_error.inc [errno=1677]
+FOUND 1 /\'char\(1 octets\)\' to type \'text\'/ in mysqld.2.err
+connection master;
+DROP TABLE t1;
+connection slave;
+DROP TABLE t1;
+include/rpl_reset.inc
+include/rpl_end.inc

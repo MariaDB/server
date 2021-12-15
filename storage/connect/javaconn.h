@@ -27,9 +27,9 @@
 //efine MAX_CURSOR_NAME  18     // Max size of a cursor name
 //efine DEFAULT_FIELD_TYPE 0    // TYPE_NULL
 
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 typedef unsigned char *PUCHAR;
-#endif   // !__WIN__
+#endif   // !_WIN32
 
 enum JCATINFO {
 	JCAT_TAB = 1,      // JDBC Tables
@@ -90,6 +90,7 @@ public:
 
 	// Java operations
 protected:
+	char *GetUTFString(jstring s);
 	bool gmID(PGLOBAL g, jmethodID& mid, const char *name, const char *sig);
 	bool Check(jint rc = 0);
 
@@ -103,11 +104,11 @@ public:
 
 protected:
 	// Members
-#if defined(__WIN__)
+#if defined(_WIN32)
 	static HANDLE LibJvm;              // Handle to the jvm DLL
-#else   // !__WIN__
+#else   // !_WIN32
 	static void  *LibJvm;              // Handle for the jvm shared library
-#endif  // !__WIN__
+#endif  // !_WIN32
 	static CRTJVM CreateJavaVM;
 	static GETJVM GetCreatedJavaVMs;
 #if defined(_DEBUG)

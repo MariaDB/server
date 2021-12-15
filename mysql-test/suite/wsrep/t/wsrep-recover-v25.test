@@ -1,0 +1,119 @@
+#
+# Verify that the wsrep XID gets updated in InnoDB rollback segment
+# properly and can be recovered with --wsrep-recover
+#
+# The test runs the following scenarios:
+#
+# 1) The server is started but no SQL is run
+# 2) DDL is executed
+# 3) INSERT is executed
+# 4) Two INSERTs are executed so that the first one in order will be
+#    blocked after certification and the second one before entering
+#    commit order critical section.
+# 5) Two DMLs are executed so that the prepare step is run out of order.
+#    Both transactions are blocked before commit order critical section.
+#
+# After each scenario server is killed and the recovered position
+# is validated.
+#
+
+--source include/have_wsrep.inc
+--source include/have_innodb.inc
+--source include/have_wsrep_provider.inc
+--source include/have_debug_sync.inc
+
+#
+# Binlog option for recovery run. This must be set in the test because
+# combinations file causes log-bin option to be set from command line,
+# not via my.cnf.
+#
+--let $log_bin = `SELECT @@log_bin`
+if ($log_bin) {
+--let $wsrep_recover_binlog_opt = --log-bin
+}
+
+#
+# Scenario 1
+# The expected recovered seqno is 1 corresponding to initial cluster
+# configuration change.
+#
+--source include/kill_mysqld.inc
+--source wsrep-recover-step.inc
+--echo Expect seqno 0
+--echo $wsrep_recover_start_position_seqno
+
+--let $restart_parameters = --wsrep-start-position=$wsrep_recover_start_position_uuid:$wsrep_recover_start_position_seqno
+--source include/start_mysqld.inc
+--source include/wait_wsrep_ready.inc
+
+#
+# Senario 2
+# The expected recovered seqno is 1 corresponding to CREATE TABLE
+#
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+--source include/kill_mysqld.inc
+--source wsrep-recover-step.inc
+--echo Expect seqno 1
+--echo $wsrep_recover_start_position_seqno
+
+--let $restart_parameters = --wsrep-start-position=$wsrep_recover_start_position_uuid:$wsrep_recover_start_position_seqno
+--source include/start_mysqld.inc
+--source include/wait_wsrep_ready.inc
+
+#
+# Scenario 3
+# The expected recovered seqno is 2 corresponding to CREATE TABLE and INSERT.
+#
+# The expected wsrep_last_committed after the server is restarted is 2.
+#
+
+INSERT INTO t1 VALUES (5);
+--source include/kill_mysqld.inc
+--source wsrep-recover-step.inc
+--echo Expect seqno 2
+--echo $wsrep_recover_start_position_seqno
+--let $restart_parameters = --wsrep-start-position=$wsrep_recover_start_position_uuid:$wsrep_recover_start_position_seqno
+--source include/start_mysqld.inc
+--source include/wait_wsrep_ready.inc
+
+SELECT VARIABLE_VALUE `expect 2` FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed';
+
+#
+# Scenario 4
+#
+# The INSERT gets prepared but not committed.
+#
+# If binlog is off, the expected outcome is that the INSERT gets committed
+# since it is already committed in the cluster. If binlog is on, the INSERT
+# should be rolled back during recovery phase since it has not yet
+# been logged into binlog.
+#
+--connect con1, localhost, root
+SET DEBUG_SYNC = "ha_commit_trans_after_prepare SIGNAL after_prepare_reached WAIT_FOR continue";
+--send INSERT INTO t1 VALUES (7)
+
+--connection default
+SET DEBUG_SYNC = "now WAIT_FOR after_prepare_reached";
+--source include/kill_mysqld.inc
+--source wsrep-recover-step.inc
+if ($log_bin) {
+  --echo Expect seqno 2
+}
+if (!$log_bin) {
+  --echo Expect seqno 3
+}
+--echo $wsrep_recover_start_position_seqno
+--let $restart_parameters = --wsrep-start-position=$wsrep_recover_start_position_uuid:$wsrep_recover_start_position_seqno
+--source include/start_mysqld.inc
+--source include/wait_wsrep_ready.inc
+
+if ($log_bin) {
+  --echo Expect 5
+}
+if (!$log_bin) {
+   --echo Expect 5 7
+}
+SELECT * FROM t1;
+
+DROP TABLE t1;

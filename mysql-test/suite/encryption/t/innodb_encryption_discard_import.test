@@ -37,10 +37,12 @@ set autocommit=1;
 
 --echo # Wait max 10 min for key encryption threads to encrypt all spaces
 --let $wait_timeout= 600
---let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
+--let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND ROTATING_OR_FLUSHING <> 0
 --source include/wait_condition.inc
 
---sleep 5
+# shutdown so that grep is safe
+--source include/shutdown_mysqld.inc
+
 --echo # tablespaces should be now encrypted
 --let SEARCH_PATTERN=foobar
 --echo # t1 yes on expecting NOT FOUND
@@ -54,6 +56,9 @@ set autocommit=1;
 --echo # t3 ... on expecting NOT FOUND
 -- let SEARCH_FILE=$t3_IBD
 -- source include/search_pattern_in_file.inc
+
+--source include/start_mysqld.inc
+let MYSQLD_DATADIR =`SELECT @@datadir`;
 
 --list_files $MYSQLD_DATADIR/test
 FLUSH TABLES t1, t2, t3 FOR EXPORT;
@@ -81,7 +86,9 @@ SELECT COUNT(1) FROM t2;
 ALTER TABLE t3 IMPORT TABLESPACE;
 SELECT COUNT(1) FROM t3;
 
---sleep 5
+# shutdown so that grep is safe
+--source include/shutdown_mysqld.inc
+
 --echo # tablespaces should remain encrypted after import
 --let SEARCH_PATTERN=foobar
 --echo # t1 yes on expecting NOT FOUND
@@ -95,6 +102,8 @@ SELECT COUNT(1) FROM t3;
 --let SEARCH_PATTERN=barfoo
 -- let SEARCH_FILE=$t3_IBD
 -- source include/search_pattern_in_file.inc
+
+--source include/start_mysqld.inc
 
 ALTER TABLE t1 ENGINE InnoDB;
 SHOW CREATE TABLE t1;
@@ -112,7 +121,9 @@ SELECT COUNT(1) FROM t1;
 SELECT COUNT(1) FROM t2;
 SELECT COUNT(1) FROM t3;
 
---sleep 5
+# shutdown so that grep is safe
+--source include/shutdown_mysqld.inc
+
 --echo # Tablespaces should be encrypted after restart
 --let SEARCH_PATTERN=foobar
 --echo # t1 yes on expecting NOT FOUND
@@ -127,9 +138,11 @@ SELECT COUNT(1) FROM t3;
 -- let SEARCH_FILE=$t3_IBD
 -- source include/search_pattern_in_file.inc
 
+--source include/start_mysqld.inc
+
 --echo # Wait max 10 min for key encryption threads to encrypt all spaces
 --let $wait_timeout= 600
---let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
+--let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND ROTATING_OR_FLUSHING <> 0
 --source include/wait_condition.inc
 
 --echo # Success!

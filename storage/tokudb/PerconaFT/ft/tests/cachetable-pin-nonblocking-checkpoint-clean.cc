@@ -57,18 +57,16 @@ run_test (void) {
 
     void* v1;
     void* v2;
-    long s1;
-    long s2;
     
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, &s1, def_write_callback(NULL), def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, def_write_callback(NULL), def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
     r = toku_test_cachetable_unpin(f1, make_blocknum(1), 1, CACHETABLE_CLEAN, make_pair_attr(8)); assert(r==0);
 
     for (int i = 0; i < 20; i++) {
-        r = toku_cachetable_get_and_pin(f1, make_blocknum(2), 2, &v2, &s2, def_write_callback(NULL), def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+        r = toku_cachetable_get_and_pin(f1, make_blocknum(2), 2, &v2, def_write_callback(NULL), def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
         r = toku_test_cachetable_unpin(f1, make_blocknum(2), 2, CACHETABLE_CLEAN, make_pair_attr(8)); assert(r==0);
     }
 
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v2, &s2, def_write_callback(NULL), def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v2, def_write_callback(NULL), def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
     CHECKPOINTER cp = toku_cachetable_get_checkpointer(ct);
     toku_cachetable_begin_checkpoint(cp, NULL);
     // mark nodes as pending a checkpoint, so that get_and_pin_nonblocking on block 1 will return TOKUDB_TRY_AGAIN
@@ -79,7 +77,6 @@ run_test (void) {
         make_blocknum(1),
         1,
         &v1,
-        &s1,
         def_write_callback(NULL),
         def_fetch,
         def_pf_req_callback,

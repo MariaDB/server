@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -110,7 +111,7 @@ struct Pool {
 		} else if (m_last < m_end) {
 
 			/* Initialise the remaining elements. */
-			init(m_end - m_last);
+			init(size_t(m_end - m_last));
 
 			ut_ad(!m_pqueue.empty());
 
@@ -121,8 +122,7 @@ struct Pool {
 		}
 
 		m_lock_strategy.exit();
-
-		return(elem != NULL ? &elem->m_type : 0);
+		return elem ? &elem->m_type : NULL;
 	}
 
 	/** Add the object to the pool.
@@ -134,7 +134,11 @@ struct Pool {
 
 		elem = reinterpret_cast<Element*>(p - sizeof(*elem));
 
-		elem->m_pool->put(elem);
+		elem->m_pool->m_lock_strategy.enter();
+
+		elem->m_pool->putl(elem);
+
+		elem->m_pool->m_lock_strategy.exit();
 	}
 
 protected:
@@ -152,17 +156,10 @@ private:
 
 	/** Release the object to the free pool
 	@param elem element to free */
-	void put(Element* elem)
+	void putl(Element* elem)
 	{
-		m_lock_strategy.enter();
-
 		ut_ad(elem >= m_start && elem < m_last);
-
-		ut_ad(Factory::debug(&elem->m_type));
-
 		m_pqueue.push(elem);
-
-		m_lock_strategy.exit();
 	}
 
 	/** Initialise the elements.

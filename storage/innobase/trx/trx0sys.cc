@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -24,10 +24,8 @@ Transaction system
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
-
-#include "mysqld.h"
 #include "trx0sys.h"
+#include "mysqld.h"
 #include "sql_error.h"
 
 #include "fsp0fsp.h"
@@ -42,9 +40,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "log0log.h"
 #include "log0recv.h"
 #include "os0file.h"
-#include "fsp0sysspace.h"
-
-#include <mysql/service_wsrep.h>
 
 /** The transaction system */
 trx_sys_t		trx_sys;
@@ -153,7 +148,6 @@ trx_sysf_create(
 	ulint		slot_no;
 	buf_block_t*	block;
 	page_t*		page;
-	ulint		page_no;
 	byte*		ptr;
 
 	ut_ad(mtr);
@@ -162,10 +156,12 @@ trx_sysf_create(
 	then enter the kernel: we must do it in this order to conform
 	to the latching order rules. */
 
-	mtr_x_lock_space(TRX_SYS_SPACE, mtr);
+	mtr_x_lock_space(fil_system.sys_space, mtr);
+	compile_time_assert(TRX_SYS_SPACE == 0);
 
 	/* Create the trx sys file block in a new allocated file segment */
-	block = fseg_create(TRX_SYS_SPACE, 0, TRX_SYS + TRX_SYS_FSEG_HEADER,
+	block = fseg_create(fil_system.sys_space,
+			    TRX_SYS + TRX_SYS_FSEG_HEADER,
 			    mtr);
 	buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);
 
@@ -190,20 +186,21 @@ trx_sysf_create(
 	compile_time_assert(256 >= TRX_SYS_N_RSEGS);
 	memset(ptr, 0xff, 256 * TRX_SYS_RSEG_SLOT_SIZE);
 	ptr += 256 * TRX_SYS_RSEG_SLOT_SIZE;
-	ut_a(ptr <= page + (UNIV_PAGE_SIZE - FIL_PAGE_DATA_END));
+	ut_a(ptr <= page + (srv_page_size - FIL_PAGE_DATA_END));
 
 	/* Initialize all of the page.  This part used to be uninitialized. */
-	memset(ptr, 0, UNIV_PAGE_SIZE - FIL_PAGE_DATA_END + page - ptr);
+	memset(ptr, 0, srv_page_size - FIL_PAGE_DATA_END + size_t(page - ptr));
 
-	mlog_log_string(TRX_SYS + page, UNIV_PAGE_SIZE - FIL_PAGE_DATA_END
+	mlog_log_string(TRX_SYS + page, srv_page_size - FIL_PAGE_DATA_END
 			- TRX_SYS, mtr);
 
 	/* Create the first rollback segment in the SYSTEM tablespace */
 	slot_no = trx_sys_rseg_find_free(block);
-	page_no = trx_rseg_header_create(TRX_SYS_SPACE, slot_no, block, mtr);
+	buf_block_t* rblock = trx_rseg_header_create(fil_system.sys_space,
+						     slot_no, 0, block, mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
-	ut_a(page_no == FSP_FIRST_RSEG_PAGE_NO);
+	ut_a(rblock->page.id.page_no() == FSP_FIRST_RSEG_PAGE_NO);
 }
 
 /** Create the instance */
@@ -214,8 +211,7 @@ trx_sys_t::create()
 	ut_ad(!is_initialised());
 	m_initialised = true;
 	mutex_create(LATCH_ID_TRX_SYS, &mutex);
-	UT_LIST_INIT(mysql_trx_list, &trx_t::mysql_trx_list);
-	UT_LIST_INIT(m_views, &ReadView::m_view_list);
+	UT_LIST_INIT(trx_list, &trx_t::trx_list);
 	my_atomic_store32(&rseg_history_len, 0);
 
 	rw_trx_hash.init();
@@ -342,47 +338,25 @@ trx_sys_t::close()
 		}
 	}
 
-	ut_a(UT_LIST_GET_LEN(mysql_trx_list) == 0);
-	ut_ad(UT_LIST_GET_LEN(m_views) == 0);
+	ut_a(UT_LIST_GET_LEN(trx_list) == 0);
 	mutex_free(&mutex);
 	m_initialised = false;
 }
 
-
-static my_bool active_count_callback(rw_trx_hash_element_t *element,
-                                     uint32_t *count)
-{
-  mutex_enter(&element->mutex);
-  if (trx_t *trx= element->trx)
-  {
-    mutex_enter(&trx->mutex);
-    if (trx_state_eq(trx, TRX_STATE_ACTIVE))
-      ++*count;
-    mutex_exit(&trx->mutex);
-  }
-  mutex_exit(&element->mutex);
-  return 0;
-}
-
-
 /** @return total number of active (non-prepared) transactions */
 ulint trx_sys_t::any_active_transactions()
 {
-	uint32_t total_trx = 0;
+  uint32_t total_trx= 0;
 
-	trx_sys.rw_trx_hash.iterate_no_dups(
-				reinterpret_cast<my_hash_walk_action>
-				(active_count_callback), &total_trx);
-
-	mutex_enter(&mutex);
-	for (trx_t* trx = UT_LIST_GET_FIRST(trx_sys.mysql_trx_list);
-	     trx != NULL;
-	     trx = UT_LIST_GET_NEXT(mysql_trx_list, trx)) {
-		if (trx->state != TRX_STATE_NOT_STARTED && !trx->id) {
-			total_trx++;
-		}
-	}
-	mutex_exit(&mutex);
-
-	return(total_trx);
+  mutex_enter(&mutex);
+  for (trx_t* trx= UT_LIST_GET_FIRST(trx_sys.trx_list);
+       trx != NULL;
+       trx= UT_LIST_GET_NEXT(trx_list, trx))
+  {
+    if (trx->state == TRX_STATE_COMMITTED_IN_MEMORY ||
+        (trx->state == TRX_STATE_ACTIVE && trx->id))
+      total_trx++;
+  }
+  mutex_exit(&mutex);
+  return total_trx;
 }

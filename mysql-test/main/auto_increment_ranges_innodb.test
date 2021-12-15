@@ -1,0 +1,79 @@
+#
+# Test of auto_increment at end of range
+#
+
+--source include/have_innodb.inc
+set default_storage_engine=innodb;
+--source auto_increment_ranges.inc
+
+#
+# MDEV-17377 invalid gap in auto-increment values after LOAD DATA
+#
+create table t1 (pk int auto_increment primary key, f varchar(20));
+insert t1 (f) values ('a'), ('b'), ('c'), ('d');
+select null, f into outfile 'load.data' from t1 limit 1;
+load data infile 'load.data' into table t1;
+insert t1 (f) values ('<===');
+select * from t1;
+drop table t1;
+--let $datadir=`select @@datadir`
+--remove_file $datadir/test/load.data
+
+--echo #
+--echo # MDEV-21842: auto_increment does not increment with compound primary
+--echo # key on partitioned table
+--echo #
+
+create or replace table `t` (
+  `id` bigint(20) unsigned not null auto_increment,
+  `a` int(10) not null ,
+  `dt` date not null,
+  primary key (`id`, `dt`) ,
+  unique key (`a`, `dt`)
+)
+ partition by range  columns(`dt`)
+(
+ partition `p202002` values less than ('2020-03-01'),
+ partition `P202003` values less than ('2020-04-01')
+);
+
+connect (con1, localhost, root,,);
+connect (con2, localhost, root,,);
+
+--connection con1
+start transaction;
+insert into t (a, dt) values (1, '2020-02-29');
+
+--connection con2
+start transaction;
+let $conn2_id= `SELECT CONNECTION_ID()`;
+send insert into t (a, dt) values (1, '2020-02-29');
+
+--connection con1
+# Ensure that the above insert via conn2 increments next_auto_inc_val
+# before the following insert via conn1 starts.
+let $wait_condition=select 1 from Information_schema.INNODB_TRX
+    where trx_mysql_thread_id = $conn2_id and trx_state = 'LOCK WAIT'
+    and trx_query = "insert into t (a, dt) values (1, '2020-02-29')";
+--source include/wait_condition.inc
+
+insert into t (a, dt) values (2, '2020-02-29');
+select auto_increment from information_schema.tables where table_name='t';
+commit;
+
+--connection con2
+--error ER_DUP_ENTRY
+reap;
+
+--connection con1
+select auto_increment from information_schema.tables where table_name='t';
+insert into t (a, dt) values (3, '2020-02-29');
+insert into t (a, dt) values (4, '2020-02-29');
+
+disconnect con1;
+disconnect con2;
+
+--connection default
+select * from t;
+drop table t;
+

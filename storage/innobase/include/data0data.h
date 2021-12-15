@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, 2020 MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,12 +27,12 @@ Created 5/30/1994 Heikki Tuuri
 #ifndef data0data_h
 #define data0data_h
 
-#include "univ.i"
-
 #include "data0types.h"
 #include "data0type.h"
 #include "mem0mem.h"
 #include "dict0types.h"
+#include "btr0types.h"
+#include <vector>
 
 #include <ostream>
 
@@ -41,29 +41,11 @@ index record which needs external storage of data fields */
 struct big_rec_t;
 struct upd_t;
 
-#ifdef UNIV_DEBUG
-/*********************************************************************//**
-Gets pointer to the type struct of SQL data field.
-@return pointer to the type struct */
-UNIV_INLINE
-dtype_t*
-dfield_get_type(
-/*============*/
-	const dfield_t*	field)	/*!< in: SQL data field */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*********************************************************************//**
-Gets pointer to the data in a field.
-@return pointer to data */
-UNIV_INLINE
-void*
-dfield_get_data(
-/*============*/
-	const dfield_t* field)	/*!< in: field */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-#else /* UNIV_DEBUG */
-# define dfield_get_type(field) (&(field)->type)
-# define dfield_get_data(field) ((field)->data)
-#endif /* UNIV_DEBUG */
+/** Dummy variable to catch access to uninitialized fields.  In the
+debug version, dtuple_create() will make all fields of dtuple_t point
+to data_error. */
+ut_d(extern byte data_error);
+
 /*********************************************************************//**
 Sets the type struct of SQL data field. */
 UNIV_INLINE
@@ -74,15 +56,6 @@ dfield_set_type(
 	const dtype_t*	type);	/*!< in: pointer to data type struct */
 
 /*********************************************************************//**
-Gets length of field data.
-@return length of data; UNIV_SQL_NULL if SQL null data */
-UNIV_INLINE
-ulint
-dfield_get_len(
-/*===========*/
-	const dfield_t* field)	/*!< in: field */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*********************************************************************//**
 Sets length in a field. */
 UNIV_INLINE
 void
@@ -90,32 +63,6 @@ dfield_set_len(
 /*===========*/
 	dfield_t*	field,	/*!< in: field */
 	ulint		len)	/*!< in: length or UNIV_SQL_NULL */
-	MY_ATTRIBUTE((nonnull));
-/*********************************************************************//**
-Determines if a field is SQL NULL
-@return nonzero if SQL null data */
-UNIV_INLINE
-ulint
-dfield_is_null(
-/*===========*/
-	const dfield_t* field)	/*!< in: field */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*********************************************************************//**
-Determines if a field is externally stored
-@return nonzero if externally stored */
-UNIV_INLINE
-ulint
-dfield_is_ext(
-/*==========*/
-	const dfield_t* field)	/*!< in: field */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*********************************************************************//**
-Sets the "external storage" flag */
-UNIV_INLINE
-void
-dfield_set_ext(
-/*===========*/
-	dfield_t*	field)	/*!< in/out: field */
 	MY_ATTRIBUTE((nonnull));
 
 /** Gets spatial status for "external storage"
@@ -222,47 +169,8 @@ dfield_data_is_binary_equal(
 	const dfield_t*	field,	/*!< in: field */
 	ulint		len,	/*!< in: data length or UNIV_SQL_NULL */
 	const byte*	data)	/*!< in: data */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*********************************************************************//**
-Gets number of fields in a data tuple.
-@return number of fields */
-UNIV_INLINE
-ulint
-dtuple_get_n_fields(
-/*================*/
-	const dtuple_t*	tuple)	/*!< in: tuple */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/** Gets number of virtual fields in a data tuple.
-@param[in]	tuple	dtuple to check
-@return number of fields */
-UNIV_INLINE
-ulint
-dtuple_get_n_v_fields(
-	const dtuple_t*	tuple);
+	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
 
-#ifdef UNIV_DEBUG
-/** Gets nth field of a tuple.
-@param[in]	tuple	tuple
-@param[in]	n	index of field
-@return nth field */
-UNIV_INLINE
-dfield_t*
-dtuple_get_nth_field(
-	const dtuple_t*	tuple,
-	ulint		n);
-/** Gets nth virtual field of a tuple.
-@param[in]	tuple	tuple
-@oaran[in]	n	the nth field to get
-@return nth field */
-UNIV_INLINE
-dfield_t*
-dtuple_get_nth_v_field(
-	const dtuple_t*	tuple,
-	ulint		n);
-#else /* UNIV_DEBUG */
-# define dtuple_get_nth_field(tuple, n) ((tuple)->fields + (n))
-# define dtuple_get_nth_v_field(tuple, n) ((tuple)->fields + (tuple)->n_fields + (n))
-#endif /* UNIV_DEBUG */
 /*********************************************************************//**
 Gets info bits in a data tuple.
 @return info bits */
@@ -340,19 +248,12 @@ dtuple_create(
 
 /** Initialize the virtual field data in a dtuple_t
 @param[in,out]		vrow	dtuple contains the virtual fields */
-UNIV_INLINE
-void
-dtuple_init_v_fld(
-	const dtuple_t*	vrow);
+UNIV_INLINE void dtuple_init_v_fld(dtuple_t* vrow);
 
 /** Duplicate the virtual field data in a dtuple_t
 @param[in,out]		vrow	dtuple contains the virtual fields
 @param[in]		heap	heap memory to use */
-UNIV_INLINE
-void
-dtuple_dup_v_fld(
-	const dtuple_t*	vrow,
-	mem_heap_t*	heap);
+UNIV_INLINE void dtuple_dup_v_fld(dtuple_t* vrow, mem_heap_t* heap);
 
 /** Creates a data tuple with possible virtual columns to a memory heap.
 @param[in]	heap		memory heap where the tuple is created
@@ -626,9 +527,6 @@ struct dtuple_t {
 	dfield_t*	fields;		/*!< fields */
 	ulint		n_v_fields;	/*!< number of virtual fields */
 	dfield_t*	v_fields;	/*!< fields on virtual column */
-	UT_LIST_NODE_T(dtuple_t) tuple_list;
-					/*!< data tuples can be linked into a
-					list using this field */
 #ifdef UNIV_DEBUG
 	ulint		magic_n;	/*!< magic number, used in
 					debug assertions */
@@ -638,13 +536,91 @@ struct dtuple_t {
 
 	/** Trim the tail of an index tuple before insert or update.
 	After instant ADD COLUMN, if the last fields of a clustered index tuple
-	match the 'default row', there will be no need to store them.
+	match the default values that were explicitly specified or implied
+	during ADD COLUMN, there will be no need to store them.
 	NOTE: A page latch in the index must be held, so that the index
 	may not lose 'instantness' before the trimmed tuple has been
 	inserted or updated.
 	@param[in]	index	index possibly with instantly added columns */
 	void trim(const dict_index_t& index);
+	bool vers_history_row() const
+	{
+		for (ulint i = 0; i < n_fields; i++) {
+			const dfield_t* field = &fields[i];
+			if (field->type.vers_sys_end()) {
+				return field->vers_history_row();
+			}
+		}
+		return false;
+	}
 };
+
+inline ulint dtuple_get_n_fields(const dtuple_t* tuple)
+{ return tuple->n_fields; }
+inline dtype_t* dfield_get_type(dfield_t* field) { return &field->type; }
+inline const dtype_t* dfield_get_type(const dfield_t* field)
+{ return &field->type; }
+inline void* dfield_get_data(dfield_t* field)
+{
+	ut_ad(field->len == UNIV_SQL_NULL || field->data != &data_error);
+	return field->data;
+}
+inline const void* dfield_get_data(const dfield_t* field)
+{
+	ut_ad(field->len == UNIV_SQL_NULL || field->data != &data_error);
+	return field->data;
+}
+inline ulint dfield_get_len(const dfield_t* field) {
+	ut_ad(field->len == UNIV_SQL_NULL || field->data != &data_error);
+	ut_ad(field->len != UNIV_SQL_DEFAULT);
+	return field->len;
+}
+inline bool dfield_is_null(const dfield_t* field)
+{ return field->len == UNIV_SQL_NULL; }
+/** @return whether a column is to be stored off-page */
+inline bool dfield_is_ext(const dfield_t* field)
+{
+	ut_ad(!field->ext || field->len >= BTR_EXTERN_FIELD_REF_SIZE);
+	return static_cast<bool>(field->ext);
+}
+/** Set the "external storage" flag */
+inline void dfield_set_ext(dfield_t* field) { field->ext = 1; }
+
+/** Gets number of virtual fields in a data tuple.
+@param[in]	tuple	dtuple to check
+@return number of fields */
+inline ulint
+dtuple_get_n_v_fields(const dtuple_t* tuple) { return tuple->n_v_fields; }
+
+inline const dfield_t* dtuple_get_nth_field(const dtuple_t* tuple, ulint n)
+{
+	ut_ad(n < tuple->n_fields);
+	return &tuple->fields[n];
+}
+inline dfield_t* dtuple_get_nth_field(dtuple_t* tuple, ulint n)
+{
+	ut_ad(n < tuple->n_fields);
+	return &tuple->fields[n];
+}
+
+/** Get a virtual column in a table row or an extended clustered index record.
+@param[in]	tuple	tuple
+@oaran[in]	n	the nth virtual field to get
+@return nth virtual field */
+inline const dfield_t* dtuple_get_nth_v_field(const dtuple_t* tuple, ulint n)
+{
+	ut_ad(n < tuple->n_v_fields);
+	return &tuple->v_fields[n];
+}
+/** Get a virtual column in a table row or an extended clustered index record.
+@param[in]	tuple	tuple
+@oaran[in]	n	the nth virtual field to get
+@return nth virtual field */
+inline dfield_t* dtuple_get_nth_v_field(dtuple_t* tuple, ulint n)
+{
+	ut_ad(n < tuple->n_v_fields);
+	return &tuple->v_fields[n];
+}
 
 /** A slot for a field in a big rec vector */
 struct big_rec_field_t {

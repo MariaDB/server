@@ -13,7 +13,7 @@
    You should have received a copy of the GNU General Public License
    along with this program; see the file COPYING. If not, write to the
    Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-   MA  02110-1301  USA.
+   MA  02110-1335  USA.
 */
 
 /*  SSL source implements all openssl compatibility API functions
@@ -295,6 +295,7 @@ int SSL_connect(SSL* ssl)
         sendClientHello(*ssl);
         if (!ssl->GetError())
             ssl->useStates().UseConnect() = CLIENT_HELLO_SENT;
+        /* fall through */
 
     case CLIENT_HELLO_SENT :
         neededState = ssl->getSecurity().get_resuming() ?
@@ -302,13 +303,14 @@ int SSL_connect(SSL* ssl)
         while (ssl->getStates().getClient() < neededState) {
             if (ssl->GetError()) break;
             processReply(*ssl);
-            // if resumption failed, reset needed state 
+            // if resumption failed, reset needed state
             if (neededState == serverFinishedComplete)
                 if (!ssl->getSecurity().get_resuming())
                     neededState = serverHelloDoneComplete;
         }
         if (!ssl->GetError())
             ssl->useStates().UseConnect() = FIRST_REPLY_DONE;
+        /* fall through */
 
     case FIRST_REPLY_DONE :
         if(ssl->getCrypto().get_certManager().sendVerify())
@@ -326,6 +328,7 @@ int SSL_connect(SSL* ssl)
 
         if (!ssl->GetError())
             ssl->useStates().UseConnect() = FINISHED_DONE;
+        /* fall through */
 
     case FINISHED_DONE :
         if (!ssl->getSecurity().get_resuming())
@@ -335,6 +338,7 @@ int SSL_connect(SSL* ssl)
             }
         if (!ssl->GetError())
             ssl->useStates().UseConnect() = SECOND_REPLY_DONE;
+        /* fall through */
 
     case SECOND_REPLY_DONE :
         ssl->verifyState(serverFinishedComplete);
@@ -343,7 +347,7 @@ int SSL_connect(SSL* ssl)
         if (ssl->GetError()) {
             GetErrors().Add(ssl->GetError());
             return SSL_FATAL_ERROR;
-        }   
+        }
         return SSL_SUCCESS;
 
     default :
@@ -371,7 +375,6 @@ int SSL_accept(SSL* ssl)
         ssl->SetError(no_error);
 
     if (ssl->GetError() == YasslError(SSL_ERROR_WANT_WRITE)) {
-    
         ssl->SetError(no_error);
         ssl->SendWriteBuffered();
         if (!ssl->GetError())
@@ -385,6 +388,7 @@ int SSL_accept(SSL* ssl)
         processReply(*ssl);
         if (!ssl->GetError())
             ssl->useStates().UseAccept() = ACCEPT_FIRST_REPLY_DONE;
+        /* fall through */
 
     case ACCEPT_FIRST_REPLY_DONE :
         sendServerHello(*ssl);
@@ -401,9 +405,10 @@ int SSL_accept(SSL* ssl)
             sendServerHelloDone(*ssl);
             ssl->flushBuffer();
         }
-      
+
         if (!ssl->GetError())
             ssl->useStates().UseAccept() = SERVER_HELLO_DONE;
+        /* fall through */
 
     case SERVER_HELLO_DONE :
         if (!ssl->getSecurity().get_resuming()) {
@@ -414,6 +419,7 @@ int SSL_accept(SSL* ssl)
         }
         if (!ssl->GetError())
             ssl->useStates().UseAccept() = ACCEPT_SECOND_REPLY_DONE;
+        /* fall through */
 
     case ACCEPT_SECOND_REPLY_DONE :
         sendChangeCipher(*ssl);
@@ -422,6 +428,7 @@ int SSL_accept(SSL* ssl)
 
         if (!ssl->GetError())
             ssl->useStates().UseAccept() = ACCEPT_FINISHED_DONE;
+        /* fall through */
 
     case ACCEPT_FINISHED_DONE :
         if (ssl->getSecurity().get_resuming()) {
@@ -432,6 +439,7 @@ int SSL_accept(SSL* ssl)
         }
         if (!ssl->GetError())
             ssl->useStates().UseAccept() = ACCEPT_THIRD_REPLY_DONE;
+        /* fall through */
 
     case ACCEPT_THIRD_REPLY_DONE :
         ssl->useLog().ShowTCP(ssl->getSocket().get_fd());

@@ -1,5 +1,6 @@
 /*****************************************************************************
 Copyright (c) 2014, 2015, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -12,7 +13,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software Foundation,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 *****************************************************************************/
 
 /**************************************************//**
@@ -53,19 +54,6 @@ enum wkbByteOrder
   wkbNDR = 1     /* Little Endian */
 };
 
-/** Get the wkb of default POINT value, which represents POINT(0 0)
-if it's of dimension 2, etc.
-@param[in]	n_dims		dimensions
-@param[out]	wkb		wkb buffer for default POINT
-@param[in]	len		length of wkb buffer
-@return non-0 indicate the length of wkb of the default POINT,
-0 if the buffer is too small */
-uint
-get_wkb_of_default_point(
-	uint	n_dims,
-	uchar*	wkb,
-	uint	len);
-
 /*************************************************************//**
 Calculate minimal bounding rectangle (mbr) of the spatial object
 stored in "well-known binary representation" (wkb) format.
@@ -73,7 +61,7 @@ stored in "well-known binary representation" (wkb) format.
 int
 rtree_mbr_from_wkb(
 /*===============*/
-	uchar*	wkb,		/*!< in: pointer to wkb. */
+	const uchar*	wkb,		/*!< in: pointer to wkb. */
 	uint	size,		/*!< in: size of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
 	double*	mbr);		/*!< in/out: mbr. */

@@ -1,0 +1,8 @@
+!include ../galera_2nodes.cnf
+[mysqld]
+
+encrypt-tmp-files = 1
+plugin-load-add= @ENV.FILE_KEY_MANAGEMENT_SO
+file-key-management
+loose-file-key-management-filename= @ENV.MYSQL_TEST_DIR/std_data/keys.txt
+log-bin

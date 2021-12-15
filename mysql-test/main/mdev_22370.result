@@ -1,0 +1,4 @@
+connect  con1,localhost,root,,;
+SET DEBUG_DBUG='+d,mark_busy_mdev_22370';
+FLUSH TABLES WITH READ LOCK;
+connection default;

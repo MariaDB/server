@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,12 +27,12 @@ Created 11/5/1995 Heikki Tuuri
 #ifndef buf0lru_h
 #define buf0lru_h
 
-#include "univ.i"
 #include "ut0byte.h"
 #include "buf0types.h"
 
 // Forward declaration
 struct trx_t;
+struct fil_space_t;
 
 /******************************************************************//**
 Returns TRUE if less than 25 % of the buffer pool is available. This can be
@@ -53,15 +53,10 @@ These are low-level functions
 /** Empty the flush list for all pages belonging to a tablespace.
 @param[in]	id		tablespace identifier
 @param[in,out]	observer	flush observer,
-				or NULL if nothing is to be written */
-void
-buf_LRU_flush_or_remove_pages(
-	ulint		id,
-	FlushObserver*	observer
-#ifdef BTR_CUR_HASH_ADAPT
-	, bool drop_ahi = false /*!< whether to drop the adaptive hash index */
-#endif /* BTR_CUR_HASH_ADAPT */
-	);
+				or NULL if nothing is to be written
+@param[in]	first		first page to be flushed or evicted */
+void buf_LRU_flush_or_remove_pages(ulint id, FlushObserver* observer,
+				   ulint first = 0);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 /********************************************************************//**
@@ -186,8 +181,8 @@ buf_LRU_old_ratio_update(
 /*=====================*/
 	uint	old_pct,/*!< in: Reserve this percentage of
 			the buffer pool for "old" blocks. */
-	ibool	adjust);/*!< in: TRUE=adjust the LRU list;
-			FALSE=just assign buf_pool->LRU_old_ratio
+	bool	adjust);/*!< in: true=adjust the LRU list;
+			false=just assign buf_pool->LRU_old_ratio
 			during the initialization of InnoDB */
 /********************************************************************//**
 Update the historical stats that we are collecting for LRU eviction
@@ -196,14 +191,12 @@ void
 buf_LRU_stat_update(void);
 /*=====================*/
 
-/******************************************************************//**
-Remove one page from LRU list and put it to free list */
-void
-buf_LRU_free_one_page(
-/*==================*/
-	buf_page_t*	bpage)	/*!< in/out: block, must contain a file page and
-				be in a state where it can be freed; there
-				may or may not be a hash index to the page */
+/** Remove one page from LRU list and put it to free list.
+@param[in,out]	bpage		block, must contain a file page and be in
+				a freeable state; there may or may not be a
+				hash index to the page
+@param[in]	old_page_id	page number before bpage->id was invalidated */
+void buf_LRU_free_one_page(buf_page_t* bpage, page_id_t old_page_id)
 	MY_ATTRIBUTE((nonnull));
 
 /******************************************************************//**

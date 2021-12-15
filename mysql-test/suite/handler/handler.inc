@@ -373,7 +373,9 @@ connection con2;
 send optimize table t1;
 --sleep 1
 connection default;
+--disable_ps_protocol
 handler t1 read next;
+--enable_ps_protocol
 handler t1 close;
 connection con2;
 reap;

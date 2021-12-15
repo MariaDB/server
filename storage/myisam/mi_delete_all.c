@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* Remove all rows from a MyISAM table */
 /* This clears the status information and truncates files */
@@ -62,6 +62,10 @@ int mi_delete_all_rows(MI_INFO *info)
   if (mysql_file_chsize(info->dfile, 0, 0, MYF(MY_WME)) ||
       mysql_file_chsize(share->kfile, share->base.keystart, 0, MYF(MY_WME)))
     goto err;
+
+  if (info->opt_flag & WRITE_CACHE_USED)
+    reinit_io_cache(&info->rec_cache, WRITE_CACHE, 0, 1, 1);
+
   (void) _mi_writeinfo(info,WRITEINFO_UPDATE_KEYFILE);
   DBUG_RETURN(0);
 

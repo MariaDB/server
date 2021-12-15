@@ -2,7 +2,7 @@
 #define SQL_ACL_INCLUDED
 
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2017, MariaDB Corporation.
+   Copyright (c) 2017, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "violite.h"                            /* SSL_type */
 #include "sql_class.h"                          /* LEX_COLUMN */
@@ -239,7 +239,7 @@ bool check_grant_column (THD *thd, GRANT_INFO *grant,
                          const char *db_name, const char *table_name,
                          const char *name, size_t length, Security_context *sctx);
 bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
-                                     const char *name, size_t length);
+                                     const char *name, size_t length, Field *fld);
 bool check_grant_all_columns(THD *thd, ulong want_access,
                              Field_iterator_table_ref *fields);
 bool check_grant_routine(THD *thd, ulong want_access,
@@ -254,6 +254,8 @@ ulong get_table_grant(THD *thd, TABLE_LIST *table);
 ulong get_column_grant(THD *thd, GRANT_INFO *grant,
                        const char *db_name, const char *table_name,
                        const char *field_name);
+bool get_show_user(THD *thd, LEX_USER *lex_user, const char **username,
+                   const char **hostname, const char **rolename);
 void mysql_show_grants_get_fields(THD *thd, List<Item> *fields,
                                   const char *name, size_t length);
 bool mysql_show_grants(THD *thd, LEX_USER *user);
@@ -415,7 +417,8 @@ bool acl_check_proxy_grant_access (THD *thd, const char *host, const char *user,
                                    bool with_grant);
 int acl_setrole(THD *thd, const char *rolename, ulonglong access);
 int acl_check_setrole(THD *thd, const char *rolename, ulonglong *access);
-int acl_check_set_default_role(THD *thd, const char *host, const char *user);
+int acl_check_set_default_role(THD *thd, const char *host, const char *user,
+                               const char *role);
 int acl_set_default_role(THD *thd, const char *host, const char *user,
                          const char *rolename);
 

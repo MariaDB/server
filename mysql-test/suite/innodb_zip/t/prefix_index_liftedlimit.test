@@ -15,6 +15,7 @@
 --source include/have_innodb.inc
 --source include/have_innodb_16k.inc
 
+call mtr.add_suppression('InnoDB: Cannot add field.*because after adding it, the row size is');
 # Prefix index with VARCHAR data type , primary/secondary index and DML ops
 CREATE TABLE worklog5743 (
 col_1_varchar VARCHAR (4000) , col_2_varchar VARCHAR (4000) ,
@@ -1300,7 +1301,7 @@ ALTER TABLE worklog5743 ADD PRIMARY KEY `pk_idx` (col_1_varchar(3000));
 DROP TABLE worklog5743;
 
 # -----------------------------------------------------------------------------
---error ER_UNKNOWN_SYSTEM_VARIABLE
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
 set global innodb_large_prefix=0;
 CREATE TABLE worklog5743 (
 col_1_varchar VARCHAR (4000) , col_2_varchar VARCHAR (4000) ,

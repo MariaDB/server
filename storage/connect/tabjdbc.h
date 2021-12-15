@@ -101,6 +101,7 @@ protected:
 /***********************************************************************/
 class JDBCCOL : public EXTCOL {
 	friend class TDBJDBC;
+	friend class JDBConn;
 public:
 	// Constructors
 	JDBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am = "JDBC");
@@ -119,6 +120,7 @@ protected:
   JDBCCOL(void);
 
 	// Members
+	bool uuid;											 // For PostgreSQL
 }; // end of class JDBCCOL
 
 /***********************************************************************/

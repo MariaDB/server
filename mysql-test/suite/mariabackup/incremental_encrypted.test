@@ -20,6 +20,7 @@ echo # Create full backup , modify table, then create incremental/differential b
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
 --enable_result_log
 
+SET GLOBAL innodb_flush_log_at_trx_commit = 1;
 INSERT INTO t VALUES(2);
 SELECT * FROM t;
 

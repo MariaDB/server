@@ -1,0 +1,96 @@
+#
+# This include file is used by more than one test suite
+# (currently rpl and binlog_encryption).
+# Please check all dependent tests after modifying it
+#
+
+######################################################################
+# Some errors that cause the slave SQL thread to stop are not shown in 
+# the Slave_SQL_Error column of "SHOW SLAVE STATUS". Instead, the error 
+# is only in the server's error log.
+#
+# Two failures and their respective reporting are verified:
+#             
+# 1 - Failures during slave thread initialization
+# 2 - Failures while processing queries passed through the init_slave
+# option.
+#
+# In order to check the first type of failure, we inject a fault in the 
+# SQL/IO Threads through SET GLOBAL debug.
+#
+# To check the second type, we set @@global.init_slave to an invalid 
+# command thus preventing the initialization of the SQL Thread.
+#
+# Obs:
+# 1 - Note that testing failures while initializing the relay log position 
+# is hard as the same function is called before the code reaches the point 
+# that we want to test.
+#
+# 2 - This test does not target failures that are reported while applying 
+# events such as duplicate keys, errors while reading the relay-log.bin*, 
+# etc. Such errors are already checked on other tests.
+######################################################################
+
+######################################################################
+#                    Configuring the Environment
+######################################################################
+source include/have_debug.inc;
+source include/have_log_bin.inc;
+source include/master-slave.inc;
+
+connection slave;
+
+--disable_warnings
+stop slave;
+--enable_warnings
+reset slave;
+
+######################################################################
+#           Injecting faults in the threads' initialization
+######################################################################
+connection slave;
+
+# Set debug flags on slave to force errors to occur
+set @saved_dbug = @@global.debug_dbug;
+SET GLOBAL debug_dbug= "d,simulate_io_slave_error_on_init,simulate_sql_slave_error_on_init";
+
+start slave;
+
+#
+# slave is going to stop because of emulated failures
+# but there won't be any crashes nor asserts hit.
+#
+# 1593 = ER_SLAVE_FATAL_ERROR
+--let $slave_sql_errno= 1593
+--let $show_slave_sql_error= 1
+--source include/wait_for_slave_sql_error.inc
+
+call mtr.add_suppression("Failed during slave.* thread initialization");
+
+set @@global.debug_dbug = @saved_dbug;
+
+######################################################################
+#             Injecting faults in the init_slave option
+######################################################################
+connection slave;
+
+reset slave;
+
+SET GLOBAL init_slave= "garbage";
+
+start slave;
+# 1064 = ER_PARSE_ERROR
+--let $slave_sql_errno= 1064
+--let $show_slave_sql_error= 1
+--source include/wait_for_slave_sql_error.inc
+
+######################################################################
+#                             Clean up
+######################################################################
+SET GLOBAL init_slave= "";
+
+# Clean up Last_SQL_Error
+--source include/stop_slave_io.inc
+RESET SLAVE;
+--let $rpl_only_running_threads= 1
+--source include/rpl_end.inc

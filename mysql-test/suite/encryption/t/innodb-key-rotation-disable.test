@@ -3,9 +3,6 @@
 # not embedded because of restarts
 -- source include/not_embedded.inc
 
-SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
-SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
-
 let $encryption = `SELECT @@innodb_encrypt_tables`;
 SET GLOBAL innodb_file_per_table = ON;
 # zlib
@@ -37,11 +34,6 @@ insert into t9 values (1, 'pugliccompressedaaaaaaaaabbbbbbbbbbbbbbcccccccccccccc
 SELECT NAME,ENCRYPTION_SCHEME,CURRENT_KEY_ID FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE 'enctests%';
 --echo # should list tables t7-t9
 SELECT NAME,ENCRYPTION_SCHEME,CURRENT_KEY_ID FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 and NAME LIKE 'enctests%';
-
---error ER_WRONG_VALUE_FOR_VAR
-SET GLOBAL innodb_encrypt_tables=OFF;
---error ER_WRONG_VALUE_FOR_VAR
-SET GLOBAL innodb_encrypt_tables=ON;
 
 --let $MYSQLD_DATADIR=`select @@datadir`
 

@@ -25,7 +25,6 @@
 # Description: MariaDB is a very fast and reliable SQL database engine.
 ### END INIT INFO
 
-# If you install MariaDB on some other places than @prefix@, then you
 # have to do one of the following things for this script to work:
 #
 # - Run this script from within the MariaDB installation directory
@@ -92,16 +91,15 @@ datadir_set=
 
 #
 # Use LSB init script functions for printing messages, if possible
-#
+# Include non-LSB RedHat init functions to make systemctl redirect work
+init_functions="/etc/init.d/functions"
 lsb_functions="/lib/lsb/init-functions"
-if test -f $lsb_functions ; then
+if test -f $lsb_functions; then
   . $lsb_functions
-else
-  # Include non-LSB RedHat init functions to make systemctl redirect work
-  init_functions="/etc/init.d/functions"
-  if test -f $init_functions; then
-    . $init_functions
-  fi
+fi
+
+if test -f $init_functions; then
+  . $init_functions
   log_success_msg()
   {
     echo " SUCCESS! $@"
@@ -127,8 +125,9 @@ esac
 
 parse_server_arguments() {
   for arg do
+    val=`echo "$arg" | sed -e 's/^[^=]*=//'`
     case "$arg" in
-      --basedir=*)  basedir=`echo "$arg" | sed -e 's/^[^=]*=//'`
+      --basedir=*)  basedir="$val"
                     bindir="$basedir/bin"
 		    if test -z "$datadir_set"; then
 		      datadir="$basedir/data"
@@ -142,14 +141,15 @@ parse_server_arguments() {
                     fi
 		    libexecdir="$basedir/libexec"
         ;;
-      --datadir=*)  datadir=`echo "$arg" | sed -e 's/^[^=]*=//'`
+      --datadir=*)  datadir="$val"
 		    datadir_set=1
 	;;
       --log-basename=*|--hostname=*|--loose-log-basename=*)
-        mysqld_pid_file_path=`echo "$arg.pid" | sed -e 's/^[^=]*=//'`
+        mysqld_pid_file_path="$val.pid"
 	;;
-      --pid-file=*) mysqld_pid_file_path=`echo "$arg" | sed -e 's/^[^=]*=//'` ;;
-      --service-startup-timeout=*) service_startup_timeout=`echo "$arg" | sed -e 's/^[^=]*=//'` ;;
+      --pid-file=*) mysqld_pid_file_path="$val" ;;
+      --service-startup-timeout=*) service_startup_timeout="$val" ;;
+      --user=*) user="$val"; ;;
     esac
   done
 }
@@ -181,6 +181,16 @@ else
   test -z "$print_defaults" && print_defaults="my_print_defaults"
 fi
 
+user='@MYSQLD_USER@'
+
+su_kill() {
+  if test "$USER" = "$user"; then
+    kill $* >/dev/null 2>&1
+  else
+    su - $user -s /bin/sh -c "kill $*" >/dev/null 2>&1
+  fi
+}
+
 #
 # Read defaults file from 'basedir'.   If there is no defaults file there
 # check if it's in the old (depricated) place (datadir) and read it from there
@@ -210,7 +220,7 @@ wait_for_gone () {
 
   while test $i -ne $service_startup_timeout ; do
 
-    if kill -0 "$pid" 2>/dev/null; then
+    if su_kill -0 "$pid" ; then
       :  # the server still runs
     else
       if test ! -s "$pid_file_path"; then
@@ -250,7 +260,7 @@ wait_for_ready () {
     if $bindir/mysqladmin ping >/dev/null 2>&1; then
       log_success_msg
       return 0
-    elif kill -0 $! 2>/dev/null ; then
+    elif kill -0 $! ; then
       :  # mysqld_safe is still running
     else
       # mysqld_safe is no longer running, abort the wait loop
@@ -319,10 +329,9 @@ case "$mode" in
     then
       mysqld_pid=`cat "$mysqld_pid_file_path"`
 
-      if (kill -0 $mysqld_pid 2>/dev/null)
-      then
+      if su_kill -0 $mysqld_pid ; then
         echo $echo_n "Shutting down MariaDB"
-        kill $mysqld_pid
+        su_kill $mysqld_pid
         # mysqld should remove the pid file when it exits, so wait for it.
         wait_for_gone $mysqld_pid "$mysqld_pid_file_path"; return_value=$?
       else
@@ -358,7 +367,7 @@ case "$mode" in
   'reload'|'force-reload')
     if test -s "$mysqld_pid_file_path" ; then
       read mysqld_pid <  "$mysqld_pid_file_path"
-      kill -HUP $mysqld_pid && log_success_msg "Reloading service MariaDB"
+      su_kill -HUP $mysqld_pid && log_success_msg "Reloading service MariaDB"
       touch "$mysqld_pid_file_path"
     else
       log_failure_msg "MariaDB PID file could not be found!"
@@ -369,7 +378,7 @@ case "$mode" in
     # First, check to see if pid file exists
     if test -s "$mysqld_pid_file_path" ; then
       read mysqld_pid < "$mysqld_pid_file_path"
-      if kill -0 $mysqld_pid 2>/dev/null ; then
+      if su_kill -0 $mysqld_pid ; then
         log_success_msg "MariaDB running ($mysqld_pid)"
         exit 0
       else
@@ -378,7 +387,7 @@ case "$mode" in
       fi
     else
       # Try to find appropriate mysqld process
-      mysqld_pid=`pgrep $libexecdir/mysqld`
+      mysqld_pid=`pgrep -f $libexecdir/mysqld`
 
       # test if multiple pids exist
       pid_count=`echo $mysqld_pid | wc -w`

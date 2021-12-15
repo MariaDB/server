@@ -2,8 +2,8 @@ select plugin_status from information_schema.plugins where plugin_name='feedback
 plugin_status
 ACTIVE
 SELECT variable_value INTO @feedback_used FROM information_schema.feedback where variable_name = 'FEEDBACK used';
-SELECT variable_value = @feedback_used + 1 FROM information_schema.feedback where variable_name = 'FEEDBACK used';
-variable_value = @feedback_used + 1
+SELECT variable_value = @feedback_used + 1 as 'MUST BE 1' FROM information_schema.feedback where variable_name = 'FEEDBACK used';
+MUST BE 1
 1
 select * from information_schema.feedback where variable_name like 'feed%'
        and variable_name not like '%_uid' and variable_name not like 'FEEDBACK used'
@@ -24,3 +24,19 @@ VARIABLE_VALUE>0	VARIABLE_NAME
 1	Collation used latin1_swedish_ci
 1	Collation used utf8_bin
 1	Collation used utf8_general_ci
+prepare stmt from "SELECT VARIABLE_VALUE>0, VARIABLE_NAME FROM INFORMATION_SCHEMA.FEEDBACK WHERE VARIABLE_NAME LIKE 'Collation used %' ORDER BY VARIABLE_NAME";
+execute stmt;
+VARIABLE_VALUE>0	VARIABLE_NAME
+1	Collation used binary
+1	Collation used latin1_bin
+1	Collation used latin1_swedish_ci
+1	Collation used utf8_bin
+1	Collation used utf8_general_ci
+execute stmt;
+VARIABLE_VALUE>0	VARIABLE_NAME
+1	Collation used binary
+1	Collation used latin1_bin
+1	Collation used latin1_swedish_ci
+1	Collation used utf8_bin
+1	Collation used utf8_general_ci
+deallocate prepare stmt;

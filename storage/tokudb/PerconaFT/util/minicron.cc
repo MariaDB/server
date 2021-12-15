@@ -85,8 +85,9 @@ minicron_do (void *pv)
             toku_cond_wait(&p->condvar, &p->mutex);
         } 
         else if (p->period_in_ms <= 1000) {
+            uint32_t period_in_ms = p->period_in_ms;
             toku_mutex_unlock(&p->mutex);
-            usleep(p->period_in_ms * 1000);
+            usleep(period_in_ms * 1000);
             toku_mutex_lock(&p->mutex);
         }
         else {

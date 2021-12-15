@@ -1,0 +1,202 @@
+drop table if exists t1;
+CREATE TABLE t1 (
+visitor_id int(10) unsigned DEFAULT '0' NOT NULL,
+group_id int(10) unsigned DEFAULT '0' NOT NULL,
+hits int(10) unsigned DEFAULT '0' NOT NULL,
+sessions int(10) unsigned DEFAULT '0' NOT NULL,
+ts timestamp,
+PRIMARY KEY (visitor_id,group_id)
+)/*! engine=MyISAM */;
+INSERT INTO t1 VALUES (465931136,7,2,2,20000318160952);
+INSERT INTO t1 VALUES (173865424,2,2,2,20000318233615);
+INSERT INTO t1 VALUES (173865424,8,2,2,20000318233615);
+INSERT INTO t1 VALUES (173865424,39,2,2,20000318233615);
+INSERT INTO t1 VALUES (173865424,7,2,2,20000318233615);
+INSERT INTO t1 VALUES (173865424,3,2,2,20000318233615);
+INSERT INTO t1 VALUES (173865424,6,2,2,20000318233615);
+INSERT INTO t1 VALUES (173865424,60,2,2,20000318233615);
+INSERT INTO t1 VALUES (173865424,1502,2,2,20000318233615);
+INSERT INTO t1 VALUES (48985536,2,2,2,20000319013932);
+INSERT INTO t1 VALUES (48985536,8,2,2,20000319013932);
+INSERT INTO t1 VALUES (48985536,39,2,2,20000319013932);
+INSERT INTO t1 VALUES (48985536,7,2,2,20000319013932);
+INSERT INTO t1 VALUES (465931136,3,2,2,20000318160951);
+INSERT INTO t1 VALUES (465931136,119,1,1,20000318160953);
+INSERT INTO t1 VALUES (465931136,2,1,1,20000318160950);
+INSERT INTO t1 VALUES (465931136,8,1,1,20000318160950);
+INSERT INTO t1 VALUES (465931136,39,1,1,20000318160950);
+INSERT INTO t1 VALUES (1092858576,14,1,1,20000319013445);
+INSERT INTO t1 VALUES (357917728,3,2,2,20000319145026);
+INSERT INTO t1 VALUES (357917728,7,2,2,20000319145027);
+select visitor_id,max(ts) as mts from t1 group by visitor_id
+having mts < DATE_SUB(NOW(),INTERVAL 3 MONTH);
+visitor_id	mts
+48985536	2000-03-19 01:39:32
+173865424	2000-03-18 23:36:15
+357917728	2000-03-19 14:50:27
+465931136	2000-03-18 16:09:53
+1092858576	2000-03-19 01:34:45
+select visitor_id,max(ts) as mts from t1 group by visitor_id
+having DATE_ADD(mts,INTERVAL 3 MONTH) < NOW();
+visitor_id	mts
+48985536	2000-03-19 01:39:32
+173865424	2000-03-18 23:36:15
+357917728	2000-03-19 14:50:27
+465931136	2000-03-18 16:09:53
+1092858576	2000-03-19 01:34:45
+drop table t1;
+set sql_mode='traditional';
+create table t1 (d date);
+insert into t1 (d) select date_sub('2000-01-01', INTERVAL 2001 YEAR);
+ERROR 22008: Datetime function: datetime field overflow
+insert into t1 (d) select date_add('2000-01-01',interval 8000 year);
+ERROR 22008: Datetime function: datetime field overflow
+insert into t1 values (date_add(NULL, INTERVAL 1 DAY));
+insert into t1 values (date_add('2000-01-04', INTERVAL NULL DAY));
+set sql_mode='';
+insert into t1 (d) select date_sub('2000-01-01', INTERVAL 2001 YEAR);
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+insert into t1 (d) select date_add('2000-01-01',interval 8000 year);
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+insert into t1 values (date_add(NULL, INTERVAL 1 DAY));
+insert into t1 values (date_add('2000-01-04', INTERVAL NULL DAY));
+select * from t1;
+d
+NULL
+NULL
+NULL
+NULL
+NULL
+NULL
+drop table t1;
+End of 4.1 tests
+SELECT CAST('2006-09-26' AS DATE) + INTERVAL 1 DAY;
+CAST('2006-09-26' AS DATE) + INTERVAL 1 DAY
+2006-09-27
+SELECT CAST('2006-09-26' AS DATE) + INTERVAL 1 MONTH;
+CAST('2006-09-26' AS DATE) + INTERVAL 1 MONTH
+2006-10-26
+SELECT CAST('2006-09-26' AS DATE) + INTERVAL 1 YEAR;
+CAST('2006-09-26' AS DATE) + INTERVAL 1 YEAR
+2007-09-26
+SELECT CAST('2006-09-26' AS DATE) + INTERVAL 1 WEEK;
+CAST('2006-09-26' AS DATE) + INTERVAL 1 WEEK
+2006-10-03
+create table t1 (a int, b varchar(10));
+insert into t1 values (1, '2001-01-01'),(2, '2002-02-02');
+select '2007-01-01' + interval a day from t1;
+'2007-01-01' + interval a day
+2007-01-02
+2007-01-03
+select b + interval a day from t1;
+b + interval a day
+2001-01-02
+2002-02-04
+drop table t1;
+End of 5.0 tests
+create table t1 (a varchar(10));
+insert t1 values ('2000-12-03'),('2008-05-03');
+select * from t1 where case a when adddate( '2012-12-12', 7 ) then true end;
+a
+drop table t1;
+End of 5.5 tests
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-14452 Precision in INTERVAL xxx DAY_MICROSECOND parsed wrong?
+#
+SELECT
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.5' DAY_MICROSECOND) c1,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.50' DAY_MICROSECOND) c2,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.500' DAY_MICROSECOND) c3,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.5000' DAY_MICROSECOND) c4,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.50000' DAY_MICROSECOND) c5,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.500000' DAY_MICROSECOND) c6,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.5000000' DAY_MICROSECOND) c7,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.50000000' DAY_MICROSECOND) c8,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.500000000' DAY_MICROSECOND) c9,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.5000000000' DAY_MICROSECOND) c10,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.50000000000' DAY_MICROSECOND) c11,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.500000000000' DAY_MICROSECOND) c12,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.5000000000000' DAY_MICROSECOND) c13,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.50000000000000' DAY_MICROSECOND) c14,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.500000000000000' DAY_MICROSECOND) c15,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.5000000000000000' DAY_MICROSECOND) c16,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.50000000000000000' DAY_MICROSECOND) c17,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.500000000000000000' DAY_MICROSECOND) c18,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.5000000000000000000' DAY_MICROSECOND) c19,
+DATE_ADD('1000-01-01 00:00:00', INTERVAL '0 00:00:01.50000000000000000000' DAY_MICROSECOND) c20
+;
+c1	1000-01-01 00:00:01.500000
+c2	1000-01-01 00:00:01.500000
+c3	1000-01-01 00:00:01.500000
+c4	1000-01-01 00:00:01.500000
+c5	1000-01-01 00:00:01.500000
+c6	1000-01-01 00:00:01.500000
+c7	1000-01-01 00:00:01.500000
+c8	1000-01-01 00:00:01.500000
+c9	1000-01-01 00:00:01.500000
+c10	1000-01-01 00:00:01.500000
+c11	1000-01-01 00:00:01.500000
+c12	1000-01-01 00:00:01.500000
+c13	1000-01-01 00:00:01.500000
+c14	1000-01-01 00:00:01.500000
+c15	1000-01-01 00:00:01.500000
+c16	1000-01-01 00:00:01.500000
+c17	1000-01-01 00:00:01.500000
+c18	1000-01-01 00:00:01.500000
+c19	1000-01-01 00:00:01.500000
+c20	NULL
+#
+# End of 10.1 tests
+#
+create or replace view v1 as select 3 & 20010101 + interval 2 day as x;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 3 & 20010101 + interval 2 day AS `x`	latin1	latin1_swedish_ci
+select 3 & 20010101 + interval 2 day, x from v1;
+3 & 20010101 + interval 2 day	x
+3	3
+create or replace view v1 as select (3 & 20010101) + interval 2 day as x;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select (3 & 20010101) + interval 2 day AS `x`	latin1	latin1_swedish_ci
+select (3 & 20010101) + interval 2 day, x from v1;
+(3 & 20010101) + interval 2 day	x
+NULL	NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '1'
+Warning	1292	Incorrect datetime value: '1'
+create or replace view v1 as select 3 & (20010101 + interval 2 day) as x;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 3 & 20010101 + interval 2 day AS `x`	latin1	latin1_swedish_ci
+select 3 & (20010101 + interval 2 day), x from v1;
+3 & (20010101 + interval 2 day)	x
+3	3
+create or replace view v1 as select 30 + 20010101 + interval 2 day as x;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 30 + 20010101 + interval 2 day AS `x`	latin1	latin1_swedish_ci
+select 30 + 20010101 + interval 2 day, x from v1;
+30 + 20010101 + interval 2 day	x
+2001-02-02	2001-02-02
+create or replace view v1 as select (30 + 20010101) + interval 2 day as x;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 30 + 20010101 + interval 2 day AS `x`	latin1	latin1_swedish_ci
+select (30 + 20010101) + interval 2 day, x from v1;
+(30 + 20010101) + interval 2 day	x
+2001-02-02	2001-02-02
+create or replace view v1 as select 30 + (20010101 + interval 2 day) as x;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 30 + (20010101 + interval 2 day) AS `x`	latin1	latin1_swedish_ci
+select 30 + (20010101 + interval 2 day), x from v1;
+30 + (20010101 + interval 2 day)	x
+20010133	20010133
+drop view v1;
+End of 10.2 tests

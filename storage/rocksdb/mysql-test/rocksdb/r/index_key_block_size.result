@@ -23,6 +23,8 @@ CREATE TABLE t1 (a INT,
 b CHAR(8),
 PRIMARY KEY ind2(b(1) DESC) KEY_BLOCK_SIZE=32768 COMMENT 'big key_block_size value'
 ) ENGINE=rocksdb;
+Warnings:
+Warning	1280	Name 'ind2' ignored for PRIMARY key.
 SHOW INDEX IN t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	PRIMARY	1	b	A	#	1	NULL		LSMTREE		big key_block_size value

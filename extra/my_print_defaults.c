@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 /*
@@ -116,7 +116,7 @@ static void usage()
 {
   version();
   puts("This software comes with ABSOLUTELY NO WARRANTY. This is free software,\nand you are welcome to modify and redistribute it under the GPL license\n");
-  puts("Prints all arguments that is give to some program using the default files");
+  puts("Displays the options from option groups of option files, which is useful to see which options a particular tool will use");
   printf("Usage: %s [OPTIONS] [groups]\n", my_progname);
   my_print_help(my_long_options);
   my_print_default_files(config_file);
@@ -206,6 +206,9 @@ int main(int argc, char **argv)
   if ((error= load_defaults(config_file, (const char **) load_default_groups,
 			   &count, &arguments)))
   {
+    my_end(0);
+    if (error == 4)
+      return 0;
     if (verbose && opt_defaults_file_used)
     {
       if (error == 1)
@@ -216,8 +219,7 @@ int main(int argc, char **argv)
 	fprintf(stderr, "WARNING: Defaults file '%s' is not a regular file!\n",
 		config_file);
     }
-    error= 2;
-    exit(error);
+    return 2;
   }
 
   for (argument= arguments+1 ; *argument ; argument++)

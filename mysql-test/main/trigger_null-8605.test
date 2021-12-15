@@ -1,0 +1,393 @@
+#
+# MDEV-8605 MariaDB not use DEFAULT value even when inserted NULL for NOT NULLABLE column.
+#
+
+set sql_mode=strict_all_tables;
+set time_zone="+02:00";
+
+create table t1 (a int not null, b int, c int);
+create trigger trgi before insert on t1 for each row set new.a=if(new.a is null,new.b,new.c);
+
+# INSERT
+insert t1 values (10, NULL, 1);
+insert t1 values (NULL, 2, NULL);
+--error ER_BAD_NULL_ERROR
+insert t1 values (NULL, NULL, 20);
+--error ER_BAD_NULL_ERROR
+insert t1 values (1, 2, NULL);
+select * from t1;
+
+# INSERT IGNORE
+insert ignore t1 values (NULL, NULL, 30);
+insert ignore t1 values (1, 3, NULL);
+select * from t1;
+
+# fields in the value list
+insert t1 set a=NULL, b=4, c=a;
+select * from t1;
+delete from t1;
+
+#insert (column list)
+insert t1 (a,c) values (10, 1);
+insert t1 (a,b) values (NULL, 2);
+--error ER_BAD_NULL_ERROR
+insert t1 (a,c) values (NULL, 20);
+--error ER_BAD_NULL_ERROR
+insert t1 (a,b) values (1, 2);
+select * from t1;
+delete from t1;
+
+# insert select
+
+insert t1 select 10, NULL, 1;
+insert t1 select NULL, 2, NULL;
+--error ER_BAD_NULL_ERROR
+insert t1 select NULL, NULL, 20;
+--error ER_BAD_NULL_ERROR
+insert t1 select 1, 2, NULL;
+insert ignore t1 select NULL, NULL, 30;
+insert ignore t1 select 1, 3, NULL;
+select * from t1;
+delete from t1;
+
+# insert delayed
+insert delayed t1 values (10, NULL, 1);
+insert delayed t1 values (NULL, 2, NULL);
+--error ER_BAD_NULL_ERROR
+insert delayed t1 values (NULL, NULL, 20);
+--error ER_BAD_NULL_ERROR
+insert delayed t1 values (1, 2, NULL);
+select * from t1;
+insert delayed ignore t1 values (NULL, NULL, 30);
+insert delayed ignore t1 values (1, 3, NULL);
+flush table t1; # wait for inserts to finish
+select * from t1;
+delete from t1;
+
+# insert on dup key update
+alter table t1 add primary key (a);
+create trigger trgu before update on t1 for each row set new.a=if(new.a is null,new.b,new.c);
+
+insert t1 values (100,100,100), (200,200,200), (300,300,300);
+insert t1 values (100,100,100) on duplicate key update a=10, b=NULL, c=1;
+insert t1 values (200,200,200) on duplicate key update a=NULL, b=2, c=NULL;
+--error ER_BAD_NULL_ERROR
+insert t1 values (300,300,300) on duplicate key update a=NULL, b=NULL, c=20;
+--error ER_BAD_NULL_ERROR
+insert t1 values (300,300,300) on duplicate key update a=1, b=2, c=NULL;
+select * from t1;
+delete from t1;
+
+# replace
+insert t1 values (1,100,1), (2,200,2);
+replace t1 values (10, NULL, 1);
+replace t1 values (NULL, 2, NULL);
+--error ER_BAD_NULL_ERROR
+replace t1 values (NULL, NULL, 30);
+--error ER_BAD_NULL_ERROR
+replace t1 values (1, 3, NULL);
+select * from t1;
+delete from t1;
+
+# update
+insert t1 values (100,100,100), (200,200,200), (300,300,300);
+update t1 set a=10, b=NULL, c=1 where a=100;
+update t1 set a=NULL, b=2, c=NULL where a=200;
+--error ER_BAD_NULL_ERROR
+update t1 set a=NULL, b=NULL, c=20 where a=300;
+--error ER_BAD_NULL_ERROR
+update t1 set a=1, b=2, c=NULL where a=300;
+select * from t1;
+# Test UPDATE with NULL violation in many rows
+--error ER_DUP_ENTRY
+set statement sql_mode='' for update t1 set a=1, b=2, c=NULL where a > 1;
+select * from t1;
+# fields in the value list
+update t1 set a=NULL, b=4, c=a where a=300;
+select * from t1;
+delete from t1;
+
+# multi-update
+
+create table t2 (d int, e int);
+insert t1 values (100,100,100), (200,200,200), (300,300,300);
+insert t2 select a,b from t1;
+update t1,t2 set a=10, b=NULL, c=1 where b=d and e=100;
+update t1,t2 set a=NULL, b=2, c=NULL where b=d and e=200;
+--error ER_BAD_NULL_ERROR
+update t1,t2 set a=NULL, b=NULL, c=20 where b=d and e=300;
+--error ER_BAD_NULL_ERROR
+update t1,t2 set a=1, b=2, c=NULL where b=d and e=300;
+select * from t1;
+# fields in the value list
+update t1,t2 set a=NULL, b=4, c=a where b=d and e=300;
+select * from t1;
+delete from t1;
+
+# view
+insert t2 values (2,2);
+create view v1 as select * from t1, t2 where d=2;
+insert v1 (a,c) values (10, 1);
+insert v1 (a,b) values (NULL, 2);
+--error ER_BAD_NULL_ERROR
+insert v1 (a,c) values (NULL, 20);
+--error ER_BAD_NULL_ERROR
+insert v1 (a,b) values (1, 2);
+select * from v1;
+delete from t1;
+drop view v1;
+drop table t2;
+
+# load data
+let $datadir=`select @@datadir`;
+--write_file $datadir/test/mdev8605.txt
+10,\N,1
+\N,2,\N
+\N,\N,20
+EOF
+--error ER_BAD_NULL_ERROR
+load data infile 'mdev8605.txt' into table t1 fields terminated by ',';
+select * from t1;
+drop table t1;
+--remove_file $datadir/test/mdev8605.txt
+
+# timestamps (on NULL = NOW())
+create table t1 (a timestamp, b int auto_increment primary key);
+create trigger trgi before insert on t1 for each row set new.a=if(new.a is null, '2000-10-20 10:20:30', NULL);
+set statement timestamp=777777777 for insert t1 (a) values (NULL);
+set statement timestamp=888888888 for insert t1 (a) values ('1999-12-11 10:9:8');
+select b, a, unix_timestamp(a) from t1;
+set statement timestamp=999999999 for update t1 set b=3 where b=2;
+select b, a, unix_timestamp(a) from t1;
+create trigger trgu before update on t1 for each row set new.a='2011-11-11 11:11:11';
+update t1 set b=4 where b=3;
+select b, a, unix_timestamp(a) from t1;
+drop table t1;
+
+# auto-increment (on NULL = int)
+create table t1 (a int auto_increment primary key);
+create trigger trgi before insert on t1 for each row set new.a=if(new.a is null, 5, NULL);
+insert t1 values (NULL);
+insert t1 values (10);
+select a from t1;
+drop table t1;
+
+# insert, all columns NULLable
+create table t1 (a int, b int, c int);
+create trigger trgi before insert on t1 for each row set new.a=if(new.a is null,new.b,new.c);
+insert t1 values (10, NULL, 1);
+insert t1 values (NULL, 2, NULL);
+insert t1 values (NULL, NULL, 20);
+insert t1 values (1, 2, NULL);
+select * from t1;
+drop table t1;
+
+# more load data: autoinc and timestamp, different load formats
+create table t1 (a1 tinyint not null, a2 timestamp not null,
+                 a3 tinyint not null auto_increment primary key,
+                 b tinyint, c int not null);
+delimiter |;
+create trigger trgi before insert on t1 for each row
+begin
+  if new.b=1 then set new.a1=if(new.c,new.c,null); end if;
+  if new.b=2 then set new.a2=if(new.c,new.c,null); end if;
+  if new.b=3 then set new.a3=if(new.c,new.c,null); end if;
+end|
+delimiter ;|
+
+--write_file $datadir/test/sep8605.txt
+1,2010-11-12 1:2:3,10,0,0
+\N,2010-11-12 1:2:3,11,1,2
+3,\N,12,0,0
+4,\N,13,2,908070605
+5,2010-11-12 1:2:3,14,2,0
+6,2010-11-12 1:2:3,\N,0,0
+7,2010-11-12 1:2:3,\N,3,20
+8,2010-11-12 1:2:3,30,3,0
+99,2010-11-12 1:2:3,0,1,0
+EOF
+
+--error ER_BAD_NULL_ERROR
+set statement timestamp=777777777 for
+load data infile 'sep8605.txt' into table t1 fields terminated by ',';
+select * from t1;
+delete from t1;
+
+--error ER_BAD_NULL_ERROR
+set statement timestamp=777777777 for
+load data infile 'sep8605.txt' into table t1 fields terminated by ','
+   (@a,a2,a3,b,c) set a1=100-@a;
+select 100-a1,a2,a3,b,c from t1;
+delete from t1;
+--remove_file $datadir/test/sep8605.txt
+
+--write_file $datadir/test/fix8605.txt
+00012010-11-12 01:02:030010000000000000000
+00052010-11-12 01:02:030014000200000000000
+00082010-11-12 01:02:030030000300000000000
+00992010-11-12 01:02:030000000100000000000
+EOF
+
+--error ER_BAD_NULL_ERROR
+set statement timestamp=777777777 for
+load data infile 'fix8605.txt' into table t1 fields terminated by '';
+select * from t1;
+delete from t1;
+--remove_file $datadir/test/fix8605.txt
+
+--write_file $datadir/test/xml8605.txt
+<data>
+  <row>
+    <field name="a1">1</field>
+    <field name="a2">2010-11-12 1:2:3</field>
+    <field name="a3">10</field>
+    <field name="b">0</field>
+    <field name="c">0</field>
+  </row>
+  <row>
+    <field name="a2">2010-11-12 1:2:3</field>
+    <field name="a3">11</field>
+    <field name="b">1</field>
+    <field name="c">2</field>
+  </row>
+  <row>
+    <field name="a1">3</field>
+    <field name="a3">12</field>
+    <field name="b">0</field>
+    <field name="c">0</field>
+  </row>
+  <row>
+    <field name="a1">4</field>
+    <field name="a3">13</field>
+    <field name="b">2</field>
+    <field name="c">908070605</field>
+  </row>
+  <row>
+    <field name="a1">5</field>
+    <field name="a2">2010-11-12 1:2:3</field>
+    <field name="a3">14</field>
+    <field name="b">2</field>
+    <field name="c">0</field>
+  </row>
+  <row>
+    <field name="a1">6</field>
+    <field name="a2">2010-11-12 1:2:3</field>
+    <field name="b">0</field>
+    <field name="c">0</field>
+  </row>
+  <row>
+    <field name="a1">7</field>
+    <field name="a2">2010-11-12 1:2:3</field>
+    <field name="b">3</field>
+    <field name="c">20</field>
+  </row>
+  <row>
+    <field name="a1">8</field>
+    <field name="a2">2010-11-12 1:2:3</field>
+    <field name="a3">30</field>
+    <field name="b">3</field>
+    <field name="c">0</field>
+  </row>
+  <row>
+    <field name="a1">99</field>
+    <field name="a2">2010-11-12 1:2:3</field>
+    <field name="a3">0</field>
+    <field name="b">1</field>
+    <field name="c">0</field>
+  </row>
+</data>
+EOF
+
+--error ER_BAD_NULL_ERROR
+set statement timestamp=777777777 for
+load xml infile 'xml8605.txt' into table t1 rows identified by '<row>';
+select * from t1;
+drop table t1;
+--remove_file $datadir/test/xml8605.txt
+
+# explicit DEFAULT
+create table t1 (a int not null default 5, b int, c int);
+create trigger trgi before insert on t1 for each row set new.b=new.c;
+insert t1 values (DEFAULT,2,1);
+select * from t1;
+drop table t1;
+
+# Two statements, first fails, second uses an implicit default
+create table t1 (a int not null, b int not null default 5, c int);
+delimiter |;
+create trigger trgi before insert on t1 for each row
+begin
+  if new.c=1 then set new.a=1, new.b=1; end if;
+  if new.c=2 then set new.a=NULL, new.b=NULL; end if;
+  if new.c=3 then set new.a=2; end if;
+end|
+delimiter ;|
+
+insert t1 values (9, 9, 1);
+--error ER_BAD_NULL_ERROR
+insert t1 values (9, 9, 2);
+insert t1 (a,c) values (9, 3);
+select * from t1;
+drop table t1;
+
+#
+# MDEV-9428 NO_AUTO_VALUE_ON_ZERO is ignored when a trigger before insert is defined
+#
+set session sql_mode ='no_auto_value_on_zero';
+create table t1 (id int unsigned auto_increment primary key);
+insert t1 values (0);
+select * from t1;
+delete from t1;
+create trigger t1_bi before insert on t1 for each row begin end;
+insert t1 values (0);
+--error ER_DUP_ENTRY
+insert t1 (id) values (0);
+drop table t1;
+
+#
+# MDEV-9500 Bug after upgrade to 10.1.10 (and 10.1.11)
+#
+create table t1 (a int not null, b int);
+create trigger trgi before update on t1 for each row do 1;
+insert t1 values (1,1),(2,2),(3,3),(1,4);
+create table t2 select a as c, b as d from t1;
+update t1 set a=(select count(c) from t2 where c+1=a+1 group by a);
+select * from t1;
+drop table t1, t2;
+
+#
+# MDEV-9535 Trigger doing "SET NEW.auctionStart = NOW();" on a timestamp kills MariaDB server.
+#
+create table t1 (a int not null);
+create table t2 (f1 int unsigned not null, f2 int);
+insert into t2 values (1, null);
+create trigger tr1 before update on t1 for each row do 1;
+create trigger tr2 after update on t2 for each row update t1 set a=new.f2;
+update t2 set f2=1 where f1=1;
+drop table t1, t2;
+
+#
+# MDEV-9629 Disappearing PRI from Key column after creating a trigger
+#
+create table t1 (a int not null, primary key (a));
+insert into t1 (a) values (1);
+show columns from t1;
+create trigger t1bu before update on t1 for each row begin end;
+show columns from t1;
+insert into t1 (a) values (3);
+show columns from t1;
+drop table t1;
+
+#
+# MDEV-11551 Server crashes in Field::is_real_null
+#
+create table t1 (
+  pk int primary key,
+  i int,
+  v1 int as (i) virtual,
+  v2 int as (i) virtual
+);
+create trigger tr before update on t1 for each row set @a = 1;
+--error ER_BAD_NULL_ERROR
+insert into t1 (pk, i) values (null, null);
+drop table t1;

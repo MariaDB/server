@@ -30,7 +30,7 @@ SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
 SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
 SET GLOBAL wsrep_provider_options = 'dbug=';
 connection node_1;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR 40001: Deadlock: wsrep aborted transaction
 connection node_2;
 SELECT * FROM p;
 f1	f2
@@ -70,7 +70,7 @@ SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
 SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
 SET GLOBAL wsrep_provider_options = 'dbug=';
 connection node_1;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR 40001: Deadlock: wsrep aborted transaction
 connection node_2;
 SELECT * FROM p;
 f1	f2
@@ -112,7 +112,7 @@ SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
 SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
 SET GLOBAL wsrep_provider_options = 'dbug=';
 connection node_1;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR 40001: Deadlock: wsrep aborted transaction
 connection node_2;
 SELECT * FROM p;
 f1	f2
@@ -145,7 +145,7 @@ SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
 SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
 SET GLOBAL wsrep_provider_options = 'dbug=';
 connection node_1;
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+ERROR 40001: Deadlock: wsrep aborted transaction
 connection node_2;
 SELECT * FROM p;
 f1	f2

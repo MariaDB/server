@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "strings_def.h"
 #include <m_ctype.h>
@@ -47,7 +47,7 @@ size_t my_strnxfrmlen_simple(CHARSET_INFO *cs, size_t len)
      is equal to comparing two original strings with my_strnncollsp_xxx().
      
      Not more than 'dstlen' bytes are written into 'dst'.
-     To garantee that the whole string is transformed, 'dstlen' must be
+     To guarantee that the whole string is transformed, 'dstlen' must be
      at least srclen*cs->strnxfrm_multiply bytes long. Otherwise,
      consequent memcmp() may return a non-accurate result.
      
@@ -236,28 +236,26 @@ size_t my_casedn_str_8bit(CHARSET_INFO * cs,char *str)
 }
 
 
-size_t my_caseup_8bit(CHARSET_INFO * cs, char *src, size_t srclen,
-                      char *dst __attribute__((unused)),
-                      size_t dstlen __attribute__((unused)))
+size_t my_caseup_8bit(CHARSET_INFO * cs, const char *src, size_t srclen,
+                      char *dst, size_t dstlen)
 {
-  char *end= src + srclen;
+  const char *end= src + srclen;
   register const uchar *map= cs->to_upper;
-  DBUG_ASSERT(src == dst && srclen == dstlen);
+  DBUG_ASSERT(srclen <= dstlen);
   for ( ; src != end ; src++)
-    *src= (char) map[(uchar) *src];
+    *dst++= (char) map[(uchar) *src];
   return srclen;
 }
 
 
-size_t my_casedn_8bit(CHARSET_INFO * cs, char *src, size_t srclen,
-                      char *dst __attribute__((unused)),
-                      size_t dstlen __attribute__((unused)))
+size_t my_casedn_8bit(CHARSET_INFO * cs, const char *src, size_t srclen,
+                      char *dst, size_t dstlen)
 {
-  char *end= src + srclen;
+  const char *end= src + srclen;
   register const uchar *map=cs->to_lower;
-  DBUG_ASSERT(src == dst && srclen == dstlen);
+  DBUG_ASSERT(srclen <= dstlen);
   for ( ; src != end ; src++)
-    *src= (char) map[(uchar) *src];
+    *dst++= (char) map[(uchar) *src];
   return srclen;
 }
 
@@ -494,7 +492,6 @@ ulong my_strntoul_8bit(CHARSET_INFO *cs,
   register uint cutlim;
   register uint32 i;
   register const char *s;
-  register uchar c;
   const char *save, *e;
   int overflow;
 
@@ -529,8 +526,9 @@ ulong my_strntoul_8bit(CHARSET_INFO *cs,
   overflow = 0;
   i = 0;
   
-  for (c = *s; s != e; c = *++s)
+  for ( ; s != e; ++s)
   {
+    register uchar c= *s;
     if (c>='0' && c<='9')
       c -= '0';
     else if (c>='A' && c<='Z')
@@ -1537,7 +1535,7 @@ static ulonglong d10[DIGITS_IN_ULONGLONG]=
   Convert a string to unsigned long long integer value
   with rounding.
   
-  SYNOPSYS
+  SYNOPSIS
     my_strntoull10_8bit()
       cs              in      pointer to character set
       str             in      pointer to the string to be converted
@@ -1600,7 +1598,8 @@ my_strntoull10rnd_8bit(CHARSET_INFO *cs __attribute__((unused)),
   int shift= 0, digits= 0, negative, addon;
 
   /* Skip leading spaces and tabs */
-  for ( ; str < end && (*str == ' ' || *str == '\t') ; str++);
+  for ( ; str < end && my_isspace(&my_charset_latin1, *str) ; )
+    str++;
 
   if (str >= end)
     goto ret_edom;
@@ -1728,10 +1727,20 @@ exp:    /* [ E [ <sign> ] <unsigned integer> ] */
           goto ret_sign;
         }
       }
-      for (exponent= 0 ;
-           str < end && (ch= (uchar) (*str - '0')) < 10;
-           str++)
+      if (shift > 0 && !negative_exp)
+        goto ret_too_big;
+      for (exponent= 0 ; str < end && (ch= (uchar) (*str - '0')) < 10; str++)
       {
+        if (negative_exp)
+        {
+          if (exponent - shift > DIGITS_IN_ULONGLONG)
+            goto ret_zero;
+        }
+        else
+        {
+          if (exponent + shift > DIGITS_IN_ULONGLONG)
+            goto ret_too_big;
+        }
         exponent= exponent * 10 + ch;
       }
       shift+= negative_exp ? -exponent : exponent;

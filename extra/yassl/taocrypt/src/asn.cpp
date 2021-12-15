@@ -13,7 +13,7 @@
    You should have received a copy of the GNU General Public License
    along with this program; see the file COPYING. If not, write to the
    Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-   MA  02110-1301  USA.
+   MA  02110-1335  USA.
 */
 
 /* asn.cpp implements ASN1 BER, PublicKey, and x509v3 decoding 
@@ -1007,7 +1007,7 @@ bool CertDecoder::ConfirmSignature(Source& pub)
     }
 #endif
     else {
-        source_.SetError(UNKOWN_SIG_E);
+        source_.SetError(UNKNOWN_SIG_E);
         return false;
     }
 
@@ -1132,7 +1132,7 @@ word32 DER_Encoder::SetAlgoID(HashType aOID, byte* output)
         break;
 
     default:
-        error_.SetError(UNKOWN_HASH_E);
+        error_.SetError(UNKNOWN_HASH_E);
         return 0;
     }
 

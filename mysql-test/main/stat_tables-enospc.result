@@ -1,0 +1,12 @@
+call mtr.add_suppression("No space left on device");
+create table t1 (a varchar(255), b varchar(255), c varchar(255));
+set use_stat_tables=PREFERABLY, optimizer_use_condition_selectivity=3;
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET debug_dbug='+d,simulate_file_write_error';
+set @@max_heap_table_size=128*1024;
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	Error	Error writing file 'tmp-file' (Errcode: 28 "No space left on device")
+test.t1	analyze	status	Operation failed
+SET debug_dbug= @saved_dbug;
+drop table t1;

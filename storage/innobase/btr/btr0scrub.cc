@@ -1,5 +1,5 @@
 // Copyright (c) 2014, Google Inc.
-// Copyright (c) 2017, MariaDB Corporation.
+// Copyright (c) 2017, 2021, MariaDB Corporation.
 
 /**************************************************//**
 @file btr/btr0scrub.cc
@@ -133,7 +133,7 @@ btr_scrub_lock_dict_func(ulint space_id, bool lock_to_close_table,
 		if (lock_to_close_table) {
 		} else if (fil_space_t* space = fil_space_acquire(space_id)) {
 			bool stopping = space->is_stopping();
-			fil_space_release(space);
+			space->release();
 			if (stopping) {
 				return false;
 			}
@@ -209,7 +209,7 @@ btr_scrub_table_close_for_thread(
 			btr_scrub_table_close(scrub_data->current_table);
 			mutex_exit(&dict_sys->mutex);
 		}
-		fil_space_release(space);
+		space->release();
 	}
 
 	scrub_data->current_table = NULL;
@@ -423,7 +423,7 @@ btr_pessimistic_scrub(
 	* so that splitting won't fail due to this */
 	ulint n_extents = 3;
 	ulint n_reserved = 0;
-	if (!fsp_reserve_free_extents(&n_reserved, index->space,
+	if (!fsp_reserve_free_extents(&n_reserved, index->table->space,
 				      n_extents, FSP_NORMAL, mtr)) {
 		log_scrub_failure(index, scrub_data, block,
 				  DB_OUT_OF_FILE_SPACE);
@@ -432,12 +432,9 @@ btr_pessimistic_scrub(
 
 	/* read block variables */
 	const ulint page_no =  mach_read_from_4(page + FIL_PAGE_OFFSET);
-	const page_id_t page_id(dict_index_get_space(index), page_no);
-	const ulint left_page_no = btr_page_get_prev(page, mtr);
-	const ulint right_page_no = btr_page_get_next(page, mtr);
-	const page_id_t lpage_id(dict_index_get_space(index), left_page_no);
-	const page_id_t rpage_id(dict_index_get_space(index), right_page_no);
-	const page_size_t page_size(dict_table_page_size(index->table));
+	const uint32_t left_page_no = btr_page_get_prev(page);
+	const uint32_t right_page_no = btr_page_get_next(page);
+	const page_size_t page_size(index->table->space->flags);
 
 	/**
 	* When splitting page, we need X-latches on left/right brothers
@@ -453,35 +450,35 @@ btr_pessimistic_scrub(
 		mtr->release_block_at_savepoint(scrub_data->savepoint, block);
 
 		buf_block_t* get_block __attribute__((unused)) = btr_block_get(
-			lpage_id, page_size,
-			RW_X_LATCH, index, mtr);
+			page_id_t(index->table->space_id, left_page_no),
+			page_size, RW_X_LATCH, index, mtr);
 
 		/**
 		* Refetch block and re-initialize page
 		*/
 		block = btr_block_get(
-			page_id, page_size,
-			RW_X_LATCH, index, mtr);
+			page_id_t(index->table->space_id, page_no),
+			page_size, RW_X_LATCH, index, mtr);
 
 		page = buf_block_get_frame(block);
 
 		/**
 		* structure should be unchanged
 		*/
-		ut_a(left_page_no == btr_page_get_prev(page, mtr));
-		ut_a(right_page_no == btr_page_get_next(page, mtr));
+		ut_a(left_page_no == btr_page_get_prev(page));
+		ut_a(right_page_no == btr_page_get_next(page));
 	}
 
 	if (right_page_no != FIL_NULL) {
 		buf_block_t* get_block __attribute__((unused))= btr_block_get(
-			rpage_id, page_size,
-			RW_X_LATCH, index, mtr);
+			page_id_t(index->table->space_id, right_page_no),
+			page_size, RW_X_LATCH, index, mtr);
 	}
 
 	/* arguments to btr_page_split_and_insert */
 	mem_heap_t* heap = NULL;
 	dtuple_t* entry = NULL;
-	ulint* offsets = NULL;
+	rec_offs* offsets = NULL;
 	ulint n_ext = 0;
 	ulint flags = BTR_MODIFY_TREE;
 
@@ -522,10 +519,7 @@ btr_pessimistic_scrub(
 		mem_heap_free(heap);
 	}
 
-	if (n_reserved > 0) {
-		fil_space_release_free_extents(index->space, n_reserved);
-	}
-
+	index->table->space->release_free_extents(n_reserved);
 	scrub_data->scrub_stat.page_splits++;
 	return DB_SUCCESS;
 }
@@ -632,13 +626,8 @@ btr_scrub_get_table_and_index(
 		scrub_data->current_table = NULL;
 	}
 
-	/* argument to dict_table_open_on_index_id */
-	bool dict_locked = true;
-
 	/* open table based on index_id */
-	dict_table_t* table = dict_table_open_on_index_id(
-		index_id,
-		dict_locked);
+	dict_table_t* table = dict_table_open_on_index_id(index_id);
 
 	if (table != NULL) {
 		/* mark table as being scrubbed */
@@ -674,7 +663,7 @@ btr_scrub_free_page(
 		* it will be found by scrubbing thread again
 		*/
 		memset(buf_block_get_frame(block) + PAGE_HEADER, 0,
-		       UNIV_PAGE_SIZE - PAGE_HEADER);
+		       srv_page_size - PAGE_HEADER);
 
 		mach_write_to_2(buf_block_get_frame(block) + FIL_PAGE_TYPE,
 				FIL_PAGE_TYPE_ALLOCATED);
@@ -753,7 +742,7 @@ btr_scrub_recheck_page(
 	}
 
 	mtr_start(mtr);
-	mtr_x_lock(dict_index_get_lock(scrub_data->current_index), mtr);
+	mtr_x_lock_index(scrub_data->current_index, mtr);
 	/** set savepoint for X-latch of block */
 	scrub_data->savepoint = mtr_set_savepoint(mtr);
 	return BTR_SCRUB_PAGE;
@@ -792,13 +781,14 @@ btr_scrub_page(
 
 	/* check that table/index still match now that they are loaded */
 
-	if (scrub_data->current_table->space != scrub_data->space) {
+	if (!scrub_data->current_table->space
+	    || scrub_data->current_table->space_id != scrub_data->space) {
 		/* this is truncate table */
 		mtr_commit(mtr);
 		return BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;
 	}
 
-	if (scrub_data->current_index->space != scrub_data->space) {
+	if (scrub_data->current_index->table != scrub_data->current_table) {
 		/* this is truncate table */
 		mtr_commit(mtr);
 		return BTR_SCRUB_SKIP_PAGE_AND_CLOSE_TABLE;
@@ -840,20 +830,12 @@ btr_scrub_page(
 
 /**************************************************************//**
 Start iterating a space */
-UNIV_INTERN
-bool
-btr_scrub_start_space(
-/*===================*/
-	ulint space,             /*!< in: space */
-	btr_scrub_t* scrub_data) /*!< in/out: scrub data */
+bool btr_scrub_start_space(const fil_space_t &space, btr_scrub_t *scrub_data)
 {
-	bool found;
-	scrub_data->space = space;
+	scrub_data->space = space.id;
 	scrub_data->current_table = NULL;
 	scrub_data->current_index = NULL;
-	const page_size_t page_size = fil_space_get_page_size(space, &found);
-
-	scrub_data->compressed = page_size.is_compressed();
+	scrub_data->compressed = FSP_FLAGS_GET_ZIP_SSIZE(space.flags) != 0;
 	scrub_data->scrubbing = check_scrub_setting(scrub_data);
 	return scrub_data->scrubbing;
 }

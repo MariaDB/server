@@ -1,0 +1,29 @@
+#
+# MDEV-15492: Subquery crash similar to MDEV-10050
+#
+SET @qcs.save= @@global.query_cache_size, @qct.save= @@global.query_cache_type;
+SET GLOBAL query_cache_size= 512*1024*1024, query_cache_type= ON;
+connect  con1,localhost,root,,test;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE t2 (b INT) ENGINE=InnoDB;
+CREATE VIEW v AS select a from t1 join t2;
+PREPARE stmt1 FROM "SELECT * FROM t1 WHERE a in (SELECT a FROM v)";
+connect  con2,localhost,root,,test;
+PREPARE stmt2 FROM "SELECT * FROM t1 WHERE a in (SELECT a FROM v)";
+EXECUTE stmt2;
+a
+connection con1;
+EXECUTE stmt1;
+a
+INSERT INTO t2 VALUES (0);
+EXECUTE stmt1;
+a
+START TRANSACTION;
+EXECUTE stmt1;
+a
+disconnect con1;
+disconnect con2;
+connection default;
+DROP VIEW v;
+DROP TABLE t1, t2;
+SET GLOBAL query_cache_size= @qcs.save, query_cache_type= @qct.save;

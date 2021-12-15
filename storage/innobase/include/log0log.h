@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -20,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -34,15 +34,18 @@ Created 12/9/1995 Heikki Tuuri
 #ifndef log0log_h
 #define log0log_h
 
-#include "univ.i"
 #include "dyn0buf.h"
 #include "sync0rw.h"
 #include "log0types.h"
 #include "os0event.h"
 #include "os0file.h"
 
-/** Redo log group */
-struct log_group_t;
+#ifndef UINT32_MAX
+#define UINT32_MAX             (4294967295U)
+#endif
+
+/** Maximum number of srv_n_log_files, or innodb_log_files_in_group */
+#define SRV_N_LOG_FILES_MAX 100
 
 /** Magic value to use instead of log checksums when they are disabled */
 #define LOG_NO_CHECKSUM_MAGIC 0xDEADBEEFUL
@@ -50,14 +53,8 @@ struct log_group_t;
 /* Margin for the free space in the smallest log group, before a new query
 step which modifies the database, is started */
 
-#define LOG_CHECKPOINT_FREE_PER_THREAD	(4 * UNIV_PAGE_SIZE)
-#define LOG_CHECKPOINT_EXTRA_FREE	(8 * UNIV_PAGE_SIZE)
-
-typedef ulint (*log_checksum_func_t)(const byte* log_block);
-
-/** Pointer to the log checksum calculation function. Protected with
-log_sys->mutex. */
-extern log_checksum_func_t log_checksum_algorithm_ptr;
+#define LOG_CHECKPOINT_FREE_PER_THREAD	(4U << srv_page_size_shift)
+#define LOG_CHECKPOINT_EXTRA_FREE	(8U << srv_page_size_shift)
 
 /** Append a string to the log.
 @param[in]	str		string
@@ -82,9 +79,7 @@ log_free_check(void);
 
 /** Extends the log buffer.
 @param[in]	len	requested minimum size in bytes */
-void
-log_buffer_extend(
-	ulint	len);
+void log_buffer_extend(ulong len);
 
 /** Check margin not to overwrite transaction log from the last checkpoint.
 If would estimate the log write to exceed the log_group_capacity,
@@ -138,7 +133,7 @@ log_get_flush_lsn(void);
 /*=============*/
 /****************************************************************
 Gets the log group capacity. It is OK to read the value without
-holding log_sys->mutex because it is constant.
+holding log_sys.mutex because it is constant.
 @return log group capacity */
 UNIV_INLINE
 lsn_t
@@ -152,14 +147,7 @@ UNIV_INLINE
 lsn_t
 log_get_max_modified_age_async(void);
 /*================================*/
-/** Initializes the redo logging subsystem. */
-void
-log_sys_init();
 
-/** Initialize the redo log.
-@param[in]	n_files		number of files */
-void
-log_init(ulint n_files);
 /** Calculate the recommended highest values for lsn - last_checkpoint_lsn
 and lsn - buf_get_oldest_modification().
 @param[in]	file_size	requested innodb_log_file_size
@@ -170,12 +158,6 @@ bool
 log_set_capacity(ulonglong file_size)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/******************************************************//**
-Completes an i/o to a log file. */
-void
-log_io_complete(
-/*============*/
-	log_group_t*	group);	/*!< in: log group */
 /******************************************************//**
 This function is called, e.g., when a transaction wants to commit. It checks
 that the log has been written to the log file up to the last log entry written
@@ -192,9 +174,15 @@ log_write_up_to(
 /** write to the log file up to the last log entry.
 @param[in]	sync	whether we want the written log
 also to be flushed to disk. */
-void
-log_buffer_flush_to_disk(
-	bool sync = true);
+void log_buffer_flush_to_disk(bool sync= true);
+
+
+/** Prepare to invoke log_write_and_flush(), before acquiring log_sys.mutex. */
+#define log_write_and_flush_prepare() log_write_mutex_enter()
+
+/** Durably write the log up to log_sys.lsn and release log_sys.mutex. */
+ATTRIBUTE_COLD void log_write_and_flush();
+
 /****************************************************************//**
 This functions writes the log buffer to the log file and if 'flush'
 is set it forces a flush of the log file as well. This is meant to be
@@ -207,25 +195,13 @@ log_buffer_sync_in_background(
 /** Make a checkpoint. Note that this function does not flush dirty
 blocks from the buffer pool: it only checks what is lsn of the oldest
 modification in the pool, and writes information about the lsn in
-log files. Use log_make_checkpoint_at() to flush also the pool.
+log files. Use log_make_checkpoint() to flush also the pool.
 @param[in]	sync		whether to wait for the write to complete
-@param[in]	write_always	force a write even if no log
-has been generated since the latest checkpoint
 @return true if success, false if a checkpoint write was already running */
-bool
-log_checkpoint(
-	bool	sync,
-	bool	write_always);
+bool log_checkpoint(bool sync);
 
-/** Make a checkpoint at or after a specified LSN.
-@param[in]	lsn		the log sequence number, or LSN_MAX
-for the latest LSN
-@param[in]	write_always	force a write even if no log
-has been generated since the latest checkpoint */
-void
-log_make_checkpoint_at(
-	lsn_t			lsn,
-	bool			write_always);
+/** Make a checkpoint */
+void log_make_checkpoint();
 
 /****************************************************************//**
 Makes a checkpoint at the latest lsn and writes it to first page of each
@@ -235,13 +211,9 @@ shutdown. This function also writes all log in log files to the log archive. */
 void
 logs_empty_and_mark_files_at_shutdown(void);
 /*=======================================*/
-/** Read a log group header page to log_sys->checkpoint_buf.
-@param[in]	group	log group
-@param[in]	header	0 or LOG_CHEKCPOINT_1 or LOG_CHECKPOINT2 */
-void
-log_group_header_read(
-	const log_group_t*	group,
-	ulint			header);
+/** Read a log group header page to log_sys.checkpoint_buf.
+@param[in]	header	0 or LOG_CHECKPOINT_1 or LOG_CHECKPOINT2 */
+void log_header_read(ulint header);
 /** Write checkpoint info to the log header and invoke log_mutex_exit().
 @param[in]	sync	whether to wait for the write to complete
 @param[in]	end_lsn	start LSN of the MLOG_CHECKPOINT mini-transaction */
@@ -262,16 +234,6 @@ objects! */
 void
 log_check_margins(void);
 
-/********************************************************//**
-Sets the field values in group to correspond to a given lsn. For this function
-to work, the values must already be correctly initialized to correspond to
-some lsn, for instance, a checkpoint lsn. */
-void
-log_group_set_fields(
-/*=================*/
-	log_group_t*	group,	/*!< in/out: group */
-	lsn_t		lsn);	/*!< in: lsn for which the values should be
-				set */
 /************************************************************//**
 Gets a log block flush bit.
 @return TRUE if this block was the first to be written in a log flush */
@@ -304,14 +266,6 @@ log_block_set_data_len(
 /*===================*/
 	byte*	log_block,	/*!< in/out: log block */
 	ulint	len);		/*!< in: data length */
-/************************************************************//**
-Calculates the checksum for a log block.
-@return checksum */
-UNIV_INLINE
-ulint
-log_block_calc_checksum(
-/*====================*/
-	const byte*	block);	/*!< in: log block */
 
 /** Calculates the checksum for a log block using the CRC32 algorithm.
 @param[in]	block	log block
@@ -320,13 +274,6 @@ UNIV_INLINE
 ulint
 log_block_calc_checksum_crc32(
 	const byte*	block);
-
-/** Calculates the checksum for a log block using the "no-op" algorithm.
-@param[in]	block	the redo log block
-@return		the calculated checksum value */
-UNIV_INLINE
-ulint
-log_block_calc_checksum_none(const byte*	block);
 
 /************************************************************//**
 Gets a log block checksum field value.
@@ -403,16 +350,8 @@ Refreshes the statistics used to print per-second averages. */
 void
 log_refresh_stats(void);
 /*===================*/
-/********************************************************//**
-Closes all log groups. */
-void
-log_group_close_all(void);
-/*=====================*/
-/** Shut down the redo log subsystem. */
-void
-log_shutdown();
 
-/** Whether to generate and require checksums on the redo log pages */
+/** Whether to require checksums on the redo log pages */
 extern my_bool	innodb_log_checksums;
 
 /* Values used as flags */
@@ -421,8 +360,6 @@ extern my_bool	innodb_log_checksums;
 
 /* The counting of lsn's starts from this value: this must be non-zero */
 #define LOG_START_LSN		((lsn_t) (16 * OS_FILE_LOG_BLOCK_SIZE))
-
-#define LOG_BUFFER_SIZE		(srv_log_buffer_size * UNIV_PAGE_SIZE)
 
 /* Offsets of a log block header */
 #define	LOG_BLOCK_HDR_NO	0	/* block number which must be > 0 and
@@ -447,7 +384,7 @@ extern my_bool	innodb_log_checksums;
 					from this offset in this log block,
 					if value not 0 */
 #define LOG_BLOCK_CHECKPOINT_NO	8	/* 4 lower bytes of the value of
-					log_sys->next_checkpoint_no when the
+					log_sys.next_checkpoint_no when the
 					log block was last written to: if the
 					block has not yet been written full,
 					this value is only updated before a
@@ -470,7 +407,7 @@ extern my_bool	innodb_log_checksums;
 #define LOG_CHECKPOINT_LSN		8
 /** Byte offset of the log record corresponding to LOG_CHECKPOINT_LSN */
 #define LOG_CHECKPOINT_OFFSET		16
-/** log_sys_t::buf_size at the time of the checkpoint (not used) */
+/** srv_log_buffer_size at the time of the checkpoint (not used) */
 #define LOG_CHECKPOINT_LOG_BUF_SIZE	24
 /** MariaDB 10.2.5 encrypted redo log encryption key version (32 bits)*/
 #define LOG_CHECKPOINT_CRYPT_KEY	32
@@ -490,10 +427,12 @@ to this checkpoint, or 0 if the information has not been written */
 This used to be called LOG_GROUP_ID and always written as 0,
 because InnoDB never supported more than one copy of the redo log. */
 #define LOG_HEADER_FORMAT	0
-/** 4 unused (zero-initialized) bytes. In format version 0, the
+/** Redo log subformat (originally 0). In format version 0, the
 LOG_FILE_START_LSN started here, 4 bytes earlier than LOG_HEADER_START_LSN,
-which the LOG_FILE_START_LSN was renamed to. */
-#define LOG_HEADER_PAD1		4
+which the LOG_FILE_START_LSN was renamed to.
+Subformat 1 is for the fully redo-logged TRUNCATE
+(no MLOG_TRUNCATE records or extra log checkpoints or log files) */
+#define LOG_HEADER_SUBFORMAT	4
 /** LSN of the start of data in this log file (with format version 1;
 in format version 0, it was called LOG_FILE_START_LSN and at offset 4). */
 #define LOG_HEADER_START_LSN	8
@@ -514,11 +453,18 @@ or the MySQL version that created the redo log file. */
 #define LOG_HEADER_FORMAT_3_23		0
 /** The MySQL 5.7.9/MariaDB 10.2.2 log format */
 #define LOG_HEADER_FORMAT_10_2		1
-/** The MariaDB 10.3.2 log format */
+/** The MariaDB 10.3.2 log format.
+To prevent crash-downgrade to earlier 10.2 due to the inability to
+roll back a retroactively introduced TRX_UNDO_RENAME_TABLE undo log record,
+MariaDB 10.2.18 and later will use the 10.3 format, but LOG_HEADER_SUBFORMAT
+1 instead of 0. MariaDB 10.3 will use subformat 0 (5.7-style TRUNCATE) or 2
+(MDEV-13564 backup-friendly TRUNCATE). */
 #define LOG_HEADER_FORMAT_10_3		103
 /** The redo log format identifier corresponding to the current format version.
 Stored in LOG_HEADER_FORMAT. */
 #define LOG_HEADER_FORMAT_CURRENT	LOG_HEADER_FORMAT_10_3
+/** Future MariaDB 10.4 log format */
+#define LOG_HEADER_FORMAT_10_4		104
 /** Encrypted MariaDB redo log */
 #define LOG_HEADER_FORMAT_ENCRYPTED	(1U<<31)
 
@@ -535,99 +481,41 @@ Stored in LOG_HEADER_FORMAT. */
 					header */
 #define LOG_FILE_HDR_SIZE	(4 * OS_FILE_LOG_BLOCK_SIZE)
 
-/** The state of a log group */
-enum log_group_state_t {
-	/** No corruption detected */
-	LOG_GROUP_OK,
-	/** Corrupted */
-	LOG_GROUP_CORRUPTED
-};
+/* As long as fil_io() is used to handle log io, log group max size is limited
+by (maximum page number) * (minimum page size). Page number type is uint32_t.
+Remove this limitation if page number is no longer used for log file io. */
+static const ulonglong log_group_max_size =
+	((ulonglong(UINT32_MAX) + 1) * UNIV_PAGE_SIZE_MIN - 1);
 
 typedef ib_mutex_t	LogSysMutex;
 typedef ib_mutex_t	FlushOrderMutex;
 
-/** Log group consists of a number of log files, each of the same size; a log
-group is implemented as a space in the sense of the module fil0fil.
-Currently, this is only protected by log_sys->mutex. However, in the case
-of log_write_up_to(), we will access some members only with the protection
-of log_sys->write_mutex, which should affect nothing for now. */
-struct log_group_t{
-	/** number of files in the group */
-	ulint				n_files;
-	/** format of the redo log: e.g., LOG_HEADER_FORMAT_CURRENT */
-	ulint				format;
-	/** individual log file size in bytes, including the header */
-	lsn_t				file_size;
-	/** corruption status */
-	log_group_state_t		state;
-	/** lsn used to fix coordinates within the log group */
-	lsn_t				lsn;
-	/** the byte offset of the above lsn */
-	lsn_t				lsn_offset;
-	/** unaligned buffers */
-	byte**				file_header_bufs_ptr;
-	/** buffers for each file header in the group */
-	byte**				file_header_bufs;
-
-	/** used only in recovery: recovery scan succeeded up to this
-	lsn in this log group */
-	lsn_t				scanned_lsn;
-	/** unaligned checkpoint header */
-	byte*				checkpoint_buf_ptr;
-	/** buffer for writing a checkpoint header */
-	byte*				checkpoint_buf;
-
-	/** @return whether the redo log is encrypted */
-	bool is_encrypted() const
-	{
-		return((format & LOG_HEADER_FORMAT_ENCRYPTED) != 0);
-	}
-
-	/** @return capacity in bytes */
-	inline lsn_t capacity() const
-	{
-		return((file_size - LOG_FILE_HDR_SIZE) * n_files);
-	}
-};
-
 /** Redo log buffer */
 struct log_t{
-	char		pad1[CACHE_LINE_SIZE];
-					/*!< Padding to prevent other memory
-					update hotspots from residing on the
-					same memory cache line */
+	MY_ALIGNED(CACHE_LINE_SIZE)
 	lsn_t		lsn;		/*!< log sequence number */
-	ulint		buf_free;	/*!< first free offset within the log
+	ulong		buf_free;	/*!< first free offset within the log
 					buffer in use */
 
-	char		pad2[CACHE_LINE_SIZE];/*!< Padding */
+	MY_ALIGNED(CACHE_LINE_SIZE)
 	LogSysMutex	mutex;		/*!< mutex protecting the log */
-	char		pad3[CACHE_LINE_SIZE]; /*!< Padding */
-	LogSysMutex	write_mutex;	/*!< mutex protecting writing to log
-					file and accessing to log_group_t */
-	char		pad4[CACHE_LINE_SIZE];/*!< Padding */
+	MY_ALIGNED(CACHE_LINE_SIZE)
+	LogSysMutex	write_mutex;	/*!< mutex protecting writing to log */
+	MY_ALIGNED(CACHE_LINE_SIZE)
 	FlushOrderMutex	log_flush_order_mutex;/*!< mutex to serialize access to
 					the flush list when we are putting
 					dirty blocks in the list. The idea
 					behind this mutex is to be able
-					to release log_sys->mutex during
+					to release log_sys.mutex during
 					mtr_commit and still ensure that
 					insertions in the flush_list happen
 					in the LSN order. */
-	byte*		buf;		/*!< Memory of double the buf_size is
-					allocated here. This pointer will change
-					however to either the first half or the
-					second half in turns, so that log
-					write/flush to disk don't block
-					concurrent mtrs which will write
-					log to this buffer. Care to switch back
-					to the first half before freeing/resizing
-					must be undertaken. */
-	bool		first_in_use;	/*!< true if buf points to the first
-					half of the aligned(buf_ptr), false
-					if the second half */
-	ulint		buf_size;	/*!< log buffer size of each in bytes */
-	ulint		max_buf_free;	/*!< recommended maximum value of
+	/** log_buffer, append data here */
+	byte*		buf;
+	/** log_buffer, writing data to file from this buffer.
+	Before flushing write_buf is swapped with flush_buf */
+	byte*		flush_buf;
+	ulong		max_buf_free;	/*!< recommended maximum value of
 					buf_free for the buffer in use, after
 					which the buffer is flushed */
 	bool		check_flush_or_checkpoint;
@@ -639,20 +527,76 @@ struct log_t{
 					max_checkpoint_age; this flag is
 					peeked at by log_free_check(), which
 					does not reserve the log mutex */
-	/** the redo log */
-	log_group_t			log;
+
+  /** Log files. Protected by mutex or write_mutex. */
+  struct files {
+    /** number of files */
+    ulint				n_files;
+    /** format of the redo log: e.g., LOG_HEADER_FORMAT_CURRENT */
+    uint32_t				format;
+    /** redo log subformat: 0 with separately logged TRUNCATE,
+    2 with fully redo-logged TRUNCATE (1 in MariaDB 10.2) */
+    uint32_t				subformat;
+    /** individual log file size in bytes, including the header */
+    lsn_t				file_size;
+  private:
+    /** lsn used to fix coordinates within the log group */
+    lsn_t				lsn;
+    /** the byte offset of the above lsn */
+    lsn_t				lsn_offset;
+  public:
+    /** used only in recovery: recovery scan succeeded up to this
+    lsn in this log group */
+    lsn_t				scanned_lsn;
+
+    /** @return whether the redo log is encrypted */
+    bool is_encrypted() const { return format & LOG_HEADER_FORMAT_ENCRYPTED; }
+    /** @return capacity in bytes */
+    lsn_t capacity() const{ return (file_size - LOG_FILE_HDR_SIZE) * n_files; }
+    /** Calculate the offset of a log sequence number.
+    @param[in]	lsn	log sequence number
+    @return offset within the log */
+    inline lsn_t calc_lsn_offset(lsn_t lsn) const;
+
+    /** Set the field values to correspond to a given lsn. */
+    void set_fields(lsn_t lsn)
+    {
+      lsn_t c_lsn_offset = calc_lsn_offset(lsn);
+      set_lsn(lsn);
+      set_lsn_offset(c_lsn_offset);
+    }
+
+    /** Read a log segment to log_sys.buf.
+    @param[in,out]	start_lsn	in: read area start,
+					out: the last read valid lsn
+    @param[in]		end_lsn		read area end
+    @return	whether no invalid blocks (e.g checksum mismatch) were found */
+    bool read_log_seg(lsn_t* start_lsn, lsn_t end_lsn);
+
+    /** Initialize the redo log buffer.
+    @param[in]	n_files		number of files */
+    void create(ulint n_files);
+
+    /** Close the redo log buffer. */
+    void close()
+    {
+      n_files = 0;
+    }
+    void set_lsn(lsn_t a_lsn);
+    lsn_t get_lsn() const { return lsn; }
+    void set_lsn_offset(lsn_t a_lsn);
+    lsn_t get_lsn_offset() const { return lsn_offset; }
+  } log;
 
 	/** The fields involved in the log buffer flush @{ */
 
-	ulint		buf_next_to_write;/*!< first offset in the log buffer
+	ulong		buf_next_to_write;/*!< first offset in the log buffer
 					where the byte content may not exist
 					written to file, e.g., the start
 					offset of a log record catenated
 					later; this is advanced when a flush
 					operation is completed to all the log
 					groups */
-	volatile bool	is_extending;	/*!< this is set to true during extend
-					the log buffer size */
 	lsn_t		write_lsn;	/*!< last written lsn */
 	lsn_t		current_flush_lsn;/*!< end lsn for the current running
 					write + flush operation */
@@ -661,11 +605,11 @@ struct log_t{
 					AND flushed to disk */
 	ulint		n_pending_flushes;/*!< number of currently
 					pending flushes; protected by
-					log_sys_t::mutex */
+					log_sys.mutex */
 	os_event_t	flush_event;	/*!< this event is in the reset state
 					when a flush is running;
 					os_event_set() and os_event_reset()
-					are protected by log_sys_t::mutex */
+					are protected by log_sys.mutex */
 	ulint		n_log_ios;	/*!< number of log i/os initiated thus
 					far */
 	ulint		n_log_ios_old;	/*!< number of log i/o's at the
@@ -711,7 +655,7 @@ struct log_t{
 					/*!< extra redo log records to write
 					during a checkpoint, or NULL if none.
 					The pointer is protected by
-					log_sys->mutex, and the data must
+					log_sys.mutex, and the data must
 					remain constant as long as this
 					pointer is not NULL. */
 	ulint		n_pending_checkpoint_writes;
@@ -721,72 +665,115 @@ struct log_t{
 					checkpoint write is running; a thread
 					should wait for this without owning
 					the log mutex */
-	byte*		checkpoint_buf_ptr;/* unaligned checkpoint header */
-	byte*		checkpoint_buf;	/*!< checkpoint header is read to this
-					buffer */
+
+	/** buffer for checkpoint header */
+	MY_ALIGNED(OS_FILE_LOG_BLOCK_SIZE)
+	byte		checkpoint_buf[OS_FILE_LOG_BLOCK_SIZE];
 	/* @} */
 
-	/** @return whether the redo log is encrypted */
-	bool is_encrypted() const
-	{
-		return(log.is_encrypted());
-	}
+private:
+  bool m_initialised;
+public:
+  /**
+    Constructor.
+
+    Some members may require late initialisation, thus we just mark object as
+    uninitialised. Real initialisation happens in create().
+  */
+  log_t(): m_initialised(false) {}
+
+  /** @return whether the redo log is encrypted */
+  bool is_encrypted() const { return(log.is_encrypted()); }
+
+  bool is_initialised() { return m_initialised; }
+
+  /** Complete an asynchronous checkpoint write. */
+  void complete_checkpoint();
+
+  /** Initialise the redo log subsystem. */
+  void create();
+
+  /** Shut down the redo log subsystem. */
+  void close();
 };
 
 /** Redo log system */
-extern log_t*	log_sys;
+extern log_t	log_sys;
+
+/** Calculate the offset of a log sequence number.
+@param[in]     lsn     log sequence number
+@return offset within the log */
+inline lsn_t log_t::files::calc_lsn_offset(lsn_t lsn) const
+{
+  ut_ad(this == &log_sys.log);
+  /* The lsn parameters are updated while holding both the mutexes
+  and it is ok to have either of them while reading */
+  ut_ad(log_sys.mutex.is_owned() || log_sys.write_mutex.is_owned());
+  const lsn_t group_size= capacity();
+  lsn_t l= lsn - this->lsn;
+  if (longlong(l) < 0) {
+    l= lsn_t(-longlong(l)) % group_size;
+    l= group_size - l;
+  }
+
+  l+= lsn_offset - LOG_FILE_HDR_SIZE * (1 + lsn_offset / file_size);
+  l%= group_size;
+  return l + LOG_FILE_HDR_SIZE * (1 + l / (file_size - LOG_FILE_HDR_SIZE));
+}
+
+inline void log_t::files::set_lsn(lsn_t a_lsn) {
+      ut_ad(log_sys.mutex.is_owned() || log_sys.write_mutex.is_owned());
+      lsn = a_lsn;
+}
+
+inline void log_t::files::set_lsn_offset(lsn_t a_lsn) {
+      ut_ad(log_sys.mutex.is_owned() || log_sys.write_mutex.is_owned());
+      ut_ad((lsn % OS_FILE_LOG_BLOCK_SIZE) == (a_lsn % OS_FILE_LOG_BLOCK_SIZE));
+      lsn_offset = a_lsn;
+}
 
 /** Test if flush order mutex is owned. */
 #define log_flush_order_mutex_own()			\
-	mutex_own(&log_sys->log_flush_order_mutex)
+	mutex_own(&log_sys.log_flush_order_mutex)
 
 /** Acquire the flush order mutex. */
 #define log_flush_order_mutex_enter() do {		\
-	mutex_enter(&log_sys->log_flush_order_mutex);	\
+	mutex_enter(&log_sys.log_flush_order_mutex);	\
 } while (0)
 /** Release the flush order mutex. */
 # define log_flush_order_mutex_exit() do {		\
-	mutex_exit(&log_sys->log_flush_order_mutex);	\
+	mutex_exit(&log_sys.log_flush_order_mutex);	\
 } while (0)
 
 /** Test if log sys mutex is owned. */
-#define log_mutex_own() mutex_own(&log_sys->mutex)
+#define log_mutex_own() mutex_own(&log_sys.mutex)
 
 /** Test if log sys write mutex is owned. */
-#define log_write_mutex_own() mutex_own(&log_sys->write_mutex)
+#define log_write_mutex_own() mutex_own(&log_sys.write_mutex)
 
 /** Acquire the log sys mutex. */
-#define log_mutex_enter() mutex_enter(&log_sys->mutex)
+#define log_mutex_enter() mutex_enter(&log_sys.mutex)
 
 /** Acquire the log sys write mutex. */
-#define log_write_mutex_enter() mutex_enter(&log_sys->write_mutex)
+#define log_write_mutex_enter() mutex_enter(&log_sys.write_mutex)
 
 /** Acquire all the log sys mutexes. */
 #define log_mutex_enter_all() do {		\
-	mutex_enter(&log_sys->write_mutex);	\
-	mutex_enter(&log_sys->mutex);		\
+	mutex_enter(&log_sys.write_mutex);	\
+	mutex_enter(&log_sys.mutex);		\
 } while (0)
 
 /** Release the log sys mutex. */
-#define log_mutex_exit() mutex_exit(&log_sys->mutex)
+#define log_mutex_exit() mutex_exit(&log_sys.mutex)
 
 /** Release the log sys write mutex.*/
-#define log_write_mutex_exit() mutex_exit(&log_sys->write_mutex)
+#define log_write_mutex_exit() mutex_exit(&log_sys.write_mutex)
 
 /** Release all the log sys mutexes. */
 #define log_mutex_exit_all() do {		\
-	mutex_exit(&log_sys->mutex);		\
-	mutex_exit(&log_sys->write_mutex);	\
+	mutex_exit(&log_sys.mutex);		\
+	mutex_exit(&log_sys.write_mutex);	\
 } while (0)
-
-/** Calculate the offset of an lsn within a log group.
-@param[in]	lsn	log sequence number
-@param[in]	group	log group
-@return offset within the log group */
-lsn_t
-log_group_calc_lsn_offset(
-	lsn_t			lsn,
-	const log_group_t*	group);
 
 /* log scrubbing speed, in bytes/sec */
 extern ulonglong innodb_scrub_log_speed;

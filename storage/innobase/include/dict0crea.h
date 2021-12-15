@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,14 +27,11 @@ Created 1/8/1996 Heikki Tuuri
 #ifndef dict0crea_h
 #define dict0crea_h
 
-#include "univ.i"
-#include "dict0types.h"
 #include "dict0dict.h"
 #include "que0types.h"
 #include "row0types.h"
 #include "mtr0mtr.h"
 #include "fil0crypt.h"
-#include "fsp0space.h"
 
 /*********************************************************************//**
 Creates a table create graph.
@@ -50,6 +47,7 @@ tab_create_graph_create(
 
 /** Creates an index create graph.
 @param[in]	index	index to create, built as a memory data structure
+@param[in]	table	table name
 @param[in,out]	heap	heap where created
 @param[in]	add_v	new virtual columns added in the same clause with
 			add index
@@ -57,8 +55,9 @@ tab_create_graph_create(
 ind_node_t*
 ind_create_graph_create(
 	dict_index_t*		index,
+	const char*		table,
 	mem_heap_t*		heap,
-	const dict_add_v_col_t*	add_v);
+	const dict_add_v_col_t*	add_v = NULL);
 
 /***********************************************************//**
 Creates a table. This is a high-level function used in SQL execution graphs.
@@ -67,15 +66,6 @@ que_thr_t*
 dict_create_table_step(
 /*===================*/
 	que_thr_t*	thr);		/*!< in: query thread */
-
-/** Builds a tablespace to contain a table, using file-per-table=1.
-@param[in,out]	table	Table to build in its own tablespace.
-@param[in]	node	Table create node
-@return DB_SUCCESS or error code */
-dberr_t
-dict_build_tablespace_for_table(
-	dict_table_t*	table,
-	tab_node_t*	node);
 
 /** Assign a new table ID and put it into the table cache and the transaction.
 @param[in,out]	table	Table that needs an ID
@@ -133,13 +123,11 @@ dict_recreate_index_tree(
 /** Drop the index tree associated with a row in SYS_INDEXES table.
 @param[in,out]	rec	SYS_INDEXES record
 @param[in,out]	pcur	persistent cursor on rec
+@param[in,out]	trx	dictionary transaction
 @param[in,out]	mtr	mini-transaction
 @return	whether freeing the B-tree was attempted */
-bool
-dict_drop_index_tree(
-	rec_t*		rec,
-	btr_pcur_t*	pcur,
-	mtr_t*		mtr);
+bool dict_drop_index_tree(rec_t* rec, btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
+	MY_ATTRIBUTE((nonnull));
 
 /***************************************************************//**
 Creates an index tree for the index if it is not a member of a cluster.
@@ -150,22 +138,6 @@ dict_create_index_tree_in_mem(
 /*==========================*/
 	dict_index_t*	index,		/*!< in/out: index */
 	const trx_t*	trx);		/*!< in: InnoDB transaction handle */
-
-/*******************************************************************//**
-Truncates the index tree but don't update SYSTEM TABLES.
-@return DB_SUCCESS or error */
-dberr_t
-dict_truncate_index_tree_in_mem(
-/*============================*/
-	dict_index_t*	index);		/*!< in/out: index */
-
-/*******************************************************************//**
-Drops the index tree but don't update SYS_INDEXES table. */
-void
-dict_drop_index_tree_in_mem(
-/*========================*/
-	const dict_index_t*	index,	/*!< in: index */
-	ulint			page_no);/*!< in: index page-no */
 
 /****************************************************************//**
 Creates the foreign key constraints system tables inside InnoDB
@@ -252,16 +224,6 @@ dict_replace_tablespace_in_dictionary(
 	const char*	path,
 	trx_t*		trx);
 
-/** Delete records from SYS_TABLESPACES and SYS_DATAFILES associated
-with a particular tablespace ID.
-@param[in]	space	Tablespace ID
-@param[in,out]	trx	Current transaction
-@return DB_SUCCESS if OK, dberr_t if the operation failed */
-dberr_t
-dict_delete_tablespace_and_datafiles(
-	ulint		space,
-	trx_t*		trx);
-
 /********************************************************************//**
 Add a foreign key definition to the data dictionary tables.
 @return error code or DB_SUCCESS */
@@ -325,6 +287,7 @@ struct ind_node_t{
 	dict_index_t*	index;		/*!< index to create, built as a
 					memory data structure with
 					dict_mem_... functions */
+	const char*	table_name;	/*!< table name */
 	ins_node_t*	ind_def;	/*!< child node which does the insert of
 					the index definition; the row to be
 					inserted is built by the parent node  */

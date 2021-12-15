@@ -1,0 +1,114 @@
+SET @@character_set_server=latin5;
+CREATE DATABASE mysqltest1 DEFAULT CHARACTER SET cp1251;
+USE mysqltest1;
+CREATE DATABASE mysqltest2;
+SHOW CREATE DATABASE mysqltest1;
+Database	Create Database
+mysqltest1	CREATE DATABASE `mysqltest1` /*!40100 DEFAULT CHARACTER SET cp1251 */
+SHOW CREATE DATABASE mysqltest2;
+Database	Create Database
+mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET latin5 */
+CREATE TABLE mysqltest2.t1 (a char(10));
+SHOW CREATE TABLE mysqltest2.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin5
+DROP TABLE mysqltest2.t1;
+ALTER DATABASE mysqltest2 DEFAULT CHARACTER SET latin7;
+CREATE TABLE mysqltest2.t1 (a char(10));
+SHOW CREATE TABLE mysqltest2.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin7
+DROP DATABASE mysqltest2;
+CREATE DATABASE mysqltest2 CHARACTER SET latin2;
+CREATE TABLE mysqltest2.t1 (a char(10));
+SHOW CREATE TABLE mysqltest2.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin2
+DROP DATABASE mysqltest2;
+USE mysqltest1;
+CREATE TABLE t1 (a char(10));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=cp1251
+DROP TABLE t1;
+CREATE TABLE t1 (a char(10)) DEFAULT CHARACTER SET latin1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (a char(10)) 
+DEFAULT CHARACTER SET latin1 COLLATE latin1_german1_ci;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(10) COLLATE latin1_german1_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_german1_ci
+DROP TABLE t1;
+create table t1 (a char) character set latin1 character set latin2;
+ERROR HY000: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET latin2'
+create table t1 (a char) character set latin1 collate latin2_bin;
+ERROR 42000: COLLATION 'latin2_bin' is not valid for CHARACTER SET 'latin1'
+create database d1 default character set latin1 character set latin2;
+ERROR HY000: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET latin2'
+create database d1 default character set latin1 collate latin2_bin;
+ERROR 42000: COLLATION 'latin2_bin' is not valid for CHARACTER SET 'latin1'
+DROP DATABASE mysqltest1;
+CREATE DATABASE mysqltest2 DEFAULT CHARACTER SET latin7;
+use mysqltest2;
+ALTER DATABASE DEFAULT CHARACTER SET latin2;
+show create database mysqltest2;
+Database	Create Database
+mysqltest2	CREATE DATABASE `mysqltest2` /*!40100 DEFAULT CHARACTER SET latin2 */
+drop database mysqltest2;
+ALTER DATABASE DEFAULT CHARACTER SET latin2;
+ERROR 3D000: No database selected
+ALTER DATABASE aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa DEFAULT CHARACTER SET latin2;
+ERROR 42000: Incorrect database name 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+ALTER DATABASE `` DEFAULT CHARACTER SET latin2;
+ERROR 42000: Incorrect database name ''
+USE test;
+#
+# Start of 10.0 tests
+#
+#
+# MDEV-7387 Alter table xxx CHARACTER SET utf8, CONVERT TO CHARACTER SET latin1 should fail
+#
+CREATE DATABASE tmp DEFAULT CHARACTER SET latin5;
+USE tmp;
+CREATE TABLE t1 (a VARCHAR(10)) CHARACTER SET DEFAULT, CHARACTER SET utf8;
+ERROR HY000: Conflicting declarations: 'CHARACTER SET DEFAULT' and 'CHARACTER SET utf8'
+CREATE TABLE t1 (a VARCHAR(10)) CHARACTER SET utf8, CHARACTER SET DEFAULT;
+ERROR HY000: Conflicting declarations: 'CHARACTER SET utf8' and 'CHARACTER SET DEFAULT'
+CREATE TABLE t1 (a VARCHAR(10)) CHARACTER SET utf8, CHARACTER SET utf8;
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10)) CHARACTER SET DEFAULT, CHARACTER SET DEFAULT;
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1, b VARCHAR(10) CHARACTER SET utf8);
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8, CHARACTER SET latin1;
+ERROR HY000: Conflicting declarations: 'CHARACTER SET utf8' and 'CHARACTER SET latin1'
+ALTER TABLE t1 CONVERT TO CHARACTER SET utf8, CHARACTER SET DEFAULT;
+ERROR HY000: Conflicting declarations: 'CHARACTER SET utf8' and 'CHARACTER SET DEFAULT'
+ALTER TABLE t1 CONVERT TO CHARACTER SET latin1, CHARACTER SET utf8;
+ERROR HY000: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET utf8'
+ALTER TABLE t1 CONVERT TO CHARACTER SET latin1, CHARACTER SET DEFAULT;
+ERROR HY000: Conflicting declarations: 'CHARACTER SET latin1' and 'CHARACTER SET DEFAULT'
+ALTER TABLE t1 CONVERT TO CHARACTER SET DEFAULT, CHARACTER SET utf8;
+ERROR HY000: Conflicting declarations: 'CHARACTER SET latin5' and 'CHARACTER SET utf8'
+ALTER TABLE t1 CONVERT TO CHARACTER SET DEFAULT, CHARACTER SET latin1;
+ERROR HY000: Conflicting declarations: 'CHARACTER SET latin5' and 'CHARACTER SET latin1'
+DROP TABLE t1;
+DROP DATABASE tmp;
+USE test;
+#
+# End of 10.0 tests
+#

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -37,10 +37,7 @@ Created 3/26/1996 Heikki Tuuri
 @return rollback segment header, page x-latched */
 UNIV_INLINE
 trx_rsegf_t*
-trx_rsegf_get(
-	ulint			space,
-	ulint			page_no,
-	mtr_t*			mtr);
+trx_rsegf_get(fil_space_t* space, ulint page_no, mtr_t* mtr);
 
 /** Gets a newly created rollback segment header.
 @param[in]	space		space where placed
@@ -71,24 +68,24 @@ UNIV_INLINE
 ulint
 trx_rsegf_undo_find_free(const trx_rsegf_t* rsegf);
 
-/** Creates a rollback segment header.
-This function is called only when a new rollback segment is created in
-the database.
-@param[in]	space		space id
+/** Create a rollback segment header.
+@param[in,out]	space		system, undo, or temporary tablespace
 @param[in]	rseg_id		rollback segment identifier
+@param[in]	max_trx_id	new value of TRX_RSEG_MAX_TRX_ID
 @param[in,out]	sys_header	the TRX_SYS page (NULL for temporary rseg)
 @param[in,out]	mtr		mini-transaction
-@return page number of the created segment, FIL_NULL if fail */
-ulint
+@return the created rollback segment
+@retval	NULL	on failure */
+buf_block_t*
 trx_rseg_header_create(
-	ulint			space,
-	ulint			rseg_id,
-	buf_block_t*		sys_header,
-	mtr_t*			mtr);
+	fil_space_t*	space,
+	ulint		rseg_id,
+	trx_id_t	max_trx_id,
+	buf_block_t*	sys_header,
+	mtr_t*		mtr);
 
-/** Initialize the rollback segments in memory at database startup. */
-void
-trx_rseg_array_init();
+/** Initialize or recover the rollback segments at startup. */
+dberr_t trx_rseg_array_init();
 
 /** Free a rollback segment in memory. */
 void
@@ -118,7 +115,7 @@ trx_rseg_get_n_undo_tablespaces(
 	ulint*		space_ids);	/*!< out: array of space ids of
 					UNDO tablespaces */
 /* Number of undo log slots in a rollback segment file copy */
-#define TRX_RSEG_N_SLOTS	(UNIV_PAGE_SIZE / 16)
+#define TRX_RSEG_N_SLOTS	(srv_page_size / 16)
 
 /* Maximum number of transactions supported by a single rollback segment */
 #define TRX_RSEG_MAX_N_TRXS	(TRX_RSEG_N_SLOTS / 2)
@@ -135,7 +132,7 @@ struct trx_rseg_t {
 	RsegMutex			mutex;
 
 	/** space where the rollback segment header is placed */
-	ulint				space;
+	fil_space_t*			space;
 
 	/** page number of the rollback segment header */
 	ulint				page_no;
@@ -151,21 +148,13 @@ struct trx_rseg_t {
 	/** List of undo log segments cached for fast reuse */
 	UT_LIST_BASE_NODE_T(trx_undo_t)	undo_cached;
 
-	/** List of recovered old insert_undo logs of incomplete
-	transactions (to roll back or XA COMMIT & purge) */
-	UT_LIST_BASE_NODE_T(trx_undo_t) old_insert_list;
-
 	/*--------------------------------------------------------*/
 
-	/** Page number of the last not yet purged log header in the history
-	list; FIL_NULL if all list purged */
-	ulint				last_page_no;
+  /** Last not yet purged undo log header; FIL_NULL if all purged */
+  uint32_t last_page_no;
 
-	/** Byte offset of the last not yet purged log header */
-	ulint				last_offset;
-
-	/** trx_t::no * 2 + old_insert of the last not yet purged log */
-	trx_id_t			last_commit;
+  /** trx_t::no | last_offset << 48 */
+  uint64_t last_commit_and_offset;
 
 	/** Whether the log segment needs purge */
 	bool				needs_purge;
@@ -177,31 +166,35 @@ struct trx_rseg_t {
 	UNDO-tablespace marked for truncate. */
 	bool				skip_allocation;
 
-	/** @return the commit ID of the last committed transaction */
-	trx_id_t last_trx_no() const { return last_commit >> 1; }
+  /** @return the commit ID of the last committed transaction */
+  trx_id_t last_trx_no() const
+  { return last_commit_and_offset & ((1ULL << 48) - 1); }
+  /** @return header offset of the last committed transaction */
+  uint16_t last_offset() const
+  { return static_cast<uint16_t>(last_commit_and_offset >> 48); }
 
-	void set_last_trx_no(trx_id_t trx_no, bool is_update)
-	{
-		last_commit = trx_no << 1 | trx_id_t(is_update);
-	}
+  void set_last_commit(ulint last_offset, trx_id_t trx_no)
+  {
+    last_commit_and_offset= static_cast<uint64_t>(last_offset) << 48 | trx_no;
+  }
 
 	/** @return whether the rollback segment is persistent */
 	bool is_persistent() const
 	{
-		ut_ad(space == SRV_TMP_SPACE_ID
-		      || space == TRX_SYS_SPACE
+		ut_ad(space == fil_system.temp_space
+		      || space == fil_system.sys_space
 		      || (srv_undo_space_id_start > 0
-			  && space >= srv_undo_space_id_start
-			  && space <= srv_undo_space_id_start
+			  && space->id >= srv_undo_space_id_start
+			  && space->id <= srv_undo_space_id_start
 			  + TRX_SYS_MAX_UNDO_SPACES));
-		ut_ad(space == SRV_TMP_SPACE_ID
-		      || space == TRX_SYS_SPACE
+		ut_ad(space == fil_system.temp_space
+		      || space == fil_system.sys_space
 		      || (srv_undo_space_id_start > 0
-			  && space >= srv_undo_space_id_start
-			  && space <= srv_undo_space_id_start
-			  + srv_undo_tablespaces_active)
+			  && space->id >= srv_undo_space_id_start
+			  && space->id <= srv_undo_space_id_start
+			  + srv_undo_tablespaces_open)
 		      || !srv_was_started);
-		return(space != SRV_TMP_SPACE_ID);
+		return(space->id != SRV_TMP_SPACE_ID);
 	}
 };
 
@@ -281,15 +274,14 @@ trx_rseg_update_wsrep_checkpoint(
 	const XID*	xid,
 	mtr_t*		mtr);
 
-/** Update WSREP checkpoint XID in first rollback segment header.
+/** Update WSREP checkpoint XID in first rollback segment header
+as part of wsrep_set_SE_checkpoint() when it is guaranteed that there
+are no wsrep transactions committing.
+If the UUID part of the WSREP XID does not match to the UUIDs of XIDs already
+stored into rollback segments, the WSREP XID in all the remaining rollback
+segments will be reset.
 @param[in]	xid		WSREP XID */
 void trx_rseg_update_wsrep_checkpoint(const XID* xid);
-
-/** Read the WSREP XID information in rollback segment header.
-@param[in]	rseg_header	Rollback segment header
-@param[out]	xid		Transaction XID
-@return	whether the WSREP XID was present */
-bool trx_rseg_read_wsrep_checkpoint(const trx_rsegf_t* rseg_header, XID& xid);
 
 /** Recover the latest WSREP checkpoint XID.
 @param[out]	xid	WSREP XID

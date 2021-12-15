@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation.
+   Copyright (c) 2010, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef _my_sys_h
 #define _my_sys_h
@@ -60,18 +60,19 @@ typedef struct my_aio_result {
 
 	/* General bitmaps for my_func's */
 #define MY_FFNF		1U	/* Fatal if file not found */
-#define MY_FNABP	2U	/* Fatal if not all bytes read/writen */
-#define MY_NABP		4U	/* Error if not all bytes read/writen */
+#define MY_FNABP	2U	/* Fatal if not all bytes read/written */
+#define MY_NABP		4U	/* Error if not all bytes read/written */
 #define MY_FAE		8U	/* Fatal if any error */
 #define MY_WME		16U	/* Write message on error */
 #define MY_WAIT_IF_FULL 32U	/* Wait and try again if disk full error */
 #define MY_IGNORE_BADFD 32U     /* my_sync(): ignore 'bad descriptor' errors */
 #define MY_ENCRYPT      64U     /* Encrypt IO_CACHE temporary files */
+#define MY_TEMPORARY    64U     /* create_temp_file(): delete file at once */
 #define MY_NOSYMLINKS  512U     /* my_open(): don't follow symlinks */
 #define MY_FULL_IO     512U     /* my_read(): loop until I/O is complete */
 #define MY_DONT_CHECK_FILESIZE 128U /* Option to init_io_cache() */
 #define MY_LINK_WARNING 32U	/* my_redel() gives warning if links */
-#define MY_COPYTIME	64U	/* my_redel() copys time */
+#define MY_COPYTIME	64U	/* my_redel() copies time */
 #define MY_DELETE_OLD	256U	/* my_create_with_symlink() */
 #define MY_RESOLVE_LINK 128U	/* my_realpath(); Only resolve links */
 #define MY_HOLD_ORIGINAL_MODES 128U  /* my_copy() holds to file modes */
@@ -96,7 +97,7 @@ typedef struct my_aio_result {
 #define MY_SYNC_FILESIZE 65536U /* my_sync(): safe sync when file is extended */
 #define MY_THREAD_SPECIFIC 0x10000U /* my_malloc(): thread specific */
 #define MY_THREAD_MOVE     0x20000U /* realloc(); Memory can move */
-/* Tree that should delete things automaticly */
+/* Tree that should delete things automatically */
 #define MY_TREE_WITH_DELETE 0x40000U
 
 #define MY_CHECK_ERROR	1U	/* Params to my_end; Check open-close */
@@ -106,7 +107,7 @@ typedef struct my_aio_result {
 #define ME_BELL         4U      /* Ring bell then printing message */
 #define ME_WAITTANG     0       /* Wait for a user action  */
 #define ME_NOREFRESH    64U     /* Write the error message to error log */
-#define ME_NOINPUT      0       /* Dont use the input libary */
+#define ME_NOINPUT      0       /* Don't use the input library */
 #define ME_JUST_INFO    1024U   /**< not error but just info */
 #define ME_JUST_WARNING 2048U   /**< not error but just warning */
 #define ME_FATALERROR   4096U   /* Fatal statement error */
@@ -177,7 +178,7 @@ extern void *my_memdup(const void *from,size_t length,myf MyFlags);
 extern char *my_strdup(const char *from,myf MyFlags);
 extern char *my_strndup(const char *from, size_t length, myf MyFlags);
 
-#ifdef HAVE_LARGE_PAGES
+#ifdef HAVE_LINUX_LARGE_PAGES
 extern uint my_get_large_page_size(void);
 extern uchar * my_large_malloc(size_t size, myf my_flags);
 extern void my_large_free(uchar *ptr);
@@ -185,7 +186,7 @@ extern void my_large_free(uchar *ptr);
 #define my_get_large_page_size() (0)
 #define my_large_malloc(A,B) my_malloc_lock((A),(B))
 #define my_large_free(A) my_free_lock((A))
-#endif /* HAVE_LARGE_PAGES */
+#endif /* HAVE_LINUX_LARGE_PAGES */
 
 void my_init_atomic_write(void);
 #ifdef __linux__
@@ -243,7 +244,7 @@ extern int sf_leaking_memory; /* set to 1 to disable memleak detection */
 extern void (*proc_info_hook)(void *, const PSI_stage_info *, PSI_stage_info *,
                               const char *, const char *, const unsigned int);
 
-#ifdef HAVE_LARGE_PAGES
+#ifdef HAVE_LINUX_LARGE_PAGES
 extern my_bool my_use_large_pages;
 extern uint    my_large_page_size;
 #endif
@@ -260,18 +261,20 @@ extern ulonglong my_collation_statistics_get_use_count(uint id);
 extern const char *my_collation_get_tailoring(uint id);
 
 /* statistics */
-extern ulong	my_file_opened,my_stream_opened, my_tmp_file_created;
+extern ulong    my_stream_opened, my_tmp_file_created;
 extern ulong    my_file_total_opened;
 extern ulong    my_sync_count;
 extern uint	mysys_usage_id;
+extern int32    my_file_opened;
 extern my_bool	my_init_done, my_thr_key_mysys_exists;
+extern my_bool my_assert;
 extern my_bool  my_assert_on_error;
 extern myf      my_global_flags;        /* Set to MY_WME for more error messages */
 					/* Point to current my_message() */
 extern void (*my_sigtstp_cleanup)(void),
 					/* Executed before jump to shell */
 	    (*my_sigtstp_restart)(void);
-					/* Executed when comming from shell */
+					/* Executed when coming from shell */
 extern MYSQL_PLUGIN_IMPORT int my_umask;		/* Default creation mask  */
 extern int my_umask_dir,
 	   my_recived_signals,	/* Signals we have got */
@@ -280,7 +283,8 @@ extern int my_umask_dir,
 extern my_bool my_use_symdir;
 
 extern ulong	my_default_record_cache_size;
-extern my_bool  my_disable_locking, my_disable_async_io,
+extern MYSQL_PLUGIN_IMPORT my_bool my_disable_locking;
+extern my_bool  my_disable_async_io,
                 my_disable_flush_key_blocks, my_disable_symlinks;
 extern my_bool my_disable_sync, my_disable_copystat_in_redel;
 extern char	wild_many,wild_one,wild_prefix;
@@ -311,7 +315,7 @@ enum flush_type
   FLUSH_KEEP_LAZY
 };
 
-typedef struct st_record_cache	/* Used when cacheing records */
+typedef struct st_record_cache	/* Used when caching records */
 {
   File file;
   int	rc_seek,error,inited;
@@ -391,7 +395,7 @@ typedef struct st_io_cache_share
 #endif
 } IO_CACHE_SHARE;
 
-typedef struct st_io_cache		/* Used when cacheing files */
+typedef struct st_io_cache		/* Used when caching files */
 {
   /* Offset in file corresponding to the first byte of uchar* buffer. */
   my_off_t pos_in_file;
@@ -477,18 +481,19 @@ typedef struct st_io_cache		/* Used when cacheing files */
     partial.
   */
   int	seek_not_done,error;
-  /* buffer_length is memory size allocated for buffer or write_buffer */
+  /* length of the buffer used for storing un-encrypted data */
   size_t	buffer_length;
   /* read_length is the same as buffer_length except when we use async io */
   size_t  read_length;
   myf	myflags;			/* Flags used to my_read/my_write */
   /*
-    alloced_buffer is 1 if the buffer was allocated by init_io_cache() and
-    0 if it was supplied by the user.
+    alloced_buffer is set to the size of the buffer allocated for the IO_CACHE.
+    Includes the overhead(storing key to ecnrypt and decrypt) for encryption.
+    Set to 0 if nothing is allocated.
     Currently READ_NET is the only one that will use a buffer allocated
     somewhere else
   */
-  my_bool alloced_buffer;
+  size_t alloced_buffer;
 #ifdef HAVE_AIOWAIT
   /*
     As inidicated by ifdef, this is for async I/O, which is not currently
@@ -532,10 +537,14 @@ static inline int my_b_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 
 static inline int my_b_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
 {
+  MEM_CHECK_DEFINED(Buffer, Count);
   if (info->write_pos + Count <= info->write_end)
   {
-    memcpy(info->write_pos, Buffer, Count);
-    info->write_pos+= Count;
+    if (Count)
+    {
+      memcpy(info->write_pos, Buffer, Count);
+      info->write_pos+= Count;
+    }
     return 0;
   }
   return _my_b_write(info, Buffer, Count);
@@ -553,6 +562,7 @@ static inline int my_b_get(IO_CACHE *info)
 
 static inline my_bool my_b_write_byte(IO_CACHE *info, uchar chr)
 {
+  MEM_CHECK_DEFINED(&chr, 1);
   if (info->write_pos >= info->write_end)
     if (my_b_flush_io_cache(info, 1))
       return 1;
@@ -573,21 +583,21 @@ static inline my_bool my_b_write_byte(IO_CACHE *info, uchar chr)
 static inline size_t my_b_fill(IO_CACHE *info)
 {
   info->read_pos= info->read_end;
-  return _my_b_read(info,0,0) ? 0 : info->read_end - info->read_pos;
+  return _my_b_read(info,0,0) ? 0 : (size_t) (info->read_end - info->read_pos);
 }
 
 static inline my_off_t my_b_tell(const IO_CACHE *info)
 {
   if (info->type == WRITE_CACHE) {
-    return info->pos_in_file + (info->write_pos - info->request_pos);
+    return info->pos_in_file + (my_off_t)(info->write_pos - info->request_pos);
 
   }
-  return info->pos_in_file + (info->read_pos - info->request_pos);
+  return info->pos_in_file + (my_off_t) (info->read_pos - info->request_pos);
 }
 
 static inline my_off_t my_b_write_tell(const IO_CACHE *info)
 {
-  return info->pos_in_file + (info->write_pos - info->write_buffer);
+  return info->pos_in_file + (my_off_t) (info->write_pos - info->write_buffer);
 }
 
 static inline uchar* my_b_get_buffer_start(const IO_CACHE *info)
@@ -597,7 +607,7 @@ static inline uchar* my_b_get_buffer_start(const IO_CACHE *info)
 
 static inline size_t my_b_get_bytes_in_buffer(const IO_CACHE *info)
 {
-  return info->read_end - info->request_pos;
+  return (size_t) (info->read_end - info->request_pos);
 }
 
 static inline my_off_t my_b_get_pos_in_file(const IO_CACHE *info)
@@ -608,12 +618,14 @@ static inline my_off_t my_b_get_pos_in_file(const IO_CACHE *info)
 static inline size_t my_b_bytes_in_cache(const IO_CACHE *info)
 {
   if (info->type == WRITE_CACHE) {
-    return info->write_end - info->write_pos;
+    return (size_t) (info->write_end - info->write_pos);
   }
-  return info->read_end - info->read_pos;
+  return (size_t) (info->read_end - info->read_pos);
 }
 
-int      my_b_copy_to_file(IO_CACHE *cache, FILE *file);
+int my_b_copy_to_file    (IO_CACHE *cache, FILE *file, size_t count);
+int my_b_copy_all_to_file(IO_CACHE *cache, FILE *file);
+
 my_off_t my_b_append_tell(IO_CACHE* info);
 my_off_t my_b_safe_tell(IO_CACHE* info); /* picks the correct tell() */
 int my_b_pread(IO_CACHE *info, uchar *Buffer, size_t Count, my_off_t pos);
@@ -627,6 +639,7 @@ extern int (*mysys_test_invalid_symlink)(const char *filename);
 
 extern int my_copy(const char *from,const char *to,myf MyFlags);
 extern int my_delete(const char *name,myf MyFlags);
+extern int my_rmtree(const char *name, myf Myflags);
 extern int my_getwd(char * buf,size_t size,myf MyFlags);
 extern int my_setwd(const char *dir,myf MyFlags);
 extern int my_lock(File fd,int op,my_off_t start, my_off_t length,myf MyFlags);
@@ -732,12 +745,6 @@ void my_create_backup_name(char *to, const char *from,
                            time_t backup_time_stamp);
 extern int my_copystat(const char *from, const char *to, int MyFlags);
 extern char * my_filename(File fd);
-
-#ifdef EXTRA_DEBUG
-void my_print_open_files(void);
-#else
-#define my_print_open_files()
-#endif
 
 extern my_bool init_tmpdir(MY_TMPDIR *tmpdir, const char *pathlist);
 extern char *my_tmpdir(MY_TMPDIR *tmpdir);
@@ -940,6 +947,13 @@ extern int my_getncpus(void);
 typedef struct {ulonglong val;} my_hrtime_t;
 void my_time_init(void);
 extern my_hrtime_t my_hrtime(void);
+
+#ifdef _WIN32
+extern my_hrtime_t my_hrtime_coarse();
+#else
+#define my_hrtime_coarse() my_hrtime()
+#endif
+
 extern ulonglong my_interval_timer(void);
 extern ulonglong my_getcputime(void);
 
@@ -948,7 +962,7 @@ extern ulonglong my_getcputime(void);
 #define hrtime_from_time(X)             ((ulonglong)((X)*HRTIME_RESOLUTION))
 #define hrtime_to_double(X)             ((X).val/(double)HRTIME_RESOLUTION)
 #define hrtime_sec_part(X)              ((ulong)((X).val % HRTIME_RESOLUTION))
-#define my_time(X)                      hrtime_to_time(my_hrtime())
+#define my_time(X)                      hrtime_to_time(my_hrtime_coarse())
 
 #if STACK_DIRECTION < 0
 #define available_stack_size(CUR,END) (long) ((char*)(CUR) - (char*)(END))
@@ -957,8 +971,6 @@ extern ulonglong my_getcputime(void);
 #endif
 
 #ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-
 #ifndef MAP_NOSYNC
 #define MAP_NOSYNC      0
 #endif
@@ -1043,6 +1055,7 @@ extern char *get_tty_password(const char *opt_message);
 /* File system character set */
 extern CHARSET_INFO *fs_character_set(void);
 #endif
+extern const char *my_default_csname(void);
 extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
                                       const char *from, size_t length);

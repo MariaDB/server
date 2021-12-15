@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -29,16 +29,7 @@ table cache" for later retrieval.
 Created July 17, 2007 Vasil Dimov
 *******************************************************/
 
-/* Found during the build of 5.5.3 on Linux 2.4 and early 2.6 kernels:
-   The includes "univ.i" -> "my_global.h" cause a different path
-   to be taken further down with pthread functions and types,
-   so they must come first.
-   From the symptoms, this is related to bug#46587 in the MySQL bug DB.
-*/
-
-#include "ha_prototypes.h"
-#include <sql_class.h>
-
+#include "trx0i_s.h"
 #include "buf0buf.h"
 #include "dict0dict.h"
 #include "ha0storage.h"
@@ -52,10 +43,10 @@ Created July 17, 2007 Vasil Dimov
 #include "srv0srv.h"
 #include "sync0rw.h"
 #include "sync0sync.h"
-#include "trx0i_s.h"
 #include "trx0sys.h"
-#include "trx0trx.h"
-#include "ut0mem.h"
+#include "que0que.h"
+#include "trx0purge.h"
+#include "sql_class.h"
 
 /** Initial number of rows in the table cache */
 #define TABLE_CACHE_INITIAL_ROWSNUM	1024
@@ -148,11 +139,10 @@ struct i_s_table_cache_t {
 
 /** This structure describes the intermediate buffer */
 struct trx_i_s_cache_t {
-	rw_lock_t*	rw_lock;	/*!< read-write lock protecting
+	rw_lock_t	rw_lock;	/*!< read-write lock protecting
 					the rest of this structure */
-	uintmax_t	last_read;	/*!< last time the cache was read;
-					measured in microseconds since
-					epoch */
+	ulonglong	last_read;	/*!< last time the cache was read;
+					measured in nanoseconds */
 	ib_mutex_t		last_read_mutex;/*!< mutex protecting the
 					last_read member - it is updated
 					inside a shared lock of the
@@ -461,13 +451,12 @@ fill_trx_row(
 						which to copy volatile
 						strings */
 {
-	size_t		stmt_len;
 	const char*	s;
 
 	ut_ad(lock_mutex_own());
 
 	row->trx_id = trx_get_id_for_print(trx);
-	row->trx_started = (ib_time_t) trx->start_time;
+	row->trx_started = trx->start_time;
 	row->trx_state = trx_get_que_state_str(trx);
 	row->requested_lock_row = requested_lock_row;
 	ut_ad(requested_lock_row == NULL
@@ -476,7 +465,7 @@ fill_trx_row(
 	if (trx->lock.wait_lock != NULL) {
 
 		ut_a(requested_lock_row != NULL);
-		row->trx_wait_started = (ib_time_t) trx->lock.wait_started;
+		row->trx_wait_started = trx->lock.wait_started;
 	} else {
 		ut_a(requested_lock_row == NULL);
 		row->trx_wait_started = 0;
@@ -496,16 +485,14 @@ fill_trx_row(
 	row->trx_mysql_thread_id = thd_get_thread_id(trx->mysql_thd);
 
 	char	query[TRX_I_S_TRX_QUERY_MAX_LEN + 1];
-	stmt_len = innobase_get_stmt_safe(trx->mysql_thd, query, sizeof(query));
-
-	if (stmt_len > 0) {
-
+	if (size_t stmt_len = thd_query_safe(trx->mysql_thd, query,
+					     sizeof query)) {
 		row->trx_query = static_cast<const char*>(
 			ha_storage_put_memlim(
 				cache->storage, query, stmt_len + 1,
 				MAX_ALLOWED_FOR_STORAGE(cache)));
 
-		row->trx_query_cs = innobase_get_charset(trx->mysql_thd);
+		row->trx_query_cs = thd_charset(trx->mysql_thd);
 
 		if (row->trx_query == NULL) {
 
@@ -591,7 +578,7 @@ thd_done:
 
 	row->trx_is_read_only = trx->read_only;
 
-	row->trx_is_autocommit_non_locking = trx_is_autocommit_non_locking(trx);
+	row->trx_is_autocommit_non_locking = trx->is_autocommit_non_locking();
 
 	return(TRUE);
 }
@@ -610,7 +597,7 @@ put_nth_field(
 	ulint			n,	/*!< in: number of field */
 	const dict_index_t*	index,	/*!< in: index */
 	const rec_t*		rec,	/*!< in: record */
-	const ulint*		offsets)/*!< in: record offsets, returned
+	const rec_offs*		offsets)/*!< in: record offsets, returned
 					by rec_get_offsets() */
 {
 	const byte*	data;
@@ -691,8 +678,8 @@ fill_lock_data(
 	const dict_index_t*	index;
 	ulint			n_fields;
 	mem_heap_t*		heap;
-	ulint			offsets_onstack[REC_OFFS_NORMAL_SIZE];
-	ulint*			offsets;
+	rec_offs		offsets_onstack[REC_OFFS_NORMAL_SIZE];
+	rec_offs*		offsets;
 	char			buf[TRX_I_S_LOCK_DATA_MAX_LEN];
 	ulint			buf_used;
 	ulint			i;
@@ -726,7 +713,8 @@ fill_lock_data(
 	ut_a(n_fields > 0);
 
 	heap = NULL;
-	offsets = rec_get_offsets(rec, index, offsets, true, n_fields, &heap);
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
+				  n_fields, &heap);
 
 	/* format and store the data */
 
@@ -1193,22 +1181,16 @@ add_trx_relevant_locks_to_cache(
 }
 
 /** The minimum time that a cache must not be updated after it has been
-read for the last time; measured in microseconds. We use this technique
+read for the last time; measured in nanoseconds. We use this technique
 to ensure that SELECTs which join several INFORMATION SCHEMA tables read
 the same version of the cache. */
-#define CACHE_MIN_IDLE_TIME_US	100000 /* 0.1 sec */
+#define CACHE_MIN_IDLE_TIME_NS	100000000 /* 0.1 sec */
 
 /*******************************************************************//**
 Checks if the cache can safely be updated.
-@return TRUE if can be updated */
-static
-ibool
-can_cache_be_updated(
-/*=================*/
-	trx_i_s_cache_t*	cache)	/*!< in: cache */
+@return whether the cache can be updated */
+static bool can_cache_be_updated(trx_i_s_cache_t* cache)
 {
-	uintmax_t	now;
-
 	/* Here we read cache->last_read without acquiring its mutex
 	because last_read is only updated when a shared rw lock on the
 	whole cache is being held (see trx_i_s_cache_end_read()) and
@@ -1216,15 +1198,9 @@ can_cache_be_updated(
 	So it is not possible for last_read to be updated while we are
 	reading it. */
 
-	ut_ad(rw_lock_own(cache->rw_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&cache->rw_lock, RW_LOCK_X));
 
-	now = ut_time_us(NULL);
-	if (now - cache->last_read > CACHE_MIN_IDLE_TIME_US) {
-
-		return(TRUE);
-	}
-
-	return(FALSE);
+	return my_interval_timer() - cache->last_read > CACHE_MIN_IDLE_TIME_NS;
 }
 
 /*******************************************************************//**
@@ -1257,7 +1233,24 @@ static void fetch_data_into_cache_low(trx_i_s_cache_t *cache, const trx_t *trx)
 {
   i_s_locks_row_t *requested_lock_row;
 
-  assert_trx_nonlocking_or_in_list(trx);
+#ifdef UNIV_DEBUG
+  {
+    const trx_state_t state= trx->state;
+
+    if (trx->is_autocommit_non_locking())
+    {
+      ut_ad(trx->read_only);
+      ut_ad(!trx->is_recovered);
+      ut_ad(trx->mysql_thd);
+      ut_ad(state == TRX_STATE_NOT_STARTED || state == TRX_STATE_ACTIVE);
+    }
+    else
+      ut_ad(state == TRX_STATE_ACTIVE ||
+            state == TRX_STATE_PREPARED ||
+            state == TRX_STATE_PREPARED_RECOVERED ||
+            state == TRX_STATE_COMMITTED_IN_MEMORY);
+  }
+#endif /* UNIV_DEBUG */
 
   if (add_trx_relevant_locks_to_cache(cache, trx, &requested_lock_row))
   {
@@ -1275,17 +1268,6 @@ static void fetch_data_into_cache_low(trx_i_s_cache_t *cache, const trx_t *trx)
 }
 
 
-static my_bool fetch_data_into_cache_callback(
-  rw_trx_hash_element_t *element, trx_i_s_cache_t *cache)
-{
-  mutex_enter(&element->mutex);
-  if (element->trx)
-    fetch_data_into_cache_low(cache, element->trx);
-  mutex_exit(&element->mutex);
-  return cache->is_truncated;
-}
-
-
 /**
   Fetches the data needed to fill the 3 INFORMATION SCHEMA tables into the
   table cache buffer. Cache must be locked for write.
@@ -1296,26 +1278,18 @@ static void fetch_data_into_cache(trx_i_s_cache_t *cache)
   ut_ad(lock_mutex_own());
   trx_i_s_cache_clear(cache);
 
-  /*
-    Capture the state of the read-write transactions. This includes
-    internal transactions too. They are not on mysql_trx_list
-  */
-  trx_sys.rw_trx_hash.iterate_no_dups(reinterpret_cast<my_hash_walk_action>
-                                      (fetch_data_into_cache_callback), cache);
-
-  /* Capture the state of the read-only active transactions */
+  /* Capture the state of transactions */
   mutex_enter(&trx_sys.mutex);
-  for (const trx_t *trx= UT_LIST_GET_FIRST(trx_sys.mysql_trx_list);
+  for (trx_t *trx= UT_LIST_GET_FIRST(trx_sys.trx_list);
        trx != NULL;
-       trx= UT_LIST_GET_NEXT(mysql_trx_list, trx))
+       trx= UT_LIST_GET_NEXT(trx_list, trx))
   {
-    /*
-      Skip transactions that have trx->id > 0: they were added in previous
-      iteration. Although we may miss concurrently started transactions.
-    */
-    if (trx_is_started(trx) && trx->id == 0)
+    if (trx->state != TRX_STATE_NOT_STARTED && trx != purge_sys.query->trx)
     {
-      fetch_data_into_cache_low(cache, trx);
+      mutex_enter(&trx->mutex);
+      if (trx->state != TRX_STATE_NOT_STARTED)
+        fetch_data_into_cache_low(cache, trx);
+      mutex_exit(&trx->mutex);
       if (cache->is_truncated)
         break;
      }
@@ -1346,8 +1320,7 @@ trx_i_s_possibly_fetch_data_into_cache(
 	lock_mutex_exit();
 
 	/* update cache last read time */
-	time_t now = ut_time_us(NULL);
-	cache->last_read = now;
+	cache->last_read = my_interval_timer();
 
 	return(0);
 }
@@ -1381,10 +1354,7 @@ trx_i_s_cache_init(
 	release trx_i_s_cache_t::last_read_mutex
 	release trx_i_s_cache_t::rw_lock */
 
-	cache->rw_lock = static_cast<rw_lock_t*>(
-		ut_malloc_nokey(sizeof(*cache->rw_lock)));
-
-	rw_lock_create(trx_i_s_cache_lock_key, cache->rw_lock,
+	rw_lock_create(trx_i_s_cache_lock_key, &cache->rw_lock,
 		       SYNC_TRX_I_S_RWLOCK);
 
 	cache->last_read = 0;
@@ -1413,10 +1383,7 @@ trx_i_s_cache_free(
 /*===============*/
 	trx_i_s_cache_t*	cache)	/*!< in, own: cache to free */
 {
-	rw_lock_free(cache->rw_lock);
-	ut_free(cache->rw_lock);
-	cache->rw_lock = NULL;
-
+	rw_lock_free(&cache->rw_lock);
 	mutex_free(&cache->last_read_mutex);
 
 	hash_table_free(cache->locks_hash);
@@ -1433,7 +1400,7 @@ trx_i_s_cache_start_read(
 /*=====================*/
 	trx_i_s_cache_t*	cache)	/*!< in: cache */
 {
-	rw_lock_s_lock(cache->rw_lock);
+	rw_lock_s_lock(&cache->rw_lock);
 }
 
 /*******************************************************************//**
@@ -1443,17 +1410,15 @@ trx_i_s_cache_end_read(
 /*===================*/
 	trx_i_s_cache_t*	cache)	/*!< in: cache */
 {
-	uintmax_t	now;
-
-	ut_ad(rw_lock_own(cache->rw_lock, RW_LOCK_S));
+	ut_ad(rw_lock_own(&cache->rw_lock, RW_LOCK_S));
 
 	/* update cache last read time */
-	now = ut_time_us(NULL);
+	const ulonglong now = my_interval_timer();
 	mutex_enter(&cache->last_read_mutex);
 	cache->last_read = now;
 	mutex_exit(&cache->last_read_mutex);
 
-	rw_lock_s_unlock(cache->rw_lock);
+	rw_lock_s_unlock(&cache->rw_lock);
 }
 
 /*******************************************************************//**
@@ -1463,7 +1428,7 @@ trx_i_s_cache_start_write(
 /*======================*/
 	trx_i_s_cache_t*	cache)	/*!< in: cache */
 {
-	rw_lock_x_lock(cache->rw_lock);
+	rw_lock_x_lock(&cache->rw_lock);
 }
 
 /*******************************************************************//**
@@ -1473,9 +1438,9 @@ trx_i_s_cache_end_write(
 /*====================*/
 	trx_i_s_cache_t*	cache)	/*!< in: cache */
 {
-	ut_ad(rw_lock_own(cache->rw_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&cache->rw_lock, RW_LOCK_X));
 
-	rw_lock_x_unlock(cache->rw_lock);
+	rw_lock_x_unlock(&cache->rw_lock);
 }
 
 /*******************************************************************//**
@@ -1488,26 +1453,20 @@ cache_select_table(
 	trx_i_s_cache_t*	cache,	/*!< in: whole cache */
 	enum i_s_table		table)	/*!< in: which table */
 {
-	i_s_table_cache_t*	table_cache;
-
-	ut_ad(rw_lock_own(cache->rw_lock, RW_LOCK_S)
-	      || rw_lock_own(cache->rw_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own_flagged(&cache->rw_lock,
+				  RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	switch (table) {
 	case I_S_INNODB_TRX:
-		table_cache = &cache->innodb_trx;
-		break;
+		return &cache->innodb_trx;
 	case I_S_INNODB_LOCKS:
-		table_cache = &cache->innodb_locks;
-		break;
+		return &cache->innodb_locks;
 	case I_S_INNODB_LOCK_WAITS:
-		table_cache = &cache->innodb_lock_waits;
-		break;
-	default:
-		ut_error;
+		return &cache->innodb_lock_waits;
 	}
 
-	return(table_cache);
+	ut_error;
+	return NULL;
 }
 
 /*******************************************************************//**

@@ -1,0 +1,240 @@
+create table t1 (
+pk int primary key,
+a int,
+b int,
+c char(10),
+d decimal(10, 3),
+e real
+);
+insert into t1 values
+( 1, 0, 1,    'one',    0.1,  0.001),
+( 2, 0, 2,    'two',    0.2,  0.002),
+( 3, 0, 3,    'three',  0.3,  0.003),
+( 4, 1, 2,    'three',  0.4,  0.004),
+( 5, 1, 1,    'two',    0.5,  0.005),
+( 6, 1, 1,    'one',    0.6,  0.006),
+( 7, 2, NULL, 'n_one',  0.5,  0.007),
+( 8, 2, 1,    'n_two',  NULL, 0.008),
+( 9, 2, 2,    NULL,     0.7,  0.009),
+(10, 2, 0,    'n_four', 0.8,  0.010),
+(11, 2, 10,   NULL,     0.9,  NULL);
+select pk,
+lead(pk)    over (order by pk),
+lead(pk, 1) over (order by pk),
+lead(pk, 2) over (order by pk),
+lead(pk, 0) over (order by pk),
+lead(pk, -1) over (order by pk),
+lead(pk, -2) over (order by pk)
+from t1
+order by pk asc;
+pk	lead(pk)    over (order by pk)	lead(pk, 1) over (order by pk)	lead(pk, 2) over (order by pk)	lead(pk, 0) over (order by pk)	lead(pk, -1) over (order by pk)	lead(pk, -2) over (order by pk)
+1	2	2	3	1	NULL	NULL
+2	3	3	4	2	1	NULL
+3	4	4	5	3	2	1
+4	5	5	6	4	3	2
+5	6	6	7	5	4	3
+6	7	7	8	6	5	4
+7	8	8	9	7	6	5
+8	9	9	10	8	7	6
+9	10	10	11	9	8	7
+10	11	11	NULL	10	9	8
+11	NULL	NULL	NULL	11	10	9
+select pk,
+lag(pk)    over (order by pk),
+lag(pk, 1) over (order by pk),
+lag(pk, 2) over (order by pk),
+lag(pk, 0) over (order by pk),
+lag(pk, -1) over (order by pk),
+lag(pk, -2) over (order by pk)
+from t1
+order by pk asc;
+pk	lag(pk)    over (order by pk)	lag(pk, 1) over (order by pk)	lag(pk, 2) over (order by pk)	lag(pk, 0) over (order by pk)	lag(pk, -1) over (order by pk)	lag(pk, -2) over (order by pk)
+1	NULL	NULL	NULL	1	2	3
+2	1	1	NULL	2	3	4
+3	2	2	1	3	4	5
+4	3	3	2	4	5	6
+5	4	4	3	5	6	7
+6	5	5	4	6	7	8
+7	6	6	5	7	8	9
+8	7	7	6	8	9	10
+9	8	8	7	9	10	11
+10	9	9	8	10	11	NULL
+11	10	10	9	11	NULL	NULL
+select pk, pk - 2,
+lag(pk, pk - 2) over (order by pk),
+lead(pk, pk - 2) over (order by pk)
+from t1
+order by pk asc;
+pk	pk - 2	lag(pk, pk - 2) over (order by pk)	lead(pk, pk - 2) over (order by pk)
+1	-1	2	NULL
+2	0	2	2
+3	1	2	4
+4	2	2	6
+5	3	2	8
+6	4	2	10
+7	5	2	NULL
+8	6	2	NULL
+9	7	2	NULL
+10	8	2	NULL
+11	9	2	NULL
+select pk, pk - 2,
+lag(pk, pk + 2) over (order by pk),
+lead(pk, pk + 2) over (order by pk)
+from t1
+order by pk asc;
+pk	pk - 2	lag(pk, pk + 2) over (order by pk)	lead(pk, pk + 2) over (order by pk)
+1	-1	NULL	4
+2	0	NULL	6
+3	1	NULL	8
+4	2	NULL	10
+5	3	NULL	NULL
+6	4	NULL	NULL
+7	5	NULL	NULL
+8	6	NULL	NULL
+9	7	NULL	NULL
+10	8	NULL	NULL
+11	9	NULL	NULL
+select pk, a,
+lead(pk)    over (partition by a order by pk),
+lead(pk, 1) over (partition by a order by pk),
+lead(pk, 2) over (partition by a order by pk),
+lead(pk, 0) over (partition by a order by pk),
+lead(pk, -1) over (partition by a order by pk),
+lead(pk, -2) over (partition by a order by pk)
+from t1
+order by pk asc;
+pk	a	lead(pk)    over (partition by a order by pk)	lead(pk, 1) over (partition by a order by pk)	lead(pk, 2) over (partition by a order by pk)	lead(pk, 0) over (partition by a order by pk)	lead(pk, -1) over (partition by a order by pk)	lead(pk, -2) over (partition by a order by pk)
+1	0	2	2	3	1	NULL	NULL
+2	0	3	3	NULL	2	1	NULL
+3	0	NULL	NULL	NULL	3	2	1
+4	1	5	5	6	4	NULL	NULL
+5	1	6	6	NULL	5	4	NULL
+6	1	NULL	NULL	NULL	6	5	4
+7	2	8	8	9	7	NULL	NULL
+8	2	9	9	10	8	7	NULL
+9	2	10	10	11	9	8	7
+10	2	11	11	NULL	10	9	8
+11	2	NULL	NULL	NULL	11	10	9
+select pk, a,
+lag(pk)    over (partition by a order by pk),
+lag(pk, 1) over (partition by a order by pk),
+lag(pk, 2) over (partition by a order by pk),
+lag(pk, 0) over (partition by a order by pk),
+lag(pk, -1) over (partition by a order by pk),
+lag(pk, -2) over (partition by a order by pk)
+from t1
+order by pk asc;
+pk	a	lag(pk)    over (partition by a order by pk)	lag(pk, 1) over (partition by a order by pk)	lag(pk, 2) over (partition by a order by pk)	lag(pk, 0) over (partition by a order by pk)	lag(pk, -1) over (partition by a order by pk)	lag(pk, -2) over (partition by a order by pk)
+1	0	NULL	NULL	NULL	1	2	3
+2	0	1	1	NULL	2	3	NULL
+3	0	2	2	1	3	NULL	NULL
+4	1	NULL	NULL	NULL	4	5	6
+5	1	4	4	NULL	5	6	NULL
+6	1	5	5	4	6	NULL	NULL
+7	2	NULL	NULL	NULL	7	8	9
+8	2	7	7	NULL	8	9	10
+9	2	8	8	7	9	10	11
+10	2	9	9	8	10	11	NULL
+11	2	10	10	9	11	NULL	NULL
+select pk, a, pk - 2,
+lag(pk, pk - 2) over (partition by a order by pk),
+lead(pk, pk - 2) over (partition by a order by pk),
+lag(pk, a - 2) over (partition by a order by pk),
+lead(pk, a - 2) over (partition by a order by pk)
+from t1
+order by pk asc;
+pk	a	pk - 2	lag(pk, pk - 2) over (partition by a order by pk)	lead(pk, pk - 2) over (partition by a order by pk)	lag(pk, a - 2) over (partition by a order by pk)	lead(pk, a - 2) over (partition by a order by pk)
+1	0	-1	2	NULL	3	NULL
+2	0	0	2	2	NULL	NULL
+3	0	1	2	NULL	NULL	1
+4	1	2	NULL	6	5	NULL
+5	1	3	NULL	NULL	6	4
+6	1	4	NULL	NULL	NULL	5
+7	2	5	NULL	NULL	7	7
+8	2	6	NULL	NULL	8	8
+9	2	7	NULL	NULL	9	9
+10	2	8	NULL	NULL	10	10
+11	2	9	NULL	NULL	11	11
+select pk, a, pk - 2,
+lag(pk, pk + 2) over (partition by a order by pk),
+lead(pk, pk + 2) over (partition by a order by pk),
+lag(pk, a + 2) over (partition by a order by pk),
+lead(pk, a + 2) over (partition by a order by pk)
+from t1
+order by pk asc;
+pk	a	pk - 2	lag(pk, pk + 2) over (partition by a order by pk)	lead(pk, pk + 2) over (partition by a order by pk)	lag(pk, a + 2) over (partition by a order by pk)	lead(pk, a + 2) over (partition by a order by pk)
+1	0	-1	NULL	NULL	NULL	3
+2	0	0	NULL	NULL	NULL	NULL
+3	0	1	NULL	NULL	1	NULL
+4	1	2	NULL	NULL	NULL	NULL
+5	1	3	NULL	NULL	NULL	NULL
+6	1	4	NULL	NULL	NULL	NULL
+7	2	5	NULL	NULL	NULL	11
+8	2	6	NULL	NULL	NULL	NULL
+9	2	7	NULL	NULL	NULL	NULL
+10	2	8	NULL	NULL	NULL	NULL
+11	2	9	NULL	NULL	7	NULL
+select pk, a, b, c, d, e,
+lag(a) over (partition by a order by pk),
+lag(b) over (partition by a order by pk),
+lag(c) over (partition by a order by pk),
+lag(d) over (partition by a order by pk),
+lag(e) over (partition by a order by pk)
+from t1
+order by pk asc;
+pk	a	b	c	d	e	lag(a) over (partition by a order by pk)	lag(b) over (partition by a order by pk)	lag(c) over (partition by a order by pk)	lag(d) over (partition by a order by pk)	lag(e) over (partition by a order by pk)
+1	0	1	one	0.100	0.001	NULL	NULL	NULL	NULL	NULL
+2	0	2	two	0.200	0.002	0	1	one	0.100	0.001
+3	0	3	three	0.300	0.003	0	2	two	0.200	0.002
+4	1	2	three	0.400	0.004	NULL	NULL	NULL	NULL	NULL
+5	1	1	two	0.500	0.005	1	2	three	0.400	0.004
+6	1	1	one	0.600	0.006	1	1	two	0.500	0.005
+7	2	NULL	n_one	0.500	0.007	NULL	NULL	NULL	NULL	NULL
+8	2	1	n_two	NULL	0.008	2	NULL	n_one	0.500	0.007
+9	2	2	NULL	0.700	0.009	2	1	n_two	NULL	0.008
+10	2	0	n_four	0.800	0.01	2	2	NULL	0.700	0.009
+11	2	10	NULL	0.900	NULL	2	0	n_four	0.800	0.01
+select pk, a, b, a+b,
+lag(a + b) over (partition by a order by pk)
+from t1
+order by pk asc;
+pk	a	b	a+b	lag(a + b) over (partition by a order by pk)
+1	0	1	1	NULL
+2	0	2	2	1
+3	0	3	3	2
+4	1	2	3	NULL
+5	1	1	2	3
+6	1	1	2	2
+7	2	NULL	NULL	NULL
+8	2	1	3	NULL
+9	2	2	4	3
+10	2	0	2	4
+11	2	10	12	2
+select pk, a, b, a+b,
+lag(a + b) over (partition by a order by pk) + pk
+from t1
+order by pk asc;
+pk	a	b	a+b	lag(a + b) over (partition by a order by pk) + pk
+1	0	1	1	NULL
+2	0	2	2	3
+3	0	3	3	5
+4	1	2	3	NULL
+5	1	1	2	8
+6	1	1	2	8
+7	2	NULL	NULL	NULL
+8	2	1	3	NULL
+9	2	2	4	12
+10	2	0	2	14
+11	2	10	12	13
+#
+# MDEV-15204 - LAG function doesn't require ORDER BY in OVER clause
+#
+select pk,
+lag(pk, 1) over ()
+from t1;
+ERROR HY000: No order list in window specification for 'lag'
+select pk,
+lead(pk, 1) over ()
+from t1;
+ERROR HY000: No order list in window specification for 'lead'
+drop table t1;

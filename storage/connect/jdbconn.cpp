@@ -1,24 +1,24 @@
 /************ Jdbconn C++ Functions Source Code File (.CPP) ************/
-/*  Name: JDBCONN.CPP  Version 1.1                                     */
+/*  Name: JDBCONN.CPP  Version 1.2                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2016-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          2016-2018    */
 /*                                                                     */
 /*  This file contains the JDBC connection classes functions.          */
 /***********************************************************************/
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 // This is needed for RegGetValue
 #define _WINVER 0x0601
 #undef  _WIN32_WINNT
 #define _WIN32_WINNT 0x0601
-#endif   // __WIN__
+#endif   // _WIN32
 
 /***********************************************************************/
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include <my_global.h>
 #include <m_string.h>
-#if defined(__WIN__)
+#if defined(_WIN32)
 //nclude <io.h>
 //nclude <fcntl.h>
 #include <direct.h>                      // for getcwd
@@ -26,7 +26,7 @@
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #if defined(UNIX)
 #include <errno.h>
 #else   // !UNIX
@@ -36,7 +36,7 @@
 #include <stdlib.h>                      // for getenv
 //nclude <fcntl.h>
 #define NODW
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Required objects includes.                                         */
@@ -53,9 +53,9 @@
 #include "osutil.h"
 
 
-//#if defined(__WIN__)
+//#if defined(_WIN32)
 //extern "C" HINSTANCE s_hModule;           // Saved module handle
-//#endif   // __WIN__
+//#endif   // _WIN32
 #define nullptr 0
 
 TYPCONV GetTypeConv();
@@ -116,10 +116,26 @@ int TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v)
 			return TYPE_ERROR;
 		else
 		  len = MY_MIN(abs(len), GetConvSize());
+
 		// Pass through
 	case 12:   // VARCHAR
+		if (tn && !stricmp(tn, "TEXT"))
+			// Postgresql returns 12 for TEXT
+			if (GetTypeConv() == TPC_NO)
+				return TYPE_ERROR;
+
+		// Postgresql can return this 
+		if (len == 0x7FFFFFFF)
+			len = GetConvSize();
+
+		// Pass through
 	case -9:   // NVARCHAR	(unicode)
+		// Postgresql can return this when size is unknown 
+		if (len == 0x7FFFFFFF)
+			len = GetConvSize();
+
 		v = 'V';
+		// Pass through
 	case 1:    // CHAR
 	case -15:  // NCHAR	 (unicode)
 	case -8:   // ROWID
@@ -171,6 +187,14 @@ int TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v)
 		case -5:   // BIGINT
 			type = TYPE_BIGINT;
 			break;
+		case 1111: // UNKNOWN or UUID
+			if (!tn || !stricmp(tn, "UUID")) {
+				type = TYPE_STRING;
+				len = 36;
+				break;
+			}	// endif tn
+
+			// Pass through
 		case 0:    // NULL
 		case -2:   // BINARY
 		case -4:   // LONGVARBINARY
@@ -192,6 +216,104 @@ int TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v)
 	return type;
 } // end of TranslateJDBCType
 
+	/***********************************************************************/
+	/*  A helper class to split an optionally qualified table name into    */
+	/*  components.                                                        */
+	/*  These formats are understood:                                      */
+	/*    "CatalogName.SchemaName.TableName"                               */
+	/*    "SchemaName.TableName"                                           */
+	/*    "TableName"                                                      */
+	/***********************************************************************/
+class SQLQualifiedName {
+	static const uint max_parts = 3;          // Catalog.Schema.Table
+	MYSQL_LEX_STRING m_part[max_parts];
+	char m_buf[512];
+
+	void lex_string_set(MYSQL_LEX_STRING *S, char *str, size_t length)
+	{
+		S->str = str;
+		S->length = length;
+	} // end of lex_string_set
+
+	void lex_string_shorten_down(MYSQL_LEX_STRING *S, size_t offs)
+	{
+		DBUG_ASSERT(offs <= S->length);
+		S->str += offs;
+		S->length -= offs;
+	} // end of lex_string_shorten_down
+
+		/*********************************************************************/
+		/*  Find the rightmost '.' delimiter and return the length           */
+		/*  of the qualifier, including the rightmost '.' delimier.          */
+		/*  For example, for the string {"a.b.c",5} it will return 4,        */
+		/*  which is the length of the qualifier "a.b."                      */
+		/*********************************************************************/
+	size_t lex_string_find_qualifier(MYSQL_LEX_STRING *S)
+	{
+		size_t i;
+		for (i = S->length; i > 0; i--)
+		{
+			if (S->str[i - 1] == '.')
+			{
+				S->str[i - 1] = '\0';
+				return i;
+			}
+		}
+		return 0;
+	} // end of lex_string_find_qualifier
+
+public:
+	/*********************************************************************/
+	/*  Initialize to the given optionally qualified name.               */
+	/*  NULL pointer in "name" is supported.                             */
+	/*  name qualifier has precedence over schema.                       */
+	/*********************************************************************/
+	SQLQualifiedName(JCATPARM *cap)
+	{
+		const char *name = (const char *)cap->Tab;
+		char       *db = (char *)cap->DB;
+		size_t      len, i;
+
+		// Initialize the parts
+		for (i = 0; i < max_parts; i++)
+			lex_string_set(&m_part[i], NULL, 0);
+
+		if (name) {
+			// Initialize the first (rightmost) part
+			lex_string_set(&m_part[0], m_buf,
+				strmake(m_buf, name, sizeof(m_buf) - 1) - m_buf);
+
+			// Initialize the other parts, if exist. 
+			for (i = 1; i < max_parts; i++) {
+				if (!(len = lex_string_find_qualifier(&m_part[i - 1])))
+					break;
+
+				lex_string_set(&m_part[i], m_part[i - 1].str, len - 1);
+				lex_string_shorten_down(&m_part[i - 1], len);
+			} // endfor i
+
+		} // endif name
+
+			// If it was not specified, set schema as the passed db name
+		if (db && !m_part[1].length)
+			lex_string_set(&m_part[1], db, strlen(db));
+
+	} // end of SQLQualifiedName
+
+	char *ptr(uint i)
+	{
+		DBUG_ASSERT(i < max_parts);
+		return (char *)(m_part[i].length ? m_part[i].str : NULL);
+	} // end of ptr
+
+	size_t length(uint i)
+	{
+		DBUG_ASSERT(i < max_parts);
+		return m_part[i].length;
+	} // end of length
+
+}; // end of class SQLQualifiedName
+
 /***********************************************************************/
 /*  Allocate the structure used to refer to the result set.            */
 /***********************************************************************/
@@ -199,10 +321,6 @@ static JCATPARM *AllocCatInfo(PGLOBAL g, JCATINFO fid, PCSZ db,
 	                            PCSZ tab, PQRYRES qrp)
 {
 	JCATPARM *cap;
-
-#if defined(_DEBUG)
-	assert(qrp);
-#endif
 
 	if ((cap = (JCATPARM *)PlgDBSubAlloc(g, NULL, sizeof(JCATPARM)))) {
 		memset(cap, 0, sizeof(JCATPARM));
@@ -270,7 +388,7 @@ PQRYRES JDBCColumns(PGLOBAL g, PCSZ db, PCSZ table, PCSZ colpat,
 		length[11] = 255;
 	} // endif jcp
 
-	if (trace)
+	if (trace(1))
 		htrc("JDBCColumns: max=%d len=%d,%d,%d,%d\n",
 		maxres, length[0], length[1], length[2], length[3]);
 
@@ -287,7 +405,7 @@ PQRYRES JDBCColumns(PGLOBAL g, PCSZ db, PCSZ table, PCSZ colpat,
 	if (info || !qrp)                      // Info table
 		return qrp;
 
-	if (trace)
+	if (trace(1))
 		htrc("Getting col results ncol=%d\n", qrp->Nbcol);
 
 	if (!(cap = AllocCatInfo(g, JCAT_COL, db, table, qrp)))
@@ -303,7 +421,7 @@ PQRYRES JDBCColumns(PGLOBAL g, PCSZ db, PCSZ table, PCSZ colpat,
 		qrp->Nblin = n;
 		//  ResetNullValues(cap);
 
-		if (trace)
+		if (trace(1))
 			htrc("Columns: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
 
 	} else
@@ -394,7 +512,7 @@ PQRYRES JDBCTables(PGLOBAL g, PCSZ db, PCSZ tabpat, PCSZ tabtyp,
 		length[4] = 255;
 	} // endif info
 
-	if (trace)
+	if (trace(1))
 		htrc("JDBCTables: max=%d len=%d,%d\n", maxres, length[0], length[1]);
 
 	/************************************************************************/
@@ -417,7 +535,7 @@ PQRYRES JDBCTables(PGLOBAL g, PCSZ db, PCSZ tabpat, PCSZ tabtyp,
 
 	cap->Pat = tabtyp;
 
-	if (trace)
+	if (trace(1))
 		htrc("Getting table results ncol=%d\n", cap->Qrp->Nbcol);
 
 	/************************************************************************/
@@ -427,7 +545,7 @@ PQRYRES JDBCTables(PGLOBAL g, PCSZ db, PCSZ tabpat, PCSZ tabtyp,
 		qrp->Nblin = n;
 		//  ResetNullValues(cap);
 
-		if (trace)
+		if (trace(1))
 			htrc("Tables: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
 
 	} else
@@ -475,7 +593,7 @@ PQRYRES JDBCDrivers(PGLOBAL g, int maxres, bool info)
 	} else
 		maxres = 0;
 
-	if (trace)
+	if (trace(1))
 		htrc("JDBCDrivers: max=%d len=%d\n", maxres, length[0]);
 
 	/************************************************************************/
@@ -519,7 +637,7 @@ JDBConn::JDBConn(PGLOBAL g, PCSZ wrapper) : JAVAConn(g, wrapper)
 	xqid = xuid = xid = grs = readid = fetchid = typid = errid = nullptr;
 	prepid = xpid = pcid = nullptr;
 	chrfldid = intfldid = dblfldid = fltfldid = bigfldid = nullptr;
-	objfldid = datfldid = timfldid = tspfldid = nullptr;
+	objfldid = datfldid = timfldid = tspfldid = uidfldid = nullptr;
 	DiscFunc = "JdbcDisconnect";
 	m_Ncol = 0;
 	m_Aff = 0;
@@ -535,12 +653,77 @@ JDBConn::JDBConn(PGLOBAL g, PCSZ wrapper) : JAVAConn(g, wrapper)
 	m_IDQuoteChar[1] = 0;
 } // end of JDBConn
 
-//JDBConn::~JDBConn()
-//  {
-//if (Connected())
-//  EndCom();
+/***********************************************************************/
+/*  Search for UUID columns.                                           */
+/***********************************************************************/
+bool JDBConn::SetUUID(PGLOBAL g, PTDBJDBC tjp)
+{
+	int          ncol, ctyp;
+	bool         brc = true;
+	PCSZ         fnc = "GetColumns";
+	PCOL		     colp;
+	JCATPARM    *cap;
+	//jint         jtyp;
+	jboolean     rc = false;
+	jobjectArray parms;
+	jmethodID    catid = nullptr;
 
-//  } // end of ~JDBConn
+	if (gmID(g, catid, fnc, "([Ljava/lang/String;)I"))
+		return true;
+	else if (gmID(g, intfldid, "IntField", "(ILjava/lang/String;)I"))
+		return true;
+	else if (gmID(g, readid, "ReadNext", "()I"))
+		return true;
+
+	cap = AllocCatInfo(g, JCAT_COL, tjp->Schema, tjp->TableName, NULL);
+	SQLQualifiedName name(cap);
+
+	// Build the java string array
+	parms = env->NewObjectArray(4, env->FindClass("java/lang/String"), NULL);
+	env->SetObjectArrayElement(parms, 0, env->NewStringUTF(name.ptr(2)));
+	env->SetObjectArrayElement(parms, 1, env->NewStringUTF(name.ptr(1)));
+	env->SetObjectArrayElement(parms, 2, env->NewStringUTF(name.ptr(0)));
+
+	for (colp = tjp->GetColumns(); colp; colp = colp->GetNext()) {
+		env->SetObjectArrayElement(parms, 3, env->NewStringUTF(colp->GetName()));
+		ncol = env->CallIntMethod(job, catid, parms);
+
+		if (Check(ncol)) {
+			sprintf(g->Message, "%s: %s", fnc, Msg);
+			goto err;
+		}	// endif Check
+
+		rc = env->CallBooleanMethod(job, readid);
+
+		if (Check(rc)) {
+			sprintf(g->Message, "ReadNext: %s", Msg);
+			goto err;
+		} else if (rc == 0) {
+			sprintf(g->Message, "table %s does not exist", tjp->TableName);
+			goto err;
+		}	// endif rc
+
+		// Should return 666 is case of error	(not done yet)
+		ctyp = (int)env->CallIntMethod(job, intfldid, 5, nullptr);
+
+		//if (Check((ctyp == 666) ? -1 : 1)) {
+		//	sprintf(g->Message, "Getting ctyp: %s", Msg);
+		//	goto err;
+		//} // endif ctyp
+
+		if (ctyp == 1111)
+			((PJDBCCOL)colp)->uuid = true;
+
+	} // endfor colp
+
+	// All is Ok
+	brc = false;
+
+ err:
+	// Not used anymore
+	env->DeleteLocalRef(parms);
+	return brc;
+} // end of SetUUID
 
 /***********************************************************************/
 /*  Utility routine.                                                   */
@@ -586,7 +769,7 @@ bool JDBConn::Connect(PJPARM sop)
 	int      irc = RC_FX;
 	bool		 err = false;
 	jint     rc;
-	jboolean jt = (trace > 0);
+	jboolean jt = (trace(1));
 	PGLOBAL& g = m_G;
 
 	/*******************************************************************/
@@ -642,11 +825,11 @@ bool JDBConn::Connect(PJPARM sop)
 		jstring s = (jstring)env->CallObjectMethod(job, qcid);
 
 		if (s != nullptr) {
-			char *qch = (char*)env->GetStringUTFChars(s, (jboolean)false);
+			char *qch = GetUTFString(s);
 			m_IDQuoteChar[0] = *qch;
 		} else {
 			s = (jstring)env->CallObjectMethod(job, errid);
-			Msg = (char*)env->GetStringUTFChars(s, (jboolean)false);
+			Msg = GetUTFString(s);
 		}	// endif s
 
 	}	// endif qcid
@@ -770,6 +953,7 @@ int JDBConn::Rewind(PCSZ sql)
 /***********************************************************************/
 void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 {
+	const char *field;
 	PGLOBAL& g = m_G;
 	jint     ctyp;
 	jstring  cn, jn = nullptr;
@@ -792,6 +976,11 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 	if (val->GetNullable())
 		if (!gmID(g, objfldid, "ObjectField", "(ILjava/lang/String;)Ljava/lang/Object;")) {
 			jb = env->CallObjectMethod(job, objfldid, (jint)rank, jn);
+
+			if (Check(0)) {
+				sprintf(g->Message, "Getting jp: %s", Msg);
+				throw (int)TYPE_AM_JDBC;
+			} // endif Check
 
 			if (jb == nullptr) {
 				val->Reset();
@@ -818,7 +1007,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 			cn = nullptr;
 
 		if (cn) {
-			const char *field = env->GetStringUTFChars(cn, (jboolean)false);
+			field = GetUTFString(cn);
 			val->SetValue_psz((PSZ)field);
 		} else
 			val->Reset();
@@ -885,6 +1074,18 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 		break;
 		case java.sql.Types.BOOLEAN:
 		System.out.print(jdi.BooleanField(i)); */
+	case 1111:				// UUID
+		if (!gmID(g, uidfldid, "UuidField", "(ILjava/lang/String;)Ljava/lang/String;"))
+			cn = (jstring)env->CallObjectMethod(job, uidfldid, (jint)rank, jn);
+		else
+			cn = nullptr;
+
+		if (cn) {
+			val->SetValue_psz((PSZ)GetUTFString(cn));
+		} else
+			val->Reset();
+
+		break;
 	case 0:						// NULL
 		val->SetNull(true);
 		// passthru
@@ -995,9 +1196,14 @@ int JDBConn::GetResultSize(PCSZ sql, PCOL colp)
 	if ((rc = ExecuteQuery(sql)) != RC_OK)
 		return -1;
 
-	if ((rc = Fetch()) > 0)
-		SetColumnValue(1, NULL, colp->GetValue());
-	else
+	if ((rc = Fetch()) > 0) {
+		try {
+			SetColumnValue(1, NULL, colp->GetValue());
+		}	catch (...) {
+			return -4;
+		} // end catch
+
+	} else
 		return -2;
 
 	if ((rc = Fetch()) != 0)
@@ -1055,7 +1261,14 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		if (gmID(g, setid, "SetNullParm", "(II)I"))
 			return true;
 
-		jrc = env->CallIntMethod(job, setid, i, (jint)GetJDBCType(val->GetType()));
+		jrc = env->CallIntMethod(job, setid, i, 
+			(colp->uuid ? 1111 : (jint)GetJDBCType(val->GetType())));
+	} else if (colp->uuid) {
+		if (gmID(g, setid, "SetUuidParm", "(ILjava/lang/String;)V"))
+			return true;
+
+		jst = env->NewStringUTF(val->GetCharValue());
+		env->CallVoidMethod(job, setid, i, jst);
 	} else switch (val->GetType()) {
 		case TYPE_STRING:
 			if (gmID(g, setid, "SetStringParm", "(ILjava/lang/String;)V"))
@@ -1152,19 +1365,19 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		for (i = 0, n = 0; i < size; i++) {
 			crp = qrp->Colresp;
 			js = (jstring)env->GetObjectArrayElement(s, n++);
-			sval = (PSZ)env->GetStringUTFChars(js, 0);
+			sval = GetUTFString(js);
 			crp->Kdata->SetValue(sval, i);
 			crp = crp->Next;
 			js = (jstring)env->GetObjectArrayElement(s, n++);
-			sval = (PSZ)env->GetStringUTFChars(js, 0);
+			sval = GetUTFString(js);
 			crp->Kdata->SetValue(sval, i);
 			crp = crp->Next;
 			js = (jstring)env->GetObjectArrayElement(s, n++);
-			sval = (PSZ)env->GetStringUTFChars(js, 0);
+			sval = GetUTFString(js);
 			crp->Kdata->SetValue(sval, i);
 			crp = crp->Next;
 			js = (jstring)env->GetObjectArrayElement(s, n++);
-			sval = (PSZ)env->GetStringUTFChars(js, 0);
+			sval = GetUTFString(js);
 			crp->Kdata->SetValue(sval, i);
 		}	// endfor i
 
@@ -1250,7 +1463,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 				return NULL;
 			} // endif label
 
-			name = env->GetStringUTFChars(label, (jboolean)false);
+			name = GetUTFString(label);
 			crp = qrp->Colresp;                    // Column_Name
 			crp->Kdata->SetValue((char*)name, i);
 			n = env->GetIntArrayElements(val, 0);
@@ -1273,105 +1486,6 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		/************************************************************************/
 		return qrp;
 	} // end of GetMetaData
-
-	/***********************************************************************/
-	/*  A helper class to split an optionally qualified table name into    */
-	/*  components.                                                        */
-	/*  These formats are understood:                                      */
-	/*    "CatalogName.SchemaName.TableName"                               */
-	/*    "SchemaName.TableName"                                           */
-	/*    "TableName"                                                      */
-	/***********************************************************************/
-	class SQLQualifiedName
-	{
-		static const uint max_parts= 3;          // Catalog.Schema.Table
-		MYSQL_LEX_STRING m_part[max_parts];
-		char m_buf[512];
-
-		void lex_string_set(MYSQL_LEX_STRING *S, char *str, size_t length)
-		{
-			S->str= str;
-			S->length= length;
-		} // end of lex_string_set
-
-		void lex_string_shorten_down(MYSQL_LEX_STRING *S, size_t offs)
-		{
-			DBUG_ASSERT(offs <= S->length);
-			S->str+= offs;
-			S->length-= offs;
-		} // end of lex_string_shorten_down
-
-		/*********************************************************************/
-		/*  Find the rightmost '.' delimiter and return the length           */
-		/*  of the qualifier, including the rightmost '.' delimier.          */
-		/*  For example, for the string {"a.b.c",5} it will return 4,        */
-		/*  which is the length of the qualifier "a.b."                      */
-		/*********************************************************************/
-		size_t lex_string_find_qualifier(MYSQL_LEX_STRING *S)
-		{
-			size_t i;
-			for (i= S->length; i > 0; i--)
-			{
-				if (S->str[i - 1] == '.')
-				{
-					S->str[i - 1]= '\0';
-					return i;
-				}
-			}
-			return 0;
-		} // end of lex_string_find_qualifier
-
-	public:
-		/*********************************************************************/
-		/*  Initialize to the given optionally qualified name.               */
-		/*  NULL pointer in "name" is supported.                             */
-		/*  name qualifier has precedence over schema.                       */
-		/*********************************************************************/
-		SQLQualifiedName(JCATPARM *cap)
-		{
-			const char *name = (const char *)cap->Tab;
-			char       *db = (char *)cap->DB;
-			size_t      len, i;
-
-			// Initialize the parts
-			for (i = 0; i < max_parts; i++)
-				lex_string_set(&m_part[i], NULL, 0);
-
-			if (name) {
-				// Initialize the first (rightmost) part
-				lex_string_set(&m_part[0], m_buf,
-					strmake(m_buf, name, sizeof(m_buf) - 1) - m_buf);
-
-				// Initialize the other parts, if exist. 
-				for (i= 1; i < max_parts; i++) {
-					if (!(len= lex_string_find_qualifier(&m_part[i - 1])))
-						break;
-
-					lex_string_set(&m_part[i], m_part[i - 1].str, len - 1);
-					lex_string_shorten_down(&m_part[i - 1], len);
-				} // endfor i
-
-			} // endif name
-
-			// If it was not specified, set schema as the passed db name
-			if (db && !m_part[1].length)
-				lex_string_set(&m_part[1], db, strlen(db));
-
-		} // end of SQLQualifiedName
-
-		char *ptr(uint i)
-		{
-			DBUG_ASSERT(i < max_parts);
-			return (char *)(m_part[i].length ? m_part[i].str : NULL);
-		} // end of ptr
-
-		size_t length(uint i)
-		{
-			DBUG_ASSERT(i < max_parts);
-			return m_part[i].length;
-		} // end of length
-
-	}; // end of class SQLQualifiedName
 
 	/***********************************************************************/
 	/*  Allocate recset and call SQLTables, SQLColumns or SQLPrimaryKeys.  */
@@ -1443,7 +1557,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		// Not used anymore
 		env->DeleteLocalRef(parms);
 
-    if (trace)
+    if (trace(1))
       htrc("Method %s returned %d columns\n", fnc, ncol);
 
 		// n because we no more ignore the first column
@@ -1488,7 +1602,7 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 				sprintf(g->Message, "Fetch: %s", Msg);
 				return -1;
 			} if (rc == 0) {
-        if (trace)
+        if (trace(1))
           htrc("End of fetches i=%d\n", i);
 
 				break;

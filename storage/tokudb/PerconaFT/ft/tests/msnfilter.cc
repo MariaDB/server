@@ -161,7 +161,7 @@ append_leaf(FT_HANDLE ft, FTNODE leafnode, void *key, uint32_t keylen, void *val
     }
 
     // don't forget to dirty the node
-    leafnode->dirty = 1;
+    leafnode->set_dirty();
 }
 
 static void 

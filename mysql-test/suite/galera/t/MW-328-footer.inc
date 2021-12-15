@@ -15,4 +15,4 @@
 DROP PROCEDURE proc_update;
 DROP TABLE t1, t2;
 
-CALL mtr.add_suppression("conflict state 3 after post commit");
+CALL mtr.add_suppression("conflict state ABORTED after post commit");

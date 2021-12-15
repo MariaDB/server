@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -37,7 +38,20 @@ processing.
 
 // Forward declaration
 struct ib_list_t;
-struct ib_wqueue_t;
+
+/** Work queue */
+struct ib_wqueue_t
+{
+	/** Mutex protecting everything */
+	ib_mutex_t	mutex;
+	/** Work item list */
+	ib_list_t*	items;
+	/** ib_list_len(*items) */
+	size_t		length;
+	/** event we use to signal additions to list;
+	os_event_set() and os_event_reset() are protected by the mutex */
+	os_event_t	event;
+};
 
 /****************************************************************//**
 Create a new work queue.
@@ -53,24 +67,19 @@ ib_wqueue_free(
 /*===========*/
 	ib_wqueue_t*	wq);		/*!< in: work queue */
 
-/****************************************************************//**
-Add a work item to the queue. */
+/** Add a work item to the queue.
+@param[in,out]	wq		work queue
+@param[in]	item		work item
+@param[in,out]	heap		memory heap to use for allocating list node
+@param[in]	wq_locked	work queue mutex locked */
 void
-ib_wqueue_add(
-/*==========*/
-	ib_wqueue_t*	wq,		/*!< in: work queue */
-	void*		item,		/*!< in: work item */
-	mem_heap_t*	heap);		/*!< in: memory heap to use for
-					allocating the list node */
+ib_wqueue_add(ib_wqueue_t* wq, void* item, mem_heap_t* heap,
+	      bool wq_locked = false);
 
-/********************************************************************
-Check if queue is empty. */
-ibool
-ib_wqueue_is_empty(
-/*===============*/
-					/* out: TRUE if queue empty
-					else FALSE */
-	const ib_wqueue_t*      wq);    /* in: work queue */
+/** Check if queue is empty.
+@param wq wait queue
+@return whether the queue is empty */
+bool ib_wqueue_is_empty(ib_wqueue_t* wq);
 
 /****************************************************************//**
 Wait for a work item to appear in the queue.
@@ -87,7 +96,7 @@ ib_wqueue_timedwait(
 /*================*/
 					/* out: work item or NULL on timeout*/
 	ib_wqueue_t*	wq,		/* in: work queue */
-	ib_time_t	wait_in_usecs); /* in: wait time in micro seconds */
+	ulint		wait_in_usecs); /* in: wait time in micro seconds */
 
 /********************************************************************
 Return first item on work queue or NULL if queue is empty
@@ -96,13 +105,5 @@ void*
 ib_wqueue_nowait(
 /*=============*/
 	ib_wqueue_t*	wq);		/*<! in: work queue */
-/********************************************************************
-Get number of items on queue.
-@return number of items on queue */
-ulint
-ib_wqueue_len(
-/*==========*/
-	ib_wqueue_t*	wq);		/*<! in: work queue */
-
 
 #endif /* IB_WORK_QUEUE_H */

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -25,12 +25,11 @@ Created April 08, 2011 Vasil Dimov
 *******************************************************/
 
 #include "my_global.h"
+#include "mysqld.h"
 #include "my_sys.h"
 
 #include "mysql/psi/mysql_stage.h"
 #include "mysql/psi/psi.h"
-
-#include "univ.i"
 
 #include "buf0buf.h"
 #include "buf0dump.h"
@@ -45,6 +44,7 @@ Created April 08, 2011 Vasil Dimov
 #include <algorithm>
 
 #include "mysql/service_wsrep.h" /* wsrep_recovery */
+#include <my_service_manager.h>
 
 enum status_severity {
 	STATUS_INFO,
@@ -186,7 +186,7 @@ get_buf_dump_dir()
 
 	/* The dump file should be created in the default data directory if
 	innodb_data_home_dir is set as an empty string. */
-	if (strcmp(srv_data_home, "") == 0) {
+	if (!*srv_data_home) {
 		dump_dir = fil_path_to_mysql_datadir;
 	} else {
 		dump_dir = srv_data_home;
@@ -198,16 +198,14 @@ get_buf_dump_dir()
 /** Generate the path to the buffer pool dump/load file.
 @param[out]	path		generated path
 @param[in]	path_size	size of 'path', used as in snprintf(3). */
-static
-void
-buf_dump_generate_path(
-	char*	path,
-	size_t	path_size)
+static void buf_dump_generate_path(char *path, size_t path_size)
 {
 	char	buf[FN_REFLEN];
 
+	mysql_mutex_lock(&LOCK_global_system_variables);
 	snprintf(buf, sizeof(buf), "%s%c%s", get_buf_dump_dir(),
 		 OS_PATH_SEPARATOR, srv_buf_dump_filename);
+	mysql_mutex_unlock(&LOCK_global_system_variables);
 
 	os_file_type_t	type;
 	bool		exists = false;
@@ -261,7 +259,7 @@ buf_dump(
 #define SHOULD_QUIT()	(SHUTTING_DOWN() && obey_shutdown)
 
 	char	full_filename[OS_FILE_MAX_PATH];
-	char	tmp_filename[OS_FILE_MAX_PATH];
+	char	tmp_filename[OS_FILE_MAX_PATH + sizeof "incomplete"];
 	char	now[32];
 	FILE*	f;
 	ulint	i;
@@ -275,7 +273,20 @@ buf_dump(
 	buf_dump_status(STATUS_INFO, "Dumping buffer pool(s) to %s",
 			full_filename);
 
-	f = fopen(tmp_filename, "w");
+#if defined(__GLIBC__) || defined(__WIN__) || O_CLOEXEC == 0
+	f = fopen(tmp_filename, "w" STR_O_CLOEXEC);
+#else
+	{
+		int	fd;
+		fd = open(tmp_filename, O_CREAT | O_TRUNC | O_CLOEXEC | O_WRONLY, 0640);
+		if (fd >= 0) {
+			f = fdopen(fd, "w");
+		}
+		else {
+			f = NULL;
+		}
+	}
+#endif
 	if (f == NULL) {
 		buf_dump_status(STATUS_ERR,
 				"Cannot open '%s' for writing: %s",
@@ -347,17 +358,22 @@ buf_dump(
 
 		for (bpage = UT_LIST_GET_FIRST(buf_pool->LRU), j = 0;
 		     bpage != NULL && j < n_pages;
-		     bpage = UT_LIST_GET_NEXT(LRU, bpage), j++) {
+		     bpage = UT_LIST_GET_NEXT(LRU, bpage)) {
 
 			ut_a(buf_page_in_file(bpage));
+			if (bpage->id.space() >= SRV_LOG_SPACE_FIRST_ID) {
+				/* Ignore the innodb_temporary tablespace. */
+				continue;
+			}
 
-			dump[j] = BUF_DUMP_CREATE(bpage->id.space(),
-						  bpage->id.page_no());
+			dump[j++] = BUF_DUMP_CREATE(bpage->id.space(),
+						    bpage->id.page_no());
 		}
 
-		ut_a(j == n_pages);
-
 		buf_pool_mutex_exit(buf_pool);
+
+		ut_a(j <= n_pages);
+		n_pages = j;
 
 		for (j = 0; j < n_pages && !SHOULD_QUIT(); j++) {
 			ret = fprintf(f, ULINTPF "," ULINTPF "\n",
@@ -371,6 +387,14 @@ buf_dump(
 						tmp_filename, strerror(errno));
 				/* leave tmp_filename to exist */
 				return;
+			}
+			if (SHUTTING_DOWN() && !(j % 1024)) {
+				service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+					"Dumping buffer pool "
+					ULINTPF "/%lu, "
+					"page " ULINTPF "/" ULINTPF,
+					i + 1, srv_buf_pool_instances,
+					j + 1, n_pages);
 			}
 		}
 
@@ -516,7 +540,7 @@ buf_load()
 	buf_load_status(STATUS_INFO,
 			"Loading buffer pool(s) from %s", full_filename);
 
-	f = fopen(full_filename, "r");
+	f = fopen(full_filename, "r" STR_O_CLOEXEC);
 	if (f == NULL) {
 		buf_load_status(STATUS_INFO,
 				"Cannot open '%s' for reading: %s",
@@ -664,9 +688,14 @@ buf_load()
 		/* space_id for this iteration of the loop */
 		const ulint	this_space_id = BUF_DUMP_SPACE(dump[i]);
 
+		if (this_space_id >= SRV_LOG_SPACE_FIRST_ID) {
+			/* Ignore the innodb_temporary tablespace. */
+			continue;
+		}
+
 		if (this_space_id != cur_space_id) {
 			if (space != NULL) {
-				fil_space_release(space);
+				space->release();
 			}
 
 			cur_space_id = this_space_id;
@@ -698,7 +727,7 @@ buf_load()
 
 		if (buf_load_abort_flag) {
 			if (space != NULL) {
-				fil_space_release(space);
+				space->release();
 			}
 			buf_load_abort_flag = FALSE;
 			ut_free(dump);
@@ -729,7 +758,7 @@ buf_load()
 	}
 
 	if (space != NULL) {
-		fil_space_release(space);
+		space->release();
 	}
 
 	ut_free(dump);

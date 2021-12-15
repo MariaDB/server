@@ -770,7 +770,7 @@ f_char2 CHAR(20),
 f_charbig VARCHAR(1000) )
 PARTITION BY RANGE(f_int1) SUBPARTITION BY HASH(f_int1) (PARTITION part1 VALUES LESS THAN (10), PARTITION part2 VALUES LESS THAN (20)
 (SUBPARTITION subpart21 , SUBPARTITION subpart22 ), PARTITION part3 VALUES LESS THAN (2147483646)) ;
-ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near 'SUBPARTITION subpart21 , SUBPARTITION subpart22 ), PARTITION part3 VALUES LESS T' at line 7
+ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near 'SUBPARTITION subpart21 , SUBPARTITION subpart22 ), PARTITION part3 VALUES LES...' at line 7
 CREATE TABLE t1 (  f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
@@ -779,7 +779,7 @@ f_charbig VARCHAR(1000) )
 PARTITION BY RANGE(f_int1) SUBPARTITION BY HASH(f_int1) (PARTITION part1 VALUES LESS THAN (10), PARTITION part2 VALUES LESS THAN (20)
 (SUBPARTITION subpart21 , SUBPARTITION subpart22 ), PARTITION part3 VALUES LESS THAN (2147483646)
 (SUBPARTITION subpart31 , SUBPARTITION subpart32 )) ;
-ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near 'SUBPARTITION subpart21 , SUBPARTITION subpart22 ), PARTITION part3 VALUES LESS T' at line 7
+ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near 'SUBPARTITION subpart21 , SUBPARTITION subpart22 ), PARTITION part3 VALUES LES...' at line 7
 CREATE TABLE t1 (  f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
@@ -797,7 +797,7 @@ PARTITION BY RANGE(f_int1) SUBPARTITION BY HASH(f_int1) (PARTITION part1 VALUES 
 (SUBPARTITION subpart11 , SUBPARTITION subpart12 ), PARTITION part2 VALUES LESS THAN (20), PARTITION part3 VALUES LESS THAN (2147483646)
 (SUBPARTITION subpart31 , SUBPARTITION subpart32 )) ;
 ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near ' PARTITION part3 VALUES LESS THAN (2147483646)
-(SUBPARTITION subpart31 , SUBPART' at line 7
+(SUBPARTITION subpart31 , SUBP...' at line 7
 CREATE TABLE t1 (  f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
 f_char1 CHAR(20),
@@ -987,7 +987,7 @@ SUBPARTITIONS -1
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-1
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN (214' at line 9
+PARTITION part2 VALUES LESS THAN (...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1032,7 +1032,7 @@ SUBPARTITIONS 2.0
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: Only integers allowed as number here near '2.0
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN (21' at line 9
+PARTITION part2 VALUES LESS THAN ...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1055,7 +1055,7 @@ SUBPARTITIONS -2.0
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-2.0
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN (2' at line 9
+PARTITION part2 VALUES LESS THAN...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1078,7 +1078,7 @@ SUBPARTITIONS 0.0
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: Only integers allowed as number here near '0.0
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN (21' at line 9
+PARTITION part2 VALUES LESS THAN ...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1101,7 +1101,7 @@ SUBPARTITIONS 1.6
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: Only integers allowed as number here near '1.6
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN (21' at line 9
+PARTITION part2 VALUES LESS THAN ...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1123,7 +1123,7 @@ SUBPARTITIONS 999999999999999999999999999999.999999999999999999999999999999
 (PARTITION part1 VALUES LESS THAN (10),
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: Only integers allowed as number here near '999999999999999999999999999999.999999999999999999999999999999
-(PARTITION part1 V' at line 9
+(PARTITION part...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1146,7 +1146,7 @@ SUBPARTITIONS 0.000000000000000000000000000001
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: Only integers allowed as number here near '0.000000000000000000000000000001
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITI' at line 9
+PART...' at line 9
 # 4.2.3 partition/subpartition numbers FLOAT notation
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -1170,7 +1170,7 @@ SUBPARTITIONS 2.0E+0
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: Only integers allowed as number here near '2.0E+0
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN ' at line 9
+PARTITION part2 VALUES LESS TH...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1193,7 +1193,7 @@ SUBPARTITIONS 0.2E+1
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: Only integers allowed as number here near '0.2E+1
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN ' at line 9
+PARTITION part2 VALUES LESS TH...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1216,7 +1216,7 @@ SUBPARTITIONS -2.0E+0
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-2.0E+0
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN' at line 9
+PARTITION part2 VALUES LESS T...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1239,7 +1239,7 @@ SUBPARTITIONS 0.16E+1
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: Only integers allowed as number here near '0.16E+1
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN' at line 9
+PARTITION part2 VALUES LESS T...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1262,7 +1262,7 @@ SUBPARTITIONS 0.0E+300
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: Only integers allowed as number here near '0.0E+300
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THA' at line 9
+PARTITION part2 VALUES LESS ...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1285,7 +1285,7 @@ SUBPARTITIONS 1E+300
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: Only integers allowed as number here near '1E+300
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN ' at line 9
+PARTITION part2 VALUES LESS TH...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1308,7 +1308,7 @@ SUBPARTITIONS 1E-300
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: Only integers allowed as number here near '1E-300
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN ' at line 9
+PARTITION part2 VALUES LESS TH...' at line 9
 # 4.2.4 partition/subpartition numbers STRING notation
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -1332,7 +1332,7 @@ SUBPARTITIONS '2'
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''2'
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN (21' at line 9
+PARTITION part2 VALUES LESS THAN ...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1355,7 +1355,7 @@ SUBPARTITIONS '2.0'
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''2.0'
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN (' at line 9
+PARTITION part2 VALUES LESS THA...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1378,7 +1378,7 @@ SUBPARTITIONS '0.2E+1'
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''0.2E+1'
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THA' at line 9
+PARTITION part2 VALUES LESS ...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1401,7 +1401,7 @@ SUBPARTITIONS '2A'
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''2A'
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN (2' at line 9
+PARTITION part2 VALUES LESS THAN...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1424,7 +1424,7 @@ SUBPARTITIONS 'A2'
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''A2'
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN (2' at line 9
+PARTITION part2 VALUES LESS THAN...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1447,7 +1447,7 @@ SUBPARTITIONS ''
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '''
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN (214' at line 9
+PARTITION part2 VALUES LESS THAN (...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1470,7 +1470,7 @@ SUBPARTITIONS 'GARBAGE'
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''GARBAGE'
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS TH' at line 9
+PARTITION part2 VALUES LESS...' at line 9
 # 4.2.5 partition/subpartition numbers other notations
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -1494,7 +1494,7 @@ SUBPARTITIONS 2A
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2A
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN (214' at line 9
+PARTITION part2 VALUES LESS THAN (...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1517,7 +1517,7 @@ SUBPARTITIONS A2
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'A2
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN (214' at line 9
+PARTITION part2 VALUES LESS THAN (...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1540,7 +1540,7 @@ SUBPARTITIONS GARBAGE
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'GARBAGE
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN' at line 9
+PARTITION part2 VALUES LESS T...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1563,7 +1563,7 @@ SUBPARTITIONS "2"
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"2"
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN (21' at line 9
+PARTITION part2 VALUES LESS THAN ...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1586,7 +1586,7 @@ SUBPARTITIONS "2A"
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"2A"
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN (2' at line 9
+PARTITION part2 VALUES LESS THAN...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1609,7 +1609,7 @@ SUBPARTITIONS "A2"
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"A2"
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THAN (2' at line 9
+PARTITION part2 VALUES LESS THAN...' at line 9
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1632,7 +1632,7 @@ SUBPARTITIONS "GARBAGE"
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '"GARBAGE"
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS TH' at line 9
+PARTITION part2 VALUES LESS...' at line 9
 # 4.2.6 (negative) partition/subpartition numbers per @variables
 SET @aux = 5;
 CREATE TABLE t1 (
@@ -1657,7 +1657,7 @@ SUBPARTITIONS @aux = 5
 PARTITION part2 VALUES LESS THAN (2147483646));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '@aux = 5
 (PARTITION part1 VALUES LESS THAN (10),
-PARTITION part2 VALUES LESS THA' at line 9
+PARTITION part2 VALUES LESS ...' at line 9
 #------------------------------------------------------------------------
 # 4.3 Mixups of assigned partition/subpartition numbers and names
 #------------------------------------------------------------------------
@@ -1750,7 +1750,7 @@ PARTITION part2 VALUES LESS THAN (2147483646)
 );
 ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near '),
 PARTITION part2 VALUES LESS THAN (2147483646)
-(SUBPARTITION subpart21, SUBPAR' at line 11
+(SUBPARTITION subpart21, SUB...' at line 11
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1769,7 +1769,7 @@ PARTITION part3 VALUES LESS THAN (2147483646)
 );
 ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near '),
 PARTITION part3 VALUES LESS THAN (2147483646)
-(SUBPARTITION subpart31, SUBPAR' at line 13
+(SUBPARTITION subpart31, SUB...' at line 13
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1812,7 +1812,7 @@ PARTITION part2 VALUES LESS THAN (2147483646)
 );
 ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near '),
 PARTITION part2 VALUES LESS THAN (2147483646)
-(SUBPARTITION subpart21, SUBPAR' at line 11
+(SUBPARTITION subpart21, SUB...' at line 11
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1831,7 +1831,7 @@ PARTITION part3 VALUES LESS THAN (2147483646)
 );
 ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near '),
 PARTITION part2 VALUES LESS THAN (2000)
-(SUBPARTITION subpart21              ' at line 11
+(SUBPARTITION subpart21           ...' at line 11
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
 f_int2 INTEGER DEFAULT 0,
@@ -1848,7 +1848,7 @@ PARTITION part2 VALUES LESS THAN (2147483646)
 );
 ERROR 42000: Wrong number of subpartitions defined, mismatch with previous setting near '),
 PARTITION part2 VALUES LESS THAN (2147483646)
-(SUBPARTITION subpart21, SUBPAR' at line 11
+(SUBPARTITION subpart21, SUB...' at line 11
 
 #========================================================================
 #  5. Checks of logical partition/subpartition name

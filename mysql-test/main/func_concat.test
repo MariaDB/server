@@ -1,0 +1,266 @@
+#
+# Test of problem with CONCAT_WS() and long separators.
+#
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP PROCEDURE IF EXISTS p1;
+--enable_warnings
+
+CREATE TABLE t1 ( number INT NOT NULL, alpha CHAR(6) NOT NULL );
+INSERT INTO t1 VALUES (1413006,'idlfmv'),
+(1413065,'smpsfz'),(1413127,'sljrhx'),(1413304,'qerfnd');
+
+SELECT number, alpha, CONCAT_WS('<---->',number,alpha) AS new
+FROM t1 GROUP BY number;
+
+SELECT CONCAT_WS('<---->',number,alpha) AS new
+FROM t1 GROUP BY new LIMIT 1;
+
+SELECT number, alpha, CONCAT_WS('<->',number,alpha) AS new
+FROM t1 GROUP BY new LIMIT 1;
+
+SELECT number, alpha, CONCAT_WS('-',number,alpha,alpha,alpha,alpha,alpha,alpha,alpha) AS new
+FROM t1 GROUP BY new LIMIT 1;
+
+SELECT number, alpha, CONCAT_WS('<------------------>',number,alpha) AS new
+FROM t1 GROUP BY new LIMIT 1;
+drop table t1;
+
+#
+# Bug #5540: a problem with double type
+#
+
+create table t1 (a char(4), b double, c date, d tinyint(4));
+insert into t1 values ('AAAA', 105, '2003-03-01', 1);
+select * from t1 where concat(A,C,B,D) = 'AAAA2003-03-011051';
+drop table t1;
+
+# BUG#6825 
+select 'a' union select concat('a', -4);
+select 'a' union select concat('a', -4.5);
+
+select 'a' union select concat('a', -(4 + 1));
+select 'a' union select concat('a', 4 - 5);
+
+select 'a' union select concat('a', -'3');
+select 'a' union select concat('a', -concat('3',4));
+
+select 'a' union select concat('a', -0);
+--replace_result a-0.0 a0.0
+select 'a' union select concat('a', -0.0);
+
+--replace_result a-0.0000 a0.0000
+select 'a' union select concat('a', -0.0000);
+
+#
+# Bug#16716: subselect in concat() may lead to a wrong result
+#
+select concat((select x from (select 'a' as x) as t1 ),
+  (select y from (select 'b' as y) as t2 )) from (select 1 union select 2 )
+  as t3;
+
+# End of 4.1 tests
+
+#
+# Bug#15962: CONCAT() in UNION may lead to a data trucation.
+#
+create table t1(f1 varchar(6)) charset=utf8;
+insert into t1 values ("123456");
+select concat(f1, 2) a from t1 union select 'x' a from t1;
+drop table t1;
+
+#
+# Bug #36488: regexp returns false matches, concatenating with previous rows
+#
+CREATE TABLE t1 (c1 varchar(100), c2 varchar(100));
+INSERT INTO t1 VALUES ('',''), ('','First'), ('Random','Random');
+SELECT * FROM t1 WHERE CONCAT(c1,' ',c2) REGEXP 'First.*';
+DROP TABLE t1;
+
+--echo # End of 5.0 tests
+
+
+--echo #
+--echo # Bug #44743: Join in combination with concat does not always work
+--echo #
+CREATE TABLE t1 (
+  a VARCHAR(100) NOT NULL DEFAULT '0',
+  b VARCHAR(2) NOT NULL DEFAULT '',
+  c VARCHAR(2) NOT NULL DEFAULT '',
+  d TEXT NOT NULL,
+  PRIMARY KEY (a, b, c),
+  KEY (a)
+) DEFAULT CHARSET=utf8;
+
+INSERT INTO t1 VALUES ('gui_A', 'a', 'b', 'str1'),
+  ('gui_AB', 'a', 'b', 'str2'), ('gui_ABC', 'a', 'b', 'str3');
+
+CREATE TABLE t2 (
+  a VARCHAR(100) NOT NULL DEFAULT '',
+  PRIMARY KEY (a)
+) DEFAULT CHARSET=latin1;
+
+INSERT INTO t2 VALUES ('A'), ('AB'), ('ABC');
+
+SELECT CONCAT('gui_', t2.a), t1.d FROM t2 
+  LEFT JOIN t1 ON t1.a = CONCAT('gui_', t2.a) AND t1.b = 'a' AND t1.c = 'b';
+
+EXPLAIN SELECT CONCAT('gui_', t2.a), t1.d FROM t2 
+  LEFT JOIN t1 ON t1.a = CONCAT('gui_', t2.a) AND t1.b = 'a' AND t1.c = 'b';
+
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # Bug #50096: CONCAT_WS inside procedure returning wrong data
+--echo #
+
+CREATE PROCEDURE p1(a varchar(255), b int, c int)
+  SET @query = CONCAT_WS(",", a, b, c);
+
+CALL p1("abcde", "0", "1234");
+SELECT @query;
+
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Bug #40625: Concat fails on DOUBLE values in a Stored Procedure,
+--echo #             while DECIMAL works
+--echo #
+
+DELIMITER //;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v1 DOUBLE(10,3);
+  SET v1= 100;
+  SET @s = CONCAT('########################################', 40 , v1);
+  SELECT @s;
+END;//
+DELIMITER ;//
+
+CALL p1();
+CALL p1();
+
+DROP PROCEDURE p1;
+
+--echo # End of 5.1 tests
+
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-10306 Wrong results with combination of CONCAT, SUBSTR and CONVERT in subquery
+--echo #
+
+SET @save_optimizer_switch=@@optimizer_switch;
+SET optimizer_switch='derived_merge=on';
+
+CREATE TABLE t1 (t VARCHAR(10) CHARSET latin1);
+INSERT INTO t1 VALUES('1234567');
+SELECT CONCAT(SUBSTR(t2, 1, 3), SUBSTR(t2, 5)) c1,
+       CONCAT(SUBSTR(t2,1,3),'---',SUBSTR(t2,5)) c2
+   FROM (SELECT CONVERT(t USING latin1) t2 FROM t1) sub;
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT CONVERT(t USING latin1) t2 FROM t1) sub;
+DROP TABLE t1;
+
+# Other functions affected by MDEV-10306
+
+CREATE TABLE t1 (t VARCHAR(10) CHARSET latin1);
+INSERT INTO t1 VALUES('1234567');
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT CONVERT(t USING latin1) t2 FROM t1) sub;
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT REVERSE(t) t2 FROM t1) sub;
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT SOUNDEX(t) t2 FROM t1) sub;
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT TO_BASE64(t) t2 FROM t1) sub;
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT WEIGHT_STRING(t) t2 FROM t1) sub;
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT HEX(t) t2 FROM t1) sub;
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT QUOTE(t) t2 FROM t1) sub;
+DROP TABLE t1;
+
+CREATE TABLE t1 (t VARCHAR(32) CHARSET latin1);
+INSERT INTO t1 VALUES(TO_BASE64('abcdefghi'));
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT FROM_BASE64(t) t2 FROM t1) sub;
+DROP TABLE t1;
+
+CREATE TABLE t1 (t VARCHAR(32) CHARSET latin1);
+INSERT INTO t1 VALUES(HEX('abcdefghi'));
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT UNHEX(t) t2 FROM t1) sub;
+DROP TABLE t1;
+
+CREATE TABLE t1 (t VARCHAR(30) CHARSET latin1);
+INSERT INTO t1 VALUES('test');
+SELECT LENGTH(CONCAT(t2)) c2 FROM (SELECT AES_ENCRYPT(t,'x') t2 FROM t1) sub;
+SELECT LENGTH(CONCAT(t2,'-',t2)) c2 FROM (SELECT AES_ENCRYPT(t,'x') t2 FROM t1) sub;
+SELECT LENGTH(CONCAT(t2,'--',t2)) c2 FROM (SELECT AES_ENCRYPT(t,'x') t2 FROM t1) sub;
+SELECT LENGTH(CONCAT(t2)) c2 FROM (SELECT AES_DECRYPT(AES_ENCRYPT(t,'x'),'x') t2 FROM t1) sub;
+SELECT LENGTH(CONCAT(t2,'-',t2)) c2 FROM (SELECT AES_DECRYPT(AES_ENCRYPT(t,'x'),'x') t2 FROM t1) sub;
+SELECT LENGTH(CONCAT(t2,'--',t2)) c2 FROM (SELECT AES_DECRYPT(AES_ENCRYPT(t,'x'),'x') t2 FROM t1) sub;
+DROP TABLE t1;
+
+
+# Functions not affected by MDEV-10306
+# They only had an unused tmp_value, which was removed.
+
+CREATE TABLE t1 (t VARCHAR(64) CHARSET latin1);
+INSERT INTO t1 VALUES('123456789');
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT MD5(t) t2 FROM t1) sub;
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT FORMAT(t,2) t2 FROM t1) sub;
+DROP TABLE t1;
+
+# Functions not affected by MDEV-10306
+# They already use tmp_value only for internal purposes and
+# return the result in the String passed to val_str()
+
+CREATE TABLE t1 (t VARCHAR(32) CHARSET latin1);
+INSERT INTO t1 VALUES('abcdefghi');
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT INSERT(t,3,4,'xxx') t2 FROM t1) sub;
+DROP TABLE t1;
+
+
+# Functions not affected by MDEV-10306
+# They use this code style:
+#   String *res= args[0]->val_str(str);
+#   tmp_value.set(*res, start, end);
+#   return &tmp_value;
+
+CREATE TABLE t1 (t VARCHAR(10) CHARSET latin1);
+INSERT INTO t1 VALUES('abcdefghi');
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT LEFT(t,10) t2 FROM t1) sub;
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT RIGHT(t,10) t2 FROM t1) sub;
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT SUBSTR(t,1,10) t2 FROM t1) sub;
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT LTRIM(t) t2 FROM t1) sub;
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT RTRIM(t) t2 FROM t1) sub;
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT TRIM(t) t2 FROM t1) sub;
+DROP TABLE t1;
+
+SET optimizer_switch=@save_optimizer_switch;
+
+--echo #
+--echo # MDEV-13790 UNHEX() of a somewhat complicated CONCAT() returns NULL
+--echo #
+
+SELECT UNHEX(CONCAT('414C2', HEX(8 + ROUND(RAND()*7)), SUBSTR(SHA(UUID()),6,33),HEX(2+ROUND(RAND()*8)))) IS NULL AS c1;
+
+
+--echo #
+--echo # MDEV-13119 Wrong results with CAST(AS CHAR) and subquery
+--echo #
+
+SET optimizer_switch=_utf8'derived_merge=on';
+CREATE TABLE t1 (t VARCHAR(10) CHARSET latin1);
+INSERT INTO t1 VALUES('abcdefghi');
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT CAST(t AS CHAR CHARACTER SET utf8) t2 FROM t1) sub;
+DROP TABLE t1;
+SET optimizer_switch=@save_optimizer_switch;
+
+
+--echo #
+--echo # MDEV-13120 Wrong results with MAKE_SET() and subquery
+--echo #
+
+CREATE TABLE t1 (t VARCHAR(10) CHARSET latin1);
+INSERT INTO t1 VALUES('abcdefghi');
+SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT MAKE_SET(3,t,t) t2 FROM t1) sub;
+DROP TABLE t1;

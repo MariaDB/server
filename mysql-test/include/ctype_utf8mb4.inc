@@ -1,6 +1,7 @@
 #
 # Tests with the utf8mb4 character set
 #
+--source include/default_optimizer_switch.inc
 --disable_warnings
 drop table if exists t1,t2;
 --enable_warnings
@@ -1244,7 +1245,9 @@ drop table t1;
 #
 
 SET CHARACTER SET utf8mb4;
+--source include/default_charset.inc
 SHOW VARIABLES LIKE 'character\_set\_%';
+SET @@character_set_server=@save_character_set_server;
 CREATE DATABASE crashtest DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 USE crashtest;
 eval CREATE TABLE crashtest (crash char(10)) DEFAULT CHARSET=utf8mb4 ENGINE $engine;
@@ -1584,7 +1587,7 @@ drop table t1;
 --echo #
 --echo # Check strnxfrm() with odd length
 --echo #
-set max_sort_length=5;
+set max_sort_length=65;
 select @@max_sort_length;
 eval create table t1 (a varchar(128) character set utf8mb4 collate utf8mb4_general_ci) engine $engine;
 insert into t1 values ('a'),('b'),('c');

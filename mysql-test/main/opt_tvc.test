@@ -1,0 +1,430 @@
+#
+# MDEV-12176 Transform [NOT] IN predicate with long list of values INTO [NOT] IN subquery
+#
+source include/have_debug.inc;
+source include/default_optimizer_switch.inc;
+source include/have_sequence.inc;
+
+create table t1 (a int, b int);
+
+insert into t1
+values (1,2), (4,6), (9,7),
+       (1,1), (2,5), (7,8);
+
+create table t2 (a int, b int, c int);
+
+insert into t2
+values (1,2,3), (5,1,2), (4,3,7),
+       (8,9,0), (10,7,1), (5,5,1);
+
+create table t3 (a int, b varchar(16), index idx(a));
+insert into t3 values
+  (1, "abc"), (3, "egh"), (8, "axxx"), (10, "abc"),
+  (2, "ccw"), (8, "wqqe"), (7, "au"), (9, "waa"),
+  (3, "rass"), (9, "ert"), (9, "lok"), (8, "aww"),
+  (1, "todd"), (3, "rew"), (8, "aww"), (3, "sw"),
+  (11, "llk"), (7, "rbw"), (1, "sm"), (2, "jyp"),
+  (4, "yq"), (5, "pled"), (12, "ligin"), (12, "toww"),
+  (6, "mxm"), (15, "wanone"), (9, "sunqq"), (2, "abe");
+
+--echo # optimization is not used
+
+let $query= select * from t1 where a in (1,2);
+eval $query;
+eval explain extended $query;
+
+--echo # set minimum number of values in VALUEs list when optimization works to 2
+
+set @@in_predicate_conversion_threshold= 2;
+
+--echo # single IN-predicate in WHERE-part
+
+let $query= select * from t1 where a in (1,2);
+
+let $optimized_query=
+select * from t1
+where a in
+      (
+        select *
+        from (values (1),(2)) as tvc_0
+      );
+
+eval $query;
+eval $optimized_query;
+eval explain extended $query;
+eval explain extended $optimized_query;
+
+--echo # AND-condition with IN-predicates in WHERE-part
+
+let $query=
+select * from t1
+where a in (1,2) and
+      b in (1,5);
+
+let $optimized_query=
+select * from t1
+where a in
+(
+  select *
+  from (values (1),(2)) as tvc_0
+)
+and b in
+(
+  select *
+  from (values (1),(5)) as tvc_1
+);
+
+eval $query;
+eval $optimized_query;
+eval explain extended $query;
+eval explain extended $optimized_query;
+
+--echo # subquery with IN-predicate
+
+let $query=
+select * from t1
+where a in
+(
+  select a
+  from t2 where b in (3,4)
+);
+
+let $optimized_query=
+select * from t1
+where a in
+(
+  select a from t2
+  where b in
+  (
+    select *
+    from (values (3),(4)) as tvc_0
+  )
+);
+
+eval $query;
+eval $optimized_query;
+eval explain extended $query;
+eval explain extended $optimized_query;
+
+--echo # derived table with IN-predicate
+
+let $query=
+select * from
+(
+  select *
+  from t1
+  where a in (1,2)
+) as dr_table;
+
+let $optimized_query=
+select * from
+(
+  select *
+  from t1
+  where a in
+  (
+    select *
+    from (values (1),(2))
+    as tvc_0
+  )
+) as dr_table;
+
+eval $query;
+eval $optimized_query;
+eval explain extended $query;
+eval explain extended $optimized_query;
+
+--echo # non-recursive CTE with IN-predicate
+
+let $cte_query=
+with tvc_0 as
+(
+  select *
+  from t1
+  where a in (1,2)
+)
+select * from tvc_0;
+
+eval $cte_query;
+eval $optimized_query;
+eval explain extended $cte_query;
+eval explain extended $optimized_query;
+
+--echo # VIEW with IN-predicate
+
+create view v1 as
+  select *
+  from t1
+  where a in (1,2);
+
+create view v2 as
+  select *
+  from t1
+  where a in
+  (
+    select *
+    from (values (1),(2))
+    as tvc_0
+  )
+;
+
+let $query= select * from v1;
+let $optimized_query= select * from v2;
+
+eval $query;
+eval $optimized_query;
+eval explain extended $query;
+eval explain extended $optimized_query;
+
+drop view v1,v2;
+
+--echo # subselect defined by derived table with IN-predicate
+
+let $query=
+select * from t1
+where a in
+(
+  select 1
+  from
+  (
+    select *
+    from t1
+    where a in (1,2)
+  )
+  as dr_table
+);
+
+let $optimized_query=
+select * from t1
+where a in
+(
+  select 1
+  from
+  (
+    select *
+    from t1
+    where a in
+    (
+      select *
+      from (values (1),(2))
+      as tvc_0
+    )
+  )
+  as dr_table
+);
+
+eval $query;
+eval $optimized_query;
+eval explain extended $query;
+eval explain extended $optimized_query;
+
+--echo # derived table with IN-predicate and group by
+
+let $query=
+select * from
+(
+  select max(a),b
+  from t1
+  where b in (3,5)
+  group by b
+) as dr_table;
+
+let $optimized_query=
+select * from
+(
+  select max(a),b
+  from t1
+  where b in
+  (
+    select *
+    from (values (3),(5))
+    as tvc_0
+  )
+  group by b
+) as dr_table;
+
+eval $query;
+eval $optimized_query;
+eval explain extended $query;
+eval explain extended $optimized_query;
+
+--echo # prepare statement
+
+prepare stmt from "select * from t1 where a in (1,2)";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo # use inside out access from tvc rows
+
+let $query= select * from t3 where a in (1,4);
+set @@in_predicate_conversion_threshold= default;
+eval $query;
+eval explain extended $query;
+set @@in_predicate_conversion_threshold= 2;
+eval $query;
+eval explain extended $query;
+
+--echo # use vectors in IN predeicate
+
+set @@in_predicate_conversion_threshold= 4;
+
+let $query=
+select * from t1 where (a,b) in ((1,2),(3,4));
+
+eval $query;
+eval explain extended $query;
+set @@in_predicate_conversion_threshold= 2;
+
+--echo # trasformation works for the one IN predicate and doesn't work for the other
+
+set @@in_predicate_conversion_threshold= 5;
+
+let $query=
+select * from t2
+where (a,b) in ((1,2),(8,9)) and
+      (a,c) in ((1,3),(8,0),(5,1));
+
+eval $query;
+eval explain extended $query;
+set @@in_predicate_conversion_threshold= 2;
+
+--echo #
+--echo # mdev-14281: conversion of NOT IN predicate into subquery predicate
+--echo # 
+
+let $query=
+select * from t1
+where (a,b) not in ((1,2),(8,9), (5,1));
+let $optimized_query=
+select * from t1
+where (a,b) not in (select * from (values (1,2),(8,9), (5,1)) as tvc_0);
+
+eval $query;
+eval $optimized_query;
+eval explain extended $query;
+eval explain extended $optimized_query;
+
+let $query=
+select * from t1
+where b < 7 and (a,b) not in ((1,2),(8,9), (5,1));
+eval $query;
+eval explain extended $query;
+
+let $query=
+select * from t2
+where (a,c) not in ((1,2),(8,9), (5,1));
+eval $query;
+eval explain extended $query;
+
+drop table t1, t2, t3;
+
+set @@in_predicate_conversion_threshold= default;
+
+--echo #
+--echo # MDEV-14947: conversion to TVC with only NULL values
+--echo #
+
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (3), (2), (7);
+
+let $q=
+SELECT * FROM t1 WHERE i IN (NULL, NULL, NULL, NULL, NULL);
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+SET in_predicate_conversion_threshold= 5;
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+SET in_predicate_conversion_threshold= default;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-14835: conversion to TVC with BIGINT or YEAR values
+--echo #
+
+SET @@in_predicate_conversion_threshold= 2;
+
+CREATE TABLE t1 (a BIGINT);
+CREATE TABLE t2 (y YEAR);
+
+INSERT INTO t1 VALUES (1), (2), (3);
+INSERT INTO t2 VALUES (2009), (2010), (2011);
+
+SELECT * FROM t1 WHERE a IN ('1','5','3');
+
+SELECT * FROM t2 WHERE y IN ('2009','2011');
+
+DROP TABLE t1,t2;
+
+SET @@in_predicate_conversion_threshold= default;
+
+--echo #
+--echo # MDEV-17222: conversion to TVC with no names for constants
+--echo #             conversion to TVC with the same constants in the first row
+--echo #
+
+SET @@in_predicate_conversion_threshold= 2;
+
+CREATE TABLE t1 (f BINARY(16)) ENGINE=MYISAM;
+INSERT INTO t1 VALUES
+(x'BAE56AF2B1C2397D99D58E2A06761DDB'), (x'9B9B698BCCB939EE8F1EA56C1A2E5DAA'),
+(x'A0A1C4FE39A239BABD3E0D8985E6BEA5');
+
+SELECT COUNT(*) FROM t1 WHERE f IN
+(x'9B9B698BCCB939EE8F1EA56C1A2E5DAA', x'E2362DBAB5EA30B5804917A0A7D881E2',
+ x'B78B2EEAD13635088D93EA3309E24802', x'BAE56AF2B1C2397D99D58E2A06761DDB');
+
+CREATE TABLE t2 (f1 BINARY(16), f2 BINARY(16)) ENGINE=MYISAM;
+INSERT INTO t2 VALUES
+(x'55FB3B14D6B83D39859E42533906350D', x'00F3458C47FA39DDBEAD918A13F8342E'),
+(x'86052C062AAF368D84247ED0F6346A70', x'BF5C35045C6037C79E11026ABB9A3A4E');
+
+SELECT COUNT(*) FROM t2 WHERE (f1,f2) IN
+((x'9B9B698BCCB939EE8F1EA56C1A2E5DAA', x'E2362DBAB5EA30B5804917A0A7D881E2'),
+ (x'B78B2EEAD13635088D93EA3309E24802', x'BAE56AF2B1C2397D99D58E2A06761DDB'),
+ (x'55FB3B14D6B83D39859E42533906350D', x'00F3458C47FA39DDBEAD918A13F8342E'),
+ (x'1606014E7C4A312F83EDC9D91BBFCACA', x'33F6068E56FD3A1D8326517F0D81CB5A'));
+
+CREATE TABLE t3 (f1 int, f2 int) ENGINE=MYISAM;
+INSERT INTO t3 VALUES (2,5), (2,3), (1,2), (7,8), (1,1);
+
+SELECT * FROM t3 WHERE (f1,f2) IN ((2, 2), (1, 2), (3, 5), (1, 1));
+
+DROP TABLE t1,t2,t3;
+
+SET @@in_predicate_conversion_threshold= default;
+
+--echo #
+--echo # MDEV-20900: IN predicate to IN subquery conversion causes performance regression
+--echo #
+
+create table t1(a int, b int);
+insert into t1 select seq-1, seq-1 from seq_1_to_10;
+
+set in_predicate_conversion_threshold=2;
+
+let $query= select * from t1 where t1.a IN ("1","2","3","4");
+eval explain $query;
+eval $query;
+
+set in_predicate_conversion_threshold=0;
+eval explain $query;
+eval $query;
+
+set in_predicate_conversion_threshold=2;
+let $query= select * from t1 where (t1.a,t1.b) in (("1","1"),(2,2),(3,3),(4,4));
+eval explain $query;
+eval $query;
+
+set in_predicate_conversion_threshold=0;
+eval explain $query;
+eval $query;
+
+drop table t1;
+SET @@in_predicate_conversion_threshold= default;
+

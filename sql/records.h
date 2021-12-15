@@ -13,15 +13,16 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface                      /* gcc class implementation */
 #endif
 
+#include "table.h"
+
 struct st_join_table;
 class handler;
-struct TABLE;
 class THD;
 class SQL_SELECT;
 class Copy_field;
@@ -30,6 +31,7 @@ class SORT_INFO;
 struct READ_RECORD;
 
 void end_read_record(READ_RECORD *info);
+void free_cache(READ_RECORD *info);
 
 /**
   A context for reading through a single table using a chosen access method:
@@ -52,25 +54,21 @@ struct READ_RECORD
   typedef int (*Setup_func)(struct st_join_table*);
 
   TABLE *table;                                 /* Head-form */
-  //handler *file;
-  TABLE **forms;                                /* head and ref forms */
   Unlock_row_func unlock_row;
   Read_func read_record_func;
   THD *thd;
   SQL_SELECT *select;
-  uint cache_records;
-  uint ref_length,struct_length,reclength,rec_cache_size,error_offset;
-  uint index;
+  uint ref_length, reclength, rec_cache_size, error_offset;
   uchar *ref_pos;				/* pointer to form->refpos */
-  uchar *record;
   uchar *rec_buf;                /* to read field values  after filesort */
   uchar	*cache,*cache_pos,*cache_end,*read_positions;
   struct st_sort_addon_field *addon_field;     /* Pointer to the fields info */
   struct st_io_cache *io_cache;
-  bool print_error, ignore_not_found_rows;
+  bool print_error;
   void    (*unpack)(struct st_sort_addon_field *, uchar *, uchar *);
 
   int read_record() { return read_record_func(this); }
+  uchar *record() const { return table->record[0]; }
 
   /* 
     SJ-Materialization runtime may need to read fields from the materialized

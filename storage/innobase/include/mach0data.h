@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -28,9 +28,10 @@ Created 11/28/1995 Heikki Tuuri
 #ifndef mach0data_h
 #define mach0data_h
 
+#include "univ.i"
+
 #ifndef UNIV_INNOCHECKSUM
 
-#include "univ.i"
 #include "mtr0types.h"
 
 /* The data and all fields are always stored in a database file
@@ -315,6 +316,28 @@ mach_read_from_n_little_endian(
 	const byte*	buf,		/*!< in: from where to read */
 	ulint		buf_size)	/*!< in: from how many bytes to read */
 	MY_ATTRIBUTE((warn_unused_result));
+
+
+/** Reads a 64 bit stored in big endian format
+@param	buf		From where to read
+@return uint64_t */
+UNIV_INLINE
+uint64_t
+mach_read_uint64_little_endian(const byte* buf)
+{
+#ifdef WORDS_BIGENDIAN
+  return
+    uint64_t(buf[0])       | uint64_t(buf[1]) << 8 |
+    uint64_t(buf[2]) << 16 | uint64_t(buf[3]) << 24 |
+    uint64_t(buf[4]) << 32 | uint64_t(buf[5]) << 40 |
+    uint64_t(buf[6]) << 48 | uint64_t(buf[7]) << 56;
+#else
+  uint64_t n;
+  memcpy(&n, buf, sizeof(uint64_t));
+  return n;
+#endif
+}
+
 /*********************************************************//**
 Writes a ulint in the little-endian format. */
 UNIV_INLINE

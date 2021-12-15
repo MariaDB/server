@@ -1,19 +1,17 @@
 # Wait for everything to be purged.
 # The user should have set innodb_purge_rseg_truncate_frequency=1.
 
-let $wait_counter= 300;
-while ($wait_counter)
+--disable_query_log
+if (!$wait_all_purged)
 {
-    --replace_regex /.*History list length ([0-9]+).*/\1/
-    let $remaining= `SHOW ENGINE INNODB STATUS`;
-    if ($remaining == 'InnoDB		0')
-    {
-        let $wait_counter= 0;
-    }
-    if ($wait_counter)
-    {
-        real_sleep 0.1;
-        dec $wait_counter;
-    }
+  SET GLOBAL innodb_max_purge_lag_wait= 0;
 }
+if ($wait_all_purged)
+{
+  eval SET GLOBAL innodb_max_purge_lag_wait= $wait_all_purged;
+}
+--enable_query_log
+
+--replace_regex /.*History list length ([0-9]+).*/\1/
+let $remaining= `SHOW ENGINE INNODB STATUS`;
 echo $remaining transactions not purged;

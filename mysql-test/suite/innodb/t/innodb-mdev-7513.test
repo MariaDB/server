@@ -3,8 +3,6 @@
 
 # MDEV-7513: ib_warn_row_too_big dereferences null thd
 
-call mtr.add_suppression("InnoDB: Cannot add field `.* in table .* because after adding it, the row size is .* which is greater than maximum allowed size (.*) for a record on index leaf page.");
-call mtr.add_suppression("Row size too large (> 8126)*");
 
 --disable_warnings
 CREATE TABLE t1 ( text1 TEXT,

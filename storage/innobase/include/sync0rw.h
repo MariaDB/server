@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -20,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -34,8 +34,6 @@ Created 9/11/1995 Heikki Tuuri
 #ifndef sync0rw_h
 #define sync0rw_h
 
-#include "univ.i"
-#include "ut0counter.h"
 #include "os0event.h"
 #include "ut0mutex.h"
 
@@ -510,7 +508,7 @@ the pass value == 0. */
 bool
 rw_lock_own(
 /*========*/
-	rw_lock_t*	lock,		/*!< in: rw-lock */
+	const rw_lock_t*lock,		/*!< in: rw-lock */
 	ulint		lock_type)	/*!< in: lock type: RW_LOCK_S,
 					RW_LOCK_X */
 	MY_ATTRIBUTE((warn_unused_result));
@@ -579,12 +577,6 @@ struct rw_lock_t
 	/** number of granted SX locks. */
 	volatile ulint	sx_recursive;
 
-	/** This is TRUE if the writer field is RW_LOCK_X_WAIT; this field
-	is located far from the memory update hotspot fields which are at
-	the start of this struct, thus we can peek this field without
-	causing much memory bus traffic */
-	bool		writer_is_wait_ex;
-
 	/** The value is typically set to thread id of a writer thread making
 	normal rw_locks recursive. In case of asynchronous IO, when a non-zero
 	value of 'pass' is passed then we keep the lock non-recursive.
@@ -627,34 +619,14 @@ struct rw_lock_t
 #endif /* UNIV_PFS_RWLOCK */
 
 #ifdef UNIV_DEBUG
-/** Value of rw_lock_t::magic_n */
-# define RW_LOCK_MAGIC_N	22643
-
-	/** Constructor */
-	rw_lock_t()
-	{
-		magic_n = RW_LOCK_MAGIC_N;
-	}
-
-	/** Destructor */
-	virtual ~rw_lock_t()
-	{
-		ut_ad(magic_n == RW_LOCK_MAGIC_N);
-		magic_n = 0;
-	}
-
 	virtual std::string to_string() const;
 	virtual std::string locked_from() const;
-
-	/** For checking memory corruption. */
-	ulint		magic_n;
 
 	/** In the debug version: pointer to the debug info list of the lock */
 	UT_LIST_BASE_NODE_T(rw_lock_debug_t) debug_list;
 
 	/** Level in the global latching order. */
 	latch_level_t	level;
-
 #endif /* UNIV_DEBUG */
 
 };

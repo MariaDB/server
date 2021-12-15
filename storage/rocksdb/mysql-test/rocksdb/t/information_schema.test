@@ -19,8 +19,8 @@ drop table t1;
 
 --let $max_index_id = query_get_value(SELECT * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type = 'MAX_INDEX_ID', VALUE, 1)
 --replace_result $max_index_id max_index_id
-select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
-select count(*) from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
+select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type<>'DDL_DROP_INDEX_ONGOING';
+select count(*) from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type<>'DDL_DROP_INDEX_ONGOING';
 SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=0;
 
 select VALUE into @keysIn from INFORMATION_SCHEMA.ROCKSDB_COMPACTION_STATS where CF_NAME = 'default' and LEVEL = 'Sum' and TYPE = 'KeyIn';
@@ -28,6 +28,7 @@ select VALUE into @keysIn from INFORMATION_SCHEMA.ROCKSDB_COMPACTION_STATS where
 CREATE TABLE t1 (i1 INT, i2 INT, PRIMARY KEY (i1)) ENGINE = ROCKSDB;
 INSERT INTO t1 VALUES (1, 1), (2, 2), (3, 3);
 
+set global rocksdb_force_flush_memtable_now = true;
 # No binlog coordinates in MariaDB: --let $MASTER_UUID = query_get_value(SELECT @@SERVER_UUID, @@SERVER_UUID, 1)
 --let $max_index_id = query_get_value(SELECT * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type = 'MAX_INDEX_ID', VALUE, 1)
 # No binlog coordinates in MariaDB: --replace_result $MASTER_UUID uuid $max_index_id max_index_id

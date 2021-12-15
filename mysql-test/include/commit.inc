@@ -770,7 +770,7 @@ call p_verify_status_increment(2, 0, 2, 0);
 commit;
 call p_verify_status_increment(0, 0, 0, 0);
 check table t1, t2, t3;
-call p_verify_status_increment(6, 0, 6, 0);
+call p_verify_status_increment(4, 0, 4, 0);
 commit;
 call p_verify_status_increment(0, 0, 0, 0);
 drop view v1;

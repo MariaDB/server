@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 INCLUDE(CMakeParseArguments)
 
@@ -33,26 +33,17 @@ FUNCTION (INSTALL_DEBUG_SYMBOLS)
   SET(targets ${ARG_UNPARSED_ARGUMENTS})
   FOREACH(target ${targets})
     GET_TARGET_PROPERTY(target_type ${target} TYPE)
-
+    IF(target_type MATCHES "STATIC")
+      RETURN()
+    ENDIF()
     set(comp "")
-   
-    IF(target MATCHES "mysqld" OR type MATCHES "MODULE")
-      #MESSAGE("PDB: ${targets}")
+
+    IF((target STREQUAL "mysqld"))
       SET(comp Server)
     ENDIF()
- 
-    IF(NOT comp MATCHES Server)
-      IF(ARG_COMPONENT MATCHES Development
-        OR ARG_COMPONENT MATCHES SharedLibraries
-        OR ARG_COMPONENT MATCHES Embedded)
-        SET(comp Debuginfo)
-      ENDIF()
-    ENDIF()
 
-    IF(NOT comp)
-      SET(comp Debuginfo_archive_only) # not in MSI
-    ENDIF()
-    IF(NOT target_type MATCHES "STATIC")
+    INSTALL(FILES $<TARGET_PDB_FILE:${target}> DESTINATION symbols COMPONENT Debuginfo)
+    IF(comp)
       INSTALL(FILES $<TARGET_PDB_FILE:${target}> DESTINATION ${ARG_INSTALL_LOCATION} COMPONENT ${comp})
     ENDIF()
   ENDFOREACH()
@@ -115,7 +106,12 @@ FUNCTION(INSTALL_SCRIPT)
     SET(COMP)
   ENDIF()
 
+  IF (COMP MATCHES ${SKIP_COMPONENTS})
+    RETURN()
+  ENDIF()
+
   INSTALL(PROGRAMS ${script} DESTINATION ${ARG_DESTINATION} ${COMP})
+
   INSTALL_MANPAGE(${script})
 ENDFUNCTION()
 
@@ -130,6 +126,10 @@ FUNCTION(INSTALL_DOCUMENTATION)
     SET(destination ${INSTALL_DOCREADMEDIR})
   ELSE()
     SET(destination ${INSTALL_DOCDIR})
+  ENDIF()
+
+  IF (ARG_COMPONENT MATCHES ${SKIP_COMPONENTS})
+    RETURN()
   ENDIF()
 
   STRING(TOUPPER ${ARG_COMPONENT} COMPUP)
@@ -150,21 +150,17 @@ ENDFUNCTION()
 
 
 # Install symbolic link to CMake target. 
-# the link is created in the same directory as target
+# the link is created in the current build directory
 # and extension will be the same as for target file.
 MACRO(INSTALL_SYMLINK linkname target destination component)
 IF(UNIX)
-  GET_TARGET_PROPERTY(location ${target} LOCATION)
-  GET_FILENAME_COMPONENT(path ${location} PATH)
-  GET_FILENAME_COMPONENT(name ${location} NAME)
-  SET(output ${path}/${linkname})
+  SET(output ${CMAKE_CURRENT_BINARY_DIR}/${linkname})
   ADD_CUSTOM_COMMAND(
     OUTPUT ${output}
-    COMMAND ${CMAKE_COMMAND} ARGS -E remove -f ${output}
+    COMMAND ${CMAKE_COMMAND} ARGS -E remove -f ${linkname}
     COMMAND ${CMAKE_COMMAND} ARGS -E create_symlink 
-      ${name} 
+      $<TARGET_FILE_NAME:${target}>
       ${linkname}
-    WORKING_DIRECTORY ${path}
     DEPENDS ${target}
     )
   
@@ -186,18 +182,22 @@ IF(WIN32)
   MARK_AS_ADVANCED(SIGNCODE)
   IF(SIGNCODE)
    SET(SIGNTOOL_PARAMETERS 
-     /a /t http://timestamp.verisign.com/scripts/timstamp.dll
+     /a /t http://timestamp.globalsign.com/?signature=sha2
      CACHE STRING "parameters for signtool (list)")
-    FIND_PROGRAM(SIGNTOOL_EXECUTABLE signtool 
-      PATHS "$ENV{ProgramFiles}/Microsoft SDKs/Windows/v7.0A/bin"
-      "$ENV{ProgramFiles}/Windows Kits/8.0/bin/x86"
-      "$ENV{ProgramFiles}/Windows Kits/8.1/bin/x86"
-    )
     IF(NOT SIGNTOOL_EXECUTABLE)
-      MESSAGE(FATAL_ERROR 
-      "signtool is not found. Signing executables not possible")
+      FILE(GLOB path_list
+        "$ENV{ProgramFiles} (x86)/Windows Kits/*/bin/*/x64"
+        "$ENV{ProgramFiles} (x86)/Windows Kits/*/App Certification Kit"
+      )
+      FIND_PROGRAM(SIGNTOOL_EXECUTABLE signtool
+        PATHS ${path_list}
+      )
+      IF(NOT SIGNTOOL_EXECUTABLE)
+        MESSAGE(FATAL_ERROR
+        "signtool is not found. Signing executables not possible")
+      ENDIF()
+      MARK_AS_ADVANCED(SIGNTOOL_EXECUTABLE  SIGNTOOL_PARAMETERS)
     ENDIF()
-    MARK_AS_ADVANCED(SIGNTOOL_EXECUTABLE  SIGNTOOL_PARAMETERS)
   ENDIF()
 ENDIF()
 
@@ -250,8 +250,7 @@ FUNCTION(MYSQL_INSTALL_TARGETS)
     ENDIF()
     # Install man pages on Unix
     IF(UNIX)
-      GET_TARGET_PROPERTY(target_location ${target} LOCATION)
-      INSTALL_MANPAGE(${target_location})
+      INSTALL_MANPAGE($<TARGET_FILE:${target}>)
     ENDIF()
   ENDFOREACH()
 
@@ -265,92 +264,6 @@ ENDFUNCTION()
 # For Makefile generators we default Debug build directory to ${buildroot}/../debug.
 GET_FILENAME_COMPONENT(BINARY_PARENTDIR ${CMAKE_BINARY_DIR} PATH)
 SET(DEBUGBUILDDIR "${BINARY_PARENTDIR}/debug" CACHE INTERNAL "Directory of debug build")
-
-
-FUNCTION(INSTALL_DEBUG_TARGET target)
-  CMAKE_PARSE_ARGUMENTS(ARG
-  ""
-  "DESTINATION;RENAME;PDB_DESTINATION;COMPONENT"
-  ""
-  ${ARGN}
-  )
-  GET_TARGET_PROPERTY(target_type ${target} TYPE)
-  IF(ARG_RENAME)
-    SET(RENAME_PARAM RENAME ${ARG_RENAME}${CMAKE_${target_type}_SUFFIX})
-  ELSE()
-    SET(RENAME_PARAM)
-  ENDIF()
-  IF(NOT ARG_DESTINATION)
-    MESSAGE(FATAL_ERROR "Need DESTINATION parameter for INSTALL_DEBUG_TARGET")
-  ENDIF()
-  GET_TARGET_PROPERTY(target_location ${target} LOCATION)
-  IF(CMAKE_GENERATOR MATCHES "Makefiles|Ninja")
-   STRING(REPLACE "${CMAKE_BINARY_DIR}" "${DEBUGBUILDDIR}"  debug_target_location "${target_location}")
-  ELSE()
-   STRING(REPLACE "${CMAKE_CFG_INTDIR}" "Debug"  debug_target_location "${target_location}" )
-  ENDIF()
-  IF(NOT ARG_COMPONENT)
-    SET(ARG_COMPONENT DebugBinaries)
-  ENDIF()
-  
-  # Define permissions
-  # For executable files
-  SET(PERMISSIONS_EXECUTABLE
-      PERMISSIONS
-      OWNER_READ OWNER_WRITE OWNER_EXECUTE
-      GROUP_READ GROUP_EXECUTE
-      WORLD_READ WORLD_EXECUTE)
-
-  # Permissions for shared library (honors CMAKE_INSTALL_NO_EXE which is 
-  # typically set on Debian)
-  IF(CMAKE_INSTALL_SO_NO_EXE)
-    SET(PERMISSIONS_SHARED_LIBRARY
-      PERMISSIONS
-      OWNER_READ OWNER_WRITE 
-      GROUP_READ
-      WORLD_READ)
-  ELSE()
-    SET(PERMISSIONS_SHARED_LIBRARY ${PERMISSIONS_EXECUTABLE})
-  ENDIF()
-
-  # Shared modules get the same permissions as shared libraries
-  SET(PERMISSIONS_MODULE_LIBRARY ${PERMISSIONS_SHARED_LIBRARY})
-
-  #  Define permissions for static library
-  SET(PERMISSIONS_STATIC_LIBRARY
-      PERMISSIONS
-      OWNER_READ OWNER_WRITE 
-      GROUP_READ
-      WORLD_READ)
-
-  INSTALL(FILES ${debug_target_location}
-    DESTINATION ${ARG_DESTINATION}
-    ${RENAME_PARAM}
-    ${PERMISSIONS_${target_type}}
-    CONFIGURATIONS Release RelWithDebInfo
-    COMPONENT ${ARG_COMPONENT}
-    OPTIONAL)
-
-  IF(MSVC)
-    GET_FILENAME_COMPONENT(ext ${debug_target_location} EXT)
-    STRING(REPLACE "${ext}" ".pdb"  debug_pdb_target_location "${debug_target_location}" )
-    IF (RENAME_PARAM)
-      IF(NOT ARG_PDB_DESTINATION)
-        STRING(REPLACE "${ext}" ".pdb"  "${ARG_RENAME}" pdb_rename)
-        SET(PDB_RENAME_PARAM RENAME "${pdb_rename}")
-      ENDIF()
-    ENDIF()
-    IF(NOT ARG_PDB_DESTINATION)
-      SET(ARG_PDB_DESTINATION "${ARG_DESTINATION}")
-    ENDIF()
-    INSTALL(FILES ${debug_pdb_target_location}
-      DESTINATION ${ARG_PDB_DESTINATION}
-      ${PDB_RENAME_PARAM}
-      CONFIGURATIONS Release RelWithDebInfo
-      COMPONENT ${ARG_COMPONENT}
-      OPTIONAL)
-  ENDIF()
-ENDFUNCTION()
 
 
 FUNCTION(INSTALL_MYSQL_TEST from to)

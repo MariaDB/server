@@ -1,8 +1,8 @@
 -- source include/have_innodb.inc
 -- source include/have_innodb_lz4.inc
 -- source include/not_embedded.inc
-
-let $innodb_compression_algorithm_orig=`SELECT @@innodb_compression_algorithm`;
+# The test can take very long time with valgrind
+--source include/not_valgrind.inc
 
 # lz4
 set global innodb_compression_algorithm = 2;
@@ -79,9 +79,14 @@ select count(*) from innodb_page_compressed7 where c1 < 500000;
 select count(*) from innodb_page_compressed8 where c1 < 500000;
 select count(*) from innodb_page_compressed9 where c1 < 500000;
 
-alter table innodb_normal page_compressed=1 page_compression_level=8;
+alter table innodb_normal page_compressed=1 page_compression_level=8,
+algorithm=instant;
 show warnings;
 show create table innodb_normal;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table innodb_compressed row_format=default page_compressed=1 page_compression_level=8 key_block_size=0, algorithm=instant;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+alter table innodb_compressed row_format=default page_compressed=1 page_compression_level=8 key_block_size=0, algorithm=nocopy;
 alter table innodb_compressed row_format=default page_compressed=1 page_compression_level=8 key_block_size=0;
 show warnings;
 show create table innodb_compressed;
@@ -237,8 +242,3 @@ drop table innodb_page_compressed6;
 drop table innodb_page_compressed7;
 drop table innodb_page_compressed8;
 drop table innodb_page_compressed9;
-
-# reset system
---disable_query_log
-EVAL SET GLOBAL innodb_compression_algorithm = $innodb_compression_algorithm_orig;
---enable_query_log

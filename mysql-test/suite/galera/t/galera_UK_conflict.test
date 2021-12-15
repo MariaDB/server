@@ -1,0 +1,152 @@
+#
+# This test tests the operation of transaction replay with a scenario
+# where two subsequent write sets in applying conflict with local transaction
+# in commit phase. The conflict is "false positive" confict on GAP lock in
+# secondary unique index.
+# The first applier will cause BF abort for the local committer, which
+# starts replaying because of positive certification.
+# In buggy version, scenatio continues so that ehile the local transaction
+# is replaying, the latter applier experiences similar UK GAP lock conflict
+# and forces the replayer to abort second time.
+# In fixed version, this latter BF abort should not happen.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+--let $wsrep_local_replays_old = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 int, f3 int,  unique key keyj (f2));
+INSERT INTO t1 VALUES (1, 1, 0);
+INSERT INTO t1 VALUES (3, 3, 0);
+INSERT INTO t1 VALUES (10, 10, 0);
+
+# we will need 2 appliers threads for applyin two write sets in parallel in node1
+# and 1 applier thread for handling replaying
+SET GLOBAL wsrep_slave_threads = 3;
+SET GLOBAL DEBUG_DBUG = "d,sync.wsrep_apply_cb";
+
+--connection node_1
+# starting a transaction, which deletes and inserts the middle row in test table
+# this will be victim of false positive conflict with appliers
+SET SESSION wsrep_sync_wait=0;
+START TRANSACTION;
+
+DELETE FROM t1 WHERE f2 = 3;
+INSERT INTO t1 VALUES (3, 3, 1);
+
+# Control connection to manage sync points for appliers
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+SET SESSION wsrep_sync_wait=0;
+
+# send from node 2 first INSERT transaction,  which will conflict on GAP lock in node 1
+--connection node_2
+INSERT INTO t1 VALUES (5, 5, 2);
+
+--connection node_1a
+# wait to see the INSERT in apply_cb sync point
+SET SESSION DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
+
+# first applier seen in wait point, set sync point for the second INSERT
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_2
+# send second insert into same GAP in test table
+INSERT INTO t1 VALUES (4, 4, 2);
+
+--connection node_1a
+# wait for the second insert to arrive in his sync point
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+# both appliers are now waiting in separate sync points
+
+# Block the local commit, send the COMMIT and wait until it gets blocked
+--let $galera_sync_point = commit_monitor_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_1
+--send COMMIT
+
+--connection node_1a
+# wait for the local commit to enter in commit monitor wait state
+--let $galera_sync_point = apply_monitor_slave_enter_sync commit_monitor_enter_sync
+--source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+# release the local transaction to continue with commit
+--let $galera_sync_point = commit_monitor_enter_sync
+--source include/galera_signal_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+# and now release the first applier, it should force local trx to abort
+SET GLOBAL DEBUG_DBUG = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+SET GLOBAL debug_dbug = NULL;
+SET debug_sync='RESET';
+
+# set another sync point for second applier
+SET GLOBAL DEBUG_DBUG = "d,sync.wsrep_apply_cb";
+
+# letting the second appier to move forward
+--let $galera_sync_point = apply_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+
+# waiting until second applier is in wait
+SET SESSION DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
+
+# stopping second applier before commit
+--let $galera_sync_point = commit_monitor_enter_sync
+--source include/galera_set_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+# releasing the second insert, with buggy version it will conflict with
+# replayer
+SET GLOBAL DEBUG_DBUG = "";
+SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
+SET GLOBAL debug_dbug = NULL;
+SET debug_sync='RESET';
+
+# with fixed version, second applier has reached commit monitor, and we can
+# release it to complete
+--let $galera_sync_point = commit_monitor_enter_sync
+--source include/galera_signal_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+# local commit should succeed
+--connection node_1
+--reap
+
+SELECT * FROM t1;
+
+# wsrep_local_replays has increased by 1
+--let $wsrep_local_replays_new = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_replays'`
+--disable_query_log
+--eval SELECT $wsrep_local_replays_new - $wsrep_local_replays_old = 1 AS wsrep_local_replays;
+--enable_query_log
+
+# returning original slave thread count
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+
+--connection node_2
+SELECT * FROM t1;
+
+# replicate some transactions, so that wsrep slave thread count can reach
+# original state in node 1
+INSERT INTO t1 VALUES (7,7,7);
+INSERT INTO t1 VALUES (8,8,8);
+SELECT COUNT(*) FROM t1;
+SELECT * FROM t1;
+
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 7 FROM t1
+--source include/wait_condition.inc
+SELECT COUNT(*) FROM t1;
+SELECT * FROM t1;
+
+DROP TABLE t1;

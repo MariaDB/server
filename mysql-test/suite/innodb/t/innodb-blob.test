@@ -6,13 +6,13 @@
 # The 7000 in this test is a bit less than half the innodb_page_size.
 --source include/have_innodb_16k.inc
 
-# DEBUG_SYNC must be compiled in.
+--source include/have_debug.inc
 --source include/have_debug_sync.inc
 
 # Embedded server does not support restarting
 --source include/not_embedded.inc
 
-call mtr.add_suppression("InnoDB: The log sequence numbers [0-9]+ and [0-9]+ in ibdata files do not match the log sequence number [0-9]+ in the ib_logfiles!");
+FLUSH TABLES;
 
 CREATE TABLE t1 (a INT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
@@ -206,3 +206,10 @@ SELECT a FROM t3;
 SELECT * FROM t2;
 
 DROP TABLE t1,t2,t3;
+
+CREATE TABLE t1(f1 INT PRIMARY KEY, f2 TEXT)ENGINE=InnoDB
+		ROW_FORMAT=REDUNDANT;
+SET @fill_amount = (@@innodb_page_size / 2 ) + 1 ;
+INSERT INTO t1 VALUES(1, REPEAT(2, @fill_amount));
+UPDATE t1 SET f1 = 2;
+DROP TABLE t1;

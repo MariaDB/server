@@ -35,9 +35,9 @@
 #include "my_global.h"
 #include "sql_class.h"
 #include "sql_servers.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 //#include <fnmatch.h>
 //#include <errno.h>
 #include <stdlib.h>
@@ -46,7 +46,7 @@
 #include "osutil.h"
 //#include <io.h>
 //#include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -203,7 +203,7 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
       // Otherwise, straight server name, 
       Tabname = (b) ? GetStringCatInfo(g, "Tabname", Name) : NULL;
 
-    if (trace)
+    if (trace(1))
       htrc("server: %s  TableName: %s", url, Tabname);
 
     Server = url;
@@ -342,11 +342,13 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
     Delayed = !!GetIntCatInfo("Delayed", 0);
   } else {
     // MYSQL access from a PROXY table 
-    Tabschema = GetStringCatInfo(g, "Database", Tabschema ? Tabschema : PlugDup(g, "*"));
+		TABLE_SHARE* s;
+
+		Tabschema = GetStringCatInfo(g, "Database", Tabschema ? Tabschema : PlugDup(g, "*"));
     Isview = GetBoolCatInfo("View", false);
 
     // We must get other connection parms from the calling table
-    Remove_tshp(Cat);
+    s = Remove_tshp(Cat);
     url = GetStringCatInfo(g, "Connect", NULL);
 
     if (!url || !*url) { 
@@ -365,6 +367,9 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
     } // endif url
 
     Tabname = Name;
+
+		// Needed for column description
+		Restore_tshp(Cat, s);
   } // endif am
 
   if ((Srcdef = GetStringCatInfo(g, "Srcdef", NULL))) {
@@ -567,7 +572,7 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g, bool mx)
     return true;
   } // endif Query
 
-  if (trace)
+  if (trace(33))
     htrc("Query=%s\n", Query->GetStr());
 
   return false;
@@ -1042,7 +1047,7 @@ int TDBMYSQL::SendCommand(PGLOBAL g)
     sprintf(g->Message, "%s: %d affected rows", TableName, AftRows);
     PushWarning(g, this, 0);    // 0 means a Note
 
-    if (trace)
+    if (trace(1))
       htrc("%s\n", g->Message);
 
     if (w && Myc.ExecSQL(g, "SHOW WARNINGS") == RC_OK) {
@@ -1109,7 +1114,7 @@ bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const key_range *kr)
 		Mode = MODE_READ;
 	} // endif's op
 
-	if (trace)
+	if (trace(33))
 		htrc("MYSQL ReadKey: Query=%s\n", Query->GetStr());
 
 	m_Rc = Myc.ExecSQL(g, Query->GetStr());
@@ -1124,7 +1129,7 @@ int TDBMYSQL::ReadDB(PGLOBAL g)
   {
   int rc;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("MySQL ReadDB: R%d Mode=%d\n", GetTdb_No(), Mode);
 
   if (Mode == MODE_UPDATE || Mode == MODE_DELETE)
@@ -1137,7 +1142,7 @@ int TDBMYSQL::ReadDB(PGLOBAL g)
   N++;
   Fetched = ((rc = Myc.Fetch(g, -1)) == RC_OK);
 
-  if (trace > 1)
+  if (trace(2))
     htrc(" Read: rc=%d\n", rc);
 
   return rc;
@@ -1220,7 +1225,7 @@ void TDBMYSQL::CloseDB(PGLOBAL g)
     Myc.Close();
     } // endif Myc
 
-  if (trace)
+  if (trace(1))
     htrc("MySQL CloseDB: closing %s rc=%d\n", Name, m_Rc);
 
   } // end of CloseDB
@@ -1248,7 +1253,7 @@ MYSQLCOL::MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
   Slen = 0;
   Rank = -1;            // Not known yet
 
-  if (trace)
+  if (trace(1))
     htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
 
   } // end of MYSQLCOL constructor
@@ -1279,7 +1284,7 @@ MYSQLCOL::MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PCSZ am)
   Slen = 0;
   Rank = i;
 
-  if (trace)
+  if (trace(1))
     htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
 
   } // end of MYSQLCOL constructor
@@ -1409,7 +1414,7 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
       tdbp->Fetched = true;
 
   if ((buf = ((PTDBMY)To_Tdb)->Myc.GetCharField(Rank))) {
-    if (trace > 1)
+    if (trace(2))
       htrc("MySQL ReadColumn: name=%s buf=%s\n", Name, buf);
 
     // TODO: have a true way to differenciate temporal values
@@ -1587,8 +1592,9 @@ bool TDBMYEXC::OpenDB(PGLOBAL g)
   /*  Get the command to execute.                                      */
   /*********************************************************************/
   if (!(Cmdlist = MakeCMD(g))) {
-    Myc.Close();
-    return true;
+		// Next lines commented out because of CHECK TABLE
+		//Myc.Close();
+    //return true;
     } // endif Cmdlist
 
   return false;
@@ -1647,8 +1653,10 @@ int TDBMYEXC::ReadDB(PGLOBAL g)
 
     ++N;
     return RC_OK;
-  } else
-    return RC_EF;
+	} else {
+		PushWarning(g, this, 1);
+		return RC_EF;
+	}	// endif Cmdlist
 
   } // end of ReadDB
 
@@ -1679,7 +1687,7 @@ MYXCOL::MYXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
 MYXCOL::MYXCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PCSZ am)
       : MYSQLCOL(fld, tdbp, i, am)
   {
-  if (trace)
+  if (trace(1))
     htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
 
   } // end of MYSQLCOL constructor

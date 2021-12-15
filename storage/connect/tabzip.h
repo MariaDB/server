@@ -48,6 +48,8 @@ public:
 
 	// Implementation
 	virtual AMT  GetAmType(void) {return TYPE_AM_ZIP;}
+	virtual PCSZ GetFile(PGLOBAL) {return zfn;}
+	virtual void SetFile(PGLOBAL, PCSZ fn) {zfn = fn;}
 
 	// Methods
 	virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);

@@ -55,7 +55,7 @@ FLUSH LOGS;
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---replace_regex /SQL_LOAD_MB-[0-9]-[0-9]/SQL_LOAD_MB-#-#/ /exec_time=[0-9]*/exec_time=#/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /Xid = [0-9]*/Xid = #/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /server v [^ ]*/server v #.##.##/ /CRC32 0x[0-9a-f]*/CRC32 XXX/
+--replace_regex /SQL_LOAD_MB-[0-9]-[0-9]/SQL_LOAD_MB-#-#/ /exec_time=[0-9]*/exec_time=#/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /Xid = [0-9]*/Xid = #/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /server v [^ ]*/server v #.##.##/ /CRC32 0x[0-9a-f]*/CRC32 XXX/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG --base64-output=decode-rows -v -v $MYSQLD_DATADIR/master-bin.000001
 
 --echo # < CASE 1 >
@@ -64,7 +64,7 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---replace_regex /SQL_LOAD_MB-[0-9]-[0-9]/SQL_LOAD_MB-#-#/ /exec_time=[0-9]*/exec_time=#/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /Xid = [0-9]*/Xid = #/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /server v [^ ]*/server v #.##.##/ /CRC32 0x[0-9a-f]*/CRC32 XXX/
+--replace_regex /SQL_LOAD_MB-[0-9]-[0-9]/SQL_LOAD_MB-#-#/ /exec_time=[0-9]*/exec_time=#/ /end_log_pos [0-9]*/end_log_pos #/ /# at [0-9]*/# at #/ /Xid = [0-9]*/Xid = #/ /thread_id=[0-9]*/thread_id=#/ /table id [0-9]*/table id #/ /mapped to number [0-9]*/mapped to number #/ /server v [^ ]*/server v #.##.##/ /CRC32 0x[0-9a-f]*/CRC32 XXX/ /collation_server=[0-9]+/collation_server=X/ /character_set_client=[0-9]+/character_set_client=X/ /collation_connection=[0-9]+/collation_connection=X/
 --exec $MYSQL_BINLOG -B --base64-output=decode-rows -v -v $MYSQLD_DATADIR/master-bin.000001
 
 --echo # < CASE 1 >
@@ -335,8 +335,36 @@ DROP TABLE test.test;
 DROP TABLE world.city;
 DROP DATABASE world;
 
-## Clear
+--echo # < CASE 7 >
+--echo # Test Case for MDEV-17260
+--echo #
 
+RESET MASTER;
+
+CREATE TABLE t1 ( f INT PRIMARY KEY ) ENGINE=innodb;
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6);
+--echo # 6- Rows must be present
+SELECT COUNT(*) FROM t1;
+FLUSH LOGS;
+DELETE  FROM t1;
+FLUSH LOGS;
+
+--echo # 0- Rows must be present
+--let $assert_cond= COUNT(*) = 0 FROM t1
+--let $assert_text= Table t1 should have 0 rows.
+--source include/assert.inc
+
+--exec $MYSQL_BINLOG -vv -B --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000002> $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_7.sql
+--exec $MYSQL -e "SET binlog_format= ROW; source $MYSQLTEST_VARDIR/tmp/mysqlbinlog_row_flashback_7.sql;"
+
+--echo # 6- Rows must be present upon restoring from flashback
+--let $assert_cond= COUNT(*) = 6 FROM t1
+--let $assert_text= Table t1 should have six rows.
+--source include/assert.inc
+
+DROP TABLE t1;
+
+## Clear
 SET binlog_format=statement;
 --error ER_FLASHBACK_NOT_SUPPORTED
 SET GLOBAL binlog_format=statement;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,9 +13,16 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
+
+#ifdef WITH_WSREP
+# include <mysql/service_wsrep.h>
+# include "../../../wsrep/wsrep_api.h"
+#endif /* WITH_WSREP */
+
+#include "table.h"
 
 /* The InnoDB handler: the interface between MySQL and InnoDB. */
 
@@ -23,37 +30,11 @@ this program; if not, write to the Free Software Foundation, Inc.,
 system clustered index when there is no primary key. */
 extern const char innobase_index_reserve_name[];
 
-/* Structure defines translation table between mysql index and InnoDB
-index structures */
-struct innodb_idx_translate_t {
-
-	ulint		index_count;	/*!< number of valid index entries
-					in the index_mapping array */
-
-	ulint		array_size;	/*!< array size of index_mapping */
-
-	dict_index_t**	index_mapping;	/*!< index pointer array directly
-					maps to index in InnoDB from MySQL
-					array index */
-};
-
-/** InnoDB table share */
-typedef struct st_innobase_share {
-	THR_LOCK	lock;
-	const char*	table_name;	/*!< InnoDB table name */
-	uint		use_count;	/*!< reference count,
-					incremented in get_share()
-					and decremented in
-					free_share() */
-	void*		table_name_hash;
-					/*!< hash table chain node */
-	innodb_idx_translate_t
-			idx_trans_tbl;	/*!< index translation table between
-					MySQL and InnoDB */
-} INNOBASE_SHARE;
-
 /** Prebuilt structures in an InnoDB table handle used within MySQL */
 struct row_prebuilt_t;
+
+/** InnoDB transaction */
+struct trx_t;
 
 /** Engine specific table options are defined using this struct */
 struct ha_table_option_struct
@@ -65,7 +46,7 @@ struct ha_table_option_struct
 	uint		atomic_writes;		/*!< Use atomic writes for this
 						table if this options is ON or
 						in DEFAULT if
-						srv_use_atomic_writes=1.
+						innodb_use_atomic_writes.
 						Atomic writes are not used if
 						value OFF.*/
 	uint		encryption;		/*!<  DEFAULT, ON, OFF */
@@ -132,8 +113,6 @@ public:
 
 	double read_time(uint index, uint ranges, ha_rows rows);
 
-	longlong get_memory_buffer_size() const;
-
 	int delete_all_rows();
 
 	int write_row(uchar * buf);
@@ -183,17 +162,8 @@ public:
 	int rnd_pos(uchar * buf, uchar *pos);
 
 	int ft_init();
-
-	void ft_end();
-
-	FT_INFO* ft_init_ext(uint flags, uint inx, String* key);
-
-	FT_INFO* ft_init_ext_with_hints(
-		uint			inx,
-		String*			key,
-		void*			hints);
-		//Ft_hints*		hints);
-
+	void ft_end() { rnd_end(); }
+	FT_INFO *ft_init_ext(uint flags, uint inx, String* key);
 	int ft_read(uchar* buf);
 
 	void position(const uchar *record);
@@ -225,6 +195,13 @@ public:
 
 	void update_create_info(HA_CREATE_INFO* create_info);
 
+	inline int create(
+		const char*		name,
+		TABLE*			form,
+		HA_CREATE_INFO*		create_info,
+		bool			file_per_table,
+		trx_t*			trx = NULL);
+
 	int create(
 		const char*		name,
 		TABLE*			form,
@@ -233,15 +210,15 @@ public:
 	const char* check_table_options(THD *thd, TABLE* table,
 		HA_CREATE_INFO*	create_info, const bool use_tablespace, const ulint file_format);
 
+	inline int delete_table(const char* name, enum_sql_command sqlcom);
+
 	int truncate();
 
 	int delete_table(const char *name);
 
 	int rename_table(const char* from, const char* to);
-	int defragment_table(const char* name, const char* index_name,
-						bool async);
+	inline int defragment_table(const char* name);
 	int check(THD* thd, HA_CHECK_OPT* check_opt);
-	char* update_table_comment(const char* comment);
 
 	char* get_foreign_key_create_info();
 
@@ -306,12 +283,24 @@ public:
 	by ALTER TABLE and holding data used during in-place alter.
 
 	@retval HA_ALTER_INPLACE_NOT_SUPPORTED Not supported
-	@retval HA_ALTER_INPLACE_NO_LOCK Supported
-	@retval HA_ALTER_INPLACE_SHARED_LOCK_AFTER_PREPARE
-		Supported, but requires lock during main phase and
-		exclusive lock during prepare phase.
-	@retval HA_ALTER_INPLACE_NO_LOCK_AFTER_PREPARE
-		Supported, prepare phase requires exclusive lock.  */
+	@retval HA_ALTER_INPLACE_INSTANT
+	MDL_EXCLUSIVE is needed for executing prepare_inplace_alter_table()
+	and commit_inplace_alter_table(). inplace_alter_table()
+	will not be called.
+	@retval HA_ALTER_INPLACE_COPY_NO_LOCK
+	MDL_EXCLUSIVE in prepare_inplace_alter_table(), which can be downgraded
+	to LOCK=NONE for rebuilding the table in inplace_alter_table()
+	@retval HA_ALTER_INPLACE_COPY_LOCK
+	MDL_EXCLUSIVE in prepare_inplace_alter_table(), which can be downgraded
+	to LOCK=SHARED for rebuilding the table in inplace_alter_table()
+	@retval HA_ALTER_INPLACE_NOCOPY_NO_LOCK
+	MDL_EXCLUSIVE in prepare_inplace_alter_table(), which can be downgraded
+	to LOCK=NONE for inplace_alter_table() which will not rebuild the table
+	@retval HA_ALTER_INPLACE_NOCOPY_LOCK
+	MDL_EXCLUSIVE in prepare_inplace_alter_table(), which can be downgraded
+	to LOCK=SHARED for inplace_alter_table() which will not rebuild
+	the table. */
+
 	enum_alter_inplace_result check_if_supported_inplace_alter(
 		TABLE*			altered_table,
 		Alter_inplace_info*	ha_alter_info);
@@ -433,11 +422,15 @@ public:
 	Item* idx_cond_push(uint keyno, Item* idx_cond);
 	/* @} */
 
-	/* An helper function for index_cond_func_innodb: */
-	bool is_thd_killed();
+	/** Check if InnoDB is not storing virtual column metadata for a table.
+	@param	s	table definition (based on .frm file)
+	@return	whether InnoDB will omit virtual column metadata */
+	static bool omits_virtual_cols(const TABLE_SHARE& s)
+	{
+		return s.frm_version<FRM_VER_EXPRESSSIONS && s.virtual_fields;
+	}
 
 protected:
-
 	/**
 	MySQL calls this method at the end of each statement. This method
 	exists for readability only, called from reset(). The name reset()
@@ -454,7 +447,6 @@ protected:
 	@see build_template() */
 	void reset_template();
 
-protected:
 	inline void update_thd(THD* thd);
 	void update_thd();
 
@@ -463,7 +455,7 @@ protected:
 	dict_index_t* innobase_get_index(uint keynr);
 
 #ifdef WITH_WSREP
-	int wsrep_append_keys(THD *thd, bool shared,
+	int wsrep_append_keys(THD *thd, wsrep_key_type key_type,
 			      const uchar* record0, const uchar* record1);
 #endif
 	/** Builds a 'template' to the prebuilt struct.
@@ -482,18 +474,9 @@ protected:
 	/** Save CPU time with prebuilt/cached data structures */
 	row_prebuilt_t*		m_prebuilt;
 
-	/** prebuilt pointer for the right prebuilt. For native
-	partitioning, points to the current partition prebuilt. */
-	row_prebuilt_t**	m_prebuilt_ptr;
-
 	/** Thread handle of the user currently using the handler;
 	this is set in external_lock function */
 	THD*			m_user_thd;
-
-	THR_LOCK_DATA	lock;
-
-	/** information for MySQL table locking */
-	INNOBASE_SHARE*		m_share;
 
 	/** buffer used in updates */
 	uchar*			m_upd_buf;
@@ -528,12 +511,7 @@ the definitions are bracketed with #ifdef INNODB_COMPATIBILITY_HOOKS */
 #error InnoDB needs MySQL to be built with #define INNODB_COMPATIBILITY_HOOKS
 #endif
 
-LEX_STRING* thd_query_string(MYSQL_THD thd);
-size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen);
-
 extern "C" {
-
-struct charset_info_st *thd_charset(MYSQL_THD thd);
 
 /** Check if a user thread is a replication slave thread
 @param thd user thread
@@ -583,18 +561,8 @@ bool thd_is_strict_mode(const MYSQL_THD thd);
  */
 extern void mysql_bin_log_commit_pos(THD *thd, ulonglong *out_pos, const char **out_file);
 
-/** Get the partition_info working copy.
-@param	thd	Thread object.
-@return	NULL or pointer to partition_info working copy. */
-/* JAN: TODO: MySQL 5.7 Partitioning
-partition_info*
-thd_get_work_part_info(
-	THD*	thd);
-*/
-
 struct trx_t;
 #ifdef WITH_WSREP
-#include <mysql/service_wsrep.h>
 //extern "C" int wsrep_trx_order_before(void *thd1, void *thd2);
 
 extern "C" bool wsrep_thd_is_wsrep_on(THD *thd);
@@ -631,17 +599,6 @@ trx_t*
 innobase_trx_allocate(
 	MYSQL_THD	thd);	/*!< in: user thread handle */
 
-/** Match index columns between MySQL and InnoDB.
-This function checks whether the index column information
-is consistent between KEY info from mysql and that from innodb index.
-@param[in]	key_info	Index info from mysql
-@param[in]	index_info	Index info from InnoDB
-@return true if all column types match. */
-bool
-innobase_match_index_columns(
-	const KEY*		key_info,
-	const dict_index_t*	index_info);
-
 /*********************************************************************//**
 This function checks each index name for a table against reserved
 system default primary index name 'GEN_CLUST_INDEX'. If a name
@@ -655,10 +612,6 @@ innobase_index_name_is_reserved(
 	ulint		num_of_keys)	/*!< in: Number of indexes to
 					be created. */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-
-#ifdef WITH_WSREP
-//extern "C" int wsrep_trx_is_aborting(void *thd_ptr);
-#endif
 
 /** Parse hint for table and its indexes, and update the information
 in dictionary.
@@ -681,17 +634,12 @@ public:
 	- all but name/path is used, when validating options and using flags. */
 	create_table_info_t(
 		THD*		thd,
-		TABLE*		form,
+		const TABLE*	form,
 		HA_CREATE_INFO*	create_info,
 		char*		table_name,
-		char*		remote_path)
-	:m_thd(thd),
-	m_form(form),
-	m_create_info(create_info),
-	m_table_name(table_name),
-	m_remote_path(remote_path),
-	m_innodb_file_per_table(srv_file_per_table)
-	{}
+		char*		remote_path,
+		bool		file_per_table,
+		trx_t*		trx = NULL);
 
 	/** Initialize the object. */
 	int initialize();
@@ -699,8 +647,9 @@ public:
 	/** Set m_tablespace_type. */
 	void set_tablespace_type(bool table_being_altered_is_file_per_table);
 
-	/** Create the internal innodb table. */
-	int create_table();
+	/** Create the internal innodb table.
+	@param create_fk	whether to add FOREIGN KEY constraints */
+	int create_table(bool create_fk = true);
 
 	/** Update the internal data dictionary. */
 	int create_table_update_dict();
@@ -729,9 +678,16 @@ public:
 	bool create_option_tablespace_is_valid();
 
 	/** Prepare to create a table. */
-	int prepare_create_table(const char*		name);
+	int prepare_create_table(const char* name, bool strict = true);
 
 	void allocate_trx();
+
+	/** Checks that every index have sane size. Depends on strict mode */
+	bool row_size_is_acceptable(const dict_table_t& table,
+				    bool strict) const;
+	/** Checks that given index have sane size. Depends on strict mode */
+	bool row_size_is_acceptable(const dict_index_t& index,
+				    bool strict) const;
 
 	/** Determines InnoDB table flags.
 	If strict_mode=OFF, this will adjust the flags to what should be assumed.
@@ -745,6 +701,9 @@ public:
 	ulint flags() const
 	{ return(m_flags); }
 
+	/** Update table flags. */
+	void flags_set(ulint flags) { m_flags |= flags; }
+
 	/** Get table flags2. */
 	ulint flags2() const
 	{ return(m_flags2); }
@@ -756,6 +715,9 @@ public:
 	/** Return table name. */
 	const char* table_name() const
 	{ return(m_table_name); }
+
+	/** @return whether the table needs to be dropped on rollback */
+	bool drop_before_rollback() const { return m_drop_before_rollback; }
 
 	THD* thd() const
 	{ return(m_thd); }
@@ -793,11 +755,18 @@ private:
 	/** Information on table columns and indexes. */
 	const TABLE*	m_form;
 
+	/** Value of innodb_default_row_format */
+	const ulong	m_default_row_format;
+
 	/** Create options. */
 	HA_CREATE_INFO*	m_create_info;
 
 	/** Table name */
 	char*		m_table_name;
+	/** Table */
+	dict_table_t*	m_table;
+	/** Whether the table needs to be dropped before rollback */
+	bool		m_drop_before_rollback;
 
 	/** Remote path (DATA DIRECTORY) or zero length-string */
 	char*		m_remote_path;
@@ -897,10 +866,8 @@ innodb_base_col_setup_for_stored(
 	const Field*		field,
 	dict_s_col_t*		s_col);
 
-/** whether this is a stored column */
+/** whether this is a stored generated column */
 #define innobase_is_s_fld(field) ((field)->vcol_info && (field)->stored_in_db())
-/** whether this is a computed virtual column */
-#define innobase_is_v_fld(field) ((field)->vcol_info && !(field)->stored_in_db())
 
 /** Always normalize table name to lower case on Windows */
 #ifdef _WIN32
@@ -910,19 +877,6 @@ innodb_base_col_setup_for_stored(
 #define normalize_table_name(norm_name, name)           \
 	create_table_info_t::normalize_table_name_low(norm_name, name, FALSE)
 #endif /* _WIN32 */
-
-/** Converts an InnoDB error code to a MySQL error code.
-Also tells to MySQL about a possible transaction rollback inside InnoDB caused
-by a lock wait timeout or a deadlock.
-@param[in]	error	InnoDB error code.
-@param[in]	flags	InnoDB table flags or 0.
-@param[in]	thd	MySQL thread or NULL.
-@return MySQL error code */
-int
-convert_error_code_to_mysql(
-	dberr_t	error,
-	ulint	flags,
-	THD*	thd);
 
 /** Converts a search mode flag understood by MySQL to a flag understood
 by InnoDB.
@@ -1001,3 +955,19 @@ ib_push_frm_error(
 	TABLE*		table,		/*!< in: MySQL table */
 	ulint		n_keys,		/*!< in: InnoDB #keys */
 	bool		push_warning);	/*!< in: print warning ? */
+
+/** Check each index part length whether they not exceed the max limit
+@param[in]	max_field_len	maximum allowed key part length
+@param[in]	key		MariaDB key definition
+@return true if index column length exceeds limit */
+MY_ATTRIBUTE((warn_unused_result))
+bool too_big_key_part_length(size_t max_field_len, const KEY& key);
+
+/** This function is used to rollback one X/Open XA distributed transaction
+which is in the prepared state
+
+@param[in] hton InnoDB handlerton
+@param[in] xid X/Open XA transaction identification
+
+@return 0 or error number */
+int innobase_rollback_by_xid(handlerton* hton, XID* xid);

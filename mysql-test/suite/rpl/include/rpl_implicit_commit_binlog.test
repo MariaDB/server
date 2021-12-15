@@ -1,0 +1,145 @@
+################################################################################
+# In this test case, we verify if some DDL statements implicitly commit a 
+# transaction and are written directly to the binary log without going
+# through either the Statement- or Transactional-Cache. 
+#
+# As any statement that goes through a cache is written to the binary log
+# wrapped in a BEGIN...COMMIT, we proceed as follows:  
+#
+#  - create a transaction and insert some values into a transactional table.
+#  - execute a DDL statement that is supposed to implicitly commit the previous
+#  transaction. 
+#  - Check in the binary log for a COMMIT mark which is supposed to be written
+#  before the DDL statement.
+#  - Check in the binary log if the DDL is not wrapped by a BEGIN..COMMIT. 
+#
+# For further details, please, read WL#2687 and WL#5072.
+################################################################################
+
+--echo #########################################################################
+--echo #                            CONFIGURATION
+--echo #########################################################################
+connection master;
+
+eval CREATE TABLE tt_1 (ddl_case INT, PRIMARY KEY(ddl_case)) ENGINE = $engine;
+eval CREATE TABLE tt_2 (ddl_case INT, PRIMARY KEY(ddl_case)) ENGINE = $engine;
+eval CREATE TABLE nt_1 (ddl_case INT, PRIMARY KEY(ddl_case)) ENGINE = MyIsam;
+
+INSERT INTO tt_1(ddl_case) VALUES(0);
+INSERT INTO tt_2(ddl_case) VALUES(0);
+
+--echo #########################################################################
+--echo #                          CHECK IMPLICT COMMIT
+--echo #########################################################################
+SET AUTOCOMMIT= 0;
+
+INSERT INTO tt_1(ddl_case) VALUES (43);
+replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB;
+eval CREATE FUNCTION myfunc_int RETURNS INTEGER SONAME "$UDF_EXAMPLE_SO";
+INSERT INTO tt_1(ddl_case) VALUES (42);
+DROP FUNCTION myfunc_int;
+INSERT INTO tt_1(ddl_case) VALUES (41);
+LOAD INDEX INTO CACHE nt_1 IGNORE LEAVES;
+INSERT INTO tt_1(ddl_case) VALUES (40);
+LOAD INDEX INTO CACHE tt_1, tt_2 IGNORE LEAVES;
+INSERT INTO tt_1(ddl_case) VALUES (39);
+ANALYZE TABLE nt_1;
+INSERT INTO tt_1(ddl_case) VALUES (38);
+CHECK TABLE nt_1;
+INSERT INTO tt_1(ddl_case) VALUES (37);
+OPTIMIZE TABLE nt_1;
+INSERT INTO tt_1(ddl_case) VALUES (36);
+REPAIR TABLE nt_1;
+INSERT INTO tt_1(ddl_case) VALUES (35);
+LOCK TABLES tt_1 WRITE;
+INSERT INTO tt_1(ddl_case) VALUES (34);
+UNLOCK TABLES;
+INSERT INTO tt_1(ddl_case) VALUES (33);
+CREATE USER 'user'@'localhost';
+INSERT INTO tt_1(ddl_case) VALUES (32);
+GRANT ALL ON *.* TO 'user'@'localhost';
+INSERT INTO tt_1(ddl_case) VALUES (31);
+SET PASSWORD FOR 'user'@'localhost' = PASSWORD('newpass');
+INSERT INTO tt_1(ddl_case) VALUES (30);
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'user'@'localhost';
+INSERT INTO tt_1(ddl_case) VALUES (29);
+RENAME USER 'user'@'localhost' TO 'user_new'@'localhost';
+INSERT INTO tt_1(ddl_case) VALUES (28);
+DROP USER 'user_new'@'localhost';
+INSERT INTO tt_1(ddl_case) VALUES (27);
+CREATE EVENT evt ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR DO SELECT * FROM tt_1;
+INSERT INTO tt_1(ddl_case) VALUES (26);
+ALTER EVENT evt COMMENT 'evt';
+INSERT INTO tt_1(ddl_case) VALUES (25);
+DROP EVENT evt;
+INSERT INTO tt_1(ddl_case) VALUES (24);
+CREATE TRIGGER tr AFTER INSERT ON tt_1 FOR EACH ROW UPDATE tt_2 SET ddl_case = ddl_case WHERE ddl_case= NEW.ddl_case;
+INSERT INTO tt_1(ddl_case) VALUES (23);
+DROP TRIGGER tr;
+INSERT INTO tt_1(ddl_case) VALUES (22);
+CREATE FUNCTION fc () RETURNS VARCHAR(64) RETURN "fc";
+INSERT INTO tt_1(ddl_case) VALUES (21);
+ALTER FUNCTION fc COMMENT 'fc';
+INSERT INTO tt_1(ddl_case) VALUES (20);
+DROP FUNCTION fc;
+INSERT INTO tt_1(ddl_case) VALUES (19);
+CREATE PROCEDURE pc () UPDATE tt_2 SET ddl_case = ddl_case WHERE ddl_case= NEW.ddl_case;
+INSERT INTO tt_1(ddl_case) VALUES (18);
+ALTER PROCEDURE pc COMMENT 'pc';
+INSERT INTO tt_1(ddl_case) VALUES (17);
+DROP PROCEDURE pc;
+INSERT INTO tt_1(ddl_case) VALUES (16);
+CREATE VIEW v AS SELECT * FROM tt_1;
+INSERT INTO tt_1(ddl_case) VALUES (15);
+ALTER VIEW v AS SELECT * FROM tt_1;
+INSERT INTO tt_1(ddl_case) VALUES (14);
+DROP VIEW v;
+INSERT INTO tt_1(ddl_case) VALUES (13);
+CREATE INDEX ix ON tt_1(ddl_case);
+INSERT INTO tt_1(ddl_case) VALUES (12);
+DROP INDEX ix ON tt_1;
+INSERT INTO tt_1(ddl_case) VALUES (11);
+CREATE TEMPORARY TABLE tt_xx (a int);
+INSERT INTO tt_1(ddl_case) VALUES (10);
+ALTER TABLE tt_xx ADD COLUMN (b int);
+INSERT INTO tt_1(ddl_case) VALUES (9);
+ALTER TABLE tt_xx RENAME new_tt_xx;
+INSERT INTO tt_1(ddl_case) VALUES (8);
+DROP TEMPORARY TABLE IF EXISTS new_tt_xx;
+INSERT INTO tt_1(ddl_case) VALUES (7);
+CREATE TABLE tt_xx (a int);
+INSERT INTO tt_1(ddl_case) VALUES (6);
+ALTER TABLE tt_xx ADD COLUMN (b int);
+INSERT INTO tt_1(ddl_case) VALUES (5);
+RENAME TABLE tt_xx TO new_tt_xx;
+INSERT INTO tt_1(ddl_case) VALUES (4);
+TRUNCATE TABLE new_tt_xx;
+INSERT INTO tt_1(ddl_case) VALUES (3);
+DROP TABLE IF EXISTS tt_xx, new_tt_xx;
+INSERT INTO tt_1(ddl_case) VALUES (2);
+CREATE DATABASE db;
+INSERT INTO tt_1(ddl_case) VALUES (1);
+DROP DATABASE IF EXISTS db;
+
+source include/show_binlog_events.inc;
+
+SET AUTOCOMMIT= 1;
+
+--echo ###################################################################################
+--echo #                               CHECK CONSISTENCY
+--echo ###################################################################################
+--sync_slave_with_master
+
+--let $diff_tables= master:tt_1,slave:tt_1
+--source include/diff_tables.inc
+
+--echo ###################################################################################
+--echo #                                        CLEAN
+--echo ###################################################################################
+connection master;
+
+DROP TABLE tt_1;
+DROP TABLE tt_2;
+DROP TABLE nt_1;
+
+sync_slave_with_master;

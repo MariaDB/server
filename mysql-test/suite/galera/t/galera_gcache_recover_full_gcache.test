@@ -38,6 +38,12 @@ INSERT INTO t1 (f2) VALUES (REPEAT('x', 1024 * 1024 * 10));
 --source include/galera_wait_ready.inc
 --let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
+SELECT COUNT(*) FROM t1;
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 15;
+SELECT COUNT(*) FROM t1;
+
 --let $diff_servers = 1 2
 --source include/diff_servers.inc
 
@@ -48,8 +54,8 @@ DROP TABLE t1;
 CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
 
 # Confirm that IST did not take place
---let $assert_text = IST first seqno 2 not found from cache, falling back to SST
---let $assert_select = IST first seqno 2 not found from cache, falling back to SST
+--let $assert_text = not found from cache, falling back to SST
+--let $assert_select = not found from cache, falling back to SST
 --let $assert_count = 1
 --let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
 --let $assert_only_after = starting as process

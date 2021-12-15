@@ -16,7 +16,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include <my_global.h>
 #include <my_sys.h>
@@ -154,8 +154,10 @@ int STDCALL mysql_server_init(int argc __attribute__((unused)),
       */
 
 #if MYSQL_PORT_DEFAULT == 0
+# if !__has_feature(memory_sanitizer) // Work around MSAN deficiency
       if ((serv_ptr= getservbyname("mysql", "tcp")))
         mysql_port= (uint) ntohs((ushort) serv_ptr->s_port);
+# endif
 #endif
       if ((env= getenv("MYSQL_TCP_PORT")))
         mysql_port=(uint) atoi(env);
@@ -1139,6 +1141,7 @@ my_bool STDCALL mysql_embedded(void)
 void my_net_local_init(NET *net)
 {
   net->max_packet=   (uint) net_buffer_length;
+  net->read_timeout= net->write_timeout= 0;
   my_net_set_read_timeout(net, CLIENT_NET_READ_TIMEOUT);
   my_net_set_write_timeout(net, CLIENT_NET_WRITE_TIMEOUT);
   net->retry_count=  1;

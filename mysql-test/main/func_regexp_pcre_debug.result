@@ -1,0 +1,9 @@
+SET STATEMENT debug_dbug='+d,pcre_exec_error_123' for
+SELECT 'a' RLIKE 'a';
+'a' RLIKE 'a'
+0
+Warnings:
+Warning	1139	Got error 'pcre_exec: Internal error (-123)' from regexp
+SELECT 'a' RLIKE 'a';
+'a' RLIKE 'a'
+1

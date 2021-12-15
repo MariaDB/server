@@ -13,7 +13,7 @@ typedef class  TDBFMT    *PTDBFMT;
 /***********************************************************************/
 /*  Functions used externally.                                         */
 /***********************************************************************/
-PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info);
+DllExport PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info);
 
 /***********************************************************************/
 /*  CSV table.                                                         */

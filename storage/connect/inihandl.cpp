@@ -16,7 +16,7 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
  */
 #include "my_global.h"
 
@@ -193,17 +193,17 @@ static void PROFILE_Save( FILE *file, PROFILESECTION *section )
       secno++;
     }
 
-    for (key = section->key; key; key = key->next)
-      if (key->name && key->name[0]) {
+    for (key= section->key; key; key= key->next) {
+      if (key->name[0]) {
         fprintf(file, "%s", SVP(key->name));
 
         if (key->value)
           fprintf(file, "=%s", SVP(key->value));
 
         fprintf(file, "\n");
-        } // endif key->name
-
-    }  // endfor section
+      } // endif key->name
+    }
+  }  // endfor section
 
 } // end of PROFILE_Save
 
@@ -293,7 +293,7 @@ static PROFILESECTION *PROFILE_Load( FILE *file )
         next_key      = &section->key;
         prev_key      = NULL;
 
-        if (trace > 1)
+        if (trace(2))
           htrc("New section: '%s'\n",section->name);
 
         continue;
@@ -336,7 +336,7 @@ static PROFILESECTION *PROFILE_Load( FILE *file )
       next_key  = &key->next;
       prev_key  = key;
 
-      if (trace > 1)
+      if (trace(2))
         htrc("New key: name='%s', value='%s'\n",
               key->name,key->value?key->value:"(none)");
 
@@ -359,7 +359,7 @@ static BOOL PROFILE_FlushFile(void)
   FILE       *file = NULL;
   struct stat buf;
   
-  if (trace > 1)
+  if (trace(2))
     htrc("PROFILE_FlushFile: CurProfile=%p\n", CurProfile);
 
   if (!CurProfile) {
@@ -398,7 +398,7 @@ static BOOL PROFILE_FlushFile(void)
     return FALSE;
     } // endif !file
 
-  if (trace > 1)
+  if (trace(2))
     htrc("Saving '%s'\n", CurProfile->filename);
 
   PROFILE_Save(file, CurProfile->section);
@@ -447,7 +447,7 @@ static BOOL PROFILE_Open(LPCSTR filename)
   struct stat buf;
   PROFILE    *tempProfile;
   
-  if (trace > 1)
+  if (trace(2))
     htrc("PROFILE_Open: CurProfile=%p N=%d\n", CurProfile, N_CACHED_PROFILES);
 
   /* First time around */
@@ -468,7 +468,7 @@ static BOOL PROFILE_Open(LPCSTR filename)
 
   /* Check for a match */
   for (i = 0; i < N_CACHED_PROFILES; i++) {
-    if (trace > 1)
+    if (trace(2))
       htrc("MRU=%s i=%d\n", SVP(MRUProfile[i]->filename), i);
       
     if (MRUProfile[i]->filename && !strcmp(filename, MRUProfile[i]->filename)) {
@@ -483,11 +483,11 @@ static BOOL PROFILE_Open(LPCSTR filename)
         } // endif i
         
       if (!stat(CurProfile->filename, &buf) && CurProfile->mtime == buf.st_mtime) {
-        if (trace > 1)
+        if (trace(2))
           htrc("(%s): already opened (mru=%d)\n", filename, i);
           
       } else {
-        if (trace > 1)
+        if (trace(2))
           htrc("(%s): already opened, needs refreshing (mru=%d)\n",  filename, i);
 
       } // endif stat
@@ -535,11 +535,11 @@ static BOOL PROFILE_Open(LPCSTR filename)
 //  strcpy(p, filename);
 //  _strlwr(p);
   
-  if (trace > 1)
+  if (trace(2))
     htrc("Opening %s\n", filename);
     
   if ((file = fopen(filename, "r"))) {
-    if (trace > 1)
+    if (trace(2))
       htrc("(%s): found it\n", filename);
 
 //    CurProfile->unix_name = malloc(strlen(buffer)+1);
@@ -574,12 +574,12 @@ void PROFILE_Close(LPCSTR filename)
   struct stat buf;
   PROFILE    *tempProfile;
   
-  if (trace > 1)
+  if (trace(2))
     htrc("PROFILE_Close: CurProfile=%p N=%d\n", CurProfile, N_CACHED_PROFILES);
 
   /* Check for a match */
   for (i = 0; i < N_CACHED_PROFILES; i++) {
-    if (trace > 1)
+    if (trace(2))
       htrc("MRU=%s i=%d\n", SVP(MRUProfile[i]->filename), i);
       
     if (MRUProfile[i]->filename && !strcmp(filename, MRUProfile[i]->filename)) {
@@ -591,7 +591,7 @@ void PROFILE_Close(LPCSTR filename)
         CurProfile=tempProfile;
         } // endif i
       
-      if (trace > 1) {
+      if (trace(2)) {
         if (!stat(CurProfile->filename, &buf) && CurProfile->mtime == buf.st_mtime)
           htrc("(%s): already opened (mru=%d)\n", filename, i);
         else
@@ -620,7 +620,7 @@ void PROFILE_End(void)
 {
   int i;
 
-  if (trace)
+  if (trace(3))
     htrc("PROFILE_End: CurProfile=%p N=%d\n", CurProfile, N_CACHED_PROFILES);
 
 	if (!CurProfile)						   //	Sergey Vojtovich
@@ -628,7 +628,7 @@ void PROFILE_End(void)
 
   /* Close all opened files and free the cache structure */
   for (i = 0; i < N_CACHED_PROFILES; i++) {
-    if (trace)
+    if (trace(3))
       htrc("MRU=%s i=%d\n", SVP(MRUProfile[i]->filename), i);
 
 //  CurProfile = MRUProfile[i];			Sergey Vojtovich
@@ -894,7 +894,7 @@ static int PROFILE_GetSectionNames(LPSTR buffer, uint len)
   uint            f,l;
   PROFILESECTION *section;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("GetSectionNames: buffer=%p len=%u\n", buffer, len);
 
   if (!buffer || !len)
@@ -909,17 +909,17 @@ static int PROFILE_GetSectionNames(LPSTR buffer, uint len)
   buf = buffer;
   section = CurProfile->section;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("GetSectionNames: section=%p\n", section);
 
   while (section != NULL) {
-    if (trace > 1)
+    if (trace(2))
       htrc("section=%s\n", section->name);
 
     if (section->name[0]) {
       l = strlen(section->name) + 1;
 
-      if (trace > 1)
+      if (trace(2))
         htrc("l=%u f=%u\n", l, f);
 
       if (l > f) {
@@ -982,7 +982,7 @@ static int PROFILE_GetString(LPCSTR section, LPCSTR key_name,
     key = PROFILE_Find(&CurProfile->section, section, key_name, FALSE, FALSE);
     PROFILE_CopyEntry(buffer, (key && key->value) ? key->value : def_val, len, FALSE);
     
-    if (trace > 1)
+    if (trace(2))
       htrc("('%s','%s','%s'): returning '%s'\n", 
             section, key_name, def_val, buffer );
 
@@ -1010,7 +1010,7 @@ static BOOL PROFILE_SetString(LPCSTR section_name, LPCSTR key_name,
                               LPCSTR value, BOOL create_always)
 {
   if (!key_name) {       /* Delete a whole section */
-    if (trace > 1)
+    if (trace(2))
       htrc("Deleting('%s')\n", section_name);
 
     CurProfile->changed |= PROFILE_DeleteSection(&CurProfile->section,
@@ -1018,7 +1018,7 @@ static BOOL PROFILE_SetString(LPCSTR section_name, LPCSTR key_name,
     return TRUE;         /* Even if PROFILE_DeleteSection() has failed,
                             this is not an error on application's level.*/
   } else if (!value) {   /* Delete a key */
-    if (trace > 1)
+    if (trace(2))
       htrc("Deleting('%s','%s')\n", section_name, key_name);
 
     CurProfile->changed |= PROFILE_DeleteKey(&CurProfile->section,
@@ -1027,7 +1027,7 @@ static BOOL PROFILE_SetString(LPCSTR section_name, LPCSTR key_name,
   } else {               /* Set the key value */
     PROFILEKEY *key = PROFILE_Find(&CurProfile->section, section_name,
                                     key_name, TRUE, create_always);
-    if (trace > 1)
+    if (trace(2))
       htrc("Setting('%s','%s','%s')\n", section_name, key_name, value);
 
     if (!key)
@@ -1040,17 +1040,17 @@ static BOOL PROFILE_SetString(LPCSTR section_name, LPCSTR key_name,
         value++;
 
       if (!strcmp(key->value, value)) {
-        if (trace > 1)
+        if (trace(2))
           htrc("  no change needed\n" );
 
         return TRUE;     /* No change needed */
         }  // endif value
 
-      if (trace > 1)
+      if (trace(2))
         htrc("  replacing '%s'\n", key->value);
 
       free(key->value);
-    }  else if (trace > 1)
+    }  else if (trace(2))
       htrc("  creating key\n" );
 
     key->value = (char*)malloc(strlen(value) + 1);
@@ -1345,7 +1345,7 @@ GetPrivateProfileSectionNames(LPSTR buffer, DWORD size,  LPCSTR filename)
 {
   DWORD ret = 0;
   
-  if (trace > 1)
+  if (trace(2))
     htrc("GPPSN: filename=%s\n", filename);
 
   EnterCriticalSection(&PROFILE_CritSect);

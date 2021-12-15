@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,6 +27,8 @@ Created May 26, 2009 Vasil Dimov
 #ifndef fsp0types_h
 #define fsp0types_h
 
+#include "univ.i"
+
 #ifndef UNIV_INNOCHECKSUM
 
 /** The fil_space_t::id of the redo log. All persistent tablespaces
@@ -35,7 +37,6 @@ have a smaller fil_space_t::id. */
 /** The fil_space_t::id of the innodb_temporary tablespace. */
 #define SRV_TMP_SPACE_ID		0xFFFFFFFEU
 
-#include "univ.i"
 #include "ut0byte.h"
 
 /** @name Flags for inserting records in order
@@ -59,11 +60,8 @@ page size | file space extent size
   32 KiB  |  64 pages = 2 MiB
   64 KiB  |  64 pages = 4 MiB
 */
-#define FSP_EXTENT_SIZE         ((UNIV_PAGE_SIZE <= (16384) ?	\
-				(1048576 / UNIV_PAGE_SIZE) :	\
-				((UNIV_PAGE_SIZE <= (32768)) ?	\
-				(2097152 / UNIV_PAGE_SIZE) :	\
-				(4194304 / UNIV_PAGE_SIZE))))
+#define FSP_EXTENT_SIZE         (srv_page_size_shift < 14 ?	\
+				 (1048576U >> srv_page_size_shift) : 64U)
 
 /** File space extent size (four megabyte) in pages for MAX page size */
 #define	FSP_EXTENT_SIZE_MAX	(4194304 / UNIV_PAGE_SIZE_MAX)
@@ -151,38 +149,38 @@ enum fsp_reserve_t {
 /* Number of pages described in a single descriptor page: currently each page
 description takes less than 1 byte; a descriptor page is repeated every
 this many file pages */
-/* #define XDES_DESCRIBED_PER_PAGE		UNIV_PAGE_SIZE */
-/* This has been replaced with either UNIV_PAGE_SIZE or page_zip->size. */
+/* #define XDES_DESCRIBED_PER_PAGE		srv_page_size */
+/* This has been replaced with either srv_page_size or page_zip->size. */
 
 /** @name The space low address page map
 The pages at FSP_XDES_OFFSET and FSP_IBUF_BITMAP_OFFSET are repeated
 every XDES_DESCRIBED_PER_PAGE pages in every tablespace. */
 /* @{ */
 /*--------------------------------------*/
-#define FSP_XDES_OFFSET			0	/* !< extent descriptor */
-#define FSP_IBUF_BITMAP_OFFSET		1	/* !< insert buffer bitmap */
+#define FSP_XDES_OFFSET			0U	/* !< extent descriptor */
+#define FSP_IBUF_BITMAP_OFFSET		1U	/* !< insert buffer bitmap */
 				/* The ibuf bitmap pages are the ones whose
 				page number is the number above plus a
 				multiple of XDES_DESCRIBED_PER_PAGE */
 
-#define FSP_FIRST_INODE_PAGE_NO		2	/*!< in every tablespace */
+#define FSP_FIRST_INODE_PAGE_NO		2U	/*!< in every tablespace */
 				/* The following pages exist
 				in the system tablespace (space 0). */
-#define FSP_IBUF_HEADER_PAGE_NO		3	/*!< insert buffer
+#define FSP_IBUF_HEADER_PAGE_NO		3U	/*!< insert buffer
 						header page, in
 						tablespace 0 */
-#define FSP_IBUF_TREE_ROOT_PAGE_NO	4	/*!< insert buffer
+#define FSP_IBUF_TREE_ROOT_PAGE_NO	4U	/*!< insert buffer
 						B-tree root page in
 						tablespace 0 */
 				/* The ibuf tree root page number in
 				tablespace 0; its fseg inode is on the page
 				number FSP_FIRST_INODE_PAGE_NO */
-#define FSP_TRX_SYS_PAGE_NO		5	/*!< transaction
+#define FSP_TRX_SYS_PAGE_NO		5U	/*!< transaction
 						system header, in
 						tablespace 0 */
-#define	FSP_FIRST_RSEG_PAGE_NO		6	/*!< first rollback segment
+#define	FSP_FIRST_RSEG_PAGE_NO		6U	/*!< first rollback segment
 						page, in tablespace 0 */
-#define FSP_DICT_HDR_PAGE_NO		7	/*!< data dictionary header
+#define FSP_DICT_HDR_PAGE_NO		7U	/*!< data dictionary header
 						page, in tablespace 0 */
 /*--------------------------------------*/
 /* @} */
@@ -196,17 +194,6 @@ fsp_is_system_temporary(ulint	space_id)
 {
 	return(space_id == SRV_TMP_SPACE_ID);
 }
-
-#ifdef UNIV_DEBUG
-/** Skip some of the sanity checks that are time consuming even in debug mode
-and can affect frequent verification runs that are done to ensure stability of
-the product.
-@return true if check should be skipped for given space. */
-bool
-fsp_skip_sanity_check(
-	ulint	space_id);
-#endif /* UNIV_DEBUG */
-
 #endif /* !UNIV_INNOCHECKSUM */
 
 /* @defgroup fsp_flags InnoDB Tablespace Flag Constants @{ */
@@ -268,8 +255,7 @@ or have been introduced in MySQL 5.7 or 8.0:
 =====================================================================
 The flags below only exist in fil_space_t::flags, not in FSP_SPACE_FLAGS:
 =====================================================================
-						25: DATA_DIR
-						26..27: ATOMIC_WRITES
+						27: DATA_DIR
 						28..31: COMPRESSION_LEVEL
 */
 
@@ -277,9 +263,9 @@ The flags below only exist in fil_space_t::flags, not in FSP_SPACE_FLAGS:
 #define FSP_FLAGS_MEM_MASK		(~0U << FSP_FLAGS_MEM_DATA_DIR)
 
 /** Zero relative shift position of the DATA_DIR flag */
-#define FSP_FLAGS_MEM_DATA_DIR		25
+#define FSP_FLAGS_MEM_DATA_DIR		27
 /** Zero relative shift position of the COMPRESSION_LEVEL field */
-#define FSP_FLAGS_MEM_COMPRESSION_LEVEL	26
+#define FSP_FLAGS_MEM_COMPRESSION_LEVEL	28
 
 /** Zero relative shift position of the POST_ANTELOPE field */
 #define FSP_FLAGS_POS_POST_ANTELOPE	0

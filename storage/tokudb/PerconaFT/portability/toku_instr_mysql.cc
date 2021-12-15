@@ -1,4 +1,4 @@
-#ifdef MYSQL_TOKUDB_ENGINE
+#ifdef TOKU_MYSQL_WITH_PFS
 #include "toku_portability.h"
 #include "toku_pthread.h"
 
@@ -18,7 +18,7 @@ int toku_pthread_create(const toku_instr_key &key,
                         const pthread_attr_t *attr,
                         void *(*start_routine)(void *),
                         void *arg) {
-#if (MYSQL_VERSION_MAJOR >= 5) && (MYSQL_VERSION_MINOR >= 7)
+#if (50700 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50799)
     return PSI_THREAD_CALL(spawn_thread)(
         key.id(), reinterpret_cast<my_thread_handle *>(thread),
         attr, start_routine, arg);
@@ -184,9 +184,9 @@ void toku_instr_file_io_end(toku_io_instrumentation &io_instr, ssize_t count) {
 
 void toku_instr_mutex_init(const toku_instr_key &key, toku_mutex_t &mutex) {
     mutex.psi_mutex = PSI_MUTEX_CALL(init_mutex)(key.id(), &mutex.pmutex);
-#if TOKU_PTHREAD_DEBUG
+#if defined(TOKU_PTHREAD_DEBUG)
     mutex.instr_key_id = key.id();
-#endif
+#endif  // defined(TOKU_PTHREAD_DEBUG)
 }
 
 void toku_instr_mutex_destroy(PSI_mutex *&mutex_instr) {
@@ -242,9 +242,9 @@ void toku_instr_mutex_unlock(PSI_mutex *mutex_instr) {
 
 void toku_instr_cond_init(const toku_instr_key &key, toku_cond_t &cond) {
     cond.psi_cond = PSI_COND_CALL(init_cond)(key.id(), &cond.pcond);
-#if TOKU_PTHREAD_DEBUG
+#if defined(TOKU_PTHREAD_DEBUG)
     cond.instr_key_id = key.id();
-#endif
+#endif  //   // defined(TOKU_PTHREAD_DEBUG)
 }
 
 void toku_instr_cond_destroy(PSI_cond *&cond_instr) {
@@ -295,9 +295,9 @@ void toku_instr_cond_broadcast(const toku_cond_t &cond) {
 void toku_instr_rwlock_init(const toku_instr_key &key,
                             toku_pthread_rwlock_t &rwlock) {
     rwlock.psi_rwlock = PSI_RWLOCK_CALL(init_rwlock)(key.id(), &rwlock.rwlock);
-#if TOKU_PTHREAD_DEBUG
+#if defined(TOKU_PTHREAD_DEBUG)
     rwlock.instr_key_id = key.id();
-#endif
+#endif  // defined(TOKU_PTHREAD_DEBUG)
 }
 
 void toku_instr_rwlock_destroy(PSI_rwlock *&rwlock_instr) {
@@ -359,7 +359,16 @@ void toku_instr_rwlock_wrlock_wait_end(
 
 void toku_instr_rwlock_unlock(toku_pthread_rwlock_t &rwlock) {
     if (rwlock.psi_rwlock)
+
+// Due to change introduced in e4148f2a22922687f7652c4e3d21a22da07c9e78
+// PSI rwlock version and interface changed
+// PSI_CURRENT_RWLOCK_VERSION is not defined in MySQL 5.6 and is defined
+// as 1 in 5.7 and < 8.0.17
+#if defined(PSI_CURRENT_RWLOCK_VERSION) && (PSI_CURRENT_RWLOCK_VERSION == 2)
+        PSI_RWLOCK_CALL(unlock_rwlock)(rwlock.psi_rwlock, PSI_RWLOCK_UNLOCK);
+#else
         PSI_RWLOCK_CALL(unlock_rwlock)(rwlock.psi_rwlock);
+#endif
 }
 
-#endif  // MYSQL_TOKUDB_ENGINE
+#endif  // TOKU_MYSQL_WITH_PFS

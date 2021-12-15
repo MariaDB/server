@@ -155,7 +155,7 @@ SHOW STATUS LIKE "%transactions%engine";
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 wait
 EOF
---shutdown_server 30
+--shutdown_server
 --source include/wait_until_disconnected.inc
 
 # Restart without binary log.

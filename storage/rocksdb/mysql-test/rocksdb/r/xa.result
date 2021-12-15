@@ -1,0 +1,32 @@
+# 
+# MDEV-13155: XA recovery not supported for RocksDB (Just a testcase)
+#
+call mtr.add_suppression("Found .* prepared XA transactions");
+connect  con1,localhost,root,,test;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (a INT) ENGINE=RocksDB;
+XA START 'xa1';
+INSERT INTO t1 (a) VALUES (1),(2);
+XA END 'xa1';
+XA PREPARE 'xa1';
+connect  con2,localhost,root,,test;
+XA START 'xa2';
+INSERT INTO t1 (a) VALUES (3);
+INSERT INTO t1 (a) VALUES (4);
+XA END 'xa2';
+XA PREPARE 'xa2';
+connection default;
+SELECT * FROM t1;
+a
+connect  con3,localhost,root,,test;
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	3	0	xa1
+1	3	0	xa2
+XA ROLLBACK 'xa1';
+XA COMMIT 'xa2';
+SELECT a FROM t1;
+a
+3
+4
+DROP TABLE t1;

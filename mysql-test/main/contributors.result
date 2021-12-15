@@ -1,0 +1,18 @@
+SHOW CONTRIBUTORS;
+Name	Location	Comment
+Alibaba Cloud	https://www.alibabacloud.com/	Platinum Sponsor of the MariaDB Foundation
+Tencent Cloud	https://cloud.tencent.com	Platinum Sponsor of the MariaDB Foundation
+Microsoft	https://microsoft.com/	Platinum Sponsor of the MariaDB Foundation
+MariaDB Corporation	https://mariadb.com	Founding member, Platinum Sponsor of the MariaDB Foundation
+ServiceNow	https://servicenow.com	Platinum Sponsor of the MariaDB Foundation
+Visma	https://visma.com	Gold Sponsor of the MariaDB Foundation
+DBS	https://dbs.com	Gold Sponsor of the MariaDB Foundation
+IBM	https://www.ibm.com	Gold Sponsor of the MariaDB Foundation
+Automattic	https://automattic.com	Silver Sponsor of the MariaDB Foundation
+Percona	https://www.percona.com/	Sponsor of the MariaDB Foundation
+Galera Cluster	https://galeracluster.com	Sponsor of the MariaDB Foundation
+Google	USA	Sponsoring encryption, parallel replication and GTID
+Facebook	USA	Sponsoring non-blocking API, LIMIT ROWS EXAMINED etc
+Ronald Bradford	Brisbane, Australia	EFF contribution for UC2006 Auction
+Sheeri Kritzer	Boston, Mass. USA	EFF contribution for UC2006 Auction
+Mark Shuttleworth	London, UK.	EFF contribution for UC2006 Auction

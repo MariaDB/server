@@ -1,0 +1,17 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+CREATE TABLE t1 (g POINT NOT NULL, SPATIAL INDEX(g));
+INSERT INTO t1 VALUES (ST_GEOMFROMTEXT('Point(1 1)'));
+INSERT INTO t1 VALUES (ST_GEOMFROMTEXT('Point(2 1)'));
+INSERT INTO t1 VALUES (ST_GEOMFROMTEXT('Point(1 2)'));
+INSERT INTO t1 VALUES (ST_GEOMFROMTEXT('Point(2 2)'));
+DELETE FROM t1 where MBREqual(g, ST_GEOMFROMTEXT('Point(1 2)'));
+
+--sync_slave_with_master
+select count(*) from t1;
+
+--connection master
+DELETE FROM t1;
+drop table t1;
+--source include/rpl_end.inc

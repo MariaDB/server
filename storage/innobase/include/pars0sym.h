@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,9 +27,7 @@ Created 12/15/1997 Heikki Tuuri
 #ifndef pars0sym_h
 #define pars0sym_h
 
-#include "univ.i"
 #include "que0types.h"
-#include "dict0types.h"
 #include "pars0types.h"
 #include "row0types.h"
 
@@ -226,7 +224,7 @@ struct sym_tab_t{
 					/*!< SQL string to parse */
 	size_t			string_len;
 					/*!< SQL string length */
-	int			next_char_pos;
+	size_t			next_char_pos;
 					/*!< position of the next character in
 					sql_string to give to the lexical
 					analyzer */

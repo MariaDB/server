@@ -14,6 +14,9 @@ call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]
 # Suppression for builds where file_key_management plugin is linked statically
 call mtr.add_suppression("Couldn't load plugins from 'file_key_management");
 call mtr.add_suppression("InnoDB: Tablespace for table \`test\`.\`t1\` is set as discarded\\.");
+call mtr.add_suppression("InnoDB: Table `test`\\.`t1` is corrupted");
+call mtr.add_suppression("InnoDB: Cannot delete tablespace .* because it is not found in the tablespace memory cache");
+call mtr.add_suppression("InnoDB: ALTER TABLE `test`\\.`t1` DISCARD TABLESPACE failed to find tablespace");
 
 --let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 --source include/restart_mysqld.inc
@@ -29,18 +32,18 @@ INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
 
 --error ER_NO_SUCH_TABLE_IN_ENGINE
 SELECT * FROM t1;
---replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
+--replace_regex /key_id [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 --error ER_NO_SUCH_TABLE_IN_ENGINE
 ALTER TABLE t1 ENGINE=InnoDB;
---replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
+--replace_regex /key_id [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 OPTIMIZE TABLE t1;
---replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
+--replace_regex /key_id [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 
 CHECK TABLE t1;
---replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
+--replace_regex /key_id [1-9][0-9]*/\1 /
 SHOW WARNINGS;
 
 --let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
@@ -76,6 +79,14 @@ EOF
 --let $restart_parameters=--plugin-load-add=file_key_management.so --file-key-management --file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys2.txt
 --source include/restart_mysqld.inc
 
+ALTER TABLE t1 DISCARD TABLESPACE;
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
 ALTER TABLE t1 IMPORT TABLESPACE;
 SHOW CREATE TABLE t1;
 
@@ -87,5 +98,4 @@ RENAME TABLE t1 TO t1new;
 --error ER_NO_SUCH_TABLE_IN_ENGINE
 ALTER TABLE t1 RENAME TO t1new;
 # Drop should pass even with incorrect keys
---replace_regex /(tablespace|key_id) [1-9][0-9]*/\1 /
 DROP TABLE t1;

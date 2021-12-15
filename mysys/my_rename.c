@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mysys_priv.h"
 #include <my_dir.h>
@@ -19,8 +19,62 @@
 #include "m_string.h"
 #undef my_rename
 
-	/* On unix rename deletes to file if it exists */
 
+#ifdef _WIN32
+
+#define RENAME_MAX_RETRIES 50
+
+/*
+  On Windows, bad 3rd party programs (backup or anitivirus, or something else)
+  can have file open with a sharing mode incompatible with renaming, i.e they
+  won't use FILE_SHARE_DELETE when opening file.
+
+  The following function will do a couple of retries, in case MoveFileEx returns
+  ERROR_SHARING_VIOLATION.
+*/
+static BOOL win_rename_with_retries(const char *from, const char *to)
+{
+#ifndef DBUG_OFF
+  FILE *fp = NULL;
+  DBUG_EXECUTE_IF("rename_sharing_violation",
+    {
+    fp= fopen(from, "r");
+    DBUG_ASSERT(fp);
+    }
+  );
+#endif
+
+  for (int retry= RENAME_MAX_RETRIES; retry--;)
+  {
+    DWORD ret = MoveFileEx(from, to,
+                         MOVEFILE_COPY_ALLOWED | MOVEFILE_REPLACE_EXISTING);
+
+    DBUG_ASSERT(fp == NULL || (ret == FALSE && GetLastError() == ERROR_SHARING_VIOLATION));
+
+    if (!ret && (GetLastError() == ERROR_SHARING_VIOLATION))
+    {
+#ifndef DBUG_OFF
+       /*
+        If error was injected in via DBUG_EXECUTE_IF, close the file
+        that is causing ERROR_SHARING_VIOLATION, so that retry succeeds.
+       */
+        if (fp)
+        {
+          fclose(fp);
+          fp= NULL;
+        }
+#endif
+
+      Sleep(10);
+    }
+    else
+      return ret;
+  }
+  return FALSE;
+}
+#endif
+
+	/* On unix rename deletes to file if it exists */
 int my_rename(const char *from, const char *to, myf MyFlags)
 {
   int error = 0;
@@ -28,8 +82,7 @@ int my_rename(const char *from, const char *to, myf MyFlags)
   DBUG_PRINT("my",("from %s to %s MyFlags %lu", from, to, MyFlags));
 
 #if defined(__WIN__)
-  if (!MoveFileEx(from, to, MOVEFILE_COPY_ALLOWED |
-                            MOVEFILE_REPLACE_EXISTING))
+  if (!win_rename_with_retries(from, to))
   {
     my_osmaperr(GetLastError());
 #elif defined(HAVE_RENAME)
@@ -39,7 +92,10 @@ int my_rename(const char *from, const char *to, myf MyFlags)
   if (link(from, to) || unlink(from))
   {
 #endif
-    my_errno=errno;
+    if (errno == ENOENT && !access(from, F_OK))
+      my_errno= ENOTDIR;
+    else
+      my_errno= errno;
     error = -1;
     if (MyFlags & (MY_FAE+MY_WME))
       my_error(EE_LINK, MYF(ME_BELL+ME_WAITTANG),from,to,my_errno);

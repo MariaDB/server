@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   Storage of records in block
@@ -53,10 +53,10 @@
   Page header:
 
   LSN            7 bytes   Log position for last page change
-  PAGE_TYPE      1 uchar   1 for head / 2 for tail / 3 for blob
+  PAGE_TYPE      1 uchar   0 unalloced / 1 for head / 2 for tail / 3 for blob
   DIR_COUNT      1 uchar   Number of row/tail entries on page
   FREE_DIR_LINK  1 uchar   Pointer to first free director entry or 255 if no
-  empty space    2 bytes  Empty space on page
+  empty space    2 bytes   Bytes of empty space on page
 
   The most significant bit in PAGE_TYPE is set to 1 if the data on the page
   can be compacted to get more space. (PAGE_CAN_BE_COMPACTED)
@@ -271,6 +271,7 @@
 #include "maria_def.h"
 #include "ma_blockrec.h"
 #include "trnman.h"
+#include "ma_trnman.h"
 #include "ma_key_recover.h"
 #include "ma_recovery_util.h"
 #include <lf.h>
@@ -448,9 +449,7 @@ my_bool _ma_once_end_block_record(MARIA_SHARE *share)
   if (share->bitmap.file.file >= 0)
   {
     if (flush_pagecache_blocks(share->pagecache, &share->bitmap.file,
-                               ((share->temporary || share->deleting) ?
-                                FLUSH_IGNORE_CHANGED :
-                                FLUSH_RELEASE)))
+                       share->deleting ? FLUSH_IGNORE_CHANGED : FLUSH_RELEASE))
       res= 1;
     /*
       File must be synced as it is going out of the maria_open_list and so
@@ -5160,11 +5159,19 @@ int _ma_read_block_record(MARIA_HA *info, uchar *record,
                              info->buff, share->page_type,
                              PAGECACHE_LOCK_LEFT_UNLOCKED, 0)))
     DBUG_RETURN(my_errno);
-  DBUG_ASSERT((buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == HEAD_PAGE);
-  if (!(data= get_record_position(share, buff, offset, &end_of_data)))
+
+  /*
+    Unallocated page access can happen if this is an access to a page where
+    all rows where deleted as part of this statement.
+  */
+  DBUG_ASSERT((buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == HEAD_PAGE ||
+              (buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == UNALLOCATED_PAGE);
+
+  if (((buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == UNALLOCATED_PAGE) ||
+      !(data= get_record_position(share, buff, offset, &end_of_data)))
   {
     DBUG_ASSERT(!maria_assert_if_crashed_table);
-    DBUG_PRINT("error", ("Wrong directory entry in data block"));
+    DBUG_PRINT("warning", ("Wrong directory entry in data block"));
     my_errno= HA_ERR_RECORD_DELETED;           /* File crashed */
     DBUG_RETURN(HA_ERR_RECORD_DELETED);
   }
@@ -5237,6 +5244,8 @@ my_bool _ma_scan_init_block_record(MARIA_HA *info)
 {
   MARIA_SHARE *share= info->s;
   DBUG_ENTER("_ma_scan_init_block_record");
+  DBUG_ASSERT(info->dfile.file == share->bitmap.file.file);
+
   /*
     bitmap_buff may already be allocated if this is the second call to
     rnd_init() without a rnd_end() in between, see sql/handler.h
@@ -6385,6 +6394,7 @@ uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
     }
     else if (lsn_korr(buff) >= lsn)           /* Test if already applied */
     {
+      check_skipped_lsn(info, lsn_korr(buff), 1, page);
       /* Fix bitmap, just in case */
       empty_space= uint2korr(buff + EMPTY_SPACE_OFFSET);
       if (!enough_free_entries_on_page(share, buff))
@@ -6552,6 +6562,7 @@ uint _ma_apply_redo_purge_row_head_or_tail(MARIA_HA *info, LSN lsn,
       Note that in case the page is not anymore a head or tail page
       a future redo will fix the bitmap.
     */
+    check_skipped_lsn(info, lsn_korr(buff), 1, page);
     if ((uint) (buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) == page_type)
     {
       empty_space= uint2korr(buff+EMPTY_SPACE_OFFSET);
@@ -6722,6 +6733,7 @@ uint _ma_apply_redo_free_head_or_tail(MARIA_HA *info, LSN lsn,
   if (lsn_korr(buff) >= lsn)
   {
     /* Already applied */
+    check_skipped_lsn(info, lsn_korr(buff), 1, page);
     pagecache_unlock_by_link(share->pagecache, page_link.link,
                              PAGECACHE_LOCK_WRITE_UNLOCK,
                              PAGECACHE_UNPIN, LSN_IMPOSSIBLE,
@@ -6899,8 +6911,7 @@ uint _ma_apply_redo_insert_row_blobs(MARIA_HA *info,
             if (lsn_korr(buff) >= lsn)
             {
               /* Already applied */
-              DBUG_PRINT("info", ("already applied %llu >= %llu",
-                                  lsn_korr(buff), lsn));
+              check_skipped_lsn(info, lsn_korr(buff), 1, page);
               pagecache_unlock_by_link(share->pagecache, page_link.link,
                                        PAGECACHE_LOCK_WRITE_UNLOCK,
                                        PAGECACHE_UNPIN, LSN_IMPOSSIBLE,
@@ -7525,7 +7536,7 @@ void maria_ignore_trids(MARIA_HA *info)
   if (info->s->base.born_transactional)
   {
     if (!info->trn)
-      _ma_set_trn_for_table(info, &dummy_transaction_object);
+      _ma_set_tmp_trn_for_table(info, &dummy_transaction_object);
     /* Ignore transaction id when row is read */
     info->trn->min_read_from= ~(TrID) 0;
   }
@@ -7540,7 +7551,7 @@ void _ma_print_block_info(MARIA_SHARE *share, uchar *buff)
 {
   LSN lsn= lsn_korr(buff);
 
-  printf("LSN:" LSN_FMT " type: %u  dir_entries: %u  dir_free: %u  empty_space: %u\n",
+  printf("LSN: " LSN_FMT "  type: %u  dir_entries: %u  dir_free: %u  empty_space: %u\n",
          LSN_IN_PARTS(lsn),
          (uint)buff[PAGE_TYPE_OFFSET],
          (uint)buff[DIR_COUNT_OFFSET],

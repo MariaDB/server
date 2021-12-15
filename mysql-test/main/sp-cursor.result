@@ -1,0 +1,739 @@
+#
+# MDEV-12457 Cursors with parameters
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'old'),(2,'old'),(3,'old'),(4,'old'),(5,'old');
+CREATE PROCEDURE p1(min INT,max INT)
+BEGIN
+DECLARE done INT DEFAULT FALSE;
+DECLARE va INT;
+DECLARE cur CURSOR(pmin INT, pmax INT) FOR SELECT a FROM t1 WHERE a BETWEEN pmin AND pmax;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+OPEN cur(min,max);
+read_loop: LOOP
+FETCH cur INTO va;
+IF done THEN
+LEAVE read_loop;
+END IF;
+INSERT INTO t1 VALUES (va,'new');
+END LOOP;
+CLOSE cur; 
+END;
+$$
+CALL p1(2,4);
+SELECT * FROM t1 ORDER BY b DESC,a;
+a	b
+1	old
+2	old
+3	old
+4	old
+5	old
+2	new
+3	new
+4	new
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# OPEN with a wrong number of parameters
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE PROCEDURE p1(a_a INT,a_b VARCHAR(32))
+BEGIN
+DECLARE v_a INT;
+DECLARE v_b VARCHAR(10);
+DECLARE c CURSOR (p_a INT, p_b VARCHAR(32)) FOR SELECT * FROM t1 WHERE a=p_a;
+OPEN c(a_a);
+CLOSE c;
+END;
+$$
+ERROR 42000: Incorrect parameter count to cursor 'c'
+DROP TABLE t1;
+#
+# Cursor parameters are not visible outside of the cursor
+#
+CREATE PROCEDURE p1(a_a INT)
+BEGIN
+DECLARE v_a INT;
+DECLARE c CURSOR (p_a INT) FOR SELECT a FROM t1 WHERE a=p_a;
+OPEN c(a_a);
+SET p_a=10;
+END;
+$$
+ERROR HY000: Unknown system variable 'p_a'
+CREATE PROCEDURE p1(a_a INT)
+BEGIN
+DECLARE v_a INT;
+DECLARE c CURSOR (p_a INT) FOR SELECT a FROM t1 WHERE a=p_a;
+SET p_a= 10;
+OPEN c(a_a);
+END;
+$$
+ERROR HY000: Unknown system variable 'p_a'
+#
+# Cursor parameter shadowing a local variable
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE PROCEDURE p1(a INT)
+BEGIN
+DECLARE done INT DEFAULT 0;
+DECLARE v_a INT DEFAULT NULL;
+DECLARE p_a INT DEFAULT NULL;
+DECLARE c CURSOR (p_a VARCHAR(32)) FOR SELECT p_a FROM t1;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+OPEN c(a);
+read_loop: LOOP
+FETCH c INTO v_a;
+IF done THEN
+LEAVE read_loop;
+END IF;
+SELECT v_a;
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1(1);
+v_a
+1
+CALL p1(NULL);
+v_a
+NULL
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Parameters in SELECT list
+#
+CREATE PROCEDURE p1(a_a INT, a_b VARCHAR(32))
+BEGIN
+DECLARE v_a INT;
+DECLARE v_b VARCHAR(10);
+DECLARE c CURSOR (p_a INT, p_b VARCHAR(32)) FOR SELECT p_a,p_b FROM DUAL;
+OPEN c(a_a + 0,a_b);
+FETCH c INTO v_a, v_b;
+SELECT v_a, v_b;
+CLOSE c;
+OPEN c(a_a + 1,a_b);
+FETCH c INTO v_a, v_b;
+SELECT v_a, v_b;
+CLOSE c;
+END;
+$$
+CALL p1(1,'b1');
+v_a	v_b
+1	b1
+v_a	v_b
+2	b1
+DROP PROCEDURE p1;
+#
+# Parameters in SELECT list + UNION
+#
+CREATE PROCEDURE p1(a_a INT, a_b VARCHAR(32))
+BEGIN
+DECLARE v_a INT;
+DECLARE v_b VARCHAR(10);
+DECLARE c CURSOR(p_a INT, p_b VARCHAR(32)) FOR
+SELECT p_a,p_b FROM DUAL
+UNION ALL
+SELECT p_a+1,CONCAT(p_b,'b') FROM DUAL;
+OPEN c(a_a,a_b);
+FETCH c INTO v_a, v_b;
+SELECT v_a, v_b;
+FETCH c INTO v_a, v_b;
+SELECT v_a, v_b;
+CLOSE c;
+END;
+$$
+CALL p1(1,'b1');
+v_a	v_b
+1	b1
+v_a	v_b
+2	b1b
+DROP PROCEDURE p1;
+#
+# Parameters in SELECT list + type conversion + warnings
+#
+SET sql_mode='';
+CREATE PROCEDURE p1(a_a VARCHAR(32))
+BEGIN
+DECLARE v_a INT;
+DECLARE c CURSOR (p_a INT) FOR SELECT p_a FROM DUAL;
+OPEN c(a_a);
+FETCH c INTO v_a;
+SELECT v_a;
+CLOSE c;
+END;
+$$
+CALL p1('1b');
+v_a
+1
+Warnings:
+Warning	1265	Data truncated for column 'p_a' at row 1
+CALL p1('b1');
+v_a
+0
+Warnings:
+Warning	1366	Incorrect integer value: 'b1' for column ``.``.`p_a` at row 1
+DROP PROCEDURE p1;
+SET sql_mode=DEFAULT;
+#
+# One parameter in SELECT list + subselect
+#
+CREATE PROCEDURE p1(a_a VARCHAR(32))
+BEGIN
+DECLARE v_a VARCHAR(10);
+DECLARE c CURSOR (p_a VARCHAR(32)) FOR
+SELECT p_a FROM DUAL UNION SELECT REVERSE(p_a) FROM DUAL;
+OPEN c((SELECT a_a));
+FETCH c INTO v_a;
+SELECT v_a;
+FETCH c INTO v_a;
+SELECT v_a;
+CLOSE c;
+END;
+$$
+CALL p1('ab');
+v_a
+ab
+v_a
+ba
+DROP PROCEDURE p1;
+#
+# Two parameters in SELECT list + subselect
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE v_a VARCHAR(32);
+DECLARE v_b VARCHAR(32);
+DECLARE c CURSOR (p_a VARCHAR(32), p_b VARCHAR(32)) FOR
+SELECT p_a, p_b FROM DUAL
+UNION
+SELECT p_b, p_a FROM DUAL;
+OPEN c((SELECT 'aaa'),(SELECT 'bbb'));
+FETCH c INTO v_a, v_b;
+SELECT v_a, v_b;
+FETCH c INTO v_a, v_b;
+SELECT v_a, v_b;
+CLOSE c;
+END;
+$$
+CALL p1();
+v_a	v_b
+aaa	bbb
+v_a	v_b
+bbb	aaa
+DROP PROCEDURE p1;
+#
+# Two parameters in SELECT list + two parameters in WHERE + subselects
+#
+CREATE PROCEDURE p1(a_a VARCHAR(32), a_b VARCHAR(32))
+BEGIN
+DECLARE done INT DEFAULT 0;
+DECLARE v_a VARCHAR(32);
+DECLARE v_b VARCHAR(32);
+DECLARE c CURSOR (value_a VARCHAR(32), value_b VARCHAR(32),
+pattern_a VARCHAR(32), pattern_b VARCHAR(32)) FOR
+SELECT value_a, value_b FROM DUAL WHERE value_a LIKE pattern_a
+UNION
+SELECT value_b, value_a FROM DUAL WHERE value_b LIKE pattern_b;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+OPEN c((SELECT 'aaa'),(SELECT 'bbb'),(SELECT a_a),(SELECT a_b));
+read_loop: LOOP
+FETCH c INTO v_a, v_b;
+IF done THEN
+LEAVE read_loop;
+END IF;
+SELECT v_a, v_b;
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1('%','%');
+v_a	v_b
+aaa	bbb
+v_a	v_b
+bbb	aaa
+CALL p1('aaa','xxx');
+v_a	v_b
+aaa	bbb
+CALL p1('xxx','bbb');
+v_a	v_b
+bbb	aaa
+CALL p1('xxx','xxx');
+DROP PROCEDURE p1;
+#
+# Parameters in SELECT list + stored function
+#
+CREATE FUNCTION f1 (a VARCHAR(32)) RETURNS VARCHAR(32)
+BEGIN
+RETURN CONCAT(a,'y');
+END;
+$$
+CREATE PROCEDURE p1(a_a VARCHAR(32))
+BEGIN
+DECLARE done INT DEFAULT 0;
+DECLARE v_a VARCHAR(10);
+DECLARE v_b VARCHAR(10);
+DECLARE c CURSOR (p_sel_a VARCHAR(32), p_cmp_a VARCHAR(32)) FOR
+SELECT p_sel_a, p_cmp_a FROM DUAL;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+OPEN c(f1(a_a), f1(a_a));
+read_loop: LOOP
+FETCH c INTO v_a, v_b;
+IF done THEN
+LEAVE read_loop;
+END IF;
+SELECT v_a, v_b;
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1('x');
+v_a	v_b
+xy	xy
+CALL p1(f1(COALESCE(NULL, f1('x'))));
+v_a	v_b
+xyyy	xyyy
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+#
+# One parameter in WHERE clause
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'11');
+INSERT INTO t1 VALUES (1,'12');
+INSERT INTO t1 VALUES (2,'21');
+INSERT INTO t1 VALUES (2,'22');
+INSERT INTO t1 VALUES (3,'31');
+INSERT INTO t1 VALUES (3,'32');
+CREATE PROCEDURE p1(a_a INT)
+BEGIN
+DECLARE done INT DEFAULT 0;
+DECLARE v_a INT;
+DECLARE v_b VARCHAR(10);
+DECLARE c CURSOR (p_a INT) FOR SELECT a,b FROM t1 WHERE a=p_a;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+OPEN c(a_a);
+read_loop: LOOP
+FETCH c INTO v_a, v_b;
+IF done THEN
+LEAVE read_loop;
+END IF;
+INSERT INTO t2 VALUES (v_a,v_b);
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1(1);
+SELECT * FROM t2;
+a	b
+1	11
+1	12
+DROP TABLE t1;
+DROP TABLE t2;
+DROP PROCEDURE p1;
+#
+# Two parameters in WHERE clause
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'11');
+INSERT INTO t1 VALUES (1,'12');
+INSERT INTO t1 VALUES (2,'21');
+INSERT INTO t1 VALUES (2,'22');
+INSERT INTO t1 VALUES (3,'31');
+INSERT INTO t1 VALUES (3,'32');
+CREATE PROCEDURE p1(a_a INT, a_b VARCHAR(32))
+BEGIN
+DECLARE done INT DEFAULT 0;
+DECLARE v_a INT;
+DECLARE v_b VARCHAR(10);
+DECLARE c CURSOR (p_a INT, p_b VARCHAR(32)) FOR SELECT a,b FROM t1 WHERE a=p_a AND b=p_b;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+OPEN c(a_a, a_b);
+read_loop: LOOP
+FETCH c INTO v_a, v_b;
+IF done THEN
+LEAVE read_loop;
+END IF;
+INSERT INTO t2 VALUES (v_a,v_b);
+END LOOP;
+CLOSE c;
+END;
+$$
+CALL p1(1,'11');
+SELECT * FROM t2;
+a	b
+1	11
+DROP TABLE t1;
+DROP TABLE t2;
+DROP PROCEDURE p1;
+#
+# Parameters in WHERE and HAVING clauses
+#
+CREATE TABLE t1 (name VARCHAR(10), value INT);
+INSERT INTO t1 VALUES ('but',1);
+INSERT INTO t1 VALUES ('but',1);
+INSERT INTO t1 VALUES ('but',1);
+INSERT INTO t1 VALUES ('bin',1);
+INSERT INTO t1 VALUES ('bin',1);
+INSERT INTO t1 VALUES ('bot',1);
+CREATE PROCEDURE p1 (arg_name_limit VARCHAR(32), arg_total_limit INT)
+BEGIN
+DECLARE i INT DEFAULT 0;
+DECLARE v_name VARCHAR(10);
+DECLARE v_total INT;
+-- +0 is needed to work around the bug MDEV-11081
+DECLARE c CURSOR(p_v INT) FOR
+SELECT name, SUM(value + p_v) + 0 AS total FROM t1
+WHERE name LIKE arg_name_limit
+GROUP BY name HAVING total>=arg_total_limit;
+WHILE i < 2 DO
+BEGIN
+DECLARE done INT DEFAULT 0;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+OPEN c(i);
+read_loop: LOOP
+FETCH c INTO v_name, v_total;
+IF done THEN
+LEAVE read_loop;
+END IF;
+SELECT v_name, v_total;
+END LOOP;
+CLOSE c;
+SET i= i + 1;
+END;
+END WHILE;
+END;
+$$
+CALL p1('%', 2);
+v_name	v_total
+bin	2
+v_name	v_total
+but	3
+v_name	v_total
+bin	4
+v_name	v_total
+bot	2
+v_name	v_total
+but	6
+CALL p1('b_t', 0);
+v_name	v_total
+bot	1
+v_name	v_total
+but	3
+v_name	v_total
+bot	2
+v_name	v_total
+but	6
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# One parameter in LIMIT clause
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1');
+INSERT INTO t1 VALUES (2,'b2');
+INSERT INTO t1 VALUES (3,'b3');
+INSERT INTO t1 VALUES (4,'b4');
+INSERT INTO t1 VALUES (5,'b5');
+INSERT INTO t1 VALUES (6,'b6');
+CREATE PROCEDURE p1(a_a INT)
+BEGIN
+DECLARE done INT DEFAULT 0;
+DECLARE v_a INT;
+DECLARE v_b VARCHAR(10);
+DECLARE c CURSOR (p_a INT) FOR SELECT a,b FROM t1 ORDER BY a LIMIT p_a;
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+CREATE TABLE t2 (a INT, b VARCHAR(10));
+OPEN c(a_a);
+read_loop: LOOP
+FETCH c INTO v_a, v_b;
+IF done THEN
+LEAVE read_loop;
+END IF;
+INSERT INTO t2 VALUES (v_a,v_b);
+END LOOP;
+CLOSE c;
+SELECT * FROM t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1(1);
+a	b
+1	b1
+CALL p1(3);
+a	b
+1	b1
+2	b2
+3	b3
+CALL p1(6);
+a	b
+1	b1
+2	b2
+3	b3
+4	b4
+5	b5
+6	b6
+DROP TABLE t1;
+DROP PROCEDURE p1;
+#
+# End of MDEV-12457 Cursors with parameters
+#
+#
+# MDEV-14415 Add Oracle-style FOR loop to sql_mode=DEFAULT
+#
+# Explicit cursor
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1'), (2,'b2'), (3,'b3');
+BEGIN NOT ATOMIC
+DECLARE cur CURSOR FOR SELECT * FROM t1;
+FOR rec IN cur
+DO
+SELECT rec.a AS a, rec.b AS b;
+END FOR;
+END;
+$$
+a	b
+1	b1
+a	b
+2	b2
+a	b
+3	b3
+DROP TABLE t1;
+# Explicit cursor with parameters
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES (1,'b1'), (2,'b2'), (3,'b3');
+BEGIN NOT ATOMIC
+DECLARE cur CURSOR(pa INT) FOR SELECT * FROM t1 WHERE a>=pa;
+FOR rec IN cur(2)
+DO
+SELECT rec.a AS a, rec.b AS b;
+END FOR;
+END;
+$$
+a	b
+2	b2
+a	b
+3	b3
+DROP TABLE t1;
+# Explicit cursor + label
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES ('1','b1'), ('2','b2');
+BEGIN NOT ATOMIC
+DECLARE cur CURSOR FOR SELECT * FROM t1;
+forrec:
+FOR rec IN cur
+DO
+SELECT rec.a AS a, rec.b AS b;
+IF rec.a = 2 THEN
+LEAVE forrec;
+END IF;
+END FOR forrec;
+END;
+$$
+a	b
+1	b1
+a	b
+2	b2
+DROP TABLE t1;
+# Explicit cursor + FETCH inside the loop body produce an error on "NOT FOUND"
+BEGIN NOT ATOMIC
+DECLARE x INT;
+DECLARE cur CURSOR FOR SELECT 1 AS x;
+FOR rec IN cur
+DO
+FETCH cur INTO x;
+END FOR;
+END;
+$$
+ERROR 02000: No data - zero rows fetched, selected, or processed
+# Explicit cursor + FETCH inside the loop body are normally handled by "HANDLER FOR NOT FOUND"
+BEGIN NOT ATOMIC
+DECLARE done INT DEFAULT 0;
+DECLARE cur CURSOR FOR SELECT 1 AS x, 'y1' AS y UNION
+SELECT 2,'y2' UNION
+SELECT 3,'y3';
+DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+forrec:
+FOR rec IN cur
+DO
+SELECT CONCAT(rec.x, ' ', rec.y) AS 'Implicit FETCH';
+FETCH cur INTO rec;
+IF done THEN
+SELECT 'NO DATA' AS `Explicit FETCH`;
+LEAVE forrec;
+ELSE
+SELECT CONCAT(rec.x, ' ', rec.y) AS 'Explicit FETCH';
+END IF;
+END FOR;
+END;
+$$
+Implicit FETCH
+1 y1
+Explicit FETCH
+2 y2
+Implicit FETCH
+3 y3
+Explicit FETCH
+NO DATA
+# Implicit cursor
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES ('1','b1'), ('2','b2');
+BEGIN NOT ATOMIC
+FOR rec IN (SELECT * FROM t1)
+DO
+SELECT rec.a AS a, rec.b AS b;
+END FOR;
+END;
+$$
+a	b
+1	b1
+a	b
+2	b2
+DROP TABLE t1;
+# Implicit cursor + label
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 VALUES ('1','b1'), ('2','b2');
+BEGIN NOT ATOMIC
+forrec:
+FOR rec IN (SELECT * FROM t1)
+DO
+SELECT rec.a AS a, rec.b AS b;
+IF rec.a = 2 THEN
+LEAVE forrec;
+END IF;
+END FOR;
+END;
+$$
+a	b
+1	b1
+a	b
+2	b2
+DROP TABLE t1;
+#
+# MDEV-15941 Explicit cursor FOR loop does not close the cursor
+#
+BEGIN NOT ATOMIC
+DECLARE v INT;
+DECLARE cur CURSOR FOR SELECT 1 AS a FROM DUAL;
+FOR rec IN cur
+DO
+SELECT rec.a;
+END FOR;
+FETCH cur INTO v;
+END;
+$$
+rec.a
+1
+ERROR 24000: Cursor is not open
+BEGIN NOT ATOMIC
+DECLARE v INT;
+DECLARE cur CURSOR FOR SELECT 1 AS a FROM DUAL;
+label:
+FOR rec IN cur
+DO
+SELECT rec.a;
+END FOR;
+FETCH cur INTO v;
+END;
+$$
+rec.a
+1
+ERROR 24000: Cursor is not open
+BEGIN NOT ATOMIC
+DECLARE cur CURSOR FOR SELECT 1 AS a FROM DUAL;
+OPEN cur;
+FOR rec IN cur DO
+SELECT rec.a;
+END FOR;
+END;
+$$
+ERROR 24000: Cursor is already open
+BEGIN NOT ATOMIC
+DECLARE cur CURSOR FOR SELECT 1 AS a FROM DUAL;
+FOR rec IN cur
+DO
+SELECT rec.a;
+END FOR;
+FOR rec IN cur
+DO
+SELECT rec.a;
+END FOR;
+END;
+$$
+rec.a
+1
+rec.a
+1
+BEGIN NOT ATOMIC
+DECLARE cur CURSOR FOR SELECT 1 AS a FROM DUAL;
+label1:
+FOR rec IN cur
+DO
+SELECT rec.a;
+END FOR;
+label2:
+FOR rec IN cur
+DO
+SELECT rec.a;
+END FOR;
+END;
+$$
+rec.a
+1
+rec.a
+1
+#
+# MDEV-16584 SP with a cursor inside a loop wastes THD memory aggressively
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE mem_used_old BIGINT UNSIGNED DEFAULT
+(SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS
+WHERE VARIABLE_NAME='MEMORY_USED');
+DECLARE i INT DEFAULT 1;
+WHILE i <= 5000
+DO
+BEGIN
+DECLARE msg TEXT;
+DECLARE mem_used_cur BIGINT UNSIGNED DEFAULT
+(SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS
+WHERE VARIABLE_NAME='MEMORY_USED');
+DECLARE cur CURSOR FOR SELECT 1 FROM DUAL;
+IF (mem_used_cur >= mem_used_old * 2) THEN
+SHOW STATUS LIKE 'Memory_used';
+SET msg=CONCAT('Memory leak detected: i=', i, ' mem_used_old=',mem_used_old,' mem_used_cur=', mem_used_cur);
+SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT=msg;
+END IF;
+END;
+SET i=i+1;
+END WHILE;
+END;
+$$
+CALL p1;
+DROP PROCEDURE p1;
+#
+# MDEV-17278 CURSOR FOR LOOP - ERROR: unexpected end of stream, read 0 bytes (SERVER CRASH)
+#
+CREATE TABLE t1 (id2 int, id int, en1 enum('aaa','a','b','c'));
+INSERT INTO t1 VALUES(1,1,'aaa'),(2,2,'a'),(3,3,'b'),(4,4,'c');
+CREATE PROCEDURE p1()
+BEGIN
+FOR rec IN (SELECT en1 FROM t1)
+DO
+SELECT rec.en1;
+END FOR;
+END;
+$$
+CALL p1();
+rec.en1
+aaa
+rec.en1
+a
+rec.en1
+b
+rec.en1
+c
+DROP PROCEDURE p1;
+DROP TABLE t1;

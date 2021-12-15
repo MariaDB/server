@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include <my_global.h>
 #include <my_sys.h>
@@ -20,35 +20,34 @@
 #include <tap.h>
 
 volatile uint32 bad;
-pthread_attr_t thr_attr;
 pthread_mutex_t mutex;
-pthread_cond_t cond;
-uint running_threads;
 
 void do_tests();
 
 void test_concurrently(const char *test, pthread_handler handler, int n, int m)
 {
-  pthread_t t;
+  pthread_t *threads= malloc(n * sizeof(pthread_t));
+  int i;
   ulonglong now= my_interval_timer();
 
+  assert(threads);
   bad= 0;
 
   diag("Testing %s with %d threads, %d iterations... ", test, n, m);
-  for (running_threads= n ; n ; n--)
+  for (i= 0; i < n; i++)
   {
-    if (pthread_create(&t, &thr_attr, handler, &m) != 0)
+    if (pthread_create(&threads[i], 0, handler, &m) != 0)
     {
       diag("Could not create thread");
       abort();
     }
   }
-  pthread_mutex_lock(&mutex);
-  while (running_threads)
-    pthread_cond_wait(&cond, &mutex);
-  pthread_mutex_unlock(&mutex);
+
+  for (i= 0; i < n; i++)
+    pthread_join(threads[i], 0);
 
   now= my_interval_timer() - now;
+  free(threads);
   ok(!bad, "tested %s in %g secs (%d)", test, ((double)now)/1e9, bad);
 }
 
@@ -60,27 +59,15 @@ int main(int argc __attribute__((unused)), char **argv)
     DBUG_SET_INITIAL(argv[1]);
 
   pthread_mutex_init(&mutex, 0);
-  pthread_cond_init(&cond, 0);
-  pthread_attr_init(&thr_attr);
-  pthread_attr_setdetachstate(&thr_attr,PTHREAD_CREATE_DETACHED);
 
-#define CYCLES 3000
+#define CYCLES 30000
 #define THREADS 30
 
   diag("N CPUs: %d", my_getncpus());
 
   do_tests();
 
-  /*
-    workaround until we know why it crashes randomly on some machine
-    (BUG#22320).
-  */
-#ifdef NOT_USED
-  sleep(2);
-#endif
   pthread_mutex_destroy(&mutex);
-  pthread_cond_destroy(&cond);
-  pthread_attr_destroy(&thr_attr);
   my_end(0);
   return exit_status();
 }

@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, Monty Program Ab.
+/* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2018, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -126,7 +126,7 @@
 #define TMP_TABLE_ALL_COLUMNS   (1ULL << 12)    // SELECT, intern
 #define OPTION_WARNINGS         (1ULL << 13)    // THD, user
 #define OPTION_AUTO_IS_NULL     (1ULL << 14)    // THD, user, binlog
-#define OPTION_NO_CHECK_CONSTRAINT_CHECKS  (1ULL << 14)
+#define OPTION_NO_CHECK_CONSTRAINT_CHECKS  (1ULL << 15)
 #define OPTION_SAFE_UPDATES     (1ULL << 16)    // THD, user
 #define OPTION_BUFFER_RESULT    (1ULL << 17)    // SELECT, user
 #define OPTION_BIN_LOG          (1ULL << 18)    // THD, user
@@ -175,12 +175,6 @@
 */
 #define OPTION_MASTER_SQL_ERROR         (1ULL << 35)
 
-/*
-  Dont report errors for individual rows,
-  But just report error on commit (or read ofcourse)
-  Note! Reserved for use in MySQL Cluster
-*/
-#define OPTION_ALLOW_BATCH              (1ULL << 36) // THD, intern (slave)
 #define OPTION_SKIP_REPLICATION         (1ULL << 37) // THD, user
 #define OPTION_RPL_SKIP_PARALLEL        (1ULL << 38)
 #define OPTION_FOUND_COMMENT            (1ULL << 39) // SELECT, intern, parser

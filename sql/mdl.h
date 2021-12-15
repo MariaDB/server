@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "sql_plist.h"
 #include <my_sys.h>
@@ -299,6 +299,7 @@ public:
                             TABLE,
                             FUNCTION,
                             PROCEDURE,
+                            PACKAGE_BODY,
                             TRIGGER,
                             EVENT,
                             COMMIT,
@@ -455,7 +456,7 @@ public:
 
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
-  static void operator delete(void *ptr, MEM_ROOT *mem_root) {}
+  static void operator delete(void *, MEM_ROOT *) {}
 
   void init(MDL_key::enum_mdl_namespace namespace_arg,
             const char *db_arg, const char *name_arg,
@@ -468,6 +469,16 @@ public:
   {
     DBUG_ASSERT(ticket == NULL);
     type= type_arg;
+  }
+  void move_from(MDL_request &from)
+  {
+    type= from.type;
+    duration= from.duration;
+    ticket= from.ticket;
+    next_in_list= from.next_in_list;
+    prev_in_list= from.prev_in_list;
+    key.mdl_key_init(&from.key);
+    from.ticket=  NULL; // that's what "move" means
   }
 
   /**
@@ -496,7 +507,7 @@ public:
     is mandatory. Can only be used before the request has been
     granted.
   */
-  MDL_request& operator=(const MDL_request &rhs)
+  MDL_request& operator=(const MDL_request &)
   {
     ticket= NULL;
     /* Do nothing, in particular, don't try to copy the key. */

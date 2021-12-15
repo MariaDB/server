@@ -150,7 +150,7 @@ SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.uniq
 SET @@session.sql_mode=1411383296/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;
-SET @@session.character_set_client=8,@@session.collation_connection=8,@@session.collation_server=8/*!*/;
+SET @@session.character_set_client=X,@@session.collation_connection=X,@@session.collation_server=X/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
 CREATE TABLE t1 (
@@ -172,7 +172,7 @@ c2 VARCHAR(20)
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-3 trans
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -257,7 +257,7 @@ TRUNCATE TABLE t1
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-6
 /*!100001 SET @@session.gtid_seq_no=6*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -287,7 +287,7 @@ COMMIT
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-7
 /*!100001 SET @@session.gtid_seq_no=7*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -326,7 +326,7 @@ COMMIT
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-8
 /*!100001 SET @@session.gtid_seq_no=8*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -348,7 +348,7 @@ COMMIT
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-9 trans
 /*!100001 SET @@session.gtid_seq_no=9*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -433,7 +433,7 @@ TRUNCATE TABLE t2
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-12
 /*!100001 SET @@session.gtid_seq_no=12*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -463,7 +463,7 @@ COMMIT
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-13
 /*!100001 SET @@session.gtid_seq_no=13*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #
@@ -502,7 +502,7 @@ COMMIT
 # at #
 #010909  4:46:40 server id 1  end_log_pos # CRC32 XXX 	GTID 0-1-14
 /*!100001 SET @@session.gtid_seq_no=14*//*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 # at #
 # at #

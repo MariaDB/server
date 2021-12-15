@@ -1,4 +1,4 @@
-package My::Suite::GALERA;
+package My::Suite::Galera;
 use File::Basename;
 use My::Find;
 
@@ -6,26 +6,11 @@ use My::Find;
 
 return "Not run for embedded server" if $::opt_embedded_server;
 
-return "WSREP is not compiled in" unless defined $::mysqld_variables{'wsrep-on'};
+return "WSREP is not compiled in" if not ::have_wsrep();
 
-my ($provider) = grep { -f $_ } $ENV{WSREP_PROVIDER},
-                                "/usr/lib64/galera-3/libgalera_smm.so",
-                                "/usr/lib64/galera/libgalera_smm.so",
-                                "/usr/lib/galera-3/libgalera_smm.so",
-                                "/usr/lib/galera/libgalera_smm.so";
+return "No wsrep provider library" unless ::have_wsrep_provider();
 
-return "No wsrep provider library" unless -f $provider;
-
-$ENV{WSREP_PROVIDER} = $provider;
-
-my ($spath) = grep { -f "$_/wsrep_sst_rsync"; } "$::bindir/scripts", $::path_client_bindir;
-return "No SST scripts" unless $spath;
-
-my ($cpath) = grep { -f "$_/mysql"; } "$::bindir/scripts", $::path_client_bindir;
-return "No scritps" unless $cpath;
-
-my ($epath) = grep { -f "$_/my_print_defaults"; } "$::bindir/extra", $::path_client_bindir;
-return "No my_print_defaults" unless $epath;
+return ::wsrep_version_message() unless ::check_wsrep_version();
 
 push @::global_suppressions,
   (
@@ -73,16 +58,24 @@ push @::global_suppressions,
      qr|WSREP: Protocol violation. JOIN message sender .* is not in state transfer \(JOINED\). Message ignored.|,
      qr|WSREP: Unsupported protocol downgrade: incremental data collection disabled. Expect abort.|,
      qr(WSREP: Action message in non-primary configuration from member [0-9]*),
+     qr(WSREP: Last Applied Action message in non-primary configuration from member [0-9]*),
      qr(WSREP: discarding established .*),
      qr|WSREP: .*core_handle_uuid_msg.*|,
      qr(WSREP: --wsrep-causal-reads=ON takes precedence over --wsrep-sync-wait=0. WSREP_SYNC_WAIT_BEFORE_READ is on),
      qr|WSREP: JOIN message from member .* in non-primary configuration. Ignored.|,
+     qr(WSREP: Failed to remove page file .*),
+     qr(WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to .*),
+     qr|WSREP: Sending JOIN failed: -107 \(Transport endpoint is not connected\). Will retry in new primary component.|,
+     qr|WSREP: Trying to continue unpaused monitor|,
    );
 
-
-$ENV{PATH}="$epath:$ENV{PATH}";
-$ENV{PATH}="$spath:$ENV{PATH}" unless $epath eq $spath;
-$ENV{PATH}="$cpath:$ENV{PATH}" unless $cpath eq $spath;
+sub skip_combinations {
+  my %skip = ();
+  $skip{'include/have_stunnel.inc'} = "Need 'stunnel' utility"
+            unless ::which("stunnel");
+  $skip{'include/have_qpress.inc'} = "Need 'qpress' utility"
+            unless ::which("qpress");
+  %skip;
+}
 
 bless { };
-

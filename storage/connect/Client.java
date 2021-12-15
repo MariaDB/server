@@ -1,9 +1,13 @@
+
 package wrappers;
 
 import java.io.BufferedReader;
 import java.io.Console;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.sql.Date;
+import java.sql.Time;
+import java.sql.Timestamp;
 
 public class Client {
     static boolean    	 DEBUG = true;
@@ -58,6 +62,9 @@ public class Client {
 		  String query;
 		  System.out.println("Successfully connected to " + parms[1]);
 		  
+		  s = jdi.GetQuoteString();
+		  System.out.println("Qstr = '" + s + "'");
+		  
 		  while ((query = getLine("Query: ", false)) != null) {
 		    n = jdi.Execute(query);
 		    System.out.println("Returned n = " + n);
@@ -79,7 +86,11 @@ public class Client {
 	private static void PrintResult(int ncol) {
     	// Get result set meta data
     	int i;
+    	Date date = new Date(0);
+    	Time time = new Time(0);
+    	Timestamp tsp = new Timestamp(0);
     	String columnName;
+		Object job;
 
     	// Get the column names; column indices start from 1
     	for (i = 1; i <= ncol; i++) {
@@ -112,6 +123,7 @@ public class Client {
 	    		case java.sql.Types.VARCHAR:
 	    		case java.sql.Types.LONGVARCHAR:
 	    		case java.sql.Types.CHAR:
+				case 1111:
 			    	System.out.print(jdi.StringField(i, null));
 	    			break;
 	    		case java.sql.Types.INTEGER:
@@ -120,14 +132,17 @@ public class Client {
 	    		case java.sql.Types.BIGINT:
 			    	System.out.print(jdi.BigintField(i, null));
 	    			break;
-	    		case java.sql.Types.TIMESTAMP:
-			    	System.out.print(jdi.TimestampField(i, null));
-	    			break;
 	    		case java.sql.Types.TIME:
-			    	System.out.print(jdi.TimeField(i, null));
+	    			time.setTime((long)jdi.TimeField(i, null) * 1000);
+			    	System.out.print(time);
 	    			break;
 	    		case java.sql.Types.DATE:
-			    	System.out.print(jdi.DateField(i, null));
+	    			date.setTime((long)jdi.DateField(i, null) * 1000);
+			    	System.out.print(date);
+	    			break;
+	    		case java.sql.Types.TIMESTAMP:
+	    			tsp.setTime((long)jdi.TimestampField(i, null) * 1000);
+			    	System.out.print(tsp);
 	    			break;
 	    		case java.sql.Types.SMALLINT:
 			    	System.out.print(jdi.IntField(i, null));
@@ -141,6 +156,8 @@ public class Client {
 	    		case java.sql.Types.BOOLEAN:
 	    			System.out.print(jdi.BooleanField(i, null));
 	    		default:
+					job = jdi.ObjectField(i, null);
+					System.out.print(job.toString());
 	    			break;
 	    		} // endswitch Type
 	    		

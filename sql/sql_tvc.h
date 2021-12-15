@@ -50,10 +50,14 @@ public:
     have_query_plan(QEP_NOT_PRESENT_YET), explain(0),
     select_options(select_options_arg)
   { };
+
+  ha_rows get_records() { return lists_of_values.elements; }
   
   bool prepare(THD *thd_arg, SELECT_LEX *sl, 
 	       select_result *tmp_result,
 	       st_select_lex_unit *unit_arg);
+
+  bool to_be_wrapped_as_with_tail();
 
   int save_explain_data_intern(THD *thd_arg,
 			       Explain_query *output);
@@ -62,4 +66,7 @@ public:
 
   void print(THD *thd_arg, String *str, enum_query_type query_type);
 };
+
+st_select_lex *wrap_tvc_with_tail(THD *thd, st_select_lex *tvc_sl);
+
 #endif /* SQL_TVC_INCLUDED */

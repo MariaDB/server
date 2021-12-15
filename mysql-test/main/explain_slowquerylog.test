@@ -1,0 +1,69 @@
+#
+# This is a test for EXPLAINs being written into slow query log.
+# For now, we just run the queries and hope not to crash.
+# 
+#
+--disable_warnings
+drop table if exists t0,t1;
+--enable_warnings
+
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+explain select * from t0 where a < 3;
+
+--echo # 
+--echo # MDEV-5045: Server crashes in QPF_query::print_explain with log_slow_verbosity='query_plan,explain'
+--echo # 
+set autocommit=1;
+drop table t0;
+
+--echo # 
+--echo # MDEV-5047 virtual THD::~THD(): Assertion `status_var.memory_used == 0' fails on disconnect
+--echo # 
+--connect (con1,localhost,root,,)
+--error ER_NO_SUCH_TABLE
+ALTER TABLE nonexisting ENABLE KEYS;
+SHOW WARNINGS;
+--disconnect con1
+--connection default
+SELECT 1;
+
+--echo #
+--echo # MDEV-5060 Server crashes on EXPLAIN EXTENDED or EXPLAIN PARTITIONS with explain in slow_log
+--echo #
+EXPLAIN PARTITIONS SELECT 1 ;
+
+
+--echo #
+--echo # MDEV-5106: Server crashes in Explain_union::print_explain on ER_TOO_BIG_SELECT with explain in slow log
+--echo #
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+(1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+SET max_join_size = 10;
+--error ER_TOO_BIG_SELECT
+( SELECT ta.* FROM t1 ta, t1 tb ) UNION ( SELECT * FROM t1 );
+SELECT 'Server still alive?' as 'Yes';
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-5308 Crash when running with slow_query_log=1
+--echo #
+SET @save1= @@log_slow_rate_limit; 
+SET @save2= @@long_query_time; 
+
+SET log_slow_rate_limit=1000; 
+SET long_query_time=0.000001; 
+SELECT 1; 
+
+SET log_slow_rate_limit=@save1;
+SET long_query_time=@save2;
+
+#
+# MDEV-16153 Server crashes in Apc_target::disable, ASAN heap-use-after-free in Explain_query::~Explain_query upon/after EXECUTE IMMEDIATE
+#
+create table t1 (a int);
+execute immediate "select * from t1 join t1 t2 on (t1.a>5) where exists (select 1)";
+drop table t1;

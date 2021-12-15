@@ -1,0 +1,10 @@
+--echo #
+--echo # MDEV-15070 Crash when doing a CREATE VIEW inside a package routine
+--echo #
+
+SET @object_type='package_replace_pkg1';
+--source sp-package-concurrent-dml.inc
+
+SET @object_type='package_body_replace_pkg1';
+--source sp-package-concurrent-dml.inc
+

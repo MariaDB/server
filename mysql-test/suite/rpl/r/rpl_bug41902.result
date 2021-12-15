@@ -2,6 +2,7 @@ include/master-slave.inc
 [connection master]
 connection slave;
 stop slave;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 SET @@debug_dbug="d,simulate_find_log_pos_error";
 reset slave;
 ERROR HY000: Target log not found in binlog index
@@ -19,6 +20,7 @@ SET @@debug_dbug="";
 reset slave;
 change master to master_host='dummy';
 connection master;
+SET @saved_dbug_m = @@global.debug_dbug;
 SET @@debug_dbug="d,simulate_find_log_pos_error";
 reset master;
 ERROR HY000: Target log not found in binlog index
@@ -29,6 +31,7 @@ purge binary logs to 'master-bin.000001';
 ERROR HY000: Target log not found in binlog index
 SET @@debug_dbug="";
 purge binary logs to 'master-bin.000001';
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 ==== clean up ====
 CHANGE MASTER TO MASTER_HOST = '127.0.0.1';
 include/rpl_end.inc

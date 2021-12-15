@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -30,6 +31,7 @@ Created 2013/03/27 Allen Lai and Jimmy Yang
 #include "mach0data.h"
 
 #include <spatial.h>
+#include <cmath>
 
 /* These definitions are for comparing 2 mbrs. */
 
@@ -68,11 +70,10 @@ static
 int
 rtree_add_point_to_mbr(
 /*===================*/
-	uchar**	wkb,		/*!< in: pointer to wkb,
+	const uchar**	wkb,		/*!< in: pointer to wkb,
 				where point is stored */
-	uchar*	end,		/*!< in: end of wkb. */
+	const uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
-	uchar	byte_order,	/*!< in: byte order. */
 	double*	mbr)		/*!< in/out: mbr, which
 				must be of length n_dims * 2. */
 {
@@ -108,15 +109,14 @@ static
 int
 rtree_get_point_mbr(
 /*================*/
-	uchar**	wkb,		/*!< in: pointer to wkb,
+	const uchar**	wkb,		/*!< in: pointer to wkb,
 				where point is stored. */
-	uchar*	end,		/*!< in: end of wkb. */
+	const uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
-	uchar	byte_order,	/*!< in: byte order. */
 	double*	mbr)		/*!< in/out: mbr,
 				must be of length n_dims * 2. */
 {
-	return rtree_add_point_to_mbr(wkb, end, n_dims, byte_order, mbr);
+	return rtree_add_point_to_mbr(wkb, end, n_dims, mbr);
 }
 
 
@@ -127,11 +127,10 @@ static
 int
 rtree_get_linestring_mbr(
 /*=====================*/
-	uchar**	wkb,		/*!< in: pointer to wkb,
+	const uchar**	wkb,		/*!< in: pointer to wkb,
 				where point is stored. */
-	uchar*	end,		/*!< in: end of wkb. */
+	const uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
-	uchar	byte_order,	/*!< in: byte order. */
 	double*	mbr)		/*!< in/out: mbr,
 				must be of length n_dims * 2. */
 {
@@ -142,8 +141,7 @@ rtree_get_linestring_mbr(
 
 	for (; n_points > 0; --n_points) {
 		/* Add next point to mbr */
-		if (rtree_add_point_to_mbr(wkb, end, n_dims,
-					   byte_order, mbr)) {
+		if (rtree_add_point_to_mbr(wkb, end, n_dims, mbr)) {
 			return(-1);
 		}
 	}
@@ -158,11 +156,10 @@ static
 int
 rtree_get_polygon_mbr(
 /*==================*/
-	uchar**	wkb,		/*!< in: pointer to wkb,
+	const uchar**	wkb,		/*!< in: pointer to wkb,
 				where point is stored. */
-	uchar*	end,		/*!< in: end of wkb. */
+	const uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
-	uchar	byte_order,	/*!< in: byte order. */
 	double*	mbr)		/*!< in/out: mbr,
 				must be of length n_dims * 2. */
 {
@@ -178,8 +175,7 @@ rtree_get_polygon_mbr(
 
 		for (; n_points > 0; --n_points) {
 			/* Add next point to mbr */
-			if (rtree_add_point_to_mbr(wkb, end, n_dims,
-						   byte_order, mbr)) {
+			if (rtree_add_point_to_mbr(wkb, end, n_dims, mbr)) {
 				return(-1);
 			}
 		}
@@ -195,9 +191,9 @@ static
 int
 rtree_get_geometry_mbr(
 /*===================*/
-	uchar**	wkb,		/*!< in: pointer to wkb,
+	const uchar**	wkb,		/*!< in: pointer to wkb,
 				where point is stored. */
-	uchar*	end,		/*!< in: end of wkb. */
+	const uchar*	end,		/*!< in: end of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
 	double*	mbr,		/*!< in/out: mbr. */
 	int	top)		/*!< in: if it is the top,
@@ -205,11 +201,10 @@ rtree_get_geometry_mbr(
 				by itself. */
 {
 	int	res;
-	uchar	byte_order = 2;
 	uint	wkb_type = 0;
 	uint	n_items;
 
-	byte_order = *(*wkb);
+	/* byte_order = *(*wkb); */
 	++(*wkb);
 
 	wkb_type = uint4korr((*wkb));
@@ -217,24 +212,22 @@ rtree_get_geometry_mbr(
 
 	switch ((enum wkbType) wkb_type) {
 	case wkbPoint:
-		res = rtree_get_point_mbr(wkb, end, n_dims, byte_order, mbr);
+		res = rtree_get_point_mbr(wkb, end, n_dims, mbr);
 		break;
 	case wkbLineString:
-		res = rtree_get_linestring_mbr(wkb, end, n_dims,
-					       byte_order, mbr);
+		res = rtree_get_linestring_mbr(wkb, end, n_dims, mbr);
 		break;
 	case wkbPolygon:
-		res = rtree_get_polygon_mbr(wkb, end, n_dims, byte_order, mbr);
+		res = rtree_get_polygon_mbr(wkb, end, n_dims, mbr);
 		break;
 	case wkbMultiPoint:
 		n_items = uint4korr((*wkb));
 		(*wkb) += 4;
 		for (; n_items > 0; --n_items) {
-			byte_order = *(*wkb);
+			/* byte_order = *(*wkb); */
 			++(*wkb);
 			(*wkb) += 4;
-			if (rtree_get_point_mbr(wkb, end, n_dims,
-						byte_order, mbr)) {
+			if (rtree_get_point_mbr(wkb, end, n_dims, mbr)) {
 				return(-1);
 			}
 		}
@@ -244,11 +237,10 @@ rtree_get_geometry_mbr(
 		n_items = uint4korr((*wkb));
 		(*wkb) += 4;
 		for (; n_items > 0; --n_items) {
-			byte_order = *(*wkb);
+			/* byte_order = *(*wkb); */
 			++(*wkb);
 			(*wkb) += 4;
-			if (rtree_get_linestring_mbr(wkb, end, n_dims,
-						     byte_order, mbr)) {
+			if (rtree_get_linestring_mbr(wkb, end, n_dims, mbr)) {
 				return(-1);
 			}
 		}
@@ -258,11 +250,10 @@ rtree_get_geometry_mbr(
 		n_items = uint4korr((*wkb));
 		(*wkb) += 4;
 		for (; n_items > 0; --n_items) {
-			byte_order = *(*wkb);
+			/* byte_order = *(*wkb); */
 			++(*wkb);
 			(*wkb) += 4;
-			if (rtree_get_polygon_mbr(wkb, end, n_dims,
-						  byte_order, mbr)) {
+			if (rtree_get_polygon_mbr(wkb, end, n_dims, mbr)) {
 				return(-1);
 			}
 		}
@@ -297,7 +288,7 @@ stored in "well-known binary representation" (wkb) format.
 int
 rtree_mbr_from_wkb(
 /*===============*/
-	uchar*	wkb,		/*!< in: wkb */
+	const uchar*	wkb,		/*!< in: wkb */
 	uint	size,		/*!< in: size of wkb. */
 	uint	n_dims,		/*!< in: dimensions. */
 	double*	mbr)		/*!< in/out: mbr, which must
@@ -366,7 +357,7 @@ mbr_join_square(
 
 	/* Check if finite (not infinity or NaN),
 	so we don't get NaN in calculations */
-	if (!isfinite(square)) {
+	if (!std::isfinite(square)) {
 		return DBL_MAX;
 	}
 
@@ -402,7 +393,7 @@ copy_coords(
 /*========*/
 	double*		dst,	/*!< in/out: destination. */
 	const double*	src,	/*!< in: source. */
-	int		n_dim)	/*!< in: dimensions. */
+	int)
 {
 	memcpy(dst, src, DATA_MBR_LEN);
 }
@@ -443,26 +434,6 @@ pick_seeds(
 	}
 }
 
-/*********************************************************//**
-Generates a random iboolean value.
-@return the random value */
-static
-ibool
-ut_rnd_gen_ibool(void)
-/*=================*/
-{
-	ulint    x;
-
-	x = ut_rnd_gen_ulint();
-
-	if (((x >> 20) + (x >> 15)) & 1) {
-
-		return(TRUE);
-	}
-
-	return(FALSE);
-}
-
 /*************************************************************//**
 Select next node and group where to add. */
 static
@@ -499,8 +470,7 @@ pick_next(
 			/* Introduce some randomness if the record
 			is identical */
 			if (diff == 0) {
-				diff = static_cast<double>(
-					ut_rnd_gen_ibool());
+				diff = static_cast<double>(ut_rnd_gen() & 1);
 			}
 
 			*n_group = 1 + (diff > 0);
@@ -624,7 +594,7 @@ rtree_key_cmp(
 /*==========*/
 	page_cur_mode_t	mode,	/*!< in: compare method. */
 	const uchar*	b,	/*!< in: first key. */
-	int		b_len,	/*!< in: first key len. */
+	int,
 	const uchar*	a,	/*!< in: second key. */
 	int		a_len)	/*!< in: second key len. */
 {
@@ -799,36 +769,4 @@ rtree_area_overlapping(
 	}
 
 	return(area);
-}
-
-/** Get the wkb of default POINT value, which represents POINT(0 0)
-if it's of dimension 2, etc.
-@param[in]	n_dims		dimensions
-@param[out]	wkb		wkb buffer for default POINT
-@param[in]	len		length of wkb buffer
-@return non-0 indicate the length of wkb of the default POINT,
-0 if the buffer is too small */
-uint
-get_wkb_of_default_point(
-	uint	n_dims,
-	uchar*	wkb,
-	uint	len)
-{
-  // JAN: TODO: MYSQL 5.7 GIS
-  #define GEOM_HEADER_SIZE 16
-	if (len < GEOM_HEADER_SIZE + sizeof(double) * n_dims) {
-		return(0);
-	}
-
-	/** POINT wkb comprises SRID, wkb header(byte order and type)
-	and coordinates of the POINT */
-	len = GEOM_HEADER_SIZE + sizeof(double) * n_dims;
-	/** We always use 0 as default coordinate */
-	memset(wkb, 0, len);
-	/** We don't need to write SRID, write 0x01 for Byte Order */
-	mach_write_to_n_little_endian(wkb + SRID_SIZE, 1, 0x01);
-	/** Write wkbType::wkbPoint for the POINT type */
-	mach_write_to_n_little_endian(wkb + SRID_SIZE + 1, 4, wkbPoint);
-
-	return(len);
 }

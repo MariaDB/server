@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation.
+/* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2018, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "heapdef.h"
 
@@ -98,7 +98,14 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
           /* fall through */
         case HA_KEYTYPE_VARTEXT1:
           keyinfo->flag|= HA_VAR_LENGTH_KEY;
-          length+= 2;
+          /*
+            For BTREE algorithm, key length, greater than or equal
+            to 255, is packed on 3 bytes.
+          */
+          if (keyinfo->algorithm == HA_KEY_ALG_BTREE)
+            length+= size_to_store_key_length(keyinfo->seg[j].length);
+          else
+            length+= 2;
           /* Save number of bytes used to store length */
           keyinfo->seg[j].bit_start= 1;
           break;
@@ -107,7 +114,14 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
           /* fall_through */
         case HA_KEYTYPE_VARTEXT2:
           keyinfo->flag|= HA_VAR_LENGTH_KEY;
-          length+= 2;
+          /*
+            For BTREE algorithm, key length, greater than or equal
+            to 255, is packed on 3 bytes.
+          */
+          if (keyinfo->algorithm == HA_KEY_ALG_BTREE)
+            length+= size_to_store_key_length(keyinfo->seg[j].length);
+          else
+            length+= 2;
           /* Save number of bytes used to store length */
           keyinfo->seg[j].bit_start= 2;
           /*

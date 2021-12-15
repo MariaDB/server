@@ -1,0 +1,9 @@
+connection node_1;
+connection node_2;
+connection node_1;
+SET GLOBAL wsrep_provider_options = 'pc.weight=2';
+connection node_2;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
+SET SESSION wsrep_sync_wait = 0;
+connection node_1;
+SET GLOBAL wsrep_provider_options = 'pc.weight = 1';

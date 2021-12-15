@@ -43,6 +43,10 @@ SET DEBUG_DBUG = '+d,innodb_OOM_inplace_alter';
 CREATE UNIQUE INDEX c2 ON t1(c2);
 ERROR HY000: Out of memory.
 SET DEBUG_DBUG = @saved_debug_dbug;
+SET DEBUG_DBUG = '+d,innodb_OOM_prepare_add_index';
+ALTER TABLE t1 ADD KEY(c2), ADD KEY c3_10(c3(10)), ADD KEY c3_c2(c3(4),c2);
+ERROR HY000: Out of memory.
+SET DEBUG_DBUG = @saved_debug_dbug;
 CREATE UNIQUE INDEX c2 ON t1(c2);
 DROP INDEX c2 ON t1;
 connection default;
@@ -513,7 +517,7 @@ SET DEBUG_SYNC = 'RESET';
 disconnect con1;
 CREATE TABLE t2 (c VARCHAR(64)) ENGINE=InnoDB;
 ALTER TABLE t2 ADD FOREIGN KEY (c) REFERENCES t1 (c);
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 150 "Foreign key constraint is incorrectly formed")
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 DROP TABLE t2,t1;
 SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;
 SET GLOBAL innodb_monitor_enable  = default;

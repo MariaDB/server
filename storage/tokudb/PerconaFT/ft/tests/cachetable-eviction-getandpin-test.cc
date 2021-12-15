@@ -83,7 +83,6 @@ static void cachetable_predef_fetch_maybegetandpin_test (void) {
     // let's get and pin this node a bunch of times to drive up the clock count
     for (int i = 0; i < 20; i++) {
         void* value;
-        long size;
         CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
         wc.flush_callback = flush;
         r = toku_cachetable_get_and_pin(
@@ -91,7 +90,6 @@ static void cachetable_predef_fetch_maybegetandpin_test (void) {
             key, 
             fullhash, 
             &value, 
-            &size, 
             wc, 
             def_fetch,
             def_pf_req_callback,
@@ -109,14 +107,12 @@ static void cachetable_predef_fetch_maybegetandpin_test (void) {
     // def_fetch another block, causing an eviction of the first block we made above
     do_sleep = true;
     void* value2;
-    long size2;
     CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
     r = toku_cachetable_get_and_pin(
         f1,
         make_blocknum(1),
         1,
         &value2,
-        &size2,
         wc, 
         def_fetch,
         def_pf_req_callback,
@@ -131,14 +127,16 @@ static void cachetable_predef_fetch_maybegetandpin_test (void) {
     toku_cachetable_verify(ct);
 
     void *v = 0;
-    long size = 0;
     // now verify that the block we are trying to evict is gone
     wc = def_write_callback(NULL);
     wc.flush_callback = flush;
-    r = toku_cachetable_get_and_pin_nonblocking(f1, key, fullhash, &v, &size, wc, def_fetch, def_pf_req_callback, def_pf_callback, PL_WRITE_EXPENSIVE, NULL, NULL);
+    r = toku_cachetable_get_and_pin_nonblocking(f1, key, fullhash, &v, wc, def_fetch, def_pf_req_callback, def_pf_callback, PL_WRITE_EXPENSIVE, NULL, NULL);
     assert(r == TOKUDB_TRY_AGAIN);
-    r = toku_cachetable_get_and_pin(f1, key, fullhash, &v, &size, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
-    assert(r == 0 && v == 0 && size == 8);
+    r = toku_cachetable_get_and_pin(f1, key, fullhash, &v, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+    assert(r == 0 && v == 0);
+    PAIR_ATTR attr;
+    r = toku_cachetable_get_attr(f1, key, fullhash, &attr);
+    assert(r == 0 && attr.size == 8);
     do_sleep = false;
 
     struct timeval tend; 

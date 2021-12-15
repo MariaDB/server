@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,13 +11,15 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#define SPIDER_DETAIL_VERSION "3.3.13"
+#define SPIDER_DETAIL_VERSION "3.3.14"
 #define SPIDER_HEX_VERSION 0x0303
 
 #if MYSQL_VERSION_ID < 50500
 #define spider_my_free(A,B) my_free(A,B)
+#define pthread_mutex_assert_owner(A)
+#define pthread_mutex_assert_not_owner(A)
 #else
 #define spider_my_free(A,B) my_free(A)
 #ifdef pthread_mutex_t
@@ -40,6 +42,8 @@
 #undef pthread_mutex_destroy
 #endif
 #define pthread_mutex_destroy mysql_mutex_destroy
+#define pthread_mutex_assert_owner(A) mysql_mutex_assert_owner(A)
+#define pthread_mutex_assert_not_owner(A) mysql_mutex_assert_not_owner(A)
 #ifdef pthread_cond_t
 #undef pthread_cond_t
 #endif
@@ -74,12 +78,21 @@
 #define spider_user_defined_key_parts(A) (A)->user_defined_key_parts
 #define spider_join_table_count(A) (A)->table_count
 #define SPIDER_CAN_BG_UPDATE (1LL << 39)
-#define SPIDER_ALTER_ADD_PARTITION        Alter_info::ALTER_ADD_PARTITION
-#define SPIDER_ALTER_DROP_PARTITION       Alter_info::ALTER_DROP_PARTITION
-#define SPIDER_ALTER_COALESCE_PARTITION   Alter_info::ALTER_COALESCE_PARTITION
-#define SPIDER_ALTER_REORGANIZE_PARTITION Alter_info::ALTER_REORGANIZE_PARTITION
-#define SPIDER_ALTER_TABLE_REORG          Alter_info::ALTER_TABLE_REORG
-#define SPIDER_ALTER_REBUILD_PARTITION    Alter_info::ALTER_REBUILD_PARTITION
+#if MYSQL_VERSION_ID >= 100304
+#define SPIDER_ALTER_PARTITION_ADD         ALTER_PARTITION_ADD
+#define SPIDER_ALTER_PARTITION_DROP        ALTER_PARTITION_DROP
+#define SPIDER_ALTER_PARTITION_COALESCE    ALTER_PARTITION_COALESCE
+#define SPIDER_ALTER_PARTITION_REORGANIZE  ALTER_PARTITION_REORGANIZE
+#define SPIDER_ALTER_PARTITION_TABLE_REORG ALTER_PARTITION_TABLE_REORG
+#define SPIDER_ALTER_PARTITION_REBUILD     ALTER_PARTITION_REBUILD
+#else
+#define SPIDER_ALTER_PARTITION_ADD         Alter_info::ALTER_ADD_PARTITION
+#define SPIDER_ALTER_PARTITION_DROP        Alter_info::ALTER_DROP_PARTITION
+#define SPIDER_ALTER_PARTITION_COALESCE    Alter_info::ALTER_COALESCE_PARTITION
+#define SPIDER_ALTER_PARTITION_REORGANIZE  Alter_info::ALTER_REORGANIZE_PARTITION
+#define SPIDER_ALTER_PARTITION_TABLE_REORG Alter_info::ALTER_TABLE_REORG
+#define SPIDER_ALTER_PARTITION_REBUILD     Alter_info::ALTER_REBUILD_PARTITION
+#endif
 #define SPIDER_WARN_LEVEL_WARN            Sql_condition::WARN_LEVEL_WARN
 #define SPIDER_WARN_LEVEL_NOTE            Sql_condition::WARN_LEVEL_NOTE
 #define SPIDER_THD_KILL_CONNECTION        KILL_CONNECTION
@@ -98,12 +111,12 @@
 #endif
 #define spider_user_defined_key_parts(A) (A)->key_parts
 #define spider_join_table_count(A) (A)->tables
-#define SPIDER_ALTER_ADD_PARTITION        ALTER_ADD_PARTITION
-#define SPIDER_ALTER_DROP_PARTITION       ALTER_DROP_PARTITION
-#define SPIDER_ALTER_COALESCE_PARTITION   ALTER_COALESCE_PARTITION
-#define SPIDER_ALTER_REORGANIZE_PARTITION ALTER_REORGANIZE_PARTITION
-#define SPIDER_ALTER_TABLE_REORG          ALTER_TABLE_REORG
-#define SPIDER_ALTER_REBUILD_PARTITION    ALTER_REBUILD_PARTITION
+#define SPIDER_ALTER_PARTITION_ADD         ALTER_ADD_PARTITION
+#define SPIDER_ALTER_PARTITION_DROP        ALTER_DROP_PARTITION
+#define SPIDER_ALTER_PARTITION_COALESCE    ALTER_COALESCE_PARTITION
+#define SPIDER_ALTER_PARTITION_REORGANIZE  ALTER_REORGANIZE_PARTITION
+#define SPIDER_ALTER_PARTITION_TABLE_REORG ALTER_TABLE_REORG
+#define SPIDER_ALTER_PARTITION_REBUILD     ALTER_REBUILD_PARTITION
 #define SPIDER_WARN_LEVEL_WARN            MYSQL_ERROR::WARN_LEVEL_WARN
 #define SPIDER_WARN_LEVEL_NOTE            MYSQL_ERROR::WARN_LEVEL_NOTE
 #define SPIDER_THD_KILL_CONNECTION        THD::KILL_CONNECTION
@@ -151,9 +164,7 @@
 
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100201
 #define SPIDER_HAS_MY_CHARLEN
-#define SPIDER_find_temporary_table(A,B) A->find_temporary_table(B)
-#else
-#define SPIDER_find_temporary_table(A,B) find_temporary_table(A,B)
+#define SPIDER_open_temporary_table
 #endif
 
 #if defined(MARIADB_BASE_VERSION)
@@ -180,8 +191,54 @@
 #define SPIDER_free_part_syntax(A,B) spider_my_free(A,B)
 #endif
 
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100306
+#define SPIDER_read_record_read_record(A) read_record()
+#define SPIDER_has_Item_with_subquery
+#define SPIDER_use_LEX_CSTRING_for_KEY_Field_name
+#define SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
+#define SPIDER_use_LEX_CSTRING_for_database_tablename_alias
+#define SPIDER_THD_db_str(A) (A)->db.str
+#define SPIDER_THD_db_length(A) (A)->db.length
+#define SPIDER_TABLE_LIST_db_str(A) (A)->db.str
+#define SPIDER_TABLE_LIST_db_length(A) (A)->db.length
+#define SPIDER_TABLE_LIST_table_name_str(A) (A)->table_name.str
+#define SPIDER_TABLE_LIST_table_name_length(A) (A)->table_name.length
+#define SPIDER_TABLE_LIST_alias_str(A) (A)->alias.str
+#define SPIDER_TABLE_LIST_alias_length(A) (A)->alias.length
+#define SPIDER_field_name_str(A) (A)->field_name.str
+#define SPIDER_field_name_length(A) (A)->field_name.length
+#define SPIDER_item_name_str(A) (A)->name.str
+#define SPIDER_item_name_length(A) (A)->name.length
+const LEX_CSTRING SPIDER_empty_string = {"", 0};
+#else
+#define SPIDER_read_record_read_record(A) read_record(A)
+#define SPIDER_THD_db_str(A) (A)->db
+#define SPIDER_THD_db_length(A) (A)->db_length
+#define SPIDER_TABLE_LIST_db_str(A) (A)->db
+#define SPIDER_TABLE_LIST_db_length(A) (A)->db_length
+#define SPIDER_TABLE_LIST_table_name_str(A) (A)->table_name
+#define SPIDER_TABLE_LIST_table_name_length(A) (A)->table_name_length
+#define SPIDER_TABLE_LIST_alias_str(A) (A)->alias
+#define SPIDER_TABLE_LIST_alias_length(A) strlen((A)->alias)
+#define SPIDER_field_name_str(A) (A)->field_name
+#define SPIDER_field_name_length(A) strlen((A)->field_name)
+#define SPIDER_item_name_str(A) (A)->name
+#define SPIDER_item_name_length(A) strlen((A)->name)
+const char SPIDER_empty_string = "";
+#endif
+
 #if MYSQL_VERSION_ID >= 50500
 #define SPIDER_HAS_HASH_VALUE_TYPE
+#endif
+
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >=	100400
+#define SPIDER_date_mode_t(A) date_mode_t(A)
+#define SPIDER_str_to_datetime(A,B,C,D,E) str_to_datetime_or_date(A,B,C,D,E)
+#define SPIDER_get_linkage(A) A->get_linkage()
+#else
+#define SPIDER_date_mode_t(A) A
+#define SPIDER_str_to_datetime(A,B,C,D,E) str_to_datetime(A,B,C,D,E)
+#define SPIDER_get_linkage(A) A->linkage
 #endif
 
 #define spider_bitmap_size(A) ((A + 7) / 8)
@@ -526,6 +583,9 @@ typedef struct st_spider_conn
   st_spider_conn     *bulk_access_next;
 #endif
 
+  bool               disable_connect_retry;  /* TRUE if it is unnecessary to
+                                                retry to connect after a
+                                                connection error */
   bool               connect_error_with_message;
   char               connect_error_msg[MYSQL_ERRMSG_SIZE];
   int                connect_error;
@@ -902,6 +962,7 @@ typedef struct st_spider_share
   longlong           priority;
   int                quick_mode;
   longlong           quick_page_size;
+  longlong           quick_page_byte;
   int                low_mem_read;
   int                table_count_mode;
   int                select_column_mode;

@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -33,7 +33,6 @@ Created 12/21/1997 Heikki Tuuri
 #include "que0que.h"
 #include "pars0grm.h"
 #include "pars0pars.h"
-#include "lock0lock.h"
 
 #define OPT_EQUAL	1	/* comparison by = */
 #define OPT_COMPARISON	2	/* comparison by <, >, <=, or >= */
@@ -206,7 +205,7 @@ opt_look_for_col_in_comparison_before(
 
 			if (opt_check_exp_determined_before(exp, sel_node,
 							    nth_table)) {
-				*op = search_cond->func;
+				*op = ulint(search_cond->func);
 
 				return(exp);
 			}
@@ -225,7 +224,8 @@ opt_look_for_col_in_comparison_before(
 
 			if (opt_check_exp_determined_before(exp, sel_node,
 							    nth_table)) {
-				*op = opt_invert_cmp_op(search_cond->func);
+				*op = ulint(opt_invert_cmp_op(
+						    search_cond->func));
 
 				return(exp);
 			}
@@ -1257,7 +1257,7 @@ opt_print_query_plan(
 		fprintf(stderr,
 			"Index %s of table %s"
 			"; exact m. %lu, match %lu, end conds %lu\n",
-			plan->index->name(), plan->index->table_name,
+			plan->index->name(), plan->index->table->name.m_name,
 			(unsigned long) plan->n_exact_match,
 			(unsigned long) n_fields,
 			(unsigned long) UT_LIST_GET_LEN(plan->end_conds));

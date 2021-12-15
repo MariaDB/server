@@ -21,43 +21,43 @@ source include/master-slave.inc;
 
 --echo # Test case1: INVOKES A TRIGGER with after insert action
 let $trigger_action = after insert;
-source extra/rpl_tests/rpl_auto_increment_invoke_trigger.test;
+source include/rpl_auto_increment_invoke_trigger.test;
 
 --echo # Test case2: INVOKES A TRIGGER with before insert action
 let $trigger_action = before insert;
-source extra/rpl_tests/rpl_auto_increment_invoke_trigger.test;
+source include/rpl_auto_increment_invoke_trigger.test;
 
 --echo # Test case3: INVOKES A TRIGGER with after update action
 let $trigger_action = after update;
-source extra/rpl_tests/rpl_auto_increment_invoke_trigger.test;
+source include/rpl_auto_increment_invoke_trigger.test;
 
 --echo # Test case4: INVOKES A TRIGGER with before update action
 let $trigger_action = before update;
-source extra/rpl_tests/rpl_auto_increment_invoke_trigger.test;
+source include/rpl_auto_increment_invoke_trigger.test;
 
 --echo # Test case5: INVOKES A TRIGGER with after delete action
 let $trigger_action = after delete;
-source extra/rpl_tests/rpl_auto_increment_invoke_trigger.test;
+source include/rpl_auto_increment_invoke_trigger.test;
 
 --echo # Test case6: INVOKES A TRIGGER with before delete action
 let $trigger_action = before delete;
-source extra/rpl_tests/rpl_auto_increment_invoke_trigger.test;
+source include/rpl_auto_increment_invoke_trigger.test;
 
 --echo # Test case7: CALLS A FUNCTION which INVOKES A TRIGGER with after insert action
 let $insert_action = after insert;
-source extra/rpl_tests/rpl_autoinc_func_invokes_trigger.test;
+source include/rpl_autoinc_func_invokes_trigger.test;
 
 --echo # Test case8: CALLS A FUNCTION which INVOKES A TRIGGER with before insert action
 let $insert_action = before insert;
-source extra/rpl_tests/rpl_autoinc_func_invokes_trigger.test;
+source include/rpl_autoinc_func_invokes_trigger.test;
 
 --echo # Test case9: INSERT DATA INTO VIEW WHICH INVOKES TRIGGERS with after insert action
 let $insert_action = after insert;
-source extra/rpl_tests/rpl_auto_increment_insert_view.test;
+source include/rpl_auto_increment_insert_view.test;
 
 --echo # Test case10: INSERT DATA INTO VIEW WHICH INVOKES TRIGGERS with before insert action
 let $insert_action = before insert;
-source extra/rpl_tests/rpl_auto_increment_insert_view.test;
+source include/rpl_auto_increment_insert_view.test;
 
 --echo # Test case11: INVOKES A FUNCTION TO INSERT TWO OR MORE VALUES INTO A TABLE WITH AUTOINC COLUMN
 connection master;

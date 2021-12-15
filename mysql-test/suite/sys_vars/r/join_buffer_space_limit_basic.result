@@ -1,22 +1,16 @@
 SET @start_global_value = @@global.join_buffer_space_limit;
-select @@global.join_buffer_space_limit;
-@@global.join_buffer_space_limit
-2097152
-select @@session.join_buffer_space_limit;
-@@session.join_buffer_space_limit
-2097152
 show global variables like 'join_buffer_space_limit';
 Variable_name	Value
-join_buffer_space_limit	2097152
+join_buffer_space_limit	#
 show session variables like 'join_buffer_space_limit';
 Variable_name	Value
-join_buffer_space_limit	2097152
+join_buffer_space_limit	#
 select * from information_schema.global_variables where variable_name='join_buffer_space_limit';
 VARIABLE_NAME	VARIABLE_VALUE
-JOIN_BUFFER_SPACE_LIMIT	2097152
+JOIN_BUFFER_SPACE_LIMIT	#
 select * from information_schema.session_variables where variable_name='join_buffer_space_limit';
 VARIABLE_NAME	VARIABLE_VALUE
-JOIN_BUFFER_SPACE_LIMIT	2097152
+JOIN_BUFFER_SPACE_LIMIT	#
 set global join_buffer_space_limit=10;
 Warnings:
 Warning	1292	Truncated incorrect join_buffer_space_limit value: '10'

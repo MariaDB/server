@@ -1,0 +1,97 @@
+include/master-slave.inc
+[connection master]
+CREATE TABLE t1 (
+pk SERIAL,
+vcol_date DATE AS (col_date) PERSISTENT,
+vcol_int INT AS (col_int) VIRTUAL,
+vcol_year YEAR AS (col_year) PERSISTENT,
+vcol_blob BLOB AS (col_blob) VIRTUAL,
+col_date DATE,
+col_int INT NULL,
+col_blob BLOB NULL,
+col_year YEAR,
+PRIMARY KEY(pk)
+) ENGINE=InnoDB;
+INSERT INTO t1 (col_date,col_int,col_blob,col_year) VALUES ('2010-04-24',5,'foo',1981);
+SET SQL_MODE='';
+set binlog_row_image="FULL";
+CREATE VIEW v1 AS SELECT * FROM t1;
+REPLACE INTO v1 SELECT pk, vcol_date, vcol_int, vcol_year, vcol_blob, col_date, col_int, col_blob, 1982 FROM t1;
+Warnings:
+Warning	1906	The value specified for generated column 'vcol_date' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'vcol_int' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'vcol_year' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'vcol_blob' in table 't1' has been ignored
+select col_date,col_int,col_blob,col_year from v1;
+col_date	col_int	col_blob	col_year
+2010-04-24	5	foo	1982
+connection slave;
+select col_date,col_int,col_blob,col_year from v1;
+col_date	col_int	col_blob	col_year
+2010-04-24	5	foo	1982
+connection master;
+DROP VIEW v1;
+set binlog_row_image="MINIMAL";
+CREATE VIEW v1 AS SELECT * FROM t1;
+REPLACE INTO v1 SELECT pk, vcol_date, vcol_int, vcol_year, vcol_blob, col_date, col_int, col_blob, 1983 FROM t1;
+Warnings:
+Warning	1906	The value specified for generated column 'vcol_date' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'vcol_int' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'vcol_year' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'vcol_blob' in table 't1' has been ignored
+select col_date,col_int,col_blob,col_year from v1;
+col_date	col_int	col_blob	col_year
+2010-04-24	5	foo	1983
+connection slave;
+select col_date,col_int,col_blob,col_year from v1;
+col_date	col_int	col_blob	col_year
+2010-04-24	5	foo	1983
+connection master;
+DROP VIEW v1;
+set @@binlog_row_image="NOBLOB";
+CREATE VIEW v1 AS SELECT * FROM t1;
+REPLACE INTO v1 SELECT pk, vcol_date, vcol_int, vcol_year, vcol_blob, col_date, col_int, col_blob, 1984 FROM t1;
+Warnings:
+Warning	1906	The value specified for generated column 'vcol_date' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'vcol_int' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'vcol_year' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'vcol_blob' in table 't1' has been ignored
+select col_date,col_int,col_blob,col_year from v1;
+col_date	col_int	col_blob	col_year
+2010-04-24	5	foo	1984
+connection slave;
+select col_date,col_int,col_blob,col_year from v1;
+col_date	col_int	col_blob	col_year
+2010-04-24	5	foo	1984
+connection master;
+DROP VIEW v1;
+set @@binlog_row_image=default;
+DROP TABLE t1;
+SET SQL_MODE=default;
+CREATE TABLE t1 (pk INT, a VARCHAR(3), b VARCHAR(1) AS (a) VIRTUAL, PRIMARY KEY (pk));
+INSERT IGNORE INTO t1 (pk, a) VALUES (1,'foo'),(2,'bar');
+Warnings:
+Warning	1265	Data truncated for column 'b' at row 1
+Warning	1265	Data truncated for column 'b' at row 2
+REPLACE INTO t1 (pk) VALUES (2);
+ERROR 22001: Data too long for column 'b' at row 1
+UPDATE IGNORE t1 SET a = NULL;
+Warnings:
+Warning	1265	Data truncated for column 'b' at row 1
+Warning	1265	Data truncated for column 'b' at row 2
+DROP TABLE t1;
+#
+# MDEV-18166 ASSERT_COLUMN_MARKED_FOR_READ failed on tables with vcols
+#
+SET SESSION binlog_row_image= noblob;
+CREATE TEMPORARY TABLE t1 SELECT UUID();
+show create table t1;
+Table	Create Table
+t1	CREATE TEMPORARY TABLE `t1` (
+  `UUID()` varchar(36) CHARACTER SET utf8 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CREATE TABLE t2 (a INT PRIMARY KEY, b TEXT, c INT GENERATED ALWAYS AS(b));
+INSERT INTO t2 (a,b) VALUES (1,1);
+SET SESSION binlog_row_image= default;
+DROP TABLE t2;
+include/rpl_end.inc

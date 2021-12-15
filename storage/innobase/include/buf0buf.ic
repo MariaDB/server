@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -20,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -35,9 +35,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "buf0flu.h"
 #include "buf0lru.h"
 #include "buf0rea.h"
-#include "sync0debug.h"
 #include "fsp0types.h"
-#include "ut0new.h"
 
 /** A chunk of buffers. The buffer pool is allocated in chunks. */
 struct buf_chunk_t{
@@ -55,6 +53,25 @@ struct buf_chunk_t{
 		return(mem_pfx.m_size);
 	}
 };
+
+bool buf_pool_t::is_block_field(const void *ptr) const
+{
+  const buf_chunk_t* chunk= chunks;
+  const buf_chunk_t *const echunk= chunk + ut_min(n_chunks,
+                                                  n_chunks_new);
+  /* TODO: protect chunks with a mutex (the older pointer will
+  currently remain during resize()) */
+  while (chunk < echunk)
+  {
+    if (ptr >= reinterpret_cast<const void*>(chunk->blocks) &&
+        ptr < reinterpret_cast<const void*>(
+		chunk->blocks + chunk->size))
+      return true;
+    chunk++;
+  }
+
+  return false;
+}
 
 /*********************************************************************//**
 Gets the current size of buffer buf_pool in bytes.
@@ -115,7 +132,17 @@ ulint
 buf_pool_get_n_pages(void)
 /*======================*/
 {
-	return(buf_pool_get_curr_size() / UNIV_PAGE_SIZE);
+  if (!buf_pool_ptr)
+    return buf_pool_get_curr_size() >> srv_page_size_shift;
+
+  ulint chunk_size= 0;
+  for (uint i= 0; i < srv_buf_pool_instances; i++)
+  {
+    buf_pool_t* buf_pool = buf_pool_from_array(i);
+    for (uint j= 0; j < buf_pool->n_chunks; j++)
+      chunk_size+= buf_pool->chunks[j].size;
+  }
+  return chunk_size;
 }
 
 /********************************************************************//**
@@ -463,10 +490,10 @@ UNIV_INLINE
 void
 buf_block_set_file_page(
 	buf_block_t*		block,
-	const page_id_t&	page_id)
+	const page_id_t		page_id)
 {
 	buf_block_set_state(block, BUF_BLOCK_FILE_PAGE);
-	block->page.id.copy_from(page_id);
+	block->page.id = page_id;
 }
 
 /*********************************************************************//**
@@ -761,7 +788,7 @@ buf_frame_align(
 
         ut_ad(ptr);
 
-        frame = (buf_frame_t*) ut_align_down(ptr, UNIV_PAGE_SIZE);
+        frame = (buf_frame_t*) ut_align_down(ptr, srv_page_size);
 
         return(frame);
 }
@@ -778,11 +805,11 @@ buf_ptr_get_fsp_addr(
 	fil_addr_t*	addr)	/*!< out: page offset and byte offset */
 {
 	const page_t*	page = (const page_t*) ut_align_down(ptr,
-							     UNIV_PAGE_SIZE);
+							     srv_page_size);
 
 	*space = mach_read_from_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	addr->page = mach_read_from_4(page + FIL_PAGE_OFFSET);
-	addr->boffset = ut_align_offset(ptr, UNIV_PAGE_SIZE);
+	addr->boffset = ut_align_offset(ptr, srv_page_size);
 }
 
 /**********************************************************************//**
@@ -816,7 +843,7 @@ buf_page_alloc_descriptor(void)
 
 	bpage = (buf_page_t*) ut_zalloc_nokey(sizeof *bpage);
 	ut_ad(bpage);
-	UNIV_MEM_ALLOC(bpage, sizeof *bpage);
+	MEM_UNDEFINED(bpage, sizeof *bpage);
 
 	return(bpage);
 }
@@ -867,7 +894,7 @@ buf_frame_copy(
 {
 	ut_ad(buf && frame);
 
-	ut_memcpy(buf, frame, UNIV_PAGE_SIZE);
+	ut_memcpy(buf, frame, srv_page_size);
 
 	return(buf);
 }
@@ -952,10 +979,11 @@ buf_block_get_modify_clock(
 @return the count */
 UNIV_INLINE
 ulint
-buf_block_fix(
-	buf_page_t*	bpage)
+buf_block_fix(buf_page_t* bpage)
 {
-	return(my_atomic_add32((int32*) &bpage->buf_fix_count, 1) + 1);
+	return uint32(my_atomic_add32_explicit(
+			      &bpage->buf_fix_count, 1,
+			      MY_MEMORY_ORDER_RELAXED)) + 1;
 }
 
 /** Increments the bufferfix count.
@@ -963,10 +991,30 @@ buf_block_fix(
 @return the count */
 UNIV_INLINE
 ulint
-buf_block_fix(
-	buf_block_t*	block)
+buf_block_fix(buf_block_t* block)
 {
-	return(buf_block_fix(&block->page));
+	return buf_block_fix(&block->page);
+}
+
+/** Get the bufferfix count.
+@param[in]	bpage	block to bufferfix
+@return the count */
+UNIV_INLINE
+ulint
+buf_block_get_fix(buf_page_t* bpage)
+{
+	return my_atomic_load32_explicit(&bpage->buf_fix_count,
+					 MY_MEMORY_ORDER_RELAXED);
+}
+
+/** Get the bufferfix count.
+@param[in]	bpage	block to bufferfix
+@return the count */
+UNIV_INLINE
+ulint
+buf_block_get_fix(buf_block_t* block)
+{
+	return buf_block_get_fix(&block->page);
 }
 
 /*******************************************************************//**
@@ -1000,12 +1048,13 @@ buf_block_buf_fix_inc_func(
 @return	the remaining buffer-fix count */
 UNIV_INLINE
 ulint
-buf_block_unfix(
-	buf_page_t*	bpage)
+buf_block_unfix(buf_page_t* bpage)
 {
-	ulint	count = my_atomic_add32((int32*) &bpage->buf_fix_count, -1) - 1;
-	ut_ad(count + 1 != 0);
-	return(count);
+	uint32	count = uint32(my_atomic_add32_explicit(
+				       &bpage->buf_fix_count,
+				       -1, MY_MEMORY_ORDER_RELAXED));
+	ut_ad(count != 0);
+	return count - 1;
 }
 
 /** Decrements the bufferfix count.
@@ -1013,10 +1062,9 @@ buf_block_unfix(
 @return the remaining buffer-fix count */
 UNIV_INLINE
 ulint
-buf_block_unfix(
-	buf_block_t*	block)
+buf_block_unfix(buf_block_t* block)
 {
-	return(buf_block_unfix(&block->page));
+	return buf_block_unfix(&block->page);
 }
 
 /*******************************************************************//**
@@ -1027,8 +1075,6 @@ buf_block_buf_fix_dec(
 /*==================*/
 	buf_block_t*	block)	/*!< in/out: block to bufferunfix */
 {
-	buf_block_unfix(block);
-
 #ifdef UNIV_DEBUG
 	/* No debug latch is acquired if block belongs to system temporary.
 	Debug latch is not of much help if access to block is single
@@ -1037,15 +1083,14 @@ buf_block_buf_fix_dec(
 		rw_lock_s_unlock(&block->debug_latch);
 	}
 #endif /* UNIV_DEBUG */
+
+	buf_block_unfix(block);
 }
 
 /** Returns the buffer pool instance given a page id.
 @param[in]	page_id	page id
 @return buffer pool */
-UNIV_INLINE
-buf_pool_t*
-buf_pool_get(
-	const page_id_t&	page_id)
+inline buf_pool_t* buf_pool_get(const page_id_t page_id)
 {
         /* 2log of BUF_READ_AHEAD_AREA (64) */
         ulint		ignored_page_no = page_id.page_no() >> 6;
@@ -1080,7 +1125,7 @@ UNIV_INLINE
 buf_page_t*
 buf_page_hash_get_low(
 	buf_pool_t*		buf_pool,
-	const page_id_t&	page_id)
+	const page_id_t		page_id)
 {
 	buf_page_t*	bpage;
 
@@ -1098,7 +1143,7 @@ buf_page_hash_get_low(
 		    bpage,
 		    ut_ad(bpage->in_page_hash && !bpage->in_zip_hash
 			  && buf_page_in_file(bpage)),
-		    page_id.equals_to(bpage->id));
+		    page_id == bpage->id);
 	if (bpage) {
 		ut_a(buf_page_in_file(bpage));
 		ut_ad(bpage->in_page_hash);
@@ -1129,7 +1174,7 @@ UNIV_INLINE
 buf_page_t*
 buf_page_hash_get_locked(
 	buf_pool_t*		buf_pool,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	rw_lock_t**		lock,
 	ulint			lock_mode,
 	bool			watch)
@@ -1173,7 +1218,7 @@ buf_page_hash_get_locked(
 	}
 
 	ut_ad(buf_page_in_file(bpage));
-	ut_ad(page_id.equals_to(bpage->id));
+	ut_ad(page_id == bpage->id);
 
 	if (lock == NULL) {
 		/* The caller wants us to release the page_hash lock */
@@ -1212,7 +1257,7 @@ UNIV_INLINE
 buf_block_t*
 buf_block_hash_get_locked(
 	buf_pool_t*		buf_pool,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	rw_lock_t**		lock,
 	ulint			lock_mode)
 {
@@ -1252,11 +1297,8 @@ buf_block_hash_get_locked(
 NOTE that it is possible that the page is not yet read from disk,
 though.
 @param[in]	page_id	page id
-@return TRUE if found in the page hash table */
-UNIV_INLINE
-ibool
-buf_page_peek(
-	const page_id_t&	page_id)
+@return true if found in the page hash table */
+inline bool buf_page_peek(const page_id_t page_id)
 {
 	buf_pool_t*	buf_pool = buf_pool_get(page_id);
 
@@ -1414,18 +1456,6 @@ buf_page_get_frame(
 	} else {
 		return ((buf_block_t*) bpage)->frame;
 	}
-}
-
-/** Verify the possibility that a stored page is not in buffer pool.
-@param[in]	withdraw_clock	withdraw clock when stored the page
-@retval true	if the page might be relocated */
-UNIV_INLINE
-bool
-buf_pool_is_obsolete(
-	ulint	withdraw_clock)
-{
-	return(buf_pool_withdrawing
-	       || buf_withdraw_clock != withdraw_clock);
 }
 
 /** Calculate aligned buffer pool size based on srv_buf_pool_chunk_unit,

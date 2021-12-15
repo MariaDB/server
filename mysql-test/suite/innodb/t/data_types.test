@@ -88,8 +88,14 @@ CREATE TABLE t1
   t1_VARCHAR_500 VARCHAR(500),
   t1_VARCHAR_500_BINARY VARCHAR(500) BINARY,
   t1_YEAR_2 YEAR(2),
-  t1_YEAR_4 YEAR(4)
+  t1_YEAR_4 YEAR(4),
+  t1_CHAR_0 CHAR(0),
+  t1_MYSQL_0 CHAR(0) CHARACTER SET utf8,
+  t1_VARCHAR_0 VARCHAR(0),
+  t1_VARMYSQL_0 VARCHAR(0) CHARACTER SET utf8
 ) ENGINE=InnoDB;
+
+INSERT INTO t1 () VALUES ();
 
 SELECT
   name,
@@ -115,4 +121,18 @@ FROM information_schema.INNODB_SYS_COLUMNS
 WHERE name LIKE "t1\_%"
 ORDER BY name;
 
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-17815 Assertion failed in btr_node_ptr_max_size for CHAR(0)
+--echo #
+CREATE TABLE t1 (c CHAR(0), KEY(c)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('');
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-18039 Assertion failed in btr_node_ptr_max_size for VARCHAR(0)
+--echo #
+CREATE TABLE t1 (c VARCHAR(0), KEY(c)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('');
 DROP TABLE t1;

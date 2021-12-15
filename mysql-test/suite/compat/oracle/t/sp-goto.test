@@ -870,3 +870,99 @@ insert into t1 values (null);
 SELECT * FROM t1;
 DROP TRIGGER trg1;
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-20667 Server crash on pop_cursor
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(6));
+DELIMITER  //;
+CREATE PROCEDURE p1() IS
+BEGIN
+  IF 1=2 THEN
+    BEGIN
+      DECLARE
+        CURSOR cur1 IS SELECT a FROM t1 ;
+      BEGIN
+        GOTO iac_err;
+      END;
+    END;
+  END IF;
+  IF 1=1 THEN
+    GOTO iac_err;
+  END IF;
+<< iac_err >>
+  RETURN;
+END//
+DELIMITER ;//
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+DELIMITER //;
+CREATE PROCEDURE p1() IS
+BEGIN
+  IF 1=2 THEN
+    BEGIN
+      DECLARE
+        CURSOR cur1 IS SELECT a FROM t1 ;
+      BEGIN
+        GOTO iac_err;
+      END;
+    END;
+  END IF;
+  IF 1=1 THEN
+    GOTO iac_err;
+  END IF;
+<< iac_err >>
+  RETURN ;
+END//
+DELIMITER ;//
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER //;
+CREATE PROCEDURE p1() IS
+BEGIN
+  IF 1=2 THEN
+    BEGIN
+      DECLARE
+        CURSOR cur1 IS SELECT a FROM t1 ;
+      BEGIN
+        GOTO iac_err;
+      END;
+    END;
+  END IF;
+  GOTO iac_err;
+<< iac_err >>
+  RETURN ;
+END//
+DELIMITER ;//
+CALL p1;
+DROP PROCEDURE p1;
+
+
+DELIMITER //;
+CREATE PROCEDURE p1() IS 
+BEGIN 
+  IF 1=2 THEN 
+    BEGIN 
+      DECLARE
+        CONTINUE HANDLER FOR SQLSTATE '23000' SET @x2 = 1;
+      BEGIN
+        GOTO iac_err;
+      END; 
+    END; 
+  END IF; 
+  IF 1=1 THEN
+    GOTO iac_err;
+  END IF; 
+<<iac_err >>
+  RETURN; 
+END//
+DELIMITER ;//
+CALL p1;
+DROP PROCEDURE p1;

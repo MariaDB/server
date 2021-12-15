@@ -1,4 +1,5 @@
 /* Copyright (c) 2001, 2012, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,13 +12,13 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   Endianness-independent definitions for architectures other
   than the x86 architecture.
 */
-#define sint2korr(A)	(int16) (((int16) ((uchar) (A)[0])) +\
+#define sint2korr(A)	(int16) (((int16) ((uchar) (A)[0])) |\
 				 ((int16) ((int16) (A)[1]) << 8))
 #define sint3korr(A)	((int32) ((((uchar) (A)[2]) & 128) ? \
 				  (((uint32) 255L << 24) | \
@@ -27,38 +28,38 @@
 				  (((uint32) (uchar) (A)[2]) << 16) |\
 				  (((uint32) (uchar) (A)[1]) << 8) | \
 				  ((uint32) (uchar) (A)[0])))
-#define sint4korr(A)	(int32) (((int32) ((uchar) (A)[0])) +\
-				(((int32) ((uchar) (A)[1]) << 8)) +\
-				(((int32) ((uchar) (A)[2]) << 16)) +\
+#define sint4korr(A)	(int32) (((int32) ((uchar) (A)[0])) |\
+				(((int32) ((uchar) (A)[1]) << 8)) |\
+				(((int32) ((uchar) (A)[2]) << 16)) |\
 				(((int32) ((int16) (A)[3]) << 24)))
 #define sint8korr(A)	(longlong) uint8korr(A)
-#define uint2korr(A)	(uint16) (((uint16) ((uchar) (A)[0])) +\
+#define uint2korr(A)	(uint16) (((uint16) ((uchar) (A)[0])) |\
 				  ((uint16) ((uchar) (A)[1]) << 8))
-#define uint3korr(A)	(uint32) (((uint32) ((uchar) (A)[0])) +\
-				  (((uint32) ((uchar) (A)[1])) << 8) +\
+#define uint3korr(A)	(uint32) (((uint32) ((uchar) (A)[0])) |\
+				  (((uint32) ((uchar) (A)[1])) << 8) |\
 				  (((uint32) ((uchar) (A)[2])) << 16))
-#define uint4korr(A)	(uint32) (((uint32) ((uchar) (A)[0])) +\
-				  (((uint32) ((uchar) (A)[1])) << 8) +\
-				  (((uint32) ((uchar) (A)[2])) << 16) +\
+#define uint4korr(A)	(uint32) (((uint32) ((uchar) (A)[0])) |\
+				  (((uint32) ((uchar) (A)[1])) << 8) |\
+				  (((uint32) ((uchar) (A)[2])) << 16) |\
 				  (((uint32) ((uchar) (A)[3])) << 24))
-#define uint5korr(A)	((ulonglong)(((uint32) ((uchar) (A)[0])) +\
-				    (((uint32) ((uchar) (A)[1])) << 8) +\
-				    (((uint32) ((uchar) (A)[2])) << 16) +\
-				    (((uint32) ((uchar) (A)[3])) << 24)) +\
+#define uint5korr(A)	((ulonglong)(((uint32) ((uchar) (A)[0])) |\
+				    (((uint32) ((uchar) (A)[1])) << 8) |\
+				    (((uint32) ((uchar) (A)[2])) << 16) |\
+				    (((uint32) ((uchar) (A)[3])) << 24)) |\
 				    (((ulonglong) ((uchar) (A)[4])) << 32))
-#define uint6korr(A)	((ulonglong)(((uint32)    ((uchar) (A)[0]))          + \
-                                     (((uint32)    ((uchar) (A)[1])) << 8)   + \
-                                     (((uint32)    ((uchar) (A)[2])) << 16)  + \
-                                     (((uint32)    ((uchar) (A)[3])) << 24)) + \
-                         (((ulonglong) ((uchar) (A)[4])) << 32) +       \
+#define uint6korr(A)	((ulonglong)(((uint32)    ((uchar) (A)[0]))          | \
+                                     (((uint32)    ((uchar) (A)[1])) << 8)   | \
+                                     (((uint32)    ((uchar) (A)[2])) << 16)  | \
+                                     (((uint32)    ((uchar) (A)[3])) << 24)) | \
+                         (((ulonglong) ((uchar) (A)[4])) << 32) |       \
                          (((ulonglong) ((uchar) (A)[5])) << 40))
-#define uint8korr(A)	((ulonglong)(((uint32) ((uchar) (A)[0])) +\
-				    (((uint32) ((uchar) (A)[1])) << 8) +\
-				    (((uint32) ((uchar) (A)[2])) << 16) +\
-				    (((uint32) ((uchar) (A)[3])) << 24)) +\
-			(((ulonglong) (((uint32) ((uchar) (A)[4])) +\
-				    (((uint32) ((uchar) (A)[5])) << 8) +\
-				    (((uint32) ((uchar) (A)[6])) << 16) +\
+#define uint8korr(A)	((ulonglong)(((uint32) ((uchar) (A)[0])) |\
+				    (((uint32) ((uchar) (A)[1])) << 8) |\
+				    (((uint32) ((uchar) (A)[2])) << 16) |\
+				    (((uint32) ((uchar) (A)[3])) << 24)) |\
+			(((ulonglong) (((uint32) ((uchar) (A)[4])) |\
+				    (((uint32) ((uchar) (A)[5])) << 8) |\
+				    (((uint32) ((uchar) (A)[6])) << 16) |\
 				    (((uint32) ((uchar) (A)[7])) << 24))) <<\
 				    32))
 #define int2store(T,A)       do { uint def_temp= (uint) (A) ;\

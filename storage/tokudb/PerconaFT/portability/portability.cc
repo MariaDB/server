@@ -60,7 +60,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #if defined(HAVE_SYS_SYSCALL_H)
 # include <sys/syscall.h>
 #endif
-#if defined(HAVE_SYS_SYSCTL_H)
+#if defined(HAVE_SYS_SYSCTL_H) && !defined(_SC_PHYS_PAGES)
 # include <sys/sysctl.h>
 #endif
 #if defined(HAVE_PTHREAD_H)
@@ -88,9 +88,11 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 int
 toku_portability_init(void) {
     int r = toku_memory_startup();
+    assert(r==0);
     if (r == 0) {
         uint64_t hz;
         r = toku_os_get_processor_frequency(&hz); // get and cache freq
+        assert(r==0);
     }
     (void) toku_os_get_pagesize(); // get and cache pagesize
     return r;

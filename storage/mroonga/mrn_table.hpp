@@ -15,7 +15,7 @@
 
   You should have received a copy of the GNU Lesser General Public
   License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
 #ifndef MRN_TABLE_HPP_
@@ -96,7 +96,8 @@ struct st_mrn_slot_data
 };
 
 #define MRN_SET_WRAP_ALTER_KEY(file, ha_alter_info) \
-  Alter_inplace_info::HA_ALTER_FLAGS base_handler_flags = ha_alter_info->handler_flags; \
+  alter_table_operations base_handler_flags = ha_alter_info->handler_flags; \
+  ha_table_option_struct* base_option_struct = ha_alter_info->create_info->option_struct; \
   KEY  *base_key_info_buffer = ha_alter_info->key_info_buffer; \
   uint base_key_count = ha_alter_info->key_count; \
   uint base_index_drop_count = ha_alter_info->index_drop_count; \
@@ -104,6 +105,7 @@ struct st_mrn_slot_data
   uint base_index_add_count = ha_alter_info->index_add_count; \
   uint *base_index_add_buffer = ha_alter_info->index_add_buffer; \
   ha_alter_info->handler_flags = file->alter_handler_flags; \
+  ha_alter_info->create_info->option_struct = wrap_altered_table->s->option_struct; \
   ha_alter_info->key_info_buffer = file->alter_key_info_buffer; \
   ha_alter_info->key_count = file->alter_key_count; \
   ha_alter_info->index_drop_count = file->alter_index_drop_count; \
@@ -113,6 +115,7 @@ struct st_mrn_slot_data
 
 #define MRN_SET_BASE_ALTER_KEY(share, table_share) \
   ha_alter_info->handler_flags = base_handler_flags; \
+  ha_alter_info->create_info->option_struct = base_option_struct; \
   ha_alter_info->key_info_buffer = base_key_info_buffer; \
   ha_alter_info->key_count = base_key_count; \
   ha_alter_info->index_drop_count = base_index_drop_count; \

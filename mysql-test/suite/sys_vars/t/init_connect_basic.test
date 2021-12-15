@@ -66,7 +66,7 @@ SELECT @@global.init_connect;
 
 --echo '#--------------------FN_DYNVARS_036_03-------------------------#'
 ######################################################################
-#     see if it is accessable using session scope                    #
+#     see if it is accessible using session scope                    #
 ######################################################################
 --Error ER_GLOBAL_VARIABLE
 SET @@session.init_connect = '';

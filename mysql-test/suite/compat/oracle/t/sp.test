@@ -1,3 +1,5 @@
+--source include/default_charset.inc
+
 SET sql_mode=ORACLE;
 
 --echo # Testing routines with no parameters
@@ -170,6 +172,11 @@ END;
 DELIMITER ;/
 DROP PROCEDURE p1;
 
+--echo # Keywords that are OK for table names, but not for SP variables
+CREATE TABLE function (function int);
+INSERT INTO function SET function=10;
+SELECT function.function FROM function;
+DROP TABLE function;
 
 --echo # Testing that (some) keyword_sp are allowed in Oracle-style assignments
 DELIMITER /;
@@ -913,7 +920,7 @@ CREATE FUNCTION f1 (a INT, b INT) RETURN INT
 AS
   total INT := 0;
 BEGIN
-  FOR i IN REVERSE a..1
+  FOR i IN REVERSE 1..a
   LOOP
     total:= total + i;
     IF i = b THEN
@@ -2347,3 +2354,46 @@ BEGIN
 END $$
 DELIMITER ;$$
 
+--echo #
+--echo # MDEV-17253 Oracle compatibility: The REVERSE key word for FOR loop behaves incorrectly
+--echo #
+
+DELIMITER $$;
+DECLARE
+  totalprice DECIMAL(12,2):=NULL;
+  loop_start INTEGER := 1;
+BEGIN
+  FOR idx IN REVERSE loop_start..10 LOOP
+    SELECT idx;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  loop_start INTEGER := 1;
+BEGIN
+  FOR idx IN REVERSE 3..loop_start LOOP
+    SELECT idx;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+  loop_start INTEGER := 1;
+BEGIN
+  FOR idx IN REVERSE loop_start..3 LOOP
+    SELECT idx;
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;

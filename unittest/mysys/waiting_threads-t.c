@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "thr_template.c"
 #include <waiting_threads.h>
@@ -136,10 +136,8 @@ retry:
   pthread_mutex_unlock(&lock);
   pthread_mutex_unlock(& thds[id].lock);
   wt_thd_destroy(& thds[id].thd);
-
-  if (!--running_threads) /* now, signal when everybody is done with deinit */
-    pthread_cond_signal(&cond);
   pthread_mutex_unlock(&mutex);
+
   DBUG_PRINT("wt", ("exiting"));
   my_thread_end();
   return 0;

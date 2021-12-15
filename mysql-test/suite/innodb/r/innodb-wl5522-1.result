@@ -389,7 +389,7 @@ CREATE TABLE testdb_wl5522.t1 ( i bigint) ENGINE = Innodb;
 ALTER TABLE testdb_wl5522.t1 DISCARD TABLESPACE;
 restore: t1 .ibd and .cfg files
 ALTER TABLE testdb_wl5522.t1 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Column i precise type mismatch.)
+ERROR HY000: Schema mismatch (Column i precise type mismatch, it's 0X408 in the table and 0X403 in the tablespace meta file)
 unlink: t1.ibd
 unlink: t1.cfg
 DROP TABLE testdb_wl5522.t1;

@@ -1,0 +1,9 @@
+--source include/have_binlog_format_row.inc
+--source include/have_rocksdb.inc
+
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=RocksDB;
+LOCK TABLE t1 WRITE;
+SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+--error ER_ISOLATION_MODE_NOT_SUPPORTED
+FLUSH TABLES;
+DROP TABLE t1;

@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* When using sql procedures */
 
@@ -49,9 +49,9 @@ public:
   virtual void set(longlong nr)=0;
   const Type_handler *type_handler() const=0;
   void set(const char *str) { set(str,(uint) strlen(str), default_charset()); }
-  void make_field(THD *thd, Send_field *tmp_field)
+  void make_send_field(THD *thd, Send_field *tmp_field)
   {
-    init_make_field(tmp_field,field_type());
+    init_make_send_field(tmp_field,field_type());
   }
   unsigned int size_of() { return sizeof(*this);}
   bool check_vcol_func_processor(void *arg)

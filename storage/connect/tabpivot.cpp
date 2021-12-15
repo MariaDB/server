@@ -17,7 +17,7 @@
 /***********************************************************************/
 #include "my_global.h"
 #include "table.h"       // MySQL table definitions
-#if defined(__WIN__)
+#if defined(_WIN32)
 #if defined(__BORLANDC__)
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif
@@ -107,12 +107,12 @@ bool PIVAID::SkipColumn(PCOLRES crp, char *skc)
 /***********************************************************************/
 PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 {
-  char    *p, *query, *colname, *skc, buf[64];
-  int      ndif, nblin, w = 0;
-  bool     b = false;
-  PVAL     valp;   
-  PQRYRES  qrp;
-  PCOLRES *pcrp, crp, fncrp = NULL;
+	char    *p, *query, *colname, *skc, buf[64];
+	int      ndif, nblin, w = 0;
+	bool     b = false;
+	PVAL     valp;
+	PQRYRES  qrp;
+	PCOLRES *pcrp, crp, fncrp = NULL;
 
 	try {
 		// Are there columns to skip?
@@ -186,7 +186,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 
 		} // endif picol
 
-	// Prepare the column list
+	  // Prepare the column list
 		for (pcrp = &Qryp->Colresp; crp = *pcrp; )
 			if (SkipColumn(crp, skc)) {
 				// Ignore this column
@@ -205,111 +205,111 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 			} else
 				pcrp = &crp->Next;
 
-			if (!Rblkp) {
-				strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
-				goto err;
-			} else if (!fncrp) {
-				strcpy(g->Message, MSG(NO_DEF_FNCCOL));
-				goto err;
-			} // endif
+		if (!Rblkp) {
+			strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
+			goto err;
+		} else if (!fncrp) {
+			strcpy(g->Message, MSG(NO_DEF_FNCCOL));
+			goto err;
+		} // endif
 
-			if (Tabsrc) {
-				Myc.Close();
-				b = false;
+		if (Tabsrc) {
+			Myc.Close();
+			b = false;
 
-				// Before calling sort, initialize all
-				nblin = Qryp->Nblin;
+			// Before calling sort, initialize all
+			nblin = Qryp->Nblin;
 
-				Index.Size = nblin * sizeof(int);
-				Index.Sub = TRUE;                  // Should be small enough
+			Index.Size = nblin * sizeof(int);
+			Index.Sub = TRUE;                  // Should be small enough
 
-				if (!PlgDBalloc(g, NULL, Index))
-					goto err;
-
-				Offset.Size = (nblin + 1) * sizeof(int);
-				Offset.Sub = TRUE;                 // Should be small enough
-
-				if (!PlgDBalloc(g, NULL, Offset))
-					goto err;
-
-				ndif = Qsort(g, nblin);
-
-				if (ndif < 0)           // error
-					goto err;
-
-			} else {
-				// The query was limited, we must get pivot column values
-				// Returned values must be in their original character set
-		//  if (Myc.ExecSQL(g, "SET character_set_results=NULL", &w) == RC_FX)
-		//    goto err;
-
-				query = (char*)PlugSubAlloc(g, NULL, 0);
-				sprintf(query, "SELECT DISTINCT `%s` FROM `%s`", Picol, Tabname);
-				PlugSubAlloc(g, NULL, strlen(query) + 1);
-				Myc.FreeResult();
-
-				// Send the source command to MySQL
-				if (Myc.ExecSQL(g, query, &w) == RC_FX)
-					goto err;
-
-				// We must have a storage query to get pivot column values
-				if (!(qrp = Myc.GetResult(g, true)))
-					goto err;
-
-				Myc.Close();
-				b = false;
-
-				// Get the column list
-				crp = qrp->Colresp;
-				Rblkp = crp->Kdata;
-				ndif = qrp->Nblin;
-			} // endif Tabsrc
-
-			// Allocate the Value used to retieve column names
-			if (!(valp = AllocateValue(g, Rblkp->GetType(),
-				Rblkp->GetVlen(),
-				Rblkp->GetPrec())))
+			if (!PlgDBalloc(g, NULL, Index))
 				goto err;
 
-			// Now make the functional columns
-			for (int i = 0; i < ndif; i++) {
-				if (i) {
-					crp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
-					memcpy(crp, fncrp, sizeof(COLRES));
-				} else
-					crp = fncrp;
+			Offset.Size = (nblin + 1) * sizeof(int);
+			Offset.Sub = TRUE;                 // Should be small enough
 
-				// Get the value that will be the generated column name
-				if (Tabsrc)
-					valp->SetValue_pvblk(Rblkp, Pex[Pof[i]]);
-				else
-					valp->SetValue_pvblk(Rblkp, i);
+			if (!PlgDBalloc(g, NULL, Offset))
+				goto err;
 
-				colname = valp->GetCharString(buf);
-				crp->Name = PlugDup(g, colname);
-				crp->Flag = 1;
+			ndif = Qsort(g, nblin);
 
-				// Add this column
-				*pcrp = crp;
-				crp->Next = NULL;
-				pcrp = &crp->Next;
-			} // endfor i
+			if (ndif < 0)           // error
+				goto err;
+
+		} else {
+			// The query was limited, we must get pivot column values
+			// Returned values must be in their original character set
+	    //  if (Myc.ExecSQL(g, "SET character_set_results=NULL", &w) == RC_FX)
+	    //    goto err;
+
+			query = (char*)PlugSubAlloc(g, NULL, 0);
+			sprintf(query, "SELECT DISTINCT `%s` FROM `%s`", Picol, Tabname);
+			PlugSubAlloc(g, NULL, strlen(query) + 1);
+			Myc.FreeResult();
+
+			// Send the source command to MySQL
+			if (Myc.ExecSQL(g, query, &w) == RC_FX)
+				goto err;
+
+			// We must have a storage query to get pivot column values
+			if (!(qrp = Myc.GetResult(g, true)))
+				goto err;
+
+			Myc.Close();
+			b = false;
+
+			// Get the column list
+			crp = qrp->Colresp;
+			Rblkp = crp->Kdata;
+			ndif = qrp->Nblin;
+		} // endif Tabsrc
+
+		// Allocate the Value used to retieve column names
+		if (!(valp = AllocateValue(g, Rblkp->GetType(),
+				                          Rblkp->GetVlen(),
+				                          Rblkp->GetPrec())))
+			goto err;
+
+		// Now make the functional columns
+		for (int i = 0; i < ndif; i++) {
+			if (i) {
+				crp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
+				memcpy(crp, fncrp, sizeof(COLRES));
+			} else
+				crp = fncrp;
+
+			// Get the value that will be the generated column name
+			if (Tabsrc)
+				valp->SetValue_pvblk(Rblkp, Pex[Pof[i]]);
+			else
+				valp->SetValue_pvblk(Rblkp, i);
+
+			colname = valp->GetCharString(buf);
+			crp->Name = PlugDup(g, colname);
+			crp->Flag = 1;
+
+			// Add this column
+			*pcrp = crp;
+			crp->Next = NULL;
+			pcrp = &crp->Next;
+		} // endfor i
 
 		// We added ndif columns and removed 2 (picol and fncol)
 		Qryp->Nbcol += (ndif - 2);
 		return Qryp;
 	} catch (int n) {
-		if (trace)
+		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
 	} catch (const char *msg) {
 		strcpy(g->Message, msg);
 	} // end catch
 
 err:
-  if (b)
-    Myc.Close();
+	if (b)
+		Myc.Close();
 
-  return NULL;
+	return NULL;
 } // end of MakePivotColumns
 
 /***********************************************************************/

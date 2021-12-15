@@ -1,0 +1,304 @@
+select plugin_name,plugin_status as 'Must be ACTIVE' from information_schema.plugins where plugin_name like 'inno%' and plugin_status!='ACTIVE';
+plugin_name	Must be ACTIVE
+create user select_only@localhost;
+grant select on *.* to select_only@localhost;
+connect select_only,localhost,select_only;
+connection default;
+create sql security invoker view i_buffer_page as select * from information_schema.innodb_buffer_page;
+create sql security definer view d_buffer_page as select * from information_schema.innodb_buffer_page;
+create sql security invoker view i_buffer_page_lru as select * from information_schema.innodb_buffer_page_lru;
+create sql security definer view d_buffer_page_lru as select * from information_schema.innodb_buffer_page_lru;
+create sql security invoker view i_buffer_pool_stats as select * from information_schema.innodb_buffer_pool_stats;
+create sql security definer view d_buffer_pool_stats as select * from information_schema.innodb_buffer_pool_stats;
+create sql security invoker view i_cmp as select * from information_schema.innodb_cmp;
+create sql security definer view d_cmp as select * from information_schema.innodb_cmp;
+create sql security invoker view i_cmp_per_index as select * from information_schema.innodb_cmp_per_index;
+create sql security definer view d_cmp_per_index as select * from information_schema.innodb_cmp_per_index;
+create sql security invoker view i_cmp_per_index_reset as select * from information_schema.innodb_cmp_per_index_reset;
+create sql security definer view d_cmp_per_index_reset as select * from information_schema.innodb_cmp_per_index_reset;
+create sql security invoker view i_cmp_reset as select * from information_schema.innodb_cmp_reset;
+create sql security definer view d_cmp_reset as select * from information_schema.innodb_cmp_reset;
+create sql security invoker view i_cmpmem as select * from information_schema.innodb_cmpmem;
+create sql security definer view d_cmpmem as select * from information_schema.innodb_cmpmem;
+create sql security invoker view i_cmpmem_reset as select * from information_schema.innodb_cmpmem_reset;
+create sql security definer view d_cmpmem_reset as select * from information_schema.innodb_cmpmem_reset;
+create sql security invoker view i_ft_being_deleted as select * from information_schema.innodb_ft_being_deleted;
+create sql security definer view d_ft_being_deleted as select * from information_schema.innodb_ft_being_deleted;
+create sql security invoker view i_ft_config as select * from information_schema.innodb_ft_config;
+create sql security definer view d_ft_config as select * from information_schema.innodb_ft_config;
+create sql security invoker view i_ft_default_stopword as select * from information_schema.innodb_ft_default_stopword;
+create sql security definer view d_ft_default_stopword as select * from information_schema.innodb_ft_default_stopword;
+create sql security invoker view i_ft_deleted as select * from information_schema.innodb_ft_deleted;
+create sql security definer view d_ft_deleted as select * from information_schema.innodb_ft_deleted;
+create sql security invoker view i_ft_index_cache as select * from information_schema.innodb_ft_index_cache;
+create sql security definer view d_ft_index_cache as select * from information_schema.innodb_ft_index_cache;
+create sql security invoker view i_ft_index_table as select * from information_schema.innodb_ft_index_table;
+create sql security definer view d_ft_index_table as select * from information_schema.innodb_ft_index_table;
+create sql security invoker view i_lock_waits as select * from information_schema.innodb_lock_waits;
+create sql security definer view d_lock_waits as select * from information_schema.innodb_lock_waits;
+create sql security invoker view i_locks as select * from information_schema.innodb_locks;
+create sql security definer view d_locks as select * from information_schema.innodb_locks;
+create sql security invoker view i_metrics as select * from information_schema.innodb_metrics;
+create sql security definer view d_metrics as select * from information_schema.innodb_metrics;
+create sql security invoker view i_mutexes as select * from information_schema.innodb_mutexes;
+create sql security definer view d_mutexes as select * from information_schema.innodb_mutexes;
+create sql security invoker view i_sys_columns as select * from information_schema.innodb_sys_columns;
+create sql security definer view d_sys_columns as select * from information_schema.innodb_sys_columns;
+create sql security invoker view i_sys_datafiles as select * from information_schema.innodb_sys_datafiles;
+create sql security definer view d_sys_datafiles as select * from information_schema.innodb_sys_datafiles;
+create sql security invoker view i_sys_fields as select * from information_schema.innodb_sys_fields;
+create sql security definer view d_sys_fields as select * from information_schema.innodb_sys_fields;
+create sql security invoker view i_sys_foreign as select * from information_schema.innodb_sys_foreign;
+create sql security definer view d_sys_foreign as select * from information_schema.innodb_sys_foreign;
+create sql security invoker view i_sys_foreign_cols as select * from information_schema.innodb_sys_foreign_cols;
+create sql security definer view d_sys_foreign_cols as select * from information_schema.innodb_sys_foreign_cols;
+create sql security invoker view i_sys_indexes as select * from information_schema.innodb_sys_indexes;
+create sql security definer view d_sys_indexes as select * from information_schema.innodb_sys_indexes;
+create sql security invoker view i_sys_semaphore_waits as select * from information_schema.innodb_sys_semaphore_waits;
+create sql security definer view d_sys_semaphore_waits as select * from information_schema.innodb_sys_semaphore_waits;
+create sql security invoker view i_sys_tables as select * from information_schema.innodb_sys_tables;
+create sql security definer view d_sys_tables as select * from information_schema.innodb_sys_tables;
+create sql security invoker view i_sys_tablespaces as select * from information_schema.innodb_sys_tablespaces;
+create sql security definer view d_sys_tablespaces as select * from information_schema.innodb_sys_tablespaces;
+create sql security invoker view i_sys_tablestats as select * from information_schema.innodb_sys_tablestats;
+create sql security definer view d_sys_tablestats as select * from information_schema.innodb_sys_tablestats;
+create sql security invoker view i_sys_virtual as select * from information_schema.innodb_sys_virtual;
+create sql security definer view d_sys_virtual as select * from information_schema.innodb_sys_virtual;
+create sql security invoker view i_tablespaces_encryption as select * from information_schema.innodb_tablespaces_encryption;
+create sql security definer view d_tablespaces_encryption as select * from information_schema.innodb_tablespaces_encryption;
+create sql security invoker view i_tablespaces_scrubbing as select * from information_schema.innodb_tablespaces_scrubbing;
+create sql security definer view d_tablespaces_scrubbing as select * from information_schema.innodb_tablespaces_scrubbing;
+create sql security invoker view i_trx as select * from information_schema.innodb_trx;
+create sql security definer view d_trx as select * from information_schema.innodb_trx;
+connection select_only;
+select count(*) > -1 from information_schema.innodb_buffer_page;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_buffer_page;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_buffer_page;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_buffer_page_lru;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_buffer_page_lru;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_buffer_page_lru;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_buffer_pool_stats;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_buffer_pool_stats;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_buffer_pool_stats;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_cmp;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_cmp;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_cmp;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_cmp_per_index;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_cmp_per_index;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_cmp_per_index;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_cmp_per_index_reset;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_cmp_per_index_reset;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_cmp_per_index_reset;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_cmp_reset;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_cmp_reset;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_cmp_reset;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_cmpmem;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_cmpmem;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_cmpmem;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_cmpmem_reset;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_cmpmem_reset;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_cmpmem_reset;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_ft_being_deleted;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_ft_being_deleted;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_ft_being_deleted;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_ft_config;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_ft_config;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_ft_config;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_ft_default_stopword;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_ft_deleted;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_ft_deleted;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_ft_deleted;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_ft_index_cache;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_ft_index_cache;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_ft_index_cache;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_ft_index_table;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_ft_index_table;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_ft_index_table;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_lock_waits;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_lock_waits;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_lock_waits;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_locks;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_locks;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_locks;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_metrics;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_metrics;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_metrics;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_mutexes;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_mutexes;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_mutexes;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_sys_columns;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_sys_columns;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_sys_columns;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_sys_datafiles;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_sys_datafiles;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_sys_datafiles;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_sys_fields;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_sys_fields;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_sys_fields;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_sys_foreign;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_sys_foreign;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_sys_foreign;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_sys_foreign_cols;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_sys_foreign_cols;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_sys_foreign_cols;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_sys_indexes;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_sys_indexes;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_sys_indexes;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_sys_semaphore_waits;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_sys_semaphore_waits;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_sys_semaphore_waits;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_sys_tables;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_sys_tables;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_sys_tables;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_sys_tablespaces;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_sys_tablespaces;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_sys_tablespaces;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_sys_tablestats;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_sys_tablestats;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_sys_tablestats;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_sys_virtual;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_sys_virtual;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_sys_virtual;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_tablespaces_encryption;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_tablespaces_encryption;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_tablespaces_encryption;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_tablespaces_scrubbing;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+select count(*) > -1 from i_tablespaces_scrubbing;
+ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
+select count(*) > -1 from d_tablespaces_scrubbing;
+count(*) > -1
+1
+select count(*) > -1 from information_schema.innodb_trx;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from i_trx;
+ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
+select count(*) > -1 from d_trx;
+count(*) > -1
+1
+connection default;
+drop database test;
+create database test;
+drop user select_only@localhost;

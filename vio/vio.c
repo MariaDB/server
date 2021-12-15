@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Note that we can't have assertion on file descriptors;  The reason for
@@ -68,6 +68,7 @@ int vio_shared_memory_shutdown(Vio *vio, int how)
 
 int vio_pipe_shutdown(Vio *vio, int how)
 {
+  vio->shutdown_flag= how;
   return CancelIoEx(vio->hPipe, NULL);
 }
 #endif

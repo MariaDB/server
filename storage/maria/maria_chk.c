@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Describe, check and repair of MARIA tables */
 
@@ -22,9 +22,7 @@
 #include <stdarg.h>
 #include <my_getopt.h>
 #include <my_check_opt.h>
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
+#include <my_handler_errors.h>
 
 static uint decode_bits;
 static char **default_argv;
@@ -93,12 +91,28 @@ ATTRIBUTE_NORETURN static void my_exit(int exit_code);
 
 HA_CHECK check_param;
 
+/*
+  Register handler error messages for usage with my_error()
+
+  NOTES
+    This is safe to call multiple times as my_error_register()
+    will ignore calls to register already registered error numbers.
+*/
+
+static const char **get_handler_error_messages(int e __attribute__((unused)))
+{
+  return handler_error_messages;
+}
+
+
 /* Free memory and exit */
 
 static void my_exit(int exit_code)
 {
   free_tmpdir(&maria_chk_tmpdir);
   free_defaults(default_argv);
+  my_error_unregister(HA_ERR_FIRST,
+                      HA_ERR_FIRST+ array_elements(handler_error_messages)-1);
   my_end(check_param.testflag & T_INFO ?
          MY_CHECK_ERROR | MY_GIVE_INFO : MY_CHECK_ERROR);
   exit(exit_code);
@@ -120,6 +134,8 @@ int main(int argc, char **argv)
   maria_quick_table_bits=decode_bits;
   error=0;
   maria_init();
+  my_error_register(get_handler_error_messages, HA_ERR_FIRST,
+                    HA_ERR_FIRST+ array_elements(handler_error_messages)-1);
 
   maria_block_size= 0;                 /* Use block size from control file */
   if (!opt_ignore_control_file &&
@@ -160,6 +176,20 @@ int main(int argc, char **argv)
       check_param.testflag&= ~T_REP;
     fflush(stdout);
     fflush(stderr);
+    if (check_param.wrong_trd_printed &&
+        (check_param.testflag & T_FORCE_CREATE) &&
+        !(check_param.error_printed | check_param.warning_printed))
+    {
+      /* Only wrong create_trd. Run zerofill */
+      ulonglong old_testflag= check_param.testflag;
+      check_param.testflag= T_ZEROFILL;
+      error|= maria_chk(&check_param, argv[-1]);
+      check_param.testflag= old_testflag;
+      check_param.error_printed= 0;
+      check_param.warning_printed= 0;
+      fflush(stdout);
+      fflush(stderr);
+    }
     if ((check_param.error_printed | check_param.warning_printed) &&
 	(check_param.testflag & T_FORCE_CREATE) &&
 	(!(check_param.testflag & (T_REP | T_REP_BY_SORT | T_SORT_RECORDS |
@@ -174,7 +204,6 @@ int main(int argc, char **argv)
       fflush(stdout);
       fflush(stderr);
     }
-    else
       error|=new_error;
     if (argc && (!(check_param.testflag & T_SILENT) ||
                  check_param.testflag & T_INFO))
@@ -693,8 +722,8 @@ get_one_option(int optid,
     }
     else
     {
-     if (check_param.testflag & T_FORCE_CREATE)
-       check_param.testflag= T_FORCE_SORT_MEMORY;
+      if (check_param.testflag & T_FORCE_CREATE)
+        check_param.testflag= T_FORCE_SORT_MEMORY;
       check_param.tmpfile_createflag= O_RDWR | O_TRUNC;
       check_param.testflag|= T_FORCE_CREATE | T_UPDATE_STATE;
     }
@@ -895,7 +924,7 @@ static void get_options(register int *argc,register char ***argv)
 {
   int ho_error;
 
-  load_defaults("my", load_default_groups, argc, argv);
+  load_defaults_or_exit("my", load_default_groups, argc, argv);
   default_argv= *argv;
   check_param.testflag= T_UPDATE_STATE;
   if (isatty(fileno(stdout)))
@@ -974,6 +1003,7 @@ static int maria_chk(HA_CHECK *param, char *filename)
   int error,lock_type,recreate;
   uint warning_printed_by_chk_status;
   my_bool rep_quick= MY_TEST(param->testflag & (T_QUICK | T_FORCE_UNIQUENESS));
+  my_bool born_transactional;
   MARIA_HA *info;
   File datafile;
   char llbuff[22],llbuff2[22];
@@ -981,8 +1011,8 @@ static int maria_chk(HA_CHECK *param, char *filename)
   MARIA_SHARE *share;
   DBUG_ENTER("maria_chk");
 
-  param->out_flag=error=param->warning_printed=param->error_printed=
-    recreate=0;
+  param->out_flag= error= param->error_printed= recreate= 0;
+  param->warning_printed= param->wrong_trd_printed= 0;
   datafile=0;
   param->isam_file_name=filename;		/* For error messages */
   warning_printed_by_chk_status= 0;
@@ -1128,7 +1158,7 @@ static int maria_chk(HA_CHECK *param, char *filename)
     {
       fprintf(stderr, "Aria table '%s' is not fixed because of errors\n",
 	      filename);
-      return(-1);
+      DBUG_RETURN(-1);
     }
     recreate=1;
     if (!(param->testflag & T_REP_ANY))
@@ -1150,7 +1180,7 @@ static int maria_chk(HA_CHECK *param, char *filename)
     param->total_deleted+=info->state->del;
     descript(param, info, filename);
     maria_close(info);                          /* Should always succeed */
-    return(0);
+    DBUG_RETURN(0);
   }
 
   if (!stopwords_inited++)
@@ -1416,6 +1446,7 @@ static int maria_chk(HA_CHECK *param, char *filename)
   maria_lock_database(info, F_UNLCK);
 
 end2:
+  born_transactional= share->base.born_transactional;
   if (maria_close(info))
   {
     _ma_check_print_error(param, default_close_errmsg, my_errno, filename);
@@ -1431,7 +1462,7 @@ end2:
                                       MYF(MY_REDEL_MAKE_BACKUP) : MYF(0)));
   }
   if (opt_transaction_logging &&
-      share->base.born_transactional && !error &&
+      born_transactional && !error &&
       (param->testflag & (T_REP_ANY | T_SORT_RECORDS | T_SORT_INDEX |
                           T_ZEROFILL)))
     error= write_log_record(param);
@@ -1617,7 +1648,7 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
 	   buff, share->base.keys);
   }
   puts("\nTable description:");
-  printf("Key Start Len Index   Type");
+  printf("Key Start Len Index    Type");
   if (param->testflag & T_VERBOSE)
     printf("                     Rec/key         Root  Blocksize");
   putchar('\n');
@@ -1649,7 +1680,7 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
       pos=strmov(pos,null_txt);
     *pos=0;
 
-    printf("%-4d%-6ld%-3d %-8s%-23s",
+    printf("%-4d%-6ld%-3d %-9s%-23s",
 	   key+1,(long) keyseg->start+1,keyseg->length,text,buff);
     if (share->state.key_root[key] != HA_OFFSET_ERROR)
       llstr(share->state.key_root[key],buff);
@@ -1674,7 +1705,7 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
       if (keyseg->flag & HA_NULL_PART)
 	pos=strmov(pos,null_txt);
       *pos=0;
-      printf("    %-6ld%-3d         %-21s",
+      printf("    %-6ld%-3d          %-21s",
 	     (long) keyseg->start+1,keyseg->length,buff);
       if (param->testflag & T_VERBOSE)
 	printf("%11.0f", share->state.rec_per_key_part[keyseg_nr++]);
@@ -1699,8 +1730,8 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
 	null_bit[0]=null_pos[0]=0;
 	if (keyseg->null_bit)
 	{
-	  sprintf(null_bit,"%d",keyseg->null_bit);
-	  sprintf(null_pos,"%ld",(long) keyseg->null_pos+1);
+	  my_snprintf(null_bit, sizeof(null_bit), "%d", keyseg->null_bit);
+	  my_snprintf(null_pos, sizeof(null_pos), "%ld", (long) keyseg->null_pos+1);
 	}
 	printf("%-7ld%-5d%-9s%-10s%-30s\n",
 	       (long) keyseg->start+1,keyseg->length,

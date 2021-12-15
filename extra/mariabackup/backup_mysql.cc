@@ -16,7 +16,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************
 
@@ -34,8 +34,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
+Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *******************************************************/
 #define MYSQL_CLIENT
@@ -44,10 +44,12 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include <mysql.h>
 #include <mysqld.h>
 #include <my_sys.h>
+#include <stdlib.h>
 #include <string.h>
 #include <limits>
 #include "common.h"
 #include "xtrabackup.h"
+#include "srv0srv.h"
 #include "mysql_version.h"
 #include "backup_copy.h"
 #include "backup_mysql.h"
@@ -55,8 +57,7 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include "encryption_plugin.h"
 #include <sstream>
 #include <sql_error.h>
-#include <ut0ut.h>
-
+#include "page0zip.h"
 
 char *tool_name;
 char tool_args[2048];
@@ -68,7 +69,6 @@ unsigned long mysql_server_version = 0;
 /* server capabilities */
 bool have_changed_page_bitmaps = false;
 bool have_backup_locks = false;
-bool have_backup_safe_binlog_info = false;
 bool have_lock_wait_timeout = false;
 bool have_galera_enabled = false;
 bool have_flush_engine_logs = false;
@@ -93,7 +93,7 @@ time_t history_lock_time;
 
 MYSQL *mysql_connection;
 
-my_bool opt_ssl_verify_server_cert;
+extern my_bool opt_ssl_verify_server_cert, opt_use_ssl;
 
 MYSQL *
 xb_mysql_connect()
@@ -104,10 +104,17 @@ xb_mysql_connect()
 	sprintf(mysql_port_str, "%d", opt_port);
 
 	if (connection == NULL) {
-		msg("Failed to init MySQL struct: %s.\n",
+		msg("Failed to init MySQL struct: %s.",
 			mysql_error(connection));
 		return(NULL);
 	}
+
+#if !defined(DONT_USE_MYSQL_PWD)
+	if (!opt_password)
+	{
+		opt_password=getenv("MYSQL_PWD");
+	}
+#endif
 
 	if (!opt_secure_auth) {
 		mysql_options(connection, MYSQL_SECURE_AUTH,
@@ -120,8 +127,8 @@ xb_mysql_connect()
 	mysql_options(connection, MYSQL_OPT_PROTOCOL, &opt_protocol);
 	mysql_options(connection,MYSQL_SET_CHARSET_NAME, "utf8");
 
-	msg_ts("Connecting to MySQL server host: %s, user: %s, password: %s, "
-	       "port: %s, socket: %s\n", opt_host ? opt_host : "localhost",
+	msg("Connecting to MySQL server host: %s, user: %s, password: %s, "
+	       "port: %s, socket: %s", opt_host ? opt_host : "localhost",
 	       opt_user ? opt_user : "not set",
 	       opt_password ? "set" : "not set",
 	       opt_port != 0 ? mysql_port_str : "not set",
@@ -147,13 +154,12 @@ xb_mysql_connect()
 				opt_password,
 				"" /*database*/, opt_port,
 				opt_socket, 0)) {
-		msg("Failed to connect to MySQL server: %s.\n",
-			mysql_error(connection));
+		msg("Failed to connect to MySQL server: %s.", mysql_error(connection));
 		mysql_close(connection);
 		return(NULL);
 	}
 
-	xb_mysql_query(connection, "SET SESSION wait_timeout=2147483",
+	xb_mysql_query(connection, "SET SESSION wait_timeout=2147483, max_statement_time=0",
 		       false, true);
 
 	return(connection);
@@ -168,10 +174,10 @@ xb_mysql_query(MYSQL *connection, const char *query, bool use_result,
 	MYSQL_RES *mysql_result = NULL;
 
 	if (mysql_query(connection, query)) {
-		msg("Error: failed to execute query %s: %s\n", query,
-			mysql_error(connection));
 		if (die_on_error) {
-			exit(EXIT_FAILURE);
+			die("failed to execute query %s: %s", query, mysql_error(connection));
+		} else {
+			msg("Error: failed to execute query %s: %s", query, mysql_error(connection));
 		}
 		return(NULL);
 	}
@@ -179,13 +185,13 @@ xb_mysql_query(MYSQL *connection, const char *query, bool use_result,
 	/* store result set on client if there is a result */
 	if (mysql_field_count(connection) > 0) {
 		if ((mysql_result = mysql_store_result(connection)) == NULL) {
-			msg("Error: failed to fetch query result %s: %s\n",
+			die("failed to fetch query result %s: %s",
 				query, mysql_error(connection));
-			exit(EXIT_FAILURE);
 		}
 
 		if (!use_result) {
 			mysql_free_result(mysql_result);
+			mysql_result = NULL;
 		}
 	}
 
@@ -315,11 +321,11 @@ check_server_version(unsigned long version_number,
 		msg("Error: Built-in InnoDB in MySQL 5.1 is not "
 		    "supported in this release. You can either use "
 		    "Percona XtraBackup 2.0, or upgrade to InnoDB "
-		    "plugin.\n");
+		    "plugin.");
 	} else if (!version_supported) {
 		msg("Error: Unsupported server version: '%s'. Please "
 		    "report a bug at "
-		    "https://bugs.launchpad.net/percona-xtrabackup\n",
+		    "https://bugs.launchpad.net/percona-xtrabackup",
 		    version_string);
 	}
 
@@ -329,200 +335,212 @@ check_server_version(unsigned long version_number,
 /*********************************************************************//**
 Receive options important for XtraBackup from MySQL server.
 @return	true on success. */
-bool
-get_mysql_vars(MYSQL *connection)
+bool get_mysql_vars(MYSQL *connection)
 {
-	char *gtid_mode_var = NULL;
-	char *version_var = NULL;
-	char *version_comment_var = NULL;
-	char *innodb_version_var = NULL;
-	char *have_backup_locks_var = NULL;
-	char *have_backup_safe_binlog_info_var = NULL;
-	char *log_bin_var = NULL;
-	char *lock_wait_timeout_var= NULL;
-	char *wsrep_on_var = NULL;
-	char *slave_parallel_workers_var = NULL;
-	char *gtid_slave_pos_var = NULL;
-	char *innodb_buffer_pool_filename_var = NULL;
-	char *datadir_var = NULL;
-	char *innodb_log_group_home_dir_var = NULL;
-	char *innodb_log_file_size_var = NULL;
-	char *innodb_log_files_in_group_var = NULL;
-	char *innodb_data_file_path_var = NULL;
-	char *innodb_data_home_dir_var = NULL;
-	char *innodb_undo_directory_var = NULL;
-	char *innodb_page_size_var = NULL;
-	char *innodb_undo_tablespaces_var = NULL;
-	char *endptr;
-	unsigned long server_version = mysql_get_server_version(connection);
+  char *gtid_mode_var= NULL;
+  char *version_var= NULL;
+  char *version_comment_var= NULL;
+  char *innodb_version_var= NULL;
+  char *have_backup_locks_var= NULL;
+  char *log_bin_var= NULL;
+  char *lock_wait_timeout_var= NULL;
+  char *wsrep_on_var= NULL;
+  char *slave_parallel_workers_var= NULL;
+  char *gtid_slave_pos_var= NULL;
+  char *innodb_buffer_pool_filename_var= NULL;
+  char *datadir_var= NULL;
+  char *innodb_log_group_home_dir_var= NULL;
+  char *innodb_log_file_size_var= NULL;
+  char *innodb_log_files_in_group_var= NULL;
+  char *innodb_data_file_path_var= NULL;
+  char *innodb_data_home_dir_var= NULL;
+  char *innodb_undo_directory_var= NULL;
+  char *innodb_page_size_var= NULL;
+  char *innodb_undo_tablespaces_var= NULL;
+  char *page_zip_level_var= NULL;
+  char *ignore_db_dirs= NULL;
+  char *endptr;
+  unsigned long server_version= mysql_get_server_version(connection);
 
-	bool ret = true;
+  bool ret= true;
 
-	mysql_variable mysql_vars[] = {
-		{"have_backup_locks", &have_backup_locks_var},
-		{"have_backup_safe_binlog_info",
-		 &have_backup_safe_binlog_info_var},
-		{"log_bin", &log_bin_var},
-		{"lock_wait_timeout", &lock_wait_timeout_var},
-		{"gtid_mode", &gtid_mode_var},
-		{"version", &version_var},
-		{"version_comment", &version_comment_var},
-		{"innodb_version", &innodb_version_var},
-		{"wsrep_on", &wsrep_on_var},
-		{"slave_parallel_workers", &slave_parallel_workers_var},
-		{"gtid_slave_pos", &gtid_slave_pos_var},
-		{"innodb_buffer_pool_filename",
-			&innodb_buffer_pool_filename_var},
-		{"datadir", &datadir_var},
-		{"innodb_log_group_home_dir", &innodb_log_group_home_dir_var},
-		{"innodb_log_file_size", &innodb_log_file_size_var},
-		{"innodb_log_files_in_group", &innodb_log_files_in_group_var},
-		{"innodb_data_file_path", &innodb_data_file_path_var},
-		{"innodb_data_home_dir", &innodb_data_home_dir_var},
-		{"innodb_undo_directory", &innodb_undo_directory_var},
-		{"innodb_page_size", &innodb_page_size_var},
-		{"innodb_undo_tablespaces", &innodb_undo_tablespaces_var},
-		{NULL, NULL}
-	};
+  mysql_variable mysql_vars[]= {
+      {"have_backup_locks", &have_backup_locks_var},
+      {"log_bin", &log_bin_var},
+      {"lock_wait_timeout", &lock_wait_timeout_var},
+      {"gtid_mode", &gtid_mode_var},
+      {"version", &version_var},
+      {"version_comment", &version_comment_var},
+      {"innodb_version", &innodb_version_var},
+      {"wsrep_on", &wsrep_on_var},
+      {"slave_parallel_workers", &slave_parallel_workers_var},
+      {"gtid_slave_pos", &gtid_slave_pos_var},
+      {"innodb_buffer_pool_filename", &innodb_buffer_pool_filename_var},
+      {"datadir", &datadir_var},
+      {"innodb_log_group_home_dir", &innodb_log_group_home_dir_var},
+      {"innodb_log_file_size", &innodb_log_file_size_var},
+      {"innodb_log_files_in_group", &innodb_log_files_in_group_var},
+      {"innodb_data_file_path", &innodb_data_file_path_var},
+      {"innodb_data_home_dir", &innodb_data_home_dir_var},
+      {"innodb_undo_directory", &innodb_undo_directory_var},
+      {"innodb_page_size", &innodb_page_size_var},
+      {"innodb_undo_tablespaces", &innodb_undo_tablespaces_var},
+      {"innodb_compression_level", &page_zip_level_var},
+      {"ignore_db_dirs", &ignore_db_dirs},
+      {NULL, NULL}};
 
-	read_mysql_variables(connection, "SHOW VARIABLES",
-				mysql_vars, true);
+  read_mysql_variables(connection, "SHOW VARIABLES", mysql_vars, true);
 
-	if (have_backup_locks_var != NULL && !opt_no_backup_locks) {
-		have_backup_locks = true;
-	}
+  if (have_backup_locks_var != NULL && !opt_no_backup_locks)
+  {
+    have_backup_locks= true;
+  }
 
-	if (opt_binlog_info == BINLOG_INFO_AUTO) {
+  if (opt_binlog_info == BINLOG_INFO_AUTO)
+  {
+    if (log_bin_var != NULL && !strcmp(log_bin_var, "ON"))
+      opt_binlog_info= BINLOG_INFO_ON;
+    else
+      opt_binlog_info= BINLOG_INFO_OFF;
+  }
 
-		if (have_backup_safe_binlog_info_var != NULL)
-			opt_binlog_info = BINLOG_INFO_LOCKLESS;
-		else if (log_bin_var != NULL && !strcmp(log_bin_var, "ON"))
-			opt_binlog_info = BINLOG_INFO_ON;
-		else
-			opt_binlog_info = BINLOG_INFO_OFF;
-	}
+  if (lock_wait_timeout_var != NULL)
+  {
+    have_lock_wait_timeout= true;
+  }
 
-	if (have_backup_safe_binlog_info_var == NULL &&
-	    opt_binlog_info == BINLOG_INFO_LOCKLESS) {
+  if (wsrep_on_var != NULL)
+  {
+    have_galera_enabled= true;
+  }
 
-		msg("Error: --binlog-info=LOCKLESS is not supported by the "
-		    "server\n");
-		return(false);
-	}
+  /* Check server version compatibility and detect server flavor */
 
-	if (lock_wait_timeout_var != NULL) {
-		have_lock_wait_timeout = true;
-	}
+  if (!(ret= check_server_version(server_version, version_var,
+                                  version_comment_var, innodb_version_var)))
+  {
+    goto out;
+  }
 
-	if (wsrep_on_var != NULL) {
-		have_galera_enabled = true;
-	}
+  if (server_version > 50500)
+  {
+    have_flush_engine_logs= true;
+  }
 
-	/* Check server version compatibility and detect server flavor */
+  if (slave_parallel_workers_var != NULL &&
+      atoi(slave_parallel_workers_var) > 0)
+  {
+    have_multi_threaded_slave= true;
+  }
 
-	if (!(ret = check_server_version(server_version, version_var,
-					 version_comment_var,
-					 innodb_version_var))) {
-		goto out;
-	}
+  if (innodb_buffer_pool_filename_var != NULL)
+  {
+    buffer_pool_filename= strdup(innodb_buffer_pool_filename_var);
+  }
 
-	if (server_version > 50500) {
-		have_flush_engine_logs = true;
-	}
+  if ((gtid_mode_var && strcmp(gtid_mode_var, "ON") == 0) ||
+      (gtid_slave_pos_var && *gtid_slave_pos_var))
+  {
+    have_gtid_slave= true;
+  }
 
-	if (slave_parallel_workers_var != NULL
-		&& atoi(slave_parallel_workers_var) > 0) {
-		have_multi_threaded_slave = true;
-	}
+  msg("Using server version %s", version_var);
 
-	if (innodb_buffer_pool_filename_var != NULL) {
-		buffer_pool_filename = strdup(innodb_buffer_pool_filename_var);
-	}
+  if (!(ret= detect_mysql_capabilities_for_backup()))
+  {
+    goto out;
+  }
 
-	if ((gtid_mode_var && strcmp(gtid_mode_var, "ON") == 0) ||
-	    (gtid_slave_pos_var && *gtid_slave_pos_var)) {
-		have_gtid_slave = true;
-	}
+  /* make sure datadir value is the same in configuration file */
+  if (check_if_param_set("datadir"))
+  {
+    if (!directory_exists(mysql_data_home, false))
+    {
+      msg("Warning: option 'datadir' points to "
+          "nonexistent directory '%s'",
+          mysql_data_home);
+    }
+    if (!directory_exists(datadir_var, false))
+    {
+      msg("Warning: MySQL variable 'datadir' points to "
+          "nonexistent directory '%s'",
+          datadir_var);
+    }
+    if (!equal_paths(mysql_data_home, datadir_var))
+    {
+      msg("Warning: option 'datadir' has different "
+          "values:\n"
+          "  '%s' in defaults file\n"
+          "  '%s' in SHOW VARIABLES",
+          mysql_data_home, datadir_var);
+    }
+  }
 
-	msg("Using server version %s\n", version_var);
+  /* get some default values is they are missing from my.cnf */
+  if (datadir_var && *datadir_var)
+  {
+    strmake(mysql_real_data_home, datadir_var, FN_REFLEN - 1);
+    mysql_data_home= mysql_real_data_home;
+  }
 
-	if (!(ret = detect_mysql_capabilities_for_backup())) {
-		goto out;
-	}
+  if (innodb_data_file_path_var && *innodb_data_file_path_var)
+  {
+    innobase_data_file_path= my_strdup(innodb_data_file_path_var, MYF(MY_FAE));
+  }
 
-	/* make sure datadir value is the same in configuration file */
-	if (check_if_param_set("datadir")) {
-		if (!directory_exists(mysql_data_home, false)) {
-			msg("Warning: option 'datadir' points to "
-			    "nonexistent directory '%s'\n", mysql_data_home);
-		}
-		if (!directory_exists(datadir_var, false)) {
-			msg("Warning: MySQL variable 'datadir' points to "
-			    "nonexistent directory '%s'\n", datadir_var);
-		}
-		if (!equal_paths(mysql_data_home, datadir_var)) {
-			msg("Warning: option 'datadir' has different "
-				"values:\n"
-				"  '%s' in defaults file\n"
-				"  '%s' in SHOW VARIABLES\n",
-				mysql_data_home, datadir_var);
-		}
-	}
+  if (innodb_data_home_dir_var)
+  {
+    innobase_data_home_dir= my_strdup(innodb_data_home_dir_var, MYF(MY_FAE));
+  }
 
-	/* get some default values is they are missing from my.cnf */
-	if (datadir_var && *datadir_var) {
-		strmake(mysql_real_data_home, datadir_var, FN_REFLEN - 1);
-		mysql_data_home= mysql_real_data_home;
-	}
+  if (innodb_log_group_home_dir_var && *innodb_log_group_home_dir_var)
+  {
+    srv_log_group_home_dir=
+        my_strdup(innodb_log_group_home_dir_var, MYF(MY_FAE));
+  }
 
-	if (innodb_data_file_path_var && *innodb_data_file_path_var) {
-		innobase_data_file_path = my_strdup(
-			innodb_data_file_path_var, MYF(MY_FAE));
-	}
+  if (innodb_undo_directory_var && *innodb_undo_directory_var)
+  {
+    srv_undo_dir= my_strdup(innodb_undo_directory_var, MYF(MY_FAE));
+  }
 
-	if (innodb_data_home_dir_var && *innodb_data_home_dir_var) {
-		innobase_data_home_dir = my_strdup(
-			innodb_data_home_dir_var, MYF(MY_FAE));
-	}
+  if (innodb_log_files_in_group_var)
+  {
+    srv_n_log_files= strtol(innodb_log_files_in_group_var, &endptr, 10);
+    ut_ad(*endptr == 0);
+  }
 
-	if (innodb_log_group_home_dir_var
-	    && *innodb_log_group_home_dir_var) {
-		srv_log_group_home_dir = my_strdup(
-			innodb_log_group_home_dir_var, MYF(MY_FAE));
-	}
+  if (innodb_log_file_size_var)
+  {
+    srv_log_file_size= strtoll(innodb_log_file_size_var, &endptr, 10);
+    ut_ad(*endptr == 0);
+  }
 
-	if (innodb_undo_directory_var && *innodb_undo_directory_var) {
-		srv_undo_dir = my_strdup(
-			innodb_undo_directory_var, MYF(MY_FAE));
-	}
+  if (innodb_page_size_var)
+  {
+    innobase_page_size= strtoll(innodb_page_size_var, &endptr, 10);
+    ut_ad(*endptr == 0);
+  }
 
-	if (innodb_log_files_in_group_var) {
-		srv_n_log_files = strtol(
-			innodb_log_files_in_group_var, &endptr, 10);
-		ut_ad(*endptr == 0);
-	}
+  if (innodb_undo_tablespaces_var)
+  {
+    srv_undo_tablespaces= strtoul(innodb_undo_tablespaces_var, &endptr, 10);
+    ut_ad(*endptr == 0);
+  }
 
-	if (innodb_log_file_size_var) {
-		srv_log_file_size = strtoll(
-			innodb_log_file_size_var, &endptr, 10);
-		ut_ad(*endptr == 0);
-	}
+  if (page_zip_level_var != NULL)
+  {
+    page_zip_level= strtoul(page_zip_level_var, &endptr, 10);
+    ut_ad(*endptr == 0);
+  }
 
-	if (innodb_page_size_var) {
-		innobase_page_size = strtoll(
-			innodb_page_size_var, &endptr, 10);
-		ut_ad(*endptr == 0);
-	}
-
-	if (innodb_undo_tablespaces_var) {
-		srv_undo_tablespaces = strtoul(innodb_undo_tablespaces_var, &endptr, 10);
-		ut_ad(*endptr == 0);
-	}
+  if (ignore_db_dirs)
+    xb_load_list_string(ignore_db_dirs, ",", register_ignore_db_dirs_filter);
 
 out:
-	free_mysql_variables(mysql_vars);
+  free_mysql_variables(mysql_vars);
 
-	return(ret);
+  return (ret);
 }
 
 /*********************************************************************//**
@@ -563,14 +581,14 @@ detect_mysql_capabilities_for_backup()
 	if (opt_galera_info && !have_galera_enabled) {
 		msg("--galera-info is specified on the command "
 		 	"line, but the server does not support Galera "
-		 	"replication. Ignoring the option.\n");
+		 	"replication. Ignoring the option.");
 		opt_galera_info = false;
 	}
 
 	if (opt_slave_info && have_multi_threaded_slave &&
 	    !have_gtid_slave) {
 	    	msg("The --slave-info option requires GTID enabled for a "
-			"multi-threaded slave.\n");
+			"multi-threaded slave.");
 		return(false);
 	}
 
@@ -617,7 +635,7 @@ select_incremental_lsn_from_history(lsn_t *incremental_lsn)
 	const MYSQL_ROW row = mysql_fetch_row(mysql_result);
 	if (row) {
 		*incremental_lsn = strtoull(row[0], NULL, 10);
-		msg("Found and using lsn: " LSN_PF " for %s %s\n",
+		msg("Found and using lsn: " LSN_PF " for %s %s",
 		    *incremental_lsn,
 		    opt_incremental_history_uuid ? "uuid" : "name",
 		    opt_incremental_history_uuid ?
@@ -625,7 +643,7 @@ select_incremental_lsn_from_history(lsn_t *incremental_lsn)
 		    opt_incremental_history_name);
 	} else {
 		msg("Error while attempting to find history record "
-			"for %s %s\n",
+			"for %s %s",
 			opt_incremental_history_uuid ? "uuid" : "name",
 			opt_incremental_history_uuid ?
 		    		opt_incremental_history_uuid :
@@ -735,7 +753,7 @@ have_queries_to_wait_for(MYSQL *connection, uint threshold)
 		    && duration >= (int)threshold
 		    && ((all_queries && is_query(info))
 		    	|| is_update_query(info))) {
-			msg_ts("Waiting for query %s (duration %d sec): %s",
+			msg("Waiting for query %s (duration %d sec): %s",
 			       id, duration, info);
 			have_to_wait = true;
 			break;
@@ -764,7 +782,7 @@ kill_long_queries(MYSQL *connection, time_t timeout)
 		    (time_t)duration >= timeout &&
 		    ((all_queries && is_query(info)) ||
 		    	is_select_query(info))) {
-			msg_ts("Killing query %s (duration %d sec): %s\n",
+			msg("Killing query %s (duration %d sec): %s",
 			       id, (int)duration, info);
 			snprintf(kill_stmt, sizeof(kill_stmt),
 				    "KILL %s", id);
@@ -783,8 +801,8 @@ wait_for_no_updates(MYSQL *connection, uint timeout, uint threshold)
 
 	start_time = time(NULL);
 
-	msg_ts("Waiting %u seconds for queries running longer than %u seconds "
-	       "to finish\n", timeout, threshold);
+	msg("Waiting %u seconds for queries running longer than %u seconds "
+	       "to finish", timeout, threshold);
 
 	while (time(NULL) <= (time_t)(start_time + timeout)) {
 		if (!have_queries_to_wait_for(connection, threshold)) {
@@ -793,7 +811,7 @@ wait_for_no_updates(MYSQL *connection, uint timeout, uint threshold)
 		os_thread_sleep(1000000);
 	}
 
-	msg_ts("Unable to obtain lock. Please try again later.");
+	msg("Unable to obtain lock. Please try again later.");
 
 	return(false);
 }
@@ -811,7 +829,7 @@ DECLARE_THREAD(kill_query_thread)(
 
 	os_event_set(kill_query_thread_started);
 
-	msg_ts("Kill query timeout %d seconds.\n",
+	msg("Kill query timeout %d seconds.",
 	       opt_kill_long_queries_timeout);
 
 	while (time(NULL) - start_time <
@@ -823,7 +841,7 @@ DECLARE_THREAD(kill_query_thread)(
 	}
 
 	if ((mysql = xb_mysql_connect()) == NULL) {
-		msg("Error: kill query thread failed\n");
+		msg("Error: kill query thread failed");
 		goto stop_thread;
 	}
 
@@ -838,7 +856,7 @@ DECLARE_THREAD(kill_query_thread)(
 	mysql_close(mysql);
 
 stop_thread:
-	msg_ts("Kill query thread stopped\n");
+	msg("Kill query thread stopped");
 
 	os_event_set(kill_query_thread_stopped);
 
@@ -868,75 +886,174 @@ stop_query_killer()
 	os_event_wait_time(kill_query_thread_stopped, 60000);
 }
 
+
+/*
+Killing connections that wait for MDL lock.
+If lock-ddl-per-table is used, there can be some DDL statements
+
+FLUSH TABLES would hang infinitely, if DDL statements are waiting for
+MDL lock, which mariabackup currently holds. Therefore we start killing
+those  statements from a dedicated thread, until FLUSH TABLES WITH READ LOCK
+succeeds.
+*/
+
+static os_event_t mdl_killer_stop_event;
+static os_event_t mdl_killer_finished_event;
+
+static
+os_thread_ret_t
+DECLARE_THREAD(kill_mdl_waiters_thread(void *))
+{
+	MYSQL	*mysql;
+	if ((mysql = xb_mysql_connect()) == NULL) {
+		msg("Error: kill mdl waiters thread failed to connect");
+		goto stop_thread;
+	}
+
+	for(;;){
+		if (os_event_wait_time(mdl_killer_stop_event, 1000) == 0)
+			break;
+
+		MYSQL_RES *result = xb_mysql_query(mysql,
+			"SELECT ID, COMMAND, INFO FROM INFORMATION_SCHEMA.PROCESSLIST "
+			" WHERE State='Waiting for table metadata lock'",
+			true, true);
+		while (MYSQL_ROW row = mysql_fetch_row(result))
+		{
+			char query[64];
+
+			if (row[1] && !strcmp(row[1], "Killed"))
+				continue;
+
+			msg("Killing MDL waiting %s ('%s') on connection %s",
+				row[1], row[2], row[0]);
+			snprintf(query, sizeof(query), "KILL QUERY %s", row[0]);
+			if (mysql_query(mysql, query) && (mysql_errno(mysql) != ER_NO_SUCH_THREAD)) {
+				die("failed to execute query %s: %s", query,mysql_error(mysql));
+			}
+		}
+		mysql_free_result(result);
+	}
+
+	mysql_close(mysql);
+
+stop_thread:
+	msg("Kill mdl waiters thread stopped");
+	os_event_set(mdl_killer_finished_event);
+	os_thread_exit();
+	return os_thread_ret_t(0);
+}
+
+
+static void start_mdl_waiters_killer()
+{
+	mdl_killer_stop_event = os_event_create(0);
+	mdl_killer_finished_event = os_event_create(0);
+	os_thread_create(kill_mdl_waiters_thread, 0, 0);
+}
+
+
+/* Tell MDL killer to stop and finish for its completion*/
+static void stop_mdl_waiters_killer()
+{
+	os_event_set(mdl_killer_stop_event);
+	os_event_wait(mdl_killer_finished_event);
+
+	os_event_destroy(mdl_killer_stop_event);
+	os_event_destroy(mdl_killer_finished_event);
+}
+
 /*********************************************************************//**
 Function acquires either a backup tables lock, if supported
 by the server, or a global read lock (FLUSH TABLES WITH READ LOCK)
 otherwise.
 @returns true if lock acquired */
-bool
-lock_tables(MYSQL *connection)
+bool lock_tables(MYSQL *connection)
 {
-	if (have_lock_wait_timeout) {
-		/* Set the maximum supported session value for
-		lock_wait_timeout to prevent unnecessary timeouts when the
-		global value is changed from the default */
-		xb_mysql_query(connection,
-			"SET SESSION lock_wait_timeout=31536000", false);
-	}
+  if (have_lock_wait_timeout || opt_lock_wait_timeout)
+  {
+    char buf[FN_REFLEN];
+    /* Set the maximum supported session value for
+    lock_wait_timeout if opt_lock_wait_timeout is not set to prevent
+    unnecessary timeouts when the global value is changed from the default */
+    snprintf(buf, sizeof(buf), "SET SESSION lock_wait_timeout=%u",
+             opt_lock_wait_timeout ? opt_lock_wait_timeout : 31536000);
+    xb_mysql_query(connection, buf, false);
+  }
 
-	if (have_backup_locks) {
-		msg_ts("Executing LOCK TABLES FOR BACKUP...\n");
-		xb_mysql_query(connection, "LOCK TABLES FOR BACKUP", false);
-		return(true);
-	}
+  if (have_backup_locks)
+  {
+    msg("Executing LOCK TABLES FOR BACKUP...");
+    xb_mysql_query(connection, "LOCK TABLES FOR BACKUP", false);
+    return (true);
+  }
 
-	if (!opt_lock_wait_timeout && !opt_kill_long_queries_timeout) {
+  if (opt_lock_ddl_per_table)
+  {
+    start_mdl_waiters_killer();
+  }
 
-		/* We do first a FLUSH TABLES. If a long update is running, the
-		FLUSH TABLES will wait but will not stall the whole mysqld, and
-		when the long update is done the FLUSH TABLES WITH READ LOCK
-		will start and succeed quickly. So, FLUSH TABLES is to lower
-		the probability of a stage where both mysqldump and most client
-		connections are stalled. Of course, if a second long update
-		starts between the two FLUSHes, we have that bad stall.
+  if (!opt_lock_wait_timeout && !opt_kill_long_queries_timeout)
+  {
 
-		Option lock_wait_timeout serve the same purpose and is not
-		compatible with this trick.
-		*/
+    /* We do first a FLUSH TABLES. If a long update is running, the
+    FLUSH TABLES will wait but will not stall the whole mysqld, and
+    when the long update is done the FLUSH TABLES WITH READ LOCK
+    will start and succeed quickly. So, FLUSH TABLES is to lower
+    the probability of a stage where both mysqldump and most client
+    connections are stalled. Of course, if a second long update
+    starts between the two FLUSHes, we have that bad stall.
 
-		msg_ts("Executing FLUSH NO_WRITE_TO_BINLOG TABLES...\n");
+    Option lock_wait_timeout serve the same purpose and is not
+    compatible with this trick.
+    */
 
-		xb_mysql_query(connection,
-			       "FLUSH NO_WRITE_TO_BINLOG TABLES", false);
-	}
+    msg("Executing FLUSH NO_WRITE_TO_BINLOG TABLES...");
 
-	if (opt_lock_wait_timeout) {
-		if (!wait_for_no_updates(connection, opt_lock_wait_timeout,
-					 opt_lock_wait_threshold)) {
-			return(false);
-		}
-	}
+    xb_mysql_query(connection, "FLUSH NO_WRITE_TO_BINLOG TABLES", false);
+  }
 
-	msg_ts("Executing FLUSH TABLES WITH READ LOCK...\n");
+  if (opt_lock_wait_timeout)
+  {
+    if (!wait_for_no_updates(connection, opt_lock_wait_timeout,
+                             opt_lock_wait_threshold))
+    {
+      return (false);
+    }
+  }
 
-	if (opt_kill_long_queries_timeout) {
-		start_query_killer();
-	}
+  msg("Executing FLUSH TABLES WITH READ LOCK...");
 
-	if (have_galera_enabled) {
-		xb_mysql_query(connection,
-				"SET SESSION wsrep_causal_reads=0", false);
-	}
+  if (opt_kill_long_queries_timeout)
+  {
+    start_query_killer();
+  }
 
-	xb_mysql_query(connection, "FLUSH TABLES WITH READ LOCK", false);
+  if (have_galera_enabled)
+  {
+    xb_mysql_query(connection, "SET SESSION wsrep_causal_reads=0", false);
+  }
 
-	if (opt_kill_long_queries_timeout) {
-		stop_query_killer();
-	}
+  xb_mysql_query(connection, "FLUSH TABLES WITH READ LOCK", false, true);
+  /* Set the maximum supported session value for
+  lock_wait_timeout to prevent unnecessary timeouts when the
+  global value is changed from the default */
+  if (opt_lock_wait_timeout)
+    xb_mysql_query(connection, "SET SESSION lock_wait_timeout=31536000",
+                   false);
 
-	return(true);
+  if (opt_lock_ddl_per_table)
+  {
+    stop_mdl_waiters_killer();
+  }
+
+  if (opt_kill_long_queries_timeout)
+  {
+    stop_query_killer();
+  }
+
+  return (true);
 }
-
 
 /*********************************************************************//**
 If backup locks are used, execute LOCK BINLOG FOR BACKUP provided that we are
@@ -946,7 +1063,7 @@ bool
 lock_binlog_maybe(MYSQL *connection)
 {
 	if (have_backup_locks && !opt_no_lock && !binlog_locked) {
-		msg_ts("Executing LOCK BINLOG FOR BACKUP...\n");
+		msg("Executing LOCK BINLOG FOR BACKUP...");
 		xb_mysql_query(connection, "LOCK BINLOG FOR BACKUP", false);
 		binlog_locked = true;
 
@@ -965,20 +1082,20 @@ void
 unlock_all(MYSQL *connection)
 {
 	if (opt_debug_sleep_before_unlock) {
-		msg_ts("Debug sleep for %u seconds\n",
+		msg("Debug sleep for %u seconds",
 		       opt_debug_sleep_before_unlock);
 		os_thread_sleep(opt_debug_sleep_before_unlock * 1000);
 	}
 
 	if (binlog_locked) {
-		msg_ts("Executing UNLOCK BINLOG\n");
+		msg("Executing UNLOCK BINLOG");
 		xb_mysql_query(connection, "UNLOCK BINLOG", false);
 	}
 
-	msg_ts("Executing UNLOCK TABLES\n");
+	msg("Executing UNLOCK TABLES");
 	xb_mysql_query(connection, "UNLOCK TABLES", false);
 
-	msg_ts("All tables unlocked\n");
+	msg("All tables unlocked");
 }
 
 
@@ -1029,7 +1146,7 @@ wait_for_safe_slave(MYSQL *connection)
 
 	if (!(read_master_log_pos && slave_sql_running)) {
 		msg("Not checking slave open temp tables for "
-			"--safe-slave-backup because host is not a slave\n");
+			"--safe-slave-backup because host is not a slave");
 		goto cleanup;
 	}
 
@@ -1043,36 +1160,36 @@ wait_for_safe_slave(MYSQL *connection)
 	}
 
 	open_temp_tables = get_open_temp_tables(connection);
-	msg_ts("Slave open temp tables: %d\n", open_temp_tables);
+	msg("Slave open temp tables: %d", open_temp_tables);
 
 	while (open_temp_tables && n_attempts--) {
-		msg_ts("Starting slave SQL thread, waiting %d seconds, then "
+		msg("Starting slave SQL thread, waiting %d seconds, then "
 		       "checking Slave_open_temp_tables again (%d attempts "
-		       "remaining)...\n", sleep_time, n_attempts);
+		       "remaining)...", sleep_time, n_attempts);
 
 		xb_mysql_query(connection, "START SLAVE SQL_THREAD", false);
 		os_thread_sleep(sleep_time * 1000000);
 		xb_mysql_query(connection, "STOP SLAVE SQL_THREAD", false);
 
 		open_temp_tables = get_open_temp_tables(connection);
-		msg_ts("Slave open temp tables: %d\n", open_temp_tables);
+		msg("Slave open temp tables: %d", open_temp_tables);
 	}
 
 	/* Restart the slave if it was running at start */
 	if (open_temp_tables == 0) {
-		msg_ts("Slave is safe to backup\n");
+		msg("Slave is safe to backup");
 		goto cleanup;
 	}
 
 	result = false;
 
 	if (sql_thread_started) {
-		msg_ts("Restarting slave SQL thread.\n");
+		msg("Restarting slave SQL thread.");
 		xb_mysql_query(connection, "START SLAVE SQL_THREAD", false);
 	}
 
-	msg_ts("Slave_open_temp_tables did not become zero after "
-	       "%d seconds\n", opt_safe_slave_backup_timeout);
+	msg("Slave_open_temp_tables did not become zero after "
+	       "%d seconds", opt_safe_slave_backup_timeout);
 
 cleanup:
 	free_mysql_variables(status);
@@ -1091,6 +1208,7 @@ write_slave_info(MYSQL *connection)
 	char *master = NULL;
 	char *filename = NULL;
 	char *gtid_executed = NULL;
+	char *using_gtid = NULL;
 	char *position = NULL;
 	char *gtid_slave_pos = NULL;
 	char *ptr;
@@ -1101,6 +1219,7 @@ write_slave_info(MYSQL *connection)
 		{"Relay_Master_Log_File", &filename},
 		{"Exec_Master_Log_Pos", &position},
 		{"Executed_Gtid_Set", &gtid_executed},
+		{"Using_Gtid", &using_gtid},
 		{NULL, NULL}
 	};
 
@@ -1114,10 +1233,8 @@ write_slave_info(MYSQL *connection)
 
 	if (master == NULL || filename == NULL || position == NULL) {
 		msg("Failed to get master binlog coordinates "
-			"from SHOW SLAVE STATUS\n");
-		msg("This means that the server is not a "
-			"replication slave. Ignoring the --slave-info "
-			"option\n");
+			"from SHOW SLAVE STATUS.This means that the server is not a "
+			"replication slave. Ignoring the --slave-info option");
 		/* we still want to continue the backup */
 		result = true;
 		goto cleanup;
@@ -1143,7 +1260,8 @@ write_slave_info(MYSQL *connection)
 		ut_a(asprintf(&mysql_slave_position,
 			"master host '%s', purge list '%s'",
 			master, gtid_executed) != -1);
-	} else if (gtid_slave_pos && *gtid_slave_pos) {
+	} else if (gtid_slave_pos && *gtid_slave_pos &&
+			!(using_gtid && !strncmp(using_gtid, "No", 2))) {
 		/* MariaDB >= 10.0 with GTID enabled */
 		result = backup_file_printf(XTRABACKUP_SLAVE_INFO,
 			"SET GLOBAL gtid_slave_pos = '%s';\n"
@@ -1200,7 +1318,7 @@ write_galera_info(MYSQL *connection)
 
 	if ((state_uuid == NULL && state_uuid55 == NULL)
 		|| (last_committed == NULL && last_committed55 == NULL)) {
-		msg("Failed to get master wsrep state from SHOW STATUS.\n");
+		msg("Failed to get master wsrep state from SHOW STATUS.");
 		result = false;
 		goto cleanup;
 	}
@@ -1398,9 +1516,12 @@ PERCONA_SCHEMA.xtrabackup_history and writes a new history record to the
 table containing all the history info particular to the just completed
 backup. */
 bool
-write_xtrabackup_info(MYSQL *connection, const char * filename, bool history)
+write_xtrabackup_info(MYSQL *connection, const char * filename, bool history,
+                       bool stream)
 {
 
+	bool result = true;
+	FILE *fp = NULL;
 	char *uuid = NULL;
 	char *server_version = NULL;
 	char buf_start_time[100];
@@ -1426,7 +1547,8 @@ write_xtrabackup_info(MYSQL *connection, const char * filename, bool history)
 		|| xtrabackup_databases_exclude
 		);
 
-	backup_file_printf(filename,
+	char *buf = NULL;
+	int buf_len = asprintf(&buf,
 		"uuid = %s\n"
 		"name = %s\n"
 		"tool_name = %s\n"
@@ -1438,8 +1560,8 @@ write_xtrabackup_info(MYSQL *connection, const char * filename, bool history)
 		"end_time = %s\n"
 		"lock_time = %d\n"
 		"binlog_pos = %s\n"
-		"innodb_from_lsn = %llu\n"
-		"innodb_to_lsn = %llu\n"
+		"innodb_from_lsn = " LSN_PF "\n"
+		"innodb_to_lsn = " LSN_PF "\n"
 		"partial = %s\n"
 		"incremental = %s\n"
 		"format = %s\n"
@@ -1456,12 +1578,34 @@ write_xtrabackup_info(MYSQL *connection, const char * filename, bool history)
 		(int)history_lock_time, /* lock_time */
 		mysql_binlog_position ?
 			mysql_binlog_position : "", /* binlog_pos */
-		incremental_lsn, /* innodb_from_lsn */
-		metadata_to_lsn, /* innodb_to_lsn */
+		incremental_lsn,
+		/* innodb_from_lsn */
+		metadata_to_lsn,
+		/* innodb_to_lsn */
 		is_partial? "Y" : "N",
 		xtrabackup_incremental ? "Y" : "N", /* incremental */
 		xb_stream_name[xtrabackup_stream_fmt], /* format */
 		xtrabackup_compress ? "compressed" : "N"); /* compressed */
+	if (buf_len < 0) {
+		msg("Error: cannot generate xtrabackup_info");
+		result = false;
+		goto cleanup;
+	}
+
+	if (stream) {
+		backup_file_printf(filename, "%s", buf);
+	} else {
+		fp = fopen(filename, "w");
+		if (!fp) {
+			msg("Error: cannot open %s", filename);
+			result = false;
+			goto cleanup;
+		}
+		if (fwrite(buf, buf_len, 1, fp) < 1) {
+			result = false;
+			goto cleanup;
+		}
+	}
 
 	if (!history) {
 		goto cleanup;
@@ -1523,11 +1667,52 @@ cleanup:
 
 	free(uuid);
 	free(server_version);
+	free(buf);
+	if (fp)
+		fclose(fp);
 
-	return(true);
+	return(result);
 }
 
 extern const char *innodb_checksum_algorithm_names[];
+
+#ifdef _WIN32
+#include <algorithm>
+#endif
+
+static std::string make_local_paths(const char *data_file_path)
+{
+	if (strchr(data_file_path, '/') == 0
+#ifdef _WIN32
+		&& strchr(data_file_path, '\\') == 0
+#endif
+		){
+		return std::string(data_file_path);
+	}
+
+	std::ostringstream buf;
+
+	char *dup = strdup(innobase_data_file_path);
+	ut_a(dup);
+	char *p;
+	char * token = strtok_r(dup, ";", &p);
+	while (token) {
+		if (buf.tellp())
+			buf << ";";
+
+		char *fname = strrchr(token, '/');
+#ifdef _WIN32
+		fname = std::max(fname,strrchr(token, '\\'));
+#endif
+		if (fname)
+			buf << fname + 1;
+		else
+			buf << token;
+		token = strtok_r(NULL, ";", &p);
+	}
+	free(dup);
+	return buf.str();
+}
 
 bool write_backup_config_file()
 {
@@ -1542,15 +1727,17 @@ bool write_backup_config_file()
 		"innodb_page_size=%lu\n"
 		"innodb_undo_directory=%s\n"
 		"innodb_undo_tablespaces=%lu\n"
+		"innodb_compression_level=%u\n"
 		"%s%s\n"
 		"%s\n",
 		innodb_checksum_algorithm_names[srv_checksum_algorithm],
-		innobase_data_file_path,
+		make_local_paths(innobase_data_file_path).c_str(),
 		srv_n_log_files,
 		srv_log_file_size,
 		srv_page_size,
 		srv_undo_dir,
 		srv_undo_tablespaces,
+		page_zip_level,
 		innobase_buffer_pool_filename ?
 			"innodb_buffer_pool_filename=" : "",
 		innobase_buffer_pool_filename ?
@@ -1633,74 +1820,62 @@ backup_cleanup()
 }
 
 
-static pthread_mutex_t mdl_lock_con_mutex;
 static MYSQL *mdl_con = NULL;
+
+std::map<ulint, std::string> spaceid_to_tablename;
 
 void
 mdl_lock_init()
 {
-  pthread_mutex_init(&mdl_lock_con_mutex, NULL);
   mdl_con = xb_mysql_connect();
-  if (mdl_con)
+  if (!mdl_con)
   {
-    xb_mysql_query(mdl_con, "BEGIN", false, true);
+    msg("FATAL: cannot create connection for MDL locks");
+    exit(1);
   }
+  const char *query =
+    "SELECT NAME, SPACE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE '%%/%%'";
+
+  MYSQL_RES *mysql_result = xb_mysql_query(mdl_con, query, true, true);
+  while (MYSQL_ROW row = mysql_fetch_row(mysql_result)) {
+    int err;
+    ulint id = (ulint)my_strtoll10(row[1], 0, &err);
+    spaceid_to_tablename[id] = ut_get_name(0, row[0]);
+  }
+  mysql_free_result(mysql_result);
+
+  xb_mysql_query(mdl_con, "BEGIN", false, true);
 }
 
-#ifndef DBUG_OFF
-/* Test  that table is really locked, if lock_ddl_per_table is set.
-   The test is executed in DBUG_EXECUTE_IF block inside mdl_lock_table().
-*/
-static void check_mdl_lock_works(const char *table_name)
-{
-  MYSQL *test_con=  xb_mysql_connect();
-  char *query;
-  xb_a(asprintf(&query,
-		"SET STATEMENT max_statement_time=1 FOR ALTER TABLE %s FORCE",
-		table_name));
-  int err = mysql_query(test_con, query);
-  DBUG_ASSERT(err);
-  int err_no = mysql_errno(test_con);
-  DBUG_ASSERT(err_no == ER_STATEMENT_TIMEOUT);
-  mysql_close(test_con);
-  free(query);
-}
-#endif
 void
 mdl_lock_table(ulint space_id)
 {
-  std::ostringstream oss;
-  oss << "SELECT NAME "
-    "FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES "
-    "WHERE SPACE = " << space_id << " AND NAME LIKE '%%/%%'";
+  if (space_id == 0)
+    return;
 
-  pthread_mutex_lock(&mdl_lock_con_mutex);
+  std::string full_table_name = spaceid_to_tablename[space_id];
 
-  MYSQL_RES *mysql_result = xb_mysql_query(mdl_con, oss.str().c_str(), true, true);
+  DBUG_EXECUTE_IF("rename_during_mdl_lock_table",
+    if (full_table_name == "`test`.`t1`")
+      xb_mysql_query(mysql_connection, "RENAME TABLE test.t1 to test.t2", false, true);
+  );
 
-  while (MYSQL_ROW row = mysql_fetch_row(mysql_result)) {
-    std::string full_table_name =  ut_get_name(0,row[0]);
-    std::ostringstream lock_query;
-    lock_query << "SELECT * FROM " << full_table_name  << " LIMIT 0";
-
-    msg_ts("Locking MDL for %s\n", full_table_name.c_str());
-    xb_mysql_query(mdl_con, lock_query.str().c_str(), false, false);
-
-    DBUG_EXECUTE_IF("check_mdl_lock_works",
-      check_mdl_lock_works(full_table_name.c_str()););
+  std::ostringstream lock_query;
+  lock_query << "SELECT 1 FROM " << full_table_name  << " LIMIT 0";
+  msg("Locking MDL for %s", full_table_name.c_str());
+  if (mysql_query(mdl_con, lock_query.str().c_str())) {
+      msg("Warning : locking MDL failed for space id %zu, name %s", space_id, full_table_name.c_str());
+  } else {
+      MYSQL_RES *r = mysql_store_result(mdl_con);
+      mysql_free_result(r);
   }
-
-  pthread_mutex_unlock(&mdl_lock_con_mutex);
-  mysql_free_result(mysql_result);
 }
-
 
 void
 mdl_unlock_all()
 {
-  msg_ts("Unlocking MDL for all tables\n");
+  msg("Unlocking MDL for all tables");
   xb_mysql_query(mdl_con, "COMMIT", false, true);
   mysql_close(mdl_con);
-  pthread_mutex_destroy(&mdl_lock_con_mutex);
+  spaceid_to_tablename.clear();
 }
-

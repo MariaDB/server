@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifdef _WIN32_WINNT
 #undef _WIN32_WINNT
@@ -256,7 +256,7 @@ int TP_connection_win::start_io()
       If skip_completion_port_on_success is set, we need to handle it right 
       here, because completion callback would not be executed by the pool.
     */
-    if(skip_completion_port_on_success)
+    if (skip_completion_port_on_success)
     {
       CancelThreadpoolIo(io);
       io_completion_callback(callback_instance, this, &overlapped, last_error, 
@@ -265,7 +265,7 @@ int TP_connection_win::start_io()
     return 0;
   }
 
-  if(last_error == ERROR_IO_PENDING)
+  if (last_error == ERROR_IO_PENDING)
   {
     return 0;
   }
@@ -305,6 +305,7 @@ TP_connection_win::~TP_connection_win()
 
   if (timer)
   {
+    SetThreadpoolTimer(timer, 0, 0, 0);
     WaitForThreadpoolTimerCallbacks(timer, TRUE);
     CloseThreadpoolTimer(timer);
   }

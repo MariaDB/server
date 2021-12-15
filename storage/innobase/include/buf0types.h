@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -113,7 +113,7 @@ is_checksum_strict(ulint algo)
 #define BUF_BUDDY_LOW		(1U << BUF_BUDDY_LOW_SHIFT)
 
 /** Actual number of buddy sizes based on current page size */
-#define BUF_BUDDY_SIZES		(UNIV_PAGE_SIZE_SHIFT - BUF_BUDDY_LOW_SHIFT)
+#define BUF_BUDDY_SIZES		(srv_page_size_shift - BUF_BUDDY_LOW_SHIFT)
 
 /** Maximum number of buddy sizes based on the max page size */
 #define BUF_BUDDY_SIZES_MAX	(UNIV_PAGE_SIZE_SHIFT_MAX	\
@@ -121,9 +121,86 @@ is_checksum_strict(ulint algo)
 
 /** twice the maximum block size of the buddy system;
 the underlying memory is aligned by this amount:
-this must be equal to UNIV_PAGE_SIZE */
+this must be equal to srv_page_size */
 #define BUF_BUDDY_HIGH	(BUF_BUDDY_LOW << BUF_BUDDY_SIZES)
 /* @} */
+
+/** Page identifier. */
+class page_id_t {
+public:
+
+	/** Constructor from (space, page_no).
+	@param[in]	space	tablespace id
+	@param[in]	page_no	page number */
+	page_id_t(ulint space, ulint page_no)
+		: m_space(uint32_t(space)), m_page_no(uint32(page_no))
+	{
+		ut_ad(space <= 0xFFFFFFFFU);
+		ut_ad(page_no <= 0xFFFFFFFFU);
+	}
+
+	bool operator==(const page_id_t& rhs) const
+	{
+		return m_space == rhs.m_space && m_page_no == rhs.m_page_no;
+	}
+	bool operator!=(const page_id_t& rhs) const { return !(*this == rhs); }
+
+	bool operator<(const page_id_t& rhs) const
+	{
+		if (m_space == rhs.m_space) {
+			return m_page_no < rhs.m_page_no;
+		}
+
+		return m_space < rhs.m_space;
+	}
+
+	/** Retrieve the tablespace id.
+	@return tablespace id */
+	uint32_t space() const { return m_space; }
+
+	/** Retrieve the page number.
+	@return page number */
+	uint32_t page_no() const { return m_page_no; }
+
+	/** Retrieve the fold value.
+	@return fold value */
+	ulint fold() const { return (m_space << 20) + m_space + m_page_no; }
+
+	/** Reset the page number only.
+	@param[in]	page_no	page number */
+	void set_page_no(ulint page_no)
+	{
+		m_page_no = uint32_t(page_no);
+
+		ut_ad(page_no <= 0xFFFFFFFFU);
+	}
+
+	/** Set the FIL_NULL for the space and page_no */
+	void set_corrupt_id()
+	{
+		m_space = m_page_no = ULINT32_UNDEFINED;
+	}
+
+private:
+
+	/** Tablespace id. */
+	uint32_t	m_space;
+
+	/** Page number. */
+	uint32_t	m_page_no;
+
+	/** Declare the overloaded global operator<< as a friend of this
+	class. Refer to the global declaration for further details.  Print
+	the given page_id_t object.
+	@param[in,out]	out	the output stream
+	@param[in]	page_id	the page_id_t object to be printed
+	@return the output stream */
+        friend
+        std::ostream&
+        operator<<(
+                std::ostream&           out,
+                const page_id_t        page_id);
+};
 
 #ifndef UNIV_INNOCHECKSUM
 

@@ -1,0 +1,14 @@
+--source include/have_rocksdb.inc
+--source include/have_binlog_format_row.inc
+
+--echo #
+--echo # MDEV-15472: Assertion `!is_set() || (m_status == DA_OK_BULK && is_bulk_op())' failure ...
+--echo #
+select @@log_bin;
+select @@binlog_format;
+CREATE OR REPLACE TABLE t1 (i INT) ENGINE=RocksDB;
+LOCK TABLE t1 WRITE;
+FLUSH TABLES;
+UNLOCK TABLES;
+DROP TABLE t1;
+

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -611,15 +611,15 @@ int send_variant_2_list(MEM_ROOT *mem_root, Protocol *protocol,
 SQL_SELECT *prepare_simple_select(THD *thd, Item *cond,
 				  TABLE *table, int *error)
 {
-  if (!cond->fixed)
-    cond->fix_fields(thd, &cond);	// can never fail
+  cond->fix_fields_if_needed(thd, &cond);  // can never fail
 
   /* Assume that no indexes cover all required fields */
   table->covering_keys.clear_all();
 
   SQL_SELECT *res= make_select(table, 0, 0, cond, 0, 0, error);
-  if (*error || (res && res->check_quick(thd, 0, HA_POS_ERROR)) ||
-      (res && res->quick && res->quick->reset()))
+  if (unlikely(*error) ||
+      (likely(res) && unlikely(res->check_quick(thd, 0, HA_POS_ERROR))) ||
+      (likely(res) && res->quick && unlikely(res->quick->reset())))
   {
     delete res;
     res=0;
@@ -658,7 +658,7 @@ SQL_SELECT *prepare_select_for_name(THD *thd, const char *mask, size_t mlen,
                                               pfname->charset()),
                    new (mem_root) Item_string_ascii(thd, "\\"),
                    FALSE);
-  if (thd->is_fatal_error)
+  if (unlikely(thd->is_fatal_error))
     return 0;					// OOM
   return prepare_simple_select(thd, cond, table, error);
 }
@@ -740,6 +740,9 @@ static bool mysqld_help_internal(THD *thd, const char *mask)
 			      select,&topics_list,
 			      &name, &description, &example);
   delete select;
+
+  if (thd->is_error())
+    goto error;
 
   if (count_topics == 0)
   {

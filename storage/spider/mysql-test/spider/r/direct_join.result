@@ -86,6 +86,98 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 4	d	2000-01-04 00:00:00
 5	e	2000-01-05 00:00:00
 
+Test JOIN on a constant table.
+Spider should NOT push down the join because the tbl_person table
+is optimized as a constant table.
+connection child2_1;
+CHILD2_1_DROP_CONST_TABLE_JOIN
+CHILD2_1_DROP_CONST_TABLE2_JOIN
+CHILD2_1_CREATE_CONST_TABLE_JOIN
+CHILD2_1_CREATE_CONST_TABLE2_JOIN
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+DROP TABLE IF EXISTS tbl_person;
+DROP TABLE IF EXISTS tbl_ncd_cm_person;
+CREATE TABLE tbl_person (
+id VARCHAR(50) NOT NULL,
+hr_status VARCHAR(50) NULL DEFAULT NULL,
+region_code VARCHAR(50) NULL DEFAULT NULL,
+region INT(11) NOT NULL,
+PRIMARY KEY (id, region) USING BTREE
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_CONST_TABLE_JOIN
+MASTER_1_ROW_FORMAT_CONST_TABLE_JOIN MASTER_1_PART_CONST_TABLE_JOIN
+SHOW CREATE TABLE tbl_person
+Table	Create Table
+tbl_person	CREATE TABLE `tbl_person` (
+  `id` varchar(50) NOT NULL,
+  `hr_status` varchar(50) DEFAULT NULL,
+  `region_code` varchar(50) DEFAULT NULL,
+  `region` int(11) NOT NULL,
+  PRIMARY KEY (`id`,`region`) USING BTREE
+) ENGINE=SPIDER DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC COMMENT='table "tbl_ncd_cm_person"'
+ PARTITION BY LIST  COLUMNS(`region`)
+(PARTITION `pt1` VALUES IN (510411) COMMENT = 'tbl "tbl_person", srv "s_2_1"' ENGINE = SPIDER)
+CREATE TABLE tbl_ncd_cm_person (
+id VARCHAR(50) NOT NULL,
+person_id VARCHAR(50) NULL DEFAULT '',
+diseaseKind_id VARCHAR(50) NULL DEFAULT NULL,
+region INT(11) NOT NULL,
+PRIMARY KEY (id, region) USING BTREE
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_CONST_TABLE2_JOIN
+MASTER_1_ROW_FORMAT_CONST_TABLE_JOIN MASTER_1_PART_CONST_TABLE2_JOIN
+SHOW CREATE TABLE tbl_ncd_cm_person
+Table	Create Table
+tbl_ncd_cm_person	CREATE TABLE `tbl_ncd_cm_person` (
+  `id` varchar(50) NOT NULL,
+  `person_id` varchar(50) DEFAULT '',
+  `diseaseKind_id` varchar(50) DEFAULT NULL,
+  `region` int(11) NOT NULL,
+  PRIMARY KEY (`id`,`region`) USING BTREE
+) ENGINE=SPIDER DEFAULT CHARSET=utf8 ROW_FORMAT=DYNAMIC
+ PARTITION BY LIST  COLUMNS(`region`)
+(PARTITION `pt1` VALUES IN (510411) COMMENT = 'tbl "tbl_ncd_cm_person", srv "s_2_1"' ENGINE = SPIDER)
+INSERT INTO tbl_person VALUES ('24FC3F0A5119432BAE13DD65AABAA39C',
+'1', '123-51041110620301-321', 510411);
+INSERT INTO tbl_person VALUES ('123456789012345678901234567890AB',
+'1', '123-51041110620301-321', 510411);
+INSERT INTO tbl_ncd_cm_person VALUES ('123456789',
+'24FC3F0A5119432BAE13DD65AABAA39C',
+'52A0328740914BCE86ED10A4D2521816',
+510411);
+INSERT INTO tbl_ncd_cm_person VALUES ('123456789AB',
+'123456789012345678901234567890AB',
+'52A0328740914BCE86ED10A4D2521816',
+510411);
+DELETE FROM tbl_ncd_cm_person;
+INSERT INTO tbl_ncd_cm_person VALUES ('123456789',
+'24FC3F0A5119432BAE13DD65AABAA39C',
+'52A0328740914BCE86ED10A4D2521816',
+510411);
+INSERT INTO tbl_ncd_cm_person VALUES ('123456789AB',
+'123456789012345678901234567890AB',
+'52A0328740914BCE86ED10A4D2521816',
+510411);
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+SELECT count(0) FROM tbl_person tp INNER JOIN tbl_ncd_cm_person tncp ON tp.id = tncp.person_id WHERE 1 = 1 AND tp.hr_status != "99" AND tp.hr_status != "2" AND tp.region_code LIKE CONCAT(CONCAT('%', '51041110620301', '%')) AND tp.id = '24FC3F0A5119432BAE13DD65AABAA39C' AND tncp.diseaseKind_id = '52A0328740914BCE86ED10A4D2521816' AND tp.region = 510411;
+count(0)
+1
+connection child2_1;
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+argument
+select `id`,`hr_status`,`region_code`,`region` from `auto_test_remote`.`tbl_person` where `id` = '24FC3F0A5119432BAE13DD65AABAA39C' and `region` = 510411
+select `person_id`,`diseaseKind_id` from `auto_test_remote`.`tbl_ncd_cm_person` where ((`diseaseKind_id` = '52A0328740914BCE86ED10A4D2521816'))
+SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT * FROM tbl_person;
+id	hr_status	region_code	region
+123456789012345678901234567890AB	1	123-51041110620301-321	510411
+24FC3F0A5119432BAE13DD65AABAA39C	1	123-51041110620301-321	510411
+SELECT * FROM tbl_ncd_cm_person;
+id	person_id	diseaseKind_id	region
+123456789	24FC3F0A5119432BAE13DD65AABAA39C	52A0328740914BCE86ED10A4D2521816	510411
+123456789AB	123456789012345678901234567890AB	52A0328740914BCE86ED10A4D2521816	510411
+
 deinit
 connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;

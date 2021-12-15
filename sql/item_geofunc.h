@@ -2,7 +2,7 @@
 #define ITEM_GEOFUNC_INCLUDED
 
 /* Copyright (c) 2000, 2016 Oracle and/or its affiliates.
-   Copyright (C) 2011, 2016, MariaDB
+   Copyright (C) 2011, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /* This file defines all spatial functions */
@@ -38,7 +38,7 @@ public:
   Item_geometry_func(THD *thd, Item *a, Item *b, Item *c):
     Item_str_func(thd, a, b, c) {}
   Item_geometry_func(THD *thd, List<Item> &list): Item_str_func(thd, list) {}
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   const Type_handler *type_handler() const { return &type_handler_geometry; }
 };
 
@@ -253,7 +253,7 @@ public:
    :Item_str_ascii_func_args_geometry(thd, a) {}
   const char *func_name() const { return "st_astext"; }
   String *val_str_ascii(String *);
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_as_wkt>(thd, this); }
 };
@@ -266,12 +266,13 @@ public:
   const char *func_name() const { return "st_aswkb"; }
   String *val_str(String *);
   const Type_handler *type_handler() const { return &type_handler_long_blob; }
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     collation.set(&my_charset_bin);
     decimals=0;
     max_length= (uint32) UINT_MAX32;
     maybe_null= 1;
+    return FALSE;
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_as_wkb>(thd, this); }
@@ -294,7 +295,7 @@ public:
   Item_func_as_geojson(THD *thd, Item *js, Item *max_dec_digits, Item *opt)
    :Item_str_ascii_func_args_geometry(thd, js, max_dec_digits, opt) {}
   const char *func_name() const { return "st_asgeojson"; }
-  void fix_length_and_dec();
+  bool fix_length_and_dec();
   String *val_str_ascii(String *);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_as_geojson>(thd, this); }
@@ -308,11 +309,12 @@ public:
    :Item_str_ascii_func_args_geometry(thd, a) {}
   String *val_str_ascii(String *);
   const char *func_name() const { return "st_geometrytype"; }
-  void fix_length_and_dec() 
+  bool fix_length_and_dec()
   {
     // "GeometryCollection" is the longest
     fix_length_and_charset(20, default_charset());
     maybe_null= 1;
+    return FALSE;
   };
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_geometry_type>(thd, this); }
@@ -504,9 +506,10 @@ public:
     item_type=it;
   }
   String *val_str(String *);
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
-    Item_geometry_func::fix_length_and_dec();
+    if (Item_geometry_func::fix_length_and_dec())
+      return TRUE;
     for (unsigned int i= 0; i < arg_count; ++i)
     {
       if (args[i]->fixed && args[i]->field_type() != MYSQL_TYPE_GEOMETRY)
@@ -516,8 +519,10 @@ public:
         str.append('\0');
         my_error(ER_ILLEGAL_VALUE_FOR_TYPE, MYF(0), "non geometric",
                  str.ptr());
+        return TRUE;
       }
     }
+    return FALSE;
   }
  
   const char *func_name() const { return "geometrycollection"; }
@@ -727,7 +732,7 @@ public:
    :Item_bool_func_args_geometry(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_isempty"; }
-  void fix_length_and_dec() { maybe_null= 1; }
+  bool fix_length_and_dec() { maybe_null= 1; return FALSE; }
   bool need_parentheses_in_default() { return false; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_isempty>(thd, this); }
@@ -744,7 +749,7 @@ public:
    :Item_long_func_args_geometry(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_issimple"; }
-  void fix_length_and_dec() { decimals=0; max_length=2; }
+  bool fix_length_and_dec() { decimals=0; max_length=2; return FALSE; }
   uint decimal_precision() const { return 1; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_issimple>(thd, this); }
@@ -757,7 +762,7 @@ public:
    :Item_long_func_args_geometry(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_isclosed"; }
-  void fix_length_and_dec() { decimals=0; max_length=2; }
+  bool fix_length_and_dec() { decimals=0; max_length=2; return FALSE; }
   uint decimal_precision() const { return 1; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_isclosed>(thd, this); }
@@ -780,7 +785,7 @@ public:
    :Item_long_func_args_geometry(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_dimension"; }
-  void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
+  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_dimension>(thd, this); }
 };
@@ -792,10 +797,12 @@ public:
   Item_func_x(THD *thd, Item *a): Item_real_func_args_geometry(thd, a) {}
   double val_real();
   const char *func_name() const { return "st_x"; }
-  void fix_length_and_dec() 
-  { 
-    Item_real_func::fix_length_and_dec();
-    maybe_null= 1; 
+  bool fix_length_and_dec()
+  {
+    if (Item_real_func::fix_length_and_dec())
+      return TRUE;
+    maybe_null= 1;
+    return FALSE;
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_x>(thd, this); }
@@ -808,10 +815,12 @@ public:
   Item_func_y(THD *thd, Item *a): Item_real_func_args_geometry(thd, a) {}
   double val_real();
   const char *func_name() const { return "st_y"; }
-  void fix_length_and_dec() 
-  { 
-    Item_real_func::fix_length_and_dec();
-    maybe_null= 1; 
+  bool fix_length_and_dec()
+  {
+    if (Item_real_func::fix_length_and_dec())
+      return TRUE;
+    maybe_null= 1;
+    return FALSE;
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_y>(thd, this); }
@@ -825,7 +834,7 @@ public:
    :Item_long_func_args_geometry(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_numgeometries"; }
-  void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
+  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_numgeometries>(thd, this); }
 };
@@ -838,7 +847,7 @@ public:
    :Item_long_func_args_geometry(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_numinteriorrings"; }
-  void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
+  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_numinteriorring>(thd, this); }
 };
@@ -851,7 +860,7 @@ public:
    :Item_long_func_args_geometry(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "st_numpoints"; }
-  void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
+  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_numpoints>(thd, this); }
 };
@@ -863,10 +872,12 @@ public:
   Item_func_area(THD *thd, Item *a): Item_real_func_args_geometry(thd, a) {}
   double val_real();
   const char *func_name() const { return "st_area"; }
-  void fix_length_and_dec() 
-  { 
-    Item_real_func::fix_length_and_dec();
-    maybe_null= 1; 
+  bool fix_length_and_dec()
+  {
+    if (Item_real_func::fix_length_and_dec())
+      return TRUE;
+    maybe_null= 1;
+    return FALSE;
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_area>(thd, this); }
@@ -881,10 +892,12 @@ public:
    :Item_real_func_args_geometry(thd, a) {}
   double val_real();
   const char *func_name() const { return "st_length"; }
-  void fix_length_and_dec() 
-  { 
-    Item_real_func::fix_length_and_dec();
-    maybe_null= 1; 
+  bool fix_length_and_dec()
+  {
+    if (Item_real_func::fix_length_and_dec())
+      return TRUE;
+    maybe_null= 1;
+    return FALSE;
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_glength>(thd, this); }
@@ -898,7 +911,7 @@ public:
    :Item_long_func_args_geometry(thd, a) {}
   longlong val_int();
   const char *func_name() const { return "srid"; }
-  void fix_length_and_dec() { max_length= 10; maybe_null= 1; }
+  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_srid>(thd, this); }
 };
@@ -918,6 +931,20 @@ public:
   const char *func_name() const { return "st_distance"; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_distance>(thd, this); }
+};
+
+
+class Item_func_sphere_distance: public Item_real_func
+{
+  double spherical_distance_points(Geometry *g1, Geometry *g2,
+                                   const double sphere_r);
+public:
+  Item_func_sphere_distance(THD *thd, List<Item> &list):
+    Item_real_func(thd, list) {}
+  double val_real();
+  const char *func_name() const { return "st_distance_sphere"; }
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_sphere_distance>(thd, this); }
 };
 
 
@@ -944,7 +971,7 @@ class Item_func_gis_debug: public Item_long_func
   public:
     Item_func_gis_debug(THD *thd, Item *a): Item_long_func(thd, a)
     { null_value= false; }
-    void fix_length_and_dec() { fix_char_length(10); }
+    bool fix_length_and_dec() { fix_char_length(10); return FALSE; }
     const char *func_name() const  { return "st_gis_debug"; }
     longlong val_int();
     bool check_vcol_func_processor(void *arg)

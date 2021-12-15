@@ -1,1 +1,1 @@
---source extra/binlog_tests/binlog_ioerr.inc
+--source suite/binlog/include/binlog_ioerr.inc

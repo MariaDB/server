@@ -64,3 +64,5 @@ Master-Host: 127.0.0.1
 change master to master_host='0:0:0:0:0:0:0:1';
 Master-Host: 0:0:0:0:0:0:0:1
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root';
+connection slave;
+reset slave all;

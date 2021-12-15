@@ -27,12 +27,12 @@
 #define HAVE_OPENSSL11 1
 #define SSL_LIBRARY OpenSSL_version(OPENSSL_VERSION)
 #define ERR_remove_state(X) ERR_clear_error()
-#define EVP_CIPHER_CTX_SIZE 168
+#define EVP_CIPHER_CTX_SIZE 176
 #define EVP_MD_CTX_SIZE 48
 #undef EVP_MD_CTX_init
-#define EVP_MD_CTX_init(X) do { bzero((X), EVP_MD_CTX_SIZE); EVP_MD_CTX_reset(X); } while(0)
+#define EVP_MD_CTX_init(X) do { memset((X), 0, EVP_MD_CTX_SIZE); EVP_MD_CTX_reset(X); } while(0)
 #undef EVP_CIPHER_CTX_init
-#define EVP_CIPHER_CTX_init(X) do { bzero((X), EVP_CIPHER_CTX_SIZE); EVP_CIPHER_CTX_reset(X); } while(0)
+#define EVP_CIPHER_CTX_init(X) do { memset((X), 0, EVP_CIPHER_CTX_SIZE); EVP_CIPHER_CTX_reset(X); } while(0)
 
 /*
   Macros below are deprecated. OpenSSL 1.1 may define them or not,
@@ -75,6 +75,10 @@
 #define EVP_CIPHER_CTX_reset(X) EVP_CIPHER_CTX_cleanup(X)
 #define X509_get0_notBefore(X) X509_get_notBefore(X)
 #define X509_get0_notAfter(X) X509_get_notAfter(X)
+#endif
+
+#ifndef TLS1_3_VERSION
+#define SSL_CTX_set_ciphersuites(X,Y) 0
 #endif
 
 #ifdef	__cplusplus

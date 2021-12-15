@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
@@ -929,26 +929,6 @@ bool spider_param_sync_autocommit(
 }
 
 /*
-  FALSE: no sync
-  TRUE:  sync
- */
-static MYSQL_THDVAR_BOOL(
-  sync_time_zone, /* name */
-  PLUGIN_VAR_OPCMDARG, /* opt */
-  "Sync time_zone", /* comment */
-  NULL, /* check */
-  NULL, /* update */
-  FALSE /* def */
-);
-
-bool spider_param_sync_time_zone(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_sync_time_zone");
-  DBUG_RETURN(THDVAR(thd, sync_time_zone));
-}
-
-/*
   FALSE: not use
   TRUE:  use
  */
@@ -969,19 +949,23 @@ bool spider_param_use_default_database(
 }
 
 /*
-  FALSE: sql_log_off = 0
-  TRUE:  sql_log_off = 1
- */
-static MYSQL_THDVAR_BOOL(
-  internal_sql_log_off, /* name */
-  PLUGIN_VAR_OPCMDARG, /* opt */
-  "Sync sql_log_off", /* comment */
-  NULL, /* check */
-  NULL, /* update */
-  TRUE /* def */
+-1 :don't know or does not matter; don't send 'SET SQL_LOG_OFF' statement
+ 0 :do send 'SET SQL_LOG_OFF 0' statement to data nodes
+ 1 :do send 'SET SQL_LOG_OFF 1' statement to data nodes
+*/
+static MYSQL_THDVAR_INT(
+  internal_sql_log_off,                                  /* name */
+  PLUGIN_VAR_RQCMDARG,                                   /* opt */
+  "Manage SQL_LOG_OFF mode statement to the data nodes", /* comment */
+  NULL,                                                  /* check */
+  NULL,                                                  /* update */
+  -1,                                                    /* default */
+  -1,                                                    /* min */
+  1,                                                     /* max */
+  0                                                      /* blk */
 );
 
-bool spider_param_internal_sql_log_off(
+int spider_param_internal_sql_log_off(
   THD *thd
 ) {
   DBUG_ENTER("spider_param_internal_sql_log_off");
@@ -1376,6 +1360,31 @@ longlong spider_param_quick_page_size(
   DBUG_ENTER("spider_param_quick_page_size");
   DBUG_RETURN(THDVAR(thd, quick_page_size) < 0 ?
     quick_page_size : THDVAR(thd, quick_page_size));
+}
+
+/*
+ -1 :use table parameter
+  0-:the limitation of memory size
+ */
+static MYSQL_THDVAR_LONGLONG(
+  quick_page_byte, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "The limitation of memory size in a page when acquisition one by one", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  -1, /* def */
+  -1, /* min */
+  9223372036854775807LL, /* max */
+  0 /* blk */
+);
+
+longlong spider_param_quick_page_byte(
+  THD *thd,
+  longlong quick_page_byte
+) {
+  DBUG_ENTER("spider_param_quick_page_byte");
+  DBUG_RETURN(THDVAR(thd, quick_page_byte) < 0 ?
+    quick_page_byte : THDVAR(thd, quick_page_byte));
 }
 
 /*
@@ -1969,7 +1978,7 @@ static MYSQL_THDVAR_INT(
   "Remote server transmission existence when UDF is used at condition and \"engine_condition_pushdown=1\"", /* comment */
   NULL, /* check */
   NULL, /* update */
-  -1, /* def */
+  0, /* def */
   -1, /* min */
   1, /* max */
   0 /* blk */
@@ -2224,15 +2233,15 @@ char *spider_param_remote_time_zone()
 
 static int spider_remote_sql_log_off;
 /*
- -1 :don't set
-  0 :sql_log_off = 0
-  1 :sql_log_off = 1
+ -1 :don't know the value on all data nodes, or does not matter
+  0 :sql_log_off = 0 on all data nodes
+  1 :sql_log_off = 1 on all data nodes
  */
 static MYSQL_SYSVAR_INT(
   remote_sql_log_off,
   spider_remote_sql_log_off,
   PLUGIN_VAR_RQCMDARG,
-  "Set sql_log_off mode at connecting for improvement performance of connection if you know",
+  "Set SQL_LOG_OFF mode on connecting for improved performance of connection, if you know",
   NULL,
   NULL,
   -1,
@@ -3139,6 +3148,30 @@ int spider_param_bka_table_name_type(
     bka_table_name_type : THDVAR(thd, bka_table_name_type));
 }
 
+/*
+ -1 :use table parameter
+  0 :off
+  1 :on
+ */
+static MYSQL_THDVAR_INT(
+  use_cond_other_than_pk_for_update, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "Use all conditions even if condition has pk", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  1, /* def */
+  0, /* min */
+  1, /* max */
+  0 /* blk */
+);
+
+int spider_param_use_cond_other_than_pk_for_update(
+  THD *thd
+) {
+  DBUG_ENTER("spider_param_reset_sql_alloc");
+  DBUG_RETURN(THDVAR(thd, use_cond_other_than_pk_for_update));
+}
+
 static int spider_store_last_sts;
 /*
  -1 : use table parameter
@@ -3295,6 +3328,33 @@ uint spider_param_table_crd_thread_count()
 }
 #endif
 
+static int spider_slave_trx_isolation;
+/*
+ -1 :off
+  0 :read uncommitted
+  1 :read committed
+  2 :repeatable read
+  3 :serializable
+ */
+static MYSQL_SYSVAR_INT(
+  slave_trx_isolation,
+  spider_slave_trx_isolation,
+  PLUGIN_VAR_RQCMDARG,
+  "Transaction isolation level when Spider table is used by slave SQL thread",
+  NULL, /* check */
+  NULL, /* update */
+  -1, /* def */
+  -1, /* min */
+  3, /* max */
+  0 /* blk */
+);
+
+int spider_param_slave_trx_isolation()
+{
+  DBUG_ENTER("spider_param_slave_trx_isolation");
+  DBUG_RETURN(spider_slave_trx_isolation);
+}
+
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -3328,7 +3388,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(block_size),
   MYSQL_SYSVAR(selupd_lock_mode),
   MYSQL_SYSVAR(sync_autocommit),
-  MYSQL_SYSVAR(sync_time_zone),
   MYSQL_SYSVAR(use_default_database),
   MYSQL_SYSVAR(internal_sql_log_off),
   MYSQL_SYSVAR(bulk_size),
@@ -3347,6 +3406,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(net_write_timeout),
   MYSQL_SYSVAR(quick_mode),
   MYSQL_SYSVAR(quick_page_size),
+  MYSQL_SYSVAR(quick_page_byte),
   MYSQL_SYSVAR(low_mem_read),
   MYSQL_SYSVAR(select_column_mode),
 #ifndef WITHOUT_SPIDER_BG_SEARCH
@@ -3438,11 +3498,13 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(dry_access),
   MYSQL_SYSVAR(delete_all_rows_type),
   MYSQL_SYSVAR(bka_table_name_type),
+  MYSQL_SYSVAR(use_cond_other_than_pk_for_update),
   MYSQL_SYSVAR(connect_error_interval),
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   MYSQL_SYSVAR(table_sts_thread_count),
   MYSQL_SYSVAR(table_crd_thread_count),
 #endif
+  MYSQL_SYSVAR(slave_trx_isolation),
   NULL
 };
 
@@ -3482,7 +3544,7 @@ maria_declare_plugin(spider)
   spider_status_variables,
   spider_system_variables,
   SPIDER_DETAIL_VERSION,
-  MariaDB_PLUGIN_MATURITY_GAMMA
+  MariaDB_PLUGIN_MATURITY_STABLE
 },
 spider_i_s_alloc_mem_maria
 maria_declare_plugin_end;

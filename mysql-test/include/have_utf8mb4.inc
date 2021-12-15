@@ -1,4 +1,4 @@
---require r/have_utf8mb4.require
+--require include/have_utf8mb4.require
 
 --disable_query_log
 

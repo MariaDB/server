@@ -1,3 +1,4 @@
+set @save_query_cache_size=@@global.query_cache_size;
 set global query_cache_type=ON;
 set local query_cache_type=ON;
 set global query_cache_size=1355776;
@@ -43,5 +44,5 @@ count(*)
 connection default;
 drop user mysqltest;
 drop table t1;
-set global query_cache_size= default;
+set @@global.query_cache_size=@save_query_cache_size;
 set global query_cache_type=default;

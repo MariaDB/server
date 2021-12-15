@@ -1,0 +1,158 @@
+--source include/have_rocksdb.inc
+
+set @prior_lock_wait_timeout = @@rocksdb_lock_wait_timeout;
+set @prior_deadlock_detect = @@rocksdb_deadlock_detect;
+set @prior_max_latest_deadlocks = @@rocksdb_max_latest_deadlocks;
+set global rocksdb_deadlock_detect = on;
+set global rocksdb_lock_wait_timeout = 10000;
+--echo # Clears deadlock buffer of any prior deadlocks.
+set global rocksdb_max_latest_deadlocks = 0;
+set global rocksdb_max_latest_deadlocks = @prior_max_latest_deadlocks;
+
+# needed by simple_deadlock.inc
+let $engine = rocksdb;
+
+--source include/count_sessions.inc
+connect (con1,localhost,root,,);
+let $con1= `SELECT CONNECTION_ID()`;
+
+connect (con2,localhost,root,,);
+let $con2= `SELECT CONNECTION_ID()`;
+
+connect (con3,localhost,root,,);
+let $con3= `SELECT CONNECTION_ID()`;
+
+connection default;
+show create table information_schema.rocksdb_deadlock;
+
+create table t (i int primary key) engine=rocksdb;
+insert into t values (1), (2), (3);
+select * from information_schema.rocksdb_deadlock;
+
+echo Deadlock #1;
+--source include/simple_deadlock.inc
+connection default;
+--replace_column 1 DEADLOCK_ID 2 TIMESTAMP 3 TRANSACTION_ID 5 WAITING_KEY
+select * from information_schema.rocksdb_deadlock;
+
+echo Deadlock #2;
+--source include/simple_deadlock.inc
+connection default;
+--replace_column 1 DEADLOCK_ID 2 TIMESTAMP 3 TRANSACTION_ID 5 WAITING_KEY
+select * from information_schema.rocksdb_deadlock;
+set global rocksdb_max_latest_deadlocks = 10;
+
+echo Deadlock #3;
+--source include/simple_deadlock.inc
+connection default;
+--replace_column 1 DEADLOCK_ID 2 TIMESTAMP 3 TRANSACTION_ID 5 WAITING_KEY
+select * from information_schema.rocksdb_deadlock;
+set global rocksdb_max_latest_deadlocks = 1;
+--replace_column 1 DEADLOCK_ID 2 TIMESTAMP 3 TRANSACTION_ID 5 WAITING_KEY
+select * from information_schema.rocksdb_deadlock;
+
+connection con3;
+set rocksdb_deadlock_detect_depth = 2;
+
+echo Deadlock #4;
+connection con1;
+begin;
+select * from t where i=1 for update;
+
+connection con2;
+begin;
+select * from t where i=2 for update;
+
+connection con3;
+begin;
+select * from t where i=3 for update;
+
+connection con1;
+send select * from t where i=2 for update;
+
+connection con2;
+let $wait_condition = select count(*) = 1 from information_schema.rocksdb_trx
+where thread_id = $con1 and waiting_key != "";
+--source include/wait_condition.inc
+
+send select * from t where i=3 for update;
+
+connection con3;
+let $wait_condition = select count(*) = 1 from information_schema.rocksdb_trx
+where thread_id = $con2 and waiting_key != "";
+--source include/wait_condition.inc
+
+--error ER_LOCK_DEADLOCK
+select * from t where i=1 for update;
+rollback;
+
+connection con2;
+reap;
+rollback;
+
+connection con1;
+reap;
+rollback;
+
+connection default;
+set global rocksdb_max_latest_deadlocks = 5;
+--replace_column 1 DEADLOCK_ID 2 TIMESTAMP 3 TRANSACTION_ID 5 WAITING_KEY
+select * from information_schema.rocksdb_deadlock;
+
+echo Deadlock #5;
+connection con1;
+begin;
+select * from t where i=1 for update;
+
+connection con2;
+begin;
+select * from t where i=2 for update;
+
+connection con3;
+begin;
+select * from t where i=3 lock in share mode;
+
+connection con1;
+select * from t where i=100 for update;
+select * from t where i=101 for update;
+send select * from t where i=2 for update;
+
+connection con2;
+let $wait_condition = select count(*) = 1 from information_schema.rocksdb_trx
+where thread_id = $con1 and waiting_key != "";
+--source include/wait_condition.inc
+
+select * from t where i=3 lock in share mode;
+select * from t where i=200 for update;
+select * from t where i=201 for update;
+
+--error ER_LOCK_DEADLOCK
+select * from t where i=1 lock in share mode;
+rollback;
+
+connection con1;
+reap;
+rollback;
+
+connection con3;
+rollback;
+
+connection default;
+--replace_column 1 DEADLOCK_ID 2 TIMESTAMP 3 TRANSACTION_ID 5 WAITING_KEY
+select * from information_schema.rocksdb_deadlock;
+
+disconnect con1;
+disconnect con2;
+disconnect con3;
+
+set global rocksdb_lock_wait_timeout = @prior_lock_wait_timeout;
+set global rocksdb_deadlock_detect = @prior_deadlock_detect;
+drop table t;
+--replace_column 1 DEADLOCK_ID 2 TIMESTAMP 3 TRANSACTION_ID 5 WAITING_KEY 7 INDEX_NAME 8 TABLE_NAME
+select * from information_schema.rocksdb_deadlock;
+set global rocksdb_max_latest_deadlocks = 0;
+--echo # Clears deadlock buffer of any existent deadlocks.
+set global rocksdb_max_latest_deadlocks = @prior_max_latest_deadlocks;
+--replace_column 1 DEADLOCK_ID 2 TRANSACTION_ID 4 WAITING_KEY
+select * from information_schema.rocksdb_deadlock;
+--source include/wait_until_count_sessions.inc

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2016, MariaDB Corporation
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -34,27 +34,13 @@ those functions in lock/ */
 #error Do not include lock0priv.h outside of the lock/ module
 #endif
 
-#include "univ.i"
-#include "dict0types.h"
 #include "hash0hash.h"
-#include "trx0types.h"
+#include "rem0types.h"
+#include "trx0trx.h"
 
 #ifndef UINT32_MAX
 #define UINT32_MAX             (4294967295U)
 #endif
-
-/** A table lock */
-struct lock_table_t {
-	dict_table_t*	table;		/*!< database table in dictionary
-					cache */
-	UT_LIST_NODE_T(lock_t)
-			locks;		/*!< list of locks on the same
-					table */
-	/** Print the table lock into the given output stream
-	@param[in,out]	out	the output stream
-	@return the given output stream. */
-	std::ostream& print(std::ostream& out) const;
-};
 
 /** Print the table lock into the given output stream
 @param[in,out]	out	the output stream
@@ -78,131 +64,11 @@ operator<<(std::ostream& out, const lock_table_t& lock)
 	return(lock.print(out));
 }
 
-/** Record lock for a page */
-struct lock_rec_t {
-	ib_uint32_t	space;		/*!< space id */
-	ib_uint32_t	page_no;	/*!< page number */
-	ib_uint32_t	n_bits;		/*!< number of bits in the lock
-					bitmap; NOTE: the lock bitmap is
-					placed immediately after the
-					lock struct */
-
-	/** Print the record lock into the given output stream
-	@param[in,out]	out	the output stream
-	@return the given output stream. */
-	std::ostream& print(std::ostream& out) const;
-};
-
-/** Print the record lock into the given output stream
-@param[in,out]	out	the output stream
-@return the given output stream. */
-inline
-std::ostream& lock_rec_t::print(std::ostream& out) const
-{
-	out << "[lock_rec_t: space=" << space << ", page_no=" << page_no
-		<< ", n_bits=" << n_bits << "]";
-	return(out);
-}
-
-inline
-std::ostream&
-operator<<(std::ostream& out, const lock_rec_t& lock)
-{
-	return(lock.print(out));
-}
-
-/** Lock struct; protected by lock_sys.mutex */
-struct lock_t {
-	trx_t*		trx;		/*!< transaction owning the
-					lock */
-	UT_LIST_NODE_T(lock_t)
-			trx_locks;	/*!< list of the locks of the
-					transaction */
-
-	dict_index_t*	index;		/*!< index for a record lock */
-
-	lock_t*		hash;		/*!< hash chain node for a record
-					lock. The link node in a singly linked
-					list, used during hashing. */
-
-	/* Statistics for how long lock has been held and time
-	how long this lock had to be waited before it was granted */
-	time_t		requested_time; /*!< Lock request time */
-	ulint		wait_time;	/*!< Time waited this lock or 0 */
-
-	union {
-		lock_table_t	tab_lock;/*!< table lock */
-		lock_rec_t	rec_lock;/*!< record lock */
-	} un_member;			/*!< lock details */
-
-	ib_uint32_t	type_mode;	/*!< lock type, mode, LOCK_GAP or
-					LOCK_REC_NOT_GAP,
-					LOCK_INSERT_INTENTION,
-					wait flag, ORed */
-
-	/** Determine if the lock object is a record lock.
-	@return true if record lock, false otherwise. */
-	bool is_record_lock() const
-	{
-		return(type() == LOCK_REC);
-	}
-
-	bool is_waiting() const
-	{
-		return(type_mode & LOCK_WAIT);
-	}
-
-	bool is_gap() const
-	{
-		return(type_mode & LOCK_GAP);
-	}
-
-	bool is_record_not_gap() const
-	{
-		return(type_mode & LOCK_REC_NOT_GAP);
-	}
-
-	bool is_insert_intention() const
-	{
-		return(type_mode & LOCK_INSERT_INTENTION);
-	}
-
-	ulint type() const {
-		return(type_mode & LOCK_TYPE_MASK);
-	}
-
-	enum lock_mode mode() const
-	{
-		return(static_cast<enum lock_mode>(type_mode & LOCK_MODE_MASK));
-	}
-
-	/** Print the lock object into the given output stream.
-	@param[in,out]	out	the output stream
-	@return the given output stream. */
-	std::ostream& print(std::ostream& out) const;
-
-	/** Convert the member 'type_mode' into a human readable string.
-	@return human readable string */
-	std::string type_mode_string() const;
-
-	const char* type_string() const
-	{
-		switch (type_mode & LOCK_TYPE_MASK) {
-		case LOCK_REC:
-			return("LOCK_REC");
-		case LOCK_TABLE:
-			return("LOCK_TABLE");
-		default:
-			ut_error;
-		}
-	}
-};
-
 /** Convert the member 'type_mode' into a human readable string.
 @return human readable string */
 inline
 std::string
-lock_t::type_mode_string() const
+ib_lock_t::type_mode_string() const
 {
 	std::ostringstream sout;
 	sout << type_string();
@@ -228,7 +94,7 @@ lock_t::type_mode_string() const
 
 inline
 std::ostream&
-lock_t::print(std::ostream& out) const
+ib_lock_t::print(std::ostream& out) const
 {
 	out << "[lock_t: type_mode=" << type_mode << "("
 		<< type_mode_string() << ")";
@@ -245,7 +111,7 @@ lock_t::print(std::ostream& out) const
 
 inline
 std::ostream&
-operator<<(std::ostream& out, const lock_t& lock)
+operator<<(std::ostream& out, const ib_lock_t& lock)
 {
 	return(lock.print(out));
 }
@@ -562,407 +428,6 @@ enum lock_rec_req_status {
         LOCK_REC_SUCCESS_CREATED
 };
 
-/**
-Record lock ID */
-struct RecID {
-
-	RecID(ulint space_id, ulint page_no, ulint heap_no)
-		:
-		m_space_id(static_cast<uint32_t>(space_id)),
-		m_page_no(static_cast<uint32_t>(page_no)),
-		m_heap_no(static_cast<uint32_t>(heap_no)),
-		m_fold(lock_rec_fold(m_space_id, m_page_no))
-	{
-		ut_ad(space_id < UINT32_MAX);
-		ut_ad(page_no < UINT32_MAX);
-		ut_ad(heap_no < UINT32_MAX);
-	}
-
-	RecID(const buf_block_t* block, ulint heap_no)
-		:
-		m_space_id(block->page.id.space()),
-		m_page_no(block->page.id.page_no()),
-		m_heap_no(static_cast<uint32_t>(heap_no)),
-		m_fold(lock_rec_fold(m_space_id, m_page_no))
-	{
-		ut_ad(heap_no < UINT32_MAX);
-	}
-
-	/**
-	@return the "folded" value of {space, page_no} */
-	ulint fold() const
-	{
-		return(m_fold);
-	}
-
-	/**
-	Tablespace ID */
-	uint32_t		m_space_id;
-
-	/**
-	Page number within the space ID */
-	uint32_t		m_page_no;
-
-	/**
-	Heap number within the page */
-	uint32_t		m_heap_no;
-
-	/**
-	Hashed key value */
-	ulint			m_fold;
-};
-
-/**
-Create record locks */
-class RecLock {
-public:
-
-	/**
-	@param[in,out] thr	Transaction query thread requesting the record
-				lock
-	@param[in] index	Index on which record lock requested
-	@param[in] rec_id	Record lock tuple {space, page_no, heap_no}
-	@param[in] mode		The lock mode */
-	RecLock(que_thr_t*	thr,
-		dict_index_t*	index,
-		const RecID&	rec_id,
-		ulint		mode)
-		:
-		m_thr(thr),
-		m_trx(thr_get_trx(thr)),
-		m_mode(mode),
-		m_index(index),
-		m_rec_id(rec_id)
-	{
-		ut_ad(is_predicate_lock(m_mode));
-
-		init(NULL);
-	}
-
-	/**
-	@param[in,out] thr	Transaction query thread requesting the record
-				lock
-	@param[in] index	Index on which record lock requested
-	@param[in] block	Buffer page containing record
-	@param[in] heap_no	Heap number within the block
-	@param[in] mode		The lock mode
-	@param[in] prdt		The predicate for the rtree lock */
-	RecLock(que_thr_t*	thr,
-		dict_index_t*	index,
-		const buf_block_t*
-				block,
-		ulint		heap_no,
-		ulint		mode,
-		lock_prdt_t*	prdt = NULL)
-		:
-		m_thr(thr),
-		m_trx(thr_get_trx(thr)),
-		m_mode(mode),
-		m_index(index),
-		m_rec_id(block, heap_no)
-	{
-		btr_assert_not_corrupted(block, index);
-
-		init(block->frame);
-	}
-
-	/**
-	@param[in] index	Index on which record lock requested
-	@param[in] rec_id	Record lock tuple {space, page_no, heap_no}
-	@param[in] mode		The lock mode */
-	RecLock(dict_index_t*	index,
-		const RecID&	rec_id,
-		ulint		mode)
-		:
-		m_thr(),
-		m_trx(),
-		m_mode(mode),
-		m_index(index),
-		m_rec_id(rec_id)
-	{
-		ut_ad(is_predicate_lock(m_mode));
-
-		init(NULL);
-	}
-
-	/**
-	@param[in] index	Index on which record lock requested
-	@param[in] block	Buffer page containing record
-	@param[in] heap_no	Heap number withing block
-	@param[in] mode		The lock mode */
-	RecLock(dict_index_t*	index,
-		const buf_block_t*
-				block,
-		ulint		heap_no,
-		ulint		mode)
-		:
-		m_thr(),
-		m_trx(),
-		m_mode(mode),
-		m_index(index),
-		m_rec_id(block, heap_no)
-	{
-		btr_assert_not_corrupted(block, index);
-
-		init(block->frame);
-	}
-
-	/**
-	Enqueue a lock wait for a transaction. If it is a high priority
-	transaction (cannot rollback) then jump ahead in the record lock wait
-	queue and if the transaction at the head of the queue is itself waiting
-	roll it back.
-	@param[in, out] wait_for	The lock that the the joining
-					transaction is waiting for
-	@param[in] prdt			Predicate [optional]
-	@return DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED, or
-		DB_SUCCESS_LOCKED_REC; DB_SUCCESS_LOCKED_REC means that
-		there was a deadlock, but another transaction was chosen
-		as a victim, and we got the lock immediately: no need to
-		wait then */
-	dberr_t add_to_waitq(
-		lock_t*	wait_for,
-		const lock_prdt_t*
-				prdt = NULL);
-
-	/**
-	Create a lock for a transaction and initialise it.
-	@param[in, out] trx		Transaction requesting the new lock
-	@param[in] owns_trx_mutex	true if caller owns the trx_t::mutex
-	@param[in] add_to_hash		add the lock to hash table
-	@param[in] prdt			Predicate lock (optional)
-	@param[in,out] c_lock		Conflicting lock request or NULL
-					in Galera conflicting lock is selected
-					as deadlock victim if requester
-					is BF transaction.
-	@return new lock instance */
-	lock_t* create(
-		trx_t*		trx,
-		bool		owns_trx_mutex,
-		bool		add_to_hash,
-		const lock_prdt_t*
-				prdt = NULL
-#ifdef WITH_WSREP
-		,lock_t*	c_lock = NULL
-#endif /* WITH_WSREP */
-	) const;
-
-	/**
-	Check of the lock is on m_rec_id.
-	@param[in] lock			Lock to compare with
-	@return true if the record lock is on m_rec_id*/
-	bool is_on_row(const lock_t* lock) const;
-
-	/**
-	Create the lock instance
-	@param[in, out] trx	The transaction requesting the lock
-	@param[in, out] index	Index on which record lock is required
-	@param[in] mode		The lock mode desired
-	@param[in] rec_id	The record id
-	@param[in] size		Size of the lock + bitmap requested
-	@return a record lock instance */
-	static lock_t* lock_alloc(
-		trx_t*		trx,
-		dict_index_t*	index,
-		ulint		mode,
-		const RecID&	rec_id,
-		ulint		size);
-
-private:
-	/*
-	@return the record lock size in bytes */
-	size_t lock_size() const
-	{
-		return(m_size);
-	}
-
-	/**
-	Do some checks and prepare for creating a new record lock */
-	void prepare() const;
-
-	/**
-	Collect the transactions that will need to be rolled back asynchronously
-	@param[in, out] trx	Transaction to be rolled back */
-	void mark_trx_for_rollback(trx_t* trx);
-
-	/**
-	Jump the queue for the record over all low priority transactions and
-	add the lock. If all current granted locks are compatible, grant the
-	lock. Otherwise, mark all granted transaction for asynchronous
-	rollback and add to hit list.
-	@param[in, out]	lock		Lock being requested
-	@param[in]	conflict_lock	First conflicting lock from the head
-	@return true if the lock is granted */
-	bool jump_queue(lock_t* lock, const lock_t* conflict_lock);
-
-	/** Find position in lock queue and add the high priority transaction
-	lock. Intention and GAP only locks can be granted even if there are
-	waiting locks in front of the queue. To add the High priority
-	transaction in a safe position we keep the following rule.
-
-	1. If the lock can be granted, add it before the first waiting lock
-	in the queue so that all currently waiting locks need to do conflict
-	check before getting granted.
-
-	2. If the lock has to wait, add it after the last granted lock or the
-	last waiting high priority transaction in the queue whichever is later.
-	This ensures that the transaction is granted only after doing conflict
-	check with all granted transactions.
-	@param[in]      lock            Lock being requested
-	@param[in]      conflict_lock   First conflicting lock from the head
-	@param[out]     high_priority   high priority transaction ahead in queue
-	@return true if the lock can be granted */
-	bool
-	lock_add_priority(
-		lock_t*		lock,
-		const lock_t*	conflict_lock,
-		bool*		high_priority);
-
-	/** Iterate over the granted locks and prepare the hit list for ASYNC Rollback.
-	If the transaction is waiting for some other lock then wake up with deadlock error.
-	Currently we don't mark following transactions for ASYNC Rollback.
-	1. Read only transactions
-	2. Background transactions
-	3. Other High priority transactions
-	@param[in]      lock            Lock being requested
-	@param[in]      conflict_lock   First conflicting lock from the head */
-	void make_trx_hit_list(lock_t* lock, const lock_t* conflict_lock);
-
-	/**
-	Setup the requesting transaction state for lock grant
-	@param[in,out] lock	Lock for which to change state */
-	void set_wait_state(lock_t* lock);
-
-	/**
-	Add the lock to the record lock hash and the transaction's lock list
-	@param[in,out] lock	Newly created record lock to add to the
-				rec hash and the transaction lock list
-	@param[in] add_to_hash	If the lock should be added to the hash table */
-	void lock_add(lock_t* lock, bool add_to_hash) const;
-
-	/**
-	Check and resolve any deadlocks
-	@param[in, out] lock		The lock being acquired
-	@return DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED, or
-		DB_SUCCESS_LOCKED_REC; DB_SUCCESS_LOCKED_REC means that
-		there was a deadlock, but another transaction was chosen
-		as a victim, and we got the lock immediately: no need to
-		wait then */
-	dberr_t deadlock_check(lock_t* lock);
-
-	/**
-	Check the outcome of the deadlock check
-	@param[in,out] victim_trx	Transaction selected for rollback
-	@param[in,out] lock		Lock being requested
-	@return DB_LOCK_WAIT, DB_DEADLOCK or DB_SUCCESS_LOCKED_REC */
-	dberr_t check_deadlock_result(const trx_t* victim_trx, lock_t* lock);
-
-	/**
-	Setup the context from the requirements */
-	void init(const page_t* page)
-	{
-		ut_ad(lock_mutex_own());
-		ut_ad(!srv_read_only_mode);
-		ut_ad(dict_index_is_clust(m_index)
-		      || !dict_index_is_online_ddl(m_index));
-		ut_ad(m_thr == NULL || m_trx == thr_get_trx(m_thr));
-
-		m_size = is_predicate_lock(m_mode)
-			  ? lock_size(m_mode) : lock_size(page);
-
-		/** If rec is the supremum record, then we reset the
-		gap and LOCK_REC_NOT_GAP bits, as all locks on the
-		supremum are automatically of the gap type */
-
-		if (m_rec_id.m_heap_no == PAGE_HEAP_NO_SUPREMUM) {
-			ut_ad(!(m_mode & LOCK_REC_NOT_GAP));
-
-			m_mode &= ~(LOCK_GAP | LOCK_REC_NOT_GAP);
-		}
-	}
-
-	/**
-	Calculate the record lock physical size required for a predicate lock.
-	@param[in] mode For predicate locks the lock mode
-	@return the size of the lock data structure required in bytes */
-	static size_t lock_size(ulint mode)
-	{
-		ut_ad(is_predicate_lock(mode));
-
-		/* The lock is always on PAGE_HEAP_NO_INFIMUM(0),
-		so we only need 1 bit (which is rounded up to 1
-		byte) for lock bit setting */
-
-		size_t	n_bytes;
-
-		if (mode & LOCK_PREDICATE) {
-			const ulint	align = UNIV_WORD_SIZE - 1;
-
-			/* We will attach the predicate structure
-			after lock. Make sure the memory is
-			aligned on 8 bytes, the mem_heap_alloc
-			will align it with MEM_SPACE_NEEDED
-			anyway. */
-
-			n_bytes = (1 + sizeof(lock_prdt_t) + align) & ~align;
-
-			/* This should hold now */
-
-			ut_ad(n_bytes == sizeof(lock_prdt_t) + UNIV_WORD_SIZE);
-
-		} else {
-			n_bytes = 1;
-		}
-
-		return(n_bytes);
-	}
-
-	/**
-	Calculate the record lock physical size required, non-predicate lock.
-	@param[in] page		For non-predicate locks the buffer page
-	@return the size of the lock data structure required in bytes */
-	static size_t lock_size(const page_t* page)
-	{
-		ulint	n_recs = page_dir_get_n_heap(page);
-
-		/* Make lock bitmap bigger by a safety margin */
-
-		return(1 + ((n_recs + LOCK_PAGE_BITMAP_MARGIN) / 8));
-	}
-
-	/**
-	@return true if the requested lock mode is for a predicate
-		or page lock */
-	static bool is_predicate_lock(ulint mode)
-	{
-		return(mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE));
-	}
-
-private:
-	/** The query thread of the transaction */
-	que_thr_t*		m_thr;
-
-	/**
-	Transaction requesting the record lock */
-	trx_t*			m_trx;
-
-	/**
-	Lock mode requested */
-	ulint			m_mode;
-
-	/**
-	Size of the record lock in bytes */
-	size_t			m_size;
-
-	/**
-	Index on which the record lock is required */
-	dict_index_t*		m_index;
-
-	/**
-	The record lock tuple {space, page_no, heap_no} */
-	RecID			m_rec_id;
-};
-
 #ifdef UNIV_DEBUG
 /** The count of the types of locks. */
 static const ulint      lock_types = UT_ARR_SIZE(lock_compatibility_matrix);
@@ -1004,7 +469,7 @@ lock_clust_rec_some_has_impl(
 /*=========================*/
 	const rec_t*		rec,	/*!< in: user record */
 	const dict_index_t*	index,	/*!< in: clustered index */
-	const ulint*		offsets)/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*		offsets)/*!< in: rec_get_offsets(rec, index) */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
@@ -1043,6 +508,28 @@ lock_rec_set_nth_bit(
 /*=================*/
 	lock_t*	lock,	/*!< in: record lock */
 	ulint	i);	/*!< in: index of the bit */
+
+/** Reset the nth bit of a record lock.
+@param[in,out] lock record lock
+@param[in] i index of the bit that will be reset
+@return previous value of the bit */
+inline byte lock_rec_reset_nth_bit(lock_t* lock, ulint i)
+{
+	ut_ad(lock_get_type_low(lock) == LOCK_REC);
+	ut_ad(i < lock->un_member.rec_lock.n_bits);
+
+	byte*	b = reinterpret_cast<byte*>(&lock[1]) + (i >> 3);
+	byte	mask = byte(1U << (i & 7));
+	byte	bit = *b & mask;
+	*b &= ~mask;
+
+	if (bit != 0) {
+		ut_ad(lock->trx->lock.n_rec_locks > 0);
+		--lock->trx->lock.n_rec_locks;
+	}
+
+	return(bit);
+}
 
 /*********************************************************************//**
 Gets the first or next record lock on a page.
@@ -1170,6 +657,33 @@ lock_table_has(
 	const trx_t*		trx,	/*!< in: transaction */
 	const dict_table_t*	table,	/*!< in: table */
 	enum lock_mode		mode);	/*!< in: lock mode */
+
+/** Set the wait status of a lock.
+@param[in,out]	lock	lock that will be waited for
+@param[in,out]	trx	transaction that will wait for the lock */
+inline void lock_set_lock_and_trx_wait(lock_t* lock, trx_t* trx)
+{
+	ut_ad(lock);
+	ut_ad(lock->trx == trx);
+	ut_ad(trx->lock.wait_lock == NULL);
+	ut_ad(lock_mutex_own());
+	ut_ad(trx_mutex_own(trx));
+
+	trx->lock.wait_lock = lock;
+	lock->type_mode |= LOCK_WAIT;
+}
+
+/** Reset the wait status of a lock.
+@param[in,out]	lock	lock that was possibly being waited for */
+inline void lock_reset_lock_and_trx_wait(lock_t* lock)
+{
+	ut_ad(lock_get_wait(lock));
+	ut_ad(lock_mutex_own());
+	ut_ad(lock->trx->lock.wait_lock == NULL
+	      || lock->trx->lock.wait_lock == lock);
+	lock->trx->lock.wait_lock = NULL;
+	lock->type_mode &= ~LOCK_WAIT;
+}
 
 #include "lock0priv.ic"
 

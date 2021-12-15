@@ -7,3 +7,12 @@ DROP TABLE t1;
 CREATE TABLE t1(a VARCHAR(2) CHARACTER SET big5 COLLATE big5_chinese_ci,
 FULLTEXT(a)) ENGINE=<default_engine>;
 DROP TABLE t1;
+CREATE TABLE t1 (a SERIAL, t TEXT, FULLTEXT f1(t), FULLTEXT f2(t)) ENGINE=InnoDB;
+Warnings:
+Note	1831	Duplicate index `f2`. This is deprecated and will be disallowed in a future release
+INSERT INTO t1 (a,t) VALUES (1,'1'),(2,'1');
+ALTER TABLE t1 ADD COLUMN g TEXT GENERATED ALWAYS AS (t) VIRTUAL;
+DELETE FROM t1 WHERE a = 1;
+ALTER TABLE t1 DROP INDEX f1;
+INSERT INTO t1 (a,t) VALUES (1,'1');
+DROP TABLE t1;

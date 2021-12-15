@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   Bitmap handling (for records in block)
@@ -1288,6 +1288,7 @@ static my_bool allocate_head(MARIA_FILE_BITMAP *bitmap, uint size,
     uint byte= 6 * (last_insert_page / 16);
     first_pattern= last_insert_page % 16;
     data= bitmap->map+byte;
+    first_found= 0;                         /* Don't update full_head_size */
     DBUG_ASSERT(data <= end);
   }
   else

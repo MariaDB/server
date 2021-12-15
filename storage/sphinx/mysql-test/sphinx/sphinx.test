@@ -41,3 +41,16 @@ select * from ts where q=';filter=meta.sub.list[0],4';
 select * from ts where q=';filter=meta.sub.list[1],4';
 select * from ts where q='test;range=meta.foo_count,100,500';
 drop table ts;
+
+--echo #
+--echo # MDEV-19205: Sphinx unable to connect using a host name
+--echo #
+
+--replace_result $SPHINXSEARCH_PORT SPHINXSEARCH_PORT
+eval create table ts ( id bigint unsigned not null, w int not null, q varchar(255) not null, index(q) ) engine=sphinx connection="sphinx://localhost:$SPHINXSEARCH_PORT/*";
+select * from ts where q=';filter=meta.foo_count,100';
+select * from ts where q='test;filter=meta.sub.int,7';
+select * from ts where q=';filter=meta.sub.list[0],4';
+select * from ts where q=';filter=meta.sub.list[1],4';
+select * from ts where q='test;range=meta.foo_count,100,500';
+drop table ts;

@@ -7,24 +7,28 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+--let $wsrep_cluster_address_node3 = `SELECT @@wsrep_cluster_address`
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
 --connection node_1
 --let $wsrep_provider_options_node1 = `SELECT @@wsrep_provider_options`
 SET GLOBAL wsrep_provider_options = 'evs.inactive_timeout=PT100M; evs.suspect_timeout=PT1S';
 
 --connection node_2
---source include/wait_until_connected_again.inc
 --let $wsrep_provider_options_node2 = `SELECT @@wsrep_provider_options`
 SET GLOBAL wsrep_provider_options = 'evs.inactive_timeout=PT100M; evs.suspect_timeout=PT1S';
 
---let $galera_connection_name = node_3
---let $galera_server_number = 3
---source include/galera_connect.inc
---connection node_3
---source include/wait_until_connected_again.inc
---let $wsrep_cluster_address_node3 = `SELECT @@wsrep_cluster_address`
-
 # Suspend node #3
 
+--connection node_3
 --source include/galera_suspend.inc
 --sleep 5
 
@@ -32,36 +36,47 @@ SET GLOBAL wsrep_provider_options = 'evs.inactive_timeout=PT100M; evs.suspect_ti
 
 --connection node_1
 --source include/wait_until_connected_again.inc
-SET SESSION wsrep_sync_wait = 0;
+SET SESSION wsrep_sync_wait=0;
 SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 --disable_query_log
 --eval SET GLOBAL wsrep_provider_options = '$wsrep_provider_options_node1';
 --enable_query_log
-
 --source include/wait_until_connected_again.inc
-CREATE TABLE t1 (f1 INTEGER);
+
+CREATE TABLE t1 (f1 INTEGER) engine=InnoDB;
 INSERT INTO t1 VALUES (1);
 
 --connection node_2
-SET SESSION wsrep_sync_wait = 0;
+--source include/wait_until_connected_again.inc
+SET SESSION wsrep_sync_wait=0;
 SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 --disable_query_log
 --eval SET GLOBAL wsrep_provider_options = '$wsrep_provider_options_node2';
 --enable_query_log
-
 --source include/wait_until_connected_again.inc
-SELECT COUNT(*) = 1 FROM t1;
-DROP TABLE t1;
+
+SET SESSION wsrep_sync_wait = 15;
+SELECT COUNT(*) FROM t1;
 
 # Reconnect node #3 so that MTR's end-of-test checks can run
 
---connection node_3
 --source include/galera_resume.inc
+--connection node_3
 --source include/wait_until_connected_again.inc
 
-CALL mtr.add_suppression("WSREP: gcs_caused() returned -1 \\(Operation not permitted\\)");
+CALL mtr.add_suppression("WSREP: gcs_caused.*");
+CALL mtr.add_suppression("WSREP: gcs/src/gcs_core.cpp:core_handle_uuid_msg.*");
 
 --disable_query_log
 --eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_node3';
 --enable_query_log
 --source include/wait_until_connected_again.inc
+
+SET SESSION wsrep_sync_wait = 15;
+SELECT COUNT(*) FROM t1;
+
+--connection node_1
+DROP TABLE t1;
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc
+

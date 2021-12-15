@@ -1,0 +1,12 @@
+--source include/have_partition.inc
+--source include/have_log_bin.inc
+
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY) PARTITION BY KEY (pk) PARTITIONS 2;
+INSERT INTO t1 VALUES (NULL),(NULL);
+
+--error ER_DUP_ENTRY
+UPDATE t1 SET pk = 2147483647;
+--error HA_ERR_AUTOINC_ERANGE
+REPLACE INTO t1 VALUES (NULL);
+
+DROP TABLE t1;

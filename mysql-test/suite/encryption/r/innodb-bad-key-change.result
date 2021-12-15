@@ -3,6 +3,8 @@ call mtr.add_suppression("Plugin 'file_key_management' registration.*failed");
 call mtr.add_suppression("InnoDB: Table `test`\\.`t[12]` (has an unreadable root page|is corrupted)");
 call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[12]\\.ibd' cannot be decrypted\\.");
 call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\]");
+call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=[1-9][0-9]*, page number=3\\] in file .*test.t1.ibd looks corrupted; key_version=1");
+call mtr.add_suppression("InnoDB: Table `test`\\.`t[12]` is corrupted");
 call mtr.add_suppression("File '.*mysql-test.std_data.keysbad3\\.txt' not found");
 # Start server with keys2.txt
 SET GLOBAL innodb_file_per_table = ON;
@@ -29,8 +31,6 @@ foobar	2
 SELECT * FROM t1;
 ERROR 42S02: Table 'test.t1' doesn't exist in engine
 DROP TABLE t1;
-Warnings:
-Warning	192	Table test/t1 in tablespace  is encrypted but encryption service or used key_id is not available.  Can't continue reading table.
 # Start server with keys3.txt
 SET GLOBAL innodb_default_encryption_key_id=5;
 CREATE TABLE t2 (c VARCHAR(8), id int not null primary key, b int, key(b)) ENGINE=InnoDB ENCRYPTED=YES;

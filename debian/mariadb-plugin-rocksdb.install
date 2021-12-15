@@ -1,5 +1,5 @@
 etc/mysql/conf.d/rocksdb.cnf etc/mysql/mariadb.conf.d
-usr/bin/mysql_ldb
 usr/bin/myrocks_hotbackup
+usr/bin/mysql_ldb
 usr/bin/sst_dump
 usr/lib/mysql/plugin/ha_rocksdb.so

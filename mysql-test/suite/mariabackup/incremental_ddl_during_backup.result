@@ -1,0 +1,23 @@
+call mtr.add_suppression("InnoDB: New log files created");
+CREATE TABLE t1(i INT PRIMARY KEY) ENGINE INNODB;
+CREATE TABLE t2(i INT PRIMARY KEY) ENGINE INNODB;
+CREATE TABLE t3(i INT) ENGINE INNODB;
+CREATE TABLE t10(i INT PRIMARY KEY) ENGINE INNODB;
+# Create full backup , modify table, then create incremental/differential backup
+INSERT into t1 values(1);
+# Prepare full backup, apply incremental one
+# Restore and check results
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+CREATE TABLE t1(i int);
+DROP TABLE t1;
+SELECT * from t1_renamed;
+i
+1
+DROP TABLE t1_renamed;
+CREATE TABLE t2(i INT PRIMARY KEY) ENGINE INNODB;
+DROP TABLE t2;
+DROP TABLE t3;
+DROP TABLE t4;

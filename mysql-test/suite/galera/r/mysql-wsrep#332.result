@@ -1,0 +1,139 @@
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1;
+CREATE TABLE p (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id INTEGER) ENGINE=INNODB;
+INSERT INTO p VALUES (1, 0);
+INSERT INTO p VALUES (2, 0);
+INSERT INTO c VALUES (1, 1);
+INSERT INTO c VALUES (2, 2);
+connection node_1;
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+UPDATE p SET f1 = f1 + 100;
+connection node_1a;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+ALTER TABLE c ADD FOREIGN KEY (p_id) REFERENCES p(f1);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_enter_sync';
+connection node_1;
+COMMIT;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+ERROR 40001: Deadlock: wsrep aborted transaction
+connection node_2;
+SELECT * FROM p;
+f1	f2
+1	0
+2	0
+SELECT * FROM c;
+f1	p_id
+1	1
+2	2
+DROP TABLE c;
+DROP TABLE p;
+connection node_1;
+CREATE TABLE p1 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE p2 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id1 INTEGER, p_id2 INTEGER) ENGINE=INNODB;
+INSERT INTO p1 VALUES (1, 0), (2, 0);
+INSERT INTO p2 VALUES (1, 0), (2, 0);
+INSERT INTO c VALUES (1, 1, 1);
+INSERT INTO c VALUES (2, 2, 2);
+connection node_1;
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+UPDATE p1 SET f1 = f1 + 100;
+connection node_1a;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+ALTER TABLE c ADD FOREIGN KEY (p_id1) REFERENCES p1(f1), ADD FOREIGN KEY (p_id2) REFERENCES p2(f1);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_enter_sync';
+connection node_1;
+COMMIT;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+ERROR 40001: Deadlock: wsrep aborted transaction
+connection node_2;
+SELECT * FROM p1;
+f1	f2
+1	0
+2	0
+SELECT * FROM p2;
+f1	f2
+1	0
+2	0
+SELECT * FROM c;
+f1	p_id1	p_id2
+1	1	1
+2	2	2
+DROP TABLE c;
+DROP TABLE p1;
+DROP TABLE p2;
+connection node_1;
+CREATE TABLE p1 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE p2 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p_id1 INTEGER, p_id2 INTEGER) ENGINE=INNODB;
+INSERT INTO p1 VALUES (1, 0), (2, 0);
+INSERT INTO p2 VALUES (1, 0), (2, 0);
+INSERT INTO c VALUES (1, 1, 1);
+INSERT INTO c VALUES (2, 2, 2);
+connection node_1;
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+UPDATE p2 SET f1 = f1 + 100;
+connection node_1a;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+ALTER TABLE c ADD FOREIGN KEY (p_id1) REFERENCES p1(f1), ADD FOREIGN KEY (p_id2) REFERENCES p2(f1);
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_enter_sync';
+connection node_1;
+COMMIT;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=local_monitor_enter_sync';
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+ERROR 40001: Deadlock: wsrep aborted transaction
+connection node_2;
+SELECT * FROM p1;
+f1	f2
+1	0
+2	0
+SELECT * FROM p2;
+f1	f2
+1	0
+2	0
+SELECT * FROM c;
+f1	p_id1	p_id2
+1	1	1
+2	2	2
+DROP TABLE c;
+DROP TABLE p1;
+DROP TABLE p2;

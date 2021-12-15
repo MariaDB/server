@@ -1,0 +1,22 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+call mtr.add_suppression("InnoDB: Operating system error number ");
+call mtr.add_suppression("InnoDB: (The error means|If you are|Cannot open datafile) ");
+call mtr.add_suppression("InnoDB: Ignoring tablespace for `test`\.`t`");
+call mtr.add_suppression("InnoDB: Table test/t .* does not exist");
+
+CREATE TABLE t (a SERIAL) ENGINE=InnoDB;
+INSERT INTO t() VALUES();
+SHOW CREATE TABLE t;
+let $datadir=`select @@datadir`;
+
+--source include/shutdown_mysqld.inc
+--remove_file $datadir/test/t.ibd
+--source include/start_mysqld.inc
+
+--error ER_GET_ERRNO
+SELECT * FROM t;
+--error ER_GET_ERRNO
+TRUNCATE TABLE t;
+DROP TABLE t;

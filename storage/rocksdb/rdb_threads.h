@@ -13,10 +13,11 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 #pragma once
 
 /* C++ standard header files */
+#include <map>
 #include <string>
 
 /* MySQL includes */
@@ -33,17 +34,16 @@
 #undef pthread_getspecific
 #endif
 #include <mysql/psi/mysql_table.h>
-#ifdef MARIAROCKS_NOT_YET
-#include <mysql/thread_pool_priv.h>
-#endif
+// #include <mysql/thread_pool_priv.h>
 
 /* MyRocks header files */
 #include "./rdb_utils.h"
+#include "rocksdb/db.h"
 
 namespace myrocks {
 
 class Rdb_thread {
-private:
+ private:
   // Disable Copying
   Rdb_thread(const Rdb_thread &);
   Rdb_thread &operator=(const Rdb_thread &);
@@ -55,12 +55,12 @@ private:
 
   std::string m_name;
 
-protected:
+ protected:
   mysql_mutex_t m_signal_mutex;
   mysql_cond_t m_signal_cond;
   bool m_stop = false;
 
-public:
+ public:
   Rdb_thread() : m_run_once(false) {}
 
 #ifdef HAVE_PSI_INTERFACE
@@ -75,7 +75,7 @@ public:
 
   virtual void run(void) = 0;
 
-  void signal(const bool &stop_thread = false);
+  void signal(const bool stop_thread = false);
 
   int join()
   {
@@ -114,12 +114,11 @@ public:
     DBUG_ASSERT(!m_name.empty());
 #ifdef __linux__
     int err = pthread_setname_np(m_handle, m_name.c_str());
-    if (err)
-    {
+    if (err) {
       // NO_LINT_DEBUG
       sql_print_warning(
-          "MyRocks: Failed to set name (%s) for current thread, errno=%d",
-          m_name.c_str(), errno);
+          "MyRocks: Failed to set name (%s) for current thread, errno=%d,%d",
+          m_name.c_str(), errno, err);
     }
 #endif
   }
@@ -128,7 +127,7 @@ public:
 
   virtual ~Rdb_thread() {}
 
-private:
+ private:
   static void *thread_func(void *const thread_ptr);
 };
 
@@ -139,7 +138,7 @@ private:
 */
 
 class Rdb_background_thread : public Rdb_thread {
-private:
+ private:
   bool m_save_stats = false;
 
   void reset() {
@@ -148,7 +147,7 @@ private:
     m_save_stats = false;
   }
 
-public:
+ public:
   virtual void run() override;
 
   void request_save_stats() {
@@ -160,6 +159,31 @@ public:
   }
 };
 
+class Rdb_manual_compaction_thread : public Rdb_thread {
+ private:
+  struct Manual_compaction_request {
+    int mc_id;
+    enum mc_state { INITED = 0, RUNNING } state;
+    rocksdb::ColumnFamilyHandle *cf;
+    rocksdb::Slice *start;
+    rocksdb::Slice *limit;
+    int concurrency = 0;
+  };
+
+  int m_latest_mc_id;
+  mysql_mutex_t m_mc_mutex;
+  std::map<int, Manual_compaction_request> m_requests;
+
+ public:
+  virtual void run() override;
+  int request_manual_compaction(rocksdb::ColumnFamilyHandle *cf,
+                                rocksdb::Slice *start, rocksdb::Slice *limit,
+                                int concurrency = 0);
+  bool is_manual_compaction_finished(int mc_id);
+  void clear_manual_compaction_request(int mc_id, bool init_only = false);
+  void clear_all_manual_compaction_requests();
+};
+
 /*
   Drop index thread control
 */
@@ -168,4 +192,4 @@ struct Rdb_drop_index_thread : public Rdb_thread {
   virtual void run() override;
 };
 
-} // namespace myrocks
+}  // namespace myrocks

@@ -5,7 +5,8 @@
 
 # t/index_merge_innodb.test
 #
-# Index merge tests
+# Index merge tests (the test is called 'index_merge_rocksdb2' because
+# 'index_merge_rocksdb' has already existed before copying 'index_merge_innodb')
 #
 # Last update:
 # 2006-08-07 ML test refactored (MySQL 5.1)
@@ -61,6 +62,7 @@ INSERT INTO t1 SELECT id + 16, 7, 0 FROM t1;
 
 -- disable_query_log
 -- disable_result_log
+set global rocksdb_force_flush_memtable_now=1;
 analyze table t1;
 -- enable_result_log
 -- enable_query_log

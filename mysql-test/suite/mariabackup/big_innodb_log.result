@@ -1,0 +1,30 @@
+# Kill the server
+CREATE TABLE t(i INT) ENGINE InnoDB;
+INSERT INTO t VALUES
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
+(0), (1), (2), (3), (4), (5), (6), (7), (8), (9);
+# xtrabackup backup, execute the following query after test.t is copied:
+# BEGIN NOT ATOMIC INSERT INTO test.t SELECT * FROM test.t; UPDATE test.t SET i = 10 WHERE i = 0; DELETE FROM test.t WHERE i = 1; END
+SELECT count(*) FROM t WHERE i = 0;
+count(*)
+0
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+SELECT count(*) FROM t WHERE i = 0;
+count(*)
+0
+Ok
+Ok
+DROP TABLE t;
+# Kill the server

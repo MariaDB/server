@@ -1,0 +1,3 @@
+--source include/have_rocksdb.inc
+
+--source bypass_select_basic.inc

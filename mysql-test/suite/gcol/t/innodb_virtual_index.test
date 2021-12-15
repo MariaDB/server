@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_sequence.inc
 
 # Ensure that the history list length will actually be decremented by purge.
 SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
@@ -63,7 +64,7 @@ CREATE TABLE t2(
 	c11 DATE GENERATED ALWAYS AS(addtime(c9,c8)) VIRTUAL,
 	c11a time GENERATED ALWAYS AS(addtime(c7,c10)) VIRTUAL,
 	c12 CHAR(1),
-	c13 CHAR(2)GENERATED ALWAYS AS (concat(c12,c12)) VIRTUAL,
+	c13 CHAR(2)GENERATED ALWAYS AS (concat(RTRIM(c12),RTRIM(c12))) VIRTUAL,
 	c14 CHAR(4)GENERATED ALWAYS AS (concat(c13,'x')) VIRTUAL,
 	PRIMARY KEY(c1),
 	KEY c13(c13),
@@ -224,3 +225,112 @@ VIRTUAL, ADD UNIQUE index idx (col1), algorithm=inplace;
 
 DROP TABLE t1;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
+
+--echo #
+--echo # Bug 27122803 - BACKPORT FIX FOR BUG 25899959 TO MYSQL-5.7
+--echo #
+CREATE TABLE t1 (col1 int(10)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ALTER TABLE t1 ADD col2 char(21) AS (col1 * col1), ADD INDEX n (col2);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Bug #27968952  INNODB CRASH/CORRUPTION WITH TEXT PREFIX INDEXES
+--echo #
+
+CREATE TABLE t1(
+  a INT NOT NULL UNIQUE,
+  b INT NOT NULL,
+  c TEXT GENERATED ALWAYS AS (a <> b) VIRTUAL,
+  d TEXT NOT NULL,
+  UNIQUE KEY (c(1)), KEY(d(1))
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+SET @t = REPEAT('t',@@innodb_page_size);
+INSERT INTO t1 (a,b,d) VALUES (1,0,@t), (0,0,@t);
+--error ER_DUP_ENTRY
+UPDATE t1 SET b = a;
+REPLACE INTO t1 SET a = 0, b = 1, d = 'd';
+SELECT * FROM t1;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(
+  a VARCHAR(1000) GENERATED ALWAYS AS ('1') VIRTUAL,
+  b VARCHAR(1000) NOT NULL,
+  c VARCHAR(1000) GENERATED ALWAYS AS (b) STORED,
+  KEY (b(1)),
+  KEY (a(1))
+) ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
+INSERT INTO t1(b) VALUES(REPEAT('b',1000));
+DELETE FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # Bug #22990029 GCOLS: INCORRECT BEHAVIOR
+--echo # AFTER DATA INSERTED WITH IGNORE KEYWORD
+--echo #
+
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, vb DATE AS(b) VIRTUAL, KEY(vb))
+ENGINE=InnoDB;
+INSERT IGNORE INTO t1 (a,b) VALUES(1,20190132);
+BEGIN;
+DELETE FROM t1;
+--error ER_TRUNCATED_WRONG_VALUE
+INSERT INTO t1 (a,b) VALUES(1,20190123);
+SELECT * FROM t1;
+ROLLBACK;
+SELECT * FROM t1;
+CHECK TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25872 InnoDB: Assertion failure in row_merge_read_clustered_index
+--echo #	upon ALTER on table with indexed virtual columns
+--echo #
+
+CREATE TABLE t1 (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  a INT,
+  va INT ZEROFILL AS (a) VIRTUAL,
+  b TIMESTAMP,
+  c CHAR(204),
+  vc CHAR(8),
+  KEY(vc,c(64),b,va)
+) ENGINE=InnoDB CHARACTER SET utf32;
+INSERT INTO t1 (id) SELECT NULL FROM seq_1_to_75;
+INSERT IGNORE INTO t1 (id, a) VALUES (NULL, -1);
+--error ER_WARN_DATA_OUT_OF_RANGE
+ALTER TABLE t1 FORCE;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-24713 Assertion `dict_table_is_comp(index->table)' failed
+--echo #		in row_merge_buf_add()
+--echo #
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(3),
+		 b CHAR(8) AS (a) VIRTUAL, KEY(b))
+		 ROW_FORMAT=REDUNDANT ENGINE=InnoDB
+		 CHARACTER SET utf8;
+INSERT INTO t1 (id,a) VALUES (1,'foo');
+OPTIMIZE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-20154 Assertion `len <= col->len || ((col->mtype) == 5
+--echo # || (col->mtype) == 14)' failed in row_merge_buf_add
+--echo #
+
+CREATE TABLE t1 (
+    a VARCHAR(2500),
+    b VARCHAR(2499) AS (a) VIRTUAL
+) ENGINE=InnoDB;
+INSERT INTO t1 (a) VALUES ('foo');
+
+ALTER TABLE t1 MODIFY a VARCHAR(2600), ALGORITHM=INPLACE;
+ALTER TABLE t1 ADD KEY (b), ALGORITHM=INPLACE;
+
+--echo # Cleanup
+DROP TABLE t1;
+
+--echo # End of 10.2 tests
+

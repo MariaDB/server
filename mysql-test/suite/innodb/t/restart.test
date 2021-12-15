@@ -16,7 +16,6 @@ let page_size= `select @@innodb_page_size`;
 --echo # of tables with .isl file or DATA DIRECTORY attribute.
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Invalid flags 0x7a207879 in .*td\\.ibd");
 --echo # FIXME: This is much more noisy than MariaDB 10.1!
-call mtr.add_suppression("\\[ERROR\\] InnoDB: Cannot read first page in datafile: .*td\\.ibd, Space ID:2048948345, Flags: 2048948345");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Operating system error number .* in a file operation\\.");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: The error means the system cannot find the path specified\\.");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: If you are installing InnoDB, remember that you must create directories yourself, InnoDB does not create them\\.");

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -97,7 +97,7 @@ Event_parse_data::init_name(THD *thd, sp_name *spn)
   ENDS or AT is in the past, we are trying to create an event that
   will never be executed.  If it has ON COMPLETION NOT PRESERVE
   (default), then it would normally be dropped already, so on CREATE
-  EVENT we give a warning, and do not create anyting.  On ALTER EVENT
+  EVENT we give a warning, and do not create anything.  On ALTER EVENT
   we give a error, and do not change the event.
 
   If the event has ON COMPLETION PRESERVE, then we see if the event is
@@ -356,7 +356,7 @@ wrong_value:
     EVERY 5 MINUTE STARTS "2004-12-12 10:00:00" means that
     the event will be executed every 5 minutes but this will
     start at the date shown above. Expressions are possible :
-    DATE_ADD(NOW(), INTERVAL 1 DAY)  -- start tommorow at
+    DATE_ADD(NOW(), INTERVAL 1 DAY)  -- start tomorrow at
     same time.
 
   RETURN VALUE
@@ -410,7 +410,7 @@ wrong_value:
     EVERY 5 MINUTE ENDS "2004-12-12 10:00:00" means that
     the event will be executed every 5 minutes but this will
     end at the date shown above. Expressions are possible :
-    DATE_ADD(NOW(), INTERVAL 1 DAY)  -- end tommorow at
+    DATE_ADD(NOW(), INTERVAL 1 DAY)  -- end tomorrow at
     same time.
 
   RETURN VALUE

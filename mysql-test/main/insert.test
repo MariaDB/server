@@ -1,0 +1,614 @@
+#
+# Test of referring to old values
+#
+
+--disable_warnings
+drop table if exists t1,t2,t3;
+--enable_warnings
+
+create table t1 (a int not null);
+insert into t1 values (1);
+insert into t1 values (a+2);
+insert into t1 values (a+3),(a+4);
+insert into t1 values (5),(a+6);
+select * from t1;
+drop table t1;
+
+#
+# Test of duplicate key values with packed keys
+#
+
+create table t1 (id int not null auto_increment primary key, username varchar(32) not null, unique (username));
+insert into t1 values (0,"mysql");
+insert into t1 values (0,"mysql ab");
+insert into t1 values (0,"mysql a");
+insert into t1 values (0,"r1manic");
+insert into t1 values (0,"r1man");
+drop table t1;
+
+#
+# Test insert syntax
+#
+
+create table t1 (a int not null auto_increment, primary key (a), t timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, c char(10) default "hello", i int);
+insert into t1 values (default,default,default,default), (default,default,default,default), (4,0,"a",5),(default,default,default,default);
+select a,t>0,c,i from t1;
+truncate table t1;
+insert into t1 set a=default,t=default,c=default;
+insert into t1 set a=default,t=default,c=default,i=default;
+insert into t1 set a=4,t=0,c="a",i=5;
+insert into t1 set a=5,t=0,c="a",i=null;
+insert into t1 set a=default,t=default,c=default,i=default;
+select a,t>0,c,i from t1;
+drop table t1;
+
+#
+# Test problem with bulk insert and auto_increment on second part keys
+#
+
+create table t1 (sid char(20), id int(2) NOT NULL auto_increment, key(sid, id));
+insert into t1 values ('skr',NULL),('skr',NULL),('test',NULL);
+select * from t1;
+insert into t1 values ('rts',NULL),('rts',NULL),('test',NULL);
+select * from t1;
+drop table t1;
+
+#
+#Test of behaviour with INSERT VALUES (NULL)
+#
+
+create table t1 (id int NOT NULL DEFAULT 8);
+-- error 1048
+insert into t1 values(NULL);
+insert into t1 values (1), (NULL), (2);
+select * from t1;
+drop table t1;
+
+#
+# Test if insert ... select distinct
+#
+
+create table t1 (email varchar(50));
+insert into t1 values ('sasha@mysql.com'),('monty@mysql.com'),('foo@hotmail.com'),('foo@aol.com'),('bar@aol.com');
+create table t2(id int not null auto_increment primary key, t2 varchar(50), unique(t2));
+insert delayed into t2 (t2) select distinct substring(email, locate('@', email)+1) from t1;
+select * from t2;
+drop table t1,t2;
+
+#
+# Test of mysqld crash with fully qualified column names
+#
+
+--disable_warnings
+drop database if exists mysqltest;
+--enable_warnings
+create database mysqltest;
+use mysqltest;
+create table t1 (c int);
+insert into mysqltest.t1 set mysqltest.t1.c = '1';
+drop database mysqltest;
+use test;
+
+#
+# Test of wrong values for float data (bug #2082)
+#
+
+# PS gives sligthly different numbers for max-float/max-double
+--disable_ps_protocol
+create table t1(number int auto_increment primary key, original_value varchar(50), f_double double, f_float float, f_double_7_2 double(7,2), f_float_4_3 float (4,3), f_double_u double unsigned, f_float_u float unsigned, f_double_15_1_u double(15,1) unsigned, f_float_3_1_u float (3,1) unsigned);
+
+set @value= "aa";
+insert ignore into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
+--query_vertical select * from t1 where number =last_insert_id()
+
+set @value= "1aa";
+insert ignore into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
+--query_vertical select * from t1 where number =last_insert_id()
+
+set @value= "aa1";
+insert ignore into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
+--query_vertical select * from t1 where number =last_insert_id()
+
+set @value= "1e+1111111111a";
+insert ignore into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
+--query_vertical select * from t1 where number =last_insert_id()
+
+set @value= "-1e+1111111111a";
+insert ignore into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
+--query_vertical select * from t1 where number =last_insert_id()
+
+--error 1367
+set @value= 1e+1111111111;
+--error 1367
+set @value= -1e+1111111111;
+
+
+set @value= 1e+111;
+insert ignore into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
+--query_vertical select * from t1 where number =last_insert_id()
+
+set @value= -1e+111;
+insert ignore into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
+--query_vertical select * from t1 where number =last_insert_id()
+
+set @value= 1;
+insert into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
+--query_vertical select * from t1 where number =last_insert_id()
+
+set @value= -1;
+insert ignore into t1 values(null,@value,@value,@value,@value,@value,@value,@value,@value,@value);
+--query_vertical select * from t1 where number =last_insert_id()
+
+drop table t1;
+--enable_ps_protocol
+
+# End of 4.1 tests
+
+#
+# Test automatic result buffering with INSERT INTO t1 ... SELECT ... FROM t1
+#
+
+create table t1(id1 int not null auto_increment primary key, t char(12));
+create table t2(id2 int not null, t char(12));
+create table t3(id3 int not null, t char(12), index(id3));
+--disable_query_log
+begin;
+let $1 = 100;
+while ($1)
+ {
+  let $2 = 5;
+  eval insert into t1(t) values ('$1'); 
+  while ($2)
+   {
+     eval insert into t2(id2,t) values ($1,'$2'); 
+     let $3 = 10;
+     while ($3)
+     {
+       eval insert into t3(id3,t) values ($1,'$2'); 
+       dec $3;
+     }
+     dec $2; 
+   }
+  dec $1;
+ }
+commit;
+--enable_query_log
+
+select count(*) from t2;
+insert into  t2 select t1.* from t1, t2 t, t3 where  t1.id1 = t.id2 and t.id2 = t3.id3;
+select count(*) from t2;
+drop table t1,t2,t3;
+
+#
+# Test different cases of duplicate fields
+#
+
+create table t1 (a int, b int);
+insert into t1 (a,b) values (a,b);
+insert into t1 SET a=1, b=a+1;
+insert into t1 (a,b) select 1,2;
+INSERT INTO t1 ( a ) SELECT 0 ON DUPLICATE KEY UPDATE a = a + VALUES (a);
+prepare stmt1 from ' replace into t1 (a,a) select 100, ''hundred'' ';
+--error 1110
+execute stmt1;
+--error 1110
+insert into t1 (a,b,b) values (1,1,1);
+--error 1136
+insert into t1 (a,a) values (1,1,1);
+--error 1110
+insert into t1 (a,a) values (1,1);
+--error 1110
+insert into t1 SET a=1,b=2,a=1;
+--error 1110
+insert into t1 (b,b) select 1,2;
+--error 1110
+INSERT INTO t1 (b,b) SELECT 0,0 ON DUPLICATE KEY UPDATE a = a + VALUES (a);
+drop table t1;
+
+#
+# Test for values returned by ROW_COUNT() function
+# (and thus for values returned by mysql_affected_rows())
+# for various forms of INSERT
+#
+create table t1 (id int primary key, data int);
+insert into t1 values (1, 1), (2, 2), (3, 3);
+select row_count();
+insert ignore into t1 values (1, 1);
+select row_count();
+# Reports that 2 rows are affected (1 deleted + 1 inserted)
+replace into t1 values (1, 11);
+select row_count();
+replace into t1 values (4, 4);
+select row_count();
+# Reports that 2 rows are affected. This conforms to documentation.
+# (Useful for differentiating inserts from updates).
+insert into t1 values (2, 2) on duplicate key update data= data + 10;
+select row_count();
+insert into t1 values (5, 5) on duplicate key update data= data + 10;
+select row_count();
+drop table t1;
+
+#
+# Bug#25123: ON DUPLICATE KEY clause allows fields not from the insert table
+#
+create table t1 (f1 int unique, f2 int);
+create table t2 (f3 int, f4 int);
+create view v1 as select * from t1, t2 where f1= f3;
+insert into t1 values (1,11), (2,22);
+insert into t2 values (1,12), (2,24);
+--error 1393
+insert into v1 (f1) values (3) on duplicate key update f3= f3 + 10;
+--error 1393
+insert into v1 (f1) values (3) on duplicate key update f1= f3 + 10;
+select * from t1;
+--error 1393
+insert into v1 (f1) values (3) on duplicate key update f1= f3 + 10;
+select * from t1;
+drop view v1;
+drop table t1,t2;
+
+# Test of INSERT IGNORE and re-using auto_increment values
+create table t1 (id int primary key auto_increment, data int, unique(data));
+insert ignore into t1 values(NULL,100),(NULL,110),(NULL,120);
+insert ignore into t1 values(NULL,10),(NULL,20),(NULL,110),(NULL,120),(NULL,100),(NULL,90);
+insert ignore into t1 values(NULL,130),(NULL,140),(500,110),(550,120),(450,100),(NULL,150);
+select * from t1 order by id;
+
+drop table t1;
+
+#
+# BUG#21483: Server abort or deadlock on INSERT DELAYED with another
+# implicit insert 
+#
+# The solution is to downgrade INSERT DELAYED to normal INSERT if the
+# statement uses functions and access tables or triggers, or is called
+# from a function or a trigger.
+#
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP FUNCTION IF EXISTS f1;
+DROP FUNCTION IF EXISTS f2;
+--enable_warnings
+
+CREATE TABLE t1 (i INT);
+delimiter |;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  INSERT INTO t1 VALUES (1);
+  RETURN 1;
+END |
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+  INSERT DELAYED INTO t1 VALUES (2);
+  RETURN 1;
+END |
+delimiter ;|
+
+SELECT f1();
+SELECT f2();
+INSERT INTO t1 VALUES (3);
+INSERT DELAYED INTO t1 VALUES (4);
+
+--error ER_CANT_UPDATE_USED_TABLE_IN_SF_OR_TRG
+INSERT INTO t1 VALUES (f1());
+
+--error ER_CANT_UPDATE_USED_TABLE_IN_SF_OR_TRG
+INSERT DELAYED INTO t1 VALUES (f1());
+
+--error ER_CANT_UPDATE_USED_TABLE_IN_SF_OR_TRG
+INSERT INTO t1 VALUES (f2());
+
+--error ER_CANT_UPDATE_USED_TABLE_IN_SF_OR_TRG
+INSERT DELAYED INTO t1 VALUES (f2());
+
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
+  INSERT INTO t1 VALUES (NEW.i);
+
+--error ER_CANT_UPDATE_USED_TABLE_IN_SF_OR_TRG
+INSERT INTO t1 VALUES (1);
+
+--error ER_CANT_UPDATE_USED_TABLE_IN_SF_OR_TRG
+INSERT DELAYED INTO t1 VALUES (1);
+
+SELECT * FROM t1;
+
+DROP FUNCTION f2;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+#
+# BUG#20497: Trigger with INSERT DELAYED causes Error 1165
+#
+# Fixed by the patch for Bug#21483
+#
+--disable_warnings
+DROP TABLE IF EXISTS t1, t2;
+--enable_warnings
+
+CREATE TABLE t1 (i INT);
+CREATE TABLE t2 (i INT);
+
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
+  INSERT DELAYED INTO t2 VALUES (NEW.i);
+
+CREATE TRIGGER t1_bu BEFORE UPDATE ON t1 FOR EACH ROW
+  INSERT DELAYED INTO t2 VALUES (NEW.i);
+
+CREATE TRIGGER t1_bd BEFORE DELETE ON t1 FOR EACH ROW
+  INSERT DELAYED INTO t2 VALUES (OLD.i);
+
+INSERT INTO t1 VALUES (1);
+INSERT DELAYED INTO t1 VALUES (2);
+SELECT * FROM t1;
+UPDATE t1 SET i = 3 WHERE i = 1;
+SELECT * FROM t1;
+DELETE FROM t1 WHERE i = 3;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+DROP TABLE t1, t2;
+
+#
+# BUG#21714: Wrong NEW.value and server abort on INSERT DELAYED to a
+# table with a trigger 
+#
+# Fixed by the patch for Bug#21483
+#
+--disable_warnings
+DROP TABLE IF EXISTS t1, t2;
+--enable_warnings
+
+CREATE TABLE t1 (i INT);
+CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW
+  SET @a= NEW.i;
+
+SET @a= 0;
+INSERT DELAYED INTO t1 VALUES (1);
+SELECT @a;
+INSERT DELAYED INTO t1 VALUES (2);
+SELECT @a;
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (i INT);
+CREATE TABLE t2 (i INT);
+
+CREATE TRIGGER t1_ai AFTER INSERT ON t1 FOR EACH ROW
+  INSERT INTO t2 VALUES (NEW.i);
+
+CREATE TRIGGER t1_au AFTER UPDATE ON t1 FOR EACH ROW
+  INSERT DELAYED INTO t2 VALUES (NEW.i);
+
+CREATE TRIGGER t1_ad AFTER DELETE ON t1 FOR EACH ROW
+  INSERT DELAYED INTO t2 VALUES (OLD.i);
+
+INSERT DELAYED INTO t1 VALUES (1);
+SELECT * FROM t1;
+UPDATE t1 SET i = 2 WHERE i = 1;
+SELECT * FROM t1;
+DELETE FROM t1 WHERE i = 2;
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+DROP TABLE t1, t2;
+
+#
+# Bug #26788: mysqld (debug) aborts when inserting specific numbers into char
+#             fields
+#
+
+CREATE TABLE t1 (
+  a char(20) NOT NULL,
+  b char(7) DEFAULT NULL,
+  c char(4) DEFAULT NULL
+);
+
+INSERT INTO t1(a,b,c) VALUES (9.999999e+0, 9.999999e+0, 9.999e+0);
+INSERT IGNORE INTO t1(a,b,c) VALUES (1.225e-05, 1.225e-05, 1.225e-05);
+INSERT INTO t1(a,b) VALUES (1.225e-04, 1.225e-04);
+INSERT INTO t1(a,b) VALUES (1.225e-01, 1.225e-01);
+INSERT INTO t1(a,b) VALUES (1.225877e-01, 1.225877e-01);
+INSERT INTO t1(a,b) VALUES (1.225e+01, 1.225e+01);
+INSERT INTO t1(a,b,c) VALUES (1.225e+01, 1.225e+01, 1.225e+01);
+INSERT INTO t1(a,b) VALUES (1.225e+05, 1.225e+05);
+INSERT INTO t1(a,b) VALUES (1.225e+10, 1.225e+10);
+INSERT INTO t1(a,b) VALUES (1.225e+15, 1.225e+15);
+INSERT INTO t1(a,b) VALUES (5000000e+0, 5000000e+0);
+INSERT INTO t1(a,b) VALUES (1.25e+78, 1.25e+78);
+INSERT INTO t1(a,b) VALUES (1.25e-94, 1.25e-94);
+INSERT INTO t1(a,b) VALUES (1.25e+203, 1.25e+203);
+INSERT INTO t1(a,b) VALUES (1.25e-175, 1.25e-175);
+INSERT INTO t1(a,c) VALUES (1.225e+0, 1.225e+0);
+INSERT INTO t1(a,c) VALUES (1.37e+0, 1.37e+0);
+INSERT INTO t1(a,c) VALUES (-1.37e+0, -1.37e+0);
+INSERT IGNORE INTO t1(a,c) VALUES (1.87e-3, 1.87e-3);
+INSERT INTO t1(a,c) VALUES (-1.87e-2, -1.87e-2);
+INSERT INTO t1(a,c) VALUES (5000e+0, 5000e+0);
+INSERT INTO t1(a,c) VALUES (-5000e+0, -5000e+0);
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  a char(20) NOT NULL,
+  b char(7) DEFAULT NULL,
+  c char(5)
+);
+
+
+INSERT INTO t1(a,b,c) VALUES (9.999999e+0, 9.999999e+0, 9.999e+0);
+INSERT INTO t1(a,b,c) VALUES (1.225e-05, 1.225e-05, 1.225e-05);
+INSERT INTO t1(a,b) VALUES (1.225e-04, 1.225e-04);
+INSERT INTO t1(a,b) VALUES (1.225e-01, 1.225e-01);
+INSERT INTO t1(a,b) VALUES (1.225877e-01, 1.225877e-01);
+INSERT INTO t1(a,b) VALUES (1.225e+01, 1.225e+01);
+INSERT INTO t1(a,b,c) VALUES (1.225e+01, 1.225e+01, 1.225e+01);
+INSERT INTO t1(a,b) VALUES (1.225e+05, 1.225e+05);
+INSERT INTO t1(a,b) VALUES (1.225e+10, 1.225e+10);
+INSERT INTO t1(a,b) VALUES (1.225e+15, 1.225e+15);
+INSERT INTO t1(a,b) VALUES (5000000e+0, 5000000e+0);
+INSERT INTO t1(a,b) VALUES (1.25e+78, 1.25e+78);
+INSERT INTO t1(a,b) VALUES (1.25e-94, 1.25e-94);
+INSERT INTO t1(a,b) VALUES (1.25e+203, 1.25e+203);
+INSERT INTO t1(a,b) VALUES (1.25e-175, 1.25e-175);
+INSERT INTO t1(a,c) VALUES (1.225e+0, 1.225e+0);
+INSERT INTO t1(a,c) VALUES (1.37e+0, 1.37e+0);
+INSERT INTO t1(a,c) VALUES (-1.37e+0, -1.37e+0);
+INSERT INTO t1(a,c) VALUES (1.87e-3, 1.87e-3);
+INSERT INTO t1(a,c) VALUES (-1.87e-2, -1.87e-2);
+INSERT INTO t1(a,c) VALUES (5000e+0, 5000e+0);
+INSERT INTO t1(a,c) VALUES (-5000e+0, -5000e+0);
+
+SELECT * FROM t1;
+
+DROP TABLE t1;
+
+#
+# Bug #31152: assertion in Field_str::store(double)
+#
+
+CREATE TABLE t (a CHAR(10),b INT);
+INSERT INTO t VALUES (),(),();
+INSERT INTO t(a) SELECT rand() FROM t;
+DROP TABLE t;
+
+#
+# Bug #30453: String not cast to int correctly
+#
+
+CREATE TABLE t1 (c1 INT NOT NULL);
+INSERT INTO t1 VALUES(4188.32999999999992724042385816574096679687500),
+('4188.32999999999992724042385816574096679687500'), (4188);
+SELECT * FROM t1;
+
+CREATE TABLE t2 (c1 BIGINT);
+INSERT INTO t2 VALUES('15449237462.0000000000');
+SELECT * FROM t2;
+
+DROP TABLE t1, t2;
+
+#
+# Bug#43833 Simple INSERT crashes the server
+#
+CREATE TABLE t1(f1 FLOAT);
+INSERT INTO t1 VALUES (1.23);
+CREATE TABLE t2(f1 CHAR(1));
+INSERT INTO t2 SELECT f1 FROM t1;
+DROP TABLE t1, t2;
+
+--echo End of 5.0 tests.
+
+--echo #
+--echo # Bug#34898 "mysql_info() reports 0 warnings while
+--echo # mysql_warning_count() reports 1"
+--echo # Check that the number of warnings reported by
+--echo # mysql_info() is correct.
+--echo #
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (data varchar(4) not null);
+
+set sql_mode='error_for_division_by_zero';
+--echo #
+--echo # Demonstrate that the number of warnings matches
+--echo # the information in mysql_info().
+--echo #
+--enable_info
+insert t1 (data) values ('letter'), (1/0);
+--disable_ps_protocol
+update t1 set data='envelope' where 1/0 or 1;
+--enable_ps_protocol
+insert t1 (data) values (default), (1/0), ('dead beef');
+--disable_info
+
+set sql_mode=default;
+drop table t1;
+
+--echo #
+--echo # End of 5.4 tests
+--echo #
+
+--echo #
+--echo # Bug#54106 assert in Protocol::end_statement,
+--echo #           INSERT IGNORE ... SELECT ... UNION SELECT ...
+--echo #
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+
+CREATE TABLE t1 (a INT);
+
+--error ER_FIELD_SPECIFIED_TWICE
+INSERT INTO t1 (a, a) VALUES (1, 1);
+# Verify that ER_FIELD_SPECIFIED_TWICE is not ignorable
+--error ER_FIELD_SPECIFIED_TWICE
+INSERT IGNORE t1 (a, a) VALUES (1, 1);
+
+--error ER_FIELD_SPECIFIED_TWICE
+INSERT IGNORE t1 (a, a) SELECT 1,1;
+# Used to cause an assert
+--error ER_FIELD_SPECIFIED_TWICE
+INSERT IGNORE t1 (a, a) SELECT 1,1 UNION SELECT 2,2;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-5168: Ensure that we can disable duplicate key warnings
+--echo # from INSERT IGNORE
+--echo #
+
+create table t1 (f1 int unique, f2 int unique);
+insert into t1 values (1,12);
+insert into t1 values (2,13);
+--error ER_DUP_ENTRY
+insert into t1 values (1,12);
+insert ignore into t1 values (1,12);
+set @@old_mode="NO_DUP_KEY_WARNINGS_WITH_IGNORE";
+insert ignore into t1 values (1,12);
+insert ignore into t1 values (1,12) on duplicate key update f2=13;
+set @@old_mode="";
+insert ignore into t1 values (1,12);
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-13290 Assertion Assertion `!is_set() || (m_status == DA_OK_BULK
+--echo # && is_bulk_op())' or `! is_set()' failed
+--echo #
+
+SET @save_mode= @@sql_mode;
+SET sql_mode= 'STRICT_ALL_TABLES';
+CREATE TABLE t1 (f1 INT DEFAULT 0, f2 INT);
+CREATE ALGORITHM = MERGE VIEW v1 AS SELECT f1, f2 FROM t1 WHERE f1 = 'x' WITH CHECK OPTION;
+--error ER_TRUNCATED_WRONG_VALUE
+REPLACE INTO v1 SET f2 = 1;
+SELECT * from t1;
+drop view v1;
+CREATE ALGORITHM = MERGE VIEW v1 AS SELECT f1, f2 FROM t1 WHERE f1 = cast('' as decimal) WITH CHECK OPTION;
+--error ER_TRUNCATED_WRONG_VALUE
+REPLACE INTO v1 SET f2 = 1;
+SELECT * from t1;
+drop view v1;
+SELECT 0,0 INTO OUTFILE 't1.txt';
+CREATE ALGORITHM = MERGE VIEW v1 AS SELECT f1, f2 FROM t1 WHERE f1 = 'x' WITH CHECK OPTION;
+--error ER_TRUNCATED_WRONG_VALUE
+LOAD DATA INFILE 't1.txt' INTO TABLE v1;
+SELECT * from t1;
+let $MYSQLD_DATADIR= `select @@datadir`;
+remove_file $MYSQLD_DATADIR/test/t1.txt;
+drop view v1;
+drop table t1;
+SET @@sql_mode= @save_mode;
+
+#
+# MDEV-13861 Assertion `0' failed in Protocol::end_statement
+#
+CREATE TABLE t1 (f INT);
+CREATE VIEW v1 AS SELECT * FROM t1 WHERE f <=> 'foo' WITH CHECK OPTION;
+--error ER_TRUNCATED_WRONG_VALUE
+REPLACE INTO v1 SET f = NULL;
+DROP VIEW v1;
+DROP TABLE t1;

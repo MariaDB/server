@@ -27,7 +27,6 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include <stdint.h>
 #include <inttypes.h>
 #include <stdlib.h>
-#include <assert.h>
 #include <sys/types.h>
 
 #include <tokudb_math.h>

@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQLDUMP\FR" "1" "9 May 2017" "MariaDB 10\&.3" "MariaDB Database System"
+.TH "\FBMYSQLDUMP\FR" "1" "24 October 2020" "MariaDB 10\&.3" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -36,7 +36,7 @@ tables, consider using the
 instead because it can accomplish faster backups and faster restores\&. See
 \fBmysqlhotcopy\fR(1)\&.
 .PP
-There are three general ways to invoke
+There are four general ways to invoke
 \fBmysqldump\fR:
 .sp
 .if n \{\
@@ -46,6 +46,7 @@ There are three general ways to invoke
 shell> \fBmysqldump [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR\fB [\fR\fB\fItbl_name\fR\fR\fB \&.\&.\&.]\fR
 shell> \fBmysqldump [\fR\fB\fIoptions\fR\fR\fB] \-\-databases \fR\fB\fIdb_name\fR\fR\fB \&.\&.\&.\fR
 shell> \fBmysqldump [\fR\fB\fIoptions\fR\fR\fB] \-\-all\-databases\fR
+shell> \fBmysqldump [\fR\fB\fIoptions\fR\fR\fB] \-\-system={options}\fR
 .fi
 .if n \{\
 .RE
@@ -2192,6 +2193,109 @@ Verify server's "Common Name" in its cert against hostname used when connecting.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysqladmin: Dump system tables option
+.\" Dump system tables option: mysqladmin
+\fB\-\-system=\fR\fB\fI{all, users, plugins, udfs, servers, stats, timezones}\fR\fR
+.sp
+Dump the system tables in the mysql database in a logical form\&. This option is an empty set by default\&.
+.sp
+One or more options can be listed in comma separated list\&.
+.sp
+The options here are:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+all \- an alias to enabling all of the below options\&.
+.RE
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+users \- the users, roles and their grants outputed as \fBCREATE USER\fB, \fBCREATE ROLE\fR, \fBGRANT\fR, and \fBSET DEFAULT ROLE\fR (\fBALTER USER\fR for MySQL-8.0+)\&.
+.RE
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+plugins \- active plugins of the server outputed as \fBINSTALL PLUGIN\fR\&.
+.RE
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+udfs \- user define functions outputed as \fBCREATE FUNCTION\fR\&.
+.RE
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+servers \- remote (federated) servers as \fBCREATE SERVER\fR\&.
+.RE
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+stats \- statistics tables, InnoDB and Engine Independent Table Statistics (EITS), are dumped as \fBREPLACE INTO\fR (or \fBINSERT IGNORE\fR if \fB\-\-insert\-ignore\fR is specified) statements without (re)creating tables\&.
+.RE
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+timezones \- timezone related system tables dumped as \fBREPLACE INTO\fR (or \fBINSERT IGNORE\fR if \fB\-\-insert\-ignore\fR is specified) statements without (re)creating tables\&.
+.RE
+.sp
+The format of the output is affected by \fB\-\-replace\fR and \fB\-\-insert\-ignore\fR\&. The \fB\-\-replace\fR option will output \fBCREATE OR REPLACE\fR
+forms of SQL, and also \fBDROP IF EXISTS\fR prior to \fBCREATE\fR, if a \fBCREATE OR REPLACE\fR option isn't available.
+.sp
+With \fB\-\-system=user\fR (or \fBall\fR), and \fB\-\-replace\fR, SQL is generated to generate an error if attempting to import the dump with a connection user that is being replaced within the dump\&.
+.sp
+The \fB\-\-insert\-ignore\fR option will cause \fBCREATE IF NOT EXIST\fR forms of SQL to generated if available.
+.sp
+For stats, and timezones, \fB\-\-replace\fR and \fB\-\-insert\-ignore\fR have the usual effects.
+.sp
+Enabling specific options here will cause the relevant tables in the mysql database to be ignored when dumping the mysql database or \fB\-\-all\-databases\fR\&.
+.sp
+To help in migrating from MySQL to MariaDB, this option is designed to be able to dump system information from MySQL-5\&.7 and 8\&.0 servers\&. SQL generated is also experimentally compatible with MySQL-5\&.7/8\&.0. Mappings of implementation specific grants/plugins isn't always one-to-one however between MariaDB and MySQL and will require manual changes\&.
+.sp
+.RE
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysqldump: tab option
 .\" tab option: mysqldump
 \fB\-\-tab=\fR\fB\fIpath\fR\fR,
@@ -2673,20 +2777,14 @@ If you encounter problems backing up views, please read the section that covers 
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2020 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
 This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 .PP
-You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA or see http://www.gnu.org/licenses/.
 .sp
-.SH "NOTES"
-.IP " 1." 4
-Bug#30123
-.RS 4
-\%http://bugs.mysql.com/bug.php?id=30123
-.RE
 .SH "SEE ALSO"
 For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
 .SH AUTHOR

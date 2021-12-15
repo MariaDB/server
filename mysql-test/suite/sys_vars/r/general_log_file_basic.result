@@ -1,12 +1,12 @@
 SET @start_value = @@global.general_log_file;
-SELECT @start_value;
-@start_value
-test.log
+SELECT length(@start_value) > 0;
+length(@start_value) > 0
+1
 '#---------------------FN_DYNVARS_004_01-------------------------#'
 SET @@global.general_log_file = DEFAULT;
-SELECT @@global.general_log_file;
-@@global.general_log_file
-mysqld.log
+SELECT length(@@global.general_log_file) > 0;
+length(@@global.general_log_file) > 0
+1
 '#--------------------FN_DYNVARS_004_02------------------------#'
 SET @@global.general_log_file = mytest.log;
 ERROR 42000: Incorrect argument type to variable 'general_log_file'

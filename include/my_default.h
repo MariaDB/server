@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Definitions for mysys/my_default.c */
 
@@ -44,6 +44,13 @@ extern int my_search_option_files(const char *conf_file, int *argc,
 extern void free_defaults(char **argv);
 extern void my_print_default_files(const char *conf_file);
 extern void print_defaults(const char *conf_file, const char **groups);
+
+
+/** Simplify load_defaults() common use */
+#define load_defaults_or_exit(A, B, C, D) switch (load_defaults(A, B, C, D)) { \
+                                          case 0: break; \
+                                          case 4: my_end(0); exit(0); \
+                                          default: my_end(0); exit(1); }
 
 C_MODE_END
 

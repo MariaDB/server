@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* This file should be included when using myisam_funktions */
 
@@ -373,7 +373,7 @@ typedef struct st_mi_sort_param
   int (*key_read)(struct st_mi_sort_param *,void *);
   int (*key_write)(struct st_mi_sort_param *, const void *);
   void (*lock_in_memory)(HA_CHECK *);
-  int (*write_keys)(struct st_mi_sort_param *, register uchar **,
+  int (*write_keys)(struct st_mi_sort_param *, uchar **,
                     ulonglong , struct st_buffpek *, IO_CACHE *);
   my_off_t (*read_to_buffer)(IO_CACHE *,struct st_buffpek *, uint);
   int (*write_key)(struct st_mi_sort_param *, IO_CACHE *,uchar *,
@@ -383,16 +383,15 @@ typedef struct st_mi_sort_param
 /* functions in mi_check */
 void myisamchk_init(HA_CHECK *param);
 int chk_status(HA_CHECK *param, MI_INFO *info);
-int chk_del(HA_CHECK *param, register MI_INFO *info, ulonglong test_flag);
+int chk_del(HA_CHECK *param, MI_INFO *info, ulonglong test_flag);
 int chk_size(HA_CHECK *param, MI_INFO *info);
 int chk_key(HA_CHECK *param, MI_INFO *info);
 int chk_data_link(HA_CHECK *param, MI_INFO *info, my_bool extend);
-int mi_repair(HA_CHECK *param, register MI_INFO *info,
-	      char * name, int rep_quick);
-int mi_sort_index(HA_CHECK *param, register MI_INFO *info, char * name);
-int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
+int mi_repair(HA_CHECK *param, MI_INFO *info, char * name, int rep_quick);
+int mi_sort_index(HA_CHECK *param, MI_INFO *info, char * name);
+int mi_repair_by_sort(HA_CHECK *param, MI_INFO *info,
 		      const char * name, int rep_quick);
-int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
+int mi_repair_parallel(HA_CHECK *param, MI_INFO *info,
 		      const char * name, int rep_quick);
 int change_to_newfile(const char * filename, const char * old_ext,
                       const char * new_ext, time_t backup_time, myf myflags);

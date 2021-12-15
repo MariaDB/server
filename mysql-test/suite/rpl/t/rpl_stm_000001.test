@@ -19,7 +19,7 @@ select * from t1 limit 10;
 sync_slave_with_master;
 stop slave;
 connection master;
-set password for root@"localhost" = password('foo');
+UPDATE mysql.user SET password=password('foo') WHERE host='localhost' AND user='root';
 connection slave;
 start slave;
 connection master;
@@ -27,7 +27,7 @@ connection master;
 # Give slave time to do at last one failed connect retry
 # This one must be short so that the slave will not stop retrying
 real_sleep 2;
-set password for root@"localhost" = password('');
+UPDATE mysql.user SET password=password('') WHERE host='localhost' AND user='root';
 # Give slave time to connect (will retry every second)
 sleep 2;
 

@@ -194,7 +194,7 @@ doit (void) {
     toku_pin_node_with_min_bfe(&node, node_internal, t);
     toku_ftnode_assert_fully_in_memory(node);
     assert(node->n_children == 2);
-    assert(!node->dirty);
+    assert(!node->dirty());
     assert(toku_bnc_n_entries(node->bp[0].ptr.u.nonleaf) > 0);
     assert(toku_bnc_n_entries(node->bp[1].ptr.u.nonleaf) > 0);
 
@@ -216,7 +216,7 @@ doit (void) {
 
     toku_pin_node_with_min_bfe(&node, node_internal, t);
     toku_ftnode_assert_fully_in_memory(node);
-    assert(node->dirty);
+    assert(node->dirty());
     assert(node->n_children == 2);
     // child 0 should have empty buffer because it flushed
     // child 1 should still have message in buffer
@@ -226,14 +226,14 @@ doit (void) {
     r = toku_checkpoint(cp, NULL, NULL, NULL, NULL, NULL, CLIENT_CHECKPOINT);
     assert_zero(r);    
     toku_pin_node_with_min_bfe(&node, node_internal, t);
-    assert(!node->dirty);
+    assert(!node->dirty());
     curr_child_to_flush = 1;
     num_flushes_called = 0;
     toku_ft_flush_some_child(t->ft, node, &fa);
     assert(num_flushes_called == 1);
     
     toku_pin_node_with_min_bfe(&node, node_internal, t);
-    assert(node->dirty);
+    assert(node->dirty());
     toku_ftnode_assert_fully_in_memory(node);
     assert(node->n_children == 2);
     // both buffers should be empty now
@@ -244,14 +244,14 @@ doit (void) {
     r = toku_checkpoint(cp, NULL, NULL, NULL, NULL, NULL, CLIENT_CHECKPOINT);
     assert_zero(r);    
     toku_pin_node_with_min_bfe(&node, node_internal, t);
-    assert(!node->dirty);
+    assert(!node->dirty());
     curr_child_to_flush = 0;
     num_flushes_called = 0;
     toku_ft_flush_some_child(t->ft, node, &fa);
     assert(num_flushes_called == 1);
 
     toku_pin_node_with_min_bfe(&node, node_internal, t);
-    assert(node->dirty); // nothing was flushed, but since we were trying to flush to a leaf, both become dirty
+    assert(node->dirty()); // nothing was flushed, but since we were trying to flush to a leaf, both become dirty
     toku_ftnode_assert_fully_in_memory(node);
     assert(node->n_children == 2);
     // both buffers should be empty now
@@ -280,17 +280,17 @@ doit (void) {
         assert(num_flushes_called == 2);
     
         toku_pin_node_with_min_bfe(&node, node_internal, t);
-        assert(node->dirty);
+        assert(node->dirty());
         toku_unpin_ftnode(t->ft, node);
         toku_pin_node_with_min_bfe(&node, node_leaf[0], t);
-        assert(node->dirty);
+        assert(node->dirty());
         toku_unpin_ftnode(t->ft, node);
         toku_pin_node_with_min_bfe(&node, node_leaf[1], t);
         if (i == 0) {
-            assert(!node->dirty);
+            assert(!node->dirty());
         }
         else {
-            assert(node->dirty);
+            assert(node->dirty());
         }
         toku_unpin_ftnode(t->ft, node);
     }

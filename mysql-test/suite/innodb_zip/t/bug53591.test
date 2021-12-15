@@ -1,5 +1,7 @@
 -- source include/innodb_page_size_small.inc
 
+call mtr.add_suppression('InnoDB: Cannot add field.*because after adding it, the row size is');
+
 let $file_per_table=`select @@innodb_file_per_table`;
 
 SET GLOBAL innodb_file_per_table=on;

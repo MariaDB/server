@@ -31,13 +31,13 @@ insert into t1(x, y) values(3, 33);
 select sys_start from t1 where x = 3 and y = 33 into @t1;
 if($MTR_COMBINATION_TRX_ID) {
   set @x1= @t1;
-  select vtq_commit_ts(@x1) into @t1;
+  select trt_commit_ts(@x1) into @t1;
 }
 
 select x, y from t1;
 select x as ASOF_x, y from t1 for system_time as of timestamp @t0;
-select x as FROMTO_x, y from t1 for system_time from '0-0-0 0:0:0' to timestamp @t1;
-select x as BETWAND_x, y from t1 for system_time between '0-0-0 0:0:0' and timestamp @t1;
+select x as FROMTO_x, y from t1 for system_time from '1970-01-01 00:00' to timestamp @t1;
+select x as BETWAND_x, y from t1 for system_time between '1970-01-01 00:00' and timestamp @t1;
 select x as ALL_x, y from t1 for system_time all;
 
 if($MTR_COMBINATION_TRX_ID) {
@@ -47,8 +47,8 @@ if($MTR_COMBINATION_TRX_ID) {
 }
 if(!$MTR_COMBINATION_TRX_ID) {
   select x as ASOF2_x, y from t1 for system_time as of @t0;
-  select x as FROMTO2_x, y from t1 for system_time from '0-0-0 0:0:0' to @t1;
-  select x as BETWAND2_x, y from t1 for system_time between timestamp '0-0-0 0:0:0' and timestamp @t1;
+  select x as FROMTO2_x, y from t1 for system_time from '1970-01-01 00:00' to @t1;
+  select x as BETWAND2_x, y from t1 for system_time between timestamp '1970-01-01 00:00' and timestamp @t1;
 }
 
 drop table t1;
@@ -128,6 +128,7 @@ select * from t1 for system_time all;
 
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1);
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
 select * from t1 for system_time as of now() for update;
 
 create or replace table t1 (a int not null auto_increment primary key) with system versioning;
@@ -165,7 +166,7 @@ insert into t1 values (1);
 insert into t2 values (2);
 select * from (select * from t1 cross join t2) as tmp;
 select * from (select * from (select * from t1 cross join t2) as tmp1) as tmp2;
-select * from (select * from t1 cross join t2 for system_time as of timestamp ('0-0-0')) as tmp;
+select * from (select * from t1 cross join t2 for system_time as of timestamp ('1970-01-01 00:00')) as tmp;
 
 create or replace table t1(a1 int) with system versioning;
 create or replace table t2(a2 int) with system versioning;
@@ -201,6 +202,14 @@ select * from t1, t2 for system_time all;
 select * from (select * from t1 for system_time all, t2 for system_time all) for system_time all as t;
 --error ER_PARSE_ERROR
 select * from (t1 for system_time all join t2 for system_time all) for system_time all;
+
+--echo # MDEV-16043 Assertion thd->Item_change_list::is_empty() failed in mysql_parse upon SELECT from a view reading from a versioned table
+create or replace table t1 (a int) with system versioning;
+create or replace view v1 as select * from t1;
+prepare stmt from "select * from t1 where exp( '20010609211642053929' )";
+--error ER_DATA_OUT_OF_RANGE
+execute stmt;
+select a from v1;
 
 drop view v1;
 drop table t1, t2;

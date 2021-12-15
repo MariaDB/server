@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+51 Franklin St, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 /**************************************************//**
@@ -87,7 +87,6 @@ log_crypt(byte* buf, lsn_t lsn, ulint size, bool decrypt = false);
 @param[in]	size		size of the block
 @param[out]	dst		destination block
 @param[in]	offs		offset to block
-@param[in]	space_id	tablespace id
 @param[in]	encrypt		true=encrypt; false=decrypt
 @return whether the operation succeeded */
 UNIV_INTERN
@@ -97,7 +96,6 @@ log_tmp_block_encrypt(
 	ulint		size,
 	byte*		dst,
 	uint64_t	offs,
-	ulint		space_id,
 	bool		encrypt = true)
 	MY_ATTRIBUTE((warn_unused_result, nonnull));
 
@@ -106,7 +104,6 @@ log_tmp_block_encrypt(
 @param[in]	size		size of the block
 @param[out]	dst		destination block
 @param[in]	offs		offset to block
-@param[in]	space_id	tablespace id
 @return whether the operation succeeded */
 inline
 bool
@@ -114,10 +111,9 @@ log_tmp_block_decrypt(
 	const byte*	src,
 	ulint		size,
 	byte*		dst,
-	uint64_t	offs,
-	ulint		space_id)
+	uint64_t	offs)
 {
-	return(log_tmp_block_encrypt(src, size, dst, offs, space_id, false));
+	return(log_tmp_block_encrypt(src, size, dst, offs, false));
 }
 
 /** @return whether temporary files are encrypted */

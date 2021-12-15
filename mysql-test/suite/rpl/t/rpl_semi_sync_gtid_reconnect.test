@@ -1,0 +1,74 @@
+source include/not_embedded.inc;
+source include/have_binlog_format_mixed.inc;
+source include/master-slave.inc;
+
+#
+# Semisync initialization
+#
+--connection master
+RESET MASTER;
+--let $sav_enabled_master=`SELECT @@GLOBAL.rpl_semi_sync_master_enabled`
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
+
+--connection slave
+source include/stop_slave.inc;
+--let $sav_enabled_slave=`SELECT @@GLOBAL.rpl_semi_sync_slave_enabled`
+SET @@GLOBAL. rpl_semi_sync_slave_enabled = 1;
+source include/start_slave.inc;
+
+# Prove fixes to
+# MDEV-19376 Assert (!m_active_tranxs->is_tranx_end_pos(trx_wait_binlog_name...)
+#
+#
+# Run few queries to replicate/execute on slave.
+# Stop the slave applier.
+# Replicate/not-executed few more.
+# Restart the slave.
+#
+--connection master
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 SET a = 1;
+--source include/save_master_gtid.inc
+--let $resume_gtid = $master_pos
+FLUSH LOGS;
+INSERT INTO t1 SET a = 2;
+
+--sync_slave_with_master
+--connection slave
+--source include/stop_slave_sql.inc
+
+--connection master
+INSERT INTO t1 SET a = 3;
+
+# the sync connection is 'slave' by default
+--source include/sync_slave_io_with_master.inc
+--connection slave
+--source include/stop_slave_io.inc
+
+--connection master
+RESET MASTER;
+--eval SET @@global.gtid_binlog_state = '$resume_gtid'
+
+# The resume gtid is set up to point to the very first binlog file
+--connection slave
+CHANGE MASTER TO MASTER_USE_GTID = slave_pos;
+--eval SET @@global.gtid_slave_pos = '$resume_gtid'
+# Yet the slave io first submits the last received binlog file name:pos.
+--source include/start_slave.inc
+
+# Here goes the cracker.
+--connection master
+INSERT INTO t1 SET a = 4;
+
+#
+# Clean up
+#
+--connection master
+DROP TABLE t1;
+--eval SET @@GLOBAL. rpl_semi_sync_master_enabled = $sav_enabled_master
+
+--sync_slave_with_master
+source include/stop_slave.inc;
+--eval SET @@GLOBAL. rpl_semi_sync_slave_enabled = $sav_enabled_slave
+source include/start_slave.inc;
+--source include/rpl_end.inc

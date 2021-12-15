@@ -1,4 +1,4 @@
-/* Copyright 2008-2015 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2020 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,10 +11,12 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "mariadb.h"
 #include "wsrep_sst.h"
+#include <inttypes.h>
+#include <ctype.h>
 #include <mysqld.h>
 #include <m_ctype.h>
 #include <strfunc.h>
@@ -29,13 +31,21 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include <my_service_manager.h>
+
 static char wsrep_defaults_file[FN_REFLEN * 2 + 10 + 30 +
                                 sizeof(WSREP_SST_OPT_CONF) +
                                 sizeof(WSREP_SST_OPT_CONF_SUFFIX) +
                                 sizeof(WSREP_SST_OPT_CONF_EXTRA)] = {0};
 
+const char* wsrep_sst_method          = WSREP_SST_DEFAULT;
+const char* wsrep_sst_receive_address = WSREP_SST_ADDRESS_AUTO;
+const char* wsrep_sst_donor           = "";
+const char* wsrep_sst_auth            = NULL;
+
 // container for real auth string
 static const char* sst_auth_real      = NULL;
+my_bool wsrep_sst_donor_rejects_queries = FALSE;
 
 bool wsrep_sst_method_check (sys_var *self, THD* thd, set_var* var)
 {
@@ -51,11 +61,12 @@ bool wsrep_sst_method_check (sys_var *self, THD* thd, set_var* var)
   return 0;
 }
 
-bool wsrep_sst_method_update (sys_var *self, THD* thd, enum_var_type type)
-{
-    return 0;
-}
+static const char* data_home_dir = NULL;
 
+void wsrep_set_data_home_dir(const char *data_dir)
+{
+  data_home_dir= (data_dir && *data_dir) ? data_dir : NULL;
+}
 
 static void make_wsrep_defaults_file()
 {
@@ -78,33 +89,10 @@ static void make_wsrep_defaults_file()
 }
 
 
-// TODO: Improve address verification.
-static bool sst_receive_address_check (const char* str)
-{
-    if (!strncasecmp(str, "127.0.0.1", strlen("127.0.0.1")) ||
-        !strncasecmp(str, "localhost", strlen("localhost")))
-    {
-        return 1;
-    }
-
-    return 0;
-}
-
 bool  wsrep_sst_receive_address_check (sys_var *self, THD* thd, set_var* var)
 {
-  char addr_buf[FN_REFLEN];
-
   if ((! var->save_result.string_value.str) ||
       (var->save_result.string_value.length > (FN_REFLEN - 1))) // safety
-  {
-    goto err;
-  }
-
-  memcpy(addr_buf, var->save_result.string_value.str,
-         var->save_result.string_value.length);
-  addr_buf[var->save_result.string_value.length]= 0;
-
-  if (sst_receive_address_check(addr_buf))
   {
     goto err;
   }
@@ -155,6 +143,12 @@ static bool sst_auth_real_set (const char* value)
       if (wsrep_sst_auth) { my_free((void*) wsrep_sst_auth); }
       wsrep_sst_auth= my_strdup(WSREP_SST_AUTH_MASK, MYF(0));
     }
+    else
+    {
+      if (wsrep_sst_auth) { my_free((void*) wsrep_sst_auth); }
+      wsrep_sst_auth= NULL;
+    }
+
     return 0;
   }
   return 1;
@@ -170,7 +164,7 @@ void wsrep_sst_auth_free()
 
 bool wsrep_sst_auth_update (sys_var *self, THD* thd, enum_var_type type)
 {
-    return sst_auth_real_set (wsrep_sst_auth);
+  return sst_auth_real_set (wsrep_sst_auth);
 }
 
 void wsrep_sst_auth_init ()
@@ -185,7 +179,7 @@ bool  wsrep_sst_donor_check (sys_var *self, THD* thd, set_var* var)
 
 bool wsrep_sst_donor_update (sys_var *self, THD* thd, enum_var_type type)
 {
-    return 0;
+  return 0;
 }
 
 bool wsrep_before_SE()
@@ -199,6 +193,9 @@ bool wsrep_before_SE()
 static bool            sst_complete = false;
 static bool            sst_needed   = false;
 
+#define WSREP_EXTEND_TIMEOUT_INTERVAL 30
+#define WSREP_TIMEDWAIT_SECONDS 10
+
 void wsrep_sst_grab ()
 {
   WSREP_INFO("wsrep_sst_grab()");
@@ -210,11 +207,28 @@ void wsrep_sst_grab ()
 // Wait for end of SST
 bool wsrep_sst_wait ()
 {
-  if (mysql_mutex_lock (&LOCK_wsrep_sst)) abort();
+  double total_wtime = 0;
+
+  if (mysql_mutex_lock (&LOCK_wsrep_sst))
+    abort();
+
+  WSREP_INFO("Waiting for SST to complete.");
+
   while (!sst_complete)
   {
-    WSREP_INFO("Waiting for SST to complete.");
-    mysql_cond_wait (&COND_wsrep_sst, &LOCK_wsrep_sst);
+    struct timespec wtime;
+    set_timespec(wtime, WSREP_TIMEDWAIT_SECONDS);
+    time_t start_time = time(NULL);
+    mysql_cond_timedwait (&COND_wsrep_sst, &LOCK_wsrep_sst, &wtime);
+    time_t end_time = time(NULL);
+
+    if (!sst_complete)
+    {
+      total_wtime += difftime(end_time, start_time);
+      WSREP_DEBUG("Waiting for SST to complete. current seqno: %" PRId64 " waited %f secs.", local_seqno, total_wtime);
+      service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
+        "WSREP state transfer ongoing, current seqno: %" PRId64 " waited %f secs", local_seqno, total_wtime);
+    }
   }
 
   if (local_seqno >= 0)
@@ -297,7 +311,7 @@ bool wsrep_sst_received (wsrep_t*            const wsrep,
   }
 
   if (memcmp(&local_uuid, &uuid, sizeof(wsrep_uuid_t)) ||
-      local_seqno < seqno)
+      local_seqno < seqno || seqno < 0)
   {
     do_update= true;
   }
@@ -422,7 +436,31 @@ static char* my_fgets (char* buf, size_t buf_len, FILE* stream)
 }
 
 /*
-  Generate opt_binlog_opt_val for sst_donate_other(), sst_prepare_other().
+  Generate "name 'value'" string.
+*/
+static char* generate_name_value(const char* name, const char* value)
+{
+  size_t name_len= strlen(name);
+  size_t value_len= strlen(value);
+  char* buf=
+    (char*) my_malloc((name_len + value_len + 5) * sizeof(char), MYF(0));
+  if (buf)
+  {
+    char* ref= buf;
+    *ref++ = ' ';
+    memcpy(ref, name, name_len * sizeof(char));
+    ref += name_len;
+    *ref++ = ' ';
+    *ref++ = '\'';
+    memcpy(ref, value, value_len * sizeof(char));
+    ref += value_len;
+    *ref++ = '\'';
+    *ref = 0;
+  }
+  return buf;
+}
+/*
+  Generate binlog option string for sst_donate_other(), sst_prepare_other().
 
   Returns zero on success, negative error code otherwise.
 
@@ -438,7 +476,27 @@ static int generate_binlog_opt_val(char** ret)
   {
     assert(opt_bin_logname);
     *ret= strcmp(opt_bin_logname, "0") ?
-      my_strdup(opt_bin_logname, MYF(0)) : my_strdup("", MYF(0));
+      generate_name_value(WSREP_SST_OPT_BINLOG,
+                          opt_bin_logname) :
+      my_strdup("", MYF(0));
+  }
+  else
+  {
+    *ret= my_strdup("", MYF(0));
+  }
+  if (!*ret) return -ENOMEM;
+  return 0;
+}
+
+static int generate_binlog_index_opt_val(char** ret)
+{
+  DBUG_ASSERT(ret);
+  *ret= NULL;
+  if (opt_binlog_index_name) {
+    *ret= strcmp(opt_binlog_index_name, "0") ?
+      generate_name_value(WSREP_SST_OPT_BINLOG_INDEX,
+                          opt_binlog_index_name) :
+      my_strdup("", MYF(0));
   }
   else
   {
@@ -573,27 +631,326 @@ err:
   return NULL;
 }
 
-#define WSREP_SST_AUTH_ENV "WSREP_SST_OPT_AUTH"
+#define WSREP_SST_AUTH_ENV        "WSREP_SST_OPT_AUTH"
+#define WSREP_SST_REMOTE_AUTH_ENV "WSREP_SST_OPT_REMOTE_AUTH"
+#define DATA_HOME_DIR_ENV         "INNODB_DATA_HOME_DIR"
 
-static int sst_append_auth_env(wsp::env& env, const char* sst_auth)
+static int sst_append_env_var(wsp::env&   env,
+                              const char* const var,
+                              const char* const val)
 {
-  int const sst_auth_size= strlen(WSREP_SST_AUTH_ENV) + 1 /* = */
-    + (sst_auth ? strlen(sst_auth) : 0) + 1 /* \0 */;
+  int const env_str_size= strlen(var) + 1 /* = */
+                          + (val ? strlen(val) : 0) + 1 /* \0 */;
 
-  wsp::string sst_auth_str(sst_auth_size); // for automatic cleanup on return
-  if (!sst_auth_str()) return -ENOMEM;
+  wsp::string env_str(env_str_size); // for automatic cleanup on return
+  if (!env_str()) return -ENOMEM;
 
-  int ret= snprintf(sst_auth_str(), sst_auth_size, "%s=%s",
-                    WSREP_SST_AUTH_ENV, sst_auth ? sst_auth : "");
+  int ret= snprintf(env_str(), env_str_size, "%s=%s", var, val ? val : "");
 
-  if (ret < 0 || ret >= sst_auth_size)
+  if (ret < 0 || ret >= env_str_size)
   {
-    WSREP_ERROR("sst_append_auth_env(): snprintf() failed: %d", ret);
+    WSREP_ERROR("sst_append_env_var(): snprintf(%s=%s) failed: %d",
+                var, val, ret);
     return (ret < 0 ? ret : -EMSGSIZE);
   }
 
-  env.append(sst_auth_str());
+  env.append(env_str());
   return -env.error();
+}
+
+#ifdef __WIN__
+/*
+  Space, single quote, ampersand, backquote, I/O redirection
+  characters, caret, all brackets, plus, exclamation and comma
+  characters require text to be enclosed in double quotes:
+*/
+#define IS_SPECIAL(c) \
+  (isspace(c) || c == '\'' || c == '&' || c == '`' || c == '|' || \
+                 c ==  '>' || c == '<' || c == ';' || c == '^' || \
+                 c ==  '[' || c == ']' || c == '{' || c == '}' || \
+                 c ==  '(' || c == ')' || c == '+' || c == '!' || \
+                 c ==  ',')
+/*
+  Inside values, equals character are interpreted as special
+  character and requires quotation:
+*/
+#define IS_SPECIAL_V(c) (IS_SPECIAL(c) || c == '=')
+/*
+  Double quotation mark and percent characters require escaping:
+*/
+#define IS_REQ_ESCAPING(c) (c == '""' || c == '%')
+#else
+/*
+  Space, single quote, ampersand, backquote, and I/O redirection
+  characters require text to be enclosed in double quotes. The
+  semicolon is used to separate shell commands, so it must be
+  enclosed in double quotes as well:
+*/
+#define IS_SPECIAL(c) \
+  (isspace(c) || c == '\'' || c == '&' || c == '`' || c == '|' || \
+                 c ==  '>' || c == '<' || c == ';')
+/*
+  Inside values, characters are interpreted as in parameter names:
+*/
+#define IS_SPECIAL_V(c) IS_SPECIAL(c)
+/*
+  Double quotation mark and backslash characters require
+  backslash prefixing, the dollar symbol is used to substitute
+  a variable value, therefore it also requires escaping:
+*/
+#define IS_REQ_ESCAPING(c) (c == '"' || c == '\\' || c == '$')
+#endif
+
+static size_t estimate_cmd_len (bool* extra_args)
+{
+  /*
+    The length of the area reserved for the control parameters
+    of the SST script (excluding the copying of the original
+    mysqld arguments):
+  */
+  size_t cmd_len= 4096;
+  bool extra= false;
+  /*
+    If mysqld was started with arguments, add them all:
+  */
+  if (orig_argc > 1)
+  {
+    for (int i = 1; i < orig_argc; i++)
+    {
+      const char* arg= orig_argv[i];
+      size_t n= strlen(arg);
+      if (n == 0) continue;
+      cmd_len += n;
+      bool quotation= false;
+      char c;
+      while ((c = *arg++) != 0)
+      {
+        if (IS_SPECIAL(c))
+        {
+          quotation= true;
+        }
+        else if (IS_REQ_ESCAPING(c))
+        {
+          cmd_len++;
+#ifdef __WIN__
+          quotation= true;
+#endif
+        }
+        /*
+          If the equals symbol is encountered, then we need to separately
+          process the right side:
+        */
+        else if (c == '=')
+        {
+          /* Perhaps we need to quote the left part of the argument: */
+          if (quotation)
+          {
+            cmd_len += 2;
+            /*
+              Reset the quotation flag, since now the status for
+              the right side of the expression will be saved here:
+            */
+            quotation= false;
+          }
+          while ((c = *arg++) != 0)
+          {
+            if (IS_SPECIAL_V(c))
+            {
+              quotation= true;
+            }
+            else if (IS_REQ_ESCAPING(c))
+            {
+              cmd_len++;
+#ifdef __WIN__
+              quotation= true;
+#endif
+            }
+          }
+          break;
+        }
+      }
+      /* Perhaps we need to quote the entire argument or its right part: */
+      if (quotation)
+      {
+        cmd_len += 2;
+      }
+    }
+    extra = true;
+    cmd_len += strlen(WSREP_SST_OPT_MYSQLD);
+    /*
+      Add the separating spaces between arguments,
+      and one additional space before "--mysqld-args":
+    */
+    cmd_len += orig_argc;
+  }
+  *extra_args= extra;
+  return cmd_len;
+}
+
+static void copy_orig_argv (char* cmd_str)
+{
+  /*
+     If mysqld was started with arguments, copy them all:
+  */
+  if (orig_argc > 1)
+  {
+    size_t n = strlen(WSREP_SST_OPT_MYSQLD);
+    *cmd_str++ = ' ';
+    memcpy(cmd_str, WSREP_SST_OPT_MYSQLD, n * sizeof(char));
+    cmd_str += n;
+    for (int i = 1; i < orig_argc; i++)
+    {
+      char* arg= orig_argv[i];
+      n = strlen(arg);
+      if (n == 0) continue;
+      *cmd_str++ = ' ';
+      bool quotation= false;
+      bool plain= true;
+      char *arg_scan= arg;
+      char c;
+      while ((c = *arg_scan++) != 0)
+      {
+        if (IS_SPECIAL(c))
+        {
+          quotation= true;
+        }
+        else if (IS_REQ_ESCAPING(c))
+        {
+          plain= false;
+#ifdef __WIN__
+          quotation= true;
+#endif
+        }
+        /*
+          If the equals symbol is encountered, then we need to separately
+          process the right side:
+        */
+        else if (c == '=')
+        {
+          /* Calculate length of the Left part of the argument: */
+          size_t m = (size_t) (arg_scan - arg) - 1;
+          if (m)
+          {
+            /* Perhaps we need to quote the left part of the argument: */
+            if (quotation)
+            {
+              *cmd_str++ = '"';
+            }
+            /*
+              If there were special characters inside, then we can use
+              the fast memcpy function:
+            */
+            if (plain)
+            {
+              memcpy(cmd_str, arg, m * sizeof(char));
+              cmd_str += m;
+              /* Left part of the argument has already been processed: */
+              n -= m;
+              arg += m;
+            }
+            /* Otherwise we need to prefix individual characters: */
+            else
+            {
+              n -= m;
+              while (m)
+              {
+                c = *arg++;
+                if (IS_REQ_ESCAPING(c))
+                {
+#ifdef __WIN__
+                  *cmd_str++ = c;
+#else
+                  *cmd_str++ = '\\';
+#endif
+                }
+                *cmd_str++ = c;
+                m--;
+              }
+              /*
+                Reset the plain string flag, since now the status for
+                the right side of the expression will be saved here:
+              */
+              plain= true;
+            }
+            /* Perhaps we need to quote the left part of the argument: */
+            if (quotation)
+            {
+              *cmd_str++ = '"';
+              /*
+                Reset the quotation flag, since now the status for
+                the right side of the expression will be saved here:
+              */
+              quotation= false;
+            }
+          }
+          /* Copy equals symbol: */
+          *cmd_str++ = '=';
+          arg++;
+          n--;
+          /* Let's deal with the left side of the expression: */
+          while ((c = *arg_scan++) != 0)
+          {
+            if (IS_SPECIAL_V(c))
+            {
+              quotation= true;
+            }
+            else if (IS_REQ_ESCAPING(c))
+            {
+              plain= false;
+#ifdef __WIN__
+              quotation= true;
+#endif
+            }
+          }
+          break;
+        }
+      }
+      if (n)
+      {
+        /* Perhaps we need to quote the entire argument or its right part: */
+        if (quotation)
+        {
+          *cmd_str++ = '"';
+        }
+        /*
+          If there were no special characters inside, then we can use
+          the fast memcpy function:
+        */
+        if (plain)
+        {
+          memcpy(cmd_str, arg, n * sizeof(char));
+          cmd_str += n;
+        }
+        /* Otherwise we need to prefix individual characters: */
+        else
+        {
+          while ((c = *arg++) != 0)
+          {
+            if (IS_REQ_ESCAPING(c))
+            {
+#ifdef __WIN__
+              *cmd_str++ = c;
+#else
+              *cmd_str++ = '\\';
+#endif
+            }
+            *cmd_str++ = c;
+          }
+        }
+        /* Perhaps we need to quote the entire argument or its right part: */
+        if (quotation)
+        {
+          *cmd_str++ = '"';
+        }
+      }
+    }
+    /*
+      Add a terminating null character (not counted in the length,
+      since we've overwritten the original null character which
+      was previously added by snprintf:
+    */
+    *cmd_str = 0;
+  }
 }
 
 static ssize_t sst_prepare_other (const char*  method,
@@ -601,18 +958,19 @@ static ssize_t sst_prepare_other (const char*  method,
                                   const char*  addr_in,
                                   const char** addr_out)
 {
-  int const cmd_len= 4096;
+  bool extra_args;
+  size_t const cmd_len= estimate_cmd_len(&extra_args);
   wsp::string cmd_str(cmd_len);
 
   if (!cmd_str())
   {
-    WSREP_ERROR("sst_prepare_other(): could not allocate cmd buffer of %d bytes",
+    WSREP_ERROR("sst_prepare_other(): could not allocate cmd buffer of %zd bytes",
                 cmd_len);
     return -ENOMEM;
   }
 
-  const char* binlog_opt= "";
   char* binlog_opt_val= NULL;
+  char* binlog_index_opt_val= NULL;
 
   int ret;
   if ((ret= generate_binlog_opt_val(&binlog_opt_val)))
@@ -621,28 +979,42 @@ static ssize_t sst_prepare_other (const char*  method,
                 ret);
     return ret;
   }
-  if (strlen(binlog_opt_val)) binlog_opt= WSREP_SST_OPT_BINLOG;
+
+  if ((ret= generate_binlog_index_opt_val(&binlog_index_opt_val)))
+  {
+    WSREP_ERROR("sst_prepare_other(): generate_binlog_index_opt_val() failed %d",
+                ret);
+    if (binlog_opt_val) my_free(binlog_opt_val);
+    return ret;
+  }
 
   make_wsrep_defaults_file();
 
   ret= snprintf (cmd_str(), cmd_len,
                  "wsrep_sst_%s "
-                 WSREP_SST_OPT_ROLE" 'joiner' "
-                 WSREP_SST_OPT_ADDR" '%s' "
-                 WSREP_SST_OPT_DATA" '%s' "
-                 " %s "
-                 WSREP_SST_OPT_PARENT" '%d'"
-                 " %s '%s' ",
+                 WSREP_SST_OPT_ROLE " 'joiner' "
+                 WSREP_SST_OPT_ADDR " '%s' "
+                 WSREP_SST_OPT_DATA " '%s' "
+                 "%s"
+                 WSREP_SST_OPT_PARENT " '%d'"
+                 "%s"
+                 "%s",
                  method, addr_in, mysql_real_data_home,
                  wsrep_defaults_file,
-                 (int)getpid(), binlog_opt, binlog_opt_val);
-  my_free(binlog_opt_val);
+                 (int)getpid(),
+                 binlog_opt_val, binlog_index_opt_val);
 
-  if (ret < 0 || ret >= cmd_len)
+  my_free(binlog_opt_val);
+  my_free(binlog_index_opt_val);
+
+  if (ret < 0 || size_t(ret) >= cmd_len)
   {
     WSREP_ERROR("sst_prepare_other(): snprintf() failed: %d", ret);
     return (ret < 0 ? ret : -EMSGSIZE);
   }
+
+  if (extra_args)
+    copy_orig_argv(cmd_str() + ret);
 
   wsp::env env(NULL);
   if (env.error())
@@ -651,19 +1023,29 @@ static ssize_t sst_prepare_other (const char*  method,
     return -env.error();
   }
 
-  if ((ret= sst_append_auth_env(env, sst_auth)))
+  if ((ret= sst_append_env_var(env, WSREP_SST_AUTH_ENV, sst_auth)))
   {
     WSREP_ERROR("sst_prepare_other(): appending auth failed: %d", ret);
     return ret;
   }
 
+  if (data_home_dir)
+  {
+    if ((ret= sst_append_env_var(env, DATA_HOME_DIR_ENV, data_home_dir)))
+    {
+      WSREP_ERROR("sst_prepare_other(): appending data "
+                  "directory failed: %d", ret);
+      return ret;
+    }
+  }
+
   pthread_t tmp;
   sst_thread_arg arg(cmd_str(), env());
   mysql_mutex_lock (&arg.lock);
-  ret = pthread_create (&tmp, NULL, sst_joiner_thread, &arg);
+  ret = mysql_thread_create (key_wsrep_sst_joiner, &tmp, NULL, sst_joiner_thread, &arg);
   if (ret)
   {
-    WSREP_ERROR("sst_prepare_other(): pthread_create() failed: %d (%s)",
+    WSREP_ERROR("sst_prepare_other(): mysql_thread_create() failed: %d (%s)",
                 ret, strerror(ret));
     return -ret;
   }
@@ -729,6 +1111,7 @@ ssize_t wsrep_sst_prepare (void** msg)
 {
   const char* addr_in=  NULL;
   const char* addr_out= NULL;
+  const char* method;
 
   if (!strcmp(wsrep_sst_method, WSREP_SST_SKIP))
   {
@@ -787,7 +1170,8 @@ ssize_t wsrep_sst_prepare (void** msg)
   }
 
   ssize_t addr_len= -ENOSYS;
-  if (!strcmp(wsrep_sst_method, WSREP_SST_MYSQLDUMP))
+  method = wsrep_sst_method;
+  if (!strcmp(method, WSREP_SST_MYSQLDUMP))
   {
     addr_len= sst_prepare_mysqldump (addr_in, &addr_out);
     if (addr_len < 0) unireg_abort(1);
@@ -797,6 +1181,13 @@ ssize_t wsrep_sst_prepare (void** msg)
     /*! A heuristic workaround until we learn how to stop and start engines */
     if (SE_initialized)
     {
+      if (!strcmp(method, WSREP_SST_XTRABACKUP) ||
+          !strcmp(method, WSREP_SST_XTRABACKUPV2))
+      {
+         WSREP_WARN("The %s SST method is deprecated, so it is automatically "
+                    "replaced by %s", method, WSREP_SST_MARIABACKUP);
+         method = WSREP_SST_MARIABACKUP;
+      }
       // we already did SST at initializaiton, now engines are running
       // sql_print_information() is here because the message is too long
       // for WSREP_INFO.
@@ -806,32 +1197,32 @@ ssize_t wsrep_sst_prepare (void** msg)
                  "Wsrep provider won't be able to fall back to it "
                  "if other means of state transfer are unavailable. "
                  "In that case you will need to restart the server.",
-                 wsrep_sst_method);
+                 method);
       *msg = 0;
       return 0;
     }
 
-    addr_len = sst_prepare_other (wsrep_sst_method, sst_auth_real,
+    addr_len = sst_prepare_other (method, sst_auth_real,
                                   addr_in, &addr_out);
     if (addr_len < 0)
     {
       WSREP_ERROR("Failed to prepare for '%s' SST. Unrecoverable.",
-                   wsrep_sst_method);
+                   method);
       unireg_abort(1);
     }
   }
 
-  size_t const method_len(strlen(wsrep_sst_method));
+  size_t const method_len(strlen(method));
   size_t const msg_len   (method_len + addr_len + 2 /* + auth_len + 1*/);
 
   *msg = malloc (msg_len);
   if (NULL != *msg) {
-    char* const method_ptr(reinterpret_cast<char*>(*msg));
-    strcpy (method_ptr, wsrep_sst_method);
+    char* const method_ptr(static_cast<char*>(*msg));
+    strcpy (method_ptr, method);
     char* const addr_ptr(method_ptr + method_len + 1);
     strcpy (addr_ptr, addr_out);
 
-    WSREP_INFO ("Prepared SST request: %s|%s", method_ptr, addr_ptr);
+    WSREP_DEBUG("Prepared SST request: %s|%s", method_ptr, addr_ptr);
   }
   else {
     WSREP_ERROR("Failed to allocate SST request of size %zu. Can't continue.",
@@ -897,13 +1288,14 @@ static int sst_donate_mysqldump (const char*         addr,
   }
   memcpy(host, address.get_address(), address.get_address_len());
   int port= address.get_port();
-  int const cmd_len= 4096;
-  wsp::string  cmd_str(cmd_len);
+  bool extra_args;
+  size_t const cmd_len= estimate_cmd_len(&extra_args);
+  wsp::string cmd_str(cmd_len);
 
   if (!cmd_str())
   {
     WSREP_ERROR("sst_donate_mysqldump(): "
-                "could not allocate cmd buffer of %d bytes", cmd_len);
+                "could not allocate cmd buffer of %zd bytes", cmd_len);
     return -ENOMEM;
   }
 
@@ -913,24 +1305,27 @@ static int sst_donate_mysqldump (const char*         addr,
 
   int ret= snprintf (cmd_str(), cmd_len,
                      "wsrep_sst_mysqldump "
-                     WSREP_SST_OPT_ADDR" '%s' "
-                     WSREP_SST_OPT_PORT" '%d' "
-                     WSREP_SST_OPT_LPORT" '%u' "
-                     WSREP_SST_OPT_SOCKET" '%s' "
-                     " '%s' "
-                     WSREP_SST_OPT_GTID" '%s:%lld' "
-                     WSREP_SST_OPT_GTID_DOMAIN_ID" '%d'"
+                     WSREP_SST_OPT_ADDR " '%s' "
+                     WSREP_SST_OPT_PORT " '%d' "
+                     WSREP_SST_OPT_LPORT " '%u' "
+                     WSREP_SST_OPT_SOCKET " '%s' "
+                     "%s"
+                     WSREP_SST_OPT_GTID " '%s:%lld' "
+                     WSREP_SST_OPT_GTID_DOMAIN_ID " '%d'"
                      "%s",
-	             addr, port, mysqld_port, mysqld_unix_port,
+                     addr, port, mysqld_port, mysqld_unix_port,
                      wsrep_defaults_file, uuid_str,
                      (long long)seqno, wsrep_gtid_domain_id,
                      bypass ? " " WSREP_SST_OPT_BYPASS : "");
 
-  if (ret < 0 || ret >= cmd_len)
+  if (ret < 0 || size_t(ret) >= cmd_len)
   {
     WSREP_ERROR("sst_donate_mysqldump(): snprintf() failed: %d", ret);
     return (ret < 0 ? ret : -EMSGSIZE);
   }
+
+  if (extra_args)
+    copy_orig_argv(cmd_str() + ret);
 
   WSREP_DEBUG("Running: '%s'", cmd_str());
 
@@ -1042,7 +1437,7 @@ static int sst_flush_tables(THD* thd)
       WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->csname);
       thd->variables.character_set_client = &my_charset_latin1;
       WSREP_WARN("For SST temporally setting character set to : %s",
-	      my_charset_latin1.csname);
+              my_charset_latin1.csname);
   }
 
   if (run_sql_command(thd, "FLUSH TABLES WITH READ LOCK"))
@@ -1110,7 +1505,7 @@ static void sst_disallow_writes (THD* thd, bool yes)
       WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->csname);
       thd->variables.character_set_client = &my_charset_latin1;
       WSREP_WARN("For SST temporally setting character set to : %s",
-	      my_charset_latin1.csname);
+              my_charset_latin1.csname);
   }
 
   snprintf (query_str, query_max, "SET GLOBAL innodb_disallow_writes=%d",
@@ -1137,10 +1532,13 @@ static void* sst_donor_thread (void* a)
   char         out_buf[out_len];
 
   wsrep_uuid_t  ret_uuid= WSREP_UUID_UNDEFINED;
-  wsrep_seqno_t ret_seqno= WSREP_SEQNO_UNDEFINED; // seqno of complete SST
+  // seqno of complete SST
+  wsrep_seqno_t ret_seqno= WSREP_SEQNO_UNDEFINED;
 
-  wsp::thd thd(FALSE); // we turn off wsrep_on for this THD so that it can
-                       // operate with wsrep_ready == OFF
+  // We turn off wsrep_on for this THD so that it can
+  // operate with wsrep_ready == OFF
+  // We also set this SST thread THD as system thread
+  wsp::thd thd(FALSE, true);
   wsp::process proc(arg->cmd, "r", arg->env);
 
   err= proc.error();
@@ -1251,18 +1649,19 @@ static int sst_donate_other (const char*   method,
                              bool          bypass,
                              char**        env) // carries auth info
 {
-  int const cmd_len= 4096;
-  wsp::string  cmd_str(cmd_len);
+  bool extra_args;
+  size_t const cmd_len= estimate_cmd_len(&extra_args);
+  wsp::string cmd_str(cmd_len);
 
   if (!cmd_str())
   {
     WSREP_ERROR("sst_donate_other(): "
-                "could not allocate cmd buffer of %d bytes", cmd_len);
+                "could not allocate cmd buffer of %zd bytes", cmd_len);
     return -ENOMEM;
   }
 
-  const char* binlog_opt= "";
   char* binlog_opt_val= NULL;
+  char* binlog_index_opt_val= NULL;
 
   int ret;
   if ((ret= generate_binlog_opt_val(&binlog_opt_val)))
@@ -1270,43 +1669,58 @@ static int sst_donate_other (const char*   method,
     WSREP_ERROR("sst_donate_other(): generate_binlog_opt_val() failed: %d",ret);
     return ret;
   }
-  if (strlen(binlog_opt_val)) binlog_opt= WSREP_SST_OPT_BINLOG;
+
+  if ((ret= generate_binlog_index_opt_val(&binlog_index_opt_val)))
+  {
+    WSREP_ERROR("sst_prepare_other(): generate_binlog_index_opt_val() failed %d",
+                ret);
+    if (binlog_opt_val) my_free(binlog_opt_val);
+    return ret;
+  }
 
   make_wsrep_defaults_file();
 
   ret= snprintf (cmd_str(), cmd_len,
                  "wsrep_sst_%s "
-                 WSREP_SST_OPT_ROLE" 'donor' "
-                 WSREP_SST_OPT_ADDR" '%s' "
-                 WSREP_SST_OPT_SOCKET" '%s' "
-                 WSREP_SST_OPT_DATA" '%s' "
-                 " %s "
-                 " %s '%s' "
-                 WSREP_SST_OPT_GTID" '%s:%lld' "
-                 WSREP_SST_OPT_GTID_DOMAIN_ID" '%d'"
+                 WSREP_SST_OPT_ROLE " 'donor' "
+                 WSREP_SST_OPT_ADDR " '%s' "
+                 WSREP_SST_OPT_LPORT " '%u' "
+                 WSREP_SST_OPT_SOCKET " '%s' "
+                 WSREP_SST_OPT_DATA " '%s' "
+                 "%s"
+                 WSREP_SST_OPT_GTID " '%s:%lld' "
+                 WSREP_SST_OPT_GTID_DOMAIN_ID " '%d'"
+                 "%s"
+                 "%s"
                  "%s",
-                 method, addr, mysqld_unix_port, mysql_real_data_home,
+                 method, addr, mysqld_port, mysqld_unix_port,
+                 mysql_real_data_home,
                  wsrep_defaults_file,
-                 binlog_opt, binlog_opt_val,
                  uuid, (long long) seqno, wsrep_gtid_domain_id,
+                 binlog_opt_val, binlog_index_opt_val,
                  bypass ? " " WSREP_SST_OPT_BYPASS : "");
-  my_free(binlog_opt_val);
 
-  if (ret < 0 || ret >= cmd_len)
+  my_free(binlog_opt_val);
+  my_free(binlog_index_opt_val);
+
+  if (ret < 0 || size_t(ret) >= cmd_len)
   {
     WSREP_ERROR("sst_donate_other(): snprintf() failed: %d", ret);
     return (ret < 0 ? ret : -EMSGSIZE);
   }
+
+  if (extra_args)
+    copy_orig_argv(cmd_str() + ret);
 
   if (!bypass && wsrep_sst_donor_rejects_queries) sst_reject_queries(FALSE);
 
   pthread_t tmp;
   sst_thread_arg arg(cmd_str(), env);
   mysql_mutex_lock (&arg.lock);
-  ret = pthread_create (&tmp, NULL, sst_donor_thread, &arg);
+  ret = mysql_thread_create (key_wsrep_sst_donor, &tmp, NULL, sst_donor_thread, &arg);
   if (ret)
   {
-    WSREP_ERROR("sst_donate_other(): pthread_create() failed: %d (%s)",
+    WSREP_ERROR("sst_donate_other(): mysql_thread_create() failed: %d (%s)",
                 ret, strerror(ret));
     return ret;
   }
@@ -1316,23 +1730,78 @@ static int sst_donate_other (const char*   method,
   return arg.err;
 }
 
+/* return true if character can be a part of a filename */
+static bool filename_char(int const c)
+{
+  return isalnum(c) || (c == '-') || (c == '_') || (c == '.');
+}
+
+/* return true if character can be a part of an address string */
+static bool address_char(int const c)
+{
+  return filename_char(c) ||
+         (c == ':') || (c == '[') || (c == ']') || (c == '/');
+}
+
+static bool check_request_str(const char* const str,
+                              bool (*check) (int c))
+{
+  for (size_t i(0); str[i] != '\0'; ++i)
+  {
+    if (!check(str[i]))
+    {
+      WSREP_WARN("Illegal character in state transfer request: %i (%c).",
+                 str[i], str[i]);
+      return true;
+    }
+  }
+
+  return false;
+}
+
 wsrep_cb_status_t wsrep_sst_donate_cb (void* app_ctx, void* recv_ctx,
                                        const void* msg, size_t msg_len,
                                        const wsrep_gtid_t* current_gtid,
                                        const char* state, size_t state_len,
                                        bool bypass)
 {
-  /* This will be reset when sync callback is called.
-   * Should we set wsrep_ready to FALSE here too? */
-
-  wsrep_config_state->set(WSREP_MEMBER_DONOR);
-
   const char* method = (char*)msg;
   size_t method_len  = strlen (method);
+
+  if (check_request_str(method, filename_char))
+  {
+    WSREP_ERROR("Bad SST method name. SST canceled.");
+    return WSREP_CB_FAILURE;
+  }
+
   const char* data   = method + method_len + 1;
+
+  /* check for auth@addr separator */
+  const char* addr= strrchr(data, '@');
+  wsp::string remote_auth;
+  if (addr)
+  {
+    remote_auth.set(strndup(data, addr - data));
+    addr++;
+  }
+  else
+  {
+    // no auth part
+    addr= data;
+  }
+
+  if (check_request_str(addr, address_char))
+  {
+    WSREP_ERROR("Bad SST address string. SST canceled.");
+    return WSREP_CB_FAILURE;
+  }
 
   char uuid_str[37];
   wsrep_uuid_print (&current_gtid->uuid, uuid_str, sizeof(uuid_str));
+
+  /* This will be reset when sync callback is called.
+   * Should we set wsrep_ready to FALSE here too? */
+  wsrep_config_state->set(WSREP_MEMBER_DONOR);
 
   wsp::env env(NULL);
   if (env.error())
@@ -1342,20 +1811,40 @@ wsrep_cb_status_t wsrep_sst_donate_cb (void* app_ctx, void* recv_ctx,
   }
 
   int ret;
-  if ((ret= sst_append_auth_env(env, sst_auth_real)))
+  if ((ret= sst_append_env_var(env, WSREP_SST_AUTH_ENV, sst_auth_real)))
   {
     WSREP_ERROR("wsrep_sst_donate_cb(): appending auth env failed: %d", ret);
     return WSREP_CB_FAILURE;
   }
 
+  if (remote_auth())
+  {
+    if ((ret= sst_append_env_var(env, WSREP_SST_REMOTE_AUTH_ENV,remote_auth())))
+    {
+      WSREP_ERROR("wsrep_sst_donate_cb(): appending remote auth env failed: "
+                  "%d", ret);
+      return WSREP_CB_FAILURE;
+    }
+  }
+
+  if (data_home_dir)
+  {
+    if ((ret= sst_append_env_var(env, DATA_HOME_DIR_ENV, data_home_dir)))
+    {
+      WSREP_ERROR("wsrep_sst_donate_cb(): appending data "
+                  "directory failed: %d", ret);
+      return WSREP_CB_FAILURE;
+    }
+  }
+
   if (!strcmp (WSREP_SST_MYSQLDUMP, method))
   {
-    ret = sst_donate_mysqldump(data, &current_gtid->uuid, uuid_str,
+    ret = sst_donate_mysqldump(addr, &current_gtid->uuid, uuid_str,
                                current_gtid->seqno, bypass, env());
   }
   else
   {
-    ret = sst_donate_other(method, data, uuid_str,
+    ret = sst_donate_other(method, addr, uuid_str,
                            current_gtid->seqno, bypass, env());
   }
 
@@ -1369,10 +1858,25 @@ void wsrep_SE_init_grab()
 
 void wsrep_SE_init_wait()
 {
+  double total_wtime=0;
+
   while (SE_initialized == false)
   {
-    mysql_cond_wait (&COND_wsrep_sst_init, &LOCK_wsrep_sst_init);
+    struct timespec wtime;
+    set_timespec(wtime, WSREP_TIMEDWAIT_SECONDS);
+    time_t start_time = time(NULL);
+    mysql_cond_timedwait (&COND_wsrep_sst_init, &LOCK_wsrep_sst_init, &wtime);
+    time_t end_time = time(NULL);
+
+    if (!SE_initialized)
+    {
+      total_wtime += difftime(end_time, start_time);
+      WSREP_DEBUG("Waiting for SST to complete. current seqno: %" PRId64 " waited %f secs.", local_seqno, total_wtime);
+      service_manager_extend_timeout(WSREP_EXTEND_TIMEOUT_INTERVAL,
+        "WSREP state transfer ongoing, current seqno: %" PRId64 " waited %f secs", local_seqno, total_wtime);
+    }
   }
+
   mysql_mutex_unlock (&LOCK_wsrep_sst_init);
 }
 

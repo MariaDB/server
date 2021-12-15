@@ -1,11 +1,26 @@
 include/master-slave.inc
 [connection master]
+connection slave;
+set sql_log_bin=0;
+create database y;
+set sql_log_bin=1;
+connection master;
 drop database if exists mysqltest1;
+drop database if exists x;
 create database mysqltest1;
+set sql_log_bin=0;
+create database x;
+set sql_log_bin=1;
 use mysqltest1;
 create table t1 (a int);
 insert into t1 values(9);
+use x;
+create table t1 (a int);
+insert into t1 values(9);
 select * from mysqltest1.t1;
+a
+9
+select * from x.t1;
 a
 9
 connection slave;
@@ -15,7 +30,11 @@ mysqltest1
 select * from test.t1;
 a
 9
+select * from y.t1;
+a
+9
 connection master;
+use mysqltest1;
 drop table t1;
 drop database mysqltest1;
 connection slave;
@@ -79,10 +98,10 @@ load data infile '../../std_data/loaddata3.dat' into table t1 fields terminated 
 Warnings:
 Note	1265	Data truncated for column 'a' at row 1
 Note	1265	Data truncated for column 'a' at row 2
-Warning	1366	Incorrect integer value: 'error      ' for column 'a' at row 3
+Warning	1366	Incorrect integer value: 'error      ' for column `test`.`t1`.`a` at row 3
 Warning	1262	Row 3 was truncated; it contained more data than there were input columns
 Note	1265	Data truncated for column 'a' at row 4
-Warning	1366	Incorrect integer value: 'wrong end  ' for column 'a' at row 5
+Warning	1366	Incorrect integer value: 'wrong end  ' for column `test`.`t1`.`a` at row 5
 Warning	1262	Row 5 was truncated; it contained more data than there were input columns
 connection slave;
 connection slave;
@@ -101,7 +120,7 @@ Note	1265	Data truncated for column 'a' at row 1
 Note	1265	Data truncated for column 'a' at row 2
 Note	1265	Data truncated for column 'a' at row 3
 Warning	1366	Incorrect integer value: '
-' for column 'a' at row 4
+' for column `test`.`t1`.`a` at row 4
 Warning	1261	Row 4 doesn't contain data for all columns
 connection slave;
 connection slave;
@@ -259,12 +278,14 @@ SET sql_log_bin= 0;
 DROP DATABASE database_master_temp_01;
 DROP DATABASE database_master_temp_02;
 DROP DATABASE database_master_temp_03;
+DROP DATABASE x;
 SET sql_log_bin= 1;
 connection slave;
 SET sql_log_bin= 0;
 DROP DATABASE database_slave_temp_01;
 DROP DATABASE database_slave_temp_02;
 DROP DATABASE database_slave_temp_03;
+DROP DATABASE y;
 SET sql_log_bin= 1;
 connection master;
 connection slave;

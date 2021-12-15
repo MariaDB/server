@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "maria_def.h"
 #include "ma_recovery.h"
@@ -47,7 +47,7 @@ int main(int argc, char **argv)
 
   maria_data_root= (char *)".";
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
-  load_defaults("my", load_default_groups, &argc, &argv);
+  load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   default_argv= argv;
   get_options(&argc, &argv);
 

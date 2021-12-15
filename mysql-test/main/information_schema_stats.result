@@ -1,0 +1,71 @@
+set @save_userstat=@@global.userstat;
+set global userstat=1;
+create table just_a_test(id int,first_name varchar(10),last_name varchar(10),address varchar(100),phone bigint,email varchar(30), state varchar(30));
+insert into just_a_test values(1,'fa','la','china_a',11111111,'fa_la@163.com','California'),
+(2,'fb','lb','china_b',22222222,'fb_lb@163.com','Arizona'),
+(3,'fc','lc','china_c',33333333,'fc_lc@163.com','California'),
+(4,'fd','ld','china_d',44444444,'fd_ld@163.com','Utah'),
+(5,'fe','le','china_e',55555555,'fe_le@163.com','Arizona');
+alter table just_a_test add primary key (id);
+alter table just_a_test add key IND_just_a_test_first_name_last_name(first_name,last_name);
+alter table just_a_test add key IND_just_a_test_state(state);
+select count(*) from just_a_test where first_name='fc' and last_name='lc';
+count(*)
+1
+select count(*) from just_a_test where state = 'California';
+count(*)
+2
+select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
+TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
+test	just_a_test	IND_just_a_test_first_name_last_name	1
+test	just_a_test	IND_just_a_test_state	2
+select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
+test	just_a_test	18	5	5
+alter table just_a_test drop key IND_just_a_test_first_name_last_name;
+select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
+TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
+test	just_a_test	IND_just_a_test_state	2
+select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
+test	just_a_test	23	5	5
+alter table just_a_test drop column state;
+select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
+TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
+select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
+test	just_a_test	28	5	5
+drop table just_a_test;
+select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
+TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
+select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
+create table just_a_test(id int not null primary key,first_name varchar(10),last_name varchar(10),address varchar(100),phone bigint,email varchar(30), state varchar(30),key(first_name,last_name),key(state));
+insert into just_a_test values(1,'fa','la','china_a',11111111,'fa_la@163.com','California'),
+(2,'fb','lb','china_b',22222222,'fb_lb@163.com','Arizona'),
+(3,'fc','lc','china_c',33333333,'fc_lc@163.com','California'),
+(4,'fd','ld','china_d',44444444,'fd_ld@163.com','Utah'),
+(5,'fe','le','china_e',55555555,'fe_le@163.com','Arizona');
+select count(*) from just_a_test where first_name='fc' and last_name='lc';
+count(*)
+1
+select count(*) from just_a_test where state = 'California';
+count(*)
+2
+select count(*) from just_a_test where id between 2 and 4;
+count(*)
+3
+select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
+TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
+test	just_a_test	PRIMARY	5
+test	just_a_test	first_name	1
+test	just_a_test	state	2
+select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
+test	just_a_test	8	5	15
+drop table just_a_test;
+select * from information_schema.index_statistics where table_schema='test' and table_name='just_a_test';
+TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
+select * from information_schema.table_statistics where table_schema='test' and table_name='just_a_test';
+TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
+set global userstat=@save_userstat;

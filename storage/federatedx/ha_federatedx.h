@@ -129,6 +129,7 @@ typedef struct st_federatedx_share {
 
 typedef struct st_federatedx_result FEDERATEDX_IO_RESULT;
 typedef struct st_federatedx_row FEDERATEDX_IO_ROW;
+typedef struct st_federatedx_rows FEDERATEDX_IO_ROWS;
 typedef ptrdiff_t FEDERATEDX_IO_OFFSET;
 
 class federatedx_io
@@ -205,7 +206,8 @@ public:
   virtual void free_result(FEDERATEDX_IO_RESULT *io_result)=0;
   virtual unsigned int get_num_fields(FEDERATEDX_IO_RESULT *io_result)=0;
   virtual my_ulonglong get_num_rows(FEDERATEDX_IO_RESULT *io_result)=0;
-  virtual FEDERATEDX_IO_ROW *fetch_row(FEDERATEDX_IO_RESULT *io_result)=0;
+  virtual FEDERATEDX_IO_ROW *fetch_row(FEDERATEDX_IO_RESULT *io_result,
+                                       FEDERATEDX_IO_ROWS **current= NULL)=0;
   virtual ulong *fetch_lengths(FEDERATEDX_IO_RESULT *io_result)=0;
   virtual const char *get_column_data(FEDERATEDX_IO_ROW *row,
                                       unsigned int column)=0;
@@ -214,7 +216,7 @@ public:
 
   virtual size_t get_ref_length() const=0;
   virtual void mark_position(FEDERATEDX_IO_RESULT *io_result,
-                             void *ref)=0;
+                             void *ref, FEDERATEDX_IO_ROWS *current)=0;
   virtual int seek_position(FEDERATEDX_IO_RESULT **io_result,
                             const void *ref)=0;
   virtual void set_thd(void *thd) { }
@@ -267,12 +269,12 @@ class ha_federatedx: public handler
   federatedx_txn *txn;
   federatedx_io *io;
   FEDERATEDX_IO_RESULT *stored_result;
+  FEDERATEDX_IO_ROWS *current;
   /**
       Array of all stored results we get during a query execution.
   */
   DYNAMIC_ARRAY results;
   bool position_called;
-  uint fetch_num; // stores the fetch num
   int remote_error_number;
   char remote_error_buf[FEDERATEDX_QUERY_BUFFER_SIZE];
   bool ignore_duplicates, replace_duplicates;

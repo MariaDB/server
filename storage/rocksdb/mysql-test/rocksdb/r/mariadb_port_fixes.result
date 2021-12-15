@@ -69,15 +69,51 @@ set global rocksdb_strict_collation_check=@tmp_rscc;
 #
 select plugin_name, plugin_maturity from information_schema.plugins where plugin_name like '%rocksdb%';
 plugin_name	plugin_maturity
-ROCKSDB	Gamma
-ROCKSDB_CFSTATS	Gamma
-ROCKSDB_DBSTATS	Gamma
-ROCKSDB_PERF_CONTEXT	Gamma
-ROCKSDB_PERF_CONTEXT_GLOBAL	Gamma
-ROCKSDB_CF_OPTIONS	Gamma
-ROCKSDB_COMPACTION_STATS	Gamma
-ROCKSDB_GLOBAL_INFO	Gamma
-ROCKSDB_DDL	Gamma
-ROCKSDB_INDEX_FILE_MAP	Gamma
-ROCKSDB_LOCKS	Gamma
-ROCKSDB_TRX	Gamma
+ROCKSDB	Stable
+ROCKSDB_CFSTATS	Stable
+ROCKSDB_DBSTATS	Stable
+ROCKSDB_PERF_CONTEXT	Stable
+ROCKSDB_PERF_CONTEXT_GLOBAL	Stable
+ROCKSDB_CF_OPTIONS	Stable
+ROCKSDB_COMPACTION_STATS	Stable
+ROCKSDB_GLOBAL_INFO	Stable
+ROCKSDB_DDL	Stable
+ROCKSDB_SST_PROPS	Stable
+ROCKSDB_INDEX_FILE_MAP	Stable
+ROCKSDB_LOCKS	Stable
+ROCKSDB_TRX	Stable
+ROCKSDB_DEADLOCK	Stable
+#
+#  MDEV-12466 : Assertion `thd->transaction.stmt.is_empty() || thd->in_sub_stmt ||  ...
+#
+CREATE TABLE t1 (i INT) ENGINE=RocksDB;
+FLUSH TABLE t1 FOR EXPORT;
+ERROR HY000: Storage engine ROCKSDB of the table `test`.`t1` doesn't have this option
+DROP TABLE t1;
+# 
+# MDEV-16154 Server crashes in in myrocks::ha_rocksdb::load_auto_incr_value_from_inde
+# 
+CREATE TABLE t1 (a INT) ENGINE=RocksDB;
+INSERT INTO t1 VALUES (1);
+ALTER TABLE t1 AUTO_INCREMENT 10;
+DROP TABLE t1;
+# 
+# MDEV-16155: UPDATE on RocksDB table with unique constraint does not work
+# 
+CREATE TABLE t1 (a INT, b CHAR(8), UNIQUE INDEX(a)) ENGINE=RocksDB;
+INSERT INTO t1 (a,b) VALUES (1,'foo'),(2,'bar');
+UPDATE t1 SET a=a+100;
+SELECT * FROM t1;
+a	b
+101	foo
+102	bar
+DROP TABLE t1;
+#
+# MDEV-15319: [SQL Layer] Server crashes in Field::set_null / myrocks::ha_rocksdb::convert_record_from_storage_format
+#  (just a testcase)
+#
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 ENGINE=RocksDB AS SELECT VALUE(i) AS a FROM t1;
+DELETE FROM t2;
+DROP TABLE t1,t2;

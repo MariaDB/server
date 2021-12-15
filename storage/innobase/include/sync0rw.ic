@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, 2018, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -20,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -116,10 +116,10 @@ rw_lock_get_reader_count(
 
 	if (lock_word > X_LOCK_HALF_DECR) {
 		/* s-locked, no x-waiter */
-		return(X_LOCK_DECR - lock_word);
+		return ulint(X_LOCK_DECR - lock_word);
 	} else if (lock_word > 0) {
 		/* s-locked, with sx-locks only */
-		return(X_LOCK_HALF_DECR - lock_word);
+		return ulint(X_LOCK_HALF_DECR - lock_word);
 	} else if (lock_word == 0) {
 		/* x-locked */
 		return(0);
@@ -161,12 +161,12 @@ rw_lock_get_x_lock_count(
 		/* no s-lock, no sx-lock, 2 or more x-locks.
 		First 2 x-locks are set with -X_LOCK_DECR,
 		all other recursive x-locks are set with -1 */
-		return(2 - (lock_copy + X_LOCK_DECR));
+		return ulint(2 - X_LOCK_DECR - lock_copy);
 	} else {
 		/* no s-lock, 1 or more sx-lock, 2 or more x-locks.
 		First 2 x-locks are set with -(X_LOCK_DECR + X_LOCK_HALF_DECR),
 		all other recursive x-locks are set with -1 */
-		return(2 - (lock_copy + X_LOCK_DECR + X_LOCK_HALF_DECR));
+		return ulint(2 - X_LOCK_DECR - X_LOCK_HALF_DECR - lock_copy);
 	}
 }
 
@@ -279,8 +279,7 @@ rw_lock_s_lock_func(
 	the threads which have s-locked a latch. This would use some CPU
 	time. */
 
-	ut_ad(!rw_lock_own(lock, RW_LOCK_S)); /* see NOTE above */
-	ut_ad(!rw_lock_own(lock, RW_LOCK_X));
+	ut_ad(!rw_lock_own_flagged(lock, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
 
 	if (!rw_lock_s_lock_low(lock, pass, file_name, line)) {
 

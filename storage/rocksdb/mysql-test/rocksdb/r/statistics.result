@@ -29,9 +29,9 @@ true
 set global rocksdb_force_flush_memtable_now = true;
 SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE();
 table_name	table_rows
-t1	100000
-t2	4999
-t3	4999
+t1	1000
+t2	1000
+t3	1000
 SELECT table_name, data_length>0, index_length>0 FROM information_schema.tables WHERE table_schema = DATABASE();
 table_name	data_length>0	index_length>0
 t1	1	1
@@ -39,9 +39,9 @@ t2	1	1
 t3	1	1
 SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE();
 table_name	table_rows
-t1	100000
-t2	4999
-t3	4999
+t1	1000
+t2	1000
+t3	1000
 SELECT table_name, data_length>0, index_length>0 FROM information_schema.tables WHERE table_schema = DATABASE();
 table_name	data_length>0	index_length>0
 t1	1	1
@@ -58,9 +58,9 @@ test.t5	analyze	Error	Table 'test.t5' doesn't exist
 test.t5	analyze	status	Operation failed
 SELECT table_name, table_rows FROM information_schema.tables WHERE table_schema = DATABASE();
 table_name	table_rows
-t1	100000
-t2	4999
-t3	4999
+t1	1000
+t2	1000
+t3	1000
 SELECT table_name, data_length>0, index_length>0 FROM information_schema.tables WHERE table_schema = DATABASE();
 table_name	data_length>0	index_length>0
 t1	1	1

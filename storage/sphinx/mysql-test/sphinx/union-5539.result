@@ -5,10 +5,12 @@ id	w	query
 2	1	;mode=extended2;limit=1000000;maxmatches=500
 3	1	;mode=extended2;limit=1000000;maxmatches=500
 4	1	;mode=extended2;limit=1000000;maxmatches=500
+5	1	;mode=extended2;limit=1000000;maxmatches=500
 SELECT a.* FROM (SELECT * FROM ts si WHERE si.query='@* 123nothingtofind123;mode=extended2;limit=1000000;maxmatches=500') AS a UNION SELECT b.* FROM (SELECT * FROM ts si WHERE si.query=';mode=extended2;limit=1000000;maxmatches=500') AS b;
 id	w	query
 1	1	;mode=extended2;limit=1000000;maxmatches=500
 2	1	;mode=extended2;limit=1000000;maxmatches=500
 3	1	;mode=extended2;limit=1000000;maxmatches=500
 4	1	;mode=extended2;limit=1000000;maxmatches=500
+5	1	;mode=extended2;limit=1000000;maxmatches=500
 drop table ts;

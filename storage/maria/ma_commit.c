@@ -11,10 +11,11 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "maria_def.h"
 #include "trnman.h"
+#include "ma_trnman.h"
 
 /**
    writes a COMMIT record to log and commits transaction in memory
@@ -43,9 +44,9 @@ int ma_commit(TRN *trn)
     COMMIT record) and this is not an issue as
     * transaction's updates were not made visible to other transactions
     * "commit ok" was not sent to client
-    Alternatively, Recovery might commit trn (if MY_MIN(rec_lsn) is before COMMIT
-    record), which is ok too. All in all it means that "trn committed" is not
-    100% equal to "COMMIT record written".
+    Alternatively, Recovery might commit trn (if MY_MIN(rec_lsn) is before
+    COMMIT record), which is ok too. All in all it means that "trn committed"
+    is not 100% equal to "COMMIT record written".
     - if COMMIT record is written after trnman_commit_trn():
     if crash happens between the two, trn will be rolled back which is an
     issue (transaction's updates were made visible to other transactions).
@@ -93,7 +94,12 @@ int ma_commit(TRN *trn)
 
 int maria_commit(MARIA_HA *info)
 {
-  return info->s->now_transactional ? ma_commit(info->trn) : 0;
+  TRN *trn;
+  if (!info->s->now_transactional)
+    return 0;
+  trn= info->trn;
+  _ma_reset_trn_for_table(info);
+  return ma_commit(trn);
 }
 
 
@@ -120,10 +126,7 @@ int maria_begin(MARIA_HA *info)
     TRN *trn= trnman_new_trn(0);
     if (unlikely(!trn))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-
-    DBUG_PRINT("info", ("TRN set to %p", trn));
     _ma_set_trn_for_table(info, trn);
   }
   DBUG_RETURN(0);
 }
-

@@ -222,3 +222,51 @@ insert into t1 select RAND()*10000 from t1;
 select sql_text, rows_examined from performance_schema.events_statements_history;
 drop table t1;
 
+--echo #
+--echo # MDEV-17896 Assertion `pfs->get_refcount() > 0' failed
+--echo # in release_table_share
+--echo #
+
+# There must be at least one available slot in PFS table_share_array for
+# this test to be meaningful. If there are no free slots we must
+# restart mysqld, it is the only way to reset PFS table_share_array
+let $query= SELECT COUNT(*)<@@performance_schema_max_table_instances FROM
+  performance_schema.objects_summary_global_by_type WHERE OBJECT_TYPE='TABLE';
+
+let $free_slots_available= `$query`;
+
+if (!$free_slots_available)
+{
+  source include/restart_mysqld.inc;
+}
+eval $query;
+
+CREATE TABLE t0(a INT);
+
+# TABLE_SHARE must be cached in the table definition cache.
+SELECT * FROM t0;
+
+# Dropping t0 using DROP TEMPORARY frees up a slot in table_share_array,
+# but the persistent table is not correctly dropped, i.e. TABLE_SHARE::m_psi
+# still points to that slot in table_share_array.
+DROP TEMPORARY TABLE IF EXISTS t0;
+
+# Try re-using each and every slot in PFS table_share_array. If bug is
+# there, we re-use t0 slot.
+# The newly created table that re-uses the t0 slot ends up
+# resetting the PFS_table_share refcount.
+let $i= `SELECT @@performance_schema_max_table_instances`;
+disable_query_log;
+while ($i)
+{
+  # Memory engine is here to reduce disk IO
+  eval CREATE TABLE t$i(a INT) ENGINE=MEMORY;
+  eval DROP TABLE t$i;
+  dec $i;
+}
+enable_query_log;
+
+# FLUSH TABLE crashes the server when PFS_table_share is found with
+# an unexpected refcount.
+FLUSH TABLE t0;
+DROP TABLE t0;

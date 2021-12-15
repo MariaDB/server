@@ -1,4 +1,4 @@
-DROP TABLE IF EXISTS t1;
+FLUSH TABLES;
 #
 # Bug#13737949: CRASH IN HA_PARTITION::INDEX_INIT
 # Bug#18694052: SERVER CRASH IN HA_PARTITION::INIT_RECORD_PRIORITY_QUEUE
@@ -7,10 +7,11 @@ CREATE TABLE t1 (a INT, b VARCHAR(64), KEY(b,a))
 PARTITION BY HASH (a) PARTITIONS 3;
 INSERT INTO t1 VALUES (1, "1"), (2, "2"), (3, "3"), (4, "Four"), (5, "Five"),
 (6, "Six"), (7, "Seven"), (8, "Eight"), (9, "Nine");
+SET @saved_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,ha_partition_fail_index_init";
 SELECT * FROM t1 WHERE b = "Seven";
 ERROR HY000: Table has no partition for value 0
-SET SESSION debug_dbug="-d,ha_partition_fail_index_init";
+SET SESSION debug_dbug=@saved_dbug;
 SELECT * FROM t1 WHERE b = "Seven";
 a	b
 7	Seven
@@ -20,6 +21,7 @@ DROP TABLE t1;
 # Verify ddl_log in case of crashing.
 call mtr.add_suppression("Attempting backtrace. You can use the following information to find out");
 call mtr.add_suppression('InnoDB: The log sequence numbers [0-9]+ and [0-9]+ in ibdata files do not match the log sequence number [0-9]+ in the ib_logfiles!');
+SET @save_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_abort_1";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -40,6 +42,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before crash
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -75,6 +78,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -85,6 +89,7 @@ t2.MYD
 t2.MYI
 t2.frm
 # State after crash recovery
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -131,7 +136,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_abort_1";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_abort_2";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -152,6 +157,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before crash
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -187,6 +193,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -197,6 +204,7 @@ t2.MYD
 t2.MYI
 t2.frm
 # State after crash recovery
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -243,7 +251,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_abort_2";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_abort_3";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -264,6 +272,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before crash
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -299,6 +308,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -309,6 +319,7 @@ t2.MYD
 t2.MYI
 t2.frm
 # State after crash recovery
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -355,7 +366,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_abort_3";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_abort_4";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -376,6 +387,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before crash
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -413,6 +425,7 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sqlx-nnnn_nnnn.MYD
 #sqlx-nnnn_nnnn.MYI
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -421,6 +434,7 @@ t1.frm
 t1.par
 t2.frm
 # State after crash recovery
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -467,7 +481,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_abort_4";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_abort_5";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -488,6 +502,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before crash
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -525,6 +540,7 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sqlx-nnnn_nnnn.MYD
 #sqlx-nnnn_nnnn.MYI
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -533,6 +549,7 @@ t1.frm
 t1.par
 t2.frm
 # State after crash recovery
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -579,7 +596,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_abort_5";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_abort_6";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -600,6 +617,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before crash
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -637,6 +655,7 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sqlx-nnnn_nnnn.MYD
 #sqlx-nnnn_nnnn.MYI
+db.opt
 t1#P#p1.MYD
 t1#P#p1.MYI
 t1.frm
@@ -645,6 +664,7 @@ t2.MYD
 t2.MYI
 t2.frm
 # State after crash recovery
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -691,7 +711,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_abort_6";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_abort_7";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -712,6 +732,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before crash
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -749,6 +770,7 @@ ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
 #sqlx-nnnn_nnnn.MYD
 #sqlx-nnnn_nnnn.MYI
+db.opt
 t1#P#p1.MYD
 t1#P#p1.MYI
 t1.frm
@@ -757,6 +779,7 @@ t2.MYD
 t2.MYI
 t2.frm
 # State after crash recovery
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -803,7 +826,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_abort_7";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_abort_8";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -824,6 +847,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before crash
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -859,6 +883,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -869,6 +894,7 @@ t2.MYD
 t2.MYI
 t2.frm
 # State after crash recovery
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -915,7 +941,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_abort_8";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_abort_9";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -936,6 +962,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before crash
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -971,6 +998,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Lost connection to MySQL server during query
 # State after crash (before recovery)
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -981,6 +1009,7 @@ t2.MYD
 t2.MYI
 t2.frm
 # State after crash recovery
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1027,7 +1056,8 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_abort_9";
+SET SESSION debug_dbug=@save_dbug;
+SET @save_dbug=@@debug_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_1";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -1048,6 +1078,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before failure
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1083,6 +1114,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
 # State after failure
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1129,7 +1161,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_fail_1";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_2";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -1150,6 +1182,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before failure
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1185,6 +1218,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
 # State after failure
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1231,7 +1265,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_fail_2";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_3";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -1252,6 +1286,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before failure
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1287,6 +1322,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error on rename of './test/t2' to './test/#sqlx-nnnn_nnnn' (errno: 0 "Internal error/check (Not system error)")
 # State after failure
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1333,7 +1369,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_fail_3";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_4";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -1354,6 +1390,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before failure
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1389,6 +1426,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
 # State after failure
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1435,7 +1473,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_fail_4";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_5";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -1456,6 +1494,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before failure
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1491,6 +1530,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error on rename of './test/t1#P#p0' to './test/t2' (errno: 0 "Internal error/check (Not system error)")
 # State after failure
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1537,7 +1577,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_fail_5";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_6";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -1558,6 +1598,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before failure
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1593,6 +1634,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
 # State after failure
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1639,7 +1681,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_fail_6";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_7";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -1660,6 +1702,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before failure
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1695,6 +1738,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error on rename of './test/#sqlx-nnnn_nnnn' to './test/t1#P#p0' (errno: 0 "Internal error/check (Not system error)")
 # State after failure
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1741,7 +1785,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_fail_7";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_8";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -1762,6 +1806,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before failure
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1797,6 +1842,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
 # State after failure
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1843,7 +1889,7 @@ a	b
 7	Original from table t2
 8	Original from table t2
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_fail_8";
+SET SESSION debug_dbug=@save_dbug;
 SET SESSION debug_dbug="+d,exchange_partition_fail_9";
 CREATE TABLE t2 (a INT, b VARCHAR(64));
 INSERT INTO t2 VALUES (5, "Original from table t2"), (6, "Original from table t2"), (7, "Original from table t2"), (8, "Original from table t2");
@@ -1864,6 +1910,7 @@ CREATE TABLE t1 (a INT, b VARCHAR(64)) PARTITION BY RANGE (a)
 PARTITION p1 VALUES LESS THAN MAXVALUE);
 INSERT INTO t1 VALUES (1, "Original from partition p0"), (2, "Original from partition p0"), (3, "Original from partition p0"), (4, "Original from partition p0"), (11, "Original from partition p1"), (12, "Original from partition p1"), (13, "Original from partition p1"), (14, "Original from partition p1"), (21, "Original from partition p1"), (22, "Original from partition p1"), (23, "Original from partition p1"), (24, "Original from partition p1");
 # State before failure
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1899,6 +1946,7 @@ a	b
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 ERROR HY000: Error in DDL log
 # State after failure
+db.opt
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -1945,4 +1993,4 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 DROP TABLE t2;
-SET SESSION debug_dbug="-d,exchange_partition_fail_9";
+SET SESSION debug_dbug=@save_dbug;

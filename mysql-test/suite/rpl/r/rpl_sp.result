@@ -1,7 +1,6 @@
 include/master-slave.inc
 [connection master]
 set local sql_mode='';
-set global sql_mode='';
 drop database if exists mysqltest1;
 create database mysqltest1;
 use mysqltest1;
@@ -175,16 +174,16 @@ fn1(20)
 insert into t2 values(fn1(21));
 select * from t1;
 a
-21
 20
+21
 select * from t2;
 a
 23
 connection slave;
 select * from t1;
 a
-21
 20
+21
 select * from t2;
 a
 23
@@ -243,7 +242,7 @@ return unix_timestamp();
 end	NONE
 mysqltest1	fn2	FUNCTION	fn2	SQL	NO_SQL	NO	DEFINER		int(11)	begin
 return unix_timestamp();
-end	zedjzlcsjhd@localhost	#	#			latin1	latin1_swedish_ci	latin1_swedish_ci	begin
+end	zedjzlcsjhd@localhost	#	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION		latin1	latin1_swedish_ci	latin1_swedish_ci	begin
 return unix_timestamp();
 end	NONE
 mysqltest1	fn3	FUNCTION	fn3	SQL	READS_SQL_DATA	NO	DEFINER		int(11)	begin
@@ -268,7 +267,7 @@ return unix_timestamp();
 end	NONE
 mysqltest1	fn2	FUNCTION	fn2	SQL	NO_SQL	NO	DEFINER		int(11)	begin
 return unix_timestamp();
-end	zedjzlcsjhd@localhost	#	#			latin1	latin1_swedish_ci	latin1_swedish_ci	begin
+end	zedjzlcsjhd@localhost	#	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION		latin1	latin1_swedish_ci	latin1_swedish_ci	begin
 return unix_timestamp();
 end	NONE
 mysqltest1	fn3	FUNCTION	fn3	SQL	READS_SQL_DATA	NO	DEFINER		int(11)	begin
@@ -810,7 +809,7 @@ insert into t1 values (b);
 insert into t1 values (unix_timestamp());
 end
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 insert into t1 values ( NAME_CONST('b',8))
@@ -818,7 +817,7 @@ insert into t1 values ( NAME_CONST('b',8))
 SET TIMESTAMP=t/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 insert into t1 values (unix_timestamp())
@@ -826,7 +825,7 @@ insert into t1 values (unix_timestamp())
 SET TIMESTAMP=t/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 delete from t1
@@ -865,6 +864,7 @@ SET TIMESTAMP=t/*!*/;
 grant SELECT, INSERT on mysqltest1.t2 to "zedjzlcsjhd"@127.0.0.1
 /*!*/;
 SET TIMESTAMP=t/*!*/;
+SET @@session.sql_mode=1411383296/*!*/;
 CREATE DEFINER=`zedjzlcsjhd`@`127.0.0.1` PROCEDURE `foo4`()
     DETERMINISTIC
 begin
@@ -872,7 +872,7 @@ insert into t2 values(3);
 insert into t1 values (5);
 end
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 insert into t2 values(3)
@@ -880,34 +880,38 @@ insert into t2 values(3)
 SET TIMESTAMP=t/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
+SET @@session.sql_mode=0/*!*/;
 insert into t1 values (15)
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
+SET @@session.sql_mode=1411383296/*!*/;
 insert into t2 values(3)
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 COMMIT
 /*!*/;
 SET TIMESTAMP=t/*!*/;
+SET @@session.sql_mode=0/*!*/;
 alter procedure foo4 sql security invoker
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
+SET @@session.sql_mode=1411383296/*!*/;
 insert into t2 values(3)
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 insert into t1 values (5)
@@ -915,9 +919,10 @@ insert into t1 values (5)
 SET TIMESTAMP=t/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
+SET @@session.sql_mode=0/*!*/;
 delete from t2
 /*!*/;
 SET TIMESTAMP=t/*!*/;
@@ -936,7 +941,7 @@ begin
 insert into t2 values(20),(20);
 end
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 insert into t2 values(20),(20)
@@ -964,7 +969,7 @@ insert into t1 values (x);
 return x+2;
 end
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 delete t1,t2 from t1,t2
@@ -972,7 +977,7 @@ delete t1,t2 from t1,t2
 SET TIMESTAMP=t/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 SELECT `mysqltest1`.`fn1`(20)
@@ -980,7 +985,7 @@ SELECT `mysqltest1`.`fn1`(20)
 SET TIMESTAMP=t/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 insert into t2 values(fn1(21))
@@ -998,7 +1003,7 @@ begin
 return unix_timestamp();
 end
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 delete from t1
@@ -1006,7 +1011,7 @@ delete from t1
 SET TIMESTAMP=t/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 insert into t1 values(fn1())
@@ -1015,6 +1020,7 @@ SET TIMESTAMP=t/*!*/;
 COMMIT
 /*!*/;
 SET TIMESTAMP=t/*!*/;
+SET @@session.sql_mode=1411383296/*!*/;
 CREATE DEFINER=`zedjzlcsjhd`@`127.0.0.1` FUNCTION `fn2`() RETURNS int(11)
     NO SQL
 begin
@@ -1022,13 +1028,14 @@ return unix_timestamp();
 end
 /*!*/;
 SET TIMESTAMP=t/*!*/;
+SET @@session.sql_mode=0/*!*/;
 CREATE DEFINER=`root`@`localhost` FUNCTION `fn3`() RETURNS int(11)
     READS SQL DATA
 begin
 return 0;
 end
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 delete from t2
@@ -1049,7 +1056,7 @@ insert into t2 values(x),(x);
 return 10;
 end
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 SELECT `mysqltest1`.`fn1`(100)
@@ -1057,7 +1064,7 @@ SELECT `mysqltest1`.`fn1`(100)
 SET TIMESTAMP=t/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 SELECT `mysqltest1`.`fn1`(20)
@@ -1065,7 +1072,7 @@ SELECT `mysqltest1`.`fn1`(20)
 SET TIMESTAMP=t/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 delete from t1
@@ -1076,7 +1083,7 @@ COMMIT
 SET TIMESTAMP=t/*!*/;
 CREATE DEFINER=`root`@`localhost` trigger trg before insert on t1 for each row set new.a= 10
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 insert into t1 values (1)
@@ -1084,7 +1091,7 @@ insert into t1 values (1)
 SET TIMESTAMP=t/*!*/;
 COMMIT
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 delete from t1
@@ -1095,7 +1102,7 @@ COMMIT
 SET TIMESTAMP=t/*!*/;
 drop trigger trg
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 insert into t1 values (1)
@@ -1142,7 +1149,7 @@ CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW 
 SET TIMESTAMP=t/*!*/;
 create table t1 (a int)
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 insert into t1 (a) values (f1())
@@ -1169,7 +1176,7 @@ SET TIMESTAMP=t/*!*/;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`(arg VARCHAR(10))
 INSERT INTO t1 VALUES(arg)
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 INSERT INTO t1 VALUES( NAME_CONST('arg',_latin1'test' COLLATE 'latin1_swedish_ci'))
@@ -1223,7 +1230,7 @@ SET TIMESTAMP=t/*!*/;
 CREATE DEFINER=`root`@`localhost` PROCEDURE `mysqltest`.`test`()
 begin end
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 SET TIMESTAMP=t/*!*/;
 insert into t values ( 1 )
@@ -1238,7 +1245,7 @@ insert into t values (1);
 return 0;
 end
 /*!*/;
-BEGIN
+START TRANSACTION
 /*!*/;
 use `mysqltest`/*!*/;
 SET TIMESTAMP=t/*!*/;
@@ -1384,4 +1391,3 @@ drop procedure p1;
 # End of 5.5 tests.
 connection slave;
 include/rpl_end.inc
-set global sql_mode=default;

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef _SP_PCONTEXT_H_
 #define _SP_PCONTEXT_H_
@@ -394,6 +394,9 @@ public:
   sp_pcontext *parent_context() const
   { return m_parent; }
 
+  sp_pcontext *child_context(uint i) const
+  { return i < m_children.elements() ? m_children.at(i) : NULL; }
+
   /// Calculate and return the number of handlers to pop between the given
   /// context and this one.
   ///
@@ -589,13 +592,7 @@ public:
                                      bool current_scope_only) const;
 
   sp_condition_value *
-  find_declared_or_predefined_condition(const LEX_CSTRING *name) const
-  {
-    sp_condition_value *p= find_condition(name, false);
-    if (p)
-      return p;
-    return find_predefined_condition(name);
-  }
+  find_declared_or_predefined_condition(THD *thd, const LEX_CSTRING *name) const;
 
   bool declare_condition(THD *thd, const LEX_CSTRING *name,
                                    sp_condition_value *val)

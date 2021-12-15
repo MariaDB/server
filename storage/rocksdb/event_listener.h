@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 #pragma once
 
 #include "rocksdb/listener.h"
@@ -22,7 +22,7 @@ namespace myrocks {
 class Rdb_ddl_manager;
 
 class Rdb_event_listener : public rocksdb::EventListener {
-public:
+ public:
   Rdb_event_listener(const Rdb_event_listener &) = delete;
   Rdb_event_listener &operator=(const Rdb_event_listener &) = delete;
 
@@ -37,10 +37,13 @@ public:
       rocksdb::DB *db,
       const rocksdb::ExternalFileIngestionInfo &ingestion_info) override;
 
-private:
+  void OnBackgroundError(rocksdb::BackgroundErrorReason reason,
+                         rocksdb::Status *status) override;
+
+ private:
   Rdb_ddl_manager *m_ddl_manager;
 
   void update_index_stats(const rocksdb::TableProperties &props);
 };
 
-} // namespace myrocks
+}  // namespace myrocks

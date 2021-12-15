@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /**
   @file
@@ -304,6 +304,17 @@ bool my_decimal_is_zero(const my_decimal *decimal_value)
 
 
 inline
+int my_decimal_round_if_needed(uint mask, my_decimal *dec, int scale,
+                               bool truncate)
+{
+  if (scale >= dec->frac)
+    return E_DEC_OK;
+  return check_result(mask, decimal_round(dec, dec, scale,
+					  (truncate ? TRUNCATE : HALF_UP)));
+}
+
+
+inline
 int my_decimal_round(uint mask, const my_decimal *from, int scale,
                      bool truncate, my_decimal *to)
 {
@@ -348,7 +359,7 @@ my_decimal *seconds2my_decimal(bool sign, ulonglong sec, ulong microsec,
                         (TIME)->second_part, (DECIMAL))
 
 int my_decimal2int(uint mask, const decimal_t *d, bool unsigned_flag,
-		   longlong *l);
+		   longlong *l, decimal_round_mode round_type= HALF_UP);
 
 inline
 int my_decimal2double(uint, const decimal_t *d, double *result)

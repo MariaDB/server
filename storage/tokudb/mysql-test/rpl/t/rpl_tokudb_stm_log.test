@@ -9,6 +9,6 @@
 -- source include/have_tokudb.inc
 -- source include/master-slave.inc
 let $engine_type=TokuDB;
--- source extra/rpl_tests/rpl_log.test
+-- source suite/rpl/include/rpl_log.test
 
 --source include/rpl_end.inc

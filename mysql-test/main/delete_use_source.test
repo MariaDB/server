@@ -1,0 +1,137 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
+create table t1(c1 integer not null,c2 integer not null, key (c1))
+ENGINE=InnoDB STATS_PERSISTENT=1;
+create view v1 as select * from t1 where c1 in (0,1);
+
+insert t1 select 0,seq from seq_1_to_500;
+insert t1 select 1,seq from seq_1_to_100;
+insert t1 select 2,seq from seq_1_to_50;
+insert t1 select 3,seq from seq_1_to_20;
+analyze table t1;
+
+--echo #
+--echo # Delete with limit (quick select - range acces)
+--echo #
+
+start transaction;
+--enable_info
+delete from t1 where (select count(*) from t1 b where b.c1=t1.c1) = 500 limit 1;
+delete from t1 where (select count(*) from t1 b where b.c1=t1.c1) = 500 limit 1;
+--disable_info
+select count(*) from v1 where c1=0;
+rollback;
+
+--echo #
+--echo # Delete
+--echo #
+
+start transaction;
+--enable_info ONCE
+delete from t1 where (select count(*) from t1 b where b.c1=t1.c1) = 500 ;
+rollback;
+
+--echo #
+--echo # Delete with exists
+--echo #
+
+start transaction;
+select count(*) from v1 where c1=2;
+--enable_info
+delete from t1 where c1=2 and exists(select 'x' from t1 b where b.c2<10);
+delete from t1 where c1=2 and exists(select 'x' from t1 b where b.c2<10);
+--disable_info
+select count(*) from v1 where c1=2;
+rollback;
+
+--echo #
+--echo # Delete through a view with limit (range access)
+--echo #
+
+start transaction;
+explain delete from v1 where (select count(*) from t1 b where b.c1=v1.c1) = 500 limit 1;
+--enable_info
+delete from v1 where (select count(*) from t1 b where b.c1=v1.c1) = 500 limit 1;
+delete from v1 where (select count(*) from t1 b where b.c1=v1.c1) = 500 limit 1;
+--disable_info
+select count(*) from v1 where c1=0;
+rollback;
+
+--echo #
+--echo # Delete through a view (ALL access)
+--echo #
+
+start transaction;
+--replace_column 9 #
+explain delete from v1 where (select count(*) from t1 b where b.c1=v1.c1) = 500;
+--enable_info ONCE
+delete from v1 where (select count(*) from t1 b where b.c1=v1.c1) = 500 ;
+select count(*) from v1 where c1=0;
+rollback;
+
+--echo #
+--echo # Delete failed due to trigger
+--echo #
+
+delimiter /;
+create trigger trg after delete on t1 for each row
+begin
+  declare c int;
+  begin
+  if old.c1 = 1 then
+    select count(*) into c from t1 where c1!=old.c1;
+    SIGNAL SQLSTATE '45000' set table_name=c;
+  end if;
+  end;
+end;
+/
+delimiter ;/
+
+start transaction;
+--error ER_SIGNAL_EXCEPTION
+delete from t1 where c1=1 and (select count(*) from t1 b where b.c1=t1.c1) > 0 order by c2 asc limit 10;
+rollback;
+start transaction;
+--error ER_SIGNAL_EXCEPTION
+delete from t1 where (select count(*) from t1 b where b.c1=t1.c1) > 0 order by c1 desc limit 100;
+select c1,count(*) from t1 group by c1;
+rollback;
+
+drop trigger trg;
+
+--echo #
+--echo # Delete through a view with returning
+--echo #
+
+start transaction;
+delete from t1 where (select count(*) from t1 b where b.c1=t1.c1) = 500 order by c2 asc limit 10 returning c1,c2;
+rollback;
+start transaction;
+delete from t1 where (select count(*) from t1 b where b.c1=t1.c1) = 500 order by c2 desc limit 10 returning c1,c2;
+rollback;
+
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # Delete from table with more than 150000 rows
+--echo #
+create table t1(c1 integer not null,c2 integer not null, key (c1));
+insert t1 select 0,seq from seq_1_to_128000;
+insert t1 select 1,seq from seq_1_to_25600;
+select count(*) from t1;
+
+--echo # with a lot of memory for sort_buffer_size
+set session sort_buffer_size = 1024000;
+--enable_info ONCE
+delete from t1 where c1=0 and exists(select 'x' from t1 b where b.c1<10);
+
+--echo # with little memory for sort_buffer_size
+insert t1 select 0,seq from seq_1_to_128000;
+set session sort_buffer_size = 1024;
+--enable_info ONCE
+delete from t1 where c1=0 and exists(select 'x' from t1 b where b.c1<10);
+
+drop table t1;

@@ -1,11 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_binlog_format_statement.inc
 --source include/master-slave.inc
-
-if (`select plugin_auth_version <= "5.6.10" from information_schema.plugins where plugin_name='innodb'`)
-{
-  --skip Not fixed in InnoDB 5.6.10 or earlier
-}
+--source include/not_windows.inc #unix shell escaping used for mysqlbinlog
 
 # MDEV-382: multiple SQL injections in replication code.
 
@@ -212,7 +208,7 @@ SELECT * FROM `db1``; select 'oops!'`.`t``1` ORDER BY 1;
 wait-rpl_mdev382.test
 EOF
 
---shutdown_server 30
+--shutdown_server
 
 --append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 restart-rpl_mdev382.test

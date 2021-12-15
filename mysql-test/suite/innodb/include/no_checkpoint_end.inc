@@ -1,7 +1,9 @@
 # Check that the latest checkpoint in the redo log files
 # is not newer than the checkpoint sampled by no_checkpoint_start.inc
 
+if (!$no_checkpoint_kill) {
 --source include/kill_mysqld.inc
+}
 
 perl;
 my $cp = $ENV{CHECKPOINT_LSN};
@@ -22,7 +24,8 @@ my $cp2 = $cp2hi << 32 | $cp2lo;
 open(OUT, ">$ENV{MYSQLTEST_VARDIR}/log/check.txt") || die;
 
 if ($cp1 > $cp || $cp2 > $cp) {
-   print OUT "--source include/start_mysqld.inc\n";
+   print OUT "--source include/start_mysqld.inc\n"
+   unless $ENV{no_checkpoint_kill};
    print OUT "$ENV{CLEANUP_IF_CHECKPOINT}\n";
    print OUT "--skip Extra checkpoint 1 after $cp";
    print OUT " ($no1hi:$no1lo=$cp1,$no2hi:$no2lo=$cp2)\n";

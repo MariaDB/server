@@ -1,0 +1,13 @@
+#
+# MDEV-14996
+#  Assertion `!thd->get_stmt_da()->is_sent() ||
+# thd->killed == KILL_CONNECTION' failed in ha_maria::external_lock
+#
+CREATE TABLE t1 (a INT) ENGINE=Aria;
+connect  con1,localhost,root,,;
+FLUSH TABLE t1 FOR EXPORT;
+KILL CONNECTION_ID();
+ERROR 70100: Connection was killed
+disconnect con1;
+connection default;
+DROP TABLE t1;

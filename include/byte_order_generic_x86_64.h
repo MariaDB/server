@@ -1,4 +1,5 @@
 /* Copyright (c) 2001, 2012, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   Optimized function-like macros for the x86 architecture (_WIN32 included).
@@ -28,8 +29,8 @@
 				  ((uint32) (uchar) (A)[0])))
 #define sint4korr(A)	(int32)  (*((int32 *) (A)))
 #define uint2korr(A)	(uint16) (*((uint16 *) (A)))
-#define uint3korr(A)	(uint32) (((uint32) ((uchar) (A)[0])) +\
-				  (((uint32) ((uchar) (A)[1])) << 8) +\
+#define uint3korr(A)	(uint32) (((uint32) ((uchar) (A)[0])) |\
+				  (((uint32) ((uchar) (A)[1])) << 8) |\
 				  (((uint32) ((uchar) (A)[2])) << 16))
 #define uint4korr(A)	(uint32) (*((uint32 *) (A)))
 
@@ -53,7 +54,7 @@ static inline ulonglong uint6korr(const void *p)
 #define int2store(T,A)	do { uchar *pT= (uchar*)(T);\
                              *((uint16*)(pT))= (uint16) (A);\
                         } while (0)
-  
+
 #define int3store(T,A)  do { *(T)=  (uchar) ((A));\
                             *(T+1)=(uchar) (((uint) (A) >> 8));\
                             *(T+2)=(uchar) (((A) >> 16));\

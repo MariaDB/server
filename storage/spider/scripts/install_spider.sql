@@ -1,4 +1,4 @@
-# Copyright (C) 2010-2016 Kentoku Shiba
+# Copyright (C) 2010-2018 Kentoku Shiba
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 # This SQL script creates system tables for SPIDER
 #   or fixes incompatibilities if ones already exist.
@@ -166,7 +166,9 @@ drop procedure if exists mysql.spider_fix_one_table;
 drop procedure if exists mysql.spider_fix_system_tables;
 delimiter //
 create procedure mysql.spider_fix_one_table
-  (tab_name char(255), test_col_name char(255), _sql text)
+  (tab_name char(255) charset utf8 collate utf8_bin,
+    test_col_name char(255) charset utf8 collate utf8_bin,
+    _sql text charset utf8 collate utf8_bin)
 begin
   set @col_exists := 0;
   select 1 into @col_exists from INFORMATION_SCHEMA.COLUMNS
@@ -182,6 +184,13 @@ end;//
 
 create procedure mysql.spider_fix_system_tables()
 begin
+  select substring_index(substring_index(version(), '-', 2), '-', -1)
+    into @server_name;
+  select substring_index(version(), '.', 1)
+    into @server_major_version;
+  select substring_index(substring_index(version(), '.', 2), '.', -1)
+    into @server_minor_version;
+
   -- Fix for 0.5
   call mysql.spider_fix_one_table('spider_tables', 'server',
    'alter table mysql.spider_tables
@@ -398,6 +407,81 @@ begin
     alter table mysql.spider_table_crd
     modify table_name char(199) not null default '';
   end if;
+
+  -- Fix for MariaDB 10.4: Crash-Safe system tables
+  if @server_name = 'MariaDB' and
+    (
+      @server_major_version > 10 or
+      (
+        @server_major_version = 10 and
+        @server_minor_version >= 4
+      )
+    )
+  then
+    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES
+      where TABLE_SCHEMA = 'mysql'
+        AND TABLE_NAME = 'spider_link_failed_log';
+    if @engine_name != 'Aria' then
+      alter table mysql.spider_link_failed_log
+        engine=Aria transactional=1;
+    end if;
+    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES
+      where TABLE_SCHEMA = 'mysql'
+        AND TABLE_NAME = 'spider_link_mon_servers';
+    if @engine_name != 'Aria' then
+      alter table mysql.spider_link_mon_servers
+        engine=Aria transactional=1;
+    end if;
+    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES
+      where TABLE_SCHEMA = 'mysql'
+        AND TABLE_NAME = 'spider_table_crd';
+    if @engine_name != 'Aria' then
+      alter table mysql.spider_table_crd
+        engine=Aria transactional=1;
+    end if;
+    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES
+      where TABLE_SCHEMA = 'mysql'
+        AND TABLE_NAME = 'spider_table_position_for_recovery';
+    if @engine_name != 'Aria' then
+      alter table mysql.spider_table_position_for_recovery
+        engine=Aria transactional=1;
+    end if;
+    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES
+      where TABLE_SCHEMA = 'mysql'
+        AND TABLE_NAME = 'spider_table_sts';
+    if @engine_name != 'Aria' then
+      alter table mysql.spider_table_sts
+        engine=Aria transactional=1;
+    end if;
+    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES
+      where TABLE_SCHEMA = 'mysql'
+        AND TABLE_NAME = 'spider_tables';
+    if @engine_name != 'Aria' then
+      alter table mysql.spider_tables
+        engine=Aria transactional=1;
+    end if;
+    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES
+      where TABLE_SCHEMA = 'mysql'
+        AND TABLE_NAME = 'spider_xa';
+    if @engine_name != 'Aria' then
+      alter table mysql.spider_xa
+        engine=Aria transactional=1;
+    end if;
+    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES
+      where TABLE_SCHEMA = 'mysql'
+        AND TABLE_NAME = 'spider_xa_failed_log';
+    if @engine_name != 'Aria' then
+      alter table mysql.spider_xa_failed_log
+        engine=Aria transactional=1;
+    end if;
+    select ENGINE INTO @engine_name from INFORMATION_SCHEMA.TABLES
+      where TABLE_SCHEMA = 'mysql'
+        AND TABLE_NAME = 'spider_xa_member';
+    if @engine_name != 'Aria' then
+      alter table mysql.spider_xa_member
+        engine=Aria transactional=1;
+    end if;
+  end if;
 end;//
 delimiter ;
 call mysql.spider_fix_system_tables;
@@ -410,9 +494,18 @@ delimiter //
 create procedure mysql.spider_plugin_installer()
 begin
   set @win_plugin := IF(@@version_compile_os like 'Win%', 1, 0);
+  set @have_spider_i_s_plugin := 0;
+  select @have_spider_i_s_plugin := 1 from INFORMATION_SCHEMA.plugins where PLUGIN_NAME = 'SPIDER';
   set @have_spider_plugin := 0;
-  select @have_spider_plugin := 1 from INFORMATION_SCHEMA.plugins where PLUGIN_NAME = 'SPIDER';
-  if @have_spider_plugin = 0 then 
+  select @have_spider_plugin := 1 from mysql.plugin where name = 'spider';
+  if @have_spider_i_s_plugin = 0 then
+    if @have_spider_plugin = 1 then
+      -- spider plugin is present in mysql.plugin but not in
+      -- information_schema.plugins.  Remove spider plugin entry
+      -- in mysql.plugin first.
+      delete from mysql.plugin where name = 'spider';
+    end if;
+    -- Install spider plugin
     if @win_plugin = 0 then 
       install plugin spider soname 'ha_spider.so';
     else
@@ -421,7 +514,16 @@ begin
   end if;
   set @have_spider_i_s_alloc_mem_plugin := 0;
   select @have_spider_i_s_alloc_mem_plugin := 1 from INFORMATION_SCHEMA.plugins where PLUGIN_NAME = 'SPIDER_ALLOC_MEM';
-  if @have_spider_i_s_alloc_mem_plugin = 0 then 
+  set @have_spider_alloc_mem_plugin := 0;
+  select @have_spider_alloc_mem_plugin := 1 from mysql.plugin where name = 'spider_alloc_mem';
+  if @have_spider_i_s_alloc_mem_plugin = 0 then
+    if @have_spider_alloc_mem_plugin = 1 then
+      -- spider_alloc_mem plugin is present in mysql.plugin but not in
+      -- information_schema.plugins.  Remove spider_alloc_mem plugin entry
+      -- in mysql.plugin first.
+      delete from mysql.plugin where name = 'spider_alloc_mem';
+    end if;
+    -- Install spider_alloc_mem plugin
     if @win_plugin = 0 then 
       install plugin spider_alloc_mem soname 'ha_spider.so';
     else

@@ -1,0 +1,20 @@
+CREATE DATABASE test1;
+CREATE PROCEDURE test1.sp3() BEGIN END;
+SHOW PROCEDURE STATUS;
+Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
+mtr	add_suppression	PROCEDURE	root@localhost	#	#	DEFINER		utf8	utf8_general_ci	latin1_swedish_ci
+mtr	check_testcase	PROCEDURE	root@localhost	#	#	DEFINER		utf8	utf8_general_ci	latin1_swedish_ci
+mtr	check_warnings	PROCEDURE	root@localhost	#	#	DEFINER		utf8	utf8_general_ci	latin1_swedish_ci
+mysql	AddGeometryColumn	PROCEDURE	root@localhost	#	#	INVOKER		latin1	latin1_swedish_ci	latin1_swedish_ci
+mysql	DropGeometryColumn	PROCEDURE	root@localhost	#	#	INVOKER		latin1	latin1_swedish_ci	latin1_swedish_ci
+test	sp2	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+test1	sp1	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+test1	sp3	PROCEDURE	root@localhost	#	#	DEFINER		latin1	latin1_swedish_ci	latin1_swedish_ci
+DROP PROCEDURE sp2;
+DROP DATABASE test1;
+select count(*) from mysql.event;
+count(*)
+416
+flush tables;
+show events;
+truncate table mysql.event;

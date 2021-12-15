@@ -13,11 +13,11 @@
 /************************************************************************/
 #include "my_global.h"
 #include <mysql.h>
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #include "osutil.h"
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 #include "global.h"
 #include "plgdbsem.h"
@@ -168,10 +168,9 @@ const char *PLGtoMYSQLtype(int type, bool dbf, char v)
     case TYPE_BIGINT:   return "BIGINT";
     case TYPE_TINY:     return "TINYINT";
     case TYPE_DECIM:    return "DECIMAL";
-    default:            return "CHAR(0)";
+    default:            return (v) ? "VARCHAR" : "CHAR";
     } // endswitch mytype
 
-  return "CHAR(0)";
   } // end of PLGtoMYSQLtype
 
 /************************************************************************/

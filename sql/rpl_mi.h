@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef RPL_MI_H
 #define RPL_MI_H
@@ -77,6 +77,11 @@ public:
     XID_EVENT.
   */
   void reset_filter();
+
+  /*
+    Clear do_ids and ignore_ids to disable domain id filtering
+  */
+  void clear_ids();
 
   /*
     Update the do/ignore domain id filter lists.
@@ -326,6 +331,16 @@ class Master_info : public Slave_reporting_capability
   bool in_flush_all_relay_logs;
   uint users;                                   /* Active user for object */
   uint killed;
+
+
+  /* No of DDL event group */
+  volatile uint64 total_ddl_groups;
+
+  /* No of non-transactional event group*/
+  volatile uint64 total_non_trans_groups;
+
+  /* No of transactional event group*/
+  volatile uint64 total_trans_groups;
 
   /* domain-id based filter */
   Domain_id_filter domain_id_filter;

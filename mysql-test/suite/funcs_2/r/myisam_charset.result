@@ -1,3 +1,4 @@
+set @save_character_set_database= @@character_set_database;
 DROP TABLE IF EXISTS test.t1;
 SET NAMES armscii8;
 CREATE TABLE test.t1 (a VARCHAR(3) CHARACTER SET armscii8 COLLATE armscii8_bin) ENGINE=MyISAM CHARACTER SET armscii8 COLLATE armscii8_bin;
@@ -119154,5 +119155,4 @@ DFBD	1
 DFBE	1
 DFBF	1
 DROP TABLE IF EXISTS test.t1;
-DROP database test;
-CREATE database test;
+# Cleanup

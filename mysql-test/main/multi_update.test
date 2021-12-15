@@ -1,0 +1,1100 @@
+#
+# Test of update statement that uses many tables.
+#
+
+create table t1(id1 int not null auto_increment primary key, t char(12));
+create table t2(id2 int not null, t char(12));
+create table t3(id3 int not null, t char(12), index(id3));
+--disable_query_log
+begin;
+let $1 = 100;
+while ($1)
+ {
+  let $2 = 5;
+  eval insert into t1(t) values ('$1');
+  while ($2)
+   {
+     eval insert into t2(id2,t) values ($1,'$2');
+     let $3 = 10;
+     while ($3)
+     {
+       eval insert into t3(id3,t) values ($1,'$2');
+       dec $3;
+     }
+     dec $2;
+   }
+  dec $1;
+ }
+commit;
+--enable_query_log
+
+select count(*) from t1 where id1 > 95;
+select count(*) from t2 where id2 > 95;
+select count(*) from t3 where id3 > 95;
+
+update t1,t2,t3 set t1.t="aaa", t2.t="bbb", t3.t="cc" where  t1.id1 = t2.id2 and t2.id2 = t3.id3  and t1.id1 > 90;
+select count(*) from t1 where t = "aaa";
+select count(*) from t1 where id1 > 90;
+select count(*) from t2 where t = "bbb";
+select count(*) from t2 where id2 > 90;
+select count(*) from t3 where t = "cc";
+select count(*) from t3 where id3 > 90;
+delete t1.*, t2.*, t3.*  from t1,t2,t3 where t1.id1 = t2.id2 and t2.id2 = t3.id3  and t1.id1 > 95;
+
+check table t1, t2, t3;
+
+select count(*) from t1 where id1 > 95;
+select count(*) from t2 where id2 > 95;
+select count(*) from t3 where id3 > 95;
+
+delete t1, t2, t3  from t1,t2,t3 where t1.id1 = t2.id2 and t2.id2 = t3.id3  and t1.id1 > 5;
+select count(*) from t1 where id1 > 5;
+select count(*) from t2 where id2 > 5;
+select count(*) from t3 where id3 > 5;
+
+delete from t1, t2, t3  using t1,t2,t3 where t1.id1 = t2.id2 and t2.id2 = t3.id3  and t1.id1 > 0;
+
+# These queries will force a scan of the table
+select count(*) from t1 where id1;
+select count(*) from t2 where id2;
+select count(*) from t3 where id3;
+drop table t1,t2,t3;
+
+create table t1(id1 int not null  primary key, t varchar(100)) pack_keys = 1;
+create table t2(id2 int not null, t varchar(100), index(id2)) pack_keys = 1;
+--disable_query_log
+begin;
+let $1 = 1000;
+while ($1)
+ {
+  let $2 = 5;
+  eval insert into t1 values ($1,'aaaaaaaaaaaaaaaaaaaa');
+  while ($2)
+   {
+     eval insert into t2(id2,t) values ($1,'bbbbbbbbbbbbbbbbb');
+     dec $2;
+   }
+  dec $1;
+ }
+commit;
+--enable_query_log
+delete t1  from t1,t2 where t1.id1 = t2.id2 and t1.id1 > 500;
+drop table t1,t2;
+
+CREATE TABLE t1 (
+  id int(11) NOT NULL default '0',
+  name varchar(10) default NULL,
+  PRIMARY KEY  (id)
+) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'aaa'),(2,'aaa'),(3,'aaa');
+CREATE TABLE t2 (
+  id int(11) NOT NULL default '0',
+  name varchar(10) default NULL,
+  PRIMARY KEY  (id)
+) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (2,'bbb'),(3,'bbb'),(4,'bbb');
+CREATE TABLE t3 (
+  id int(11) NOT NULL default '0',
+  mydate datetime default NULL,
+  PRIMARY KEY  (id)
+) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (1,'2002-02-04 00:00:00'),(3,'2002-05-12 00:00:00'),(5,'2002-05-12 00:00:00'),(6,'2002-06-22
+00:00:00'),(7,'2002-07-22 00:00:00');
+delete t1,t2,t3 from t1,t2,t3 where to_days(now())-to_days(t3.mydate)>=30 and t3.id=t1.id and t3.id=t2.id;
+select * from t3;
+DROP TABLE t1,t2,t3;
+
+CREATE TABLE IF NOT EXISTS `t1` (
+  `id` int(11) NOT NULL auto_increment,
+  `tst` text,
+  `tst1` text,
+  PRIMARY KEY  (`id`)
+) ENGINE=MyISAM;
+
+CREATE TABLE IF NOT EXISTS `t2` (
+  `ID` int(11) NOT NULL auto_increment,
+  `ParId` int(11) default NULL,
+  `tst` text,
+  `tst1` text,
+  PRIMARY KEY  (`ID`),
+  KEY `IX_ParId_t2` (`ParId`),
+  FOREIGN KEY (`ParId`) REFERENCES `t1` (`id`)
+) ENGINE=MyISAM;
+
+INSERT INTO t1(tst,tst1) VALUES("MySQL","MySQL AB"), ("MSSQL","Microsoft"), ("ORACLE","ORACLE");
+
+INSERT INTO t2(ParId) VALUES(1), (2), (3);
+
+select * from t2;
+
+--disable_warnings ONCE
+UPDATE t2, t1 SET t2.tst = t1.tst, t2.tst1 = t1.tst1 WHERE t2.ParId = t1.Id;
+
+select * from t2;
+drop table t1, t2 ;
+
+create table t1 (n numeric(10));
+create table t2 (n numeric(10));
+insert into t2 values (1),(2),(4),(8),(16),(32);
+select * from t2 left outer join t1  using (n);
+delete  t1,t2 from t2 left outer join t1  using (n);
+select * from t2 left outer join t1  using (n);
+drop table t1,t2 ;
+
+#
+# Test with locking
+#
+
+create table t1 (n int(10) not null primary key, d int(10));
+create table t2 (n int(10) not null primary key, d int(10));
+insert into t1 values(1,1);
+insert into t2 values(1,10),(2,20);
+LOCK TABLES t1 write, t2 read;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+DELETE t1.*, t2.* FROM t1,t2 where t1.n=t2.n;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+UPDATE t1,t2 SET t1.d=t2.d,t2.d=30 WHERE t1.n=t2.n;
+UPDATE t1,t2 SET t1.d=t2.d WHERE t1.n=t2.n;
+unlock tables;
+LOCK TABLES t1 write, t2 write;
+UPDATE t1,t2 SET t1.d=t2.d WHERE t1.n=t2.n;
+select * from t1;
+DELETE t1.*, t2.* FROM t1,t2 where t1.n=t2.n;
+select * from t1;
+select * from t2;
+unlock tables;
+drop table t1,t2;
+
+#
+# Test safe updates and timestamps
+#
+set sql_safe_updates=1;
+create table t1 (n int(10), d int(10));
+create table t2 (n int(10), d int(10));
+insert into t1 values(1,1);
+insert into t2 values(1,10),(2,20);
+--error ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
+UPDATE t1,t2 SET t1.d=t2.d WHERE t1.n=t2.n;
+set sql_safe_updates=0;
+drop table t1,t2;
+set timestamp=1038401397;
+create table t1 (n int(10) not null primary key, d int(10), t timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
+create table t2 (n int(10) not null primary key, d int(10), t timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP);
+insert into t1 values(1,1,NULL);
+insert into t2 values(1,10,NULL),(2,20,NULL);
+set timestamp=1038000000;
+UPDATE t1,t2 SET t1.d=t2.d WHERE t1.n=t2.n;
+select n,d,unix_timestamp(t) from t1;
+select n,d,unix_timestamp(t) from t2;
+--error ER_PARSE_ERROR
+UPDATE t1,t2 SET 1=2 WHERE t1.n=t2.n;
+drop table t1,t2;
+set timestamp=0;
+set sql_safe_updates=0;
+create table t1 (n int(10) not null primary key, d int(10));
+create table t2 (n int(10) not null primary key, d int(10));
+insert into t1 values(1,1), (3,3);
+insert into t2 values(1,10),(2,20);
+UPDATE t2 left outer join t1 on t1.n=t2.n  SET t1.d=t2.d;
+select * from t1;
+select * from t2;
+drop table t1,t2;
+create table t1 (n int(10), d int(10));
+create table t2 (n int(10), d int(10));
+insert into t1 values(1,1),(1,2);
+insert into t2 values(1,10),(2,20);
+UPDATE t1,t2 SET t1.d=t2.d,t2.d=30 WHERE t1.n=t2.n;
+select * from t1;
+select * from t2;
+drop table t1,t2;
+create table t1 (n int(10), d int(10));
+create table t2 (n int(10), d int(10));
+insert into t1 values(1,1),(3,2);
+insert into t2 values(1,10),(1,20);
+UPDATE t1,t2 SET t1.d=t2.d,t2.d=30 WHERE t1.n=t2.n;
+select * from t1;
+select * from t2;
+UPDATE t1 a ,t2 b SET a.d=b.d,b.d=30 WHERE a.n=b.n;
+select * from t1;
+select * from t2;
+DELETE a, b  FROM t1 a,t2 b where a.n=b.n;
+select * from t1;
+select * from t2;
+drop table t1,t2;
+
+CREATE TABLE t1 ( broj int(4) unsigned NOT NULL default '0',  naziv char(25) NOT NULL default 'NEPOZNAT',  PRIMARY KEY  (broj)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'jedan'),(2,'dva'),(3,'tri'),(4,'xxxxxxxxxx'),(5,'a'),(10,''),(11,''),(12,''),(13,'');
+CREATE TABLE t2 ( broj int(4) unsigned NOT NULL default '0',  naziv char(25) NOT NULL default 'NEPOZNAT',  PRIMARY KEY  (broj)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1,'jedan'),(2,'dva'),(3,'tri'),(4,'xxxxxxxxxx'),(5,'a');
+CREATE TABLE t3 ( broj int(4) unsigned NOT NULL default '0',  naziv char(25) NOT NULL default 'NEPOZNAT',  PRIMARY KEY  (broj)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (1,'jedan'),(2,'dva');
+update t1,t2 set t1.naziv="aaaa" where t1.broj=t2.broj;
+update t1,t2,t3 set t1.naziv="bbbb", t2.naziv="aaaa" where t1.broj=t2.broj and t2.broj=t3.broj;
+drop table t1,t2,t3;
+
+#
+# Test multi update with different join methods
+#
+
+CREATE TABLE t1 (a int not null primary key, b int not null, key (b));
+CREATE TABLE t2 (a int not null primary key, b int not null, key (b));
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+INSERT INTO t2 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+
+# Full join, without key
+update t1,t2 set t1.a=t1.a+100;
+select * from t1;
+
+# unique key
+update t1,t2 set t1.a=t1.a+100 where t1.a=101;
+select * from t1;
+
+# ref key
+update t1,t2 set t1.b=t1.b+10 where t1.b=2;
+select * from t1;
+
+# Range key (in t1)
+update t1,t2 set t1.b=t1.b+2,t2.b=t1.b+10 where t1.b between 3 and 5 and t2.a=t1.a-100;
+select * from t1;
+select * from t2;
+
+# test for non-updating table which is also used in sub-select
+
+update t1,t2 set t1.b=t2.b, t1.a=t2.a where t1.a=t2.a and not exists (select * from t2 where t2.a > 10);
+
+drop table t1,t2;
+CREATE TABLE t3 (  KEY1 varchar(50) NOT NULL default '',  PARAM_CORR_DISTANCE_RUSH double default NULL,  PARAM_CORR_DISTANCE_GEM double default NULL,  PARAM_AVG_TARE double default NULL,  PARAM_AVG_NB_DAYS double default NULL,  PARAM_DEFAULT_PROP_GEM_SRVC varchar(50) default NULL,  PARAM_DEFAULT_PROP_GEM_NO_ETIK varchar(50) default NULL,  PARAM_SCENARIO_COSTS varchar(50) default NULL,  PARAM_DEFAULT_WAGON_COST double default NULL,  tmp int(11) default NULL,  PRIMARY KEY  (KEY1)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES ('A',1,1,22,3.2,'R','R','BASE2',0.24,NULL);
+create table t1 (A varchar(1));
+insert into t1 values  ("A") ,("B"),("C"),("D");
+create table t2(Z varchar(15));
+insert into t2(Z)  select concat(a.a,b.a,c.a,d.a) from t1 as a, t1 as b, t1 as c, t1 as d;
+update t2,t3 set Z =param_scenario_costs;
+drop table t1,t2,t3;
+create table t1 (a int, b int);
+create table t2 (a int, b int);
+insert into t1 values (1,1),(2,1),(3,1);
+insert into t2 values (1,1), (3,1);
+update t1 left join t2  on t1.a=t2.a set t1.b=2, t2.b=2 where t1.b=1 and t2.b=1 or t2.a is NULL;
+select t1.a, t1.b,t2.a, t2.b from t1 left join t2  on t1.a=t2.a where t1.b=1 and t2.b=1 or t2.a is NULL;
+drop table t1,t2;
+
+#
+# Test reuse of same table
+#
+
+create table t1 (a int not null auto_increment primary key, b int not null);
+insert into t1 (b) values (1),(2),(3),(4);
+--disable_warnings ONCE
+update t1, t1 as t2 set t1.b=t2.b+1 where t1.a=t2.a;
+select * from t1;
+drop table t1;
+
+# Test multi-update and multi-delete with impossible where
+
+create table t1(id1 smallint(5), field char(5));
+create table t2(id2 smallint(5), field char(5));
+
+insert into t1 values (1, 'a'), (2, 'aa');
+insert into t2 values (1, 'b'), (2, 'bb');
+
+select * from t1;
+select * from t2;
+
+update t2 inner join t1 on t1.id1=t2.id2
+  set t2.field=t1.field
+  where 0=1;
+update t2, t1 set t2.field=t1.field
+  where t1.id1=t2.id2 and 0=1;
+
+delete t1, t2 from t2 inner join t1 on t1.id1=t2.id2
+  where 0=1;
+delete t1, t2 from t2,t1
+  where t1.id1=t2.id2 and 0=1;
+
+drop table t1,t2;
+
+#
+# Test alias (this is not correct in 4.0)
+#
+
+CREATE TABLE t1 ( a int );
+CREATE TABLE t2 ( a int );
+DELETE t1 FROM t1, t2 AS t3;
+DELETE t4 FROM t1, t1 AS t4;
+DELETE t3 FROM t1 AS t3, t1 AS t4;
+--error ER_UNKNOWN_TABLE
+DELETE t1 FROM t1 AS t3, t2 AS t4;
+INSERT INTO t1 values (1),(2);
+INSERT INTO t2 values (1),(2);
+DELETE t1 FROM t1 AS t2, t2 AS t1 where t1.a=t2.a and t1.a=1;
+SELECT * from t1;
+SELECT * from t2;
+DELETE t2 FROM t1 AS t2, t2 AS t1 where t1.a=t2.a and t1.a=2;
+SELECT * from t1;
+SELECT * from t2;
+DROP TABLE t1,t2;
+
+#
+# Test update with const tables
+#
+create table `t1` (`p_id` int(10) unsigned NOT NULL auto_increment, `p_code` varchar(20) NOT NULL default '', `p_active` tinyint(1) unsigned NOT NULL default '1', PRIMARY KEY (`p_id`) );
+create table `t2` (`c2_id` int(10) unsigned NULL auto_increment, `c2_p_id` int(10) unsigned NOT NULL default '0', `c2_note` text NOT NULL, `c2_active` tinyint(1) unsigned NOT NULL default '1', PRIMARY KEY (`c2_id`), KEY `c2_p_id` (`c2_p_id`) );
+insert into t1 values (0,'A01-Comp',1);
+insert into t1 values (0,'B01-Comp',1);
+insert into t2 values (0,1,'A Note',1);
+--disable_warnings ONCE
+update t1 left join t2 on p_id = c2_p_id set c2_note = 'asdf-1' where p_id = 2;
+select * from t1;
+select * from t2;
+drop table t1, t2;
+
+#
+# privilege check for multiupdate with other tables
+#
+
+connect (root,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
+create database mysqltest;
+create table mysqltest.t1 (a int, b int, primary key (a));
+create table mysqltest.t2 (a int, b int, primary key (a));
+create table mysqltest.t3 (a int, b int, primary key (a));
+create user mysqltest_1@localhost;
+grant select on mysqltest.* to mysqltest_1@localhost;
+grant update on mysqltest.t1 to mysqltest_1@localhost;
+connect (user1,localhost,mysqltest_1,,mysqltest,$MASTER_MYPORT,$MASTER_MYSOCK);
+update t1, t2 set t1.b=1 where t1.a=t2.a;
+update t1, t2 set t1.b=(select t3.b from t3 where t1.a=t3.a) where t1.a=t2.a;
+connection root;
+revoke all privileges on mysqltest.t1 from mysqltest_1@localhost;
+revoke all privileges on mysqltest.* from mysqltest_1@localhost;
+delete from mysql.user where user=_binary'mysqltest_1';
+flush privileges;
+drop database mysqltest;
+connection default;
+disconnect user1;
+disconnect root;
+
+#
+# multi delete wrong table check
+#
+create table t1 (a int, primary key (a));
+create table t2 (a int, primary key (a));
+create table t3 (a int, primary key (a));
+-- error ER_UNKNOWN_TABLE
+delete t1,t3 from t1,t2 where t1.a=t2.a and t2.a=(select t3.a from t3 where t1.a=t3.a);
+drop table t1, t2, t3;
+
+#
+# multi* unique updating table check
+#
+create table t1 (col1 int);
+create table t2 (col1 int);
+update t1,t2 set t1.col1 = (select max(col1) from t1) where t1.col1 = t2.col1;
+-- error ER_UPDATE_TABLE_USED
+delete t1 from t1,t2 where t1.col1 < (select max(col1) from t1) and t1.col1 = t2.col1;
+drop table t1,t2;
+
+#
+# Bug#19225 unchecked error leads to server crash
+#
+create table t1(a int);
+create table t2(a int);
+--error ER_UPDATE_TABLE_USED
+delete from t1,t2 using t1,t2 where t1.a=(select a from t1);
+drop table t1, t2;
+# End of 4.1 tests
+
+#
+# Test alter table and a concurrent multi update
+# (Before we have introduced data-lock-aware metadata locks
+#  this test case forced update to reopen tables).
+#
+
+create table t1 (a int, b int);
+insert into t1 values (1, 2), (2, 3), (3, 4);
+create table t2 (a int);
+insert into t2 values (10), (20), (30);
+create view v1 as select a as b, a/10 as a from t2;
+
+connect (locker,localhost,root,,test);
+lock table t1 write;
+
+connect (changer,localhost,root,,test);
+send alter table t1 add column c int default 100 after a;
+
+connect (updater,localhost,root,,test);
+# Wait till "alter table t1 ..." of session changer is in work.
+# = There is one session waiting.
+let $wait_condition= select count(*)= 1 from information_schema.processlist
+                     where state= 'Waiting for table metadata lock';
+--source include/wait_condition.inc
+send update t1, v1 set t1.b=t1.a+t1.b+v1.b where t1.a=v1.a;
+
+connection locker;
+# Wait till
+# - "alter table t1 ..." of session changer and
+# - "update t1, v1 ..." of session updater
+# are in work.
+# = There are two session waiting.
+let $wait_condition= select count(*)= 2 from information_schema.processlist
+                     where state= 'Waiting for table metadata lock';
+--source include/wait_condition.inc
+unlock tables;
+
+connection changer;
+reap;
+
+connection updater;
+reap;
+select * from t1;
+select * from t2;
+drop view v1;
+drop table t1, t2;
+
+connection default;
+disconnect locker;
+disconnect changer;
+disconnect updater;
+
+#
+# Test multi updates and deletes using primary key and without.
+#
+create table t1 (i1 int, i2 int, i3 int);
+create table t2 (id int, c1 varchar(20), c2 varchar(20));
+insert into t1 values (1,5,10),(3,7,12),(4,5,2),(9,10,15),(2,2,2);
+insert into t2 values (9,"abc","def"),(5,"opq","lmn"),(2,"test t","t test");
+select * from t1 order by i1;
+select * from t2;
+update t1,t2 set t1.i2=15, t2.c2="ppc" where t1.i1=t2.id;
+select * from t1 order by i1;
+select * from t2 order by id;
+delete t1.*,t2.* from t1,t2 where t1.i2=t2.id;
+select * from t1 order by i1;
+select * from t2 order by id;
+drop table t1, t2;
+create table t1 (i1 int auto_increment not null, i2 int, i3 int, primary key (i1));
+create table t2 (id int auto_increment not null, c1 varchar(20), c2 varchar(20), primary key(id));
+insert into t1 values (1,5,10),(3,7,12),(4,5,2),(9,10,15),(2,2,2);
+insert into t2 values (9,"abc","def"),(5,"opq","lmn"),(2,"test t","t test");
+select * from t1 order by i1;
+select * from t2 order by id;
+update t1,t2 set t1.i2=15, t2.c2="ppc" where t1.i1=t2.id;
+select * from t1 order by i1;
+select * from t2 order by id;
+delete t1.*,t2.* from t1,t2 where t1.i2=t2.id;
+select * from t1 order by i1;
+select * from t2 order by id;
+drop table t1, t2;
+
+--echo #
+--echo # Bug#49534: multitable IGNORE update with sql_safe_updates error
+--echo # causes debug assertion
+--echo #
+CREATE TABLE t1( a INT, KEY( a ) );
+INSERT INTO t1 VALUES (1), (2), (3);
+SET SESSION sql_safe_updates = 1;
+--echo # Must not cause failed assertion
+--error ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
+UPDATE IGNORE t1, t1 t1a SET t1.a = 1 WHERE t1a.a = 1;
+DROP TABLE t1;
+
+--echo #
+--echo # Bug#54543: update ignore with incorrect subquery leads to assertion
+--echo # failure: inited==INDEX
+--echo #
+SET SESSION sql_safe_updates = 0;
+CREATE TABLE t1 ( a INT );
+INSERT INTO t1 VALUES (1), (2);
+
+CREATE TABLE t2 ( a INT );
+INSERT INTO t2 VALUES (1), (2);
+
+CREATE TABLE t3 ( a INT );
+INSERT INTO t3 VALUES (1), (2);
+
+--echo # Should not crash
+UPDATE IGNORE
+  ( SELECT ( SELECT COUNT(*) FROM t1 GROUP BY a, @v ) a FROM t2 ) x, t3
+SET t3.a = 0;
+
+DROP TABLE t1, t2, t3;
+SET SESSION sql_safe_updates = DEFAULT;
+
+--echo #
+--echo # Bug#52157 various crashes and assertions with multi-table update, stored function
+--echo #
+
+CREATE FUNCTION f1 () RETURNS BLOB RETURN 1;
+CREATE TABLE t1 (f1 DATE);
+INSERT INTO t1 VALUES('2001-01-01');
+UPDATE IGNORE (SELECT 1 FROM t1 WHERE f1 = (SELECT f1() FROM t1)) x, t1 SET f1 = 1;
+CREATE view v1 as SELECT f1() FROM t1;
+UPDATE IGNORE (SELECT 1 FROM t1 WHERE f1 = (select * from v1)) x, t1 SET f1 = 1;
+DROP VIEW v1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-4123: Incorrect results after multi-table update or
+--echo # assertion `!table || (!table->read_set ||
+--echo # bitmap_is_set(table->read_set, field_index))' failure 
+--echo #
+
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (
+  id int(10) unsigned NOT NULL,
+  level tinyint(3) unsigned NOT NULL,
+  PRIMARY KEY (id)
+);
+INSERT INTO t1 VALUES (2519583,1);
+
+DROP TABLE IF EXISTS t2;
+CREATE TABLE t2 (
+  club_id int(11) NOT NULL DEFAULT '0',
+  profile_id int(11) NOT NULL DEFAULT '0',
+  member_level_id int(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (profile_id,club_id)
+);
+INSERT INTO t2 VALUES (2,2519583,12);
+
+DROP TABLE IF EXISTS t3;
+CREATE TABLE t3 (
+  member_level_id int(11) unsigned NOT NULL DEFAULT '0',
+  map_level int(11) unsigned NOT NULL DEFAULT '0',
+  map_status int(11) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (member_level_id)
+);
+INSERT INTO t3 VALUES (12,12,1);
+
+CREATE 
+    VIEW v1 AS 
+    select club_id,profile_id,
+      map_level AS member_level_id,map_status AS member_status
+    from (t2 tc join t3 map 
+          on(((tc.member_level_id = map.member_level_id) and
+             (club_id = 2))));
+
+select level, count(*) as cnt from t1 group by level;
+UPDATE t1 c LEFT JOIN v1 t ON (c.id = t.profile_id AND t.club_id = 2)
+  SET c.level = IF (t.member_status IS NULL, 1, IF (t.member_status = 1, 2,3));
+select level, count(*) as cnt from t1 group by level;
+drop view v1;
+drop table t1,t2,t3;
+
+--echo end of tests
+
+--echo #
+--echo # BUG#57373: Multi update+InnoDB reports ER_KEY_NOT_FOUND if a
+--echo #            table is updated twice
+--echo #
+
+# Results differ between storage engines.
+# See multi_update_innodb.test for the InnoDB variant of this test
+CREATE TABLE t1(
+  pk INT,
+  a INT,
+  PRIMARY KEY (pk)
+) ENGINE=MyISAM;
+
+INSERT INTO t1 VALUES (0,0);
+UPDATE t1 AS A, t1 AS B SET A.pk = 1, B.a = 2;
+--echo
+--echo # Should be (1,2)
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # BUG#11882110: UPDATE REPORTS ER_KEY_NOT_FOUND IF TABLE IS 
+--echo #               UPDATED TWICE
+--echo #
+
+# Results differ between storage engines. This test is to verify that
+# the bugfix did NOT change behavior for MyISAM.
+# See multi_update_innodb.test for the InnoDB variant of this test
+CREATE TABLE t1 ( 
+  col_int_key int, 
+  pk int, 
+  col_int int, 
+  key(col_int_key), 
+  primary key (pk)
+) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,2,3);
+
+--echo
+CREATE TABLE t2 ( 
+  col_int_key int, 
+  pk_1 int, 
+  pk_2 int, 
+  col_int int, 
+  key(col_int_key), 
+  primary key (pk_1,pk_2)
+) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1,2,3,4);
+
+--echo
+UPDATE t1 AS A NATURAL JOIN t1 B SET A.pk=5,B.pk=7;
+
+--echo
+SELECT * FROM t1;
+
+--echo
+UPDATE t2 AS A NATURAL JOIN t2 B SET A.pk_1=5,B.pk_1=7;
+--echo
+UPDATE t2 AS A NATURAL JOIN t2 B SET A.pk_2=10,B.pk_2=11;
+
+--echo
+SELECT * FROM t2;
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-6139: UPDATE w/ join against MRG_MyISAM table with read-only
+--echo # sub-table fails
+--echo # MDEV-6193: Problems with multi-table updates that JOIN against
+--echo # read-only table
+--echo #
+
+CREATE TABLE t1 (
+  id int(10) unsigned,
+  a int(11)
+) ENGINE=MyISAM;
+
+CREATE TABLE t3 (
+  id int(10) unsigned,
+  b int(11)
+) ENGINE=MyISAM;
+
+CREATE TABLE t2 (
+  id int(10) unsigned,
+  b int(11)
+) ENGINE=MRG_MyISAM UNION=(t3);
+
+FLUSH TABLES;
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--disable_result_log
+--exec $MYISAMPACK -f $MYSQLD_DATADIR/test/t3
+--exec $MYISAMCHK -rq $MYSQLD_DATADIR/test/t3
+--enable_result_log
+
+update t1 join t2 using (id) set t1.a=t2.b;
+create view v2 as select * from t2;
+update t1 join v2 using (id) set t1.a=0;
+create view v1 as select * from t3;
+update t1 join v1 using (id) set t1.a=0;
+update t1 join INFORMATION_SCHEMA.CHARACTER_SETS on (id=MAXLEN) set t1.a=0;
+create view v3 as select t2.id, t3.b from t2 join t3 using(id);
+update t1 join v3 using (id) set t1.a=0;
+drop view v1, v2, v3;
+drop table t2, t3, t1;
+
+--echo #
+--echo # MDEV-7613: MariaDB 5.5.40 server crash on update table left join
+--echo # with a view  
+--echo #
+
+CREATE TABLE `t1` (
+  `f1` varchar(6) COLLATE latin1_general_ci DEFAULT NULL,
+  `f2` varchar(6) COLLATE latin1_general_ci DEFAULT NULL,
+  `f3` varchar(7) COLLATE latin1_general_ci DEFAULT NULL,
+  `f4` varchar(15) COLLATE latin1_general_ci DEFAULT NULL,
+  `f5` datetime DEFAULT NULL,
+  `f6` varchar(2) COLLATE latin1_general_ci DEFAULT NULL,
+  `f7` varchar(2) COLLATE latin1_general_ci DEFAULT NULL,
+  `ff1` int(1) DEFAULT NULL,
+  `ff2` int(1) DEFAULT NULL,
+  `ff3` int(1) DEFAULT NULL,
+  `ff4` int(1) DEFAULT NULL,
+  `ff5` int(1) DEFAULT NULL,
+  `ff6` int(1) DEFAULT NULL,
+  `ff7` int(1) DEFAULT NULL,
+  `ff8` int(2) DEFAULT NULL,
+  `ff9` int(1) DEFAULT NULL,
+  `ff10` int(1) DEFAULT NULL,
+  `ff11` int(1) DEFAULT NULL,
+  `ff12` int(1) DEFAULT NULL,
+  `ff13` int(1) DEFAULT NULL,
+  `ff14` int(1) DEFAULT NULL,
+  `ff15` int(1) DEFAULT NULL,
+  `f8` varchar(70) COLLATE latin1_general_ci DEFAULT NULL,
+  `f9` varchar(20) COLLATE latin1_general_ci DEFAULT NULL,
+  `f10` varchar(50) COLLATE latin1_general_ci NOT NULL,
+  `f11` varchar(50) COLLATE latin1_general_ci DEFAULT NULL,
+  `f12` varchar(255) COLLATE latin1_general_ci DEFAULT NULL,
+  `f13` text COLLATE latin1_general_ci,
+  `f14` time DEFAULT NULL,
+  `f15` varchar(30) COLLATE latin1_general_ci DEFAULT NULL,
+  `fg1` int(11) DEFAULT NULL,
+  `fg2` int(11) DEFAULT NULL,
+  `fg3` int(11) DEFAULT NULL,
+  `fg4` int(11) DEFAULT NULL,
+  `fg5` int(11) DEFAULT NULL,
+  `fg6` int(11) DEFAULT NULL,
+  `fg7` int(11) DEFAULT NULL,
+  `fg9` int(11) DEFAULT NULL,
+  `fg10` int(11) DEFAULT NULL,
+  `fg11` int(11) DEFAULT NULL,
+  `fg12` int(11) DEFAULT NULL,
+  `fg13` int(11) DEFAULT NULL,
+  `fg14` int(11) DEFAULT NULL,
+  `fg15` int(11) DEFAULT NULL,
+  `f16` double DEFAULT NULL,
+  `f17` double DEFAULT NULL,
+  `f18` int(11) DEFAULT NULL,
+  `f19` int(11) DEFAULT NULL,
+  `f20` varchar(255) COLLATE latin1_general_ci DEFAULT NULL,
+  `f21` int(11) DEFAULT NULL,
+  `f22` int(11) DEFAULT NULL,
+  `f23` int(11) DEFAULT NULL,
+  `f24` double DEFAULT NULL,
+  `f25` int(11) DEFAULT NULL,
+  `f26` double DEFAULT NULL,
+  `f27` int(11) DEFAULT NULL,
+  `f28` int(11) DEFAULT NULL,
+  `f29` double DEFAULT NULL,
+  `f30` int(11) DEFAULT NULL,
+  `f31` double DEFAULT NULL,
+  `PZ` double DEFAULT NULL,
+  `f32` varchar(50) COLLATE latin1_general_ci DEFAULT NULL,
+  `f33` varchar(50) COLLATE latin1_general_ci DEFAULT NULL,
+  `f34` varchar(50) COLLATE latin1_general_ci DEFAULT NULL,
+  `f35` varchar(30) COLLATE latin1_general_ci DEFAULT NULL,
+  `f36` varchar(20) COLLATE latin1_general_ci DEFAULT NULL,
+  `f37` varchar(50) COLLATE latin1_general_ci DEFAULT NULL,
+  `f20_2` varchar(20) COLLATE latin1_general_ci DEFAULT NULL,
+  `f38` varchar(30) COLLATE latin1_general_ci DEFAULT NULL COMMENT 'Email = E-Mail / Whitemail = Brief',
+  `insert_ts` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`f10`),
+  KEY `f5_f12` (`f5`,`f12`),
+  KEY `f5_f20` (`f5`,`f20`),
+  KEY `f5_f33` (`f5`,`f33`)
+) DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci ROW_FORMAT=COMPACT;
+
+INSERT INTO `t1` VALUES ('2011/2','201105','2011/19','gstfbnfr','2011-05-06
+00:00:00','gg','Ag',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,0,0,'','','','','','','21:56:28','',0,0,0,0,0,0,0,0,0,0,0,0,0,0,NULL,NULL,0,0,'Dffgult',1,0,0,NULL,0,NULL,0,0,NULL,0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'ggggil',NULL),('2008/4','200812','2008/50','hgckbgfx','2008-12-08
+00:00:00','gg','Ag',2,NULL,2,1,1,1,1,24,1,NULL,1,1,1,2,0,'gusschlifßlich
+zugg
+gflffonifrfn','88.77.79.214','10001614','fg-gtgggggdgtfn','fg-gtgggggdgtfn','birgit.tfrpfllf@gggx.df','11:55:21',NULL,1,0,1,1,1,1,1,1,0,1,1,1,0,0,NULL,NULL,0,4,'ffrtrgg',1,6,10,1.66666666666667,4,1,10,14,1.4,1,NULL,NULL,'out',NULL,NULL,'49','ggobilcogg','k.A.',NULL,'ggggil',NULL),('2008/4','200812','2008/51','hgckbgfx','2008-12-15
+00:00:00','gg','Ag',4,5,5,4,5,5,5,NULL,4,5,1,1,1,4,0,'gusschlifßlich zugg
+gflffonifrfn','79.197.185.64','10001686','fg-gtgggggdgtfn','fg-gtgggggdgtfn','kgtjg@swfftys.df','09:28:42',NULL,1,1,1,1,1,1,1,1,1,1,1,1,0,0,NULL,NULL,0,5,'ffrtrgg',1,7,11,4.71428571428571,16,1.2,12,49,4.08111111111111,1,NULL,NULL,'out',NULL,NULL,'49','ggobilcogg','k.A.',NULL,'ggggil',NULL),('2008/4','200812','2008/50','nufchti','2008-12-08
+00:00:00','gg','Ag',4,1,1,5,5,5,5,12,4,5,1,1,2,1,0,'gusschlifßlich zugg
+gflffonifrfn','89.54.151.216','10001700','fg-gtgggggdgtfn','fg-gtgggggdgtfn','H_K2006@frffnft.df','16:41:45',NULL,1,1,1,1,1,1,1,1,1,1,1,1,0,0,NULL,NULL,0,5,'ffrtrgg',1,7,10,4.28571428571429,11,2.6,12,41,1.58111111111111,1,NULL,NULL,'ffrtrgg
+Bgckofficf 5','vb5','Nufchtfr,
+Iris','49','ggobilcogg','grfurt','Intfrn','ggggil',NULL),('2008/4','200812','2008/50','junghdro','2008-12-11
+00:00:00','Do','Ag',2,2,5,5,4,4,2,72,2,5,2,2,1,1,0,'gusschlifßlich zugg
+gflffonifrfn','84.61.20.216','10001849','fg-ggriff','fg-ggriff','schofnf-glftfr@grcor.df','20:18:05',NULL,1,1,1,1,1,1,1,1,1,1,1,1,0,0,NULL,NULL,0,5,'ffrtrgg',1,7,24,1.42857142857141,12,2.4,12,16,1,1,NULL,NULL,'ffrtrgg
+Bgckofficf 5','vb5','Junghfinrich,
+Dorothfg','49','ggobilcogg','grfurt','Intfrn','ggggil',NULL),('2008/4','200812','2008/50','fbflktj','2008-12-08
+00:00:00','gg','Ag',4,2,2,5,1,1,1,24,NULL,NULL,NULL,NULL,NULL,0,0,'Kgggfrg
+bzw. DigiCggg
+Funktion','217.84.62.6','10001888','fg-Kündigungfn','fg-Kündigungfn','f.frofschkf@gggx.df','21:05:59',NULL,1,1,1,1,1,1,1,0,0,0,0,0,0,0,NULL,NULL,0,0,'ffrtrgg',1,7,16,2.28571428571429,0,NULL,7,16,2.28571428571429,0,NULL,NULL,'out',NULL,'gbfl,
+Kgtjg','49','ggobilcogg','k.A.','gxtfrn','ggggil',NULL),('2008/4','200812','2008/50','gltggggri','2008-12-09
+00:00:00','Di','Ag',4,1,1,4,2,1,2,16,1,2,2,2,2,2,0,'gusschlifßlich zugg
+gflffonifrfn','81.171.157.211','10001988','fg-gtgggggdgtfn','fg-gtgggggdgtfn','bistfr@nftcolognf.df','11:07:54',NULL,1,1,1,1,1,1,1,1,1,1,1,1,0,0,NULL,NULL,0,5,'ffrtrgg',1,7,21,1,11,2.2,12,12,2.66666666666667,1,NULL,NULL,'out',NULL,NULL,'49','ggobilcogg','k.A.','gxtfrn','ggggil',NULL),('2008/4','200812','2008/50','ggufllfsg','2008-12-09
+00:00:00','Di','Ag',2,2,2,2,1,1,2,12,2,2,2,1,1,2,0,'ggobilfs
+Intfrnft','62.154.142.186','10002097','fg-gtgggggdgtfn','fg-gtgggggdgtfn','norbfrtwfdlich@fgggil.df','09:42:11',NULL,1,1,1,1,1,1,1,1,1,1,1,1,0,0,NULL,NULL,0,5,'ffrtrgg',1,7,12,1.71428571428571,8,1.6,12,20,1.66666666666667,1,NULL,NULL,'ffrtrgg
+Bgckofficf 1','vb1','Mufllfr,
+ggbinf','49','ggobilcogg','grfurt','Intfrn','ggggil',NULL),('2008/4','200812','2008/50','wggnfg','2008-12-09
+00:00:00','Di','Ag',5,5,5,5,5,5,5,12,5,5,5,5,5,5,0,'gls grsgtz für
+Ffstnftz','85.180.141.246','10002127','fg-Kündigungfn','fg-Kündigungfn','rfinhgrt.gdolph@yghoo.df','17:44:11',NULL,1,1,1,1,1,1,1,1,1,1,1,1,0,0,NULL,NULL,0,5,'ffrtrgg',1,7,15,5,25,5,12,60,5,1,NULL,NULL,'ffrtrgg
+Bgckofficf 1','vb1','Wggnfr,
+Annftt','49','ggobilcogg','grfurt','Intfrn','ggggil',NULL),('2008/4','200812','2008/50','schubrbf','2008-12-10
+00:00:00','Mi','Ag',1,2,NULL,2,1,2,1,24,NULL,NULL,NULL,NULL,NULL,0,0,'Kgggfrg
+bzw. DigiCggg
+Funktion','91.40.98.242','10002160','fg-gtgggggdgtfn','fg-gtgggggdgtfn','olgf.lifb@gggx.nft','18:18:25',NULL,1,1,0,1,1,1,1,0,0,0,0,0,0,0,NULL,NULL,0,0,'ffrtrgg',1,6,11,1.81111111111111,0,NULL,6,11,1.81111111111111,0,NULL,NULL,'out',NULL,NULL,'49','ggobilcogg','k.A.','gxtfrn','ggggil',NULL);
+
+CREATE TABLE `t2` (
+  `ft1` datetime DEFAULT NULL,
+  `ft2` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `ft3` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `ft4` varchar(255) COLLATE latin1_general_ci NOT NULL DEFAULT '',
+  `ft5` varchar(255) COLLATE latin1_general_ci NOT NULL DEFAULT '',
+  `ft6` varchar(255) COLLATE latin1_general_ci DEFAULT NULL,
+  `ft6_2` varchar(255) COLLATE latin1_general_ci DEFAULT NULL,
+  `ft7` varchar(255) COLLATE latin1_general_ci DEFAULT NULL,
+  `ft8` varchar(255) COLLATE latin1_general_ci DEFAULT NULL,
+  `ft9` varchar(255) COLLATE latin1_general_ci DEFAULT NULL,
+  `ft10` varchar(255) COLLATE latin1_general_ci DEFAULT NULL,
+  PRIMARY KEY (`ft4`,`ft5`)
+) DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci;
+
+INSERT INTO `t2` VALUES ('2013-03-13 00:00:00','2013-03-13 00:00:00','9999-12-31 00:00:00','#','extern FP f32 2','Default','Intern','DEFAULT',NULL,NULL,NULL),('2013-03-13 00:00:00','2013-03-13 00:00:00','9999-12-31 00:00:00','#','extern FP f32 3','Default','Intern','DEFAULT',NULL,NULL,NULL);
+
+CREATE TABLE `t3` (
+  `fe1` int(10) NOT NULL DEFAULT '0',
+  `fe2` char(50) COLLATE latin1_general_ci DEFAULT 'nn',
+  `f34` char(50) COLLATE latin1_general_ci DEFAULT NULL,
+  `fe3` double DEFAULT NULL,
+  `fe4` double DEFAULT NULL,
+  `fe5` char(4) COLLATE latin1_general_ci DEFAULT NULL,
+  `f32` char(50) COLLATE latin1_general_ci DEFAULT NULL,
+  `fe6` int(3) DEFAULT '0',
+  `fe7` char(1) COLLATE latin1_general_ci DEFAULT NULL,
+  `ft6` char(50) COLLATE latin1_general_ci DEFAULT NULL,
+  `f33` char(4) COLLATE latin1_general_ci DEFAULT NULL COMMENT 'virtuelle f33s',
+  `fe8` char(4) COLLATE latin1_general_ci DEFAULT NULL COMMENT 'aus dem ADS',
+  `f37` char(50) COLLATE latin1_general_ci DEFAULT NULL,
+  `fe9` char(50) COLLATE latin1_general_ci DEFAULT NULL,
+  `fe10` int(5) DEFAULT '0',
+  `fe11` int(10) DEFAULT '0',
+  `fe12` char(50) COLLATE latin1_general_ci DEFAULT NULL,
+  `fe13` double DEFAULT NULL,
+  `fe14` char(50) COLLATE latin1_general_ci DEFAULT NULL,
+  `fe15` date DEFAULT NULL,
+  `fe16` date DEFAULT NULL,
+  `fe17` int(10) DEFAULT '0',
+  `fe18` date NOT NULL DEFAULT '0000-00-00',
+  `ft3` date NOT NULL DEFAULT '0000-00-00',
+  PRIMARY KEY (`fe1`),
+  KEY `fe2` (`fe2`,`fe18`,`ft3`),
+  KEY `f33` (`f33`),
+  KEY `fe8` (`fe8`)
+) DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci ROW_FORMAT=COMPACT COMMENT='CustomerService und Outsourcer Userinformationen';
+
+INSERT INTO `t3` VALUES (1,'aabggn','gab, glgna',0,NULL,NULL,'gxtgrn D gnd g
+gggsbgrg',0,NULL,'gxtgrn','dsa','dsa','gggsbgrg','0',91611,0,'0',0,'agsggschigdgn','2014-08-11','2014-09-05',0,'2011-01-01','2014-08-11'),(4,'aabigr','gab,
+Iggr',0,NULL,NULL,'gxtgrn D gnd g
+gggsbgrg',0,NULL,'gxtgrn','dsa','dsa','gggsbgrg','0',0,0,'0',0,'agsggschigdgn','2014-08-11','2014-09-05',0,'2012-10-01','2014-08-11'),(7,'abgcrist','gbg,
+ghristggna',15182,1,'ja','ggshilfg gxtgrn 1',1,NULL,'gg
+galgs','ag1','ag1','grfgrt','0',11941,0,'0',0,'agsggschigdgn','2014-01-11',NULL,11802051,'1900-01-01','2010-06-10'),(8,'abgcrist','gbg,
+ghristggna',15182,1,'ja','Zgntralg gftgr galgs Bgtrgggng 1',1,NULL,'gg
+galgs','sb1','sb1','grfgrt','0',11941,0,'0',0,'agsggschigdgn','2014-01-11',NULL,11802051,'2010-07-01','2012-08-11'),(9,'abgcrist','gbg,
+ghristggna',15182,1,'ja','galgs Inbggnd 2',1,NULL,'gg
+galgs','si2','si2','grfgrt','0',11941,0,'0',0,'agsggschigdgn','2014-01-11',NULL,11802051,'2012-09-01','2014-01-11'),(10,'abgcgr','gbg,
+ggrnglgg',14962,1,NULL,'galgs Ogtbggnd 1',1,NULL,'gg
+galgs','sg1','sg1','grfgrt','0',12401,0,'abgcrn',1,NULL,NULL,NULL,11800647,'1900-01-01','2010-11-10'),(11,'abgcgr','gbg,
+ggrnglgg',14962,1,NULL,'galgs Ogtbggnd 1',1,NULL,'gg
+galgs','sg1','sg1','grfgrt','0',12401,0,'abgcrn',1,NULL,NULL,NULL,11800647,'2010-12-01','2011-08-11'),(12,'abgcgr','gbg,
+ggrnglgg',14962,1,NULL,'galgs Ogtbggnd 2',1,NULL,'gg
+galgs','sg2','sg2','grfgrt','0',12401,0,'abgcrn',1,NULL,NULL,NULL,11800647,'2011-09-01','2012-01-11'),(13,'abgcgr','gbg,
+ggrnglgg',14962,0.75,NULL,'galgs Ogtbggnd 2',1,NULL,'gg
+galgs','sg2','sg2','grfgrt','0',12401,0,'abgcrn',1,NULL,NULL,'2011-09-11',11800647,'2012-02-01','2011-08-11'),(14,'rgghrsgr','gbg,
+gigrid',14781,1,'ja','Fgrdgrgngsmanaggmgnt 1',1,NULL,'gg
+Zahlgng','fm1','fm1','grfgrt','0',12141,0,'0',1,NULL,NULL,NULL,11010781,'1900-01-01','2012-08-11');
+
+CREATE ALGORITHM=MERGE
+DEFINER=`root`@`localhost` SQL SECURITY DEFINER
+VIEW `v1` AS select `t1a`.`ft1` AS `ft1`,`t1a`.`ft2` AS `ft2`,`t1a`.`ft3` AS `ft3`,`t1a`.`ft4` AS `ft4`,`t1a`.`ft5` AS `ft5`,`t1a`.`ft6` AS `ft6`,`t1a`.`ft6_2` AS `ft6_2`,`t1a`.`ft7` AS `ft7`,`t1a`.`ft8` AS `ft8`,`t1a`.`ft9` AS `ft9`,`t1a`.`ft10` AS `ft10` from `t2` `t1a` where (if((`t1a`.`ft10` = 'virtuell'),0,1) = 1);
+
+CREATE ALGORITHM=UNDEFINED
+DEFINER=`root`@`localhost` SQL SECURITY DEFINER
+VIEW `v2` AS select distinct `t1b`.`fe2` AS `fe2`,min(`t1b`.`fe18`) AS `fe18`,max(`t1b`.`ft3`) AS `ft3` from `t3` `t1b` where ((`t1b`.`fe2` <> '') and (curdate() >= `t1b`.`fe18`)) group by `t1b`.`fe2`;
+
+CREATE ALGORITHM=UNDEFINED
+DEFINER=`root`@`localhost` SQL SECURITY DEFINER
+VIEW `v3` AS select `t1c`.`fe2` AS `fe2`,`t1c`.`f34` AS `f34`,`t1c`.`f33` AS `f33`,`t1c`.`f32` AS `f32`,`t1c`.`f37` AS `f37`,`t1c`.`fe10` AS `fe10`,if((`tov`.`ft6` in ('klarmobil','callmobile')),`tov`.`ft9`,`tov`.`ft6`) AS `ft6_1`,`tov`.`ft6_2` AS `ft6_2`,`ua`.`fe18` AS `fe18`,`ua`.`ft3` AS `ft3` from ((`t3` `t1c` left join `v2` `ua` on((`t1c`.`fe2` = `ua`.`fe2`))) left join `v1` `tov` on((`t1c`.`fe8` = `tov`.`ft4`))) where (`t1c`.`ft3` = `ua`.`ft3`) group by `t1c`.`fe2`,`t1c`.`f34`,`t1c`.`f33`,`t1c`.`f32` order by `t1c`.`f34`;
+
+UPDATE t1 t1  left join v3 t2 on t1.f4 = t2.fe2    SET t1.f20 = t2.ft6_1,    t1.f32 = t2.f32,    t1.f33 = t2.f33,    t1.f37 = t2.f37    WHERE f5 >= '2015-02-01';
+
+--echo #MDEV-8018: main.multi_update fails with --ps-protocol
+prepare stmt1 from "UPDATE t1 t1  left join v3 t2 on t1.f4 = t2.fe2    SET t1.f20 = t2.ft6_1,    t1.f32 = t2.f32,    t1.f33 = t2.f33,    t1.f37 = t2.f37    WHERE f5 >= '2015-02-01'";
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+drop view v3,v2,v1;
+drop table t1,t2,t3;
+
+#
+# MDEV-18507 can't update temporary table when joined with table with triggers on read-only
+#
+create table t1 (id int not null, v1 varchar(10) not null);
+insert into t1 values (1,1),(2,2);
+create table t2 (log varchar(10) not null);
+create trigger t1_after_update after update on t1
+	for each row insert into t2 values ('triggered');
+
+create user foo;
+grant select, insert, update, delete, create, drop, reload, index, alter, show databases, create temporary tables, lock tables, execute, create view, show view, create routine, alter routine, trigger on *.* to 'foo'@'%';
+
+set global read_only=1;
+connect a, localhost, foo;
+
+create temporary table temp_t1 (id int not null, update_me varchar(10));
+insert into temp_t1 values (1,1),(2,2),(3,3);
+update temp_t1 left join t1 on temp_t1.id = t1.id set temp_t1.update_me = 'hello';
+
+connection default;
+set global read_only = 0;
+
+create table t3 (id int not null);
+insert t3 values (2);
+update t1 left join t3 on t1.id = t3.id set t1.v1 = 'hello';
+select * from t2;
+
+drop table t1,t2, t3;
+drop user foo;
+
+#
+# Another test on not-opening tables unnecessary
+#
+create table t1 (a int, b int);
+create table t2 (c int, d int);
+insert t1 values (1,2),(3,4);
+insert t2 values (5,6),(7,8);
+create table t0 (x int);
+insert t0 values (11), (22);
+create trigger tr1 before update on t2 for each row insert t0 values (new.c);
+connect con1, localhost, root;
+lock table t0 write;
+connection default;
+update t1 join t2 on (a=c+4) set b=d;
+disconnect con1;
+drop table t1, t2, t0;
+
+#
+# MDEV-19521 Update Table Fails with Trigger and Stored Function
+#
+create table t1 (a int, b varchar(50), c varchar(50));
+insert t1 (a,b) values (1,'1'), (2,'2'), (3,'3');
+create function f1() returns varchar(50) return 'result';
+create trigger tr before update on t1 for each row set new.c = (select f1());
+create table t2 select a, b from t1;
+update t1 join t2 using (a) set t1.b = t2.b;
+drop table t1, t2;
+drop function f1;
+
+--echo #
+--echo # end of 5.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-24823: Invalid multi-table update of view within SP
+--echo #
+
+create table t1 (id int) engine=myisam;
+insert into t1 values (1),(2),(1);
+create table t2 (pk int, c0 int) engine=myisam;
+insert into t2 values (1,1), (2,3);
+create view v2 as select * from t2;
+create view v3 as select * from t2 where c0 < 3;
+
+create  procedure sp0() update t1, v2 set v2.pk = 1 where v2.c0 = t1.c1;
+--error ER_BAD_FIELD_ERROR
+call sp0();
+--error ER_BAD_FIELD_ERROR
+call sp0();
+
+create  procedure sp1() update (t1 join v2 on v2.c0 = t1.c1) set v2.pk = 1;
+--error ER_BAD_FIELD_ERROR
+call sp1();
+--error ER_BAD_FIELD_ERROR
+call sp1();
+
+create  procedure sp2() update (t1 join v3 on v3.c0 = t1.c1) set v3.pk = 1;
+--error ER_BAD_FIELD_ERROR
+call sp2();
+--error ER_BAD_FIELD_ERROR
+call sp2();
+
+create  procedure sp3()
+update (t1 join v2 on v2.c0 = t1.id) set v2.c0 = v2.c0+1;
+select * from t2;
+call sp3();
+select * from t2;
+call sp3();
+select * from t2;
+
+create  procedure sp4() delete t1 from t1 join v2 on v2.c0 = t1.c1;
+--error ER_BAD_FIELD_ERROR
+call sp4();
+--error ER_BAD_FIELD_ERROR
+call sp4();
+
+drop procedure sp0;
+drop procedure sp1;
+drop procedure sp2;
+drop procedure sp3;
+drop procedure sp4;
+drop view v2,v3;
+drop table t1,t2;
+
+--echo # End of 10.2 tests
+
+#
+# MDEV-13911 Support ORDER BY and LIMIT in multi-table update
+#
+
+create table t1 (c1 int, c3 int);
+insert t1(c3) values (1), (2), (3), (4), (5), (6), (7), (8);
+create table t2 select * from t1;
+update t1, t2 set t1.c1=t2.c3 where t1.c3=t2.c3 order by t1.c3 limit 3;
+select * from t1;
+update t1 set c1=NULL;
+update t1, t2 set t1.c1=t2.c3 where t1.c3=t2.c3 order by t1.c3 desc limit 2;
+select * from t1;
+drop table t1, t2;
+
+#
+# MDEV-14551 Can't find record in table on multi-table update with ORDER BY
+#
+
+--source include/default_optimizer_switch.inc
+
+# simple test with multi-update and Using temporary:
+create table t1 (i int) engine=memory;
+insert t1 values (1),(2);
+create table t2 (f int) engine=myisam;
+insert t2 values (1),(2);
+explain update t1, t2 set f = 126 order by f limit 2;
+update t1, t2 set f = 126 order by f limit 2;
+select * from t2;
+drop table t1, t2;
+
+# test with DuplicateElimination
+# (so that keep_current_rowid is set for DuplicateElimination too)
+create table t0(a int);
+insert t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int, b int, c int, key(a));
+insert t1 select a,a,a from t0;
+create table t2 as select * from t1;
+create table t3 as select * from t1;
+select * from t1, t2 where t1.a=t2.a and t1.b in (select b from t3 where t3.c<=t2.c) order by t2.c, t1.c limit 5;
+set optimizer_switch='firstmatch=off';
+explain update t1, t2 set t2.c=1 where t1.a=t2.a and t1.b in (select b from t3 where t3.c< t2.c) order by t2.c, t1.c limit 10;
+update t1, t2 set t2.c=1 where t1.a=t2.a and t1.b in (select b from t3 where t3.c<=t2.c) order by t2.c, t1.c limit 5;
+select * from t2;
+set optimizer_switch=default;
+drop table t0,t1,t2,t3;
+
+# test WITH CHECK OPTION
+create table t0 (x int);
+create table t1 (a int);
+create table t2 (b int, c int default 0);
+insert t0 (x) values (0),(10);
+insert t1 (a) values (1), (2);
+insert t2 (b) values (1), (2);
+create view v1 as select t2.b,t2.c from t1, t2
+  where t1.a=t2.b and t2.b < 3 with check option;
+select * from t0 join v1 on (x=c);
+explain update v1,t0 set c=1 where b=1 and x=c order by x,b limit 1;
+update v1,t0 set c=1 where b<3 and x=c order by x,b limit 1;
+select * from v1;
+drop view v1;
+drop table t0, t1,t2;
+
+--echo #
+--echo # MDEV-20515 multi-update tries to position updated table by null reference
+--echo #
+create or replace table t1 (a int);
+insert into t1 values (0), (2);
+
+create or replace table t2 (b int);
+insert into t2 values (1), (2);
+
+select * from t1 left join t2 on a = b order by b;
+update t1 left join t2 on a = b set b= 3 order by b;
+select * from t2;
+
+drop tables t1, t2;
+
+--echo #
+--echo # MDEV-22464 Server crash on UPDATE with nested subquery
+--echo #
+create table t1 (a int) ;
+insert into t1 (a) values (1),(2),(3) ;
+--error ER_SUBQUERY_NO_1_ROW
+select a from t1 where a= (select 2 from t1 having (a = 3));
+--error ER_SUBQUERY_NO_1_ROW
+update t1 set a= (select 2 from t1 having (a = 3));
+drop tables t1;

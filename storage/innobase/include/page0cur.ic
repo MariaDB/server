@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -259,13 +259,10 @@ page_cur_tuple_insert(
 	page_cur_t*	cursor,	/*!< in/out: a page cursor */
 	const dtuple_t*	tuple,	/*!< in: pointer to a data tuple */
 	dict_index_t*	index,	/*!< in: record descriptor */
-	ulint**		offsets,/*!< out: offsets on *rec */
+	rec_offs**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
-	mtr_t*		mtr,	/*!< in: mini-transaction handle, or NULL */
-	bool		use_cache)
-				/*!< in: if true, then use record cache to
-				hold the tuple converted record. */
+	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
 {
 	rec_t*		rec;
 	ulint		size = rec_get_converted_size(index, tuple, n_ext);
@@ -281,7 +278,8 @@ page_cur_tuple_insert(
 					index, tuple, n_ext);
 
 	*offsets = rec_get_offsets(rec, index, *offsets,
-				   page_is_leaf(cursor->block->frame),
+				   page_is_leaf(cursor->block->frame)
+				   ? index->n_core_fields : 0,
 				   ULINT_UNDEFINED, heap);
 
 	if (buf_block_get_page_zip(cursor->block)) {
@@ -315,7 +313,7 @@ page_cur_rec_insert(
 	page_cur_t*	cursor,	/*!< in/out: a page cursor */
 	const rec_t*	rec,	/*!< in: record to insert */
 	dict_index_t*	index,	/*!< in: record descriptor */
-	ulint*		offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
 {
 	if (buf_block_get_page_zip(cursor->block)) {

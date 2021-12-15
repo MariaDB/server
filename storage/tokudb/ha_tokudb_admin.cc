@@ -760,7 +760,7 @@ done:
 } // namespace tokudb
 
 
-int ha_tokudb::analyze(THD *thd, HA_CHECK_OPT *check_opt) {
+int ha_tokudb::analyze(THD *thd, TOKUDB_UNUSED(HA_CHECK_OPT *check_opt)) {
     TOKUDB_HANDLER_DBUG_ENTER("%s", share->table_name());
     int result = HA_ADMIN_OK;
     tokudb::sysvars::analyze_mode_t mode = tokudb::sysvars::analyze_mode(thd);
@@ -985,7 +985,8 @@ cleanup:
     TOKUDB_HANDLER_DBUG_RETURN(error);
 }
 
-int ha_tokudb::optimize(THD* thd, HA_CHECK_OPT* check_opt) {
+int ha_tokudb::optimize(TOKUDB_UNUSED(THD* thd),
+                        TOKUDB_UNUSED(HA_CHECK_OPT* check_opt)) {
     TOKUDB_HANDLER_DBUG_ENTER("%s", share->table_name());
     int error;
 #if TOKU_OPTIMIZE_WITH_RECREATE
@@ -1000,7 +1001,8 @@ struct check_context {
     THD* thd;
 };
 
-static int ha_tokudb_check_progress(void* extra, float progress) {
+static int ha_tokudb_check_progress(void* extra,
+                                    TOKUDB_UNUSED(float progress)) {
     struct check_context* context = (struct check_context*)extra;
     int result = 0;
     if (thd_kill_level(context->thd))

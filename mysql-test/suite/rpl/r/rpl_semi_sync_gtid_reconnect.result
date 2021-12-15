@@ -1,0 +1,40 @@
+include/master-slave.inc
+[connection master]
+connection master;
+RESET MASTER;
+SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
+connection slave;
+include/stop_slave.inc
+SET @@GLOBAL. rpl_semi_sync_slave_enabled = 1;
+include/start_slave.inc
+connection master;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 SET a = 1;
+include/save_master_gtid.inc
+FLUSH LOGS;
+INSERT INTO t1 SET a = 2;
+connection slave;
+connection slave;
+include/stop_slave_sql.inc
+connection master;
+INSERT INTO t1 SET a = 3;
+include/sync_slave_io_with_master.inc
+connection slave;
+include/stop_slave_io.inc
+connection master;
+RESET MASTER;
+SET @@global.gtid_binlog_state = '0-1-2';
+connection slave;
+CHANGE MASTER TO MASTER_USE_GTID = slave_pos;
+SET @@global.gtid_slave_pos = '0-1-2';
+include/start_slave.inc
+connection master;
+INSERT INTO t1 SET a = 4;
+connection master;
+DROP TABLE t1;
+SET @@GLOBAL. rpl_semi_sync_master_enabled = 0;
+connection slave;
+include/stop_slave.inc
+SET @@GLOBAL. rpl_semi_sync_slave_enabled = 0;
+include/start_slave.inc
+include/rpl_end.inc

@@ -17,7 +17,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************
 
@@ -35,8 +35,8 @@ ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
 FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc., 59 Temple
-Place, Suite 330, Boston, MA 02111-1307 USA
+this program; if not, write to the Free Software Foundation, Inc., 51 Franklin
+Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *******************************************************/
 
@@ -57,8 +57,8 @@ Place, Suite 330, Boston, MA 02111-1307 USA
 #include "backup_copy.h"
 #include "backup_mysql.h"
 #include <btr0btr.h>
-#include "xb0xb.h"
 
+#define ROCKSDB_BACKUP_DIR "#rocksdb"
 
 /* list of files to sync for --rsync mode */
 static std::set<std::string> rsync_list;
@@ -67,6 +67,21 @@ static std::map<std::string, std::string> tablespace_locations;
 
 /* Whether LOCK BINLOG FOR BACKUP has been issued during backup */
 bool binlog_locked;
+
+static void rocksdb_create_checkpoint();
+static bool has_rocksdb_plugin();
+static void copy_or_move_dir(const char *from, const char *to, bool copy, bool allow_hardlinks);
+static void rocksdb_backup_checkpoint();
+static void rocksdb_copy_back();
+
+static bool is_abs_path(const char *path)
+{
+#ifdef _WIN32
+	return path[0] && path[1] == ':' && (path[2] == '/' || path[2] == '\\');
+#else
+	return path[0] == '/';
+#endif
+}
 
 /************************************************************************
 Struct represents file or directory. */
@@ -108,7 +123,7 @@ struct datadir_thread_ctxt_t {
 	datadir_iter_t		*it;
 	uint			n_thread;
 	uint			*count;
-	pthread_mutex_t		count_mutex;
+	pthread_mutex_t*	count_mutex;
 	os_thread_id_t		id;
 	bool			ret;
 };
@@ -180,6 +195,8 @@ datadir_iter_new(const char *path, bool skip_first_level = true)
 	datadir_iter_t *it;
 
 	it = static_cast<datadir_iter_t *>(malloc(sizeof(datadir_iter_t)));
+	if (!it)
+		goto error;
 	memset(it, 0, sizeof(datadir_iter_t));
 
 	pthread_mutex_init(&it->mutex, NULL);
@@ -221,7 +238,7 @@ datadir_iter_next_database(datadir_iter_t *it)
 		if (os_file_closedir(it->dbdir) != 0) {
 
 			msg("Warning: could not"
-			      " close database directory %s\n", it->dbpath);
+			      " close database directory %s", it->dbpath);
 
 			it->err = DB_ERROR;
 
@@ -262,7 +279,7 @@ datadir_iter_next_database(datadir_iter_t *it)
 		}
 
 		if (check_if_skip_database_by_path(it->dbpath)) {
-			msg("Skipping db: %s\n", it->dbpath);
+			msg("Skipping db: %s", it->dbpath);
 			continue;
 		}
 
@@ -456,6 +473,21 @@ struct datafile_cur_t {
 	size_t		buf_size;
 	size_t		buf_read;
 	size_t		buf_offset;
+
+	explicit datafile_cur_t(const char* filename = NULL) :
+		file(), thread_n(0), orig_buf(NULL), buf(NULL), buf_size(0),
+		buf_read(0), buf_offset(0)
+	{
+		memset(rel_path, 0, sizeof rel_path);
+		if (filename) {
+			strncpy(abs_path, filename, sizeof abs_path - 1);
+			abs_path[(sizeof abs_path) - 1] = 0;
+		} else {
+			abs_path[0] = '\0';
+		}
+		rel_path[0] = '\0';
+		memset(&statinfo, 0, sizeof statinfo);
+	}
 };
 
 static
@@ -474,9 +506,7 @@ datafile_open(const char *file, datafile_cur_t *cursor, uint thread_n)
 {
 	bool		success;
 
-	memset(cursor, 0, sizeof(datafile_cur_t));
-
-	strncpy(cursor->abs_path, file, sizeof(cursor->abs_path));
+	new (cursor) datafile_cur_t(file);
 
 	/* Get the relative path for the destination tablespace name, i.e. the
 	one that can be appended to the backup root directory. Non-system
@@ -484,7 +514,8 @@ datafile_open(const char *file, datafile_cur_t *cursor, uint thread_n)
 	5.6+. We want to make "local" copies for the backup. */
 	strncpy(cursor->rel_path,
 		xb_get_relative_path(cursor->abs_path, FALSE),
-		sizeof(cursor->rel_path));
+		(sizeof cursor->rel_path) - 1);
+	cursor->rel_path[(sizeof cursor->rel_path) - 1] = '\0';
 
 	cursor->file = os_file_create_simple_no_error_handling(
 		0, cursor->abs_path,
@@ -493,19 +524,15 @@ datafile_open(const char *file, datafile_cur_t *cursor, uint thread_n)
 		/* The following call prints an error message */
 		os_file_get_last_error(TRUE);
 
-		msg("[%02u] error: cannot open "
-			"file %s\n",
-			thread_n, cursor->abs_path);
+		msg(thread_n,"error: cannot open "
+			"file %s", cursor->abs_path);
 
 		return(false);
 	}
 
 	if (!my_stat(cursor->abs_path, &cursor->statinfo, 0)) {
-		msg("[%02u] error: cannot stat %s\n",
-			thread_n, cursor->abs_path);
-
+		msg(thread_n, "error: cannot stat %s", cursor->abs_path);
 		datafile_close(cursor);
-
 		return(false);
 	}
 
@@ -533,9 +560,9 @@ datafile_read(datafile_cur_t *cursor)
 		return(XB_FIL_CUR_EOF);
 	}
 
-	if (!os_file_read(IORequestRead,
+	if (os_file_read(IORequestRead,
 			  cursor->file, cursor->buf, cursor->buf_offset,
-			  to_read)) {
+			  to_read) != DB_SUCCESS) {
 		return(XB_FIL_CUR_ERROR);
 	}
 
@@ -615,32 +642,36 @@ static
 int
 mkdirp(const char *pathname, int Flags, myf MyFlags)
 {
-	char parent[PATH_MAX], *p;
+	char *parent, *p;
 
 	/* make a parent directory path */
-	strncpy(parent, pathname, sizeof(parent));
-	parent[sizeof(parent) - 1] = 0;
+	if (!(parent= strdup(pathname)))
+          return(-1);
 
 	for (p = parent + strlen(parent);
-	    !is_path_separator(*p) && p != parent; p--);
+	    !is_path_separator(*p) && p != parent; p--) ;
 
 	*p = 0;
 
 	/* try to make parent directory */
 	if (p != parent && mkdirp(parent, Flags, MyFlags) != 0) {
+		free(parent);
 		return(-1);
 	}
 
 	/* make this one if parent has been made */
 	if (my_mkdir(pathname, Flags, MyFlags) == 0) {
+		free(parent);
 		return(0);
 	}
 
 	/* if it already exists that is fine */
 	if (errno == EEXIST) {
+		free(parent);
 		return(0);
 	}
 
+	free(parent);
 	return(-1);
 }
 
@@ -650,17 +681,24 @@ bool
 equal_paths(const char *first, const char *second)
 {
 #ifdef HAVE_REALPATH
-	char real_first[PATH_MAX];
-	char real_second[PATH_MAX];
+	char *real_first, *real_second;
+	int result;
 
-	if (realpath(first, real_first) == NULL) {
-		return false;
-	}
-	if (realpath(second, real_second) == NULL) {
+	real_first = realpath(first, 0);
+	if (real_first == NULL) {
 		return false;
 	}
 
-	return (strcmp(real_first, real_second) == 0);
+	real_second = realpath(second, 0);
+	if (real_second == NULL) {
+		free(real_first);
+		return false;
+	}
+
+	result = strcmp(real_first, real_second);
+	free(real_first);
+	free(real_second);
+	return result == 0;
 #else
 	return strcmp(first, second) == 0;
 #endif
@@ -685,9 +723,8 @@ directory_exists(const char *dir, bool create)
 
 		if (mkdirp(dir, 0777, MYF(0)) < 0) {
 			my_strerror(errbuf, sizeof(errbuf), my_errno);
-			msg("Can not create directory %s: %s\n", dir, errbuf);
+			msg("Can not create directory %s: %s", dir, errbuf);
 			return(false);
-
 		}
 	}
 
@@ -696,7 +733,7 @@ directory_exists(const char *dir, bool create)
 
 	if (os_dir == NULL) {
 		my_strerror(errbuf, sizeof(errbuf), my_errno);
-		msg("Can not open directory %s: %s\n", dir,
+		msg("Can not open directory %s: %s", dir,
 			errbuf);
 
 		return(false);
@@ -725,7 +762,7 @@ directory_exists_and_empty(const char *dir, const char *comment)
 	os_dir = os_file_opendir(dir, FALSE);
 
 	if (os_dir == NULL) {
-		msg("%s can not open directory %s\n", comment, dir);
+		msg("%s can not open directory %s", comment, dir);
 		return(false);
 	}
 
@@ -734,7 +771,7 @@ directory_exists_and_empty(const char *dir, const char *comment)
 	os_file_closedir(os_dir);
 
 	if (!empty) {
-		msg("%s directory %s is not empty!\n", comment, dir);
+		msg("%s directory %s is not empty!", comment, dir);
 	}
 
 	return(empty);
@@ -783,7 +820,7 @@ datafile_copy_backup(const char *filepath, uint thread_n)
 	of the filters value. */
 
 	if (check_if_skip_table(filepath)) {
-		msg_ts("[%02u] Skipping %s.\n", thread_n, filepath);
+		msg(thread_n,"Skipping %s.", filepath);
 		return(true);
 	}
 
@@ -829,34 +866,26 @@ datafile_rsync_backup(const char *filepath, bool save_to_list, FILE *f)
 	return(true);
 }
 
-
-static
-bool
-backup_file_vprintf(const char *filename, const char *fmt, va_list ap)
+bool backup_file_print_buf(const char *filename, const char *buf, int buf_len)
 {
 	ds_file_t	*dstfile	= NULL;
 	MY_STAT		 stat;			/* unused for now */
-	char		*buf		= 0;
-	int		 buf_len;
 	const char	*action;
 
 	memset(&stat, 0, sizeof(stat));
-
-	buf_len = vasprintf(&buf, fmt, ap);
 
 	stat.st_size = buf_len;
 	stat.st_mtime = my_time(0);
 
 	dstfile = ds_open(ds_data, filename, &stat);
 	if (dstfile == NULL) {
-		msg("[%02u] error: "
-			"cannot open the destination stream for %s\n",
-			0, filename);
+		msg("error: Can't open the destination stream for %s",
+			filename);
 		goto error;
 	}
 
 	action = xb_get_copy_action("Writing");
-	msg_ts("[%02u] %s %s\n", 0, action, filename);
+	msg("%s %s", action, filename);
 
 	if (buf_len == -1) {
 		goto error;
@@ -867,8 +896,7 @@ backup_file_vprintf(const char *filename, const char *fmt, va_list ap)
 	}
 
 	/* close */
-	msg_ts("[%02u]        ...done\n", 0);
-	free(buf);
+	msg("        ...done");
 
 	if (ds_close(dstfile)) {
 		goto error_close;
@@ -877,16 +905,28 @@ backup_file_vprintf(const char *filename, const char *fmt, va_list ap)
 	return(true);
 
 error:
-	free(buf);
 	if (dstfile != NULL) {
 		ds_close(dstfile);
 	}
 
 error_close:
-	msg("[%02u] Error: backup file failed.\n", 0);
+	msg("Error: backup file failed.");
 	return(false); /*ERROR*/
-}
 
+	return true;
+};
+
+static
+bool
+backup_file_vprintf(const char *filename, const char *fmt, va_list ap)
+{
+	char		*buf		= 0;
+	int		 buf_len;
+	buf_len = vasprintf(&buf, fmt, ap);
+	bool result = backup_file_print_buf(filename, buf, buf_len);
+	free(buf);
+	return result;
+}
 
 bool
 backup_file_printf(const char *filename, const char *fmt, ...)
@@ -922,7 +962,7 @@ run_data_threads(datadir_iter_t *it, os_thread_func_t func, uint n)
 		data_threads[i].it = it;
 		data_threads[i].n_thread = i + 1;
 		data_threads[i].count = &count;
-		data_threads[i].count_mutex = count_mutex;
+		data_threads[i].count_mutex = &count_mutex;
 		os_thread_create(func, data_threads + i, &data_threads[i].id);
 	}
 
@@ -943,7 +983,7 @@ run_data_threads(datadir_iter_t *it, os_thread_func_t func, uint n)
 	for (i = 0; i < n; i++) {
 		ret = data_threads[i].ret && ret;
 		if (!data_threads[i].ret) {
-			msg("Error: thread %u failed.\n", i);
+			msg("Error: thread %u failed.", i);
 		}
 	}
 
@@ -951,6 +991,65 @@ run_data_threads(datadir_iter_t *it, os_thread_func_t func, uint n)
 
 	return(ret);
 }
+
+#ifdef _WIN32
+#include <windows.h>
+#include <accctrl.h>
+#include <aclapi.h>
+/*
+  On Windows, fix permission of the file after "copyback"
+  We assume that after copyback, mysqld will run as service as NetworkService
+  user, thus well give full permission on given file to that user.
+*/
+
+static int fix_win_file_permissions(const char *file)
+{
+	struct {
+		TOKEN_USER tokenUser;
+		BYTE buffer[SECURITY_MAX_SID_SIZE];
+	} tokenInfoBuffer;
+	HANDLE hFile = CreateFile(file, READ_CONTROL | WRITE_DAC, 0, NULL, OPEN_EXISTING,
+		FILE_FLAG_BACKUP_SEMANTICS, NULL);
+	if (hFile == INVALID_HANDLE_VALUE)
+		return -1;
+	ACL* pOldDACL;
+	SECURITY_DESCRIPTOR* pSD = NULL;
+	EXPLICIT_ACCESS ea = { 0 };
+	BOOL isWellKnownSID = FALSE;
+	PSID pSid = NULL;
+
+	GetSecurityInfo(hFile, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL,
+		&pOldDACL, NULL, (void**)&pSD);
+	DWORD size = SECURITY_MAX_SID_SIZE;
+	pSid = (PSID)tokenInfoBuffer.buffer;
+	if (!CreateWellKnownSid(WinNetworkServiceSid, NULL, pSid,
+		&size))
+	{
+		return 1;
+	}
+	ea.Trustee.TrusteeForm = TRUSTEE_IS_SID;
+	ea.Trustee.ptstrName = (LPTSTR)pSid;
+
+	ea.grfAccessMode = GRANT_ACCESS;
+	ea.grfAccessPermissions = GENERIC_ALL;
+	ea.grfInheritance = CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE;
+	ea.Trustee.TrusteeType = TRUSTEE_IS_UNKNOWN;
+	ACL* pNewDACL = 0;
+	DWORD err = SetEntriesInAcl(1, &ea, pOldDACL, &pNewDACL);
+	if (pNewDACL)
+	{
+		SetSecurityInfo(hFile, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL,
+			pNewDACL, NULL);
+	}
+	if (pSD != NULL)
+		LocalFree((HLOCAL)pSD);
+	if (pNewDACL != NULL)
+		LocalFree((HLOCAL)pNewDACL);
+	CloseHandle(hFile);
+	return 0;
+}
+
+#endif
 
 
 /************************************************************************
@@ -966,6 +1065,10 @@ copy_file(ds_ctxt_t *datasink,
 	ds_file_t		*dstfile = NULL;
 	datafile_cur_t		 cursor;
 	xb_fil_cur_result_t	 res;
+	DBUG_ASSERT(datasink->datasink->remove);
+	const char	*dst_path =
+		(xtrabackup_copy_back || xtrabackup_move_back)?
+		dst_file_path : trim_dotslash(dst_file_path);
 
 	if (!datafile_open(src_file_path, &cursor, thread_n)) {
 		goto error_close;
@@ -973,17 +1076,14 @@ copy_file(ds_ctxt_t *datasink,
 
 	strncpy(dst_name, cursor.rel_path, sizeof(dst_name));
 
-	dstfile = ds_open(datasink, trim_dotslash(dst_file_path),
-			  &cursor.statinfo);
+	dstfile = ds_open(datasink, dst_path, &cursor.statinfo);
 	if (dstfile == NULL) {
-		msg("[%02u] error: "
-			"cannot open the destination stream for %s\n",
-			thread_n, dst_name);
+		msg(thread_n,"error: "
+			"cannot open the destination stream for %s", dst_name);
 		goto error;
 	}
 
-	msg_ts("[%02u] %s %s to %s\n",
-	       thread_n, xb_get_copy_action(), src_file_path, dstfile->path);
+	msg(thread_n, "%s %s to %s", xb_get_copy_action(), src_file_path, dstfile->path);
 
 	/* The main copy loop */
 	while ((res = datafile_read(&cursor)) == XB_FIL_CUR_SUCCESS) {
@@ -991,6 +1091,7 @@ copy_file(ds_ctxt_t *datasink,
 		if (ds_write(dstfile, cursor.buf, cursor.buf_read)) {
 			goto error;
 		}
+		DBUG_EXECUTE_IF("copy_file_error", errno=ENOSPC;goto error;);
 	}
 
 	if (res == XB_FIL_CUR_ERROR) {
@@ -998,8 +1099,12 @@ copy_file(ds_ctxt_t *datasink,
 	}
 
 	/* close */
-	msg_ts("[%02u]        ...done\n", thread_n);
+	msg(thread_n,"        ...done");
 	datafile_close(&cursor);
+#ifdef _WIN32
+	if (xtrabackup_copy_back || xtrabackup_move_back)
+		ut_a(!fix_win_file_permissions(dstfile->path));
+#endif
 	if (ds_close(dstfile)) {
 		goto error_close;
 	}
@@ -1008,11 +1113,12 @@ copy_file(ds_ctxt_t *datasink,
 error:
 	datafile_close(&cursor);
 	if (dstfile != NULL) {
+		datasink->datasink->remove(dstfile->path);
 		ds_close(dstfile);
 	}
 
 error_close:
-	msg("[%02u] Error: copy_file() failed.\n", thread_n);
+	msg(thread_n,"Error: copy_file() failed.");
 	return(false); /*ERROR*/
 }
 
@@ -1044,36 +1150,38 @@ move_file(ds_ctxt_t *datasink,
 
 	if (file_exists(dst_file_path_abs)) {
 		msg("Error: Move file %s to %s failed: Destination "
-			"file exists\n",
-			src_file_path, dst_file_path_abs);
+			"file exists", src_file_path, dst_file_path_abs);
 		return(false);
 	}
 
-	msg_ts("[%02u] Moving %s to %s\n",
-	       thread_n, src_file_path, dst_file_path_abs);
+	msg(thread_n,"Moving %s to %s", src_file_path, dst_file_path_abs);
 
 	if (my_rename(src_file_path, dst_file_path_abs, MYF(0)) != 0) {
 		if (my_errno == EXDEV) {
-			bool ret;
-			ret = copy_file(datasink, src_file_path,
-					dst_file_path, thread_n);
-			msg_ts("[%02u] Removing %s\n", thread_n, src_file_path);
+			/* Fallback to copy/unlink */
+			if(!copy_file(datasink, src_file_path,
+					dst_file_path, thread_n))
+					return false;
+			msg(thread_n,"Removing %s", src_file_path);
 			if (unlink(src_file_path) != 0) {
 				my_strerror(errbuf, sizeof(errbuf), errno);
-				msg("Error: unlink %s failed: %s\n",
+				msg("Warning: unlink %s failed: %s",
 					src_file_path,
 					errbuf);
 			}
-			return(ret);
+			return true;
 		}
 		my_strerror(errbuf, sizeof(errbuf), my_errno);
-		msg("Can not move file %s to %s: %s\n",
+		msg("Can not move file %s to %s: %s",
 			src_file_path, dst_file_path_abs,
 			errbuf);
 		return(false);
 	}
-
-	msg_ts("[%02u]        ...done\n", thread_n);
+#ifdef _WIN32
+	if (xtrabackup_copy_back || xtrabackup_move_back)
+		ut_a(!fix_win_file_permissions(dst_file_path_abs));
+#endif
+	msg(thread_n,"        ...done");
 
 	return(true);
 }
@@ -1138,7 +1246,8 @@ bool
 copy_or_move_file(const char *src_file_path,
 		  const char *dst_file_path,
 		  const char *dst_dir,
-		  uint thread_n)
+		  uint thread_n,
+		 bool copy = xtrabackup_copy_back)
 {
 	ds_ctxt_t *datasink = ds_data;		/* copy to datadir by default */
 	char filedir[FN_REFLEN];
@@ -1177,6 +1286,7 @@ copy_or_move_file(const char *src_file_path,
 
 			if (!directory_exists(dst_dir, true)) {
 				ret = false;
+				free(link_filepath);
 				goto cleanup;
 			}
 
@@ -1186,7 +1296,7 @@ copy_or_move_file(const char *src_file_path,
 		free(link_filepath);
 	}
 
-	ret = (xtrabackup_copy_back ?
+	ret = (copy ?
 		copy_file(datasink, src_file_path, dst_file_path, thread_n) :
 		move_file(datasink, src_file_path, dst_file_path,
 			  dst_dir, thread_n));
@@ -1203,6 +1313,7 @@ cleanup:
 
 
 
+static
 bool
 backup_files(const char *from, bool prep_mode)
 {
@@ -1223,13 +1334,13 @@ backup_files(const char *from, bool prep_mode)
 			prep_mode ? 1 : 2);
 		rsync_tmpfile = fopen(rsync_tmpfile_name, "w");
 		if (rsync_tmpfile == NULL) {
-			msg("Error: can't create file %s\n",
+			msg("Error: can't create file %s",
 				rsync_tmpfile_name);
 			return(false);
 		}
 	}
 
-	msg_ts("Starting %s non-InnoDB tables and files\n",
+	msg("Starting %s non-InnoDB tables and files",
 	       prep_mode ? "prep copy of" : "to backup");
 
 	datadir_node_init(&node);
@@ -1245,7 +1356,7 @@ backup_files(const char *from, bool prep_mode)
 				ret = datafile_copy_backup(node.filepath, 1);
 			}
 			if (!ret) {
-				msg("Failed to copy file %s\n", node.filepath);
+				msg("Failed to copy file %s", node.filepath);
 				goto out;
 			}
 		} else if (!prep_mode) {
@@ -1255,7 +1366,7 @@ backup_files(const char *from, bool prep_mode)
 				 "%s/db.opt", node.filepath);
 			if (!(ret = backup_file_printf(
 					trim_dotslash(path), "%s", ""))) {
-				msg("Failed to create file %s\n", path);
+				msg("Failed to create file %s", path);
 				goto out;
 			}
 		}
@@ -1280,13 +1391,13 @@ backup_files(const char *from, bool prep_mode)
 		cmd << "rsync -t . --files-from=" << rsync_tmpfile_name
 		    << " " << xtrabackup_target_dir;
 
-		msg_ts("Starting rsync as: %s\n", cmd.str().c_str());
+		msg("Starting rsync as: %s", cmd.str().c_str());
 		if ((err = system(cmd.str().c_str()) && !prep_mode) != 0) {
-			msg_ts("Error: rsync failed with error code %d\n", err);
+			msg("Error: rsync failed with error code %d", err);
 			ret = false;
 			goto out;
 		}
-		msg_ts("rsync finished successfully.\n");
+		msg("rsync finished successfully.");
 
 		if (!prep_mode && !opt_no_lock) {
 			char path[FN_REFLEN];
@@ -1302,9 +1413,10 @@ backup_files(const char *from, bool prep_mode)
 
 			rsync_tmpfile = fopen(rsync_tmpfile_name, "r");
 			if (rsync_tmpfile == NULL) {
-				msg("Error: can't open file %s\n",
+				msg("Error: can't open file %s",
 					rsync_tmpfile_name);
-				return(false);
+				ret = false;
+				goto out;
 			}
 
 			while (fgets(path, sizeof(path), rsync_tmpfile)) {
@@ -1317,7 +1429,7 @@ backup_files(const char *from, bool prep_mode)
 					snprintf(dst_path, sizeof(dst_path),
 						"%s/%s", xtrabackup_target_dir,
 						path);
-					msg_ts("Removing %s\n", dst_path);
+					msg("Removing %s", dst_path);
 					unlink(dst_path);
 				}
 			}
@@ -1327,7 +1439,7 @@ backup_files(const char *from, bool prep_mode)
 		}
 	}
 
-	msg_ts("Finished %s non-InnoDB tables and files\n",
+	msg("Finished %s non-InnoDB tables and files",
 	       prep_mode ? "a prep copy of" : "backing up");
 
 out:
@@ -1341,8 +1453,32 @@ out:
 	return(ret);
 }
 
+void backup_fix_ddl(CorruptedPages &);
+
+lsn_t get_current_lsn(MYSQL *connection)
+{
+	static const char lsn_prefix[] = "\nLog sequence number ";
+	lsn_t lsn = 0;
+	if (MYSQL_RES *res = xb_mysql_query(connection,
+					    "SHOW ENGINE INNODB STATUS",
+					    true, false)) {
+		if (MYSQL_ROW row = mysql_fetch_row(res)) {
+			const char *p= strstr(row[2], lsn_prefix);
+			DBUG_ASSERT(p);
+			if (p) {
+				p += sizeof lsn_prefix - 1;
+				lsn = lsn_t(strtoll(p, NULL, 10));
+			}
+		}
+		mysql_free_result(res);
+	}
+	return lsn;
+}
+
+lsn_t server_lsn_after_lock;
+extern void backup_wait_for_lsn(lsn_t lsn);
 /** Start --backup */
-bool backup_start()
+bool backup_start(CorruptedPages &corrupted_pages)
 {
 	if (!opt_no_lock) {
 		if (opt_safe_slave_backup) {
@@ -1360,6 +1496,7 @@ bool backup_start()
 		if (!lock_tables(mysql_connection)) {
 			return(false);
 		}
+		server_lsn_after_lock = get_current_lsn(mysql_connection);
 	}
 
 	if (!backup_files(fil_path_to_mysql_datadir, false)) {
@@ -1369,6 +1506,14 @@ bool backup_start()
 	if (!backup_files_from_datadir(fil_path_to_mysql_datadir)) {
 		return false;
 	}
+
+	if (has_rocksdb_plugin()) {
+		rocksdb_create_checkpoint();
+	}
+
+	msg("Waiting for log copy thread to read lsn %llu", (ulonglong)server_lsn_after_lock);
+	backup_wait_for_lsn(server_lsn_after_lock);
+	backup_fix_ddl(corrupted_pages);
 
 	// There is no need to stop slave thread before coping non-Innodb data when
 	// --no-lock option is used because --no-lock option requires that no DDL or
@@ -1408,8 +1553,8 @@ bool backup_start()
 		write_binlog_info(mysql_connection);
 	}
 
-	if (have_flush_engine_logs) {
-		msg_ts("Executing FLUSH NO_WRITE_TO_BINLOG ENGINE LOGS...\n");
+	if (have_flush_engine_logs && !opt_no_lock) {
+		msg("Executing FLUSH NO_WRITE_TO_BINLOG ENGINE LOGS...");
 		xb_mysql_query(mysql_connection,
 			"FLUSH NO_WRITE_TO_BINLOG ENGINE LOGS", false);
 	}
@@ -1428,8 +1573,12 @@ void backup_release()
 		history_lock_time = time(NULL) - history_lock_time;
 	}
 
+	if (opt_lock_ddl_per_table) {
+		mdl_unlock_all();
+	}
+
 	if (opt_safe_slave_backup && sql_thread_started) {
-		msg("Starting slave SQL thread\n");
+		msg("Starting slave SQL thread");
 		xb_mysql_query(mysql_connection,
 				"START SLAVE SQL_THREAD", false);
 	}
@@ -1451,12 +1600,16 @@ bool backup_finish()
 		}
 	}
 
-	msg_ts("Backup created in directory '%s'\n", xtrabackup_target_dir);
+	if (has_rocksdb_plugin()) {
+		rocksdb_backup_checkpoint();
+	}
+
+	msg("Backup created in directory '%s'", xtrabackup_target_dir);
 	if (mysql_binlog_position != NULL) {
-		msg("MySQL binlog position: %s\n", mysql_binlog_position);
+		msg("MySQL binlog position: %s", mysql_binlog_position);
 	}
 	if (mysql_slave_position && opt_slave_info) {
-		msg("MySQL slave binlog position: %s\n",
+		msg("MySQL slave binlog position: %s",
 			mysql_slave_position);
 	}
 
@@ -1464,7 +1617,8 @@ bool backup_finish()
 		return(false);
 	}
 
-	if (!write_xtrabackup_info(mysql_connection, XTRABACKUP_INFO, opt_history != 0)) {
+	if (!write_xtrabackup_info(mysql_connection, XTRABACKUP_INFO,
+				    opt_history != 0, true)) {
 		return(false);
 	}
 
@@ -1516,11 +1670,14 @@ ibx_copy_incremental_over_full()
 
 			if (!(ret = copy_file(ds_data, node.filepath,
 						node.filepath_rel, 1))) {
-				msg("Failed to copy file %s\n",
+				msg("Failed to copy file %s",
 					node.filepath);
 				goto cleanup;
 			}
 		}
+
+		if (!(ret = backup_files_from_datadir(xtrabackup_incremental_dir)))
+			goto cleanup;
 
 		/* copy buffer pool dump */
 		if (innobase_buffer_pool_filename) {
@@ -1554,7 +1711,20 @@ ibx_copy_incremental_over_full()
 			}
 		}
 
+		if (directory_exists(ROCKSDB_BACKUP_DIR, false)) {
+			if (my_rmtree(ROCKSDB_BACKUP_DIR, MYF(0))) {
+				die("Can't remove " ROCKSDB_BACKUP_DIR);
+			}
+		}
+		snprintf(path, sizeof(path), "%s/" ROCKSDB_BACKUP_DIR, xtrabackup_incremental_dir);
+		if (directory_exists(path, false)) {
+			if (my_mkdir(ROCKSDB_BACKUP_DIR, 0777, MYF(0))) {
+				die("my_mkdir failed for " ROCKSDB_BACKUP_DIR);
+			}
+			copy_or_move_dir(path, ROCKSDB_BACKUP_DIR, true, true);
+		}
 	}
+
 
 cleanup:
 	if (it != NULL) {
@@ -1623,7 +1793,7 @@ apply_log_finish()
 bool
 copy_back()
 {
-	bool ret;
+	bool ret = false;
 	datadir_iter_t *it = NULL;
 	datadir_node_t node;
 	char *dst_dir;
@@ -1656,7 +1826,7 @@ copy_back()
 	/* cd to backup directory */
 	if (my_setwd(xtrabackup_target_dir, MYF(MY_WME)))
 	{
-		msg("cannot my_setwd %s\n", xtrabackup_target_dir);
+		msg("Can't my_setwd %s", xtrabackup_target_dir);
 		return(false);
 	}
 
@@ -1669,7 +1839,7 @@ copy_back()
 	srv_sys_space.set_path(".");
 
 	if (!srv_sys_space.parse_params(innobase_data_file_path, true)) {
-		msg("syntax error in innodb_data_file_path\n");
+		msg("syntax error in innodb_data_file_path");
 		return(false);
 	}
 
@@ -1766,6 +1936,16 @@ copy_back()
 		int i_tmp;
 		bool is_ibdata_file;
 
+		if (strstr(node.filepath,"/" ROCKSDB_BACKUP_DIR "/")
+#ifdef _WIN32
+			|| strstr(node.filepath,"\\" ROCKSDB_BACKUP_DIR "\\")
+#endif
+		)
+		{
+			// copied at later step
+			continue;
+		}
+
 		/* create empty directories */
 		if (node.is_empty_dir) {
 			char path[FN_REFLEN];
@@ -1773,12 +1953,12 @@ copy_back()
 			snprintf(path, sizeof(path), "%s/%s",
 				mysql_data_home, node.filepath_rel);
 
-			msg_ts("[%02u] Creating directory %s\n", 1, path);
+			msg("Creating directory %s", path);
 
 			if (mkdirp(path, 0777, MYF(0)) < 0) {
 				char errbuf[MYSYS_STRERROR_SIZE];
 				my_strerror(errbuf, sizeof(errbuf), my_errno);
-				msg("Can not create directory %s: %s\n",
+				msg("Can not create directory %s: %s",
 					path, errbuf);
 				ret = false;
 
@@ -1786,7 +1966,7 @@ copy_back()
 
 			}
 
-			msg_ts("[%02u] ...done.", 1);
+			msg(" ...done.");
 
 			continue;
 		}
@@ -1812,7 +1992,8 @@ copy_back()
 		is_ibdata_file = false;
 		for (Tablespace::const_iterator iter(srv_sys_space.begin()),
 		       end(srv_sys_space.end()); iter != end; ++iter) {
-			if (strcmp(iter->name(), filename) == 0) {
+			const char *ibfile = base_name(iter->name());
+			if (strcmp(ibfile, filename) == 0) {
 				is_ibdata_file = true;
 				break;
 			}
@@ -1848,6 +2029,8 @@ copy_back()
 					  mysql_data_home, 0);
 		}
 	}
+
+	rocksdb_copy_back();
 
 cleanup:
 	if (it != NULL) {
@@ -1893,14 +2076,14 @@ decrypt_decompress_file(const char *filepath, uint thread_n)
 
  	if (needs_action) {
 
-		msg_ts("[%02u] %s\n", thread_n, message.str().c_str());
+		msg(thread_n,"%s\n", message.str().c_str());
 
 	 	if (system(cmd.str().c_str()) != 0) {
 	 		return(false);
 	 	}
 
 		if (opt_remove_original) {
-			msg_ts("[%02u] removing %s\n", thread_n, filepath);
+			msg(thread_n, "Removing %s", filepath);
 			if (my_delete(filepath, MYF(MY_WME)) != 0) {
 				return(false);
 			}
@@ -1941,9 +2124,9 @@ cleanup:
 
 	datadir_node_free(&node);
 
-	pthread_mutex_lock(&ctxt->count_mutex);
+	pthread_mutex_lock(ctxt->count_mutex);
 	--(*ctxt->count);
-	pthread_mutex_unlock(&ctxt->count_mutex);
+	pthread_mutex_unlock(ctxt->count_mutex);
 
 	ctxt->ret = ret;
 
@@ -1963,7 +2146,7 @@ decrypt_decompress()
 	/* cd to backup directory */
 	if (my_setwd(xtrabackup_target_dir, MYF(MY_WME)))
 	{
-		msg("cannot my_setwd %s\n", xtrabackup_target_dir);
+		msg("Can't my_setwd %s", xtrabackup_target_dir);
 		return(false);
 	}
 
@@ -2007,21 +2190,258 @@ static bool backup_files_from_datadir(const char *dir_path)
 		if (info.type != OS_FILE_TYPE_FILE)
 			continue;
 
-		const char *pname = strrchr(info.name, IF_WIN('\\', '/'));
+		const char *pname = strrchr(info.name, OS_PATH_SEPARATOR);
 		if (!pname)
 			pname = info.name;
 
-		/* Copy aria log files, and aws keys for encryption plugins.*/
-		const char *prefixes[] = { "aria_log", "aws-kms-key" };
-		for (size_t i = 0; i < array_elements(prefixes); i++) {
-			if (starts_with(pname, prefixes[i])) {
-				ret = copy_file(ds_data, info.name, info.name, 1);
-				if (!ret) {
-					break;
-				}
-			}
-		}
+		if (!starts_with(pname, "aws-kms-key") &&
+			!starts_with(pname, "aria_log"))
+			/* For ES exchange the above line with the following code:
+			(!xtrabackup_prepare || !xtrabackup_incremental_dir ||
+				!starts_with(pname, "aria_log")))
+			*/
+			continue;
+
+		if (xtrabackup_prepare && xtrabackup_incremental_dir &&
+			file_exists(info.name))
+			unlink(info.name);
+
+		std::string full_path(dir_path);
+		full_path.append(1, OS_PATH_SEPARATOR).append(info.name);
+		if (!(ret = copy_file(ds_data, full_path.c_str() , info.name, 1)))
+			break;
 	}
 	os_file_closedir(dir);
 	return ret;
+}
+
+
+static int rocksdb_remove_checkpoint_directory()
+{
+	xb_mysql_query(mysql_connection, "set global rocksdb_remove_mariabackup_checkpoint=ON", false);
+	return 0;
+}
+
+static bool has_rocksdb_plugin()
+{
+	static bool first_time = true;
+	static bool has_plugin= false;
+	if (!first_time || !xb_backup_rocksdb)
+		return has_plugin;
+
+	const char *query = "SELECT COUNT(*) FROM information_schema.plugins WHERE plugin_name='rocksdb'";
+	MYSQL_RES* result = xb_mysql_query(mysql_connection, query, true);
+	MYSQL_ROW row = mysql_fetch_row(result);
+	if (row)
+		has_plugin = !strcmp(row[0], "1");
+	mysql_free_result(result);
+	first_time = false;
+	return has_plugin;
+}
+
+static char *trim_trailing_dir_sep(char *path)
+{
+	size_t path_len = strlen(path);
+	while (path_len)
+	{
+		char c = path[path_len - 1];
+		if (c == '/' IF_WIN(|| c == '\\', ))
+			path_len--;
+		else
+			break;
+	}
+	path[path_len] = 0;
+	return path;
+}
+
+/*
+Create a file hardlink.
+@return true on success, false on error.
+*/
+static bool make_hardlink(const char *from_path, const char *to_path)
+{
+	DBUG_EXECUTE_IF("no_hardlinks", return false;);
+	char to_path_full[FN_REFLEN];
+	if (!is_abs_path(to_path))
+	{
+		fn_format(to_path_full, to_path, ds_data->root, "", MYF(MY_RELATIVE_PATH));
+	}
+	else
+	{
+		strncpy(to_path_full, to_path, sizeof(to_path_full));
+	}
+#ifdef _WIN32
+	return  CreateHardLink(to_path_full, from_path, NULL);
+#else
+	return !link(from_path, to_path_full);
+#endif
+}
+
+/*
+ Copies or moves a directory (non-recursively so far).
+ Helper function used to backup rocksdb checkpoint, or copy-back the
+ rocksdb files.
+
+ Has optimization that allows to use hardlinks when possible
+ (source and destination are directories on the same device)
+*/
+static void copy_or_move_dir(const char *from, const char *to, bool do_copy, bool allow_hardlinks)
+{
+	datadir_node_t node;
+	datadir_node_init(&node);
+	datadir_iter_t *it = datadir_iter_new(from, false);
+
+	while (datadir_iter_next(it, &node))
+	{
+		char to_path[FN_REFLEN];
+		const char *from_path = node.filepath;
+		snprintf(to_path, sizeof(to_path), "%s/%s", to, base_name(from_path));
+		bool rc = false;
+		if (do_copy && allow_hardlinks)
+		{
+			rc = make_hardlink(from_path, to_path);
+			if (rc)
+			{
+				msg("Creating hardlink from %s to %s",from_path, to_path);
+			}
+			else
+			{
+				allow_hardlinks = false;
+			}
+		}
+
+		if (!rc) 
+		{
+			rc = (do_copy ?
+				copy_file(ds_data, from_path, to_path, 1) :
+				move_file(ds_data, from_path, node.filepath_rel,
+					to, 1));
+		}
+		if (!rc)
+			die("copy or move file failed");
+	}
+	datadir_iter_free(it);
+	datadir_node_free(&node);
+
+}
+
+/*
+  Obtain user level lock , to protect the checkpoint directory of the server
+  from being  user/overwritten by different backup processes, if backups are
+  running in parallel.
+  
+  This lock will be acquired before rocksdb checkpoint is created,  held
+  while all files from it are being copied to their final backup destination,
+  and finally released after the checkpoint is removed.
+*/
+static void rocksdb_lock_checkpoint()
+{
+	msg("Obtaining rocksdb checkpoint lock.");
+	MYSQL_RES *res =
+		xb_mysql_query(mysql_connection, "SELECT GET_LOCK('mariabackup_rocksdb_checkpoint',3600)", true, true);
+
+	MYSQL_ROW r = mysql_fetch_row(res);
+	if (r && r[0] && strcmp(r[0], "1"))
+	{
+		msg("Could not obtain rocksdb checkpont lock.");
+		exit(EXIT_FAILURE);
+	}
+	mysql_free_result(res);
+}
+
+static void rocksdb_unlock_checkpoint()
+{
+	xb_mysql_query(mysql_connection, 
+		"SELECT RELEASE_LOCK('mariabackup_rocksdb_checkpoint')", false, true);
+}
+
+
+/*
+  Create temporary checkpoint in $rocksdb_datadir/mariabackup-checkpoint
+  directory.
+  A (user-level) lock named 'mariabackup_rocksdb_checkpoint' will also be
+  acquired be this function.
+*/
+#define MARIADB_CHECKPOINT_DIR "mariabackup-checkpoint"
+static 	char rocksdb_checkpoint_dir[FN_REFLEN];
+
+static void rocksdb_create_checkpoint()
+{
+	MYSQL_RES *result = xb_mysql_query(mysql_connection, "SELECT @@rocksdb_datadir,@@datadir", true, true);
+	MYSQL_ROW row = mysql_fetch_row(result);
+
+	DBUG_ASSERT(row && row[0] && row[1]);
+
+	char *rocksdbdir = row[0];
+	char *datadir = row[1];
+
+	if (is_abs_path(rocksdbdir))
+	{
+		snprintf(rocksdb_checkpoint_dir, sizeof(rocksdb_checkpoint_dir),
+			"%s/" MARIADB_CHECKPOINT_DIR, trim_trailing_dir_sep(rocksdbdir));
+	}
+	else 
+	{
+		snprintf(rocksdb_checkpoint_dir, sizeof(rocksdb_checkpoint_dir),
+			"%s/%s/" MARIADB_CHECKPOINT_DIR, trim_trailing_dir_sep(datadir),
+			trim_dotslash(rocksdbdir));
+	}
+	mysql_free_result(result);
+
+#ifdef _WIN32
+	for (char *p = rocksdb_checkpoint_dir; *p; p++)
+		if (*p == '\\') *p = '/';
+#endif
+
+	rocksdb_lock_checkpoint();
+
+	if (!access(rocksdb_checkpoint_dir, 0))
+	{
+		msg("Removing rocksdb checkpoint from previous backup attempt.");
+		rocksdb_remove_checkpoint_directory();
+	}
+
+	char query[FN_REFLEN + 32];
+	snprintf(query, sizeof(query), "SET GLOBAL rocksdb_create_checkpoint='%s'", rocksdb_checkpoint_dir);
+	xb_mysql_query(mysql_connection, query, false, true);
+}
+
+/*
+  Copy files from rocksdb temporary checkpoint to final destination.
+  remove temp.checkpoint directory (in server's datadir)
+  and release user level lock acquired inside rocksdb_create_checkpoint().
+*/
+static void rocksdb_backup_checkpoint()
+{
+	msg("Backing up rocksdb files.");
+	char rocksdb_backup_dir[FN_REFLEN];
+	snprintf(rocksdb_backup_dir, sizeof(rocksdb_backup_dir), "%s/" ROCKSDB_BACKUP_DIR , xtrabackup_target_dir);
+	bool backup_to_directory = xtrabackup_backup && xtrabackup_stream_fmt == XB_STREAM_FMT_NONE;
+	if (backup_to_directory) 
+	{
+		if (my_mkdir(rocksdb_backup_dir, 0777, MYF(0))){
+			die("Can't create rocksdb backup directory %s", rocksdb_backup_dir);
+		}
+	}
+	copy_or_move_dir(rocksdb_checkpoint_dir, ROCKSDB_BACKUP_DIR, true, backup_to_directory);
+	rocksdb_remove_checkpoint_directory();
+	rocksdb_unlock_checkpoint();
+}
+
+/*
+  Copies #rocksdb directory to the $rockdb_data_dir, on copy-back
+*/
+static void rocksdb_copy_back() {
+	if (access(ROCKSDB_BACKUP_DIR, 0))
+		return;
+	char rocksdb_home_dir[FN_REFLEN];
+        if (xb_rocksdb_datadir && is_abs_path(xb_rocksdb_datadir)) {
+		strncpy(rocksdb_home_dir, xb_rocksdb_datadir, sizeof rocksdb_home_dir - 1);
+		rocksdb_home_dir[sizeof rocksdb_home_dir - 1] = '\0';
+	} else {
+	   snprintf(rocksdb_home_dir, sizeof(rocksdb_home_dir), "%s/%s", mysql_data_home, 
+		xb_rocksdb_datadir?trim_dotslash(xb_rocksdb_datadir): ROCKSDB_BACKUP_DIR);
+	}
+	mkdirp(rocksdb_home_dir, 0777, MYF(0));
+	copy_or_move_dir(ROCKSDB_BACKUP_DIR, rocksdb_home_dir, xtrabackup_copy_back, xtrabackup_copy_back);
 }

@@ -13,7 +13,7 @@
    You should have received a copy of the GNU General Public License
    along with this program; see the file COPYING. If not, write to the
    Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-   MA  02110-1301  USA.
+   MA  02110-1335  USA.
 */
 
 /* C++ part based on Wei Dai's des.cpp from CryptoPP */
@@ -224,7 +224,7 @@ void BasicDES::SetKey(const byte* key, word32 /*length*/, CipherDir dir)
     byte *const pc1m = buffer;                 /* place to modify pc1 into */
     byte *const pcr = pc1m + 56;               /* place to rotate pc1 into */
     byte *const ks = pcr + 56;
-    register int i,j,l;
+    int i,j,l;
     int m;
 
     for (j = 0; j < 56; j++) {          /* convert pc1 to bits of key */

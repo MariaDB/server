@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Atomic rename of table;  RENAME TABLE t1 to t2, tmp to t1 [,...]
@@ -30,7 +30,6 @@
 #include "sql_base.h"   // tdc_remove_table, lock_table_names,
 #include "sql_handler.h"                        // mysql_ha_rm_tables
 #include "sql_statistics.h" 
-#include "vtmd.h"
 
 static TABLE_LIST *rename_tables(THD *thd, TABLE_LIST *table_list,
 				 bool skip_error);
@@ -174,14 +173,14 @@ bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent)
     error= 1;
   }
 
-  if (!silent && !error)
+  if (likely(!silent && !error))
   {
     binlog_error= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
-    if (!binlog_error)
+    if (likely(!binlog_error))
       my_ok(thd);
   }
 
-  if (!error)
+  if (likely(!error))
     query_cache_invalidate3(thd, table_list, 0);
 
 err:
@@ -224,7 +223,7 @@ do_rename_temporary(THD *thd, TABLE_LIST *ren_table, TABLE_LIST *new_table,
   new_alias= (lower_case_table_names == 2) ? &new_table->alias :
                                              &new_table->table_name;
 
-  if (is_temporary_table(new_table))
+  if (thd->find_temporary_table(new_table, THD::TMP_TABLE_ANY))
   {
     my_error(ER_TABLE_EXISTS_ERROR, MYF(0), new_alias->str);
     DBUG_RETURN(1);                     // This can't be skipped
@@ -298,22 +297,12 @@ do_rename(THD *thd, TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
         (void) rename_table_in_stat_tables(thd, &ren_table->db,
                                            &ren_table->table_name,
                                            new_db, &new_alias);
-        VTMD_rename vtmd(*ren_table);
-        if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
-        {
-          rc= vtmd.try_rename(thd, new_db->str, new_alias.str);
-          if (rc)
-            goto revert_table_name;
-        }
         if ((rc= Table_triggers_list::change_table_name(thd, &ren_table->db,
                                                         &old_alias,
                                                         &ren_table->table_name,
                                                         new_db,
                                                         &new_alias)))
         {
-          if (thd->variables.vers_alter_history == VERS_ALTER_HISTORY_SURVIVE)
-            vtmd.revert_rename(thd, new_db->str);
-revert_table_name:
           /*
             We've succeeded in renaming table's .frm and in updating
             corresponding handler data, but have failed to update table's
@@ -343,7 +332,7 @@ revert_table_name:
   {
     my_error(ER_NO_SUCH_TABLE, MYF(0), ren_table->db.str, old_alias.str);
   }
-  if (rc && !skip_error)
+  if (unlikely(rc && !skip_error))
     DBUG_RETURN(1);
 
   DBUG_RETURN(0);

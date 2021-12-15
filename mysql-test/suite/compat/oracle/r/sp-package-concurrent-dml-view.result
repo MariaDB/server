@@ -1,0 +1,42 @@
+#
+# MDEV-15070 Crash when doing a CREATE VIEW inside a package routine
+#
+SET @object_type='view';
+#
+# Start of sp-package-concurrent-dml.inc
+#
+SET sql_mode=ORACLE;
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+PROCEDURE p2 AS
+BEGIN
+SELECT 'This is p2' AS msg;
+END;
+PROCEDURE p1 AS
+BEGIN
+SELECT 'This is p1' AS msg;
+DO GET_LOCK('mdev15070',120);
+CALL p2();
+DO RELEASE_LOCK('mdev15070');
+END;
+END;
+$$
+connect  con2,localhost,root;
+connection con2;
+DO GET_LOCK('mdev15070', 120);
+connection default;
+CALL pkg1.p1;
+connection con2;
+CREATE VIEW v1 AS SELECT 1 AS c;
+DROP VIEW v1;
+DO RELEASE_LOCK('mdev15070');
+disconnect con2;
+connection default;
+msg
+This is p1
+msg
+This is p2
+DROP PACKAGE IF EXISTS pkg1;

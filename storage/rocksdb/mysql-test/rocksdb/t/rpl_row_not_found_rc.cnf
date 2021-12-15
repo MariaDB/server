@@ -1,0 +1,11 @@
+!include suite/rpl/my.cnf
+
+[mysqld.1]
+binlog_format=row
+transaction_isolation=read-committed
+[mysqld.2]
+binlog_format=row
+slave_parallel_workers=4
+slave_exec_mode=SEMI_STRICT
+rocksdb_lock_wait_timeout=5
+transaction_isolation=read-committed

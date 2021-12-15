@@ -154,7 +154,7 @@ col_a	col_b	col_c
 connection child2_1;
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
 argument
-select `col_a`,`col_b`,`col_c` from `auto_test_remote`.`tbl_a`
+select t0.`col_a` `col_a`,t0.`col_b` `col_b`,t0.`col_c` `col_c` from `auto_test_remote`.`tbl_a` t0
 SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
 SELECT col_a, col_b, col_c FROM tbl_a ORDER BY col_a;
 col_a	col_b	col_c

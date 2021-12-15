@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2013, 2018, MariaDB Corporation.
+   Copyright (c) 2013, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef SQL_ALTER_TABLE_H
 #define SQL_ALTER_TABLE_H
@@ -29,100 +29,10 @@ class Key;
 class Alter_info
 {
 public:
-  /*
-    These flags are set by the parser and describes the type of
-    operation(s) specified by the ALTER TABLE statement.
-
-    They do *not* describe the type operation(s) to be executed
-    by the storage engine. For example, we don't yet know the
-    type of index to be added/dropped.
-  */
-
-  /** Set for ADD [COLUMN] */
-  static const ulonglong ALTER_ADD_COLUMN            = 1ULL <<  0;
-  /** Set for DROP [COLUMN] */
-  static const ulonglong ALTER_DROP_COLUMN           = 1ULL <<  1;
-  /** Set for CHANGE [COLUMN] | MODIFY [CHANGE] & mysql_recreate_table */
-  static const ulonglong ALTER_CHANGE_COLUMN         = 1ULL <<  2;
-  /** Set for ADD INDEX | ADD KEY | ADD PRIMARY KEY | ADD UNIQUE KEY |
-              ADD UNIQUE INDEX | ALTER ADD [COLUMN] */
-  static const ulonglong ALTER_ADD_INDEX             = 1ULL <<  3;
-  /** Set for DROP PRIMARY KEY | DROP FOREIGN KEY | DROP KEY | DROP INDEX */
-  static const ulonglong ALTER_DROP_INDEX            = 1ULL <<  4;
-  /** Set for RENAME [TO] */
-  static const ulonglong ALTER_RENAME                = 1ULL <<  5;
-  /** Set for ORDER BY */
-  static const ulonglong ALTER_ORDER                 = 1ULL <<  6;
-  /** Set for table_options */
-  static const ulonglong ALTER_OPTIONS               = 1ULL <<  7;
-  /** Set for ALTER [COLUMN] ... SET DEFAULT ... | DROP DEFAULT */
-  static const ulonglong ALTER_CHANGE_COLUMN_DEFAULT = 1ULL <<  8;
-  /** Set for DISABLE KEYS | ENABLE KEYS */
-  static const ulonglong ALTER_KEYS_ONOFF            = 1ULL <<  9;
-  /** Set for FORCE, ENGINE(same engine), by mysql_recreate_table() */
-  static const ulonglong ALTER_RECREATE              = 1ULL << 10;
-  /** Set for ADD PARTITION */
-  static const ulonglong ALTER_ADD_PARTITION         = 1ULL << 11;
-  /** Set for DROP PARTITION */
-  static const ulonglong ALTER_DROP_PARTITION        = 1ULL << 12;
-  /** Set for COALESCE PARTITION */
-  static const ulonglong ALTER_COALESCE_PARTITION    = 1ULL << 13;
-  /** Set for REORGANIZE PARTITION ... INTO */
-  static const ulonglong ALTER_REORGANIZE_PARTITION  = 1ULL << 14;
-  /** Set for partition_options */
-  static const ulonglong ALTER_PARTITION             = 1ULL << 15;
-  /** Set for LOAD INDEX INTO CACHE ... PARTITION
-      and     CACHE INDEX ... PARTITION */
-  static const ulonglong ALTER_ADMIN_PARTITION       = 1ULL << 16;
-  /** Set for REORGANIZE PARTITION */
-  static const ulonglong ALTER_TABLE_REORG           = 1ULL << 17;
-  /** Set for REBUILD PARTITION */
-  static const ulonglong ALTER_REBUILD_PARTITION     = 1ULL << 18;
-  /** Set for partitioning operations specifying ALL keyword */
-  static const ulonglong ALTER_ALL_PARTITION         = 1ULL << 19;
-  /** Set for REMOVE PARTITIONING */
-  static const ulonglong ALTER_REMOVE_PARTITIONING   = 1ULL << 20;
-  /** Set for ADD FOREIGN KEY */
-  static const ulonglong ADD_FOREIGN_KEY             = 1ULL << 21;
-  /** Set for DROP FOREIGN KEY */
-  static const ulonglong DROP_FOREIGN_KEY            = 1ULL << 22;
-  /** Set for EXCHANGE PARITION */
-  static const ulonglong ALTER_EXCHANGE_PARTITION    = 1ULL << 23;
-  /** Set by Sql_cmd_alter_table_truncate_partition::execute() */
-  static const ulonglong ALTER_TRUNCATE_PARTITION    = 1ULL << 24;
-  /** Set for ADD [COLUMN] FIRST | AFTER */
-  static const ulonglong ALTER_COLUMN_ORDER          = 1ULL << 25;
-  static const ulonglong ALTER_ADD_CHECK_CONSTRAINT  = 1ULL << 27;
-  static const ulonglong ALTER_DROP_CHECK_CONSTRAINT = 1ULL << 28;
-  static const ulonglong ALTER_RENAME_COLUMN         = 1ULL << 29;
-  static const ulonglong ALTER_COLUMN_UNVERSIONED    = 1ULL << 30;
-  static const ulonglong ALTER_ADD_SYSTEM_VERSIONING = 1ULL << 31;
-  static const ulonglong ALTER_DROP_SYSTEM_VERSIONING= 1ULL << 32;
-  static const ulonglong ALTER_ADD_PERIOD            = 1ULL << 33;
-  static const ulonglong ALTER_DROP_PERIOD           = 1ULL << 34;
 
   enum enum_enable_or_disable { LEAVE_AS_IS, ENABLE, DISABLE };
 
-  bool data_modifying() const
-  {
-    return flags & (
-      ALTER_ADD_COLUMN |
-      ALTER_DROP_COLUMN |
-      ALTER_CHANGE_COLUMN |
-      ALTER_COLUMN_ORDER);
-  }
-
-  bool partition_modifying() const
-  {
-    return flags & (
-      ALTER_DROP_PARTITION |
-      ALTER_COALESCE_PARTITION |
-      ALTER_REORGANIZE_PARTITION |
-      ALTER_REMOVE_PARTITIONING |
-      ALTER_TABLE_REORG |
-      ALTER_EXCHANGE_PARTITION |
-      ALTER_TRUNCATE_PARTITION);
-  }
+  bool vers_prohibited(THD *thd) const;
 
   /**
      The different values of the ALGORITHM clause.
@@ -130,14 +40,27 @@ public:
   */
   enum enum_alter_table_algorithm
   {
-    // In-place if supported, copy otherwise.
+/*
+  Use thd->variables.alter_algorithm for alter method. If this is also
+  default then use the fastest possible ALTER TABLE method
+  (INSTANT, NOCOPY, INPLACE, COPY)
+*/
     ALTER_TABLE_ALGORITHM_DEFAULT,
+
+    // Copy if supported, error otherwise.
+    ALTER_TABLE_ALGORITHM_COPY,
 
     // In-place if supported, error otherwise.
     ALTER_TABLE_ALGORITHM_INPLACE,
 
-    // Copy if supported, error otherwise.
-    ALTER_TABLE_ALGORITHM_COPY
+    // No Copy will refuse any operation which does rebuild.
+    ALTER_TABLE_ALGORITHM_NOCOPY,
+
+    // Instant should allow any operation that changes metadata only.
+    ALTER_TABLE_ALGORITHM_INSTANT,
+
+    // When there is no specification of algorithm during alter table.
+    ALTER_TABLE_ALGORITHM_NONE
   };
 
 
@@ -150,7 +73,7 @@ public:
     // Maximum supported level of concurency for the given operation.
     ALTER_TABLE_LOCK_DEFAULT,
 
-    // Allow concurrent reads & writes. If not supported, give erorr.
+    // Allow concurrent reads & writes. If not supported, give error.
     ALTER_TABLE_LOCK_NONE,
 
     // Allow concurrent reads only. If not supported, give error.
@@ -163,7 +86,7 @@ public:
 
   // Columns and keys to be dropped.
   List<Alter_drop>              drop_list;
-  // Columns for ALTER_COLUMN_CHANGE_DEFAULT.
+  // Columns for ALTER_CHANGE_COLUMN_DEFAULT.
   List<Alter_column>            alter_list;
   // List of keys, used by both CREATE and ALTER TABLE.
   List<Key>                     key_list;
@@ -176,24 +99,28 @@ public:
   };
   List<Virtual_column_info>     check_constraint_list;
   // Type of ALTER TABLE operation.
-  ulonglong                     flags;
+  alter_table_operations        flags;
+  ulong                         partition_flags;
   // Enable or disable keys.
   enum_enable_or_disable        keys_onoff;
   // List of partitions.
   List<const char>              partition_names;
   // Number of partitions.
   uint                          num_parts;
+private:
   // Type of ALTER TABLE algorithm.
   enum_alter_table_algorithm    requested_algorithm;
+
+public:
   // Type of ALTER TABLE lock.
   enum_alter_table_lock         requested_lock;
 
 
   Alter_info() :
-    flags(0),
+  flags(0), partition_flags(0),
     keys_onoff(LEAVE_AS_IS),
     num_parts(0),
-    requested_algorithm(ALTER_TABLE_ALGORITHM_DEFAULT),
+    requested_algorithm(ALTER_TABLE_ALGORITHM_NONE),
     requested_lock(ALTER_TABLE_LOCK_DEFAULT)
   {}
 
@@ -205,10 +132,11 @@ public:
     create_list.empty();
     check_constraint_list.empty();
     flags= 0;
+    partition_flags= 0;
     keys_onoff= LEAVE_AS_IS;
     num_parts= 0;
     partition_names.empty();
-    requested_algorithm= ALTER_TABLE_ALGORITHM_DEFAULT;
+    requested_algorithm= ALTER_TABLE_ALGORITHM_NONE;
     requested_lock= ALTER_TABLE_LOCK_DEFAULT;
   }
 
@@ -254,6 +182,54 @@ public:
   */
 
   bool set_requested_lock(const LEX_CSTRING *str);
+
+  /**
+    Set the requested algorithm to the given algorithm value
+    @param algo_value	algorithm to be set
+   */
+  void set_requested_algorithm(enum_alter_table_algorithm algo_value);
+
+  /**
+     Returns the algorithm value in the format "algorithm=value"
+  */
+  const char* algorithm_clause(THD *thd) const;
+
+  /**
+     Returns the lock value in the format "lock=value"
+  */
+  const char* lock() const;
+
+  /**
+     Check whether the given result can be supported
+     with the specified user alter algorithm.
+
+     @param  thd            Thread handle
+     @param  ha_alter_info  Structure describing changes to be done
+                            by ALTER TABLE and holding data during
+                            in-place alter
+     @retval false  Supported operation
+     @retval true   Not supported value
+  */
+  bool supports_algorithm(THD *thd,
+                          const Alter_inplace_info *ha_alter_info);
+
+  /**
+     Check whether the given result can be supported
+     with the specified user lock type.
+
+     @param  ha_alter_info  Structure describing changes to be done
+                            by ALTER TABLE and holding data during
+                            in-place alter
+     @retval false  Supported lock type
+     @retval true   Not supported value
+  */
+  bool supports_lock(THD *thd, const Alter_inplace_info *ha_alter_info);
+
+  /**
+    Return user requested algorithm. If user does not specify
+    algorithm then return alter_algorithm variable value.
+   */
+  enum_alter_table_algorithm algorithm(const THD *thd) const;
 
 private:
   Alter_info &operator=(const Alter_info &rhs); // not implemented
@@ -348,6 +324,7 @@ public:
   const char   *fk_error_id;
   /** Name of table for the above error. */
   const char   *fk_error_table;
+  bool         modified_primary_key;
 
 private:
   char new_filename[FN_REFLEN + 1];
@@ -394,7 +371,8 @@ protected:
   Sql_cmd_alter_table represents the generic ALTER TABLE statement.
   @todo move Alter_info and other ALTER specific structures from Lex here.
 */
-class Sql_cmd_alter_table : public Sql_cmd_common_alter_table
+class Sql_cmd_alter_table : public Sql_cmd_common_alter_table,
+                            public Storage_engine_name
 {
 public:
   /**
@@ -405,6 +383,8 @@ public:
 
   ~Sql_cmd_alter_table()
   {}
+
+  Storage_engine_name *option_storage_engine_name() { return this; }
 
   bool execute(THD *thd);
 };

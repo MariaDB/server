@@ -3,6 +3,7 @@
 # This test cannot be used for the embedded server because we check here
 # privileges.
 --source include/not_embedded.inc
+--source include/default_charset.inc
 
 # InnoDB tables should be used
 #

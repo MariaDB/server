@@ -1,3 +1,5 @@
+#!/bin/bash
+
 set -e
 
 # Initially loads a chunk of data.

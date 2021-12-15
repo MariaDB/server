@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef SQL_UPDATE_INCLUDED
 #define SQL_UPDATE_INCLUDED
@@ -31,8 +31,7 @@ bool check_unique_table(THD *thd, TABLE_LIST *table_list);
 int mysql_update(THD *thd,TABLE_LIST *tables,List<Item> &fields,
 		 List<Item> &values,COND *conds,
 		 uint order_num, ORDER *order, ha_rows limit,
-		 enum enum_duplicates handle_duplicates, bool ignore,
-                 ha_rows *found_return, ha_rows *updated_return);
+                 bool ignore, ha_rows *found_return, ha_rows *updated_return);
 bool mysql_multi_update(THD *thd, TABLE_LIST *table_list,
                         List<Item> *fields, List<Item> *values,
                         COND *conds, ulonglong options,

@@ -5,7 +5,7 @@
 # Access Type: Dynamic                                                        #
 # Data Type: numeric                                                          #
 # Default Value: 1                                                            #
-# Valid Values: 0,1,2                                                           #
+# Valid Values: 0,1,2,3                                                       #
 #                                                                             #
 #                                                                             #
 # Creation Date: 2008-02-20                                                   #
@@ -81,6 +81,8 @@ SELECT @@global.innodb_fast_shutdown;
 SET @@global.innodb_fast_shutdown = 2;
 SELECT @@global.innodb_fast_shutdown;
 
+SET @@global.innodb_fast_shutdown = 3;
+SELECT @@global.innodb_fast_shutdown;
 
 --echo '#--------------------FN_DYNVARS_042_04-------------------------#'
 ###########################################################################

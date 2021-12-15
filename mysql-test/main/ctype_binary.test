@@ -1,0 +1,180 @@
+
+set names binary;
+
+--echo #
+--echo # Start of 5.5 tests
+--echo #
+
+--source include/ctype_numconv.inc
+
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+SET NAMES binary;
+--source include/ctype_like_cond_propagation.inc
+
+--echo #
+--echo # MDEV-7629 Regression: Bit and hex string literals changed column names in 10.0.14
+--echo #
+SELECT _binary 0x7E, _binary X'7E', _binary B'01111110';
+
+SET NAMES utf8, character_set_connection=binary;
+--source include/ctype_mdev13118.inc
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8695 Wrong result for SELECT..WHERE varchar_column='a' AND CRC32(varchar_column)=3904355907
+--echo #
+CREATE TABLE t1 (a VARBINARY(10));
+INSERT INTO t1 VALUES ('a'),('a ');
+SELECT a, LENGTH(a), CRC32(a) FROM t1 WHERE CRC32(a)=3904355907;
+SELECT a, LENGTH(a), CRC32(a) FROM t1 WHERE a='a' AND CRC32(a)=3904355907;
+--echo # Okey to propagate 'a' into CRC32(a)
+EXPLAIN EXTENDED SELECT a, LENGTH(a), CRC32(a) FROM t1 WHERE a='a' AND CRC32(a)=3904355907;
+SELECT a, HEX(a) FROM t1 WHERE HEX(a)='61';
+SELECT *,HEX(a) FROM t1 WHERE a='a' AND HEX(a)='61';
+--echo # Okey to propagate 'a' into HEX(a)
+EXPLAIN EXTENDED SELECT *,HEX(a) FROM t1 WHERE a='a' AND HEX(a)='61';
+SELECT * FROM t1 WHERE a='a';
+SELECT * FROM t1 WHERE LENGTH(a)=2;
+SELECT * FROM t1 WHERE a='a' AND LENGTH(a)=2;
+--echo # Okey to propagate 'a' into LENGTH(a)
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND LENGTH(a)=2;
+SELECT * FROM t1 WHERE a='a ';
+SELECT * FROM t1 WHERE a='a ' AND LENGTH(a)=2;
+--echo # Okey to propagate 'a ' into LENGTH(a)
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a ' AND LENGTH(a)=2;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8723 Wrong result for SELECT..WHERE COLLATION(a)='binary' AND a='a'
+--echo #
+CREATE TABLE t1 (a VARBINARY(10));
+INSERT INTO t1 VALUES ('a'),('A');
+SELECT * FROM t1 WHERE COLLATION(a)='binary' AND a='a';
+SELECT * FROM t1 WHERE CHARSET(a)='binary' AND a='a';
+SELECT * FROM t1 WHERE COERCIBILITY(a)=2 AND a='a';
+SELECT * FROM t1 WHERE WEIGHT_STRING(a)='a' AND a='a';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COLLATION(a)='binary' AND a='a';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE CHARSET(a)='binary'   AND a='a';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE COERCIBILITY(a)=2     AND a='a';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE WEIGHT_STRING(a)='a'  AND a='a';
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-22111 ERROR 1064 & 1033 and SIGSEGV on CREATE TABLE w/ various charsets on 10.4/5 optimized builds | Assertion `(uint) (table_check_constraints - share->check_constraints) == (uint) (share->table_check_constraints - share->field_check_constraints)' failed
+--echo #
+
+CREATE TABLE t1(a ENUM(0x6100,0x6200,0x6300) CHARACTER SET 'Binary');
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT HEX(a) FROM t1 ORDER BY a;
+DROP TABLE t1;
+
+--echo 0x00 in the middle or in the end of a value
+
+CREATE TABLE t1 (a ENUM(0x6100));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1);
+SELECT HEX(a) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a ENUM(0x610062));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1);
+SELECT HEX(a) FROM t1;
+DROP TABLE t1;
+
+--echo 0x00 in the beginning of the first value:
+
+CREATE TABLE t1 (a ENUM(0x0061));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES(1);
+SELECT HEX(a) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a ENUM(0x0061), b ENUM('b'));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1,1);
+SELECT HEX(a), HEX(b) FROM t1;
+DROP TABLE t1;
+
+--echo # 0x00 in the beginning of the second (and following) value of the *last* ENUM/SET in the table:
+
+CREATE TABLE t1 (a ENUM('a',0x0061));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1),(2);
+SELECT HEX(a) FROM t1 ORDER BY a;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a ENUM('a'), b ENUM('b',0x0061));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1,1);
+INSERT INTO t1 VALUES (1,2);
+SELECT HEX(a), HEX(b) FROM t1 ORDER BY a, b;
+DROP TABLE t1;
+
+--echo 0x00 in the beginning of a value of a non-last ENUM/SET causes an error:
+--replace_regex /'.*t1.frm'/'DIR\/t1.frm'/
+--error ER_NOT_FORM_FILE
+CREATE TABLE t1 (a ENUM('a',0x0061), b ENUM('b'));
+
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-22111 ERROR 1064 & 1033 and SIGSEGV on CREATE TABLE w/ various charsets on 10.4/5 optimized builds | Assertion `(uint) (table_check_constraints - share->check_constraints) == (uint) (share->table_check_constraints - share->field_check_constraints)' failed
+--echo # 10.2 tests
+--echo #
+
+SET NAMES latin1;
+CREATE TABLE t1(c ENUM(0x0061) CHARACTER SET 'Binary', d JSON);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (c) VALUES (1);
+SELECT HEX(c) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(
+  c ENUM(0x0061) CHARACTER SET 'Binary',
+  d INT DEFAULT NULL CHECK (d>0)
+);
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1,1);
+SELECT HEX(c), d FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(c ENUM(0x0061) CHARACTER SET 'Binary' CHECK (c>0));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1);
+SELECT HEX(c) FROM t1;
+DROP TABLE t1;
+
+
+
+
+
+
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

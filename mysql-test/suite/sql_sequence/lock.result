@@ -1,0 +1,39 @@
+drop table if exists s1, t1, t2;
+CREATE SEQUENCE s1;
+create table t1 (a int);
+create table t2 (a int);
+LOCK TABLE s1 WRITE, t1 write;
+create or replace sequence s1;
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+select * from t1;
+a
+select * from t2;
+ERROR HY000: Table 't2' was not locked with LOCK TABLES
+unlock tables;
+select * from t1;
+a
+select * from t2;
+a
+drop tables s1, t1, t2;
+CREATE SEQUENCE s1;
+LOCK TABLE s1 READ;
+SELECT NEXTVAL(s1);
+ERROR HY000: Table 's1' was locked with a READ lock and can't be updated
+SELECT NEXTVAL(s);
+ERROR HY000: Table 's' was not locked with LOCK TABLES
+DROP SEQUENCE s1;
+ERROR HY000: Table 's1' was locked with a READ lock and can't be updated
+unlock tables;
+DROP SEQUENCE s1;
+CREATE SEQUENCE seq1;
+CREATE SEQUENCE seq2;
+LOCK TABLE seq1 WRITE, seq2 WRITE;
+INSERT INTO seq1 VALUES (1, 1, 100000, 1, 1, 100, 1, 1);
+DROP SEQUENCE seq1, seq2;
+CREATE OR REPLACE SEQUENCE s1 ENGINE=MyISAM;
+LOCK TABLE s1 WRITE;
+TRUNCATE TABLE s1;
+ERROR HY000: Storage engine SEQUENCE of the table `test`.`s1` doesn't have this option
+DROP SEQUENCE s1;

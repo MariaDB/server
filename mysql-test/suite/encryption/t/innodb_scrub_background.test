@@ -96,7 +96,7 @@ SET GLOBAL innodb_encryption_threads=5;
 let $cnt=600;
 while ($cnt)
 {
-    let $success=`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_SCRUBBING WHERE LAST_SCRUB_COMPLETED IS NULL AND ( NAME in ('test/t1', 'test/t2', 'test/t3') OR SPACE = 0 )`;
+    let $success=`SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_SCRUBBING WHERE LAST_SCRUB_COMPLETED IS NULL AND (NAME LIKE 'test/%' OR SPACE = 0)`;
     if ($success)
     {
         let $cnt=0;

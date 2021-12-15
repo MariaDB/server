@@ -12,14 +12,14 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "mariadb.h"
 #include <string.h>
 
 /* We only need the tokens here */
 #define YYSTYPE_IS_DECLARED
-#include <sql_yacc.h>
+#include <sql_yacc.hh>
 #include <lex.h>
 
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
@@ -33,7 +33,7 @@
   from bison.
   See also YYMAXUTOK.
 */
-#define MY_MAX_TOKEN 1000
+#define MY_MAX_TOKEN 1100
 /** Generated token. */
 struct gen_lex_token_string
 {
@@ -255,9 +255,11 @@ void compute_tokens()
   set_start_expr_token(STARTS_SYM);
   set_start_expr_token(ENDS_SYM);
   set_start_expr_token(DEFAULT);
-  set_start_expr_token(RETURN_SYM);
+  set_start_expr_token(RETURN_MARIADB_SYM);
+  set_start_expr_token(RETURN_ORACLE_SYM);
   set_start_expr_token(IF_SYM);
-  set_start_expr_token(ELSEIF_SYM);
+  set_start_expr_token(ELSEIF_MARIADB_SYM);
+  set_start_expr_token(ELSEIF_ORACLE_SYM);
   set_start_expr_token(CASE_SYM);
   set_start_expr_token(WHEN_SYM);
   set_start_expr_token(WHILE_SYM);

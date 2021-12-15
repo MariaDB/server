@@ -1,0 +1,67 @@
+--disable_warnings
+drop table if exists con, aux, nul, lpt1, com1, `clock$`;
+--enable_warnings
+
+create table con (a int);
+drop table con;
+
+create table aux (a int);
+drop table aux;
+
+create table nul (a int);
+drop table nul;
+
+create table lpt1 (a int);
+drop table lpt1;
+
+create table com1 (a int);
+drop table com1;
+
+create table `clock$` (a int);
+drop table `clock$`;
+
+select convert(convert(',' using filename) using binary);
+
+--echo #
+--echo # MDEV-7677 my_charset_handler_filename has a wrong "ismbchar" member
+--echo #
+SET NAMES utf8;
+SELECT @a:=CONVERT('aя' USING filename) AS `@a`, BINARY @a, REVERSE(@a), HEX(@a), HEX(REVERSE(@a));
+
+--echo #
+--echo # Beginning of 10.2 test.
+--echo #
+--echo # MDEV-25462: Assertion `m_status == DA_ERROR || m_status == DA_OK ||
+--echo # m_status == DA_OK_BULK' failed in Diagnostics_area::message from
+--echo # get_schema_tables_record
+--echo #
+
+SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
+SET @old_character_set_client= @@character_set_client;
+SET @old_character_set_connection= @@character_set_connection;
+SET @old_character_set_results= @@character_set_results;
+--error ER_WRONG_VALUE_FOR_VAR
+SET NAMES 'filename';
+SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
+CREATE VIEW v2 AS SELECT 1;
+SHOW TABLE STATUS;
+DROP VIEW v2;
+SET @@character_set_client= @old_character_set_client;
+SET @@character_set_connection= @old_character_set_connection;
+SET @@character_set_results= @old_character_set_results;
+
+--echo #
+--echo # End of 10.2 test
+--echo #
+
+--echo #
+--echo # MDEV-22022 Various mangled SQL statements will crash 10.3 to 10.5 debug builds
+--echo #
+
+--error ER_WRONG_VALUE_FOR_VAR
+SET CHARACTER_SET_CLIENT=17;
+--error ER_PARSE_ERROR
+SELECT doc.`Children`.0 FROM t1;
+SET NAMES latin1;
+
+--echo # End of 10.3 tests

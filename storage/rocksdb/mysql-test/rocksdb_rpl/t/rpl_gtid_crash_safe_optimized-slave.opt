@@ -1,0 +1,2 @@
+--gtid_mode=ON --enforce_gtid_consistency --log_slave_updates --rocksdb_enable_2pc=OFF
+--sync_binlog=1000 --relay_log_recovery=1 --slave_gtid_info=optimized

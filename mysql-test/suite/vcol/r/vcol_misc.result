@@ -108,10 +108,10 @@ DROP TABLE t1,t2;
 CREATE TABLE t1 (p int, a double NOT NULL, v double AS (ROUND(a,p)) VIRTUAL);
 INSERT IGNORE INTO t1 VALUES (0,1,0);
 Warnings:
-Warning	1906	The value specified for generated column 'v' in table 't1' ignored
+Warning	1906	The value specified for generated column 'v' in table 't1' has been ignored
 INSERT IGNORE INTO t1 VALUES (NULL,0,0);
 Warnings:
-Warning	1906	The value specified for generated column 'v' in table 't1' ignored
+Warning	1906	The value specified for generated column 'v' in table 't1' has been ignored
 SELECT a, p, v, ROUND(a,p), ROUND(a,p+NULL) FROM t1;
 a	p	v	ROUND(a,p)	ROUND(a,p+NULL)
 1	0	1	1	NULL
@@ -203,10 +203,10 @@ drop table t1;
 create table t1 (a int, b int);
 insert into t1 values (3, 30), (4, 20), (1, 20);
 create table t2 (c int, d int, v int as (d+1), index idx(c));
-insert into t2(c,d) values 
+insert into t2(c,d) values
 (20, 100), (20, 300), (30, 100), (30, 200), (40, 500),
 (70, 100), (40, 300), (60, 100), (40, 100), (70, 100);
-insert into t2(c,d) values 
+insert into t2(c,d) values
 (120, 100), (150, 300), (130, 100), (130, 200), (140, 500),
 (170, 100), (180, 300), (160, 100), (40, 100), (170, 100);
 set join_cache_level=6;
@@ -302,21 +302,21 @@ d	varchar(5)	latin1_swedish_ci	YES		NULL	STORED GENERATED	#
 INSERT INTO `test`.`t1`(`a`,`b`,`c`,`d`) VALUES ( '1','a',NULL,NULL);
 UPDATE IGNORE `test`.`t1` SET `d`='b' WHERE `a`='1' AND `b`='a' AND `c`='1' AND  `d`='a';
 Warnings:
-Warning	1906	The value specified for generated column 'd' in table 't1' ignored
+Warning	1906	The value specified for generated column 'd' in table 't1' has been ignored
 INSERT IGNORE INTO `test`.`t1`(`a`,`b`,`c`,`d`) VALUES ( '1','a',NULL,'a');
 Warnings:
-Warning	1906	The value specified for generated column 'd' in table 't1' ignored
+Warning	1906	The value specified for generated column 'd' in table 't1' has been ignored
 set sql_mode='strict_all_tables';
 UPDATE `test`.`t1` SET `d`='b' WHERE `a`='1' AND `b`='a' AND `c`='1' AND  `d`='a';
-ERROR HY000: The value specified for generated column 'd' in table 't1' ignored
+ERROR HY000: The value specified for generated column 'd' in table 't1' has been ignored
 INSERT INTO `test`.`t1`(`a`,`b`,`c`,`d`) VALUES ( '1','a',NULL,'a');
-ERROR HY000: The value specified for generated column 'd' in table 't1' ignored
+ERROR HY000: The value specified for generated column 'd' in table 't1' has been ignored
 drop table t1;
 #
 # MDEV-5611: self-referencing virtual column
 #
 create table t1 (a int, b int as (b is null) virtual);
-ERROR 01000: Expression for field `b` is refering to uninitialized field `b`
+ERROR 01000: Expression for field `b` is referring to uninitialized field `b`
 create table t1 (a int as (1+1), b int as (a is null) virtual);
 drop table t1;
 # end of 5.3 tests
@@ -351,6 +351,16 @@ a	b	c
 2008-12-31 23:59:59	2008-12-30 01:01:01	46:58:58
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
+#
+# MDEV-15834 The code in TABLE_SHARE::init_from_binary_frm_image() is not safe
+#
+SHOW TABLES;
+Tables_in_test
+t1
+SHOW CREATE TABLE t1;
+ERROR HY000: Incorrect information in file: './test/t1.frm'
+ALTER TABLE t1;
+ERROR HY000: Incorrect information in file: './test/t1.frm'
 #
 # End of 5.5 tests
 #
@@ -397,5 +407,109 @@ aaa
 Warnings:
 Warning	1918	Encountered illegal value '\xF0\xF1\xF2\xF3\xF4\xF5\xF6\xF7' when converting to DOUBLE
 #
+# MDEV-22579 No error when inserting DEFAULT(non_virtual_column) into a virtual column
+#
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE OR REPLACE TABLE t1 (
+a INT NOT NULL DEFAULT 10,
+b INT AS (a+1) VIRTUAL
+) ENGINE=MyISAM;
+INSERT INTO t1 (b) VALUES (10);
+ERROR HY000: The value specified for generated column 'b' in table 't1' has been ignored
+INSERT INTO t1 (b) VALUES (DEFAULT(a));
+ERROR HY000: The value specified for generated column 'b' in table 't1' has been ignored
+INSERT INTO t1 (b) VALUES (DEFAULT);
+INSERT INTO t1 VALUES (10,10);
+ERROR HY000: The value specified for generated column 'b' in table 't1' has been ignored
+INSERT INTO t1 VALUES (10,DEFAULT(a));
+ERROR HY000: The value specified for generated column 'b' in table 't1' has been ignored
+INSERT INTO t1 VALUES (10, DEFAULT);
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
 # End of 10.1 tests
+#
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-16518 MYSQL57_GENERATED_FIELD: The code in TABLE_SHARE::init_from_binary_frm_image() is not safe
+#
+SHOW TABLES;
+Tables_in_test
+t1
+SHOW CREATE TABLE t1;
+ERROR HY000: Incorrect information in file: './test/t1.frm'
+ALTER TABLE t1;
+ERROR HY000: Incorrect information in file: './test/t1.frm'
+#
+# MDEV-19771 REPLACE on table with virtual_field can cause crash in set_ok_status()
+
+create or replace table t1 (pk int primary key, col_bit bit(15) default null,
+vcol_bit bit(10) GENERATED ALWAYS AS (`col_bit`) VIRTUAL);
+replace INTO `t1` (`pk`,col_bit) VALUES (99,1000);
+select pk, col_bit+0, vcol_bit+0 from t1;
+pk	col_bit+0	vcol_bit+0
+99	1000	1000
+replace INTO `t1` (`pk`,col_bit) VALUES (99,10000);
+select pk, col_bit+0, vcol_bit+0 from t1;
+pk	col_bit+0	vcol_bit+0
+99	10000	1023
+REPLACE LOW_PRIORITY INTO `t1` (`pk`) VALUES (99);
+ERROR 22001: Data too long for column 'vcol_bit' at row 1
+drop table t1;
+#
+# MDEV-17837 REPLACE on table with virtual_field can cause crash in set_ok_status()
+#
+SET @old_sql_mode=@@sql_mode;
+SET sql_mode= STRICT_ALL_TABLES;
+CREATE TABLE t1 (
+pk INT,
+i TINYINT,
+vi TINYINT AS (i+1) PERSISTENT,
+PRIMARY KEY(pk)
+);
+INSERT INTO t1 (pk,i) VALUES (1,1);
+TRUNCATE TABLE t1;
+INSERT IGNORE INTO t1 (pk,i) VALUES (1,127);
+Warnings:
+Warning	1264	Out of range value for column 'vi' at row 1
+REPLACE INTO t1 (pk,i) VALUES (1,2);
+ERROR 22003: Out of range value for column 'vi' at row 1
+DROP TABLE t1;
+SET @sql_mode=@old_sql_mode;
+#
+# MDEV-22579 No error when inserting DEFAULT(non_virtual_column) into a virtual column
+# 10.2+ specific part
+#
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE OR REPLACE TABLE t1 (
+a INT NOT NULL DEFAULT 10,
+b INT AS (a+1) VIRTUAL
+) ENGINE=MyISAM;
+EXECUTE IMMEDIATE 'INSERT INTO t1 (b) VALUES(?)' USING DEFAULT;
+EXECUTE IMMEDIATE 'INSERT INTO t1 (b) VALUES(?)' USING IGNORE;
+INSERT INTO t1 (b) VALUES (DEFAULT);
+INSERT INTO t1 (b) VALUES (IGNORE);
+SELECT * FROM t1;
+a	b
+10	11
+10	11
+10	11
+10	11
+DELETE FROM t1;
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES(10,?)' USING DEFAULT;
+EXECUTE IMMEDIATE 'INSERT INTO t1 VALUES(11,?)' USING IGNORE;
+INSERT INTO t1 VALUES (12,DEFAULT);
+INSERT INTO t1 VALUES (13,IGNORE);
+SELECT * FROM t1;
+a	b
+10	11
+11	12
+12	13
+13	14
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# End of 10.2 tests
 #

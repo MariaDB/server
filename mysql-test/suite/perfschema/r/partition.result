@@ -1,0 +1,10 @@
+#
+# MDEV-10679
+# Server crashes in in mysql_create_frm_image upon query from
+# performance schema in ps-protocol mode
+#
+CREATE TABLE t1 (i INT);
+ALTER TABLE t1 ADD PARTITION (PARTITION p VALUES LESS THAN (1));
+ERROR HY000: Partition management on a not partitioned table is not possible
+SELECT * FROM performance_schema.events_stages_summary_by_user_by_event_name;
+DROP TABLE t1;

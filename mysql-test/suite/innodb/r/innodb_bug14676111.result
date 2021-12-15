@@ -39,7 +39,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
 select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
 CLUST_INDEX_SIZE
-5
+4
 set global innodb_limit_optimistic_insert_debug = 10000;
 connection con2;
 rollback;
@@ -50,7 +50,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
 select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
 CLUST_INDEX_SIZE
-3
+2
 begin;
 insert into t1 values (2);
 rollback;
@@ -59,7 +59,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
 select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
 CLUST_INDEX_SIZE
-2
+1
 begin;
 insert into t1 values (2);
 rollback;

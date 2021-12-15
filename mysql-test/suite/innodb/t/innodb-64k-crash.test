@@ -23,6 +23,7 @@ CREATE TABLE t1(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
 		vc blob, wc blob, xc blob, yc blob, zc blob
 		) ENGINE=InnoDB ROW_FORMAT=dynamic;
 
+SET innodb_strict_mode=OFF;
 CREATE TABLE t2(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
                 h blob,i blob,j blob,k blob,l blob,m blob,n blob,
 		o blob,p blob,q blob,r blob,s blob,t blob,u blob,
@@ -40,6 +41,7 @@ CREATE TABLE t2(a blob,b blob,c blob,d blob,e blob,f blob,g blob,
 		oc blob, pc blob, qc blob, rc blob, sc blob,tc blob,uc blob,
 		vc blob, wc blob, xc blob, yc blob, zc blob
 		) ENGINE=InnoDB ROW_FORMAT=compact;
+SET innodb_strict_mode=ON;
 
 SET @a = repeat('a', 767);
 SET @b = repeat('b', 767);
@@ -300,84 +302,15 @@ UPDATE t1 SET a=@c,b=@c,c=@c,d=@c,e=@c,f=@c,g=@c,h=@c,i=@c,j=@c,
               kc=@c,lc=@c,mc=@c,nc=@c,oc=@c,pc=@c,qc=@c,rc=@c,sc=@c,tc=@c,uc=@c,
 	      vc=@c,wc=@c,xc=@c,yc=@c,zc=@c;
 
+connect (con1,localhost,root,,);
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+DELETE FROM t2 LIMIT 1;
+disconnect con1;
+connection default;
+
 --let $shutdown_timeout=0
 --source include/restart_mysqld.inc
 --let $shutdown_timeout=
 
-UPDATE t1 SET a=@e,b=@e,c=@e,d=@e,e=@e,f=@e,g=@e,h=@e,i=@e,j=@e,
-              k=@e,l=@e,m=@e,n=@e,o=@e,p=@e,q=@e,r=@e,s=@e,t=@e,u=@e,
-	      v=@e,w=@e,x=@e,y=@e,z=@e,
-	      aa=@e,ba=@e,ca=@e,da=@e,ea=@e,fa=@e,ga=@e,ha=@e,ia=@e,ja=@e,
-              ka=@e,la=@e,ma=@e,na=@e,oa=@e,pa=@e,qa=@e,ra=@e,sa=@e,ta=@e,ua=@e,
-	      va=@e,wa=@e,xa=@e,ya=@e,za=@e,
-	      ab=@e,bb=@e,cb=@e,db=@e,eb=@e,fb=@e,gb=@e,hb=@e,ib=@e,jb=@e,
-              kb=@e,lb=@e,mb=@e,nb=@e,ob=@e,pb=@e,qb=@e,rb=@e,sb=@e,tb=@e,ub=@e,
-	      vb=@e,wb=@e,xb=@e,yb=@e,zb=@e,
-	      ac=@e,bc=@e,cc=@e,dc=@e,ec=@e,fc=@e,gc=@e,hc=@e,ic=@e,jc=@e,
-              kc=@e,lc=@e,mc=@e,nc=@e,oc=@e,pc=@e,qc=@e,rc=@e,sc=@e,tc=@e,uc=@e,
-	      vc=@e,wc=@e,xc=@e,yc=@e,zc=@e;
-
-UPDATE t2 SET a=@l,b=@l,c=@l,d=@l,e=@l,f=@l,g=@l,h=@l,i=@l,j=@l,
-              k=@l,l=@l,m=@l,n=@l,o=@l,p=@l,q=@l,r=@l,s=@l,t=@l,u=@l,
-	      v=@l,w=@l,x=@l,y=@l,z=@l,
-	      aa=@l,ba=@l,ca=@l,da=@l,ea=@l,fa=@l,ga=@l,ha=@l,ia=@l,ja=@l,
-              ka=@l,la=@l,ma=@l,na=@l,oa=@l,pa=@l,qa=@l,ra=@l,sa=@l,ta=@l,ua=@l,
-	      va=@l,wa=@l,xa=@l,ya=@l,za=@l,
-	      ab=@l,bb=@l,cb=@l,db=@l,eb=@l,fb=@l,gb=@l,hb=@l,ib=@l,jb=@l,
-              kb=@l,lb=@l,mb=@l,nb=@l,ob=@l,pb=@l,qb=@l,rb=@l,sb=@l,tb=@l,ub=@l,
-	      vb=@l,wb=@l,xb=@l,yb=@l,zb=@l,
-	      ac=@l,bc=@l,cc=@l,dc=@l,ec=@l,fc=@l,gc=@l,hc=@l,ic=@l,jc=@l,
-              kc=@l,lc=@l,mc=@l,nc=@l,oc=@l,pc=@l,qc=@l,rc=@l,sc=@l,tc=@l,uc=@l,
-	      vc=@l,wc=@l,xc=@l,yc=@l,zc=@l;
-
-COMMIT;
-
-BEGIN;
-UPDATE t1 SET a=@f,b=@f,c=@f,d=@f,e=@f;
-UPDATE t1 SET f=@f,g=@f,h=@f,i=@f,j=@f;
-UPDATE t1 SET k=@f,l=@f,m=@f,n=@f,o=@f;
-UPDATE t1 SET p=@f,q=@f,r=@f,s=@f,t=@f,u=@f;
-UPDATE t1 SET v=@f,w=@f,x=@f,y=@f,z=@f;
-UPDATE t1 SET aa=@f,ba=@f,ca=@f,da=@f;
-UPDATE t1 SET ea=@f,fa=@f,ga=@f,ha=@f,ia=@f,ja=@f;
-UPDATE t1 SET ka=@f,la=@f,ma=@f,na=@f,oa=@f,pa=@f;
-UPDATE t1 SET qa=@f,ra=@f,sa=@f,ta=@f,ua=@f;
-UPDATE t1 SET va=@f,wa=@f,xa=@f,ya=@f,za=@f;
-UPDATE t1 SET ab=@f,bb=@f,cb=@f,db=@f;
-UPDATE t1 SET eb=@f,fb=@f,gb=@f,hb=@f,ib=@f,ja=@f;
-UPDATE t1 SET kb=@f,lb=@f,mb=@f,nb=@f,ob=@f,pa=@f;
-UPDATE t1 SET qb=@f,rb=@f,sb=@f,tb=@f,ub=@f;
-UPDATE t1 SET vb=@f,wb=@f,xb=@f,yb=@f,zb=@f;
-UPDATE t1 SET ac=@f,bc=@f,cc=@f,dc=@f;
-UPDATE t1 SET ec=@f,fc=@f,gc=@f,hc=@f,ic=@f,jc=@f;
-UPDATE t1 SET kc=@f,lc=@f,mc=@f,nc=@f,oc=@f,pc=@f;
-UPDATE t1 SET qc=@f,rc=@f,sc=@f,tc=@f,uc=@f;
-UPDATE t1 SET vc=@f,wc=@f,xc=@f,yc=@f,zc=@f;
-COMMIT;
-
-BEGIN;
-UPDATE t2 SET a=@f,b=@f,c=@f,d=@f,e=@f;
-UPDATE t2 SET f=@f,g=@f,h=@f,i=@f,j=@f;
-UPDATE t2 SET k=@f,l=@f,m=@f,n=@f,o=@f;
-UPDATE t2 SET p=@f,q=@f,r=@f,s=@f,t=@f,u=@f;
-UPDATE t2 SET v=@f,w=@f,x=@f,y=@f,z=@f;
-UPDATE t2 SET aa=@f,ba=@f,ca=@f,da=@f;
-UPDATE t2 SET ea=@f,fa=@f,ga=@f,ha=@f,ia=@f,ja=@f;
-UPDATE t2 SET ka=@f,la=@f,ma=@f,na=@f,oa=@f,pa=@f;
-UPDATE t2 SET qa=@f,ra=@f,sa=@f,ta=@f,ua=@f;
-UPDATE t2 SET va=@f,wa=@f,xa=@f,ya=@f,za=@f;
-UPDATE t2 SET ab=@f,bb=@f,cb=@f,db=@f;
-UPDATE t2 SET eb=@f,fb=@f,gb=@f,hb=@f,ib=@f,ja=@f;
-UPDATE t2 SET kb=@f,lb=@f,mb=@f,nb=@f,ob=@f,pa=@f;
-UPDATE t2 SET qb=@f,rb=@f,sb=@f,tb=@f,ub=@f;
-UPDATE t2 SET vb=@f,wb=@f,xb=@f,yb=@f,zb=@f;
-UPDATE t2 SET ac=@f,bc=@f,cc=@f,dc=@f;
-UPDATE t2 SET ec=@f,fc=@f,gc=@f,hc=@f,ic=@f,jc=@f;
-UPDATE t2 SET kc=@f,lc=@f,mc=@f,nc=@f,oc=@f,pc=@f;
-UPDATE t2 SET qc=@f,rc=@f,sc=@f,tc=@f,uc=@f;
-UPDATE t2 SET vc=@f,wc=@f,xc=@f,yc=@f,zc=@f;
-COMMIT;
-
-show create table t1;
-show create table t2;
+check table t1,t2;
 drop table t1,t2;

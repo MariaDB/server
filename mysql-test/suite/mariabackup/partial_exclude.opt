@@ -1,0 +1,2 @@
+--ignore-db-dirs=db3
+--ignore-db-dirs=db4

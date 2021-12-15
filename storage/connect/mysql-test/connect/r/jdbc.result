@@ -1,4 +1,5 @@
-SET GLOBAL time_zone='+1:00';
+SET GLOBAL time_zone='+0:00';
+SET time_zone='+0:00';
 CREATE DATABASE connect;
 USE connect;
 CREATE TABLE t2 (
@@ -16,7 +17,7 @@ id	msg	tm	dt	dtm	ts
 # Testing JDBC connection to MySQL driver
 #
 USE test;
-CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=t2 CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root';
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=t2 CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root&useSSL=false';
 SELECT * FROM t1;
 id	msg	tm	dt	dtm	ts
 455000000000	A very big number	18:10:25	2016-03-16	1999-12-11 23:01:52	2015-07-24 09:32:45
@@ -26,7 +27,7 @@ Note	1105	t2: 1 affected rows
 SELECT * FROM t1;
 id	msg	tm	dt	dtm	ts
 455000000000	A very big number	18:10:25	2016-03-16	1999-12-11 23:01:52	2015-07-24 09:32:45
-786325481247	Hello!	19:45:03	1933-08-09	1985-11-12 09:02:44	2014-06-17 10:32:01
+786325481247	Hello!	19:45:03	1933-08-10	1985-11-12 09:02:44	2014-06-17 10:32:01
 DELETE FROM t1 WHERE msg = 'Hello!';
 Warnings:
 Note	1105	t2: 1 affected rows
@@ -37,7 +38,7 @@ DROP TABLE t1;
 #
 # Testing JDBC view
 #
-CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC SRCDEF='select id, msg, tm, dt from t2' CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root';
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC SRCDEF='select id, msg, tm, dt from t2' CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root&useSSL=false';
 SELECT * FROM t1;
 id	msg	tm	dt
 455000000000	A very big number	18:10:25	2016-03-16
@@ -74,7 +75,7 @@ SELECT * FROM t3;
 name	city	birth	hired
 Donald	Atlanta	1999-04-01	2016-03-31
 Mick	New York	1980-01-20	2002-09-11
-CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=boys CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root' OPTION_LIST='scrollable=1';
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=boys CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root&useSSL=false' OPTION_LIST='scrollable=1';
 SELECT * FROM t1;
 name	city	birth	hired
 John	Boston	1986-01-25	2010-06-02
@@ -100,9 +101,9 @@ George	San Jose	1981-08-10	2010-06-02
 Sam	Chicago	1979-11-22	2007-10-10
 James	Dallas	1992-05-13	2009-12-14
 Bill	Boston	1986-09-11	2008-02-10
-Donald	Atlanta	1999-03-31	2016-03-30
-Mick	New York	1980-01-20	2002-09-10
-Tom	Seatle	2002-03-15	1970-01-01
+Donald	Atlanta	1999-04-01	2016-03-31
+Mick	New York	1980-01-20	2002-09-11
+Tom	Seatle	2002-03-15	NULL
 DROP TABLE t3;
 #
 # Testing JDBC join operations
@@ -238,24 +239,35 @@ DROP TABLE t1, connect.emp;
 CREATE TABLE t2 (command varchar(128) not null,number int(5) not null flag=1,message varchar(255) flag=2) ENGINE=CONNECT TABLE_TYPE=JDBC CONNECTION='jdbc:mariadb://localhost:PORT/connect' OPTION_LIST='User=root,Execsrc=1';
 SELECT * FROM t2 WHERE command='drop table tx1';
 command	number	message
-drop table tx1	0	Execute: java.sql.SQLSyntaxErrorException: Unknown table 'connect.tx1'
-Query is : drop table tx1
+drop table tx1	0	Execute: java.sql.SQLSyntaxErrorException: (conn:24) Unknown table 'connect.tx1'
+Warnings:
+Warning	1105	Execute: java.sql.SQLSyntaxErrorException: (conn:24) Unknown table 'connect.tx1'
 SELECT * FROM t2 WHERE command = 'create table tx1 (a int not null, b char(32), c double(8,2))';
 command	number	message
 create table tx1 (a int not null, b char(32), c double(8,2))	0	Affected rows
+Warnings:
+Warning	1105	Affected rows
 SELECT * FROM t2 WHERE command in ('insert into tx1 values(1,''The number one'',456.12)',"insert into tx1(a,b) values(2,'The number two'),(3,'The number three')");
 command	number	message
 insert into tx1 values(1,'The number one',456.12)	1	Affected rows
 insert into tx1(a,b) values(2,'The number two'),(3,'The number three')	2	Affected rows
+Warnings:
+Warning	1105	Affected rows
 SELECT * FROM t2 WHERE command='update tx1 set c = 3.1416 where a = 2';
 command	number	message
 update tx1 set c = 3.1416 where a = 2	1	Affected rows
+Warnings:
+Warning	1105	Affected rows
 SELECT * FROM t2 WHERE command='select * from tx1';
 command	number	message
 select * from tx1	3	Result set column number
+Warnings:
+Warning	1105	Result set column number
 SELECT * FROM t2 WHERE command='delete from tx1 where a = 2';
 command	number	message
 delete from tx1 where a = 2	1	Affected rows
+Warnings:
+Warning	1105	Affected rows
 SELECT * FROM connect.tx1;
 a	b	c
 1	The number one	456.12
@@ -269,3 +281,4 @@ DROP TABLE t1;
 DROP TABLE connect.tx1;
 DROP DATABASE connect;
 SET GLOBAL time_zone=SYSTEM;
+SET time_zone=SYSTEM;

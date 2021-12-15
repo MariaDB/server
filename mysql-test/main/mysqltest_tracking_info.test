@@ -1,0 +1,62 @@
+
+--source include/no_protocol.inc
+--source include/not_embedded.inc
+
+
+set @save_session_track_system_variables=@@session_track_system_variables;
+
+SELECT @@session.character_set_connection;
+SET @@session.session_track_system_variables='character_set_connection';
+
+--echo # tracking info on
+--enable_session_track_info
+SET NAMES 'utf8';
+SET NAMES 'big5';
+--disable_session_track_info
+--echo # tracking info on once
+--enable_session_track_info ONCE
+SET NAMES 'utf8';
+SET NAMES 'big5';
+--echo # tracking info on
+--enable_session_track_info
+SET NAMES 'utf8';
+--echo # tracking info off once
+--disable_session_track_info ONCE
+SET NAMES 'big5';
+--disable_session_track_info
+
+SET @@session.session_track_system_variables= @save_session_track_system_variables;
+
+--echo #
+--echo # MDEV-22504: session tracking return incorrectly long traking data
+--echo #
+
+set @save_optimizer_switch=@@optimizer_switch;
+
+SET @@session.session_track_system_variables='optimizer_switch';
+
+--enable_session_track_info
+set optimizer_switch='index_merge=off,index_merge_union=off,index_merge_sort_union=off,index_merge_intersection=off,index_merge_sort_intersection=on,engine_condition_pushdown=on,index_condition_pushdown=off,derived_merge=off,derived_with_keys=off,firstmatch=off,loosescan=off,materialization=on,in_to_exists=off,semijoin=off,partial_match_rowid_merge=off,partial_match_table_scan=off,subquery_cache=off,mrr=on,mrr_cost_based=on,mrr_sort_keys=on,outer_join_with_cache=off,semijoin_with_cache=off,join_cache_incremental=off,join_cache_hashed=off,join_cache_bka=off,optimize_join_buffer_size=on,table_elimination=off,extended_keys=off,exists_to_in=off,orderby_uses_equalities=off,condition_pushdown_for_derived=off';
+--disable_session_track_info
+
+set @@optimizer_switch=@save_optimizer_switch;
+
+
+SET @@session.session_track_system_variables= @save_session_track_system_variables;
+
+--echo # End of 10.2 tests
+
+--echo #
+--echo # MDEV-22134 handle_fatal_signal (sig=11) in __strlen_avx2 on START
+--echo # SLAVE | Assertion
+--echo # `global_system_variables.session_track_system_variables' failed in
+--echo # Session_sysvars_tracker::init | *** buffer overflow detected ***
+--echo # (on optimized builds)
+--echo #
+
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@GLOBAL.session_track_system_variables=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET SESSION session_track_system_variables=NULL;
+
+--echo # End of 10.3 tests

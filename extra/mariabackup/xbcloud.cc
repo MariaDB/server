@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************/
 
@@ -443,9 +443,7 @@ int parse_args(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	if (load_defaults("my", load_default_groups, &argc, &argv)) {
-		exit(EXIT_FAILURE);
-	}
+	load_defaults_or_exit("my", load_default_groups, &argc, &argv);
 
 	if (handle_options(&argc, &argv, my_long_options, get_one_option)) {
 		exit(EXIT_FAILURE);

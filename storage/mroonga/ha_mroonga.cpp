@@ -17,7 +17,7 @@
 
   You should have received a copy of the GNU Lesser General Public
   License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
 #include "mrn_mysql.h"
@@ -1754,15 +1754,15 @@ static int mrn_set_geometry(grn_ctx *ctx, grn_obj *buf,
 #endif
 
 #ifdef MRN_HAVE_HTON_ALTER_TABLE_FLAGS
-static ulonglong mrn_alter_table_flags(ulonglong flags)
+static alter_table_operations mrn_alter_table_flags(alter_table_operations flags)
 {
   ulonglong alter_flags = 0;
 #ifdef HA_INPLACE_ADD_INDEX_NO_READ_WRITE
   bool is_inplace_index_change;
 #  ifdef MRN_HAVE_ALTER_INFO
-  is_inplace_index_change = (((flags & Alter_info::ALTER_ADD_INDEX) &&
-                              (flags & Alter_info::ALTER_DROP_INDEX)) ||
-                             (flags & Alter_info::ALTER_CHANGE_COLUMN));
+  is_inplace_index_change = (((flags & ALTER_ADD_INDEX) &&
+                              (flags & ALTER_DROP_INDEX)) ||
+                             (flags & ALTER_CHANGE_COLUMN));
 #  else
   is_inplace_index_change = (((flags & ALTER_ADD_INDEX) &&
                               (flags & ALTER_DROP_INDEX)) ||
@@ -3001,9 +3001,9 @@ int ha_mroonga::create_share_for_create() const
   TABLE_LIST *table_list = MRN_LEX_GET_TABLE_LIST(lex);
   MRN_DBUG_ENTER_METHOD();
   wrap_handler_for_create = NULL;
-  memset(&table_for_create, 0, sizeof(TABLE));
+  table_for_create.reset();
+  table_share_for_create.reset();
   memset(&share_for_create, 0, sizeof(MRN_SHARE));
-  memset(&table_share_for_create, 0, sizeof(TABLE_SHARE));
   if (table_share) {
     table_share_for_create.comment = table_share->comment;
     table_share_for_create.connect_string = table_share->connect_string;
@@ -4733,11 +4733,8 @@ int ha_mroonga::storage_open_columns(void)
 
   if (table_share->blob_fields)
   {
-    if (blob_buffers)
-    {
-      ::delete [] blob_buffers;
-    }
-    if (!(blob_buffers = ::new String[n_columns]))
+    DBUG_ASSERT(!blob_buffers);
+    if (!(blob_buffers = new (&table->mem_root) String[n_columns]))
     {
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
@@ -5920,7 +5917,7 @@ int ha_mroonga::wrapper_write_row_index(uchar *buf)
     DBUG_RETURN(0);
   }
 
-  mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+  mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
   uint i;
   uint n_keys = table->s->keys;
   for (i = 0; i < n_keys; i++) {
@@ -5995,7 +5992,7 @@ int ha_mroonga::storage_write_row(uchar *buf)
       DBUG_RETURN(error);
   }
 
-  mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+  mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
   for (i = 0; i < n_columns; i++) {
     Field *field = table->field[i];
 
@@ -6276,7 +6273,7 @@ int ha_mroonga::storage_write_row_multiple_column_indexes(uchar *buf,
 
   int error = 0;
 
-  mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+  mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
   uint i;
   uint n_keys = table->s->keys;
   for (i = 0; i < n_keys; i++) {
@@ -6570,7 +6567,7 @@ int ha_mroonga::wrapper_update_row_index(const uchar *old_data,
     DBUG_RETURN(0);
   }
 
-  mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+  mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
   uint i;
   uint n_keys = table->s->keys;
   for (i = 0; i < n_keys; i++) {
@@ -6691,7 +6688,7 @@ int ha_mroonga::storage_update_row(const uchar *old_data,
       grn_obj new_value;
       GRN_VOID_INIT(&new_value);
       {
-        mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+        mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
         generic_store_bulk(field, &new_value);
       }
       grn_obj casted_value;
@@ -6720,7 +6717,7 @@ int ha_mroonga::storage_update_row(const uchar *old_data,
   storage_store_fields_for_prep_update(old_data, new_data, record_id);
   {
     mrn::Lock lock(&(share->record_mutex), have_unique_index());
-    mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+    mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
     if ((error = storage_prepare_delete_row_unique_indexes(old_data,
                                                            record_id))) {
       DBUG_RETURN(error);
@@ -6745,7 +6742,7 @@ int ha_mroonga::storage_update_row(const uchar *old_data,
 #endif
 
     if (bitmap_is_set(table->write_set, field->field_index)) {
-      mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+      mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
       DBUG_PRINT("info", ("mroonga: update column %d(%d)",i,field->field_index));
 
       if (field->is_null()) continue;
@@ -6822,7 +6819,7 @@ int ha_mroonga::storage_update_row(const uchar *old_data,
   if (table->found_next_number_field &&
       !table->s->next_number_keypart &&
       new_data == table->record[0]) {
-    mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+    mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
     Field_num *field = (Field_num *) table->found_next_number_field;
     if (field->unsigned_flag || field->val_int() > 0) {
       MRN_LONG_TERM_SHARE *long_term_share = share->long_term_share;
@@ -6879,7 +6876,7 @@ int ha_mroonga::storage_update_row_index(const uchar *old_data,
 
   my_ptrdiff_t ptr_diff = PTR_BYTE_DIFF(old_data, table->record[0]);
 
-  mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+  mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
   uint i;
   uint n_keys = table->s->keys;
   mrn_change_encoding(ctx, NULL);
@@ -7095,7 +7092,7 @@ int ha_mroonga::wrapper_delete_row_index(const uchar *buf)
     DBUG_RETURN(0);
   }
 
-  mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+  mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
   uint i;
   uint n_keys = table->s->keys;
   for (i = 0; i < n_keys; i++) {
@@ -7246,7 +7243,7 @@ int ha_mroonga::storage_delete_row_index(const uchar *buf)
   GRN_TEXT_INIT(&key, 0);
   GRN_TEXT_INIT(&encoded_key, 0);
 
-  mrn::DebugColumnAccess debug_column_access(table, table->read_set);
+  mrn::DebugColumnAccess debug_column_access(table, &table->read_set);
   uint i;
   uint n_keys = table->s->keys;
   mrn_change_encoding(ctx, NULL);
@@ -9008,10 +9005,12 @@ bool ha_mroonga::is_foreign_key_field(const char *table_name,
 
   grn_obj *range = grn_ctx_at(ctx, grn_obj_get_range(ctx, column));
   if (!range) {
+    grn_obj_unlink(ctx, column);
     DBUG_RETURN(false);
   }
 
   if (!mrn::grn::is_table(range)) {
+    grn_obj_unlink(ctx, column);
     DBUG_RETURN(false);
   }
 
@@ -9025,6 +9024,7 @@ bool ha_mroonga::is_foreign_key_field(const char *table_name,
     DBUG_RETURN(true);
   }
 
+  grn_obj_unlink(ctx, column);
   DBUG_RETURN(false);
 }
 
@@ -9207,7 +9207,7 @@ void ha_mroonga::remove_related_files(const char *base_path)
       if (stat(entry->d_name, &file_status) != 0) {
         continue;
       }
-      if (!((file_status.st_mode & S_IFMT) && S_IFREG)) {
+      if (!((file_status.st_mode & S_IFMT) == S_IFREG)) {
         continue;
       }
       if (strncmp(entry->d_name, base_path, base_path_length) == 0) {
@@ -11434,7 +11434,7 @@ void ha_mroonga::storage_store_fields(uchar *buf, grn_id record_id)
         }
       }
 
-      mrn::DebugColumnAccess debug_column_access(table, table->write_set);
+      mrn::DebugColumnAccess debug_column_access(table, &table->write_set);
       DBUG_PRINT("info", ("mroonga: store column %d(%d)",i,field->field_index));
       field->move_field_offset(ptr_diff);
       if (strcmp(MRN_COLUMN_NAME_ID, column_name) == 0) {
@@ -11499,7 +11499,7 @@ void ha_mroonga::storage_store_fields_for_prep_update(const uchar *old_data,
       )
 #endif
     ) {
-      mrn::DebugColumnAccess debug_column_access(table, table->write_set);
+      mrn::DebugColumnAccess debug_column_access(table, &table->write_set);
       DBUG_PRINT("info", ("mroonga: store column %d(%d)",i,field->field_index));
       grn_obj value;
       GRN_OBJ_INIT(&value, GRN_BULK, 0, grn_obj_get_range(ctx, grn_columns[i]));
@@ -11535,7 +11535,7 @@ void ha_mroonga::storage_store_fields_by_index(uchar *buf)
   if (KEY_N_KEY_PARTS(key_info) == 1) {
     my_ptrdiff_t ptr_diff = PTR_BYTE_DIFF(buf, table->record[0]);
     Field *field = key_info->key_part->field;
-    mrn::DebugColumnAccess debug_column_access(table, table->write_set);
+    mrn::DebugColumnAccess debug_column_access(table, &table->write_set);
     field->move_field_offset(ptr_diff);
     storage_store_field(field, (const char *)key, key_length);
     field->move_field_offset(-ptr_diff);
@@ -11824,7 +11824,8 @@ int ha_mroonga::storage_encode_key_timestamp2(Field *field, const uchar *key,
 #endif
 
 #ifdef MRN_HAVE_MYSQL_TYPE_DATETIME2
-int ha_mroonga::storage_encode_key_datetime2(Field *field, const uchar *key,
+int ha_mroonga::storage_encode_key_datetime2(Field *field, bool is_null,
+                                             const uchar *key,
                                              uchar *buf, uint *size)
 {
   MRN_DBUG_ENTER_METHOD();
@@ -11832,7 +11833,7 @@ int ha_mroonga::storage_encode_key_datetime2(Field *field, const uchar *key,
   bool truncated = false;
 
   Field_datetimef *datetime2_field = (Field_datetimef *)field;
-  longlong packed_time =
+  longlong packed_time = is_null ? 0 :
     my_datetime_packed_from_binary(key, datetime2_field->decimals());
   MYSQL_TIME mysql_time;
   TIME_from_longlong_datetime_packed(&mysql_time, packed_time);
@@ -11960,6 +11961,7 @@ int ha_mroonga::storage_encode_key(Field *field, const uchar *key,
   MRN_DBUG_ENTER_METHOD();
   int error;
   bool truncated = false;
+  bool is_null = false;
   const uchar *ptr = key;
 
   error = mrn_change_encoding(ctx, field->charset());
@@ -11967,6 +11969,7 @@ int ha_mroonga::storage_encode_key(Field *field, const uchar *key,
     DBUG_RETURN(error);
 
   if (field->null_bit) {
+    is_null = *ptr;
     ptr += 1;
   }
 
@@ -12064,7 +12067,7 @@ int ha_mroonga::storage_encode_key(Field *field, const uchar *key,
 #endif
 #ifdef MRN_HAVE_MYSQL_TYPE_DATETIME2
   case MYSQL_TYPE_DATETIME2:
-    error = storage_encode_key_datetime2(field, ptr, buf, size);
+    error = storage_encode_key_datetime2(field, is_null, ptr, buf, size);
     break;
 #endif
 #ifdef MRN_HAVE_MYSQL_TYPE_TIME2
@@ -12874,12 +12877,21 @@ int ha_mroonga::delete_all_rows()
 int ha_mroonga::wrapper_truncate()
 {
   int error = 0;
+  MRN_SHARE *tmp_share;
   MRN_DBUG_ENTER_METHOD();
+
+  if (!(tmp_share = mrn_get_share(table->s->table_name.str, table, &error)))
+    DBUG_RETURN(error);
+
   MRN_SET_WRAP_SHARE_KEY(share, table->s);
   MRN_SET_WRAP_TABLE_KEY(this, table);
-  error = wrap_handler->ha_truncate();
+  error = parse_engine_table_options(ha_thd(), tmp_share->hton, table->s)
+    ? MRN_GET_ERROR_NUMBER
+    : wrap_handler->ha_truncate();
   MRN_SET_BASE_SHARE_KEY(share, table->s);
   MRN_SET_BASE_TABLE_KEY(this, table);
+
+  mrn_free_share(tmp_share);
 
   if (!error && wrapper_have_target_index()) {
     error = wrapper_truncate_index();
@@ -14517,23 +14529,24 @@ enum_alter_inplace_result ha_mroonga::wrapper_check_if_supported_inplace_alter(
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
   }
   if (
-    (ha_alter_info->handler_flags & Alter_inplace_info::ADD_INDEX) &&
+    (ha_alter_info->handler_flags & ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX) &&
     (ha_alter_info->handler_flags &
       (
-        Alter_inplace_info::ADD_COLUMN |
-        Alter_inplace_info::DROP_COLUMN |
+        ALTER_ADD_COLUMN |
+        ALTER_DROP_COLUMN |
         MRN_ALTER_INPLACE_INFO_ALTER_STORED_COLUMN_TYPE |
         MRN_ALTER_INPLACE_INFO_ALTER_STORED_COLUMN_ORDER |
-        Alter_inplace_info::ALTER_COLUMN_NULLABLE |
-        Alter_inplace_info::ALTER_COLUMN_NOT_NULLABLE |
-        Alter_inplace_info::ALTER_COLUMN_STORAGE_TYPE |
-        Alter_inplace_info::ALTER_COLUMN_COLUMN_FORMAT
+        ALTER_COLUMN_NULLABLE |
+        ALTER_COLUMN_NOT_NULLABLE |
+        ALTER_COLUMN_STORAGE_TYPE |
+        ALTER_ADD_STORED_GENERATED_COLUMN |
+        ALTER_COLUMN_COLUMN_FORMAT
       )
     )
   ) {
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
   }
-  if (ha_alter_info->handler_flags & Alter_inplace_info::ALTER_RENAME)
+  if (ha_alter_info->handler_flags & ALTER_RENAME)
   {
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
   }
@@ -14556,8 +14569,8 @@ enum_alter_inplace_result ha_mroonga::wrapper_check_if_supported_inplace_alter(
   ) {
     DBUG_RETURN(HA_ALTER_ERROR);
   }
-  memcpy(wrap_altered_table, altered_table, sizeof(TABLE));
-  memcpy(wrap_altered_table_share, altered_table->s, sizeof(TABLE_SHARE));
+  *wrap_altered_table= *altered_table;
+  *wrap_altered_table_share= *altered_table->s;
   mrn_init_sql_alloc(ha_thd(), &(wrap_altered_table_share->mem_root));
 
   n_keys = ha_alter_info->index_drop_count;
@@ -14572,7 +14585,7 @@ enum_alter_inplace_result ha_mroonga::wrapper_check_if_supported_inplace_alter(
     }
   }
   if (!alter_index_drop_count) {
-    alter_handler_flags &= ~Alter_inplace_info::DROP_INDEX;
+    alter_handler_flags &= ~ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX;
   }
   n_keys = ha_alter_info->index_add_count;
   for (i = 0; i < n_keys; ++i) {
@@ -14587,7 +14600,7 @@ enum_alter_inplace_result ha_mroonga::wrapper_check_if_supported_inplace_alter(
     }
   }
   if (!alter_index_add_count) {
-    alter_handler_flags &= ~Alter_inplace_info::ADD_INDEX;
+    alter_handler_flags &= ~ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX;
   }
   uint add_index_pos = 0;
   n_keys = ha_alter_info->key_count;
@@ -14635,19 +14648,18 @@ enum_alter_inplace_result ha_mroonga::storage_check_if_supported_inplace_alter(
   Alter_inplace_info *ha_alter_info)
 {
   MRN_DBUG_ENTER_METHOD();
-  Alter_inplace_info::HA_ALTER_FLAGS explicitly_unsupported_flags =
-    Alter_inplace_info::ADD_FOREIGN_KEY |
-    Alter_inplace_info::DROP_FOREIGN_KEY;
-  Alter_inplace_info::HA_ALTER_FLAGS supported_flags =
-    Alter_inplace_info::ADD_INDEX |
-    Alter_inplace_info::DROP_INDEX |
-    Alter_inplace_info::ADD_UNIQUE_INDEX |
-    Alter_inplace_info::DROP_UNIQUE_INDEX |
+  alter_table_operations explicitly_unsupported_flags =
+    ALTER_ADD_FOREIGN_KEY |
+    ALTER_DROP_FOREIGN_KEY;
+  alter_table_operations supported_flags =
+    ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX |
+    ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX |
+    ALTER_ADD_UNIQUE_INDEX |
+    ALTER_DROP_UNIQUE_INDEX |
     MRN_ALTER_INPLACE_INFO_ADD_VIRTUAL_COLUMN |
     MRN_ALTER_INPLACE_INFO_ADD_STORED_BASE_COLUMN |
-    MRN_ALTER_INPLACE_INFO_ADD_STORED_GENERATED_COLUMN |
-    Alter_inplace_info::DROP_COLUMN |
-    Alter_inplace_info::ALTER_COLUMN_NAME;
+    ALTER_DROP_COLUMN |
+    ALTER_COLUMN_NAME;
   if (ha_alter_info->handler_flags & explicitly_unsupported_flags) {
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
   } else if (ha_alter_info->handler_flags & supported_flags) {
@@ -15393,41 +15405,41 @@ bool ha_mroonga::storage_inplace_alter_table(
     have_error = true;
   }
 
-  Alter_inplace_info::HA_ALTER_FLAGS drop_index_related_flags =
-    Alter_inplace_info::DROP_INDEX |
-    Alter_inplace_info::DROP_UNIQUE_INDEX |
-    Alter_inplace_info::DROP_PK_INDEX;
+  alter_table_operations drop_index_related_flags =
+    ALTER_DROP_INDEX |
+    ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX |
+    ALTER_DROP_UNIQUE_INDEX |
+    ALTER_DROP_PK_INDEX;
   if (!have_error &&
       (ha_alter_info->handler_flags & drop_index_related_flags)) {
     have_error = storage_inplace_alter_table_drop_index(altered_table,
                                                         ha_alter_info);
   }
 
-  Alter_inplace_info::HA_ALTER_FLAGS add_column_related_flags =
-    Alter_inplace_info::ADD_COLUMN;
+  alter_table_operations add_column_related_flags =
+    ALTER_ADD_COLUMN;
   if (!have_error &&
       (ha_alter_info->handler_flags & add_column_related_flags)) {
     have_error = storage_inplace_alter_table_add_column(altered_table, ha_alter_info);
   }
 
-  Alter_inplace_info::HA_ALTER_FLAGS drop_column_related_flags =
-    Alter_inplace_info::DROP_COLUMN;
+  alter_table_operations drop_column_related_flags = ALTER_DROP_COLUMN;
   if (!have_error &&
       (ha_alter_info->handler_flags & drop_column_related_flags)) {
     have_error = storage_inplace_alter_table_drop_column(altered_table, ha_alter_info);
   }
 
-  Alter_inplace_info::HA_ALTER_FLAGS rename_column_related_flags =
-    Alter_inplace_info::ALTER_COLUMN_NAME;
+  alter_table_operations rename_column_related_flags = ALTER_COLUMN_NAME;
   if (!have_error &&
       (ha_alter_info->handler_flags & rename_column_related_flags)) {
     have_error = storage_inplace_alter_table_rename_column(altered_table, ha_alter_info);
   }
 
-  Alter_inplace_info::HA_ALTER_FLAGS add_index_related_flags =
-    Alter_inplace_info::ADD_INDEX |
-    Alter_inplace_info::ADD_UNIQUE_INDEX |
-    Alter_inplace_info::ADD_PK_INDEX;
+  alter_table_operations add_index_related_flags =
+    ALTER_ADD_INDEX |
+    ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX |
+    ALTER_ADD_UNIQUE_INDEX |
+    ALTER_ADD_PK_INDEX;
   if (!have_error &&
       (ha_alter_info->handler_flags & add_index_related_flags)) {
     have_error = storage_inplace_alter_table_add_index(altered_table,
@@ -15533,9 +15545,9 @@ void ha_mroonga::notify_table_changed()
   DBUG_VOID_RETURN;
 }
 #else
-uint ha_mroonga::wrapper_alter_table_flags(uint flags)
+alter_table_operations ha_mroonga::wrapper_alter_table_flags(alter_table_operations flags)
 {
-  uint res;
+  alter_table_operations res;
   MRN_DBUG_ENTER_METHOD();
   MRN_SET_WRAP_SHARE_KEY(share, table->s);
   MRN_SET_WRAP_TABLE_KEY(this, table);
@@ -15545,17 +15557,17 @@ uint ha_mroonga::wrapper_alter_table_flags(uint flags)
   DBUG_RETURN(res);
 }
 
-uint ha_mroonga::storage_alter_table_flags(uint flags)
+alter_table_operations ha_mroonga::storage_alter_table_flags(alter_table_operations flags)
 {
   MRN_DBUG_ENTER_METHOD();
-  uint res = handler::alter_table_flags(flags);
+  alter_table_operations res = handler::alter_table_flags(flags);
   DBUG_RETURN(res);
 }
 
-uint ha_mroonga::alter_table_flags(uint flags)
+alter_table_operations ha_mroonga::alter_table_flags(alter_table_operations flags)
 {
   MRN_DBUG_ENTER_METHOD();
-  uint res;
+  alter_table_operations res;
   if (share->wrapper_mode)
   {
     res = wrapper_alter_table_flags(flags);
@@ -16786,15 +16798,8 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
                                                        ref_table_buff,
                                                        ref_table_name_length,
                                                        TRUE);
-#ifdef MRN_FOREIGN_KEY_USE_METHOD_ENUM
     f_key_info.update_method = FK_OPTION_RESTRICT;
     f_key_info.delete_method = FK_OPTION_RESTRICT;
-#else
-    f_key_info.update_method = thd_make_lex_string(thd, NULL, "RESTRICT",
-                                                    8, TRUE);
-    f_key_info.delete_method = thd_make_lex_string(thd, NULL, "RESTRICT",
-                                                    8, TRUE);
-#endif
     f_key_info.referenced_key_name = thd_make_lex_string(thd, NULL, "PRIMARY",
                                                           7, TRUE);
     LEX_CSTRING *field_name = thd_make_lex_string(thd,

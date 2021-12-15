@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "mariadb.h"
 #include <violite.h>
@@ -591,11 +591,8 @@ static void timeout_check(pool_timer_t *timer)
   THD *thd;
   while ((thd=it++))
   {
-    if (thd->net.reading_or_writing != 1)
-      continue;
- 
     TP_connection_generic *connection= (TP_connection_generic *)thd->event_scheduler.data;
-    if (!connection)
+    if (!connection || connection->state != TP_STATE_IDLE)
     {
       /* 
         Connection does not have scheduler data. This happens for example
@@ -1081,7 +1078,10 @@ void thread_group_destroy(thread_group_t *thread_group)
 #endif
 
   if (my_atomic_add32(&shutdown_group_count, -1) == 1)
+  {
     my_free(all_groups);
+    all_groups= 0;
+  }
 }
 
 /**
@@ -1336,7 +1336,7 @@ void wait_begin(thread_group_t *thread_group)
   DBUG_ASSERT(thread_group->connection_count > 0);
 
   if ((thread_group->active_thread_count == 0) && 
-     (is_queue_empty(thread_group) || !thread_group->listener))
+     (!is_queue_empty(thread_group) || !thread_group->listener))
   {
     /* 
       Group might stall while this thread waits, thus wake 
@@ -1674,6 +1674,14 @@ TP_pool_generic::~TP_pool_generic()
   {
     thread_group_close(&all_groups[i]);
   }
+
+  /*
+    Wait until memory occupied by all_groups is freed.
+  */
+  int timeout_ms=5000;
+  while(all_groups && timeout_ms--)
+    my_sleep(1000);
+
   threadpool_started= false;
   DBUG_VOID_RETURN;
 }
@@ -1779,9 +1787,9 @@ static void print_pool_blocked_message(bool max_threads_reached)
   if (now > pool_block_start + BLOCK_MSG_DELAY && !msg_written)
   {
     if (max_threads_reached)
-      sql_print_error(MAX_THREADS_REACHED_MSG);
+      sql_print_warning(MAX_THREADS_REACHED_MSG);
     else
-      sql_print_error(CREATE_THREAD_ERROR_MSG, my_errno);
+      sql_print_warning(CREATE_THREAD_ERROR_MSG, my_errno);
     
     sql_print_information("Threadpool has been blocked for %u seconds\n",
       (uint)((now- pool_block_start)/1000000));

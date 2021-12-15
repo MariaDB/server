@@ -77,7 +77,7 @@ Changelog for innotop:
    * remove cxn from $meta->{group_by} if there's only one connection displayed
    * fix for issue 19 - cxn column won't become visible when viewing two 
      connections after having viewed one connection
-   * supress errors resulting from the addition of a 'BACKGROUND THREAD' 
+   * suppress errors resulting from the addition of a 'BACKGROUND THREAD' 
      section in the output of 'show innodb status' 
    * possible fix for issue 22 - Useless use of a constant in void context
    * small change to set_to_tbl() around hiding the cxn column if there 

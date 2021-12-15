@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2018, Oracle and/or its affiliates.
    Copyright (c) 2009, 2017, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -702,10 +702,11 @@ ha_myisam::ha_myisam(handlerton *hton, TABLE_SHARE *table_arg)
    can_enable_indexes(1)
 {}
 
-handler *ha_myisam::clone(const char *name, MEM_ROOT *mem_root)
+handler *ha_myisam::clone(const char *name __attribute__((unused)),
+                          MEM_ROOT *mem_root)
 {
-  ha_myisam *new_handler= static_cast <ha_myisam *>(handler::clone(name,
-                                                                   mem_root));
+  ha_myisam *new_handler=
+    static_cast <ha_myisam *>(handler::clone(file->filename, mem_root));
   if (new_handler)
     new_handler->file->state= file->state;
   return new_handler;
@@ -769,8 +770,8 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
     growing files. Using an open_flag instead of calling mi_extra(...
     HA_EXTRA_MMAP ...) after mi_open() has the advantage that the
     mapping is not repeated for every open, but just done on the initial
-    open, when the MyISAM share is created. Everytime the server
-    requires to open a new instance of a table it calls this method. We
+    open, when the MyISAM share is created. Every time the server
+    requires opening a new instance of a table it calls this method. We
     will always supply HA_OPEN_MMAP for a permanent table. However, the
     MyISAM storage engine will ignore this flag if this is a secondary
     open of a table that is in use by other threads already (if the
@@ -858,12 +859,13 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
 
   /*
     For static size rows, tell MariaDB that we will access all bytes
-    in the record when writing it.  This signals MariaDB to initalize
+    in the record when writing it.  This signals MariaDB to initialize
     the full row to ensure we don't get any errors from valgrind and
     that all bytes in the row is properly reset.
   */
-  if ((file->s->options & HA_OPTION_PACK_RECORD) &&
-      (file->s->has_varchar_fields | file->s->has_null_fields))
+  if (!(file->s->options &
+        (HA_OPTION_PACK_RECORD | HA_OPTION_COMPRESS_RECORD)) &&
+      (file->s->has_varchar_fields || file->s->has_null_fields))
     int_table_flags|= HA_RECORD_MUST_BE_CLEAN_ON_WRITE;
 
   for (i= 0; i < table->s->keys; i++)
@@ -936,14 +938,19 @@ void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
     ulong new_vreclength= file->s->vreclength;
     for (Field **vf= table->vfield; *vf; vf++)
     {
-      uint vf_end= (*vf)->offset(table->record[0]) + (*vf)->pack_length_in_rec();
-      set_if_bigger(new_vreclength, vf_end);
-      indexed_vcols|= ((*vf)->flags & PART_KEY_FLAG) != 0;
+      if (!(*vf)->stored_in_db())
+      {
+        uint vf_end= (*vf)->offset(table->record[0]) + (*vf)->pack_length_in_rec();
+        set_if_bigger(new_vreclength, vf_end);
+        indexed_vcols|= ((*vf)->flags & PART_KEY_FLAG) != 0;
+      }
     }
     if (!indexed_vcols)
       return;
     file->s->vreclength= new_vreclength;
   }
+  DBUG_ASSERT(file->s->base.reclength < file->s->vreclength ||
+              !table->s->stored_fields);
   param->fix_record= compute_vcols;
   table->use_all_columns();
   table->vcol_set= &table->s->all_set;
@@ -1330,10 +1337,14 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
     if (file->s->base.auto_key)
       update_auto_increment_key(&param, file, 1);
     if (optimize_done)
+    {
+      mysql_mutex_lock(&share->intern_lock);
       error = update_state_info(&param, file,
 				UPDATE_TIME | UPDATE_OPEN_COUNT |
 				(local_testflag &
 				 T_STATISTICS ? UPDATE_STAT : 0));
+      mysql_mutex_unlock(&share->intern_lock);
+    }
     info(HA_STATUS_NO_LOCK | HA_STATUS_TIME | HA_STATUS_VARIABLE |
 	 HA_STATUS_CONST);
     if (rows != file->state->records && ! (param.testflag & T_VERY_SILENT))
@@ -1992,6 +2003,7 @@ int ha_myisam::info(uint flag)
     stats.delete_length=     misam_info.delete_length;
     stats.check_time=        (ulong) misam_info.check_time;
     stats.mean_rec_length=   misam_info.mean_reclength;
+    stats.checksum=          file->state->checksum;
   }
   if (flag & HA_STATUS_CONST)
   {
@@ -2118,7 +2130,7 @@ void ha_myisam::update_create_info(HA_CREATE_INFO *create_info)
 }
 
 
-int ha_myisam::create(const char *name, register TABLE *table_arg,
+int ha_myisam::create(const char *name, TABLE *table_arg,
 		      HA_CREATE_INFO *ha_create_info)
 {
   int error;
@@ -2296,31 +2308,25 @@ int ha_myisam::ft_read(uchar *buf)
   return error;
 }
 
-uint ha_myisam::checksum() const
-{
-  return (uint)file->state->checksum;
-}
-
-
 enum_alter_inplace_result
 ha_myisam::check_if_supported_inplace_alter(TABLE *new_table,
                                             Alter_inplace_info *alter_info)
 {
   DBUG_ENTER("ha_myisam::check_if_supported_inplace_alter");
 
-  const Alter_inplace_info::HA_ALTER_FLAGS readd_index=
-                          Alter_inplace_info::ADD_INDEX |
-                          Alter_inplace_info::DROP_INDEX;
-  const Alter_inplace_info::HA_ALTER_FLAGS readd_unique=
-                          Alter_inplace_info::ADD_UNIQUE_INDEX |
-                          Alter_inplace_info::DROP_UNIQUE_INDEX;
-  const Alter_inplace_info::HA_ALTER_FLAGS readd_pk=
-                          Alter_inplace_info::ADD_PK_INDEX |
-                          Alter_inplace_info::DROP_PK_INDEX;
+  const alter_table_operations readd_index=
+                          ALTER_ADD_NON_UNIQUE_NON_PRIM_INDEX |
+                          ALTER_DROP_NON_UNIQUE_NON_PRIM_INDEX;
+  const alter_table_operations readd_unique=
+                          ALTER_ADD_UNIQUE_INDEX |
+                          ALTER_DROP_UNIQUE_INDEX;
+  const alter_table_operations readd_pk=
+                          ALTER_ADD_PK_INDEX |
+                          ALTER_DROP_PK_INDEX;
 
-  const  Alter_inplace_info::HA_ALTER_FLAGS op= alter_info->handler_flags;
+  const  alter_table_operations op= alter_info->handler_flags;
 
-  if (op & Alter_inplace_info::ALTER_COLUMN_VCOL)
+  if (op & ALTER_COLUMN_VCOL)
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 
   /*
@@ -2582,7 +2588,7 @@ maria_declare_plugin(myisam)
   &myisam_storage_engine,
   "MyISAM",
   "MySQL AB",
-  "MyISAM storage engine",
+  "Non-transactional engine with good performance and small data footprint",
   PLUGIN_LICENSE_GPL,
   myisam_init, /* Plugin Init */
   NULL, /* Plugin Deinit */

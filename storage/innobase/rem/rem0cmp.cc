@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -23,17 +24,11 @@ Comparison services for records
 Created 7/1/1994 Heikki Tuuri
 ************************************************************************/
 
-#include "ha_prototypes.h"
-
 #include "rem0cmp.h"
+#include "rem0rec.h"
+#include "page0page.h"
+#include "dict0mem.h"
 #include "handler0alter.h"
-#include "srv0srv.h"
-
-#include <gstream.h>
-#include <spatial.h>
-#include <gis0geo.h>
-#include <page0cur.h>
-#include <algorithm>
 
 /*		ALPHABETICAL ORDER
 		==================
@@ -229,7 +224,6 @@ static
 int
 cmp_geometry_field(
 /*===============*/
-	ulint		mtype,		/*!< in: main type */
 	ulint		prtype,		/*!< in: precise type */
 	const byte*	a,		/*!< in: data field */
 	unsigned int	a_length,	/*!< in: data field length,
@@ -303,12 +297,10 @@ cmp_gis_field(
 					not UNIV_SQL_NULL */
 {
 	if (mode == PAGE_CUR_MBR_EQUAL) {
-		/* TODO: Since the DATA_GEOMETRY is not used in compare
-		function, we could pass it instead of a specific type now */
-		return(cmp_geometry_field(DATA_GEOMETRY, DATA_GIS_MBR,
-					  a, a_length, b, b_length));
+		return cmp_geometry_field(DATA_GIS_MBR,
+					  a, a_length, b, b_length);
 	} else {
-		return(rtree_key_cmp(mode, a, a_length, b, b_length));
+		return rtree_key_cmp(mode, a, int(a_length), b, int(b_length));
 	}
 }
 
@@ -379,8 +371,7 @@ cmp_whole_field(
 		return(innobase_mysql_cmp(prtype,
 					  a, a_length, b, b_length));
 	case DATA_GEOMETRY:
-		return(cmp_geometry_field(mtype, prtype, a, a_length, b,
-				b_length));
+		return cmp_geometry_field(prtype, a, a_length, b, b_length);
 	default:
 		ib::fatal() << "Unknown data type number " << mtype;
 	}
@@ -544,7 +535,7 @@ cmp_data(
 
 /** Compare a GIS data tuple to a physical record.
 @param[in] dtuple data tuple
-@param[in] rec B-tree record
+@param[in] rec R-tree record
 @param[in] offsets rec_get_offsets(rec)
 @param[in] mode compare mode
 @retval negative if dtuple is less than rec */
@@ -556,7 +547,7 @@ cmp_dtuple_rec_with_gis(
 				dtuple in some of the common fields, or which
 				has an equal number or more fields than
 				dtuple */
-	const ulint*	offsets,/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
 	page_cur_mode_t	mode)	/*!< in: compare mode */
 {
 	const dfield_t*	dtuple_field;	/* current field in logical record */
@@ -589,7 +580,7 @@ int
 cmp_dtuple_rec_with_gis_internal(
 	const dtuple_t*	dtuple,
 	const rec_t*	rec,
-	const ulint*	offsets)
+	const rec_offs*	offsets)
 {
 	const dfield_t*	dtuple_field;	/* current field in logical record */
 	ulint		dtuple_f_len;	/* the length of the current field
@@ -660,7 +651,7 @@ int
 cmp_dtuple_rec_with_match_low(
 	const dtuple_t*	dtuple,
 	const rec_t*	rec,
-	const ulint*	offsets,
+	const rec_offs*	offsets,
 	ulint		n_cmp,
 	ulint*		matched_fields)
 {
@@ -794,24 +785,27 @@ cmp_dtuple_rec_with_match_bytes(
 	const dtuple_t*		dtuple,
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	const ulint*		offsets,
+	const rec_offs*		offsets,
 	ulint*			matched_fields,
 	ulint*			matched_bytes)
 {
-	ulint		n_cmp	= dtuple_get_n_fields_cmp(dtuple);
-	ulint		cur_field;	/* current field number */
-	ulint		cur_bytes;
-	int		ret;		/* return value */
-
 	ut_ad(dtuple_check_typed(dtuple));
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!(REC_INFO_MIN_REC_FLAG
 		& dtuple_get_info_bits(dtuple)));
-	ut_ad(!(REC_INFO_MIN_REC_FLAG
-		& rec_get_info_bits(rec, rec_offs_comp(offsets))));
 
-	cur_field = *matched_fields;
-	cur_bytes = *matched_bytes;
+	if (UNIV_UNLIKELY(REC_INFO_MIN_REC_FLAG
+			  & rec_get_info_bits(rec, rec_offs_comp(offsets)))) {
+		ut_ad(page_rec_is_first(rec, page_align(rec)));
+		ut_ad(!page_has_prev(page_align(rec)));
+		ut_ad(rec_is_metadata(rec, index));
+		return 1;
+	}
+
+	ulint cur_field = *matched_fields;
+	ulint cur_bytes = *matched_bytes;
+	ulint n_cmp = dtuple_get_n_fields_cmp(dtuple);
+	int ret;
 
 	ut_ad(n_cmp <= dtuple_get_n_fields(dtuple));
 	ut_ad(cur_field <= n_cmp);
@@ -959,7 +953,7 @@ int
 cmp_dtuple_rec(
 	const dtuple_t*	dtuple,
 	const rec_t*	rec,
-	const ulint*	offsets)
+	const rec_offs*	offsets)
 {
 	ulint	matched_fields	= 0;
 
@@ -977,7 +971,7 @@ cmp_dtuple_is_prefix_of_rec(
 /*========================*/
 	const dtuple_t*	dtuple,	/*!< in: data tuple */
 	const rec_t*	rec,	/*!< in: physical record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
 {
 	ulint	n_fields;
 	ulint	matched_fields	= 0;
@@ -1005,8 +999,8 @@ cmp_rec_rec_simple_field(
 /*=====================*/
 	const rec_t*		rec1,	/*!< in: physical record */
 	const rec_t*		rec2,	/*!< in: physical record */
-	const ulint*		offsets1,/*!< in: rec_get_offsets(rec1, ...) */
-	const ulint*		offsets2,/*!< in: rec_get_offsets(rec2, ...) */
+	const rec_offs*		offsets1,/*!< in: rec_get_offsets(rec1, ...) */
+	const rec_offs*		offsets2,/*!< in: rec_get_offsets(rec2, ...) */
 	const dict_index_t*	index,	/*!< in: data dictionary index */
 	ulint			n)	/*!< in: field to compare */
 {
@@ -1036,8 +1030,8 @@ cmp_rec_rec_simple(
 /*===============*/
 	const rec_t*		rec1,	/*!< in: physical record */
 	const rec_t*		rec2,	/*!< in: physical record */
-	const ulint*		offsets1,/*!< in: rec_get_offsets(rec1, ...) */
-	const ulint*		offsets2,/*!< in: rec_get_offsets(rec2, ...) */
+	const rec_offs*		offsets1,/*!< in: rec_get_offsets(rec1, ...) */
+	const rec_offs*		offsets2,/*!< in: rec_get_offsets(rec2, ...) */
 	const dict_index_t*	index,	/*!< in: data dictionary index */
 	struct TABLE*		table)	/*!< in: MySQL table, for reporting
 					duplicate key value if applicable,
@@ -1103,42 +1097,40 @@ cmp_rec_rec_simple(
 	return(0);
 }
 
-/** Compare two B-tree records.
-@param[in] rec1 B-tree record
-@param[in] rec2 B-tree record
-@param[in] offsets1 rec_get_offsets(rec1, index)
-@param[in] offsets2 rec_get_offsets(rec2, index)
-@param[in] index B-tree index
-@param[in] nulls_unequal true if this is for index cardinality
-statistics estimation, and innodb_stats_method=nulls_unequal
-or innodb_stats_method=nulls_ignored
-@param[out] matched_fields number of completely matched fields
-within the first field not completely matched
-@return the comparison result
+/** Compare two B-tree or R-tree records.
+Only the common first fields are compared, and externally stored field
+are treated as equal.
+@param[in]	rec1		record (possibly not on an index page)
+@param[in]	rec2		B-tree or R-tree record in an index page
+@param[in]	offsets1	rec_get_offsets(rec1, index)
+@param[in]	offsets2	rec_get_offsets(rec2, index)
+@param[in]	nulls_unequal	true if this is for index cardinality
+				statistics estimation with
+				innodb_stats_method=nulls_unequal
+				or innodb_stats_method=nulls_ignored
+@param[out]	matched_fields	number of completely matched fields
+				within the first field not completely matched
 @retval 0 if rec1 is equal to rec2
 @retval negative if rec1 is less than rec2
-@retval positive if rec2 is greater than rec2 */
+@retval positive if rec1 is greater than rec2 */
 int
-cmp_rec_rec_with_match(
+cmp_rec_rec(
 	const rec_t*		rec1,
 	const rec_t*		rec2,
-	const ulint*		offsets1,
-	const ulint*		offsets2,
+	const rec_offs*		offsets1,
+	const rec_offs*		offsets2,
 	const dict_index_t*	index,
 	bool			nulls_unequal,
 	ulint*			matched_fields)
 {
-	ulint		rec1_n_fields;	/* the number of fields in rec */
 	ulint		rec1_f_len;	/* length of current field in rec */
 	const byte*	rec1_b_ptr;	/* pointer to the current byte
 					in rec field */
-	ulint		rec2_n_fields;	/* the number of fields in rec */
 	ulint		rec2_f_len;	/* length of current field in rec */
 	const byte*	rec2_b_ptr;	/* pointer to the current byte
 					in rec field */
 	ulint		cur_field = 0;	/* current field number */
 	int		ret = 0;	/* return value */
-	ulint		comp;
 
 	ut_ad(rec1 != NULL);
 	ut_ad(rec2 != NULL);
@@ -1146,10 +1138,12 @@ cmp_rec_rec_with_match(
 	ut_ad(rec_offs_validate(rec1, index, offsets1));
 	ut_ad(rec_offs_validate(rec2, index, offsets2));
 	ut_ad(rec_offs_comp(offsets1) == rec_offs_comp(offsets2));
+	ut_ad(fil_page_index_page_check(page_align(rec2)));
+	ut_ad(!!dict_index_is_spatial(index)
+	      == (fil_page_get_type(page_align(rec2)) == FIL_PAGE_RTREE));
 
-	comp = rec_offs_comp(offsets1);
-	rec1_n_fields = rec_offs_n_fields(offsets1);
-	rec2_n_fields = rec_offs_n_fields(offsets2);
+	ulint comp = rec_offs_comp(offsets1);
+	ulint n_fields;
 
 	/* Test if rec is the predefined minimum record */
 	if (UNIV_UNLIKELY(rec_get_info_bits(rec1, comp)
@@ -1165,37 +1159,41 @@ cmp_rec_rec_with_match(
 		goto order_resolved;
 	}
 
-	/* Match fields in a loop */
+	/* For non-leaf spatial index records, the
+	dict_index_get_n_unique_in_tree() does include the child page
+	number, because spatial index node pointers only contain
+	the MBR (minimum bounding rectangle) and the child page number.
 
-	for (; cur_field < rec1_n_fields && cur_field < rec2_n_fields;
-	     cur_field++) {
+	For B-tree node pointers, the key alone (secondary index
+	columns and PRIMARY KEY columns) must be unique, and there is
+	no need to compare the child page number. */
+	n_fields = std::min(rec_offs_n_fields(offsets1),
+			    rec_offs_n_fields(offsets2));
+	n_fields = std::min(n_fields, dict_index_get_n_unique_in_tree(index));
 
+	for (; cur_field < n_fields; cur_field++) {
 		ulint	mtype;
 		ulint	prtype;
 
-		/* If this is node-ptr records then avoid comparing node-ptr
-		field. Only key field needs to be compared. */
-		if (cur_field == dict_index_get_n_unique_in_tree(index)) {
-			break;
-		}
-
-		if (dict_index_is_ibuf(index)) {
+		if (UNIV_UNLIKELY(dict_index_is_ibuf(index))) {
 			/* This is for the insert buffer B-tree. */
 			mtype = DATA_BINARY;
 			prtype = 0;
 		} else {
-			const dict_col_t*	col;
-
-			col	= dict_index_get_nth_col(index, cur_field);
-
+			const dict_col_t* col = dict_index_get_nth_col(
+				index, cur_field);
 			mtype = col->mtype;
 			prtype = col->prtype;
 
-			/* If the index is spatial index, we mark the
-			prtype of the first field as MBR field. */
-			if (cur_field == 0 && dict_index_is_spatial(index)) {
+			if (UNIV_LIKELY(!dict_index_is_spatial(index))) {
+			} else if (cur_field == 0) {
 				ut_ad(DATA_GEOMETRY_MTYPE(mtype));
 				prtype |= DATA_GIS_MBR;
+			} else if (!page_rec_is_leaf(rec2)) {
+				/* Compare the child page number. */
+				ut_ad(cur_field == 1);
+				mtype = DATA_SYS_CHILD;
+				prtype = 0;
 			}
 		}
 
@@ -1233,8 +1231,10 @@ cmp_rec_rec_with_match(
 	to the common fields */
 	ut_ad(ret == 0);
 order_resolved:
-	*matched_fields = cur_field;
-	return(ret);
+	if (matched_fields) {
+		*matched_fields = cur_field;
+	}
+	return ret;
 }
 
 #ifdef UNIV_COMPILE_TEST_FUNCS

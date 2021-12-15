@@ -1,1 +1,1 @@
---source extra/binlog_tests/binlog_index.inc
+--source include/binlog_index.inc

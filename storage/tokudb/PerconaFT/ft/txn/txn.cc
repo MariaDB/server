@@ -723,7 +723,11 @@ time_t toku_txn_get_start_time(struct tokutxn *txn) {
     return txn->start_time;
 }
 
+extern uint force_recovery;
 int toku_txn_reads_txnid(TXNID txnid, TOKUTXN txn, bool is_provisional UU()) {
+    if(force_recovery) {
+        return TOKUDB_ACCEPT;
+    }
     int r = 0;
     TXNID oldest_live_in_snapshot = toku_get_oldest_in_live_root_txn_list(txn);
     if (oldest_live_in_snapshot == TXNID_NONE && txnid < txn->snapshot_txnid64) {

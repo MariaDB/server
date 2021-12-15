@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2002, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -41,8 +42,7 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
   Item **arg, **arg_end;
   for (arg= args, arg_end= args + arg_count; arg != arg_end ; arg++)
   {
-    if (!(*arg)->fixed &&
-        (*arg)->fix_fields(thd, arg))
+    if ((*arg)->fix_fields_if_needed(thd, arg))
       return TRUE;
     // we can't assign 'item' before, because fix_fields() can change arg
     Item *item= *arg;
@@ -65,6 +65,7 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
     with_window_func = with_window_func || item->with_window_func;
     with_field= with_field || item->with_field;
     m_with_subquery|= item->with_subquery();
+    with_param|= item->with_param;
   }
   fixed= 1;
   return FALSE;
@@ -165,17 +166,20 @@ void Item_row::bring_value()
 
 Item* Item_row::build_clone(THD *thd)
 {
-  Item_row *copy= (Item_row *) get_copy(thd);
-  if (!copy)
+  Item **copy_args= static_cast<Item**>
+    (alloc_root(thd->mem_root, sizeof(Item*) * arg_count));
+  if (unlikely(!copy_args))
     return 0;
-  copy->args= (Item**) alloc_root(thd->mem_root, sizeof(Item*) * arg_count);
   for (uint i= 0; i < arg_count; i++)
   {
     Item *arg_clone= args[i]->build_clone(thd);
     if (!arg_clone)
       return 0;
-    copy->args[i]= arg_clone;
+    copy_args[i]= arg_clone;
   }
+  Item_row *copy= (Item_row *) get_copy(thd);
+  if (unlikely(!copy))
+    return 0;
+  copy->args= copy_args;
   return copy;
 }
-

@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* This file is included by all internal myisam files */
 
@@ -197,7 +197,7 @@ typedef struct st_mi_isam_share
   ulong last_process;                   /* For table-change-check */
   ulong last_version;                   /* Version on start */
   ulong options;                        /* Options used */
-  ulong min_pack_length;                /* Theese are used by packed data */
+  ulong min_pack_length;                /* These are used by packed data */
   ulong max_pack_length;
   ulong state_diff_length;
   uint	rec_reflength;			/* rec_reflength in use now */
@@ -539,8 +539,7 @@ extern uchar *_mi_get_key(MI_INFO *info, MI_KEYDEF *keyinfo, uchar *page,
                           uchar *key, uchar *keypos,
                           uint *return_key_length);
 extern uint _mi_keylength(MI_KEYDEF *keyinfo, uchar *key);
-extern uint _mi_keylength_part(MI_KEYDEF *keyinfo, register uchar *key,
-                               HA_KEYSEG *end);
+extern uint _mi_keylength_part(MI_KEYDEF *keyinfo, uchar *key, HA_KEYSEG *end);
 extern uchar *_mi_move_key(MI_KEYDEF *keyinfo, uchar *to, uchar *from);
 extern int _mi_search_next(MI_INFO *info, MI_KEYDEF *keyinfo, uchar *key,
                            uint key_length, uint nextflag, my_off_t pos);
@@ -719,12 +718,12 @@ my_bool check_table_is_closed(const char *name, const char *where);
 int mi_open_datafile(MI_INFO *info, MYISAM_SHARE *share);
 
 int mi_open_keyfile(MYISAM_SHARE *share);
-void mi_setup_functions(register MYISAM_SHARE *share);
+void mi_setup_functions(MYISAM_SHARE *share);
 my_bool mi_dynmap_file(MI_INFO *info, my_off_t size);
 int mi_munmap_file(MI_INFO *info);
 void mi_remap_file(MI_INFO *info, my_off_t size);
 
-ICP_RESULT mi_check_index_cond(register MI_INFO *info, uint keynr, uchar *record);
+ICP_RESULT mi_check_index_cond(MI_INFO *info, uint keynr, uchar *record);
     /* Functions needed by mi_check */
 int killed_ptr(HA_CHECK *param);
 void mi_check_print_error(HA_CHECK *param, const char *fmt, ...);

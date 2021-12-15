@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -26,7 +26,7 @@
   Used instead of FILE when reading or writing whole files.
   This will make mf_rec_cache obsolete.
   One can change info->pos_in_file to a higher value to skip bytes in file if
-  also info->rc_pos is set to info->rc_end.
+  also info->read_pos is set to info->read_end.
   If called through open_cached_file(), then the temporary file will
   only be created if a write exeeds the file buffer or if one calls
   flush_io_cache().  
@@ -49,8 +49,7 @@ extern "C" {
 */
 
 
-int _my_b_net_read(register IO_CACHE *info, uchar *Buffer,
-		   size_t Count __attribute__((unused)))
+int _my_b_net_read(IO_CACHE *info, uchar *Buffer, size_t)
 {
   ulong read_length;
   NET *net= &(current_thd)->net;
@@ -59,12 +58,12 @@ int _my_b_net_read(register IO_CACHE *info, uchar *Buffer,
   if (!info->end_of_file)
     DBUG_RETURN(1);	/* because my_b_get (no _) takes 1 byte at a time */
   read_length= my_net_read_packet(net, 0);
-  if (read_length == packet_error)
+  if (unlikely(read_length == packet_error))
   {
     info->error= -1;
     DBUG_RETURN(1);
   }
-  if (read_length == 0)
+  if (unlikely(read_length == 0))
   {
     info->end_of_file= 0;			/* End of file from client */
     DBUG_RETURN(1);

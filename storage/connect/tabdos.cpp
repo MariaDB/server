@@ -1,11 +1,11 @@
 /************* TabDos C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABDOS                                                */
 /* -------------                                                       */
-/*  Version 4.9.3                                                      */
+/*  Version 4.9.5                                                      */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2020    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -17,7 +17,7 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <sys\timeb.h>                   // For testing only
 #include <fcntl.h>
@@ -26,7 +26,7 @@
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #if defined(UNIX)
 #include <errno.h>
 #include <unistd.h>
@@ -34,7 +34,7 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -45,7 +45,7 @@
 #include "global.h"
 #include "osutil.h"
 #include "plgdbsem.h"
-#include "catalog.h"
+//#include "catalog.h"
 #include "mycat.h"
 #include "xindex.h"
 #include "filamap.h"
@@ -161,7 +161,12 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
 //Last = GetIntCatInfo("Last", 0);
   Ending = GetIntCatInfo("Ending", CRLF);
 
-  if (Recfm == RECFM_FIX || Recfm == RECFM_BIN) {
+	if (Ending <= 0) {
+		Ending = (Recfm == RECFM_BIN || Recfm == RECFM_VCT) ? 0 : CRLF;
+		SetIntCatInfo("Ending", Ending);
+	} // endif ending
+
+	if (Recfm == RECFM_FIX || Recfm == RECFM_BIN) {
     Huge = GetBoolCatInfo("Huge", Cat->GetDefHuge());
     Padded = GetBoolCatInfo("Padded", false);
     Blksize = GetIntCatInfo("Blksize", 0);
@@ -191,7 +196,8 @@ bool DOSDEF::GetOptFileName(PGLOBAL g, char *filename)
     case RECFM_FIX: ftype = ".fop"; break;
     case RECFM_BIN: ftype = ".bop"; break;
     case RECFM_VCT: ftype = ".vop"; break;
-    case RECFM_DBF: ftype = ".dbp"; break;
+		case RECFM_CSV: ftype = ".cop"; break;
+		case RECFM_DBF: ftype = ".dbp"; break;
     default:
       sprintf(g->Message, MSG(INVALID_FTYPE), Recfm);
       return true;
@@ -227,11 +233,11 @@ void DOSDEF::RemoveOptValues(PGLOBAL g)
 
   // Delete any eventually ill formed non matching optimization file
   if (!GetOptFileName(g, filename))
-#if defined(__WIN__)
+#if defined(_WIN32)
     DeleteFile(filename);
 #else    // UNIX
     remove(filename);
-#endif   // __WIN__
+#endif   // _WIN32
 
   Optimized = 0;
   } // end of RemoveOptValues
@@ -261,7 +267,8 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
     case RECFM_FIX: ftype = ".fnx"; break;
     case RECFM_BIN: ftype = ".bnx"; break;
     case RECFM_VCT: ftype = ".vnx"; break;
-    case RECFM_DBF: ftype = ".dbx"; break;
+		case RECFM_CSV: ftype = ".cnx"; break;
+		case RECFM_DBF: ftype = ".dbx"; break;
     default:
       sprintf(g->Message, MSG(BAD_RECFM_VAL), Recfm);
       return true;
@@ -272,7 +279,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
   /*********************************************************************/
   if (sep) {
     // Indexes are save in separate files
-#if defined(__WIN__)
+#if defined(_WIN32)
     char drive[_MAX_DRIVE];
 #else
     char *drive = NULL;
@@ -289,7 +296,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
       strcat(strcat(fname, "_"), pxdf->GetName());
       _makepath(filename, drive, direc, fname, ftype);
       PlugSetPath(filename, filename, GetPath());
-#if defined(__WIN__)
+#if defined(_WIN32)
       if (!DeleteFile(filename))
         rc |= (GetLastError() != ERROR_FILE_NOT_FOUND);
 #else    // UNIX
@@ -306,7 +313,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
     // Drop all indexes, delete the common file
     PlugSetPath(filename, Ofn, GetPath());
     strcat(PlugRemoveType(filename, filename), ftype);
-#if defined(__WIN__)
+#if defined(_WIN32)
     if (!DeleteFile(filename))
       rc = (GetLastError() != ERROR_FILE_NOT_FOUND);
 #else    // UNIX
@@ -352,7 +359,26 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
   /*  Allocate table and file processing class of the proper type.     */
   /*  Column blocks will be allocated only when needed.                */
   /*********************************************************************/
-	if (Zipped) {
+	if (Recfm == RECFM_DBF) {
+		if (Catfunc == FNC_NO) {
+			if (Zipped) {
+				if (mode == MODE_READ || mode == MODE_ANY || mode == MODE_ALTER) {
+					txfp = new(g) UZDFAM(this);
+				}	else {
+					strcpy(g->Message, "Zipped DBF tables are read only");
+					return NULL;
+				}	// endif's mode
+
+			} else if (map)
+				txfp = new(g) DBMFAM(this);
+			else
+				txfp = new(g) DBFFAM(this);
+
+			tdbp = new(g) TDBFIX(this, txfp);
+		} else
+			tdbp = new(g) TDBDCL(this);    // Catfunc should be 'C'
+
+	} else if (Zipped) {
 #if defined(ZIP_SUPPORT)
 		if (Recfm == RECFM_VAR) {
 			if (mode == MODE_READ || mode == MODE_ANY || mode == MODE_ALTER) {
@@ -382,17 +408,6 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
 		sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
 		return NULL;
 #endif  // !ZIP_SUPPORT
-	} else if (Recfm == RECFM_DBF) {
-    if (Catfunc == FNC_NO) {
-      if (map)
-        txfp = new(g) DBMFAM(this);
-      else
-        txfp = new(g) DBFFAM(this);
-
-      tdbp = new(g) TDBFIX(this, txfp);
-    } else                   // Catfunc should be 'C'
-      tdbp = new(g) TDBDCL(this);
-
   } else if (Recfm != RECFM_VAR && Compressed < 2) {
     if (Huge)
       txfp = new(g) BGXFAM(this);
@@ -704,7 +719,7 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
 //      savmin = cdp->GetBmap();
 //      cdp->SetBmap(PlugSubAlloc(g, NULL, block * sizeof(int)));
 
-        if (trace)
+        if (trace(1))
           htrc("Dval(%p) Bmap(%p) col(%d) %s Block=%d lg=%d\n",
               cdp->GetDval(), cdp->GetBmap(), i, cdp->GetName(), block, lg);
 
@@ -729,7 +744,7 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
           memset(cdp->GetMax(), 0, block * lg);
           } // endif Type
 
-        if (trace)
+        if (trace(1))
           htrc("min(%p) max(%p) col(%d) %s Block=%d lg=%d\n",
               cdp->GetMin(), cdp->GetMax(), i, cdp->GetName(), block, lg);
 
@@ -901,7 +916,7 @@ bool TDBDOS::SaveBlockValues(PGLOBAL g)
             "wb", (int)errno, filename);
     strcat(strcat(g->Message, ": "), strerror(errno));
 
-    if (trace)
+    if (trace(1))
       htrc("%s\n", g->Message);
 
     return true;
@@ -1011,7 +1026,7 @@ bool TDBDOS::GetBlockValues(PGLOBAL g)
 #if 0
   if (Mode == MODE_INSERT && Txfp->GetAmType() == TYPE_AM_DOS)
     return false;
-#endif   // __WIN__
+#endif   // _WIN32
 
 	if (defp->Optimized || !(dup->Check & CHK_OPT))
     return false;                   // Already done or to be redone
@@ -1634,7 +1649,7 @@ int TDBDOS::TestBlock(PGLOBAL g)
         To_Filter = NULL; // So remove filter
       } // endswitch Beval
 
-    if (trace)
+    if (trace(1))
       htrc("BF Eval Beval=%d\n", Beval);
 
     } // endif To_BlkFil
@@ -1779,7 +1794,7 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
 				return RC_INFO;     // Error or Physical table does not exist
 
 	} catch (int n) {
-		if (trace)
+		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
 		rc = RC_FX;
 	} catch (const char *msg) {
@@ -1902,7 +1917,7 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, volatile PIXDEF xdp, bool sorted)
       } // endif brc
 
 	} catch (int n) {
-		if (trace)
+		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
 		brc = true;
 	} catch (const char *msg) {
@@ -1983,7 +1998,7 @@ int TDBDOS::Cardinality(PGLOBAL g)
       if (Mode == MODE_ANY && ExactInfo()) {
         // Using index impossible or failed, do it the hard way
         Mode = MODE_READ;
-        To_Line = (char*)PlugSubAlloc(g, NULL, Lrecl + 1);
+        To_Line = (char*)PlugSubAlloc(g, NULL, (size_t)Lrecl + 1);
     
         if (Txfp->OpenTableFile(g))
           return (Cardinal = Txfp->Cardinality(g));
@@ -2001,7 +2016,7 @@ int TDBDOS::Cardinality(PGLOBAL g)
         if (len >= 0) {
           int rec;
 
-          if (trace)
+          if (trace(1))
             htrc("Estimating lines len=%d ending=%d/n",
                   len, ((PDOSDEF)To_Def)->Ending);
 
@@ -2018,7 +2033,7 @@ int TDBDOS::Cardinality(PGLOBAL g)
 
           Cardinal = (len + rec - 1) / rec;
 
-          if (trace)
+          if (trace(1))
             htrc("avglen=%d MaxSize%d\n", rec, Cardinal);
 
           } // endif len
@@ -2048,7 +2063,7 @@ int TDBDOS::GetMaxSize(PGLOBAL g)
     if (len >= 0) {
       int rec;
 
-      if (trace)
+      if (trace(1))
         htrc("Estimating lines len=%d ending=%d/n",
               len, ((PDOSDEF)To_Def)->Ending);
 
@@ -2059,7 +2074,7 @@ int TDBDOS::GetMaxSize(PGLOBAL g)
       rec = EstimatedLength() + ((PDOSDEF)To_Def)->Ending;
       MaxSize = (len + rec - 1) / rec;
 
-      if (trace)
+      if (trace(1))
         htrc("avglen=%d MaxSize%d\n", rec, MaxSize);
 
       } // endif len
@@ -2108,7 +2123,7 @@ bool TDBDOS::IsUsingTemp(PGLOBAL)
 /***********************************************************************/
 bool TDBDOS::OpenDB(PGLOBAL g)
   {
-  if (trace)
+  if (trace(1))
     htrc("DOS OpenDB: tdbp=%p tdb=R%d use=%d mode=%d\n",
           this, Tdb_No, Use, Mode);
 
@@ -2133,6 +2148,9 @@ bool TDBDOS::OpenDB(PGLOBAL g)
     } // endif use
 
   if (Mode == MODE_DELETE && !Next && Txfp->GetAmType() != TYPE_AM_DOS
+#if defined(BSON_SUPPORT)
+                                   && Txfp->GetAmType() != TYPE_AM_BIN
+#endif   // BSON_SUPPORT
 		                               && Txfp->GetAmType() != TYPE_AM_MGO) {
     // Delete all lines. Not handled in MAP or block mode
     Txfp = new(g) DOSFAM((PDOSDEF)To_Def);
@@ -2184,7 +2202,7 @@ bool TDBDOS::OpenDB(PGLOBAL g)
   } else
     memset(To_Line, 0, linelen);
 
-  if (trace)
+  if (trace(1))
     htrc("OpenDos: R%hd mode=%d To_Line=%p\n", Tdb_No, Mode, To_Line);
 
   if (SkipHeader(g))         // When called from CSV/FMT files
@@ -2202,7 +2220,7 @@ bool TDBDOS::OpenDB(PGLOBAL g)
 /***********************************************************************/
 int TDBDOS::ReadDB(PGLOBAL g)
   {
-  if (trace > 1)
+  if (trace(2))
     htrc("DOS ReadDB: R%d Mode=%d key=%p link=%p Kindex=%p To_Line=%p\n",
           GetTdb_No(), Mode, To_Key_Col, To_Link, To_Kindex, To_Line);
 
@@ -2217,7 +2235,7 @@ int TDBDOS::ReadDB(PGLOBAL g)
         return RC_EF;
       case -2:           // No match for join
         return RC_NF;
-      case -3:           // Same record as last non null one
+      case -3:           // Same record as non null last one
         num_there++;
         return RC_OK;
       default:
@@ -2227,7 +2245,7 @@ int TDBDOS::ReadDB(PGLOBAL g)
         if (SetRecpos(g, recpos))
           return RC_FX;
 
-        if (trace > 1)
+        if (trace(2))
           htrc("File position is now %d\n", GetRecpos());
 
         if (Mode == MODE_READ)
@@ -2243,7 +2261,7 @@ int TDBDOS::ReadDB(PGLOBAL g)
 
     } // endif To_Kindex
 
-  if (trace > 1)
+  if (trace(2))
     htrc(" ReadDB: this=%p To_Line=%p\n", this, To_Line);
 
   /*********************************************************************/
@@ -2257,7 +2275,7 @@ int TDBDOS::ReadDB(PGLOBAL g)
 /***********************************************************************/
 bool TDBDOS::PrepareWriting(PGLOBAL)
   {
-  if (!Ftype && (Mode == MODE_INSERT || Txfp->GetUseTemp())) {
+  if (Ftype == RECFM_VAR && (Mode == MODE_INSERT || Txfp->GetUseTemp())) {
     char *p;
 
     /*******************************************************************/
@@ -2279,14 +2297,14 @@ bool TDBDOS::PrepareWriting(PGLOBAL)
 /***********************************************************************/
 int TDBDOS::WriteDB(PGLOBAL g)
   {
-  if (trace > 1)
+  if (trace(2))
     htrc("DOS WriteDB: R%d Mode=%d \n", Tdb_No, Mode);
 
   // Make the line to write
   if (PrepareWriting(g))
     return RC_FX;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("Write: line is='%s'\n", To_Line);
 
   // Now start the writing process
@@ -2403,7 +2421,7 @@ DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PCSZ am)
     Dcm = (*p) ? atoi(p) : GetScale();
     } // endif fmt
 
-  if (trace)
+  if (trace(1))
     htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
 
   } // end of DOSCOL constructor
@@ -2492,8 +2510,10 @@ bool DOSCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
   } // endif's Value, Buf_Type
 
   // Allocate the buffer used in WriteColumn for numeric columns
-  if (!Buf && IsTypeNum(Buf_Type))
-    Buf = (char*)PlugSubAlloc(g, NULL, MY_MAX(32, Long + Dcm + 1));
+	if (!Buf && IsTypeNum(Buf_Type))
+		Buf = (char*)PlugSubAlloc(g, NULL, MY_MAX(64, Long + 1));
+	else // Text columns do not need additional buffer
+		Buf = (char*)Value->GetTo_Val();
 
   // Because Colblk's have been made from a copy of the original TDB in
   // case of Update, we must reset them to point to the original one.
@@ -2515,10 +2535,11 @@ void DOSCOL::ReadColumn(PGLOBAL g)
   char   *p = NULL;
   int     i, rc;
   int     field;
+  bool    err = false;
   double  dval;
   PTDBDOS tdbp = (PTDBDOS)To_Tdb;
 
-  if (trace > 1)
+  if (trace(2))
     htrc(
       "DOS ReadColumn: col %s R%d coluse=%.4X status=%.4X buf_type=%d\n",
          Name, tdbp->GetTdb_No(), ColUse, Status, Buf_Type);
@@ -2540,7 +2561,8 @@ void DOSCOL::ReadColumn(PGLOBAL g)
   /*********************************************************************/
   /*  For a variable length file, check if the field exists.           */
   /*********************************************************************/
-  if (tdbp->Ftype == RECFM_VAR && strlen(tdbp->To_Line) < (unsigned)Deplac)
+  if ((tdbp->Ftype == RECFM_VAR || tdbp->Ftype == RECFM_CSV)
+				&& strlen(tdbp->To_Line) < (unsigned)Deplac)
     field = 0;
   else if (Dsp)
     for(i = 0; i < field; i++)
@@ -2550,45 +2572,58 @@ void DOSCOL::ReadColumn(PGLOBAL g)
   switch (tdbp->Ftype) {
     case RECFM_VAR:
     case RECFM_FIX:            // Fixed length text file
-    case RECFM_DBF:            // Fixed length DBase file
+		case RECFM_CSV:            // Variable length CSV or FMT file
+		case RECFM_DBF:            // Fixed length DBase file
       if (Nod) switch (Buf_Type) {
         case TYPE_INT:
         case TYPE_SHORT:
         case TYPE_TINY:
         case TYPE_BIGINT:
-          if (Value->SetValue_char(p, field - Dcm)) {
-            sprintf(g->Message, "Out of range value for column %s at row %d",
-                    Name, tdbp->RowNumber(g));
-            PushWarning(g, tdbp);
-            } // endif SetValue_char
-
+          err = Value->SetValue_char(p, field - Dcm);
           break;
         case TYPE_DOUBLE:
-          Value->SetValue_char(p, field);
-          dval = Value->GetFloatValue();
+          if (!(err = Value->SetValue_char(p, field))) {
+            dval = Value->GetFloatValue();
 
-          for (i = 0; i < Dcm; i++)
-            dval /= 10.0;
+            for (i = 0; i < Dcm; i++)
+              dval /= 10.0;
 
-          Value->SetValue(dval);
+            Value->SetValue(dval);
+          } // endif err
+
           break;
         default:
-          Value->SetValue_char(p, field);
+          err = Value->SetValue_char(p, field);
+
+          if (!err && Buf_Type == TYPE_DECIM) {
+            char* s = Value->GetCharValue();
+
+            if (!(err = ((i = strlen(s)) >= Value->GetClen()))) {
+              for (int d = Dcm + 1; d; i--, d--)
+                s[i + 1] = s[i];
+
+              s[i + 1] = '.';
+            } // endif err
+
+          } // endif DECIM
+
           break;
-        } // endswitch Buf_Type
+      } // endswitch Buf_Type
 
       else
-        if (Value->SetValue_char(p, field)) {
-          sprintf(g->Message, "Out of range value for column %s at row %d",
-                  Name, tdbp->RowNumber(g));
-          PushWarning(g, tdbp);
-          } // endif SetValue_char
+        err = Value->SetValue_char(p, field);
 
       break;
     default:
       sprintf(g->Message, MSG(BAD_RECFM), tdbp->Ftype);
 			throw 34;
 	} // endswitch Ftype
+
+  if (err) {
+    sprintf(g->Message, "Out of range value for column %s at row %d",
+      Name, tdbp->RowNumber(g));
+    PushWarning(g, tdbp);
+  } // endif err
 
   // Set null when applicable
   if (Nullable)
@@ -2603,17 +2638,17 @@ void DOSCOL::ReadColumn(PGLOBAL g)
 /***********************************************************************/
 void DOSCOL::WriteColumn(PGLOBAL g)
   {
-  char   *p, *p2, fmt[32];
-  int     i, k, len, field;
+  char   *p, fmt[32];
+  int     i, k, n, len, field;
   PTDBDOS tdbp = (PTDBDOS)To_Tdb;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("DOS WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
           Name, tdbp->GetTdb_No(), ColUse, Status);
 
   p = tdbp->To_Line + Deplac;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("Lrecl=%d deplac=%d int=%d\n", tdbp->Lrecl, Deplac, Long);
 
   field = Long;
@@ -2630,7 +2665,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
 
     } // endif Ftype
 
-  if (trace > 1)
+  if (trace(2))
     htrc("Long=%d field=%d coltype=%d colval=%p\n",
           Long, field, Buf_Type, Value);
 
@@ -2679,8 +2714,8 @@ void DOSCOL::WriteColumn(PGLOBAL g)
         case TYPE_DOUBLE:
         case TYPE_DECIM:
           strcpy(fmt, (Ldz) ? "%0*.*lf" : "%*.*lf");
-          sprintf(Buf, fmt, field + ((Nod && Dcm) ? 1 : 0),
-                  Dcm, Value->GetFloatValue());
+					len = field + ((Nod && Dcm) ? 1 : 0);
+          snprintf(Buf, len + 1, fmt, len, Dcm, Value->GetFloatValue());
           len = strlen(Buf);
 
           if (Nod && Dcm)
@@ -2699,35 +2734,37 @@ void DOSCOL::WriteColumn(PGLOBAL g)
 					throw 31;
 			} // endswitch BufType
 
-      p2 = Buf;
+			n = strlen(Buf);
     } else                 // Standard CONNECT format
-      p2 = Value->ShowValue(Buf, field);
+      n = Value->ShowValue(Buf, field);
 
-    if (trace)
-      htrc("new length(%p)=%d\n", p2, strlen(p2));
+    if (trace(1))
+      htrc("new length(%p)=%d\n", Buf, n);
 
-    if ((len = strlen(p2)) > field) {
-      sprintf(g->Message, MSG(VALUE_TOO_LONG), p2, Name, field);
+    if ((len = n) > field) {
+			char *p = Value->GetCharString(Buf);
+
+      sprintf(g->Message, MSG(VALUE_TOO_LONG), p, Name, field);
 			throw 31;
 		} else if (Dsp)
       for (i = 0; i < len; i++)
-        if (p2[i] == '.')
-          p2[i] = Dsp; 
+        if (Buf[i] == '.')
+          Buf[i] = Dsp; 
 
-    if (trace > 1)
-      htrc("buffer=%s\n", p2);
+    if (trace(2))
+      htrc("buffer=%s\n", Buf);
 
     /*******************************************************************/
     /*  Updating must be done only when not in checking pass.          */
     /*******************************************************************/
     if (Status) {
       memset(p, ' ', field);
-      memcpy(p, p2, len);
+      memcpy(p, Buf, len);
 
-      if (trace > 1)
+      if (trace(2))
         htrc(" col write: '%.*s'\n", len, p);
 
-      } // endif Use
+    } // endif Status
 
   } else    // BIN compressed table
     /*******************************************************************/
@@ -2738,7 +2775,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
       sprintf(g->Message, MSG(BIN_F_TOO_LONG),
                           Name, Value->GetSize(), Long);
       throw 31;
-      } // endif
+    } // endif
 
   } // end of WriteColumn
 

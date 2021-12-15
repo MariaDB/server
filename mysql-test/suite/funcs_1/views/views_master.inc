@@ -764,7 +764,7 @@ CREATE VIEW   test.v2 AS SELECT * FROM  test.t0;
 CREATE VIEW  test2.v2 AS SELECT * FROM test2.t0;
 
 # Some additional tests on the just created objects to show that they are
-# accessable and do have the expected content.
+# accessible and do have the expected content.
 # INSERTs with full qualified table
 INSERT INTO  test.t1 VALUES('test.t1  - 1');
 INSERT INTO test2.t1 VALUES('test2.t1 - 1');

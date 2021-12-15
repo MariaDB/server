@@ -78,6 +78,11 @@ wsrep_gtid_mode	1
 # On node_1
 connection node_1;
 DROP TABLE t1, t2;
+#cleanup
+connection node_1;
+reset master;
+connection node_2;
+reset master;
 disconnect node_2;
 disconnect node_1;
 # End of test

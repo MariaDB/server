@@ -12,13 +12,14 @@
 --source include/have_debug.inc
 --source include/check_ipv6.inc
 --source include/have_perfschema.inc
+--source include/have_hostname_cache.inc
 
 # Enforce a clean state
 --source ../include/wait_for_pfs_thread_count.inc
 --source ../include/hostcache_set_state.inc
 
-select @@global.max_connections into @saved_max_connections;
-select @@global.max_user_connections into @saved_max_user_connections;
+SET @saved_max_connections=@@global.max_connections;
+SET @saved_max_user_connections=@@global.max_user_connections;
 
 create user 'quota'@'santa.claus.ipv6.example.com';
 grant select on test.* to 'quota'@'santa.claus.ipv6.example.com';
@@ -31,6 +32,7 @@ select current_user();
 disconnect con1;
 
 --connection default
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv6,getnameinfo_fake_ipv6,getaddrinfo_fake_good_ipv6";
 
 connect (con2a,"::1",quota,,test,$MASTER_MYPORT,);
@@ -177,8 +179,16 @@ disconnect con4c;
 --source ../include/wait_for_pfs_thread_count.inc
 
 set global max_user_connections = 0;
-set global max_connections = 3;
+set global max_connections = 10;
 flush user_resources;
+
+connect (tmp_con1,"::1",quota,,test,$MASTER_MYPORT,);
+connect (tmp_con2,"::1",quota,,test,$MASTER_MYPORT,);
+connect (tmp_con3,"::1",quota,,test,$MASTER_MYPORT,);
+connect (tmp_con4,"::1",quota,,test,$MASTER_MYPORT,);
+connect (tmp_con5,"::1",quota,,test,$MASTER_MYPORT,);
+connect (tmp_con6,"::1",quota,,test,$MASTER_MYPORT,);
+connect (tmp_con7,"::1",quota,,test,$MASTER_MYPORT,);
 
 connect (con5a,"::1",quota,,test,$MASTER_MYPORT,);
 select "Con4a is alive";
@@ -215,6 +225,13 @@ connect (con5d,"::1",quota,,test,$MASTER_MYPORT,);
 
 disconnect con5a;
 disconnect con5b;
+--disconnect tmp_con1
+--disconnect tmp_con2
+--disconnect tmp_con3
+--disconnect tmp_con4
+--disconnect tmp_con5
+--disconnect tmp_con6
+--disconnect tmp_con7
 
 # Wait for all disconnects
 --source ../include/wait_for_pfs_thread_count.inc
@@ -225,5 +242,5 @@ set global max_user_connections = @saved_max_user_connections;
 # revoke all privileges on test.* from 'quota'@'santa.claus.ipv6.example.com';
 drop user 'quota'@'santa.claus.ipv6.example.com';
 
-set global debug_dbug= default;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 

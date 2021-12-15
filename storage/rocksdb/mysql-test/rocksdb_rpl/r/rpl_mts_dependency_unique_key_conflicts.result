@@ -1,0 +1,44 @@
+include/master-slave.inc
+Warnings:
+Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+[connection master]
+include/stop_slave.inc
+set @save.slave_parallel_workers= @@global.slave_parallel_workers;
+set @save.slave_use_idempotent_for_recovery= @@global.slave_use_idempotent_for_recovery;
+set @save.mts_dependency_replication= @@global.mts_dependency_replication;
+set @save.mts_dependency_order_commits= @@global.mts_dependency_order_commits;
+set @save.debug= @@global.debug;
+set @@global.slave_parallel_workers= 2;
+set @@global.slave_use_idempotent_for_recovery= YES;
+set @@global.mts_dependency_replication= STMT;
+set @@global.mts_dependency_order_commits= false;
+set @@global.debug= '+d,dbug.dep_wait_before_update_execution';
+include/start_slave.inc
+create table t1 (a int primary key, b int unique key) engine = rocksdb;
+insert into t1 values(1, 1);
+include/sync_slave_sql_with_master.inc
+include/stop_slave.inc
+update t1 set b = 2 where a = 1;
+insert into t1 values(2, 1);
+include/start_slave.inc
+set debug_sync="now wait_for signal.reached";
+select * from t1;
+a	b
+1	1
+set debug_sync="now signal signal.done";
+include/sync_slave_sql_with_master.inc
+select * from t1;
+a	b
+2	1
+1	2
+drop table t1;
+include/sync_slave_sql_with_master.inc
+include/stop_slave.inc
+set @@global.slave_parallel_workers= @save.slave_parallel_workers;
+set @@global.mts_dependency_replication= @save.mts_dependency_replication;
+set @@global.slave_use_idempotent_for_recovery= @save.slave_use_idempotent_for_recovery;
+set @@global.mts_dependency_order_commits= @save.mts_dependency_order_commits;
+set @@global.debug= @save.debug;
+include/start_slave.inc
+include/rpl_end.inc

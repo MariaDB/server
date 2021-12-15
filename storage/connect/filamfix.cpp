@@ -17,7 +17,7 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -25,7 +25,7 @@
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #if defined(UNIX)
 #include <errno.h>
 #include <unistd.h>
@@ -34,7 +34,7 @@
 #endif  // !UNIX
 #include <sys/stat.h>
 #include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -322,7 +322,7 @@ int FIXFAM::ReadBuffer(PGLOBAL g)
       return RC_FX;
       } // endif fseek
 
-  if (trace > 1)
+  if (trace(2))
     htrc("File position is now %d\n", ftell(Stream));
 
   if (Padded)
@@ -338,13 +338,13 @@ int FIXFAM::ReadBuffer(PGLOBAL g)
   } else if (feof(Stream)) {
     rc = RC_EF;
   } else {
-#if defined(__WIN__)
+#if defined(_WIN32)
     sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
 #else
     sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(errno));
 #endif
 
-    if (trace)
+    if (trace(1))
       htrc("%s\n", g->Message);
 
     return RC_FX;
@@ -361,7 +361,7 @@ int FIXFAM::ReadBuffer(PGLOBAL g)
 /***********************************************************************/
 int FIXFAM::WriteBuffer(PGLOBAL g)
   {
-  if (trace > 1)
+  if (trace(2))
     htrc("FIX WriteDB: Mode=%d buf=%p line=%p Nrec=%d Rbuf=%d CurNum=%d\n",
          Tdbp->GetMode(), To_Buf, Tdbp->GetLine(), Nrec, Rbuf, CurNum);
 
@@ -374,7 +374,7 @@ int FIXFAM::WriteBuffer(PGLOBAL g)
       return RC_OK;                    // We write only full blocks
       } // endif CurNum
 
-    if (trace > 1)
+    if (trace(2))
       htrc(" First line is '%.*s'\n", Lrecl - 2, To_Buf);
 
     //  Now start the writing process.
@@ -388,7 +388,7 @@ int FIXFAM::WriteBuffer(PGLOBAL g)
     CurNum = 0;
     Tdbp->SetLine(To_Buf);
 
-    if (trace > 1)
+    if (trace(2))
       htrc("write done\n");
 
   } else {                           // Mode == MODE_UPDATE
@@ -431,7 +431,7 @@ int FIXFAM::DeleteRecords(PGLOBAL g, int irc)
   /*      file, and at the end erase all trailing records.             */
   /*  This will be experimented.                                       */
   /*********************************************************************/
-  if (trace > 1)
+  if (trace(2))
     htrc("DOS DeleteDB: rc=%d UseTemp=%d Fpos=%d Tpos=%d Spos=%d\n",
          irc, UseTemp, Fpos, Tpos, Spos);
 
@@ -441,7 +441,7 @@ int FIXFAM::DeleteRecords(PGLOBAL g, int irc)
     /*******************************************************************/
     Fpos = Tdbp->Cardinality(g);
 
-    if (trace > 1)
+    if (trace(2))
       htrc("Fpos placed at file end=%d\n", Fpos);
 
   } else    // Fpos is the deleted line position
@@ -491,7 +491,7 @@ int FIXFAM::DeleteRecords(PGLOBAL g, int irc)
       OldBlk = -2;  // To force fseek to be executed on next block
       } // endif moved
 
-    if (trace > 1)
+    if (trace(2))
       htrc("after: Tpos=%d Spos=%d\n", Tpos, Spos);
 
   } else {
@@ -540,7 +540,7 @@ int FIXFAM::DeleteRecords(PGLOBAL g, int irc)
 
       close(h);
 
-    if (trace > 1)
+    if (trace(2))
       htrc("done, h=%d irc=%d\n", h, irc);
 
     } // endif UseTemp
@@ -572,7 +572,7 @@ bool FIXFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
     req = (size_t)MY_MIN(n, Dbflen);
     len = fread(DelBuf, Lrecl, req, Stream);
 
-    if (trace > 1)
+    if (trace(2))
       htrc("after read req=%d len=%d\n", req, len);
 
     if (len != req) {
@@ -591,13 +591,13 @@ bool FIXFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
       return true;
       } // endif
 
-    if (trace > 1)
+    if (trace(2))
       htrc("after write pos=%d\n", ftell(Stream));
 
     Tpos += (int)req;
     Spos += (int)req;
 
-    if (trace > 1)
+    if (trace(2))
       htrc("loop: Tpos=%d Spos=%d\n", Tpos, Spos);
 
     *b = true;
@@ -648,7 +648,7 @@ void FIXFAM::CloseTableFile(PGLOBAL g, bool abort)
   rc = PlugCloseFile(g, To_Fb);
 
  fin:
-  if (trace)
+  if (trace(1))
     htrc("FIX CloseTableFile: closing %s mode=%d wrc=%d rc=%d\n",
          To_File, mode, wrc, rc);
 
@@ -678,7 +678,7 @@ BGXFAM::BGXFAM(PBGXFAM txfp) : FIXFAM(txfp)
 /***********************************************************************/
 bool BGXFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, int org)
   {
-#if defined(__WIN__)
+#if defined(_WIN32)
   char          buf[256];
   DWORD         drc;
   LARGE_INTEGER of;
@@ -694,14 +694,14 @@ bool BGXFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, int org)
     sprintf(g->Message, MSG(SFP_ERROR), buf);
     return true;
     } // endif
-#else   // !__WIN__
+#else   // !_WIN32
   if (lseek64(h, pos, org) < 0) {
 //  sprintf(g->Message, MSG(ERROR_IN_LSK), errno);
     sprintf(g->Message, "lseek64: %s", strerror(errno));
     printf("%s\n", g->Message);
     return true;
     } // endif
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   return false;
   } // end of BigSeek
@@ -714,11 +714,11 @@ int BGXFAM::BigRead(PGLOBAL g __attribute__((unused)),
   {
   int rc;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   DWORD nbr, drc, len = (DWORD)req;
   bool  brc = ReadFile(h, inbuf, len, &nbr, NULL);
 
-  if (trace > 1)
+  if (trace(2))
     htrc("after read req=%d brc=%d nbr=%d\n", req, brc, nbr);
 
   if (!brc) {
@@ -730,18 +730,18 @@ int BGXFAM::BigRead(PGLOBAL g __attribute__((unused)),
                   (LPTSTR)buf, sizeof(buf), NULL);
     sprintf(g->Message, MSG(READ_ERROR), To_File, buf);
 
-    if (trace > 1)
+    if (trace(2))
       htrc("BIGREAD: %s\n", g->Message);
 
     rc = -1;
   } else
     rc = (int)nbr;
-#else   // !__WIN__
+#else   // !_WIN32
   size_t  len = (size_t)req;
   ssize_t nbr = read(h, inbuf, len);
 
   rc = (int)nbr;
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   return rc;
   } // end of BigRead
@@ -753,11 +753,11 @@ bool BGXFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
   {
   bool rc = false;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   DWORD nbw, drc, len = (DWORD)req;
   bool  brc = WriteFile(h, inbuf, len, &nbw, NULL);
 
-  if (trace > 1)
+  if (trace(2))
     htrc("after write req=%d brc=%d nbw=%d\n", req, brc, nbw);
 
   if (!brc || nbw != len) {
@@ -775,13 +775,13 @@ bool BGXFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     sprintf(g->Message, MSG(WRITE_STRERROR), fn, buf);
 
-    if (trace > 1)
+    if (trace(2))
       htrc("BIGWRITE: nbw=%d len=%d errno=%d %s\n",
            nbw, len, drc, g->Message);
 
     rc = true;
     } // endif brc || nbw
-#else   // !__WIN__
+#else   // !_WIN32
   size_t  len = (size_t)req;
   ssize_t nbw = write(h, inbuf, len);
 
@@ -790,13 +790,13 @@ bool BGXFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     sprintf(g->Message, MSG(WRITE_STRERROR), fn, strerror(errno));
 
-    if (trace > 1)
+    if (trace(2))
       htrc("BIGWRITE: nbw=%d len=%d errno=%d %s\n",
            nbw, len, errno, g->Message);
 
     rc = true;
     } // endif nbr
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   return rc;
   } // end of BigWrite
@@ -828,10 +828,10 @@ bool BGXFAM::OpenTableFile(PGLOBAL g)
 
   PlugSetPath(filename, To_File, Tdbp->GetPath());
 
-  if (trace)
+  if (trace(1))
     htrc("OpenTableFile: filename=%s mode=%d\n", filename, mode);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   DWORD rc, access, creation, share = 0;
 
   /*********************************************************************/
@@ -888,7 +888,7 @@ bool BGXFAM::OpenTableFile(PGLOBAL g)
   } else
     rc = 0;
 
-  if (trace > 1)
+  if (trace(2))
     htrc(" rc=%d access=%p share=%p creation=%d handle=%p fn=%s\n",
          rc, access, share, creation, Hfile, filename);
 
@@ -942,7 +942,7 @@ bool BGXFAM::OpenTableFile(PGLOBAL g)
   } else
     rc = 0;
 
-  if (trace > 1)
+  if (trace(2))
     htrc(" rc=%d oflag=%p tmode=%p handle=%p fn=%s\n",
          rc, oflag, tmode, Hfile, filename);
 
@@ -989,7 +989,7 @@ int BGXFAM::Cardinality(PGLOBAL g)
 
     PlugSetPath(filename, To_File, Tdbp->GetPath());
 
-#if defined(__WIN__)  // OB
+#if defined(_WIN32)  // OB
     LARGE_INTEGER len;
     DWORD         rc = 0;
 
@@ -1026,11 +1026,11 @@ int BGXFAM::Cardinality(PGLOBAL g)
     if (Hfile == INVALID_HANDLE_VALUE) {
       int h = open64(filename, O_RDONLY, 0);
 
-      if (trace)
+      if (trace(1))
         htrc(" h=%d\n", h);
 
       if (h == INVALID_HANDLE_VALUE) {
-        if (trace)
+        if (trace(1))
           htrc("  errno=%d ENOENT=%d\n", errno, ENOENT);
 
         if (errno != ENOENT) {
@@ -1074,7 +1074,7 @@ int BGXFAM::Cardinality(PGLOBAL g)
     } else
       card = (int)(fsize / (BIGINT)Lrecl); // Fixed length file
 
-    if (trace)
+    if (trace(1))
       htrc(" Computed max_K=%d fsize=%lf lrecl=%d\n",
            card, (double)fsize, Lrecl);
 
@@ -1181,7 +1181,7 @@ int BGXFAM::ReadBuffer(PGLOBAL g)
     if (BigSeek(g, Hfile, (BIGINT)Fpos * (BIGINT)Lrecl))
       return RC_FX;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("File position is now %d\n", Fpos);
 
   nbr = BigRead(g, Hfile, To_Buf, (Padded) ? Blksize : Lrecl * Nrec);
@@ -1205,7 +1205,7 @@ int BGXFAM::ReadBuffer(PGLOBAL g)
 /***********************************************************************/
 int BGXFAM::WriteBuffer(PGLOBAL g)
   {
-  if (trace > 1)
+  if (trace(2))
     htrc("BIG WriteDB: Mode=%d buf=%p line=%p Nrec=%d Rbuf=%d CurNum=%d\n",
          Tdbp->GetMode(), To_Buf, Tdbp->GetLine(), Nrec, Rbuf, CurNum);
 
@@ -1218,7 +1218,7 @@ int BGXFAM::WriteBuffer(PGLOBAL g)
       return RC_OK;                    // We write only full blocks
       } // endif CurNum
 
-    if (trace > 1)
+    if (trace(2))
       htrc(" First line is '%.*s'\n", Lrecl - 2, To_Buf);
 
     //  Now start the writing process.
@@ -1229,7 +1229,7 @@ int BGXFAM::WriteBuffer(PGLOBAL g)
     CurNum = 0;
     Tdbp->SetLine(To_Buf);
 
-    if (trace > 1)
+    if (trace(2))
       htrc("write done\n");
 
   } else {                           // Mode == MODE_UPDATE
@@ -1270,7 +1270,7 @@ int BGXFAM::DeleteRecords(PGLOBAL g, int irc)
   /*      file, and at the end erase all trailing records.             */
   /*  This will be experimented.                                       */
   /*********************************************************************/
-  if (trace > 1)
+  if (trace(2))
     htrc("BGX DeleteDB: rc=%d UseTemp=%d Fpos=%d Tpos=%d Spos=%d\n",
          irc, UseTemp, Fpos, Tpos, Spos);
 
@@ -1280,7 +1280,7 @@ int BGXFAM::DeleteRecords(PGLOBAL g, int irc)
     /*******************************************************************/
     Fpos = Tdbp->Cardinality(g);
 
-    if (trace > 1)
+    if (trace(2))
       htrc("Fpos placed at file end=%d\n", Fpos);
 
   } else    // Fpos is the deleted line position
@@ -1318,7 +1318,7 @@ int BGXFAM::DeleteRecords(PGLOBAL g, int irc)
     return RC_FX;
 
   if (irc == RC_OK) {
-    if (trace)
+    if (trace(1))
       assert(Spos == Fpos);
 
     Spos++;          // New start position is on next line
@@ -1330,7 +1330,7 @@ int BGXFAM::DeleteRecords(PGLOBAL g, int irc)
       OldBlk = -2;  // To force fseek to be executed on next block
       } // endif moved
 
-    if (trace > 1)
+    if (trace(2))
       htrc("after: Tpos=%d Spos=%d\n", Tpos, Spos);
 
   } else if (irc != RC_OK) {
@@ -1348,7 +1348,7 @@ int BGXFAM::DeleteRecords(PGLOBAL g, int irc)
       /*****************************************************************/
       /*  Remove extra records.                                        */
       /*****************************************************************/
-#if defined(__WIN__)
+#if defined(_WIN32)
       if (BigSeek(g, Hfile, (BIGINT)Tpos * (BIGINT)Lrecl))
         return RC_FX;
 
@@ -1358,12 +1358,12 @@ int BGXFAM::DeleteRecords(PGLOBAL g, int irc)
         sprintf(g->Message, MSG(SETEOF_ERROR), drc);
         return RC_FX;
         } // endif error
-#else   // !__WIN__
+#else   // !_WIN32
       if (ftruncate64(Hfile, (BIGINT)(Tpos * Lrecl))) {
         sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
         return RC_FX;
         } // endif
-#endif  // !__WIN__
+#endif  // !_WIN32
 
     } // endif UseTemp
 
@@ -1388,7 +1388,7 @@ bool BGXFAM::OpenTempFile(PGLOBAL g)
   strcat(PlugRemoveType(tempname, tempname), ".t");
   remove(tempname);       // Be sure it does not exist yet
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   Tfile = CreateFile(tempname, GENERIC_WRITE, 0, NULL,
                      CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
 
@@ -1459,7 +1459,7 @@ bool BGXFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
     Tpos += (int)req;
     Spos += (int)req;
 
-    if (trace > 1)
+    if (trace(2))
       htrc("loop: Tpos=%d Spos=%d\n", Tpos, Spos);
 
     *b = true;
@@ -1510,7 +1510,7 @@ void BGXFAM::CloseTableFile(PGLOBAL g, bool abort)
   rc = PlugCloseFile(g, To_Fb);
 
  fin:
-  if (trace)
+  if (trace(1))
     htrc("BGX CloseTableFile: closing %s mode=%d wrc=%d rc=%d\n",
          To_File, mode, wrc, rc);
 
@@ -1528,7 +1528,7 @@ void BGXFAM::CloseTableFile(PGLOBAL g, bool abort)
 void BGXFAM::Rewind(void)
   {
 #if 0    // This is probably unuseful because file is accessed directly
-#if defined(__WIN__)  //OB
+#if defined(_WIN32)  //OB
   SetFilePointer(Hfile, 0, NULL, FILE_BEGIN);
 #else    // UNIX
   lseek64(Hfile, 0, SEEK_SET);

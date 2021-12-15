@@ -1,0 +1,31 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-23365: Assertion `!is_set() || (m_status == DA_OK_BULK &&
+--echo # is_bulk_op())' failed upon killed TRUNCATE
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+LOCK TABLE t1 READ;
+
+--connect (con1,localhost,root,,test)
+SET SESSION max_session_mem_used= 45500;
+--send
+  LOCK TABLE t1 WRITE;
+
+--connection default
+SELECT * FROM t1;
+UNLOCK TABLES;
+
+--connection con1
+--reap
+--error ER_OPTION_PREVENTS_STATEMENT
+TRUNCATE TABLE t1;
+
+--disconnect con1
+--connection default
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

@@ -1,0 +1,25 @@
+#
+# MDEV-10508 Mariadb crash on out of disk space during dump import
+#
+--source include/have_sequence.inc
+--source include/have_debug.inc
+
+call mtr.add_suppression('Error writing file.*errno: 28 ');
+create table t1 (a int, b int) engine=memory;
+insert t1 select seq, seq+1 from seq_1_to_1000;
+set global general_log=0;
+set global log_queries_not_using_indexes=1;
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET debug_dbug='+d,simulate_file_write_error';
+--disable_result_log
+--let $run= 50
+while ($run)
+{
+    select * from t1 where a>10;
+    dec $run;
+}
+--enable_result_log
+SET debug_dbug= @saved_dbug;
+set global general_log=1;
+set global log_queries_not_using_indexes=default;
+drop table t1;

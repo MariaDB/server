@@ -23,10 +23,13 @@
 #include <violite.h>
 #include <proxy_protocol.h>
 #include <log.h>
+#include <my_pthread.h>
 
 #define PROXY_PROTOCOL_V1_SIGNATURE "PROXY"
 #define PROXY_PROTOCOL_V2_SIGNATURE "\x0D\x0A\x0D\x0A\x00\x0D\x0A\x51\x55\x49\x54\x0A"
 #define MAX_PROXY_HEADER_LEN 256
+
+static mysql_rwlock_t lock;
 
 /*
   Parse proxy protocol version 1 header (text)
@@ -341,31 +344,41 @@ static int parse_subnet(char *addr_str, struct subnet *subnet)
 
   @param[in] subnets_str : networks in CIDR format,
     separated by comma and/or space
+  @param[out] out_subnets : parsed subnets;
+  @param[out] out_count : number of parsed subnets
 
   @return 0 if success, otherwise -1
 */
-int set_proxy_protocol_networks(const char *subnets_str)
+static int parse_networks(const char *subnets_str, subnet **out_subnets, size_t *out_count)
 {
-  if (!subnets_str || !*subnets_str)
-    return 0;
+  int ret= -1;
+  subnet *subnets= 0;
+  size_t count= 0;
+  const char *p= subnets_str;
+  size_t max_subnets;
 
-  size_t max_subnets= MY_MAX(3,strlen(subnets_str)/2);
-  proxy_protocol_subnets= (subnet *)my_malloc(max_subnets * sizeof(subnet),MY_ZEROFILL);
+  if (!subnets_str || !*subnets_str)
+  {
+    ret= 0;
+    goto end;
+  }
+
+  max_subnets= MY_MAX(3,strlen(subnets_str)/2);
+  subnets= (subnet *)my_malloc(max_subnets * sizeof(subnet),MY_ZEROFILL);
 
   /* Check for special case '*'. */
   if (strcmp(subnets_str, "*") == 0)
   {
-
-    proxy_protocol_subnets[0].family= AF_INET;
-    proxy_protocol_subnets[1].family= AF_INET6;
-    proxy_protocol_subnets[2].family= AF_UNIX;
-    proxy_protocol_subnet_count= 3;
-    return 0;
+    subnets[0].family= AF_INET;
+    subnets[1].family= AF_INET6;
+    subnets[2].family= AF_UNIX;
+    count= 3;
+    ret= 0;
+    goto end;
   }
 
   char token[256];
-  const char *p= subnets_str;
-  for(proxy_protocol_subnet_count= 0;; proxy_protocol_subnet_count++)
+  for(count= 0;; count++)
   {
     while(*p && (*p ==',' || *p == ' '))
       p++;
@@ -377,17 +390,74 @@ int set_proxy_protocol_networks(const char *subnets_str)
       token[cnt++]= *p++;
 
     token[cnt++]=0;
-    if (cnt ==  sizeof(token))
-      return -1;
+    if (cnt == sizeof(token))
+      goto end;
 
-    if (parse_subnet(token, &proxy_protocol_subnets[proxy_protocol_subnet_count]))
+    if (parse_subnet(token, &subnets[count]))
     {
-      sql_print_error("Error parsing proxy_protocol_networks parameter, near '%s'",token);
-      return -1;
+      my_printf_error(ER_PARSE_ERROR,"Error parsing proxy_protocol_networks parameter, near '%s'",MYF(0),token);
+      goto end;
     }
   }
+
+  ret = 0;
+
+end:
+  if (ret)
+  {
+    my_free(subnets);
+    *out_subnets= NULL;
+    *out_count= 0;
+    return ret;
+  }
+  *out_subnets = subnets;
+  *out_count= count;
   return 0;
 }
+
+/**
+  Check validity of proxy_protocol_networks parameter
+  @param[in] in - input string
+  @return : true, if input is list of CIDR-style networks
+    separated by command or space
+*/
+bool proxy_protocol_networks_valid(const char *in)
+{
+  subnet *new_subnets;
+  size_t new_count;
+  int ret= parse_networks(in, &new_subnets, &new_count);
+  my_free(new_subnets);
+  return !ret;
+}
+
+
+/**
+  Set 'proxy_protocol_networks' parameter.
+
+  @param[in] spec : networks in CIDR format,
+    separated by comma and/or space
+
+  @return 0 if success, otherwise -1
+*/
+int set_proxy_protocol_networks(const char *spec)
+{
+  subnet *new_subnets;
+  subnet *old_subnet = 0;
+  size_t new_count;
+
+  int ret= parse_networks(spec, &new_subnets, &new_count);
+  if (ret)
+    return ret;
+
+  mysql_rwlock_wrlock(&lock);
+  old_subnet = proxy_protocol_subnets;
+  proxy_protocol_subnets = new_subnets;
+  proxy_protocol_subnet_count = new_count;
+  mysql_rwlock_unlock(&lock);
+  my_free(old_subnet);
+  return ret;
+}
+
 
 /**
    Compare memory areas, in memcmp().similar fashion.
@@ -400,7 +470,7 @@ static int compare_bits(const void *s1, const void *s2, int bit_count)
   int byte_count= bit_count / 8;
   if (byte_count && (result= memcmp(s1, s2, byte_count)))
     return result;
-  int rem= byte_count % 8;
+  int rem= bit_count % 8;
   if (rem)
   {
     // compare remaining bits i.e partial bytes.
@@ -475,20 +545,39 @@ bool is_proxy_protocol_allowed(const sockaddr *addr)
       break;
     default:
       DBUG_ASSERT(0);
-   }
+  }
 
+  bool ret= false;
+  mysql_rwlock_rdlock(&lock);
   for (size_t i= 0; i < proxy_protocol_subnet_count; i++)
+  {
     if (addr_matches_subnet(normalized_addr, &proxy_protocol_subnets[i]))
-      return true;
+    {
+      ret= true;
+      break;
+    }
+  }
+  mysql_rwlock_unlock(&lock);
 
-  return false;
+  return ret;
 }
 
 
-void cleanup_proxy_protocol_networks()
+int init_proxy_protocol_networks(const char *spec)
+{
+#ifdef HAVE_PSI_INTERFACE
+  static PSI_rwlock_key psi_rwlock_key;
+  static PSI_rwlock_info psi_rwlock_info={ &psi_rwlock_key, "rwlock", 0 };
+  mysql_rwlock_register("proxy_proto", &psi_rwlock_info, 1);
+#endif
+
+  mysql_rwlock_init(psi_rwlock_key, &lock);
+  return set_proxy_protocol_networks(spec);
+}
+
+
+void destroy_proxy_protocol_networks()
 {
   my_free(proxy_protocol_subnets);
-  proxy_protocol_subnets= 0;
-  proxy_protocol_subnet_count= 0;
+  mysql_rwlock_destroy(&lock);
 }
-

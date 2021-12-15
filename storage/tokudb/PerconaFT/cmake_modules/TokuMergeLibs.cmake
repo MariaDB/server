@@ -3,17 +3,11 @@
 # We use it in MySQL to merge mysys,dbug,vio etc into mysqlclient
 FUNCTION(TOKU_GET_DEPENDEND_OS_LIBS target result)
   SET(deps ${${target}_LIB_DEPENDS})
-  IF(deps)
-   FOREACH(lib ${deps})
-    # Filter out keywords for used for debug vs optimized builds
-    IF(NOT lib MATCHES "general" AND NOT lib MATCHES "debug" AND NOT lib MATCHES "optimized")
-      GET_TARGET_PROPERTY(lib_location ${lib} LOCATION)
-      IF(NOT lib_location)
-        SET(ret ${ret} ${lib})
-      ENDIF()
-    ENDIF()
-   ENDFOREACH()
-  ENDIF()
+  FOREACH(lib ${deps})
+   IF(TARGET ${lib})
+     SET(ret ${ret} ${lib})
+   ENDIF()
+  ENDFOREACH()
   SET(${result} ${ret} PARENT_SCOPE)
 ENDFUNCTION(TOKU_GET_DEPENDEND_OS_LIBS)
 

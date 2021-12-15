@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "mariadb.h"
 #include "sql_base.h"
@@ -270,10 +270,11 @@ my_bool Expression_cache_tmptable::put_value(Item *value)
 
   *(items.head_ref())= value;
   fill_record(table_thd, cache_table, cache_table->field, items, TRUE, TRUE);
-  if (table_thd->is_error())
+  if (unlikely(table_thd->is_error()))
     goto err;;
 
-  if ((error= cache_table->file->ha_write_tmp_row(cache_table->record[0])))
+  if (unlikely((error=
+                cache_table->file->ha_write_tmp_row(cache_table->record[0]))))
   {
     /* create_myisam_from_heap will generate error if needed */
     if (cache_table->file->is_fatal_error(error, HA_CHECK_DUP))

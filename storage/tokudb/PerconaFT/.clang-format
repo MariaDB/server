@@ -1,0 +1,36 @@
+Language:        Cpp
+BasedOnStyle:  Google
+
+# The following parameters are default for Google style,
+# but as they are important for our project they
+# are set explicitly here
+AlignAfterOpenBracket: Align
+BreakBeforeBinaryOperators: None
+ColumnLimit:     80
+PointerAlignment: Left
+SpaceAfterCStyleCast: false
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 2
+SpacesInAngles:  false
+SpacesInContainerLiterals: true
+SpacesInCStyleCastParentheses: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+UseTab:          Never
+
+# Non-default parametes
+NamespaceIndentation: All
+IndentWidth:     4
+TabWidth:        4
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+BinPackParameters: false
+BinPackArguments: false
+ExperimentalAutoDetectBinPacking: false
+AllowAllParametersOfDeclarationOnNextLine: false
+#AlignConsecutiveAssignments: yes
+#AlignConsecutiveDeclarations: yes
+BreakStringLiterals: false
+ReflowComments: true

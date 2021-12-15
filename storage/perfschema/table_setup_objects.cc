@@ -1,17 +1,24 @@
 /* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @file storage/perfschema/table_setup_objects.cc
@@ -43,11 +50,11 @@ table_setup_objects::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE setup_objects("
-                      "OBJECT_TYPE ENUM ('TABLE') not null default 'TABLE',"
-                      "OBJECT_SCHEMA VARCHAR(64) default '%',"
-                      "OBJECT_NAME VARCHAR(64) not null default '%',"
-                      "ENABLED ENUM ('YES', 'NO') not null default 'YES',"
-                      "TIMED ENUM ('YES', 'NO') not null default 'YES')") }
+                      "OBJECT_TYPE ENUM ('TABLE') not null default 'TABLE' comment 'Type of object to instrument. Currently, only TABLE, for base table.',"
+                      "OBJECT_SCHEMA VARCHAR(64) default '%' comment 'Schema containing the object, either the literal or % for any schema.',"
+                      "OBJECT_NAME VARCHAR(64) not null default '%' comment 'Name of the instrumented object, either the literal or % for any object.',"
+                      "ENABLED ENUM ('YES', 'NO') not null default 'YES' comment 'Whether the object''s events are instrumented or not. Can be disabled, in which case monitoring is not enabled for those objects.',"
+                      "TIMED ENUM ('YES', 'NO') not null default 'YES' comment 'Whether the object''s events are timed or not. Can be modified.')") }
 };
 
 int update_derived_flags()

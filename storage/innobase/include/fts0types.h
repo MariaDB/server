@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,7 +27,6 @@ Created 2007-03-27 Sunny Bains
 #ifndef INNOBASE_FTS0TYPES_H
 #define INNOBASE_FTS0TYPES_H
 
-#include "univ.i"
 #include "fts0fts.h"
 #include "fut0fut.h"
 #include "pars0pars.h"
@@ -81,20 +80,6 @@ struct fts_index_cache_t {
 	CHARSET_INFO*	charset;	/*!< charset */
 };
 
-/** For supporting the tracking of updates on multiple FTS indexes we need
-to track which FTS indexes need to be updated. For INSERT and DELETE we
-update all fts indexes. */
-struct fts_update_t {
-	doc_id_t	doc_id;		/*!< The doc id affected */
-
-	ib_vector_t*	fts_indexes;	/*!< The FTS indexes that need to be
-					updated. A NULL value means all
-					indexes need to be updated.  This
-					vector is not allocated on the heap
-					and so must be freed explicitly,
-					when we are done with it */
-};
-
 /** Stop word control infotmation. */
 struct fts_stopword_t {
 	ulint		status;		/*!< Status of the stopword tree */
@@ -124,7 +109,8 @@ struct fts_sync_t {
 	doc_id_t	max_doc_id;	/*!< The doc id at which the cache was
 					noted as being full, we use this to
 					set the upper_limit field */
-	ib_time_t	start_time;	/*!< SYNC start time */
+	time_t		start_time;	/*!< SYNC start time; only used if
+					fts_enable_diag_print */
 	bool		in_progress;	/*!< flag whether sync is in progress.*/
 	bool		unlock_cache;	/*!< flag whether unlock cache when
 					write fts node */
@@ -145,8 +131,6 @@ struct fts_cache_t {
 					intialization, it has different
 					SYNC level as above cache lock */
 
-	ib_mutex_t	optimize_lock;	/*!< Lock for OPTIMIZE */
-
 	ib_mutex_t	deleted_lock;	/*!< Lock covering deleted_doc_ids */
 
 	ib_mutex_t	doc_id_lock;	/*!< Lock covering Doc ID */
@@ -163,9 +147,12 @@ struct fts_cache_t {
 					the document from the table. Each
 					element is of type fts_doc_t */
 
-	ulint		total_size;	/*!< total size consumed by the ilist
+	size_t		total_size;	/*!< total size consumed by the ilist
 					field of all nodes. SYNC is run
 					whenever this gets too big */
+	/** total_size at the time of the previous SYNC request */
+	size_t		total_size_at_sync;
+
 	fts_sync_t*	sync;		/*!< sync structure to sync data to
 					disk */
 	ib_alloc_t*	sync_heap;	/*!< The heap allocator, for indexes
@@ -245,7 +232,7 @@ struct fts_fetch_t {
 	fts_sql_callback
 			read_record;	/*!< Callback for reading index
 					record */
-	ulint		total_memory;	/*!< Total memory used */
+	size_t		total_memory;	/*!< Total memory used */
 };
 
 /** For horizontally splitting an FTS auxiliary index */
@@ -319,10 +306,9 @@ fts_ranking_doc_id_cmp(
 	const void*	p2);			/*!< in: id2 */
 
 /******************************************************************//**
-Compare two fts_update_t instances doc_ids. */
+Compare two doc_ids. */
 UNIV_INLINE
-int
-fts_update_doc_id_cmp(
+int fts_doc_id_cmp(
 /*==================*/
 						/*!< out:
 						< 0 if n1 < n2,
@@ -330,16 +316,6 @@ fts_update_doc_id_cmp(
 						> 0 if n1 > n2 */
 	const void*	p1,			/*!< in: id1 */
 	const void*	p2);			/*!< in: id2 */
-
-/******************************************************************//**
-Decode and return the integer that was encoded using our VLC scheme.*/
-UNIV_INLINE
-ulint
-fts_decode_vlc(
-/*===========*/
-			/*!< out: value decoded */
-	byte**	ptr);	/*!< in: ptr to decode from, this ptr is
-			incremented by the number of bytes decoded */
 
 /******************************************************************//**
 Duplicate a string. */
@@ -354,28 +330,6 @@ fts_string_dup(
 	fts_string_t*		dst,		/*!< in: dup to here */
 	const fts_string_t*	src,		/*!< in: src string */
 	mem_heap_t*		heap);		/*!< in: heap to use */
-
-/******************************************************************//**
-Return length of val if it were encoded using our VLC scheme. */
-UNIV_INLINE
-ulint
-fts_get_encoded_len(
-/*================*/
-						/*!< out: length of value
-						 encoded, in bytes */
-	ulint		val);			/*!< in: value to encode */
-
-/******************************************************************//**
-Encode an integer using our VLC scheme and return the length in bytes. */
-UNIV_INLINE
-ulint
-fts_encode_int(
-/*===========*/
-						/*!< out: length of value
-						encoded, in bytes */
-	ulint		val,			/*!< in: value to encode */
-	byte*		buf);			/*!< in: buffer, must have
-						enough space */
 
 /******************************************************************//**
 Get the selected FTS aux INDEX suffix. */
@@ -398,6 +352,5 @@ fts_select_index(
 	ulint			len);
 
 #include "fts0types.ic"
-#include "fts0vlc.ic"
 
 #endif /* INNOBASE_FTS0TYPES_H */

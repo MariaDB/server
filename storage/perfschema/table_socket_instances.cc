@@ -1,17 +1,24 @@
 /* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @file storage/perfschema/table_socket_instances.cc
@@ -41,13 +48,13 @@ table_socket_instances::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE socket_instances("
-                      "EVENT_NAME VARCHAR(128) not null,"
-                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null,"
-                      "THREAD_ID BIGINT unsigned,"
-                      "SOCKET_ID INTEGER not null,"
-                      "IP VARCHAR(64) not null,"
-                      "PORT INTEGER not null,"
-                      "STATE ENUM('IDLE','ACTIVE') not null)") }
+                      "EVENT_NAME VARCHAR(128) not null comment 'NAME from the setup_instruments table, and the name of the wait/io/socket/* instrument that produced the event.',"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Memory address of the object.',"
+                      "THREAD_ID BIGINT unsigned comment 'Thread identifier that the server assigns to each socket.',"
+                      "SOCKET_ID INTEGER not null comment 'The socket''s internal file handle.',"
+                      "IP VARCHAR(64) not null comment 'Client IP address. Blank for Unix socket file, otherwise an IPv4 or IPv6 address. Together with the PORT identifies the connection.',"
+                      "PORT INTEGER not null comment 'TCP/IP port number, from 0 to 65535. Together with the IP identifies the connection.',"
+                      "STATE ENUM('IDLE','ACTIVE') not null comment 'Socket status, either IDLE if waiting to receive a request from a client, or ACTIVE')") }
 };
 
 PFS_engine_table* table_socket_instances::create(void)

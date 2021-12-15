@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   Q: Why isn't ma_recovery_util.c simply moved to ma_recovery.c ?
@@ -51,6 +51,8 @@ LSN checkpoint_start= LSN_IMPOSSIBLE;
 my_bool procent_printed;
 FILE *tracef; /**< trace file for debugging */
 
+ulong recovery_found_crashed_tables;
+uint skipped_lsn_err_count;
 
 /** @brief Prints to a trace file if it is not NULL */
 void tprint(FILE *trace_file __attribute__ ((unused)),
@@ -59,25 +61,19 @@ void tprint(FILE *trace_file __attribute__ ((unused)),
   va_list args;
 #ifndef DBUG_OFF
   {
-    char buff[1024], *end;
+    char buff[1024];
+    size_t length;
     va_start(args, format);
-    vsnprintf(buff, sizeof(buff)-1, format, args);
-    if (*(end= strend(buff)) == '\n')
-      *end= 0;                                  /* Don't print end \n */
+    length= my_vsnprintf(buff, sizeof(buff)-1, format, args);
+    if (length && buff[length-1] == '\n')
+      buff[length-1]= 0;                      /* Don't print end \n */
     DBUG_PRINT("info", ("%s", buff));
     va_end(args);
   }
 #endif
   va_start(args, format);
   if (trace_file != NULL)
-  {
-    if (procent_printed)
-    {
-      procent_printed= 0;
-      fputc('\n', trace_file);
-    }
     vfprintf(trace_file, format, args);
-  }
   va_end(args);
 }
 
@@ -93,9 +89,10 @@ void eprint(FILE *trace_file __attribute__ ((unused)),
 
   if (procent_printed)
   {
-    /* In silent mode, print on another line than the 0% 10% 20% line */
     procent_printed= 0;
-    fputc('\n', trace_file);
+    /* In silent mode, print on another line than the 0% 10% 20% line */
+    fputc('\n', stderr);
+    fflush(stderr);
   }
   vfprintf(trace_file , format, args);
   fputc('\n', trace_file);

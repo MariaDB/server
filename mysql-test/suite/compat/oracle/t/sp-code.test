@@ -470,7 +470,7 @@ CREATE FUNCTION f1 (a INT, b INT) RETURN INT
 AS
   total INT := 0;
 BEGIN
-  FOR i IN REVERSE a..1
+  FOR i IN REVERSE 1..a
   LOOP
     total:= total + i;
     IF i = b THEN

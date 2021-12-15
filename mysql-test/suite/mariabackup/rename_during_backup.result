@@ -1,0 +1,62 @@
+CREATE TABLE t1(i int)   ENGINE INNODB;
+INSERT into t1 values(1);
+CREATE TABLE t2(i int)   ENGINE INNODB;
+INSERT INTO t2 values(2);
+CREATE TABLE t3(i int) ENGINE INNODB;
+CREATE TABLE t4(i int) ENGINE INNODB;
+CREATE TABLE t5(i int) ENGINE INNODB;
+INSERT INTO t5 VALUES(5);
+CREATE TABLE a(a int)    ENGINE INNODB;
+INSERT INTO a values(1);
+CREATE TABLE b(b CHAR(1)) ENGINE INNODB;
+INSERT INTO b VALUES('b');
+CREATE TABLE a1(a1 int)    ENGINE INNODB;
+INSERT INTO a1 VALUES(1);
+CREATE TABLE b1(b1 CHAR(2)) ENGINE INNODB;
+INSERT INTO b1 VALUES('b1');
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+CREATE TABLE t1(i int);
+DROP TABLE t1;
+SELECT * from t1_renamed;
+i
+1
+DROP TABLE t1_renamed;
+CREATE TABLE t2(i int);
+DROP TABLE t2;
+SELECT * from t2_renamed;
+i
+2
+DROP TABLE t2_renamed;
+SELECT * from t3;
+i
+3
+DROP TABLE t3;
+SELECT * from t4;
+i
+DROP TABLE t4;
+CREATE TABLE tmp(i int);
+DROP TABLE tmp;
+SELECT * FROM a;
+b
+b
+SELECT * FROM b;
+a
+1
+SELECT * FROM a1;
+b1
+b1
+SELECT * FROM b1;
+a1
+1
+DROP TABLE a,b,a1,b1;
+SELECT * from t5;
+i
+DROP TABLE t5;
+SELECT * from t6;
+i
+5
+DROP TABLE t6;

@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 
 MACRO(CHECK_SYSTEMD)
   IF(UNIX)
@@ -20,40 +20,30 @@ MACRO(CHECK_SYSTEMD)
     SET(WITH_SYSTEMD "auto" CACHE STRING "Enable systemd scripts and notification support")
     IF(WITH_SYSTEMD STREQUAL "yes" OR WITH_SYSTEMD STREQUAL "auto")
       IF(PKG_CONFIG_FOUND)
-        IF(WITH_SYSTEMD STREQUAL "yes")
-          pkg_search_module(LIBSYSTEMD REQUIRED libsystemd libsystemd-daemon)
-        ELSE()
-          pkg_search_module(LIBSYSTEMD libsystemd libsystemd-daemon)
+        IF (NOT DEFINED LIBSYSTEMD_FOUND)
+          IF(WITH_SYSTEMD STREQUAL "yes")
+            pkg_search_module(LIBSYSTEMD REQUIRED libsystemd libsystemd-daemon)
+          ELSE()
+            pkg_search_module(LIBSYSTEMD libsystemd libsystemd-daemon)
+          ENDIF()
         ENDIF()
         IF(HAVE_DLOPEN)
-          SET(LIBSYSTEMD ${LIBSYSTEMD_LIBRARIES})
-          #SET(CMAKE_REQUIRED_FLAGS ${LIBSYSTEMD_CFLAGS})
-          SET(MYSQLD_LINK_FLAGS "${MYSQLD_LINK_FLAGS} ${LIBSYSTEMD_LDFLAGS}")
+          SET(LIBSYSTEMD ${LIBSYSTEMD_LDFLAGS} ${LIBSYSTEMD_LIBRARIES})
         ELSE()
-          SET(LIBSYSTEMD ${LIBSYSTEMD_STATIC_LIBRARIES})
-          #SET(CMAKE_REQUIRED_FLAGS ${LIBSYSTEMD_STATIC_CFLAGS})
-          SET(MYSQLD_LINK_FLAGS "${MYSQLD_LINK_FLAGS} ${LIBSYSTEMD_STATIC_LDFLAGS}")
+          SET(LIBSYSTEMD ${LIBSYSTEMD_STATIC_LDFLAGS} ${LIBSYSTEMD_STATIC_LIBRARIES})
         ENDIF()
       ELSE()
         SET(LIBSYSTEMD systemd)
       ENDIF()
       SET(CMAKE_REQUIRED_LIBRARIES ${LIBSYSTEMD})
-      CHECK_C_SOURCE_COMPILES(
-      "
-      #include <systemd/sd-daemon.h>
-      int main()
-      {
-        sd_listen_fds(0);
-      }"
-      HAVE_SYSTEMD)
+      CHECK_LIBRARY_EXISTS(systemd sd_listen_fds "" HAVE_SYSTEMD_SD_LISTEN_FDS)
       CHECK_INCLUDE_FILES(systemd/sd-daemon.h HAVE_SYSTEMD_SD_DAEMON_H)
-      CHECK_FUNCTION_EXISTS(sd_listen_fds HAVE_SYSTEMD_SD_LISTEN_FDS)
       CHECK_FUNCTION_EXISTS(sd_notify HAVE_SYSTEMD_SD_NOTIFY)
       CHECK_FUNCTION_EXISTS(sd_notifyf HAVE_SYSTEMD_SD_NOTIFYF)
       SET(CMAKE_REQUIRED_LIBRARIES)
-      IF(HAVE_SYSTEMD AND HAVE_SYSTEMD_SD_DAEMON_H AND HAVE_SYSTEMD_SD_LISTEN_FDS
+      IF(HAVE_SYSTEMD_SD_DAEMON_H AND HAVE_SYSTEMD_SD_LISTEN_FDS
          AND HAVE_SYSTEMD_SD_NOTIFY AND HAVE_SYSTEMD_SD_NOTIFYF)
-        ADD_DEFINITIONS(-DHAVE_SYSTEMD)
+        SET(HAVE_SYSTEMD TRUE)
         SET(SYSTEMD_SCRIPTS mariadb-service-convert galera_new_cluster galera_recovery)
         IF(DEB)
           SET(SYSTEMD_EXECSTARTPRE "ExecStartPre=/usr/bin/install -m 755 -o mysql -g root -d /var/run/mysqld")
@@ -75,5 +65,6 @@ MACRO(CHECK_SYSTEMD)
     ELSEIF(NOT WITH_SYSTEMD STREQUAL "no")
       MESSAGE(FATAL_ERROR "Invalid value for WITH_SYSTEMD. Must be 'yes', 'no', or 'auto'.")
     ENDIF()
+    ADD_FEATURE_INFO(SYSTEMD LIBSYSTEMD "Systemd scripts and notification support")
   ENDIF()
 ENDMACRO()

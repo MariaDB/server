@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Describe, check and repair of MARIA tables */
 
@@ -51,9 +51,6 @@
 #include <my_getopt.h>
 #ifdef HAVE_SYS_VADVISE_H
 #include <sys/vadvise.h>
-#endif
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
 #endif
 
 /* Functions defined in this file */
@@ -149,7 +146,7 @@ void maria_chk_init_for_check(HA_CHECK *param, MARIA_HA *info)
     */
     param->max_trid= ~(TrID) 0;
   }
-  else if (param->max_trid == 0)
+  else if (param->max_trid == 0 || param->max_trid == ~(TrID) 0)
   {
     if (!ma_control_file_inited())
       param->max_trid= 0;      /* Give warning for first trid found */
@@ -179,7 +176,7 @@ int maria_chk_status(HA_CHECK *param, MARIA_HA *info)
   if (share->state.open_count != (uint) (share->global_changed ? 1 : 0))
   {
     /* Don't count this as a real warning, as check can correct this ! */
-    uint save=param->warning_printed;
+    my_bool save=param->warning_printed;
     _ma_check_print_warning(param,
 			   share->state.open_count==1 ?
 			   "%d client is using or hasn't closed the table properly" :
@@ -191,6 +188,7 @@ int maria_chk_status(HA_CHECK *param, MARIA_HA *info)
   }
   if (share->state.create_trid > param->max_trid)
   {
+    param->wrong_trd_printed= 1;       /* Force should run zerofill */
     _ma_check_print_warning(param,
                             "Table create_trd (%llu) > current max_transaction id (%llu).  Table needs to be repaired or zerofilled to be usable",
                             share->state.create_trid, param->max_trid);
@@ -643,7 +641,7 @@ int maria_chk_key(HA_CHECK *param, register MARIA_HA *info)
                       (key_part_map) 1, HA_READ_KEY_EXACT))
       {
 	/* Don't count this as a real warning, as maria_chk can't correct it */
-	uint save=param->warning_printed;
+	my_bool save=param->warning_printed;
 	_ma_check_print_warning(param, "Found row where the auto_increment "
                                 "column has the value 0");
 	param->warning_printed=save;
@@ -891,11 +889,10 @@ static int chk_index(HA_CHECK *param, MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   if (level > param->max_level)
     param->max_level=level;
 
-  if (_ma_get_keynr(share, anc_page->buff) !=
-      (uint) (keyinfo - share->keyinfo))
+  if (_ma_get_keynr(share, anc_page->buff) != keyinfo->key_nr)
     _ma_check_print_error(param, "Page at %s is not marked for index %u",
                           llstr(anc_page->pos, llbuff),
-                          (uint) (keyinfo - share->keyinfo));
+                          (uint) keyinfo->key_nr);
   if ((page_flag & KEYPAGE_FLAG_HAS_TRANSID) &&
       !share->base.born_transactional)
   {
@@ -916,7 +913,7 @@ static int chk_index(HA_CHECK *param, MARIA_HA *info, MARIA_KEYDEF *keyinfo,
   info->last_key.keyinfo= tmp_key.keyinfo= keyinfo;
   info->lastinx= ~0;                            /* Safety */
   tmp_key.data= tmp_key_buff;
-  for ( ;; )
+  for ( ;; _ma_copy_key(&info->last_key, &tmp_key))
   {
     if (nod_flag)
     {
@@ -998,7 +995,6 @@ static int chk_index(HA_CHECK *param, MARIA_HA *info, MARIA_KEYDEF *keyinfo,
                                             tmp_key.data);
       }
     }
-    _ma_copy_key(&info->last_key, &tmp_key);
     (*key_checksum)+= maria_byte_checksum(tmp_key.data, tmp_key.data_length);
     record= _ma_row_pos_from_key(&tmp_key);
 
@@ -1011,6 +1007,7 @@ static int chk_index(HA_CHECK *param, MARIA_HA *info, MARIA_KEYDEF *keyinfo,
       if (subkeys < 0)
       {
         ha_rows tmp_keys=0;
+        share->ft2_keyinfo.key_nr= keyinfo->key_nr;
         if (chk_index_down(param,info,&share->ft2_keyinfo,record,
                            temp_buff,&tmp_keys,key_checksum,1))
           goto err;
@@ -2347,6 +2344,14 @@ static int initialize_variables_for_repair(HA_CHECK *param,
 {
   MARIA_SHARE *share= info->s;
 
+  /*
+    We have to clear these variables first, as the cleanup-in-case-of-error
+    handling may touch these.
+  */
+  bzero((char*) sort_info,  sizeof(*sort_info));
+  bzero((char*) sort_param, sizeof(*sort_param));
+  bzero(&info->rec_cache, sizeof(info->rec_cache));
+
   if (share->data_file_type == NO_RECORD)
   {
     _ma_check_print_error(param,
@@ -2360,9 +2365,6 @@ static int initialize_variables_for_repair(HA_CHECK *param,
   /* Repair code relies on share->state.state so we have to update it here */
   if (share->lock.update_status)
     (*share->lock.update_status)(info);
-
-  bzero((char*) sort_info,  sizeof(*sort_info));
-  bzero((char*) sort_param, sizeof(*sort_param));
 
   param->testflag|= T_REP;                     /* for easy checking */
   if (share->options & (HA_OPTION_CHECKSUM | HA_OPTION_COMPRESS_RECORD))
@@ -2381,6 +2383,7 @@ static int initialize_variables_for_repair(HA_CHECK *param,
   param->retry_repair= 0;
   param->warning_printed= 0;
   param->error_printed= 0;
+  param->wrong_trd_printed= 0;
 
   sort_param->sort_info= sort_info;
   sort_param->fix_datafile= ! rep_quick;
@@ -2390,7 +2393,6 @@ static int initialize_variables_for_repair(HA_CHECK *param,
   set_data_file_type(sort_info, info->s);
   sort_info->org_data_file_type= share->data_file_type;
 
-  bzero(&info->rec_cache, sizeof(info->rec_cache));
   info->rec_cache.file= info->dfile.file;
   info->update= (short) (HA_STATE_CHANGED | HA_STATE_ROW_CHANGED);
 
@@ -2871,9 +2873,13 @@ err:
   _ma_reset_state(info);
 
   end_io_cache(&param->read_cache);
-  end_io_cache(&sort_info.new_info->rec_cache);
+  if (sort_info.new_info)
+  {
+    end_io_cache(&sort_info.new_info->rec_cache);
+    sort_info.new_info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
+  }
   info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
-  sort_info.new_info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
+
   sort_param.sort_info->info->in_check_table= 0;
   /* this below could fail, shouldn't we detect error? */
   if (got_error)
@@ -3201,6 +3207,7 @@ static int write_page(MARIA_SHARE *share, File file,
   args.page= buff;
   args.pageno= (pgcache_page_no_t) (pos / share->block_size);
   args.data= (uchar*) share;
+  args.crypt_buf= NULL;
   (* share->kfile.pre_write_hook)(&args);
   res= (int)my_pwrite(file, args.page, block_size, pos, myf_rw);
   (* share->kfile.post_write_hook)(res, &args);
@@ -4087,10 +4094,13 @@ err:
     maria_scan_end(sort_info.info);
   _ma_reset_state(info);
 
-  end_io_cache(&sort_info.new_info->rec_cache);
+  if (sort_info.new_info)
+  {
+    end_io_cache(&sort_info.new_info->rec_cache);
+    sort_info.new_info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
+  }
   end_io_cache(&param->read_cache);
   info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
-  sort_info.new_info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
   if (got_error)
   {
     if (! param->error_printed)
@@ -4192,7 +4202,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
 			const char * name, my_bool rep_quick)
 {
   int got_error;
-  uint i,key, total_key_length, istep;
+  uint i,key, istep;
   ha_rows start_records;
   my_off_t new_header_length,del;
   File new_file;
@@ -4354,7 +4364,9 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
     _ma_check_print_error(param,"Not enough memory for key!");
     goto err;
   }
-  total_key_length=0;
+#ifdef USING_SECOND_APPROACH
+  uint total_key_length=0;
+#endif
   rec_per_key_part= param->new_rec_per_key_part;
   share->state.state.records=share->state.state.del=share->state.split=0;
   share->state.state.empty=0;
@@ -4423,7 +4435,9 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
       if (keyseg->flag & HA_NULL_PART)
         sort_param[i].key_length++;
     }
+#ifdef USING_SECOND_APPROACH
     total_key_length+=sort_param[i].key_length;
+#endif
 
     if (sort_param[i].keyinfo->flag & HA_FULLTEXT)
     {
@@ -4619,10 +4633,13 @@ err:
     the share by remove_io_thread() or it was not yet started (if the
     error happend before creating the thread).
   */
-  end_io_cache(&sort_info.new_info->rec_cache);
+  if (sort_info.new_info)
+  {
+    end_io_cache(&sort_info.new_info->rec_cache);
+    sort_info.new_info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
+  }
   end_io_cache(&param->read_cache);
   info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
-  sort_info.new_info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
   /*
     Destroy the new data cache in case of non-quick repair. All slave
     threads did either detach from the share by remove_io_thread()
@@ -5425,7 +5442,12 @@ int _ma_sort_write_record(MARIA_SORT_PARAM *sort_param)
       info->cur_row.checksum= (*share->calc_check_checksum)(info,
                                                               sort_param->
                                                               record);
-      reclength= _ma_rec_pack(info,from,sort_param->record);
+      if (!(reclength= _ma_rec_pack(info,from,sort_param->record)))
+      {
+        _ma_check_print_error(param,"Got error %d when packing record",
+                              my_errno);
+        DBUG_RETURN(1);
+      }
       flag=0;
 
       do
@@ -5754,8 +5776,7 @@ static int sort_insert_key(MARIA_SORT_PARAM *sort_param,
     a_length= share->keypage_header + nod_flag;
     key_block->end_pos= anc_buff + share->keypage_header;
     bzero(anc_buff, share->keypage_header);
-    _ma_store_keynr(share, anc_buff, (uint) (sort_param->keyinfo -
-                                            share->keyinfo));
+    _ma_store_keynr(share, anc_buff, sort_param->keyinfo->key_nr);
     lastkey=0;					/* No previous key in block */
   }
   else
@@ -6181,7 +6202,7 @@ end:
 }
 
 
-	/* write suffix to data file if neaded */
+/* Write suffix to data file if needed */
 
 int maria_write_data_suffix(MARIA_SORT_INFO *sort_info, my_bool fix_datafile)
 {

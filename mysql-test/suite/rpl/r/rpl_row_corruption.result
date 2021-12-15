@@ -7,15 +7,15 @@ INSERT INTO t2_11753004 VALUES (2);
 connection slave;
 call mtr.add_suppression(".*Found table map event mapping table id 0 which was already mapped but with different settings.*");
 include/stop_slave.inc
-SET @save_debug= @@global.debug;
-SET GLOBAL debug_dbug="+d,inject_tblmap_same_id_maps_diff_table";
+SET @saved_debug= @@global.debug_dbug;
+SET @@global.debug_dbug="d,inject_tblmap_same_id_maps_diff_table";
 include/start_slave.inc
 connection master;
 UPDATE t1_11753004, t2_11753004 SET t1_11753004.c1=3, t2_11753004.c1=4 WHERE t1_11753004.c1=1 OR t2_11753004.c1=2;
 connection slave;
 include/wait_for_slave_sql_error.inc [errno=1593 ]
 include/stop_slave.inc
-SET GLOBAL debug_dbug="-d,inject_tblmap_same_id_maps_diff_table";
+SET @@global.debug_dbug=@saved_debug;
 include/start_slave.inc
 connection master;
 include/rpl_reset.inc
@@ -23,7 +23,7 @@ DROP TABLE t1_11753004, t2_11753004;
 connection slave;
 connection slave;
 include/stop_slave.inc
-SET GLOBAL debug_dbug="+d,inject_tblmap_same_id_maps_diff_table";
+SET @@global.debug_dbug="d,inject_tblmap_same_id_maps_diff_table";
 include/start_slave.inc
 include/rpl_reset.inc
 connection master;
@@ -41,7 +41,7 @@ BINLOG '
 SOgWTg8BAAAAbgAAAHIAAAAAAAQANS42LjMtbTUtZGVidWctbG9nAAAAAAAAAAAAAAAAAAAAAAAA
 AAAAAAAAAAAAAAAAAABI6BZOEzgNAAgAEgAEBAQEEgAAVgAEGggAAAAICAgCAAAAAAVAYI8=
 '/*!*/;
-SET GLOBAL debug_dbug="+d,inject_tblmap_same_id_maps_diff_table";
+SET @@global.debug_dbug="d,inject_tblmap_same_id_maps_diff_table";
 BINLOG '
 SOgWThMBAAAAKQAAAAYDAAAAAEIAAAAAAAEABHRlc3QAAnQxAAEDAAE=
 SOgWThMBAAAAKQAAAC8DAAAAAEMAAAAAAAEABHRlc3QAAnQyAAEDAAE=
@@ -51,10 +51,10 @@ SOgWThgBAAAAKAAAAH8DAAAAAEMAAAAAAAEAAf///gEAAAD+BAAAAA==
 ERROR HY000: Fatal error: Found table map event mapping table id 0 which was already mapped but with different settings.
 DROP TABLE t1,t2;
 connection slave;
-SET GLOBAL debug_dbug="-d,inject_tblmap_same_id_maps_diff_table";
+SET @@global.debug_dbug=@saved_debug;
 connection master;
 DROP TABLE t1_11753004;
 DROP TABLE t2_11753004_ign;
 connection slave;
-SET GLOBAL debug_dbug= @save_debug;
+SET @@global.debug_dbug= @save_debug;
 include/rpl_end.inc

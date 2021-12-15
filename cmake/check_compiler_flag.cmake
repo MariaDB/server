@@ -13,7 +13,8 @@ SET(fail_patterns
     FAIL_REGEX "warning:.*redefined"
     FAIL_REGEX "[Ww]arning: [Oo]ption"
     )
-
+#The regex patterns above are not localized, thus LANG=C
+SET(ENV{LANG} C)
 MACRO (MY_CHECK_C_COMPILER_FLAG flag)
   STRING(REGEX REPLACE "[-,= +]" "_" result "have_C_${flag}")
   SET(SAVE_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")

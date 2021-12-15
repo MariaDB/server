@@ -62,6 +62,7 @@ SET GLOBAL SYNC_BINLOG = 1;
 
 insert into t1 values (1000000, 1, "i_am_just_here_to_trigger_a_flush");
 
+--error 0,2013
 SET DEBUG_SYNC='now SIGNAL go';
 --source include/wait_until_disconnected.inc
 --enable_reconnect

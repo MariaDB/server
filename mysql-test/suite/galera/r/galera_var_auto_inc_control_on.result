@@ -1,26 +1,37 @@
+connection node_1;
 CREATE TABLE t1 (f1 INTEGER AUTO_INCREMENT PRIMARY KEY, node VARCHAR(10)) ENGINE=InnoDB;
 SELECT @@auto_increment_increment = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size');
 @@auto_increment_increment = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size')
 1
-SELECT @@global.auto_increment_offset = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_index') + 1;
-@@global.auto_increment_offset = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_index') + 1
+connection node_2;
+auto_increment_offset_differ
 1
+connection node_1;
 INSERT INTO t1 VALUES (DEFAULT, 'node1');;
+connection node_2;
 INSERT INTO t1 VALUES (DEFAULT, 'node2');;
+connection node_1;
+connection node_2;
 SELECT @@auto_increment_increment = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size');
 @@auto_increment_increment = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size')
 1
-SELECT @@global.auto_increment_offset = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_index') + 1;
-@@global.auto_increment_offset = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_index') + 1
+connection node_1;
+auto_increment_offset_differ
 1
+connection node_2;
 INSERT INTO t1 VALUES (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2'), (DEFAULT, 'node2');;
+connection node_1;
 INSERT INTO t1 VALUES (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1'), (DEFAULT, 'node1');;
+connection node_2;
+connection node_1;
+connection node_2;
 SELECT COUNT(*) = 22 FROM t1;
 COUNT(*) = 22
 1
 SELECT COUNT(DISTINCT f1) = 22 FROM t1;
 COUNT(DISTINCT f1) = 22
 1
+connection node_1;
 SELECT COUNT(*) = 22 FROM t1;
 COUNT(*) = 22
 1

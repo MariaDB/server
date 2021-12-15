@@ -44,6 +44,9 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "ft/ft-ops.h"
 #include "ft/logger/log.h"
 #include "util/dbt.h"
+#ifndef TOKU_MYSQL_WITH_PFS
+#include <my_global.h>
+#endif
 
 typedef struct ft *FT;
 typedef struct ft_options *FT_OPTIONS;
@@ -181,11 +184,11 @@ void tokuft_update_product_name_strings(void);
 extern char toku_product_name[TOKU_MAX_PRODUCT_NAME_LENGTH];
 
 struct toku_product_name_strings_struct {
-    char db_version[sizeof(toku_product_name) + sizeof("1.2.3 build ") + 256];
-    char environmentdictionary[sizeof(toku_product_name) + sizeof(".environment")];
-    char fileopsdirectory[sizeof(toku_product_name) + sizeof(".directory")];
-    char single_process_lock[sizeof(toku_product_name) + sizeof("___lock_dont_delete_me")];
-    char rollback_cachefile[sizeof(toku_product_name) + sizeof(".rollback")];
+    char db_version[sizeof(toku_product_name) + sizeof("1.2.3 build ") + 256 + 1];
+    char environmentdictionary[sizeof(toku_product_name) + sizeof(".environment") + 1];
+    char fileopsdirectory[sizeof(toku_product_name) + sizeof(".directory") + 1];
+    char single_process_lock[sizeof(toku_product_name) + sizeof("___lock_dont_delete_me") + 1];
+    char rollback_cachefile[sizeof(toku_product_name) + sizeof(".rollback") + 1];
 };
 
 extern struct toku_product_name_strings_struct toku_product_name_strings;

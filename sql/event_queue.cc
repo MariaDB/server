@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -360,7 +360,7 @@ Event_queue::drop_matching_events(THD *thd, const LEX_CSTRING *pattern,
     We don't call mysql_cond_broadcast(&COND_queue_state);
     If we remove the top event:
     1. The queue is empty. The scheduler will wake up at some time and
-       realize that the queue is empty. If create_event() comes inbetween
+       realize that the queue is empty. If create_event() comes in between
        it will signal the scheduler
     2. The queue is not empty, but the next event after the previous top,
        won't be executed any time sooner than the element we removed. Hence,
@@ -639,6 +639,7 @@ Event_queue::get_top_for_execution_if_time(THD *thd,
     if (!(*event_name= new Event_queue_element_for_exec()) ||
         (*event_name)->init(&top->dbname, &top->name))
     {
+      delete *event_name;
       ret= TRUE;
       break;
     }

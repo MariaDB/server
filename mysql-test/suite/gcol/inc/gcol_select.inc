@@ -1,17 +1,22 @@
-################################################################################
-# inc/gcol_select.inc                                                          #
-#                                                                              #
-# Purpose:                                                                     #
-#  Testing different SELECTs.                                                  #
-#                                                                              #
-#                                                                              #
-#------------------------------------------------------------------------------#
-# Original Author: Andrey Zhakov                                               #
-# Original Date: 2008-09-18                                                    #
-# Change Author:                                                               #
-# Change Date:                                                                 #
-# Change:                                                                      #
-################################################################################
+##############################################################################
+# inc/gcol_select.inc                                                        #
+#                                                                            #
+# Purpose:                                                                   #
+#  Testing different SELECTs.                                                #
+#                                                                            #
+#                                                                            #
+#----------------------------------------------------------------------------#
+# Original Author: Andrey Zhakov                                             #
+# Original Date: 2008-09-18                                                  #
+# Change Author:                                                             #
+# Change Date:                                                               #
+# Change:                                                                    #
+##############################################################################
+
+--disable_query_log
+set @local_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='derived_merge=off,join_cache_hashed=off';
+--enable_query_log
 
 # Table t1 is used below to test:
 #  - Join type of ALL (sequential scan of the entire table)
@@ -1161,3 +1166,7 @@ eval EXPLAIN $query;
 eval $query;
 
 DROP TABLE t1, t2, t3, t4;
+
+--disable_query_log
+set @@optimizer_switch=@local_optimizer_switch;
+--enable_query_log

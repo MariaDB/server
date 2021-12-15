@@ -1701,7 +1701,7 @@ variable_value - @innodb_rows_inserted_orig
 964
 SELECT variable_value - @innodb_rows_updated_orig FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_rows_updated';
 variable_value - @innodb_rows_updated_orig
-866
+865
 SELECT variable_value - @innodb_row_lock_waits_orig FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_row_lock_waits';
 variable_value - @innodb_row_lock_waits_orig
 0
@@ -2299,7 +2299,7 @@ drop table t1;
 SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
 create table t1 (v varchar(65530), key(v));
 Warnings:
-Warning	1071	Specified key was too long; max key length is 3072 bytes
+Note	1071	Specified key was too long; max key length is 3072 bytes
 drop table t1;
 create table t1 (v varchar(65536));
 Warnings:
@@ -2543,7 +2543,6 @@ set foreign_key_checks=0;
 create table t2 (a varchar(10), foreign key (a) references t1(a)) engine = innodb;
 create table t1(a varchar(10) primary key) engine = innodb;
 alter table t1 modify column a int;
-Got one of the listed errors
 set foreign_key_checks=1;
 drop table t2,t1;
 set foreign_key_checks=0;
@@ -2552,6 +2551,7 @@ create table t1(a varchar(10) primary key) engine = innodb DEFAULT CHARSET=latin
 alter table t1 convert to character set utf8;
 set foreign_key_checks=1;
 drop table t2,t1;
+call mtr.add_suppression("\\[Warning\\] InnoDB: In ALTER TABLE `test`.`t1` has or is referenced in foreign key constraints which are not compatible with the new table definition.");
 set foreign_key_checks=0;
 create table t2 (a varchar(10), foreign key (a) references t1(a)) engine = innodb DEFAULT CHARSET=latin1;
 create table t3(a varchar(10) primary key) engine = innodb DEFAULT CHARSET=utf8;
@@ -3318,3 +3318,20 @@ c1	c2
 9	3
 DROP TABLE t1;
 DROP TABLE t2;
+#
+# MDEV-24748 Extern field check missing
+#	in btr_index_rec_validate()
+#
+CREATE TABLE t1 (pk INT, c1 char(255),
+c2 char(255), c3 char(255), c4 char(255),
+c5 char(255), c6 char(255), c7 char(255),
+c8 char(255), primary key (pk)
+) CHARACTER SET utf32 ENGINE=InnoDB;
+INSERT INTO t1 VALUES
+(1, 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'),
+(2, 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p');
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+ALTER TABLE t1 FORCE;
+DROP TABLE t1;

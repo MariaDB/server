@@ -14,7 +14,7 @@
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
-   02110-1301  USA */
+   02110-1335  USA */
 
 /*
   Replace strings in textfile
@@ -1072,7 +1072,7 @@ static int convert_file(REPLACE *rep, char * name)
   if (!(in= my_fopen(org_name,O_RDONLY,MYF(MY_WME))))
     DBUG_RETURN(1);
   dirname_part(dir_buff, org_name, &dir_buff_length);
-  if ((temp_file= create_temp_file(tempname, dir_buff, "PR", O_WRONLY,
+  if ((temp_file= create_temp_file(tempname, dir_buff, "PR", 0,
                                    MYF(MY_WME))) < 0)
   {
     my_fclose(in,MYF(0));

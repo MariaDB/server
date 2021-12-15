@@ -133,7 +133,7 @@ static void test1(int fd, FT ft_h, FTNODE *dn) {
     for (int i = 0; i < (*dn)->n_children; i++) {
         invariant(BP_STATE(*dn, i) == PT_AVAIL);
     }
-    (*dn)->dirty = 1;
+    (*dn)->set_dirty();
     toku_ftnode_pe_callback(*dn, attr, ft_h, def_pe_finalize_impl, nullptr);
     toku_ftnode_pe_callback(*dn, attr, ft_h, def_pe_finalize_impl, nullptr);
     toku_ftnode_pe_callback(*dn, attr, ft_h, def_pe_finalize_impl, nullptr);
@@ -184,11 +184,11 @@ static void test2(int fd, FT ft_h, FTNODE *dn) {
     PAIR_ATTR attr;
     memset(&attr, 0, sizeof(attr));
     toku_ftnode_pe_callback(*dn, attr, ft_h, def_pe_finalize_impl, nullptr);
-    invariant(BP_STATE(*dn, 0) == (is_leaf) ? PT_ON_DISK : PT_COMPRESSED);
+    invariant(BP_STATE(*dn, 0) == ((is_leaf) ? PT_ON_DISK : PT_COMPRESSED));
     invariant(BP_STATE(*dn, 1) == PT_AVAIL);
     invariant(BP_SHOULD_EVICT(*dn, 1));
     toku_ftnode_pe_callback(*dn, attr, ft_h, def_pe_finalize_impl, nullptr);
-    invariant(BP_STATE(*dn, 1) == (is_leaf) ? PT_ON_DISK : PT_COMPRESSED);
+    invariant(BP_STATE(*dn, 1) == ((is_leaf) ? PT_ON_DISK : PT_COMPRESSED));
 
     bool req = toku_ftnode_pf_req_callback(*dn, &bfe_subset);
     invariant(req);
@@ -246,7 +246,7 @@ static void test_serialize_nonleaf(void) {
     sn.layout_version_original = FT_LAYOUT_VERSION;
     sn.height = 1;
     sn.n_children = 2;
-    sn.dirty = 1;
+    sn.set_dirty();
     sn.oldest_referenced_xid_known = TXNID_NONE;
     MALLOC_N(2, sn.bp);
     DBT pivotkey;
@@ -384,7 +384,7 @@ static void test_serialize_leaf(void) {
     sn.layout_version_original = FT_LAYOUT_VERSION;
     sn.height = 0;
     sn.n_children = 2;
-    sn.dirty = 1;
+    sn.set_dirty();
     sn.oldest_referenced_xid_known = TXNID_NONE;
     MALLOC_N(sn.n_children, sn.bp);
     DBT pivotkey;

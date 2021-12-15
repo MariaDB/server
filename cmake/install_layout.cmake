@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 # The purpose of this file is to set the default installation layout.
 #
@@ -128,6 +128,8 @@ SET(INSTALL_SUPPORTFILESDIR_STANDALONE  "support-files")
 SET(INSTALL_MYSQLDATADIR_STANDALONE     "data")
 
 SET(INSTALL_UNIX_ADDRDIR_STANDALONE     "/tmp/mysql.sock")
+SET(INSTALL_PAMDIR_STANDALONE           "share")
+SET(INSTALL_PAMDATADIR_STANDALONE       "share")
 #
 # RPM layout
 #
@@ -139,11 +141,10 @@ SET(INSTALL_SYSCONF2DIR_RPM             "/etc/my.cnf.d")
 #
 IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
   SET(INSTALL_LIBDIR_RPM                "lib64")
-  SET(INSTALL_PLUGINDIR_RPM             "lib64/mysql/plugin")
 ELSE()
   SET(INSTALL_LIBDIR_RPM                "lib")
-  SET(INSTALL_PLUGINDIR_RPM             "lib/mysql/plugin")
 ENDIF()
+SET(INSTALL_PLUGINDIR_RPM               "${INSTALL_LIBDIR_RPM}/mysql/plugin")
 #
 SET(INSTALL_INCLUDEDIR_RPM              "include/mysql")
 #
@@ -164,6 +165,8 @@ SET(INSTALL_UNIX_ADDRDIR_RPM            "${INSTALL_MYSQLDATADIR_RPM}/mysql.sock"
 SET(INSTALL_SYSTEMD_UNITDIR_RPM         "/usr/lib/systemd/system")
 SET(INSTALL_SYSTEMD_SYSUSERSDIR_RPM     "/usr/lib/sysusers.d")
 SET(INSTALL_SYSTEMD_TMPFILESDIR_RPM     "/usr/lib/tmpfiles.d")
+SET(INSTALL_PAMDIR_RPM                  "/${INSTALL_LIBDIR_RPM}/security")
+SET(INSTALL_PAMDATADIR_RPM              "/etc/security")
 
 #
 # DEB layout
@@ -171,9 +174,10 @@ SET(INSTALL_SYSTEMD_TMPFILESDIR_RPM     "/usr/lib/tmpfiles.d")
 SET(INSTALL_BINDIR_DEB                  "bin")
 SET(INSTALL_SBINDIR_DEB                 "sbin")
 SET(INSTALL_SCRIPTDIR_DEB               "bin")
+SET(INSTALL_SYSCONFDIR_DEB              "/etc")
 SET(INSTALL_SYSCONF2DIR_DEB             "/etc/mysql/conf.d")
 #
-SET(INSTALL_LIBDIR_DEB                  "lib")
+SET(INSTALL_LIBDIR_DEB                  "lib/${CMAKE_CXX_LIBRARY_ARCHITECTURE}")
 SET(INSTALL_PLUGINDIR_DEB               "lib/mysql/plugin")
 #
 SET(INSTALL_INCLUDEDIR_DEB              "include/mariadb")
@@ -185,7 +189,7 @@ SET(INSTALL_INFODIR_DEB                 "share/info")
 #
 SET(INSTALL_SHAREDIR_DEB                "share")
 SET(INSTALL_MYSQLSHAREDIR_DEB           "share/mysql")
-SET(INSTALL_MYSQLTESTDIR_DEB            "mysql-test")
+SET(INSTALL_MYSQLTESTDIR_DEB            "share/mysql/mysql-test")
 SET(INSTALL_SQLBENCHDIR_DEB             ".")
 SET(INSTALL_SUPPORTFILESDIR_DEB         "share/mysql")
 #
@@ -195,6 +199,8 @@ SET(INSTALL_UNIX_ADDRDIR_DEB            "/var/run/mysqld/mysqld.sock")
 SET(INSTALL_SYSTEMD_UNITDIR_DEB         "/lib/systemd/system")
 SET(INSTALL_SYSTEMD_SYSUSERSDIR_DEB     "/usr/lib/sysusers.d")
 SET(INSTALL_SYSTEMD_TMPFILESDIR_DEB     "/usr/lib/tmpfiles.d")
+SET(INSTALL_PAMDIR_DEB                  "/lib/${CMAKE_CXX_LIBRARY_ARCHITECTURE}/security")
+SET(INSTALL_PAMDATADIR_DEB              "/etc/security")
 
 #
 # SVR4 layout
@@ -234,17 +240,18 @@ SET(OLD_INSTALL_LAYOUT ${INSTALL_LAYOUT} CACHE INTERNAL "")
 # Set INSTALL_FOODIR variables for chosen layout (for example, INSTALL_BINDIR
 # will be defined  as ${INSTALL_BINDIR_STANDALONE} by default if STANDALONE
 # layout is chosen)
-FOREACH(var BIN SBIN LIB MYSQLSHARE SHARE PLUGIN INCLUDE SCRIPT DOC MAN SYSCONF SYSCONF2
-    INFO MYSQLTEST SQLBENCH DOCREADME SUPPORTFILES MYSQLDATA UNIX_ADDR
-    SYSTEMD_UNIT SYSTEMD_SYSUSERS SYSTEMD_TMPFILES)
-  SET(INSTALL_${var}DIR  ${INSTALL_${var}DIR_${INSTALL_LAYOUT}}
-  CACHE STRING "${var} installation directory" ${FORCE})
-  MARK_AS_ADVANCED(INSTALL_${var}DIR)
+GET_CMAKE_PROPERTY(ALL_VARS VARIABLES)
+FOREACH (V ${ALL_VARS})
+  IF (V MATCHES "^(INSTALL_([A-Z_0-9]+)DIR)_${INSTALL_LAYOUT}$")
+    SET(var ${CMAKE_MATCH_1})
+    SET(${var} "${${V}}" CACHE STRING "${CMAKE_MATCH_2} installation directory" ${FORCE})
+    MARK_AS_ADVANCED(${var})
 
-  IF(IS_ABSOLUTE ${INSTALL_${var}DIR})
-    SET(INSTALL_${var}DIRABS ${INSTALL_${var}DIR})
-  ELSE()
-    SET(INSTALL_${var}DIRABS "${CMAKE_INSTALL_PREFIX}/${INSTALL_${var}DIR}")
+    IF(IS_ABSOLUTE "${${var}}")
+      SET(${var}ABS "${${var}}")
+    ELSE()
+      SET(${var}ABS "${CMAKE_INSTALL_PREFIX}/${${var}}")
+    ENDIF()
   ENDIF()
 ENDFOREACH()
 

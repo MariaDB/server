@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 #
 # Rules for checking that the abi/api has not changed.
@@ -74,7 +74,9 @@ FOREACH(file ${ABI_HEADERS})
   FILE(REMOVE ${tmpfile})
   EXECUTE_PROCESS(
     COMMAND diff -w ${file}.pp ${abi_check_out} RESULT_VARIABLE result)
-  IF(NOT ${result} EQUAL 0)
+  IF(result MATCHES "No such file or directory")
+    MESSAGE("Command 'diff' not found. ABI check for ${file} skipped.")
+  ELSEIF(NOT result EQUAL 0)
     IF(ABI_UPDATE)
       EXECUTE_PROCESS(COMMAND mv -v ${abi_check_out} ${file}.pp)
     ELSE(ABI_UPDATE)
@@ -84,4 +86,3 @@ FOREACH(file ${ABI_HEADERS})
   ENDIF()
   FILE(REMOVE ${abi_check_out})
 ENDFOREACH()
-

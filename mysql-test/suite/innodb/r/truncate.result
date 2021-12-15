@@ -1,0 +1,52 @@
+CREATE TABLE t (a SERIAL) ENGINE=InnoDB;
+connect  dml,localhost,root;
+select * from t;
+a
+connection default;
+TRUNCATE TABLE t;
+disconnect dml;
+DROP TABLE t;
+#
+# MDEV-17831 TRUNCATE TABLE removes ROW_FORMAT=COMPRESSED
+#
+CREATE TABLE t1 (a SERIAL) ENGINE=InnoDB KEY_BLOCK_SIZE=4;
+TRUNCATE TABLE t1;
+SHOW TABLE STATUS;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+t1	InnoDB	#	Compressed	#	#	#	#	#	#	1	#	#	NULL	latin1_swedish_ci	NULL	key_block_size=4		0	N
+DROP TABLE t1;
+#
+# MDEV-17859 Operating system errors in file operations
+# after failed CREATE
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+call mtr.add_suppression("InnoDB: (Operating system )?[Ee]rror number");
+call mtr.add_suppression("InnoDB: Cannot create file '.*t1\\.ibd");
+FLUSH TABLES;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+ERROR HY000: Tablespace for table '`test`.`t1`' exists. Please DISCARD the tablespace before IMPORT
+SELECT * FROM t1;
+a
+1
+DROP TABLE t1;
+#
+# MDEV-17885 TRUNCATE on temporary table causes ER_GET_ERRNO
+#
+CREATE TEMPORARY TABLE t1 (a INT) ENCRYPTED=NO ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+TRUNCATE t1;
+SELECT * FROM t1;
+a
+DROP TEMPORARY TABLE t1;
+#
+# MDEV-23705 Assertion 'table->data_dir_path || !space'
+#
+CREATE TABLE t(c INT) ENGINE=InnoDB;
+ALTER TABLE t DISCARD TABLESPACE;
+RENAME TABLE t TO u;
+TRUNCATE u;
+Warnings:
+Warning	1814	Tablespace has been discarded for table `u`
+TRUNCATE u;
+DROP TABLE u;

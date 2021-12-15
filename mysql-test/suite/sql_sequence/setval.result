@@ -254,3 +254,18 @@ def					SETVAL(s1,10)	8	20	2	Y	32896	0	63
 SETVAL(s1,10)
 10
 DROP SEQUENCE s1;
+#
+# MDEV-15732: Assertion `next_free_value % real_increment == offset &&
+# next_free_value >= reserved_until' failed in
+# sequence_definition::adjust_values upon SETVAL for sequence with
+# INCREMENT 0
+#
+CREATE SEQUENCE s INCREMENT 0;
+SELECT NEXTVAL(s);
+NEXTVAL(s)
+1
+SELECT SETVAL(s, 10);
+SETVAL(s, 10)
+10
+DROP SEQUENCE s;
+# End of 10.3 tests

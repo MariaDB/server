@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* Functions to handle keys */
 
@@ -144,13 +144,15 @@ uint _mi_make_key(register MI_INFO *info, uint keynr, uchar *key,
       set_if_smaller(length,tmp_length);
       FIX_LENGTH(cs, pos, length, char_length);
       store_key_length_inc(key,char_length);
-      memcpy(key, pos, char_length);
-      key+= char_length;
+      if (char_length)
+      {
+        memcpy(key, pos, char_length);
+        key+= char_length;
+      }
       continue;
     }
     else if (keyseg->flag & HA_SWAP_KEY)
     {						/* Numerical column */
-#ifdef HAVE_ISNAN
       if (type == HA_KEYTYPE_FLOAT)
       {
 	float nr;
@@ -174,7 +176,6 @@ uint _mi_make_key(register MI_INFO *info, uint keynr, uchar *key,
 	  continue;
 	}
       }
-#endif
       pos+=length;
       while (length--)
       {
@@ -553,7 +554,7 @@ ulonglong retrieve_auto_increment(MI_INFO *info,const uchar *record)
 
   switch (keyseg->type) {
   case HA_KEYTYPE_INT8:
-    s_value= (longlong) *(char*)key;
+    s_value= (longlong) *(const signed char*) key;
     break;
   case HA_KEYTYPE_BINARY:
     value=(ulonglong)  *(uchar*) key;
@@ -605,7 +606,7 @@ ulonglong retrieve_auto_increment(MI_INFO *info,const uchar *record)
   }
 
   /*
-    The following code works becasue if s_value < 0 then value is 0
+    The following code works because if s_value < 0 then value is 0
     and if s_value == 0 then value will contain either s_value or the
     correct value.
   */

@@ -15,36 +15,36 @@ let $cleanup = COMMIT;
 
 let $prepare = SET AUTOCOMMIT = 0;
 let $statement = SET AUTOCOMMIT = 1;
-source extra/binlog_tests/implicit.test;
+source include/implicit.test;
 
 let $prepare = SET AUTOCOMMIT = 1;
 let $statement = SET AUTOCOMMIT = 1;
-source extra/binlog_tests/implicit.test;
+source include/implicit.test;
 
 let $prepare = SET AUTOCOMMIT = 0;
 let $statement = SET AUTOCOMMIT = 0;
-source extra/binlog_tests/implicit.test;
+source include/implicit.test;
 
 let $prepare = SET AUTOCOMMIT = 1;
 let $statement = SET AUTOCOMMIT = 0;
-source extra/binlog_tests/implicit.test;
+source include/implicit.test;
 
 SET BINLOG_FORMAT = ROW;
 let $prepare = SET AUTOCOMMIT = 0;
 let $statement = SET AUTOCOMMIT = 1;
-source extra/binlog_tests/implicit.test;
+source include/implicit.test;
 
 let $prepare = SET AUTOCOMMIT = 1;
 let $statement = SET AUTOCOMMIT = 1;
-source extra/binlog_tests/implicit.test;
+source include/implicit.test;
 
 let $prepare = SET AUTOCOMMIT = 0;
 let $statement = SET AUTOCOMMIT = 0;
-source extra/binlog_tests/implicit.test;
+source include/implicit.test;
 
 let $prepare = SET AUTOCOMMIT = 1;
 let $statement = SET AUTOCOMMIT = 0;
-source extra/binlog_tests/implicit.test;
+source include/implicit.test;
 
 RESET MASTER;
 SET AUTOCOMMIT = 0;

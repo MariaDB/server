@@ -2,7 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -34,7 +34,6 @@ Created June 2005 by Marko Makela
 #endif
 
 #ifdef UNIV_INNOCHECKSUM
-#include "univ.i"
 #include "buf0buf.h"
 #include "ut0crc32.h"
 #include "buf0checksum.h"
@@ -48,6 +47,7 @@ Created June 2005 by Marko Makela
 #endif /* !UNIV_INNOCHECKSUM */
 
 #include "buf0types.h"
+#include "rem0types.h"
 
 #ifndef UNIV_INNOCHECKSUM
 #include "dict0types.h"
@@ -288,7 +288,7 @@ page_zip_write_rec(
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
 	const byte*	rec,	/*!< in: record being written */
 	dict_index_t*	index,	/*!< in: the index the record belongs to */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	ulint		create)	/*!< in: nonzero=insert, zero=update */
 	MY_ATTRIBUTE((nonnull));
 
@@ -313,7 +313,7 @@ page_zip_write_blob_ptr(
 	const byte*	rec,	/*!< in/out: record whose data is being
 				written */
 	dict_index_t*	index,	/*!< in: index of the page */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	ulint		n,	/*!< in: column index */
 	mtr_t*		mtr);	/*!< in: mini-transaction handle,
 				or NULL if no logging is needed */
@@ -352,7 +352,7 @@ void
 page_zip_write_trx_id_and_roll_ptr(
 	page_zip_des_t*	page_zip,
 	byte*		rec,
-	const ulint*	offsets,
+	const rec_offs*	offsets,
 	ulint		trx_id_col,
 	trx_id_t	trx_id,
 	roll_ptr_t	roll_ptr,
@@ -373,7 +373,6 @@ page_zip_parse_write_trx_id(
 	page_t*		page,
 	page_zip_des_t*	page_zip)
 	MY_ATTRIBUTE((nonnull(1,2), warn_unused_result));
-
 /**********************************************************************//**
 Write the "deleted" flag of a record on a compressed page.  The flag must
 already have been written on the uncompressed page. */
@@ -416,7 +415,7 @@ page_zip_dir_delete(
 	page_zip_des_t*		page_zip,	/*!< in/out: compressed page */
 	byte*			rec,		/*!< in: deleted record */
 	const dict_index_t*	index,		/*!< in: index of rec */
-	const ulint*		offsets,	/*!< in: rec_get_offsets(rec) */
+	const rec_offs*		offsets,	/*!< in: rec_get_offsets(rec) */
 	const byte*		free)		/*!< in: previous start of
 						the free list */
 	MY_ATTRIBUTE((nonnull(1,2,3,4)));
@@ -497,16 +496,14 @@ page_zip_copy_recs(
 	dict_index_t*		index,		/*!< in: index of the B-tree */
 	mtr_t*			mtr);		/*!< in: mini-transaction */
 
-/**********************************************************************//**
-Parses a log record of compressing an index page.
-@return end of log record or NULL */
-byte*
-page_zip_parse_compress(
-/*====================*/
-	byte*		ptr,		/*!< in: buffer */
-	byte*		end_ptr,	/*!< in: buffer end */
-	page_t*		page,		/*!< out: uncompressed page */
-	page_zip_des_t*	page_zip);	/*!< out: compressed page */
+/** Parse and optionally apply MLOG_ZIP_PAGE_COMPRESS.
+@param[in]	ptr	log record
+@param[in]	end_ptr	end of log
+@param[in,out]	block	ROW_FORMAT=COMPRESSED block, or NULL for parsing only
+@return	end of log record
+@retval	NULL	if the log record is incomplete */
+byte* page_zip_parse_compress(const byte* ptr, const byte* end_ptr,
+			      buf_block_t* block);
 
 #endif /* !UNIV_INNOCHECKSUM */
 
@@ -514,26 +511,23 @@ page_zip_parse_compress(
 @param[in]	data			compressed page
 @param[in]	size			size of compressed page
 @param[in]	algo			algorithm to use
-@param[in]	use_legacy_big_endian	only used if algo is
-SRV_CHECKSUM_ALGORITHM_CRC32 or SRV_CHECKSUM_ALGORITHM_STRICT_CRC32 - if true
-then use big endian byteorder when converting byte strings to integers.
 @return page checksum */
 uint32_t
 page_zip_calc_checksum(
 	const void*			data,
 	ulint				size,
-	srv_checksum_algorithm_t	algo,
-	bool				use_legacy_big_endian = false);
+	srv_checksum_algorithm_t	algo
+#ifdef INNODB_BUG_ENDIAN_CRC32
+	/** for crc32, use the big-endian bug-compatible crc32 variant */
+	, bool				use_legacy_big_endian = false
+#endif
+);
 
-/**********************************************************************//**
-Verify a compressed page's checksum.
-@return TRUE if the stored checksum is valid according to the value of
-innodb_checksum_algorithm */
-ibool
-page_zip_verify_checksum(
-/*=====================*/
-	const void*	data,	/*!< in: compressed page */
-	ulint		size);	/*!< in: size of compressed page */
+/** Validate the checksum on a ROW_FORMAT=COMPRESSED page.
+@param data    ROW_FORMAT=COMPRESSED page
+@param size    size of the page, in bytes
+@return whether the stored checksum matches innodb_checksum_algorithm */
+bool page_zip_verify_checksum(const byte *data, size_t size);
 
 #ifndef UNIV_INNOCHECKSUM
 /**********************************************************************//**

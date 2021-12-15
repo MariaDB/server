@@ -1,0 +1,5404 @@
+###############################################################################
+# The test ensures that permission checks are applied correctly to
+# ANALYZE INSERT/REPLACE/UPDATE/DELETE/SELECT (I/R/U/D/S further in the test)
+# when it's executed on a table or on a view. 
+# ANALYZE <query> should require both permissions needed to execute the <query>,
+# and permissions needed to acquire query plan (to execute EXPLAIN <query>). 
+# Thus, additionally execution of the query and EXPLAIN is checked.
+# See MDEV-406, MDEV-6382
+#
+# Disclaimer: the goal of this test is to check permissions for ANALYZE against
+#             permissions for the query and EXPLAIN. 
+#             The expected result for queries and EXPLAINs is mostly empirical. 
+#             In many cases the current behavior is obscure and questionable, 
+#             but unless it is obviously wrong, the expected result is adjusted
+#             to match it.
+#             In cases when the behavior is really wrong, the adjustments
+#             come with comments which point at the issues in the bug tracker. 
+#             Search for 'MDEV' to find all of them.
+################################################################################
+
+--source include/not_embedded.inc
+--source include/default_optimizer_switch.inc
+
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+
+set GLOBAL sql_mode="";
+set LOCAL sql_mode="";
+
+CREATE DATABASE privtest_db;
+
+# t1 is the main base table on which we'll perform DML
+# v1 is an "inner" view which selects from the base table
+# v2 is an "outer" view which selects from the inner view
+# t2 is an additional table for queries like INSERT .. SELECT 
+#    and multi-table UPDATEs/DELETEs
+
+CREATE TABLE privtest_db.t1 (a INT, b VARCHAR(3)) ENGINE=MyISAM;
+CREATE TABLE privtest_db.t2 (a INT, b VARCHAR(3)) ENGINE=MyISAM;
+CREATE VIEW privtest_db.v1 AS SELECT a, b FROM privtest_db.t1 WHERE b IS NOT NULL;
+CREATE VIEW privtest_db.v2 AS SELECT * FROM privtest_db.v1 WHERE a > 0;
+
+INSERT INTO privtest_db.t2 VALUES (1,'foo'), (2,'bar'), (3,'qux');
+
+GRANT SELECT ON privtest_db.t2 TO 'privtest'@'localhost';
+
+connect(con1,localhost,privtest,,privtest_db);
+--source include/default_optimizer_switch.inc
+
+--echo 
+--echo #########################################################################
+--echo # Underlying table permission tests
+--echo # (we modify permissions on the base table, keeping ALL on views)
+--echo #########################################################################
+--echo 
+
+connection default;
+GRANT ALL ON privtest_db.v1 TO 'privtest'@'localhost';
+GRANT ALL ON privtest_db.v2 TO 'privtest'@'localhost';
+connection con1;
+
+--echo 
+--echo #========================================================================
+--echo # Test: No permissions on the table
+--echo #========================================================================
+--echo 
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the table
+--echo # Expectation: Cannot run query, EXPLAIN, ANALYZE on the table
+--echo #              because the query itself cannot be executed
+--echo #------------------------------------------------------------------------
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO t1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO t1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO t1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO t1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE t1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE t1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE t1 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE t1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE t1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE t1 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM t1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM t1 USING t1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1 USING t1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1 USING t1, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM t1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM t1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM t1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM t1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run the queries, but not EXPLAIN or ANALYZE
+--echo #              because the query plan cannot be shown 
+--echo #              (it would have revealed the structure of the table)
+--echo #------------------------------------------------------------------------
+
+INSERT INTO v1 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v1 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v1 (a) VALUES (10);
+
+INSERT INTO v1 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v1 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v1 SELECT * FROM t2;
+
+REPLACE INTO v1 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v1 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v1 (a) VALUES (10);
+
+REPLACE INTO v1 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v1 SELECT * FROM t2;
+
+UPDATE v1 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1 SET a = 10;
+
+UPDATE v1 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1 SET a = a + 1;
+
+UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+
+DELETE FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v1;
+
+DELETE FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v1 WHERE a = 10;
+
+DELETE FROM v1 USING v1, t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v1 USING v1, t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v1 USING v1, t2;
+
+DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+
+SELECT * FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1;
+
+SELECT * FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1 WHERE a = 10;
+
+SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run the queries, but not EXPLAIN or ANALYZE
+--echo #              because the query plan cannot be shown
+--echo #              (it would have revealed the structure of the table)
+--echo #------------------------------------------------------------------------
+
+
+INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant SELECT on the table
+--echo #========================================================================
+--echo 
+
+connection default;
+GRANT SELECT ON privtest_db.t1 TO 'privtest'@'localhost';
+connection con1;
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the table
+--echo # Expectation: Can only run SELECT, EXPLAIN SELECT, ANALYZE SELECT 
+--echo #------------------------------------------------------------------------
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO t1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO t1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO t1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO t1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE t1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE t1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE t1 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE t1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE t1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE t1 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM t1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM t1 USING t1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1 USING t1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1 USING t1, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+
+SELECT * FROM t1;
+EXPLAIN SELECT * FROM t1;
+ANALYZE SELECT * FROM t1;
+
+SELECT * FROM t1 WHERE a = 10;
+EXPLAIN SELECT * FROM t1 WHERE a = 10;
+ANALYZE SELECT * FROM t1 WHERE a = 10;
+
+SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+EXPLAIN SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+ANALYZE SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run everything
+--echo #------------------------------------------------------------------------
+
+INSERT INTO v1 (a) VALUES (10);
+EXPLAIN INSERT INTO v1 (a) VALUES (10);
+ANALYZE INSERT INTO v1 (a) VALUES (10);
+
+INSERT INTO v1 SELECT * FROM t2;
+EXPLAIN INSERT INTO v1 SELECT * FROM t2;
+ANALYZE INSERT INTO v1 SELECT * FROM t2;
+
+REPLACE INTO v1 (a) VALUES (10);
+EXPLAIN REPLACE INTO v1 (a) VALUES (10);
+ANALYZE REPLACE INTO v1 (a) VALUES (10);
+
+REPLACE INTO v1 SELECT * FROM t2;
+EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
+ANALYZE REPLACE INTO v1 SELECT * FROM t2;
+
+UPDATE v1 SET a = 10;
+EXPLAIN UPDATE v1 SET a = 10;
+ANALYZE UPDATE v1 SET a = 10;
+
+UPDATE v1 SET a = a + 1;
+EXPLAIN UPDATE v1 SET a = a + 1;
+ANALYZE UPDATE v1 SET a = a + 1;
+
+UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+ANALYZE UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+
+DELETE FROM v1;
+EXPLAIN DELETE FROM v1;
+ANALYZE DELETE FROM v1;
+
+DELETE FROM v1 WHERE a = 10;
+EXPLAIN DELETE FROM v1 WHERE a = 10;
+ANALYZE DELETE FROM v1 WHERE a = 10;
+
+DELETE FROM v1 USING v1, t2;
+EXPLAIN DELETE FROM v1 USING v1, t2;
+ANALYZE DELETE FROM v1 USING v1, t2;
+
+DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+ANALYZE DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+
+SELECT * FROM v1;
+EXPLAIN SELECT * FROM v1;
+ANALYZE SELECT * FROM v1;
+
+SELECT * FROM v1 WHERE a = 10;
+EXPLAIN SELECT * FROM v1 WHERE a = 10;
+ANALYZE SELECT * FROM v1 WHERE a = 10;
+
+SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run everything
+--echo #------------------------------------------------------------------------
+
+INSERT INTO v2 (a) VALUES (10);
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+EXPLAIN UPDATE v2 SET a = 10;
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+EXPLAIN UPDATE v2 SET a = a + 1;
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+EXPLAIN DELETE FROM v2;
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+# Commented due to MDEV-7034 (assertion failure)
+# EXPLAIN DELETE FROM v2 USING v2, t2;
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+# Commented due to MDEV-7034 (assertion failure)
+# EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+EXPLAIN SELECT * FROM v2;
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant INSERT on the table
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.t1 FROM 'privtest'@'localhost';
+GRANT INSERT ON privtest_db.t1 TO 'privtest'@'localhost';
+connection con1;
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the table
+--echo # Expectation: Can only run INSERT, EXPLAIN INSERT, ANALYZE INSERT
+--echo #------------------------------------------------------------------------
+
+INSERT INTO t1 (a) VALUES (10);
+EXPLAIN INSERT INTO t1 (a) VALUES (10);
+ANALYZE INSERT INTO t1 (a) VALUES (10);
+
+INSERT INTO t1 SELECT * FROM t2;
+EXPLAIN INSERT INTO t1 SELECT * FROM t2;
+ANALYZE INSERT INTO t1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO t1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO t1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE t1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE t1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE t1 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE t1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE t1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE t1 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM t1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM t1 USING t1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1 USING t1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1 USING t1, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM t1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM t1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM t1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM t1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run the queries, but not EXPLAIN or ANALYZE
+--echo #              because the query plan cannot be shown
+--echo #              (it would have revealed the structure of the table)
+--echo #------------------------------------------------------------------------
+
+INSERT INTO v1 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v1 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v1 (a) VALUES (10);
+
+INSERT INTO v1 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v1 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v1 SELECT * FROM t2;
+
+REPLACE INTO v1 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v1 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v1 (a) VALUES (10);
+
+REPLACE INTO v1 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v1 SELECT * FROM t2;
+
+UPDATE v1 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1 SET a = 10;
+
+UPDATE v1 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1 SET a = a + 1;
+
+UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+
+DELETE FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v1;
+
+DELETE FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v1 WHERE a = 10;
+
+DELETE FROM v1 USING v1, t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v1 USING v1, t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v1 USING v1, t2;
+
+DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+
+SELECT * FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1;
+
+SELECT * FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1 WHERE a = 10;
+
+SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run the queries, but not EXPLAIN or ANALYZE
+--echo #              because the query plan cannot be shown
+--echo #              (it would have revealed the structure of the table)
+--echo #------------------------------------------------------------------------
+
+
+INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant UPDATE on the table
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.t1 FROM 'privtest'@'localhost';
+GRANT UPDATE ON privtest_db.t1 TO 'privtest'@'localhost';
+connection con1;
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the table
+--echo # Expectation: Can only run UPDATE, EXPLAIN UPDATE, ANALYZE UPDATE
+--echo #              when the UPDATE does not read any columns. UPDATEs which 
+--echo #              read columns fail with ER_COLUMNACCESS_DENIED_ERROR
+--echo #------------------------------------------------------------------------
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO t1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO t1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO t1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO t1 SELECT * FROM t2;
+
+UPDATE t1 SET a = 10;
+EXPLAIN UPDATE t1 SET a = 10;
+ANALYZE UPDATE t1 SET a = 10;
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+UPDATE t1 SET a = a + 1;
+--error ER_COLUMNACCESS_DENIED_ERROR
+EXPLAIN UPDATE t1 SET a = a + 1;
+--error ER_COLUMNACCESS_DENIED_ERROR
+ANALYZE UPDATE t1 SET a = a + 1;
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+--error ER_COLUMNACCESS_DENIED_ERROR
+EXPLAIN UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+--error ER_COLUMNACCESS_DENIED_ERROR
+ANALYZE UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM t1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM t1 USING t1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1 USING t1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1 USING t1, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM t1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM t1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM t1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM t1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run the queries, but not EXPLAIN or ANALYZE
+--echo #              because the query plan cannot be shown 
+--echo #              (it would have revealed the structure of the table)
+--echo #------------------------------------------------------------------------
+
+INSERT INTO v1 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v1 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v1 (a) VALUES (10);
+
+INSERT INTO v1 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v1 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v1 SELECT * FROM t2;
+
+REPLACE INTO v1 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v1 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v1 (a) VALUES (10);
+
+REPLACE INTO v1 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v1 SELECT * FROM t2;
+
+UPDATE v1 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1 SET a = 10;
+
+UPDATE v1 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1 SET a = a + 1;
+
+UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+
+DELETE FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v1;
+
+DELETE FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v1 WHERE a = 10;
+
+DELETE FROM v1 USING v1, t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v1 USING v1, t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v1 USING v1, t2;
+
+DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+
+SELECT * FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1;
+
+SELECT * FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1 WHERE a = 10;
+
+SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run the queries, but not EXPLAIN or ANALYZE
+--echo #              because the query plan cannot be shown 
+--echo #              (it would have revealed the structure of the table)
+--echo #------------------------------------------------------------------------
+
+
+INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant DELETE on the table
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.t1 FROM 'privtest'@'localhost';
+GRANT DELETE ON privtest_db.t1 TO 'privtest'@'localhost';
+connection con1;
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the table
+--echo # Expectation: Can only run DELETE, EXPLAIN DELETE, ANALYZE DELETE
+--echo #              when the DELETE does not read any columns. DELETEs which 
+--echo #              read columns fail with ER_COLUMNACCESS_DENIED_ERROR
+--echo #------------------------------------------------------------------------
+--echo # Note: ANALYZE DELETE FROM t1 USING t1, t2 ... fails due to MDEV-7043
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO t1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO t1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO t1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO t1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE t1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE t1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE t1 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE t1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE t1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE t1 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+
+DELETE FROM t1;
+EXPLAIN DELETE FROM t1;
+ANALYZE DELETE FROM t1;
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+DELETE FROM t1 WHERE a = 10;
+--error ER_COLUMNACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1 WHERE a = 10;
+--error ER_COLUMNACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1 WHERE a = 10;
+
+# Unexpected errors due to MDEV-7043 (expected all three to succeed)
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM t1 USING t1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1 USING t1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1 USING t1, t2;
+
+# Unexpected error code due to MDEV-7043
+#--error ER_COLUMNACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM t1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM t1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM t1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM t1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run the queries, but not EXPLAIN or ANALYZE
+--echo #              because the query plan cannot be shown 
+--echo #              (it would have revealed the structure of the table)
+--echo #------------------------------------------------------------------------
+
+
+INSERT INTO v1 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v1 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v1 (a) VALUES (10);
+
+INSERT INTO v1 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v1 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v1 SELECT * FROM t2;
+
+REPLACE INTO v1 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v1 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v1 (a) VALUES (10);
+
+REPLACE INTO v1 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v1 SELECT * FROM t2;
+
+UPDATE v1 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1 SET a = 10;
+
+UPDATE v1 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1 SET a = a + 1;
+
+UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+
+DELETE FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v1;
+
+DELETE FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v1 WHERE a = 10;
+
+DELETE FROM v1 USING v1, t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v1 USING v1, t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v1 USING v1, t2;
+
+DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+
+SELECT * FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1;
+
+SELECT * FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1 WHERE a = 10;
+
+SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run the queries, but not EXPLAIN or ANALYZE
+--echo #              because the query plan cannot be shown 
+--echo #              (it would have revealed the structure of the table)
+--echo #------------------------------------------------------------------------
+
+
+INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant DELETE, SELECT(a) on the table
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.t1 FROM 'privtest'@'localhost';
+GRANT SELECT(a), DELETE ON privtest_db.t1 TO 'privtest'@'localhost';
+connection con1;
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the table
+--echo # Expectation: Can run DELETE, EXPLAIN DELETE, ANALYZE DELETE
+--echo #------------------------------------------------------------------------
+
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO t1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO t1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO t1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO t1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO t1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO t1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE t1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE t1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE t1 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE t1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE t1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE t1 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+
+DELETE FROM t1;
+EXPLAIN DELETE FROM t1;
+ANALYZE DELETE FROM t1;
+
+DELETE FROM t1 WHERE a = 10;
+EXPLAIN DELETE FROM t1 WHERE a = 10;
+ANALYZE DELETE FROM t1 WHERE a = 10;
+
+DELETE FROM t1 USING t1, t2;
+EXPLAIN DELETE FROM t1 USING t1, t2;
+ANALYZE DELETE FROM t1 USING t1, t2;
+
+DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+EXPLAIN DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+ANALYZE DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM t1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM t1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM t1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM t1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run everything: SELECT access to the column `a` 
+--echo #              in the underlying table is enough to show EXPLAIN
+--echo #              (that's how it works now)
+--echo #------------------------------------------------------------------------
+
+
+INSERT INTO v1 (a) VALUES (10);
+EXPLAIN INSERT INTO v1 (a) VALUES (10);
+ANALYZE INSERT INTO v1 (a) VALUES (10);
+
+INSERT INTO v1 SELECT * FROM t2;
+EXPLAIN INSERT INTO v1 SELECT * FROM t2;
+ANALYZE INSERT INTO v1 SELECT * FROM t2;
+
+REPLACE INTO v1 (a) VALUES (10);
+EXPLAIN REPLACE INTO v1 (a) VALUES (10);
+ANALYZE REPLACE INTO v1 (a) VALUES (10);
+
+REPLACE INTO v1 SELECT * FROM t2;
+EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
+ANALYZE REPLACE INTO v1 SELECT * FROM t2;
+
+UPDATE v1 SET a = 10;
+EXPLAIN UPDATE v1 SET a = 10;
+ANALYZE UPDATE v1 SET a = 10;
+
+UPDATE v1 SET a = a + 1;
+EXPLAIN UPDATE v1 SET a = a + 1;
+ANALYZE UPDATE v1 SET a = a + 1;
+
+UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+ANALYZE UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+
+DELETE FROM v1;
+EXPLAIN DELETE FROM v1;
+ANALYZE DELETE FROM v1;
+
+DELETE FROM v1 WHERE a = 10;
+EXPLAIN DELETE FROM v1 WHERE a = 10;
+ANALYZE DELETE FROM v1 WHERE a = 10;
+
+DELETE FROM v1 USING v1, t2;
+EXPLAIN DELETE FROM v1 USING v1, t2;
+ANALYZE DELETE FROM v1 USING v1, t2;
+
+DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+ANALYZE DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+
+SELECT * FROM v1;
+EXPLAIN SELECT * FROM v1;
+ANALYZE SELECT * FROM v1;
+
+SELECT * FROM v1 WHERE a = 10;
+EXPLAIN SELECT * FROM v1 WHERE a = 10;
+ANALYZE SELECT * FROM v1 WHERE a = 10;
+
+SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run everything: SELECT access to the column `a` 
+--echo #              in the underlying table is enough to show EXPLAIN
+--echo #              (that's how it works now)
+--echo #------------------------------------------------------------------------
+
+
+INSERT INTO v2 (a) VALUES (10);
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+EXPLAIN UPDATE v2 SET a = 10;
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+EXPLAIN UPDATE v2 SET a = a + 1;
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+EXPLAIN DELETE FROM v2;
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+EXPLAIN DELETE FROM v2 USING v2, t2;
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+EXPLAIN SELECT * FROM v2;
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant SELECT, INSERT, UPDATE, DELETE on the table
+--echo #========================================================================
+--echo 
+
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.t1 FROM 'privtest'@'localhost';
+GRANT SELECT, INSERT, UPDATE, DELETE ON privtest_db.t1 TO 'privtest'@'localhost';
+connection con1;
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the table
+--echo # Expectation: Can run everything
+--echo #------------------------------------------------------------------------
+
+INSERT INTO t1 (a) VALUES (10);
+EXPLAIN INSERT INTO t1 (a) VALUES (10);
+ANALYZE INSERT INTO t1 (a) VALUES (10);
+
+INSERT INTO t1 SELECT * FROM t2;
+EXPLAIN INSERT INTO t1 SELECT * FROM t2;
+ANALYZE INSERT INTO t1 SELECT * FROM t2;
+
+REPLACE INTO t1 (a) VALUES (10);
+EXPLAIN REPLACE INTO t1 (a) VALUES (10);
+ANALYZE REPLACE INTO t1 (a) VALUES (10);
+
+REPLACE INTO t1 SELECT * FROM t2;
+EXPLAIN REPLACE INTO t1 SELECT * FROM t2;
+ANALYZE REPLACE INTO t1 SELECT * FROM t2;
+
+UPDATE t1 SET a = 10;
+EXPLAIN UPDATE t1 SET a = 10;
+ANALYZE UPDATE t1 SET a = 10;
+
+UPDATE t1 SET a = a + 1;
+EXPLAIN UPDATE t1 SET a = a + 1;
+ANALYZE UPDATE t1 SET a = a + 1;
+
+UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+EXPLAIN UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+ANALYZE UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
+
+DELETE FROM t1;
+EXPLAIN DELETE FROM t1;
+ANALYZE DELETE FROM t1;
+
+DELETE FROM t1 WHERE a = 10;
+EXPLAIN DELETE FROM t1 WHERE a = 10;
+ANALYZE DELETE FROM t1 WHERE a = 10;
+
+DELETE FROM t1 USING t1, t2;
+EXPLAIN DELETE FROM t1 USING t1, t2;
+ANALYZE DELETE FROM t1 USING t1, t2;
+
+DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+EXPLAIN DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+ANALYZE DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
+
+SELECT * FROM t1;
+EXPLAIN SELECT * FROM t1;
+ANALYZE SELECT * FROM t1;
+
+SELECT * FROM t1 WHERE a = 10;
+EXPLAIN SELECT * FROM t1 WHERE a = 10;
+ANALYZE SELECT * FROM t1 WHERE a = 10;
+
+SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+EXPLAIN SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+ANALYZE SELECT * FROM t1 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run everything
+--echo #------------------------------------------------------------------------
+
+INSERT INTO v1 (a) VALUES (10);
+EXPLAIN INSERT INTO v1 (a) VALUES (10);
+ANALYZE INSERT INTO v1 (a) VALUES (10);
+
+INSERT INTO v1 SELECT * FROM t2;
+EXPLAIN INSERT INTO v1 SELECT * FROM t2;
+ANALYZE INSERT INTO v1 SELECT * FROM t2;
+
+REPLACE INTO v1 (a) VALUES (10);
+EXPLAIN REPLACE INTO v1 (a) VALUES (10);
+ANALYZE REPLACE INTO v1 (a) VALUES (10);
+
+REPLACE INTO v1 SELECT * FROM t2;
+EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
+ANALYZE REPLACE INTO v1 SELECT * FROM t2;
+
+UPDATE v1 SET a = 10;
+EXPLAIN UPDATE v1 SET a = 10;
+ANALYZE UPDATE v1 SET a = 10;
+
+UPDATE v1 SET a = a + 1;
+EXPLAIN UPDATE v1 SET a = a + 1;
+ANALYZE UPDATE v1 SET a = a + 1;
+
+UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+ANALYZE UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+
+DELETE FROM v1;
+EXPLAIN DELETE FROM v1;
+ANALYZE DELETE FROM v1;
+
+DELETE FROM v1 WHERE a = 10;
+EXPLAIN DELETE FROM v1 WHERE a = 10;
+ANALYZE DELETE FROM v1 WHERE a = 10;
+
+DELETE FROM v1 USING v1, t2;
+EXPLAIN DELETE FROM v1 USING v1, t2;
+ANALYZE DELETE FROM v1 USING v1, t2;
+
+DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+ANALYZE DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+
+SELECT * FROM v1;
+EXPLAIN SELECT * FROM v1;
+ANALYZE SELECT * FROM v1;
+
+SELECT * FROM v1 WHERE a = 10;
+EXPLAIN SELECT * FROM v1 WHERE a = 10;
+ANALYZE SELECT * FROM v1 WHERE a = 10;
+
+SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run everything
+--echo #------------------------------------------------------------------------
+--echo # Note: some queries are commented due to MDEV-7034
+
+INSERT INTO v2 (a) VALUES (10);
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+EXPLAIN UPDATE v2 SET a = 10;
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+EXPLAIN UPDATE v2 SET a = a + 1;
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+EXPLAIN DELETE FROM v2;
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+# Commented due to MDEV-7034
+# EXPLAIN DELETE FROM v2 USING v2, t2;
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+# Commented due to MDEV-7034
+# EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+EXPLAIN SELECT * FROM v2;
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo 
+--echo #########################################################################
+--echo # Inner view permission tests
+--echo # (we modify permissions on the inner view, keeping ALL the rest)
+--echo #########################################################################
+--echo 
+
+
+--echo 
+--echo #========================================================================
+--echo # Test: No permissions on the inner view
+--echo #========================================================================
+--echo 
+
+connection default;
+GRANT ALL ON privtest_db.t1 TO 'privtest'@'localhost';
+GRANT ALL ON privtest_db.v2 TO 'privtest'@'localhost';
+REVOKE ALL PRIVILEGES ON privtest_db.v1 FROM 'privtest'@'localhost';
+connection con1;
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Cannot run anything
+--echo #------------------------------------------------------------------------
+
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run the queries, but not EXPLAIN or ANALYZE
+--echo #              because the query plan cannot be shown 
+--echo #              (it could have revealed the structure of the inner view)
+--echo #------------------------------------------------------------------------
+
+
+INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant SHOW VIEW on the inner view
+--echo #========================================================================
+--echo 
+
+connection default;
+GRANT SHOW VIEW ON privtest_db.v1 TO 'privtest'@'localhost';
+connection con1;
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Cannot run anything
+--echo #------------------------------------------------------------------------
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run the queries, but not EXPLAIN or ANALYZE
+--echo #              because the query plan cannot be shown 
+--echo #              (that's how it works now)
+--echo #------------------------------------------------------------------------
+
+
+INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant SELECT on the inner view
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.v1 FROM 'privtest'@'localhost';
+GRANT SELECT ON privtest_db.v1 TO 'privtest'@'localhost';
+connection con1;
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run SELECT, but not EXPLAIN SELECT or ANALYZE SELECT
+--echo #              because the query plan cannot be shown 
+--echo #              (it could have revealed the structure of the view)
+--echo #------------------------------------------------------------------------
+
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+# Strange error code due to MDEV-7033 
+# --error ER_TABLEACCESS_DENIED_ERROR
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+
+SELECT * FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1;
+
+SELECT * FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1 WHERE a = 10;
+
+SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run the queries, but not EXPLAIN or ANALYZE
+--echo #              because the query plan cannot be shown 
+--echo #              (it could have revealed the structure of the inner view)
+--echo #------------------------------------------------------------------------
+
+
+INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant SELECT, SHOW VIEW on the inner view
+--echo #========================================================================
+--echo 
+
+--echo 
+--echo #------------------------------------------------------------------------
+--echo # Test: SELECT + SHOW VIEW privileges allow ANALYZE SELECT for the inner
+--echo #       view, and ANALYZE <anything> for the outer view
+--echo #------------------------------------------------------------------------
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.v1 FROM 'privtest'@'localhost';
+GRANT SELECT, SHOW VIEW ON privtest_db.v1 TO 'privtest'@'localhost';
+connection con1;
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run SELECT, EXPLAIN SELECT, ANALYZE SELECT
+--echo #------------------------------------------------------------------------
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+
+SELECT * FROM v1;
+EXPLAIN SELECT * FROM v1;
+ANALYZE SELECT * FROM v1;
+
+SELECT * FROM v1 WHERE a = 10;
+EXPLAIN SELECT * FROM v1 WHERE a = 10;
+ANALYZE SELECT * FROM v1 WHERE a = 10;
+
+SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run everything
+--echo #------------------------------------------------------------------------
+
+INSERT INTO v2 (a) VALUES (10);
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+EXPLAIN UPDATE v2 SET a = 10;
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+EXPLAIN UPDATE v2 SET a = a + 1;
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+EXPLAIN DELETE FROM v2;
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+# Commented due to MDEV-7034
+# EXPLAIN DELETE FROM v2 USING v2, t2;
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+# Commented due to MDEV-7034
+# EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+EXPLAIN SELECT * FROM v2;
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant INSERT on the inner view
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.v1 FROM 'privtest'@'localhost';
+GRANT INSERT ON privtest_db.v1 TO 'privtest'@'localhost';
+connection con1;
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run INSERT, but not EXPLAIN INSERT or ANALYZE INSERT
+--echo #              because the query plan cannot be shown 
+--echo #              (it could have revealed the structure of the view)
+--echo #------------------------------------------------------------------------
+
+
+INSERT INTO v1 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v1 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v1 (a) VALUES (10);
+
+INSERT INTO v1 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v1 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run the queries, but not EXPLAIN or ANALYZE
+--echo #              because the query plan cannot be shown 
+--echo #              (it could have revealed the structure of the inner view)
+--echo #------------------------------------------------------------------------
+
+
+INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant UPDATE on the inner view
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.v1 FROM 'privtest'@'localhost';
+GRANT UPDATE ON privtest_db.v1 TO 'privtest'@'localhost';
+connection con1;
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run UPDATE which does not read any columns, but not 
+--echo #              but not EXPLAIN UPDATE or ANALYZE UPDATE
+--echo #              because the query plan cannot be shown 
+--echo #              (it could have revealed the structure of the view).
+--echo #------------------------------------------------------------------------
+
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 SELECT * FROM t2;
+
+UPDATE v1 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1 SET a = 10;
+
+# Wrong result due to MDEV-7042
+#--error ER_COLUMNACCESS_DENIED_ERROR
+UPDATE v1 SET a = a + 1;
+# Strange error code due to MDEV-7042
+#--error ER_COLUMNACCESS_DENIED_ERROR
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1 SET a = a + 1;
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+# Strange error code due to MDEV-7033, MDEV-7042
+#--error ER_COLUMNACCESS_DENIED_ERROR
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run the queries, but not EXPLAIN or ANALYZE
+--echo #              because the query plan cannot be shown 
+--echo #              (it could have revealed the structure of the inner view)
+--echo #------------------------------------------------------------------------
+
+
+INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant UPDATE, SELECT(a) on the inner view
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.v1 FROM 'privtest'@'localhost';
+GRANT SELECT(a), UPDATE ON privtest_db.v1 TO 'privtest'@'localhost';
+connection con1;
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run UPDATE, but not EXPLAIN or ANALYZE for it
+--echo #              because the query plan cannot be shown 
+--echo #              (it could have revealed the structure of the view)
+--echo #------------------------------------------------------------------------
+
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v1 SELECT * FROM t2;
+
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 (a) VALUES (10);
+
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 SELECT * FROM t2;
+
+UPDATE v1 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1 SET a = 10;
+
+UPDATE v1 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1 SET a = a + 1;
+
+UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run the queries, but not EXPLAIN or ANALYZE
+--echo #              because the query plan cannot be shown 
+--echo #              (it could have revealed the structure of the inner view)
+--echo #------------------------------------------------------------------------
+
+
+INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant SELECT, UPDATE on the inner view
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.v1 FROM 'privtest'@'localhost';
+GRANT SELECT, UPDATE ON privtest_db.v1 TO 'privtest'@'localhost';
+connection con1;
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run the UPDATE and SELECT queries, but not EXPLAIN 
+--echo #              or ANALYZE because the query plan cannot be shown 
+--echo #              (it could have revealed the structure of the view)
+--echo #------------------------------------------------------------------------
+
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 SELECT * FROM t2;
+
+UPDATE v1 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1 SET a = 10;
+
+UPDATE v1 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1 SET a = a + 1;
+
+UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+
+SELECT * FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1;
+
+SELECT * FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1 WHERE a = 10;
+
+SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run the queries, but not EXPLAIN or ANALYZE
+--echo #              because the query plan cannot be shown 
+--echo #              (it could have revealed the structure of the inner view)
+--echo #------------------------------------------------------------------------
+
+
+INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant DELETE on the inner view
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.v1 FROM 'privtest'@'localhost';
+GRANT DELETE ON privtest_db.v1 TO 'privtest'@'localhost';
+connection con1;
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run DELETE which does not read any columns, 
+--echo #              but not EXPLAIN DELETE or ANALYZE DELETE
+--echo #              because the query plan cannot be shown 
+--echo #              (it could have revealed the structure of the view)
+--echo #------------------------------------------------------------------------
+
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+
+DELETE FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v1;
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+DELETE FROM v1 WHERE a = 10;
+# Strange error code due to MDEV-7033
+#--error ER_COLUMNACCESS_DENIED_ERROR
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v1 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v1 WHERE a = 10;
+
+# Unexpected error due to MDEV-7043
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2;
+# Unexpected error code due to MDEV-7043
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2;
+# Unexpected error code due to MDEV-7043
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run the queries, but not EXPLAIN or ANALYZE
+--echo #              because the query plan cannot be shown 
+--echo #              (it could have revealed the structure of the inner view)
+--echo #------------------------------------------------------------------------
+
+
+INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant DELETE, SHOW VIEW on the inner view
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.v1 FROM 'privtest'@'localhost';
+GRANT SHOW VIEW, DELETE ON privtest_db.v1 TO 'privtest'@'localhost';
+connection con1;
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run DELETE, EXPLAIN DELETE, UPDATE DELETE 
+--echo #              which don't read any columns
+--echo #------------------------------------------------------------------------
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v1 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+
+DELETE FROM v1;
+EXPLAIN DELETE FROM v1;
+ANALYZE DELETE FROM v1;
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+DELETE FROM v1 WHERE a = 10;
+--error ER_COLUMNACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 WHERE a = 10;
+--error ER_COLUMNACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 WHERE a = 10;
+
+# Unexpected error due to MDEV-7043
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v1 USING v1, t2;
+# Unexpected error due to MDEV-7043
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2;
+# Unexpected error due to MDEV-7043
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2;
+
+# Unexpected error code due to MDEV-7043
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+# Unexpected error code due to MDEV-7043
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+# Unexpected error code due to MDEV-7043
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v1 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v1 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run the queries, but not EXPLAIN or ANALYZE
+--echo #              because the query plan cannot be shown 
+--echo #              (that's how it works now)
+--echo #------------------------------------------------------------------------
+
+
+INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant SELECT, INSERT, UPDATE, DELETE, SHOW VIEW
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.v1 FROM 'privtest'@'localhost';
+GRANT SELECT, INSERT, UPDATE, DELETE, SHOW VIEW ON privtest_db.v1 TO 'privtest'@'localhost';
+connection con1;
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run everything
+--echo #------------------------------------------------------------------------
+
+INSERT INTO v1 (a) VALUES (10);
+EXPLAIN INSERT INTO v1 (a) VALUES (10);
+ANALYZE INSERT INTO v1 (a) VALUES (10);
+
+INSERT INTO v1 SELECT * FROM t2;
+EXPLAIN INSERT INTO v1 SELECT * FROM t2;
+ANALYZE INSERT INTO v1 SELECT * FROM t2;
+
+REPLACE INTO v1 (a) VALUES (10);
+EXPLAIN REPLACE INTO v1 (a) VALUES (10);
+ANALYZE REPLACE INTO v1 (a) VALUES (10);
+
+REPLACE INTO v1 SELECT * FROM t2;
+EXPLAIN REPLACE INTO v1 SELECT * FROM t2;
+ANALYZE REPLACE INTO v1 SELECT * FROM t2;
+
+UPDATE v1 SET a = 10;
+EXPLAIN UPDATE v1 SET a = 10;
+ANALYZE UPDATE v1 SET a = 10;
+
+UPDATE v1 SET a = a + 1;
+EXPLAIN UPDATE v1 SET a = a + 1;
+ANALYZE UPDATE v1 SET a = a + 1;
+
+UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+EXPLAIN UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+ANALYZE UPDATE v1, t2 SET v1.a = v1.a + 1 WHERE v1.a = t2.a;
+
+DELETE FROM v1;
+EXPLAIN DELETE FROM v1;
+ANALYZE DELETE FROM v1;
+
+DELETE FROM v1 WHERE a = 10;
+EXPLAIN DELETE FROM v1 WHERE a = 10;
+ANALYZE DELETE FROM v1 WHERE a = 10;
+
+DELETE FROM v1 USING v1, t2;
+EXPLAIN DELETE FROM v1 USING v1, t2;
+ANALYZE DELETE FROM v1 USING v1, t2;
+
+DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+EXPLAIN DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+ANALYZE DELETE FROM v1 USING v1, t2 WHERE v1.a = t2.a;
+
+SELECT * FROM v1;
+EXPLAIN SELECT * FROM v1;
+ANALYZE SELECT * FROM v1;
+
+SELECT * FROM v1 WHERE a = 10;
+EXPLAIN SELECT * FROM v1 WHERE a = 10;
+ANALYZE SELECT * FROM v1 WHERE a = 10;
+
+SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+EXPLAIN SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+ANALYZE SELECT * FROM v1 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run everything
+--echo #------------------------------------------------------------------------
+
+INSERT INTO v2 (a) VALUES (10);
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+EXPLAIN UPDATE v2 SET a = 10;
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+EXPLAIN UPDATE v2 SET a = a + 1;
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+EXPLAIN DELETE FROM v2;
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+# Commented due to MDEV-7034
+# EXPLAIN DELETE FROM v2 USING v2, t2;
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+# Commented due to MDEV-7034
+# EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+EXPLAIN SELECT * FROM v2;
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+
+
+--echo 
+--echo #########################################################################
+--echo # Outer view permission tests
+--echo # (we modify permissions on the outer view, keeping ALL the rest)
+--echo #########################################################################
+--echo 
+
+--echo 
+--echo #========================================================================
+--echo # Test: No permissions on the outer view
+--echo #========================================================================
+--echo 
+
+connection default;
+GRANT ALL ON privtest_db.t1 TO 'privtest'@'localhost';
+GRANT ALL ON privtest_db.v1 TO 'privtest'@'localhost';
+REVOKE ALL PRIVILEGES ON privtest_db.v2 FROM 'privtest'@'localhost';
+connection con1;
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Cannot run anything
+--echo #------------------------------------------------------------------------
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 USING v2, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant SHOW VIEW on the outer view
+--echo #========================================================================
+--echo 
+
+connection default;
+GRANT SHOW VIEW ON privtest_db.v2 TO 'privtest'@'localhost';
+connection con1;
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Cannot run anything
+--echo #------------------------------------------------------------------------
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 USING v2, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant SHOW VIEW, SELECT(a) on the outer view
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.v2 FROM 'privtest'@'localhost';
+GRANT SELECT(a), SHOW VIEW ON privtest_db.v2 TO 'privtest'@'localhost';
+connection con1;
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run SELECT, EXPLAIN SELECT and ANALYZE SELECT
+--echo #              when only `a` column is involved
+--echo #------------------------------------------------------------------------
+
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 USING v2, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT a FROM v2;
+EXPLAIN SELECT a FROM v2;
+ANALYZE SELECT a FROM v2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT a FROM v2 WHERE a = 10;
+EXPLAIN SELECT a FROM v2 WHERE a = 10;
+ANALYZE SELECT a FROM v2 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant SELECT on the outer view
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.v2 FROM 'privtest'@'localhost';
+GRANT SELECT ON privtest_db.v2 TO 'privtest'@'localhost';
+connection con1;
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run SELECT, but not EXPLAIN SELECT or ANALYZE SELECT
+--echo #              because the query plan cannot be shown 
+--echo #              (it could have revealed the structure of the view)
+--echo #------------------------------------------------------------------------
+
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+# Strange error code due to MDEV-7033, MDEV-7042
+# --error ER_TABLEACCESS_DENIED_ERROR
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 USING v2, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant SHOW VIEW, SELECT on the outer view
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.v2 FROM 'privtest'@'localhost';
+GRANT SELECT, SHOW VIEW ON privtest_db.v2 TO 'privtest'@'localhost';
+connection con1;
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run SELECT, EXPLAIN SELECT, ANALYZE SELECT
+--echo #------------------------------------------------------------------------
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 USING v2, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+EXPLAIN SELECT * FROM v2;
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant INSERT on the outer view
+--echo #========================================================================
+--echo 
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.v2 FROM 'privtest'@'localhost';
+GRANT INSERT ON privtest_db.v2 TO 'privtest'@'localhost';
+connection con1;
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run INSERT, but not EXPLAIN INSERT or ANALYZE INSERT
+--echo #              because the query plan cannot be shown 
+--echo #              (it could have revealed the structure of the view)
+--echo #------------------------------------------------------------------------
+
+
+INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 USING v2, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant UPDATE on the outer view
+--echo #========================================================================
+--echo 
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.v2 FROM 'privtest'@'localhost';
+GRANT UPDATE ON privtest_db.v2 TO 'privtest'@'localhost';
+connection con1;
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run UPDATE which does not read any columns, 
+--echo #              but not EXPLAIN UPDATE or ANALYZE UPDATE
+--echo #              because the query plan cannot be shown 
+--echo #              (it could have revealed the structure of the view)
+--echo #------------------------------------------------------------------------
+
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = 10;
+
+# Wrong result due to MDEV-7042
+# --error ER_COLUMNACCESS_DENIED_ERROR
+UPDATE v2 SET a = a + 1;
+# Strange error code due to MDEV-7042
+#--error ER_COLUMNACCESS_DENIED_ERROR
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2 SET a = a + 1;
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+# Strange error code due to MDEV-7042
+# --error ER_COLUMNACCESS_DENIED_ERROR
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 USING v2, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant UPDATE, SHOW VIEW on the outer view
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.v2 FROM 'privtest'@'localhost';
+GRANT SHOW VIEW, UPDATE ON privtest_db.v2 TO 'privtest'@'localhost';
+connection con1;
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the inner view
+--echo # Expectation: Can run UPDATE, EXPLAIN UPDATE, ANALYZE UPDATE
+--echo #              which do not read any columns
+--echo #------------------------------------------------------------------------
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+EXPLAIN UPDATE v2 SET a = 10;
+ANALYZE UPDATE v2 SET a = 10;
+
+# Wrong result due to MDEV-7042
+# --error ER_COLUMNACCESS_DENIED_ERROR
+UPDATE v2 SET a = a + 1;
+# Wrong result due to MDEV-7042
+# --error ER_COLUMNACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2 SET a = a + 1;
+# Wrong result due to MDEV-7042
+# --error ER_COLUMNACCESS_DENIED_ERROR
+ANALYZE UPDATE v2 SET a = a + 1;
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_COLUMNACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_COLUMNACCESS_DENIED_ERROR
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 USING v2, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant DELETE on the outer view
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.v2 FROM 'privtest'@'localhost';
+GRANT DELETE ON privtest_db.v2 TO 'privtest'@'localhost';
+connection con1;
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run DELETE which does not read any columns, 
+--echo #              but not EXPLAIN DELETE or ANALYZE DELETE
+--echo #              because the query plan cannot be shown 
+--echo #              (it could have revealed the structure of the view)
+--echo #------------------------------------------------------------------------
+
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2;
+
+--error ER_COLUMNACCESS_DENIED_ERROR
+DELETE FROM v2 WHERE a = 10;
+# Strange error code due to MDEV-7042, MDEV-7033
+# --error ER_COLUMNACCESS_DENIED_ERROR
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+# Unexpected error due to MDEV-7043
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 USING v2, t2;
+# Unexpected error code due to MDEV-7043
+# --error ER_VIEW_NO_EXPLAIN
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 USING v2, t2;
+# Unexpected error code due to MDEV-7043
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+# Unexpected error due to MDEV-7043
+--error ER_TABLEACCESS_DENIED_ERROR
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+# Unexpected error code due to MDEV-7043
+# --error ER_VIEW_NO_EXPLAIN
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+# Unexpected error code due to MDEV-7043
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant DELETE, SELECT on the outer view
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.v2 FROM 'privtest'@'localhost';
+GRANT SELECT, DELETE ON privtest_db.v2 TO 'privtest'@'localhost';
+connection con1;
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run DELETE and SELECT, but not EXPLAIN or ANALYZE 
+--echo #              for them because the query plan cannot be shown 
+--echo #              (it could have revealed the structure of the view)
+--echo #------------------------------------------------------------------------
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+INSERT INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+--error ER_TABLEACCESS_DENIED_ERROR
+REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2 SET a = 10;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2 SET a = 10;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+EXPLAIN UPDATE v2 SET a = a + 1;
+--error ER_TABLEACCESS_DENIED_ERROR
+ANALYZE UPDATE v2 SET a = a + 1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+# Strange error code due to MDEV-7033
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+--error ER_VIEW_NO_EXPLAIN
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+--echo 
+--echo #========================================================================
+--echo # Test: Grant SELECT, INSERT, UPDATE, DELETE, SHOW VIEW on the outer view
+--echo #========================================================================
+--echo 
+
+connection default;
+REVOKE ALL PRIVILEGES ON privtest_db.v2 FROM 'privtest'@'localhost';
+GRANT SELECT, INSERT, UPDATE, DELETE, SHOW VIEW ON privtest_db.v2 TO 'privtest'@'localhost';
+connection con1;
+
+
+--echo #------------------------------------------------------------------------
+--echo # I/R/U/D/S on the outer view
+--echo # Expectation: Can run everything
+--echo #------------------------------------------------------------------------
+
+INSERT INTO v2 (a) VALUES (10);
+EXPLAIN INSERT INTO v2 (a) VALUES (10);
+ANALYZE INSERT INTO v2 (a) VALUES (10);
+
+INSERT INTO v2 SELECT * FROM t2;
+# Commented due to MDEV-7034
+EXPLAIN INSERT INTO v2 SELECT * FROM t2;
+ANALYZE INSERT INTO v2 SELECT * FROM t2;
+
+REPLACE INTO v2 (a) VALUES (10);
+EXPLAIN REPLACE INTO v2 (a) VALUES (10);
+ANALYZE REPLACE INTO v2 (a) VALUES (10);
+
+REPLACE INTO v2 SELECT * FROM t2;
+EXPLAIN REPLACE INTO v2 SELECT * FROM t2;
+ANALYZE REPLACE INTO v2 SELECT * FROM t2;
+
+UPDATE v2 SET a = 10;
+EXPLAIN UPDATE v2 SET a = 10;
+ANALYZE UPDATE v2 SET a = 10;
+
+UPDATE v2 SET a = a + 1;
+EXPLAIN UPDATE v2 SET a = a + 1;
+ANALYZE UPDATE v2 SET a = a + 1;
+
+UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+EXPLAIN UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+ANALYZE UPDATE v2, t2 SET v2.a = v2.a + 1 WHERE v2.a = t2.a;
+
+DELETE FROM v2;
+EXPLAIN DELETE FROM v2;
+ANALYZE DELETE FROM v2;
+
+DELETE FROM v2 WHERE a = 10;
+EXPLAIN DELETE FROM v2 WHERE a = 10;
+ANALYZE DELETE FROM v2 WHERE a = 10;
+
+DELETE FROM v2 USING v2, t2;
+# Commented due to MDEV-7034
+# EXPLAIN DELETE FROM v2 USING v2, t2;
+ANALYZE DELETE FROM v2 USING v2, t2;
+
+DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+# Commented due to MDEV-7034
+# EXPLAIN DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+ANALYZE DELETE FROM v2 USING v2, t2 WHERE v2.a = t2.a;
+
+SELECT * FROM v2;
+EXPLAIN SELECT * FROM v2;
+ANALYZE SELECT * FROM v2;
+
+SELECT * FROM v2 WHERE a = 10;
+EXPLAIN SELECT * FROM v2 WHERE a = 10;
+ANALYZE SELECT * FROM v2 WHERE a = 10;
+
+SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+EXPLAIN SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+ANALYZE SELECT * FROM v2 WHERE a IN ( SELECT a FROM t2 );
+
+
+################################################################################################
+disconnect con1;
+connection default;
+
+DROP USER 'privtest'@localhost;
+USE test;
+DROP DATABASE privtest_db;
+
+set GLOBAL sql_mode=default;
+--source include/wait_until_count_sessions.inc 
+
+

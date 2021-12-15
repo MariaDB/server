@@ -1,3 +1,11 @@
-let $MONGO= C:/PROGRA~1/MongoDB/Server/3.4/bin/mongo;
-let $MONGOIMPORT= C:/PROGRA~1/MongoDB/Server/3.4/bin/mongoimport;
+#let $MONGO= C:/Applic/MongoDB/Server/3.6/bin/mongo;
+#let $MONGOIMPORT= C:/Applic/MongoDB/Server/3.6/bin/mongoimport;
+let $MONGO= mongo;
+let $MONGOIMPORT= mongoimport;
+
+
+
+
+
+
 

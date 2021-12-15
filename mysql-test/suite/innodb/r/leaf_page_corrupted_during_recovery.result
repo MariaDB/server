@@ -1,0 +1,20 @@
+CREATE TABLE t1 (pk INT PRIMARY KEY, c CHAR(255))ENGINE=InnoDB STATS_PERSISTENT=0;
+SET GLOBAL INNODB_LIMIT_OPTIMISTIC_INSERT_DEBUG = 2;
+INSERT INTO t1 VALUES(1, 'sql'), (2, 'server'), (3, 'mariadb'),
+(4, 'mariadb'), (5, 'test1'), (6, 'test2'), (7, 'test3'),
+(8, 'test4'), (9, 'test5'), (10, 'test6'), (11, 'test7'),
+(12, 'test8');
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+12
+UPDATE t1 SET c='best8' WHERE pk=12;
+# Kill the server
+# Corrupt the pages
+SELECT * FROM t1 WHERE PK = 1;
+ERROR 42000: Unknown storage engine 'InnoDB'
+SELECT * FROM t1 WHERE PK = 1;
+pk	c
+1	sql
+SELECT * FROM t1 WHERE pk = 12;
+ERROR HY000: Index for table 't1' is corrupt; try to repair it
+DROP TABLE t1;

@@ -1,0 +1,59 @@
+--source include/have_innodb.inc
+--source include/innodb_page_size.inc
+--source include/have_undo_tablespaces.inc
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+
+SET @save_undo_logs = @@GLOBAL.innodb_undo_logs;
+SET @save_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET @save_truncate = @@GLOBAL.innodb_undo_log_truncate;
+SET GLOBAL innodb_undo_log_truncate = 0;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+
+#-----------------------------------------------------------------------------
+#
+# Perform DML action using multiple clients and multiple undo tablespace.
+#
+#
+create table t1(keyc int primary key, c char(100)) engine = innodb;
+create table t2(keyc int primary key, c char(100)) engine = innodb;
+#
+let DATADIR = `select @@datadir`;
+connect (con1,localhost,root,,);
+begin;
+send insert into t1 select seq,'a' from seq_1_to_20000;
+
+connect (con2,localhost,root,,);
+begin;
+send insert into t2 select seq,'a' from seq_1_to_20000;
+
+connection con1; reap; send update t1 set c = 'mysql';
+connection con2; reap; send update t2 set c = 'mysql';
+connection con1; reap; send update t1 set c = 'oracle';
+connection con2; reap; send update t2 set c = 'oracle';
+connection con1; reap; send delete from t1;
+connection con2; reap; delete from t2;
+connection con1; reap;
+
+SET GLOBAL innodb_undo_log_truncate = 1;
+commit; disconnect con1;
+connection con2; commit; disconnect con2;
+
+connection default;
+
+--replace_regex /.*Trx id counter ([0-9]+).*/\1/
+let $trx_before= `SHOW ENGINE INNODB STATUS`;
+let $trx_before= `select substr('$trx_before',9)+2`;
+
+set global innodb_fast_shutdown=0;
+--source include/restart_mysqld.inc
+--replace_regex /.*Trx id counter ([0-9]+).*/\1/
+let $trx_after= `SHOW ENGINE INNODB STATUS`;
+let $trx_after= `select substr('$trx_after',9)`;
+
+drop table t1, t2;
+
+if ($trx_before > $trx_after)
+{
+  echo Transaction sequence mismatch: $trx_before > $trx_after;
+}

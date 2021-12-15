@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Testing of the basic functions of a MARIA rtree table         */
 /* Written by Alex Barkov who has a shared copyright to this code */
@@ -133,7 +133,6 @@ static int run_test(const char *filename)
   int key_length=8;
   int null_fields=0;
   int nrecords=sizeof(rt_data)/(sizeof(double)*4);/* 40 */
-  int rec_length=0;
   int uniques=0;
   int i, max_i;
   int error;
@@ -153,7 +152,6 @@ static int run_test(const char *filename)
 
   recinfo[0].type=FIELD_NORMAL;
   recinfo[0].length=1; /* For NULL bits */
-  rec_length=1;
 
   /* Define 2*ndims columns for coordinates*/
 
@@ -161,7 +159,6 @@ static int run_test(const char *filename)
   {
     recinfo[i].type=FIELD_NORMAL;
     recinfo[i].length=key_length;
-    rec_length+=key_length;
   }
 
   /* Define a key with 2*ndims segments */

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifndef _ma_loghandler_h
 #define _ma_loghandler_h
@@ -384,6 +384,8 @@ int translog_soft_sync_start(void);
 void  translog_soft_sync_end(void);
 void translog_sync();
 void translog_set_group_commit_interval(uint32 interval);
+extern void check_skipped_lsn(MARIA_HA *info, LSN lsn, my_bool index_file,
+                              pgcache_page_no_t page);
 
 /*
   all the rest added because of recovery; should we make

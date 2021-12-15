@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,9 +27,9 @@ Created 04/01/2015 Jan Lindström
 #define fil0crypt_h
 
 #ifndef UNIV_INNOCHECKSUM
-
 #include "os0event.h"
 #include "my_crypt.h"
+#include "fil0fil.h"
 #endif /*! UNIV_INNOCHECKSUM */
 
 /**
@@ -180,6 +180,12 @@ struct fil_space_crypt_t : st_encryption_scheme
 		return (encryption == FIL_ENCRYPTION_OFF);
 	}
 
+	/** Fill crypt data information to the give page.
+	It should be called during ibd file creation.
+	@param[in]	flags	tablespace flags
+	@param[in,out]	page	first page of the tablespace */
+	void fill_page0(ulint flags, byte* page);
+
 	/** Write crypt data to a page (0)
 	@param[in]	space	tablespace
 	@param[in,out]	page0	first page of the tablespace
@@ -296,7 +302,6 @@ fil_space_destroy_crypt_data(
 Parse a MLOG_FILE_WRITE_CRYPT_DATA log entry
 @param[in]	ptr		Log entry start
 @param[in]	end_ptr		Log entry end
-@param[in]	block		buffer block
 @param[out]	err		DB_SUCCESS or DB_DECRYPTION_FAILED
 @return position on log buffer */
 UNIV_INTERN
@@ -304,7 +309,6 @@ byte*
 fil_parse_write_crypt_data(
 	byte*			ptr,
 	const byte*		end_ptr,
-	const buf_block_t*	block,
 	dberr_t*		err)
 	MY_ATTRIBUTE((warn_unused_result));
 
@@ -353,23 +357,20 @@ Decrypt a page.
 @param[in]	tmp_frame		Temporary buffer
 @param[in]	page_size		Page size
 @param[in,out]	src_frame		Page to decrypt
-@param[out]	err			DB_SUCCESS or error
-@return true if page decrypted, false if not.*/
+@return DB_SUCCESS or error */
 UNIV_INTERN
-bool
+dberr_t
 fil_space_decrypt(
 	fil_space_crypt_t*	crypt_data,
 	byte*			tmp_frame,
 	const page_size_t&	page_size,
-	byte*			src_frame,
-	dberr_t*		err);
+	byte*			src_frame);
 
 /******************************************************************
 Decrypt a page
 @param[in]	space			Tablespace
 @param[in]	tmp_frame		Temporary buffer used for decrypting
 @param[in,out]	src_frame		Page to decrypt
-@param[out]	decrypted		true if page was decrypted
 @return decrypted page, or original not encrypted page if decryption is
 not needed.*/
 UNIV_INTERN
@@ -377,8 +378,7 @@ byte*
 fil_space_decrypt(
 	const fil_space_t* space,
 	byte*		tmp_frame,
-	byte*		src_frame,
-	bool*		decrypted)
+	byte*		src_frame)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /******************************************************************
@@ -490,16 +490,15 @@ encrypted, or corrupted.
 
 @param[in,out]	page		page frame (checksum is temporarily modified)
 @param[in]	page_size	page size
-@param[in]	space		tablespace identifier
-@param[in]	offset		page number
 @return true if page is encrypted AND OK, false otherwise */
-UNIV_INTERN
 bool
-fil_space_verify_crypt_checksum(
-	byte* 			page,
-	const page_size_t&	page_size,
-	ulint			space,
-	ulint			offset)
+fil_space_verify_crypt_checksum(const byte* page, const page_size_t& page_size)
 	MY_ATTRIBUTE((warn_unused_result));
+
+/** Add the tablespace to the rotation list if
+innodb_encrypt_rotate_key_age is 0 or encryption plugin does
+not do key version rotation
+@return whether the tablespace should be added to rotation list */
+bool fil_crypt_must_default_encrypt();
 
 #endif /* fil0crypt_h */

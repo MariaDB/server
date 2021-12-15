@@ -6,13 +6,12 @@
 # This test creates a new FK constraint while concurrent INSERTS are running
 #
 
-CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+CREATE TABLE ten (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 
 CREATE TABLE parent (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    f2 INTEGER,
-    KEY (id)
+    f2 INTEGER
 ) ENGINE=InnoDB;
 
 CREATE TABLE child (
@@ -20,7 +19,7 @@ CREATE TABLE child (
     parent_id INT
 ) ENGINE=InnoDB;
 
-INSERT INTO parent VALUES (DEFAULT, 0);
+INSERT INTO parent VALUES (1, 0);
 
 --connection node_2
 --send INSERT INTO child (parent_id) SELECT 1 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4;
@@ -41,7 +40,6 @@ INSERT INTO parent VALUES (DEFAULT, 0);
 --let $galera_server_number = 1
 --source include/galera_connect.inc
 --connection node_1b
---sleep 2
 --send ALTER TABLE child ADD FOREIGN KEY (parent_id) REFERENCES parent(id);
 
 --connection node_1a
@@ -56,15 +54,12 @@ INSERT INTO parent VALUES (DEFAULT, 0);
 --connection node_2a
 --reap
 
---connection node_1
-SELECT COUNT(*) = 20001 FROM parent;
-SELECT COUNT(*) = 10000 FROM child;
-
---connection node_2
-SELECT COUNT(*) = 20001 FROM parent;
-SELECT COUNT(*) = 10000 FROM child;
+#
+# ALTER TABLE could bf kill one or more of INSERTs to parent, so
+# the actual number of rows in PARENT depends on whether
+# the INSERT is committed before ALTER TABLE is executed
+#
 
 DROP TABLE child;
 DROP TABLE parent;
-
 DROP TABLE ten;

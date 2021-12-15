@@ -22,10 +22,11 @@ DROP TABLE t1;
 # 1 - The current directory.
 # 2 - The paths of the connect_class_path global variable.
 # 3 - The paths of the CLASSPATH environment variable.
-# In this test we use an executable jar file that contains all what is needed.
-eval SET GLOBAL connect_class_path='$MTR_SUITE_DIR/std_data/JdbcMariaDB.jar';
+# In this test we use an executable jar file that contains all the eisting wrappers.
+#eval SET GLOBAL connect_class_path='$MTR_SUITE_DIR/std_data/JdbcMariaDB.jar';
+eval SET GLOBAL connect_class_path='$MTR_SUITE_DIR/std_data/JavaWrappers.jar';
 
-# Paths to the JDK classes and to the MySQL and MariaDB drivers can be defined in the CLASSPATH environment variable
+# Paths to the JDK classes and to the JDBC drivers should be defined in the CLASSPATH environment variable
 #CREATE FUNCTION envar RETURNS STRING SONAME 'ha_connect.dll';
 #SELECT envar('CLASSPATH');
 

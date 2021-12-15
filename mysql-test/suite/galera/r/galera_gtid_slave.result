@@ -25,7 +25,6 @@ SELECT @@global.gtid_binlog_state;
 1-1-4,2-2-2,2-3-3
 connection node_1;
 DROP TABLE t1,t2;
-reset master;
 connection node_2;
 connection node_3;
 connection node_2;
@@ -33,4 +32,6 @@ STOP SLAVE;
 RESET SLAVE ALL;
 reset master;
 connection node_3;
+reset master;
+connection node_1;
 reset master;

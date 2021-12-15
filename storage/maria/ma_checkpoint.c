@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   WL#3071 Maria checkpoint
@@ -170,7 +170,7 @@ static int really_execute_checkpoint(void)
     "Horizon" is a lower bound of the LSN of the next log record.
   */
   checkpoint_start_log_horizon= translog_get_horizon();
-  DBUG_PRINT("info",("checkpoint_start_log_horizon " LSN_FMT,
+  DBUG_PRINT("info",("checkpoint_start_log_horizon " LSN_FMT "",
                      LSN_IN_PARTS(checkpoint_start_log_horizon)));
   lsn_store(checkpoint_start_log_horizon_char, checkpoint_start_log_horizon);
 

@@ -1,7 +1,7 @@
 /***********************************************************************/
-/*  Name: ODBCONN.CPP  Version 2.3                                     */
+/*  Name: ODBCONN.CPP  Version 2.4                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2021    */
 /*                                                                     */
 /*  This file contains the ODBC connection classes functions.          */
 /***********************************************************************/
@@ -11,7 +11,7 @@
 /***********************************************************************/
 #include <my_global.h>
 #include <m_string.h>
-#if defined(__WIN__)
+#if defined(_WIN32)
 //nclude <io.h>
 //nclude <fcntl.h>
 #include <direct.h>                      // for getcwd
@@ -45,13 +45,13 @@
 #include "osutil.h"
 
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 /***********************************************************************/
 /*  For dynamic load of ODBC32.DLL                                     */
 /***********************************************************************/
 #pragma comment(lib, "odbc32.lib")
 extern "C" HINSTANCE s_hModule;           // Saved module handle
-#endif // __WIN__
+#endif // _WIN32
 
 TYPCONV GetTypeConv();
 int GetConvSize();
@@ -137,10 +137,10 @@ int TranslateSQLType(int stp, int prec, int& len, char& v, bool& w)
     case SQL_WLONGVARCHAR:                  // (-10)
       w = true;
     case SQL_LONGVARCHAR:                   //  (-1)
-			if (GetTypeConv() == TPC_YES) {
+			if (GetTypeConv() == TPC_YES || GetTypeConv() == TPC_FORCE) {
 				v = 'V';
 				type = TYPE_STRING;
-				len = MY_MIN(abs(len), GetConvSize());
+				len = (len) ? MY_MIN(abs(len), GetConvSize()) : GetConvSize();
 			} else
 				type = TYPE_ERROR;
 
@@ -190,12 +190,23 @@ int TranslateSQLType(int stp, int prec, int& len, char& v, bool& w)
     case SQL_BIGINT:                        //  (-5)
       type = TYPE_BIGINT;
       break;
-    case SQL_UNKNOWN_TYPE:                  //    0
     case SQL_BINARY:                        //  (-2)
     case SQL_VARBINARY:                     //  (-3)
     case SQL_LONGVARBINARY:                 //  (-4)
-    case SQL_GUID:                          // (-11)
-    default:
+			if (GetTypeConv() == TPC_FORCE) {
+				v = 'V';
+				type = TYPE_STRING;
+				len = (len) ? MY_MIN(abs(len), GetConvSize()) : GetConvSize();
+			}	else
+				type = TYPE_ERROR;
+
+			break;
+		case SQL_GUID:                          // (-11)
+			type = TYPE_STRING;
+			len = 36;
+			break;
+		case SQL_UNKNOWN_TYPE:                  //    0
+		default:
       type = TYPE_ERROR;
       len = 0;
     } // endswitch type
@@ -364,7 +375,7 @@ PQRYRES ODBCColumns(PGLOBAL g, PCSZ dsn, PCSZ db, PCSZ table,
     length[11] = 255;
   } // endif ocp
 
-  if (trace)
+  if (trace(1))
     htrc("ODBCColumns: max=%d len=%d,%d,%d,%d\n",
          maxres, length[0], length[1], length[2], length[3]);
 
@@ -381,7 +392,7 @@ PQRYRES ODBCColumns(PGLOBAL g, PCSZ dsn, PCSZ db, PCSZ table,
   if (info || !qrp)                      // Info table
     return qrp;
 
-  if (trace)
+  if (trace(1))
     htrc("Getting col results ncol=%d\n", qrp->Nbcol);
 
   if (!(cap = AllocCatInfo(g, CAT_COL, db, table, qrp)))
@@ -396,7 +407,7 @@ PQRYRES ODBCColumns(PGLOBAL g, PCSZ dsn, PCSZ db, PCSZ table,
     qrp->Nblin = n;
 //  ResetNullValues(cap);
 
-    if (trace)
+    if (trace(1))
       htrc("Columns: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
 
   } else
@@ -536,7 +547,7 @@ PQRYRES ODBCDrivers(PGLOBAL g, int maxres, bool info)
   } else
     maxres = 0;
 
-  if (trace)
+  if (trace(1))
     htrc("ODBCDrivers: max=%d len=%d\n", maxres, length[0]);
 
   /************************************************************************/
@@ -593,7 +604,7 @@ PQRYRES ODBCDataSources(PGLOBAL g, int maxres, bool info)
     maxres = 0;
   } // endif info
 
-  if (trace)
+  if (trace(1))
     htrc("ODBCDataSources: max=%d len=%d\n", maxres, length[0]);
 
   /************************************************************************/
@@ -666,7 +677,7 @@ PQRYRES ODBCTables(PGLOBAL g, PCSZ dsn, PCSZ db, PCSZ tabpat, PCSZ tabtyp,
     length[4] = 255;
   } // endif info
 
-  if (trace)
+  if (trace(1))
     htrc("ODBCTables: max=%d len=%d,%d\n", maxres, length[0], length[1]);
 
   /************************************************************************/
@@ -687,7 +698,7 @@ PQRYRES ODBCTables(PGLOBAL g, PCSZ dsn, PCSZ db, PCSZ tabpat, PCSZ tabtyp,
 
 	cap->Pat = tabtyp;
 
-  if (trace)
+  if (trace(1))
     htrc("Getting table results ncol=%d\n", cap->Qrp->Nbcol);
 
   /************************************************************************/
@@ -697,7 +708,7 @@ PQRYRES ODBCTables(PGLOBAL g, PCSZ dsn, PCSZ db, PCSZ tabpat, PCSZ tabtyp,
     qrp->Nblin = n;
 //  ResetNullValues(cap);
 
-    if (trace)
+    if (trace(1))
       htrc("Tables: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
 
   } else
@@ -755,7 +766,7 @@ PQRYRES ODBCPrimaryKeys(PGLOBAL g, ODBConn *op, char *dsn, char *table)
   n = ocp->GetMaxValue(SQL_MAX_COLUMN_NAME_LEN);
   length[3] = (n) ? (n + 1) : 128;
 
-  if (trace)
+  if (trace(1))
     htrc("ODBCPrimaryKeys: max=%d len=%d,%d,%d\n",
          maxres, length[0], length[1], length[2]);
 
@@ -765,7 +776,7 @@ PQRYRES ODBCPrimaryKeys(PGLOBAL g, ODBConn *op, char *dsn, char *table)
   qrp = PlgAllocResult(g, ncol, maxres, IDS_PKEY,
                           buftyp, NULL, length, false, true);
 
-  if (trace)
+  if (trace(1))
     htrc("Getting pkey results ncol=%d\n", qrp->Nbcol);
 
   cap = AllocCatInfo(g, CAT_KEY, NULL, table, qrp);
@@ -777,7 +788,7 @@ PQRYRES ODBCPrimaryKeys(PGLOBAL g, ODBConn *op, char *dsn, char *table)
     qrp->Nblin = n;
 //  ResetNullValues(cap);
 
-    if (trace)
+    if (trace(1))
       htrc("PrimaryKeys: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
 
   } else
@@ -838,7 +849,7 @@ PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
   n = ocp->GetMaxValue(SQL_MAX_COLUMN_NAME_LEN);
   length[7] = (n) ? (n + 1) : 128;
 
-  if (trace)
+  if (trace(1))
     htrc("SemStatistics: max=%d pat=%s\n", maxres, SVP(pat));
 
   /************************************************************************/
@@ -847,7 +858,7 @@ PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
   qrp = PlgAllocResult(g, ncol, maxres, IDS_STAT,
                           buftyp, NULL, length, false, true);
 
-  if (trace)
+  if (trace(1))
     htrc("Getting stat results ncol=%d\n", qrp->Nbcol);
 
   cap = AllocCatInfo(g, CAT_STAT, NULL, pat, qrp);
@@ -861,7 +872,7 @@ PQRYRES ODBCStatistics(PGLOBAL g, ODBConn *op, char *dsn, char *pat,
     qrp->Nblin = n;
 //  ResetNullValues(cap);
 
-    if (trace)
+    if (trace(1))
       htrc("Statistics: NBCOL=%d NBLIN=%d\n", qrp->Nbcol, qrp->Nblin);
 
   } else
@@ -918,7 +929,7 @@ bool DBX::BuildErrorMessage(ODBConn* pdb, HSTMT hstmt)
               && strcmp((char*)state, "00000"); i++) {
         m_ErrMsg[i] = (PSZ)PlugDup(g, (char*)msg);
 
-        if (trace)
+        if (trace(1))
           htrc("%s: %s, Native=%d\n", state, msg, native);
 
         rc = SQLError(pdb->m_henv, pdb->m_hdbc, hstmt, state,
@@ -932,7 +943,7 @@ bool DBX::BuildErrorMessage(ODBConn* pdb, HSTMT hstmt)
                MSG(BAD_HANDLE_VAL));
       m_ErrMsg[0] = (PSZ)PlugDup(g, (char*)msg);
 
-      if (trace)
+      if (trace(1))
         htrc("%s: rc=%hd\n", SVP(m_ErrMsg[0]), m_RC); 
 
       return true;
@@ -941,7 +952,7 @@ bool DBX::BuildErrorMessage(ODBConn* pdb, HSTMT hstmt)
   } else
     m_ErrMsg[0] = "No connexion address provided";
 
-  if (trace)
+  if (trace(1))
     htrc("%s: rc=%hd (%s)\n", SVP(m_Msg), m_RC, SVP(m_ErrMsg[0])); 
 
   return true;
@@ -1004,7 +1015,7 @@ bool ODBConn::Check(RETCODE rc)
   {
   switch (rc) {
     case SQL_SUCCESS_WITH_INFO:
-      if (trace) {
+      if (trace(1)) {
         DBX x(rc);
 
         if (x.BuildErrorMessage(this, m_hstmt))
@@ -1223,7 +1234,7 @@ void ODBConn::AllocConnect(DWORD Options)
   if ((signed)m_LoginTimeout >= 0) {
     rc = SQLSetConnectOption(m_hdbc, SQL_LOGIN_TIMEOUT, m_LoginTimeout);
 
-    if (trace && rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO)
+    if (trace(1) && rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO)
       htrc("Warning: Failure setting login timeout\n");
 
     } // endif Timeout
@@ -1231,7 +1242,7 @@ void ODBConn::AllocConnect(DWORD Options)
   if (!m_Updatable) {
     rc = SQLSetConnectOption(m_hdbc, SQL_ACCESS_MODE, SQL_MODE_READ_ONLY);
     
-    if (trace && rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO)
+    if (trace(1) && rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO)
       htrc("Warning: Failure setting read only access mode\n");
 
     } // endif
@@ -1269,15 +1280,15 @@ bool ODBConn::DriverConnect(DWORD Options)
   SWORD   nResult;
   PUCHAR  ConnOut = (PUCHAR)PlugSubAlloc(m_G, NULL, MAX_CONNECT_LEN);
   UWORD   wConnectOption = SQL_DRIVER_COMPLETE;
-#if defined(__WIN__)
+#if defined(_WIN32)
   HWND    hWndTop = GetForegroundWindow();
   HWND    hWnd = GetParent(hWndTop);
 
   if (hWnd == NULL)
     hWnd = GetDesktopWindow();
-#else   // !__WIN__
+#else   // !_WIN32
   HWND    hWnd = (HWND)1;
-#endif  // !__WIN__
+#endif  // !_WIN32
   PGLOBAL& g = m_G;
   PDBUSER dup = PlgGetUser(g);
 
@@ -1290,10 +1301,10 @@ bool ODBConn::DriverConnect(DWORD Options)
                         SQL_NTS, ConnOut, MAX_CONNECT_LEN,
                         &nResult, wConnectOption);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (hWndTop)
     EnableWindow(hWndTop, true);
-#endif   // __WIN__
+#endif   // _WIN32
 
   // If user hit 'Cancel'
   if (rc == SQL_NO_DATA_FOUND) {
@@ -1385,7 +1396,7 @@ void ODBConn::GetConnectInfo()
     else
       m_Updatable = false;
 
-    if (trace)
+    if (trace(1))
       htrc("Warning: data source is readonly\n");
 
   } else // Make data source is !Updatable
@@ -1397,7 +1408,7 @@ void ODBConn::GetConnectInfo()
   rc = SQLGetInfo(m_hdbc, SQL_IDENTIFIER_QUOTE_CHAR,
                   m_IDQuoteChar, sizeof(m_IDQuoteChar), &nResult);
 
-  if (trace)
+  if (trace(1))
     htrc("DBMS: %s, Version: %s, rc=%d\n",
          GetStringInfo(SQL_DBMS_NAME), GetStringInfo(SQL_DBMS_VER), rc);
 
@@ -1447,7 +1458,7 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
     OnSetOptions(hstmt);
     b = true;
 
-    if (trace)
+    if (trace(1))
       htrc("ExecDirect hstmt=%p %.256s\n", hstmt, sql);
 
     if (m_Tdb->Srcdef) {
@@ -1498,7 +1509,7 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
       ThrowDBX(MSG(COL_NUM_MISM));
 
     // Now bind the column buffers
-    for (n = 1, colp = tocols; colp; colp = (PODBCCOL)colp->GetNext())
+    for (colp = tocols; colp; colp = (PODBCCOL)colp->GetNext())
       if (!colp->IsSpecial()) {
         buffer = colp->GetBuffer(m_RowsetSize);
         len = colp->GetBuflen();
@@ -1510,20 +1521,19 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
           ThrowDBX(m_G->Message);
           } // endif tp
 
-        if (trace)
+        if (trace(1))
           htrc("Binding col=%u type=%d buf=%p len=%d slen=%p\n",
                   n, tp, buffer, len, colp->GetStrLen());
 
-        rc = SQLBindCol(hstmt, n, tp, buffer, len, colp->GetStrLen());
+        rc = SQLBindCol(hstmt, colp->GetIndex(), tp, buffer, len, colp->GetStrLen());
 
         if (!Check(rc))
           ThrowDBX(rc, "SQLBindCol", hstmt);
 
-        n++;
         } // endif pcol
 
   } catch(DBX *x) {
-    if (trace)
+    if (trace(1))
       for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
         htrc(x->m_ErrMsg[i]);
 
@@ -1569,7 +1579,7 @@ int ODBConn::GetResultSize(char *sql, ODBCCOL *colp)
   } catch(DBX *x) {
     strcpy(m_G->Message, x->GetErrorMessage(0));
     
-    if (trace)
+    if (trace(1))
       for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
         htrc(x->m_ErrMsg[i]);
 
@@ -1610,7 +1620,7 @@ int ODBConn::Fetch(int pos)
     } // endif m_RowsetSize
 //    } while (rc == SQL_STILL_EXECUTING);
 
-    if (trace > 1)
+    if (trace(2))
       htrc("Fetch: hstmt=%p RowseSize=%d rc=%d\n",
                      m_hstmt, m_RowsetSize, rc);
 
@@ -1626,7 +1636,7 @@ int ODBConn::Fetch(int pos)
     m_Fetch++;
     m_Rows += irc;
   } catch(DBX *x) {
-    if (trace)
+    if (trace(1))
       for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
         htrc(x->m_ErrMsg[i]);
 
@@ -1662,7 +1672,7 @@ int ODBConn::PrepareSQL(char *sql)
 
       m_Transact = true;
     } catch(DBX *x) {
-      if (trace)
+      if (trace(1))
         for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
           htrc(x->m_ErrMsg[i]);
 
@@ -1693,7 +1703,7 @@ int ODBConn::PrepareSQL(char *sql)
     OnSetOptions(hstmt);
     b = true;
 
-    if (trace)
+    if (trace(1))
       htrc("Prepare hstmt=%p %.64s\n", hstmt, sql);
 
     do {
@@ -1708,7 +1718,7 @@ int ODBConn::PrepareSQL(char *sql)
       } while (rc == SQL_STILL_EXECUTING);
 
   } catch(DBX *x) {
-    if (trace)
+    if (trace(1))
       for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
         htrc(x->m_ErrMsg[i]);
 
@@ -1881,7 +1891,7 @@ bool ODBConn::ExecSQLcommand(char *sql)
     OnSetOptions(hstmt);
     b = true;
 
-    if (trace)
+    if (trace(1))
       htrc("ExecSQLcommand hstmt=%p %.64s\n", hstmt, sql);
 
     // Proceed with command execution
@@ -1908,7 +1918,7 @@ bool ODBConn::ExecSQLcommand(char *sql)
     } // endif ncol
 
   } catch(DBX *x) {
-		if (trace)
+		if (trace(1))
 			for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
 				htrc(x->m_ErrMsg[i]);
 
@@ -2268,7 +2278,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
   int      i, irc;
   bool     b;
   PCSZ     fnc = "Unknown";
-  UWORD    n;
+  UWORD    n = 0;
   SWORD    ncol, len, tp;
   SQLULEN  crow = 0;
   PQRYRES  qrp = cap->Qrp;
@@ -2343,11 +2353,11 @@ int ODBConn::GetCatInfo(CATPARM *cap)
     if (!Check(rc))
       ThrowDBX(rc, fnc, hstmt);
 
-    rc = SQLNumResultCols(hstmt, &ncol);
-
-    // n because we no more ignore the first column
-    if ((n = (UWORD)qrp->Nbcol) > (UWORD)ncol)
-      ThrowDBX(MSG(COL_NUM_MISM));
+		// Some data source do not implement SQLNumResultCols
+    if (Check(SQLNumResultCols(hstmt, &ncol)))
+      // n because we no more ignore the first column
+      if ((n = (UWORD)qrp->Nbcol) > (UWORD)ncol)
+        ThrowDBX(MSG(COL_NUM_MISM));
 
     // Unconditional to handle STRBLK's
     pval = (PVAL *)PlugSubAlloc(g, NULL, n * sizeof(PVAL));
@@ -2394,7 +2404,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
       if ((rc = SQLFetch(hstmt)) == SQL_NO_DATA_FOUND)
         break;
       else if (rc != SQL_SUCCESS) {
-        if (trace > 1 || (trace && rc != SQL_SUCCESS_WITH_INFO)) {
+        if (trace(2) || (trace(1) && rc != SQL_SUCCESS_WITH_INFO)) {
           UCHAR   msg[SQL_MAX_MESSAGE_LENGTH + 1];
           UCHAR   state[SQL_SQLSTATE_SIZE + 1];
           RETCODE erc;
@@ -2466,7 +2476,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
 
     irc = (int)crow;
   } catch(DBX *x) {
-    if (trace)
+    if (trace(1))
       for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
         htrc(x->m_ErrMsg[i]);
 
@@ -2605,12 +2615,12 @@ void ODBConn::Close()
 
     rc = SQLDisconnect(m_hdbc);
 
-    if (trace && rc != SQL_SUCCESS)
+    if (trace(1) && rc != SQL_SUCCESS)
       htrc("Error: SQLDisconnect rc=%d\n", rc);
 
     rc = SQLFreeConnect(m_hdbc);
 
-    if (trace && rc != SQL_SUCCESS)
+    if (trace(1) && rc != SQL_SUCCESS)
       htrc("Error: SQLFreeConnect rc=%d\n", rc);
 
     m_hdbc = SQL_NULL_HDBC;
@@ -2619,7 +2629,7 @@ void ODBConn::Close()
   if (m_henv != SQL_NULL_HENV) {
     rc = SQLFreeEnv(m_henv);
 
-    if (trace && rc != SQL_SUCCESS)   // Nothing we can do
+    if (trace(1) && rc != SQL_SUCCESS)   // Nothing we can do
       htrc("Error: SQLFreeEnv failure ignored in Close\n");
           
     m_henv = SQL_NULL_HENV;

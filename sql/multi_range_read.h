@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @defgroup DS-MRR declarations
@@ -631,8 +631,9 @@ private:
   
   bool choose_mrr_impl(uint keyno, ha_rows rows, uint *flags, uint *bufsz, 
                        Cost_estimate *cost);
-  bool get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags, 
-                               uint *buffer_size, Cost_estimate *cost);
+  bool get_disk_sweep_mrr_cost(uint keynr, ha_rows rows, uint flags,
+                               uint *buffer_size, uint extra_mem_overhead,
+                               Cost_estimate *cost);
   bool check_cpk_scan(THD *thd, TABLE_SHARE *share, uint keyno, uint mrr_flags);
 
   bool setup_buffer_sharing(uint key_size_in_keybuf, key_part_map key_tuple_map);

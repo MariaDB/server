@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -26,7 +26,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -38,13 +38,11 @@ InnoDB concurrency manager
 Created 2011/04/18 Sunny Bains
 *******************************************************/
 
-#include "ha_prototypes.h"
-#include <mysql/service_thd_wait.h>
-
 #include "srv0srv.h"
 #include "trx0trx.h"
 #include "row0mysql.h"
 #include "dict0dict.h"
+#include <mysql/service_thd_wait.h>
 #include <mysql/service_wsrep.h>
 
 /** Number of times a thread is allowed to enter InnoDB within the same
@@ -58,10 +56,8 @@ ulong	srv_thread_sleep_delay	= 10000;
 
 
 /** We are prepared for a situation that we have this many threads waiting for
-a semaphore inside InnoDB. innobase_start_or_create_for_mysql() sets the
-value. */
-
-ulint	srv_max_n_threads	= 0;
+a semaphore inside InnoDB. srv_start() sets the value. */
+ulint	srv_max_n_threads;
 
 /** The following controls how many threads we let inside InnoDB concurrently:
 threads waiting for locks are not counted into the number because otherwise
@@ -124,9 +120,8 @@ srv_conc_enter_innodb_with_atomics(
 	for (;;) {
 		ulint	sleep_in_us;
 #ifdef WITH_WSREP
-		if (wsrep_on(trx->mysql_thd) &&
-		    wsrep_trx_is_aborting(trx->mysql_thd)) {
-			if (wsrep_debug) {
+		if (trx->is_wsrep() && wsrep_trx_is_aborting(trx->mysql_thd)) {
+			if (UNIV_UNLIKELY(wsrep_debug)) {
 				ib::info() <<
 					"srv_conc_enter due to MUST_ABORT";
 			}
@@ -136,12 +131,9 @@ srv_conc_enter_innodb_with_atomics(
 #endif /* WITH_WSREP */
 
 		if (srv_thread_concurrency == 0) {
-
 			if (notified_mysql) {
-
-				(void) my_atomic_addlint(
-					&srv_conc.n_waiting, -1);
-
+				my_atomic_addlint(&srv_conc.n_waiting,
+						  ulint(-1));
 				thd_wait_end(trx->mysql_thd);
 			}
 
@@ -160,10 +152,8 @@ srv_conc_enter_innodb_with_atomics(
 				srv_enter_innodb_with_tickets(trx);
 
 				if (notified_mysql) {
-
-					(void) my_atomic_addlint(
-						&srv_conc.n_waiting, -1);
-
+					my_atomic_addlint(&srv_conc.n_waiting,
+							  ulint(-1));
 					thd_wait_end(trx->mysql_thd);
 				}
 
@@ -185,13 +175,11 @@ srv_conc_enter_innodb_with_atomics(
 			/* Since there were no free seats, we relinquish
 			the overbooked ticket. */
 
-			(void) my_atomic_addlint(
-				&srv_conc.n_active, -1);
+			my_atomic_addlint(&srv_conc.n_active, ulint(-1));
 		}
 
 		if (!notified_mysql) {
-			(void) my_atomic_addlint(
-				&srv_conc.n_waiting, 1);
+			my_atomic_addlint(&srv_conc.n_waiting, 1);
 
 			thd_wait_begin(trx->mysql_thd, THD_WAIT_USER_LOCK);
 
@@ -235,7 +223,7 @@ srv_conc_exit_innodb_with_atomics(
 	trx->n_tickets_to_enter_innodb = 0;
 	trx->declared_to_be_inside_innodb = FALSE;
 
-	(void) my_atomic_addlint(&srv_conc.n_active, -1);
+	my_atomic_addlint(&srv_conc.n_active, ulint(-1));
 }
 
 /*********************************************************************//**
@@ -327,14 +315,14 @@ wsrep_srv_conc_cancel_wait(
 	   srv_conc_enter_innodb_with_atomics(). No need to cancel here,
 	   thr will wake up after os_sleep and let to enter innodb
 	*/
-	if (wsrep_debug) {
+	if (UNIV_UNLIKELY(wsrep_debug)) {
 		ib::info() << "WSREP: conc slot cancel, no atomics";
 	}
 #else
 	// JAN: TODO: MySQL 5.7
 	//os_fast_mutex_lock(&srv_conc_mutex);
 	if (trx->wsrep_event) {
-		if (wsrep_debug) {
+		if (UNIV_UNLIKELY(wsrep_debug)) {
 			ib::info() << "WSREP: conc slot cancel";
 		}
 		os_event_set(trx->wsrep_event);

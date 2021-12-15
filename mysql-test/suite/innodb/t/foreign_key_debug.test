@@ -1,0 +1,78 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--enable_connect_log
+
+#
+# MDEV-16465 Invalid (old?) table or database name or hang in ha_innobase::delete_table and log semaphore wait upon concurrent DDL with foreign keys
+#
+create table t1 (f1 int primary key) engine=innodb;
+create table t2 (f2 int primary key) engine=innodb;
+create table t3 (f3 int primary key, foreign key (f3) references t2(f2)) engine=innodb;
+insert into t1 values (1),(2),(3),(4),(5);
+insert into t2 values (1),(2),(3),(4),(5);
+insert into t3 values (1),(2),(3),(4),(5);
+connect con1,localhost,root;
+set debug_sync='alter_table_before_rename_result_table signal g1 wait_for g2';
+send alter table t2 add constraint foreign key (f2) references t1(f1) on delete cascade on update cascade;
+connection default;
+let $conn=`select connection_id()`;
+set debug_sync='before_execute_sql_command wait_for g1';
+send update t1 set f1 = f1 + 100000 limit 2;
+connect con2,localhost,root;
+let $wait_condition= select 1 from information_schema.processlist where state='Waiting for table metadata lock' and info like 'update t1 %';
+source include/wait_condition.inc;
+--replace_result $conn UPDATE
+eval kill query $conn;
+disconnect con2;
+connection default;
+error ER_QUERY_INTERRUPTED;
+reap;
+set debug_sync='now signal g2';
+connection con1;
+reap;
+show create table t2;
+disconnect con1;
+connection default;
+select * from t2 where f2 not in (select f1 from t1);
+select * from t3 where f3 not in (select f2 from t2);
+drop table t3;
+drop table t2;
+drop table t1;
+set debug_sync='reset';
+
+--echo #
+--echo # MDEV-16060 - InnoDB: Failing assertion: ut_strcmp(index->name, key->name)
+--echo #
+CREATE TABLE t1 (`pk` INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 LIKE t1;
+FLUSH TABLES;
+
+SET debug_sync='alter_table_intermediate_table_created SIGNAL ready WAIT_FOR go';
+send ALTER TABLE t1 ADD FOREIGN KEY(pk) REFERENCES t2(pk) ON UPDATE CASCADE;
+
+connect con1, localhost, root;
+SET debug_sync='now WAIT_FOR ready';
+SET lock_wait_timeout=1; # change to 0 in 10.3
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t2 SET pk=10 WHERE pk=1;
+PREPARE stmt FROM 'UPDATE t2 SET pk=10 WHERE pk=1';
+DEALLOCATE PREPARE stmt;
+FLUSH TABLE t2;
+SET debug_sync='now SIGNAL go';
+
+connection default;
+reap;
+
+# Cleanup
+disconnect con1;
+
+connection default;
+SET debug_sync='reset';
+SHOW OPEN TABLES FROM test;
+DROP TABLE t1, t2;
+
+#
+# End of 10.1 tests
+#

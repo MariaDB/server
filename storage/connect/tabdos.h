@@ -29,6 +29,8 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   friend class TXTFAM;
   friend class DBFBASE;
 	friend class UNZIPUTL;
+	friend class JSONCOL;
+	friend class TDBDCL;
  public:
   // Constructor
   DOSDEF(void);
@@ -79,7 +81,6 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
 	PCSZ    Entry;						  /* Zip entry name or pattern						 */
 	PCSZ    Pwd;						    /* Zip password             						 */
 	PIXDEF  To_Indx;            /* To index definitions blocks           */
-  RECFM   Recfm;              /* 0:VAR, 1:FIX, 2:BIN, 3:VCT, 6:DBF     */
   bool    Mapped;             /* 0: disk file, 1: memory mapped file   */
 	bool    Zipped;             /* true for zipped table file            */
 	bool    Mulentries;         /* true for multiple entries             */

@@ -24,6 +24,7 @@ backup: t2
 backup: t3
 backup: t4
 backup: t5
+db.opt
 t1.cfg
 t1.frm
 t1.ibd

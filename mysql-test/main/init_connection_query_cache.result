@@ -1,0 +1,24 @@
+#
+# MDEV-4520: Assertion `0' fails in Query_cache::end_of_result on
+# concurrent drop event and event execution
+#
+set @save_query_cache_size=@@query_cache_size;
+set GLOBAL query_cache_size=1355776;
+create user mysqltest1@localhost;
+grant SELECT on test.* to mysqltest1@localhost;
+create table t1 (a int);
+connect  con1,localhost,mysqltest1,,;
+connection con1;
+# This explain put here to be sure that init connection query
+# has 'Impossible WHERE'.
+explain extended select * from test.t1 where 0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 0
+connection default;
+disconnect con1;
+revoke all privileges, grant option from mysqltest1@localhost;
+drop user mysqltest1@localhost;
+drop table t1;
+set GLOBAL query_cache_size=@save_query_cache_size;

@@ -1,10 +1,22 @@
 package wrappers;
 
-import java.math.*;
-import java.sql.*;
+import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.Date;
+import java.sql.Driver;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Time;
+import java.sql.Timestamp;
 import java.util.Collections;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.UUID;
 
 import javax.sql.DataSource;
 
@@ -223,6 +235,24 @@ public class JdbcInterface {
     	
     } // end of SetTimestampParm
     
+	public void SetUuidParm(int i, String s) {
+		try {
+			UUID uuid;
+
+			if (s == null)
+				uuid = null;
+			else if (s.isEmpty())
+				uuid = UUID.randomUUID();
+			else
+				uuid = UUID.fromString(s);
+
+			pstmt.setObject(i, uuid);
+		} catch (Exception e) {
+			SetErrmsg(e);
+		} // end try/catch
+
+	} // end of SetUuidParm
+
     public int SetNullParm(int i, int typ) {
     	int rc = 0;
     	
@@ -481,6 +511,8 @@ public class JdbcInterface {
 		System.out.println("Executing query '" + query + "'");
     	
       try {
+			if (rs != null)
+				rs.close();
     	rs = stmt.executeQuery(query);
 		rsmd = rs.getMetaData();
     	ncol = rsmd.getColumnCount();
@@ -708,7 +740,7 @@ public class JdbcInterface {
 	  return 0;  
 	} // end of TimestampField
     
-    public Object ObjectField(int n, String name) {
+  public Object ObjectField(int n, String name) {
 	  if (rs == null) {
 		System.out.println("No result set");
 	  } else try {
@@ -720,6 +752,22 @@ public class JdbcInterface {
 	  return null;  
 	} // end of ObjectField
 	    
+	public String UuidField(int n, String name) {
+		Object job;
+
+		if (rs == null) {
+			System.out.println("No result set");
+		} else
+			try {
+				job = (n > 0) ? rs.getObject(n) : rs.getObject(name);
+				return job.toString();
+			} catch (SQLException se) {
+				SetErrmsg(se);
+			} // end try/catch
+
+		return null;
+	} // end of UuidField
+
     public int GetDrivers(String[] s, int mxs) {
     	int n = 0;
     	List<Driver> drivers = Collections.list(DriverManager.getDrivers());

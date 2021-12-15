@@ -1,3 +1,4 @@
+FLUSH TABLES;
 CREATE TABLE t1 (a SERIAL, b INT, c INT, d INT) ENGINE=InnoDB;
 INSERT INTO t1 () VALUES ();
 connect  con1,localhost,root,,test;

@@ -1,0 +1,4 @@
+!include suite/rpl/my.cnf
+
+[mysqld.1]
+binlog_format=row

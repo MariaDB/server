@@ -1,0 +1,26 @@
+--disable_warnings
+--disable_query_log
+--disable_result_log
+--source test_init.inc
+--enable_result_log
+--enable_query_log
+--enable_warnings
+
+--echo
+--echo Show system tables on the Spider node
+--connection master_1
+--sorted_result
+SELECT table_name, engine FROM information_schema.tables
+    WHERE table_schema = 'mysql' AND table_name like '%spider_%';
+
+--echo
+--echo deinit
+--disable_warnings
+--disable_query_log
+--disable_result_log
+--source test_deinit.inc
+--enable_result_log
+--enable_query_log
+--enable_warnings
+--echo
+--echo end of test

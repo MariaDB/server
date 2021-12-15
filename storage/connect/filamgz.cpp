@@ -17,21 +17,21 @@
 /*  Include relevant MariaDB header file.                  */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <fcntl.h>
 #if defined(__BORLANDC__)
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #if defined(UNIX)
 #include <errno.h>
 #else   // !UNIX
 #include <io.h>
 #endif
 #include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -89,11 +89,11 @@ int GZFAM::Zerror(PGLOBAL g)
   strcpy(g->Message, gzerror(Zfile, &errnum));
 
   if (errnum == Z_ERRNO)
-#if defined(__WIN__)
+#if defined(_WIN32)
     sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(NULL));
-#else   // !__WIN__
+#else   // !_WIN32
     sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(errno));
-#endif  // !__WIN__
+#endif  // !_WIN32
 
     return (errnum == Z_STREAM_END) ? RC_EF : RC_FX;
   } // end of Zerror
@@ -203,7 +203,7 @@ bool GZFAM::AllocateBuffer(PGLOBAL g)
   Buflen = Lrecl + 2;                     // Lrecl does not include CRLF
 //Buflen *= ((Mode == MODE_DELETE) ? DOS_BUFF_LEN : 1);    NIY
 
-  if (trace)
+  if (trace(1))
     htrc("SubAllocating a buffer of %d bytes\n", Buflen);
 
   To_Buf = (char*)PlugSubAlloc(g, NULL, Buflen);
@@ -347,7 +347,7 @@ int GZFAM::ReadBuffer(PGLOBAL g)
   } else
     rc = Zerror(g);
 
-  if (trace > 1)
+  if (trace(2))
     htrc(" Read: '%s' rc=%d\n", To_Buf, rc);
 
   return rc;
@@ -389,7 +389,7 @@ void GZFAM::CloseTableFile(PGLOBAL, bool)
   {
   int rc = gzclose(Zfile);
 
-  if (trace)
+  if (trace(1))
     htrc("GZ CloseDB: closing %s rc=%d\n", To_File, rc);
 
   Zfile = NULL;            // So we can know whether table is open
@@ -702,7 +702,7 @@ void ZBKFAM::CloseTableFile(PGLOBAL g, bool)
   } else
     rc = gzclose(Zfile);
 
-  if (trace)
+  if (trace(1))
     htrc("GZ CloseDB: closing %s rc=%d\n", To_File, rc);
 
   Zfile = NULL;            // So we can know whether table is open
@@ -764,9 +764,9 @@ bool GZXFAM::AllocateBuffer(PGLOBAL g)
     if (Tdbp->GetFtype() < 2)
       // if not binary, the file is physically a text file
       for (int len = Lrecl; len <= Buflen; len += Lrecl) {
-#if defined(__WIN__)
+#if defined(_WIN32)
         To_Buf[len - 2] = '\r';
-#endif   // __WIN__
+#endif   // _WIN32
         To_Buf[len - 1] = '\n';
         } // endfor len
 
@@ -1382,7 +1382,7 @@ void ZLBFAM::CloseTableFile(PGLOBAL g, bool)
   } else
     rc = fclose(Stream);
 
-  if (trace)
+  if (trace(1))
     htrc("ZLB CloseTableFile: closing %s mode=%d rc=%d\n",
          To_File, Tdbp->GetMode(), rc);
 
@@ -1408,7 +1408,7 @@ void ZLBFAM::Rewind(void)
 
       rewind(Stream);
 
-			if (!(st = fread(Zlenp, sizeof(int), 1, Stream)) && trace)
+			if (!(st = fread(Zlenp, sizeof(int), 1, Stream)) && trace(1))
 				htrc("fread error %d in Rewind", errno);
 
       fseek(Stream, *Zlenp + sizeof(int), SEEK_SET);

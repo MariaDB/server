@@ -1,0 +1,28 @@
+--source include/have_debug.inc
+
+CREATE TABLE t1(i INT PRIMARY KEY auto_increment, a int) ENGINE INNODB;
+INSERT INTO t1(a) SELECT * from seq_1_to_10000;
+SET GLOBAL innodb_log_optimize_ddl=ON;
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+let after_copy_test_t1=CREATE INDEX a_ind ON test.t1(a) ALGORITHM=INPLACE;
+echo # xtrabackup backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup  --target-dir=$targetdir  --dbug=+d,mariabackup_events;
+--enable_result_log
+
+--list_files $targetdir/test t1*
+--let before_copy_test_t1=
+
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+# Check that new table is there after restore.
+SELECT COUNT(*) from t1;
+DROP TABLE t1;
+rmdir $targetdir;
+

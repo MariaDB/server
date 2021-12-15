@@ -1331,6 +1331,93 @@ rec2.a	rec2.b
 DROP PROCEDURE p1;
 DROP TABLE t1;
 #
+# MDEV-15941 Explicit cursor FOR loop does not close the cursor
+#
+DECLARE
+CURSOR cur IS SELECT 1 AS a FROM DUAL;
+v INT;
+BEGIN
+FOR rec IN cur
+LOOP
+NULL;
+END LOOP;
+FETCH cur INTO v;
+END;
+$$
+ERROR 24000: Cursor is not open
+DECLARE
+CURSOR cur IS SELECT 1 AS a FROM DUAL;
+v INT;
+BEGIN
+<<label>>
+FOR rec IN cur
+LOOP
+NULL;
+END LOOP label;
+FETCH cur INTO v;
+END;
+$$
+ERROR 24000: Cursor is not open
+DECLARE
+CURSOR cur IS SELECT 1 AS a FROM DUAL;
+BEGIN
+OPEN cur;
+FOR rec IN cur
+LOOP
+NULL;
+END LOOP;
+END;
+$$
+ERROR 24000: Cursor is already open
+DECLARE
+CURSOR cur IS SELECT 1 AS a FROM DUAL;
+BEGIN
+FOR rec IN cur
+LOOP
+SELECT rec.a;
+END LOOP;
+SELECT cur%ISOPEN;
+FOR rec IN cur
+LOOP
+SELECT rec.a;
+END LOOP;
+SELECT cur%ISOPEN;
+END;
+$$
+rec.a
+1
+cur%ISOPEN
+0
+rec.a
+1
+cur%ISOPEN
+0
+DECLARE
+CURSOR cur IS SELECT 1 AS a FROM DUAL;
+BEGIN
+<<label1>>
+FOR rec IN cur
+LOOP
+SELECT rec.a;
+END LOOP label1;
+SELECT cur%ISOPEN;
+<<label2>>
+FOR rec IN cur
+LOOP
+SELECT rec.a;
+END LOOP;
+SELECT cur%ISOPEN;
+END;
+$$
+rec.a
+1
+cur%ISOPEN
+0
+rec.a
+1
+cur%ISOPEN
+0
+#
 # MDEV-14139 Anchored data types for variables
 #
 DECLARE
@@ -1391,4 +1478,29 @@ SELECT f1();
 f1()
 1
 DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# MDEV-17278 CURSOR FOR LOOP - ERROR: unexpected end of stream, read 0 bytes (SERVER CRASH)
+#
+CREATE TABLE t1 (id2 int, id int, en1 enum('aaa','a','b','c'));
+INSERT INTO t1 VALUES(1,1,'aaa'),(2,2,'a'),(3,3,'b'),(4,4,'c');
+CREATE PROCEDURE p1()
+AS
+BEGIN
+FOR rec IN (SELECT en1 FROM t1)
+LOOP
+SELECT rec.en1;
+END LOOP;
+END;
+$$
+CALL p1();
+rec.en1
+aaa
+rec.en1
+a
+rec.en1
+b
+rec.en1
+c
+DROP PROCEDURE p1;
 DROP TABLE t1;

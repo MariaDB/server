@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -218,16 +218,9 @@ int Sql_cmd_common_signal::eval_signal_informations(THD *thd, Sql_condition *con
        i <= LAST_DIAG_SET_PROPERTY;
        i++)
   {
-    set= m_set_signal_information.m_item[i];
-    if (set)
-    {
-      if (! set->fixed)
-      {
-        if (set->fix_fields(thd, & set))
-          goto end;
-        m_set_signal_information.m_item[i]= set;
-      }
-    }
+    if ((set= m_set_signal_information.m_item[i]) &&
+        set->fix_fields_if_needed(thd, &m_set_signal_information.m_item[i]))
+      goto end;
   }
 
   /*
@@ -262,12 +255,13 @@ int Sql_cmd_common_signal::eval_signal_informations(THD *thd, Sql_condition *con
     }
     /*
       Enforce that SET MESSAGE_TEXT = <value> evaluates the value
-      as VARCHAR(128) CHARACTER SET UTF8.
+      as VARCHAR(MYSQL_ERRMSG_SIZE) CHARACTER SET UTF8.
     */
     bool truncated;
     String utf8_text;
     str= set->val_str(& str_value);
-    truncated= assign_fixed_string(thd->mem_root, & my_charset_utf8_bin, 128,
+    truncated= assign_fixed_string(thd->mem_root, & my_charset_utf8_bin,
+                                   MYSQL_ERRMSG_SIZE,
                                    & utf8_text, str);
     if (truncated)
     {
@@ -318,7 +312,7 @@ int Sql_cmd_common_signal::eval_signal_informations(THD *thd, Sql_condition *con
     The various item->val_xxx() methods don't return an error code,
     but flag thd in case of failure.
   */
-  if (! thd->is_error())
+  if (likely(!thd->is_error()))
     result= 0;
 
 end:
@@ -349,13 +343,15 @@ bool Sql_cmd_common_signal::raise_condition(THD *thd, Sql_condition *cond)
   if (eval_signal_informations(thd, cond))
     DBUG_RETURN(result);
 
-  /* SIGNAL should not signal WARN_LEVEL_NOTE */
-  DBUG_ASSERT((cond->m_level == Sql_condition::WARN_LEVEL_WARN) ||
-              (cond->m_level == Sql_condition::WARN_LEVEL_ERROR));
+  /* SIGNAL should not signal WARN_LEVEL_NOTE, but RESIGNAL can */
+  DBUG_ASSERT(cond->m_level == Sql_condition::WARN_LEVEL_ERROR ||
+              cond->m_level != Sql_condition::WARN_LEVEL_NOTE ||
+              sql_command_code() == SQLCOM_RESIGNAL);
 
   (void) thd->raise_condition(cond);
 
-  if (cond->m_level == Sql_condition::WARN_LEVEL_WARN)
+  if (cond->m_level == Sql_condition::WARN_LEVEL_WARN ||
+      cond->m_level == Sql_condition::WARN_LEVEL_NOTE)
   {
     my_ok(thd);
     result= FALSE;

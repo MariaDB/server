@@ -1,0 +1,9 @@
+CREATE TABLE t1 (a VARCHAR(7), b text, FULLTEXT KEY idx (a,b)) ENGINE=InnoDB;
+COMMIT;
+SELECT COUNT(*) FROM t1
+WHERE MATCH (a,b) AGAINST ('foo bar' IN BOOLEAN MODE);
+connect  con1,localhost,root,,;
+KILL QUERY @id;
+disconnect con1;
+connection default;
+DROP TABLE t1;

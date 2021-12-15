@@ -13,7 +13,7 @@
    You should have received a copy of the GNU General Public License
    along with this program; see the file COPYING. If not, write to the
    Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-   MA  02110-1301  USA.
+   MA  02110-1335  USA.
 */
 
 
@@ -242,11 +242,11 @@ void SetErrorString(YasslError error, char* buffer)
         strncpy(buffer, "ASN: bad Signature Length", max);
         break;
 
-    case UNKOWN_SIG_E :
+    case UNKNOWN_SIG_E :
         strncpy(buffer, "ASN: unknown signature OID", max);
         break;
 
-    case UNKOWN_HASH_E :
+    case UNKNOWN_HASH_E :
         strncpy(buffer, "ASN: unknown hash OID", max);
         break;
 

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Testing of the basic functions of a MARIA table */
 
@@ -291,6 +291,11 @@ static int run_test(const char *filename)
     }
     if (!silent)
       printf("- Updating rows\n");
+
+    create_key(key, j);
+    if ((maria_rkey(file, read_record, 0, key,
+                           HA_WHOLE_KEY, HA_READ_KEY_EXACT)))
+      printf("Can't find last written row with maria_rkey\n");
 
     /* Update first last row to force extend of file */
     if (maria_rsame(file,read_record,-1))

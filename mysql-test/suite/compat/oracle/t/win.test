@@ -1,0 +1,22 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-13384: "window" seems like a reserved column name but it's not listed as one
+--echo #
+--echo # Currently we allow window as an identifier, except for table aliases.
+--echo #
+
+CREATE TABLE door (id INT, window VARCHAR(10));
+
+--error ER_PARSE_ERROR
+SELECT id
+FROM door as window;
+
+SELECT id, window
+FROM door;
+
+--error ER_PARSE_ERROR
+SELECT id, window
+FROM door as window;
+
+DROP TABLE door;

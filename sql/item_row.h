@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   Row items used for comparing rows and IN operations on rows:
@@ -58,9 +58,9 @@ public:
   const Type_handler *type_handler() const { return &type_handler_row; }
   void illegal_method_call(const char *);
   bool is_null() { return null_value; }
-  void make_field(THD *thd, Send_field *)
+  void make_send_field(THD *thd, Send_field *)
   {
-    illegal_method_call((const char*)"make_field");
+    illegal_method_call((const char*)"make_send_field");
   };
   double val_real()
   {

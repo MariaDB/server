@@ -29,12 +29,12 @@ SELECT Json_Make_Array(Json_Make_Array(56, 3.1416, 'foo'), TRUE);
 --error ER_CANT_INITIALIZE_UDF
 SELECT Json_Array_Add(Json_Make_Array(56, 3.1416, 'foo', NULL)) Array;
 SELECT Json_Array_Add(Json_Make_Array(56, 3.1416, 'foo', NULL), 'One more') Array;
---error ER_CANT_INITIALIZE_UDF
+#--error ER_CANT_INITIALIZE_UDF
 SELECT Json_Array_Add(JsonValue('one value'), 'One more');
---error ER_CANT_INITIALIZE_UDF
+#--error ER_CANT_INITIALIZE_UDF
 SELECT Json_Array_Add('one value', 'One more');
 SELECT Json_Array_Add('one value' json_, 'One more');
---error ER_CANT_INITIALIZE_UDF
+#--error ER_CANT_INITIALIZE_UDF
 SELECT Json_Array_Add(5 json_, 'One more');
 SELECT Json_Array_Add('[5,3,8,7,9]' json_, 4, 0);
 SELECT Json_Array_Add('[5,3,8,7,9]' json_, 4, 2) Array;

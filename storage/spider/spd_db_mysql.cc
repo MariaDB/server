@@ -1,4 +1,4 @@
-/* Copyright (C) 2012-2017 Kentoku Shiba
+/* Copyright (C) 2012-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
@@ -56,6 +56,9 @@ extern HASH spider_open_connections;
 extern HASH spider_ipport_conns;
 extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 extern const char spider_dig_upper[];
+
+spider_db_mysql_util spider_db_mysql_utility;
+spider_db_mariadb_util spider_db_mariadb_utility;
 
 #define SPIDER_SQL_NAME_QUOTE_STR "`"
 #define SPIDER_SQL_NAME_QUOTE_LEN (sizeof(SPIDER_SQL_NAME_QUOTE_STR) - 1)
@@ -108,6 +111,15 @@ static const char *name_quote_str = SPIDER_SQL_NAME_QUOTE_STR;
 #define SPIDER_SQL_LOCK_TABLE_LEN (sizeof(SPIDER_SQL_LOCK_TABLE_STR) - 1)
 #define SPIDER_SQL_UNLOCK_TABLE_STR "unlock tables"
 #define SPIDER_SQL_UNLOCK_TABLE_LEN (sizeof(SPIDER_SQL_UNLOCK_TABLE_STR) - 1)
+
+#define SPIDER_SQL_LEFT_JOIN_STR " left join "
+#define SPIDER_SQL_LEFT_JOIN_LEN (sizeof(SPIDER_SQL_LEFT_JOIN_STR) - 1)
+#define SPIDER_SQL_RIGHT_JOIN_STR " right join "
+#define SPIDER_SQL_RIGHT_JOIN_LEN (sizeof(SPIDER_SQL_RIGHT_JOIN_STR) - 1)
+#define SPIDER_SQL_JOIN_STR " join "
+#define SPIDER_SQL_JOIN_LEN (sizeof(SPIDER_SQL_JOIN_STR) - 1)
+#define SPIDER_SQL_ON_STR " on "
+#define SPIDER_SQL_ON_LEN (sizeof(SPIDER_SQL_ON_STR) - 1)
 
 #define SPIDER_SQL_SHOW_TABLE_STATUS_STR "show table status from "
 #define SPIDER_SQL_SHOW_TABLE_STATUS_LEN sizeof(SPIDER_SQL_SHOW_TABLE_STATUS_STR) - 1
@@ -179,15 +191,30 @@ static const char *spider_db_timefunc_interval_str[] =
   " minute_microsecond", " second_microsecond"
 };
 
+/* UTC time zone for timestamp columns */
+extern Time_zone *UTC;
+
 int spider_mysql_init()
 {
   DBUG_ENTER("spider_mysql_init");
   DBUG_RETURN(0);
 }
 
+int spider_mariadb_init()
+{
+  DBUG_ENTER("spider_mariadb_init");
+  DBUG_RETURN(0);
+}
+
 int spider_mysql_deinit()
 {
   DBUG_ENTER("spider_mysql_deinit");
+  DBUG_RETURN(0);
+}
+
+int spider_mariadb_deinit()
+{
+  DBUG_ENTER("spider_mariadb_deinit");
   DBUG_RETURN(0);
 }
 
@@ -198,13 +225,29 @@ spider_db_share *spider_mysql_create_share(
   DBUG_RETURN(new spider_mysql_share(share));
 }
 
+spider_db_share *spider_mariadb_create_share(
+  SPIDER_SHARE *share
+) {
+  DBUG_ENTER("spider_mariadb_create_share");
+  DBUG_RETURN(new spider_mariadb_share(share));
+}
+
 spider_db_handler *spider_mysql_create_handler(
   ha_spider *spider,
   spider_db_share *db_share
 ) {
   DBUG_ENTER("spider_mysql_create_handler");
   DBUG_RETURN(new spider_mysql_handler(spider,
-    (spider_mysql_share *) db_share));
+    (spider_mbase_share *) db_share));
+}
+
+spider_db_handler *spider_mariadb_create_handler(
+  ha_spider *spider,
+  spider_db_share *db_share
+) {
+  DBUG_ENTER("spider_mariadb_create_handler");
+  DBUG_RETURN(new spider_mariadb_handler(spider,
+    (spider_mbase_share *) db_share));
 }
 
 spider_db_copy_table *spider_mysql_create_copy_table(
@@ -212,7 +255,15 @@ spider_db_copy_table *spider_mysql_create_copy_table(
 ) {
   DBUG_ENTER("spider_mysql_create_copy_table");
   DBUG_RETURN(new spider_mysql_copy_table(
-    (spider_mysql_share *) db_share));
+    (spider_mbase_share *) db_share));
+}
+
+spider_db_copy_table *spider_mariadb_create_copy_table(
+  spider_db_share *db_share
+) {
+  DBUG_ENTER("spider_mariadb_create_copy_table");
+  DBUG_RETURN(new spider_mariadb_copy_table(
+    (spider_mbase_share *) db_share));
 }
 
 SPIDER_DB_CONN *spider_mysql_create_conn(
@@ -222,13 +273,24 @@ SPIDER_DB_CONN *spider_mysql_create_conn(
   DBUG_RETURN(new spider_db_mysql(conn));
 }
 
+SPIDER_DB_CONN *spider_mariadb_create_conn(
+  SPIDER_CONN *conn
+) {
+  DBUG_ENTER("spider_mariadb_create_conn");
+  DBUG_RETURN(new spider_db_mariadb(conn));
+}
+
 bool spider_mysql_support_direct_join(
 ) {
   DBUG_ENTER("spider_mysql_support_direct_join");
   DBUG_RETURN(TRUE);
 }
 
-spider_db_mysql_util spider_db_mysql_utility;
+bool spider_mariadb_support_direct_join(
+) {
+  DBUG_ENTER("spider_mariadb_support_direct_join");
+  DBUG_RETURN(TRUE);
+}
 
 SPIDER_DBTON spider_dbton_mysql = {
   0,
@@ -244,18 +306,49 @@ SPIDER_DBTON spider_dbton_mysql = {
   &spider_db_mysql_utility
 };
 
-spider_db_mysql_row::spider_db_mysql_row() :
-  spider_db_row(spider_dbton_mysql.dbton_id),
+SPIDER_DBTON spider_dbton_mariadb = {
+  0,
+  SPIDER_DB_WRAPPER_MARIADB,
+  SPIDER_DB_ACCESS_TYPE_SQL,
+  spider_mariadb_init,
+  spider_mariadb_deinit,
+  spider_mariadb_create_share,
+  spider_mariadb_create_handler,
+  spider_mariadb_create_copy_table,
+  spider_mariadb_create_conn,
+  spider_mariadb_support_direct_join,
+  &spider_db_mariadb_utility
+};
+
+spider_db_mbase_row::spider_db_mbase_row(
+  uint dbton_id
+) : spider_db_row(dbton_id),
   row(NULL), lengths(NULL), cloned(FALSE)
+{
+  DBUG_ENTER("spider_db_mbase_row::spider_db_mbase_row");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_db_mysql_row::spider_db_mysql_row() :
+  spider_db_mbase_row(spider_db_mysql_utility.dbton_id)
 {
   DBUG_ENTER("spider_db_mysql_row::spider_db_mysql_row");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_VOID_RETURN;
 }
 
-spider_db_mysql_row::~spider_db_mysql_row()
+spider_db_mariadb_row::spider_db_mariadb_row() :
+  spider_db_mbase_row(spider_db_mariadb_utility.dbton_id)
 {
-  DBUG_ENTER("spider_db_mysql_row::~spider_db_mysql_row");
+  DBUG_ENTER("spider_db_mariadb_row::spider_db_mariadb_row");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_db_mbase_row::~spider_db_mbase_row()
+{
+  DBUG_ENTER("spider_db_mbase_row::~spider_db_mbase_row");
   DBUG_PRINT("info",("spider this=%p", this));
   if (cloned)
   {
@@ -264,11 +357,25 @@ spider_db_mysql_row::~spider_db_mysql_row()
   DBUG_VOID_RETURN;
 }
 
-int spider_db_mysql_row::store_to_field(
+spider_db_mysql_row::~spider_db_mysql_row()
+{
+  DBUG_ENTER("spider_db_mysql_row::~spider_db_mysql_row");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_db_mariadb_row::~spider_db_mariadb_row()
+{
+  DBUG_ENTER("spider_db_mariadb_row::~spider_db_mariadb_row");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+int spider_db_mbase_row::store_to_field(
   Field *field,
   CHARSET_INFO *access_charset
 ) {
-  DBUG_ENTER("spider_db_mysql_row::store_to_field");
+  DBUG_ENTER("spider_db_mbase_row::store_to_field");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!*row)
   {
@@ -305,10 +412,10 @@ int spider_db_mysql_row::store_to_field(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_row::append_to_str(
+int spider_db_mbase_row::append_to_str(
   spider_string *str
 ) {
-  DBUG_ENTER("spider_db_mysql_row::append_to_str");
+  DBUG_ENTER("spider_db_mbase_row::append_to_str");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(*lengths))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -316,11 +423,11 @@ int spider_db_mysql_row::append_to_str(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_row::append_escaped_to_str(
+int spider_db_mbase_row::append_escaped_to_str(
   spider_string *str,
   uint dbton_id
 ) {
-  DBUG_ENTER("spider_db_mysql_row::append_escaped_to_str");
+  DBUG_ENTER("spider_db_mbase_row::append_escaped_to_str");
   DBUG_PRINT("info",("spider this=%p", this));
   spider_string tmp_str(*row, *lengths + 1, str->charset());
   tmp_str.init_calc_mem(133);
@@ -331,50 +438,50 @@ int spider_db_mysql_row::append_escaped_to_str(
   DBUG_RETURN(0);
 }
 
-void spider_db_mysql_row::first()
+void spider_db_mbase_row::first()
 {
-  DBUG_ENTER("spider_db_mysql_row::first");
+  DBUG_ENTER("spider_db_mbase_row::first");
   DBUG_PRINT("info",("spider this=%p", this));
   row = row_first;
   lengths = lengths_first;
   DBUG_VOID_RETURN;
 }
 
-void spider_db_mysql_row::next()
+void spider_db_mbase_row::next()
 {
-  DBUG_ENTER("spider_db_mysql_row::next");
+  DBUG_ENTER("spider_db_mbase_row::next");
   DBUG_PRINT("info",("spider this=%p", this));
   row++;
   lengths++;
   DBUG_VOID_RETURN;
 }
 
-bool spider_db_mysql_row::is_null()
+bool spider_db_mbase_row::is_null()
 {
-  DBUG_ENTER("spider_db_mysql_row::is_null");
+  DBUG_ENTER("spider_db_mbase_row::is_null");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(!(*row));
 }
 
-int spider_db_mysql_row::val_int()
+int spider_db_mbase_row::val_int()
 {
-  DBUG_ENTER("spider_db_mysql_row::val_int");
+  DBUG_ENTER("spider_db_mbase_row::val_int");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(*row ? atoi(*row) : 0);
 }
 
-double spider_db_mysql_row::val_real()
+double spider_db_mbase_row::val_real()
 {
-  DBUG_ENTER("spider_db_mysql_row::val_real");
+  DBUG_ENTER("spider_db_mbase_row::val_real");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(*row ? my_atof(*row) : 0.0);
 }
 
-my_decimal *spider_db_mysql_row::val_decimal(
+my_decimal *spider_db_mbase_row::val_decimal(
   my_decimal *decimal_value,
   CHARSET_INFO *access_charset
 ) {
-  DBUG_ENTER("spider_db_mysql_row::val_decimal");
+  DBUG_ENTER("spider_db_mbase_row::val_decimal");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!*row)
     DBUG_RETURN(NULL);
@@ -390,24 +497,30 @@ my_decimal *spider_db_mysql_row::val_decimal(
   DBUG_RETURN(decimal_value);
 }
 
-SPIDER_DB_ROW *spider_db_mysql_row::clone()
+SPIDER_DB_ROW *spider_db_mbase_row::clone()
 {
-  spider_db_mysql_row *clone_row;
+  spider_db_mbase_row *clone_row;
   char *tmp_char;
   MYSQL_ROW tmp_row = row_first, ctmp_row;
   ulong *tmp_lengths = lengths_first;
   uint row_size, i;
-  DBUG_ENTER("spider_db_mysql_row::clone");
+  DBUG_ENTER("spider_db_mbase_row::clone");
   DBUG_PRINT("info",("spider this=%p", this));
-  if (!(clone_row = new spider_db_mysql_row()))
+  if (!(clone_row = new spider_db_mbase_row(dbton_id)))
   {
     DBUG_RETURN(NULL);
   }
-  row_size = field_count;
-  for (i = 0; i < field_count; i++)
+  if (!record_size)
   {
-    row_size += *tmp_lengths;
-    tmp_lengths++;
+    row_size = field_count;
+    for (i = 0; i < field_count; i++)
+    {
+      row_size += *tmp_lengths;
+      tmp_lengths++;
+    }
+    record_size = row_size - field_count;
+  } else {
+    row_size = record_size + field_count;
   }
   if (!spider_bulk_malloc(spider_current_trx, 29, MYF(MY_WME),
     &clone_row->row, sizeof(char*) * field_count,
@@ -439,20 +552,21 @@ SPIDER_DB_ROW *spider_db_mysql_row::clone()
     tmp_row++;
   }
   clone_row->field_count = field_count;
+  clone_row->record_size = record_size;
   clone_row->row_first = clone_row->row;
   clone_row->lengths_first = clone_row->lengths;
   clone_row->cloned = TRUE;
   DBUG_RETURN((SPIDER_DB_ROW *) clone_row);
 }
 
-int spider_db_mysql_row::store_to_tmp_table(
+int spider_db_mbase_row::store_to_tmp_table(
   TABLE *tmp_table,
   spider_string *str
 ) {
   uint i;
   MYSQL_ROW tmp_row = row;
   ulong *tmp_lengths = lengths;
-  DBUG_ENTER("spider_db_mysql_row::store_to_tmp_table");
+  DBUG_ENTER("spider_db_mbase_row::store_to_tmp_table");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(0);
   for (i = 0; i < field_count; i++)
@@ -481,18 +595,54 @@ int spider_db_mysql_row::store_to_tmp_table(
   DBUG_RETURN(tmp_table->file->ha_write_row(tmp_table->record[0]));
 }
 
-spider_db_mysql_result::spider_db_mysql_result(SPIDER_DB_CONN *in_db_conn) :
-  spider_db_result(in_db_conn, spider_dbton_mysql.dbton_id),
-  db_result(NULL)
+uint spider_db_mbase_row::get_byte_size()
+{
+  ulong *tmp_lengths = lengths_first;
+  uint i;
+  DBUG_ENTER("spider_db_mbase_row::get_byte_size");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (!record_size)
+  {
+    for (i = 0; i < field_count; i++)
+    {
+      record_size += *tmp_lengths;
+      tmp_lengths++;
+    }
+  }
+  DBUG_RETURN(record_size);
+}
+
+spider_db_mbase_result::spider_db_mbase_result(
+  SPIDER_DB_CONN *in_db_conn
+) : spider_db_result(in_db_conn),
+  db_result(NULL), row(in_db_conn->dbton_id)
+{
+  DBUG_ENTER("spider_db_mbase_result::spider_db_mbase_result");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_db_mysql_result::spider_db_mysql_result(
+  SPIDER_DB_CONN *in_db_conn
+) : spider_db_mbase_result(in_db_conn)
 {
   DBUG_ENTER("spider_db_mysql_result::spider_db_mysql_result");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_VOID_RETURN;
 }
 
-spider_db_mysql_result::~spider_db_mysql_result()
+spider_db_mariadb_result::spider_db_mariadb_result(
+  SPIDER_DB_CONN *in_db_conn
+) : spider_db_mbase_result(in_db_conn)
 {
-  DBUG_ENTER("spider_db_mysql_result::~spider_db_mysql_result");
+  DBUG_ENTER("spider_db_mariadb_result::spider_db_mariadb_result");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_db_mbase_result::~spider_db_mbase_result()
+{
+  DBUG_ENTER("spider_db_mbase_result::~spider_db_mbase_result");
   DBUG_PRINT("info",("spider this=%p", this));
   if (db_result)
   {
@@ -501,16 +651,30 @@ spider_db_mysql_result::~spider_db_mysql_result()
   DBUG_VOID_RETURN;
 }
 
-bool spider_db_mysql_result::has_result()
+spider_db_mysql_result::~spider_db_mysql_result()
 {
-  DBUG_ENTER("spider_db_mysql_result::has_result");
+  DBUG_ENTER("spider_db_mysql_result::~spider_db_mysql_result");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_db_mariadb_result::~spider_db_mariadb_result()
+{
+  DBUG_ENTER("spider_db_mariadb_result::~spider_db_mariadb_result");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+bool spider_db_mbase_result::has_result()
+{
+  DBUG_ENTER("spider_db_mbase_result::has_result");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(db_result);
 }
 
-void spider_db_mysql_result::free_result()
+void spider_db_mbase_result::free_result()
 {
-  DBUG_ENTER("spider_db_mysql_result::free_result");
+  DBUG_ENTER("spider_db_mbase_result::free_result");
   DBUG_PRINT("info",("spider this=%p", this));
   /* need 2 times execution design */
   if (db_result)
@@ -521,24 +685,24 @@ void spider_db_mysql_result::free_result()
   DBUG_VOID_RETURN;
 }
 
-SPIDER_DB_ROW *spider_db_mysql_result::current_row()
+SPIDER_DB_ROW *spider_db_mbase_result::current_row()
 {
-  DBUG_ENTER("spider_db_mysql_result::current_row");
+  DBUG_ENTER("spider_db_mbase_result::current_row");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN((SPIDER_DB_ROW *) row.clone());
 }
 
-SPIDER_DB_ROW *spider_db_mysql_result::fetch_row()
+SPIDER_DB_ROW *spider_db_mbase_result::fetch_row()
 {
-  DBUG_ENTER("spider_db_mysql_result::fetch_row");
+  DBUG_ENTER("spider_db_mbase_result::fetch_row");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!(row.row = mysql_fetch_row(db_result)))
   {
-    if (mysql_errno(((spider_db_mysql *) db_conn)->db_conn))
+    if (mysql_errno(((spider_db_mbase *) db_conn)->db_conn))
     {
-      store_error_num = mysql_errno(((spider_db_mysql *) db_conn)->db_conn);
+      store_error_num = mysql_errno(((spider_db_mbase *) db_conn)->db_conn);
       my_message(store_error_num,
-        mysql_error(((spider_db_mysql *) db_conn)->db_conn), MYF(0));
+        mysql_error(((spider_db_mbase *) db_conn)->db_conn), MYF(0));
     } else
       store_error_num = HA_ERR_END_OF_FILE;
     DBUG_RETURN(NULL);
@@ -547,21 +711,22 @@ SPIDER_DB_ROW *spider_db_mysql_result::fetch_row()
   row.field_count = mysql_num_fields(db_result);
   row.row_first = row.row;
   row.lengths_first = row.lengths;
+  row.record_size = 0;
   DBUG_RETURN((SPIDER_DB_ROW *) &row);
 }
 
-SPIDER_DB_ROW *spider_db_mysql_result::fetch_row_from_result_buffer(
+SPIDER_DB_ROW *spider_db_mbase_result::fetch_row_from_result_buffer(
   spider_db_result_buffer *spider_res_buf
 ) {
-  DBUG_ENTER("spider_db_mysql_result::fetch_row_from_result_buffer");
+  DBUG_ENTER("spider_db_mbase_result::fetch_row_from_result_buffer");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!(row.row = mysql_fetch_row(db_result)))
   {
-    if (mysql_errno(((spider_db_mysql *) db_conn)->db_conn))
+    if (mysql_errno(((spider_db_mbase *) db_conn)->db_conn))
     {
-      store_error_num = mysql_errno(((spider_db_mysql *) db_conn)->db_conn);
+      store_error_num = mysql_errno(((spider_db_mbase *) db_conn)->db_conn);
       my_message(store_error_num,
-        mysql_error(((spider_db_mysql *) db_conn)->db_conn), MYF(0));
+        mysql_error(((spider_db_mbase *) db_conn)->db_conn), MYF(0));
     } else
       store_error_num = HA_ERR_END_OF_FILE;
     DBUG_RETURN(NULL);
@@ -570,10 +735,11 @@ SPIDER_DB_ROW *spider_db_mysql_result::fetch_row_from_result_buffer(
   row.field_count = mysql_num_fields(db_result);
   row.row_first = row.row;
   row.lengths_first = row.lengths;
+  row.record_size = 0;
   DBUG_RETURN((SPIDER_DB_ROW *) &row);
 }
 
-SPIDER_DB_ROW *spider_db_mysql_result::fetch_row_from_tmp_table(
+SPIDER_DB_ROW *spider_db_mbase_result::fetch_row_from_tmp_table(
   TABLE *tmp_table
 ) {
   uint i;
@@ -582,7 +748,7 @@ SPIDER_DB_ROW *spider_db_mysql_result::fetch_row_from_tmp_table(
   MYSQL_ROW tmp_row;
   ulong *tmp_lengths;
   uint field_count;
-  DBUG_ENTER("spider_db_mysql_result::fetch_row_from_tmp_table");
+  DBUG_ENTER("spider_db_mbase_result::fetch_row_from_tmp_table");
   DBUG_PRINT("info",("spider this=%p", this));
   tmp_str1.init_calc_mem(117);
   tmp_str2.init_calc_mem(118);
@@ -602,6 +768,7 @@ SPIDER_DB_ROW *spider_db_mysql_result::fetch_row_from_tmp_table(
   row.field_count = field_count;
   row.row_first = row.row;
   row.lengths_first = row.lengths;
+  row.record_size = tmp_str2.length();
   for (i = 0; i < field_count; i++)
   {
     if (*tmp_row)
@@ -615,7 +782,7 @@ SPIDER_DB_ROW *spider_db_mysql_result::fetch_row_from_tmp_table(
   DBUG_RETURN((SPIDER_DB_ROW *) &row);
 }
 
-int spider_db_mysql_result::fetch_table_status(
+int spider_db_mbase_result::fetch_table_status(
   int mode,
   ha_rows &records,
   ulong &mean_rec_length,
@@ -641,15 +808,15 @@ int spider_db_mysql_result::fetch_table_status(
   int time_status;
 #endif
   long not_used_long;
-  DBUG_ENTER("spider_db_mysql_result::fetch_table_status");
+  DBUG_ENTER("spider_db_mbase_result::fetch_table_status");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!(mysql_row = mysql_fetch_row(db_result)))
   {
     DBUG_PRINT("info",("spider fetch row is null"));
-    if ((error_num = mysql_errno(((spider_db_mysql *) db_conn)->db_conn)))
+    if ((error_num = mysql_errno(((spider_db_mbase *) db_conn)->db_conn)))
     {
       my_message(error_num,
-        mysql_error(((spider_db_mysql *) db_conn)->db_conn), MYF(0));
+        mysql_error(((spider_db_mbase *) db_conn)->db_conn), MYF(0));
       DBUG_RETURN(error_num);
     }
     DBUG_RETURN(ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM);
@@ -710,8 +877,8 @@ int spider_db_mysql_result::fetch_table_status(
 #ifdef SPIDER_HAS_TIME_STATUS
       my_time_status_init(&time_status);
 #endif
-      str_to_datetime(mysql_row[11], strlen(mysql_row[11]), &mysql_time, 0,
-        &time_status);
+      SPIDER_str_to_datetime(mysql_row[11], strlen(mysql_row[11]),
+        &mysql_time, 0, &time_status);
 #ifdef MARIADB_BASE_VERSION
       create_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
@@ -735,8 +902,8 @@ int spider_db_mysql_result::fetch_table_status(
 #ifdef SPIDER_HAS_TIME_STATUS
       my_time_status_init(&time_status);
 #endif
-      str_to_datetime(mysql_row[12], strlen(mysql_row[12]), &mysql_time, 0,
-        &time_status);
+      SPIDER_str_to_datetime(mysql_row[12], strlen(mysql_row[12]),
+        &mysql_time, 0, &time_status);
 #ifdef MARIADB_BASE_VERSION
       update_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
@@ -760,8 +927,8 @@ int spider_db_mysql_result::fetch_table_status(
 #ifdef SPIDER_HAS_TIME_STATUS
       my_time_status_init(&time_status);
 #endif
-      str_to_datetime(mysql_row[13], strlen(mysql_row[13]), &mysql_time, 0,
-        &time_status);
+      SPIDER_str_to_datetime(mysql_row[13], strlen(mysql_row[13]),
+        &mysql_time, 0, &time_status);
 #ifdef MARIADB_BASE_VERSION
       check_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
@@ -828,8 +995,8 @@ int spider_db_mysql_result::fetch_table_status(
 #ifdef SPIDER_HAS_TIME_STATUS
       my_time_status_init(&time_status);
 #endif
-      str_to_datetime(mysql_row[6], strlen(mysql_row[6]), &mysql_time, 0,
-        &time_status);
+      SPIDER_str_to_datetime(mysql_row[6], strlen(mysql_row[6]),
+        &mysql_time, 0, &time_status);
 #ifdef MARIADB_BASE_VERSION
       create_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
@@ -853,8 +1020,8 @@ int spider_db_mysql_result::fetch_table_status(
 #ifdef SPIDER_HAS_TIME_STATUS
       my_time_status_init(&time_status);
 #endif
-      str_to_datetime(mysql_row[7], strlen(mysql_row[7]), &mysql_time, 0,
-        &time_status);
+      SPIDER_str_to_datetime(mysql_row[7], strlen(mysql_row[7]),
+        &mysql_time, 0, &time_status);
 #ifdef MARIADB_BASE_VERSION
       update_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
@@ -878,8 +1045,8 @@ int spider_db_mysql_result::fetch_table_status(
 #ifdef SPIDER_HAS_TIME_STATUS
       my_time_status_init(&time_status);
 #endif
-      str_to_datetime(mysql_row[8], strlen(mysql_row[8]), &mysql_time, 0,
-        &time_status);
+      SPIDER_str_to_datetime(mysql_row[8], strlen(mysql_row[8]),
+        &mysql_time, 0, &time_status);
 #ifdef MARIADB_BASE_VERSION
       check_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
@@ -902,21 +1069,21 @@ int spider_db_mysql_result::fetch_table_status(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_result::fetch_table_records(
+int spider_db_mbase_result::fetch_table_records(
   int mode,
   ha_rows &records
 ) {
   int error_num;
   MYSQL_ROW mysql_row;
-  DBUG_ENTER("spider_db_mysql_result::fetch_table_records");
+  DBUG_ENTER("spider_db_mbase_result::fetch_table_records");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!(mysql_row = mysql_fetch_row(db_result)))
   {
     DBUG_PRINT("info",("spider fetch row is null"));
-    if ((error_num = mysql_errno(((spider_db_mysql *) db_conn)->db_conn)))
+    if ((error_num = mysql_errno(((spider_db_mbase *) db_conn)->db_conn)))
     {
       my_message(error_num,
-        mysql_error(((spider_db_mysql *) db_conn)->db_conn), MYF(0));
+        mysql_error(((spider_db_mbase *) db_conn)->db_conn), MYF(0));
       DBUG_RETURN(error_num);
     }
     DBUG_RETURN(ER_QUERY_ON_FOREIGN_DATA_SOURCE);
@@ -947,7 +1114,7 @@ int spider_db_mysql_result::fetch_table_records(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_result::fetch_table_cardinality(
+int spider_db_mbase_result::fetch_table_cardinality(
   int mode,
   TABLE *table,
   longlong *cardinality,
@@ -957,16 +1124,16 @@ int spider_db_mysql_result::fetch_table_cardinality(
   int error_num;
   MYSQL_ROW mysql_row;
   Field *field;
-  DBUG_ENTER("spider_db_mysql_result::fetch_table_cardinality");
+  DBUG_ENTER("spider_db_mbase_result::fetch_table_cardinality");
   DBUG_PRINT("info",("spider this=%p", this));
   memset((uchar *) cardinality_upd, 0, sizeof(uchar) * bitmap_size);
   if (!(mysql_row = mysql_fetch_row(db_result)))
   {
     DBUG_PRINT("info",("spider fetch row is null"));
-    if ((error_num = mysql_errno(((spider_db_mysql *) db_conn)->db_conn)))
+    if ((error_num = mysql_errno(((spider_db_mbase *) db_conn)->db_conn)))
     {
       my_message(error_num,
-        mysql_error(((spider_db_mysql *) db_conn)->db_conn), MYF(0));
+        mysql_error(((spider_db_mbase *) db_conn)->db_conn), MYF(0));
       DBUG_RETURN(error_num);
     }
     /* no index */
@@ -1035,29 +1202,29 @@ int spider_db_mysql_result::fetch_table_cardinality(
       mysql_row = mysql_fetch_row(db_result);
     }
   }
-  if ((error_num = mysql_errno(((spider_db_mysql *) db_conn)->db_conn)))
+  if ((error_num = mysql_errno(((spider_db_mbase *) db_conn)->db_conn)))
   {
     my_message(error_num,
-      mysql_error(((spider_db_mysql *) db_conn)->db_conn), MYF(0));
+      mysql_error(((spider_db_mbase *) db_conn)->db_conn), MYF(0));
     DBUG_RETURN(error_num);
   }
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_result::fetch_table_mon_status(
+int spider_db_mbase_result::fetch_table_mon_status(
   int &status
 ) {
   int error_num;
   MYSQL_ROW mysql_row;
-  DBUG_ENTER("spider_db_mysql_result::fetch_table_mon_status");
+  DBUG_ENTER("spider_db_mbase_result::fetch_table_mon_status");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!(mysql_row = mysql_fetch_row(db_result)))
   {
     DBUG_PRINT("info",("spider fetch row is null"));
-    if ((error_num = mysql_errno(((spider_db_mysql *) db_conn)->db_conn)))
+    if ((error_num = mysql_errno(((spider_db_mbase *) db_conn)->db_conn)))
     {
       my_message(error_num,
-        mysql_error(((spider_db_mysql *) db_conn)->db_conn), MYF(0));
+        mysql_error(((spider_db_mbase *) db_conn)->db_conn), MYF(0));
       DBUG_RETURN(error_num);
     }
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -1076,21 +1243,21 @@ int spider_db_mysql_result::fetch_table_mon_status(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_result::fetch_show_master_status(
+int spider_db_mbase_result::fetch_show_master_status(
   const char **binlog_file_name,
   const char **binlog_pos
 ) {
   int error_num;
   MYSQL_ROW mysql_row;
-  DBUG_ENTER("spider_db_mysql_result::fetch_show_master_status");
+  DBUG_ENTER("spider_db_mbase_result::fetch_show_master_status");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!(mysql_row = mysql_fetch_row(db_result)))
   {
     DBUG_PRINT("info",("spider fetch row is null"));
-    if ((error_num = mysql_errno(((spider_db_mysql *) db_conn)->db_conn)))
+    if ((error_num = mysql_errno(((spider_db_mbase *) db_conn)->db_conn)))
     {
       my_message(error_num,
-        mysql_error(((spider_db_mysql *) db_conn)->db_conn), MYF(0));
+        mysql_error(((spider_db_mbase *) db_conn)->db_conn), MYF(0));
       DBUG_RETURN(error_num);
     }
     DBUG_RETURN(ER_QUERY_ON_FOREIGN_DATA_SOURCE);
@@ -1107,20 +1274,20 @@ int spider_db_mysql_result::fetch_show_master_status(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_result::fetch_select_binlog_gtid_pos(
+int spider_db_mbase_result::fetch_select_binlog_gtid_pos(
   const char **gtid_pos
 ) {
   int error_num;
   MYSQL_ROW mysql_row;
-  DBUG_ENTER("spider_db_mysql_result::fetch_select_binlog_gtid_pos");
+  DBUG_ENTER("spider_db_mbase_result::fetch_select_binlog_gtid_pos");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!(mysql_row = mysql_fetch_row(db_result)))
   {
     DBUG_PRINT("info",("spider fetch row is null"));
-    if ((error_num = mysql_errno(((spider_db_mysql *) db_conn)->db_conn)))
+    if ((error_num = mysql_errno(((spider_db_mbase *) db_conn)->db_conn)))
     {
       my_message(error_num,
-        mysql_error(((spider_db_mysql *) db_conn)->db_conn), MYF(0));
+        mysql_error(((spider_db_mbase *) db_conn)->db_conn), MYF(0));
       DBUG_RETURN(error_num);
     }
     DBUG_RETURN(ER_QUERY_ON_FOREIGN_DATA_SOURCE);
@@ -1135,24 +1302,24 @@ int spider_db_mysql_result::fetch_select_binlog_gtid_pos(
   DBUG_RETURN(0);
 }
 
-longlong spider_db_mysql_result::num_rows()
+longlong spider_db_mbase_result::num_rows()
 {
-  DBUG_ENTER("spider_db_mysql_result::num_rows");
+  DBUG_ENTER("spider_db_mbase_result::num_rows");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN((longlong) mysql_num_rows(db_result));
 }
 
-uint spider_db_mysql_result::num_fields()
+uint spider_db_mbase_result::num_fields()
 {
-  DBUG_ENTER("spider_db_mysql_result::num_fields");
+  DBUG_ENTER("spider_db_mbase_result::num_fields");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(mysql_num_fields(db_result));
 }
 
-void spider_db_mysql_result::move_to_pos(
+void spider_db_mbase_result::move_to_pos(
   longlong pos
 ) {
-  DBUG_ENTER("spider_db_mysql_result::move_to_pos");
+  DBUG_ENTER("spider_db_mbase_result::move_to_pos");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider pos=%lld", pos));
 /*
@@ -1162,31 +1329,31 @@ void spider_db_mysql_result::move_to_pos(
   DBUG_VOID_RETURN;
 }
 
-int spider_db_mysql_result::get_errno()
+int spider_db_mbase_result::get_errno()
 {
-  DBUG_ENTER("spider_db_mysql_result::get_errno");
+  DBUG_ENTER("spider_db_mbase_result::get_errno");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider store_error_num=%d", store_error_num));
   DBUG_RETURN(store_error_num);
 }
 
 #ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
-int spider_db_mysql_result::fetch_columns_for_discover_table_structure(
+int spider_db_mbase_result::fetch_columns_for_discover_table_structure(
   spider_string *str,
   CHARSET_INFO *access_charset
 ) {
   int error_num;
   uint length;
   MYSQL_ROW mysql_row;
-  DBUG_ENTER("spider_db_mysql_result::fetch_columns_for_discover_table_structure");
+  DBUG_ENTER("spider_db_mbase_result::fetch_columns_for_discover_table_structure");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!(mysql_row = mysql_fetch_row(db_result)))
   {
     DBUG_PRINT("info",("spider fetch row is null"));
-    if ((error_num = mysql_errno(((spider_db_mysql *) db_conn)->db_conn)))
+    if ((error_num = mysql_errno(((spider_db_mbase *) db_conn)->db_conn)))
     {
       my_message(error_num,
-        mysql_error(((spider_db_mysql *) db_conn)->db_conn), MYF(0));
+        mysql_error(((spider_db_mbase *) db_conn)->db_conn), MYF(0));
       DBUG_RETURN(error_num);
     }
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -1288,30 +1455,30 @@ int spider_db_mysql_result::fetch_columns_for_discover_table_structure(
     }
     str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
   } while ((mysql_row = mysql_fetch_row(db_result)));
-  if ((error_num = mysql_errno(((spider_db_mysql *) db_conn)->db_conn)))
+  if ((error_num = mysql_errno(((spider_db_mbase *) db_conn)->db_conn)))
   {
     my_message(error_num,
-      mysql_error(((spider_db_mysql *) db_conn)->db_conn), MYF(0));
+      mysql_error(((spider_db_mbase *) db_conn)->db_conn), MYF(0));
     DBUG_RETURN(error_num);
   }
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_result::fetch_index_for_discover_table_structure(
+int spider_db_mbase_result::fetch_index_for_discover_table_structure(
   spider_string *str,
   CHARSET_INFO *access_charset
 ) {
   int error_num;
   MYSQL_ROW mysql_row;
-  DBUG_ENTER("spider_db_mysql_result::fetch_index_for_discover_table_structure");
+  DBUG_ENTER("spider_db_mbase_result::fetch_index_for_discover_table_structure");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!(mysql_row = mysql_fetch_row(db_result)))
   {
     DBUG_PRINT("info",("spider fetch row is null"));
-    if ((error_num = mysql_errno(((spider_db_mysql *) db_conn)->db_conn)))
+    if ((error_num = mysql_errno(((spider_db_mbase *) db_conn)->db_conn)))
     {
       my_message(error_num,
-        mysql_error(((spider_db_mysql *) db_conn)->db_conn), MYF(0));
+        mysql_error(((spider_db_mbase *) db_conn)->db_conn), MYF(0));
       DBUG_RETURN(error_num);
     }
     DBUG_RETURN(0);
@@ -1480,10 +1647,10 @@ int spider_db_mysql_result::fetch_index_for_discover_table_structure(
     else
       using_hash = FALSE;
   } while ((mysql_row = mysql_fetch_row(db_result)));
-  if ((error_num = mysql_errno(((spider_db_mysql *) db_conn)->db_conn)))
+  if ((error_num = mysql_errno(((spider_db_mbase *) db_conn)->db_conn)))
   {
     my_message(error_num,
-      mysql_error(((spider_db_mysql *) db_conn)->db_conn), MYF(0));
+      mysql_error(((spider_db_mbase *) db_conn)->db_conn), MYF(0));
     DBUG_RETURN(error_num);
   }
   if (!first)
@@ -1501,27 +1668,27 @@ int spider_db_mysql_result::fetch_index_for_discover_table_structure(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_result::fetch_table_for_discover_table_structure(
+int spider_db_mbase_result::fetch_table_for_discover_table_structure(
   spider_string *str,
   SPIDER_SHARE *spider_share,
   CHARSET_INFO *access_charset
 ) {
   int error_num;
   MYSQL_ROW mysql_row;
-  DBUG_ENTER("spider_db_mysql_result::fetch_table_for_discover_table_structure");
+  DBUG_ENTER("spider_db_mbase_result::fetch_table_for_discover_table_structure");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!(mysql_row = mysql_fetch_row(db_result)))
   {
     DBUG_PRINT("info",("spider fetch row is null"));
-    if ((error_num = mysql_errno(((spider_db_mysql *) db_conn)->db_conn)))
+    if ((error_num = mysql_errno(((spider_db_mbase *) db_conn)->db_conn)))
     {
       my_message(error_num,
-        mysql_error(((spider_db_mysql *) db_conn)->db_conn), MYF(0));
+        mysql_error(((spider_db_mbase *) db_conn)->db_conn), MYF(0));
       DBUG_RETURN(error_num);
     }
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
-  if (num_fields() != 18)
+  if (num_fields() < 18)
   {
     DBUG_PRINT("info",("spider num_fields != 18"));
     my_printf_error(ER_SPIDER_UNKNOWN_NUM, ER_SPIDER_UNKNOWN_STR, MYF(0));
@@ -1542,20 +1709,39 @@ int spider_db_mysql_result::fetch_table_for_discover_table_structure(
 }
 #endif
 
-spider_db_mysql::spider_db_mysql(
-  SPIDER_CONN *conn
-) : spider_db_conn(conn), lock_table_hash_inited(FALSE),
-  handler_open_array_inited(FALSE)
+spider_db_mbase::spider_db_mbase(
+  SPIDER_CONN *conn,
+  spider_db_mbase_util *spider_db_mbase_utility
+) : spider_db_conn(conn), spider_db_mbase_utility(spider_db_mbase_utility),
+  lock_table_hash_inited(FALSE), handler_open_array_inited(FALSE)
 {
-  DBUG_ENTER("spider_db_mysql::spider_db_mysql");
+  DBUG_ENTER("spider_db_mbase::spider_db_mbase");
   DBUG_PRINT("info",("spider this=%p", this));
   db_conn = NULL;
   DBUG_VOID_RETURN;
 }
 
-spider_db_mysql::~spider_db_mysql()
+spider_db_mysql::spider_db_mysql(
+  SPIDER_CONN *conn
+) : spider_db_mbase(conn, &spider_db_mysql_utility)
 {
-  DBUG_ENTER("spider_db_mysql::~spider_db_mysql");
+  DBUG_ENTER("spider_db_mysql::spider_db_mysql");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_db_mariadb::spider_db_mariadb(
+  SPIDER_CONN *conn
+) : spider_db_mbase(conn, &spider_db_mariadb_utility)
+{
+  DBUG_ENTER("spider_db_mariadb::spider_db_mariadb");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_db_mbase::~spider_db_mbase()
+{
+  DBUG_ENTER("spider_db_mbase::~spider_db_mbase");
   DBUG_PRINT("info",("spider this=%p", this));
   if (handler_open_array_inited)
   {
@@ -1577,9 +1763,23 @@ spider_db_mysql::~spider_db_mysql()
   DBUG_VOID_RETURN;
 }
 
-int spider_db_mysql::init()
+spider_db_mysql::~spider_db_mysql()
 {
-  DBUG_ENTER("spider_db_mysql::init");
+  DBUG_ENTER("spider_db_mysql::~spider_db_mysql");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_db_mariadb::~spider_db_mariadb()
+{
+  DBUG_ENTER("spider_db_mariadb::~spider_db_mariadb");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+int spider_db_mbase::init()
+{
+  DBUG_ENTER("spider_db_mbase::init");
   DBUG_PRINT("info",("spider this=%p", this));
   if (
     my_hash_init(&lock_table_hash, spd_charset_utf8_bin, 32, 0, 0,
@@ -1609,21 +1809,21 @@ int spider_db_mysql::init()
   DBUG_RETURN(0);
 }
 
-bool spider_db_mysql::is_connected()
+bool spider_db_mbase::is_connected()
 {
-  DBUG_ENTER("spider_db_mysql::is_connected");
+  DBUG_ENTER("spider_db_mbase::is_connected");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(db_conn);
 }
 
-void spider_db_mysql::bg_connect()
+void spider_db_mbase::bg_connect()
 {
-  DBUG_ENTER("spider_db_mysql::bg_connect");
+  DBUG_ENTER("spider_db_mbase::bg_connect");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_VOID_RETURN;
 }
 
-int spider_db_mysql::connect(
+int spider_db_mbase::connect(
   char *tgt_host,
   char *tgt_username,
   char *tgt_password,
@@ -1635,7 +1835,7 @@ int spider_db_mysql::connect(
 ) {
   int error_num;
   my_bool connect_mutex = spider_param_connect_mutex();
-  DBUG_ENTER("spider_db_mysql::connect");
+  DBUG_ENTER("spider_db_mbase::connect");
   DBUG_PRINT("info",("spider this=%p", this));
   while (TRUE)
   {
@@ -1748,6 +1948,9 @@ int spider_db_mysql::connect(
       connect_retry_count--;
       my_sleep((ulong) connect_retry_interval);
     } else {
+#ifdef SPIDER_NET_HAS_THD
+      db_conn->net.thd = NULL;
+#endif
       if (connect_mutex)
         pthread_mutex_unlock(&spider_open_conn_mutex);
       break;
@@ -1756,25 +1959,25 @@ int spider_db_mysql::connect(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql::ping(
+int spider_db_mbase::ping(
 ) {
-  DBUG_ENTER("spider_db_mysql::ping");
+  DBUG_ENTER("spider_db_mbase::ping");
   DBUG_PRINT("info",("spider this=%p", this));
   if (spider_param_dry_access())
     DBUG_RETURN(0);
   DBUG_RETURN(simple_command(db_conn, COM_PING, 0, 0, 0));
 }
 
-void spider_db_mysql::bg_disconnect()
+void spider_db_mbase::bg_disconnect()
 {
-  DBUG_ENTER("spider_db_mysql::bg_disconnect");
+  DBUG_ENTER("spider_db_mbase::bg_disconnect");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_VOID_RETURN;
 }
 
-void spider_db_mysql::disconnect()
+void spider_db_mbase::disconnect()
 {
-  DBUG_ENTER("spider_db_mysql::disconnect");
+  DBUG_ENTER("spider_db_mbase::disconnect");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider db_conn=%p", db_conn));
   if (db_conn)
@@ -1785,9 +1988,9 @@ void spider_db_mysql::disconnect()
   DBUG_VOID_RETURN;
 }
 
-int spider_db_mysql::set_net_timeout()
+int spider_db_mbase::set_net_timeout()
 {
-  DBUG_ENTER("spider_db_mysql::set_net_timeout");
+  DBUG_ENTER("spider_db_mbase::set_net_timeout");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider conn=%p", conn));
   my_net_set_read_timeout(&db_conn->net, conn->net_read_timeout);
@@ -1795,14 +1998,14 @@ int spider_db_mysql::set_net_timeout()
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql::exec_query(
+int spider_db_mbase::exec_query(
   const char *query,
   uint length,
   int quick_mode
 ) {
   int error_num = 0;
   uint log_result_errors = spider_param_log_result_errors();
-  DBUG_ENTER("spider_db_mysql::exec_query");
+  DBUG_ENTER("spider_db_mbase::exec_query");
   DBUG_PRINT("info",("spider this=%p", this));
   if (spider_param_general_log())
   {
@@ -1906,30 +2109,30 @@ int spider_db_mysql::exec_query(
   DBUG_RETURN(error_num);
 }
 
-int spider_db_mysql::get_errno()
+int spider_db_mbase::get_errno()
 {
-  DBUG_ENTER("spider_db_mysql::get_errno");
+  DBUG_ENTER("spider_db_mbase::get_errno");
   DBUG_PRINT("info",("spider this=%p", this));
   stored_error = mysql_errno(db_conn);
   DBUG_PRINT("info",("spider stored_error=%d", stored_error));
   DBUG_RETURN(stored_error);
 }
 
-const char *spider_db_mysql::get_error()
+const char *spider_db_mbase::get_error()
 {
   const char *error_ptr;
-  DBUG_ENTER("spider_db_mysql::get_error");
+  DBUG_ENTER("spider_db_mbase::get_error");
   DBUG_PRINT("info",("spider this=%p", this));
   error_ptr = mysql_error(db_conn);
   DBUG_PRINT("info",("spider error=%s", error_ptr));
   DBUG_RETURN(error_ptr);
 }
 
-bool spider_db_mysql::is_server_gone_error(
+bool spider_db_mbase::is_server_gone_error(
   int error_num
 ) {
   bool server_gone;
-  DBUG_ENTER("spider_db_mysql::is_server_gone_error");
+  DBUG_ENTER("spider_db_mbase::is_server_gone_error");
   DBUG_PRINT("info",("spider this=%p", this));
   server_gone =
     (error_num == CR_SERVER_GONE_ERROR || error_num == CR_SERVER_LOST);
@@ -1937,11 +2140,11 @@ bool spider_db_mysql::is_server_gone_error(
   DBUG_RETURN(server_gone);
 }
 
-bool spider_db_mysql::is_dup_entry_error(
+bool spider_db_mbase::is_dup_entry_error(
   int error_num
 ) {
   bool dup_entry;
-  DBUG_ENTER("spider_db_mysql::is_dup_entry_error");
+  DBUG_ENTER("spider_db_mbase::is_dup_entry_error");
   DBUG_PRINT("info",("spider this=%p", this));
   dup_entry =
     (
@@ -1953,11 +2156,11 @@ bool spider_db_mysql::is_dup_entry_error(
   DBUG_RETURN(dup_entry);
 }
 
-bool spider_db_mysql::is_xa_nota_error(
+bool spider_db_mbase::is_xa_nota_error(
   int error_num
 ) {
   bool xa_nota;
-  DBUG_ENTER("spider_db_mysql::is_xa_nota_error");
+  DBUG_ENTER("spider_db_mbase::is_xa_nota_error");
   DBUG_PRINT("info",("spider this=%p", this));
   xa_nota =
     (
@@ -1969,10 +2172,10 @@ bool spider_db_mysql::is_xa_nota_error(
   DBUG_RETURN(xa_nota);
 }
 
-void spider_db_mysql::print_warnings(
+void spider_db_mbase::print_warnings(
   struct tm *l_time
 ) {
-  DBUG_ENTER("spider_db_mysql::print_warnings");
+  DBUG_ENTER("spider_db_mbase::print_warnings");
   DBUG_PRINT("info",("spider this=%p", this));
   if (db_conn->status == MYSQL_STATUS_READY)
   {
@@ -1982,10 +2185,6 @@ void spider_db_mysql::print_warnings(
     if (!(db_conn->server_status & SERVER_MORE_RESULTS_EXISTS))
 #endif
     {
-/*
-      pthread_mutex_lock(&conn->mta_conn_mutex);
-      SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-*/
       if (
         spider_param_dry_access() ||
         !mysql_real_query(db_conn, SPIDER_SQL_SHOW_WARNINGS_STR,
@@ -2003,18 +2202,10 @@ void spider_db_mysql::print_warnings(
           {
             if (res)
               mysql_free_result(res);
-/*
-            SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-            pthread_mutex_unlock(&conn->mta_conn_mutex);
-*/
             DBUG_VOID_RETURN;
           }
           /* no record is ok */
         }
-/*
-        SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-        pthread_mutex_unlock(&conn->mta_conn_mutex);
-*/
         num_fields = mysql_num_fields(res);
         if (num_fields != 3)
         {
@@ -2033,27 +2224,22 @@ void spider_db_mysql::print_warnings(
         }
         if (res)
           mysql_free_result(res);
-      } else {
-/*
-        SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-        pthread_mutex_unlock(&conn->mta_conn_mutex);
-*/
       }
     }
   }
   DBUG_VOID_RETURN;
 }
 
-spider_db_result *spider_db_mysql::store_result(
+spider_db_result *spider_db_mbase::store_result(
   spider_db_result_buffer **spider_res_buf,
   st_spider_db_request_key *request_key,
   int *error_num
 ) {
-  spider_db_mysql_result *result;
-  DBUG_ENTER("spider_db_mysql::store_result");
+  spider_db_mbase_result *result;
+  DBUG_ENTER("spider_db_mbase::store_result");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_ASSERT(!spider_res_buf);
-  if ((result = new spider_db_mysql_result(this)))
+  if ((result = new spider_db_mbase_result(this)))
   {
     *error_num = 0;
     if (
@@ -2072,14 +2258,14 @@ spider_db_result *spider_db_mysql::store_result(
   DBUG_RETURN(result);
 }
 
-spider_db_result *spider_db_mysql::use_result(
+spider_db_result *spider_db_mbase::use_result(
   st_spider_db_request_key *request_key,
   int *error_num
 ) {
-  spider_db_mysql_result *result;
-  DBUG_ENTER("spider_db_mysql::use_result");
+  spider_db_mbase_result *result;
+  DBUG_ENTER("spider_db_mbase::use_result");
   DBUG_PRINT("info",("spider this=%p", this));
-  if ((result = new spider_db_mysql_result(this)))
+  if ((result = new spider_db_mbase_result(this)))
   {
     *error_num = 0;
     if (
@@ -2097,10 +2283,10 @@ spider_db_result *spider_db_mysql::use_result(
   DBUG_RETURN(result);
 }
 
-int spider_db_mysql::next_result()
+int spider_db_mbase::next_result()
 {
   int status;
-  DBUG_ENTER("spider_db_mysql::next_result");
+  DBUG_ENTER("spider_db_mbase::next_result");
   DBUG_PRINT("info",("spider this=%p", this));
   if (db_conn->status != MYSQL_STATUS_READY)
   {
@@ -2126,10 +2312,10 @@ int spider_db_mysql::next_result()
   DBUG_RETURN(-1);
 }
 
-uint spider_db_mysql::affected_rows()
+uint spider_db_mbase::affected_rows()
 {
   MYSQL *last_used_con;
-  DBUG_ENTER("spider_db_mysql::affected_rows");
+  DBUG_ENTER("spider_db_mbase::affected_rows");
   DBUG_PRINT("info",("spider this=%p", this));
 #if MYSQL_VERSION_ID < 50500
   last_used_con = db_conn->last_used_con;
@@ -2139,10 +2325,10 @@ uint spider_db_mysql::affected_rows()
   DBUG_RETURN((uint) last_used_con->affected_rows);
 }
 
-ulonglong spider_db_mysql::last_insert_id()
+ulonglong spider_db_mbase::last_insert_id()
 {
   MYSQL *last_used_con;
-  DBUG_ENTER("spider_db_mysql::last_insert_id");
+  DBUG_ENTER("spider_db_mbase::last_insert_id");
   DBUG_PRINT("info",("spider this=%p", this));
 #if MYSQL_VERSION_ID < 50500
   last_used_con = db_conn->last_used_con;
@@ -2152,94 +2338,137 @@ ulonglong spider_db_mysql::last_insert_id()
   DBUG_RETURN((uint) last_used_con->insert_id);
 }
 
-int spider_db_mysql::set_character_set(
+int spider_db_mbase::set_character_set(
   const char *csname
 ) {
-  DBUG_ENTER("spider_db_mysql::set_character_set");
+  DBUG_ENTER("spider_db_mbase::set_character_set");
   DBUG_PRINT("info",("spider this=%p", this));
   if (spider_param_dry_access())
     DBUG_RETURN(0);
   DBUG_RETURN(mysql_set_character_set(db_conn, csname));
 }
 
-int spider_db_mysql::select_db(
+int spider_db_mbase::select_db(
   const char *dbname
 ) {
-  DBUG_ENTER("spider_db_mysql::select_db");
+  DBUG_ENTER("spider_db_mbase::select_db");
   DBUG_PRINT("info",("spider this=%p", this));
   if (spider_param_dry_access())
     DBUG_RETURN(0);
   DBUG_RETURN(mysql_select_db(db_conn, dbname));
 }
 
-int spider_db_mysql::consistent_snapshot(
+int spider_db_mbase::consistent_snapshot(
   int *need_mon
 ) {
-  DBUG_ENTER("spider_db_mysql::consistent_snapshot");
+  DBUG_ENTER("spider_db_mbase::consistent_snapshot");
   DBUG_PRINT("info",("spider this=%p", this));
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+  pthread_mutex_lock(&conn->mta_conn_mutex);
+  SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+  conn->need_mon = need_mon;
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = TRUE;
+  conn->mta_conn_mutex_unlock_later = TRUE;
   if (spider_db_query(
     conn,
     SPIDER_SQL_START_CONSISTENT_SNAPSHOT_STR,
     SPIDER_SQL_START_CONSISTENT_SNAPSHOT_LEN,
     -1,
     need_mon)
-  )
+  ) {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+    conn->mta_conn_mutex_lock_already = FALSE;
+    conn->mta_conn_mutex_unlock_later = FALSE;
     DBUG_RETURN(spider_db_errorno(conn));
+  }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = FALSE;
+  conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
   pthread_mutex_unlock(&conn->mta_conn_mutex);
   DBUG_RETURN(0);
 }
 
-bool spider_db_mysql::trx_start_in_bulk_sql()
+bool spider_db_mbase::trx_start_in_bulk_sql()
 {
-  DBUG_ENTER("spider_db_mysql::trx_start_in_bulk_sql");
+  DBUG_ENTER("spider_db_mbase::trx_start_in_bulk_sql");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(TRUE);
 }
 
-int spider_db_mysql::start_transaction(
+int spider_db_mbase::start_transaction(
   int *need_mon
 ) {
-  DBUG_ENTER("spider_db_mysql::start_transaction");
+  DBUG_ENTER("spider_db_mbase::start_transaction");
   DBUG_PRINT("info",("spider this=%p", this));
+  pthread_mutex_assert_owner(&conn->mta_conn_mutex);
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
   if (spider_db_query(
     conn,
     SPIDER_SQL_START_TRANSACTION_STR,
     SPIDER_SQL_START_TRANSACTION_LEN,
     -1,
     need_mon)
-  )
+  ) {
     DBUG_RETURN(spider_db_errorno(conn));
-  SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-  pthread_mutex_unlock(&conn->mta_conn_mutex);
+  }
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql::commit(
+int spider_db_mbase::commit(
   int *need_mon
 ) {
-  DBUG_ENTER("spider_db_mysql::commit");
+  DBUG_ENTER("spider_db_mbase::commit");
   DBUG_PRINT("info",("spider this=%p", this));
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+  pthread_mutex_lock(&conn->mta_conn_mutex);
+  SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+  conn->need_mon = need_mon;
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = TRUE;
+  conn->mta_conn_mutex_unlock_later = TRUE;
   if (spider_db_query(
     conn,
     SPIDER_SQL_COMMIT_STR,
     SPIDER_SQL_COMMIT_LEN,
     -1,
     need_mon)
-  )
+  ) {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+    conn->mta_conn_mutex_lock_already = FALSE;
+    conn->mta_conn_mutex_unlock_later = FALSE;
     DBUG_RETURN(spider_db_errorno(conn));
+  }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = FALSE;
+  conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
   pthread_mutex_unlock(&conn->mta_conn_mutex);
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql::rollback(
+int spider_db_mbase::rollback(
   int *need_mon
 ) {
   bool is_error;
   int error_num;
-  DBUG_ENTER("spider_db_mysql::rollback");
+  DBUG_ENTER("spider_db_mbase::rollback");
   DBUG_PRINT("info",("spider this=%p", this));
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+  pthread_mutex_lock(&conn->mta_conn_mutex);
+  SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+  conn->need_mon = need_mon;
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = TRUE;
   conn->mta_conn_mutex_unlock_later = TRUE;
   if (spider_db_query(
     conn,
@@ -2256,199 +2485,341 @@ int spider_db_mysql::rollback(
     )
       conn->thd->clear_error();
     else {
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
       pthread_mutex_unlock(&conn->mta_conn_mutex);
       DBUG_RETURN(error_num);
     }
   }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = FALSE;
   conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
   pthread_mutex_unlock(&conn->mta_conn_mutex);
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql::xa_start(
+int spider_db_mbase::xa_start(
   XID *xid,
   int *need_mon
 ) {
-  DBUG_ENTER("spider_db_mysql::xa_start");
+  DBUG_ENTER("spider_db_mbase::xa_start");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_ASSERT(0);
   DBUG_RETURN(0);
 }
 
-bool spider_db_mysql::xa_start_in_bulk_sql()
+bool spider_db_mbase::xa_start_in_bulk_sql()
 {
-  DBUG_ENTER("spider_db_mysql::xa_start_in_bulk_sql");
+  DBUG_ENTER("spider_db_mbase::xa_start_in_bulk_sql");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(TRUE);
 }
 
-int spider_db_mysql::xa_end(
+int spider_db_mbase::xa_end(
   XID *xid,
   int *need_mon
 ) {
   char sql_buf[SPIDER_SQL_XA_END_LEN + XIDDATASIZE + sizeof(long) + 9];
   spider_string sql_str(sql_buf, sizeof(sql_buf), &my_charset_bin);
-  DBUG_ENTER("spider_db_mysql::xa_end");
+  DBUG_ENTER("spider_db_mbase::xa_end");
   DBUG_PRINT("info",("spider this=%p", this));
   sql_str.init_calc_mem(108);
 
   sql_str.length(0);
   sql_str.q_append(SPIDER_SQL_XA_END_STR, SPIDER_SQL_XA_END_LEN);
   spider_db_append_xid_str(&sql_str, xid);
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+  pthread_mutex_lock(&conn->mta_conn_mutex);
+  SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+  conn->need_mon = need_mon;
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = TRUE;
+  conn->mta_conn_mutex_unlock_later = TRUE;
   if (spider_db_query(
     conn,
     sql_str.ptr(),
     sql_str.length(),
     -1,
     need_mon)
-  )
+  ) {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+    conn->mta_conn_mutex_lock_already = FALSE;
+    conn->mta_conn_mutex_unlock_later = FALSE;
     DBUG_RETURN(spider_db_errorno(conn));
+  }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = FALSE;
+  conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
   pthread_mutex_unlock(&conn->mta_conn_mutex);
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql::xa_prepare(
+int spider_db_mbase::xa_prepare(
   XID *xid,
   int *need_mon
 ) {
   char sql_buf[SPIDER_SQL_XA_PREPARE_LEN + XIDDATASIZE + sizeof(long) + 9];
   spider_string sql_str(sql_buf, sizeof(sql_buf), &my_charset_bin);
-  DBUG_ENTER("spider_db_mysql::xa_prepare");
+  DBUG_ENTER("spider_db_mbase::xa_prepare");
   DBUG_PRINT("info",("spider this=%p", this));
   sql_str.init_calc_mem(109);
 
   sql_str.length(0);
   sql_str.q_append(SPIDER_SQL_XA_PREPARE_STR, SPIDER_SQL_XA_PREPARE_LEN);
   spider_db_append_xid_str(&sql_str, xid);
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+  pthread_mutex_lock(&conn->mta_conn_mutex);
+  SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+  conn->need_mon = need_mon;
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = TRUE;
+  conn->mta_conn_mutex_unlock_later = TRUE;
   if (spider_db_query(
     conn,
     sql_str.ptr(),
     sql_str.length(),
     -1,
     need_mon)
-  )
+  ) {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+    conn->mta_conn_mutex_lock_already = FALSE;
+    conn->mta_conn_mutex_unlock_later = FALSE;
     DBUG_RETURN(spider_db_errorno(conn));
+  }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = FALSE;
+  conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
   pthread_mutex_unlock(&conn->mta_conn_mutex);
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql::xa_commit(
+int spider_db_mbase::xa_commit(
   XID *xid,
   int *need_mon
 ) {
   char sql_buf[SPIDER_SQL_XA_COMMIT_LEN + XIDDATASIZE + sizeof(long) + 9];
   spider_string sql_str(sql_buf, sizeof(sql_buf), &my_charset_bin);
-  DBUG_ENTER("spider_db_mysql::xa_commit");
+  DBUG_ENTER("spider_db_mbase::xa_commit");
   DBUG_PRINT("info",("spider this=%p", this));
   sql_str.init_calc_mem(110);
 
   sql_str.length(0);
   sql_str.q_append(SPIDER_SQL_XA_COMMIT_STR, SPIDER_SQL_XA_COMMIT_LEN);
   spider_db_append_xid_str(&sql_str, xid);
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+  pthread_mutex_lock(&conn->mta_conn_mutex);
+  SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+  conn->need_mon = need_mon;
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = TRUE;
+  conn->mta_conn_mutex_unlock_later = TRUE;
   if (spider_db_query(
     conn,
     sql_str.ptr(),
     sql_str.length(),
     -1,
     need_mon)
-  )
+  ) {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+    conn->mta_conn_mutex_lock_already = FALSE;
+    conn->mta_conn_mutex_unlock_later = FALSE;
     DBUG_RETURN(spider_db_errorno(conn));
+  }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = FALSE;
+  conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
   pthread_mutex_unlock(&conn->mta_conn_mutex);
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql::xa_rollback(
+int spider_db_mbase::xa_rollback(
   XID *xid,
   int *need_mon
 ) {
   char sql_buf[SPIDER_SQL_XA_ROLLBACK_LEN + XIDDATASIZE + sizeof(long) + 9];
   spider_string sql_str(sql_buf, sizeof(sql_buf), &my_charset_bin);
-  DBUG_ENTER("spider_db_mysql::xa_rollback");
+  DBUG_ENTER("spider_db_mbase::xa_rollback");
   DBUG_PRINT("info",("spider this=%p", this));
   sql_str.init_calc_mem(111);
 
   sql_str.length(0);
   sql_str.q_append(SPIDER_SQL_XA_ROLLBACK_STR, SPIDER_SQL_XA_ROLLBACK_LEN);
   spider_db_append_xid_str(&sql_str, xid);
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+  pthread_mutex_lock(&conn->mta_conn_mutex);
+  SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+  conn->need_mon = need_mon;
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = TRUE;
+  conn->mta_conn_mutex_unlock_later = TRUE;
   if (spider_db_query(
     conn,
     sql_str.ptr(),
     sql_str.length(),
     -1,
     need_mon)
-  )
+  ) {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+    conn->mta_conn_mutex_lock_already = FALSE;
+    conn->mta_conn_mutex_unlock_later = FALSE;
     DBUG_RETURN(spider_db_errorno(conn));
+  }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = FALSE;
+  conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
   pthread_mutex_unlock(&conn->mta_conn_mutex);
   DBUG_RETURN(0);
 }
 
-bool spider_db_mysql::set_trx_isolation_in_bulk_sql()
+bool spider_db_mbase::set_trx_isolation_in_bulk_sql()
 {
-  DBUG_ENTER("spider_db_mysql::set_trx_isolation_in_bulk_sql");
+  DBUG_ENTER("spider_db_mbase::set_trx_isolation_in_bulk_sql");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(TRUE);
 }
 
-int spider_db_mysql::set_trx_isolation(
+int spider_db_mbase::set_trx_isolation(
   int trx_isolation,
   int *need_mon
 ) {
-  DBUG_ENTER("spider_db_mysql::set_trx_isolation");
+  DBUG_ENTER("spider_db_mbase::set_trx_isolation");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (trx_isolation)
   {
     case ISO_READ_UNCOMMITTED:
+      pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+      pthread_mutex_lock(&conn->mta_conn_mutex);
+      SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+      conn->need_mon = need_mon;
+      DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = TRUE;
+      conn->mta_conn_mutex_unlock_later = TRUE;
       if (spider_db_query(
         conn,
         SPIDER_SQL_ISO_READ_UNCOMMITTED_STR,
         SPIDER_SQL_ISO_READ_UNCOMMITTED_LEN,
         -1,
         need_mon)
-      )
+      ) {
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+        conn->mta_conn_mutex_lock_already = FALSE;
+        conn->mta_conn_mutex_unlock_later = FALSE;
         DBUG_RETURN(spider_db_errorno(conn));
+      }
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = FALSE;
+      conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
       pthread_mutex_unlock(&conn->mta_conn_mutex);
       break;
     case ISO_READ_COMMITTED:
+      pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+      pthread_mutex_lock(&conn->mta_conn_mutex);
+      SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+      conn->need_mon = need_mon;
+      DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = TRUE;
+      conn->mta_conn_mutex_unlock_later = TRUE;
       if (spider_db_query(
         conn,
         SPIDER_SQL_ISO_READ_COMMITTED_STR,
         SPIDER_SQL_ISO_READ_COMMITTED_LEN,
         -1,
         need_mon)
-      )
+      ) {
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+        conn->mta_conn_mutex_lock_already = FALSE;
+        conn->mta_conn_mutex_unlock_later = FALSE;
         DBUG_RETURN(spider_db_errorno(conn));
+      }
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = FALSE;
+      conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
       pthread_mutex_unlock(&conn->mta_conn_mutex);
       break;
     case ISO_REPEATABLE_READ:
+      pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+      pthread_mutex_lock(&conn->mta_conn_mutex);
+      SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+      conn->need_mon = need_mon;
+      DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = TRUE;
+      conn->mta_conn_mutex_unlock_later = TRUE;
       if (spider_db_query(
         conn,
         SPIDER_SQL_ISO_REPEATABLE_READ_STR,
         SPIDER_SQL_ISO_REPEATABLE_READ_LEN,
         -1,
         need_mon)
-      )
+      ) {
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+        conn->mta_conn_mutex_lock_already = FALSE;
+        conn->mta_conn_mutex_unlock_later = FALSE;
         DBUG_RETURN(spider_db_errorno(conn));
+      }
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = FALSE;
+      conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
       pthread_mutex_unlock(&conn->mta_conn_mutex);
       break;
     case ISO_SERIALIZABLE:
+      pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+      pthread_mutex_lock(&conn->mta_conn_mutex);
+      SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+      conn->need_mon = need_mon;
+      DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = TRUE;
+      conn->mta_conn_mutex_unlock_later = TRUE;
       if (spider_db_query(
         conn,
         SPIDER_SQL_ISO_SERIALIZABLE_STR,
         SPIDER_SQL_ISO_SERIALIZABLE_LEN,
         -1,
         need_mon)
-      )
+      ) {
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+        conn->mta_conn_mutex_lock_already = FALSE;
+        conn->mta_conn_mutex_unlock_later = FALSE;
         DBUG_RETURN(spider_db_errorno(conn));
+      }
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = FALSE;
+      conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
       pthread_mutex_unlock(&conn->mta_conn_mutex);
       break;
@@ -2458,101 +2829,169 @@ int spider_db_mysql::set_trx_isolation(
   DBUG_RETURN(0);
 }
 
-bool spider_db_mysql::set_autocommit_in_bulk_sql()
+bool spider_db_mbase::set_autocommit_in_bulk_sql()
 {
-  DBUG_ENTER("spider_db_mysql::set_autocommit_in_bulk_sql");
+  DBUG_ENTER("spider_db_mbase::set_autocommit_in_bulk_sql");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(TRUE);
 }
 
-int spider_db_mysql::set_autocommit(
+int spider_db_mbase::set_autocommit(
   bool autocommit,
   int *need_mon
 ) {
-  DBUG_ENTER("spider_db_mysql::set_autocommit");
+  DBUG_ENTER("spider_db_mbase::set_autocommit");
   DBUG_PRINT("info",("spider this=%p", this));
   if (autocommit)
   {
+    pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+    pthread_mutex_lock(&conn->mta_conn_mutex);
+    SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+    conn->need_mon = need_mon;
+    DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+    conn->mta_conn_mutex_lock_already = TRUE;
+    conn->mta_conn_mutex_unlock_later = TRUE;
     if (spider_db_query(
       conn,
       SPIDER_SQL_AUTOCOMMIT_ON_STR,
       SPIDER_SQL_AUTOCOMMIT_ON_LEN,
       -1,
       need_mon)
-    )
+    ) {
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = FALSE;
+      conn->mta_conn_mutex_unlock_later = FALSE;
       DBUG_RETURN(spider_db_errorno(conn));
+    }
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+    conn->mta_conn_mutex_lock_already = FALSE;
+    conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
     pthread_mutex_unlock(&conn->mta_conn_mutex);
   } else {
+    pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+    pthread_mutex_lock(&conn->mta_conn_mutex);
+    SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+    conn->need_mon = need_mon;
+    DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+    conn->mta_conn_mutex_lock_already = TRUE;
+    conn->mta_conn_mutex_unlock_later = TRUE;
     if (spider_db_query(
       conn,
       SPIDER_SQL_AUTOCOMMIT_OFF_STR,
       SPIDER_SQL_AUTOCOMMIT_OFF_LEN,
       -1,
       need_mon)
-    )
+    ) {
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = FALSE;
+      conn->mta_conn_mutex_unlock_later = FALSE;
       DBUG_RETURN(spider_db_errorno(conn));
+    }
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+    conn->mta_conn_mutex_lock_already = FALSE;
+    conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
     pthread_mutex_unlock(&conn->mta_conn_mutex);
   }
   DBUG_RETURN(0);
 }
 
-bool spider_db_mysql::set_sql_log_off_in_bulk_sql()
+bool spider_db_mbase::set_sql_log_off_in_bulk_sql()
 {
-  DBUG_ENTER("spider_db_mysql::set_sql_log_off_in_bulk_sql");
+  DBUG_ENTER("spider_db_mbase::set_sql_log_off_in_bulk_sql");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(TRUE);
 }
 
-int spider_db_mysql::set_sql_log_off(
+int spider_db_mbase::set_sql_log_off(
   bool sql_log_off,
   int *need_mon
 ) {
-  DBUG_ENTER("spider_db_mysql::set_sql_log_off");
+  DBUG_ENTER("spider_db_mbase::set_sql_log_off");
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql_log_off)
   {
+    pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+    pthread_mutex_lock(&conn->mta_conn_mutex);
+    SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+    conn->need_mon = need_mon;
+    DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+    conn->mta_conn_mutex_lock_already = TRUE;
+    conn->mta_conn_mutex_unlock_later = TRUE;
     if (spider_db_query(
       conn,
       SPIDER_SQL_SQL_LOG_ON_STR,
       SPIDER_SQL_SQL_LOG_ON_LEN,
       -1,
       need_mon)
-    )
+    ) {
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = FALSE;
+      conn->mta_conn_mutex_unlock_later = FALSE;
       DBUG_RETURN(spider_db_errorno(conn));
+    }
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+    conn->mta_conn_mutex_lock_already = FALSE;
+    conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
     pthread_mutex_unlock(&conn->mta_conn_mutex);
   } else {
+    pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+    pthread_mutex_lock(&conn->mta_conn_mutex);
+    SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+    conn->need_mon = need_mon;
+    DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+    conn->mta_conn_mutex_lock_already = TRUE;
+    conn->mta_conn_mutex_unlock_later = TRUE;
     if (spider_db_query(
       conn,
       SPIDER_SQL_SQL_LOG_OFF_STR,
       SPIDER_SQL_SQL_LOG_OFF_LEN,
       -1,
       need_mon)
-    )
+    ) {
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = FALSE;
+      conn->mta_conn_mutex_unlock_later = FALSE;
       DBUG_RETURN(spider_db_errorno(conn));
+    }
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+    conn->mta_conn_mutex_lock_already = FALSE;
+    conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
     pthread_mutex_unlock(&conn->mta_conn_mutex);
   }
   DBUG_RETURN(0);
 }
 
-bool spider_db_mysql::set_time_zone_in_bulk_sql()
+bool spider_db_mbase::set_time_zone_in_bulk_sql()
 {
-  DBUG_ENTER("spider_db_mysql::set_time_zone_in_bulk_sql");
+  DBUG_ENTER("spider_db_mbase::set_time_zone_in_bulk_sql");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(TRUE);
 }
 
-int spider_db_mysql::set_time_zone(
+int spider_db_mbase::set_time_zone(
   Time_zone *time_zone,
   int *need_mon
 ) {
   const String *tz_str = time_zone->get_name();
   char sql_buf[MAX_FIELD_WIDTH];
   spider_string sql_str(sql_buf, sizeof(sql_buf), &my_charset_bin);
-  DBUG_ENTER("spider_db_mysql::set_time_zone");
+  DBUG_ENTER("spider_db_mbase::set_time_zone");
   DBUG_PRINT("info",("spider this=%p", this));
   sql_str.init_calc_mem(214);
   sql_str.length(0);
@@ -2562,20 +3001,37 @@ int spider_db_mysql::set_time_zone(
   sql_str.q_append(SPIDER_SQL_TIME_ZONE_STR, SPIDER_SQL_TIME_ZONE_LEN);
   sql_str.q_append(tz_str->ptr(), tz_str->length());
   sql_str.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+  pthread_mutex_lock(&conn->mta_conn_mutex);
+  SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+  conn->need_mon = need_mon;
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = TRUE;
+  conn->mta_conn_mutex_unlock_later = TRUE;
   if (spider_db_query(
     conn,
     sql_str.ptr(),
     sql_str.length(),
     -1,
     need_mon)
-  )
+  ) {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+    conn->mta_conn_mutex_lock_already = FALSE;
+    conn->mta_conn_mutex_unlock_later = FALSE;
     DBUG_RETURN(spider_db_errorno(conn));
+  }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = FALSE;
+  conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
   pthread_mutex_unlock(&conn->mta_conn_mutex);
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql::exec_simple_sql_with_result(
+int spider_db_mbase::exec_simple_sql_with_result(
   SPIDER_TRX *trx,
   SPIDER_SHARE *share,
   const char *sql,
@@ -2585,10 +3041,13 @@ int spider_db_mysql::exec_simple_sql_with_result(
   SPIDER_DB_RESULT **res
 ) {
   int error_num;
-  DBUG_ENTER("spider_db_mysql::exec_simple_sql_with_result");
+  DBUG_ENTER("spider_db_mbase::exec_simple_sql_with_result");
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
   pthread_mutex_lock(&conn->mta_conn_mutex);
   SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
   conn->need_mon = need_mon;
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
   conn->mta_conn_mutex_lock_already = TRUE;
   conn->mta_conn_mutex_unlock_later = TRUE;
   spider_conn_set_timeout_from_share(conn, all_link_idx, trx->thd,
@@ -2614,6 +3073,8 @@ int spider_db_mysql::exec_simple_sql_with_result(
       if ((error_num = spider_db_ping_internal(share, conn,
         all_link_idx, need_mon)))
       {
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -2624,6 +3085,8 @@ int spider_db_mysql::exec_simple_sql_with_result(
       if ((error_num = spider_db_set_names_internal(trx, share, conn,
         all_link_idx, need_mon)))
       {
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -2640,12 +3103,16 @@ int spider_db_mysql::exec_simple_sql_with_result(
         -1,
         need_mon)
       ) {
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         DBUG_PRINT("info", ("spider error_num=%d 3", error_num));
         DBUG_RETURN(spider_db_errorno(conn));
       }
     } else {
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -2656,18 +3123,29 @@ int spider_db_mysql::exec_simple_sql_with_result(
   }
   if (!(*res = store_result(NULL, NULL, &error_num)))
   {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
-    if (error_num || (error_num = spider_db_errorno(conn)))
+    if (error_num)
     {
+      SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+      pthread_mutex_unlock(&conn->mta_conn_mutex);
       DBUG_PRINT("info", ("spider error_num=%d 5", error_num));
       DBUG_RETURN(error_num);
+    }
+    else if ((error_num = spider_db_errorno(conn)))
+    {
+      DBUG_PRINT("info", ("spider error_num=%d 6", error_num));
+      DBUG_RETURN(error_num);
     } else {
-      DBUG_PRINT("info", ("spider error_num=%d 6",
+      DBUG_PRINT("info", ("spider error_num=%d 7",
         ER_QUERY_ON_FOREIGN_DATA_SOURCE));
       DBUG_RETURN(ER_QUERY_ON_FOREIGN_DATA_SOURCE);
     }
   }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
   conn->mta_conn_mutex_lock_already = FALSE;
   conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -2675,7 +3153,7 @@ int spider_db_mysql::exec_simple_sql_with_result(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql::show_master_status(
+int spider_db_mbase::show_master_status(
   SPIDER_TRX *trx,
   SPIDER_SHARE *share,
   int all_link_idx,
@@ -2689,7 +3167,7 @@ int spider_db_mysql::show_master_status(
   int error_num;
   const char *binlog_file_name, *binlog_pos;
   uint binlog_file_name_length, binlog_pos_length;
-  DBUG_ENTER("spider_db_mysql::show_master_status");
+  DBUG_ENTER("spider_db_mbase::show_master_status");
   if ((error_num = exec_simple_sql_with_result(trx, share,
     SPIDER_SQL_SHOW_MASTER_STATUS_STR, SPIDER_SQL_SHOW_MASTER_STATUS_LEN,
     all_link_idx, need_mon, res1))
@@ -2698,7 +3176,7 @@ int spider_db_mysql::show_master_status(
     DBUG_RETURN(error_num);
   }
 
-  if (!(error_num = ((spider_db_mysql_result *)*res1)->fetch_show_master_status(
+  if (!(error_num = ((spider_db_mbase_result *)*res1)->fetch_show_master_status(
     &binlog_file_name, &binlog_pos))
   ) {
     binlog_file_name_length = strlen(binlog_file_name);
@@ -2737,7 +3215,7 @@ int spider_db_mysql::show_master_status(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql::select_binlog_gtid_pos(
+int spider_db_mbase::select_binlog_gtid_pos(
   SPIDER_TRX *trx,
   SPIDER_SHARE *share,
   int all_link_idx,
@@ -2753,7 +3231,7 @@ int spider_db_mysql::select_binlog_gtid_pos(
   int error_num;
   size_t length;
   const char *gtid_pos;
-  DBUG_ENTER("spider_db_mysql::select_binlog_gtid_pos");
+  DBUG_ENTER("spider_db_mbase::select_binlog_gtid_pos");
   str->length(0);
   if (str->reserve(
     SPIDER_SQL_BINLOG_GTID_POS_LEN +
@@ -2790,7 +3268,7 @@ int spider_db_mysql::select_binlog_gtid_pos(
     DBUG_PRINT("info", ("spider error_num=%d 1", error_num));
     DBUG_RETURN(error_num);
   }
-  if (!(error_num = ((spider_db_mysql_result *)*res)->fetch_select_binlog_gtid_pos(&gtid_pos)))
+  if (!(error_num = ((spider_db_mbase_result *)*res)->fetch_select_binlog_gtid_pos(&gtid_pos)))
   {
     spider_store_binlog_pos_gtid(table, gtid_pos, strlen(gtid_pos), conn->access_charset);
   }
@@ -2807,18 +3285,18 @@ int spider_db_mysql::select_binlog_gtid_pos(
 }
 
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-int spider_db_mysql::append_sql(
+int spider_db_mbase::append_sql(
   char *sql,
   ulong sql_length,
   st_spider_db_request_key *request_key
 ) {
-  DBUG_ENTER("spider_db_mysql::append_sql");
+  DBUG_ENTER("spider_db_mbase::append_sql");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_ASSERT(0);
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql::append_open_handler(
+int spider_db_mbase::append_open_handler(
   uint handler_id,
   const char *db_name,
   const char *table_name,
@@ -2826,13 +3304,13 @@ int spider_db_mysql::append_open_handler(
   const char *sql,
   st_spider_db_request_key *request_key
 ) {
-  DBUG_ENTER("spider_db_mysql::append_open_handler");
+  DBUG_ENTER("spider_db_mbase::append_open_handler");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_ASSERT(0);
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql::append_select(
+int spider_db_mbase::append_select(
   uint handler_id,
   spider_string *sql,
   SPIDER_DB_HS_STRING_REF_BUFFER *keys,
@@ -2840,24 +3318,24 @@ int spider_db_mysql::append_select(
   int skip,
   st_spider_db_request_key *request_key
 ) {
-  DBUG_ENTER("spider_db_mysql::append_select");
+  DBUG_ENTER("spider_db_mbase::append_select");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_ASSERT(0);
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql::append_insert(
+int spider_db_mbase::append_insert(
   uint handler_id,
   SPIDER_DB_HS_STRING_REF_BUFFER *upds,
   st_spider_db_request_key *request_key
 ) {
-  DBUG_ENTER("spider_db_mysql::append_insert");
+  DBUG_ENTER("spider_db_mbase::append_insert");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_ASSERT(0);
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql::append_update(
+int spider_db_mbase::append_update(
   uint handler_id,
   spider_string *sql,
   SPIDER_DB_HS_STRING_REF_BUFFER *keys,
@@ -2868,13 +3346,13 @@ int spider_db_mysql::append_update(
   bool decrement,
   st_spider_db_request_key *request_key
 ) {
-  DBUG_ENTER("spider_db_mysql::append_update");
+  DBUG_ENTER("spider_db_mbase::append_update");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_ASSERT(0);
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql::append_delete(
+int spider_db_mbase::append_delete(
   uint handler_id,
   spider_string *sql,
   SPIDER_DB_HS_STRING_REF_BUFFER *keys,
@@ -2882,27 +3360,27 @@ int spider_db_mysql::append_delete(
   int skip,
   st_spider_db_request_key *request_key
 ) {
-  DBUG_ENTER("spider_db_mysql::append_delete");
+  DBUG_ENTER("spider_db_mbase::append_delete");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_ASSERT(0);
   DBUG_RETURN(0);
 }
 
-void spider_db_mysql::reset_request_queue()
+void spider_db_mbase::reset_request_queue()
 {
-  DBUG_ENTER("spider_db_mysql::reset_request_queue");
+  DBUG_ENTER("spider_db_mbase::reset_request_queue");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_ASSERT(0);
   DBUG_VOID_RETURN;
 }
 #endif
 
-size_t spider_db_mysql::escape_string(
+size_t spider_db_mbase::escape_string(
   char *to,
   const char *from,
   size_t from_length
 ) {
-  DBUG_ENTER("spider_db_mysql::escape_string");
+  DBUG_ENTER("spider_db_mbase::escape_string");
   DBUG_PRINT("info",("spider this=%p", this));
   if (db_conn->server_status & SERVER_STATUS_NO_BACKSLASH_ESCAPES)
     DBUG_RETURN(escape_quotes_for_mysql(db_conn->charset, to, 0,
@@ -2911,14 +3389,14 @@ size_t spider_db_mysql::escape_string(
     from, from_length));
 }
 
-bool spider_db_mysql::have_lock_table_list()
+bool spider_db_mbase::have_lock_table_list()
 {
-  DBUG_ENTER("spider_db_mysql::have_lock_table_list");
+  DBUG_ENTER("spider_db_mbase::have_lock_table_list");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(lock_table_hash.records);
 }
 
-int spider_db_mysql::append_lock_tables(
+int spider_db_mbase::append_lock_tables(
   spider_string *str
 ) {
   int error_num;
@@ -2933,9 +3411,9 @@ int spider_db_mysql::append_lock_tables(
   const char *table_name;
   uint table_name_length;
   CHARSET_INFO *table_name_charset;
-  DBUG_ENTER("spider_db_mysql::lock_tables");
+  DBUG_ENTER("spider_db_mbase::lock_tables");
   DBUG_PRINT("info",("spider this=%p", this));
-  if ((error_num = spider_db_mysql_utility.append_lock_table_head(str)))
+  if ((error_num = spider_db_mbase_utility->append_lock_table_head(str)))
   {
     DBUG_RETURN(error_num);
   }
@@ -2964,7 +3442,7 @@ int spider_db_mysql::append_lock_tables(
         DBUG_RETURN(0);
     }
     conn_link_idx = tmp_spider->conn_link_idx[tmp_link_idx];
-    spider_mysql_share *db_share = (spider_mysql_share *)
+    spider_mbase_share *db_share = (spider_mbase_share *)
       tmp_spider->share->dbton_share[conn->dbton_id];
     if (&db_share->db_names_str[conn_link_idx])
     {
@@ -2987,7 +3465,7 @@ int spider_db_mysql::append_lock_tables(
         tmp_spider->share->tgt_table_names_lengths[conn_link_idx];
       table_name_charset = system_charset_info;
     }
-    if ((error_num = spider_db_mysql_utility.
+    if ((error_num = spider_db_mbase_utility->
       append_lock_table_body(
         str,
         db_name,
@@ -3009,54 +3487,54 @@ int spider_db_mysql::append_lock_tables(
     my_hash_delete(&lock_table_hash, (uchar*) tmp_link_for_hash);
 #endif
   }
-  if ((error_num = spider_db_mysql_utility.append_lock_table_tail(str)))
+  if ((error_num = spider_db_mbase_utility->append_lock_table_tail(str)))
   {
     DBUG_RETURN(error_num);
   }
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql::append_unlock_tables(
+int spider_db_mbase::append_unlock_tables(
   spider_string *str
 ) {
   int error_num;
-  DBUG_ENTER("spider_db_mysql::append_unlock_tables");
+  DBUG_ENTER("spider_db_mbase::append_unlock_tables");
   DBUG_PRINT("info",("spider this=%p", this));
-  if ((error_num = spider_db_mysql_utility.append_unlock_table(str)))
+  if ((error_num = spider_db_mbase_utility->append_unlock_table(str)))
   {
     DBUG_RETURN(error_num);
   }
   DBUG_RETURN(0);
 }
 
-uint spider_db_mysql::get_lock_table_hash_count()
+uint spider_db_mbase::get_lock_table_hash_count()
 {
-  DBUG_ENTER("spider_db_mysql::get_lock_table_hash_count");
+  DBUG_ENTER("spider_db_mbase::get_lock_table_hash_count");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(lock_table_hash.records);
 }
 
-void spider_db_mysql::reset_lock_table_hash()
+void spider_db_mbase::reset_lock_table_hash()
 {
-  DBUG_ENTER("spider_db_mysql::reset_lock_table_hash");
+  DBUG_ENTER("spider_db_mbase::reset_lock_table_hash");
   DBUG_PRINT("info",("spider this=%p", this));
   my_hash_reset(&lock_table_hash);
   DBUG_VOID_RETURN;
 }
 
-uint spider_db_mysql::get_opened_handler_count()
+uint spider_db_mbase::get_opened_handler_count()
 {
-  DBUG_ENTER("spider_db_mysql::get_opened_handler_count");
+  DBUG_ENTER("spider_db_mbase::get_opened_handler_count");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(handler_open_array.elements);
 }
 
-void spider_db_mysql::reset_opened_handler()
+void spider_db_mbase::reset_opened_handler()
 {
   ha_spider *tmp_spider;
   int tmp_link_idx;
   SPIDER_LINK_FOR_HASH **tmp_link_for_hash;
-  DBUG_ENTER("spider_db_mysql::reset_opened_handler");
+  DBUG_ENTER("spider_db_mbase::reset_opened_handler");
   DBUG_PRINT("info",("spider this=%p", this));
   while ((tmp_link_for_hash =
     (SPIDER_LINK_FOR_HASH **) pop_dynamic(&handler_open_array)))
@@ -3068,7 +3546,7 @@ void spider_db_mysql::reset_opened_handler()
   DBUG_VOID_RETURN;
 }
 
-void spider_db_mysql::set_dup_key_idx(
+void spider_db_mbase::set_dup_key_idx(
   ha_spider *spider,
   int link_idx
 ) {
@@ -3077,7 +3555,7 @@ void spider_db_mysql::set_dup_key_idx(
   int key_name_length;
   int max_length = 0;
   const char *key_name;
-  DBUG_ENTER("spider_db_mysql::set_dup_key_idx");
+  DBUG_ENTER("spider_db_mbase::set_dup_key_idx");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider error_str=%s", conn->error_str));
   for (roop_count = 0; roop_count < table->s->keys; roop_count++)
@@ -3089,8 +3567,13 @@ void spider_db_mysql::set_dup_key_idx(
       key_name = spider->share->tgt_pk_names[all_link_idx];
       key_name_length = spider->share->tgt_pk_names_lengths[all_link_idx];
     } else {
-      key_name =        table->s->key_info[roop_count].name.str;
+#ifdef SPIDER_use_LEX_CSTRING_for_KEY_Field_name
+      key_name = table->s->key_info[roop_count].name.str;
       key_name_length = table->s->key_info[roop_count].name.length;
+#else
+      key_name = table->s->key_info[roop_count].name;
+      key_name_length = strlen(key_name);
+#endif
     }
     DBUG_PRINT("info",("spider key_name=%s", key_name));
     if (
@@ -3112,17 +3595,38 @@ void spider_db_mysql::set_dup_key_idx(
   DBUG_VOID_RETURN;
 }
 
-bool spider_db_mysql::cmp_request_key_to_snd(
+bool spider_db_mbase::cmp_request_key_to_snd(
   st_spider_db_request_key *request_key
 ) {
-  DBUG_ENTER("spider_db_mysql::cmp_request_key_to_snd");
+  DBUG_ENTER("spider_db_mbase::cmp_request_key_to_snd");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(TRUE);
 }
 
-spider_db_mysql_util::spider_db_mysql_util() : spider_db_util()
+spider_db_mbase_util::spider_db_mbase_util() : spider_db_util()
+{
+  DBUG_ENTER("spider_db_mbase_util::spider_db_mbase_util");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_db_mysql_util::spider_db_mysql_util() : spider_db_mbase_util()
 {
   DBUG_ENTER("spider_db_mysql_util::spider_db_mysql_util");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_db_mariadb_util::spider_db_mariadb_util() : spider_db_mbase_util()
+{
+  DBUG_ENTER("spider_db_mariadb_util::spider_db_mariadb_util");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_db_mbase_util::~spider_db_mbase_util()
+{
+  DBUG_ENTER("spider_db_mbase_util::~spider_db_mbase_util");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_VOID_RETURN;
 }
@@ -3134,25 +3638,32 @@ spider_db_mysql_util::~spider_db_mysql_util()
   DBUG_VOID_RETURN;
 }
 
-int spider_db_mysql_util::append_name(
+spider_db_mariadb_util::~spider_db_mariadb_util()
+{
+  DBUG_ENTER("spider_db_mariadb_util::~spider_db_mariadb_util");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+int spider_db_mbase_util::append_name(
   spider_string *str,
   const char *name,
   uint name_length
 ) {
-  DBUG_ENTER("spider_db_mysql_util::append_name");
+  DBUG_ENTER("spider_db_mbase_util::append_name");
   str->q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
   str->q_append(name, name_length);
   str->q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_util::append_name_with_charset(
+int spider_db_mbase_util::append_name_with_charset(
   spider_string *str,
   const char *name,
   uint name_length,
   CHARSET_INFO *name_charset
 ) {
-  DBUG_ENTER("spider_db_mysql_util::append_name_with_charset");
+  DBUG_ENTER("spider_db_mbase_util::append_name_with_charset");
   if (str->reserve(SPIDER_SQL_NAME_QUOTE_LEN * 2 + name_length * 2))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   str->q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
@@ -3163,17 +3674,17 @@ int spider_db_mysql_util::append_name_with_charset(
   DBUG_RETURN(0);
 }
 
-bool spider_db_mysql_util::is_name_quote(
+bool spider_db_mbase_util::is_name_quote(
   const char head_code
 ) {
-  DBUG_ENTER("spider_db_mysql_util::is_name_quote");
+  DBUG_ENTER("spider_db_mbase_util::is_name_quote");
   DBUG_RETURN(head_code == *name_quote_str);
 }
 
-int spider_db_mysql_util::append_escaped_name_quote(
+int spider_db_mbase_util::append_escaped_name_quote(
   spider_string *str
 ) {
-  DBUG_ENTER("spider_db_mysql_util::append_escaped_name_quote");
+  DBUG_ENTER("spider_db_mbase_util::append_escaped_name_quote");
   if (str->reserve(SPIDER_SQL_NAME_QUOTE_LEN * 2))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   str->q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
@@ -3181,7 +3692,7 @@ int spider_db_mysql_util::append_escaped_name_quote(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_util::append_column_value(
+int spider_db_mbase_util::append_column_value(
   ha_spider *spider,
   spider_string *str,
   Field *field,
@@ -3192,8 +3703,12 @@ int spider_db_mysql_util::append_column_value(
   spider_string tmp_str(buf, MAX_FIELD_WIDTH, &my_charset_bin);
   String *ptr;
   uint length;
-  DBUG_ENTER("spider_db_mysql_util::append_column_value");
+  THD *thd = field->table->in_use;
+  Time_zone *saved_time_zone = thd->variables.time_zone;
+  DBUG_ENTER("spider_db_mbase_util::append_column_value");
   tmp_str.init_calc_mem(113);
+
+  thd->variables.time_zone = UTC;
 
   if (new_ptr)
   {
@@ -3290,6 +3805,9 @@ int spider_db_mysql_util::append_column_value(
     ptr = field->val_str(tmp_str.get_str());
     tmp_str.mem_calc();
   }
+
+  thd->variables.time_zone = saved_time_zone;
+
   DBUG_PRINT("info", ("spider field->type() is %d", field->type()));
   DBUG_PRINT("info", ("spider ptr->length() is %d", ptr->length()));
 /*
@@ -3352,7 +3870,7 @@ int spider_db_mysql_util::append_column_value(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_util::append_from_with_alias(
+int spider_db_mbase_util::append_from_with_alias(
   spider_string *str,
   const char **table_names,
   uint *table_name_lengths,
@@ -3363,7 +3881,7 @@ int spider_db_mysql_util::append_from_with_alias(
   bool over_write
 ) {
   uint roop_count, length = 0;
-  DBUG_ENTER("spider_db_mysql_util::append_from_with_alias");
+  DBUG_ENTER("spider_db_mbase_util::append_from_with_alias");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!over_write)
   {
@@ -3386,11 +3904,11 @@ int spider_db_mysql_util::append_from_with_alias(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_util::append_trx_isolation(
+int spider_db_mbase_util::append_trx_isolation(
   spider_string *str,
   int trx_isolation
 ) {
-  DBUG_ENTER("spider_db_mysql_util::append_trx_isolation");
+  DBUG_ENTER("spider_db_mbase_util::append_trx_isolation");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_SEMICOLON_LEN +
     SPIDER_SQL_ISO_READ_UNCOMMITTED_LEN))
@@ -3423,11 +3941,11 @@ int spider_db_mysql_util::append_trx_isolation(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_util::append_autocommit(
+int spider_db_mbase_util::append_autocommit(
   spider_string *str,
   bool autocommit
 ) {
-  DBUG_ENTER("spider_db_mysql_util::append_autocommit");
+  DBUG_ENTER("spider_db_mbase_util::append_autocommit");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_SEMICOLON_LEN + SPIDER_SQL_AUTOCOMMIT_OFF_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -3446,11 +3964,11 @@ int spider_db_mysql_util::append_autocommit(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_util::append_sql_log_off(
+int spider_db_mbase_util::append_sql_log_off(
   spider_string *str,
   bool sql_log_off
 ) {
-  DBUG_ENTER("spider_db_mysql_util::append_sql_log_off");
+  DBUG_ENTER("spider_db_mbase_util::append_sql_log_off");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_SEMICOLON_LEN + SPIDER_SQL_SQL_LOG_OFF_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -3467,12 +3985,12 @@ int spider_db_mysql_util::append_sql_log_off(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_util::append_time_zone(
+int spider_db_mbase_util::append_time_zone(
   spider_string *str,
   Time_zone *time_zone
 ) {
   const String *tz_str = time_zone->get_name();
-  DBUG_ENTER("spider_db_mysql_util::append_time_zone");
+  DBUG_ENTER("spider_db_mbase_util::append_time_zone");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_SEMICOLON_LEN + SPIDER_SQL_TIME_ZONE_LEN +
     tz_str->length() + SPIDER_SQL_VALUE_QUOTE_LEN))
@@ -3485,10 +4003,10 @@ int spider_db_mysql_util::append_time_zone(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_util::append_start_transaction(
+int spider_db_mbase_util::append_start_transaction(
   spider_string *str
 ) {
-  DBUG_ENTER("spider_db_mysql_util::append_start_transaction");
+  DBUG_ENTER("spider_db_mbase_util::append_start_transaction");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_SEMICOLON_LEN +
     SPIDER_SQL_START_TRANSACTION_LEN))
@@ -3502,11 +4020,11 @@ int spider_db_mysql_util::append_start_transaction(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_util::append_xa_start(
+int spider_db_mbase_util::append_xa_start(
   spider_string *str,
   XID *xid
 ) {
-  DBUG_ENTER("spider_db_mysql_util::append_xa_start");
+  DBUG_ENTER("spider_db_mbase_util::append_xa_start");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_SEMICOLON_LEN +
     SPIDER_SQL_XA_START_LEN + XIDDATASIZE + sizeof(long) + 9))
@@ -3520,10 +4038,10 @@ int spider_db_mysql_util::append_xa_start(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_util::append_lock_table_head(
+int spider_db_mbase_util::append_lock_table_head(
   spider_string *str
 ) {
-  DBUG_ENTER("spider_db_mysql_util::append_lock_table_head");
+  DBUG_ENTER("spider_db_mbase_util::append_lock_table_head");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_LOCK_TABLE_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -3531,7 +4049,7 @@ int spider_db_mysql_util::append_lock_table_head(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_util::append_lock_table_body(
+int spider_db_mbase_util::append_lock_table_body(
   spider_string *str,
   const char *db_name,
   uint db_name_length,
@@ -3541,7 +4059,7 @@ int spider_db_mysql_util::append_lock_table_body(
   CHARSET_INFO *table_name_charset,
   int lock_type
 ) {
-  DBUG_ENTER("spider_db_mysql_util::append_lock_table_body");
+  DBUG_ENTER("spider_db_mbase_util::append_lock_table_body");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_NAME_QUOTE_LEN))
   {
@@ -3570,19 +4088,19 @@ int spider_db_mysql_util::append_lock_table_body(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_util::append_lock_table_tail(
+int spider_db_mbase_util::append_lock_table_tail(
   spider_string *str
 ) {
-  DBUG_ENTER("spider_db_mysql_util::append_lock_table_tail");
+  DBUG_ENTER("spider_db_mbase_util::append_lock_table_tail");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(str->length() - SPIDER_SQL_COMMA_LEN);
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_util::append_unlock_table(
+int spider_db_mbase_util::append_unlock_table(
   spider_string *str
 ) {
-  DBUG_ENTER("spider_db_mysql_util::append_unlock_table");
+  DBUG_ENTER("spider_db_mbase_util::append_unlock_table");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_UNLOCK_TABLE_LEN))
   {
@@ -3592,7 +4110,7 @@ int spider_db_mysql_util::append_unlock_table(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_util::open_item_func(
+int spider_db_mbase_util::open_item_func(
   Item_func *item_func,
   ha_spider *spider,
   spider_string *str,
@@ -3601,19 +4119,19 @@ int spider_db_mysql_util::open_item_func(
   bool use_fields,
   spider_fields *fields
 ) {
-  uint dbton_id = spider_dbton_mysql.dbton_id;
   int error_num;
   Item *item, **item_list = item_func->arguments();
+  Field *field;
   uint roop_count, item_count = item_func->argument_count(), start_item = 0;
   const char *func_name = SPIDER_SQL_NULL_CHAR_STR,
-    *separete_str = SPIDER_SQL_NULL_CHAR_STR,
+    *separator_str = SPIDER_SQL_NULL_CHAR_STR,
     *last_str = SPIDER_SQL_NULL_CHAR_STR;
   int func_name_length = SPIDER_SQL_NULL_CHAR_LEN,
-    separete_str_length = SPIDER_SQL_NULL_CHAR_LEN,
+    separator_str_length = SPIDER_SQL_NULL_CHAR_LEN,
     last_str_length = SPIDER_SQL_NULL_CHAR_LEN;
   int use_pushdown_udf;
   bool merge_func = FALSE;
-  DBUG_ENTER("spider_db_mysql_util::open_item_func");
+  DBUG_ENTER("spider_db_mbase_util::open_item_func");
   if (str)
   {
     if (str->reserve(SPIDER_SQL_OPEN_PAREN_LEN))
@@ -3675,75 +4193,109 @@ int spider_db_mysql_util::open_item_func(
         ) {
           if (str)
             str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
-          DBUG_RETURN(spider_db_open_item_int(item_func, spider, str,
+          DBUG_RETURN(spider_db_open_item_int(item_func, NULL, spider, str,
             alias, alias_length, dbton_id, use_fields, fields));
         } else if (
-          !strncasecmp("case", func_name, func_name_length)
+          !strncasecmp("trim", func_name, func_name_length) &&
+          item_count == 2
         ) {
-#ifdef ITEM_FUNC_CASE_PARAMS_ARE_PUBLIC
-          Item_func_case *item_func_case = (Item_func_case *) item_func;
-          if (str)
+          /* item_count == 1 means this TRIM() is without a remove_str */
+          item = item_list[0];
+          Item *item_tmp = item_list[1];
+          if (str) 
           {
-            if (str->reserve(SPIDER_SQL_CASE_LEN))
-              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-            str->q_append(SPIDER_SQL_CASE_STR, SPIDER_SQL_CASE_LEN);
-          }
-          if (item_func_case->first_expr_num != -1)
-          {
-            if ((error_num = spider_db_print_item_type(
-              item_list[item_func_case->first_expr_num], spider, str,
-              alias, alias_length, dbton_id, use_fields, fields)))
-              DBUG_RETURN(error_num);
-          }
-          for (roop_count = 0; roop_count < item_func_case->ncases;
-            roop_count += 2)
-          {
-            if (str)
+            if (item_tmp->type() == Item::STRING_ITEM) 
             {
-              if (str->reserve(SPIDER_SQL_WHEN_LEN))
+              /* 1. append 'TRIM(BOTH ' */
+              if (str->reserve(SPIDER_SQL_TRIM_LEN + SPIDER_SQL_OPEN_PAREN_LEN +
+                               SPIDER_SQL_TRIM_BOTH_LEN))
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-              str->q_append(SPIDER_SQL_WHEN_STR, SPIDER_SQL_WHEN_LEN);
-            }
-            if ((error_num = spider_db_print_item_type(
-              item_list[roop_count], spider, str,
-              alias, alias_length, dbton_id, use_fields, fields)))
-              DBUG_RETURN(error_num);
-            if (str)
-            {
-              if (str->reserve(SPIDER_SQL_THEN_LEN))
+              str->q_append(SPIDER_SQL_TRIM_STR, SPIDER_SQL_TRIM_LEN);
+              str->q_append(SPIDER_SQL_OPEN_PAREN_STR,
+                            SPIDER_SQL_OPEN_PAREN_LEN);
+              str->q_append(SPIDER_SQL_TRIM_BOTH_STR, SPIDER_SQL_TRIM_BOTH_LEN);
+              /* 2. append "remove_str"*/
+              if ((error_num = spider_db_print_item_type(
+                      item_tmp, NULL, spider, str, alias, alias_length, dbton_id,
+                      use_fields, fields)))
+                DBUG_RETURN(error_num);
+              /* 3. append ' FROM ' */
+              if (str->reserve(SPIDER_SQL_FROM_LEN))
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-              str->q_append(SPIDER_SQL_THEN_STR, SPIDER_SQL_THEN_LEN);
+              str->q_append(SPIDER_SQL_FROM_STR, SPIDER_SQL_FROM_LEN);
+              /* 4. append `field` */
+              if ((error_num = spider_db_print_item_type(
+                      item, NULL, spider, str, alias, alias_length, dbton_id,
+                      use_fields, fields)))
+                DBUG_RETURN(error_num);
+              /* 5. append ')' */
+              if (str->reserve(SPIDER_SQL_CLOSE_PAREN_LEN))
+                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+              str->q_append(SPIDER_SQL_CLOSE_PAREN_STR,
+                            SPIDER_SQL_CLOSE_PAREN_LEN);
             }
-            if ((error_num = spider_db_print_item_type(
-              item_list[roop_count + 1], spider, str,
-              alias, alias_length, dbton_id, use_fields, fields)))
-              DBUG_RETURN(error_num);
           }
-          if (item_func_case->else_expr_num != -1)
+          item_count -= 2;
+          break;
+        }
+      } else if (func_name_length == 5)
+      {
+        if (
+          (!strncasecmp("ltrim", func_name, func_name_length) ||
+           !strncasecmp("rtrim", func_name, func_name_length)) &&
+          (item_count == 2)
+        ) {
+          /* the func_name for TRIM(LEADING ...) is LTRIM, for TRIM(TRAILING) is RTRIM */
+          /* item_count == 2 means this TRIM(LEADING/TRAILING ...) is with a remove_str */
+          item = item_list[0];
+          Item *item_tmp = item_list[1];
+          if (str) 
           {
-            if (str)
+            if (item_tmp->type() == Item::STRING_ITEM) 
             {
-              if (str->reserve(SPIDER_SQL_ELSE_LEN))
+              /* 1. append 'TRIM(LEADING ' or 'TRIM(TRAILING ' */
+              if (func_name[0] == 'l' || func_name[0] == 'L')
+              { /* ltrim */
+                if (str->reserve(SPIDER_SQL_TRIM_LEN + SPIDER_SQL_OPEN_PAREN_LEN +
+                                 SPIDER_SQL_TRIM_LEADING_LEN))
+                  DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+                str->q_append(SPIDER_SQL_TRIM_STR, SPIDER_SQL_TRIM_LEN);
+                str->q_append(SPIDER_SQL_OPEN_PAREN_STR,
+                              SPIDER_SQL_OPEN_PAREN_LEN);
+                str->q_append(SPIDER_SQL_TRIM_LEADING_STR, SPIDER_SQL_TRIM_LEADING_LEN);
+              } else 
+              { /* rtrim */
+                if (str->reserve(SPIDER_SQL_TRIM_LEN + SPIDER_SQL_OPEN_PAREN_LEN +
+                                 SPIDER_SQL_TRIM_TRAILING_LEN))
+                  DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+                str->q_append(SPIDER_SQL_TRIM_STR, SPIDER_SQL_TRIM_LEN);
+                str->q_append(SPIDER_SQL_OPEN_PAREN_STR,
+                              SPIDER_SQL_OPEN_PAREN_LEN);
+                str->q_append(SPIDER_SQL_TRIM_TRAILING_STR, SPIDER_SQL_TRIM_TRAILING_LEN);
+              }
+              /* 2. append "remove_str"*/
+              if ((error_num = spider_db_print_item_type(
+                  item_tmp, NULL, spider, str, alias, alias_length, dbton_id,
+                  use_fields, fields)))
+                DBUG_RETURN(error_num);
+              /* 3. append ' FROM ' */
+              if (str->reserve(SPIDER_SQL_FROM_LEN))
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-              str->q_append(SPIDER_SQL_ELSE_STR, SPIDER_SQL_ELSE_LEN);
+              str->q_append(SPIDER_SQL_FROM_STR, SPIDER_SQL_FROM_LEN);
+              /* 4. append `field` */
+              if ((error_num = spider_db_print_item_type(
+                  item, NULL, spider, str, alias, alias_length, dbton_id,
+                  use_fields, fields)))
+                DBUG_RETURN(error_num);
+              /* 5. append ')' */
+              if (str->reserve(SPIDER_SQL_CLOSE_PAREN_LEN))
+                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+              str->q_append(SPIDER_SQL_CLOSE_PAREN_STR,
+                            SPIDER_SQL_CLOSE_PAREN_LEN);
             }
-            if ((error_num = spider_db_print_item_type(
-              item_list[item_func_case->else_expr_num], spider, str,
-              alias, alias_length, dbton_id, use_fields, fields)))
-              DBUG_RETURN(error_num);
           }
-          if (str)
-          {
-            if (str->reserve(SPIDER_SQL_END_LEN + SPIDER_SQL_CLOSE_PAREN_LEN))
-              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-            str->q_append(SPIDER_SQL_END_STR, SPIDER_SQL_END_LEN);
-            str->q_append(SPIDER_SQL_CLOSE_PAREN_STR,
-              SPIDER_SQL_CLOSE_PAREN_LEN);
-          }
-          DBUG_RETURN(0);
-#else
-          DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
-#endif
+          item_count -= 2;
+          break;
         }
       } else if (func_name_length == 6 &&
         !strncasecmp("istrue", func_name, func_name_length)
@@ -3765,7 +4317,7 @@ int spider_db_mysql_util::open_item_func(
         ) {
           if (str)
             str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
-          DBUG_RETURN(spider_db_open_item_string(item_func, spider, str,
+          DBUG_RETURN(spider_db_open_item_string(item_func, NULL, spider, str,
             alias, alias_length, dbton_id, use_fields, fields));
         } else if (
           !strncasecmp("convert", func_name, func_name_length)
@@ -3790,7 +4342,7 @@ int spider_db_mysql_util::open_item_func(
       ) {
         if (str)
           str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
-        DBUG_RETURN(spider_db_open_item_string(item_func, spider, str,
+        DBUG_RETURN(spider_db_open_item_string(item_func, NULL, spider, str,
           alias, alias_length, dbton_id, use_fields, fields));
       } else if (func_name_length == 9 &&
         !strncasecmp("isnottrue", func_name, func_name_length)
@@ -3817,8 +4369,8 @@ int spider_db_mysql_util::open_item_func(
           }
           func_name = SPIDER_SQL_COMMA_STR;
           func_name_length = SPIDER_SQL_COMMA_LEN;
-          separete_str = SPIDER_SQL_COMMA_STR;
-          separete_str_length = SPIDER_SQL_COMMA_LEN;
+          separator_str = SPIDER_SQL_COMMA_STR;
+          separator_str_length = SPIDER_SQL_COMMA_LEN;
           break;
         }
       } else if (func_name_length == 12)
@@ -3906,7 +4458,7 @@ int spider_db_mysql_util::open_item_func(
         {
           if (str)
             str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
-          DBUG_RETURN(spider_db_open_item_string(item_func, spider, str,
+          DBUG_RETURN(spider_db_open_item_string(item_func, NULL, spider, str,
             alias, alias_length, dbton_id, use_fields, fields));
         } else if (!strncasecmp("timestampdiff", func_name, func_name_length))
         {
@@ -3969,7 +4521,7 @@ int spider_db_mysql_util::open_item_func(
             str->q_append(interval_str, interval_len);
             str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
           }
-          if ((error_num = spider_db_print_item_type(item_list[0], spider,
+          if ((error_num = spider_db_print_item_type(item_list[0], NULL, spider,
             str, alias, alias_length, dbton_id, use_fields, fields)))
             DBUG_RETURN(error_num);
           if (str)
@@ -3978,7 +4530,7 @@ int spider_db_mysql_util::open_item_func(
               DBUG_RETURN(HA_ERR_OUT_OF_MEM);
             str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
           }
-          if ((error_num = spider_db_print_item_type(item_list[1], spider,
+          if ((error_num = spider_db_print_item_type(item_list[1], NULL, spider,
             str, alias, alias_length, dbton_id, use_fields, fields)))
             DBUG_RETURN(error_num);
           if (str)
@@ -4232,8 +4784,8 @@ int spider_db_mysql_util::open_item_func(
           func_name = spider_db_timefunc_interval_str[
             item_date_add_interval->int_type];
           func_name_length = strlen(func_name);
-          if ((error_num = spider_db_print_item_type(item_list[0], spider, str,
-            alias, alias_length, dbton_id, use_fields, fields)))
+          if ((error_num = spider_db_print_item_type(item_list[0], NULL, spider,
+            str, alias, alias_length, dbton_id, use_fields, fields)))
             DBUG_RETURN(error_num);
           if (str)
           {
@@ -4249,8 +4801,8 @@ int spider_db_mysql_util::open_item_func(
               str->q_append(SPIDER_SQL_INTERVAL_STR, SPIDER_SQL_INTERVAL_LEN);
             }
           }
-          if ((error_num = spider_db_print_item_type(item_list[1], spider, str,
-            alias, alias_length, dbton_id, use_fields, fields)))
+          if ((error_num = spider_db_print_item_type(item_list[1], NULL, spider,
+            str, alias, alias_length, dbton_id, use_fields, fields)))
             DBUG_RETURN(error_num);
           if (str)
           {
@@ -4272,16 +4824,16 @@ int spider_db_mysql_util::open_item_func(
       }
       func_name = SPIDER_SQL_COMMA_STR;
       func_name_length = SPIDER_SQL_COMMA_LEN;
-      separete_str = SPIDER_SQL_COMMA_STR;
-      separete_str_length = SPIDER_SQL_COMMA_LEN;
+      separator_str = SPIDER_SQL_COMMA_STR;
+      separator_str_length = SPIDER_SQL_COMMA_LEN;
       last_str = SPIDER_SQL_CLOSE_PAREN_STR;
       last_str_length = SPIDER_SQL_CLOSE_PAREN_LEN;
       break;
     case Item_func::NOW_FUNC:
       if (str)
         str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
-      DBUG_RETURN(spider_db_open_item_string(item_func, spider, str,
-        alias, alias_length, dbton_id, use_fields, fields));
+      DBUG_RETURN(spider_db_open_item_string(item_func, NULL, spider,
+        str, alias, alias_length, dbton_id, use_fields, fields));
     case Item_func::CHAR_TYPECAST_FUNC:
       DBUG_PRINT("info",("spider CHAR_TYPECAST_FUNC"));
       {
@@ -4406,15 +4958,15 @@ int spider_db_mysql_util::open_item_func(
       {
         func_name = SPIDER_SQL_NOT_IN_STR;
         func_name_length = SPIDER_SQL_NOT_IN_LEN;
-        separete_str = SPIDER_SQL_COMMA_STR;
-        separete_str_length = SPIDER_SQL_COMMA_LEN;
+        separator_str = SPIDER_SQL_COMMA_STR;
+        separator_str_length = SPIDER_SQL_COMMA_LEN;
         last_str = SPIDER_SQL_CLOSE_PAREN_STR;
         last_str_length = SPIDER_SQL_CLOSE_PAREN_LEN;
       } else {
         func_name = SPIDER_SQL_IN_STR;
         func_name_length = SPIDER_SQL_IN_LEN;
-        separete_str = SPIDER_SQL_COMMA_STR;
-        separete_str_length = SPIDER_SQL_COMMA_LEN;
+        separator_str = SPIDER_SQL_COMMA_STR;
+        separator_str_length = SPIDER_SQL_COMMA_LEN;
         last_str = SPIDER_SQL_CLOSE_PAREN_STR;
         last_str_length = SPIDER_SQL_CLOSE_PAREN_LEN;
       }
@@ -4424,19 +4976,25 @@ int spider_db_mysql_util::open_item_func(
       {
         func_name = SPIDER_SQL_NOT_BETWEEN_STR;
         func_name_length = SPIDER_SQL_NOT_BETWEEN_LEN;
-        separete_str = SPIDER_SQL_AND_STR;
-        separete_str_length = SPIDER_SQL_AND_LEN;
+        separator_str = SPIDER_SQL_AND_STR;
+        separator_str_length = SPIDER_SQL_AND_LEN;
       } else {
         func_name = (char*) item_func->func_name();
         func_name_length = strlen(func_name);
-        separete_str = SPIDER_SQL_AND_STR;
-        separete_str_length = SPIDER_SQL_AND_LEN;
+        separator_str = SPIDER_SQL_AND_STR;
+        separator_str_length = SPIDER_SQL_AND_LEN;
       }
       break;
+    case Item_func::FUNC_SP:
     case Item_func::UDF_FUNC:
       use_pushdown_udf = spider_param_use_pushdown_udf(spider->trx->thd,
         spider->share->use_pushdown_udf);
       if (!use_pushdown_udf)
+        /*
+          This is the default behavior because the remote nodes may deal with
+          the function in an unexpected way (e.g. not having the same
+          definition). Users can turn it on if they know what they are doing.
+        */
         DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
       if (str)
       {
@@ -4451,8 +5009,8 @@ int spider_db_mysql_util::open_item_func(
       }
       func_name = SPIDER_SQL_COMMA_STR;
       func_name_length = SPIDER_SQL_COMMA_LEN;
-      separete_str = SPIDER_SQL_COMMA_STR;
-      separete_str_length = SPIDER_SQL_COMMA_LEN;
+      separator_str = SPIDER_SQL_COMMA_STR;
+      separator_str_length = SPIDER_SQL_COMMA_LEN;
       last_str = SPIDER_SQL_CLOSE_PAREN_STR;
       last_str_length = SPIDER_SQL_CLOSE_PAREN_LEN;
       break;
@@ -4472,10 +5030,10 @@ int spider_db_mysql_util::open_item_func(
       if (str)
         str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
       if (item_func->result_type() == STRING_RESULT)
-        DBUG_RETURN(spider_db_open_item_string(item_func, spider, str,
+        DBUG_RETURN(spider_db_open_item_string(item_func, NULL, spider, str,
           alias, alias_length, dbton_id, use_fields, fields));
       else
-        DBUG_RETURN(spider_db_open_item_int(item_func, spider, str,
+        DBUG_RETURN(spider_db_open_item_int(item_func, NULL, spider, str,
           alias, alias_length, dbton_id, use_fields, fields));
     case Item_func::FT_FUNC:
       if (spider_db_check_ft_idx(item_func, spider) == MAX_KEY)
@@ -4487,8 +5045,8 @@ int spider_db_mysql_util::open_item_func(
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         str->q_append(SPIDER_SQL_MATCH_STR, SPIDER_SQL_MATCH_LEN);
       }
-      separete_str = SPIDER_SQL_COMMA_STR;
-      separete_str_length = SPIDER_SQL_COMMA_LEN;
+      separator_str = SPIDER_SQL_COMMA_STR;
+      separator_str_length = SPIDER_SQL_COMMA_LEN;
       last_str = SPIDER_SQL_CLOSE_PAREN_STR;
       last_str_length = SPIDER_SQL_CLOSE_PAREN_LEN;
       break;
@@ -4505,8 +5063,8 @@ int spider_db_mysql_util::open_item_func(
       }
       func_name = SPIDER_SQL_COMMA_STR;
       func_name_length = SPIDER_SQL_COMMA_LEN;
-      separete_str = SPIDER_SQL_COMMA_STR;
-      separete_str_length = SPIDER_SQL_COMMA_LEN;
+      separator_str = SPIDER_SQL_COMMA_STR;
+      separator_str_length = SPIDER_SQL_COMMA_LEN;
       last_str = SPIDER_SQL_CLOSE_PAREN_STR;
       last_str_length = SPIDER_SQL_CLOSE_PAREN_LEN;
       break;
@@ -4537,8 +5095,8 @@ int spider_db_mysql_util::open_item_func(
       }
       func_name = SPIDER_SQL_COMMA_STR;
       func_name_length = SPIDER_SQL_COMMA_LEN;
-      separete_str = SPIDER_SQL_COMMA_STR;
-      separete_str_length = SPIDER_SQL_COMMA_LEN;
+      separator_str = SPIDER_SQL_COMMA_STR;
+      separator_str_length = SPIDER_SQL_COMMA_LEN;
       last_str = SPIDER_SQL_CLOSE_PAREN_STR;
       last_str_length = SPIDER_SQL_CLOSE_PAREN_LEN;
       break;
@@ -4549,12 +5107,109 @@ int spider_db_mysql_util::open_item_func(
     case Item_func::LE_FUNC:
     case Item_func::GE_FUNC:
     case Item_func::GT_FUNC:
-    case Item_func::LIKE_FUNC:
       if (str)
       {
         func_name = (char*) item_func->func_name();
         func_name_length = strlen(func_name);
       }
+      break;
+    case Item_func::LIKE_FUNC:
+      if (str)
+      {
+         if (((Item_func_like *)item_func)->negated)
+         {
+            func_name = SPIDER_SQL_NOT_LIKE_STR;
+            func_name_length = SPIDER_SQL_NOT_LIKE_LEN;
+         }
+         else
+         {
+            func_name = (char*)item_func->func_name();
+            func_name_length = strlen(func_name);
+         }
+      }
+      break;
+    case Item_func::CASE_SEARCHED_FUNC:
+    case Item_func::CASE_SIMPLE_FUNC:
+#ifdef ITEM_FUNC_CASE_PARAMS_ARE_PUBLIC
+      Item_func_case *item_func_case = (Item_func_case *) item_func;
+      if (str)
+      {
+        if (str->reserve(SPIDER_SQL_CASE_LEN))
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        str->q_append(SPIDER_SQL_CASE_STR, SPIDER_SQL_CASE_LEN);
+      }
+      if (item_func_case->first_expr_num != -1)
+      {
+        if ((error_num = spider_db_print_item_type(
+          item_list[item_func_case->first_expr_num], NULL, spider, str,
+          alias, alias_length, dbton_id, use_fields, fields)))
+          DBUG_RETURN(error_num);
+      }
+      for (roop_count = 0; roop_count < item_func_case->ncases;
+        roop_count += 2)
+      {
+        if (str)
+        {
+          if (str->reserve(SPIDER_SQL_WHEN_LEN))
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          str->q_append(SPIDER_SQL_WHEN_STR, SPIDER_SQL_WHEN_LEN);
+        }
+        if ((error_num = spider_db_print_item_type(
+          item_list[roop_count], NULL, spider, str,
+          alias, alias_length, dbton_id, use_fields, fields)))
+          DBUG_RETURN(error_num);
+        if (str)
+        {
+          if (str->reserve(SPIDER_SQL_THEN_LEN))
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          str->q_append(SPIDER_SQL_THEN_STR, SPIDER_SQL_THEN_LEN);
+        }
+        if ((error_num = spider_db_print_item_type(
+          item_list[roop_count + 1], NULL, spider, str,
+          alias, alias_length, dbton_id, use_fields, fields)))
+          DBUG_RETURN(error_num);
+      }
+      if (item_func_case->else_expr_num != -1)
+      {
+        if (str)
+        {
+          if (str->reserve(SPIDER_SQL_ELSE_LEN))
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          str->q_append(SPIDER_SQL_ELSE_STR, SPIDER_SQL_ELSE_LEN);
+        }
+        if ((error_num = spider_db_print_item_type(
+          item_list[item_func_case->else_expr_num], NULL, spider, str,
+          alias, alias_length, dbton_id, use_fields, fields)))
+          DBUG_RETURN(error_num);
+      }
+      if (str)
+      {
+        if (str->reserve(SPIDER_SQL_END_LEN + SPIDER_SQL_CLOSE_PAREN_LEN))
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        str->q_append(SPIDER_SQL_END_STR, SPIDER_SQL_END_LEN);
+        str->q_append(SPIDER_SQL_CLOSE_PAREN_STR,
+          SPIDER_SQL_CLOSE_PAREN_LEN);
+      }
+      DBUG_RETURN(0);
+#else
+      DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+#endif
+    case Item_func::JSON_EXTRACT_FUNC:
+      func_name = (char*) item_func->func_name();
+      func_name_length = strlen(func_name);
+      if (str)
+      {
+        if (str->reserve(func_name_length + SPIDER_SQL_OPEN_PAREN_LEN))
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        str->q_append(func_name, func_name_length);
+        str->q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
+      }
+      func_name = SPIDER_SQL_COMMA_STR;
+      func_name_length = SPIDER_SQL_COMMA_LEN;
+      separator_str = SPIDER_SQL_COMMA_STR;
+      separator_str_length = SPIDER_SQL_COMMA_LEN;
+      last_str = SPIDER_SQL_CLOSE_PAREN_STR;
+      last_str_length = SPIDER_SQL_CLOSE_PAREN_LEN;
       break;
     default:
       THD *thd = spider->trx->thd;
@@ -4571,23 +5226,33 @@ int spider_db_mysql_util::open_item_func(
   }
   DBUG_PRINT("info",("spider func_name = %s", func_name));
   DBUG_PRINT("info",("spider func_name_length = %d", func_name_length));
-  DBUG_PRINT("info",("spider separete_str = %s", separete_str));
-  DBUG_PRINT("info",("spider separete_str_length = %d", separete_str_length));
+  DBUG_PRINT("info",("spider separator_str = %s", separator_str));
+  DBUG_PRINT("info",("spider separator_str_length = %d", separator_str_length));
   DBUG_PRINT("info",("spider last_str = %s", last_str));
   DBUG_PRINT("info",("spider last_str_length = %d", last_str_length));
   if (item_count)
   {
+    /* Find the field in the list of items of the expression tree */
+    field = spider_db_find_field_in_item_list(item_list,
+                                              item_count, start_item,
+                                              str,
+                                              func_name, func_name_length);
     item_count--;
+    /*
+      Loop through the items of the current function expression to
+      print its portion of the statement
+    */
     for (roop_count = start_item; roop_count < item_count; roop_count++)
     {
       item = item_list[roop_count];
-      if ((error_num = spider_db_print_item_type(item, spider, str,
+      if ((error_num = spider_db_print_item_type(item, field, spider, str,
         alias, alias_length, dbton_id, use_fields, fields)))
         DBUG_RETURN(error_num);
       if (roop_count == 1)
       {
-        func_name = separete_str;
-        func_name_length = separete_str_length;
+        /* Remaining operands need to be preceded by the separator */
+        func_name = separator_str;
+        func_name_length = separator_str_length;
       }
       if (str)
       {
@@ -4598,11 +5263,14 @@ int spider_db_mysql_util::open_item_func(
         str->q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
       }
     }
+
+    /* Print the last operand value */
     item = item_list[roop_count];
-    if ((error_num = spider_db_print_item_type(item, spider, str,
+    if ((error_num = spider_db_print_item_type(item, field, spider, str,
       alias, alias_length, dbton_id, use_fields, fields)))
       DBUG_RETURN(error_num);
   }
+
   if (item_func->functype() == Item_func::FT_FUNC)
   {
     Item_func_match *item_func_match = (Item_func_match *)item_func;
@@ -4613,7 +5281,7 @@ int spider_db_mysql_util::open_item_func(
       str->q_append(SPIDER_SQL_AGAINST_STR, SPIDER_SQL_AGAINST_LEN);
     }
     item = item_list[0];
-    if ((error_num = spider_db_print_item_type(item, spider, str,
+    if ((error_num = spider_db_print_item_type(item, NULL, spider, str,
       alias, alias_length, dbton_id, use_fields, fields)))
       DBUG_RETURN(error_num);
     if (str)
@@ -4665,7 +5333,7 @@ int spider_db_mysql_util::open_item_func(
 }
 
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
-int spider_db_mysql_util::open_item_sum_func(
+int spider_db_mbase_util::open_item_sum_func(
   Item_sum *item_sum,
   ha_spider *spider,
   spider_string *str,
@@ -4674,10 +5342,9 @@ int spider_db_mysql_util::open_item_sum_func(
   bool use_fields,
   spider_fields *fields
 ) {
-  uint dbton_id = spider_dbton_mysql.dbton_id;
   uint roop_count, item_count = item_sum->get_arg_count();
   int error_num;
-  DBUG_ENTER("spider_db_mysql_util::open_item_sum_func");
+  DBUG_ENTER("spider_db_mbase_util::open_item_sum_func");
   DBUG_PRINT("info",("spider Sumfunctype = %d", item_sum->sum_func()));
   switch (item_sum->sum_func())
   {
@@ -4701,7 +5368,7 @@ int spider_db_mysql_util::open_item_sum_func(
           for (roop_count = 0; roop_count < item_count; roop_count++)
           {
             item = args[roop_count];
-            if ((error_num = spider_db_print_item_type(item, spider, str,
+            if ((error_num = spider_db_print_item_type(item, NULL, spider, str,
               alias, alias_length, dbton_id, use_fields, fields)))
               DBUG_RETURN(error_num);
             if (str)
@@ -4712,7 +5379,7 @@ int spider_db_mysql_util::open_item_sum_func(
             }
           }
           item = args[roop_count];
-          if ((error_num = spider_db_print_item_type(item, spider, str,
+          if ((error_num = spider_db_print_item_type(item, NULL, spider, str,
             alias, alias_length, dbton_id, use_fields, fields)))
             DBUG_RETURN(error_num);
         }
@@ -4729,6 +5396,48 @@ int spider_db_mysql_util::open_item_sum_func(
     case Item_sum::SUM_DISTINCT_FUNC:
     case Item_sum::AVG_FUNC:
     case Item_sum::AVG_DISTINCT_FUNC:
+      {
+        if (!use_fields)
+          DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+        const char *func_name = item_sum->func_name();
+        uint func_name_length = strlen(func_name);
+        Item *item, **args = item_sum->get_args();
+        if (str)
+        {
+          if (str->reserve(func_name_length))
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          str->q_append(func_name, func_name_length);
+        }
+        if (item_count)
+        {
+          item_count--;
+          for (roop_count = 0; roop_count < item_count; roop_count++)
+          {
+            item = args[roop_count];
+            if ((error_num = spider_db_print_item_type(item, NULL, spider, str,
+              alias, alias_length, dbton_id, use_fields, fields)))
+              DBUG_RETURN(error_num);
+            if (str)
+            {
+              if (str->reserve(SPIDER_SQL_COMMA_LEN))
+                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+              str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+            }
+          }
+          item = args[roop_count];
+          if ((error_num = spider_db_print_item_type(item, NULL, spider, str,
+            alias, alias_length, dbton_id, use_fields, fields)))
+            DBUG_RETURN(error_num);
+        }
+        if (str)
+        {
+          if (str->reserve(SPIDER_SQL_CLOSE_PAREN_LEN))
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          str->q_append(SPIDER_SQL_CLOSE_PAREN_STR,
+            SPIDER_SQL_CLOSE_PAREN_LEN);
+        }
+      }
+      break;
     case Item_sum::STD_FUNC:
     case Item_sum::VARIANCE_FUNC:
     case Item_sum::SUM_BIT_FUNC:
@@ -4741,11 +5450,11 @@ int spider_db_mysql_util::open_item_sum_func(
 }
 #endif
 
-int spider_db_mysql_util::append_escaped_util(
+int spider_db_mbase_util::append_escaped_util(
   spider_string *to,
   String *from
 ) {
-  DBUG_ENTER("spider_db_mysql_util::append_escaped_util");
+  DBUG_ENTER("spider_db_mbase_util::append_escaped_util");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider from=%s", from->charset()->csname));
   DBUG_PRINT("info",("spider to=%s", to->charset()->csname));
@@ -4754,75 +5463,544 @@ int spider_db_mysql_util::append_escaped_util(
 }
 
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
-int spider_db_mysql_util::append_from_and_tables(
+int spider_db_mbase_util::append_table(
+  ha_spider *spider,
   spider_fields *fields,
-  spider_string *str
+  spider_string *str,
+  TABLE_LIST *table_list,
+  TABLE_LIST **used_table_list,
+  uint *current_pos,
+  TABLE_LIST **cond_table_list_ptr,
+  bool top_down,
+  bool first
 ) {
-  SPIDER_TABLE_HOLDER *table_holder;
   int error_num;
-  uint dbton_id = spider_dbton_mysql.dbton_id, from_length;
-  spider_mysql_share *db_share;
-  spider_mysql_handler *dbton_hdl;
-  ha_spider *spider;
-  DBUG_ENTER("spider_db_mysql_util::append_from_and_tables");
-  DBUG_PRINT("info",("spider this=%p", this));
-
-  /* calculate from size */
-  from_length = SPIDER_SQL_FROM_LEN;
-  fields->set_pos_to_first_table_holder();
-  while ((table_holder = fields->get_next_table_holder()))
+  bool use_cond_table_list = FALSE;
+  spider_mbase_share *db_share;
+  spider_mbase_handler *dbton_hdl;
+  SPIDER_TABLE_HOLDER *table_holder;
+  TABLE_LIST *cond_table_list = *cond_table_list_ptr;
+  ha_spider *spd;
+  DBUG_ENTER("spider_db_mbase_util::append_table");
+  DBUG_PRINT("info",("spider table_list=%p", table_list));
+  DBUG_PRINT("info",("spider table_list->outer_join=%u",
+    table_list->outer_join));
+  DBUG_PRINT("info",("spider table_list->on_expr=%p",
+    table_list->on_expr));
+  DBUG_PRINT("info",("spider table_list->join_using_fields=%p",
+    table_list->join_using_fields));
+  DBUG_PRINT("info",("spider table_list->table=%p",
+    table_list->table));
+  if (!top_down && table_list->embedding)
   {
-    spider = table_holder->spider;
-    db_share = (spider_mysql_share *)
-      spider->share->dbton_share[dbton_id];
-    from_length +=
-      db_share->db_nm_max_length +
-      SPIDER_SQL_DOT_LEN + /* SPIDER_SQL_NAME_QUOTE_LEN */ 4 +
-      db_share->table_nm_max_length +
-      SPIDER_SQL_SPACE_LEN + SPIDER_SQL_COMMA_LEN +
-      table_holder->alias->length() - SPIDER_SQL_DOT_LEN;
-  }
-
-  if (str->reserve(from_length))
-    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  str->q_append(SPIDER_SQL_FROM_STR, SPIDER_SQL_FROM_LEN);
-
-  fields->set_pos_to_first_table_holder();
-  while ((table_holder = fields->get_next_table_holder()))
-  {
-    spider = table_holder->spider;
-    db_share = (spider_mysql_share *)
-      spider->share->dbton_share[dbton_id];
-    dbton_hdl = (spider_mysql_handler *)
-      spider->dbton_handler[dbton_id];
-    dbton_hdl->table_name_pos = str->length();
-    if ((error_num = db_share->append_table_name_with_adjusting(str,
-      spider->conn_link_idx[dbton_hdl->first_link_idx])))
-    {
+    if ((error_num = append_embedding_tables(spider, fields, str,
+      table_list->embedding, used_table_list, current_pos,
+      cond_table_list_ptr)))
       DBUG_RETURN(error_num);
+  } else if (!table_list->table)
+  {
+    if ((error_num = append_tables_top_down(spider, fields, str, table_list,
+      used_table_list, current_pos, cond_table_list_ptr)))
+      DBUG_RETURN(error_num);
+  } else {
+    if (
+      table_list->outer_join ||
+      table_list->on_expr ||
+      table_list->join_using_fields
+    ) {
+      DBUG_PRINT("info",("spider use table_list"));
+      if (table_list->outer_join & JOIN_TYPE_LEFT)
+      {
+        if (str)
+        {
+          if (str->reserve(SPIDER_SQL_LEFT_JOIN_LEN))
+          {
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          }
+          str->q_append(SPIDER_SQL_LEFT_JOIN_STR, SPIDER_SQL_LEFT_JOIN_LEN);
+        }
+      } else {
+        if (str)
+        {
+          if (str->reserve(SPIDER_SQL_JOIN_LEN))
+          {
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          }
+          str->q_append(SPIDER_SQL_JOIN_STR, SPIDER_SQL_JOIN_LEN);
+        }
+      }
+    } else if (
+      cond_table_list &&
+      (
+        cond_table_list->outer_join ||
+        cond_table_list->on_expr ||
+        cond_table_list->join_using_fields
+      )
+    ) {
+      DBUG_PRINT("info",("spider use cond_table_list"));
+      if (cond_table_list->outer_join & (JOIN_TYPE_LEFT | JOIN_TYPE_RIGHT))
+      {
+        if (str)
+        {
+          if (str->reserve(SPIDER_SQL_LEFT_JOIN_LEN))
+          {
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          }
+          str->q_append(SPIDER_SQL_LEFT_JOIN_STR, SPIDER_SQL_LEFT_JOIN_LEN);
+        }
+      } else {
+        if (str)
+        {
+          if (str->reserve(SPIDER_SQL_JOIN_LEN))
+          {
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          }
+          str->q_append(SPIDER_SQL_JOIN_STR, SPIDER_SQL_JOIN_LEN);
+        }
+      }
+      use_cond_table_list = TRUE;
+    } else if (*current_pos > 0 && !first)
+    {
+      DBUG_PRINT("info",("spider no condition"));
+      if (top_down)
+      {
+        if (str)
+        {
+          if (str->reserve(SPIDER_SQL_JOIN_LEN))
+          {
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          }
+          str->q_append(SPIDER_SQL_JOIN_STR, SPIDER_SQL_JOIN_LEN);
+        }
+      } else {
+        if (str)
+        {
+          if (str->reserve(SPIDER_SQL_COMMA_LEN))
+          {
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          }
+          str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+        }
+      }
     }
-    str->q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
-    str->q_append(table_holder->alias->ptr(),
-      table_holder->alias->length() - SPIDER_SQL_DOT_LEN);
-    str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+
+    if (str)
+    {
+      table_holder = fields->get_table_holder(table_list->table);
+      spd = table_holder->spider;
+      db_share = (spider_mbase_share *)
+        spd->share->dbton_share[dbton_id];
+      dbton_hdl = (spider_mbase_handler *)
+        spd->dbton_handler[dbton_id];
+
+      dbton_hdl->table_name_pos = str->length();
+
+      if (str->reserve(
+        db_share->db_nm_max_length +
+        SPIDER_SQL_DOT_LEN + /* SPIDER_SQL_NAME_QUOTE_LEN */ 4 +
+        db_share->table_nm_max_length + SPIDER_SQL_SPACE_LEN +
+        table_holder->alias->length() - SPIDER_SQL_DOT_LEN
+      )) {
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      }
+
+      if ((error_num = db_share->append_table_name_with_adjusting(str,
+        spd->conn_link_idx[dbton_hdl->first_link_idx])))
+      {
+        DBUG_RETURN(error_num);
+      }
+      str->q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
+      str->q_append(table_holder->alias->ptr(),
+        table_holder->alias->length() - SPIDER_SQL_DOT_LEN);
+    }
+    used_table_list[(*current_pos)++] = table_list;
+
+    if (str)
+    {
+      List<String> *join_using_fields = table_list->join_using_fields;
+      if (!join_using_fields && cond_table_list)
+      {
+        join_using_fields = cond_table_list->join_using_fields;
+      }
+
+      if (join_using_fields)
+      {
+        if (str->reserve(SPIDER_SQL_USING_LEN + SPIDER_SQL_OPEN_PAREN_LEN))
+        {
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        }
+        str->q_append(SPIDER_SQL_USING_STR, SPIDER_SQL_USING_LEN);
+        str->q_append(SPIDER_SQL_OPEN_PAREN_STR,
+          SPIDER_SQL_OPEN_PAREN_LEN);
+        List_iterator_fast<String> it2(*join_using_fields);
+        String *ptr;
+        while ((ptr = it2++))
+        {
+          if (str->reserve(ptr->length() + SPIDER_SQL_COMMA_LEN))
+          {
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          }
+          str->q_append(ptr->ptr(), ptr->length());
+          str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+        }
+        str->length(str->length() - SPIDER_SQL_COMMA_LEN);
+        if (str->reserve(SPIDER_SQL_CLOSE_PAREN_LEN))
+        {
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        }
+        str->q_append(SPIDER_SQL_CLOSE_PAREN_STR,
+          SPIDER_SQL_CLOSE_PAREN_LEN);
+      }
+    }
+
+    Item *on_expr = table_list->on_expr;
+    if (!on_expr && cond_table_list)
+    {
+      on_expr = cond_table_list->on_expr;
+    }
+
+    if (on_expr)
+    {
+      if (str)
+      {
+        if (str->reserve(SPIDER_SQL_ON_LEN))
+        {
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        }
+        str->q_append(SPIDER_SQL_ON_STR, SPIDER_SQL_ON_LEN);
+      }
+      if ((error_num = spider_db_print_item_type(on_expr, NULL,
+        spider, str, NULL, 0, dbton_id, TRUE, fields)))
+      {
+        DBUG_RETURN(error_num);
+      }
+    }
+
+    if (use_cond_table_list)
+    {
+      (*cond_table_list_ptr) = NULL;
+      DBUG_PRINT("info",("spider cond_table_list=%p", (*cond_table_list_ptr)));
+    }
   }
-  str->length(str->length() - SPIDER_SQL_COMMA_LEN);
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_util::reappend_tables(
+int spider_db_mbase_util::append_tables_top_down(
+  ha_spider *spider,
+  spider_fields *fields,
+  spider_string *str,
+  TABLE_LIST *table_list,
+  TABLE_LIST **used_table_list,
+  uint *current_pos,
+  TABLE_LIST **cond_table_list_ptr
+) {
+  int error_num;
+  uint outer_join_backup;
+  TABLE_LIST *cur_table_list, *prev_table_list = NULL, *cond_table_list = NULL;
+  bool first = TRUE;
+  DBUG_ENTER("spider_db_mbase_util::append_tables_top_down");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (
+    table_list->outer_join ||
+    table_list->on_expr ||
+    table_list->join_using_fields
+  ) {
+    DBUG_ASSERT(!(*cond_table_list_ptr));
+    (*cond_table_list_ptr) = table_list;
+    DBUG_PRINT("info",("spider cond_table_list=%p", table_list));
+  }
+  List_iterator_fast<TABLE_LIST> it1(table_list->nested_join->join_list);
+  cur_table_list = it1++;
+  if (cur_table_list->outer_join & JOIN_TYPE_RIGHT)
+  {
+    first = FALSE;
+    prev_table_list = cur_table_list;
+    cur_table_list = it1++;
+  } else if (*cond_table_list_ptr)
+  {
+    first = TRUE;
+    cond_table_list = (*cond_table_list_ptr);
+    (*cond_table_list_ptr) = NULL;
+    if (cond_table_list->outer_join & JOIN_TYPE_LEFT)
+    {
+      if (str)
+      {
+        if (str->reserve(SPIDER_SQL_LEFT_JOIN_LEN + SPIDER_SQL_OPEN_PAREN_LEN))
+        {
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        }
+        str->q_append(SPIDER_SQL_LEFT_JOIN_STR, SPIDER_SQL_LEFT_JOIN_LEN);
+        str->q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
+      }
+    } else {
+      if (str)
+      {
+        if (str->reserve(SPIDER_SQL_JOIN_LEN + SPIDER_SQL_OPEN_PAREN_LEN))
+        {
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        }
+        str->q_append(SPIDER_SQL_JOIN_STR, SPIDER_SQL_JOIN_LEN);
+        str->q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
+      }
+    }
+  }
+
+  do {
+    if (cur_table_list->outer_join & JOIN_TYPE_RIGHT)
+    {
+      prev_table_list = cur_table_list;
+    } else {
+      if ((error_num = append_table(spider, fields, str, cur_table_list,
+        used_table_list, current_pos, cond_table_list_ptr, TRUE, first)))
+        DBUG_RETURN(error_num);
+      first = FALSE;
+      if (prev_table_list)
+      {
+        outer_join_backup = prev_table_list->outer_join;
+        prev_table_list->outer_join = JOIN_TYPE_LEFT;
+        if ((error_num = append_table(spider, fields, str, prev_table_list,
+          used_table_list, current_pos, cond_table_list_ptr, TRUE, FALSE)))
+        {
+          prev_table_list->outer_join = outer_join_backup;
+          DBUG_RETURN(error_num);
+        }
+        prev_table_list->outer_join = outer_join_backup;
+        prev_table_list = NULL;
+      }
+    }
+  } while ((cur_table_list = it1++));
+
+  if (cond_table_list)
+  {
+    if (str)
+    {
+      if (str->reserve(SPIDER_SQL_CLOSE_PAREN_LEN))
+      {
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      }
+      str->q_append(SPIDER_SQL_CLOSE_PAREN_STR,
+        SPIDER_SQL_CLOSE_PAREN_LEN);
+
+      List<String> *join_using_fields = cond_table_list->join_using_fields;
+      if (join_using_fields)
+      {
+        if (str->reserve(SPIDER_SQL_USING_LEN + SPIDER_SQL_OPEN_PAREN_LEN))
+        {
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        }
+        str->q_append(SPIDER_SQL_USING_STR, SPIDER_SQL_USING_LEN);
+        str->q_append(SPIDER_SQL_OPEN_PAREN_STR,
+          SPIDER_SQL_OPEN_PAREN_LEN);
+        List_iterator_fast<String> it2(*join_using_fields);
+        String *ptr;
+        while ((ptr = it2++))
+        {
+          if (str->reserve(ptr->length() + SPIDER_SQL_COMMA_LEN))
+          {
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          }
+          str->q_append(ptr->ptr(), ptr->length());
+          str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+        }
+        str->length(str->length() - SPIDER_SQL_COMMA_LEN);
+        if (str->reserve(SPIDER_SQL_CLOSE_PAREN_LEN))
+        {
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        }
+        str->q_append(SPIDER_SQL_CLOSE_PAREN_STR,
+          SPIDER_SQL_CLOSE_PAREN_LEN);
+      }
+    }
+
+    Item *on_expr = cond_table_list->on_expr;
+    if (on_expr)
+    {
+      if (str)
+      {
+        if (str->reserve(SPIDER_SQL_ON_LEN))
+        {
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        }
+        str->q_append(SPIDER_SQL_ON_STR, SPIDER_SQL_ON_LEN);
+      }
+      if ((error_num = spider_db_print_item_type(on_expr, NULL,
+        spider, str, NULL, 0, dbton_id, TRUE, fields)))
+      {
+        DBUG_RETURN(error_num);
+      }
+    }
+  }
+  DBUG_RETURN(0);
+}
+
+int spider_db_mbase_util::append_tables_top_down_check(
+  TABLE_LIST *table_list,
+  TABLE_LIST **used_table_list,
+  uint *current_pos
+) {
+  int error_num;
+  TABLE_LIST *cur_table_list;
+  DBUG_ENTER("spider_db_mbase_util::append_tables_top_down_check");
+  DBUG_PRINT("info",("spider this=%p", this));
+  List_iterator_fast<TABLE_LIST> it1(table_list->nested_join->join_list);
+  while ((cur_table_list = it1++))
+  {
+    if (!cur_table_list->table)
+    {
+      if ((error_num = append_tables_top_down_check(
+        cur_table_list, used_table_list, current_pos)))
+        DBUG_RETURN(error_num);
+    } else {
+      used_table_list[(*current_pos)++] = cur_table_list;
+    }
+  }
+  DBUG_RETURN(0);
+}
+
+int spider_db_mbase_util::append_embedding_tables(
+  ha_spider *spider,
+  spider_fields *fields,
+  spider_string *str,
+  TABLE_LIST *table_list,
+  TABLE_LIST **used_table_list,
+  uint *current_pos,
+  TABLE_LIST **cond_table_list_ptr
+) {
+  int error_num;
+  TABLE_LIST *embedding = table_list->embedding;
+  DBUG_ENTER("spider_db_mbase_util::append_embedding_tables");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (embedding)
+  {
+    DBUG_PRINT("info",("spider embedding=%p", embedding));
+    DBUG_PRINT("info",("spider embedding->outer_join=%u",
+      embedding->outer_join));
+    DBUG_PRINT("info",("spider embedding->on_expr=%p",
+      embedding->on_expr));
+    DBUG_PRINT("info",("spider embedding->join_using_fields=%p",
+      embedding->join_using_fields));
+    DBUG_PRINT("info",("spider embedding->table=%p",
+      embedding->table));
+    if ((error_num = append_embedding_tables(spider, fields, str, embedding,
+      used_table_list, current_pos, cond_table_list_ptr)))
+      DBUG_RETURN(error_num);
+  } else {
+    DBUG_PRINT("info",("spider table_list=%p", table_list));
+    DBUG_PRINT("info",("spider table_list->outer_join=%u",
+      table_list->outer_join));
+    DBUG_PRINT("info",("spider table_list->on_expr=%p",
+      table_list->on_expr));
+    DBUG_PRINT("info",("spider table_list->join_using_fields=%p",
+      table_list->join_using_fields));
+    DBUG_PRINT("info",("spider table_list->table=%p",
+      table_list->table));
+    if (table_list->outer_join & JOIN_TYPE_RIGHT)
+    {
+      if ((error_num = append_tables_top_down_check(table_list,
+        used_table_list, current_pos)))
+        DBUG_RETURN(error_num);
+      DBUG_ASSERT(!(*cond_table_list_ptr));
+      (*cond_table_list_ptr) = table_list;
+      DBUG_PRINT("info",("spider cond_table_list=%p", table_list));
+    } else {
+      if ((error_num = append_tables_top_down(spider, fields, str, table_list,
+        used_table_list, current_pos, cond_table_list_ptr)))
+        DBUG_RETURN(error_num);
+    }
+  }
+  DBUG_RETURN(0);
+}
+
+int spider_db_mbase_util::append_from_and_tables(
+  ha_spider *spider,
+  spider_fields *fields,
+  spider_string *str,
+  TABLE_LIST *table_list,
+  uint table_count
+) {
+  int error_num;
+  uint current_pos = 0, roop_count, backup_pos, outer_join_backup;
+  TABLE *table;
+  TABLE_LIST **used_table_list, *prev_table_list = NULL,
+    *cond_table_list = NULL;
+  DBUG_ENTER("spider_db_mbase_util::append_from_and_tables");
+  DBUG_PRINT("info",("spider this=%p", this));
+  used_table_list = (TABLE_LIST **)
+    my_alloca(sizeof(TABLE_LIST *) * table_count);
+  if (!used_table_list)
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+
+  if (str)
+  {
+    if (str->reserve(SPIDER_SQL_FROM_LEN))
+    {
+      my_afree(used_table_list);
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_SQL_FROM_STR, SPIDER_SQL_FROM_LEN);
+  }
+
+  do {
+    table = table_list->table;
+    if (table->const_table)
+      continue;
+
+    for (roop_count = 0; roop_count < current_pos; ++roop_count)
+    {
+      if (used_table_list[roop_count] == table_list)
+        break;
+    }
+    if (roop_count < current_pos)
+      continue;
+
+    if (prev_table_list)
+      current_pos = backup_pos;
+    else
+      backup_pos = current_pos;
+    if ((error_num = append_table(spider, fields, str, table_list, used_table_list,
+      &current_pos, &cond_table_list, FALSE, FALSE)))
+    {
+      my_afree(used_table_list);
+      DBUG_RETURN(error_num);
+    }
+    if (prev_table_list)
+    {
+      outer_join_backup = prev_table_list->outer_join;
+      prev_table_list->outer_join = JOIN_TYPE_LEFT;
+      if ((error_num = append_table(spider, fields, str, prev_table_list,
+        used_table_list, &current_pos, &cond_table_list, FALSE, FALSE)))
+      {
+        prev_table_list->outer_join = outer_join_backup;
+        my_afree(used_table_list);
+        DBUG_RETURN(error_num);
+      }
+      prev_table_list->outer_join = outer_join_backup;
+      prev_table_list = NULL;
+    }
+    if (cond_table_list && (cond_table_list->outer_join & JOIN_TYPE_RIGHT))
+    {
+      prev_table_list = cond_table_list;
+      cond_table_list = NULL;
+      DBUG_PRINT("info",("spider cond_table_list=%p", cond_table_list));
+    }
+  } while ((table_list = table_list->next_local));
+  my_afree(used_table_list);
+  DBUG_RETURN(0);
+}
+
+int spider_db_mbase_util::reappend_tables(
   spider_fields *fields,
   SPIDER_LINK_IDX_CHAIN *link_idx_chain,
   spider_string *str
 ) {
   int error_num;
-  uint dbton_id = spider_dbton_mysql.dbton_id, length;
+  uint32 length;
   ha_spider *spider;
-  spider_mysql_share *db_share;
-  spider_mysql_handler *dbton_hdl;
+  spider_mbase_share *db_share;
+  spider_mbase_handler *dbton_hdl;
   SPIDER_TABLE_HOLDER *table_holder;
   SPIDER_LINK_IDX_HOLDER *link_idx_holder;
-  DBUG_ENTER("spider_db_mysql_util::reappend_tables");
+  DBUG_ENTER("spider_db_mbase_util::reappend_tables");
   DBUG_PRINT("info",("spider this=%p", this));
   length = str->length();
   fields->set_pos_to_first_table_on_link_idx_chain(link_idx_chain);
@@ -4832,11 +6010,11 @@ int spider_db_mysql_util::reappend_tables(
     link_idx_holder =
       fields->get_next_table_on_link_idx_chain(link_idx_chain);
     spider = table_holder->spider;
-    db_share = (spider_mysql_share *)
+    db_share = (spider_mbase_share *)
       spider->share->dbton_share[dbton_id];
     if (!db_share->same_db_table_name)
     {
-      dbton_hdl = (spider_mysql_handler *) spider->dbton_handler[dbton_id];
+      dbton_hdl = (spider_mbase_handler *) spider->dbton_handler[dbton_id];
       str->length(dbton_hdl->table_name_pos);
       if ((error_num = db_share->append_table_name_with_adjusting(str,
         spider->conn_link_idx[link_idx_holder->link_idx])))
@@ -4849,10 +6027,10 @@ int spider_db_mysql_util::reappend_tables(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_util::append_where(
+int spider_db_mbase_util::append_where(
   spider_string *str
 ) {
-  DBUG_ENTER("spider_db_mysql_util::append_where");
+  DBUG_ENTER("spider_db_mbase_util::append_where");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_WHERE_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -4860,10 +6038,10 @@ int spider_db_mysql_util::append_where(
   DBUG_RETURN(0);
 }
 
-int spider_db_mysql_util::append_having(
+int spider_db_mbase_util::append_having(
   spider_string *str
 ) {
-  DBUG_ENTER("spider_db_mysql_util::append_having");
+  DBUG_ENTER("spider_db_mbase_util::append_having");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_HAVING_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -4872,11 +6050,15 @@ int spider_db_mysql_util::append_having(
 }
 #endif
 
-spider_mysql_share::spider_mysql_share(
-  st_spider_share *share
+spider_mbase_share::spider_mbase_share(
+  st_spider_share *share,
+  uint dbton_id,
+  spider_db_mbase_util *spider_db_mbase_utility
 ) : spider_db_share(
-  share
+  share,
+  dbton_id
 ),
+  spider_db_mbase_utility(spider_db_mbase_utility),
   table_select(NULL),
   table_select_pos(0),
   key_select(NULL),
@@ -4897,16 +6079,39 @@ spider_mysql_share::spider_mysql_share(
   same_db_table_name(TRUE),
   first_all_link_idx(-1)
 {
-  DBUG_ENTER("spider_mysql_share::spider_mysql_share");
+  DBUG_ENTER("spider_mbase_share::spider_mbase_share");
   DBUG_PRINT("info",("spider this=%p", this));
   spider_alloc_calc_mem_init(mem_calc, 71);
   spider_alloc_calc_mem(spider_current_trx, mem_calc, sizeof(*this));
   DBUG_VOID_RETURN;
 }
 
-spider_mysql_share::~spider_mysql_share()
+spider_mysql_share::spider_mysql_share(
+  st_spider_share *share
+) : spider_mbase_share(
+  share,
+  spider_db_mysql_utility.dbton_id,
+  &spider_db_mysql_utility
+) {
+  DBUG_ENTER("spider_mysql_share::spider_mysql_share");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+spider_mariadb_share::spider_mariadb_share(
+  st_spider_share *share
+) : spider_mbase_share(
+  share,
+  spider_db_mariadb_utility.dbton_id,
+  &spider_db_mariadb_utility
+) {
+  DBUG_ENTER("spider_mariadb_share::spider_mariadb_share");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_mbase_share::~spider_mbase_share()
 {
-  DBUG_ENTER("spider_mysql_share::~spider_mysql_share");
+  DBUG_ENTER("spider_mbase_share::~spider_mbase_share");
   DBUG_PRINT("info",("spider this=%p", this));
   if (table_select)
     delete [] table_select;
@@ -4927,13 +6132,27 @@ spider_mysql_share::~spider_mysql_share()
   DBUG_VOID_RETURN;
 }
 
-int spider_mysql_share::init()
+spider_mysql_share::~spider_mysql_share()
+{
+  DBUG_ENTER("spider_mysql_share::~spider_mysql_share");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_mariadb_share::~spider_mariadb_share()
+{
+  DBUG_ENTER("spider_mariadb_share::~spider_mariadb_share");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+int spider_mbase_share::init()
 {
   int error_num;
   uint roop_count;
   TABLE_SHARE *table_share = spider_share->table_share;
   uint keys = table_share ? table_share->keys : 0;
-  DBUG_ENTER("spider_mysql_share::init");
+  DBUG_ENTER("spider_mbase_share::init");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!(key_select_pos = (int *)
     spider_bulk_alloc_mem(spider_current_trx, 112,
@@ -4994,33 +6213,33 @@ int spider_mysql_share::init()
   DBUG_RETURN(error_num);
 }
 
-uint spider_mysql_share::get_column_name_length(
+uint spider_mbase_share::get_column_name_length(
   uint field_index
 ) {
-  DBUG_ENTER("spider_mysql_share::get_column_name_length");
+  DBUG_ENTER("spider_mbase_share::get_column_name_length");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(column_name_str[field_index].length());
 }
 
-int spider_mysql_share::append_column_name(
+int spider_mbase_share::append_column_name(
   spider_string *str,
   uint field_index
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_share::append_column_name");
+  DBUG_ENTER("spider_mbase_share::append_column_name");
   DBUG_PRINT("info",("spider this=%p", this));
-  error_num = spider_db_mysql_utility.append_name(str,
+  error_num = spider_db_mbase_utility->append_name(str,
     column_name_str[field_index].ptr(), column_name_str[field_index].length());
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_share::append_column_name_with_alias(
+int spider_mbase_share::append_column_name_with_alias(
   spider_string *str,
   uint field_index,
   const char *alias,
   uint alias_length
 ) {
-  DBUG_ENTER("spider_mysql_share::append_column_name_with_alias");
+  DBUG_ENTER("spider_mbase_share::append_column_name_with_alias");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(
     alias_length +
@@ -5032,7 +6251,7 @@ int spider_mysql_share::append_column_name_with_alias(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_share::append_table_name(
+int spider_mbase_share::append_table_name(
   spider_string *str,
   int all_link_idx
 ) {
@@ -5040,20 +6259,20 @@ int spider_mysql_share::append_table_name(
   uint db_nm_len = db_names_str[all_link_idx].length();
   const char *table_nm = table_names_str[all_link_idx].ptr();
   uint table_nm_len = table_names_str[all_link_idx].length();
-  DBUG_ENTER("spider_mysql_share::append_table_name");
+  DBUG_ENTER("spider_mbase_share::append_table_name");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(db_nm_len + SPIDER_SQL_DOT_LEN + table_nm_len +
     /* SPIDER_SQL_NAME_QUOTE_LEN */ 4))
   {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
-  spider_db_mysql_utility.append_name(str, db_nm, db_nm_len);
+  spider_db_mbase_utility->append_name(str, db_nm, db_nm_len);
   str->q_append(SPIDER_SQL_DOT_STR, SPIDER_SQL_DOT_LEN);
-  spider_db_mysql_utility.append_name(str, table_nm, table_nm_len);
+  spider_db_mbase_utility->append_name(str, table_nm, table_nm_len);
   DBUG_RETURN(0);
 }
 
-int spider_mysql_share::append_table_name_with_adjusting(
+int spider_mbase_share::append_table_name_with_adjusting(
   spider_string *str,
   int all_link_idx
 ) {
@@ -5063,11 +6282,11 @@ int spider_mysql_share::append_table_name_with_adjusting(
   const char *table_nm = table_names_str[all_link_idx].ptr();
   uint table_nm_len = table_names_str[all_link_idx].length();
   uint table_nm_max_len = table_nm_max_length;
-  DBUG_ENTER("spider_mysql_share::append_table_name_with_adjusting");
+  DBUG_ENTER("spider_mbase_share::append_table_name_with_adjusting");
   DBUG_PRINT("info",("spider this=%p", this));
-  spider_db_mysql_utility.append_name(str, db_nm, db_nm_len);
+  spider_db_mbase_utility->append_name(str, db_nm, db_nm_len);
   str->q_append(SPIDER_SQL_DOT_STR, SPIDER_SQL_DOT_LEN);
-  spider_db_mysql_utility.append_name(str, table_nm, table_nm_len);
+  spider_db_mbase_utility->append_name(str, table_nm, table_nm_len);
   uint length =
     db_nm_max_len - db_nm_len +
     table_nm_max_len - table_nm_len;
@@ -5076,7 +6295,7 @@ int spider_mysql_share::append_table_name_with_adjusting(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_share::append_from_with_adjusted_table_name(
+int spider_mbase_share::append_from_with_adjusted_table_name(
   spider_string *str,
   int *table_name_pos
 ) {
@@ -5086,7 +6305,7 @@ int spider_mysql_share::append_from_with_adjusted_table_name(
   const char *table_nm = table_names_str[0].ptr();
   uint table_nm_len = table_names_str[0].length();
   uint table_nm_max_len = table_nm_max_length;
-  DBUG_ENTER("spider_mysql_share::append_from_with_adjusted_table_name");
+  DBUG_ENTER("spider_mbase_share::append_from_with_adjusted_table_name");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_FROM_LEN + db_nm_max_length +
     SPIDER_SQL_DOT_LEN + table_nm_max_length +
@@ -5096,9 +6315,9 @@ int spider_mysql_share::append_from_with_adjusted_table_name(
   }
   str->q_append(SPIDER_SQL_FROM_STR, SPIDER_SQL_FROM_LEN);
   *table_name_pos = str->length();
-  spider_db_mysql_utility.append_name(str, db_nm, db_nm_len);
+  spider_db_mbase_utility->append_name(str, db_nm, db_nm_len);
   str->q_append(SPIDER_SQL_DOT_STR, SPIDER_SQL_DOT_LEN);
-  spider_db_mysql_utility.append_name(str, table_nm, table_nm_len);
+  spider_db_mbase_utility->append_name(str, table_nm, table_nm_len);
   uint length =
     db_nm_max_len - db_nm_len +
     table_nm_max_len - table_nm_len;
@@ -5107,14 +6326,13 @@ int spider_mysql_share::append_from_with_adjusted_table_name(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_share::create_table_names_str()
+int spider_mbase_share::create_table_names_str()
 {
   int error_num, roop_count;
   uint table_nm_len, db_nm_len;
   spider_string *str, *first_tbl_nm_str, *first_db_nm_str, *first_db_tbl_str;
   char *first_tbl_nm, *first_db_nm;
-  uint dbton_id = spider_dbton_mysql.dbton_id;
-  DBUG_ENTER("spider_mysql_share::create_table_names_str");
+  DBUG_ENTER("spider_mbase_share::create_table_names_str");
   table_names_str = NULL;
   db_names_str = NULL;
   db_table_str = NULL;
@@ -5245,9 +6463,9 @@ error:
   DBUG_RETURN(error_num);
 }
 
-void spider_mysql_share::free_table_names_str()
+void spider_mbase_share::free_table_names_str()
 {
-  DBUG_ENTER("spider_mysql_share::free_table_names_str");
+  DBUG_ENTER("spider_mbase_share::free_table_names_str");
   if (db_table_str)
   {
     delete [] db_table_str;
@@ -5266,14 +6484,13 @@ void spider_mysql_share::free_table_names_str()
   DBUG_VOID_RETURN;
 }
 
-int spider_mysql_share::create_column_name_str()
+int spider_mbase_share::create_column_name_str()
 {
   spider_string *str;
   int error_num;
   Field **field;
   TABLE_SHARE *table_share = spider_share->table_share;
-  uint dbton_id = spider_dbton_mysql.dbton_id;
-  DBUG_ENTER("spider_mysql_share::create_column_name_str");
+  DBUG_ENTER("spider_mbase_share::create_column_name_str");
   if (
     table_share->fields &&
     !(column_name_str = new spider_string[table_share->fields])
@@ -5285,7 +6502,7 @@ int spider_mysql_share::create_column_name_str()
     str->init_calc_mem(89);
     str->set_charset(spider_share->access_charset);
     if ((error_num = spider_db_append_name_with_quote_str(str,
-      (char *) (*field)->field_name.str, dbton_id)))
+      (*field)->field_name, dbton_id)))
       goto error;
   }
   DBUG_RETURN(0);
@@ -5299,9 +6516,9 @@ error:
   DBUG_RETURN(error_num);
 }
 
-void spider_mysql_share::free_column_name_str()
+void spider_mbase_share::free_column_name_str()
 {
-  DBUG_ENTER("spider_mysql_share::free_column_name_str");
+  DBUG_ENTER("spider_mbase_share::free_column_name_str");
   if (column_name_str)
   {
     delete [] column_name_str;
@@ -5310,15 +6527,15 @@ void spider_mysql_share::free_column_name_str()
   DBUG_VOID_RETURN;
 }
 
-int spider_mysql_share::convert_key_hint_str()
+int spider_mbase_share::convert_key_hint_str()
 {
   spider_string *tmp_key_hint;
   int roop_count;
   TABLE_SHARE *table_share = spider_share->table_share;
-  DBUG_ENTER("spider_mysql_share::convert_key_hint_str");
+  DBUG_ENTER("spider_mbase_share::convert_key_hint_str");
   if (spider_share->access_charset->cset != system_charset_info->cset)
   {
-    /* need convertion */
+    /* need conversion */
     for (roop_count = 0, tmp_key_hint = key_hint;
       roop_count < (int) table_share->keys; roop_count++, tmp_key_hint++)
     {
@@ -5338,11 +6555,10 @@ int spider_mysql_share::convert_key_hint_str()
   DBUG_RETURN(0);
 }
 
-int spider_mysql_share::append_show_table_status()
+int spider_mbase_share::append_show_table_status()
 {
   int roop_count;
   spider_string *str;
-  uint dbton_id = spider_dbton_mysql.dbton_id;
   DBUG_ENTER("spider_mysql_append_show_table_status");
   if (!(show_table_status =
     new spider_string[2 * spider_share->all_link_count]))
@@ -5410,7 +6626,7 @@ error:
   DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 }
 
-void spider_mysql_share::free_show_table_status()
+void spider_mbase_share::free_show_table_status()
 {
   DBUG_ENTER("spider_mysql_free_show_table_status");
   if (show_table_status)
@@ -5421,12 +6637,11 @@ void spider_mysql_share::free_show_table_status()
   DBUG_VOID_RETURN;
 }
 
-int spider_mysql_share::append_show_records()
+int spider_mbase_share::append_show_records()
 {
   int roop_count;
   spider_string *str;
-  uint dbton_id = spider_dbton_mysql.dbton_id;
-  DBUG_ENTER("spider_mysql_share::append_show_records");
+  DBUG_ENTER("spider_mbase_share::append_show_records");
   if (!(show_records = new spider_string[spider_share->all_link_count]))
     goto error;
 
@@ -5461,9 +6676,9 @@ error:
   DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 }
 
-void spider_mysql_share::free_show_records()
+void spider_mbase_share::free_show_records()
 {
-  DBUG_ENTER("spider_mysql_share::free_show_records");
+  DBUG_ENTER("spider_mbase_share::free_show_records");
   if (show_records)
   {
     delete [] show_records;
@@ -5472,12 +6687,11 @@ void spider_mysql_share::free_show_records()
   DBUG_VOID_RETURN;
 }
 
-int spider_mysql_share::append_show_index()
+int spider_mbase_share::append_show_index()
 {
   int roop_count;
   spider_string *str;
-  uint dbton_id = spider_dbton_mysql.dbton_id;
-  DBUG_ENTER("spider_mysql_share::append_show_index");
+  DBUG_ENTER("spider_mbase_share::append_show_index");
   if (!(show_index = new spider_string[2 * spider_share->all_link_count]))
     goto error;
 
@@ -5536,9 +6750,9 @@ error:
   DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 }
 
-void spider_mysql_share::free_show_index()
+void spider_mbase_share::free_show_index()
 {
-  DBUG_ENTER("spider_mysql_share::free_show_index");
+  DBUG_ENTER("spider_mbase_share::free_show_index");
   if (show_index)
   {
     delete [] show_index;
@@ -5547,13 +6761,17 @@ void spider_mysql_share::free_show_index()
   DBUG_VOID_RETURN;
 }
 
-int spider_mysql_share::append_table_select()
+int spider_mbase_share::append_table_select()
 {
   Field **field;
   uint field_length;
   spider_string *str = table_select;
   TABLE_SHARE *table_share = spider_share->table_share;
-  DBUG_ENTER("spider_mysql_share::append_table_select");
+  DBUG_ENTER("spider_mbase_share::append_table_select");
+
+  if (!*table_share->field)
+    DBUG_RETURN(0);
+
   for (field = table_share->field; *field; field++)
   {
     field_length = column_name_str[(*field)->field_index].length();
@@ -5567,7 +6785,7 @@ int spider_mysql_share::append_table_select()
   DBUG_RETURN(append_from_with_adjusted_table_name(str, &table_select_pos));
 }
 
-int spider_mysql_share::append_key_select(
+int spider_mbase_share::append_key_select(
   uint idx
 ) {
   KEY_PART_INFO *key_part;
@@ -5577,7 +6795,11 @@ int spider_mysql_share::append_key_select(
   spider_string *str = &key_select[idx];
   TABLE_SHARE *table_share = spider_share->table_share;
   const KEY *key_info = &table_share->key_info[idx];
-  DBUG_ENTER("spider_mysql_share::append_key_select");
+  DBUG_ENTER("spider_mbase_share::append_key_select");
+
+  if (!spider_user_defined_key_parts(key_info))
+    DBUG_RETURN(0);
+
   for (key_part = key_info->key_part, part_num = 0;
     part_num < spider_user_defined_key_parts(key_info); key_part++, part_num++)
   {
@@ -5593,14 +6815,14 @@ int spider_mysql_share::append_key_select(
   DBUG_RETURN(append_from_with_adjusted_table_name(str, &key_select_pos[idx]));
 }
 
-bool spider_mysql_share::need_change_db_table_name()
+bool spider_mbase_share::need_change_db_table_name()
 {
-  DBUG_ENTER("spider_mysql_share::need_change_db_table_name");
+  DBUG_ENTER("spider_mbase_share::need_change_db_table_name");
   DBUG_RETURN(!same_db_table_name);
 }
 
 #ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
-int spider_mysql_share::discover_table_structure(
+int spider_mbase_share::discover_table_structure(
   SPIDER_TRX *trx,
   SPIDER_SHARE *spider_share,
   spider_string *str
@@ -5608,9 +6830,8 @@ int spider_mysql_share::discover_table_structure(
   int roop_count, error_num = HA_ERR_WRONG_COMMAND;
   char sql_buf[MAX_FIELD_WIDTH];
   spider_string sql_str(sql_buf, sizeof(sql_buf), system_charset_info);
-  uint dbton_id = spider_dbton_mysql.dbton_id;
   uint strlen = str->length();
-  DBUG_ENTER("spider_mysql_share::discover_table_structure");
+  DBUG_ENTER("spider_mbase_share::discover_table_structure");
   DBUG_PRINT("info",("spider this=%p", this));
   sql_str.init_calc_mem(228);
   for (roop_count = 0; roop_count < (int) spider_share->all_link_count;
@@ -5684,6 +6905,14 @@ int spider_mysql_share::discover_table_structure(
     ) {
       DBUG_RETURN(error_num);
     }
+    pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+    pthread_mutex_lock(&conn->mta_conn_mutex);
+    SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+    conn->need_mon = &need_mon;
+    DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+    conn->mta_conn_mutex_lock_already = TRUE;
+    conn->mta_conn_mutex_unlock_later = TRUE;
     if (!conn->disable_reconnect)
     {
       ha_spider tmp_spider;
@@ -5696,14 +6925,15 @@ int spider_mysql_share::discover_table_structure(
       if ((error_num = spider_db_ping(&tmp_spider, conn, 0)))
       {
         DBUG_PRINT("info",("spider spider_db_ping error"));
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+        conn->mta_conn_mutex_lock_already = FALSE;
+        conn->mta_conn_mutex_unlock_later = FALSE;
+        SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+        pthread_mutex_unlock(&conn->mta_conn_mutex);
         continue;
       }
     }
-    pthread_mutex_lock(&conn->mta_conn_mutex);
-    SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-    conn->need_mon = &need_mon;
-    conn->mta_conn_mutex_lock_already = TRUE;
-    conn->mta_conn_mutex_unlock_later = TRUE;
     spider_conn_set_timeout_from_share(conn, roop_count, trx->thd,
       spider_share);
     if (
@@ -5720,6 +6950,8 @@ int spider_mysql_share::discover_table_structure(
       )
     ) {
       DBUG_PRINT("info",("spider spider_get_trx error"));
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -5739,6 +6971,8 @@ int spider_mysql_share::discover_table_structure(
       if (error_num || (error_num = spider_db_errorno(conn)))
       {
         DBUG_PRINT("info",("spider column store error"));
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -5747,6 +6981,8 @@ int spider_mysql_share::discover_table_structure(
       }
       /* no record */
       DBUG_PRINT("info",("spider column no record error"));
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -5759,6 +6995,8 @@ int spider_mysql_share::discover_table_structure(
       DBUG_PRINT("info",("spider column fetch error"));
       res->free_result();
       delete res;
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -5775,6 +7013,8 @@ int spider_mysql_share::discover_table_structure(
     if (conn->db_conn->next_result())
     {
       DBUG_PRINT("info",("spider single result error"));
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -5787,6 +7027,8 @@ int spider_mysql_share::discover_table_structure(
       if (error_num || (error_num = spider_db_errorno(conn)))
       {
         DBUG_PRINT("info",("spider index store error"));
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -5795,6 +7037,8 @@ int spider_mysql_share::discover_table_structure(
       }
       /* no record */
       DBUG_PRINT("info",("spider index no record error"));
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -5807,6 +7051,8 @@ int spider_mysql_share::discover_table_structure(
       DBUG_PRINT("info",("spider index fetch error"));
       res->free_result();
       delete res;
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -5818,6 +7064,8 @@ int spider_mysql_share::discover_table_structure(
     if (conn->db_conn->next_result())
     {
       DBUG_PRINT("info",("spider dual result error"));
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -5830,6 +7078,8 @@ int spider_mysql_share::discover_table_structure(
       if (error_num || (error_num = spider_db_errorno(conn)))
       {
         DBUG_PRINT("info",("spider table store error"));
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -5838,6 +7088,8 @@ int spider_mysql_share::discover_table_structure(
       }
       /* no record */
       DBUG_PRINT("info",("spider table no record error"));
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -5850,6 +7102,8 @@ int spider_mysql_share::discover_table_structure(
       DBUG_PRINT("info",("spider table fetch error"));
       res->free_result();
       delete res;
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -5858,6 +7112,8 @@ int spider_mysql_share::discover_table_structure(
     }
     res->free_result();
     delete res;
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -5869,13 +7125,15 @@ int spider_mysql_share::discover_table_structure(
 }
 #endif
 
-spider_mysql_handler::spider_mysql_handler(
+spider_mbase_handler::spider_mbase_handler(
   ha_spider *spider,
-  spider_mysql_share *db_share
+  spider_mbase_share *db_share,
+  spider_db_mbase_util *spider_db_mbase_utility
 ) : spider_db_handler(
   spider,
   db_share
 ),
+  spider_db_mbase_utility(spider_db_mbase_utility),
   where_pos(0),
   order_pos(0),
   limit_pos(0),
@@ -5899,16 +7157,42 @@ spider_mysql_handler::spider_mysql_handler(
   mysql_share(db_share),
   link_for_hash(NULL)
 {
-  DBUG_ENTER("spider_mysql_handler::spider_mysql_handler");
+  DBUG_ENTER("spider_mbase_handler::spider_mbase_handler");
   DBUG_PRINT("info",("spider this=%p", this));
   spider_alloc_calc_mem_init(mem_calc, 183);
   spider_alloc_calc_mem(spider_current_trx, mem_calc, sizeof(*this));
   DBUG_VOID_RETURN;
 }
 
-spider_mysql_handler::~spider_mysql_handler()
+spider_mysql_handler::spider_mysql_handler(
+  ha_spider *spider,
+  spider_mbase_share *db_share
+) : spider_mbase_handler(
+  spider,
+  db_share,
+  &spider_db_mysql_utility
+) {
+  DBUG_ENTER("spider_mysql_handler::spider_mysql_handler");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_mariadb_handler::spider_mariadb_handler(
+  ha_spider *spider,
+  spider_mbase_share *db_share
+) : spider_mbase_handler(
+  spider,
+  db_share,
+  &spider_db_mariadb_utility
+) {
+  DBUG_ENTER("spider_mariadb_handler::spider_mariadb_handler");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_mbase_handler::~spider_mbase_handler()
 {
-  DBUG_ENTER("spider_mysql_handler::~spider_mysql_handler");
+  DBUG_ENTER("spider_mbase_handler::~spider_mbase_handler");
   DBUG_PRINT("info",("spider this=%p", this));
   while (union_table_name_pos_first)
   {
@@ -5924,7 +7208,21 @@ spider_mysql_handler::~spider_mysql_handler()
   DBUG_VOID_RETURN;
 }
 
-int spider_mysql_handler::init()
+spider_mysql_handler::~spider_mysql_handler()
+{
+  DBUG_ENTER("spider_mysql_handler::~spider_mysql_handler");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_mariadb_handler::~spider_mariadb_handler()
+{
+  DBUG_ENTER("spider_mariadb_handler::~spider_mariadb_handler");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+int spider_mbase_handler::init()
 {
   uint roop_count;
   THD *thd = spider->trx->thd;
@@ -5932,7 +7230,7 @@ int spider_mysql_handler::init()
   int init_sql_alloc_size =
     spider_param_init_sql_alloc_size(thd, share->init_sql_alloc_size);
   TABLE *table = spider->get_table();
-  DBUG_ENTER("spider_mysql_handler::init");
+  DBUG_ENTER("spider_mbase_handler::init");
   DBUG_PRINT("info",("spider this=%p", this));
   sql.init_calc_mem(59);
   sql_part.init_calc_mem(60);
@@ -5987,7 +7285,7 @@ int spider_mysql_handler::init()
 }
 
 
-int spider_mysql_handler::append_index_hint(
+int spider_mbase_handler::append_index_hint(
   spider_string *str,
   int link_idx,
   ulong sql_type
@@ -5998,7 +7296,7 @@ int spider_mysql_handler::append_index_hint(
   Index_hint *hint;
 //  THD *thd = current_thd;
   int error_num = 0;
-  DBUG_ENTER("spider_mysql_handler::append_index_hint");
+  DBUG_ENTER("spider_mbase_handler::append_index_hint");
   DBUG_PRINT("info",("spider this=%p", this));
 
   while(index_hints && (hint = iter++))
@@ -6041,13 +7339,13 @@ int spider_mysql_handler::append_index_hint(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_table_name_with_adjusting(
+int spider_mbase_handler::append_table_name_with_adjusting(
   spider_string *str,
   int link_idx,
   ulong sql_type
 ) {
   int error_num = 0;
-  DBUG_ENTER("spider_mysql_handler::append_table_name_with_adjusting");
+  DBUG_ENTER("spider_mbase_handler::append_table_name_with_adjusting");
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql_type == SPIDER_SQL_TYPE_HANDLER)
   {
@@ -6059,7 +7357,7 @@ int spider_mysql_handler::append_table_name_with_adjusting(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_key_column_types(
+int spider_mbase_handler::append_key_column_types(
   const key_range *start_key,
   spider_string *str
 ) {
@@ -6073,7 +7371,7 @@ int spider_mysql_handler::append_key_column_types(
   Field *field;
   char tmp_buf[MAX_FIELD_WIDTH];
   spider_string tmp_str(tmp_buf, sizeof(tmp_buf), system_charset_info);
-  DBUG_ENTER("spider_mysql_handler::append_key_column_types");
+  DBUG_ENTER("spider_mbase_handler::append_key_column_types");
   DBUG_PRINT("info",("spider this=%p", this));
   tmp_str.init_calc_mem(115);
 
@@ -6127,7 +7425,7 @@ int spider_mysql_handler::append_key_column_types(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_key_join_columns_for_bka(
+int spider_mbase_handler::append_key_join_columns_for_bka(
   const key_range *start_key,
   spider_string *str,
   const char **table_aliases,
@@ -6142,7 +7440,7 @@ int spider_mysql_handler::append_key_join_columns_for_bka(
   Field *field;
   char tmp_buf[MAX_FIELD_WIDTH];
   bool start_where = ((int) str->length() == where_pos);
-  DBUG_ENTER("spider_mysql_handler::append_key_join_columns_for_bka");
+  DBUG_ENTER("spider_mbase_handler::append_key_join_columns_for_bka");
   DBUG_PRINT("info",("spider this=%p", this));
   start_key_part_map = start_key->keypart_map & full_key_part_map;
   DBUG_PRINT("info", ("spider spider_user_defined_key_parts=%u",
@@ -6191,11 +7489,11 @@ int spider_mysql_handler::append_key_join_columns_for_bka(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_tmp_table_and_sql_for_bka(
+int spider_mbase_handler::append_tmp_table_and_sql_for_bka(
   const key_range *start_key
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::append_tmp_table_and_sql_for_bka");
+  DBUG_ENTER("spider_mbase_handler::append_tmp_table_and_sql_for_bka");
   DBUG_PRINT("info",("spider this=%p", this));
   char tmp_table_name[MAX_FIELD_WIDTH * 2],
     tgt_table_name[MAX_FIELD_WIDTH * 2];
@@ -6253,7 +7551,7 @@ int spider_mysql_handler::append_tmp_table_and_sql_for_bka(
   if (
     (error_num = append_select_columns_with_alias(&sql,
       SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN)) ||
-    (error_num = spider_db_mysql_utility.append_from_with_alias(&sql,
+    (error_num = spider_db_mbase_utility->append_from_with_alias(&sql,
       table_names, table_name_lengths,
       table_aliases, table_alias_lengths, 2,
       &table_name_pos, FALSE))
@@ -6293,9 +7591,9 @@ int spider_mysql_handler::append_tmp_table_and_sql_for_bka(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::reuse_tmp_table_and_sql_for_bka()
+int spider_mbase_handler::reuse_tmp_table_and_sql_for_bka()
 {
-  DBUG_ENTER("spider_mysql_handler::reuse_tmp_table_and_sql_for_bka");
+  DBUG_ENTER("spider_mbase_handler::reuse_tmp_table_and_sql_for_bka");
   DBUG_PRINT("info",("spider this=%p", this));
   tmp_sql.length(tmp_sql_pos4);
   sql.length(limit_pos);
@@ -6303,13 +7601,13 @@ int spider_mysql_handler::reuse_tmp_table_and_sql_for_bka()
   DBUG_RETURN(0);
 }
 
-void spider_mysql_handler::create_tmp_bka_table_name(
+void spider_mbase_handler::create_tmp_bka_table_name(
   char *tmp_table_name,
   int *tmp_table_name_length,
   int link_idx
 ) {
   uint adjust_length, length;
-  DBUG_ENTER("spider_mysql_handler::create_tmp_bka_table_name");
+  DBUG_ENTER("spider_mbase_handler::create_tmp_bka_table_name");
   if (spider_param_bka_table_name_type(current_thd,
     mysql_share->spider_share->
       bka_table_name_types[spider->conn_link_idx[link_idx]]) == 1)
@@ -6351,7 +7649,7 @@ void spider_mysql_handler::create_tmp_bka_table_name(
   DBUG_VOID_RETURN;
 }
 
-int spider_mysql_handler::append_create_tmp_bka_table(
+int spider_mbase_handler::append_create_tmp_bka_table(
   const key_range *start_key,
   spider_string *str,
   char *tmp_table_name,
@@ -6366,7 +7664,7 @@ int spider_mysql_handler::append_create_tmp_bka_table(
   uint bka_engine_length = strlen(bka_engine),
     cset_length = strlen(table_charset->csname),
     coll_length = strlen(table_charset->name);
-  DBUG_ENTER("spider_mysql_handler::append_create_tmp_bka_table");
+  DBUG_ENTER("spider_mbase_handler::append_create_tmp_bka_table");
   if (str->reserve(SPIDER_SQL_CREATE_TMP_LEN + tmp_table_name_length +
     SPIDER_SQL_OPEN_PAREN_LEN + SPIDER_SQL_ID_LEN + SPIDER_SQL_ID_TYPE_LEN +
     SPIDER_SQL_COMMA_LEN))
@@ -6394,7 +7692,7 @@ int spider_mysql_handler::append_create_tmp_bka_table(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_drop_tmp_bka_table(
+int spider_mbase_handler::append_drop_tmp_bka_table(
   spider_string *str,
   char *tmp_table_name,
   int tmp_table_name_length,
@@ -6402,7 +7700,7 @@ int spider_mysql_handler::append_drop_tmp_bka_table(
   int *drop_table_end_pos,
   bool with_semicolon
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_drop_tmp_bka_table");
+  DBUG_ENTER("spider_mbase_handler::append_drop_tmp_bka_table");
   if (str->reserve(SPIDER_SQL_DROP_TMP_LEN + tmp_table_name_length +
     (with_semicolon ? SPIDER_SQL_SEMICOLON_LEN : 0)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -6415,7 +7713,7 @@ int spider_mysql_handler::append_drop_tmp_bka_table(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_insert_tmp_bka_table(
+int spider_mbase_handler::append_insert_tmp_bka_table(
   const key_range *start_key,
   spider_string *str,
   char *tmp_table_name,
@@ -6423,7 +7721,7 @@ int spider_mysql_handler::append_insert_tmp_bka_table(
   int *db_name_pos
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::append_insert_tmp_bka_table");
+  DBUG_ENTER("spider_mbase_handler::append_insert_tmp_bka_table");
   if (str->reserve(SPIDER_SQL_INSERT_LEN + SPIDER_SQL_INTO_LEN +
     tmp_table_name_length + SPIDER_SQL_OPEN_PAREN_LEN + SPIDER_SQL_ID_LEN +
     SPIDER_SQL_COMMA_LEN))
@@ -6446,11 +7744,11 @@ int spider_mysql_handler::append_insert_tmp_bka_table(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_union_table_and_sql_for_bka(
+int spider_mbase_handler::append_union_table_and_sql_for_bka(
   const key_range *start_key
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::append_union_table_and_sql_for_bka");
+  DBUG_ENTER("spider_mbase_handler::append_union_table_and_sql_for_bka");
   DBUG_PRINT("info",("spider this=%p", this));
   char tgt_table_name[MAX_FIELD_WIDTH * 2];
   spider_string tgt_table_name_str(tgt_table_name, MAX_FIELD_WIDTH * 2,
@@ -6497,7 +7795,7 @@ int spider_mysql_handler::append_union_table_and_sql_for_bka(
   tmp_sql_pos1 = sql.length();
 
   if (
-    (error_num = spider_db_mysql_utility.append_from_with_alias(&tmp_sql,
+    (error_num = spider_db_mbase_utility->append_from_with_alias(&tmp_sql,
       table_names, table_name_lengths,
       table_aliases, table_alias_lengths, 2,
       &table_name_pos, FALSE))
@@ -6539,15 +7837,15 @@ int spider_mysql_handler::append_union_table_and_sql_for_bka(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::reuse_union_table_and_sql_for_bka()
+int spider_mbase_handler::reuse_union_table_and_sql_for_bka()
 {
-  DBUG_ENTER("spider_mysql_handler::reuse_union_table_and_sql_for_bka");
+  DBUG_ENTER("spider_mbase_handler::reuse_union_table_and_sql_for_bka");
   DBUG_PRINT("info",("spider this=%p", this));
   sql.length(tmp_sql_pos1);
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_insert_for_recovery(
+int spider_mbase_handler::append_insert_for_recovery(
   ulong sql_type,
   int link_idx
 ) {
@@ -6557,7 +7855,7 @@ int spider_mysql_handler::append_insert_for_recovery(
   uint field_name_length = 0;
   bool add_value = FALSE;
   spider_string *insert_sql;
-  DBUG_ENTER("spider_mysql_handler::append_insert_for_recovery");
+  DBUG_ENTER("spider_mbase_handler::append_insert_for_recovery");
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql_type == SPIDER_SQL_TYPE_INSERT_SQL)
   {
@@ -6605,7 +7903,7 @@ int spider_mysql_handler::append_insert_for_recovery(
       insert_sql->q_append(SPIDER_SQL_NULL_STR, SPIDER_SQL_NULL_LEN);
     } else {
       if (
-        spider_db_mysql_utility.
+        spider_db_mbase_utility->
           append_column_value(spider, insert_sql, *field, NULL,
             share->access_charset) ||
         insert_sql->reserve(SPIDER_SQL_COMMA_LEN)
@@ -6626,13 +7924,13 @@ int spider_mysql_handler::append_insert_for_recovery(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_update(
+int spider_mbase_handler::append_update(
   const TABLE *table,
   my_ptrdiff_t ptr_diff
 ) {
   int error_num;
   spider_string *str = &update_sql;
-  DBUG_ENTER("spider_mysql_handler::append_update");
+  DBUG_ENTER("spider_mbase_handler::append_update");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->length() > 0)
   {
@@ -6651,7 +7949,7 @@ int spider_mysql_handler::append_update(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_update(
+int spider_mbase_handler::append_update(
   const TABLE *table,
   my_ptrdiff_t ptr_diff,
   int link_idx
@@ -6659,7 +7957,7 @@ int spider_mysql_handler::append_update(
   int error_num;
   SPIDER_SHARE *share = spider->share;
   spider_string *str = &spider->result_list.update_sqls[link_idx];
-  DBUG_ENTER("spider_mysql_handler::append_update");
+  DBUG_ENTER("spider_mbase_handler::append_update");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->length() > 0)
   {
@@ -6692,13 +7990,13 @@ int spider_mysql_handler::append_update(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_delete(
+int spider_mbase_handler::append_delete(
   const TABLE *table,
   my_ptrdiff_t ptr_diff
 ) {
   int error_num;
   spider_string *str = &update_sql;
-  DBUG_ENTER("spider_mysql_handler::append_delete");
+  DBUG_ENTER("spider_mbase_handler::append_delete");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->length() > 0)
   {
@@ -6718,14 +8016,14 @@ int spider_mysql_handler::append_delete(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_delete(
+int spider_mbase_handler::append_delete(
   const TABLE *table,
   my_ptrdiff_t ptr_diff,
   int link_idx
 ) {
   int error_num;
   spider_string *str = &spider->result_list.update_sqls[link_idx];
-  DBUG_ENTER("spider_mysql_handler::append_delete");
+  DBUG_ENTER("spider_mbase_handler::append_delete");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->length() > 0)
   {
@@ -6745,21 +8043,21 @@ int spider_mysql_handler::append_delete(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_insert_part()
+int spider_mbase_handler::append_insert_part()
 {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::append_insert_part");
+  DBUG_ENTER("spider_mbase_handler::append_insert_part");
   DBUG_PRINT("info",("spider this=%p", this));
   error_num = append_insert(&insert_sql, 0);
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_insert(
+int spider_mbase_handler::append_insert(
   spider_string *str,
   int link_idx
 ) {
   SPIDER_SHARE *share = spider->share;
-  DBUG_ENTER("spider_mysql_handler::append_insert");
+  DBUG_ENTER("spider_mbase_handler::append_insert");
   if (
     (
       spider->write_can_replace ||
@@ -6823,20 +8121,20 @@ int spider_mysql_handler::append_insert(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_update_part()
+int spider_mbase_handler::append_update_part()
 {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::append_update_part");
+  DBUG_ENTER("spider_mbase_handler::append_update_part");
   DBUG_PRINT("info",("spider this=%p", this));
   error_num = append_update(&update_sql, 0);
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_update(
+int spider_mbase_handler::append_update(
   spider_string *str,
   int link_idx
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_update");
+  DBUG_ENTER("spider_mbase_handler::append_update");
   if (str->reserve(SPIDER_SQL_UPDATE_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   str->q_append(SPIDER_SQL_UPDATE_STR, SPIDER_SQL_UPDATE_LEN);
@@ -6863,19 +8161,19 @@ int spider_mysql_handler::append_update(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_delete_part()
+int spider_mbase_handler::append_delete_part()
 {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::append_delete_part");
+  DBUG_ENTER("spider_mbase_handler::append_delete_part");
   DBUG_PRINT("info",("spider this=%p", this));
   error_num = append_delete(&update_sql);
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_delete(
+int spider_mbase_handler::append_delete(
   spider_string *str
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_delete");
+  DBUG_ENTER("spider_mbase_handler::append_delete");
   if (str->reserve(SPIDER_SQL_DELETE_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   str->q_append(SPIDER_SQL_DELETE_STR, SPIDER_SQL_DELETE_LEN);
@@ -6904,22 +8202,22 @@ int spider_mysql_handler::append_delete(
 
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-int spider_mysql_handler::append_increment_update_set_part()
+int spider_mbase_handler::append_increment_update_set_part()
 {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::append_increment_update_set_part");
+  DBUG_ENTER("spider_mbase_handler::append_increment_update_set_part");
   DBUG_PRINT("info",("spider this=%p", this));
   error_num = append_increment_update_set(&update_sql);
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_increment_update_set(
+int spider_mbase_handler::append_increment_update_set(
   spider_string *str
 ) {
   uint field_name_length;
   uint roop_count;
   Field *field;
-  DBUG_ENTER("spider_mysql_handler::append_increment_update_set");
+  DBUG_ENTER("spider_mbase_handler::append_increment_update_set");
   if (str->reserve(SPIDER_SQL_SET_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   str->q_append(SPIDER_SQL_SET_STR, SPIDER_SQL_SET_LEN);
@@ -6963,24 +8261,24 @@ int spider_mysql_handler::append_increment_update_set(
 #endif
 #endif
 
-int spider_mysql_handler::append_update_set_part()
+int spider_mbase_handler::append_update_set_part()
 {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::append_update_set_part");
+  DBUG_ENTER("spider_mbase_handler::append_update_set_part");
   DBUG_PRINT("info",("spider this=%p", this));
   error_num = append_update_set(&update_sql);
   where_pos = update_sql.length();
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_update_set(
+int spider_mbase_handler::append_update_set(
   spider_string *str
 ) {
   uint field_name_length;
   SPIDER_SHARE *share = spider->share;
   TABLE *table = spider->get_table();
   Field **fields;
-  DBUG_ENTER("spider_mysql_handler::append_update_set");
+  DBUG_ENTER("spider_mbase_handler::append_update_set");
   if (str->reserve(SPIDER_SQL_SET_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   str->q_append(SPIDER_SQL_SET_STR, SPIDER_SQL_SET_LEN);
@@ -7006,22 +8304,21 @@ int spider_mysql_handler::append_update_set(
         mysql_share->append_column_name(str, (*fields)->field_index);
         str->q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
 #ifndef DBUG_OFF
-        my_bitmap_map *tmp_map = dbug_tmp_use_all_columns(table,
-          table->read_set);
+        MY_BITMAP *tmp_map = dbug_tmp_use_all_columns(table, &table->read_set);
 #endif
         if (
-          spider_db_mysql_utility.
+          spider_db_mbase_utility->
             append_column_value(spider, str, *fields, NULL,
               share->access_charset) ||
           str->reserve(SPIDER_SQL_COMMA_LEN)
         ) {
 #ifndef DBUG_OFF
-          dbug_tmp_restore_column_map(table->read_set, tmp_map);
+          dbug_tmp_restore_column_map(&table->read_set, tmp_map);
 #endif
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         }
 #ifndef DBUG_OFF
-        dbug_tmp_restore_column_map(table->read_set, tmp_map);
+        dbug_tmp_restore_column_map(&table->read_set, tmp_map);
 #endif
       }
       str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
@@ -7032,17 +8329,17 @@ int spider_mysql_handler::append_update_set(
 }
 
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-int spider_mysql_handler::append_direct_update_set_part()
+int spider_mbase_handler::append_direct_update_set_part()
 {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::append_direct_update_set_part");
+  DBUG_ENTER("spider_mbase_handler::append_direct_update_set_part");
   DBUG_PRINT("info",("spider this=%p", this));
   error_num = append_direct_update_set(&update_sql);
   where_pos = update_sql.length();
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_direct_update_set(
+int spider_mbase_handler::append_direct_update_set(
   spider_string *str
 ) {
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -7052,7 +8349,7 @@ int spider_mysql_handler::append_direct_update_set(
   TABLE *table = spider->get_table();
 #endif
 #endif
-  DBUG_ENTER("spider_mysql_handler::append_direct_update_set");
+  DBUG_ENTER("spider_mbase_handler::append_direct_update_set");
   if (
     spider->direct_update_kinds == SPIDER_SQL_KIND_SQL &&
     spider->direct_update_fields
@@ -7061,7 +8358,7 @@ int spider_mysql_handler::append_direct_update_set(
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     str->q_append(SPIDER_SQL_SET_STR, SPIDER_SQL_SET_LEN);
     DBUG_RETURN(spider_db_append_update_columns(spider, str, NULL, 0,
-      spider_dbton_mysql.dbton_id, FALSE, NULL));
+      dbton_id, FALSE, NULL));
   }
 
   if (
@@ -7102,7 +8399,7 @@ int spider_mysql_handler::append_direct_update_set(
           table->read_set);
 #endif
         if (
-          spider_db_mysql_utility.
+          spider_db_mbase_utility->
             append_column_value(spider, str, top_table_field, NULL,
               share->access_charset) ||
           str->reserve(SPIDER_SQL_COMMA_LEN)
@@ -7126,57 +8423,57 @@ int spider_mysql_handler::append_direct_update_set(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_dup_update_pushdown_part(
+int spider_mbase_handler::append_dup_update_pushdown_part(
   const char *alias,
   uint alias_length
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::append_dup_update_pushdown_part");
+  DBUG_ENTER("spider_mbase_handler::append_dup_update_pushdown_part");
   DBUG_PRINT("info",("spider this=%p", this));
   dup_update_sql.length(0);
   error_num = append_update_columns(&dup_update_sql, alias, alias_length);
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_update_columns_part(
+int spider_mbase_handler::append_update_columns_part(
   const char *alias,
   uint alias_length
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::append_update_columns_part");
+  DBUG_ENTER("spider_mbase_handler::append_update_columns_part");
   DBUG_PRINT("info",("spider this=%p", this));
   error_num = append_update_columns(&update_sql, alias, alias_length);
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::check_update_columns_part()
+int spider_mbase_handler::check_update_columns_part()
 {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::check_update_columns_part");
+  DBUG_ENTER("spider_mbase_handler::check_update_columns_part");
   DBUG_PRINT("info",("spider this=%p", this));
   error_num = append_update_columns(NULL, NULL, 0);
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_update_columns(
+int spider_mbase_handler::append_update_columns(
   spider_string *str,
   const char *alias,
   uint alias_length
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::append_update_columns");
+  DBUG_ENTER("spider_mbase_handler::append_update_columns");
   error_num = spider_db_append_update_columns(spider, str,
-    alias, alias_length, spider_dbton_mysql.dbton_id, FALSE, NULL);
+    alias, alias_length, dbton_id, FALSE, NULL);
   DBUG_RETURN(error_num);
 }
 #endif
 
-int spider_mysql_handler::append_select_part(
+int spider_mbase_handler::append_select_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_select_part");
+  DBUG_ENTER("spider_mbase_handler::append_select_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -7193,12 +8490,12 @@ int spider_mysql_handler::append_select_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_select(
+int spider_mbase_handler::append_select(
   spider_string *str,
   ulong sql_type
 ) {
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
-  DBUG_ENTER("spider_mysql_handler::append_select");
+  DBUG_ENTER("spider_mbase_handler::append_select");
   if (sql_type == SPIDER_SQL_TYPE_HANDLER)
   {
     if (str->reserve(SPIDER_SQL_HANDLER_LEN))
@@ -7217,16 +8514,28 @@ int spider_mysql_handler::append_select(
     if (result_list->lock_type != F_WRLCK && spider->lock_mode < 1)
     {
       /* no lock */
+#ifdef SPIDER_SQL_CACHE_IS_IN_LEX
+      LEX *lex = spider->trx->thd->lex;
+#else
       st_select_lex *select_lex = &spider->trx->thd->lex->select_lex;
+#endif
       if (
+#ifdef SPIDER_SQL_CACHE_IS_IN_LEX
+        lex->sql_cache == LEX::SQL_CACHE &&
+#else
         select_lex->sql_cache == SELECT_LEX::SQL_CACHE &&
+#endif
         (spider->share->query_cache_sync & 1)
       ) {
         if (str->reserve(SPIDER_SQL_SQL_CACHE_LEN))
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         str->q_append(SPIDER_SQL_SQL_CACHE_STR, SPIDER_SQL_SQL_CACHE_LEN);
       } else if (
+#ifdef SPIDER_SQL_CACHE_IS_IN_LEX
+        lex->sql_cache == LEX::SQL_NO_CACHE &&
+#else
         select_lex->sql_cache == SELECT_LEX::SQL_NO_CACHE &&
+#endif
         (spider->share->query_cache_sync & 2)
       ) {
         if (str->reserve(SPIDER_SQL_SQL_NO_CACHE_LEN))
@@ -7257,12 +8566,12 @@ int spider_mysql_handler::append_select(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_table_select_part(
+int spider_mbase_handler::append_table_select_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_table_select_part");
+  DBUG_ENTER("spider_mbase_handler::append_table_select_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -7276,23 +8585,23 @@ int spider_mysql_handler::append_table_select_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_table_select(
+int spider_mbase_handler::append_table_select(
   spider_string *str
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_table_select");
+  DBUG_ENTER("spider_mbase_handler::append_table_select");
   table_name_pos = str->length() + mysql_share->table_select_pos;
   if (str->append(*(mysql_share->table_select)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_key_select_part(
+int spider_mbase_handler::append_key_select_part(
   ulong sql_type,
   uint idx
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_key_select_part");
+  DBUG_ENTER("spider_mbase_handler::append_key_select_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -7306,23 +8615,23 @@ int spider_mysql_handler::append_key_select_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_key_select(
+int spider_mbase_handler::append_key_select(
   spider_string *str,
   uint idx
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_key_select");
+  DBUG_ENTER("spider_mbase_handler::append_key_select");
   table_name_pos = str->length() + mysql_share->key_select_pos[idx];
   if (str->append(mysql_share->key_select[idx]))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_minimum_select_part(
+int spider_mbase_handler::append_minimum_select_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_minimum_select_part");
+  DBUG_ENTER("spider_mbase_handler::append_minimum_select_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -7336,7 +8645,7 @@ int spider_mysql_handler::append_minimum_select_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_minimum_select(
+int spider_mbase_handler::append_minimum_select(
   spider_string *str,
   ulong sql_type
 ) {
@@ -7344,7 +8653,7 @@ int spider_mysql_handler::append_minimum_select(
   Field **field;
   int field_length;
   bool appended = FALSE;
-  DBUG_ENTER("spider_mysql_handler::append_minimum_select");
+  DBUG_ENTER("spider_mbase_handler::append_minimum_select");
   minimum_select_bitmap_create();
   for (field = table->field; *field; field++)
   {
@@ -7373,7 +8682,7 @@ int spider_mysql_handler::append_minimum_select(
   DBUG_RETURN(append_from(str, sql_type, first_link_idx));
 }
 
-int spider_mysql_handler::append_table_select_with_alias(
+int spider_mbase_handler::append_table_select_with_alias(
   spider_string *str,
   const char *alias,
   uint alias_length
@@ -7381,7 +8690,7 @@ int spider_mysql_handler::append_table_select_with_alias(
   TABLE *table = spider->get_table();
   Field **field;
   int field_length;
-  DBUG_ENTER("spider_mysql_handler::append_table_select_with_alias");
+  DBUG_ENTER("spider_mbase_handler::append_table_select_with_alias");
   for (field = table->field; *field; field++)
   {
     field_length =
@@ -7397,7 +8706,7 @@ int spider_mysql_handler::append_table_select_with_alias(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_key_select_with_alias(
+int spider_mbase_handler::append_key_select_with_alias(
   spider_string *str,
   const KEY *key_info,
   const char *alias,
@@ -7407,7 +8716,7 @@ int spider_mysql_handler::append_key_select_with_alias(
   Field *field;
   uint part_num;
   int field_length;
-  DBUG_ENTER("spider_mysql_handler::append_key_select_with_alias");
+  DBUG_ENTER("spider_mbase_handler::append_key_select_with_alias");
   for (key_part = key_info->key_part, part_num = 0;
     part_num < spider_user_defined_key_parts(key_info); key_part++, part_num++)
   {
@@ -7424,7 +8733,7 @@ int spider_mysql_handler::append_key_select_with_alias(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_minimum_select_with_alias(
+int spider_mbase_handler::append_minimum_select_with_alias(
   spider_string *str,
   const char *alias,
   uint alias_length
@@ -7433,7 +8742,7 @@ int spider_mysql_handler::append_minimum_select_with_alias(
   Field **field;
   int field_length;
   bool appended = FALSE;
-  DBUG_ENTER("spider_mysql_handler::append_minimum_select_with_alias");
+  DBUG_ENTER("spider_mbase_handler::append_minimum_select_with_alias");
   minimum_select_bitmap_create();
   for (field = table->field; *field; field++)
   {
@@ -7463,14 +8772,14 @@ int spider_mysql_handler::append_minimum_select_with_alias(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_select_columns_with_alias(
+int spider_mbase_handler::append_select_columns_with_alias(
   spider_string *str,
   const char *alias,
   uint alias_length
 ) {
   int error_num;
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
-  DBUG_ENTER("spider_mysql_handler::append_select_columns_with_alias");
+  DBUG_ENTER("spider_mbase_handler::append_select_columns_with_alias");
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (
     result_list->direct_aggregate &&
@@ -7492,12 +8801,12 @@ int spider_mysql_handler::append_select_columns_with_alias(
   DBUG_RETURN(append_minimum_select_with_alias(str, alias, alias_length));
 }
 
-int spider_mysql_handler::append_hint_after_table_part(
+int spider_mbase_handler::append_hint_after_table_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_hint_after_table_part");
+  DBUG_ENTER("spider_mbase_handler::append_hint_after_table_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -7521,11 +8830,11 @@ int spider_mysql_handler::append_hint_after_table_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_hint_after_table(
+int spider_mbase_handler::append_hint_after_table(
   spider_string *str
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::append_hint_after_table");
+  DBUG_ENTER("spider_mbase_handler::append_hint_after_table");
   DBUG_PRINT("info",("spider this=%p", this));
   if (
     mysql_share->key_hint &&
@@ -7536,10 +8845,10 @@ int spider_mysql_handler::append_hint_after_table(
   DBUG_RETURN(0);
 }
 
-void spider_mysql_handler::set_where_pos(
+void spider_mbase_handler::set_where_pos(
   ulong sql_type
 ) {
-  DBUG_ENTER("spider_mysql_handler::set_where_pos");
+  DBUG_ENTER("spider_mbase_handler::set_where_pos");
   switch (sql_type)
   {
     case SPIDER_SQL_TYPE_SELECT_SQL:
@@ -7561,10 +8870,10 @@ void spider_mysql_handler::set_where_pos(
   DBUG_VOID_RETURN;
 }
 
-void spider_mysql_handler::set_where_to_pos(
+void spider_mbase_handler::set_where_to_pos(
   ulong sql_type
 ) {
-  DBUG_ENTER("spider_mysql_handler::set_where_to_pos");
+  DBUG_ENTER("spider_mbase_handler::set_where_to_pos");
   switch (sql_type)
   {
     case SPIDER_SQL_TYPE_SELECT_SQL:
@@ -7586,23 +8895,23 @@ void spider_mysql_handler::set_where_to_pos(
   DBUG_VOID_RETURN;
 }
 
-int spider_mysql_handler::check_item_type(
+int spider_mbase_handler::check_item_type(
   Item *item
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::check_item_type");
+  DBUG_ENTER("spider_mbase_handler::check_item_type");
   DBUG_PRINT("info",("spider this=%p", this));
-  error_num = spider_db_print_item_type(item, spider, NULL, NULL, 0,
-    spider_dbton_mysql.dbton_id, FALSE, NULL);
+  error_num = spider_db_print_item_type(item, NULL, spider, NULL, NULL, 0,
+    dbton_id, FALSE, NULL);
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_values_connector_part(
+int spider_mbase_handler::append_values_connector_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_values_connector_part");
+  DBUG_ENTER("spider_mbase_handler::append_values_connector_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -7619,10 +8928,10 @@ int spider_mysql_handler::append_values_connector_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_values_connector(
+int spider_mbase_handler::append_values_connector(
   spider_string *str
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_values_connector");
+  DBUG_ENTER("spider_mbase_handler::append_values_connector");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_CLOSE_PAREN_LEN +
     SPIDER_SQL_COMMA_LEN + SPIDER_SQL_OPEN_PAREN_LEN))
@@ -7633,12 +8942,12 @@ int spider_mysql_handler::append_values_connector(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_values_terminator_part(
+int spider_mbase_handler::append_values_terminator_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_values_terminator_part");
+  DBUG_ENTER("spider_mbase_handler::append_values_terminator_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -7655,22 +8964,22 @@ int spider_mysql_handler::append_values_terminator_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_values_terminator(
+int spider_mbase_handler::append_values_terminator(
   spider_string *str
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_values_terminator");
+  DBUG_ENTER("spider_mbase_handler::append_values_terminator");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(str->length() -
     SPIDER_SQL_COMMA_LEN - SPIDER_SQL_OPEN_PAREN_LEN);
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_union_table_connector_part(
+int spider_mbase_handler::append_union_table_connector_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_union_table_connector_part");
+  DBUG_ENTER("spider_mbase_handler::append_union_table_connector_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -7687,10 +8996,10 @@ int spider_mysql_handler::append_union_table_connector_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_union_table_connector(
+int spider_mbase_handler::append_union_table_connector(
   spider_string *str
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_union_table_connector");
+  DBUG_ENTER("spider_mbase_handler::append_union_table_connector");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve((SPIDER_SQL_SPACE_LEN * 2) + SPIDER_SQL_UNION_ALL_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -7700,12 +9009,12 @@ int spider_mysql_handler::append_union_table_connector(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_union_table_terminator_part(
+int spider_mbase_handler::append_union_table_terminator_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_union_table_terminator_part");
+  DBUG_ENTER("spider_mbase_handler::append_union_table_terminator_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -7719,10 +9028,10 @@ int spider_mysql_handler::append_union_table_terminator_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_union_table_terminator(
+int spider_mbase_handler::append_union_table_terminator(
   spider_string *str
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_union_table_terminator");
+  DBUG_ENTER("spider_mbase_handler::append_union_table_terminator");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(str->length() -
     ((SPIDER_SQL_SPACE_LEN * 2) + SPIDER_SQL_UNION_ALL_LEN));
@@ -7737,13 +9046,13 @@ int spider_mysql_handler::append_union_table_terminator(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_key_column_values_part(
+int spider_mbase_handler::append_key_column_values_part(
   const key_range *start_key,
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_key_column_values_part");
+  DBUG_ENTER("spider_mbase_handler::append_key_column_values_part");
   switch (sql_type)
   {
     case SPIDER_SQL_TYPE_SELECT_SQL:
@@ -7759,7 +9068,7 @@ int spider_mysql_handler::append_key_column_values_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_key_column_values(
+int spider_mbase_handler::append_key_column_values(
   spider_string *str,
   const key_range *start_key
 ) {
@@ -7775,7 +9084,7 @@ int spider_mysql_handler::append_key_column_values(
   key_part_map start_key_part_map;
   KEY_PART_INFO *key_part;
   Field *field;
-  DBUG_ENTER("spider_mysql_handler::append_key_column_values");
+  DBUG_ENTER("spider_mbase_handler::append_key_column_values");
   start_key_part_map = start_key->keypart_map & full_key_part_map;
   DBUG_PRINT("info", ("spider spider_user_defined_key_parts=%u",
     spider_user_defined_key_parts(key_info)));
@@ -7801,7 +9110,7 @@ int spider_mysql_handler::append_key_column_values(
       if (error_num > 0)
         DBUG_RETURN(error_num);
     } else {
-      if (spider_db_mysql_utility.append_column_value(spider, str, field, ptr,
+      if (spider_db_mbase_utility->append_column_value(spider, str, field, ptr,
         share->access_charset))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
@@ -7814,13 +9123,13 @@ int spider_mysql_handler::append_key_column_values(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_key_column_values_with_name_part(
+int spider_mbase_handler::append_key_column_values_with_name_part(
   const key_range *start_key,
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_key_column_values_with_name_part");
+  DBUG_ENTER("spider_mbase_handler::append_key_column_values_with_name_part");
   switch (sql_type)
   {
     case SPIDER_SQL_TYPE_SELECT_SQL:
@@ -7836,7 +9145,7 @@ int spider_mysql_handler::append_key_column_values_with_name_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_key_column_values_with_name(
+int spider_mbase_handler::append_key_column_values_with_name(
   spider_string *str,
   const key_range *start_key
 ) {
@@ -7854,7 +9163,7 @@ int spider_mysql_handler::append_key_column_values_with_name(
   KEY_PART_INFO *key_part;
   Field *field;
   char tmp_buf[MAX_FIELD_WIDTH];
-  DBUG_ENTER("spider_mysql_handler::append_key_column_values_with_name");
+  DBUG_ENTER("spider_mbase_handler::append_key_column_values_with_name");
   start_key_part_map = start_key->keypart_map & full_key_part_map;
   DBUG_PRINT("info", ("spider spider_user_defined_key_parts=%u",
     spider_user_defined_key_parts(key_info)));
@@ -7882,7 +9191,7 @@ int spider_mysql_handler::append_key_column_values_with_name(
       if (error_num > 0)
         DBUG_RETURN(error_num);
     } else {
-      if (spider_db_mysql_utility.append_column_value(spider, str, field, ptr,
+      if (spider_db_mbase_utility->append_column_value(spider, str, field, ptr,
         share->access_charset))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
@@ -7899,7 +9208,7 @@ int spider_mysql_handler::append_key_column_values_with_name(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_key_where_part(
+int spider_mbase_handler::append_key_where_part(
   const key_range *start_key,
   const key_range *end_key,
   ulong sql_type
@@ -7907,7 +9216,7 @@ int spider_mysql_handler::append_key_where_part(
   int error_num;
   spider_string *str, *str_part = NULL, *str_part2 = NULL;
   bool set_order;
-  DBUG_ENTER("spider_mysql_handler::append_key_where_part");
+  DBUG_ENTER("spider_mbase_handler::append_key_where_part");
   switch (sql_type)
   {
     case SPIDER_SQL_TYPE_SELECT_SQL:
@@ -7942,7 +9251,7 @@ int spider_mysql_handler::append_key_where_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_key_where(
+int spider_mbase_handler::append_key_where(
   spider_string *str,
   spider_string *str_part,
   spider_string *str_part2,
@@ -7952,14 +9261,14 @@ int spider_mysql_handler::append_key_where(
   bool set_order
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::append_key_where");
+  DBUG_ENTER("spider_mbase_handler::append_key_where");
   error_num = spider_db_append_key_where_internal(str, str_part, str_part2,
     start_key, end_key, spider, set_order, sql_type,
-    spider_dbton_mysql.dbton_id);
+    dbton_id);
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_is_null_part(
+int spider_mbase_handler::append_is_null_part(
   ulong sql_type,
   KEY_PART_INFO *key_part,
   const key_range *key,
@@ -7969,7 +9278,7 @@ int spider_mysql_handler::append_is_null_part(
 ) {
   int error_num;
   spider_string *str, *str_part = NULL, *str_part2 = NULL;
-  DBUG_ENTER("spider_mysql_handler::append_is_null_part");
+  DBUG_ENTER("spider_mbase_handler::append_is_null_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -7996,7 +9305,7 @@ int spider_mysql_handler::append_is_null_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_is_null(
+int spider_mbase_handler::append_is_null(
   ulong sql_type,
   spider_string *str,
   spider_string *str_part,
@@ -8007,7 +9316,7 @@ int spider_mysql_handler::append_is_null(
   bool key_eq,
   bool tgt_final
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_is_null");
+  DBUG_ENTER("spider_mbase_handler::append_is_null");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider key_eq=%s", key_eq ? "TRUE" : "FALSE"));
   if (key_part->null_bit)
@@ -8080,14 +9389,14 @@ int spider_mysql_handler::append_is_null(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_where_terminator_part(
+int spider_mbase_handler::append_where_terminator_part(
   ulong sql_type,
   bool set_order,
   int key_count
 ) {
   int error_num;
   spider_string *str, *str_part = NULL, *str_part2 = NULL;
-  DBUG_ENTER("spider_mysql_handler::append_where_terminator_part");
+  DBUG_ENTER("spider_mbase_handler::append_where_terminator_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -8114,7 +9423,7 @@ int spider_mysql_handler::append_where_terminator_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_where_terminator(
+int spider_mbase_handler::append_where_terminator(
   ulong sql_type,
   spider_string *str,
   spider_string *str_part,
@@ -8123,7 +9432,7 @@ int spider_mysql_handler::append_where_terminator(
   int key_count
 ) {
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
-  DBUG_ENTER("spider_mysql_handler::append_where_terminator");
+  DBUG_ENTER("spider_mbase_handler::append_where_terminator");
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql_type != SPIDER_SQL_TYPE_HANDLER)
   {
@@ -8153,12 +9462,12 @@ int spider_mysql_handler::append_where_terminator(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_match_where_part(
+int spider_mbase_handler::append_match_where_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_match_where_part");
+  DBUG_ENTER("spider_mbase_handler::append_match_where_part");
   switch (sql_type)
   {
     case SPIDER_SQL_TYPE_SELECT_SQL:
@@ -8172,13 +9481,13 @@ int spider_mysql_handler::append_match_where_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_match_where(
+int spider_mbase_handler::append_match_where(
   spider_string *str
 ) {
   int error_num;
   bool first = TRUE;
   st_spider_ft_info *ft_info = spider->ft_first;
-  DBUG_ENTER("spider_mysql_handler::append_match_where");
+  DBUG_ENTER("spider_mbase_handler::append_match_where");
   if (spider->ft_current)
   {
     while (TRUE)
@@ -8209,29 +9518,74 @@ int spider_mysql_handler::append_match_where(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_update_where(
+int spider_mbase_handler::append_update_where(
   spider_string *str,
   const TABLE *table,
   my_ptrdiff_t ptr_diff
 ) {
   uint field_name_length;
   Field **field;
+  THD *thd = spider->trx->thd;
   SPIDER_SHARE *share = spider->share;
-  DBUG_ENTER("spider_mysql_handler::append_update_where");
+  bool no_pk = (table->s->primary_key == MAX_KEY);
+  DBUG_ENTER("spider_mbase_handler::append_update_where");
   DBUG_PRINT("info", ("spider table->s->primary_key=%s",
     table->s->primary_key != MAX_KEY ? "TRUE" : "FALSE"));
+  uint str_len_bakup = str->length();
   if (str->reserve(SPIDER_SQL_WHERE_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   str->q_append(SPIDER_SQL_WHERE_STR, SPIDER_SQL_WHERE_LEN);
-  for (field = table->field; *field; field++)
-  {
-    DBUG_PRINT("info", ("spider bitmap=%s",
-      bitmap_is_set(table->read_set, (*field)->field_index) ?
-      "TRUE" : "FALSE"));
-    if (
-      table->s->primary_key == MAX_KEY ||
-      bitmap_is_set(table->read_set, (*field)->field_index)
+
+  if (
+    no_pk ||
+    spider_param_use_cond_other_than_pk_for_update(thd)
+  ) {
+    for (field = table->field; *field; field++)
+    {
+      if (
+        no_pk ||
+        bitmap_is_set(table->read_set, (*field)->field_index)
+      ) {
+        field_name_length =
+          mysql_share->column_name_str[(*field)->field_index].length();
+        if ((*field)->is_null(ptr_diff))
+        {
+          if (str->reserve(field_name_length +
+            /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 +
+            SPIDER_SQL_IS_NULL_LEN + SPIDER_SQL_AND_LEN))
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          mysql_share->append_column_name(str, (*field)->field_index);
+          str->q_append(SPIDER_SQL_IS_NULL_STR, SPIDER_SQL_IS_NULL_LEN);
+        } else {
+          if (str->reserve(field_name_length +
+            /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 +
+            SPIDER_SQL_EQUAL_LEN))
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          mysql_share->append_column_name(str, (*field)->field_index);
+          str->q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
+          (*field)->move_field_offset(ptr_diff);
+          if (
+            spider_db_mbase_utility->
+              append_column_value(spider, str, *field, NULL,
+                share->access_charset) ||
+            str->reserve(SPIDER_SQL_AND_LEN)
+          )
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          (*field)->move_field_offset(-ptr_diff);
+        }
+        str->q_append(SPIDER_SQL_AND_STR, SPIDER_SQL_AND_LEN);
+      }
+    }
+  } else {
+    KEY *key_info = &table->key_info[table->s->primary_key];
+    KEY_PART_INFO *key_part;
+    uint part_num;
+    for (
+      key_part = key_info->key_part, part_num = 0;
+      part_num < spider_user_defined_key_parts(key_info);
+      key_part++, part_num++
     ) {
+      field = &key_part->field;
       field_name_length =
         mysql_share->column_name_str[(*field)->field_index].length();
       if ((*field)->is_null(ptr_diff))
@@ -8251,7 +9605,7 @@ int spider_mysql_handler::append_update_where(
         str->q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
         (*field)->move_field_offset(ptr_diff);
         if (
-          spider_db_mysql_utility.
+          spider_db_mbase_utility->
             append_column_value(spider, str, *field, NULL,
               share->access_charset) ||
           str->reserve(SPIDER_SQL_AND_LEN)
@@ -8262,14 +9616,20 @@ int spider_mysql_handler::append_update_where(
       str->q_append(SPIDER_SQL_AND_STR, SPIDER_SQL_AND_LEN);
     }
   }
-  str->length(str->length() - SPIDER_SQL_AND_LEN);
+  if (str->length() == str_len_bakup + SPIDER_SQL_WHERE_LEN)
+  {
+    /* no condition */
+    str->length(str_len_bakup);
+  } else {
+    str->length(str->length() - SPIDER_SQL_AND_LEN);
+  }
   if (str->reserve(SPIDER_SQL_LIMIT1_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   str->q_append(SPIDER_SQL_LIMIT1_STR, SPIDER_SQL_LIMIT1_LEN);
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_condition_part(
+int spider_mbase_handler::append_condition_part(
   const char *alias,
   uint alias_length,
   ulong sql_type,
@@ -8278,7 +9638,7 @@ int spider_mysql_handler::append_condition_part(
   int error_num;
   spider_string *str;
   bool start_where = FALSE;
-  DBUG_ENTER("spider_mysql_handler::append_condition_part");
+  DBUG_ENTER("spider_mbase_handler::append_condition_part");
   switch (sql_type)
   {
     case SPIDER_SQL_TYPE_SELECT_SQL:
@@ -8352,7 +9712,7 @@ int spider_mysql_handler::append_condition_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_condition(
+int spider_mbase_handler::append_condition(
   spider_string *str,
   const char *alias,
   uint alias_length,
@@ -8361,7 +9721,7 @@ int spider_mysql_handler::append_condition(
 ) {
   int error_num, restart_pos = 0, start_where_pos;
   SPIDER_CONDITION *tmp_cond = spider->condition;
-  DBUG_ENTER("spider_mysql_handler::append_condition");
+  DBUG_ENTER("spider_mbase_handler::append_condition");
   if (str && start_where)
   {
     start_where_pos = str->length();
@@ -8392,8 +9752,8 @@ int spider_mysql_handler::append_condition(
       }
     }
     if ((error_num = spider_db_print_item_type(
-      (Item *) tmp_cond->cond, spider, str, alias, alias_length,
-      spider_dbton_mysql.dbton_id, FALSE, NULL)))
+      (Item *) tmp_cond->cond, NULL, spider, str, alias, alias_length,
+      dbton_id, FALSE, NULL)))
     {
       if (str && error_num == ER_SPIDER_COND_SKIP_NUM)
       {
@@ -8408,7 +9768,7 @@ int spider_mysql_handler::append_condition(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_match_against_part(
+int spider_mbase_handler::append_match_against_part(
   ulong sql_type,
   st_spider_ft_info *ft_info,
   const char *alias,
@@ -8416,7 +9776,7 @@ int spider_mysql_handler::append_match_against_part(
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_match_against_part");
+  DBUG_ENTER("spider_mbase_handler::append_match_against_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -8430,7 +9790,7 @@ int spider_mysql_handler::append_match_against_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_match_against(
+int spider_mbase_handler::append_match_against(
   spider_string *str,
   st_spider_ft_info  *ft_info,
   const char *alias,
@@ -8444,7 +9804,7 @@ int spider_mysql_handler::append_match_against(
   int key_count;
   KEY_PART_INFO *key_part;
   Field *field;
-  DBUG_ENTER("spider_mysql_handler::append_match_against");
+  DBUG_ENTER("spider_mbase_handler::append_match_against");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_MATCH_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -8493,7 +9853,7 @@ int spider_mysql_handler::append_match_against(
     tmp_str.append(ft_init_key->ptr(), ft_init_key->length(),
       ft_init_key->charset()) ||
     str->reserve(tmp_str.length() * 2) ||
-    spider_db_mysql_utility.append_escaped_util(str, tmp_str.get_str())
+    spider_db_mbase_utility->append_escaped_util(str, tmp_str.get_str())
   )
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   str->mem_calc();
@@ -8516,14 +9876,14 @@ int spider_mysql_handler::append_match_against(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_match_select_part(
+int spider_mbase_handler::append_match_select_part(
   ulong sql_type,
   const char *alias,
   uint alias_length
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_match_select_part");
+  DBUG_ENTER("spider_mbase_handler::append_match_select_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -8537,13 +9897,13 @@ int spider_mysql_handler::append_match_select_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_match_select(
+int spider_mbase_handler::append_match_select(
   spider_string *str,
   const char *alias,
   uint alias_length
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::append_match_select");
+  DBUG_ENTER("spider_mbase_handler::append_match_select");
   DBUG_PRINT("info",("spider this=%p", this));
   if (spider->ft_current)
   {
@@ -8565,14 +9925,14 @@ int spider_mysql_handler::append_match_select(
 }
 
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
-int spider_mysql_handler::append_sum_select_part(
+int spider_mbase_handler::append_sum_select_part(
   ulong sql_type,
   const char *alias,
   uint alias_length
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_sum_select_part");
+  DBUG_ENTER("spider_mbase_handler::append_sum_select_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -8586,21 +9946,21 @@ int spider_mysql_handler::append_sum_select_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_sum_select(
+int spider_mbase_handler::append_sum_select(
   spider_string *str,
   const char *alias,
   uint alias_length
 ) {
   int error_num;
   st_select_lex *select_lex;
-  DBUG_ENTER("spider_mysql_handler::append_sum_select");
+  DBUG_ENTER("spider_mbase_handler::append_sum_select");
   DBUG_PRINT("info",("spider this=%p", this));
   select_lex = spider_get_select_lex(spider);
   JOIN *join = select_lex->join;
   Item_sum **item_sum_ptr;
   for (item_sum_ptr = join->sum_funcs; *item_sum_ptr; ++item_sum_ptr)
   {
-    if ((error_num = spider_db_mysql_utility.open_item_sum_func(*item_sum_ptr,
+    if ((error_num = spider_db_mbase_utility->open_item_sum_func(*item_sum_ptr,
       spider, str, alias, alias_length, FALSE, NULL)))
     {
       DBUG_RETURN(error_num);
@@ -8613,10 +9973,10 @@ int spider_mysql_handler::append_sum_select(
 }
 #endif
 
-void spider_mysql_handler::set_order_pos(
+void spider_mbase_handler::set_order_pos(
   ulong sql_type
 ) {
-  DBUG_ENTER("spider_mysql_handler::set_order_pos");
+  DBUG_ENTER("spider_mbase_handler::set_order_pos");
   switch (sql_type)
   {
     case SPIDER_SQL_TYPE_SELECT_SQL:
@@ -8639,10 +9999,10 @@ void spider_mysql_handler::set_order_pos(
   DBUG_VOID_RETURN;
 }
 
-void spider_mysql_handler::set_order_to_pos(
+void spider_mbase_handler::set_order_to_pos(
   ulong sql_type
 ) {
-  DBUG_ENTER("spider_mysql_handler::set_order_to_pos");
+  DBUG_ENTER("spider_mbase_handler::set_order_to_pos");
   switch (sql_type)
   {
     case SPIDER_SQL_TYPE_SELECT_SQL:
@@ -8666,14 +10026,14 @@ void spider_mysql_handler::set_order_to_pos(
 }
 
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
-int spider_mysql_handler::append_group_by_part(
+int spider_mbase_handler::append_group_by_part(
   const char *alias,
   uint alias_length,
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_group_by_part");
+  DBUG_ENTER("spider_mbase_handler::append_group_by_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -8697,14 +10057,14 @@ int spider_mysql_handler::append_group_by_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_group_by(
+int spider_mbase_handler::append_group_by(
   spider_string *str,
   const char *alias,
   uint alias_length
 ) {
   int error_num;
   st_select_lex *select_lex;
-  DBUG_ENTER("spider_mysql_handler::append_group_by");
+  DBUG_ENTER("spider_mbase_handler::append_group_by");
   DBUG_PRINT("info",("spider this=%p", this));
   select_lex = spider_get_select_lex(spider);
   ORDER *group = (ORDER *) select_lex->group_list.first;
@@ -8715,8 +10075,8 @@ int spider_mysql_handler::append_group_by(
     str->q_append(SPIDER_SQL_GROUP_STR, SPIDER_SQL_GROUP_LEN);
     for (; group; group = group->next)
     {
-      if ((error_num = spider_db_print_item_type((*group->item), spider, str,
-        alias, alias_length, spider_dbton_mysql.dbton_id, FALSE, NULL)))
+      if ((error_num = spider_db_print_item_type((*group->item), NULL, spider,
+        str, alias, alias_length, dbton_id, FALSE, NULL)))
       {
         DBUG_RETURN(error_num);
       }
@@ -8730,14 +10090,14 @@ int spider_mysql_handler::append_group_by(
 }
 #endif
 
-int spider_mysql_handler::append_key_order_for_merge_with_alias_part(
+int spider_mbase_handler::append_key_order_for_merge_with_alias_part(
   const char *alias,
   uint alias_length,
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_key_order_for_merge_with_alias_part");
+  DBUG_ENTER("spider_mbase_handler::append_key_order_for_merge_with_alias_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -8762,7 +10122,7 @@ int spider_mysql_handler::append_key_order_for_merge_with_alias_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_key_order_for_merge_with_alias(
+int spider_mbase_handler::append_key_order_for_merge_with_alias(
   spider_string *str,
   const char *alias,
   uint alias_length
@@ -8772,7 +10132,7 @@ int spider_mysql_handler::append_key_order_for_merge_with_alias(
   int length;
   Field *field;
   uint key_name_length;
-  DBUG_ENTER("spider_mysql_handler::append_key_order_for_merge_with_alias");
+  DBUG_ENTER("spider_mbase_handler::append_key_order_for_merge_with_alias");
   DBUG_PRINT("info",("spider this=%p", this));
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (spider->result_list.direct_aggregate)
@@ -8846,14 +10206,14 @@ int spider_mysql_handler::append_key_order_for_merge_with_alias(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_key_order_for_direct_order_limit_with_alias_part(
+int spider_mbase_handler::append_key_order_for_direct_order_limit_with_alias_part(
   const char *alias,
   uint alias_length,
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_key_order_for_direct_order_limit_with_alias_part");
+  DBUG_ENTER("spider_mbase_handler::append_key_order_for_direct_order_limit_with_alias_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -8878,7 +10238,7 @@ int spider_mysql_handler::append_key_order_for_direct_order_limit_with_alias_par
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_key_order_for_direct_order_limit_with_alias(
+int spider_mbase_handler::append_key_order_for_direct_order_limit_with_alias(
   spider_string *str,
   const char *alias,
   uint alias_length
@@ -8888,7 +10248,7 @@ int spider_mysql_handler::append_key_order_for_direct_order_limit_with_alias(
   st_select_lex *select_lex;
   longlong select_limit;
   longlong offset_limit;
-  DBUG_ENTER("spider_mysql_handler::append_key_order_for_direct_order_limit_with_alias");
+  DBUG_ENTER("spider_mbase_handler::append_key_order_for_direct_order_limit_with_alias");
   DBUG_PRINT("info",("spider this=%p", this));
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (spider->result_list.direct_aggregate)
@@ -8908,8 +10268,8 @@ int spider_mysql_handler::append_key_order_for_direct_order_limit_with_alias(
       order = order->next)
     {
       if ((error_num =
-        spider_db_print_item_type((*order->item), spider, str, alias,
-          alias_length, spider_dbton_mysql.dbton_id, FALSE, NULL)))
+        spider_db_print_item_type((*order->item), NULL, spider, str, alias,
+          alias_length, dbton_id, FALSE, NULL)))
       {
         DBUG_PRINT("info",("spider error=%d", error_num));
         DBUG_RETURN(error_num);
@@ -8932,14 +10292,14 @@ int spider_mysql_handler::append_key_order_for_direct_order_limit_with_alias(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_key_order_with_alias_part(
+int spider_mbase_handler::append_key_order_with_alias_part(
   const char *alias,
   uint alias_length,
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_key_order_with_alias_part");
+  DBUG_ENTER("spider_mbase_handler::append_key_order_with_alias_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -8964,12 +10324,12 @@ int spider_mysql_handler::append_key_order_with_alias_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_key_order_for_handler(
+int spider_mbase_handler::append_key_order_for_handler(
   spider_string *str,
   const char *alias,
   uint alias_length
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_key_order_for_handler");
+  DBUG_ENTER("spider_mbase_handler::append_key_order_for_handler");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider ha_next_pos=%d", ha_next_pos));
   DBUG_PRINT("info",("spider ha_where_pos=%d", ha_where_pos));
@@ -8979,7 +10339,7 @@ int spider_mysql_handler::append_key_order_for_handler(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_key_order_with_alias(
+int spider_mbase_handler::append_key_order_with_alias(
   spider_string *str,
   const char *alias,
   uint alias_length
@@ -8990,7 +10350,7 @@ int spider_mysql_handler::append_key_order_with_alias(
   KEY_PART_INFO *key_part;
   Field *field;
   uint key_name_length;
-  DBUG_ENTER("spider_mysql_handler::append_key_order_with_alias");
+  DBUG_ENTER("spider_mbase_handler::append_key_order_with_alias");
   DBUG_PRINT("info",("spider this=%p", this));
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (spider->result_list.direct_aggregate)
@@ -9145,14 +10505,14 @@ int spider_mysql_handler::append_key_order_with_alias(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_limit_part(
+int spider_mbase_handler::append_limit_part(
   longlong offset,
   longlong limit,
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_limit_part");
+  DBUG_ENTER("spider_mbase_handler::append_limit_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -9182,14 +10542,14 @@ int spider_mysql_handler::append_limit_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::reappend_limit_part(
+int spider_mbase_handler::reappend_limit_part(
   longlong offset,
   longlong limit,
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::reappend_limit_part");
+  DBUG_ENTER("spider_mbase_handler::reappend_limit_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -9219,14 +10579,14 @@ int spider_mysql_handler::reappend_limit_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_limit(
+int spider_mbase_handler::append_limit(
   spider_string *str,
   longlong offset,
   longlong limit
 ) {
   char buf[SPIDER_LONGLONG_LEN + 1];
   uint32 length;
-  DBUG_ENTER("spider_mysql_handler::append_limit");
+  DBUG_ENTER("spider_mbase_handler::append_limit");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info", ("spider offset=%lld", offset));
   DBUG_PRINT("info", ("spider limit=%lld", limit));
@@ -9250,12 +10610,12 @@ int spider_mysql_handler::append_limit(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_select_lock_part(
+int spider_mbase_handler::append_select_lock_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_select_lock_part");
+  DBUG_ENTER("spider_mbase_handler::append_select_lock_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -9269,11 +10629,11 @@ int spider_mysql_handler::append_select_lock_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_select_lock(
+int spider_mbase_handler::append_select_lock(
   spider_string *str
 ) {
   int lock_mode = spider_conn_lock_mode(spider);
-  DBUG_ENTER("spider_mysql_handler::append_select_lock");
+  DBUG_ENTER("spider_mbase_handler::append_select_lock");
   DBUG_PRINT("info",("spider this=%p", this));
   if (lock_mode == SPIDER_LOCK_MODE_EXCLUSIVE)
   {
@@ -9289,12 +10649,12 @@ int spider_mysql_handler::append_select_lock(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_union_all_start_part(
+int spider_mbase_handler::append_union_all_start_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_union_all_start_part");
+  DBUG_ENTER("spider_mbase_handler::append_union_all_start_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -9308,10 +10668,10 @@ int spider_mysql_handler::append_union_all_start_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_union_all_start(
+int spider_mbase_handler::append_union_all_start(
   spider_string *str
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_union_all_start");
+  DBUG_ENTER("spider_mbase_handler::append_union_all_start");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_OPEN_PAREN_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -9319,12 +10679,12 @@ int spider_mysql_handler::append_union_all_start(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_union_all_part(
+int spider_mbase_handler::append_union_all_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_union_all_part");
+  DBUG_ENTER("spider_mbase_handler::append_union_all_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -9338,10 +10698,10 @@ int spider_mysql_handler::append_union_all_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_union_all(
+int spider_mbase_handler::append_union_all(
   spider_string *str
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_union_all");
+  DBUG_ENTER("spider_mbase_handler::append_union_all");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_UNION_ALL_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -9349,12 +10709,12 @@ int spider_mysql_handler::append_union_all(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_union_all_end_part(
+int spider_mbase_handler::append_union_all_end_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_union_all_end_part");
+  DBUG_ENTER("spider_mbase_handler::append_union_all_end_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -9368,24 +10728,24 @@ int spider_mysql_handler::append_union_all_end_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_union_all_end(
+int spider_mbase_handler::append_union_all_end(
   spider_string *str
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_union_all_end");
+  DBUG_ENTER("spider_mbase_handler::append_union_all_end");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(str->length() -
     SPIDER_SQL_UNION_ALL_LEN + SPIDER_SQL_CLOSE_PAREN_LEN);
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_multi_range_cnt_part(
+int spider_mbase_handler::append_multi_range_cnt_part(
   ulong sql_type,
   uint multi_range_cnt,
   bool with_comma
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_multi_range_cnt_part");
+  DBUG_ENTER("spider_mbase_handler::append_multi_range_cnt_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -9402,14 +10762,14 @@ int spider_mysql_handler::append_multi_range_cnt_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_multi_range_cnt(
+int spider_mbase_handler::append_multi_range_cnt(
   spider_string *str,
   uint multi_range_cnt,
   bool with_comma
 ) {
   int range_cnt_length;
   char range_cnt_str[SPIDER_SQL_INT_LEN];
-  DBUG_ENTER("spider_mysql_handler::append_multi_range_cnt");
+  DBUG_ENTER("spider_mbase_handler::append_multi_range_cnt");
   DBUG_PRINT("info",("spider this=%p", this));
   range_cnt_length = my_sprintf(range_cnt_str, (range_cnt_str, "%u",
     multi_range_cnt));
@@ -9427,13 +10787,13 @@ int spider_mysql_handler::append_multi_range_cnt(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_multi_range_cnt_with_name_part(
+int spider_mbase_handler::append_multi_range_cnt_with_name_part(
   ulong sql_type,
   uint multi_range_cnt
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_multi_range_cnt_with_name_part");
+  DBUG_ENTER("spider_mbase_handler::append_multi_range_cnt_with_name_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -9450,13 +10810,13 @@ int spider_mysql_handler::append_multi_range_cnt_with_name_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_multi_range_cnt_with_name(
+int spider_mbase_handler::append_multi_range_cnt_with_name(
   spider_string *str,
   uint multi_range_cnt
 ) {
   int range_cnt_length;
   char range_cnt_str[SPIDER_SQL_INT_LEN];
-  DBUG_ENTER("spider_mysql_handler::append_multi_range_cnt_with_name");
+  DBUG_ENTER("spider_mbase_handler::append_multi_range_cnt_with_name");
   DBUG_PRINT("info",("spider this=%p", this));
   range_cnt_length = my_sprintf(range_cnt_str, (range_cnt_str, "%u",
     multi_range_cnt));
@@ -9470,7 +10830,7 @@ int spider_mysql_handler::append_multi_range_cnt_with_name(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_open_handler_part(
+int spider_mbase_handler::append_open_handler_part(
   ulong sql_type,
   uint handler_id,
   SPIDER_CONN *conn,
@@ -9478,7 +10838,7 @@ int spider_mysql_handler::append_open_handler_part(
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_open_handler_part");
+  DBUG_ENTER("spider_mbase_handler::append_open_handler_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -9493,14 +10853,14 @@ int spider_mysql_handler::append_open_handler_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_open_handler(
+int spider_mbase_handler::append_open_handler(
   spider_string *str,
   uint handler_id,
   SPIDER_CONN *conn,
   int link_idx
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::append_open_handler");
+  DBUG_ENTER("spider_mbase_handler::append_open_handler");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider link_idx=%d", link_idx));
   DBUG_PRINT("info",("spider m_handler_cid=%s",
@@ -9524,13 +10884,13 @@ int spider_mysql_handler::append_open_handler(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_close_handler_part(
+int spider_mbase_handler::append_close_handler_part(
   ulong sql_type,
   int link_idx
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_close_handler_part");
+  DBUG_ENTER("spider_mbase_handler::append_close_handler_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -9545,11 +10905,11 @@ int spider_mysql_handler::append_close_handler_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_close_handler(
+int spider_mbase_handler::append_close_handler(
   spider_string *str,
   int link_idx
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_close_handler");
+  DBUG_ENTER("spider_mbase_handler::append_close_handler");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_HANDLER_LEN + SPIDER_SQL_CLOSE_LEN +
     SPIDER_SQL_HANDLER_CID_LEN))
@@ -9561,12 +10921,12 @@ int spider_mysql_handler::append_close_handler(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_insert_terminator_part(
+int spider_mbase_handler::append_insert_terminator_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_insert_terminator_part");
+  DBUG_ENTER("spider_mbase_handler::append_insert_terminator_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -9580,10 +10940,10 @@ int spider_mysql_handler::append_insert_terminator_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_insert_terminator(
+int spider_mbase_handler::append_insert_terminator(
   spider_string *str
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_insert_terminator");
+  DBUG_ENTER("spider_mbase_handler::append_insert_terminator");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider dup_update_sql.length=%u", dup_update_sql.length()));
   if (
@@ -9608,12 +10968,12 @@ int spider_mysql_handler::append_insert_terminator(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_insert_values_part(
+int spider_mbase_handler::append_insert_values_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_insert_values_part");
+  DBUG_ENTER("spider_mbase_handler::append_insert_values_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -9627,14 +10987,14 @@ int spider_mysql_handler::append_insert_values_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_insert_values(
+int spider_mbase_handler::append_insert_values(
   spider_string *str
 ) {
   SPIDER_SHARE *share = spider->share;
   TABLE *table = spider->get_table();
   Field **field;
   bool add_value = FALSE;
-  DBUG_ENTER("spider_mysql_handler::append_insert_values");
+  DBUG_ENTER("spider_mbase_handler::append_insert_values");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_OPEN_PAREN_LEN))
   {
@@ -9650,8 +11010,8 @@ int spider_mysql_handler::append_insert_values(
       bitmap_is_set(table->read_set, (*field)->field_index)
     ) {
 #ifndef DBUG_OFF
-      my_bitmap_map *tmp_map =
-        dbug_tmp_use_all_columns(table, table->read_set);
+      MY_BITMAP *tmp_map =
+        dbug_tmp_use_all_columns(table, &table->read_set);
 #endif
       add_value = TRUE;
       DBUG_PRINT("info",("spider is_null()=%s",
@@ -9673,7 +11033,7 @@ int spider_mysql_handler::append_insert_values(
         if (str->reserve(SPIDER_SQL_NULL_LEN + SPIDER_SQL_COMMA_LEN))
         {
 #ifndef DBUG_OFF
-          dbug_tmp_restore_column_map(table->read_set, tmp_map);
+          dbug_tmp_restore_column_map(&table->read_set, tmp_map);
 #endif
           str->length(0);
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -9681,13 +11041,13 @@ int spider_mysql_handler::append_insert_values(
         str->q_append(SPIDER_SQL_NULL_STR, SPIDER_SQL_NULL_LEN);
       } else {
         if (
-          spider_db_mysql_utility.
+          spider_db_mbase_utility->
             append_column_value(spider, str, *field, NULL,
               share->access_charset) ||
           str->reserve(SPIDER_SQL_COMMA_LEN)
         ) {
 #ifndef DBUG_OFF
-          dbug_tmp_restore_column_map(table->read_set, tmp_map);
+          dbug_tmp_restore_column_map(&table->read_set, tmp_map);
 #endif
           str->length(0);
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -9695,7 +11055,7 @@ int spider_mysql_handler::append_insert_values(
       }
       str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
 #ifndef DBUG_OFF
-      dbug_tmp_restore_column_map(table->read_set, tmp_map);
+      dbug_tmp_restore_column_map(&table->read_set, tmp_map);
 #endif
     }
   }
@@ -9711,12 +11071,12 @@ int spider_mysql_handler::append_insert_values(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_into_part(
+int spider_mbase_handler::append_into_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_into_part");
+  DBUG_ENTER("spider_mbase_handler::append_into_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -9730,13 +11090,13 @@ int spider_mysql_handler::append_into_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_into(
+int spider_mbase_handler::append_into(
   spider_string *str
 ) {
   const TABLE *table = spider->get_table();
   Field **field;
   uint field_name_length = 0;
-  DBUG_ENTER("spider_mysql_handler::append_into");
+  DBUG_ENTER("spider_mbase_handler::append_into");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_INTO_LEN + mysql_share->db_nm_max_length +
     SPIDER_SQL_DOT_LEN + mysql_share->table_nm_max_length +
@@ -9772,10 +11132,10 @@ int spider_mysql_handler::append_into(
   DBUG_RETURN(0);
 }
 
-void spider_mysql_handler::set_insert_to_pos(
+void spider_mbase_handler::set_insert_to_pos(
   ulong sql_type
 ) {
-  DBUG_ENTER("spider_mysql_handler::set_insert_to_pos");
+  DBUG_ENTER("spider_mbase_handler::set_insert_to_pos");
   switch (sql_type)
   {
     case SPIDER_SQL_TYPE_INSERT_SQL:
@@ -9788,13 +11148,13 @@ void spider_mysql_handler::set_insert_to_pos(
   DBUG_VOID_RETURN;
 }
 
-int spider_mysql_handler::append_from_part(
+int spider_mbase_handler::append_from_part(
   ulong sql_type,
   int link_idx
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_from_part");
+  DBUG_ENTER("spider_mbase_handler::append_from_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -9814,12 +11174,12 @@ int spider_mysql_handler::append_from_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_from(
+int spider_mbase_handler::append_from(
   spider_string *str,
   ulong sql_type,
   int link_idx
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_from");
+  DBUG_ENTER("spider_mbase_handler::append_from");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider link_idx=%d", link_idx));
   int error_num = 0;
@@ -9853,14 +11213,14 @@ int spider_mysql_handler::append_from(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_flush_tables_part(
+int spider_mbase_handler::append_flush_tables_part(
   ulong sql_type,
   int link_idx,
   bool lock
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_flush_tables_part");
+  DBUG_ENTER("spider_mbase_handler::append_flush_tables_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -9874,12 +11234,12 @@ int spider_mysql_handler::append_flush_tables_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_flush_tables(
+int spider_mbase_handler::append_flush_tables(
   spider_string *str,
   int link_idx,
   bool lock
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_flush_tables");
+  DBUG_ENTER("spider_mbase_handler::append_flush_tables");
   DBUG_PRINT("info",("spider this=%p", this));
   if (lock)
   {
@@ -9897,13 +11257,13 @@ int spider_mysql_handler::append_flush_tables(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_optimize_table_part(
+int spider_mbase_handler::append_optimize_table_part(
   ulong sql_type,
   int link_idx
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_optimize_table_part");
+  DBUG_ENTER("spider_mbase_handler::append_optimize_table_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -9917,7 +11277,7 @@ int spider_mysql_handler::append_optimize_table_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_optimize_table(
+int spider_mbase_handler::append_optimize_table(
   spider_string *str,
   int link_idx
 ) {
@@ -9925,7 +11285,7 @@ int spider_mysql_handler::append_optimize_table(
   int conn_link_idx = spider->conn_link_idx[link_idx];
   int local_length = spider_param_internal_optimize_local(spider->trx->thd,
     share->internal_optimize_local) * SPIDER_SQL_SQL_LOCAL_LEN;
-  DBUG_ENTER("spider_mysql_handler::append_optimize_table");
+  DBUG_ENTER("spider_mbase_handler::append_optimize_table");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_SQL_OPTIMIZE_LEN + SPIDER_SQL_SQL_TABLE_LEN +
     local_length +
@@ -9942,13 +11302,13 @@ int spider_mysql_handler::append_optimize_table(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_analyze_table_part(
+int spider_mbase_handler::append_analyze_table_part(
   ulong sql_type,
   int link_idx
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_analyze_table_part");
+  DBUG_ENTER("spider_mbase_handler::append_analyze_table_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -9962,7 +11322,7 @@ int spider_mysql_handler::append_analyze_table_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_analyze_table(
+int spider_mbase_handler::append_analyze_table(
   spider_string *str,
   int link_idx
 ) {
@@ -9970,7 +11330,7 @@ int spider_mysql_handler::append_analyze_table(
   int conn_link_idx = spider->conn_link_idx[link_idx];
   int local_length = spider_param_internal_optimize_local(spider->trx->thd,
     share->internal_optimize_local) * SPIDER_SQL_SQL_LOCAL_LEN;
-  DBUG_ENTER("spider_mysql_handler::append_analyze_table");
+  DBUG_ENTER("spider_mbase_handler::append_analyze_table");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_SQL_ANALYZE_LEN + SPIDER_SQL_SQL_TABLE_LEN +
     local_length +
@@ -9987,14 +11347,14 @@ int spider_mysql_handler::append_analyze_table(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_repair_table_part(
+int spider_mbase_handler::append_repair_table_part(
   ulong sql_type,
   int link_idx,
   HA_CHECK_OPT* check_opt
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_repair_table_part");
+  DBUG_ENTER("spider_mbase_handler::append_repair_table_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -10008,7 +11368,7 @@ int spider_mysql_handler::append_repair_table_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_repair_table(
+int spider_mbase_handler::append_repair_table(
   spider_string *str,
   int link_idx,
   HA_CHECK_OPT* check_opt
@@ -10017,7 +11377,7 @@ int spider_mysql_handler::append_repair_table(
   int conn_link_idx = spider->conn_link_idx[link_idx];
   int local_length = spider_param_internal_optimize_local(spider->trx->thd,
     share->internal_optimize_local) * SPIDER_SQL_SQL_LOCAL_LEN;
-  DBUG_ENTER("spider_mysql_handler::append_repair_table");
+  DBUG_ENTER("spider_mbase_handler::append_repair_table");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_SQL_REPAIR_LEN + SPIDER_SQL_SQL_TABLE_LEN +
     local_length +
@@ -10052,14 +11412,14 @@ int spider_mysql_handler::append_repair_table(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_check_table_part(
+int spider_mbase_handler::append_check_table_part(
   ulong sql_type,
   int link_idx,
   HA_CHECK_OPT* check_opt
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_check_table_part");
+  DBUG_ENTER("spider_mbase_handler::append_check_table_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -10073,13 +11433,13 @@ int spider_mysql_handler::append_check_table_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_check_table(
+int spider_mbase_handler::append_check_table(
   spider_string *str,
   int link_idx,
   HA_CHECK_OPT* check_opt
 ) {
   int conn_link_idx = spider->conn_link_idx[link_idx];
-  DBUG_ENTER("spider_mysql_handler::append_check_table");
+  DBUG_ENTER("spider_mbase_handler::append_check_table");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_SQL_CHECK_TABLE_LEN +
     mysql_share->db_names_str[conn_link_idx].length() +
@@ -10117,13 +11477,13 @@ int spider_mysql_handler::append_check_table(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_enable_keys_part(
+int spider_mbase_handler::append_enable_keys_part(
   ulong sql_type,
   int link_idx
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_enable_keys_part");
+  DBUG_ENTER("spider_mbase_handler::append_enable_keys_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -10137,12 +11497,12 @@ int spider_mysql_handler::append_enable_keys_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_enable_keys(
+int spider_mbase_handler::append_enable_keys(
   spider_string *str,
   int link_idx
 ) {
   int conn_link_idx = spider->conn_link_idx[link_idx];
-  DBUG_ENTER("spider_mysql_handler::append_enable_keys");
+  DBUG_ENTER("spider_mbase_handler::append_enable_keys");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_SQL_ALTER_TABLE_LEN +
     mysql_share->db_names_str[conn_link_idx].length() +
@@ -10158,13 +11518,13 @@ int spider_mysql_handler::append_enable_keys(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_disable_keys_part(
+int spider_mbase_handler::append_disable_keys_part(
   ulong sql_type,
   int link_idx
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_disable_keys_part");
+  DBUG_ENTER("spider_mbase_handler::append_disable_keys_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -10178,12 +11538,12 @@ int spider_mysql_handler::append_disable_keys_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_disable_keys(
+int spider_mbase_handler::append_disable_keys(
   spider_string *str,
   int link_idx
 ) {
   int conn_link_idx = spider->conn_link_idx[link_idx];
-  DBUG_ENTER("spider_mysql_handler::append_disable_keys");
+  DBUG_ENTER("spider_mbase_handler::append_disable_keys");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_SQL_ALTER_TABLE_LEN +
     mysql_share->db_names_str[conn_link_idx].length() +
@@ -10199,12 +11559,12 @@ int spider_mysql_handler::append_disable_keys(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_delete_all_rows_part(
+int spider_mbase_handler::append_delete_all_rows_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_delete_all_rows_part");
+  DBUG_ENTER("spider_mbase_handler::append_delete_all_rows_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -10218,12 +11578,12 @@ int spider_mysql_handler::append_delete_all_rows_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_delete_all_rows(
+int spider_mbase_handler::append_delete_all_rows(
   spider_string *str,
   ulong sql_type
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::append_delete_all_rows");
+  DBUG_ENTER("spider_mbase_handler::append_delete_all_rows");
   DBUG_PRINT("info",("spider this=%p", this));
   if (spider->sql_command == SQLCOM_TRUNCATE)
   {
@@ -10239,12 +11599,12 @@ int spider_mysql_handler::append_delete_all_rows(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_truncate(
+int spider_mbase_handler::append_truncate(
   spider_string *str,
   ulong sql_type,
   int link_idx
 ) {
-  DBUG_ENTER("spider_mysql_handler::append_truncate");
+  DBUG_ENTER("spider_mbase_handler::append_truncate");
   if (str->reserve(SPIDER_SQL_TRUNCATE_TABLE_LEN +
     mysql_share->db_nm_max_length +
     SPIDER_SQL_DOT_LEN + mysql_share->table_nm_max_length +
@@ -10256,7 +11616,7 @@ int spider_mysql_handler::append_truncate(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_explain_select_part(
+int spider_mbase_handler::append_explain_select_part(
   key_range *start_key,
   key_range *end_key,
   ulong sql_type,
@@ -10264,7 +11624,7 @@ int spider_mysql_handler::append_explain_select_part(
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_explain_select_part");
+  DBUG_ENTER("spider_mbase_handler::append_explain_select_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -10279,7 +11639,7 @@ int spider_mysql_handler::append_explain_select_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_explain_select(
+int spider_mbase_handler::append_explain_select(
   spider_string *str,
   key_range *start_key,
   key_range *end_key,
@@ -10287,7 +11647,7 @@ int spider_mysql_handler::append_explain_select(
   int link_idx
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::append_explain_select");
+  DBUG_ENTER("spider_mbase_handler::append_explain_select");
   DBUG_PRINT("info",("spider this=%p", this));
   if (str->reserve(SPIDER_SQL_EXPLAIN_SELECT_LEN))
   {
@@ -10316,7 +11676,7 @@ int spider_mysql_handler::append_explain_select(
  *                    solely of the specified column.
  *          FALSE   - otherwise.
  ********************************************************************/
-bool spider_mysql_handler::is_sole_projection_field(
+bool spider_mbase_handler::is_sole_projection_field(
   uint16 field_index
 ) {
   // Determine whether the projection list consists solely of the field of interest
@@ -10325,7 +11685,7 @@ bool spider_mysql_handler::is_sole_projection_field(
   uint16          projection_field_count      = 0;
   uint16          projection_field_index;
   Field**         field;
-  DBUG_ENTER( "spider_mysql_handler::is_sole_projection_field" );
+  DBUG_ENTER( "spider_mbase_handler::is_sole_projection_field" );
 
   for ( field = table->field; *field ; field++ )
   {
@@ -10364,10 +11724,10 @@ bool spider_mysql_handler::is_sole_projection_field(
   DBUG_RETURN( FALSE );
 }
 
-bool spider_mysql_handler::is_bulk_insert_exec_period(
+bool spider_mbase_handler::is_bulk_insert_exec_period(
   bool bulk_end
 ) {
-  DBUG_ENTER("spider_mysql_handler::is_bulk_insert_exec_period");
+  DBUG_ENTER("spider_mbase_handler::is_bulk_insert_exec_period");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider insert_sql.length=%u", insert_sql.length()));
   DBUG_PRINT("info",("spider insert_pos=%d", insert_pos));
@@ -10381,19 +11741,19 @@ bool spider_mysql_handler::is_bulk_insert_exec_period(
   DBUG_RETURN(FALSE);
 }
 
-bool spider_mysql_handler::sql_is_filled_up(
+bool spider_mbase_handler::sql_is_filled_up(
   ulong sql_type
 ) {
-  DBUG_ENTER("spider_mysql_handler::sql_is_filled_up");
+  DBUG_ENTER("spider_mbase_handler::sql_is_filled_up");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(filled_up);
 }
 
-bool spider_mysql_handler::sql_is_empty(
+bool spider_mbase_handler::sql_is_empty(
   ulong sql_type
 ) {
   bool is_empty;
-  DBUG_ENTER("spider_mysql_handler::sql_is_empty");
+  DBUG_ENTER("spider_mbase_handler::sql_is_empty");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -10421,34 +11781,34 @@ bool spider_mysql_handler::sql_is_empty(
   DBUG_RETURN(is_empty);
 }
 
-bool spider_mysql_handler::support_multi_split_read()
+bool spider_mbase_handler::support_multi_split_read()
 {
-  DBUG_ENTER("spider_mysql_handler::support_multi_split_read");
+  DBUG_ENTER("spider_mbase_handler::support_multi_split_read");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(TRUE);
 }
 
-bool spider_mysql_handler::support_bulk_update()
+bool spider_mbase_handler::support_bulk_update()
 {
-  DBUG_ENTER("spider_mysql_handler::support_bulk_update");
+  DBUG_ENTER("spider_mbase_handler::support_bulk_update");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(TRUE);
 }
 
-int spider_mysql_handler::bulk_tmp_table_insert()
+int spider_mbase_handler::bulk_tmp_table_insert()
 {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::bulk_tmp_table_insert");
+  DBUG_ENTER("spider_mbase_handler::bulk_tmp_table_insert");
   DBUG_PRINT("info",("spider this=%p", this));
   error_num = store_sql_to_bulk_tmp_table(&update_sql, upd_tmp_tbl);
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::bulk_tmp_table_insert(
+int spider_mbase_handler::bulk_tmp_table_insert(
   int link_idx
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::bulk_tmp_table_insert");
+  DBUG_ENTER("spider_mbase_handler::bulk_tmp_table_insert");
   DBUG_PRINT("info",("spider this=%p", this));
   error_num = store_sql_to_bulk_tmp_table(
     &spider->result_list.update_sqls[link_idx],
@@ -10456,10 +11816,10 @@ int spider_mysql_handler::bulk_tmp_table_insert(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::bulk_tmp_table_end_bulk_insert()
+int spider_mbase_handler::bulk_tmp_table_end_bulk_insert()
 {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::bulk_tmp_table_end_bulk_insert");
+  DBUG_ENTER("spider_mbase_handler::bulk_tmp_table_end_bulk_insert");
   DBUG_PRINT("info",("spider this=%p", this));
   if ((error_num = upd_tmp_tbl->file->ha_end_bulk_insert()))
   {
@@ -10468,10 +11828,10 @@ int spider_mysql_handler::bulk_tmp_table_end_bulk_insert()
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::bulk_tmp_table_rnd_init()
+int spider_mbase_handler::bulk_tmp_table_rnd_init()
 {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::bulk_tmp_table_rnd_init");
+  DBUG_ENTER("spider_mbase_handler::bulk_tmp_table_rnd_init");
   DBUG_PRINT("info",("spider this=%p", this));
   upd_tmp_tbl->file->extra(HA_EXTRA_CACHE);
   if ((error_num = upd_tmp_tbl->file->ha_rnd_init(TRUE)))
@@ -10482,10 +11842,10 @@ int spider_mysql_handler::bulk_tmp_table_rnd_init()
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::bulk_tmp_table_rnd_next()
+int spider_mbase_handler::bulk_tmp_table_rnd_next()
 {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::bulk_tmp_table_rnd_next");
+  DBUG_ENTER("spider_mbase_handler::bulk_tmp_table_rnd_next");
   DBUG_PRINT("info",("spider this=%p", this));
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50200
   error_num = upd_tmp_tbl->file->ha_rnd_next(upd_tmp_tbl->record[0]);
@@ -10499,10 +11859,10 @@ int spider_mysql_handler::bulk_tmp_table_rnd_next()
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::bulk_tmp_table_rnd_end()
+int spider_mbase_handler::bulk_tmp_table_rnd_end()
 {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::bulk_tmp_table_rnd_end");
+  DBUG_ENTER("spider_mbase_handler::bulk_tmp_table_rnd_end");
   DBUG_PRINT("info",("spider this=%p", this));
   reading_from_bulk_tmp_table = FALSE;
   if ((error_num = upd_tmp_tbl->file->ha_rnd_end()))
@@ -10512,33 +11872,39 @@ int spider_mysql_handler::bulk_tmp_table_rnd_end()
   DBUG_RETURN(0);
 }
 
-bool spider_mysql_handler::need_copy_for_update(
+bool spider_mbase_handler::need_copy_for_update(
   int link_idx
 ) {
   int all_link_idx = spider->conn_link_idx[link_idx];
-  DBUG_ENTER("spider_mysql_handler::need_copy_for_update");
+  DBUG_ENTER("spider_mbase_handler::need_copy_for_update");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(!mysql_share->same_db_table_name ||
     spider->share->link_statuses[all_link_idx] == SPIDER_LINK_STATUS_RECOVERY);
 }
 
-bool spider_mysql_handler::bulk_tmp_table_created()
+bool spider_mbase_handler::bulk_tmp_table_created()
 {
-  DBUG_ENTER("spider_mysql_handler::bulk_tmp_table_created");
+  DBUG_ENTER("spider_mbase_handler::bulk_tmp_table_created");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(upd_tmp_tbl);
 }
 
-int spider_mysql_handler::mk_bulk_tmp_table_and_bulk_start()
+int spider_mbase_handler::mk_bulk_tmp_table_and_bulk_start()
 {
   THD *thd = spider->trx->thd;
   TABLE *table = spider->get_table();
-  DBUG_ENTER("spider_mysql_handler::mk_bulk_tmp_table_and_bulk_start");
+  DBUG_ENTER("spider_mbase_handler::mk_bulk_tmp_table_and_bulk_start");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!upd_tmp_tbl)
   {
+#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
+    LEX_CSTRING field_name = {STRING_WITH_LEN("a")};
+    if (!(upd_tmp_tbl = spider_mk_sys_tmp_table(
+      thd, table, &upd_tmp_tbl_prm, &field_name, update_sql.charset())))
+#else
     if (!(upd_tmp_tbl = spider_mk_sys_tmp_table(
       thd, table, &upd_tmp_tbl_prm, "a", update_sql.charset())))
+#endif
     {
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
@@ -10548,9 +11914,9 @@ int spider_mysql_handler::mk_bulk_tmp_table_and_bulk_start()
   DBUG_RETURN(0);
 }
 
-void spider_mysql_handler::rm_bulk_tmp_table()
+void spider_mbase_handler::rm_bulk_tmp_table()
 {
-  DBUG_ENTER("spider_mysql_handler::rm_bulk_tmp_table");
+  DBUG_ENTER("spider_mbase_handler::rm_bulk_tmp_table");
   DBUG_PRINT("info",("spider this=%p", this));
   if (upd_tmp_tbl)
   {
@@ -10560,12 +11926,12 @@ void spider_mysql_handler::rm_bulk_tmp_table()
   DBUG_VOID_RETURN;
 }
 
-int spider_mysql_handler::store_sql_to_bulk_tmp_table(
+int spider_mbase_handler::store_sql_to_bulk_tmp_table(
   spider_string *str,
   TABLE *tmp_table
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::store_sql_to_bulk_tmp_table");
+  DBUG_ENTER("spider_mbase_handler::store_sql_to_bulk_tmp_table");
   DBUG_PRINT("info",("spider this=%p", this));
   tmp_table->field[0]->set_notnull();
   tmp_table->field[0]->store(str->ptr(), str->length(), str->charset());
@@ -10574,24 +11940,24 @@ int spider_mysql_handler::store_sql_to_bulk_tmp_table(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::restore_sql_from_bulk_tmp_table(
+int spider_mbase_handler::restore_sql_from_bulk_tmp_table(
   spider_string *str,
   TABLE *tmp_table
 ) {
-  DBUG_ENTER("spider_mysql_handler::restore_sql_from_bulk_tmp_table");
+  DBUG_ENTER("spider_mbase_handler::restore_sql_from_bulk_tmp_table");
   DBUG_PRINT("info",("spider this=%p", this));
   tmp_table->field[0]->val_str(str->get_str());
   str->mem_calc();
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::insert_lock_tables_list(
+int spider_mbase_handler::insert_lock_tables_list(
   SPIDER_CONN *conn,
   int link_idx
 ) {
-  spider_db_mysql *db_conn = (spider_db_mysql *) conn->db_conn;
+  spider_db_mbase *db_conn = (spider_db_mbase *) conn->db_conn;
   SPIDER_LINK_FOR_HASH *tmp_link_for_hash2 = &link_for_hash[link_idx];
-  DBUG_ENTER("spider_mysql_handler::insert_lock_tables_list");
+  DBUG_ENTER("spider_mbase_handler::insert_lock_tables_list");
   DBUG_PRINT("info",("spider this=%p", this));
   uint old_elements =
     db_conn->lock_table_hash.array.max_element;
@@ -10617,7 +11983,7 @@ int spider_mysql_handler::insert_lock_tables_list(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_lock_tables_list(
+int spider_mbase_handler::append_lock_tables_list(
   SPIDER_CONN *conn,
   int link_idx,
   int *appended
@@ -10625,8 +11991,8 @@ int spider_mysql_handler::append_lock_tables_list(
   int error_num;
   SPIDER_LINK_FOR_HASH *tmp_link_for_hash, *tmp_link_for_hash2;
   int conn_link_idx = spider->conn_link_idx[link_idx];
-  spider_db_mysql *db_conn = (spider_db_mysql *) conn->db_conn;
-  DBUG_ENTER("spider_mysql_handler::append_lock_tables_list");
+  spider_db_mbase *db_conn = (spider_db_mbase *) conn->db_conn;
+  DBUG_ENTER("spider_mbase_handler::append_lock_tables_list");
   DBUG_PRINT("info",("spider this=%p", this));
   tmp_link_for_hash2 = &link_for_hash[link_idx];
   tmp_link_for_hash2->db_table_str =
@@ -10688,14 +12054,14 @@ int spider_mysql_handler::append_lock_tables_list(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::realloc_sql(
+int spider_mbase_handler::realloc_sql(
   ulong *realloced
 ) {
   THD *thd = spider->trx->thd;
   st_spider_share *share = spider->share;
   int init_sql_alloc_size =
     spider_param_init_sql_alloc_size(thd, share->init_sql_alloc_size);
-  DBUG_ENTER("spider_mysql_handler::realloc_sql");
+  DBUG_ENTER("spider_mbase_handler::realloc_sql");
   DBUG_PRINT("info",("spider this=%p", this));
   if ((int) sql.alloced_length() > init_sql_alloc_size * 2)
   {
@@ -10742,10 +12108,10 @@ int spider_mysql_handler::realloc_sql(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::reset_sql(
+int spider_mbase_handler::reset_sql(
   ulong sql_type
 ) {
-  DBUG_ENTER("spider_mysql_handler::reset_sql");
+  DBUG_ENTER("spider_mbase_handler::reset_sql");
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql_type & SPIDER_SQL_TYPE_SELECT_SQL)
   {
@@ -10772,73 +12138,73 @@ int spider_mysql_handler::reset_sql(
 }
 
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-int spider_mysql_handler::reset_keys(
+int spider_mbase_handler::reset_keys(
   ulong sql_type
 ) {
-  DBUG_ENTER("spider_mysql_handler::reset_keys");
+  DBUG_ENTER("spider_mbase_handler::reset_keys");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_ASSERT(0);
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::reset_upds(
+int spider_mbase_handler::reset_upds(
   ulong sql_type
 ) {
-  DBUG_ENTER("spider_mysql_handler::reset_upds");
+  DBUG_ENTER("spider_mbase_handler::reset_upds");
   DBUG_PRINT("info",("spider this=%p", this));
   hs_upds.clear();
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::reset_strs(
+int spider_mbase_handler::reset_strs(
   ulong sql_type
 ) {
-  DBUG_ENTER("spider_mysql_handler::reset_strs");
+  DBUG_ENTER("spider_mbase_handler::reset_strs");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_ASSERT(0);
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::reset_strs_pos(
+int spider_mbase_handler::reset_strs_pos(
   ulong sql_type
 ) {
-  DBUG_ENTER("spider_mysql_handler::reset_strs_pos");
+  DBUG_ENTER("spider_mbase_handler::reset_strs_pos");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_ASSERT(0);
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::push_back_upds(
+int spider_mbase_handler::push_back_upds(
   SPIDER_HS_STRING_REF &info
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::push_back_upds");
+  DBUG_ENTER("spider_mbase_handler::push_back_upds");
   DBUG_PRINT("info",("spider this=%p", this));
   error_num = hs_upds.push_back(info);
   DBUG_RETURN(error_num);
 }
 #endif
 
-bool spider_mysql_handler::need_lock_before_set_sql_for_exec(
+bool spider_mbase_handler::need_lock_before_set_sql_for_exec(
   ulong sql_type
 ) {
-  DBUG_ENTER("spider_mysql_handler::need_lock_before_set_sql_for_exec");
+  DBUG_ENTER("spider_mbase_handler::need_lock_before_set_sql_for_exec");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(FALSE);
 }
 
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
-int spider_mysql_handler::set_sql_for_exec(
+int spider_mbase_handler::set_sql_for_exec(
   ulong sql_type,
   int link_idx,
   SPIDER_LINK_IDX_CHAIN *link_idx_chain
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_handler::set_sql_for_exec");
+  DBUG_ENTER("spider_mbase_handler::set_sql_for_exec");
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql_type & SPIDER_SQL_TYPE_SELECT_SQL)
   {
-    if ((error_num = spider_db_mysql_utility.reappend_tables(
+    if ((error_num = spider_db_mbase_utility->reappend_tables(
       spider->fields, link_idx_chain, &sql)))
       DBUG_RETURN(error_num);
     exec_sql = &sql;
@@ -10847,7 +12213,7 @@ int spider_mysql_handler::set_sql_for_exec(
 }
 #endif
 
-int spider_mysql_handler::set_sql_for_exec(
+int spider_mbase_handler::set_sql_for_exec(
   ulong sql_type,
   int link_idx
 ) {
@@ -10856,7 +12222,7 @@ int spider_mysql_handler::set_sql_for_exec(
   SPIDER_SHARE *share = spider->share;
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   int all_link_idx = spider->conn_link_idx[link_idx];
-  DBUG_ENTER("spider_mysql_handler::set_sql_for_exec");
+  DBUG_ENTER("spider_mbase_handler::set_sql_for_exec");
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql_type & (SPIDER_SQL_TYPE_SELECT_SQL | SPIDER_SQL_TYPE_TMP_SQL))
   {
@@ -10907,7 +12273,7 @@ int spider_mysql_handler::set_sql_for_exec(
           exec_sql->length(table_name_pos);
           if (result_list->tmp_table_join && spider->bka_mode != 2)
           {
-            if ((error_num = spider_db_mysql_utility.append_from_with_alias(
+            if ((error_num = spider_db_mbase_utility->append_from_with_alias(
               exec_sql, table_names, table_name_lengths,
               table_aliases, table_alias_lengths, 2,
               &table_name_pos, TRUE))
@@ -11029,12 +12395,12 @@ int spider_mysql_handler::set_sql_for_exec(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::set_sql_for_exec(
+int spider_mbase_handler::set_sql_for_exec(
   spider_db_copy_table *tgt_ct,
   ulong sql_type
 ) {
-  spider_mysql_copy_table *mysql_ct = (spider_mysql_copy_table *) tgt_ct;
-  DBUG_ENTER("spider_mysql_handler::set_sql_for_exec");
+  spider_mbase_copy_table *mysql_ct = (spider_mbase_copy_table *) tgt_ct;
+  DBUG_ENTER("spider_mbase_handler::set_sql_for_exec");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -11048,7 +12414,7 @@ int spider_mysql_handler::set_sql_for_exec(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::execute_sql(
+int spider_mbase_handler::execute_sql(
   ulong sql_type,
   SPIDER_CONN *conn,
   int quick_mode,
@@ -11056,7 +12422,7 @@ int spider_mysql_handler::execute_sql(
 ) {
   spider_string *tgt_sql;
   uint tgt_length;
-  DBUG_ENTER("spider_mysql_handler::execute_sql");
+  DBUG_ENTER("spider_mbase_handler::execute_sql");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -11110,23 +12476,23 @@ int spider_mysql_handler::execute_sql(
   ));
 }
 
-int spider_mysql_handler::reset()
+int spider_mbase_handler::reset()
 {
-  DBUG_ENTER("spider_mysql_handler::reset");
+  DBUG_ENTER("spider_mbase_handler::reset");
   DBUG_PRINT("info",("spider this=%p", this));
   update_sql.length(0);
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::sts_mode_exchange(
+int spider_mbase_handler::sts_mode_exchange(
   int sts_mode
 ) {
-  DBUG_ENTER("spider_mysql_handler::sts_mode_exchange");
+  DBUG_ENTER("spider_mbase_handler::sts_mode_exchange");
   DBUG_PRINT("info",("spider sts_mode=%d", sts_mode));
   DBUG_RETURN(sts_mode);
 }
 
-int spider_mysql_handler::show_table_status(
+int spider_mbase_handler::show_table_status(
   int link_idx,
   int sts_mode,
   uint flag
@@ -11137,15 +12503,20 @@ int spider_mysql_handler::show_table_status(
   SPIDER_SHARE *share = spider->share;
   uint pos = (2 * spider->conn_link_idx[link_idx]);
   ulonglong auto_increment_value = 0;
-  DBUG_ENTER("spider_mysql_handler::show_table_status");
+  DBUG_ENTER("spider_mbase_handler::show_table_status");
   DBUG_PRINT("info",("spider sts_mode=%d", sts_mode));
+
   if (sts_mode == 1)
   {
+    pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
     pthread_mutex_lock(&conn->mta_conn_mutex);
     SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
     conn->need_mon = &spider->need_mons[link_idx];
+    DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = TRUE;
     conn->mta_conn_mutex_unlock_later = TRUE;
+    conn->disable_connect_retry = TRUE;
     spider_conn_set_timeout_from_share(conn, link_idx, spider->trx->thd,
       share);
     if (
@@ -11167,6 +12538,9 @@ int spider_mysql_handler::show_table_status(
         /* retry */
         if ((error_num = spider_db_ping(spider, conn, link_idx)))
         {
+          conn->disable_connect_retry = FALSE;
+          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11175,6 +12549,9 @@ int spider_mysql_handler::show_table_status(
         }
         if ((error_num = spider_db_set_names(spider, conn, link_idx)))
         {
+          conn->disable_connect_retry = FALSE;
+          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11190,11 +12567,17 @@ int spider_mysql_handler::show_table_status(
           -1,
           &spider->need_mons[link_idx])
         ) {
+          conn->disable_connect_retry = FALSE;
+          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           DBUG_RETURN(spider_db_errorno(conn));
         }
       } else {
+        conn->disable_connect_retry = FALSE;
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11210,6 +12593,9 @@ int spider_mysql_handler::show_table_status(
     request_key.next = NULL;
     if (spider_param_dry_access())
     {
+      conn->disable_connect_retry = FALSE;
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11218,9 +12604,18 @@ int spider_mysql_handler::show_table_status(
     }
     if (!(res = conn->db_conn->store_result(NULL, &request_key, &error_num)))
     {
+      conn->disable_connect_retry = FALSE;
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
-      if (error_num || (error_num = spider_db_errorno(conn)))
+      if (error_num)
+      {
+        SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+        pthread_mutex_unlock(&conn->mta_conn_mutex);
+        DBUG_RETURN(error_num);
+      }
+      else if ((error_num = spider_db_errorno(conn)))
         DBUG_RETURN(error_num);
       else {
         my_printf_error(ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM,
@@ -11231,6 +12626,9 @@ int spider_mysql_handler::show_table_status(
         DBUG_RETURN(ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM);
       }
     }
+    conn->disable_connect_retry = FALSE;
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11273,11 +12671,15 @@ int spider_mysql_handler::show_table_status(
       DBUG_RETURN(error_num);
     }
   } else {
+    pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
     pthread_mutex_lock(&conn->mta_conn_mutex);
     SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
     conn->need_mon = &spider->need_mons[link_idx];
+    DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = TRUE;
     conn->mta_conn_mutex_unlock_later = TRUE;
+    conn->disable_connect_retry = TRUE;
     spider_conn_set_timeout_from_share(conn, link_idx, spider->trx->thd,
       share);
     if (
@@ -11299,6 +12701,9 @@ int spider_mysql_handler::show_table_status(
         /* retry */
         if ((error_num = spider_db_ping(spider, conn, link_idx)))
         {
+          conn->disable_connect_retry = FALSE;
+          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11307,6 +12712,9 @@ int spider_mysql_handler::show_table_status(
         }
         if ((error_num = spider_db_set_names(spider, conn, link_idx)))
         {
+          conn->disable_connect_retry = FALSE;
+          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11322,11 +12730,17 @@ int spider_mysql_handler::show_table_status(
           -1,
           &spider->need_mons[link_idx])
         ) {
+          conn->disable_connect_retry = FALSE;
+          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           DBUG_RETURN(spider_db_errorno(conn));
         }
       } else {
+        conn->disable_connect_retry = FALSE;
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11342,6 +12756,9 @@ int spider_mysql_handler::show_table_status(
     request_key.next = NULL;
     if (spider_param_dry_access())
     {
+      conn->disable_connect_retry = FALSE;
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11350,6 +12767,9 @@ int spider_mysql_handler::show_table_status(
     }
     if (!(res = conn->db_conn->store_result(NULL, &request_key, &error_num)))
     {
+      conn->disable_connect_retry = FALSE;
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       if (error_num || (error_num = spider_db_errorno(conn)))
@@ -11357,6 +12777,9 @@ int spider_mysql_handler::show_table_status(
       else
         DBUG_RETURN(ER_QUERY_ON_FOREIGN_DATA_SOURCE);
     }
+    conn->disable_connect_retry = FALSE;
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11416,15 +12839,15 @@ int spider_mysql_handler::show_table_status(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::crd_mode_exchange(
+int spider_mbase_handler::crd_mode_exchange(
   int crd_mode
 ) {
-  DBUG_ENTER("spider_mysql_handler::crd_mode_exchange");
+  DBUG_ENTER("spider_mbase_handler::crd_mode_exchange");
   DBUG_PRINT("info",("spider crd_mode=%d", crd_mode));
   DBUG_RETURN(crd_mode);
 }
 
-int spider_mysql_handler::show_index(
+int spider_mbase_handler::show_index(
   int link_idx,
   int crd_mode
 ) {
@@ -11436,13 +12859,16 @@ int spider_mysql_handler::show_index(
   int roop_count;
   longlong *tmp_cardinality;
   uint pos = (2 * spider->conn_link_idx[link_idx]);
-  DBUG_ENTER("spider_mysql_handler::show_index");
+  DBUG_ENTER("spider_mbase_handler::show_index");
   DBUG_PRINT("info",("spider crd_mode=%d", crd_mode));
   if (crd_mode == 1)
   {
+    pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
     pthread_mutex_lock(&conn->mta_conn_mutex);
     SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
     conn->need_mon = &spider->need_mons[link_idx];
+    DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = TRUE;
     conn->mta_conn_mutex_unlock_later = TRUE;
     spider_conn_set_timeout_from_share(conn, link_idx, spider->trx->thd,
@@ -11466,6 +12892,8 @@ int spider_mysql_handler::show_index(
         /* retry */
         if ((error_num = spider_db_ping(spider, conn, link_idx)))
         {
+          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11474,6 +12902,8 @@ int spider_mysql_handler::show_index(
         }
         if ((error_num = spider_db_set_names(spider, conn, link_idx)))
         {
+          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11489,11 +12919,15 @@ int spider_mysql_handler::show_index(
           -1,
           &spider->need_mons[link_idx])
         ) {
+          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           DBUG_RETURN(spider_db_errorno(conn));
         }
       } else {
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11511,6 +12945,8 @@ int spider_mysql_handler::show_index(
     {
       if (error_num || (error_num = spider_db_errorno(conn)))
       {
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11519,6 +12955,8 @@ int spider_mysql_handler::show_index(
       }
       /* no record is ok */
     }
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11573,9 +13011,12 @@ int spider_mysql_handler::show_index(
       DBUG_RETURN(error_num);
     }
   } else {
+    pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
     pthread_mutex_lock(&conn->mta_conn_mutex);
     SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
     conn->need_mon = &spider->need_mons[link_idx];
+    DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = TRUE;
     conn->mta_conn_mutex_unlock_later = TRUE;
     spider_conn_set_timeout_from_share(conn, link_idx, spider->trx->thd,
@@ -11599,6 +13040,8 @@ int spider_mysql_handler::show_index(
         /* retry */
         if ((error_num = spider_db_ping(spider, conn, link_idx)))
         {
+          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11607,6 +13050,8 @@ int spider_mysql_handler::show_index(
         }
         if ((error_num = spider_db_set_names(spider, conn, link_idx)))
         {
+          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11622,11 +13067,15 @@ int spider_mysql_handler::show_index(
           -1,
           &spider->need_mons[link_idx])
         ) {
+          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           DBUG_RETURN(spider_db_errorno(conn));
         }
       } else {
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11644,6 +13093,8 @@ int spider_mysql_handler::show_index(
     {
       if (error_num || (error_num = spider_db_errorno(conn)))
       {
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11652,6 +13103,8 @@ int spider_mysql_handler::show_index(
       }
       /* no record is ok */
     }
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11709,7 +13162,7 @@ int spider_mysql_handler::show_index(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::show_records(
+int spider_mbase_handler::show_records(
   int link_idx
 ) {
   int error_num;
@@ -11717,10 +13170,13 @@ int spider_mysql_handler::show_records(
   SPIDER_DB_RESULT *res;
   SPIDER_SHARE *share = spider->share;
   uint pos = spider->conn_link_idx[link_idx];
-  DBUG_ENTER("spider_mysql_handler::show_records");
+  DBUG_ENTER("spider_mbase_handler::show_records");
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
   pthread_mutex_lock(&conn->mta_conn_mutex);
   SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
   conn->need_mon = &spider->need_mons[link_idx];
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
   conn->mta_conn_mutex_lock_already = TRUE;
   conn->mta_conn_mutex_unlock_later = TRUE;
   spider_conn_set_timeout_from_share(conn, link_idx, spider->trx->thd,
@@ -11744,6 +13200,8 @@ int spider_mysql_handler::show_records(
       /* retry */
       if ((error_num = spider_db_ping(spider, conn, link_idx)))
       {
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11753,6 +13211,8 @@ int spider_mysql_handler::show_records(
       }
       if ((error_num = spider_db_set_names(spider, conn, link_idx)))
       {
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11769,12 +13229,16 @@ int spider_mysql_handler::show_records(
         -1,
         &spider->need_mons[link_idx])
       ) {
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         DBUG_PRINT("info", ("spider error_num=%d 3", error_num));
         DBUG_RETURN(spider_db_errorno(conn));
       }
     } else {
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11791,18 +13255,29 @@ int spider_mysql_handler::show_records(
   request_key.next = NULL;
   if (!(res = conn->db_conn->store_result(NULL, &request_key, &error_num)))
   {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
-    if (error_num || (error_num = spider_db_errorno(conn)))
+    if (error_num)
     {
+      SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+      pthread_mutex_unlock(&conn->mta_conn_mutex);
       DBUG_PRINT("info", ("spider error_num=%d 5", error_num));
       DBUG_RETURN(error_num);
+    }
+    else if ((error_num = spider_db_errorno(conn)))
+    {
+      DBUG_PRINT("info", ("spider error_num=%d 6", error_num));
+      DBUG_RETURN(error_num);
     } else {
-      DBUG_PRINT("info", ("spider error_num=%d 6",
+      DBUG_PRINT("info", ("spider error_num=%d 7",
         ER_QUERY_ON_FOREIGN_DATA_SOURCE));
       DBUG_RETURN(ER_QUERY_ON_FOREIGN_DATA_SOURCE);
     }
   }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
   conn->mta_conn_mutex_lock_already = FALSE;
   conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11822,17 +13297,17 @@ int spider_mysql_handler::show_records(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::show_last_insert_id(
+int spider_mbase_handler::show_last_insert_id(
   int link_idx,
   ulonglong &last_insert_id
 ) {
   SPIDER_CONN *conn = spider->conns[link_idx];
-  DBUG_ENTER("spider_mysql_handler::show_last_insert_id");
+  DBUG_ENTER("spider_mbase_handler::show_last_insert_id");
   last_insert_id = conn->db_conn->last_insert_id();
   DBUG_RETURN(0);
 }
 
-ha_rows spider_mysql_handler::explain_select(
+ha_rows spider_mbase_handler::explain_select(
   key_range *start_key,
   key_range *end_key,
   int link_idx
@@ -11844,7 +13319,7 @@ ha_rows spider_mysql_handler::explain_select(
   SPIDER_DB_RESULT *res;
   ha_rows rows;
   spider_db_handler *dbton_hdl = spider->dbton_handler[conn->dbton_id];
-  DBUG_ENTER("spider_mysql_handler::explain_select");
+  DBUG_ENTER("spider_mbase_handler::explain_select");
   if ((error_num = dbton_hdl->append_explain_select_part(
     start_key, end_key, SPIDER_SQL_TYPE_OTHER_SQL, link_idx)))
   {
@@ -11852,9 +13327,12 @@ ha_rows spider_mysql_handler::explain_select(
     DBUG_RETURN(HA_POS_ERROR);
   }
 
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
   pthread_mutex_lock(&conn->mta_conn_mutex);
   SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
   conn->need_mon = &spider->need_mons[link_idx];
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
   conn->mta_conn_mutex_lock_already = TRUE;
   conn->mta_conn_mutex_unlock_later = TRUE;
   spider_conn_set_timeout_from_share(conn, link_idx, spider->trx->thd,
@@ -11880,6 +13358,8 @@ ha_rows spider_mysql_handler::explain_select(
       {
         if (spider->check_error_mode(error_num))
           my_errno = error_num;
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11890,6 +13370,8 @@ ha_rows spider_mysql_handler::explain_select(
       {
         if (spider->check_error_mode(error_num))
           my_errno = error_num;
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11908,6 +13390,8 @@ ha_rows spider_mysql_handler::explain_select(
         error_num = spider_db_errorno(conn);
         if (spider->check_error_mode(error_num))
           my_errno = error_num;
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_lock_already = FALSE;
         conn->mta_conn_mutex_unlock_later = FALSE;
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11917,6 +13401,8 @@ ha_rows spider_mysql_handler::explain_select(
     } else {
       if (spider->check_error_mode(error_num))
         my_errno = error_num;
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11936,6 +13422,8 @@ ha_rows spider_mysql_handler::explain_select(
     {
       if (spider->check_error_mode(error_num))
         my_errno = error_num;
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11943,6 +13431,8 @@ ha_rows spider_mysql_handler::explain_select(
       DBUG_RETURN(HA_POS_ERROR);
     } else {
       my_errno = ER_QUERY_ON_FOREIGN_DATA_SOURCE;
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11950,6 +13440,8 @@ ha_rows spider_mysql_handler::explain_select(
       DBUG_RETURN(HA_POS_ERROR);
     }
   }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
   conn->mta_conn_mutex_lock_already = FALSE;
   conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -11968,13 +13460,13 @@ ha_rows spider_mysql_handler::explain_select(
   DBUG_RETURN(rows);
 }
 
-int spider_mysql_handler::lock_tables(
+int spider_mbase_handler::lock_tables(
   int link_idx
 ) {
   int error_num;
   SPIDER_CONN *conn = spider->conns[link_idx];
   spider_string *str = &sql;
-  DBUG_ENTER("spider_mysql_handler::lock_tables");
+  DBUG_ENTER("spider_mbase_handler::lock_tables");
   str->length(0);
   if ((error_num = conn->db_conn->append_lock_tables(str)))
   {
@@ -11982,13 +13474,18 @@ int spider_mysql_handler::lock_tables(
   }
   if (str->length())
   {
+    pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
     pthread_mutex_lock(&conn->mta_conn_mutex);
     SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
     conn->need_mon = &spider->need_mons[link_idx];
+    DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = TRUE;
     conn->mta_conn_mutex_unlock_later = TRUE;
     if ((error_num = spider_db_set_names(spider, conn, link_idx)))
     {
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -12004,10 +13501,14 @@ int spider_mysql_handler::lock_tables(
       -1,
       &spider->need_mons[link_idx])
     ) {
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
       DBUG_RETURN(spider_db_errorno(conn));
     }
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -12021,12 +13522,12 @@ int spider_mysql_handler::lock_tables(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::unlock_tables(
+int spider_mbase_handler::unlock_tables(
   int link_idx
 ) {
   int error_num;
   SPIDER_CONN *conn = spider->conns[link_idx];
-  DBUG_ENTER("spider_mysql_handler::unlock_tables");
+  DBUG_ENTER("spider_mbase_handler::unlock_tables");
   if (conn->table_locked)
   {
     spider_string *str = &sql;
@@ -12042,14 +13543,31 @@ int spider_mysql_handler::unlock_tables(
     {
       spider_conn_set_timeout_from_share(conn, link_idx, spider->trx->thd,
         spider->share);
+      pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+      pthread_mutex_lock(&conn->mta_conn_mutex);
+      SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+      conn->need_mon = &spider->need_mons[link_idx];
+      DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = TRUE;
+      conn->mta_conn_mutex_unlock_later = TRUE;
       if (spider_db_query(
         conn,
         str->ptr(),
         str->length(),
         -1,
         &spider->need_mons[link_idx])
-      )
+      ) {
+        DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+        conn->mta_conn_mutex_lock_already = FALSE;
+        conn->mta_conn_mutex_unlock_later = FALSE;
         DBUG_RETURN(spider_db_errorno(conn));
+      }
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = FALSE;
+      conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
       pthread_mutex_unlock(&conn->mta_conn_mutex);
     }
@@ -12057,14 +13575,14 @@ int spider_mysql_handler::unlock_tables(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::disable_keys(
+int spider_mbase_handler::disable_keys(
   SPIDER_CONN *conn,
   int link_idx
 ) {
   int error_num;
   SPIDER_SHARE *share = spider->share;
   spider_string *str = &spider->result_list.sqls[link_idx];
-  DBUG_ENTER("spider_mysql_handler::disable_keys");
+  DBUG_ENTER("spider_mbase_handler::disable_keys");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(0);
   if ((error_num = append_disable_keys_part(SPIDER_SQL_TYPE_OTHER_HS,
@@ -12072,13 +13590,18 @@ int spider_mysql_handler::disable_keys(
   {
     DBUG_RETURN(error_num);
   }
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
   pthread_mutex_lock(&conn->mta_conn_mutex);
   SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
   conn->need_mon = &spider->need_mons[link_idx];
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
   conn->mta_conn_mutex_lock_already = TRUE;
   conn->mta_conn_mutex_unlock_later = TRUE;
   if ((error_num = spider_db_set_names(spider, conn, link_idx)))
   {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -12094,11 +13617,15 @@ int spider_mysql_handler::disable_keys(
     -1,
     &spider->need_mons[link_idx])
   ) {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     error_num = spider_db_errorno(conn);
     DBUG_RETURN(error_num);
   }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
   conn->mta_conn_mutex_lock_already = FALSE;
   conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -12106,14 +13633,14 @@ int spider_mysql_handler::disable_keys(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::enable_keys(
+int spider_mbase_handler::enable_keys(
   SPIDER_CONN *conn,
   int link_idx
 ) {
   int error_num;
   SPIDER_SHARE *share = spider->share;
   spider_string *str = &spider->result_list.sqls[link_idx];
-  DBUG_ENTER("spider_mysql_handler::enable_keys");
+  DBUG_ENTER("spider_mbase_handler::enable_keys");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(0);
   if ((error_num = append_enable_keys_part(SPIDER_SQL_TYPE_OTHER_HS,
@@ -12121,13 +13648,18 @@ int spider_mysql_handler::enable_keys(
   {
     DBUG_RETURN(error_num);
   }
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
   pthread_mutex_lock(&conn->mta_conn_mutex);
   SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
   conn->need_mon = &spider->need_mons[link_idx];
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
   conn->mta_conn_mutex_lock_already = TRUE;
   conn->mta_conn_mutex_unlock_later = TRUE;
   if ((error_num = spider_db_set_names(spider, conn, link_idx)))
   {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -12143,11 +13675,15 @@ int spider_mysql_handler::enable_keys(
     -1,
     &spider->need_mons[link_idx])
   ) {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     error_num = spider_db_errorno(conn);
     DBUG_RETURN(error_num);
   }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
   conn->mta_conn_mutex_lock_already = FALSE;
   conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -12155,7 +13691,7 @@ int spider_mysql_handler::enable_keys(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::check_table(
+int spider_mbase_handler::check_table(
   SPIDER_CONN *conn,
   int link_idx,
   HA_CHECK_OPT* check_opt
@@ -12163,7 +13699,7 @@ int spider_mysql_handler::check_table(
   int error_num;
   SPIDER_SHARE *share = spider->share;
   spider_string *str = &spider->result_list.sqls[link_idx];
-  DBUG_ENTER("spider_mysql_handler::check_table");
+  DBUG_ENTER("spider_mbase_handler::check_table");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(0);
   if ((error_num = append_check_table_part(SPIDER_SQL_TYPE_OTHER_HS,
@@ -12171,13 +13707,18 @@ int spider_mysql_handler::check_table(
   {
     DBUG_RETURN(error_num);
   }
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
   pthread_mutex_lock(&conn->mta_conn_mutex);
   SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
   conn->need_mon = &spider->need_mons[link_idx];
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
   conn->mta_conn_mutex_lock_already = TRUE;
   conn->mta_conn_mutex_unlock_later = TRUE;
   if ((error_num = spider_db_set_names(spider, conn, link_idx)))
   {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -12193,11 +13734,15 @@ int spider_mysql_handler::check_table(
     -1,
     &spider->need_mons[link_idx])
   ) {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     error_num = spider_db_errorno(conn);
     DBUG_RETURN(error_num);
   }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
   conn->mta_conn_mutex_lock_already = FALSE;
   conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -12205,7 +13750,7 @@ int spider_mysql_handler::check_table(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::repair_table(
+int spider_mbase_handler::repair_table(
   SPIDER_CONN *conn,
   int link_idx,
   HA_CHECK_OPT* check_opt
@@ -12213,7 +13758,7 @@ int spider_mysql_handler::repair_table(
   int error_num;
   SPIDER_SHARE *share = spider->share;
   spider_string *str = &spider->result_list.sqls[link_idx];
-  DBUG_ENTER("spider_mysql_handler::repair_table");
+  DBUG_ENTER("spider_mbase_handler::repair_table");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(0);
   if ((error_num = append_repair_table_part(SPIDER_SQL_TYPE_OTHER_HS,
@@ -12221,13 +13766,18 @@ int spider_mysql_handler::repair_table(
   {
     DBUG_RETURN(error_num);
   }
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
   pthread_mutex_lock(&conn->mta_conn_mutex);
   SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
   conn->need_mon = &spider->need_mons[link_idx];
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
   conn->mta_conn_mutex_lock_already = TRUE;
   conn->mta_conn_mutex_unlock_later = TRUE;
   if ((error_num = spider_db_set_names(spider, conn, link_idx)))
   {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -12243,11 +13793,15 @@ int spider_mysql_handler::repair_table(
     -1,
     &spider->need_mons[link_idx])
   ) {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     error_num = spider_db_errorno(conn);
     DBUG_RETURN(error_num);
   }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
   conn->mta_conn_mutex_lock_already = FALSE;
   conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -12255,14 +13809,14 @@ int spider_mysql_handler::repair_table(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::analyze_table(
+int spider_mbase_handler::analyze_table(
   SPIDER_CONN *conn,
   int link_idx
 ) {
   int error_num;
   SPIDER_SHARE *share = spider->share;
   spider_string *str = &spider->result_list.sqls[link_idx];
-  DBUG_ENTER("spider_mysql_handler::analyze_table");
+  DBUG_ENTER("spider_mbase_handler::analyze_table");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(0);
   if ((error_num = append_analyze_table_part(SPIDER_SQL_TYPE_OTHER_HS,
@@ -12270,13 +13824,18 @@ int spider_mysql_handler::analyze_table(
   {
     DBUG_RETURN(error_num);
   }
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
   pthread_mutex_lock(&conn->mta_conn_mutex);
   SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
   conn->need_mon = &spider->need_mons[link_idx];
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
   conn->mta_conn_mutex_lock_already = TRUE;
   conn->mta_conn_mutex_unlock_later = TRUE;
   if ((error_num = spider_db_set_names(spider, conn, link_idx)))
   {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -12292,11 +13851,15 @@ int spider_mysql_handler::analyze_table(
     -1,
     &spider->need_mons[link_idx])
   ) {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     error_num = spider_db_errorno(conn);
     DBUG_RETURN(error_num);
   }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
   conn->mta_conn_mutex_lock_already = FALSE;
   conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -12304,14 +13867,14 @@ int spider_mysql_handler::analyze_table(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::optimize_table(
+int spider_mbase_handler::optimize_table(
   SPIDER_CONN *conn,
   int link_idx
 ) {
   int error_num;
   SPIDER_SHARE *share = spider->share;
   spider_string *str = &spider->result_list.sqls[link_idx];
-  DBUG_ENTER("spider_mysql_handler::optimize_table");
+  DBUG_ENTER("spider_mbase_handler::optimize_table");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(0);
   if ((error_num = append_optimize_table_part(SPIDER_SQL_TYPE_OTHER_HS,
@@ -12319,13 +13882,18 @@ int spider_mysql_handler::optimize_table(
   {
     DBUG_RETURN(error_num);
   }
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
   pthread_mutex_lock(&conn->mta_conn_mutex);
   SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
   conn->need_mon = &spider->need_mons[link_idx];
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
   conn->mta_conn_mutex_lock_already = TRUE;
   conn->mta_conn_mutex_unlock_later = TRUE;
   if ((error_num = spider_db_set_names(spider, conn, link_idx)))
   {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -12341,11 +13909,15 @@ int spider_mysql_handler::optimize_table(
     -1,
     &spider->need_mons[link_idx])
   ) {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
     conn->mta_conn_mutex_lock_already = FALSE;
     conn->mta_conn_mutex_unlock_later = FALSE;
     error_num = spider_db_errorno(conn);
     DBUG_RETURN(error_num);
   }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
   conn->mta_conn_mutex_lock_already = FALSE;
   conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -12353,7 +13925,7 @@ int spider_mysql_handler::optimize_table(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::flush_tables(
+int spider_mbase_handler::flush_tables(
   SPIDER_CONN *conn,
   int link_idx,
   bool lock
@@ -12361,7 +13933,7 @@ int spider_mysql_handler::flush_tables(
   int error_num;
   SPIDER_SHARE *share = spider->share;
   spider_string *str = &spider->result_list.sqls[link_idx];
-  DBUG_ENTER("spider_mysql_handler::flush_tables");
+  DBUG_ENTER("spider_mbase_handler::flush_tables");
   DBUG_PRINT("info",("spider this=%p", this));
   str->length(0);
   if ((error_num = append_flush_tables_part(SPIDER_SQL_TYPE_OTHER_HS,
@@ -12371,6 +13943,14 @@ int spider_mysql_handler::flush_tables(
   }
   spider_conn_set_timeout_from_share(conn, link_idx, spider->trx->thd,
     share);
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+  pthread_mutex_lock(&conn->mta_conn_mutex);
+  SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+  conn->need_mon = &spider->need_mons[link_idx];
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = TRUE;
+  conn->mta_conn_mutex_unlock_later = TRUE;
   if (spider_db_query(
     conn,
     str->ptr(),
@@ -12378,24 +13958,40 @@ int spider_mysql_handler::flush_tables(
     -1,
     &spider->need_mons[link_idx])
   ) {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+    conn->mta_conn_mutex_lock_already = FALSE;
+    conn->mta_conn_mutex_unlock_later = FALSE;
     error_num = spider_db_errorno(conn);
     DBUG_RETURN(error_num);
   }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = FALSE;
+  conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
   pthread_mutex_unlock(&conn->mta_conn_mutex);
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::flush_logs(
+int spider_mbase_handler::flush_logs(
   SPIDER_CONN *conn,
   int link_idx
 ) {
   int error_num;
   SPIDER_SHARE *share = spider->share;
-  DBUG_ENTER("spider_mysql_handler::flush_logs");
+  DBUG_ENTER("spider_mbase_handler::flush_logs");
   DBUG_PRINT("info",("spider this=%p", this));
   spider_conn_set_timeout_from_share(conn, link_idx, spider->trx->thd,
     share);
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+  pthread_mutex_lock(&conn->mta_conn_mutex);
+  SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+  conn->need_mon = &spider->need_mons[link_idx];
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = TRUE;
+  conn->mta_conn_mutex_unlock_later = TRUE;
   if (spider_db_query(
     conn,
     SPIDER_SQL_FLUSH_LOGS_STR,
@@ -12403,24 +13999,32 @@ int spider_mysql_handler::flush_logs(
     -1,
     &spider->need_mons[link_idx])
   ) {
+    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+    conn->mta_conn_mutex_lock_already = FALSE;
+    conn->mta_conn_mutex_unlock_later = FALSE;
     error_num = spider_db_errorno(conn);
     DBUG_RETURN(error_num);
   }
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = FALSE;
+  conn->mta_conn_mutex_unlock_later = FALSE;
   SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
   pthread_mutex_unlock(&conn->mta_conn_mutex);
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::insert_opened_handler(
+int spider_mbase_handler::insert_opened_handler(
   SPIDER_CONN *conn,
   int link_idx
 ) {
-  spider_db_mysql *db_conn = (spider_db_mysql *) conn->db_conn;
+  spider_db_mbase *db_conn = (spider_db_mbase *) conn->db_conn;
   SPIDER_LINK_FOR_HASH *tmp_link_for_hash = &link_for_hash[link_idx];
   DBUG_ASSERT(tmp_link_for_hash->spider == spider);
   DBUG_ASSERT(tmp_link_for_hash->link_idx == link_idx);
   uint old_elements = db_conn->handler_open_array.max_element;
-  DBUG_ENTER("spider_mysql_handler::insert_opened_handler");
+  DBUG_ENTER("spider_mbase_handler::insert_opened_handler");
   DBUG_PRINT("info",("spider this=%p", this));
   if (insert_dynamic(&db_conn->handler_open_array,
     (uchar*) &tmp_link_for_hash))
@@ -12437,14 +14041,14 @@ int spider_mysql_handler::insert_opened_handler(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::delete_opened_handler(
+int spider_mbase_handler::delete_opened_handler(
   SPIDER_CONN *conn,
   int link_idx
 ) {
-  spider_db_mysql *db_conn = (spider_db_mysql *) conn->db_conn;
+  spider_db_mbase *db_conn = (spider_db_mbase *) conn->db_conn;
   uint roop_count, elements = db_conn->handler_open_array.elements;
   SPIDER_LINK_FOR_HASH *tmp_link_for_hash;
-  DBUG_ENTER("spider_mysql_handler::delete_opened_handler");
+  DBUG_ENTER("spider_mbase_handler::delete_opened_handler");
   DBUG_PRINT("info",("spider this=%p", this));
   for (roop_count = 0; roop_count < elements; roop_count++)
   {
@@ -12460,27 +14064,27 @@ int spider_mysql_handler::delete_opened_handler(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::sync_from_clone_source(
+int spider_mbase_handler::sync_from_clone_source(
   spider_db_handler *dbton_hdl
 ) {
-  DBUG_ENTER("spider_mysql_handler::sync_from_clone_source");
+  DBUG_ENTER("spider_mbase_handler::sync_from_clone_source");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(0);
 }
 
-bool spider_mysql_handler::support_use_handler(
+bool spider_mbase_handler::support_use_handler(
   int use_handler
 ) {
-  DBUG_ENTER("spider_mysql_handler::support_use_handler");
+  DBUG_ENTER("spider_mbase_handler::support_use_handler");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(TRUE);
 }
 
-void spider_mysql_handler::minimum_select_bitmap_create()
+void spider_mbase_handler::minimum_select_bitmap_create()
 {
   TABLE *table = spider->get_table();
   Field **field_p;
-  DBUG_ENTER("spider_mysql_handler::minimum_select_bitmap_create");
+  DBUG_ENTER("spider_mbase_handler::minimum_select_bitmap_create");
   DBUG_PRINT("info",("spider this=%p", this));
   memset(minimum_select_bitmap, 0, no_bytes_in_map(table->read_set));
   if (
@@ -12547,10 +14151,10 @@ void spider_mysql_handler::minimum_select_bitmap_create()
   DBUG_VOID_RETURN;
 }
 
-bool spider_mysql_handler::minimum_select_bit_is_set(
+bool spider_mbase_handler::minimum_select_bit_is_set(
   uint field_index
 ) {
-  DBUG_ENTER("spider_mysql_handler::minimum_select_bit_is_set");
+  DBUG_ENTER("spider_mbase_handler::minimum_select_bit_is_set");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider field_index=%u", field_index));
   DBUG_PRINT("info",("spider minimum_select_bitmap=%s",
@@ -12559,12 +14163,12 @@ bool spider_mysql_handler::minimum_select_bit_is_set(
   DBUG_RETURN(spider_bit_is_set(minimum_select_bitmap, field_index));
 }
 
-void spider_mysql_handler::copy_minimum_select_bitmap(
+void spider_mbase_handler::copy_minimum_select_bitmap(
   uchar *bitmap
 ) {
   int roop_count;
   TABLE *table = spider->get_table();
-  DBUG_ENTER("spider_mysql_handler::copy_minimum_select_bitmap");
+  DBUG_ENTER("spider_mbase_handler::copy_minimum_select_bitmap");
   for (roop_count = 0;
     roop_count < (int) ((table->s->fields + 7) / 8);
     roop_count++)
@@ -12578,9 +14182,9 @@ void spider_mysql_handler::copy_minimum_select_bitmap(
   DBUG_VOID_RETURN;
 }
 
-int spider_mysql_handler::init_union_table_name_pos()
+int spider_mbase_handler::init_union_table_name_pos()
 {
-  DBUG_ENTER("spider_mysql_handler::init_union_table_name_pos");
+  DBUG_ENTER("spider_mbase_handler::init_union_table_name_pos");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!union_table_name_pos_first)
   {
@@ -12597,9 +14201,9 @@ int spider_mysql_handler::init_union_table_name_pos()
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::set_union_table_name_pos()
+int spider_mbase_handler::set_union_table_name_pos()
 {
-  DBUG_ENTER("spider_mysql_handler::set_union_table_name_pos");
+  DBUG_ENTER("spider_mbase_handler::set_union_table_name_pos");
   DBUG_PRINT("info",("spider this=%p", this));
   if (union_table_name_pos_current->tgt_num >= SPIDER_INT_HLD_TGT_SIZE)
   {
@@ -12622,12 +14226,12 @@ int spider_mysql_handler::set_union_table_name_pos()
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::reset_union_table_name(
+int spider_mbase_handler::reset_union_table_name(
   spider_string *str,
   int link_idx,
   ulong sql_type
 ) {
-  DBUG_ENTER("spider_mysql_handler::reset_union_table_name");
+  DBUG_ENTER("spider_mbase_handler::reset_union_table_name");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!union_table_name_pos_current)
     DBUG_RETURN(0);
@@ -12650,13 +14254,15 @@ int spider_mysql_handler::reset_union_table_name(
 }
 
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
-int spider_mysql_handler::append_from_and_tables_part(
+int spider_mbase_handler::append_from_and_tables_part(
   spider_fields *fields,
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_from_and_tables_part");
+  SPIDER_TABLE_HOLDER *table_holder;
+  TABLE_LIST *table_list;
+  DBUG_ENTER("spider_mbase_handler::append_from_and_tables_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -12666,17 +14272,22 @@ int spider_mysql_handler::append_from_and_tables_part(
     default:
       DBUG_RETURN(0);
   }
-  error_num = spider_db_mysql_utility.append_from_and_tables(fields, str);
+  fields->set_pos_to_first_table_holder();
+  table_holder = fields->get_next_table_holder();
+  table_list = table_holder->table->pos_in_table_list;
+  error_num = spider_db_mbase_utility->append_from_and_tables(
+    table_holder->spider, fields, str,
+    table_list, fields->get_table_count());
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::reappend_tables_part(
+int spider_mbase_handler::reappend_tables_part(
   spider_fields *fields,
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::reappend_tables_part");
+  DBUG_ENTER("spider_mbase_handler::reappend_tables_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -12686,17 +14297,17 @@ int spider_mysql_handler::reappend_tables_part(
     default:
       DBUG_RETURN(0);
   }
-  error_num = spider_db_mysql_utility.reappend_tables(fields,
+  error_num = spider_db_mbase_utility->reappend_tables(fields,
     link_idx_chain, str);
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_where_part(
+int spider_mbase_handler::append_where_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_where_part");
+  DBUG_ENTER("spider_mbase_handler::append_where_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -12706,16 +14317,16 @@ int spider_mysql_handler::append_where_part(
     default:
       DBUG_RETURN(0);
   }
-  error_num = spider_db_mysql_utility.append_where(str);
+  error_num = spider_db_mbase_utility->append_where(str);
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_having_part(
+int spider_mbase_handler::append_having_part(
   ulong sql_type
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_having_part");
+  DBUG_ENTER("spider_mbase_handler::append_having_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -12725,11 +14336,11 @@ int spider_mysql_handler::append_having_part(
     default:
       DBUG_RETURN(0);
   }
-  error_num = spider_db_mysql_utility.append_having(str);
+  error_num = spider_db_mbase_utility->append_having(str);
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_item_type_part(
+int spider_mbase_handler::append_item_type_part(
   Item *item,
   const char *alias,
   uint alias_length,
@@ -12739,7 +14350,7 @@ int spider_mysql_handler::append_item_type_part(
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_item_type_part");
+  DBUG_ENTER("spider_mbase_handler::append_item_type_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -12749,12 +14360,12 @@ int spider_mysql_handler::append_item_type_part(
     default:
       DBUG_RETURN(0);
   }
-  error_num = spider_db_print_item_type(item, spider, str, alias, alias_length,
-    spider_dbton_mysql.dbton_id, use_fields, fields);
+  error_num = spider_db_print_item_type(item, NULL, spider, str,
+    alias, alias_length, dbton_id, use_fields, fields);
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_list_item_select_part(
+int spider_mbase_handler::append_list_item_select_part(
   List<Item> *select,
   const char *alias,
   uint alias_length,
@@ -12764,7 +14375,7 @@ int spider_mysql_handler::append_list_item_select_part(
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_list_item_select_part");
+  DBUG_ENTER("spider_mbase_handler::append_list_item_select_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -12779,7 +14390,7 @@ int spider_mysql_handler::append_list_item_select_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_list_item_select(
+int spider_mbase_handler::append_list_item_select(
   List<Item> *select,
   spider_string *str,
   const char *alias,
@@ -12788,39 +14399,63 @@ int spider_mysql_handler::append_list_item_select(
   spider_fields *fields
 ) {
   int error_num;
-  uint dbton_id = spider_dbton_mysql.dbton_id, length;
+  uint32 length, begin;
   List_iterator_fast<Item> it(*select);
   Item *item;
-  Field **field_ptr;
-  DBUG_ENTER("spider_mysql_handler::append_list_item_select");
+  Field *field;
+  const char *item_name;
+  DBUG_ENTER("spider_mbase_handler::append_list_item_select");
   DBUG_PRINT("info",("spider this=%p", this));
+  begin = str->length();
   while ((item = it++))
   {
-    if ((error_num = spider_db_print_item_type(item, spider, str,
+    if (item->const_item())
+    {
+      DBUG_PRINT("info",("spider const item"));
+      continue;
+    }
+    if ((error_num = spider_db_print_item_type(item, NULL, spider, str,
       alias, alias_length, dbton_id, use_fields, fields)))
     {
       DBUG_RETURN(error_num);
     }
-    field_ptr = fields->get_next_field_ptr();
-    length = (*field_ptr)->field_name.length;
+    field = *(fields->get_next_field_ptr());
+    if (field)
+    {
+      item_name = SPIDER_field_name_str(field);
+      length = SPIDER_field_name_length(field);
+    } else {
+      item_name = SPIDER_item_name_str(item);
+      length = SPIDER_item_name_length(item);
+    }
     if (str->reserve(
       SPIDER_SQL_COMMA_LEN + /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 +
       SPIDER_SQL_SPACE_LEN + length
     ))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     str->q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
-    if ((error_num = spider_db_mysql_utility.append_name(str,
-      (*field_ptr)->field_name.str, length)))
+    if ((error_num = spider_db_mbase_utility->append_name(str,
+      item_name, length)))
     {
       DBUG_RETURN(error_num);
     }
     str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
   }
-  str->length(str->length() - SPIDER_SQL_COMMA_LEN);
+  if (begin == str->length())
+  {
+    /* no columns */
+    if (str->reserve(SPIDER_SQL_ONE_LEN))
+    {
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    str->q_append(SPIDER_SQL_ONE_STR, SPIDER_SQL_ONE_LEN);
+  } else {
+    str->length(str->length() - SPIDER_SQL_COMMA_LEN);
+  }
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_group_by_part(
+int spider_mbase_handler::append_group_by_part(
   ORDER *order,
   const char *alias,
   uint alias_length,
@@ -12830,7 +14465,7 @@ int spider_mysql_handler::append_group_by_part(
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_group_by_part");
+  DBUG_ENTER("spider_mbase_handler::append_group_by_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -12845,7 +14480,7 @@ int spider_mysql_handler::append_group_by_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_group_by(
+int spider_mbase_handler::append_group_by(
   ORDER *order,
   spider_string *str,
   const char *alias,
@@ -12854,8 +14489,7 @@ int spider_mysql_handler::append_group_by(
   spider_fields *fields
 ) {
   int error_num;
-  uint dbton_id = spider_dbton_mysql.dbton_id;
-  DBUG_ENTER("spider_mysql_handler::append_group_by");
+  DBUG_ENTER("spider_mbase_handler::append_group_by");
   DBUG_PRINT("info",("spider this=%p", this));
   if (order)
   {
@@ -12864,8 +14498,8 @@ int spider_mysql_handler::append_group_by(
     str->q_append(SPIDER_SQL_GROUP_STR, SPIDER_SQL_GROUP_LEN);
     for (; order; order = order->next)
     {
-      if ((error_num = spider_db_print_item_type((*order->item), spider, str,
-        alias, alias_length, dbton_id, use_fields, fields)))
+      if ((error_num = spider_db_print_item_type((*order->item), NULL, spider,
+        str, alias, alias_length, dbton_id, use_fields, fields)))
       {
         DBUG_RETURN(error_num);
       }
@@ -12878,7 +14512,7 @@ int spider_mysql_handler::append_group_by(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_handler::append_order_by_part(
+int spider_mbase_handler::append_order_by_part(
   ORDER *order,
   const char *alias,
   uint alias_length,
@@ -12888,7 +14522,7 @@ int spider_mysql_handler::append_order_by_part(
 ) {
   int error_num;
   spider_string *str;
-  DBUG_ENTER("spider_mysql_handler::append_order_by_part");
+  DBUG_ENTER("spider_mbase_handler::append_order_by_part");
   DBUG_PRINT("info",("spider this=%p", this));
   switch (sql_type)
   {
@@ -12903,7 +14537,7 @@ int spider_mysql_handler::append_order_by_part(
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_handler::append_order_by(
+int spider_mbase_handler::append_order_by(
   ORDER *order,
   spider_string *str,
   const char *alias,
@@ -12912,8 +14546,7 @@ int spider_mysql_handler::append_order_by(
   spider_fields *fields
 ) {
   int error_num;
-  uint dbton_id = spider_dbton_mysql.dbton_id;
-  DBUG_ENTER("spider_mysql_handler::append_order_by");
+  DBUG_ENTER("spider_mbase_handler::append_order_by");
   DBUG_PRINT("info",("spider this=%p", this));
   if (order)
   {
@@ -12922,8 +14555,8 @@ int spider_mysql_handler::append_order_by(
     str->q_append(SPIDER_SQL_ORDER_STR, SPIDER_SQL_ORDER_LEN);
     for (; order; order = order->next)
     {
-      if ((error_num = spider_db_print_item_type((*order->item), spider, str,
-        alias, alias_length, dbton_id, use_fields, fields)))
+      if ((error_num = spider_db_print_item_type((*order->item), NULL, spider,
+        str, alias, alias_length, dbton_id, use_fields, fields)))
       {
         DBUG_RETURN(error_num);
       }
@@ -12945,14 +14578,41 @@ int spider_mysql_handler::append_order_by(
 }
 #endif
 
-spider_mysql_copy_table::spider_mysql_copy_table(
-  spider_mysql_share *db_share
+spider_mbase_copy_table::spider_mbase_copy_table(
+  spider_mbase_share *db_share
 ) : spider_db_copy_table(
   db_share
 ),
   mysql_share(db_share)
 {
+  DBUG_ENTER("spider_mbase_copy_table::spider_mbase_copy_table");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_mysql_copy_table::spider_mysql_copy_table(
+  spider_mbase_share *db_share
+) : spider_mbase_copy_table(
+  db_share
+) {
   DBUG_ENTER("spider_mysql_copy_table::spider_mysql_copy_table");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_mariadb_copy_table::spider_mariadb_copy_table(
+  spider_mbase_share *db_share
+) : spider_mbase_copy_table(
+  db_share
+) {
+  DBUG_ENTER("spider_mariadb_copy_table::spider_mariadb_copy_table");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+spider_mbase_copy_table::~spider_mbase_copy_table()
+{
+  DBUG_ENTER("spider_mbase_copy_table::~spider_mbase_copy_table");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_VOID_RETURN;
 }
@@ -12964,26 +14624,33 @@ spider_mysql_copy_table::~spider_mysql_copy_table()
   DBUG_VOID_RETURN;
 }
 
-int spider_mysql_copy_table::init()
+spider_mariadb_copy_table::~spider_mariadb_copy_table()
 {
-  DBUG_ENTER("spider_mysql_copy_table::init");
+  DBUG_ENTER("spider_mariadb_copy_table::~spider_mariadb_copy_table");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_VOID_RETURN;
+}
+
+int spider_mbase_copy_table::init()
+{
+  DBUG_ENTER("spider_mbase_copy_table::init");
   DBUG_PRINT("info",("spider this=%p", this));
   sql.init_calc_mem(78);
   DBUG_RETURN(0);
 }
 
-void spider_mysql_copy_table::set_sql_charset(
+void spider_mbase_copy_table::set_sql_charset(
   CHARSET_INFO *cs
 ) {
-  DBUG_ENTER("spider_mysql_copy_table::set_sql_charset");
+  DBUG_ENTER("spider_mbase_copy_table::set_sql_charset");
   DBUG_PRINT("info",("spider this=%p", this));
   sql.set_charset(cs);
   DBUG_VOID_RETURN;
 }
 
-int spider_mysql_copy_table::append_select_str()
+int spider_mbase_copy_table::append_select_str()
 {
-  DBUG_ENTER("spider_mysql_copy_table::append_select_str");
+  DBUG_ENTER("spider_mbase_copy_table::append_select_str");
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql.reserve(SPIDER_SQL_SELECT_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -12991,10 +14658,10 @@ int spider_mysql_copy_table::append_select_str()
   DBUG_RETURN(0);
 }
 
-int spider_mysql_copy_table::append_insert_str(
+int spider_mbase_copy_table::append_insert_str(
   int insert_flg
 ) {
-  DBUG_ENTER("spider_mysql_copy_table::append_insert_str");
+  DBUG_ENTER("spider_mbase_copy_table::append_insert_str");
   DBUG_PRINT("info",("spider this=%p", this));
   if (insert_flg & SPIDER_DB_INSERT_REPLACE)
   {
@@ -13033,12 +14700,12 @@ int spider_mysql_copy_table::append_insert_str(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_copy_table::append_table_columns(
+int spider_mbase_copy_table::append_table_columns(
   TABLE_SHARE *table_share
 ) {
   int error_num;
   Field **field;
-  DBUG_ENTER("spider_mysql_copy_table::append_table_columns");
+  DBUG_ENTER("spider_mbase_copy_table::append_table_columns");
   DBUG_PRINT("info",("spider this=%p", this));
   for (field = table_share->field; *field; field++)
   {
@@ -13046,7 +14713,7 @@ int spider_mysql_copy_table::append_table_columns(
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     sql.q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
     if ((error_num = spider_db_append_name_with_quote_str(&sql,
-      (char *) (*field)->field_name.str, spider_dbton_mysql.dbton_id)))
+      (*field)->field_name, dbton_id)))
       DBUG_RETURN(error_num);
     if (sql.reserve(SPIDER_SQL_NAME_QUOTE_LEN + SPIDER_SQL_COMMA_LEN))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -13057,9 +14724,9 @@ int spider_mysql_copy_table::append_table_columns(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_copy_table::append_from_str()
+int spider_mbase_copy_table::append_from_str()
 {
-  DBUG_ENTER("spider_mysql_copy_table::append_from_str");
+  DBUG_ENTER("spider_mbase_copy_table::append_from_str");
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql.reserve(SPIDER_SQL_FROM_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -13067,40 +14734,40 @@ int spider_mysql_copy_table::append_from_str()
   DBUG_RETURN(0);
 }
 
-int spider_mysql_copy_table::append_table_name(
+int spider_mbase_copy_table::append_table_name(
   int link_idx
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_copy_table::append_table_name");
+  DBUG_ENTER("spider_mbase_copy_table::append_table_name");
   DBUG_PRINT("info",("spider this=%p", this));
   error_num = mysql_share->append_table_name(&sql, link_idx);
   DBUG_RETURN(error_num);
 }
 
-void spider_mysql_copy_table::set_sql_pos()
+void spider_mbase_copy_table::set_sql_pos()
 {
-  DBUG_ENTER("spider_mysql_copy_table::set_sql_pos");
+  DBUG_ENTER("spider_mbase_copy_table::set_sql_pos");
   DBUG_PRINT("info",("spider this=%p", this));
   pos = sql.length();
   DBUG_VOID_RETURN;
 }
 
-void spider_mysql_copy_table::set_sql_to_pos()
+void spider_mbase_copy_table::set_sql_to_pos()
 {
-  DBUG_ENTER("spider_mysql_copy_table::set_sql_to_pos");
+  DBUG_ENTER("spider_mbase_copy_table::set_sql_to_pos");
   DBUG_PRINT("info",("spider this=%p", this));
   sql.length(pos);
   DBUG_VOID_RETURN;
 }
 
-int spider_mysql_copy_table::append_copy_where(
+int spider_mbase_copy_table::append_copy_where(
   spider_db_copy_table *source_ct,
   KEY *key_info,
   ulong *last_row_pos,
   ulong *last_lengths
 ) {
   int error_num, roop_count, roop_count2;
-  DBUG_ENTER("spider_mysql_copy_table::append_copy_where");
+  DBUG_ENTER("spider_mbase_copy_table::append_copy_where");
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql.reserve(SPIDER_SQL_WHERE_LEN + SPIDER_SQL_OPEN_PAREN_LEN))
   {
@@ -13146,7 +14813,7 @@ int spider_mysql_copy_table::append_copy_where(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_copy_table::append_key_order_str(
+int spider_mbase_copy_table::append_key_order_str(
   KEY *key_info,
   int start_pos,
   bool desc_flg
@@ -13154,7 +14821,7 @@ int spider_mysql_copy_table::append_key_order_str(
   int length, error_num;
   KEY_PART_INFO *key_part;
   Field *field;
-  DBUG_ENTER("spider_mysql_copy_table::append_key_order_str");
+  DBUG_ENTER("spider_mbase_copy_table::append_key_order_str");
   DBUG_PRINT("info",("spider this=%p", this));
   if ((int) spider_user_defined_key_parts(key_info) > start_pos)
   {
@@ -13175,7 +14842,7 @@ int spider_mysql_copy_table::append_key_order_str(
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         sql.q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
         if ((error_num = spider_db_append_name_with_quote_str(&sql,
-          (char *) field->field_name.str, spider_dbton_mysql.dbton_id)))
+          field->field_name, dbton_id)))
           DBUG_RETURN(error_num);
         if (key_part->key_part_flag & HA_REVERSE_SORT)
         {
@@ -13205,7 +14872,7 @@ int spider_mysql_copy_table::append_key_order_str(
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         sql.q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
         if ((error_num = spider_db_append_name_with_quote_str(&sql,
-          (char *) field->field_name.str, spider_dbton_mysql.dbton_id)))
+          field->field_name, dbton_id)))
           DBUG_RETURN(error_num);
         if (key_part->key_part_flag & HA_REVERSE_SORT)
         {
@@ -13228,13 +14895,13 @@ int spider_mysql_copy_table::append_key_order_str(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_copy_table::append_limit(
+int spider_mbase_copy_table::append_limit(
   longlong offset,
   longlong limit
 ) {
   char buf[SPIDER_LONGLONG_LEN + 1];
   uint32 length;
-  DBUG_ENTER("spider_mysql_copy_table::append_limit");
+  DBUG_ENTER("spider_mbase_copy_table::append_limit");
   DBUG_PRINT("info",("spider this=%p", this));
   if (offset || limit < 9223372036854775807LL)
   {
@@ -13256,9 +14923,9 @@ int spider_mysql_copy_table::append_limit(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_copy_table::append_into_str()
+int spider_mbase_copy_table::append_into_str()
 {
-  DBUG_ENTER("spider_mysql_copy_table::append_into_str");
+  DBUG_ENTER("spider_mbase_copy_table::append_into_str");
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql.reserve(SPIDER_SQL_INTO_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -13266,9 +14933,9 @@ int spider_mysql_copy_table::append_into_str()
   DBUG_RETURN(0);
 }
 
-int spider_mysql_copy_table::append_open_paren_str()
+int spider_mbase_copy_table::append_open_paren_str()
 {
-  DBUG_ENTER("spider_mysql_copy_table::append_open_paren_str");
+  DBUG_ENTER("spider_mbase_copy_table::append_open_paren_str");
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql.reserve(SPIDER_SQL_OPEN_PAREN_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -13276,9 +14943,9 @@ int spider_mysql_copy_table::append_open_paren_str()
   DBUG_RETURN(0);
 }
 
-int spider_mysql_copy_table::append_values_str()
+int spider_mbase_copy_table::append_values_str()
 {
-  DBUG_ENTER("spider_mysql_copy_table::append_values_str");
+  DBUG_ENTER("spider_mbase_copy_table::append_values_str");
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql.reserve(SPIDER_SQL_CLOSE_PAREN_LEN + SPIDER_SQL_VALUES_LEN +
     SPIDER_SQL_OPEN_PAREN_LEN))
@@ -13289,10 +14956,10 @@ int spider_mysql_copy_table::append_values_str()
   DBUG_RETURN(0);
 }
 
-int spider_mysql_copy_table::append_select_lock_str(
+int spider_mbase_copy_table::append_select_lock_str(
   int lock_mode
 ) {
-  DBUG_ENTER("spider_mysql_copy_table::append_select_lock_str");
+  DBUG_ENTER("spider_mbase_copy_table::append_select_lock_str");
   DBUG_PRINT("info",("spider this=%p", this));
   if (lock_mode == SPIDER_LOCK_MODE_EXCLUSIVE)
   {
@@ -13308,20 +14975,20 @@ int spider_mysql_copy_table::append_select_lock_str(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_copy_table::exec_query(
+int spider_mbase_copy_table::exec_query(
   SPIDER_CONN *conn,
   int quick_mode,
   int *need_mon
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_copy_table::exec_query");
+  DBUG_ENTER("spider_mbase_copy_table::exec_query");
   DBUG_PRINT("info",("spider this=%p", this));
   error_num = spider_db_query(conn, sql.ptr(), sql.length(), quick_mode,
     need_mon);
   DBUG_RETURN(error_num);
 }
 
-int spider_mysql_copy_table::copy_key_row(
+int spider_mbase_copy_table::copy_key_row(
   spider_db_copy_table *source_ct,
   Field *field,
   ulong *row_pos,
@@ -13330,14 +14997,14 @@ int spider_mysql_copy_table::copy_key_row(
   const int joint_length
 ) {
   int error_num;
-  spider_string *source_str = &((spider_mysql_copy_table *) source_ct)->sql;
-  DBUG_ENTER("spider_mysql_copy_table::copy_key_row");
+  spider_string *source_str = &((spider_mbase_copy_table *) source_ct)->sql;
+  DBUG_ENTER("spider_mbase_copy_table::copy_key_row");
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql.reserve(SPIDER_SQL_NAME_QUOTE_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   sql.q_append(SPIDER_SQL_NAME_QUOTE_STR, SPIDER_SQL_NAME_QUOTE_LEN);
   if ((error_num = spider_db_append_name_with_quote_str(&sql,
-    (char *) field->field_name.str, spider_dbton_mysql.dbton_id)))
+    field->field_name, dbton_id)))
     DBUG_RETURN(error_num);
   if (sql.reserve(SPIDER_SQL_NAME_QUOTE_LEN + joint_length + *length +
     SPIDER_SQL_AND_LEN))
@@ -13349,12 +15016,12 @@ int spider_mysql_copy_table::copy_key_row(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_copy_table::copy_row(
+int spider_mbase_copy_table::copy_row(
   Field *field,
   SPIDER_DB_ROW *row
 ) {
   int error_num;
-  DBUG_ENTER("spider_mysql_copy_table::copy_row");
+  DBUG_ENTER("spider_mbase_copy_table::copy_row");
   DBUG_PRINT("info",("spider this=%p", this));
   if (row->is_null())
   {
@@ -13367,7 +15034,7 @@ int spider_mysql_copy_table::copy_row(
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     sql.q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
     if ((error_num = row->append_escaped_to_str(&sql,
-      spider_dbton_mysql.dbton_id)))
+      dbton_id)))
       DBUG_RETURN(error_num);
     if (sql.reserve(SPIDER_SQL_VALUE_QUOTE_LEN + SPIDER_SQL_COMMA_LEN))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -13382,7 +15049,7 @@ int spider_mysql_copy_table::copy_row(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_copy_table::copy_rows(
+int spider_mbase_copy_table::copy_rows(
   TABLE *table,
   SPIDER_DB_ROW *row,
   ulong **last_row_pos,
@@ -13391,7 +15058,7 @@ int spider_mysql_copy_table::copy_rows(
   int error_num;
   Field **field;
   ulong *lengths2, *row_pos2;
-  DBUG_ENTER("spider_mysql_copy_table::copy_rows");
+  DBUG_ENTER("spider_mbase_copy_table::copy_rows");
   DBUG_PRINT("info",("spider this=%p", this));
   row_pos2 = *last_row_pos;
   lengths2 = *last_lengths;
@@ -13422,13 +15089,13 @@ int spider_mysql_copy_table::copy_rows(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_copy_table::copy_rows(
+int spider_mbase_copy_table::copy_rows(
   TABLE *table,
   SPIDER_DB_ROW *row
 ) {
   int error_num;
   Field **field;
-  DBUG_ENTER("spider_mysql_copy_table::copy_rows");
+  DBUG_ENTER("spider_mbase_copy_table::copy_rows");
   DBUG_PRINT("info",("spider this=%p", this));
   for (
     field = table->field;
@@ -13452,22 +15119,22 @@ int spider_mysql_copy_table::copy_rows(
   DBUG_RETURN(0);
 }
 
-int spider_mysql_copy_table::append_insert_terminator()
+int spider_mbase_copy_table::append_insert_terminator()
 {
-  DBUG_ENTER("spider_mysql_copy_table::append_insert_terminator");
+  DBUG_ENTER("spider_mbase_copy_table::append_insert_terminator");
   DBUG_PRINT("info",("spider this=%p", this));
   sql.length(sql.length() - SPIDER_SQL_COMMA_LEN - SPIDER_SQL_OPEN_PAREN_LEN);
   DBUG_RETURN(0);
 }
 
-int spider_mysql_copy_table::copy_insert_values(
+int spider_mbase_copy_table::copy_insert_values(
   spider_db_copy_table *source_ct
 ) {
-  spider_mysql_copy_table *tmp_ct = (spider_mysql_copy_table *) source_ct;
+  spider_mbase_copy_table *tmp_ct = (spider_mbase_copy_table *) source_ct;
   spider_string *source_str = &tmp_ct->sql;
   int values_length = source_str->length() - tmp_ct->pos;
   const char *values_ptr = source_str->ptr() + tmp_ct->pos;
-  DBUG_ENTER("spider_mysql_copy_table::copy_insert_values");
+  DBUG_ENTER("spider_mbase_copy_table::copy_insert_values");
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql.reserve(values_length))
   {

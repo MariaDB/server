@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 # Copyright (c) 2000, 2001, 2003, 2006 MySQL AB, 2009 Sun Microsystems, Inc.
 # Use is subject to license terms.
 #
@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Library General Public
 # License along with this library; if not, write to the Free
 # Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-# MA 02110-1301, USA
+# MA 02110-1335  USA
 #
 # Test of creating the ATIS database and doing many different selects on it
 #
@@ -369,7 +369,7 @@ sub init_data
   @class_of_service=
     $server->create("class_of_service",
 		    ["class_code char(2) NOT NULL",
-		     "rank tinyint(2) NOT NULL",
+		     "`rank` tinyint(2) NOT NULL",
 		     "class_description char(80) NOT NULL"],
 		    ["PRIMARY KEY (class_code)"]);
   @code_description=

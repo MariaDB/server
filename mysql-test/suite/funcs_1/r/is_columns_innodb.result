@@ -359,9 +359,9 @@ drop TABLE if exists t7, t8;
 CREATE TABLE t7 (f1 char(20),f2 char(25),f3 date,f4 int) ENGINE = InnoDB;
 CREATE TABLE t8 (f1 char(20),f2 char(25),f3 date,f4 int) ENGINE = InnoDB;
 LOAD DATA INFILE '<MYSQLTEST_VARDIR>/std_data/funcs_1/t7.txt' INTO TABLE t7;
-ERROR 22007: Incorrect date value: '' for column 'f3' at row 1
+ERROR 22007: Incorrect date value: '' for column `test`.`t7`.`f3` at row 1
 LOAD DATA INFILE '<MYSQLTEST_VARDIR>/std_data/funcs_1/t7.txt' INTO TABLE t8;
-ERROR 22007: Incorrect date value: '' for column 'f3' at row 1
+ERROR 22007: Incorrect date value: '' for column `test`.`t8`.`f3` at row 1
 drop TABLE if exists t9;
 CREATE TABLE t9 (f1 int, f2 char(25), f3 int) ENGINE = InnoDB;
 LOAD DATA INFILE '<MYSQLTEST_VARDIR>/std_data/funcs_1/t9.txt' INTO TABLE t9;
@@ -427,9 +427,9 @@ def	test	tb1	f19	19	NULL	YES	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(5) u
 def	test	tb1	f2	2	NULL	YES	char	0	0	NULL	NULL	NULL	latin1	latin1_bin	char(0)			select,insert,update,references		NEVER	NULL
 def	test	tb1	f20	20	NULL	YES	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(5) unsigned zerofill			select,insert,update,references		NEVER	NULL
 def	test	tb1	f21	21	NULL	YES	mediumint	NULL	NULL	7	0	NULL	NULL	NULL	mediumint(9)			select,insert,update,references		NEVER	NULL
-def	test	tb1	f22	22	NULL	YES	mediumint	NULL	NULL	7	0	NULL	NULL	NULL	mediumint(8) unsigned			select,insert,update,references		NEVER	NULL
-def	test	tb1	f23	23	NULL	YES	mediumint	NULL	NULL	7	0	NULL	NULL	NULL	mediumint(8) unsigned zerofill			select,insert,update,references		NEVER	NULL
-def	test	tb1	f24	24	NULL	YES	mediumint	NULL	NULL	7	0	NULL	NULL	NULL	mediumint(8) unsigned zerofill			select,insert,update,references		NEVER	NULL
+def	test	tb1	f22	22	NULL	YES	mediumint	NULL	NULL	8	0	NULL	NULL	NULL	mediumint(8) unsigned			select,insert,update,references		NEVER	NULL
+def	test	tb1	f23	23	NULL	YES	mediumint	NULL	NULL	8	0	NULL	NULL	NULL	mediumint(8) unsigned zerofill			select,insert,update,references		NEVER	NULL
+def	test	tb1	f24	24	NULL	YES	mediumint	NULL	NULL	8	0	NULL	NULL	NULL	mediumint(8) unsigned zerofill			select,insert,update,references		NEVER	NULL
 def	test	tb1	f25	25	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references		NEVER	NULL
 def	test	tb1	f26	26	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select,insert,update,references		NEVER	NULL
 def	test	tb1	f27	27	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned zerofill			select,insert,update,references		NEVER	NULL
@@ -543,9 +543,9 @@ def	test	tb3	f135	18	999	NO	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(5) un
 def	test	tb3	f136	19	00999	NO	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(5) unsigned zerofill			select,insert,update,references		NEVER	NULL
 def	test	tb3	f137	20	00999	NO	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(5) unsigned zerofill			select,insert,update,references		NEVER	NULL
 def	test	tb3	f138	21	9999	NO	mediumint	NULL	NULL	7	0	NULL	NULL	NULL	mediumint(9)			select,insert,update,references		NEVER	NULL
-def	test	tb3	f139	22	9999	NO	mediumint	NULL	NULL	7	0	NULL	NULL	NULL	mediumint(8) unsigned			select,insert,update,references		NEVER	NULL
-def	test	tb3	f140	23	00009999	NO	mediumint	NULL	NULL	7	0	NULL	NULL	NULL	mediumint(8) unsigned zerofill			select,insert,update,references		NEVER	NULL
-def	test	tb3	f141	24	00009999	NO	mediumint	NULL	NULL	7	0	NULL	NULL	NULL	mediumint(8) unsigned zerofill			select,insert,update,references		NEVER	NULL
+def	test	tb3	f139	22	9999	NO	mediumint	NULL	NULL	8	0	NULL	NULL	NULL	mediumint(8) unsigned			select,insert,update,references		NEVER	NULL
+def	test	tb3	f140	23	00009999	NO	mediumint	NULL	NULL	8	0	NULL	NULL	NULL	mediumint(8) unsigned zerofill			select,insert,update,references		NEVER	NULL
+def	test	tb3	f141	24	00009999	NO	mediumint	NULL	NULL	8	0	NULL	NULL	NULL	mediumint(8) unsigned zerofill			select,insert,update,references		NEVER	NULL
 def	test	tb3	f142	25	99999	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references		NEVER	NULL
 def	test	tb3	f143	26	99999	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select,insert,update,references		NEVER	NULL
 def	test	tb3	f144	27	0000099999	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned zerofill			select,insert,update,references		NEVER	NULL

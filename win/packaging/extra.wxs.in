@@ -53,7 +53,7 @@
     <Property Id="DISABLEADVTSHORTCUTS" Secure="yes" Value="1"/>
 
     <!-- Activate feedback plugin-->
-    <Property Id="FEEDBACK" Secure="yes" Value="1"/>
+    <Property Id="FEEDBACK" Secure="yes"/>
 
 
     <!-- Quick configuration : set default storage engine to innodb, use strict sql_mode -->
@@ -71,8 +71,8 @@
     <!-- 
       User interface dialogs 
      -->
-    <WixVariable Id='WixUIBannerBmp' Value='@CMAKE_CURRENT_SOURCE_DIR@\WixUIBannerBmp.jpg' />
-    <WixVariable Id='WixUIDialogBmp' Value='@CMAKE_CURRENT_SOURCE_DIR@\WixUIDialogBmp.jpg' />
+    <WixVariable Id='WixUIBannerBmp' Value='@SRCDIR@\WixUIBannerBmp.jpg' />
+    <WixVariable Id='WixUIDialogBmp' Value='@SRCDIR@\WixUIDialogBmp.jpg' />
     <UI>
 
       <!-- Dialog on uninstall of the database -->
@@ -666,7 +666,7 @@
     <CustomAction Id="CreateDatabaseRollbackCommand" Property="CreateDatabaseRollback"
         Value="[SERVICENAME]\[DATADIR]"
         Execute="immediate"/>
-    <CustomAction Id="CreateDatabase" BinaryKey="WixCA" DllEntry="CAQuietExec"
+    <CustomAction Id="CreateDatabase" BinaryKey="WixCA" DllEntry="@CA_QUIET_EXEC@"
             Execute="deferred" Return="check" Impersonate="no" />
     <CustomAction Id="CreateDatabaseRollback" BinaryKey="wixca.dll" DllEntry="CreateDatabaseRollback"
         Execute="rollback" Return="check" Impersonate="no"/>

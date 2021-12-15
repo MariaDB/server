@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include <my_global.h>
 
@@ -168,8 +168,8 @@ static void get_options(int argc, char **argv)
 {
   int ho_error;
 
-  if ((ho_error= load_defaults("my",load_default_groups,&argc,&argv)) ||
-      (ho_error= handle_options(&argc, &argv, my_long_options, get_one_option)))
+  load_defaults_or_exit("my", load_default_groups, &argc, &argv);
+  if ((ho_error= handle_options(&argc, &argv, my_long_options, get_one_option)))
     exit(ho_error);
 
   free_defaults(argv);

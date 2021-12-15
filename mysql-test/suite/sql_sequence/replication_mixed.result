@@ -1,0 +1,35 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-16234
+# CREATE TABLE .. SELECT LASTVAL is written to binlog as single
+# statement, causes discrepancy between master and slave
+#
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+SELECT NEXTVAL(s1);
+NEXTVAL(s1)
+1
+CREATE TABLE t1 ENGINE=InnoDB SELECT LASTVAL(s1) AS a;
+INSERT INTO t1 VALUES (NEXTVAL(s1));
+INSERT INTO t1 VALUES (LASTVAL(s1));
+SELECT * FROM t1;
+a
+1
+2
+2
+SELECT * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1001	1	9223372036854775806	1	1	1000	0	0
+connection slave;
+SELECT * FROM t1;
+a
+1
+2
+2
+SELECT * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1001	1	9223372036854775806	1	1	1000	0	0
+connection master;
+DROP TABLE t1;
+DROP SEQUENCE s1;
+include/rpl_end.inc

@@ -49,7 +49,7 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "ft/serialize/block_allocator.h"
 #include "ft/serialize/rbtree_mhs.h"
 
-#if TOKU_DEBUG_PARANOID
+#if defined(TOKU_DEBUG_PARANOID) && TOKU_DEBUG_PARANOID
 #define VALIDATE() Validate()
 #else
 #define VALIDATE()

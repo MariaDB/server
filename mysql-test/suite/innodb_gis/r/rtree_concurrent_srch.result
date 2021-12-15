@@ -234,7 +234,7 @@ start transaction;
 set @g1 = ST_GeomFromText('Polygon((800 800, 800 1000, 1000 1000, 1000 800, 800 800))');
 select count(*) from t1 where MBRwithin(t1.c2, @g1);
 count(*)
-201
+199
 connection b;
 CALL insert_t1(1001, 2000);
 set session transaction isolation level serializable;
@@ -260,9 +260,7 @@ INSERT INTO t1  VALUES (1, ST_GeomFromText('LineString(6 6, 190 190)'));
 INSERT INTO t1  VALUES (1, ST_GeomFromText('LineString(7 7, 200 200)'));
 INSERT INTO t1  VALUES (1, ST_GeomFromText('LineString(8 8, 210 210)'));
 connect  a,localhost,root,,;
-SET SESSION debug="+d,rtr_pcur_move_to_next_return";
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET SESSION debug_dbug='+d,rtr_pcur_move_to_next_return';
 set transaction isolation level serializable;
 start transaction;
 set @g1 = ST_GeomFromText('Polygon((100 100, 100 110, 110 110, 110 100, 100 100))');

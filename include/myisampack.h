@@ -2,6 +2,7 @@
 #define MYISAMPACK_INCLUDED
 
 /* Copyright (c) 2000-2002, 2004 MySQL AB, 2009 Sun Microsystems, Inc.
+   Copyright (c) 2020, MariaDB Corporation.
    Use is subject to license terms.
 
    This program is free software; you can redistribute it and/or modify
@@ -15,7 +16,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Storing of values in high byte first order.
@@ -28,7 +29,7 @@
 #define mi_sint1korr(A) ((int8)(*A))
 #define mi_uint1korr(A) ((uint8)(*A))
 
-#define mi_sint2korr(A) ((int16) (((int16) (((const uchar*) (A))[1])) +\
+#define mi_sint2korr(A) ((int16) (((int16) (((const uchar*) (A))[1])) |\
                                   ((int16) ((int16) ((const char*) (A))[0]) << 8)))
 #define mi_sint3korr(A) ((int32) (((((const uchar*) (A))[0]) & 128) ? \
                                   (((uint32) 255L << 24) | \
@@ -38,58 +39,58 @@
                                   (((uint32) ((const uchar*) (A))[0]) << 16) |\
                                   (((uint32) ((const uchar*) (A))[1]) << 8) | \
                                   ((uint32) ((const uchar*) (A))[2])))
-#define mi_sint4korr(A) ((int32) (((int32) (((const uchar*) (A))[3])) +\
-                                  ((int32) (((const uchar*) (A))[2]) << 8) +\
-                                  ((int32) (((const uchar*) (A))[1]) << 16) +\
+#define mi_sint4korr(A) ((int32) (((int32) (((const uchar*) (A))[3])) |\
+                                  ((int32) (((const uchar*) (A))[2]) << 8) |\
+                                  ((int32) (((const uchar*) (A))[1]) << 16) |\
                                   ((int32) ((int16) ((const char*) (A))[0]) << 24)))
 #define mi_sint8korr(A) ((longlong) mi_uint8korr(A))
-#define mi_uint2korr(A) ((uint16) (((uint16) (((const uchar*) (A))[1])) +\
+#define mi_uint2korr(A) ((uint16) (((uint16) (((const uchar*) (A))[1])) |\
                                    ((uint16) (((const uchar*) (A))[0]) << 8)))
-#define mi_uint3korr(A) ((uint32) (((uint32) (((const uchar*) (A))[2])) +\
-                                   (((uint32) (((const uchar*) (A))[1])) << 8) +\
+#define mi_uint3korr(A) ((uint32) (((uint32) (((const uchar*) (A))[2])) |\
+                                   (((uint32) (((const uchar*) (A))[1])) << 8) |\
                                    (((uint32) (((const uchar*) (A))[0])) << 16)))
-#define mi_uint4korr(A) ((uint32) (((uint32) (((const uchar*) (A))[3])) +\
-                                   (((uint32) (((const uchar*) (A))[2])) << 8) +\
-                                   (((uint32) (((const uchar*) (A))[1])) << 16) +\
+#define mi_uint4korr(A) ((uint32) (((uint32) (((const uchar*) (A))[3])) |\
+                                   (((uint32) (((const uchar*) (A))[2])) << 8) |\
+                                   (((uint32) (((const uchar*) (A))[1])) << 16) |\
                                    (((uint32) (((const uchar*) (A))[0])) << 24)))
 
 #ifndef HAVE_mi_uint5korr
-#define mi_uint5korr(A) ((ulonglong)(((uint32) (((const uchar*) (A))[4])) +\
-                                    (((uint32) (((const uchar*) (A))[3])) << 8) +\
-                                    (((uint32) (((const uchar*) (A))[2])) << 16) +\
-                                    (((uint32) (((const uchar*) (A))[1])) << 24)) +\
+#define mi_uint5korr(A) ((ulonglong)(((uint32) (((const uchar*) (A))[4])) |\
+                                    (((uint32) (((const uchar*) (A))[3])) << 8) |\
+                                    (((uint32) (((const uchar*) (A))[2])) << 16) |\
+                                    (((uint32) (((const uchar*) (A))[1])) << 24)) |\
                                     (((ulonglong) (((const uchar*) (A))[0])) << 32))
 #endif /* HAVE_mi_uint5korr */
 
 #ifndef HAVE_mi_uint6korr
-#define mi_uint6korr(A) ((ulonglong)(((uint32) (((const uchar*) (A))[5])) +\
-                                    (((uint32) (((const uchar*) (A))[4])) << 8) +\
-                                    (((uint32) (((const uchar*) (A))[3])) << 16) +\
-                                    (((uint32) (((const uchar*) (A))[2])) << 24)) +\
-                        (((ulonglong) (((uint32) (((const uchar*) (A))[1])) +\
+#define mi_uint6korr(A) ((ulonglong)(((uint32) (((const uchar*) (A))[5])) |\
+                                    (((uint32) (((const uchar*) (A))[4])) << 8) |\
+                                    (((uint32) (((const uchar*) (A))[3])) << 16) |\
+                                    (((uint32) (((const uchar*) (A))[2])) << 24)) |\
+                        (((ulonglong) (((uint32) (((const uchar*) (A))[1])) |\
                                     (((uint32) (((const uchar*) (A))[0]) << 8)))) <<\
                                      32))
 #endif /* HAVE_mi_uint6korr */
 
 #ifndef HAVE_mi_uint7korr
-#define mi_uint7korr(A) ((ulonglong)(((uint32) (((const uchar*) (A))[6])) +\
-                                    (((uint32) (((const uchar*) (A))[5])) << 8) +\
-                                    (((uint32) (((const uchar*) (A))[4])) << 16) +\
-                                    (((uint32) (((const uchar*) (A))[3])) << 24)) +\
-                        (((ulonglong) (((uint32) (((const uchar*) (A))[2])) +\
-                                    (((uint32) (((const uchar*) (A))[1])) << 8) +\
+#define mi_uint7korr(A) ((ulonglong)(((uint32) (((const uchar*) (A))[6])) |\
+                                    (((uint32) (((const uchar*) (A))[5])) << 8) |\
+                                    (((uint32) (((const uchar*) (A))[4])) << 16) |\
+                                    (((uint32) (((const uchar*) (A))[3])) << 24)) |\
+                        (((ulonglong) (((uint32) (((const uchar*) (A))[2])) |\
+                                    (((uint32) (((const uchar*) (A))[1])) << 8) |\
                                     (((uint32) (((const uchar*) (A))[0])) << 16))) <<\
                                      32))
 #endif /* HAVE_mi_uint7korr */
 
 #ifndef HAVE_mi_uint8korr
-#define mi_uint8korr(A) ((ulonglong)(((uint32) (((const uchar*) (A))[7])) +\
-                                    (((uint32) (((const uchar*) (A))[6])) << 8) +\
-                                    (((uint32) (((const uchar*) (A))[5])) << 16) +\
-                                    (((uint32) (((const uchar*) (A))[4])) << 24)) +\
-                        (((ulonglong) (((uint32) (((const uchar*) (A))[3])) +\
-                                    (((uint32) (((const uchar*) (A))[2])) << 8) +\
-                                    (((uint32) (((const uchar*) (A))[1])) << 16) +\
+#define mi_uint8korr(A) ((ulonglong)(((uint32) (((const uchar*) (A))[7])) |\
+                                    (((uint32) (((const uchar*) (A))[6])) << 8) |\
+                                    (((uint32) (((const uchar*) (A))[5])) << 16) |\
+                                    (((uint32) (((const uchar*) (A))[4])) << 24)) |\
+                        (((ulonglong) (((uint32) (((const uchar*) (A))[3])) |\
+                                    (((uint32) (((const uchar*) (A))[2])) << 8) |\
+                                    (((uint32) (((const uchar*) (A))[1])) << 16) |\
                                     (((uint32) (((const uchar*) (A))[0])) << 24))) <<\
                                     32))
 #endif /* HAVE_mi_uint8korr */

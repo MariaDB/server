@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -37,11 +37,7 @@ dict_mem_fill_index_struct(
 /*=======================*/
 	dict_index_t*	index,		/*!< out: index to be filled */
 	mem_heap_t*	heap,		/*!< in: memory heap */
-	const char*	table_name,	/*!< in: table name */
 	const char*	index_name,	/*!< in: index name */
-	ulint		space,		/*!< in: space where the index tree is
-					placed, ignored if the index is of
-					the clustered type */
 	ulint		type,		/*!< in: DICT_UNIQUE,
 					DICT_CLUSTERED, ... ORed */
 	ulint		n_fields)	/*!< in: number of fields */
@@ -61,10 +57,8 @@ dict_mem_fill_index_struct(
 	/* Assign a ulint to a 4-bit-mapped field.
 	Only the low-order 4 bits are assigned. */
 	index->type = unsigned(type);
-	index->space = (unsigned int) space;
 	index->page = FIL_NULL;
 	index->merge_threshold = DICT_INDEX_MERGE_THRESHOLD_DEFAULT;
-	index->table_name = table_name;
 	index->n_fields = (unsigned int) n_fields;
 	index->n_core_fields = (unsigned int) n_fields;
 	/* The '1 +' above prevents allocation

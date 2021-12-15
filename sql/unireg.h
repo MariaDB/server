@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 #include <mysql_version.h>                      /* FRM_VER */
@@ -81,7 +81,8 @@
 #define cmp_record(A,B) memcmp((A)->record[0],(A)->B,(size_t) (A)->s->reclength)
 #define empty_record(A) { \
                           restore_record((A),s->default_values); \
-                          bfill((A)->null_flags,(A)->s->null_bytes,255);\
+                          if ((A)->s->null_bytes) \
+                            bfill((A)->null_flags,(A)->s->null_bytes,255); \
                         }
 
 	/* Defines for use with openfrm, openprt and openfrd */
@@ -176,7 +177,6 @@ enum extra2_frm_value_type {
   EXTRA2_DEFAULT_PART_ENGINE=1,
   EXTRA2_GIS=2,
   EXTRA2_PERIOD_FOR_SYSTEM_TIME=4,
-  EXTRA2_VTMD=8,
 
 #define EXTRA2_ENGINE_IMPORTANT 128
 
@@ -185,8 +185,7 @@ enum extra2_frm_value_type {
 };
 
 enum extra2_field_flags {
-  VERS_OPTIMIZED_UPDATE= 1 << INVISIBLE_MAX_BITS,
-  VERS_HIDDEN= 1 << (INVISIBLE_MAX_BITS + 1),
+  VERS_OPTIMIZED_UPDATE= 1 << INVISIBLE_MAX_BITS
 };
 
 int rea_create_table(THD *thd, LEX_CUSTRING *frm,
@@ -200,7 +199,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING *table,
 
 #define FRM_HEADER_SIZE 64
 #define FRM_FORMINFO_SIZE 288
-#define FRM_MAX_SIZE (512*1024)
+#define FRM_MAX_SIZE (1024*1024)
 
 static inline bool is_binary_frm_header(uchar *head)
 {

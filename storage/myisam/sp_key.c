@@ -11,7 +11,7 @@
    
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "myisamdef.h"
 
@@ -66,7 +66,6 @@ uint sp_make_key(register MI_INFO *info, uint keynr, uchar *key,
     DBUG_ASSERT(keyseg->type == HA_KEYTYPE_DOUBLE);
     
     val= mbr[start / sizeof (double)];
-#ifdef HAVE_ISNAN
     if (isnan(val))
     {
       bzero(key, length);
@@ -74,7 +73,6 @@ uint sp_make_key(register MI_INFO *info, uint keynr, uchar *key,
       len+= length;
       continue;
     }
-#endif
 
     if (keyseg->flag & HA_SWAP_KEY)
     {

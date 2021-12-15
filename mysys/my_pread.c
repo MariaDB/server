@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mysys_priv.h"
 #include "mysys_err.h"
@@ -47,8 +47,7 @@
 size_t my_pread(File Filedes, uchar *Buffer, size_t Count, my_off_t offset,
                 myf MyFlags)
 {
-  size_t readbytes;
-  int error= 0;
+  size_t readbytes, save_count= 0;
 
   DBUG_ENTER("my_pread");
 
@@ -66,11 +65,12 @@ size_t my_pread(File Filedes, uchar *Buffer, size_t Count, my_off_t offset,
 #else
     readbytes= pread(Filedes, Buffer, Count, offset);
 #endif
-    error = (readbytes != Count);
 
-    if (error)
+    if (readbytes != Count)
     {
-      my_errno= errno ? errno : -1;
+      /* We should never read with wrong file descriptor! */
+      DBUG_ASSERT(readbytes != (size_t)-1 || errno != EBADF);
+      my_errno= errno;
       if (errno == 0 || (readbytes != (size_t) -1 &&
                          (MyFlags & (MY_NABP | MY_FNABP))))
         my_errno= HA_ERR_FILE_TOO_SHORT;
@@ -82,6 +82,18 @@ size_t my_pread(File Filedes, uchar *Buffer, size_t Count, my_off_t offset,
                              (int) readbytes));
         continue;                              /* Interrupted */
       }
+
+      /* Do a read retry if we didn't get enough data on first read */
+      if (readbytes != (size_t) -1 && readbytes != 0 &&
+          (MyFlags & MY_FULL_IO))
+      {
+        Buffer+= readbytes;
+        Count-= readbytes;
+        save_count+= readbytes;
+        offset+= readbytes;
+        continue;
+      }
+
       if (MyFlags & (MY_WME | MY_FAE | MY_FNABP))
       {
 	if (readbytes == (size_t) -1)
@@ -97,8 +109,10 @@ size_t my_pread(File Filedes, uchar *Buffer, size_t Count, my_off_t offset,
         DBUG_RETURN(MY_FILE_ERROR);         /* Return with error */
     }
     if (MyFlags & (MY_NABP | MY_FNABP))
-      DBUG_RETURN(0);                      /* Read went ok; Return 0 */
-    DBUG_RETURN(readbytes);                /* purecov: inspected */
+      readbytes= 0;                       /* Read went ok; Return 0 */
+    else
+      readbytes+= save_count;
+    DBUG_RETURN(readbytes);
   }
 } /* my_pread */
 

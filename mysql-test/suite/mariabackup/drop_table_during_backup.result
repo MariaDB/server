@@ -1,0 +1,18 @@
+CREATE TABLE t1 (i int) ENGINE=INNODB;
+CREATE TABLE t2 (i int) ENGINE=INNODB;
+CREATE TABLE t3 (i int) ENGINE=INNODB;
+CREATE TABLE t4 (i int) ENGINE=INNODB;
+CREATE TABLE t5 (i int) ENGINE=INNODB;
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+CREATE TABLE t1(i int);
+DROP TABLE t1;
+CREATE TABLE t2(i int);
+DROP TABLE t2;
+DROP TABLE t3;
+CREATE TABLE t4(i int);
+DROP TABLE t4;
+DROP TABLE t5;

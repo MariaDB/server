@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 #pragma once
 
 /* C++ standard header files */
@@ -22,8 +22,8 @@
 #include <string>
 
 /* MySQL header files */
-#include "./handler.h"
 #include <my_global.h>
+#include "./handler.h"
 
 #include "rdb_mariadb_port.h"
 
@@ -37,8 +37,13 @@ enum {
   PC_BLOCK_READ_TIME,
   PC_BLOCK_CHECKSUM_TIME,
   PC_BLOCK_DECOMPRESS_TIME,
+  PC_GET_READ_BYTES,
+  PC_MULTIGET_READ_BYTES,
+  PC_ITER_READ_BYTES,
   PC_KEY_SKIPPED,
   PC_DELETE_SKIPPED,
+  PC_RECENT_SKIPPED,
+  PC_MERGE,
   PC_GET_SNAPSHOT_TIME,
   PC_GET_FROM_MEMTABLE_TIME,
   PC_GET_FROM_MEMTABLE_COUNT,
@@ -46,9 +51,12 @@ enum {
   PC_GET_FROM_OUTPUT_FILES_TIME,
   PC_SEEK_ON_MEMTABLE_TIME,
   PC_SEEK_ON_MEMTABLE_COUNT,
+  PC_NEXT_ON_MEMTABLE_COUNT,
+  PC_PREV_ON_MEMTABLE_COUNT,
   PC_SEEK_CHILD_SEEK_TIME,
   PC_SEEK_CHILD_SEEK_COUNT,
   PC_SEEK_MIN_HEAP_TIME,
+  PC_SEEK_MAX_HEAP_TIME,
   PC_SEEK_INTERNAL_SEEK_TIME,
   PC_FIND_NEXT_USER_ENTRY_TIME,
   PC_WRITE_WAL_TIME,
@@ -64,6 +72,12 @@ enum {
   PC_NEW_TABLE_ITERATOR_NANOS,
   PC_BLOCK_SEEK_NANOS,
   PC_FIND_TABLE_NANOS,
+  PC_BLOOM_MEMTABLE_HIT_COUNT,
+  PC_BLOOM_MEMTABLE_MISS_COUNT,
+  PC_BLOOM_SST_HIT_COUNT,
+  PC_BLOOM_SST_MISS_COUNT,
+  PC_KEY_LOCK_WAIT_TIME,
+  PC_KEY_LOCK_WAIT_COUNT,
   PC_IO_THREAD_POOL_ID,
   PC_IO_BYTES_WRITTEN,
   PC_IO_BYTES_READ,
@@ -94,7 +108,7 @@ class Rdb_perf_counters {
   Rdb_perf_counters(const Rdb_perf_counters &) = delete;
   Rdb_perf_counters &operator=(const Rdb_perf_counters &) = delete;
 
-public:
+ public:
   Rdb_perf_counters() = default;
   uint64_t m_value[PC_MAX_IDX];
 
@@ -144,8 +158,11 @@ class Rdb_io_perf {
   void end_and_record(const uint32_t perf_context_level);
 
   explicit Rdb_io_perf()
-      : m_atomic_counters(nullptr), m_shared_io_perf_read(nullptr),
-        m_stats(nullptr), io_write_bytes(0), io_write_requests(0) {}
+      : m_atomic_counters(nullptr),
+        m_shared_io_perf_read(nullptr),
+        m_stats(nullptr),
+        io_write_bytes(0),
+        io_write_requests(0) {}
 };
 
-} // namespace myrocks
+}  // namespace myrocks

@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2015  MariaDB Foundation.
+   Copyright (c) 2015, 2020, MariaDB
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -12,13 +12,14 @@
 
  You should have received a copy of the GNU General Public License
  along with this program; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_type.h"
 #include "sql_const.h"
 #include "sql_class.h"
 #include "sql_time.h"
+#include "sql_string.h"
 #include "item.h"
 #include "log.h"
 
@@ -67,6 +68,12 @@ static Type_handler_blob_compressed type_handler_blob_compressed;
 #ifdef HAVE_SPATIAL
 Type_handler_geometry    type_handler_geometry;
 #endif
+
+
+Schema *Type_handler::schema() const
+{
+  return &mariadb_schema;
+}
 
 
 bool Type_handler_data::init()
@@ -125,6 +132,32 @@ bool Type_handler_data::init()
 Type_handler_data *type_handler_data= NULL;
 
 
+bool Float::to_string(String *val_buffer, uint dec) const
+{
+  uint to_length= 70;
+  if (val_buffer->alloc(to_length))
+    return true;
+
+  char *to=(char*) val_buffer->ptr();
+  size_t len;
+
+  if (dec >= FLOATING_POINT_DECIMALS)
+    len= my_gcvt(m_value, MY_GCVT_ARG_FLOAT, to_length - 1, to, NULL);
+  else
+  {
+    /*
+      We are safe here because the buffer length is 70, and
+      fabs(float) < 10^39, dec < FLOATING_POINT_DECIMALS. So the resulting string
+      will be not longer than 69 chars + terminating '\0'.
+    */
+    len= my_fcvt(m_value, (int) dec, to, NULL);
+  }
+  val_buffer->length((uint) len);
+  val_buffer->set_charset(&my_charset_numeric);
+  return false;
+}
+
+
 void Time::make_from_item(Item *item, const Options opt)
 {
   if (item->get_date(this, opt.get_date_flags()))
@@ -157,15 +190,6 @@ void Temporal_with_date::make_from_item(THD *thd, Item *item, sql_mode_t flags)
     else
       *(static_cast<MYSQL_TIME*>(this))= tmp;
   }
-}
-
-
-void Type_std_attributes::set(const Field *field)
-{
-  decimals= field->decimals();
-  unsigned_flag= MY_TEST(field->flags & UNSIGNED_FLAG);
-  collation.set(field->charset(), field->derivation(), field->repertoire());
-  fix_char_length(field->char_length());
 }
 
 
@@ -293,7 +317,7 @@ bool Type_std_attributes::count_string_length(const char *func_name,
   This method is used by:
   - Item_user_var_as_out_param::field_type()
   - Item_func_udf_str::field_type()
-  - Item_empty_string::make_field()
+  - Item_empty_string::make_send_field()
 
   TODO: type_handler_adjusted_to_max_octet_length() and string_type_handler()
   provide very similar functionality, to properly choose between
@@ -310,6 +334,8 @@ Type_handler::string_type_handler(uint max_octet_length)
     return &type_handler_long_blob;
   else if (max_octet_length >= 65536)
     return &type_handler_medium_blob;
+  else if (max_octet_length >= MAX_FIELD_VARCHARLENGTH)
+    return &type_handler_blob;
   return &type_handler_varchar;
 }
 
@@ -473,6 +499,20 @@ const Name
   Type_handler_date_common::m_name_date(STRING_WITH_LEN("date")),
   Type_handler_datetime_common::m_name_datetime(STRING_WITH_LEN("datetime")),
   Type_handler_timestamp_common::m_name_timestamp(STRING_WITH_LEN("timestamp"));
+
+
+const Type_limits_int
+  Type_handler_tiny::m_limits_sint8=      Type_limits_sint8(),
+  Type_handler_tiny::m_limits_uint8=      Type_limits_uint8(),
+  Type_handler_short::m_limits_sint16=    Type_limits_sint16(),
+  Type_handler_short::m_limits_uint16=    Type_limits_uint16(),
+  Type_handler_int24::m_limits_sint24=    Type_limits_sint24(),
+  Type_handler_int24::m_limits_uint24=    Type_limits_uint24(),
+  Type_handler_long::m_limits_sint32=     Type_limits_sint32(),
+  Type_handler_long::m_limits_uint32=     Type_limits_uint32(),
+  Type_handler_longlong::m_limits_sint64= Type_limits_sint64(),
+  Type_handler_longlong::m_limits_uint64= Type_limits_uint64();
+
 
 /***************************************************************************/
 
@@ -694,9 +734,7 @@ Type_handler_hybrid_field_type::aggregate_for_comparison(const Type_handler *h)
 
   Item_result a= cmp_type();
   Item_result b= h->cmp_type();
-  if (m_vers_trx_id && (a == STRING_RESULT || b == STRING_RESULT))
-    m_type_handler= &type_handler_datetime;
-  else if (a == STRING_RESULT && b == STRING_RESULT)
+  if (a == STRING_RESULT && b == STRING_RESULT)
     m_type_handler= &type_handler_long_blob;
   else if (a == INT_RESULT && b == INT_RESULT)
     m_type_handler= &type_handler_longlong;
@@ -1343,6 +1381,7 @@ Field *Type_handler_varchar::make_conversion_table_field(TABLE *table,
                                                          const Field *target)
                                                          const
 {
+  DBUG_ASSERT(HA_VARCHAR_PACKLENGTH(metadata) <= MAX_FIELD_VARCHARLENGTH);
   return new(table->in_use->mem_root)
          Field_varstring(NULL, metadata, HA_VARCHAR_PACKLENGTH(metadata),
                          (uchar *) "", 1, Field::NONE, &empty_clex_str,
@@ -1365,60 +1404,20 @@ Field *Type_handler_varchar_compressed::make_conversion_table_field(TABLE *table
 }
 
 
-Field *Type_handler_tiny_blob::make_conversion_table_field(TABLE *table,
-                                                           uint metadata,
-                                                           const Field *target)
-                                                           const
-{
-  return new(table->in_use->mem_root)
-         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
-                    table->s, 1, target->charset());
-}
-
-
-Field *Type_handler_blob::make_conversion_table_field(TABLE *table,
-                                                      uint metadata,
-                                                      const Field *target)
-                                                      const
-{
-  return new(table->in_use->mem_root)
-         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
-                    table->s, 2, target->charset());
-}
-
 
 Field *Type_handler_blob_compressed::make_conversion_table_field(TABLE *table,
                                                       uint metadata,
                                                       const Field *target)
                                                       const
 {
+  uint pack_length= metadata & 0x00ff;
+  if (pack_length < 1 || pack_length > 4)
+    return NULL; // Broken binary log?
   return new(table->in_use->mem_root)
          Field_blob_compressed(NULL, (uchar *) "", 1, Field::NONE,
                                &empty_clex_str,
-                               table->s, 2, target->charset(),
+                               table->s, pack_length, target->charset(),
                                zlib_compression_method);
-}
-
-
-Field *Type_handler_medium_blob::make_conversion_table_field(TABLE *table,
-                                                           uint metadata,
-                                                           const Field *target)
-                                                           const
-{
-  return new(table->in_use->mem_root)
-         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
-                    table->s, 3, target->charset());
-}
-
-
-Field *Type_handler_long_blob::make_conversion_table_field(TABLE *table,
-                                                           uint metadata,
-                                                           const Field *target)
-                                                           const
-{
-  return new(table->in_use->mem_root)
-         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
-                    table->s, 4, target->charset());
 }
 
 
@@ -2375,6 +2374,8 @@ Field *Type_handler_varchar::make_table_field(const LEX_CSTRING *name,
                                               TABLE *table) const
 
 {
+  DBUG_ASSERT(HA_VARCHAR_PACKLENGTH(attr.max_length) <=
+              MAX_FIELD_VARCHARLENGTH);
   return new (table->in_use->mem_root)
          Field_varstring(addr.ptr, attr.max_length,
                          HA_VARCHAR_PACKLENGTH(attr.max_length),
@@ -2538,6 +2539,14 @@ uint32 Type_handler_bit::max_display_length(const Item *item) const
 {
   return item->max_length;
 }
+
+
+uint32 Type_handler_general_purpose_int::max_display_length(const Item *item)
+                                                            const
+{
+  return type_limits_int_by_unsigned_flag(item->unsigned_flag)->char_length();
+}
+
 
 /*************************************************************************/
 
@@ -2737,9 +2746,15 @@ Type_handler_year::Item_get_cache(THD *thd, const Item *item) const
 }
 
 Item_cache *
-Type_handler_real_result::Item_get_cache(THD *thd, const Item *item) const
+Type_handler_double::Item_get_cache(THD *thd, const Item *item) const
 {
-  return new (thd->mem_root) Item_cache_real(thd);
+  return new (thd->mem_root) Item_cache_double(thd);
+}
+
+Item_cache *
+Type_handler_float::Item_get_cache(THD *thd, const Item *item) const
+{
+  return new (thd->mem_root) Item_cache_float(thd);
 }
 
 Item_cache *
@@ -2962,6 +2977,97 @@ bool Type_handler::
 }
 
 
+bool Type_handler_temporal_result::
+       Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
+                                        Item **items, uint nitems) const
+{
+  bool rc= Type_handler::Item_func_min_max_fix_attributes(thd, func,
+                                                          items, nitems);
+  if (rc || func->maybe_null)
+    return rc;
+  /*
+    LEAST/GREATES(non-temporal, temporal) can return NULL.
+    CAST functions Item_{time|datetime|date}_typecast always set maybe_full
+    to true. Here we try to detect nullability more thoroughly.
+    Perhaps CAST functions should also reuse this idea eventually.
+  */
+  const Type_handler *hf= func->type_handler();
+  for (uint i= 0; i < nitems; i++)
+  {
+    /*
+      If items[i] does not need conversion to the current temporal data
+      type, then we trust items[i]->maybe_null, which was already ORred
+      to func->maybe_null in the argument loop in fix_fields().
+      If items[i] requires conversion to the current temporal data type,
+      then conversion can fail and return NULL even for NOT NULL items.
+    */
+    const Type_handler *ha= items[i]->type_handler();
+    if (hf == ha)
+      continue; // No conversion.
+    if (ha->cmp_type() != TIME_RESULT)
+    {
+      func->maybe_null= true; // Conversion from non-temporal is not safe
+      break;
+    }
+    timestamp_type tf= hf->mysql_timestamp_type();
+    timestamp_type ta= ha->mysql_timestamp_type();
+    if (tf == ta ||
+        (tf == MYSQL_TIMESTAMP_DATETIME && ta == MYSQL_TIMESTAMP_DATE))
+    {
+      /*
+        If handlers have the same mysql_timestamp_type(),
+        then conversion is NULL safe. Conversion from DATE to DATETIME
+        is also safe. This branch includes data type pairs:
+        Function return type Argument type  Comment
+        -------------------- -------------  -------------
+        TIMESTAMP            TIMESTAMP      no conversion
+        TIMESTAMP            DATETIME       not possible
+        TIMESTAMP            DATE           not possible
+        DATETIME             DATETIME       no conversion
+        DATETIME             TIMESTAMP      safe conversion
+        DATETIME             DATE           safe conversion
+        DATE                 DATE           no conversion
+        TIME                 TIME           no conversion
+
+        Note, a function cannot return TIMESTAMP if it has non-TIMESTAMP
+        arguments (it would return DATETIME in such case).
+      */
+      DBUG_ASSERT(hf->field_type() != MYSQL_TYPE_TIMESTAMP || tf == ta);
+      continue;
+    }
+    /*
+      Here we have the following data type pairs that did not match
+      the condition above:
+
+      Function return type Argument type Comment
+      -------------------- ------------- -------
+      TIMESTAMP            TIME          Not possible
+      DATETIME             TIME          depends on OLD_MODE_ZERO_DATE_TIME_CAST
+      DATE                 TIMESTAMP     Not possible
+      DATE                 DATETIME      Not possible
+      DATE                 TIME          Not possible
+      TIME                 TIMESTAMP     Not possible
+      TIME                 DATETIME      Not possible
+      TIME                 DATE          Not possible
+
+      Most pairs are not possible, because the function data type
+      would be DATETIME (according to LEAST/GREATEST aggregation rules).
+      Conversion to DATETIME from TIME is not safe when
+      OLD_MODE_ZERO_DATE_TIME_CAST is set:
+      - negative TIME values cannot be converted to not-NULL DATETIME values
+      - TIME values can produce DATETIME values that do not pass
+        NO_ZERO_DATE and NO_ZERO_IN_DATE tests.
+    */
+    DBUG_ASSERT(hf->field_type() == MYSQL_TYPE_DATETIME);
+    if (!(thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST))
+      continue;
+    func->maybe_null= true;
+    break;
+  }
+  return rc;
+}
+
+
 bool Type_handler_real_result::
        Item_func_min_max_fix_attributes(THD *thd, Item_func_min_max *func,
                                         Item **items, uint nitems) const
@@ -2977,46 +3083,17 @@ bool Type_handler_real_result::
 
 /*************************************************************************/
 
-/**
-  MAX/MIN for the traditional numeric types preserve the exact data type
-  from Fields, but do not preserve the exact type from Items:
-    MAX(float_field)              -> FLOAT
-    MAX(smallint_field)           -> LONGLONG
-    MAX(COALESCE(float_field))    -> DOUBLE
-    MAX(COALESCE(smallint_field)) -> LONGLONG
-  QQ: Items should probably be fixed to preserve the exact type.
-*/
-bool Type_handler_numeric::
-       Item_sum_hybrid_fix_length_and_dec_numeric(Item_sum_hybrid *func,
-                                                  const Type_handler *handler)
-                                                  const
-{
-  Item *item= func->arguments()[0];
-  Item *item2= item->real_item();
-  func->Type_std_attributes::set(item);
-  /* MIN/MAX can return NULL for empty set indepedent of the used column */
-  func->maybe_null= func->null_value= true;
-  if (item2->type() == Item::FIELD_ITEM)
-    func->set_handler(item2->type_handler());
-  else
-    func->set_handler(handler);
-  return false;
-}
-
-
 bool Type_handler_int_result::
        Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const
 {
-  return Item_sum_hybrid_fix_length_and_dec_numeric(func,
-                                                    &type_handler_longlong);
+  return func->fix_length_and_dec_numeric(&type_handler_longlong);
 }
 
 
 bool Type_handler_real_result::
        Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const
 {
-  (void) Item_sum_hybrid_fix_length_and_dec_numeric(func,
-                                                    &type_handler_double);
+  (void) func->fix_length_and_dec_numeric(&type_handler_double);
   func->max_length= func->float_length(func->decimals);
   return false;
 }
@@ -3025,39 +3102,14 @@ bool Type_handler_real_result::
 bool Type_handler_decimal_result::
        Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const
 {
-  return Item_sum_hybrid_fix_length_and_dec_numeric(func,
-                                                    &type_handler_newdecimal);
+  return func->fix_length_and_dec_numeric(&type_handler_newdecimal);
 }
 
 
-/**
-   MAX(str_field) converts ENUM/SET to CHAR, and preserve all other types
-   for Fields.
-   QQ: This works differently from UNION, which preserve the exact data
-   type for ENUM/SET if the joined ENUM/SET fields are equally defined.
-   Perhaps should be fixed.
-   MAX(str_item) chooses the best suitable string type.
-*/
 bool Type_handler_string_result::
        Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const
 {
-  Item *item= func->arguments()[0];
-  Item *item2= item->real_item();
-  func->Type_std_attributes::set(item);
-  func->maybe_null= func->null_value= true;
-  if (item2->type() == Item::FIELD_ITEM)
-  {
-    // Fields: convert ENUM/SET to CHAR, preserve the type otherwise.
-    func->set_handler(item->type_handler());
-  }
-  else
-  {
-    // Items: choose VARCHAR/BLOB/MEDIUMBLOB/LONGBLOB, depending on length.
-    func->set_handler(type_handler_varchar.
-          type_handler_adjusted_to_max_octet_length(func->max_length,
-                                                    func->collation.collation));
-  }
-  return false;
+  return func->fix_length_and_dec_string();
 }
 
 
@@ -3067,11 +3119,7 @@ bool Type_handler_string_result::
 bool Type_handler_temporal_result::
        Item_sum_hybrid_fix_length_and_dec(Item_sum_hybrid *func) const
 {
-  Item *item= func->arguments()[0];
-  func->Type_std_attributes::set(item);
-  func->maybe_null= func->null_value= true;
-  func->set_handler(item->type_handler());
-  return false;
+  return func->fix_length_and_dec_generic();
 }
 
 
@@ -3318,7 +3366,7 @@ longlong Type_handler_real_result::
 longlong Type_handler_int_result::
            Item_val_int_signed_typecast(Item *item) const
 {
-  return item->val_int();
+  return item->val_int_signed_typecast_from_int();
 }
 
 longlong Type_handler_decimal_result::
@@ -3513,11 +3561,24 @@ Type_handler_int_result::Item_func_hybrid_field_type_get_date(
 /***************************************************************************/
 
 String *
-Type_handler_real_result::Item_func_hybrid_field_type_val_str(
+Type_handler_double::Item_func_hybrid_field_type_val_str(
                                            Item_func_hybrid_field_type *item,
                                            String *str) const
 {
   return item->val_str_from_real_op(str);
+}
+
+
+String *
+Type_handler_float::Item_func_hybrid_field_type_val_str(
+                                           Item_func_hybrid_field_type *item,
+                                           String *str) const
+{
+  Float nr(item->real_op());
+  if (item->null_value)
+    return 0;
+  nr.to_string(str, item->decimals);
+  return str;
 }
 
 
@@ -3807,8 +3868,11 @@ cmp_item *Type_handler_temporal_with_date::make_cmp_item(THD *thd,
 
 /***************************************************************************/
 
-static int srtcmp_in(CHARSET_INFO *cs, const String *x,const String *y)
+static int srtcmp_in(const void *cs_, const void *x_, const void *y_)
 {
+  const CHARSET_INFO *cs= static_cast<const CHARSET_INFO *>(cs_);
+  const String *x= static_cast<const String *>(x_);
+  const String *y= static_cast<const String *>(y_);
   return cs->coll->strnncollsp(cs,
                                (uchar *) x->ptr(),x->length(),
                                (uchar *) y->ptr(),y->length());
@@ -3980,10 +4044,21 @@ String *Type_handler_decimal_result::
 }
 
 
-String *Type_handler_real_result::
+String *Type_handler_double::
           Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
 {
   return func->val_string_from_real(str);
+}
+
+
+String *Type_handler_float::
+          Item_func_min_max_val_str(Item_func_min_max *func, String *str) const
+{
+  Float nr(func->val_real());
+  if (func->null_value)
+    return 0;
+  nr.to_string(str, func->decimals);
+  return str;
 }
 
 
@@ -4525,6 +4600,14 @@ bool Type_handler::
 
 
 bool Type_handler::
+       Item_float_typecast_fix_length_and_dec(Item_float_typecast *item) const
+{
+  item->fix_length_and_dec_generic();
+  return false;
+}
+
+
+bool Type_handler::
        Item_decimal_typecast_fix_length_and_dec(Item_decimal_typecast *item) const
 {
   item->fix_length_and_dec_generic();
@@ -4614,6 +4697,13 @@ bool Type_handler_geometry::
 
 
 bool Type_handler_geometry::
+       Item_float_typecast_fix_length_and_dec(Item_float_typecast *item) const
+{
+  return Item_func_or_sum_illegal_param(item);
+}
+
+
+bool Type_handler_geometry::
        Item_decimal_typecast_fix_length_and_dec(Item_decimal_typecast *item) const
 {
   return Item_func_or_sum_illegal_param(item);
@@ -4692,7 +4782,7 @@ bool Type_handler_decimal_result::
 bool Type_handler_temporal_result::
        Item_func_plus_fix_length_and_dec(Item_func_plus *item) const
 {
-  item->fix_length_and_dec_temporal();
+  item->fix_length_and_dec_temporal(true);
   return false;
 }
 
@@ -4741,7 +4831,7 @@ bool Type_handler_decimal_result::
 bool Type_handler_temporal_result::
        Item_func_minus_fix_length_and_dec(Item_func_minus *item) const
 {
-  item->fix_length_and_dec_temporal();
+  item->fix_length_and_dec_temporal(true);
   return false;
 }
 
@@ -4790,7 +4880,7 @@ bool Type_handler_decimal_result::
 bool Type_handler_temporal_result::
        Item_func_mul_fix_length_and_dec(Item_func_mul *item) const
 {
-  item->fix_length_and_dec_temporal();
+  item->fix_length_and_dec_temporal(true);
   return false;
 }
 
@@ -4839,7 +4929,8 @@ bool Type_handler_decimal_result::
 bool Type_handler_temporal_result::
        Item_func_div_fix_length_and_dec(Item_func_div *item) const
 {
-  item->fix_length_and_dec_temporal();
+  // Item_func_div::int_op() is not implemented. Disallow DECIMAL->INT downcast.
+  item->fix_length_and_dec_temporal(false);
   return false;
 }
 
@@ -4888,7 +4979,7 @@ bool Type_handler_decimal_result::
 bool Type_handler_temporal_result::
        Item_func_mod_fix_length_and_dec(Item_func_mod *item) const
 {
-  item->fix_length_and_dec_temporal();
+  item->fix_length_and_dec_temporal(true);
   return false;
 }
 
@@ -5022,7 +5113,8 @@ uint Type_handler_timestamp_common::Item_decimal_precision(const Item *item) con
 
 bool Type_handler_real_result::
        subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const
+                                            const Item *outer,
+                                            bool is_in_predicate) const
 {
   DBUG_ASSERT(inner->cmp_type() == REAL_RESULT);
   return outer->cmp_type() == REAL_RESULT;
@@ -5031,7 +5123,8 @@ bool Type_handler_real_result::
 
 bool Type_handler_int_result::
        subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const
+                                            const Item *outer,
+                                            bool is_in_predicate) const
 {
   DBUG_ASSERT(inner->cmp_type() == INT_RESULT);
   return outer->cmp_type() == INT_RESULT;
@@ -5040,7 +5133,8 @@ bool Type_handler_int_result::
 
 bool Type_handler_decimal_result::
        subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const
+                                            const Item *outer,
+                                            bool is_in_predicate) const
 {
   DBUG_ASSERT(inner->cmp_type() == DECIMAL_RESULT);
   return outer->cmp_type() == DECIMAL_RESULT;
@@ -5049,23 +5143,37 @@ bool Type_handler_decimal_result::
 
 bool Type_handler_string_result::
        subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const
+                                            const Item *outer,
+                                            bool is_in_predicate) const
 {
   DBUG_ASSERT(inner->cmp_type() == STRING_RESULT);
-  return outer->cmp_type() == STRING_RESULT &&
-         outer->collation.collation == inner->collation.collation &&
-         /*
-           Materialization also is unable to work when create_tmp_table() will
-           create a blob column because item->max_length is too big.
-           The following test is copied from varstring_type_handler().
-         */
-         !inner->too_big_for_varchar();
+  if (outer->cmp_type() == STRING_RESULT &&
+      /*
+        Materialization also is unable to work when create_tmp_table() will
+        create a blob column because item->max_length is too big.
+        The following test is copied from varstring_type_handler().
+      */
+      !inner->too_big_for_varchar())
+  {
+    if (outer->collation.collation == inner->collation.collation)
+      return true;
+    if (is_in_predicate)
+    {
+      Charset inner_col(inner->collation.collation);
+      if (inner_col.encoding_allows_reinterpret_as(outer->
+                                                   collation.collation) &&
+          inner_col.eq_collation_specific_names(outer->collation.collation))
+        return true;
+    }
+  }
+  return false;
 }
 
 
 bool Type_handler_temporal_result::
        subquery_type_allows_materialization(const Item *inner,
-                                            const Item *outer) const
+                                            const Item *outer,
+                                            bool is_in_predicate) const
 {
   DBUG_ASSERT(inner->cmp_type() == TIME_RESULT);
   return mysql_timestamp_type() ==
@@ -5642,6 +5750,15 @@ Item *Type_handler_double::
 }
 
 
+Item *Type_handler_float::
+        create_typecast_item(THD *thd, Item *item,
+                             const Type_cast_attributes &attr) const
+{
+  DBUG_ASSERT(!attr.length_specified());
+  return new (thd->mem_root) Item_float_typecast(thd, item);
+}
+
+
 Item *Type_handler_long_blob::
         create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const
@@ -5767,6 +5884,19 @@ void Type_handler_datetime_common::Item_param_set_param_func(Item_param *param,
   param->set_param_datetime(pos, len);
 }
 
+Field *Type_handler_blob_common::make_conversion_table_field(TABLE *table,
+                                                            uint metadata,
+                                                            const Field *target)
+                                                            const
+{
+  uint pack_length= metadata & 0x00ff;
+  if (pack_length < 1 || pack_length > 4)
+    return NULL; // Broken binary log?
+  return new(table->in_use->mem_root)
+         Field_blob(NULL, (uchar *) "", 1, Field::NONE, &empty_clex_str,
+                    table->s, pack_length, target->charset());
+}
+
 
 void Type_handler_timestamp_common::Item_param_set_param_func(Item_param *param,
                                                               uchar **pos,
@@ -5802,3 +5932,133 @@ void Type_handler_geometry::Item_param_set_param_func(Item_param *param,
 #endif
 
 /***************************************************************************/
+
+bool Type_handler_string_result::union_element_finalize(Item_type_holder *item) const
+{
+  if (item->collation.derivation == DERIVATION_NONE)
+  {
+    my_error(ER_CANT_AGGREGATE_NCOLLATIONS, MYF(0), "UNION");
+    return true;
+  }
+  return false;
+}
+
+bool Type_handler_null::union_element_finalize(Item_type_holder *item) const
+{
+  item->set_handler(&type_handler_string);
+  return false;
+}
+
+/***************************************************************************/
+
+bool Type_handler::Vers_history_point_resolve_unit(THD *thd,
+                                                   Vers_history_point *point)
+                                                   const
+{
+  /*
+    Disallow using non-relevant data types in history points.
+    Even expressions with explicit TRANSACTION or TIMESTAMP units.
+  */
+  point->bad_expression_data_type_error(name().ptr());
+  return true;
+}
+
+
+bool Type_handler_typelib::
+       Vers_history_point_resolve_unit(THD *thd,
+                                       Vers_history_point *point) const
+{
+  /*
+    ENUM/SET have dual type properties (string and numeric).
+    Require explicit CAST to avoid ambiguity.
+  */
+  point->bad_expression_data_type_error(name().ptr());
+  return true;
+}
+
+
+bool Type_handler_general_purpose_int::
+       Vers_history_point_resolve_unit(THD *thd,
+                                       Vers_history_point *point) const
+{
+  return point->resolve_unit_trx_id(thd);
+}
+
+
+bool Type_handler_bit::
+       Vers_history_point_resolve_unit(THD *thd,
+                                       Vers_history_point *point) const
+{
+  return point->resolve_unit_trx_id(thd);
+}
+
+
+bool Type_handler_temporal_result::
+       Vers_history_point_resolve_unit(THD *thd,
+                                       Vers_history_point *point) const
+{
+  return point->resolve_unit_timestamp(thd);
+}
+
+
+bool Type_handler_general_purpose_string::
+       Vers_history_point_resolve_unit(THD *thd,
+                                       Vers_history_point *point) const
+{
+  return point->resolve_unit_timestamp(thd);
+}
+
+/***************************************************************************/
+
+LEX_CSTRING Charset::collation_specific_name() const
+{
+  /*
+    User defined collations can provide arbitrary names
+    for character sets and collations, so a collation
+    name not necessarily starts with the character set name.
+  */
+  LEX_CSTRING retval;
+  size_t csname_length= strlen(m_charset->csname);
+  if (strncmp(m_charset->name, m_charset->csname, csname_length))
+  {
+    retval.str= NULL;
+    retval.length= 0;
+    return retval;
+  }
+  const char *ptr= m_charset->name + csname_length;
+  retval.str= ptr;
+  retval.length= strlen(ptr);
+  return retval;
+}
+
+
+bool
+Charset::encoding_allows_reinterpret_as(const CHARSET_INFO *cs) const
+{
+  if (!strcmp(m_charset->csname, cs->csname))
+    return true;
+
+  if (!strcmp(m_charset->csname, MY_UTF8MB3) &&
+      !strcmp(cs->csname, MY_UTF8MB4))
+    return true;
+
+  /*
+    Originally we allowed here instat ALTER for ASCII-to-LATIN1
+    and UCS2-to-UTF16, but this was wrong:
+    - MariaDB's ascii is not a subset for 8-bit character sets
+      like latin1, because it allows storing bytes 0x80..0xFF as
+      "unassigned" characters (see MDEV-19285).
+    - MariaDB's ucs2 (as in Unicode-1.1) is not a subset for UTF16,
+      because they treat surrogate codes differently (MDEV-19284).
+  */
+  return false;
+}
+
+
+bool
+Charset::eq_collation_specific_names(CHARSET_INFO *cs) const
+{
+  LEX_CSTRING name0= collation_specific_name();
+  LEX_CSTRING name1= Charset(cs).collation_specific_name();
+  return name0.length && !cmp(&name0, &name1);
+}

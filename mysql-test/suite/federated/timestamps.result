@@ -1,0 +1,64 @@
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
+CREATE DATABASE federated;
+connection slave;
+CREATE DATABASE federated;
+connection slave;
+set global time_zone='Europe/Moscow';
+set time_zone='Europe/Moscow';
+create table federated.t1 (dt datetime, ts timestamp, unique(ts));
+connection master;
+set time_zone='+01:00';
+create table t1 engine=federated connection='mysql://root@127.0.0.1:SLAVE_PORT/federated/t1';
+set @@timestamp=1;
+insert t1 values (now(), now());
+set @@timestamp=2147483647;
+insert t1 values (now(), now());
+set @@timestamp=1067121000;
+insert t1 values (now(), now());
+set @@timestamp=1067124600;
+insert t1 values (now(), now());
+set @@timestamp=0;
+select * from t1;
+dt	ts
+1970-01-01 01:00:01	1970-01-01 01:00:01
+2038-01-19 04:14:07	2038-01-19 04:14:07
+2003-10-25 23:30:00	2003-10-25 23:30:00
+2003-10-26 00:30:00	2003-10-26 00:30:00
+delete from t1 where ts='1970-01-01 01:00:01';
+select * from t1;
+dt	ts
+2038-01-19 04:14:07	2038-01-19 04:14:07
+2003-10-25 23:30:00	2003-10-25 23:30:00
+2003-10-26 00:30:00	2003-10-26 00:30:00
+insert t1 values ('1970-01-01 01:00:01', now());
+update t1 set ts=dt;
+select * from t1;
+dt	ts
+1970-01-01 01:00:01	1970-01-01 01:00:01
+2038-01-19 04:14:07	2038-01-19 04:14:07
+2003-10-25 23:30:00	2003-10-25 23:30:00
+2003-10-26 00:30:00	2003-10-26 00:30:00
+select * from t1 where ts='2003-10-25 23:30:00';
+dt	ts
+2003-10-25 23:30:00	2003-10-25 23:30:00
+select * from t1 where ts='2003-10-26 00:30:00';
+dt	ts
+2003-10-26 00:30:00	2003-10-26 00:30:00
+connection slave;
+select * from federated.t1;
+dt	ts
+1970-01-01 01:00:01	1970-01-01 03:00:01
+2038-01-19 04:14:07	2038-01-19 06:14:07
+2003-10-25 23:30:00	2003-10-26 02:30:00
+2003-10-26 00:30:00	2003-10-26 02:30:00
+set global time_zone=default;
+connection master;
+drop table t1;
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;

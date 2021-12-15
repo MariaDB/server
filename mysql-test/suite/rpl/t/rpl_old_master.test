@@ -27,7 +27,15 @@ SET @old_parallel= @@GLOBAL.slave_parallel_threads;
 SET GLOBAL slave_parallel_threads=10;
 --replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
 eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, master_user='root', master_log_file='master-bin.000001', master_log_pos=4;
+
+# Block execution yet when the blocked query timestamp has been already accounted
+FLUSH TABLES WITH READ LOCK;
 --source include/start_slave.inc
+--let $slave_param           = Seconds_Behind_Master
+--let $slave_param_value     = 1
+--let $slave_param_comparison= >=
+--source include/wait_for_slave_param.inc
+UNLOCK TABLES;
 
 --connection master
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;

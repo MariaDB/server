@@ -1,0 +1,74 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+#
+# Test case 1: Start a transaction on node_2a and kill it
+# from other connection on same node
+#
+--connection node_2
+CREATE TABLE t1(a int not null primary key auto_increment,b int) engine=InnoDB;
+insert into t1 values (NULL,1);
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+begin;
+update t1 set a = 5;
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'root' AND COMMAND = 'Sleep' LIMIT 1
+--source include/wait_condition.inc
+--let $k_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'root' AND COMMAND = 'Sleep' LIMIT 1`
+--disable_query_log
+--eval KILL $k_thread
+--enable_query_log
+select * from t1;
+--disconnect node_2a
+#
+# Test case 2: Start a transaction on node_2a and use
+# kill query from other connection on same node
+#
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+begin;
+update t1 set a =5;
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'root' AND COMMAND = 'Sleep' LIMIT 1
+--source include/wait_condition.inc
+--let $k_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'root' AND COMMAND = 'Sleep' LIMIT 1`
+--disable_query_log
+--eval KILL QUERY $k_thread
+--enable_query_log
+select * from t1;
+--disconnect node_2a
+#
+# Test case 3: Start a transaction on node_2a and start a DDL on other transaction
+# that will then abort node_2a transaction
+#
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+begin;
+update t1 set a =5, b=2;
+--connection node_2
+ALTER TABLE t1 ADD UNIQUE KEY b1(b);
+ALTER TABLE t1 DROP KEY b1;
+select * from t1;
+--disconnect node_2a
+#
+# Test case 4: Start a transaction on node_2a and conflicting transaction on node_2b
+# and start a DDL on other transaction that will then abort node_2a and node_2b
+# transactions
+#
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+begin;
+update t1 set a =5, b=2;
+--connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2b
+begin;
+send update t1 set a =6, b=7;
+--connection node_2
+ALTER TABLE t1 ADD UNIQUE KEY b2(b);
+ALTER TABLE t1 DROP KEY b2;
+select * from t1;
+--disconnect node_2a
+--disconnect node_2b
+
+--connection node_1
+drop table t1;

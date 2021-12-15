@@ -26,7 +26,7 @@ New features compared to NISAM:
 - Index on BLOB and VARCHAR.
 - One can now have NULL in an index.  This takes 0-1 bytes / key.
 - MYISAM will allow one to specify one AUTO_INCREMENT column;  MYISAM will
-  automaticly update this on INSERT/UPDATE. The AUTO_INCREMENT value can be
+  automatically update this on INSERT/UPDATE. The AUTO_INCREMENT value can be
   reset with myisamchk.
 - Max key length will be 500 by default;  In cases of longer keys than 250,
   a bigger key block size than the default of 1024 byes is used for this key.
@@ -39,7 +39,7 @@ New features compared to NISAM:
 - 'myisamchk -a' stores statistic for key parts (and not only for whole keys
    as in NISAM).
 - Dynamic size rows will now be much less fragmented when mixing deletes with
-  update and insert.  This is done by automaticly combine adjacent deleted
+  update and insert.  This is done by automatically combining adjacent deleted
   blocks and by extending blocks if the next block is deleted.
 - For dynamic size rows, the delete link contains a pointer to itself
   (to make repairs easier).

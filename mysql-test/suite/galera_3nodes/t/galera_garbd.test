@@ -5,12 +5,23 @@
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/have_garbd.inc
 --source include/big_test.inc
 
---echo Killing node #3 to free ports for garbd ...
 --let $galera_connection_name = node_3
 --let $galera_server_number = 3
 --source include/galera_connect.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--echo Killing node #3 to free ports for garbd ...
+--connection node_3
+--let $gp3 = `SELECT SUBSTR(@@wsrep_provider_options, LOCATE('base_port =', @@wsrep_provider_options) + LENGTH('base_port = '))`
+--let $galera_port_3 = `SELECT SUBSTR('$gp3', 1, LOCATE(';', '$gp3') - 1)`
 --source include/shutdown_mysqld.inc
 
 --connection node_1
@@ -18,7 +29,9 @@
 --source include/wait_condition.inc
 
 --echo Starting garbd ...
---exec `dirname $WSREP_PROVIDER`/garb/garbd --address "gcomm://127.0.0.1:$NODE_GALERAPORT_1" --group my_wsrep_cluster --options 'base_port=$NODE_GALERAPORT_3' > $MYSQL_TMP_DIR/garbd.log 2>&1 &
+--let $gp1 = `SELECT SUBSTR(@@wsrep_provider_options, LOCATE('base_port =', @@wsrep_provider_options) + LENGTH('base_port = '))`
+--let $galera_port_1 = `SELECT SUBSTR('$gp1', 1, LOCATE(';', '$gp1') - 1)`
+--exec $MTR_GARBD_EXE --address "gcomm://127.0.0.1:$galera_port_1" --group my_wsrep_cluster --options 'base_port=$galera_port_3' > $MYSQL_TMP_DIR/garbd.log 2>&1 &
 
 --sleep 5
 
@@ -32,7 +45,7 @@ INSERT INTO t1 VALUES (1);
 SELECT COUNT(*) = 1 FROM t1;
 
 --echo Killing garbd ...
---exec pkill --oldest --full garbd.*$NODE_GALERAPORT_3
+--exec pkill --oldest --full garbd.*$galera_port_3
 
 --sleep 5
 
@@ -51,6 +64,8 @@ DROP TABLE t1;
 --connection node_3
 --source include/start_mysqld.inc
 
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc
 
 # Workaround for galera#101
 

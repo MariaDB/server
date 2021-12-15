@@ -1,0 +1,23 @@
+#
+# MDEV-15151: function with recursive CTE using no base tables
+#             (duplicate of  MDEV-16661)
+#
+connection default;
+CREATE TABLE t1 (id int  KEY);
+INSERT INTO t1 VALUES (0), (1),(2);
+CREATE OR REPLACE FUNCTION func() RETURNS int
+RETURN
+(
+WITH recursive cte AS
+(SELECT 1 a UNION SELECT cte.* FROM cte natural join t1)
+SELECT * FROM cte  limit 1
+);
+connect  con1,localhost,root,,test;
+SELECT func();
+connect  con2,localhost,root,,test;
+disconnect con2;
+connection con1;
+disconnect con1;
+connection default;
+DROP FUNCTION func;
+DROP TABLE t1;

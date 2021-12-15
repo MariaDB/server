@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -24,8 +24,6 @@ from dictionary tables
 
 Created 4/24/1996 Heikki Tuuri
 *******************************************************/
-
-#include "ha_prototypes.h"
 
 #include "dict0load.h"
 
@@ -39,15 +37,13 @@ Created 4/24/1996 Heikki Tuuri
 #include "dict0priv.h"
 #include "dict0stats.h"
 #include "fsp0file.h"
-#include "fsp0sysspace.h"
 #include "fts0priv.h"
 #include "mach0data.h"
 #include "page0page.h"
 #include "rem0cmp.h"
 #include "srv0start.h"
 #include "srv0srv.h"
-#include <stack>
-#include <set>
+#include "fts0opt.h"
 
 /** Following are the InnoDB system tables. The positions in
 this array are referenced by enum dict_system_table_id. */
@@ -72,7 +68,6 @@ NULL.  These tables must be subsequently loaded so that all the foreign
 key constraints are loaded into memory.
 
 @param[in]	name		Table name in the db/tablename format
-@param[in]	cached		true=add to cache, false=do not
 @param[in]	ignore_err	Error to be ignored when loading table
 				and its index definition
 @param[out]	fk_tables	Related table names that must also be
@@ -84,21 +79,19 @@ file_unreadable flag in the table object we return */
 static
 dict_table_t*
 dict_load_table_one(
-	table_name_t&		name,
-	bool			cached,
+	const table_name_t&	name,
 	dict_err_ignore_t	ignore_err,
 	dict_names_t&		fk_tables);
 
 /** Load a table definition from a SYS_TABLES record to dict_table_t.
 Do not load any columns or indexes.
-@param[in]	name	Table name
-@param[in]	rec	SYS_TABLES record
-@param[out,own]	table	table, or NULL
+@param[in]	name		Table name
+@param[in]	rec		SYS_TABLES record
+@param[out,own]	table		table, or NULL
 @return	error message
 @retval	NULL on success */
-static
-const char*
-dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table)
+static const char* dict_load_table_low(const table_name_t& name,
+				       const rec_t* rec, dict_table_t** table)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Load an index definition from a SYS_INDEXES record to dict_index_t.
@@ -113,7 +106,6 @@ dict_load_index_low(
 	byte*		table_id,	/*!< in/out: table id (8 bytes),
 					an "in" value if allocate=TRUE
 					and "out" when allocate=FALSE */
-	const char*	table_name,	/*!< in: table name */
 	mem_heap_t*	heap,		/*!< in/out: temporary memory heap */
 	const rec_t*	rec,		/*!< in: SYS_INDEXES record */
 	ibool		allocate,	/*!< in: TRUE=allocate *index,
@@ -145,7 +137,6 @@ dict_load_column_low(
 /** Load a virtual column "mapping" (to base columns) information
 from a SYS_VIRTUAL record
 @param[in,out]	table		table
-@param[in,out]	heap		memory heap
 @param[in,out]	column		mapped base column's dict_column_t
 @param[in,out]	table_id	table id
 @param[in,out]	pos		virtual column position
@@ -157,7 +148,6 @@ static
 const char*
 dict_load_virtual_low(
 	dict_table_t*	table,
-	mem_heap_t*	heap,
 	dict_col_t**	column,
 	table_id_t*	table_id,
 	ulint*		pos,
@@ -385,17 +375,12 @@ dict_process_sys_tables_rec_and_mtr_commit(
 	mem_heap_t*	heap,		/*!< in/out: temporary memory heap */
 	const rec_t*	rec,		/*!< in: SYS_TABLES record */
 	dict_table_t**	table,		/*!< out: dict_table_t to fill */
-	dict_table_info_t status,	/*!< in: status bit controls
-					options such as whether we shall
-					look for dict_table_t from cache
-					first */
+	bool		cached,		/*!< in: whether to load from cache */
 	mtr_t*		mtr)		/*!< in/out: mini-transaction,
 					will be committed */
 {
 	ulint		len;
 	const char*	field;
-	const char*	err_msg = NULL;
-	table_name_t	table_name;
 
 	field = (const char*) rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_TABLES__NAME, &len);
@@ -405,30 +390,19 @@ dict_process_sys_tables_rec_and_mtr_commit(
 	ut_ad(mtr_memo_contains_page(mtr, rec, MTR_MEMO_PAGE_S_FIX));
 
 	/* Get the table name */
-	table_name.m_name = mem_heap_strdupl(heap, field, len);
+	table_name_t table_name(mem_heap_strdupl(heap, field, len));
 
-	/* If DICT_TABLE_LOAD_FROM_CACHE is set, first check
-	whether there is cached dict_table_t struct */
-	if (status & DICT_TABLE_LOAD_FROM_CACHE) {
-
+	if (cached) {
 		/* Commit before load the table again */
 		mtr_commit(mtr);
 
 		*table = dict_table_get_low(table_name.m_name);
-
-		if (!(*table)) {
-			err_msg = "Table not found in cache";
-		}
+		return *table ? NULL : "Table not found in cache";
 	} else {
-		err_msg = dict_load_table_low(table_name, rec, table);
+		const char* err = dict_load_table_low(table_name, rec, table);
 		mtr_commit(mtr);
+		return err;
 	}
-
-	if (err_msg) {
-		return(err_msg);
-	}
-
-	return(NULL);
 }
 
 /********************************************************************//**
@@ -450,8 +424,7 @@ dict_process_sys_indexes_rec(
 	buf = static_cast<byte*>(mem_heap_alloc(heap, 8));
 
 	/* Parse the record, and get "dict_index_t" struct filled */
-	err_msg = dict_load_index_low(buf, NULL,
-				      heap, rec, FALSE, &index);
+	err_msg = dict_load_index_low(buf, heap, rec, FALSE, &index);
 
 	*table_id = mach_read_from_8(buf);
 
@@ -484,7 +457,6 @@ dict_process_sys_columns_rec(
 
 /** This function parses a SYS_VIRTUAL record and extracts virtual column
 information
-@param[in,out]	heap		heap memory
 @param[in]	rec		current SYS_COLUMNS rec
 @param[in,out]	table_id	table id
 @param[in,out]	pos		virtual column position
@@ -492,7 +464,6 @@ information
 @return error message, or NULL on success */
 const char*
 dict_process_sys_virtual_rec(
-	mem_heap_t*	heap,
 	const rec_t*	rec,
 	table_id_t*	table_id,
 	ulint*		pos,
@@ -501,7 +472,7 @@ dict_process_sys_virtual_rec(
 	const char*	err_msg;
 
 	/* Parse the record, and get "dict_col_t" struct filled */
-	err_msg = dict_load_virtual_low(NULL, heap, NULL, table_id,
+	err_msg = dict_load_virtual_low(NULL, NULL, table_id,
 					pos, base_pos, rec);
 
 	return(err_msg);
@@ -813,7 +784,7 @@ err_len:
 @param[in]	space_id	Tablespace ID
 @return First filepath (caller must invoke ut_free() on it)
 @retval NULL if no SYS_DATAFILES entry was found. */
-char*
+static char*
 dict_get_first_path(
 	ulint	space_id)
 {
@@ -871,7 +842,7 @@ dict_get_first_path(
 			ut_ad(len > 0);
 			ut_ad(len < OS_FILE_MAX_PATH);
 
-			if (len > 0 && len != UNIV_SQL_NULL) {
+			if (len > 0 && len < UNIV_SQL_NULL) {
 				filepath = mem_strdupl(
 					reinterpret_cast<const char*>(field),
 					len);
@@ -908,10 +879,10 @@ dict_update_filepath(
 	dberr_t		err = DB_SUCCESS;
 	trx_t*		trx;
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 	trx->op_info = "update filepath";
 	trx->dict_operation_lock_mode = RW_X_LATCH;
 	trx_start_for_ddl(trx, TRX_DICT_OP_INDEX);
@@ -931,9 +902,9 @@ dict_update_filepath(
 
 	trx_commit_for_mysql(trx);
 	trx->dict_operation_lock_mode = 0;
-	trx_free_for_background(trx);
+	trx->free();
 
-	if (err == DB_SUCCESS) {
+	if (UNIV_LIKELY(err == DB_SUCCESS)) {
 		/* We just updated SYS_DATAFILES due to the contents in
 		a link file.  Make a note that we did this. */
 		ib::info() << "The InnoDB data dictionary table SYS_DATAFILES"
@@ -943,7 +914,7 @@ dict_update_filepath(
 		ib::warn() << "Error occurred while updating InnoDB data"
 			" dictionary table SYS_DATAFILES for tablespace ID "
 			<< space_id << " to file " << filepath << ": "
-			<< ut_strerr(err) << ".";
+			<< err << ".";
 	}
 
 	return(err);
@@ -976,11 +947,11 @@ dict_replace_tablespace_and_filepath(
 	DBUG_EXECUTE_IF("innodb_fail_to_update_tablespace_dict",
 			return(DB_INTERRUPTED););
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_ad(filepath);
 
-	trx = trx_allocate_for_background();
+	trx = trx_create();
 	trx->op_info = "insert tablespace and filepath";
 	trx->dict_operation_lock_mode = RW_X_LATCH;
 	trx_start_for_ddl(trx, TRX_DICT_OP_INDEX);
@@ -993,7 +964,7 @@ dict_replace_tablespace_and_filepath(
 
 	trx_commit_for_mysql(trx);
 	trx->dict_operation_lock_mode = 0;
-	trx_free_for_background(trx);
+	trx->free();
 
 	return(err);
 }
@@ -1153,8 +1124,9 @@ dict_sys_tables_type_valid(ulint type, bool not_redundant)
 	}
 
 	if (!not_redundant) {
-		/* SYS_TABLES.TYPE must be 1 for ROW_FORMAT=REDUNDANT. */
-		return(false);
+		/* SYS_TABLES.TYPE must be 1 or 1|DICT_TF_MASK_NO_ROLLBACK
+		for ROW_FORMAT=REDUNDANT. */
+		return !(type & ~(1U | DICT_TF_MASK_NO_ROLLBACK));
 	}
 
 	if (type >= 1U << DICT_TF_POS_UNUSED) {
@@ -1362,14 +1334,9 @@ dict_sys_tables_rec_read(
 /** Load and check each non-predefined tablespace mentioned in SYS_TABLES.
 Search SYS_TABLES and check each tablespace mentioned that has not
 already been added to the fil_system.  If it is valid, add it to the
-file_system list.  Perform extra validation on the table if recovery from
-the REDO log occurred.
-@param[in]	validate	Whether to do validation on the table.
+file_system list.
 @return the highest space ID found. */
-UNIV_INLINE
-ulint
-dict_check_sys_tables(
-	bool		validate)
+static ulint dict_check_sys_tables()
 {
 	ulint		max_space_id = 0;
 	btr_pcur_t	pcur;
@@ -1378,7 +1345,7 @@ dict_check_sys_tables(
 
 	DBUG_ENTER("dict_check_sys_tables");
 
-	ut_ad(rw_lock_own(dict_operation_lock, RW_LOCK_X));
+	ut_ad(rw_lock_own(&dict_operation_lock, RW_LOCK_X));
 	ut_ad(mutex_own(&dict_sys->mutex));
 
 	mtr_start(&mtr);
@@ -1394,10 +1361,10 @@ dict_check_sys_tables(
 
 	for (rec = dict_startscan_system(&pcur, &mtr, SYS_TABLES);
 	     rec != NULL;
+	     mtr.commit(), mtr.start(),
 	     rec = dict_getnext_system(&pcur, &mtr)) {
 		const byte*	field;
 		ulint		len;
-		table_name_t	table_name;
 		table_id_t	table_id;
 		ulint		space_id;
 		ulint		n_cols;
@@ -1413,7 +1380,8 @@ dict_check_sys_tables(
 		/* Copy the table name from rec */
 		field = rec_get_nth_field_old(
 			rec, DICT_FLD__SYS_TABLES__NAME, &len);
-		table_name.m_name = mem_strdupl((char*) field, len);
+
+		table_name_t table_name(mem_strdupl((char*) field, len));
 		DBUG_PRINT("dict_check_sys_tables",
 			   ("name: %p, '%s'", table_name.m_name,
 			    table_name.m_name));
@@ -1422,40 +1390,47 @@ dict_check_sys_tables(
 					      &table_id, &space_id,
 					      &n_cols, &flags, &flags2)
 		    || space_id == TRX_SYS_SPACE) {
+next:
 			ut_free(table_name.m_name);
 			continue;
+		}
+
+		if (strstr(table_name.m_name, "/" TEMP_FILE_PREFIX "-")) {
+			/* This table will be dropped by
+			row_mysql_drop_garbage_tables().
+			We do not care if the file exists. */
+			goto next;
 		}
 
 		if (flags2 & DICT_TF2_DISCARDED) {
 			ib::info() << "Ignoring tablespace for " << table_name
 				<< " because the DISCARD flag is set .";
-			ut_free(table_name.m_name);
-			continue;
+			goto next;
 		}
 
-		/* If the table is not a predefined tablespace then it must
-		be in a file-per-table tablespace.
-		Note that flags2 is not available for REDUNDANT tables,
-		so don't check those. */
-		ut_ad(!DICT_TF_GET_COMPACT(flags)
-		      || flags2 & DICT_TF2_USE_FILE_PER_TABLE);
+		/* For tables or partitions using .ibd files, the flag
+		DICT_TF2_USE_FILE_PER_TABLE was not set in MIX_LEN
+		before MySQL 5.6.5. The flag should not have been
+		introduced in persistent storage. MariaDB will keep
+		setting the flag when writing SYS_TABLES entries for
+		newly created or rebuilt tables or partitions, but
+		will otherwise ignore the flag. */
 
 		/* Now that we have the proper name for this tablespace,
 		look to see if it is already in the tablespace cache. */
-		if (fil_space_for_table_exists_in_mem(
-			    space_id, table_name.m_name,
-			    false, NULL, flags)) {
+		if (const fil_space_t* space
+		    = fil_space_for_table_exists_in_mem(
+			    space_id, table_name.m_name, flags)) {
 			/* Recovery can open a datafile that does not
 			match SYS_DATAFILES.  If they don't match, update
 			SYS_DATAFILES. */
 			char *dict_path = dict_get_first_path(space_id);
-			char *fil_path = fil_space_get_first_path(space_id);
-			if (dict_path && fil_path
+			const char *fil_path = space->chain.start->name;
+			if (dict_path
 			    && strcmp(dict_path, fil_path)) {
 				dict_update_filepath(space_id, fil_path);
 			}
 			ut_free(dict_path);
-			ut_free(fil_path);
 			ut_free(table_name.m_name);
 			continue;
 		}
@@ -1468,15 +1443,12 @@ dict_check_sys_tables(
 		char*	filepath = dict_get_first_path(space_id);
 
 		/* Check that the .ibd file exists. */
-		dberr_t	err = fil_ibd_open(
-			validate,
-			!srv_read_only_mode && srv_log_file_size != 0,
-			FIL_TYPE_TABLESPACE,
-			space_id, dict_tf_to_fsp_flags(flags),
-			table_name.m_name,
-			filepath);
-
-		if (err != DB_SUCCESS) {
+		if (!fil_ibd_open(
+			    false,
+			    !srv_read_only_mode && srv_log_file_size != 0,
+			    FIL_TYPE_TABLESPACE,
+			    space_id, dict_tf_to_fsp_flags(flags),
+			    table_name, filepath)) {
 			ib::warn() << "Ignoring tablespace for "
 				<< table_name
 				<< " because it could not be opened.";
@@ -1504,17 +1476,14 @@ space_id information in the data dictionary to what we find in the
 tablespace file. In addition, more validation will be done if recovery
 was needed and force_recovery is not set.
 
-We also scan the biggest space id, and store it to fil_system.
-@param[in]	validate	true if recovery was needed */
-void
-dict_check_tablespaces_and_store_max_id(
-	bool	validate)
+We also scan the biggest space id, and store it to fil_system. */
+void dict_check_tablespaces_and_store_max_id()
 {
 	mtr_t	mtr;
 
 	DBUG_ENTER("dict_check_tablespaces_and_store_max_id");
 
-	rw_lock_x_lock(dict_operation_lock);
+	rw_lock_x_lock(&dict_operation_lock);
 	mutex_enter(&dict_sys->mutex);
 
 	/* Initialize the max space_id from sys header */
@@ -1529,11 +1498,11 @@ dict_check_tablespaces_and_store_max_id(
 	/* Open all tablespaces referenced in SYS_TABLES.
 	This will update SYS_TABLESPACES and SYS_DATAFILES if it
 	finds any file-per-table tablespaces not already there. */
-	max_space_id = dict_check_sys_tables(validate);
+	max_space_id = dict_check_sys_tables();
 	fil_set_max_space_id_if_bigger(max_space_id);
 
 	mutex_exit(&dict_sys->mutex);
-	rw_lock_x_unlock(dict_operation_lock);
+	rw_lock_x_unlock(&dict_operation_lock);
 
 	DBUG_VOID_RETURN;
 }
@@ -1571,7 +1540,7 @@ dict_load_column_low(
 	ulint		pos;
 	ulint		num_base;
 
-	ut_ad(table || column);
+	ut_ad(!table == !!column);
 
 	if (rec_get_deleted_flag(rec, 0)) {
 		return(dict_load_column_del);
@@ -1678,7 +1647,7 @@ err_len:
 	}
 	num_base = mach_read_from_4(field);
 
-	if (column == NULL) {
+	if (table) {
 		if (prtype & DATA_VIRTUAL) {
 #ifdef UNIV_DEBUG
 			dict_v_col_t*	vcol =
@@ -1712,7 +1681,6 @@ static const char* dict_load_virtual_del = "delete-marked record in SYS_VIRTUAL"
 /** Load a virtual column "mapping" (to base columns) information
 from a SYS_VIRTUAL record
 @param[in,out]	table		table
-@param[in,out]	heap		memory heap
 @param[in,out]	column		mapped base column's dict_column_t
 @param[in,out]	table_id	table id
 @param[in,out]	pos		virtual column position
@@ -1724,7 +1692,6 @@ static
 const char*
 dict_load_virtual_low(
 	dict_table_t*	table,
-	mem_heap_t*	heap,
 	dict_col_t**	column,
 	table_id_t*	table_id,
 	ulint*		pos,
@@ -1984,7 +1951,7 @@ dict_load_virtual_one_col(
 
 		ut_a(btr_pcur_is_on_user_rec(&pcur));
 
-		err_msg = dict_load_virtual_low(table, heap,
+		err_msg = dict_load_virtual_low(table,
 						&v_col->base_col[i - skipped],
 						NULL,
 					        &pos, NULL, rec);
@@ -2051,7 +2018,7 @@ dict_load_field_low(
 	ulint		len;
 	unsigned	pos_and_prefix_len;
 	unsigned	prefix_len;
-	ibool		first_field;
+	bool		first_field;
 	ulint		position;
 
 	/* Either index or sys_field is supplied, not both */
@@ -2240,7 +2207,6 @@ dict_load_index_low(
 	byte*		table_id,	/*!< in/out: table id (8 bytes),
 					an "in" value if allocate=TRUE
 					and "out" when allocate=FALSE */
-	const char*	table_name,	/*!< in: table name */
 	mem_heap_t*	heap,		/*!< in/out: temporary memory heap */
 	const rec_t*	rec,		/*!< in: SYS_INDEXES record */
 	ibool		allocate,	/*!< in: TRUE=allocate *index,
@@ -2255,7 +2221,6 @@ dict_load_index_low(
 	index_id_t	id;
 	ulint		n_fields;
 	ulint		type;
-	ulint		space;
 	unsigned	merge_threshold;
 
 	if (allocate) {
@@ -2354,26 +2319,18 @@ err_len:
 	}
 
 	field = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_INDEXES__SPACE, &len);
-	if (len != 4) {
-		goto err_len;
-	}
-	space = mach_read_from_4(field);
-
-	field = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_INDEXES__PAGE_NO, &len);
 	if (len != 4) {
 		goto err_len;
 	}
 
 	if (allocate) {
-		*index = dict_mem_index_create(table_name, name_buf,
-					       space, type, n_fields);
+		*index = dict_mem_index_create(NULL, name_buf, type, n_fields);
 	} else {
 		ut_a(*index);
 
-		dict_mem_fill_index_struct(*index, NULL, NULL, name_buf,
-					   space, type, n_fields);
+		dict_mem_fill_index_struct(*index, NULL, name_buf,
+					   type, n_fields);
 	}
 
 	(*index)->id = id;
@@ -2473,14 +2430,14 @@ dict_load_indexes(
 			    && static_cast<char>(*field)
 			    == static_cast<char>(*TEMP_INDEX_PREFIX_STR)) {
 				/* Skip indexes whose name starts with
-				TEMP_INDEX_PREFIX, because they will
-				be dropped during crash recovery. */
+				TEMP_INDEX_PREFIX_STR, because they will
+				be dropped by row_merge_drop_temp_indexes()
+				during crash recovery. */
 				goto next_rec;
 			}
 		}
 
-		err_msg = dict_load_index_low(
-			buf, table->name.m_name, heap, rec, TRUE, &index);
+		err_msg = dict_load_index_low(buf, heap, rec, TRUE, &index);
 		ut_ad((index == NULL && err_msg != NULL)
 		      || (index != NULL && err_msg == NULL));
 
@@ -2517,10 +2474,10 @@ dict_load_indexes(
 		}
 
 		ut_ad(index);
+		ut_ad(!dict_index_is_online_ddl(index));
 
 		/* Check whether the index is corrupted */
-		if (dict_index_is_corrupted(index)) {
-
+		if (index->is_corrupted()) {
 			ib::error() << "Index " << index->name
 				<< " of table " << table->name
 				<< " is corrupted";
@@ -2611,17 +2568,16 @@ corrupted:
 			dict_mem_index_free(index);
 		} else {
 			dict_load_fields(index, heap);
-
-			error = dict_index_add_to_cache(
-				table, index, index->page, FALSE);
+			index->table = table;
 
 			/* The data dictionary tables should never contain
 			invalid index definitions.  If we ignored this error
 			and simply did not load this index definition, the
 			.frm file would disagree with the index definitions
 			inside InnoDB. */
-			if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
-
+			if ((error = dict_index_add_to_cache(index,
+							     index->page))
+			    != DB_SUCCESS) {
 				goto func_exit;
 			}
 		}
@@ -2653,14 +2609,13 @@ func_exit:
 
 /** Load a table definition from a SYS_TABLES record to dict_table_t.
 Do not load any columns or indexes.
-@param[in]	name	Table name
-@param[in]	rec	SYS_TABLES record
-@param[out,own]	table	table, or NULL
+@param[in]	name		Table name
+@param[in]	rec		SYS_TABLES record
+@param[out,own]	table		table, or NULL
 @return	error message
 @retval	NULL on success */
-static
-const char*
-dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table)
+static const char* dict_load_table_low(const table_name_t& name,
+				       const rec_t* rec, dict_table_t** table)
 {
 	table_id_t	table_id;
 	ulint		space_id;
@@ -2671,20 +2626,23 @@ dict_load_table_low(table_name_t& name, const rec_t* rec, dict_table_t** table)
 	ulint		n_v_col;
 
 	if (const char* error_text = dict_sys_tables_rec_check(rec)) {
+		*table = NULL;
 		return(error_text);
 	}
 
 	if (!dict_sys_tables_rec_read(rec, name, &table_id, &space_id,
 				      &t_num, &flags, &flags2)) {
+		*table = NULL;
 		return(dict_load_table_flags);
 	}
 
 	dict_table_decode_n_col(t_num, &n_cols, &n_v_col);
 
 	*table = dict_mem_table_create(
-		name.m_name, space_id, n_cols + n_v_col, n_v_col, flags, flags2);
+		name.m_name, NULL, n_cols + n_v_col, n_v_col, flags, flags2);
+	(*table)->space_id = space_id;
 	(*table)->id = table_id;
-	(*table)->file_unreadable = false;
+	(*table)->file_unreadable = !!(flags2 & DICT_TF2_DISCARDED);
 
 	return(NULL);
 }
@@ -2700,7 +2658,7 @@ void
 dict_save_data_dir_path(
 /*====================*/
 	dict_table_t*	table,		/*!< in/out: table */
-	char*		filepath)	/*!< in: filepath of tablespace */
+	const char*	filepath)	/*!< in: filepath of tablespace */
 {
 	ut_ad(mutex_own(&dict_sys->mutex));
 	ut_a(DICT_TF_HAS_DATA_DIR(table->flags));
@@ -2735,24 +2693,17 @@ dict_get_and_save_data_dir_path(
 	dict_table_t*	table,
 	bool		dict_mutex_own)
 {
-	ut_ad(!dict_table_is_temporary(table));
+	ut_ad(!table->is_temporary());
+	ut_ad(!table->space || table->space->id == table->space_id);
 
-	if (!table->data_dir_path && table->space) {
-		char*	path = fil_space_get_first_path(table->space);
-
+	if (!table->data_dir_path && table->space_id && table->space) {
 		if (!dict_mutex_own) {
 			dict_mutex_enter_for_mysql();
 		}
 
-		if (path == NULL) {
-			path = dict_get_first_path(table->space);
-		}
-
-		if (path != NULL) {
-			table->flags |= (1 << DICT_TF_POS_DATA_DIR);
-			dict_save_data_dir_path(table, path);
-			ut_free(path);
-		}
+		table->flags |= (1 << DICT_TF_POS_DATA_DIR);
+		dict_save_data_dir_path(table,
+					table->space->chain.start->name);
 
 		if (table->data_dir_path == NULL) {
 			/* Since we did not set the table data_dir_path,
@@ -2773,47 +2724,32 @@ the cluster definition if the table is a member in a cluster. Also loads
 all foreign key constraints where the foreign key is in the table or where
 a foreign key references columns in this table.
 @param[in]	name		Table name in the dbname/tablename format
-@param[in]	cached		true=add to cache, false=do not
 @param[in]	ignore_err	Error to be ignored when loading
 				table and its index definition
 @return table, NULL if does not exist; if the table is stored in an
 .ibd file, but the file does not exist, then we set the file_unreadable
 flag in the table object we return. */
-dict_table_t*
-dict_load_table(
-	const char*	name,
-	bool		cached,
-	dict_err_ignore_t ignore_err)
+dict_table_t* dict_load_table(const char* name, dict_err_ignore_t ignore_err)
 {
 	dict_names_t			fk_list;
 	dict_table_t*			result;
 	dict_names_t::iterator		i;
-	table_name_t			table_name;
 
 	DBUG_ENTER("dict_load_table");
 	DBUG_PRINT("dict_load_table", ("loading table: '%s'", name));
 
 	ut_ad(mutex_own(&dict_sys->mutex));
 
-	table_name.m_name = const_cast<char*>(name);
-
 	result = dict_table_check_if_in_cache_low(name);
 
 	if (!result) {
-		result = dict_load_table_one(table_name, cached, ignore_err,
-					     fk_list);
+		result = dict_load_table_one(const_cast<char*>(name),
+					     ignore_err, fk_list);
 		while (!fk_list.empty()) {
-			table_name_t	fk_table_name;
-			dict_table_t*	fk_table;
-
-			fk_table_name.m_name =
-				const_cast<char*>(fk_list.front());
-			fk_table = dict_table_check_if_in_cache_low(
-				fk_table_name.m_name);
-			if (!fk_table) {
-				dict_load_table_one(fk_table_name, cached,
-						    ignore_err, fk_list);
-			}
+			if (!dict_table_check_if_in_cache_low(fk_list.front()))
+				dict_load_table_one(
+					const_cast<char*>(fk_list.front()),
+					ignore_err, fk_list);
 			fk_list.pop_front();
 		}
 	}
@@ -2823,19 +2759,20 @@ dict_load_table(
 
 /** Opens a tablespace for dict_load_table_one()
 @param[in,out]	table		A table that refers to the tablespace to open
-@param[in]	heap		A memory heap
 @param[in]	ignore_err	Whether to ignore an error. */
 UNIV_INLINE
 void
 dict_load_tablespace(
 	dict_table_t*		table,
-	mem_heap_t*		heap,
 	dict_err_ignore_t	ignore_err)
 {
-	ut_ad(!dict_table_is_temporary(table));
+	ut_ad(!table->is_temporary());
+	ut_ad(!table->space);
+	ut_ad(table->space_id < SRV_LOG_SPACE_FIRST_ID);
+	ut_ad(fil_system.sys_space);
 
-	/* The system tablespace is always available. */
-	if (is_system_tablespace(table->space)) {
+	if (table->space_id == TRX_SYS_SPACE) {
+		table->space = fil_system.sys_space;
 		return;
 	}
 
@@ -2846,11 +2783,15 @@ dict_load_tablespace(
 		return;
 	}
 
-	char*	space_name = table->name.m_name;
-
 	/* The tablespace may already be open. */
-	if (fil_space_for_table_exists_in_mem(
-		    table->space, space_name, false, heap, table->flags)) {
+	table->space = fil_space_for_table_exists_in_mem(
+		table->space_id, table->name.m_name, table->flags);
+	if (table->space) {
+		return;
+	}
+
+	if (ignore_err == DICT_ERR_IGNORE_DROP) {
+		table->file_unreadable = true;
 		return;
 	}
 
@@ -2858,12 +2799,12 @@ dict_load_tablespace(
 		ib::error() << "Failed to find tablespace for table "
 			<< table->name << " in the cache. Attempting"
 			" to load the tablespace with space id "
-			<< table->space;
+			<< table->space_id;
 	}
 
 	/* Use the remote filepath if needed. This parameter is optional
 	in the call to fil_ibd_open(). If not supplied, it will be built
-	from the space_name. */
+	from the table->name. */
 	char* filepath = NULL;
 	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 		/* This will set table->data_dir_path from either
@@ -2879,12 +2820,12 @@ dict_load_tablespace(
 
 	/* Try to open the tablespace.  We set the 2nd param (fix_dict) to
 	false because we do not have an x-lock on dict_operation_lock */
-	dberr_t err = fil_ibd_open(
-		true, false, FIL_TYPE_TABLESPACE, table->space,
+	table->space = fil_ibd_open(
+		true, false, FIL_TYPE_TABLESPACE, table->space_id,
 		dict_tf_to_fsp_flags(table->flags),
-		space_name, filepath);
+		table->name, filepath);
 
-	if (err != DB_SUCCESS) {
+	if (!table->space) {
 		/* We failed to find a sensible tablespace file */
 		table->file_unreadable = true;
 	}
@@ -2901,7 +2842,6 @@ NULL.  These tables must be subsequently loaded so that all the foreign
 key constraints are loaded into memory.
 
 @param[in]	name		Table name in the db/tablename format
-@param[in]	cached		true=add to cache, false=do not
 @param[in]	ignore_err	Error to be ignored when loading table
 				and its index definition
 @param[out]	fk_tables	Related table names that must also be
@@ -2913,13 +2853,11 @@ file_unreadable flag in the table object we return */
 static
 dict_table_t*
 dict_load_table_one(
-	table_name_t&		name,
-	bool			cached,
+	const table_name_t&	name,
 	dict_err_ignore_t	ignore_err,
 	dict_names_t&		fk_tables)
 {
 	dberr_t		err;
-	dict_table_t*	table;
 	dict_table_t*	sys_tables;
 	btr_pcur_t	pcur;
 	dict_index_t*	sys_index;
@@ -2985,6 +2923,7 @@ err_exit:
 		goto err_exit;
 	}
 
+	dict_table_t* table;
 	if (const char* err_msg = dict_load_table_low(name, rec, &table)) {
 		if (err_msg != dict_load_table_flags) {
 			ib::error() << err_msg;
@@ -2995,7 +2934,7 @@ err_exit:
 	btr_pcur_close(&pcur);
 	mtr_commit(&mtr);
 
-	dict_load_tablespace(table, heap, ignore_err);
+	dict_load_tablespace(table, ignore_err);
 
 	dict_load_columns(table, heap);
 
@@ -3003,10 +2942,8 @@ err_exit:
 
 	dict_table_add_system_columns(table, heap);
 
-	if (cached) {
-		table->can_be_evicted = true;
-		table->add_to_cache();
-	}
+	table->can_be_evicted = true;
+	table->add_to_cache();
 
 	mem_heap_empty(heap);
 
@@ -3038,21 +2975,46 @@ err_exit:
 			table = NULL;
 			goto func_exit;
 		} else {
-			dict_index_t*	clust_index;
-			clust_index = dict_table_get_first_index(table);
-
-			if (dict_index_is_corrupted(clust_index)) {
+			if (table->indexes.start->is_corrupted()) {
 				table->corrupted = true;
 			}
 		}
 	}
 
-	if (err == DB_SUCCESS && cached && table->is_readable()) {
-		if (table->space && !fil_space_get_size(table->space)) {
+	if (err == DB_SUCCESS && table->is_readable()) {
+		if (table->space && !fil_space_get_size(table->space_id)) {
+corrupted:
 			table->corrupted = true;
 			table->file_unreadable = true;
-		} else if (table->supports_instant()) {
-			err = btr_cur_instant_init(table);
+			err = DB_CORRUPTION;
+		} else {
+			const page_id_t page_id(
+				table->space->id,
+				dict_table_get_first_index(table)->page);
+			mtr.start();
+			buf_block_t* block = buf_page_get(
+				page_id,
+				dict_table_page_size(table),
+				RW_S_LATCH, &mtr);
+			const bool corrupted = !block
+				|| page_get_space_id(block->frame)
+				!= page_id.space()
+				|| page_get_page_no(block->frame)
+				!= page_id.page_no()
+				|| (mach_read_from_2(FIL_PAGE_TYPE
+						    + block->frame)
+				    != FIL_PAGE_INDEX
+				    && mach_read_from_2(FIL_PAGE_TYPE
+							+ block->frame)
+				    != FIL_PAGE_TYPE_INSTANT);
+			mtr.commit();
+			if (corrupted) {
+				goto corrupted;
+			}
+
+			if (table->supports_instant()) {
+				err = btr_cur_instant_init(table);
+			}
 		}
 	}
 
@@ -3064,7 +3026,7 @@ err_exit:
 	of the error condition, since the user may want to dump data from the
 	clustered index. However we load the foreign key information only if
 	all indexes were loaded. */
-	if (!cached || !table->is_readable()) {
+	if (!table->is_readable()) {
 		/* Don't attempt to load the indexes from disk. */
 	} else if (err == DB_SUCCESS) {
 		err = dict_load_foreigns(table->name.m_name, NULL,
@@ -3092,14 +3054,11 @@ err_exit:
 
 		if (!srv_force_recovery
 		    || !index
-		    || !dict_index_is_clust(index)) {
-
+		    || !index->is_primary()) {
 			dict_table_remove_from_cache(table);
 			table = NULL;
-
-		} else if (dict_index_is_corrupted(index)
+		} else if (index->is_corrupted()
 			   && table->is_readable()) {
-
 			/* It is possible we force to load a corrupted
 			clustered index if srv_load_corrupted is set.
 			Mark the table as corrupted in this case */
@@ -3111,7 +3070,7 @@ func_exit:
 	mem_heap_free(heap);
 
 	ut_ad(!table
-	      || ignore_err != DICT_ERR_IGNORE_NONE
+	      || (ignore_err & ~DICT_ERR_IGNORE_FK_NOKEY)
 	      || !table->is_readable()
 	      || !table->corrupted);
 
@@ -3124,8 +3083,12 @@ func_exit:
 			FTS */
 			fts_optimize_remove_table(table);
 			fts_free(table);
-		} else {
+		} else if (fts_optimize_wq) {
 			fts_optimize_add_table(table);
+		} else if (table->can_be_evicted) {
+			/* fts_optimize_thread is not started yet.
+			So make the table as non-evictable from cache. */
+			dict_table_move_from_lru_to_non_lru(table);
 		}
 	}
 
@@ -3219,7 +3182,7 @@ check_rec:
 				/* Load the table definition to memory */
 				char*	table_name = mem_heap_strdupl(
 					heap, (char*) field, len);
-				table = dict_load_table(table_name, true, ignore_err);
+				table = dict_load_table(table_name, ignore_err);
 			}
 		}
 	}
@@ -3800,29 +3763,14 @@ dict_load_table_id_on_index_id(
 	return(found);
 }
 
-UNIV_INTERN
-dict_table_t*
-dict_table_open_on_index_id(
-/*========================*/
-	index_id_t index_id,	/*!< in: index id */
-	bool dict_locked)	/*!< in: dict locked */
+dict_table_t* dict_table_open_on_index_id(index_id_t index_id)
 {
-	if (!dict_locked) {
-		mutex_enter(&dict_sys->mutex);
-	}
-
-	ut_ad(mutex_own(&dict_sys->mutex));
 	table_id_t table_id;
 	dict_table_t * table = NULL;
 	if (dict_load_table_id_on_index_id(index_id, &table_id)) {
-		bool local_dict_locked = true;
-		table = dict_table_open_on_id(table_id,
-					      local_dict_locked,
+		table = dict_table_open_on_id(table_id, true,
 					      DICT_TABLE_OP_LOAD_TABLESPACE);
 	}
 
-	if (!dict_locked) {
-		mutex_exit(&dict_sys->mutex);
-	}
 	return table;
 }

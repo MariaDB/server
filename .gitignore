@@ -82,6 +82,7 @@ make_dist.cmake
 mariadb-*.*.*.tar.gz
 mariadb-*.*.*/
 mysql-test/lib/My/SafeProcess/my_safe_process
+mysql-test/lib/My/SafeProcess/wsrep_check_version
 mysql-test/mtr
 mysql-test/mysql-test-run
 mysql-test/var
@@ -94,12 +95,12 @@ packaging/rpm-oel/mysql.spec
 packaging/rpm-uln/mysql.10.0.11.spec
 packaging/solaris/postinstall-solaris
 pcre/config.h
-pcre/pcre*test.sh
 pcre/pcre.h
 pcre/pcre_chartables.c
 pcre/pcregrep
 pcre/pcretest
 pcre/test*grep
+plugin/auth_pam/config_auth_pam.h
 plugin/aws_key_management/aws-sdk-cpp
 plugin/aws_key_management/aws_sdk_cpp
 plugin/aws_key_management/aws_sdk_cpp-prefix
@@ -127,6 +128,7 @@ scripts/mytop
 scripts/wsrep_sst_common
 scripts/wsrep_sst_mysqldump
 scripts/wsrep_sst_rsync
+scripts/wsrep_sst_rsync_wan
 scripts/wsrep_sst_mariabackup
 scripts/wsrep_sst_xtrabackup
 scripts/wsrep_sst_xtrabackup-v2
@@ -166,9 +168,9 @@ sql/mysql_tzinfo_to_sql
 sql/mysqld
 sql/sql_builtin.cc
 sql/sql_yacc.cc
-sql/sql_yacc.h
+sql/sql_yacc.hh
 sql/sql_yacc_ora.cc
-sql/sql_yacc_ora.h
+sql/sql_yacc_ora.hh
 storage/heap/hp_test1
 storage/heap/hp_test2
 storage/maria/aria_chk
@@ -191,9 +193,10 @@ storage/myisam/myisampack
 storage/myisam/rt_test
 storage/myisam/sp_test
 storage/rocksdb/ldb
+storage/rocksdb/myrocks_hotbackup
 storage/rocksdb/mysql_ldb
-storage/rocksdb/sst_dump
 storage/rocksdb/rdb_source_revision.h
+storage/rocksdb/sst_dump
 storage/tokudb/PerconaFT/buildheader/db.h
 storage/tokudb/PerconaFT/buildheader/make_tdb
 storage/tokudb/PerconaFT/buildheader/runcat.sh
@@ -220,6 +223,8 @@ storage/tokudb/PerconaFT/tools/tokudb_load
 storage/tokudb/PerconaFT/tools/tokuftdump
 storage/tokudb/PerconaFT/tools/tokuft_logprint
 storage/tokudb/PerconaFT/xz/
+storage/tokudb/tokudb.cnf
+storage/tokudb/tokudb.conf
 strings/conf_to_src
 support-files/MySQL-shared-compat.spec
 support-files/binary-configure
@@ -242,6 +247,8 @@ support-files/mysqld_multi.server
 support-files/wsrep.cnf
 support-files/wsrep_notify
 support-files/policy/selinux/mysqld-safe.pp
+support-files/sysusers.conf
+support-files/tmpfiles.conf
 support-files/mariadb.pp
 tags
 tests/async_queries
@@ -259,6 +266,7 @@ storage/mroonga/vendor/groonga/src/groonga-benchmark
 storage/mroonga/vendor/groonga/src/suggest/groonga-suggest-create-dataset
 storage/mroonga/mysql-test/mroonga/storage/r/information_schema_plugins.result
 storage/mroonga/mysql-test/mroonga/storage/r/variable_version.result
+zlib/zconf.h
 xxx/*
 yyy/*
 zzz/*
@@ -332,6 +340,7 @@ x86/
 build/
 bld/
 [Bb]in/
+/cmake-build-debug/
 [Oo]bj/
 
 # Roslyn cache directories
@@ -496,6 +505,12 @@ UpgradeLog*.htm
 # Microsoft Fakes
 FakesAssemblies/
 
+# macOS garbage
+.DS_Store
+
+# QtCreator && CodeBlocks
+*.cbp
+
 compile_commands.json
 .clang-format
 .kscope/
@@ -503,3 +518,9 @@ compile_commands.json
 .editorconfig
 .kateconfig
 *.kdev4
+
+# Visual Studio Code workspace
+.vscode/
+
+/.idea/
+.cache/clangd

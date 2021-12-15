@@ -11,12 +11,9 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "maria_def.h"
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
-#endif
 #include "ma_blockrec.h"
 
 static void maria_extra_keyflag(MARIA_HA *info,
@@ -213,7 +210,13 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
 	    info->last_key.data + share->base.max_key_length*2,
 	    info->save_lastkey_data_length + info->save_lastkey_ref_length);
       info->update=	info->save_update | HA_STATE_WRITTEN;
-      info->lastinx=	info->save_lastinx;
+      if (info->lastinx != info->save_lastinx)             /* Index changed */
+      {
+        info->lastinx = info->save_lastinx;
+        info->last_key.keyinfo= info->s->keyinfo + info->lastinx;
+        info->last_key.flag= 0;
+        info->page_changed=1;
+      }
       info->cur_row.lastpos= info->save_lastpos;
       info->last_key.data_length= info->save_lastkey_data_length;
       info->last_key.ref_length= info->save_lastkey_ref_length;
@@ -286,7 +289,6 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       We however do a flush here for additional safety.
     */
     /** @todo consider porting these flush-es to MyISAM */
-    DBUG_ASSERT(share->reopen == 1);
     error= _ma_flush_table_files(info, MARIA_FLUSH_DATA | MARIA_FLUSH_INDEX,
                                  FLUSH_FORCE_WRITE, FLUSH_FORCE_WRITE);
     if (!error && share->changed)
@@ -314,6 +316,8 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     share->state.open_count= 1;
     share->changed= 1;
     _ma_mark_file_changed_now(share);
+    if (share->temporary)
+      break;
     /* fall through */
   case HA_EXTRA_PREPARE_FOR_RENAME:
   {
@@ -346,7 +350,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       _ma_decrement_open_count(info, 0);
     if (info->trn)
     {
-      _ma_remove_table_from_trnman(share, info->trn);
+      _ma_remove_table_from_trnman(info);
       /* Ensure we don't point to the deleted data in trn */
       info->state= info->state_start= &share->state.state;
     }
@@ -409,7 +413,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     if (info->trn)
     {
       mysql_mutex_lock(&share->intern_lock);
-      _ma_remove_table_from_trnman(share, info->trn);
+      _ma_remove_table_from_trnman(info);
       /* Ensure we don't point to the deleted data in trn */
       info->state= info->state_start= &share->state.state;
       mysql_mutex_unlock(&share->intern_lock);    

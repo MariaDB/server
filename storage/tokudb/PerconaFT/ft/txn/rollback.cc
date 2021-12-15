@@ -43,6 +43,8 @@ Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
 #include "ft/logger/log-internal.h"
 #include "ft/txn/rollback-ct-callbacks.h"
 
+extern int writing_rollback;
+
 static void rollback_unpin_remove_callback(CACHEKEY* cachekey, bool for_checkpoint, void* extra) {
     FT CAST_FROM_VOIDP(ft, extra);
     ft->blocktable.free_blocknum(cachekey, ft, for_checkpoint);
@@ -155,6 +157,7 @@ static void rollback_log_create (
     ROLLBACK_LOG_NODE *result
     )
 {
+    writing_rollback++;
     ROLLBACK_LOG_NODE XMALLOC(log);
     rollback_empty_log_init(log);
 
@@ -169,6 +172,7 @@ static void rollback_log_create (
                        get_write_callbacks_for_rollback_log(ft),
                        toku_rollback_node_save_ct_pair);
     txn->roll_info.current_rollback = log->blocknum;
+    writing_rollback --;
 }
 
 void toku_rollback_log_unpin(TOKUTXN txn, ROLLBACK_LOG_NODE log) {
@@ -276,7 +280,7 @@ void toku_get_and_pin_rollback_log(TOKUTXN txn, BLOCKNUM blocknum, ROLLBACK_LOG_
     FT CAST_FROM_VOIDP(h, toku_cachefile_get_userdata(cf));
     uint32_t hash = toku_cachetable_hash(cf, blocknum);
     int r = toku_cachetable_get_and_pin_with_dep_pairs(cf, blocknum, hash,
-                                        &value, NULL,
+                                        &value,
                                         get_write_callbacks_for_rollback_log(h),
                                         toku_rollback_fetch_callback,
                                         toku_rollback_pf_req_callback,

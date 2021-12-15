@@ -88,13 +88,13 @@ bool sequence_definition::check_and_adjust(bool set_reserved_until)
 
   /*
     If min_value is not set, set it to LONGLONG_MIN or 1, depending on
-    increment
+    real_increment
   */
   if (!(used_fields & seq_field_used_min_value))
     min_value= real_increment < 0 ? LONGLONG_MIN+1 : 1;
 
   /*
-    If min_value is not set, set it to LONGLONG_MAX or -1, depending on
+    If max_value is not set, set it to LONGLONG_MAX or -1, depending on
     real_increment
   */
   if (!(used_fields & seq_field_used_max_value))
@@ -136,7 +136,7 @@ bool sequence_definition::check_and_adjust(bool set_reserved_until)
 
 void sequence_definition::read_fields(TABLE *table)
 {
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   reserved_until= table->field[0]->val_int();
   min_value=      table->field[1]->val_int();
   max_value=      table->field[2]->val_int();
@@ -145,7 +145,7 @@ void sequence_definition::read_fields(TABLE *table)
   cache=          table->field[5]->val_int();
   cycle=          table->field[6]->val_int();
   round=          table->field[7]->val_int();
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
   used_fields= ~(uint) 0;
   print_dbug();
 }
@@ -157,7 +157,7 @@ void sequence_definition::read_fields(TABLE *table)
 
 void sequence_definition::store_fields(TABLE *table)
 {
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
 
   /* zero possible delete markers & null bits */
   memcpy(table->record[0], table->s->default_values, table->s->null_bytes);
@@ -170,13 +170,13 @@ void sequence_definition::store_fields(TABLE *table)
   table->field[6]->store((longlong) cycle != 0, 0);
   table->field[7]->store((longlong) round, 1);
 
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
   print_dbug();
 }
 
 
 /*
-  Check the sequence fields through seq_fields when createing a sequence.
+  Check the sequence fields through seq_fields when creating a sequence.
 
   RETURN VALUES
     false       Success
@@ -203,6 +203,16 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
     reason= "Sequence tables cannot have any keys";
     goto err;
   }
+  if (lex->alter_info.check_constraint_list.elements > 0)
+  {
+    reason= "Sequence tables cannot have any constraints";
+    goto err;
+  }
+  if (lex->alter_info.flags & ALTER_ORDER)
+  {
+    reason= "ORDER BY";
+    goto err;
+  }
 
   for (field_no= 0; (field= it++); field_no++)
   {
@@ -210,7 +220,8 @@ bool check_sequence_fields(LEX *lex, List<Create_field> *fields)
     if (my_strcasecmp(system_charset_info, field_def->field_name,
                       field->field_name.str) ||
         field->flags != field_def->flags ||
-        field->type_handler() != field_def->type_handler)
+        field->type_handler() != field_def->type_handler ||
+        field->check_constraint || field->vcol_info)
     {
       reason= field->field_name.str;
       goto err;
@@ -275,48 +286,17 @@ bool prepare_sequence_fields(THD *thd, List<Create_field> *fields)
     There is also a MDL lock on the table.
 */
 
-bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *table_list)
+bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
 {
   int error;
   TABLE *table;
-  TABLE_LIST::enum_open_strategy save_open_strategy;
   Reprepare_observer *save_reprepare_observer;
   sequence_definition *seq= lex->create_info.seq_create_info;
-  bool temporary_table= table_list->table != 0;
+  bool temporary_table= org_table_list->table != 0;
+  Open_tables_backup open_tables_backup;
+  Query_tables_list query_tables_list_backup;
+  TABLE_LIST table_list;                        // For sequence table
   DBUG_ENTER("sequence_insert");
-
-  /* If not temporary table */
-  if (!temporary_table)
-  {
-    /* Table was locked as part of create table. Free it but keep MDL locks */
-    close_thread_tables(thd);
-    table_list->lock_type= TL_WRITE_DEFAULT;
-    table_list->updating=  1;
-    /*
-      The FOR CREATE flag is needed to ensure that ha_open() doesn't try to
-      read the not yet existing row in the sequence table
-    */
-    thd->open_options|= HA_OPEN_FOR_CREATE;
-    save_open_strategy= table_list->open_strategy;
-    /*
-      We have to reset the reprepare observer to be able to open the
-      table under prepared statements.
-    */
-    save_reprepare_observer= thd->m_reprepare_observer;
-    thd->m_reprepare_observer= 0;
-    table_list->open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
-    table_list->open_type= OT_BASE_ONLY;
-    error= open_and_lock_tables(thd, table_list, FALSE,
-                                MYSQL_LOCK_IGNORE_TIMEOUT |
-                                MYSQL_OPEN_HAS_MDL_LOCK);
-    table_list->open_strategy= save_open_strategy;
-    thd->open_options&= ~HA_OPEN_FOR_CREATE;
-    thd->m_reprepare_observer= save_reprepare_observer;
-    if (error)
-      DBUG_RETURN(TRUE); /* purify inspected */
-  }
-
-  table= table_list->table;
 
   /*
     seq is 0 if sequence was created with CREATE TABLE instead of
@@ -325,16 +305,82 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *table_list)
   if (!seq)
   {
     if (!(seq= new (thd->mem_root) sequence_definition))
-      DBUG_RETURN(TRUE);                        // EOM
+      DBUG_RETURN(TRUE);
   }
+
+  /* If not temporary table */
+  if (!temporary_table)
+  {
+    /*
+      The following code works like open_system_tables_for_read() and
+      close_system_tables()
+      The idea is:
+      - Copy the table_list object for the sequence that was created
+      - Backup the current state of open tables and create a new
+        environment for open tables without any tables opened
+     - open the newly sequence table for write
+     This is safe as the sequence table has a mdl lock thanks to the
+     create sequence statement that is calling this function
+    */
+
+    table_list.init_one_table(&org_table_list->db,
+                              &org_table_list->table_name, 
+                              NULL, TL_WRITE_DEFAULT);
+    table_list.updating=  1;
+    table_list.open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
+    table_list.open_type= OT_BASE_ONLY;
+
+    DBUG_ASSERT(!thd->locked_tables_mode ||
+                (thd->variables.option_bits & OPTION_TABLE_LOCK));
+    lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
+    thd->reset_n_backup_open_tables_state(&open_tables_backup);
+
+    /*
+      The FOR CREATE flag is needed to ensure that ha_open() doesn't try to
+      read the not yet existing row in the sequence table
+    */
+    thd->open_options|= HA_OPEN_FOR_CREATE;
+    /*
+      We have to reset the reprepare observer to be able to open the
+      table under prepared statements.
+    */
+    save_reprepare_observer= thd->m_reprepare_observer;
+    thd->m_reprepare_observer= 0;
+    lex->sql_command= SQLCOM_CREATE_SEQUENCE;
+    error= open_and_lock_tables(thd, &table_list, FALSE,
+                                MYSQL_LOCK_IGNORE_TIMEOUT |
+                                MYSQL_OPEN_HAS_MDL_LOCK);
+    thd->open_options&= ~HA_OPEN_FOR_CREATE;
+    thd->m_reprepare_observer= save_reprepare_observer;
+    if (unlikely(error))
+    {
+      lex->restore_backup_query_tables_list(&query_tables_list_backup);
+      thd->restore_backup_open_tables_state(&open_tables_backup);
+      DBUG_RETURN(error);
+    }
+    table= table_list.table;
+  }
+  else
+    table= org_table_list->table;
 
   seq->reserved_until= seq->start;
   error= seq->write_initial_sequence(table);
 
-  trans_commit_stmt(thd);
-  trans_commit_implicit(thd);
+  if (trans_commit_stmt(thd))
+    error= 1;
+  if (trans_commit_implicit(thd))
+    error= 1;
+
   if (!temporary_table)
+  {
     close_thread_tables(thd);
+    lex->restore_backup_query_tables_list(&query_tables_list_backup);
+    thd->restore_backup_open_tables_state(&open_tables_backup);
+
+    /* OPTION_TABLE_LOCK was reset in trans_commit_implicit */
+    if (thd->locked_tables_mode)
+      thd->variables.option_bits|= OPTION_TABLE_LOCK;
+  }
   DBUG_RETURN(error);
 }
 
@@ -426,7 +472,10 @@ int SEQUENCE::read_initial_values(TABLE *table)
       mdl_requests.push_front(&mdl_request);
       if (thd->mdl_context.acquire_locks(&mdl_requests,
                                          thd->variables.lock_wait_timeout))
+      {
+        write_unlock(table);
         DBUG_RETURN(HA_ERR_LOCK_WAIT_TIMEOUT);
+      }
     }
     save_lock_type= table->reginfo.lock_type;
     table->reginfo.lock_type= TL_READ;
@@ -435,10 +484,15 @@ int SEQUENCE::read_initial_values(TABLE *table)
     {
       if (mdl_lock_used)
         thd->mdl_context.release_lock(mdl_request.ticket);
+      write_unlock(table);
+
+      if (!has_active_transaction && !thd->transaction.stmt.is_empty() &&
+          !thd->in_sub_stmt)
+        trans_commit_stmt(thd);
       DBUG_RETURN(HA_ERR_LOCK_WAIT_TIMEOUT);
     }
     DBUG_ASSERT(table->reginfo.lock_type == TL_READ);
-    if (!(error= read_stored_values(table)))
+    if (likely(!(error= read_stored_values(table))))
       initialized= SEQ_READY_TO_USE;
     mysql_unlock_tables(thd, lock);
     if (mdl_lock_used)
@@ -450,9 +504,12 @@ int SEQUENCE::read_initial_values(TABLE *table)
       Doing mysql_lock_tables() may have started a read only transaction.
       If that happend, it's better that we commit it now, as a lot of
       code assumes that there is no active stmt transaction directly after
-      open_tables()
+      open_tables().
+      But we also don't want to commit the stmt transaction while in a
+      substatement, see MDEV-15977.
     */
-    if (!has_active_transaction && !thd->transaction.stmt.is_empty())
+    if (!has_active_transaction && !thd->transaction.stmt.is_empty() &&
+        !thd->in_sub_stmt)
       trans_commit_stmt(thd);
   }
   write_unlock(table);
@@ -470,14 +527,13 @@ int SEQUENCE::read_initial_values(TABLE *table)
 int SEQUENCE::read_stored_values(TABLE *table)
 {
   int error;
-  my_bitmap_map *save_read_set;
   DBUG_ENTER("SEQUENCE::read_stored_values");
 
-  save_read_set= tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *save_read_set= tmp_use_all_columns(table, &table->read_set);
   error= table->file->ha_read_first_row(table->record[0], MAX_KEY);
-  tmp_restore_column_map(table->read_set, save_read_set);
+  tmp_restore_column_map(&table->read_set, save_read_set);
 
-  if (error)
+  if (unlikely(error))
   {
     table->file->print_error(error, MYF(0));
     DBUG_RETURN(error);
@@ -505,7 +561,8 @@ void sequence_definition::adjust_values(longlong next_value)
 
     if ((real_increment= global_system_variables.auto_increment_increment)
         != 1)
-      offset= global_system_variables.auto_increment_offset;
+      offset= (global_system_variables.auto_increment_offset %
+               global_system_variables.auto_increment_increment);
 
     /*
       Ensure that next_free_value has the right offset, so that we
@@ -527,8 +584,7 @@ void sequence_definition::adjust_values(longlong next_value)
     else
     {
       next_free_value+= to_add;
-      DBUG_ASSERT(next_free_value % real_increment == offset &&
-                  next_free_value >= reserved_until);
+      DBUG_ASSERT(llabs(next_free_value % real_increment) == offset);
     }
   }
 }
@@ -559,7 +615,7 @@ int sequence_definition::write_initial_sequence(TABLE *table)
   table->s->sequence->initialized= SEQUENCE::SEQ_UNINTIALIZED;
   reenable_binlog(thd);
   table->write_set= save_write_set;
-  if (error)
+  if (unlikely(error))
     table->file->print_error(error, MYF(0));
   else
   {
@@ -601,7 +657,7 @@ int sequence_definition::write(TABLE *table, bool all_fields)
   table->read_set= table->write_set= &table->s->all_set;
   table->file->column_bitmaps_signal();
   store_fields(table);
-  if ((error= table->file->ha_write_row(table->record[0])))
+  if (unlikely((error= table->file->ha_write_row(table->record[0]))))
     table->file->print_error(error, MYF(0));
   table->rpl_write_set= save_rpl_write_set;
   table->read_set=  save_read_set;
@@ -708,7 +764,7 @@ longlong SEQUENCE::next_value(TABLE *table, bool second_round, int *error)
     DBUG_RETURN(next_value(table, 1, error));
   }
 
-  if ((*error= write(table, 0)))
+  if (unlikely((*error= write(table, 0))))
   {
     reserved_until= org_reserved_until;
     next_free_value= res_value;
@@ -860,7 +916,7 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
     trapped_errors= no_such_table_handler.safely_trapped_errors();
     thd->pop_internal_handler();
   }
-  if (error)
+  if (unlikely(error))
   {
     if (trapped_errors)
     {
@@ -916,7 +972,7 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   }
 
   table->s->sequence->write_lock(table);
-  if (!(error= new_seq->write(table, 1)))
+  if (likely(!(error= new_seq->write(table, 1))))
   {
     /* Store the sequence values in table share */
     table->s->sequence->copy(new_seq);
@@ -928,9 +984,9 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
     error= 1;
   if (trans_commit_implicit(thd))
     error= 1;
-  if (!error)
+  if (likely(!error))
     error= write_bin_log(thd, 1, thd->query(), thd->query_length());
-  if (!error)
+  if (likely(!error))
     my_ok(thd);
 
 end:

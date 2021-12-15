@@ -7,7 +7,7 @@
 #
 SET GLOBAL innodb_log_checksums=0;
 Warnings:
-Warning	138	innodb_encrypt_log implies innodb_log_checksums
+Warning	138	innodb_log_checksums is deprecated and has no effect outside recovery
 SELECT @@global.innodb_log_checksums;
 @@global.innodb_log_checksums
 1
@@ -22,6 +22,8 @@ key (col_int_key),
 key (col_char_key)
 ) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=1;
 CREATE TEMPORARY TABLE t LIKE t0;
+Warnings:
+Warning	1478	Ignoring encryption parameter during temporary table creation.
 INSERT INTO t VALUES
 (NULL,1,1,'private','secret'),(NULL,2,2,'sacred','success'),
 (NULL,3,3,'story','secure'),(NULL,4,4,'security','sacrament');

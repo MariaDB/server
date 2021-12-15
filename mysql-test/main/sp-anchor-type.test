@@ -1,0 +1,763 @@
+--source include/default_charset.inc
+
+--echo #
+--echo # Start of 10.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-12461 TYPE OF and ROW TYPE OF anchored data types
+--echo #
+
+--echo #
+--echo # Missing table
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a TYPE OF t1.a;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1();
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # Missing column
+--echo #
+
+CREATE TABLE t1 (b INT);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a TYPE OF t1.a;
+END;
+$$
+DELIMITER ;$$
+--error ER_BAD_FIELD_ERROR
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # One TYPE OF variable
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a TYPE OF t1.a;
+  SET a= 123;
+  SELECT a;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # Two TYPE OF variables, with a truncation warning on assignment
+--echo #
+
+SET sql_mode='';
+CREATE TABLE t1 (a TINYINT, b INT);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a TYPE OF t1.a;
+  DECLARE b TYPE OF t1.b;
+  SET a= 200;
+  SET b= 200;
+  SELECT a, b;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+
+--echo #
+--echo # TYPE OF variables for fields with various attributes
+--echo #
+
+CREATE TABLE t1 (
+  id INT NOT NULL PRIMARY KEY AUTO_INCREMENT,
+  a TINYINT NOT NULL,
+  b INT NOT NULL,
+  ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE(a)
+);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE id TYPE OF t1.id;
+  DECLARE a  TYPE OF t1.a;
+  DECLARE b  TYPE OF t1.b;
+  DECLARE ts TYPE OF t1.ts;
+  SELECT id, a, b, ts;
+  CREATE TABLE t2 AS SELECT id, a, b, ts;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # TYPE OF + virtual columns
+--echo #
+
+CREATE TABLE t1 (
+  a INT NOT NULL,
+  b VARCHAR(32),
+  c INT AS (a + 10) VIRTUAL,
+  d VARCHAR(5) AS (left(b,5)) PERSISTENT
+);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE c TYPE OF t1.c;
+  DECLARE d TYPE OF t1.d;
+  SELECT c, d;
+  CREATE TABLE t2 AS SELECT c, d;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # TYPE OF + the ZEROFILL attribute
+--echo #
+
+CREATE TABLE t1 (
+  dz DECIMAL(10,3) ZEROFILL
+);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE dzr TYPE OF t1.dz DEFAULT 10;
+  DECLARE dzt DECIMAL(10,3) ZEROFILL DEFAULT 10;
+  SELECT dzr, dzt;
+  CREATE TABLE t2 AS SELECT dzr,dzt;
+  SHOW CREATE TABLE t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Temporary tables shadow real tables for TYPE OF purposes
+--echo #
+CREATE TABLE t1 (a VARCHAR(10));
+INSERT INTO t1 VALUES ('t1');
+CREATE TEMPORARY TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10);
+SELECT * FROM t1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a TYPE OF t1.a DEFAULT 11;
+  CREATE TABLE t2 AS SELECT a;
+END;
+$$
+DELIMITER ;$$
+--echo #
+--echo # Should use INT(11) as TYPE OF, as in the temporary table
+--echo #
+CALL p1();
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+SELECT * FROM t1;
+DROP TEMPORARY TABLE t1;
+SELECT * FROM t1;
+--echo #
+--echo # Should use VARCHAR(10) as TYPE OF, as in the real table
+--echo #
+CALL p1();
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # "TYPE OF t1.a" searches for "t1" in the current database
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10));
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (a INT);
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a TYPE OF t1.a DEFAULT 11;
+  CREATE TABLE test.t2 AS SELECT a;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # This interprets "TYPE OF t1.a" as VARCHAR(10), as in test.t1.a
+--echo #
+
+USE test;
+CALL test.p1();
+SHOW CREATE TABLE test.t2;
+DROP TABLE test.t2;
+
+--echo #
+--echo # This interprets "TYPE OF t1.a" as INT, as in test1.t1.a
+--echo #
+
+USE test1;
+CALL test.p1();
+SHOW CREATE TABLE test.t2;
+DROP TABLE test.t2;
+
+--echo #
+--echo # Error if there is no an active database
+--echo #
+
+DROP DATABASE test1;
+--error ER_NO_DB_ERROR
+CALL test.p1();
+
+USE test;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # A reference to a table in a non-existing database
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a TYPE OF test1.t1.a;
+  CREATE TABLE t1 AS SELECT a;
+END;
+$$
+DELIMITER ;$$
+--error ER_NO_SUCH_TABLE
+CALL p1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # A reference to a table in a different database
+--echo #
+CREATE TABLE t1(a INT);
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (a VARCHAR(10));
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a TYPE OF t1.a;
+  DECLARE b TYPE OF test1.t1.a;
+  CREATE TABLE t2 AS SELECT a,b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+SHOW CREATE TABLE t2;
+DROP PROCEDURE p1;
+DROP TABLE t2;
+DROP DATABASE test1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Using a table before it appears in a TYPE OF declaration + multiple TYPE OF declarations
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+INSERT INTO t1 (a,b) VALUES (10,'b10');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  INSERT INTO t1 (a,b) VALUES (11, 'b11');
+  SELECT * FROM t1;
+  BEGIN
+    DECLARE va TYPE OF t1.a DEFAULT 30;
+    DECLARE vb TYPE OF t1.b DEFAULT 'b30';
+    INSERT INTO t1 (a,b) VALUES (12,'b12');
+    SELECT * FROM t1;
+    INSERT INTO t1 (a,b) VALUES (va, vb);
+    SELECT * FROM t1;
+  END;
+  BEGIN
+    DECLARE va TYPE OF t1.a DEFAULT 40;
+    DECLARE vb TYPE OF t1.b DEFAULT 'b40';
+   INSERT INTO t1 (a,b) VALUES (va,vb);
+   SELECT * FROM t1;
+  END;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # TYPE OF variables + TABLE vs VIEW
+--echo #
+
+CREATE TABLE t1 (
+  bit6 BIT(6),
+  bit7 BIT(7),
+  bit8 BIT(8),
+  i1 TINYINT,
+  i2 SMALLINT,
+  i3 MEDIUMINT,
+  i4 INT,
+  i8 BIGINT,
+  ff FLOAT,
+  fd DOUBLE,
+  cc CHAR(10),
+  cv VARCHAR(10),
+  cvu VARCHAR(10) CHARACTER SET utf8,
+  t1 TINYTEXT,
+  t2 TEXT,
+  t3 MEDIUMTEXT,
+  t4 LONGTEXT,
+  enum1 ENUM('a','b','c'),
+  set1  SET('a','b','c'),
+  blob1 TINYBLOB,
+  blob2 BLOB,
+  blob3 MEDIUMBLOB,
+  blob4 LONGBLOB,
+  yy  YEAR,
+  dd  DATE,
+  tm0 TIME,
+  tm3 TIME(3),
+  tm6 TIME(6),
+  dt0 DATETIME,
+  dt3 DATETIME(3),
+  dt6 DATETIME(6),
+  ts0 TIMESTAMP,
+  ts3 TIMESTAMP(3),
+  ts6 TIMESTAMP(6),
+  dc100 DECIMAL(10,0),
+  dc103 DECIMAL(10,3),
+  dc209 DECIMAL(20,9)
+);
+
+
+DELIMITER $$;
+CREATE PROCEDURE p1(command enum('create','select'))
+BEGIN
+  DECLARE  bit6   TYPE OF t1.bit6  DEFAULT 0x30;
+  DECLARE  bit7   TYPE OF t1.bit7  DEFAULT 0x41;
+  DECLARE  bit8   TYPE OF t1.bit8  DEFAULT 0x7E;
+  DECLARE  i1     TYPE OF t1.i1    DEFAULT 11;
+  DECLARE  i2     TYPE OF t1.i2    DEFAULT 12;
+  DECLARE  i3     TYPE OF t1.i3    DEFAULT 13;
+  DECLARE  i4     TYPE OF t1.i4    DEFAULT 14;
+  DECLARE  i8     TYPE OF t1.i8    DEFAULT 18;
+  DECLARE  ff     TYPE OF t1.ff    DEFAULT 21;
+  DECLARE  fd     TYPE OF t1.fd    DEFAULT 22;
+  DECLARE  cc     TYPE OF t1.cc    DEFAULT 'char';
+  DECLARE  cv     TYPE OF t1.cv    DEFAULT 'varchar';
+  DECLARE  cvu    TYPE OF t1.cvu   DEFAULT 'varcharu8';
+  DECLARE  t1     TYPE OF t1.t1    DEFAULT 'text1';
+  DECLARE  t2     TYPE OF t1.t2    DEFAULT 'text2';
+  DECLARE  t3     TYPE OF t1.t3    DEFAULT 'text3';
+  DECLARE  t4     TYPE OF t1.t4    DEFAULT 'text4';
+  DECLARE  enum1  TYPE OF t1.enum1 DEFAULT 'b';
+  DECLARE  set1   TYPE OF t1.set1  DEFAULT 'a,c';
+  DECLARE  blob1  TYPE OF t1.blob1 DEFAULT 'blob1';
+  DECLARE  blob2  TYPE OF t1.blob2 DEFAULT 'blob2';
+  DECLARE  blob3  TYPE OF t1.blob3 DEFAULT 'blob3';
+  DECLARE  blob4  TYPE OF t1.blob4 DEFAULT 'blob4';
+  DECLARE  yy     TYPE OF t1.yy    DEFAULT 2001;
+  DECLARE  dd     TYPE OF t1.dd    DEFAULT '2001-01-01';
+  DECLARE  tm0    TYPE OF t1.tm0   DEFAULT '00:00:01';
+  DECLARE  tm3    TYPE OF t1.tm3   DEFAULT '00:00:03.333';
+  DECLARE  tm6    TYPE OF t1.tm6   DEFAULT '00:00:06.666666';
+  DECLARE  dt0    TYPE OF t1.dt0   DEFAULT '2001-01-01 00:00:01';
+  DECLARE  dt3    TYPE OF t1.dt3   DEFAULT '2001-01-03 00:00:01.333';
+  DECLARE  dt6    TYPE OF t1.dt6   DEFAULT '2001-01-06 00:00:01.666666';
+  DECLARE  ts0    TYPE OF t1.ts0   DEFAULT '2002-01-01 00:00:01';
+  DECLARE  ts3    TYPE OF t1.ts3   DEFAULT '2002-01-03 00:00:01.333';
+  DECLARE  ts6    TYPE OF t1.ts6   DEFAULT '2002-01-06 00:00:01.666666';
+  DECLARE  dc100  TYPE OF t1.dc100 DEFAULT 10;
+  DECLARE  dc103  TYPE OF t1.dc103 DEFAULT 10.123;
+  DECLARE  dc209  TYPE OF t1.dc209 DEFAULT 10.123456789;
+  CASE
+  WHEN command='create' THEN
+    CREATE TABLE t2 AS SELECT
+      bit6, bit7, bit8,
+      i1,i2,i3,i4,i8,
+      ff,fd, dc100, dc103, dc209,
+      cc,cv,cvu,
+      t1,t2,t3,t4,
+      enum1, set1,
+      blob1, blob2, blob3, blob4,
+      dd, yy,
+      tm0, tm3, tm6,
+      dt0, dt3, dt6,
+      ts0, ts3, ts6;
+  WHEN command='select' THEN
+    SELECT
+      bit6, bit7, bit8,
+      i1,i2,i3,i4,i8,
+      ff,fd, dc100, dc103, dc209,
+      cc,cv,cvu,
+      t1,t2,t3,t4,
+      enum1, set1,
+      blob1, blob2, blob3, blob4,
+      dd, yy,
+      tm0, tm3, tm6,
+      dt0, dt3, dt6,
+      ts0, ts3, ts6;
+  END CASE;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # TABLE
+--echo #
+CALL p1('create');
+SHOW CREATE TABLE t2;
+--vertical_results
+SELECT * FROM t2;
+--horizontal_results
+DROP TABLE t2;
+
+--disable_ps_protocol
+--enable_metadata
+--vertical_results
+CALL p1('select');
+--horizontal_results
+--disable_metadata
+--enable_ps_protocol
+
+--echo #
+--echo # VIEW
+--echo #
+ALTER TABLE t1 RENAME t0;
+CREATE VIEW t1 AS SELECT * FROM t0;
+
+CALL p1('create');
+SHOW CREATE TABLE t2;
+--vertical_results
+SELECT * FROM t2;
+--horizontal_results
+DROP TABLE t2;
+
+--disable_ps_protocol
+--enable_metadata
+--vertical_results
+CALL p1('select');
+--horizontal_results
+--disable_metadata
+--enable_ps_protocol
+
+DROP VIEW t1;
+DROP TABLE t0;
+
+DROP PROCEDURE p1;
+
+--echo #
+--echo # VIEW with subqueries
+--echo #
+CREATE TABLE t1 (a INT,b INT);
+INSERT INTO t1 VALUES (10,1),(20,2),(30,3),(40,4);
+SELECT AVG(a) FROM t1;
+CREATE VIEW v1 AS SELECT a,1 as b FROM t1 WHERE a>(SELECT AVG(a) FROM t1) AND b>(SELECT 1);
+SELECT * FROM v1;
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a TYPE OF v1.a DEFAULT 10;
+  DECLARE b TYPE OF v1.b DEFAULT 1;
+  SELECT a,b;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DELIMITER $$;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+  DECLARE a TYPE OF v1.a DEFAULT 10;
+  DECLARE b TYPE OF v1.b DEFAULT 1;
+  RETURN a+b;
+END;
+$$
+DELIMITER ;$$
+SELECT f1();
+DROP FUNCTION f1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # TYPE OF variables + INFORMATION_SCHEMA
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE tables_table_name TYPE OF INFORMATION_SCHEMA.TABLES.TABLE_NAME;
+  DECLARE tables_table_rows TYPE OF INFORMATION_SCHEMA.TABLES.TABLE_ROWS;
+  DECLARE processlist_info  TYPE OF INFORMATION_SCHEMA.PROCESSLIST.INFO;
+  DECLARE processlist_info_binary TYPE OF INFORMATION_SCHEMA.PROCESSLIST.INFO_BINARY;
+  CREATE TABLE t1 AS SELECT
+    tables_table_name,
+    tables_table_rows,
+    processlist_info,
+    processlist_info_binary;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # TYPE OF + Table structure change
+--echo # Data type for both a0 and a1 is chosen in the very beginning
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE a0 TYPE OF t1.a;
+  ALTER TABLE t1 MODIFY a VARCHAR(10); -- This does not affect a1
+  BEGIN
+    DECLARE a1 TYPE OF t1.a;
+    CREATE TABLE t2 AS SELECT a0, a1;
+    SHOW CREATE TABLE t2;
+    DROP TABLE t2;
+  END;
+END
+$$
+DELIMITER ;$$
+CREATE TABLE t1 (a INT);
+CALL p1;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+
+--echo #
+--echo # TYPE OF in parameters
+--echo #
+CREATE TABLE t1 (a VARCHAR(10));
+CREATE DATABASE test1;
+CREATE TABLE test1.t1 (b SMALLINT);
+DELIMITER $$;
+CREATE PROCEDURE p1(a TYPE OF t1.a, b TYPE OF test1.t1.b)
+BEGIN
+  CREATE TABLE t2 AS SELECT a, b;
+END;
+$$
+DELIMITER ;$$
+CALL p1('test', 123);
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+DROP PROCEDURE p1;
+DROP TABLE test1.t1;
+DROP DATABASE test1;
+DROP TABLE t1;
+
+--echo #
+--echo # TYPE OF in a stored function variables and arguments
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE FUNCTION f1 (prm TYPE OF t1.a) RETURNS INT
+BEGIN
+  DECLARE a TYPE OF t1.a DEFAULT prm;
+  RETURN a;
+END;
+$$
+DELIMITER ;$$
+SELECT f1(20);
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # TYPE OF in function RETURN clause is not supported yet
+--echo #
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE FUNCTION f1() RETURN TYPE OF t1.a
+BEGIN
+  RETURN 0;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Using TYPE OF variables as FETCH targets
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10),c DATETIME(3));
+INSERT INTO t1 VALUES (1,'b1','2001-01-01 10:20:30.123');
+INSERT INTO t1 VALUES (2,'b2','2001-01-02 10:20:30.123');
+CREATE TABLE t2 LIKE t1;
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE done INT DEFAULT 0;
+  DECLARE v_a TYPE OF t1.a;
+  DECLARE v_b TYPE OF t1.b;
+  DECLARE v_c TYPE OF t1.c;
+  DECLARE c CURSOR FOR SELECT a,b,c FROM t1;
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done=TRUE;
+  OPEN c;
+  read_loop: LOOP
+    FETCH c INTO v_a, v_b, v_c;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+    INSERT INTO t2 (a,b,c) VALUES (v_a, v_b, v_c);
+  END LOOP;
+  CLOSE c;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+SELECT * FROM t2;
+DROP TABLE t2;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
+--echo #
+--echo # Using TYPE OF variables as SELECT INTO targets
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(10),c DATETIME(3));
+INSERT INTO t1 VALUES (1,'b1','2001-01-01 10:20:30.123');
+DELIMITER $$;
+CREATE PROCEDURE p1()
+BEGIN
+  DECLARE v_a TYPE OF t1.a;
+  DECLARE v_b TYPE OF t1.b;
+  DECLARE v_c TYPE OF t1.c;
+  SELECT * FROM t1 INTO v_a, v_b, v_c;
+  SELECT v_a, v_b, v_c;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of MDEV-12461 TYPE OF and ROW TYPE OF anchored data types
+--echo #
+
+--echo #
+--echo # MDEV-14139 Anchored data types for variables
+--echo #
+
+DELIMITER $$;
+--error ER_SP_UNDECLARED_VAR
+BEGIN NOT ATOMIC
+  DECLARE a TYPE OF a;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE int11 INT;
+  DECLARE dec103 DECIMAL(10,3);
+  DECLARE flt0 FLOAT;
+  DECLARE dbl0 DOUBLE;
+  DECLARE enum0 ENUM('a','b');
+  DECLARE bit3 BIT(3);
+
+  DECLARE varchar10 VARCHAR(10);
+  DECLARE text1 TEXT;
+  DECLARE tinytext1 TINYTEXT;
+  DECLARE mediumtext1 MEDIUMTEXT;
+  DECLARE longtext1 LONGTEXT;
+
+  DECLARE time3 TIME(3);
+  DECLARE datetime4 DATETIME(4);
+  DECLARE timestamp5 TIMESTAMP(5);
+  DECLARE date0 DATE;
+
+  DECLARE a_int11 TYPE OF int11;
+  DECLARE a_dec103 TYPE OF dec103;
+  DECLARE a_flt0 TYPE OF flt0;
+  DECLARE a_dbl0 TYPE OF dbl0;
+  DECLARE a_bit3 TYPE OF bit3;
+  DECLARE a_enum0 TYPE OF enum0;
+  DECLARE a_varchar10 TYPE OF varchar10;
+  DECLARE a_text1 TYPE OF text1;
+  DECLARE a_tinytext1 TYPE OF tinytext1;
+  DECLARE a_mediumtext1 TYPE OF mediumtext1;
+  DECLARE a_longtext1 TYPE OF longtext1;
+  DECLARE a_time3 TYPE OF time3;
+  DECLARE a_datetime4 TYPE OF datetime4;
+  DECLARE a_timestamp5 TYPE OF timestamp5;
+  DECLARE a_date0 TYPE OF date0;
+
+  DECLARE aa_int11 TYPE OF a_int11;
+  DECLARE aa_dec103 TYPE OF a_dec103;
+  DECLARE aa_flt0 TYPE OF a_flt0;
+  DECLARE aa_dbl0 TYPE OF a_dbl0;
+  DECLARE aa_bit3 TYPE OF a_bit3;
+  DECLARE aa_enum0 TYPE OF a_enum0;
+  DECLARE aa_varchar10 TYPE OF a_varchar10;
+  DECLARE aa_text1 TYPE OF a_text1;
+  DECLARE aa_tinytext1 TYPE OF a_tinytext1;
+  DECLARE aa_mediumtext1 TYPE OF a_mediumtext1;
+  DECLARE aa_longtext1 TYPE OF a_longtext1;
+  DECLARE aa_time3 TYPE OF a_time3;
+  DECLARE aa_datetime4 TYPE OF a_datetime4;
+  DECLARE aa_timestamp5 TYPE OF a_timestamp5;
+  DECLARE aa_date0 TYPE OF a_date0;
+
+  CREATE TABLE t1 AS
+    SELECT a_int11,a_dec103,a_flt0,a_dbl0,a_bit3,
+           a_enum0,a_varchar10,
+           a_text1,a_tinytext1,a_mediumtext1,a_longtext1,
+           a_time3,a_datetime4,a_timestamp5,a_date0;
+  SHOW CREATE TABLE t1;
+  DROP TABLE t1;
+
+  CREATE TABLE t1 AS
+    SELECT aa_int11,aa_dec103,aa_flt0,aa_dbl0,aa_bit3,
+           aa_enum0,aa_varchar10,
+           aa_text1,aa_tinytext1,aa_mediumtext1,aa_longtext1,
+           aa_time3,aa_datetime4,aa_timestamp5,aa_date0;
+  SHOW CREATE TABLE t1;
+  DROP TABLE t1;
+
+END;
+$$
+DELIMITER ;$$

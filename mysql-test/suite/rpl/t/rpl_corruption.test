@@ -1,1 +1,1 @@
---source extra/rpl_tests/rpl_corruption.inc
+--source include/rpl_corruption.inc

@@ -1,0 +1,74 @@
+--source include/have_innodb.inc
+call mtr.add_suppression("InnoDB: New log files created");
+call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation");
+call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified");
+call mtr.add_suppression("InnoDB: If you are installing InnoDB, remember that you must create directories yourself, InnoDB does not create them");
+call mtr.add_suppression("InnoDB: Ignoring tablespace for `test`\\.`t21` because it could not be opened");
+call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: ");
+call mtr.add_suppression("Table .* in the InnoDB data dictionary has tablespace id .*, but tablespace with that id or name does not exist");
+
+let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
+let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
+
+CREATE TABLE t1(i INT PRIMARY KEY auto_increment, a int) ENGINE INNODB;
+ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
+
+echo # No longer fails during full backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+--enable_result_log
+
+DROP TABLE t1;
+
+rmdir $basedir;
+
+CREATE TABLE t1(i INT PRIMARY KEY auto_increment, a int) ENGINE INNODB;
+
+INSERT INTO t1(a) select 1 union select 2 union select 3;
+
+--echo # Create full backup , modify table, then fails during creation of
+--echo #		incremental/differential backup
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+--enable_result_log
+
+ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$incremental_dir --incremental-basedir=$basedir;
+--enable_result_log
+
+DROP TABLE t1;
+
+rmdir $basedir;rmdir $incremental_dir;
+
+CREATE TABLE t1(i INT) ENGINE INNODB;
+INSERT INTO t1 VALUES(1);
+CREATE TABLE t21(i INT) ENGINE INNODB;
+INSERT INTO t21 VALUES(1);
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/bk;
+
+CREATE TABLE t2(i int) ENGINE INNODB;
+
+ALTER TABLE t21 FORCE, ALGORITHM=INPLACE;
+
+--echo # Create partial backup (excluding table t21), Ignore the
+--echo # unsupported redo log for the table t21.
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup "--tables-exclude=test.t21" --target-dir=$targetdir;
+--enable_result_log
+--list_files $targetdir/test *.ibd
+
+--echo # Prepare the full backup
+--disable_result_log
+exec $XTRABACKUP --prepare --target-dir=$targetdir;
+--enable_result_log
+--list_files $targetdir/test *.ibd
+
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t21;
+rmdir $targetdir;

@@ -13,7 +13,7 @@
 
 # Make sure that the test is operating on the right version of galera library.
 --disable_query_log
---let $galera_version=3.20
+--let $galera_version=25.3.31
 source ../wsrep/include/check_galera_version.inc;
 --enable_query_log
 
@@ -35,38 +35,4 @@ AND VARIABLE_NAME NOT IN (
 	'WSREP_START_POSITION',
         'WSREP_PATCH_VERSION'
 )
-ORDER BY VARIABLE_NAME;
-
-# wsrep_provider_options
-#
-# We replace the ones that vary from run to run with placeholders
-
---let _WSREP_PROVIDER_OPTIONS = `SELECT @@wsrep_provider_options`
---perl
-	use strict;
-	my $wsrep_provider_options = $ENV{'_WSREP_PROVIDER_OPTIONS'};
-	$wsrep_provider_options =~ s/base_dir = .*?;/<BASE_DIR>;/sgio;
-	$wsrep_provider_options =~ s/base_host = .*?;/<BASE_HOST>;/sgio;
-	$wsrep_provider_options =~ s/base_port = .*?;/<BASE_PORT>;/sgio;
-	$wsrep_provider_options =~ s/gcache\.dir = .*?;/<GCACHE_DIR>;/sgio;
-	$wsrep_provider_options =~ s/gcache\.name = .*?;/<GCACHE_NAME>;/sgio;
-	$wsrep_provider_options =~ s/gmcast\.listen_addr = .*?;/<GMCAST_LISTEN_ADDR>;/sgio;
-	$wsrep_provider_options =~ s/gcs\.recv_q_hard_limit = .*?;/<GCS_RECV_Q_HARD_LIMIT>;/sgio;
-	$wsrep_provider_options =~ s/ist\.recv_addr = .*?;/<IST_RECV_ADDR>;/sgio;
-	$wsrep_provider_options =~ s/evs\.evict = .*?;/<EVS_EVICT>;/sgio;
-	$wsrep_provider_options =~ s/signal = .*?;\s*//sgio;
-	$wsrep_provider_options =~ s/dbug = .*?;\s*//sgio;
-	$wsrep_provider_options =~ s/repl.proto_max = .*?;\s*/<REPL_PROTO_MAX>;/sgio;
-	print $wsrep_provider_options."\n";
-EOF
-
-# Global Status
-
-SELECT COUNT(*) FROM INFORMATION_SCHEMA.GLOBAL_STATUS
-WHERE VARIABLE_NAME LIKE 'wsrep_%'
-AND VARIABLE_NAME != 'wsrep_debug_sync_waiters';
-
-SELECT VARIABLE_NAME FROM INFORMATION_SCHEMA.GLOBAL_STATUS
-WHERE VARIABLE_NAME LIKE 'wsrep_%'
-AND VARIABLE_NAME != 'wsrep_debug_sync_waiters'
 ORDER BY VARIABLE_NAME;

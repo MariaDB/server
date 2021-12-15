@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define SPIDER_DB_WRAPPER_STR "mysql"
 #define SPIDER_DB_WRAPPER_LEN (sizeof(SPIDER_DB_WRAPPER_STR) - 1)
@@ -252,6 +252,15 @@
 #define SPIDER_SQL_B_STR "b"
 #define SPIDER_SQL_B_LEN (sizeof(SPIDER_SQL_B_STR) - 1)
 
+#define SPIDER_SQL_TRIM_STR "trim"
+#define SPIDER_SQL_TRIM_LEN sizeof(SPIDER_SQL_TRIM_STR) - 1
+#define SPIDER_SQL_TRIM_BOTH_STR "both "
+#define SPIDER_SQL_TRIM_BOTH_LEN sizeof(SPIDER_SQL_TRIM_BOTH_STR) - 1
+#define SPIDER_SQL_TRIM_LEADING_STR "leading "
+#define SPIDER_SQL_TRIM_LEADING_LEN sizeof(SPIDER_SQL_TRIM_LEADING_STR) - 1
+#define SPIDER_SQL_TRIM_TRAILING_STR "trailing "
+#define SPIDER_SQL_TRIM_TRAILING_LEN sizeof(SPIDER_SQL_TRIM_TRAILING_STR) - 1
+
 #define SPIDER_SQL_INDEX_IGNORE_STR " IGNORE INDEX "
 #define SPIDER_SQL_INDEX_IGNORE_LEN (sizeof(SPIDER_SQL_INDEX_IGNORE_STR) - 1)
 #define SPIDER_SQL_INDEX_USE_STR " USE INDEX "
@@ -412,7 +421,20 @@ int spider_db_unlock_tables(
 
 int spider_db_append_name_with_quote_str(
   spider_string *str,
-  char *name,
+  const char *name,
+  uint dbton_id
+);
+
+int spider_db_append_name_with_quote_str(
+  spider_string *str,
+  LEX_CSTRING &name,
+  uint dbton_id
+);
+
+int spider_db_append_name_with_quote_str_internal(
+  spider_string *str,
+  const char *name,
+  int length,
   uint dbton_id
 );
 
@@ -563,6 +585,10 @@ void spider_db_free_one_result_for_start_next(
 
 void spider_db_free_one_result(
   SPIDER_RESULT_LIST *result_list,
+  SPIDER_RESULT *result
+);
+
+void spider_db_free_one_quick_result(
   SPIDER_RESULT *result
 );
 
@@ -838,8 +864,18 @@ int spider_db_flush_logs(
   ha_spider *spider
 );
 
+Field *spider_db_find_field_in_item_list(
+  Item **item_list,
+  uint item_count,
+  uint start_item,
+  spider_string *str,
+  const char *func_name,
+  int func_name_length
+);
+
 int spider_db_print_item_type(
   Item *item,
+  Field *field,
   ha_spider *spider,
   spider_string *str,
   const char *alias,
@@ -847,6 +883,12 @@ int spider_db_print_item_type(
   uint dbton_id,
   bool use_fields,
   spider_fields *fields
+);
+
+int spider_db_print_item_type_default(
+  Item *item,
+  ha_spider *spider,
+  spider_string *str
 );
 
 int spider_db_open_item_cond(
@@ -930,6 +972,7 @@ int spider_db_open_item_row(
 
 int spider_db_open_item_string(
   Item *item,
+  Field *field,
   ha_spider *spider,
   spider_string *str,
   const char *alias,
@@ -941,6 +984,7 @@ int spider_db_open_item_string(
 
 int spider_db_open_item_int(
   Item *item,
+  Field *field,
   ha_spider *spider,
   spider_string *str,
   const char *alias,
@@ -952,6 +996,7 @@ int spider_db_open_item_int(
 
 int spider_db_open_item_cache(
   Item_cache *item_cache,
+  Field *field,
   ha_spider *spider,
   spider_string *str,
   const char *alias,
@@ -963,6 +1008,7 @@ int spider_db_open_item_cache(
 
 int spider_db_open_item_insert_value(
   Item_insert_value *item_insert_value,
+  Field *field,
   ha_spider *spider,
   spider_string *str,
   const char *alias,

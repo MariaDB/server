@@ -99,13 +99,15 @@ do_update (void *UU(ignore))
 	CACHEKEY key = make_blocknum(i);
         uint32_t hi = toku_cachetable_hash(cf, key);
         void *vv;
-	long size;
         CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
         wc.flush_callback = flush;
-        int r = toku_cachetable_get_and_pin(cf, key, hi, &vv, &size, wc, fetch_die, def_pf_req_callback, def_pf_callback, true, 0);
+        int r = toku_cachetable_get_and_pin(cf, key, hi, &vv, wc, fetch_die, def_pf_req_callback, def_pf_callback, true, 0);
 	//printf("g");
 	assert(r==0);
-	assert(size==sizeof(int));
+        PAIR_ATTR attr;
+        r = toku_cachetable_get_attr(cf, key, hi, &attr);
+        assert(r==0);
+	assert(attr.size==sizeof(int));
 	int *CAST_FROM_VOIDP(v, vv);
 	assert(*v==42);
 	*v = 43;

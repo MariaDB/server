@@ -41,7 +41,7 @@ class ha_tokudb;
 
 typedef struct loader_context {
     THD* thd;
-    char write_status_msg[200];
+    char write_status_msg[1024];
     ha_tokudb* ha;
 } *LOADER_CONTEXT;
 
@@ -79,7 +79,6 @@ public:
     // doesn't exist, otherwise will return NULL if an existing is not found.
     static TOKUDB_SHARE* get_share(
         const char* table_name,
-        TABLE_SHARE* table_share,
         THR_LOCK_DATA* data,
         bool create_new);
 
@@ -274,15 +273,8 @@ public:
     uint32_t num_DBs;
 
 private:
-    static HASH _open_tables;
-    static tokudb::thread::mutex_t _open_tables_mutex;
-
-    static uchar* hash_get_key(
-        TOKUDB_SHARE* share,
-        size_t* length,
-        TOKUDB_UNUSED(my_bool not_used));
-
-    static void hash_free_element(TOKUDB_SHARE* share);
+    static std::unordered_map<std::string, TOKUDB_SHARE*> _open_tables;
+    static tokudb::thread::mutex_t* _open_tables_mutex;
 
     //*********************************
     // Spans open-close-open
@@ -395,7 +387,8 @@ inline void TOKUDB_SHARE::init_cardinality_counts(
 
     assert_debug(_mutex.is_owned_by_me());
     // can not change number of keys live
-    assert_always(_rec_per_key == NULL && _rec_per_keys == 0);
+    assert_always(_rec_per_key == nullptr);
+    assert_always(_rec_per_keys == 0);
     _rec_per_keys = rec_per_keys;
     _rec_per_key = rec_per_key;
 }
@@ -657,11 +650,11 @@ private:
     DBT *create_dbt_key_from_table(DBT * key, uint keynr, uchar * buff, const uchar * record, bool* has_null, int key_length = MAX_KEY_LENGTH);
     DBT* create_dbt_key_for_lookup(DBT * key, KEY* key_info, uchar * buff, const uchar * record, bool* has_null, int key_length = MAX_KEY_LENGTH);
     DBT *pack_key(DBT * key, uint keynr, uchar * buff, const uchar * key_ptr, uint key_length, int8_t inf_byte);
-#if TOKU_INCLUDE_EXTENDED_KEYS
+#if defined(TOKU_INCLUDE_EXTENDED_KEYS) && TOKU_INCLUDE_EXTENDED_KEYS
     DBT *pack_ext_key(DBT * key, uint keynr, uchar * buff, const uchar * key_ptr, uint key_length, int8_t inf_byte);
-#endif
+#endif  // defined(TOKU_INCLUDE_EXTENDED_KEYS) && TOKU_INCLUDE_EXTENDED_KEYS
     bool key_changed(uint keynr, const uchar * old_row, const uchar * new_row);
-    int handle_cursor_error(int error, int err_to_return, uint keynr);
+    int handle_cursor_error(int error, int err_to_return);
     DBT *get_pos(DBT * to, uchar * pos);
  
     int open_main_dictionary(const char* name, bool is_read_only, DB_TXN* txn);
@@ -670,9 +663,11 @@ private:
     int estimate_num_rows(DB* db, uint64_t* num_rows, DB_TXN* txn);
     bool has_auto_increment_flag(uint* index);
 
+#if defined(TOKU_INCLUDE_WRITE_FRM_DATA) && TOKU_INCLUDE_WRITE_FRM_DATA
     int write_frm_data(DB* db, DB_TXN* txn, const char* frm_name);
     int verify_frm_data(const char* frm_name, DB_TXN* trans);
     int remove_frm_data(DB *db, DB_TXN *txn);
+#endif  // defined(TOKU_INCLUDE_WRITE_FRM_DATA) && TOKU_INCLUDE_WRITE_FRM_DATA
 
     int write_to_status(DB* db, HA_METADATA_KEY curr_key_data, void* data, uint size, DB_TXN* txn);
     int remove_from_status(DB* db, HA_METADATA_KEY curr_key_data, DB_TXN* txn);
@@ -706,12 +701,12 @@ private:
         toku_compression_method compression_method
         );
     int create_main_dictionary(const char* name, TABLE* form, DB_TXN* txn, KEY_AND_COL_INFO* kc_info, toku_compression_method compression_method);
-    void trace_create_table_info(const char *name, TABLE * form);
+    void trace_create_table_info(TABLE* form);
     int is_index_unique(bool* is_unique, DB_TXN* txn, DB* db, KEY* key_info, int lock_flags);
     int is_val_unique(bool* is_unique, const uchar* record, KEY* key_info, uint dict_index, DB_TXN* txn);
     int do_uniqueness_checks(uchar* record, DB_TXN* txn, THD* thd);
     void set_main_dict_put_flags(THD* thd, bool opt_eligible, uint32_t* put_flags);
-    int insert_row_to_main_dictionary(uchar* record, DBT* pk_key, DBT* pk_val, DB_TXN* txn);
+    int insert_row_to_main_dictionary(DBT* pk_key, DBT* pk_val, DB_TXN* txn);
     int insert_rows_to_dictionaries_mult(DBT* pk_key, DBT* pk_val, DB_TXN* txn, THD* thd);
     void test_row_packing(uchar* record, DBT* pk_key, DBT* pk_val);
     uint32_t fill_row_mutator(
@@ -921,15 +916,15 @@ public:
     Item* idx_cond_push(uint keyno, class Item* idx_cond);
     void cancel_pushed_idx_cond();
 
-#if TOKU_INCLUDE_ALTER_56
+#if defined(TOKU_INCLUDE_ALTER_56) && TOKU_INCLUDE_ALTER_56
  public:
     enum_alter_inplace_result check_if_supported_inplace_alter(TABLE *altered_table, Alter_inplace_info *ha_alter_info);
     bool prepare_inplace_alter_table(TABLE *altered_table, Alter_inplace_info *ha_alter_info);
     bool inplace_alter_table(TABLE *altered_table, Alter_inplace_info *ha_alter_info);
     bool commit_inplace_alter_table(TABLE *altered_table, Alter_inplace_info *ha_alter_info, bool commit);
  private:
-    int alter_table_add_index(TABLE *altered_table, Alter_inplace_info *ha_alter_info);
-    int alter_table_drop_index(TABLE *altered_table, Alter_inplace_info *ha_alter_info);
+    int alter_table_add_index(Alter_inplace_info* ha_alter_info);
+    int alter_table_drop_index(Alter_inplace_info* ha_alter_info);
     int alter_table_add_or_drop_column(TABLE *altered_table, Alter_inplace_info *ha_alter_info);
     int alter_table_expand_varchar_offsets(TABLE *altered_table, Alter_inplace_info *ha_alter_info);
     int alter_table_expand_columns(TABLE *altered_table, Alter_inplace_info *ha_alter_info);
@@ -937,18 +932,21 @@ public:
     int alter_table_expand_blobs(TABLE *altered_table, Alter_inplace_info *ha_alter_info);
     void print_alter_info(TABLE *altered_table, Alter_inplace_info *ha_alter_info);
     int setup_kc_info(TABLE *altered_table, KEY_AND_COL_INFO *kc_info);
-    int new_row_descriptor(TABLE *table, TABLE *altered_table, Alter_inplace_info *ha_alter_info, uint32_t idx, DBT *row_descriptor);
+    int new_row_descriptor(TABLE* altered_table,
+                           Alter_inplace_info* ha_alter_info,
+                           uint32_t idx,
+                           DBT* row_descriptor);
 
  public:
-#endif
-#if TOKU_INCLUDE_ALTER_55
+#endif  // defined(TOKU_INCLUDE_ALTER_56) && TOKU_INCLUDE_ALTER_56
+#if defined(TOKU_INCLUDE_ALTER_55) && TOKU_INCLUDE_ALTER_55
 public:
     // Returns true of the 5.6 inplace alter table interface is used.
     bool try_hot_alter_table();
 
     // Used by the partition storage engine to provide new frm data for the table.
     int new_alter_table_frm_data(const uchar *frm_data, size_t frm_len);
-#endif
+#endif  // defined(TOKU_INCLUDE_ALTER_55) && TOKU_INCLUDE_ALTER_55
 
  private:
   int tokudb_add_index(TABLE* table_arg,
@@ -962,12 +960,8 @@ public:
                          uint num_of_keys,
                          bool incremented_numDBs,
                          bool modified_DBs);
-  int drop_indexes(TABLE* table_arg,
-                   uint* key_num,
-                   uint num_of_keys,
-                   KEY* key_info,
-                   DB_TXN* txn);
-  void restore_drop_indexes(TABLE* table_arg, uint* key_num, uint num_of_keys);
+  int drop_indexes(uint* key_num, uint num_of_keys, KEY* key_info, DB_TXN* txn);
+  void restore_drop_indexes(uint* key_num, uint num_of_keys);
 
  public:
     // delete all rows from the table
@@ -1018,9 +1012,11 @@ public:
         uchar* buf,
         DBT* key_to_compare);
 
-#if TOKU_INCLUDE_ROW_TYPE_COMPRESSION
+#if defined(TOKU_INCLUDE_ROW_TYPE_COMPRESSION) && \
+    TOKU_INCLUDE_ROW_TYPE_COMPRESSION
     enum row_type get_row_type() const;
-#endif
+#endif  // defined(TOKU_INCLUDE_ROW_TYPE_COMPRESSION) &&
+        // TOKU_INCLUDE_ROW_TYPE_COMPRESSION
 private:
     int read_full_row(uchar * buf);
     int __close();
@@ -1034,18 +1030,35 @@ private:
     void close_dsmrr();
     void reset_dsmrr();
     
-#if TOKU_INCLUDE_WRITE_FRM_DATA
+#if defined(TOKU_INCLUDE_WRITE_FRM_DATA) && TOKU_INCLUDE_WRITE_FRM_DATA
     int write_frm_data(const uchar *frm_data, size_t frm_len);
-#endif
-#if TOKU_INCLUDE_UPSERT
+#endif  // defined(TOKU_INCLUDE_WRITE_FRM_DATA) && TOKU_INCLUDE_WRITE_FRM_DATA
+
 private:
-    int fast_update(THD *thd, List<Item> &update_fields, List<Item> &update_values, Item *conds);
-    bool check_fast_update(THD *thd, List<Item> &update_fields, List<Item> &update_values, Item *conds);
-    int send_update_message(List<Item> &update_fields, List<Item> &update_values, Item *conds, DB_TXN *txn);
-    int upsert(THD *thd, List<Item> &update_fields, List<Item> &update_values);
-    bool check_upsert(THD *thd, List<Item> &update_fields, List<Item> &update_values);
-    int send_upsert_message(THD *thd, List<Item> &update_fields, List<Item> &update_values, DB_TXN *txn);
-#endif
+#if defined(TOKU_INCLUDE_UPSERT) && TOKU_INCLUDE_UPSERT
+    MY_NODISCARD int fast_update(THD *thd,
+                                 List<Item> &update_fields,
+                                 List<Item> &update_values,
+                                 Item *conds);
+    MY_NODISCARD bool check_fast_update(THD *thd,
+                                        List<Item> &update_fields,
+                                        List<Item> &update_values,
+                                        Item *conds);
+    MY_NODISCARD int send_update_message(List<Item> &update_fields,
+                                         List<Item> &update_values,
+                                         Item *conds,
+                                         DB_TXN *txn);
+    MY_NODISCARD int upsert(THD *thd,
+                            List<Item> &update_fields,
+                            List<Item> &update_values);
+    MY_NODISCARD bool check_upsert(THD *thd,
+                                   List<Item> &update_fields,
+                                   List<Item> &update_values);
+    MY_NODISCARD int send_upsert_message(List<Item> &update_fields,
+                                         List<Item> &update_values,
+                                         DB_TXN *txn);
+#endif  // defined(TOKU_INCLUDE_UPSERT) && TOKU_INCLUDE_UPSERT
+
 public:
     // mysql sometimes retires a txn before a cursor that references the txn is closed.
     // for example, commit is sometimes called before index_end.  the following methods
@@ -1060,6 +1073,7 @@ private:
     int do_optimize(THD *thd);
     int map_to_handler_error(int error);
 
+#if defined(TOKU_INCLUDE_RFR) && TOKU_INCLUDE_RFR
 public:
     void rpl_before_write_rows();
     void rpl_after_write_rows();
@@ -1072,6 +1086,7 @@ private:
     bool in_rpl_write_rows;
     bool in_rpl_delete_rows;
     bool in_rpl_update_rows;
+#endif // defined(TOKU_INCLUDE_RFR) && TOKU_INCLUDE_RFR
 };
 
 #endif // _HA_TOKUDB_H

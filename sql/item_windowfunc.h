@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2016,2017 MariaDB
+   Copyright (c) 2016, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -44,11 +44,6 @@ public:
     first_check= true;
   }
 
-  void cleanup()
-  {
-    group_fields.empty();
-  }
-
   /*
     Check if the current row is in a different group than the previous row
     this function was called for.
@@ -85,6 +80,10 @@ public:
         return res;
     }
     return 0;
+  }
+  ~Group_bound_tracker()
+  {
+    group_fields.delete_elements();
   }
 
 private:
@@ -215,7 +214,6 @@ public:
   {
     if (peer_tracker)
     {
-      peer_tracker->cleanup();
       delete peer_tracker;
       peer_tracker= NULL;
     }
@@ -285,7 +283,6 @@ class Item_sum_dense_rank: public Item_sum_int
   {
     if (peer_tracker)
     {
-      peer_tracker->cleanup();
       delete peer_tracker;
       peer_tracker= NULL;
     }
@@ -295,24 +292,22 @@ class Item_sum_dense_rank: public Item_sum_int
   { return get_item_copy<Item_sum_dense_rank>(thd, this); }
 };
 
-class Item_sum_hybrid_simple : public Item_sum,
-                               public Type_handler_hybrid_field_type
+class Item_sum_hybrid_simple : public Item_sum_hybrid
 {
  public:
   Item_sum_hybrid_simple(THD *thd, Item *arg):
-   Item_sum(thd, arg),
-   Type_handler_hybrid_field_type(&type_handler_longlong),
+   Item_sum_hybrid(thd, arg),
    value(NULL)
-  { collation.set(&my_charset_bin); }
+  { }
 
   Item_sum_hybrid_simple(THD *thd, Item *arg1, Item *arg2):
-   Item_sum(thd, arg1, arg2),
-   Type_handler_hybrid_field_type(&type_handler_longlong),
+   Item_sum_hybrid(thd, arg1, arg2),
    value(NULL)
-  { collation.set(&my_charset_bin); }
+  { }
 
   bool add();
   bool fix_fields(THD *, Item **);
+  bool fix_length_and_dec();
   void setup_hybrid(THD *thd, Item *item);
   double val_real();
   longlong val_int();
@@ -320,8 +315,6 @@ class Item_sum_hybrid_simple : public Item_sum,
   void reset_field();
   String *val_str(String *);
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
-  const Type_handler *type_handler() const
-  { return Type_handler_hybrid_field_type::type_handler(); }
   void update_field();
   Field *create_tmp_field(bool group, TABLE *table);
   void clear()
@@ -445,26 +438,37 @@ class Item_sum_lag : public Item_sum_hybrid_simple
   { return get_item_copy<Item_sum_lag>(thd, this); }
 };
 
-/*
-  A base window function (aggregate) that also holds a counter for the number
-  of rows.
-*/
-class Item_sum_window_with_row_count : public Item_sum_num
+
+class Partition_row_count
 {
- public:
-  Item_sum_window_with_row_count(THD *thd) : Item_sum_num(thd),
-                                             partition_row_count_(0) {}
-
-  Item_sum_window_with_row_count(THD *thd, Item *arg) :
-    Item_sum_num(thd, arg), partition_row_count_(0) {};
-
-  void set_row_count(ulonglong count) { partition_row_count_ = count; }
-
- protected:
+public:
+  Partition_row_count() :partition_row_count_(0) { }
+  void set_partition_row_count(ulonglong count)
+  {
+    partition_row_count_ = count;
+  }
+  double calc_val_real(bool *null_value,
+                       ulonglong current_row_count)
+  {
+    if ((*null_value= (partition_row_count_ == 0)))
+      return 0;
+    return static_cast<double>(current_row_count) / partition_row_count_;
+  }
+protected:
   longlong get_row_count() { return partition_row_count_; }
- private:
   ulonglong partition_row_count_;
 };
+
+
+class Current_row_count
+{
+public:
+  Current_row_count() :current_row_count_(0) { }
+protected:
+  ulonglong get_row_number() { return current_row_count_ ; }
+  ulonglong current_row_count_;
+};
+
 
 /*
   @detail
@@ -477,11 +481,12 @@ class Item_sum_window_with_row_count : public Item_sum_num
     This is held within the row_count context.
   - Second pass to compute rank of current row and the value of the function
 */
-class Item_sum_percent_rank: public Item_sum_window_with_row_count
+class Item_sum_percent_rank: public Item_sum_double,
+                             public Partition_row_count
 {
  public:
   Item_sum_percent_rank(THD *thd)
-    : Item_sum_window_with_row_count(thd), cur_rank(1), peer_tracker(NULL) {}
+    : Item_sum_double(thd), cur_rank(1), peer_tracker(NULL) {}
 
   longlong val_int()
   {
@@ -526,13 +531,20 @@ class Item_sum_percent_rank: public Item_sum_window_with_row_count
   bool add();
   const Type_handler *type_handler() const { return &type_handler_double; }
 
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
+    return FALSE;
   }
 
   void setup_window_func(THD *thd, Window_spec *window_spec);
+
+  void set_partition_row_count(ulonglong count)
+  {
+    Partition_row_count::set_partition_row_count(count);
+  }
+
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_percent_rank>(thd, this); }
 
@@ -546,7 +558,6 @@ class Item_sum_percent_rank: public Item_sum_window_with_row_count
   {
     if (peer_tracker)
     {
-      peer_tracker->cleanup();
       delete peer_tracker;
       peer_tracker= NULL;
     }
@@ -568,25 +579,17 @@ class Item_sum_percent_rank: public Item_sum_window_with_row_count
   two passes.
 */
 
-class Item_sum_cume_dist: public Item_sum_window_with_row_count
+class Item_sum_cume_dist: public Item_sum_double,
+                          public Partition_row_count,
+                          public Current_row_count
 {
  public:
-  Item_sum_cume_dist(THD *thd) : Item_sum_window_with_row_count(thd),
-                                 current_row_count_(0) {}
-
-  Item_sum_cume_dist(THD *thd, Item *arg) : Item_sum_window_with_row_count(thd,arg),
-                                 current_row_count_(0) {}
+  Item_sum_cume_dist(THD *thd) :Item_sum_double(thd) { }
+  Item_sum_cume_dist(THD *thd, Item *arg) :Item_sum_double(thd, arg) { }
 
   double val_real()
   {
-    if (get_row_count() == 0)
-    {
-      null_value= true;
-      return 0;
-    }
-    ulonglong partition_row_count= get_row_count();
-    null_value= false;
-    return static_cast<double>(current_row_count_) / partition_row_count;
+    return calc_val_real(&null_value, current_row_count_);
   }
 
   bool add()
@@ -603,7 +606,7 @@ class Item_sum_cume_dist: public Item_sum_window_with_row_count
   void clear()
   {
     current_row_count_= 0;
-    set_row_count(0);
+    partition_row_count_= 0;
   }
 
   const char*func_name() const
@@ -614,35 +617,31 @@ class Item_sum_cume_dist: public Item_sum_window_with_row_count
   void update_field() {}
   const Type_handler *type_handler() const { return &type_handler_double; }
 
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
+    return FALSE;
   }
   
+  void set_partition_row_count(ulonglong count)
+  {
+    Partition_row_count::set_partition_row_count(count);
+  }
+
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_cume_dist>(thd, this); }
 
-  ulonglong get_row_number()
-  {
-    return current_row_count_ ;
-  }
-
- private:
-  ulonglong current_row_count_;
 };
 
-class Item_sum_ntile : public Item_sum_window_with_row_count
+class Item_sum_ntile : public Item_sum_int,
+                       public Partition_row_count,
+                       public Current_row_count
 {
  public:
   Item_sum_ntile(THD* thd, Item* num_quantiles_expr) :
-    Item_sum_window_with_row_count(thd, num_quantiles_expr),
-    current_row_count_(0) {};
-
-  double val_real()
-  {
-    return (double) val_int();
-  }
+    Item_sum_int(thd, num_quantiles_expr), n_old_val_(0)
+  { }
 
   longlong val_int()
   {
@@ -654,11 +653,13 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
 
     longlong num_quantiles= get_num_quantiles();
 
-    if (num_quantiles <= 0) {
+    if (num_quantiles <= 0 || 
+      (static_cast<ulonglong>(num_quantiles) != n_old_val_ && n_old_val_ > 0))
+    {
       my_error(ER_INVALID_NTILE_ARGUMENT, MYF(0));
       return true;
     }
-
+    n_old_val_= static_cast<ulonglong>(num_quantiles);
     null_value= false;
     ulonglong quantile_size = get_row_count() / num_quantiles;
     ulonglong extra_rows = get_row_count() - quantile_size * num_quantiles;
@@ -683,7 +684,8 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
   void clear()
   {
     current_row_count_= 0;
-    set_row_count(0);
+    partition_row_count_= 0;
+    n_old_val_= 0;
   }
 
   const char*func_name() const
@@ -693,21 +695,26 @@ class Item_sum_ntile : public Item_sum_window_with_row_count
 
   void update_field() {}
 
-  const Type_handler *type_handler() const { return &type_handler_longlong; }
-  
+  void set_partition_row_count(ulonglong count)
+  {
+    Partition_row_count::set_partition_row_count(count);
+  }
+
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_sum_ntile>(thd, this); }
 
  private:
   longlong get_num_quantiles() { return args[0]->val_int(); }
-  ulong current_row_count_;
+  ulonglong n_old_val_;
 };
 
-class Item_sum_percentile_disc : public Item_sum_cume_dist,
-                                 public Type_handler_hybrid_field_type
+class Item_sum_percentile_disc : public Item_sum_num,
+                                 public Type_handler_hybrid_field_type,
+                                 public Partition_row_count,
+                                 public Current_row_count
 {
 public:
-  Item_sum_percentile_disc(THD *thd, Item* arg) : Item_sum_cume_dist(thd, arg),
+  Item_sum_percentile_disc(THD *thd, Item* arg) : Item_sum_num(thd, arg),
                            Type_handler_hybrid_field_type(&type_handler_longlong),
                            value(NULL), val_calculated(FALSE), first_call(TRUE),
                            prev_value(0), order_item(NULL){}
@@ -756,6 +763,17 @@ public:
     return value->val_str(str);
   }
 
+  bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
+  {
+    if (get_row_count() == 0 || get_arg(0)->is_null())
+    {
+      null_value= true;
+      return 0;
+    }
+    null_value= false;
+    return value->get_date(ltime, fuzzydate);
+  }
+
   bool add()
   {
     Item *arg= get_arg(0);
@@ -789,8 +807,8 @@ public:
     if (value->null_value)
       return false;
 
-    Item_sum_cume_dist::add();
-    double val= Item_sum_cume_dist::val_real();
+    current_row_count_++;
+    double val= calc_val_real(&null_value, current_row_count_);
 
     if (val >= prev_value && !val_calculated)
       val_calculated= true;
@@ -807,7 +825,8 @@ public:
     val_calculated= false;
     first_call= true;
     value->clear();
-    Item_sum_cume_dist::clear();
+    partition_row_count_= 0;
+    current_row_count_= 0;
   }
 
   const char*func_name() const
@@ -816,14 +835,19 @@ public:
   }
 
   void update_field() {}
-  void set_type_handler(Window_spec *window_spec);
   const Type_handler *type_handler() const
   {return Type_handler_hybrid_field_type::type_handler();}
 
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
+    return FALSE;
+  }
+
+  void set_partition_row_count(ulonglong count)
+  {
+    Partition_row_count::set_partition_row_count(count);
   }
 
   Item *get_copy(THD *thd)
@@ -840,12 +864,12 @@ private:
   Item *order_item;
 };
 
-class Item_sum_percentile_cont : public Item_sum_cume_dist,
-                                 public Type_handler_hybrid_field_type
+class Item_sum_percentile_cont : public Item_sum_double,
+                                 public Partition_row_count,
+                                 public Current_row_count
 {
 public:
-  Item_sum_percentile_cont(THD *thd, Item* arg) : Item_sum_cume_dist(thd, arg),
-                           Type_handler_hybrid_field_type(&type_handler_double),
+  Item_sum_percentile_cont(THD *thd, Item* arg) : Item_sum_double(thd, arg),
                            floor_value(NULL), ceil_value(NULL), first_call(TRUE),prev_value(0),
                            ceil_val_calculated(FALSE), floor_val_calculated(FALSE), order_item(NULL){}
 
@@ -915,7 +939,7 @@ public:
         return false;
     }
 
-    Item_sum_cume_dist::add();
+    current_row_count_++;
     double val= 1 + prev_value * (get_row_count()-1);
 
     if (!floor_val_calculated && get_row_number() == floor(val))
@@ -938,7 +962,8 @@ public:
     ceil_value->clear();
     floor_val_calculated= false;
     ceil_val_calculated= false;
-    Item_sum_cume_dist::clear();
+    partition_row_count_= 0;
+    current_row_count_= 0;
   }
 
   const char*func_name() const
@@ -946,14 +971,17 @@ public:
     return "percentile_cont";
   }
   void update_field() {}
-  void set_type_handler(Window_spec *window_spec);
-  const Type_handler *type_handler() const
-  {return Type_handler_hybrid_field_type::type_handler();}
 
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
     decimals = 10;  // TODO-cvicentiu find out how many decimals the standard
                     // requires.
+    return FALSE;
+  }
+
+  void set_partition_row_count(ulonglong count)
+  {
+    Partition_row_count::set_partition_row_count(count);
   }
 
   Item *get_copy(THD *thd)
@@ -1081,6 +1109,8 @@ public:
     case Item_sum::DENSE_RANK_FUNC:
     case Item_sum::PERCENT_RANK_FUNC:
     case Item_sum::CUME_DIST_FUNC:
+    case Item_sum::LAG_FUNC:
+    case Item_sum::LEAD_FUNC:
     case Item_sum::PERCENTILE_CONT_FUNC:
     case Item_sum::PERCENTILE_DISC_FUNC:
       return true;
@@ -1097,17 +1127,6 @@ public:
       return true;
     default:
       return false;
-    }
-  }
-
-  void setting_handler_for_percentile_functions(Item_result rtype) const
-  {
-    switch (window_func()->sum_func()){
-    case Item_sum::PERCENTILE_DISC_FUNC:
-         ((Item_sum_percentile_disc* ) window_func())->set_handler_by_cmp_type(rtype);
-         break;
-    default:
-      return;
     }
   }
 
@@ -1149,6 +1168,7 @@ private:
   */
   bool force_return_blank;
   bool read_value_from_result_field;
+  void print_for_percentile_functions(String *str, enum_query_type query_type);
 
 public:
   void set_phase_to_initial()
@@ -1292,9 +1312,10 @@ public:
   void split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
                               List<Item> &fields, uint flags);
 
-  void fix_length_and_dec()
+  bool fix_length_and_dec()
   {
-    decimals = window_func()->decimals;
+    Type_std_attributes::set(window_func());
+    return FALSE;
   }
 
   const char* func_name() const { return "WF"; }

@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -898,18 +898,19 @@ int ha_archive::real_write_row(uchar *buf, azio_stream *writer)
   the bytes required for the length in the header.
 */
 
-uint32 ha_archive::max_row_length(const uchar *buf)
+uint32 ha_archive::max_row_length(const uchar *record)
 {
   uint32 length= (uint32)(table->s->reclength + table->s->fields*2);
   length+= ARCHIVE_ROW_HEADER_SIZE;
+  my_ptrdiff_t const rec_offset= record - table->record[0];
 
   uint *ptr, *end;
   for (ptr= table->s->blob_field, end=ptr + table->s->blob_fields ;
        ptr != end ;
        ptr++)
   {
-    if (!table->field[*ptr]->is_null())
-      length += 2 + ((Field_blob*)table->field[*ptr])->get_length();
+    if (!table->field[*ptr]->is_null(rec_offset))
+      length += 2 + ((Field_blob*)table->field[*ptr])->get_length(rec_offset);
   }
 
   return length;
@@ -919,9 +920,8 @@ uint32 ha_archive::max_row_length(const uchar *buf)
 unsigned int ha_archive::pack_row(uchar *record, azio_stream *writer)
 {
   uchar *ptr;
-
+  my_ptrdiff_t const rec_offset= record - table->record[0];
   DBUG_ENTER("ha_archive::pack_row");
-
 
   if (fix_rec_buff(max_row_length(record)))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM); /* purecov: inspected */
@@ -936,7 +936,7 @@ unsigned int ha_archive::pack_row(uchar *record, azio_stream *writer)
 
   for (Field **field=table->field ; *field ; field++)
   {
-    if (!((*field)->is_null()))
+    if (!((*field)->is_null(rec_offset)))
       ptr= (*field)->pack(ptr, record + (*field)->offset(record));
   }
 
@@ -1547,7 +1547,7 @@ int ha_archive::optimize(THD* thd, HA_CHECK_OPT* check_opt)
       share->rows_recorded= 0;
       stats.auto_increment_value= 1;
       share->archive_write.auto_increment= 0;
-      my_bitmap_map *org_bitmap= tmp_use_all_columns(table, table->read_set);
+      MY_BITMAP *org_bitmap= tmp_use_all_columns(table, &table->read_set);
 
       while (!(rc= get_row(&archive, table->record[0])))
       {
@@ -1568,7 +1568,7 @@ int ha_archive::optimize(THD* thd, HA_CHECK_OPT* check_opt)
         }
       }
 
-      tmp_restore_column_map(table->read_set, org_bitmap);
+      tmp_restore_column_map(&table->read_set, org_bitmap);
       share->rows_recorded= (ha_rows)writer.rows;
     }
 
@@ -1671,7 +1671,6 @@ void ha_archive::update_create_info(HA_CREATE_INFO *create_info)
   DBUG_VOID_RETURN;
 }
 
-
 /*
   Hints for optimizer, see ha_tina for more information
 */
@@ -1679,22 +1678,7 @@ int ha_archive::info(uint flag)
 {
   DBUG_ENTER("ha_archive::info");
 
-  mysql_mutex_lock(&share->mutex);
-  if (share->dirty)
-  {
-    DBUG_PRINT("ha_archive", ("archive flushing out rows for scan"));
-    DBUG_ASSERT(share->archive_write_open);
-    azflush(&(share->archive_write), Z_SYNC_FLUSH);
-    share->dirty= FALSE;
-  }
-
-  /* 
-    This should be an accurate number now, though bulk and delayed inserts can
-    cause the number to be inaccurate.
-  */
-  stats.records= share->rows_recorded;
-  mysql_mutex_unlock(&share->mutex);
-
+  flush_and_clear_pending_writes();
   stats.deleted= 0;
 
   DBUG_PRINT("ha_archive", ("Stats rows is %d\n", (int)stats.records));
@@ -1734,6 +1718,38 @@ int ha_archive::info(uint flag)
   }
 
   DBUG_RETURN(0);
+}
+
+
+int ha_archive::external_lock(THD *thd, int lock_type)
+{
+  if (lock_type == F_RDLCK)
+  {
+    // We are going to read from the table. Flush any pending writes that we
+    // may have
+    flush_and_clear_pending_writes();
+  }
+  return 0;
+}
+
+
+void ha_archive::flush_and_clear_pending_writes()
+{
+  mysql_mutex_lock(&share->mutex);
+  if (share->dirty)
+  {
+    DBUG_PRINT("ha_archive", ("archive flushing out rows for scan"));
+    DBUG_ASSERT(share->archive_write_open);
+    azflush(&(share->archive_write), Z_SYNC_FLUSH);
+    share->dirty= FALSE;
+  }
+
+  /* 
+    This should be an accurate number now, though bulk and delayed inserts can
+    cause the number to be inaccurate.
+  */
+  stats.records= share->rows_recorded;
+  mysql_mutex_unlock(&share->mutex);
 }
 
 
@@ -1909,7 +1925,7 @@ maria_declare_plugin(archive)
   &archive_storage_engine,
   "ARCHIVE",
   "Brian Aker, MySQL AB",
-  "Archive storage engine",
+  "gzip-compresses tables for a low storage footprint",
   PLUGIN_LICENSE_GPL,
   archive_db_init, /* Plugin Init */
   NULL, /* Plugin Deinit */

@@ -14,7 +14,7 @@
    You should have received a copy of the GNU Library General Public
    License along with this library; if not, write to the Free
    Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-   MA 02110-1301, USA */
+   MA 02110-1335  USA */
 
 /* UCS2 support. Written by Alexander Barkov <bar@mysql.com> */
 
@@ -827,7 +827,7 @@ my_strtoll10_mb2(CHARSET_INFO *cs __attribute__((unused)),
                  const char *nptr, char **endptr, int *error)
 {
   const uchar *s, *end, *start, *n_end, *true_end;
-  uchar c;
+  uchar UNINIT_VAR(c);
   unsigned long i, j, k;
   ulonglong li;
   int negative;
@@ -1065,7 +1065,7 @@ my_fill_mb2(CHARSET_INFO *cs, char *s, size_t slen, int fill)
   */
   for (last= s + slen - buflen; s <= last; s+= buflen)
   {
-    /* Enough space for the characer */
+    /* Enough space for the character */
     memcpy(s, buf, buflen);
   }
 
@@ -1160,9 +1160,12 @@ static size_t
 my_snprintf_mb2(CHARSET_INFO *cs __attribute__((unused)),
                 char* to, size_t n, const char* fmt, ...)
 {
+  size_t ret;
   va_list args;
   va_start(args,fmt);
-  return my_vsnprintf_mb2(to, n, fmt, args);
+  ret= my_vsnprintf_mb2(to, n, fmt, args);
+  va_end(args);
+  return ret;
 }
 
 
@@ -1359,25 +1362,26 @@ my_tosort_utf16(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
 
 
 static size_t
-my_caseup_utf16(CHARSET_INFO *cs, char *src, size_t srclen,
-                char *dst __attribute__((unused)),
-                size_t dstlen __attribute__((unused)))
+my_caseup_utf16(CHARSET_INFO *cs, const char *src, size_t srclen,
+                char *dst, size_t dstlen)
 {
   my_wc_t wc;
   my_charset_conv_mb_wc mb_wc= cs->cset->mb_wc;
   my_charset_conv_wc_mb wc_mb= cs->cset->wc_mb;
   int res;
-  char *srcend= src + srclen;
+  const char *srcend= src + srclen;
+  char *dstend= dst + dstlen;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
-  DBUG_ASSERT(src == dst && srclen == dstlen);
+  DBUG_ASSERT(srclen <= dstlen);
   
   while ((src < srcend) &&
          (res= mb_wc(cs, &wc, (uchar *) src, (uchar *) srcend)) > 0)
   {
     my_toupper_utf16(uni_plane, &wc);
-    if (res != wc_mb(cs, wc, (uchar *) src, (uchar *) srcend))
+    if (res != wc_mb(cs, wc, (uchar *) dst, (uchar *) dstend))
       break;
     src+= res;
+    dst+= res;
   }
   return srclen;
 }
@@ -1416,25 +1420,26 @@ my_hash_sort_utf16(CHARSET_INFO *cs, const uchar *s, size_t slen,
 
 
 static size_t
-my_casedn_utf16(CHARSET_INFO *cs, char *src, size_t srclen,
-                char *dst __attribute__((unused)),
-                size_t dstlen __attribute__((unused)))
+my_casedn_utf16(CHARSET_INFO *cs, const char *src, size_t srclen,
+                char *dst, size_t dstlen)
 {
   my_wc_t wc;
   my_charset_conv_mb_wc mb_wc= cs->cset->mb_wc;
   my_charset_conv_wc_mb wc_mb= cs->cset->wc_mb;
   int res;
-  char *srcend= src + srclen;
+  const char *srcend= src + srclen;
+  char *dstend= dst + dstlen;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
-  DBUG_ASSERT(src == dst && srclen == dstlen);
+  DBUG_ASSERT(srclen <= dstlen);
 
   while ((src < srcend) &&
          (res= mb_wc(cs, &wc, (uchar *) src, (uchar *) srcend)) > 0)
   {
     my_tolower_utf16(uni_plane, &wc);
-    if (res != wc_mb(cs, wc, (uchar *) src, (uchar *) srcend))
+    if (res != wc_mb(cs, wc, (uchar *) dst, (uchar *) dstend))
       break;
     src+= res;
+    dst+= res;
   }
   return srclen;
 }
@@ -2231,23 +2236,24 @@ my_lengthsp_utf32(CHARSET_INFO *cs __attribute__((unused)),
 
 
 static size_t
-my_caseup_utf32(CHARSET_INFO *cs, char *src, size_t srclen,
-                char *dst __attribute__((unused)),
-                size_t dstlen __attribute__((unused)))
+my_caseup_utf32(CHARSET_INFO *cs, const char *src, size_t srclen,
+                char *dst, size_t dstlen)
 {
   my_wc_t wc;
   int res;
-  char *srcend= src + srclen;
+  const char *srcend= src + srclen;
+  char *dstend= dst + dstlen;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
-  DBUG_ASSERT(src == dst && srclen == dstlen);
+  DBUG_ASSERT(srclen <= dstlen);
   
   while ((src < srcend) &&
          (res= my_utf32_uni(cs, &wc, (uchar *)src, (uchar*) srcend)) > 0)
   {
     my_toupper_utf32(uni_plane, &wc);
-    if (res != my_uni_utf32(cs, wc, (uchar*) src, (uchar*) srcend))
+    if (res != my_uni_utf32(cs, wc, (uchar*) dst, (uchar*) dstend))
       break;
     src+= res;
+    dst+= res;
   }
   return srclen;
 }
@@ -2287,22 +2293,23 @@ my_hash_sort_utf32(CHARSET_INFO *cs, const uchar *s, size_t slen,
 
 
 static size_t
-my_casedn_utf32(CHARSET_INFO *cs, char *src, size_t srclen,
-                char *dst __attribute__((unused)),
-                size_t dstlen __attribute__((unused)))
+my_casedn_utf32(CHARSET_INFO *cs, const char *src, size_t srclen,
+                char *dst, size_t dstlen)
 {
   my_wc_t wc;
   int res;
-  char *srcend= src + srclen;
+  const char *srcend= src + srclen;
+  char *dstend= dst + dstlen;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
-  DBUG_ASSERT(src == dst && srclen == dstlen);
+  DBUG_ASSERT(srclen <= dstlen);
 
   while ((res= my_utf32_uni(cs, &wc, (uchar*) src, (uchar*) srcend)) > 0)
   {
     my_tolower_utf32(uni_plane,&wc);
-    if (res != my_uni_utf32(cs, wc, (uchar*) src, (uchar*) srcend))
+    if (res != my_uni_utf32(cs, wc, (uchar*) dst, (uchar*) dstend))
       break;
     src+= res;
+    dst+= res;
   }
   return srclen;
 }
@@ -2420,9 +2427,12 @@ static size_t
 my_snprintf_utf32(CHARSET_INFO *cs __attribute__((unused)),
                   char* to, size_t n, const char* fmt, ...)
 {
+  size_t ret;
   va_list args;
   va_start(args,fmt);
-  return my_vsnprintf_utf32(to, n, fmt, args);
+  ret= my_vsnprintf_utf32(to, n, fmt, args);
+  va_end(args);
+  return ret;
 }
 
 
@@ -3081,23 +3091,24 @@ my_tosort_ucs2(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
     *wc= page[*wc & 0xFF].sort;
 }
 
-static size_t my_caseup_ucs2(CHARSET_INFO *cs, char *src, size_t srclen,
-                           char *dst __attribute__((unused)),
-                           size_t dstlen __attribute__((unused)))
+static size_t my_caseup_ucs2(CHARSET_INFO *cs, const char *src, size_t srclen,
+                           char *dst, size_t dstlen)
 {
   my_wc_t wc;
   int res;
-  char *srcend= src + srclen;
+  const char *srcend= src + srclen;
+  char *dstend= dst + dstlen;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
-  DBUG_ASSERT(src == dst && srclen == dstlen);
+  DBUG_ASSERT(srclen <= dstlen);
   
   while ((src < srcend) &&
          (res= my_ucs2_uni(cs, &wc, (uchar *)src, (uchar*) srcend)) > 0)
   {
     my_toupper_ucs2(uni_plane, &wc);
-    if (res != my_uni_ucs2(cs, wc, (uchar*) src, (uchar*) srcend))
+    if (res != my_uni_ucs2(cs, wc, (uchar*) dst, (uchar*) dstend))
       break;
     src+= res;
+    dst+= res;
   }
   return srclen;
 }
@@ -3131,23 +3142,24 @@ static void my_hash_sort_ucs2(CHARSET_INFO *cs, const uchar *s, size_t slen,
   my_hash_sort_ucs2_nopad(cs, s, lengthsp, nr1, nr2);
 }
 
-static size_t my_casedn_ucs2(CHARSET_INFO *cs, char *src, size_t srclen,
-                           char *dst __attribute__((unused)),
-                           size_t dstlen __attribute__((unused)))
+static size_t my_casedn_ucs2(CHARSET_INFO *cs, const char *src, size_t srclen,
+                           char *dst, size_t dstlen)
 {
   my_wc_t wc;
   int res;
-  char *srcend= src + srclen;
+  const char *srcend= src + srclen;
+  char *dstend= dst + dstlen;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
-  DBUG_ASSERT(src == dst && srclen == dstlen);
+  DBUG_ASSERT(srclen <= dstlen);
 
   while ((src < srcend) &&
          (res= my_ucs2_uni(cs, &wc, (uchar*) src, (uchar*) srcend)) > 0)
   {
     my_tolower_ucs2(uni_plane, &wc);
-    if (res != my_uni_ucs2(cs, wc, (uchar*) src, (uchar*) srcend))
+    if (res != my_uni_ucs2(cs, wc, (uchar*) dst, (uchar*) dstend))
       break;
     src+= res;
+    dst+= res;
   }
   return srclen;
 }

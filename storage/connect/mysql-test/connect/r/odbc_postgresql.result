@@ -99,9 +99,9 @@ Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Bu
 mtr	public	t1	a	4	int4	10	4	0	10	0	
 mtr	public	t2	a	4	int4	10	4	0	10	0	
 mtr	public	v1	a	4	int4	10	4	0	10	1	
-mtr	schema1	t1	a	1	bpchar	10	60	NULL	NULL	0	
-mtr	schema1	t2	a	1	bpchar	10	60	NULL	NULL	0	
-mtr	schema1	v1	a	1	bpchar	10	60	NULL	NULL	1	
+mtr	schema1	t1	a	1	bpchar	10	40	NULL	NULL	0	
+mtr	schema1	t2	a	1	bpchar	10	40	NULL	NULL	0	
+mtr	schema1	v1	a	1	bpchar	10	40	NULL	NULL	1	
 DROP TABLE t1;
 # All columns in the schemas "public" and "schema1"
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Columns TABNAME='%.%.%';
@@ -110,16 +110,16 @@ Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Bu
 mtr	public	t1	a	4	int4	10	4	0	10	0	
 mtr	public	t2	a	4	int4	10	4	0	10	0	
 mtr	public	v1	a	4	int4	10	4	0	10	1	
-mtr	schema1	t1	a	1	bpchar	10	60	NULL	NULL	0	
-mtr	schema1	t2	a	1	bpchar	10	60	NULL	NULL	0	
-mtr	schema1	v1	a	1	bpchar	10	60	NULL	NULL	1	
+mtr	schema1	t1	a	1	bpchar	10	40	NULL	NULL	0	
+mtr	schema1	t2	a	1	bpchar	10	40	NULL	NULL	0	
+mtr	schema1	v1	a	1	bpchar	10	40	NULL	NULL	1	
 DROP TABLE t1;
 # All tables "t1" in all schemas
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Columns TABNAME='%.%.t1';
 SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
 mtr	public	t1	a	4	int4	10	4	0	10	0	
-mtr	schema1	t1	a	1	bpchar	10	60	NULL	NULL	0	
+mtr	schema1	t1	a	1	bpchar	10	40	NULL	NULL	0	
 DROP TABLE t1;
 # Table "t1" in the schema "public"
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Columns TABNAME='%.public.t1';
@@ -131,14 +131,14 @@ DROP TABLE t1;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Columns TABNAME='%.schema1.t1';
 SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
-mtr	schema1	t1	a	1	bpchar	10	60	NULL	NULL	0	
+mtr	schema1	t1	a	1	bpchar	10	40	NULL	NULL	0	
 DROP TABLE t1;
 # All tables "t1" in all schemas (Catalog name is ignored by PostgreSQL)
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=ODBC CONNECTION='DSN=ConnectEnginePostgresql;UID=mtr;PWD=mtr' CATFUNC=Columns TABNAME='xxx.%.t1';
 SELECT * FROM t1 ORDER BY Table_Schema, Table_Name;
 Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
 mtr	public	t1	a	4	int4	10	4	0	10	0	
-mtr	schema1	t1	a	1	bpchar	10	60	NULL	NULL	0	
+mtr	schema1	t1	a	1	bpchar	10	40	NULL	NULL	0	
 DROP TABLE t1;
 #
 # Checking tables

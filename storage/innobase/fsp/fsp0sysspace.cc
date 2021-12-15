@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -24,8 +25,6 @@ Created 2012-11-16 by Sunny Bains as srv/srv0space.cc
 Refactored 2013-7-26 by Kevin Lewis
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "fsp0sysspace.h"
 #include "srv0start.h"
 #include "trx0sys.h"
@@ -33,7 +32,6 @@ Refactored 2013-7-26 by Kevin Lewis
 #include "mem0mem.h"
 #include "os0file.h"
 #include "row0mysql.h"
-#include "ut0new.h"
 
 /** The server header file is included to access opt_initialize global variable.
 If server passes the option for create/open DB to SE, we should remove such
@@ -49,14 +47,6 @@ SysTablespace srv_tmp_space;
 /** If the last data file is auto-extended, we add this many pages to it
 at a time. We have to make this public because it is a config variable. */
 ulong sys_tablespace_auto_extend_increment;
-
-#ifdef UNIV_DEBUG
-/** Control if extra debug checks need to be done for temporary tablespace.
-Default = true that is disable such checks.
-This variable is not exposed to end-user but still kept as variable for
-developer to enable it during debug. */
-bool srv_skip_temp_table_checks_debug = true;
-#endif /* UNIV_DEBUG */
 
 /** Convert a numeric string that optionally ends in G or M or K,
     to a number containing megabytes.
@@ -361,7 +351,7 @@ SysTablespace::check_size(
 	So we need to round the size downward to a  megabyte.*/
 
 	const ulint	rounded_size_pages = static_cast<ulint>(
-		size >> UNIV_PAGE_SIZE_SHIFT);
+		size >> srv_page_size_shift);
 
 	/* If last file */
 	if (&file == &m_files.back() && m_auto_extend_last_file) {
@@ -405,16 +395,16 @@ SysTablespace::set_size(
 
 	/* We created the data file and now write it full of zeros */
 	ib::info() << "Setting file '" << file.filepath() << "' size to "
-		<< (file.m_size >> (20 - UNIV_PAGE_SIZE_SHIFT)) << " MB."
+		<< (file.m_size >> (20U - srv_page_size_shift)) << " MB."
 		" Physically writing the file full; Please wait ...";
 
 	bool	success = os_file_set_size(
 		file.m_filepath, file.m_handle,
-		static_cast<os_offset_t>(file.m_size) << UNIV_PAGE_SIZE_SHIFT);
+		static_cast<os_offset_t>(file.m_size) << srv_page_size_shift);
 
 	if (success) {
 		ib::info() << "File '" << file.filepath() << "' size is now "
-			<< (file.m_size >> (20 - UNIV_PAGE_SIZE_SHIFT))
+			<< (file.m_size >> (20U - srv_page_size_shift))
 			<< " MB.";
 	} else {
 		ib::error() << "Could not set the file size of '"
@@ -687,13 +677,18 @@ SysTablespace::file_not_found(
 {
 	file.m_exists = false;
 
-	if (srv_read_only_mode && !m_ignore_read_only) {
+	if (m_ignore_read_only) {
+	} else if (srv_read_only_mode) {
 		ib::error() << "Can't create file '" << file.filepath()
 			<< "' when --innodb-read-only is set";
-
 		return(DB_ERROR);
+	} else if (srv_force_recovery && space_id() == TRX_SYS_SPACE) {
+		ib::error() << "Can't create file '" << file.filepath()
+			<< "' when --innodb-force-recovery is set";
+		return DB_ERROR;
+	}
 
-	} else if (&file == &m_files.front()) {
+	if (&file == &m_files.front()) {
 
 		/* First data file. */
 		ut_a(!*create_new_db);
@@ -774,11 +769,10 @@ SysTablespace::check_file_spec(
 	}
 
 	if (!m_auto_extend_last_file
-	    && get_sum_of_sizes() < min_expected_size / UNIV_PAGE_SIZE) {
-
+	    && get_sum_of_sizes()
+	    < (min_expected_size >> srv_page_size_shift)) {
 		ib::error() << "Tablespace size must be at least "
-			<< min_expected_size / (1024 * 1024) << " MB";
-
+			<< (min_expected_size >> 20) << " MB";
 		return(DB_ERROR);
 	}
 
@@ -912,15 +906,33 @@ SysTablespace::open_or_create(
 		it->close();
 		it->m_exists = true;
 
-		if (it == begin) {
-			/* First data file. */
-
-			/* Create the tablespace entry for the multi-file
-			tablespace in the tablespace manager. */
+		if (it != begin) {
+		} else if (is_temp) {
+			ut_ad(!fil_system.temp_space);
+			ut_ad(space_id() == SRV_TMP_SPACE_ID);
 			space = fil_space_create(
-				name(), space_id(), flags(), is_temp
-				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
-				NULL);
+				name(), SRV_TMP_SPACE_ID, flags(),
+				FIL_TYPE_TEMPORARY, NULL);
+
+			mutex_enter(&fil_system.mutex);
+			fil_system.temp_space = space;
+			mutex_exit(&fil_system.mutex);
+			if (!space) {
+				return DB_ERROR;
+			}
+		} else {
+			ut_ad(!fil_system.sys_space);
+			ut_ad(space_id() == TRX_SYS_SPACE);
+			space = fil_space_create(
+				name(), TRX_SYS_SPACE, flags(),
+				FIL_TYPE_TABLESPACE, NULL);
+
+			mutex_enter(&fil_system.mutex);
+			fil_system.sys_space = space;
+			mutex_exit(&fil_system.mutex);
+			if (!space) {
+				return DB_ERROR;
+			}
 		}
 
 		ut_a(fil_validate());
@@ -931,15 +943,8 @@ SysTablespace::open_or_create(
 				       : m_last_file_size_max)
 				    : it->m_size);
 
-		/* Add the datafile to the fil_system cache. */
-		if (!fil_node_create(
-			    it->m_filepath, it->m_size,
-			    space, it->m_type != SRV_NOT_RAW,
-			    TRUE, max_size)) {
-
-			err = DB_ERROR;
-			break;
-		}
+		space->add(it->m_filepath, OS_FILE_CLOSED, it->m_size,
+			   it->m_type != SRV_NOT_RAW, true, max_size);
 	}
 
 	return(err);
@@ -947,16 +952,16 @@ SysTablespace::open_or_create(
 
 /** Normalize the file size, convert from megabytes to number of pages. */
 void
-SysTablespace::normalize()
+SysTablespace::normalize_size()
 {
 	files_t::iterator	end = m_files.end();
 
 	for (files_t::iterator it = m_files.begin(); it != end; ++it) {
 
-		it->m_size *= (1024 * 1024) / UNIV_PAGE_SIZE;
+		it->m_size <<= (20U - srv_page_size_shift);
 	}
 
-	m_last_file_size_max *= (1024 * 1024) / UNIV_PAGE_SIZE;
+	m_last_file_size_max <<= (20U - srv_page_size_shift);
 }
 
 

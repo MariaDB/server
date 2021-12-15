@@ -1,36 +1,9 @@
 SET @start_global_value = @@global.optimizer_use_condition_selectivity;
-SELECT @start_global_value;
-@start_global_value
-1
 SET @start_session_value = @@session.optimizer_use_condition_selectivity;
-SELECT @start_session_value;
-@start_session_value
-1
-'#--------------------FN_DYNVARS_115_01-------------------------#'
-SET @@global.optimizer_use_condition_selectivity = DEFAULT;
-SELECT @@global.optimizer_use_condition_selectivity;
-@@global.optimizer_use_condition_selectivity
-1
-SET @@session.optimizer_use_condition_selectivity = DEFAULT;
-SELECT @@session.optimizer_use_condition_selectivity;
-@@session.optimizer_use_condition_selectivity
-1
-'#--------------------FN_DYNVARS_115_02-------------------------#'
-SET @@global.optimizer_use_condition_selectivity = DEFAULT;
-SELECT @@global.optimizer_use_condition_selectivity = 1;
-@@global.optimizer_use_condition_selectivity = 1
-1
-SET @@session.optimizer_use_condition_selectivity = DEFAULT;
-SELECT @@session.optimizer_use_condition_selectivity = 1;
-@@session.optimizer_use_condition_selectivity = 1
-1
 '#--------------------FN_DYNVARS_115_03-------------------------#'
-SELECT @@global.optimizer_use_condition_selectivity;
-@@global.optimizer_use_condition_selectivity
-1
 SET @@global.optimizer_use_condition_selectivity = 0;
 Warnings:
-Warning	1292	Truncated incorrect optimizer_use_condition_selectiv value: '0'
+Warning	1292	Truncated incorrect optimizer_use_condition_selec... value: '0'
 SELECT @@global.optimizer_use_condition_selectivity;
 @@global.optimizer_use_condition_selectivity
 1
@@ -56,17 +29,14 @@ SELECT @@global.optimizer_use_condition_selectivity;
 5
 SET @@global.optimizer_use_condition_selectivity = 6;
 Warnings:
-Warning	1292	Truncated incorrect optimizer_use_condition_selectiv value: '6'
+Warning	1292	Truncated incorrect optimizer_use_condition_selec... value: '6'
 SELECT @@global.optimizer_use_condition_selectivity;
 @@global.optimizer_use_condition_selectivity
 5
 '#--------------------FN_DYNVARS_115_04-------------------------#'
-SELECT @@session.optimizer_use_condition_selectivity;
-@@session.optimizer_use_condition_selectivity
-1
 SET @@session.optimizer_use_condition_selectivity = 0;
 Warnings:
-Warning	1292	Truncated incorrect optimizer_use_condition_selectiv value: '0'
+Warning	1292	Truncated incorrect optimizer_use_condition_selec... value: '0'
 SELECT @@session.optimizer_use_condition_selectivity;
 @@session.optimizer_use_condition_selectivity
 1
@@ -92,7 +62,7 @@ SELECT @@session.optimizer_use_condition_selectivity;
 5
 SET @@session.optimizer_use_condition_selectivity = 6;
 Warnings:
-Warning	1292	Truncated incorrect optimizer_use_condition_selectiv value: '6'
+Warning	1292	Truncated incorrect optimizer_use_condition_selec... value: '6'
 SELECT @@session.optimizer_use_condition_selectivity;
 @@session.optimizer_use_condition_selectivity
 5
@@ -132,10 +102,3 @@ SELECT @@local.optimizer_use_condition_selectivity = @@session.optimizer_use_con
 @@local.optimizer_use_condition_selectivity = @@session.optimizer_use_condition_selectivity
 1
 SET @@global.optimizer_use_condition_selectivity = @start_global_value;
-SELECT @@global.optimizer_use_condition_selectivity;
-@@global.optimizer_use_condition_selectivity
-1
-SET @@session.optimizer_use_condition_selectivity = @start_session_value;
-SELECT @@session.optimizer_use_condition_selectivity;
-@@session.optimizer_use_condition_selectivity
-1

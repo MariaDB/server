@@ -40,7 +40,7 @@ https://mariadb.com/kb
 * PASSWORDS:
 ============
 It is strongly recommended you create an admin users for your database
-adminstration needs.
+administration needs.
 
 If your local unix account is the one you want to have local super user
 access on your database with you can create the following account that will

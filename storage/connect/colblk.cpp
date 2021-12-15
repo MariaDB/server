@@ -76,10 +76,10 @@ COLBLK::COLBLK(PCOL col1, PTDB tdbp)
 //To_Orig = col1;
   To_Tdb = tdbp;
 
-  if (trace > 1)
+  if (trace(2))
     htrc(" copying COLBLK %s from %p to %p\n", Name, col1, this);
 
-  if (tdbp)
+  if (tdbp) {
     // Attach the new column to the table block
     if (!tdbp->GetColumns())
       tdbp->SetColumns(this);
@@ -88,6 +88,7 @@ COLBLK::COLBLK(PCOL col1, PTDB tdbp)
 
       colp->Next = this;
       } // endelse
+  }
 
   } // end of COLBLK copy constructor
 
@@ -115,7 +116,7 @@ bool COLBLK::SetFormat(PGLOBAL, FORMAT& fmt)
   {
   fmt = Format;
 
-  if (trace > 1)
+  if (trace(2))
     htrc("COLBLK: %p format=%c(%d,%d)\n",
          this, *fmt.Type, fmt.Length, fmt.Prec);
 
@@ -128,7 +129,7 @@ bool COLBLK::SetFormat(PGLOBAL, FORMAT& fmt)
 /***********************************************************************/
 bool COLBLK::Eval(PGLOBAL g)
   {
-  if (trace > 1)
+  if (trace(2))
     htrc("Col Eval: %s status=%.4X\n", Name, Status);
 
   if (!GetStatus(BUF_READ)) {
@@ -165,7 +166,7 @@ bool COLBLK::InitValue(PGLOBAL g)
   AddStatus(BUF_READY);
   Value->SetNullable(Nullable);
 
-  if (trace > 1)
+  if (trace(2))
     htrc(" colp=%p type=%d value=%p coluse=%.4X status=%.4X\n",
          this, Buf_Type, Value, ColUse, Status);
 
@@ -297,9 +298,9 @@ FIDBLK::FIDBLK(PCOLUMN cp, OPVAL op) : SPCBLK(cp), Op(op)
   Buf_Type = TYPE_STRING;
   *Format.Type = 'C';
   Format.Length = Long;
-#if defined(__WIN__)
+#if defined(_WIN32)
   Format.Prec = 1;          // Case insensitive
-#endif   // __WIN__
+#endif   // _WIN32
   Constant = (!To_Tdb->GetDef()->GetMultiple() &&
               To_Tdb->GetAmType() != TYPE_AM_PLG &&
               To_Tdb->GetAmType() != TYPE_AM_PLM);

@@ -13,6 +13,13 @@ CREATE TABLE t2 (id INT) ENGINE=InnoDB;
 
 --connection node_2
 SET GLOBAL wsrep_slave_threads = 2;
+
+# Wait until above DDL's are replicated
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t%';
+--source include/wait_condition.inc
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME LIKE 'test/t%';
+
 LOCK TABLE t1 WRITE;
 
 --connection node_1

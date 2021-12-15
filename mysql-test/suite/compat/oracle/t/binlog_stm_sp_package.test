@@ -1,0 +1,158 @@
+--source include/not_embedded.inc
+--source include/have_binlog_format_statement.inc
+
+--disable_query_log
+reset master; # get rid of previous tests binlog
+--enable_query_log
+
+SET sql_mode=ORACLE;
+
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+CREATE PACKAGE IF NOT EXISTS p1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  PROCEDURE p1 AS
+  BEGIN
+    NULL;
+  END;
+  FUNCTION f1 RETURN INT AS
+  BEGIN
+    RETURN 10;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+DROP PACKAGE BODY p1;
+DROP PACKAGE p1;
+DROP PACKAGE IF EXISTS p1;
+
+--echo #
+--echo # Creating a package with a COMMENT clause
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE p1 COMMENT 'package-p1-comment' AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY p1 COMMENT 'package-body-p1-comment' AS
+  PROCEDURE p1 AS
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE p1;
+
+--echo #
+--echo # Creating a package with a different DEFINER
+--echo #
+
+DELIMITER $$;
+CREATE DEFINER=xxx@localhost PACKAGE p1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE DEFINER=xxx@localhost PACKAGE BODY p1 AS
+  PROCEDURE p1 AS
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE p1;
+
+
+--echo #
+--echo # Creating a package with a different DEFINER, with SQL SECURITY INVOKER
+--echo #
+
+DELIMITER $$;
+CREATE DEFINER=xxx@localhost PACKAGE p1 SQL SECURITY INVOKER AS
+  PROCEDURE p1;
+END;
+$$
+CREATE DEFINER=xxx@localhost PACKAGE BODY p1 SQL SECURITY INVOKER AS
+  PROCEDURE p1 AS
+  BEGIN
+    NULL;
+  END;
+END;
+$$
+DELIMITER ;$$
+DROP PACKAGE p1;
+
+
+--echo #
+--echo # Creating a new package in a remote database
+--echo #
+
+CREATE DATABASE test2;
+
+DELIMITER $$;
+CREATE PACKAGE test2.test2 COMMENT 'package-test2-comment' AS
+  FUNCTION f1 RETURN INT;
+  PROCEDURE p1;
+END
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PACKAGE BODY test2.test2 COMMENT 'package-body-test2-comment' AS
+  FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
+  PROCEDURE p1 AS BEGIN SELECT f1(); END;
+END;
+$$
+DELIMITER ;$$
+
+DROP PACKAGE BODY test2.test2;
+DROP PACKAGE test2.test2;
+DROP DATABASE test2;
+
+
+--echo #
+--echo # MDEV-13139 Package-wide variables in CREATE PACKAGE
+--echo #
+
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+  a INT:=0;
+  PROCEDURE p1 AS
+  BEGIN
+    INSERT INTO t1 VALUES (a);
+    a:=a+1;
+  END;
+BEGIN
+  a:=10;
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1();
+CALL p1.p1();
+SELECT * FROM t1;
+--source sp-cache-invalidate.inc
+CALL p1.p1();
+CALL p1.p1();
+SELECT * FROM t1;
+DROP PACKAGE p1;
+DROP TABLE t1;
+
+
+--let $binlog_file = LAST
+source include/show_binlog_events.inc;

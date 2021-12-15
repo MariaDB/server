@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -24,8 +24,7 @@ Debug utilities for Innobase.
 Created 1/30/1994 Heikki Tuuri
 **********************************************************************/
 
-#include "ha_prototypes.h"
-
+#include "univ.i"
 #include "ut0dbg.h"
 
 /*************************************************************//**
@@ -53,7 +52,7 @@ ut_dbg_assertion_failed(
 	      " or crashes, even\n"
 	      "InnoDB: immediately after the mysqld startup, there may be\n"
 	      "InnoDB: corruption in the InnoDB tablespace. Please refer to\n"
-	      "InnoDB: https://mariadb.com/kb/en/library/xtradbinnodb-recovery-modes/\n"
+	      "InnoDB: https://mariadb.com/kb/en/library/innodb-recovery-modes/\n"
 	      "InnoDB: about forcing recovery.\n", stderr);
 
 	fflush(stderr);

@@ -1,0 +1,62 @@
+let $engine_type= myisam;
+
+--source include/partition_mrr.inc
+
+--echo #
+--echo # MDEV-21628: Index condition pushdown for a simple condition over 
+--echo # index fields is not used for ref access of partitioned tables when employing BKA
+--echo #
+
+create table t0 (
+tp int, a int, b int, c varchar(12), index idx (a,b)
+);
+
+insert into t0 values
+(1,3,30,'yyzy'), (1,3,30,'yxxyy'), (1,3,30,'yyxy'), (1,3,30,'xxyy'),
+(1,3,30,'yyxz'), (1,3,30,'yyzz'), (1,3,30,'xxyzy'), (1,3,30,'yyyy'),
+(1,3,30,'yzzy'), (1,93,30,'zzzy'),
+(2,3,40,'yxx'), (2,4,40,'xx'), (2,3,10,'zxz'),
+(2,3,40,'yyx'), (2,4,40,'xxx'), (2,3,10,'zyyz'),
+(2,3,40,'xzzzz'), (2,4,40,'yyyxx'), (2,3,10,'zyz'),
+(2,3,40,'xxx'), (2,4,40,'xx'), (2,3,10,'zzz'),
+(2,3,40,'yyxzx'), (2,4,40,'xyx'), (2,3,10,'xzz'),
+(2,3,40,'xxxzz'), (2,4,40,'xxz'), (2,3,10,'zzzy'),
+(2,3,40,'zzxxx'), (2,4,40,'zxx'), (2,3,10,'yzzz'),
+(2,3,40,'xyyxx'), (2,4,40,'xzzzx'), (2,3,10,'zzxxz'),
+(2,3,40,'yzxxx'), (2,4,40,'xxzy'), (2,3,10,'zzzyx'),
+(2,93,40,'xzx'), (2,94,40,'xz'), (2,93,10,'zyyyz'),
+(3,4,30,'yx'), (3,4,30,'yyxxx'), (3,4,30,'zzyy'), (3,4,30,'zxyy'),
+(3,4,30,'xxyy'), (3,4,30,'yyzx'),  (3,4,30,'zyyy'), (3,4,30,'yzy'),
+(3,4,30,'zzzyy'), (3,94,30,'yyz');
+ 
+create table t1 (
+tp int, a int, b int, c varchar(12), index idx (a,b)
+) engine=myisam
+partition by list (tp)
+( partition p1 values in (1),
+  partition p2 values in (2),
+  partition p3 values in (3));
+insert into t1 select * from t0;
+ 
+create table t2 (a int, index idx(a)) engine=myisam;
+insert into t2 values (1), (2), (3), (4), (5);
+insert into t2 select a+10 from t2;
+insert into t2 select a+20 from t2;
+
+analyze table t0,t1,t2;
+
+set @tmp1=@@join_cache_level, @tmp2=@@optimizer_switch;
+set join_cache_level=6, optimizer_switch='mrr=on';
+
+explain
+select * from t0,t2 where t2.a in (3,4) and t0.a=t2.a and (t0.b / 10) = 4;
+
+--echo # This will use "Using index condition(BKA)"
+explain
+select * from t1,t2 where t2.a in (3,4) and t1.a=t2.a and (t1.b / 10) = 4;
+
+set join_cache_level=@tmp1, optimizer_switch=@tmp2;
+
+drop table t0,t1,t2;
+
+

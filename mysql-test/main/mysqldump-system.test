@@ -1,0 +1,157 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/have_udf.inc
+--source include/platform.inc
+
+if (!$AUTH_SOCKET_SO) {
+  --skip Need auth socket plugin
+}
+
+--echo #
+--echo # MDEV-23630: mysqldump to logically dump system tables
+--echo #
+--echo #
+
+# might need fixing in 10.4 to different mechanism
+create table backup_users like mysql.user;
+insert into backup_users select * from mysql.user where host not in ('localhost');
+delete from mysql.user where host not in ('localhost');
+flush privileges;
+
+create user USER;
+
+if (`SELECT CONVERT(@@VERSION_COMPILE_OS USING latin1) NOT IN ('Win32', 'Win64', 'Windows')`)
+{
+--error 0,ER_PLUGIN_INSTALLED
+--eval install plugin /*M!100401 IF NOT EXISTS */ unix_socket soname '$AUTH_SOCKET_SO';
+alter user USER identified via unix_socket;
+}
+
+# time zone data already loaded
+
+CREATE ROLE role_1;
+CREATE ROLE role_2 WITH ADMIN role_1;
+
+GRANT SHOW DATABASES ON *.* TO role_1;
+GRANT role_1 TO USER;
+GRANT role_2 TO USER;
+SET DEFAULT ROLE role_2 FOR USER;
+
+ALTER TABLE mysql.roles_mapping ORDER BY Host, User, Role;
+
+# innodb and EITS tables statistics
+#
+set @save_innodb_stats_persistent= @@innodb_stats_persistent;
+create table mysql.tz like mysql.time_zone_transition;
+alter table mysql.tz engine=innodb;
+insert into mysql.tz select * from mysql.time_zone_transition;
+set global innodb_stats_persistent=1;
+ANALYZE TABLE mysql.tz PERSISTENT FOR ALL;
+# for predictable output in tests
+delete from mysql.index_stats where prefix_arity!=1;
+delete from mysql.column_stats where column_name!='Time_zone_id';
+set time_zone="+03:00";
+update mysql.innodb_index_stats set last_update="2020-01-01" where database_name="mysql" and table_name="tz";
+update mysql.innodb_table_stats set last_update="2020-01-01" where database_name="mysql" and table_name="tz";
+set global innodb_stats_persistent= @save_innodb_stats_persistent;
+alter table mysql.time_zone_name ORDER BY Name;
+
+CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(Host 'localhost');
+
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+eval CREATE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
+
+
+#
+# Lets actually do some tests.
+#
+
+--echo #
+--echo # mysqldump of system tables with --system=all
+--echo #
+
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+--exec $MYSQL_DUMP --skip-comments --system=all
+
+
+--echo #
+--echo # mysqldump of system tables with --system=all --replace
+--echo #
+
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+--exec $MYSQL_DUMP --skip-comments --system=all --replace
+
+
+# save this for restore
+--exec $MYSQL_DUMP --system=users,servers,stats,timezones,udfs --replace > $MYSQLTEST_VARDIR/tmp/dump1.sql
+
+--echo #
+--echo # mysqldump of system tables with --system=all --insert-ignore
+--echo #
+
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+--exec $MYSQL_DUMP --skip-comments --system=all --insert-ignore
+
+
+CHECKSUM TABLE mysql.user, mysql.roles_mapping, mysql.time_zone_transition, mysql.plugin,
+    mysql.servers, mysql.func, mysql.innodb_table_stats, mysql.table_stats;
+
+--echo # Opps....
+
+CREATE USER mariadb_test_restore IDENTIFIED BY 'getitback';
+GRANT ALL ON *.* TO mariadb_test_restore WITH GRANT OPTION;
+GRANT PROXY ON ''@'%' TO mariadb_test_restore WITH GRANT OPTION;
+GRANT SUPER, CREATE USER /*M!100502 ,FEDERATED ADMIN */ ON *.* TO mariadb_test_restore WITH GRANT OPTION;
+
+drop user USER;
+delete from mysql.table_stats;
+delete from mysql.innodb_table_stats;
+delete from mysql.time_zone_transition;
+delete from mysql.time_zone_transition_type;
+delete from mysql.time_zone;
+delete from mysql.time_zone_name;
+delete from mysql.time_zone_leap_second;
+DROP FUNCTION IF EXISTS metaphon;
+DROP SERVER s1;
+set time_zone= @@global.time_zone;
+
+--echo # Restore from mysqldump
+--exec $MYSQL --user mariadb_test_restore --password=getitback --show-warnings  < $MYSQLTEST_VARDIR/tmp/dump1.sql
+#--remove_file $MYSQLTEST_VARDIR/tmp/dump1.sql;
+
+DROP USER mariadb_test_restore;
+
+# successful restore?
+
+CHECKSUM TABLE mysql.user, mysql.roles_mapping, mysql.time_zone_transition, mysql.plugin,
+    mysql.servers, mysql.func, mysql.innodb_table_stats, mysql.table_stats;
+
+#
+# Cleanup
+#
+
+DROP FUNCTION IF EXISTS metaphon;
+
+DROP SERVER s1;
+
+# EITS && innodb stats
+DELETE FROM mysql.column_stats WHERE db_name='mysql' and table_name in ('tz', 'gtid_slave_pos');
+DELETE FROM mysql.index_stats  WHERE db_name='mysql' and table_name in ('tz', 'gtid_slave_pos');
+DELETE FROM mysql.table_stats  WHERE db_name='mysql' and table_name in ('tz', 'gtid_slave_pos');
+DELETE FROM mysql.innodb_index_stats WHERE database_name='mysql' and table_name in ('tz','gtid_slave_pos');
+DELETE FROM mysql.innodb_table_stats WHERE database_name='mysql' and table_name in ('tz','gtid_slave_pos');
+drop table mysql.tz;
+
+DROP ROLE role_2;
+DROP ROLE role_1;
+
+drop user USER;
+
+if (`SELECT CONVERT(@@VERSION_COMPILE_OS USING latin1) NOT IN ('Win32', 'Win64', 'Windows')`)
+{
+uninstall plugin unix_socket;
+}
+
+insert into mysql.user select * from backup_users;
+flush privileges;
+drop table backup_users;

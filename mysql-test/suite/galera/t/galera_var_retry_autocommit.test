@@ -1,98 +1,143 @@
 #
-# Test that the wsrep_retry_autocommit variable is respected. We use an INSERT that
-# proceeds very slowly due to extra SLEEP() in a trigger
+# Test that the wsrep_retry_autocommit variable is respected.
 #
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
 
---connection node_1
-CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=InnoDB;
-CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW SET NEW.f2 = SLEEP(5);
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
 
 #
 # With wsrep_retry_autocommit = 0, error is certain
 #
 
 --connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
 SET SESSION wsrep_retry_autocommit = 0;
---send INSERT INTO t1 (f1) VALUES (1),(2);
+SET DEBUG_SYNC = 'wsrep_before_replication SIGNAL before_rep WAIT_FOR continue';
+--send INSERT INTO t1 (f1) VALUES (2)
+
+--connection node_1a
+SET DEBUG_SYNC = 'now WAIT_FOR before_rep';
 
 --connection node_2
---sleep 1
 TRUNCATE TABLE t1;
 
 --connection node_1
 --error ER_LOCK_DEADLOCK
 --reap
+SELECT COUNT(*) = 0 FROM t1;
+
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;
+
 
 #
 # With wsrep_retry_autocommit = 1, success against one TRUNCATE
 #
 
 --connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
 SET SESSION wsrep_retry_autocommit = 1;
---send INSERT INTO t1 (f1) VALUES (3),(4);
+SET DEBUG_SYNC = 'wsrep_before_replication SIGNAL before_rep WAIT_FOR continue';
+--send INSERT INTO t1 (f1) VALUES (2)
+
+--connection node_1a
+SET DEBUG_SYNC = 'now WAIT_FOR before_rep';
 
 --connection node_2
---sleep 1
 TRUNCATE TABLE t1;
 
 --connection node_1
---error 0
 --reap
-SELECT * FROM test.t1;
+SELECT COUNT(*) = 1 FROM t1;
 
-#
-# With wsrep_retry_autocommit = 1, failure against multiple TRUNCATEs
-#
-
---connection node_2
-DELIMITER |;
-CREATE PROCEDURE repeated_truncate ()
-BEGIN
-	DECLARE i INT;
-	DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
-
-	SET i = 0;
-        WHILE i <= 1000 DO
-		TRUNCATE TABLE t1;
-		SET i = i + 1;
-        END WHILE;
-END|
-DELIMITER ;|
-
-# Begin streaming TRUNCATEs
---let $truncate_connection_id = `SELECT CONNECTION_ID()`
---send CALL repeated_truncate()
-
---connection node_1
-SET SESSION wsrep_retry_autocommit = 1;
---sleep 1
---error ER_LOCK_DEADLOCK
-INSERT INTO t1 (f1) VALUES (5),(6);
-
-#
-# With wsrep_retry_autocommit = 1024, success against multiple TRUNCATEs
-#
-
---connection node_1
-SET SESSION wsrep_retry_autocommit = 1024;
---send INSERT INTO t1 (f1) VALUES (7),(8);
-
---sleep 6
-
-# Once he stream of TRUNCATEs is complete
---connection node_2
---reap
-
-# the INSERT will eventually be sucessfull
---connection node_1
---error 0
---reap
-
---let $diff_servers = 1 2
---source include/diff_servers.inc
-
+SET DEBUG_SYNC = 'RESET';
 DROP TABLE t1;
-DROP PROCEDURE repeated_truncate;
+
+
+#
+# With wsrep_retry_autcommit = 1, failure against multiple TRUNCATEs
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+SET SESSION wsrep_retry_autocommit = 1;
+SET GLOBAL debug_dbug = '+d,sync.wsrep_retry_autocommit';
+SET DEBUG_SYNC = 'wsrep_before_replication SIGNAL before_rep WAIT_FOR continue EXECUTE 2';
+
+--send INSERT INTO t1 VALUES (2);
+
+--connection node_1a
+SET DEBUG_SYNC = 'now WAIT_FOR before_rep';
+
+--connection node_2
+TRUNCATE TABLE t1;
+
+--connection node_1a
+SET DEBUG_SYNC = 'now WAIT_FOR wsrep_retry_autocommit_reached';
+SELECT COUNT(*) = 0 FROM t1;
+SET DEBUG_SYNC = 'now SIGNAL wsrep_retry_autocommit_continue WAIT_FOR before_rep';
+
+--connection node_2
+TRUNCATE TABLE t1;
+
+--connection node_1a
+SELECT COUNT(*) = 0 FROM t1;
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+SET DEBUG_SYNC = 'RESET';
+SET GLOBAL debug_dbug = NULL;
+DROP TABLE t1;
+
+
+#
+# With wsrep_retry_autocommit = 64, success against 64 TRUNCATEs
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+SET SESSION wsrep_retry_autocommit = 64;
+SET GLOBAL debug_dbug = '+d,sync.wsrep_retry_autocommit';
+SET DEBUG_SYNC = 'wsrep_before_replication SIGNAL before_rep WAIT_FOR continue EXECUTE 64';
+
+--send INSERT INTO t1 VALUES (2)
+
+--disable_query_log
+--disable_result_log
+--let $count = 64
+while ($count)
+{
+  --connection node_1a
+  SET DEBUG_SYNC = 'now WAIT_FOR before_rep';
+
+  --connection node_2
+  TRUNCATE TABLE t1;
+
+  --connection node_1a
+  SET DEBUG_SYNC = 'now WAIT_FOR wsrep_retry_autocommit_reached';
+  SELECT COUNT(*) = 1 FROM t1;
+  SET DEBUG_SYNC = 'now SIGNAL wsrep_retry_autocommit_continue';
+
+  --dec $count
+}
+--enable_result_log
+--enable_query_log
+
+--connection node_1
+--reap
+SELECT COUNT(*) = 1 FROM t1;
+
+SET DEBUG_SYNC = 'RESET';
+SET GLOBAL debug_dbug = NULL;
+DROP TABLE t1;

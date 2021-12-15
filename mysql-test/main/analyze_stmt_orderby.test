@@ -1,0 +1,178 @@
+
+--source include/have_innodb.inc
+--source include/default_optimizer_switch.inc
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+
+create table t2 (
+  a int, 
+  b int, 
+  key (a)
+);
+
+insert into t2 select A.a*1000 + B.a, A.a*1000 + B.a from t0 A, t1 B;
+
+--echo #
+--echo # Try an UPDATE that uses filesort:
+--echo #
+explain 
+update t2 set b=b+1 order by b limit 5;
+explain format=json
+update t2 set b=b+1 order by b limit 5;
+--source include/analyze-format.inc
+analyze format=json
+update t2 set b=b+1 order by b limit 5;
+
+--echo #
+--echo # Try an UPDATE that uses buffering:
+--echo #
+explain
+update t2 set a=a+1 where a<10;
+explain format=json
+update t2 set a=a+1 where a<10;
+--source include/analyze-format.inc
+analyze format=json
+update t2 set a=a+1 where a<10;
+
+--echo #
+--echo # Try a DELETE that uses filesort:
+--echo #
+explain 
+delete from t2 order by b limit 5;
+explain format=json
+delete from t2 order by b limit 5;
+--source include/analyze-format.inc
+analyze format=json
+delete from t2 order by b limit 5;
+
+--echo #
+--echo # Try a SELECT with QEP in form: filesort { tmp_table { join } } 
+--echo #
+explain
+select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
+explain format=json
+select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
+--source include/analyze-format.inc
+analyze format=json
+select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
+
+
+--echo #
+--echo # Try a SELECT with QEP in form: join { filesort { table0 }, table2 }
+--echo #
+explain
+select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
+explain format=json
+select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
+--source include/analyze-format.inc
+analyze format=json 
+select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
+
+drop table t2;
+
+
+create table t2 (
+  a int,
+  b int,
+  c int
+);
+insert into t2 
+select 
+  a.a+10*b.a+100*c.a, 
+  b.a+10*c.a, 
+  c.a
+from t0 a, t0 b, t0 c;
+
+--source include/analyze-format.inc
+analyze format=json 
+select MAX(b) from t2 where mod(a,2)=0 group by c;
+
+drop table t2;
+
+--echo #
+--echo #  MDEV-8282: crash in filesort() with simple ordered delete
+--echo #
+create table t3(a int) engine=innodb;
+delete from t3 order by a;
+
+--echo # EXPLAIN thinks it will use delete_all_rows():
+explain
+delete from t3 order by a;
+
+--echo # ANALYZE shows that delete_all_rows() didn't work and we deleted rows
+--echo # one-by-one:
+analyze
+delete from t3 order by a;
+
+drop table t3;
+
+--echo #
+--echo # A test for duplicate_removal()
+--echo #
+create table t3 (a int, b int);
+insert into t3 select a, 123 from t0;
+
+--source include/analyze-format.inc
+analyze format=json
+select distinct max(t3.b) Q from t0, t3 where t0.a=t3.a group by t0.a order by null;
+
+
+--echo #
+--echo # A query with two filesort calls:
+--echo #   - first is needed to do group-by-group grouping to calculate COUNT(DISTINCT)
+--echo #   - the second is need to produce ORDER BY.
+--echo # (see MDEV-7836 for description of the query plan)
+
+
+create table t5 (a int , b int) ;
+create table t6 like t5 ;
+create table t7 like t5 ;
+insert into t5 values (0, 100), (1, 2), (1, 3), (2, 2), (2, 7),
+                      (2, -1), (3, 10);
+insert into t6 values (0, 0), (1, 1), (2, 1), (3, 1), (4, 1);
+insert into t7 values (3, 3), (2, 2), (1, 1);
+
+--echo # TODO: This ANALYZE output doesn't make it clear what is used for what.
+--source include/analyze-format.inc
+analyze format=json
+select count(distinct t5.b) as sum from t5, t6
+                     where t5.a=t6.a and t6.b > 0 and t5.a <= 5
+                     group by t5.a order by sum limit 1;
+
+explain format=json
+select count(distinct t5.b) as sum from t5, t6
+                     where t5.a=t6.a and t6.b > 0 and t5.a <= 5
+                     group by t5.a order by sum limit 1;
+drop table t5,t6,t7;
+drop table t3;
+
+--echo # 
+--echo # Tabular ANALYZE must get its data from execution tracker (and not from
+--echo #   the query plan)
+--echo # 
+
+CREATE TABLE t2(
+ col1 int, 
+ col2 int, 
+ UNIQUE INDEX idx (col1, col2)) engine=myisam;
+
+INSERT INTO t2(col1, col2) VALUES
+   (1,20),(2,19),(3,18),(4,17),(5,16),(6,15),(7,14),(8,13),(9,12),(10,11),
+   (11,10),(12,9),(13,8),(14,7),(15,6),(16,5),(17,4),(18,3),(19,2),(20,1);
+
+flush status;
+explain
+select col1 f1, col2 f2, col1 f3 from t2 group by f1;
+analyze
+select col1 f1, col2 f2, col1 f3 from t2 group by f1;
+--source include/analyze-format.inc
+analyze format=json
+select col1 f1, col2 f2, col1 f3 from t2 group by f1;
+drop table t2;
+
+
+drop table t0,t1;

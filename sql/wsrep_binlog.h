@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License along
    with this program; if not, write to the Free Software Foundation, Inc.,
-   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA. */
 
 #ifndef WSREP_BINLOG_H
 #define WSREP_BINLOG_H
@@ -54,7 +54,5 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
                                     size_t buf_len);
 
 int wsrep_binlog_close_connection(THD* thd);
-int wsrep_binlog_savepoint_set(THD *thd,  void *sv);
-int wsrep_binlog_savepoint_rollback(THD *thd, void *sv);
 
 #endif /* WSREP_BINLOG_H */

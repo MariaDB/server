@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,8 +26,6 @@ Created 7/19/1997 Heikki Tuuri
 
 #ifndef ibuf0ibuf_h
 #define ibuf0ibuf_h
-
-#include "univ.i"
 
 #include "mtr0mtr.h"
 #include "dict0mem.h"
@@ -49,22 +47,19 @@ typedef enum {
 	IBUF_OP_COUNT = 3
 } ibuf_op_t;
 
-/** Combinations of operations that can be buffered.  Because the enum
-values are used for indexing innobase_change_buffering_values[], they
-should start at 0 and there should not be any gaps. */
-typedef enum {
+/** Combinations of operations that can be buffered.
+@see innodb_change_buffering_names */
+enum ibuf_use_t {
 	IBUF_USE_NONE = 0,
 	IBUF_USE_INSERT,	/* insert */
 	IBUF_USE_DELETE_MARK,	/* delete */
 	IBUF_USE_INSERT_DELETE_MARK,	/* insert+delete */
 	IBUF_USE_DELETE,	/* delete+purge */
-	IBUF_USE_ALL,		/* insert+delete+purge */
-
-	IBUF_USE_COUNT		/* number of entries in ibuf_use_t */
-} ibuf_use_t;
+	IBUF_USE_ALL		/* insert+delete+purge */
+};
 
 /** Operations that can currently be buffered. */
-extern ibuf_use_t	ibuf_use;
+extern ulong		innodb_change_buffering;
 
 /** The insert buffer control structure */
 extern ibuf_t*		ibuf;
@@ -251,7 +246,7 @@ ibuf_inside(
 UNIV_INLINE
 ibool
 ibuf_bitmap_page(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size);
 
 /** Checks if a page is a level 2 or 3 page in the ibuf hierarchy of pages.
@@ -268,7 +263,7 @@ in which case a new transaction is created.
 @return TRUE if level 2 or level 3 page */
 ibool
 ibuf_page_low(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 #ifdef UNIV_DEBUG
 	ibool			x_latch,
@@ -324,9 +319,17 @@ ibuf_insert(
 	ibuf_op_t		op,
 	const dtuple_t*		entry,
 	dict_index_t*		index,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	que_thr_t*		thr);
+
+/**
+Delete any buffered entries for a page.
+This prevents an infinite loop on slow shutdown
+in the case where the change buffer bitmap claims that no buffered
+changes exist, while entries exist in the change buffer tree.
+@param page_id  page number for which there should be no unbuffered changes */
+ATTRIBUTE_COLD void ibuf_delete_recs(const page_id_t page_id);
 
 /** When an index page is read from a disk to the buffer pool, this function
 applies any buffered operations to the page and deletes the entries from the
@@ -336,16 +339,12 @@ exist entries for such a page if the page belonged to an index which
 subsequently was dropped.
 @param[in,out]	block			if page has been read from disk,
 pointer to the page x-latched, else NULL
-@param[in]	page_id			page id of the index page
-@param[in]	update_ibuf_bitmap	normally this is set to TRUE, but
-if we have deleted or are deleting the tablespace, then we naturally do not
-want to update a non-existent bitmap page */
+@param[in]	page_id			page id of the index page */
 void
 ibuf_merge_or_delete_for_page(
 	buf_block_t*		block,
-	const page_id_t&	page_id,
-	const page_size_t*	page_size,
-	ibool			update_ibuf_bitmap);
+	const page_id_t		page_id,
+	const page_size_t&	page_size);
 
 /*********************************************************************//**
 Deletes all entries in the insert buffer for a given space id. This is used
@@ -386,15 +385,6 @@ ibuf_parse_bitmap_init(
 	buf_block_t*	block,	/*!< in: block or NULL */
 	mtr_t*		mtr);	/*!< in: mtr or NULL */
 
-#ifdef UNIV_IBUF_COUNT_DEBUG
-/** Gets the ibuf count for a given page.
-@param[in]	page_id	page id
-@return number of entries in the insert buffer currently buffered for
-this page */
-ulint
-ibuf_count_get(
-	const page_id_t&	page_id);
-#endif
 /******************************************************************//**
 Looks if the insert buffer is empty.
 @return true if empty */
@@ -421,14 +411,11 @@ void
 ibuf_close(void);
 /*============*/
 
-/******************************************************************//**
-Checks the insert buffer bitmaps on IMPORT TABLESPACE.
+/** Check the insert buffer bitmaps on IMPORT TABLESPACE.
+@param[in]	trx	transaction
+@param[in,out]	space	tablespace being imported
 @return DB_SUCCESS or error code */
-dberr_t
-ibuf_check_bitmap_on_import(
-/*========================*/
-	const trx_t*	trx,		/*!< in: transaction */
-	ulint		space_id)	/*!< in: tablespace identifier */
+dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Updates free bits and buffered bits for bulk loaded page.

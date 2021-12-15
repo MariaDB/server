@@ -1,0 +1,11 @@
+CREATE DATABASE db1;
+CREATE USER u@localhost IDENTIFIED BY 'pw';
+set global log_warnings=2;
+connect(localhost,u,pw,db1,MASTER_PORT,MASTER_SOCKET);
+connect con1,localhost,u,pw,db1;
+ERROR 42000: Access denied for user 'u'@'localhost' to database 'db1'
+connection default;
+FOUND 1 /Access denied for user 'u'@'localhost' to database 'db1'/ in mysqld.1.err
+set global log_warnings=@@log_warnings;
+DROP DATABASE db1;
+DROP USER u@localhost;

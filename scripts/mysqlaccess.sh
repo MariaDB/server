@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Library General Public
 # License along with this library; if not, write to the Free
 # Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-# MA 02110-1301, USA
+# MA 02110-1335  USA
 
 # ****************************
 package MySQLaccess;
@@ -26,7 +26,7 @@ use Fcntl;
 BEGIN {
 	# ****************************
 	# static information...
-	$VERSION     = "2.06, 20 Dec 2000";
+	$VERSION     = "2.10, 13 Sep 2019";
 	$0           =~ m%/([^/]+)$%o;
 	$script      = $1;
         $script      = 'MySQLAccess' unless $script;

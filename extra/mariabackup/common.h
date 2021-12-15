@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************/
 
@@ -28,7 +28,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
 #include <my_sys.h>
 
 
-# define fil_is_user_tablespace_id(i) ((i) > srv_undo_tablespaces_open)
+/** Determine if (i) is a user tablespace id or not. */
+# define fil_is_user_tablespace_id(i) (i != 0 \
+				       && !srv_is_undo_tablespace(i))
 
 #ifdef _MSC_VER
 #define stat _stati64
@@ -70,7 +72,7 @@ static inline int asprintf(char **strp, const char *fmt,...)
 #define xb_a(expr)							\
 	do {								\
 		if (!(expr)) {						\
-			msg("Assertion \"%s\" failed at %s:%lu\n",	\
+			fprintf(stderr,"Assertion \"%s\" failed at %s:%lu\n",	\
 			    #expr, __FILE__, (ulong) __LINE__);		\
 			abort();					\
 		}							\
@@ -84,41 +86,54 @@ static inline int asprintf(char **strp, const char *fmt,...)
 
 #define XB_DELTA_INFO_SUFFIX ".meta"
 
-static inline int msg(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
-static inline int msg(const char *fmt, ...)
+static inline int msg1(uint thread_num, const char *prefix, const char *fmt, va_list args)
 {
-	int	result;
-	va_list	args;
-
-	va_start(args, fmt);
-	result = vfprintf(stderr, fmt, args);
-	va_end(args);
-
-	return result;
+  int result;
+  time_t t = time(NULL);
+  char date[100];
+  char *line;
+  strftime(date, sizeof(date), "%Y-%m-%d %H:%M:%S", localtime(&t));
+  result = vasprintf(&line, fmt, args);
+  if (result != -1) {
+    if (fmt && fmt[strlen(fmt)] != '\n')
+      result = fprintf(stderr, "[%02u] %s%s %s\n", thread_num, prefix, date, line);
+    else
+      result = fprintf(stderr, "[%02u] %s%s %s", thread_num, prefix, date, line);
+    free(line);
+  }
+  return result;
 }
 
-static inline int msg_ts(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
-static inline int msg_ts(const char *fmt, ...)
+static inline  ATTRIBUTE_FORMAT(printf, 2, 3) int msg(unsigned int thread_num, const char *fmt, ...)
 {
-	int	result;
-	time_t 	t = time(NULL);
-	char	date[100];
-	char	*line;
-	va_list	args;
-
-	strftime(date, sizeof(date), "%y%m%d %H:%M:%S", localtime(&t));
-
-	va_start(args, fmt);
-	result = vasprintf(&line, fmt, args);
-	va_end(args);
-
-	if (result != -1) {
-		result = fprintf(stderr, "%s %s", date, line);
-		free(line);
-	}
-
-	return result;
+  int result;
+  va_list args;
+  va_start(args, fmt);
+  result = msg1(thread_num,"", fmt, args);
+  va_end(args);
+  return result;
 }
+
+static inline ATTRIBUTE_FORMAT(printf, 1, 2) int msg(const char *fmt, ...)
+{
+  int result;
+  va_list args;
+  va_start(args, fmt);
+  result = msg1(0, "", fmt, args);
+  va_end(args);
+  return result;
+}
+
+static inline ATTRIBUTE_FORMAT(printf, 1,2) ATTRIBUTE_NORETURN void die(const char *fmt, ...)
+{
+  va_list args;
+  va_start(args, fmt);
+  msg1(0, "FATAL ERROR: ", fmt, args);
+  va_end(args);
+  fflush(stderr);
+  _exit(EXIT_FAILURE);
+}
+
 
 /* Use POSIX_FADV_NORMAL when available */
 

@@ -24,9 +24,9 @@ ENDIF()
 MYSQL_ADD_PLUGIN(auth_ed25519 server_ed25519.c ${REF10_SOURCES} MODULE_ONLY)
 
 # client plugin and unit test ed25519-t can use the library
-MYSQL_ADD_PLUGIN(client_ed25519 client_ed25519.c MODULE_ONLY
-  CLIENT LINK_LIBRARIES mysys_ssl ref10 COMPONENT ClientPlugins)
+#MYSQL_ADD_PLUGIN(client_ed25519 client_ed25519.c MODULE_ONLY
+#  CLIENT LINK_LIBRARIES ref10 mysys_ssl COMPONENT ClientPlugins)
 
 IF(WITH_UNIT_TESTS)
-  MY_ADD_TESTS(ed25519 LINK_LIBRARIES mysys ref10)
+  MY_ADD_TESTS(ed25519 LINK_LIBRARIES ref10 mysys_ssl)
 ENDIF()

@@ -1,3 +1,5 @@
+#!/bin/bash
+
 set -e
 
 # Insert 100 batches of 100 records each to a table with following schema:

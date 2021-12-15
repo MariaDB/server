@@ -1,0 +1,24 @@
+source include/not_embedded.inc;
+#
+# MDEV-60 Support for Spatial Reference systems for the GIS data.
+#
+show create procedure mysql.AddGeometryColumn;
+show create procedure mysql.DropGeometryColumn;
+create table t1 (a int, b int);
+call mysql.AddGeometryColumn('', 'test', 't1', 'c', 10);
+show create table t1;
+call mysql.DropGeometryColumn('', 'test', 't1', 'c');
+show create table t1;
+call mysql.DropGeometryColumn('', 'test', 't1', 'b');
+show create table t1;
+drop table t1;
+
+create user foo@localhost;
+grant execute on mysql.* to foo@localhost;
+connect (foo, localhost, foo);
+--error ER_TABLEACCESS_DENIED_ERROR
+call mysql.AddGeometryColumn('', 'mysql', 'proc', 'c', 10);
+disconnect foo;
+connection default;
+drop user foo@localhost;
+

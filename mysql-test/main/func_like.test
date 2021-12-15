@@ -1,0 +1,286 @@
+#
+# Test of like
+#
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1 (a varchar(10), key(a));
+insert into t1 values ("a"),("abc"),("abcd"),("hello"),("test");
+explain extended select * from t1 where a like 'abc%';
+explain extended select * from t1 where a like concat('abc','%');
+select * from t1 where a like "abc%";
+select * from t1 where a like concat("abc","%");
+select * from t1 where a like "ABC%";
+select * from t1 where a like "test%";
+select * from t1 where a like "te_t";
+
+#
+# The following will test the Turbo Boyer-Moore code
+#
+select * from t1 where a like "%a%";
+select * from t1 where a like "%abcd%";
+select * from t1 where a like "%abc\d%";
+
+drop table t1;
+
+create table t1 (a varchar(10), key(a));
+
+#
+# Bug #2231
+#
+insert into t1 values ('a'), ('a\\b');
+select * from t1 where a like 'a\\%' escape '#';
+select * from t1 where a like 'a\\%' escape '#' and a like 'a\\\\b';
+
+#
+# Bug #4200: Prepared statement parameter as argument to ESCAPE
+#
+prepare stmt1 from 'select * from t1 where a like \'a\\%\' escape ?';
+set @esc='#';
+execute stmt1 using @esc;  
+deallocate prepare stmt1;
+
+drop table t1;
+
+#
+# Bug #2885: like and datetime
+#
+
+create table t1 (a datetime);
+insert into t1 values ('2004-03-11 12:00:21');
+select * from t1 where a like '2004-03-11 12:00:21';
+drop table t1;
+
+#
+# Test like with non-default character set
+#
+
+SET NAMES koi8r;
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET koi8r);
+
+INSERT INTO t1 VALUES ('ÆÙ×Á'),('æÙ×Á'),('Æù×Á'),('ÆÙ÷Á'),('ÆÙ×á'),('æù÷á');
+INSERT INTO t1 VALUES ('ÆÙ×ÁÐÒÏÌÄÖ'),('æÙ×ÁÐÒÏÌÄÖ'),('Æù×ÁÐÒÏÌÄÖ'),('ÆÙ÷ÁÐÒÏÌÄÖ');
+INSERT INTO t1 VALUES ('ÆÙ×áÐÒÏÌÄÖ'),('ÆÙ×ÁðÒÏÌÄÖ'),('ÆÙ×ÁÐòÏÌÄÖ'),('ÆÙ×ÁÐÒïÌÄÖ');
+INSERT INTO t1 VALUES ('ÆÙ×ÁÐÒÏìÄÖ'),('ÆÙ×ÁÐÒÏÌäÖ'),('ÆÙ×ÁÐÒÏÌÄö'),('æù÷áðòïìäö');
+
+SELECT * FROM t1 WHERE a LIKE '%Æù×Á%';
+SELECT * FROM t1 WHERE a LIKE '%Æù×%';
+SELECT * FROM t1 WHERE a LIKE 'Æù×Á%';
+
+DROP TABLE t1;
+
+# Bug #2547 Strange "like" behaviour in tables with default charset=cp1250
+# Test like with non-default character set using TurboBM
+#
+SET NAMES cp1250;
+CREATE TABLE t1 (a varchar(250) NOT NULL) DEFAULT CHARACTER SET=cp1250;
+INSERT INTO t1 VALUES
+('Techni Tapes Sp. z o.o.'),
+('Pojazdy Szynowe PESA Bydgoszcz SA Holding'),
+('AKAPESTER 1 P.P.H.U.'),
+('Pojazdy Szynowe PESA Bydgoszcz S A Holding'),
+('PPUH PESKA-I Maria Struniarska');
+
+select * from t1 where a like '%PESA%';
+select * from t1 where a like '%PESA %';
+select * from t1 where a like '%PES%';
+select * from t1 where a like '%PESKA%';
+select * from t1 where a like '%ESKA%';
+DROP TABLE t1;
+
+#
+# LIKE crashed for binary collations in some cases
+#
+select _cp866'aaaaaaaaa' like _cp866'%aaaa%' collate cp866_bin;
+
+#
+# Check 8bit escape character
+#
+set names koi8r;
+select 'andre%' like 'andreÊ%' escape 'Ê';
+
+# Check 8bit escape character with charset conversion:
+# For "a LIKE b ESCAPE c" expressions,
+# escape character is converted into the operation character set,
+# which is result of aggregation  of character sets of "a" and "b".
+# "c" itself doesn't take part in aggregation, because its collation
+# doesn't matter, escape character is always compared binary.
+# In the example below, escape character is converted from koi8r into cp1251:
+#
+select _cp1251'andre%' like convert('andreÊ%' using cp1251)  escape 'Ê';
+
+
+--echo End of 4.1 tests
+
+
+--echo #
+--echo # Bug #54575: crash when joining tables with unique set column
+--echo #
+CREATE TABLE t1(a SET('a') NOT NULL, UNIQUE KEY(a));
+CREATE TABLE t2(b INT PRIMARY KEY);
+INSERT IGNORE INTO t1 VALUES ();
+INSERT INTO t2 VALUES (1), (2), (3);
+SELECT 1 FROM t2 JOIN t1 ON 1 LIKE a GROUP BY a;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # Bug#59149 valgrind warnings with "like .. escape .." function
+--echo #
+--error ER_WRONG_ARGUMENTS
+SELECT '' LIKE '1' ESCAPE COUNT(1);
+
+--echo End of 5.1 tests
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-5445 Server crashes in Item_func_like::fix_fields on LIKE ExtractValue(..)
+--echo #
+SELECT 'a' LIKE REPEAT('',0);
+SELECT 'a' LIKE EXTRACTVALUE('bar','qux');
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8257 Erroneous "Impossible where" when mixing decimal comparison and LIKE
+--echo #
+CREATE TABLE t1 (a DECIMAL(8,2));
+INSERT INTO t1 VALUES (10),(20);
+SELECT * FROM t1 WHERE a=10.0;
+SELECT * FROM t1 WHERE a LIKE 10.00;
+SELECT * FROM t1 WHERE a=10.0 AND a LIKE 10.00;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=10.0 AND a LIKE 10.00;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-8599 "WHERE varchar_field LIKE temporal_const" does not use range optimizer
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1, KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('00:00:00');
+INSERT INTO t1 VALUES ('00:00:01');
+INSERT INTO t1 VALUES ('00:00:02');
+INSERT INTO t1 VALUES ('00:00:03');
+INSERT INTO t1 VALUES ('00:00:04');
+INSERT INTO t1 VALUES ('00:00:05');
+INSERT INTO t1 VALUES ('00:00:06');
+INSERT INTO t1 VALUES ('00:00:07');
+EXPLAIN SELECT * FROM t1 WHERE a LIKE '00:00:00';
+EXPLAIN SELECT * FROM t1 WHERE a LIKE TIME'00:00:00';
+SELECT * FROM t1 WHERE a LIKE '00:00:00';
+SELECT * FROM t1 WHERE a LIKE TIME'00:00:00';
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+#
+# Item_func_like::print()
+#
+create view v1 as select 'foo!' like 'foo!!', 'foo!' like 'foo!!' escape '!';
+show create view v1;
+select * from v1;
+drop view v1;
+
+create table t1 (a varchar(100),
+  b int default (a like '%f\\_'),
+  c int default (a like '%f\\_' escape ''),
+  d int default (a like '%f\\_' escape '\\'));
+show create table t1;
+insert t1 (a) values ('1 f_'), ('1 f\\_');
+set sql_mode=no_backslash_escapes;
+insert t1 (a) values ('2 f_'), ('2 f\_');
+flush tables;
+insert t1 (a) values ('3 f_'), ('3 f\_');
+set sql_mode=default;
+select * from t1;
+drop table t1;
+
+#
+# Item_func_like::fix_fields()
+#
+create table t1 (f int);
+insert t1 values (1),(2);
+select 1 from (select distinct * from t1) as x where f < (select 1 like 2 escape (3=1));
+drop table t1;
+
+#
+# Item_func_like::fix_fields, ESCAPE, const_item()
+#
+create table t1(f1 int);
+insert into t1 values(1);
+--error ER_WRONG_ARGUMENTS
+update (select 1 like 2 escape (1 in (select 1 from t1))) x, t1 as d set d.f1 = 1;
+select * from (select 1 like 2 escape (1 in (select 1 from t1))) x;
+drop table t1;
+
+#
+# Item_func_like::walk
+#
+create table t1 (f int);
+insert t1 values (1),(2);
+create view v1 as select * from t1 where (1 like 2 escape (3 in (('h', 'b') in (select 'k', 'k' union select 'g', 'j'))) and f >= 0);
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # MDEV-17359 - Extend expression supported by like (| & << >> || + - * / DIV MOD ^ )
+--echo #
+
+SELECT 1 LIKE +1;
+SELECT -1 LIKE -1;
+SELECT 1 LIKE (1);
+SELECT 1 LIKE 1|2, 3 LIKE 1|2;
+SELECT 1 LIKE 3&2, 2 LIKE 3&2;
+SELECT 1 LIKE 1>>0, 1 LIKE 1>>1 , 64 LIKE 256>>2;
+SELECT 1 LIKE 1<<0, 1 LIKE 0<<2, 32 LIKE 1<<5;
+SELECT 1 LIKE 1||2, 1 LIKE 0||2;
+SELECT 2 LIKE 1+1, 2.0 LIKE 1+1.0, 2 LIKE 1+1.0, 1+1 LIKE 2, 1+1 LIKE 0+2;
+SELECT 0 LIKE 1-1, 2.0 LIKE 3-1.0, 2 LIKE 3-1.0, 2-1 LIKE 1, 3-1 LIKE 4-1;
+SELECT 1 LIKE 1*1, 2.0 LIKE 2*1.0, 2 LIKE 2*1.0, 2*1 LIKE 2, 2*3 LIKE 6*1;
+SELECT 1 LIKE 1/1, 1.0000 LIKE 1/1, 1.0000 LIKE 1/1.000000, 1.000000 LIKE 1.0/1.000000, 1/1 like 1/1;
+SELECT 1 LIKE 1 DIV 1, 1 LIKE 1.0 DIV 1.0 ;
+SELECT 2 LIKE 10 MOD 8, 1.9 LIKE 10 MOD 8.1, 1.9 LIKE 10 MOD 8.10 ;
+
+SELECT 1 LIKE CAST(1 AS CHAR(10));
+SELECT 1 LIKE CASE WHEN 1=1 THEN '1' ELSE '0' END;
+SELECT 1 LIKE COALESCE(1+0, 1);
+
+CREATE TABLE t1(c1 INTEGER, c2 INTEGER);
+INSERT INTO t1 VALUES(1,1);
+INSERT INTO t1 VALUES(1,2);
+
+SELECT c1, c2, c1|c2, 1 LIKE c1|c2 FROM t1 ORDER BY c2;
+SELECT c1, c2, c1&c2, 1 LIKE c1&c2 FROM t1 ORDER BY c2;
+SELECT c1, c2, c2>>c1, 1 LIKE c2>>c1 FROM t1 ORDER BY c2;
+SELECT c1, c2, c2<<c1, 2 LIKE c2<<c1 FROM t1 ORDER BY c2;
+SELECT c1, c2, c1||c2, 1 LIKE c1||c2 FROM t1 ORDER BY c2;
+SELECT c1, c2, c1+c2, 2 LIKE c1+c2 FROM t1 ORDER BY c2;
+SELECT c1, c2, c1-c2, -1 LIKE c1-c2 FROM t1 ORDER BY c2;
+SELECT c1, c2, c1*c2, 2 LIKE c1*c2 FROM t1 ORDER BY c2;
+SELECT c1, c2, c1/c2, 0.5000 LIKE c1/c2 FROM t1 ORDER BY c2;
+SELECT c1, c2, c1 DIV c2, 0 LIKE c1 DIV c2 FROM t1 ORDER BY c2;
+SELECT c1, c2, c1 MOD c2, 0 LIKE c1 MOD c2 FROM t1 ORDER BY c2;
+
+CREATE VIEW v1 AS
+SELECT 1 LIKE c1|c2, 1 LIKE c1&c2, 1 LIKE c2>>c1, 2 LIKE c2<<c1,
+       1 LIKE c1||c2, 2 LIKE c1+c2, -1 LIKE c1-c2, 2 LIKE c1*c2,
+       0.5000 LIKE c1/c2, 0 LIKE c1 DIV c2, 0 LIKE c1 MOD c2
+  FROM t1 ORDER BY c2;
+
+SELECT * FROM v1;
+EXPLAIN EXTENDED SELECT * FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;

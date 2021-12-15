@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2017, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,12 +27,9 @@ Created 4/20/1996 Heikki Tuuri
 #ifndef row0row_h
 #define row0row_h
 
-#include "univ.i"
-#include "data0data.h"
-#include "dict0types.h"
+#include "que0types.h"
 #include "ibuf0ibuf.h"
 #include "trx0types.h"
-#include "que0types.h"
 #include "mtr0mtr.h"
 #include "rem0types.h"
 #include "row0types.h"
@@ -47,7 +44,7 @@ ulint
 row_get_trx_id_offset(
 /*==================*/
 	const dict_index_t*	index,	/*!< in: clustered index */
-	const ulint*		offsets)/*!< in: record offsets */
+	const rec_offs*		offsets)/*!< in: record offsets */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*********************************************************************//**
 Reads the trx id field from a clustered index record.
@@ -58,7 +55,7 @@ row_get_rec_trx_id(
 /*===============*/
 	const rec_t*		rec,	/*!< in: record */
 	const dict_index_t*	index,	/*!< in: clustered index */
-	const ulint*		offsets)/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*		offsets)/*!< in: rec_get_offsets(rec, index) */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*********************************************************************//**
 Reads the roll pointer field from a clustered index record.
@@ -69,7 +66,7 @@ row_get_rec_roll_ptr(
 /*=================*/
 	const rec_t*		rec,	/*!< in: record */
 	const dict_index_t*	index,	/*!< in: clustered index */
-	const ulint*		offsets)/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*		offsets)/*!< in: rec_get_offsets(rec, index) */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /* Flags for row build type. */
@@ -90,8 +87,8 @@ row_build_index_entry_low(
 					inserted or purged */
 	const row_ext_t*	ext,	/*!< in: externally stored column
 					prefixes, or NULL */
-	dict_index_t*		index,	/*!< in: index on the table */
-	mem_heap_t*		heap,	/*!< in: memory heap from which
+	const dict_index_t*	index,	/*!< in: index on the table */
+	mem_heap_t*		heap,	/*!< in,out: memory heap from which
 					the memory for the index entry
 					is allocated */
 	ulint			flag)	/*!< in: ROW_BUILD_NORMAL,
@@ -112,8 +109,8 @@ row_build_index_entry(
 					inserted or purged */
 	const row_ext_t*	ext,	/*!< in: externally stored column
 					prefixes, or NULL */
-	dict_index_t*		index,	/*!< in: index on the table */
-	mem_heap_t*		heap)	/*!< in: memory heap from which
+	const dict_index_t*	index,	/*!< in: index on the table */
+	mem_heap_t*		heap)	/*!< in,out: memory heap from which
 					the memory for the index entry
 					is allocated */
 	MY_ATTRIBUTE((warn_unused_result, nonnull(1,3,4)));
@@ -141,7 +138,7 @@ row_build(
 					this record must be at least
 					s-latched and the latch held
 					as long as the row dtuple is used! */
-	const ulint*		offsets,/*!< in: rec_get_offsets(rec,index)
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(rec,index)
 					or NULL, in which case this function
 					will invoke rec_get_offsets() */
 	const dict_table_t*	col_table,
@@ -153,9 +150,9 @@ row_build(
 					consulted instead; the user
 					columns in this table should be
 					the same columns as in index->table */
-	const dtuple_t*		add_cols,
+	const dtuple_t*		defaults,
 					/*!< in: default values of
-					added columns, or NULL */
+					added, changed columns, or NULL */
 	const ulint*		col_map,/*!< in: mapping of old column
 					numbers to new ones, or NULL */
 	row_ext_t**		ext,	/*!< out, own: cache of
@@ -177,7 +174,7 @@ addition of new virtual columns.
 				of an index, or NULL if
 				index->table should be
 				consulted instead
-@param[in]	add_cols	default values of added columns, or NULL
+@param[in]	defaults	default values of added, changed columns, or NULL
 @param[in]	add_v		new virtual columns added
 				along with new indexes
 @param[in]	col_map		mapping of old column
@@ -192,9 +189,9 @@ row_build_w_add_vcol(
 	ulint			type,
 	const dict_index_t*	index,
 	const rec_t*		rec,
-	const ulint*		offsets,
+	const rec_offs*		offsets,
 	const dict_table_t*	col_table,
-	const dtuple_t*		add_cols,
+	const dtuple_t*		defaults,
 	const dict_add_v_col_t*	add_v,
 	const ulint*		col_map,
 	row_ext_t**		ext,
@@ -209,9 +206,7 @@ row_rec_to_index_entry_low(
 /*=======================*/
 	const rec_t*		rec,	/*!< in: record in the index */
 	const dict_index_t*	index,	/*!< in: index */
-	const ulint*		offsets,/*!< in: rec_get_offsets(rec, index) */
-	ulint*			n_ext,	/*!< out: number of externally
-					stored columns */
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(rec, index) */
 	mem_heap_t*		heap)	/*!< in: memory heap from which
 					the memory needed is allocated */
 	MY_ATTRIBUTE((warn_unused_result));
@@ -224,9 +219,7 @@ row_rec_to_index_entry(
 /*===================*/
 	const rec_t*		rec,	/*!< in: record in the index */
 	const dict_index_t*	index,	/*!< in: index */
-	const ulint*		offsets,/*!< in/out: rec_get_offsets(rec) */
-	ulint*			n_ext,	/*!< out: number of externally
-					stored columns */
+	const rec_offs*		offsets,/*!< in/out: rec_get_offsets(rec) */
 	mem_heap_t*		heap)	/*!< in: memory heap from which
 					the memory needed is allocated */
 	MY_ATTRIBUTE((warn_unused_result));
@@ -269,9 +262,8 @@ row_build_row_ref_in_tuple(
 					held as long as the row
 					reference is used! */
 	const dict_index_t*	index,	/*!< in: secondary index */
-	ulint*			offsets,/*!< in: rec_get_offsets(rec, index)
+	rec_offs*		offsets)/*!< in: rec_get_offsets(rec, index)
 					or NULL */
-	trx_t*			trx)	/*!< in: transaction or NULL */
 	MY_ATTRIBUTE((nonnull(1,2,3)));
 /*******************************************************************//**
 Builds from a secondary index record a row reference with which we can
@@ -288,7 +280,7 @@ row_build_row_ref_fast(
 	const rec_t*	rec,	/*!< in: secondary index record;
 				must be preserved while ref is used, as we do
 				not copy field values to heap */
-	const ulint*	offsets);/*!< in: array returned by rec_get_offsets() */
+	const rec_offs*	offsets);/*!< in: array returned by rec_get_offsets() */
 /***************************************************************//**
 Searches the clustered index record for a row, if we have the row
 reference.
@@ -398,7 +390,7 @@ row_mtr_start(mtr_t* mtr, dict_index_t* index, bool pessimistic)
 {
 	mtr->start();
 
-	switch (index->space) {
+	switch (index->table->space_id) {
 	case IBUF_SPACE_ID:
 		if (pessimistic
 		    && !(index->type & (DICT_UNIQUE | DICT_SPATIAL))) {
@@ -409,7 +401,7 @@ row_mtr_start(mtr_t* mtr, dict_index_t* index, bool pessimistic)
 		mtr->set_log_mode(MTR_LOG_NO_REDO);
 		break;
 	default:
-		mtr->set_named_space(index->space);
+		index->set_modified(*mtr);
 		break;
 	}
 

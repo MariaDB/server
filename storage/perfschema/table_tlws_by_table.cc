@@ -1,17 +1,24 @@
 /* Copyright (c) 2010, 2012, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file storage/perfschema/table_tlws_by_table.cc
@@ -42,79 +49,79 @@ table_tlws_by_table::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE table_lock_waits_summary_by_table("
-                      "OBJECT_TYPE VARCHAR(64),"
-                      "OBJECT_SCHEMA VARCHAR(64),"
-                      "OBJECT_NAME VARCHAR(64),"
-                      "COUNT_STAR BIGINT unsigned not null,"
-                      "SUM_TIMER_WAIT BIGINT unsigned not null,"
-                      "MIN_TIMER_WAIT BIGINT unsigned not null,"
-                      "AVG_TIMER_WAIT BIGINT unsigned not null,"
-                      "MAX_TIMER_WAIT BIGINT unsigned not null,"
-                      "COUNT_READ BIGINT unsigned not null,"
-                      "SUM_TIMER_READ BIGINT unsigned not null,"
-                      "MIN_TIMER_READ BIGINT unsigned not null,"
-                      "AVG_TIMER_READ BIGINT unsigned not null,"
-                      "MAX_TIMER_READ BIGINT unsigned not null,"
-                      "COUNT_WRITE BIGINT unsigned not null,"
-                      "SUM_TIMER_WRITE BIGINT unsigned not null,"
-                      "MIN_TIMER_WRITE BIGINT unsigned not null,"
-                      "AVG_TIMER_WRITE BIGINT unsigned not null,"
-                      "MAX_TIMER_WRITE BIGINT unsigned not null,"
-                      "COUNT_READ_NORMAL BIGINT unsigned not null,"
-                      "SUM_TIMER_READ_NORMAL BIGINT unsigned not null,"
-                      "MIN_TIMER_READ_NORMAL BIGINT unsigned not null,"
-                      "AVG_TIMER_READ_NORMAL BIGINT unsigned not null,"
-                      "MAX_TIMER_READ_NORMAL BIGINT unsigned not null,"
-                      "COUNT_READ_WITH_SHARED_LOCKS BIGINT unsigned not null,"
-                      "SUM_TIMER_READ_WITH_SHARED_LOCKS BIGINT unsigned not null,"
-                      "MIN_TIMER_READ_WITH_SHARED_LOCKS BIGINT unsigned not null,"
-                      "AVG_TIMER_READ_WITH_SHARED_LOCKS BIGINT unsigned not null,"
-                      "MAX_TIMER_READ_WITH_SHARED_LOCKS BIGINT unsigned not null,"
-                      "COUNT_READ_HIGH_PRIORITY BIGINT unsigned not null,"
-                      "SUM_TIMER_READ_HIGH_PRIORITY BIGINT unsigned not null,"
-                      "MIN_TIMER_READ_HIGH_PRIORITY BIGINT unsigned not null,"
-                      "AVG_TIMER_READ_HIGH_PRIORITY BIGINT unsigned not null,"
-                      "MAX_TIMER_READ_HIGH_PRIORITY BIGINT unsigned not null,"
-                      "COUNT_READ_NO_INSERT BIGINT unsigned not null,"
-                      "SUM_TIMER_READ_NO_INSERT BIGINT unsigned not null,"
-                      "MIN_TIMER_READ_NO_INSERT BIGINT unsigned not null,"
-                      "AVG_TIMER_READ_NO_INSERT BIGINT unsigned not null,"
-                      "MAX_TIMER_READ_NO_INSERT BIGINT unsigned not null,"
-                      "COUNT_READ_EXTERNAL BIGINT unsigned not null,"
-                      "SUM_TIMER_READ_EXTERNAL BIGINT unsigned not null,"
-                      "MIN_TIMER_READ_EXTERNAL BIGINT unsigned not null,"
-                      "AVG_TIMER_READ_EXTERNAL BIGINT unsigned not null,"
-                      "MAX_TIMER_READ_EXTERNAL BIGINT unsigned not null,"
-                      "COUNT_WRITE_ALLOW_WRITE BIGINT unsigned not null,"
-                      "SUM_TIMER_WRITE_ALLOW_WRITE BIGINT unsigned not null,"
-                      "MIN_TIMER_WRITE_ALLOW_WRITE BIGINT unsigned not null,"
-                      "AVG_TIMER_WRITE_ALLOW_WRITE BIGINT unsigned not null,"
-                      "MAX_TIMER_WRITE_ALLOW_WRITE BIGINT unsigned not null,"
-                      "COUNT_WRITE_CONCURRENT_INSERT BIGINT unsigned not null,"
-                      "SUM_TIMER_WRITE_CONCURRENT_INSERT BIGINT unsigned not null,"
-                      "MIN_TIMER_WRITE_CONCURRENT_INSERT BIGINT unsigned not null,"
-                      "AVG_TIMER_WRITE_CONCURRENT_INSERT BIGINT unsigned not null,"
-                      "MAX_TIMER_WRITE_CONCURRENT_INSERT BIGINT unsigned not null,"
-                      "COUNT_WRITE_DELAYED BIGINT unsigned not null,"
-                      "SUM_TIMER_WRITE_DELAYED BIGINT unsigned not null,"
-                      "MIN_TIMER_WRITE_DELAYED BIGINT unsigned not null,"
-                      "AVG_TIMER_WRITE_DELAYED BIGINT unsigned not null,"
-                      "MAX_TIMER_WRITE_DELAYED BIGINT unsigned not null,"
-                      "COUNT_WRITE_LOW_PRIORITY BIGINT unsigned not null,"
-                      "SUM_TIMER_WRITE_LOW_PRIORITY BIGINT unsigned not null,"
-                      "MIN_TIMER_WRITE_LOW_PRIORITY BIGINT unsigned not null,"
-                      "AVG_TIMER_WRITE_LOW_PRIORITY BIGINT unsigned not null,"
-                      "MAX_TIMER_WRITE_LOW_PRIORITY BIGINT unsigned not null,"
-                      "COUNT_WRITE_NORMAL BIGINT unsigned not null,"
-                      "SUM_TIMER_WRITE_NORMAL BIGINT unsigned not null,"
-                      "MIN_TIMER_WRITE_NORMAL BIGINT unsigned not null,"
-                      "AVG_TIMER_WRITE_NORMAL BIGINT unsigned not null,"
-                      "MAX_TIMER_WRITE_NORMAL BIGINT unsigned not null,"
-                      "COUNT_WRITE_EXTERNAL BIGINT unsigned not null,"
-                      "SUM_TIMER_WRITE_EXTERNAL BIGINT unsigned not null,"
-                      "MIN_TIMER_WRITE_EXTERNAL BIGINT unsigned not null,"
-                      "AVG_TIMER_WRITE_EXTERNAL BIGINT unsigned not null,"
-                      "MAX_TIMER_WRITE_EXTERNAL BIGINT unsigned not null)") }
+                      "OBJECT_TYPE VARCHAR(64) comment 'Since this table records waits by table, always set to TABLE.',"
+                      "OBJECT_SCHEMA VARCHAR(64) comment 'Schema name.',"
+                      "OBJECT_NAME VARCHAR(64) comment 'Table name.',"
+                      "COUNT_STAR BIGINT unsigned not null comment 'Number of summarized events and the sum of the x_READ and x_WRITE columns.',"
+                      "SUM_TIMER_WAIT BIGINT unsigned not null comment 'Total wait time of the summarized events that are timed.',"
+                      "MIN_TIMER_WAIT BIGINT unsigned not null comment 'Minimum wait time of the summarized events that are timed.',"
+                      "AVG_TIMER_WAIT BIGINT unsigned not null comment 'Average wait time of the summarized events that are timed.',"
+                      "MAX_TIMER_WAIT BIGINT unsigned not null comment 'Maximum wait time of the summarized events that are timed.',"
+                      "COUNT_READ BIGINT unsigned not null comment 'Number of all read operations, and the sum of the equivalent x_READ_NORMAL, x_READ_WITH_SHARED_LOCKS, x_READ_HIGH_PRIORITY and x_READ_NO_INSERT columns.',"
+                      "SUM_TIMER_READ BIGINT unsigned not null comment 'Total wait time of all read operations that are timed.',"
+                      "MIN_TIMER_READ BIGINT unsigned not null comment 'Minimum wait time of all read operations that are timed.',"
+                      "AVG_TIMER_READ BIGINT unsigned not null comment 'Average wait time of all read operations that are timed.',"
+                      "MAX_TIMER_READ BIGINT unsigned not null comment 'Maximum wait time of all read operations that are timed.',"
+                      "COUNT_WRITE BIGINT unsigned not null comment 'Number of all write operations, and the sum of the equivalent x_WRITE_ALLOW_WRITE, x_WRITE_CONCURRENT_INSERT, x_WRITE_DELAYED, x_WRITE_LOW_PRIORITY and x_WRITE_NORMAL columns.',"
+                      "SUM_TIMER_WRITE BIGINT unsigned not null comment 'Total wait time of all write operations that are timed.',"
+                      "MIN_TIMER_WRITE BIGINT unsigned not null comment 'Minimum wait time of all write operations that are timed.',"
+                      "AVG_TIMER_WRITE BIGINT unsigned not null comment 'Average wait time of all write operations that are timed.',"
+                      "MAX_TIMER_WRITE BIGINT unsigned not null comment 'Maximum wait time of all write operations that are timed.',"
+                      "COUNT_READ_NORMAL BIGINT unsigned not null comment 'Number of all internal read normal locks.',"
+                      "SUM_TIMER_READ_NORMAL BIGINT unsigned not null comment 'Total wait time of all internal read normal locks that are timed.',"
+                      "MIN_TIMER_READ_NORMAL BIGINT unsigned not null comment 'Minimum wait time of all internal read normal locks that are timed.',"
+                      "AVG_TIMER_READ_NORMAL BIGINT unsigned not null comment 'Average wait time of all internal read normal locks that are timed.',"
+                      "MAX_TIMER_READ_NORMAL BIGINT unsigned not null comment 'Maximum wait time of all internal read normal locks that are timed.',"
+                      "COUNT_READ_WITH_SHARED_LOCKS BIGINT unsigned not null comment 'Number of all internal read with shared locks.',"
+                      "SUM_TIMER_READ_WITH_SHARED_LOCKS BIGINT unsigned not null comment 'Total wait time of all internal read with shared locks that are timed.',"
+                      "MIN_TIMER_READ_WITH_SHARED_LOCKS BIGINT unsigned not null comment 'Minimum wait time of all internal read with shared locks that are timed.',"
+                      "AVG_TIMER_READ_WITH_SHARED_LOCKS BIGINT unsigned not null comment 'Average wait time of all internal read with shared locks that are timed.',"
+                      "MAX_TIMER_READ_WITH_SHARED_LOCKS BIGINT unsigned not null comment 'Maximum wait time of all internal read with shared locks that are timed.',"
+                      "COUNT_READ_HIGH_PRIORITY BIGINT unsigned not null comment 'Number of all internal read high priority locks.',"
+                      "SUM_TIMER_READ_HIGH_PRIORITY BIGINT unsigned not null comment 'Total wait time of all internal read high priority locks that are timed.',"
+                      "MIN_TIMER_READ_HIGH_PRIORITY BIGINT unsigned not null comment 'Minimum wait time of all internal read high priority locks that are timed.',"
+                      "AVG_TIMER_READ_HIGH_PRIORITY BIGINT unsigned not null comment 'Average wait time of all internal read high priority locks that are timed.',"
+                      "MAX_TIMER_READ_HIGH_PRIORITY BIGINT unsigned not null comment 'Maximum wait time of all internal read high priority locks that are timed.',"
+                      "COUNT_READ_NO_INSERT BIGINT unsigned not null comment 'Number of all internal read no insert locks.',"
+                      "SUM_TIMER_READ_NO_INSERT BIGINT unsigned not null comment 'Total wait time of all internal read no insert locks that are timed.',"
+                      "MIN_TIMER_READ_NO_INSERT BIGINT unsigned not null comment 'Minimum wait time of all internal read no insert locks that are timed.',"
+                      "AVG_TIMER_READ_NO_INSERT BIGINT unsigned not null comment 'Average wait time of all internal read no insert locks that are timed.',"
+                      "MAX_TIMER_READ_NO_INSERT BIGINT unsigned not null comment 'Maximum wait time of all internal read no insert locks that are timed.',"
+                      "COUNT_READ_EXTERNAL BIGINT unsigned not null comment 'Number of all external read locks.',"
+                      "SUM_TIMER_READ_EXTERNAL BIGINT unsigned not null comment 'Total wait time of all external read locks that are timed.',"
+                      "MIN_TIMER_READ_EXTERNAL BIGINT unsigned not null comment 'Minimum wait time of all external read locks that are timed.',"
+                      "AVG_TIMER_READ_EXTERNAL BIGINT unsigned not null comment 'Average wait time of all external read locks that are timed.',"
+                      "MAX_TIMER_READ_EXTERNAL BIGINT unsigned not null comment 'Maximum wait time of all external read locks that are timed.',"
+                      "COUNT_WRITE_ALLOW_WRITE BIGINT unsigned not null comment 'Number of all internal read normal locks.',"
+                      "SUM_TIMER_WRITE_ALLOW_WRITE BIGINT unsigned not null comment 'Total wait time of all internal write allow write locks that are timed.',"
+                      "MIN_TIMER_WRITE_ALLOW_WRITE BIGINT unsigned not null comment 'Minimum wait time of all internal write allow write locks that are timed.',"
+                      "AVG_TIMER_WRITE_ALLOW_WRITE BIGINT unsigned not null comment 'Average wait time of all internal write allow write locks that are timed.',"
+                      "MAX_TIMER_WRITE_ALLOW_WRITE BIGINT unsigned not null comment 'Maximum wait time of all internal write allow write locks that are timed.',"
+                      "COUNT_WRITE_CONCURRENT_INSERT BIGINT unsigned not null comment 'Number of all internal concurrent insert write locks.',"
+                      "SUM_TIMER_WRITE_CONCURRENT_INSERT BIGINT unsigned not null comment 'Total wait time of all internal concurrent insert write locks that are timed.',"
+                      "MIN_TIMER_WRITE_CONCURRENT_INSERT BIGINT unsigned not null comment 'Minimum wait time of all internal concurrent insert write locks that are timed.',"
+                      "AVG_TIMER_WRITE_CONCURRENT_INSERT BIGINT unsigned not null comment 'Average wait time of all internal concurrent insert write locks that are timed.',"
+                      "MAX_TIMER_WRITE_CONCURRENT_INSERT BIGINT unsigned not null comment 'Maximum wait time of all internal concurrent insert write locks that are timed.',"
+                      "COUNT_WRITE_DELAYED BIGINT unsigned not null comment 'Number of all internal write delayed locks.',"
+                      "SUM_TIMER_WRITE_DELAYED BIGINT unsigned not null comment 'Total wait time of all internal write delayed locks that are timed.',"
+                      "MIN_TIMER_WRITE_DELAYED BIGINT unsigned not null comment 'Minimum wait time of all internal write delayed locks that are timed.',"
+                      "AVG_TIMER_WRITE_DELAYED BIGINT unsigned not null comment 'Average wait time of all internal write delayed locks that are timed.',"
+                      "MAX_TIMER_WRITE_DELAYED BIGINT unsigned not null comment 'Maximum wait time of all internal write delayed locks that are timed.',"
+                      "COUNT_WRITE_LOW_PRIORITY BIGINT unsigned not null comment 'Number of all internal write low priority locks.',"
+                      "SUM_TIMER_WRITE_LOW_PRIORITY BIGINT unsigned not null comment 'Total wait time of all internal write low priority locks that are timed.',"
+                      "MIN_TIMER_WRITE_LOW_PRIORITY BIGINT unsigned not null comment 'Minimum wait time of all internal write low priority locks that are timed.',"
+                      "AVG_TIMER_WRITE_LOW_PRIORITY BIGINT unsigned not null comment 'Average wait time of all internal write low priority locks that are timed.',"
+                      "MAX_TIMER_WRITE_LOW_PRIORITY BIGINT unsigned not null comment 'Maximum wait time of all internal write low priority locks that are timed.',"
+                      "COUNT_WRITE_NORMAL BIGINT unsigned not null comment 'Number of all internal write normal locks.',"
+                      "SUM_TIMER_WRITE_NORMAL BIGINT unsigned not null comment 'Total wait time of all internal write normal locks that are timed.',"
+                      "MIN_TIMER_WRITE_NORMAL BIGINT unsigned not null comment 'Minimum wait time of all internal write normal locks that are timed.',"
+                      "AVG_TIMER_WRITE_NORMAL BIGINT unsigned not null comment 'Average wait time of all internal write normal locks that are timed.',"
+                      "MAX_TIMER_WRITE_NORMAL BIGINT unsigned not null comment 'Maximum wait time of all internal write normal locks that are timed.',"
+                      "COUNT_WRITE_EXTERNAL BIGINT unsigned not null comment 'Number of all external write locks.',"
+                      "SUM_TIMER_WRITE_EXTERNAL BIGINT unsigned not null comment 'Total wait time of all external write locks that are timed.',"
+                      "MIN_TIMER_WRITE_EXTERNAL BIGINT unsigned not null comment 'Minimum wait time of all external write locks that are timed.',"
+                      "AVG_TIMER_WRITE_EXTERNAL BIGINT unsigned not null comment 'Average wait time of all external write locks that are timed.',"
+                      "MAX_TIMER_WRITE_EXTERNAL BIGINT unsigned not null comment 'Maximum wait time of all external write locks that are timed.')") }
 };
 
 PFS_engine_table*

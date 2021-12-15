@@ -1,0 +1,11 @@
+--source include/master-slave.inc
+CREATE TEMPORARY TABLE t (i INT);
+CREATE TABLE t AS SELECT * FROM t;
+
+--sync_slave_with_master
+
+# Cleanup
+--connection master
+DROP TEMPORARY TABLE t;
+DROP TABLE t;
+--source include/rpl_end.inc

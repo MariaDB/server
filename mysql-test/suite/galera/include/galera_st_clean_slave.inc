@@ -64,7 +64,9 @@ INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 --connection node_2
 --echo Starting server ...
 --source include/start_mysqld.inc
---source include/wait_until_ready.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
 
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
@@ -100,12 +102,18 @@ INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 ROLLBACK;
 
+--let $wait_condition = SELECT COUNT(*)=35 FROM t1
+--source include/wait_condition.inc
+
 SELECT COUNT(*) = 35 FROM t1;
 SELECT COUNT(*) = 0 FROM (SELECT COUNT(*) AS c, f1 FROM t1 GROUP BY f1 HAVING c NOT IN (5, 10)) AS a1;
 COMMIT;
 SET AUTOCOMMIT=ON;
 
 --connection node_1
+--let $wait_condition = SELECT COUNT(*)=35 FROM t1
+--source include/wait_condition.inc
+
 SELECT COUNT(*) = 35 FROM t1;
 SELECT COUNT(*) = 0 FROM (SELECT COUNT(*) AS c, f1 FROM t1 GROUP BY f1 HAVING c NOT IN (5, 10)) AS a1;
 DROP TABLE t1;

@@ -11,7 +11,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   The purpose of this file is to provide implementation of file IO routines on 
@@ -528,7 +528,7 @@ FILE *my_win_fopen(const char *filename, const char *type)
 {
   FILE *file;
   int flags= 0;
-  DBUG_ENTER("my_win_open");
+  DBUG_ENTER("my_win_fopen");
 
   /* 
     If we are not creating, then we need to use my_access to make sure  
@@ -585,7 +585,7 @@ int my_win_fclose(FILE *file)
 {
   File fd;
 
-  DBUG_ENTER("my_win_close");
+  DBUG_ENTER("my_win_fclose");
   fd= my_fileno(file);
   if(fd < 0)
     DBUG_RETURN(-1);

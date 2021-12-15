@@ -1,0 +1,27 @@
+call mtr.add_suppression("WSREP has not yet prepared node for application use");
+CREATE TABLE t1 (f1 INTEGER);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1;
+SET SESSION wsrep_reject_queries = ALL;
+ERROR HY000: Variable 'wsrep_reject_queries' is a GLOBAL variable and should be set with SET GLOBAL
+SET GLOBAL wsrep_reject_queries = ALL;
+SELECT * FROM t1;
+Got one of the listed errors
+SET GLOBAL wsrep_reject_queries = ALL_KILL;
+connection node_1a;
+SELECT * FROM t1;
+Got one of the listed errors
+connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SELECT * FROM t1;
+Got one of the listed errors
+connection node_2;
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+VARIABLE_VALUE = 2
+1
+INSERT INTO t1 VALUES (1);
+connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET GLOBAL wsrep_reject_queries = NONE;
+SELECT COUNT(*) = 1 FROM t1;
+COUNT(*) = 1
+1
+DROP TABLE t1;

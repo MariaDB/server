@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -23,8 +23,6 @@ The memory management
 
 Created 6/9/1994 Heikki Tuuri
 *************************************************************************/
-
-#include "ha_prototypes.h"
 
 #include "mem0mem.h"
 #include "buf0buf.h"
@@ -126,7 +124,7 @@ mem_heap_printf_low(
 
 				val = va_arg(ap, unsigned long);
 
-				plen = sprintf(tmp, "%lu", val);
+				plen = size_t(sprintf(tmp, "%lu", val));
 				len += plen;
 
 				if (buf) {
@@ -212,14 +210,12 @@ mem_heap_validate(
 		block != NULL;
 		block = UT_LIST_GET_NEXT(list, block)) {
 
-		mem_block_validate(block);
-
 		switch (block->type) {
 		case MEM_HEAP_DYNAMIC:
 			break;
 		case MEM_HEAP_BUFFER:
 		case MEM_HEAP_BUFFER | MEM_HEAP_BTR_SEARCH:
-			ut_ad(block->len <= UNIV_PAGE_SIZE);
+			ut_ad(block->len <= srv_page_size);
 			break;
 		default:
 			ut_error;
@@ -229,6 +225,17 @@ mem_heap_validate(
 	}
 
 	ut_ad(size == heap->total_size);
+}
+
+/** Copy the tail of a string.
+@param[in,out]	dst	destination buffer
+@param[in]	src	string whose tail to copy
+@param[in]	size	size of dst buffer, in bytes, including NUL terminator
+@return strlen(src) */
+static void ut_strlcpy_rev(char* dst, const char* src, ulint size)
+{
+	size_t src_size = strlen(src), n = std::min(src_size, size - 1);
+	memcpy(dst, src + src_size - n, n + 1);
 }
 #endif /* UNIV_DEBUG */
 
@@ -257,20 +264,19 @@ mem_heap_create_block_func(
 	      || (type == MEM_HEAP_BUFFER + MEM_HEAP_BTR_SEARCH));
 
 	if (heap != NULL) {
-		mem_block_validate(heap);
 		ut_d(mem_heap_validate(heap));
 	}
 
 	/* In dynamic allocation, calculate the size: block header + data. */
 	len = MEM_BLOCK_HEADER_SIZE + MEM_SPACE_NEEDED(n);
 
-	if (type == MEM_HEAP_DYNAMIC || len < UNIV_PAGE_SIZE / 2) {
+	if (type == MEM_HEAP_DYNAMIC || len < srv_page_size / 2) {
 
 		ut_ad(type == MEM_HEAP_DYNAMIC || n <= MEM_MAX_ALLOC_IN_BUF);
 
 		block = static_cast<mem_block_t*>(ut_malloc_nokey(len));
 	} else {
-		len = UNIV_PAGE_SIZE;
+		len = srv_page_size;
 
 		if ((type & MEM_HEAP_BTR_SEARCH) && heap) {
 			/* We cannot allocate the block from the
@@ -299,7 +305,6 @@ mem_heap_create_block_func(
 	block->buf_block = buf_block;
 	block->free_block = NULL;
 
-	block->magic_n = MEM_BLOCK_MAGIC_N;
 	ut_d(ut_strlcpy_rev(block->file_name, file_name,
 			    sizeof(block->file_name)));
 	ut_d(block->line = line);
@@ -317,11 +322,15 @@ mem_heap_create_block_func(
 		/* Not the first allocation for the heap. This block's
 		total_length field should be set to undefined. */
 		ut_d(block->total_size = ULINT_UNDEFINED);
-		UNIV_MEM_INVALID(&block->total_size,
-				 sizeof block->total_size);
+		MEM_UNDEFINED(&block->total_size, sizeof block->total_size);
 
 		heap->total_size += len;
 	}
+
+	/* Poison all available memory. Individual chunks will be unpoisoned on
+	every mem_heap_alloc() call. */
+	compile_time_assert(MEM_BLOCK_HEADER_SIZE >= sizeof *block);
+	MEM_NOACCESS(block + 1, len - sizeof *block);
 
 	ut_ad((ulint)MEM_BLOCK_HEADER_SIZE < len);
 
@@ -341,8 +350,6 @@ mem_heap_add_block(
 	mem_block_t*	block;
 	mem_block_t*	new_block;
 	ulint		new_size;
-
-	ut_d(mem_block_validate(heap));
 
 	block = UT_LIST_GET_LAST(heap->base);
 
@@ -396,8 +403,6 @@ mem_heap_block_free(
 
 	buf_block = static_cast<buf_block_t*>(block->buf_block);
 
-	mem_block_validate(block);
-
 	UT_LIST_REMOVE(heap->base, block);
 
 	ut_ad(heap->total_size >= block->len);
@@ -405,9 +410,8 @@ mem_heap_block_free(
 
 	type = heap->type;
 	len = block->len;
-	block->magic_n = MEM_FREED_BLOCK_MAGIC_N;
 
-	if (type == MEM_HEAP_DYNAMIC || len < UNIV_PAGE_SIZE / 2) {
+	if (type == MEM_HEAP_DYNAMIC || len < srv_page_size / 2) {
 		ut_ad(!buf_block);
 		ut_free(block);
 	} else {

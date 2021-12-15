@@ -1,7 +1,7 @@
 /************ JMgoConn C++ Functions Source Code File (.CPP) ***********/
-/*  Name: JMgoConn.CPP  Version 1.1                                    */
+/*  Name: JMgoConn.CPP  Version 1.2                                    */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2017         */
+/*  (C) Copyright to the author Olivier BERTRAND          2017 - 2021  */
 /*                                                                     */
 /*  This file contains the MongoDB Java connection classes functions.  */
 /***********************************************************************/
@@ -24,7 +24,7 @@
 
 #define nullptr 0
 
-bool IsNum(PSZ s);
+bool IsArray(PSZ s);
 bool MakeSelector(PGLOBAL g, PFIL fp, PSTRG s);
 
 /* --------------------------- Class JNCOL --------------------------- */
@@ -43,19 +43,21 @@ void JNCOL::AddCol(PGLOBAL g, PCOL colp, PSZ jp)
 		*p++ = 0;
 
 		for (kp = Klist; kp; kp = kp->Next)
-			if (kp->Jncolp && !strcmp(jp, kp->Key))
+			if (kp->Jncolp && ((kp->Key && !strcmp(jp, kp->Key))
+				             || (!kp->Key && IsArray(jp) && kp->N == atoi(jp))))
 				break;
 
 		if (!kp) {
-			icp = new(g) JNCOL(IsNum(p));
+			icp = new(g) JNCOL();
 			kcp = (PJKC)PlugSubAlloc(g, NULL, sizeof(JKCOL));
 			kcp->Next = NULL;
 			kcp->Jncolp = icp;
 			kcp->Colp = NULL;
+			kcp->Array = IsArray(jp);
 
-			if (Array) {
+			if (kcp->Array) {
 				kcp->Key = NULL;
-				kcp->N = atoi(p);
+				kcp->N = atoi(jp);
 			} else {
 				kcp->Key = PlugDup(g, jp);
 				kcp->N = 0;
@@ -75,12 +77,12 @@ void JNCOL::AddCol(PGLOBAL g, PCOL colp, PSZ jp)
 		icp->AddCol(g, colp, p);
 	} else {
 		kcp = (PJKC)PlugSubAlloc(g, NULL, sizeof(JKCOL));
-
 		kcp->Next = NULL;
 		kcp->Jncolp = NULL;
 		kcp->Colp = colp;
+		kcp->Array = IsArray(jp);
 
-		if (Array) {
+		if (kcp->Array) {
 			kcp->Key = NULL;
 			kcp->N = atoi(jp);
 		} else {
@@ -108,7 +110,7 @@ JMgoConn::JMgoConn(PGLOBAL g, PCSZ collname, PCSZ wrapper)
 	CollName = collname;
 	readid = fetchid = getdocid = objfldid = fcollid = acollid =
 	mkdocid = docaddid = mkarid = araddid = insertid = updateid =
-	deleteid = gcollid =	countid =	rewindid = nullptr;
+	deleteid = gcollid =	countid =	rewindid = mkbsonid = nullptr;
 	DiscFunc = "MongoDisconnect";
 	Fpc = NULL;
 	m_Fetch = 0;
@@ -125,13 +127,14 @@ void JMgoConn::AddJars(PSTRG jpop, char sep)
 	if (m_Version == 2) {
 		jpop->Append(sep);
 //	jpop->Append("C:/Eclipse/workspace/MongoWrap2/bin");
-		jpop->Append(sep);
+//	jpop->Append(sep);
 		jpop->Append("C:/mongo-java-driver/mongo-java-driver-2.13.3.jar");
 	} else {
 		jpop->Append(sep);
 //	jpop->Append("C:/Eclipse/workspace/MongoWrap3/bin");
+//	jpop->Append(sep);
 //	jpop->Append("C:/Program Files/MariaDB 10.1/lib/plugin/JavaWrappers.jar");
-		jpop->Append(sep);
+//	jpop->Append(sep);
 		jpop->Append("C:/mongo-java-driver/mongo-java-driver-3.4.2.jar");
 	} // endif m_Version
 #endif   // DEVELOPMENT
@@ -234,7 +237,7 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 	                                               PCSZ filter, bool pipe)
 {
 	const char *p;
-	bool  b = false, id = (tdbp->GetMode() != MODE_READ), all = false;
+	bool  id, b = false, all = false;
 	uint  len;
 	PCOL  cp;
 	PSZ   jp;
@@ -245,16 +248,17 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 	if (Options && !stricmp(Options, "all")) {
 		Options = NULL;
 		all = true;
-	} // endif Options
+	} else
+		id = (tdbp->GetMode() == MODE_UPDATE || tdbp->GetMode() == MODE_DELETE);
 
-	for (cp = tdbp->GetColumns(); cp; cp = cp->GetNext())
-		if (!strcmp(cp->GetName(), "_id"))
-			id = true;
-		else if (cp->GetFmt() && !strcmp(cp->GetFmt(), "*") && (!Options || pipe))
+	for (cp = tdbp->GetColumns(); cp && !all; cp = cp->GetNext())
+		if (cp->GetFmt() && !strcmp(cp->GetFmt(), "*") && (!Options || pipe))
 			all = true;
+		else if (!id)
+			id = !strcmp(cp->GetJpath(g, false), "_id");
 
 	if (pipe && Options) {
-		if (trace)
+		if (trace(1))
 			htrc("Pipeline: %s\n", Options);
 
 		p = strrchr(Options, ']');
@@ -272,7 +276,7 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 
 			if (MakeSelector(g, filp, s)) {
 				strcpy(g->Message, "Failed making selector");
-				return NULL;
+				return true;
 			} else
 				s->Append('}');
 
@@ -312,13 +316,13 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 		*(char*)p = ']';		 // Restore Colist for discovery
 		p = s->GetStr();
 
-		if (trace)
+		if (trace(33))
 			htrc("New Pipeline: %s\n", p);
 
 		return AggregateCollection(p);
 	} else {
 		if (filter || filp) {
-			if (trace) {
+			if (trace(1)) {
 				if (filter)
 					htrc("Filter: %s\n", filter);
 
@@ -340,13 +344,13 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 
 				if (MakeSelector(g, filp, s)) {
 					strcpy(g->Message, "Failed making selector");
-					return NULL;
+					return true;
 				}	// endif Selector
 
 				tdbp->SetFilter(NULL);     // Not needed anymore
 			} // endif To_Filter
 
-			if (trace)
+			if (trace(33))
 				htrc("selector: %s\n", s->GetStr());
 
 			s->Resize(s->GetLength() + 1);
@@ -355,7 +359,7 @@ bool JMgoConn::MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options,
 
 		if (!all) {
 			if (Options && *Options) {
-				if (trace)
+				if (trace(1))
 					htrc("options=%s\n", Options);
 
 				op = Options;
@@ -522,7 +526,7 @@ PSZ JMgoConn::GetDocument(void)
 		jdc = (jstring)env->CallObjectMethod(job, getdocid);
 
 		if (jdc)
-			doc = (PSZ)env->GetStringUTFChars(jdc, (jboolean)false);
+			doc = (PSZ)GetUTFString(jdc);
 
 	} // endif getdocid
 
@@ -534,7 +538,7 @@ PSZ JMgoConn::GetDocument(void)
 /***********************************************************************/
 void JMgoConn::MakeColumnGroups(PGLOBAL g, PTDB tdbp)
 {
-	Fpc = new(g) JNCOL(false);
+	Fpc = new(g) JNCOL();
 
 	for (PCOL colp = tdbp->GetColumns(); colp; colp = colp->GetNext())
 		if (!colp->IsSpecial())
@@ -552,7 +556,7 @@ bool JMgoConn::GetMethodId(PGLOBAL g, MODE mode)
 			return true;
 
 		if (gmID(g, docaddid, "DocAdd",
-			"(Ljava/lang/Object;Ljava/lang/String;Ljava/lang/Object;)Z"))
+			"(Ljava/lang/Object;Ljava/lang/String;Ljava/lang/Object;I)Z"))
 			return true;
 
 		if (gmID(g, updateid, "CollUpdate", "(Ljava/lang/Object;)J"))
@@ -562,14 +566,19 @@ bool JMgoConn::GetMethodId(PGLOBAL g, MODE mode)
 		if (gmID(g, mkdocid, "MakeDocument", "()Ljava/lang/Object;"))
 			return true;
 
+		if (gmID(g, mkbsonid, "MakeBson",
+			"(Ljava/lang/String;I)Ljava/lang/Object;"))
+			return true;
+
 		if (gmID(g, docaddid, "DocAdd",
-			"(Ljava/lang/Object;Ljava/lang/String;Ljava/lang/Object;)Z"))
+			"(Ljava/lang/Object;Ljava/lang/String;Ljava/lang/Object;I)Z"))
 			return true;
 
 		if (gmID(g, mkarid, "MakeArray", "()Ljava/lang/Object;"))
 			return true;
 
-		if (gmID(g, araddid, "ArrayAdd", "(Ljava/lang/Object;ILjava/lang/Object;)Z"))
+		if (gmID(g, araddid, "ArrayAdd",
+			"(Ljava/lang/Object;ILjava/lang/Object;I)Z"))
 			return true;
 
 		if (gmID(g, insertid, "CollInsert", "(Ljava/lang/Object;)Z"))
@@ -638,48 +647,81 @@ jobject JMgoConn::MakeObject(PGLOBAL g, PCOL colp, bool&error )
 }	// end of MakeObject
 
 /***********************************************************************/
+/*  Stringify.                                                            */
+/***********************************************************************/
+bool JMgoConn::Stringify(PCOL colp)
+{
+	bool b = false;
+
+	if (colp)
+		b = (colp->Stringify() && colp->GetResultType() == TYPE_STRING);
+
+	return b;
+}	// end of Stringify
+
+/***********************************************************************/
 /*  MakeDoc.                                                           */
 /***********************************************************************/
 jobject JMgoConn::MakeDoc(PGLOBAL g, PJNCOL jcp)
 {
-	bool    error = false;
+	int     j;
+	bool    b, error = false;
 	jobject parent, child, val;
 	jstring jkey;
-	
-	if (jcp->Array)
+	PJKC    kp = jcp->Klist;
+
+	if (kp->Array)
 		parent = env->CallObjectMethod(job, mkarid);
 	else
 		parent = env->CallObjectMethod(job, mkdocid);
 
-	for (PJKC kp = jcp->Klist; kp; kp = kp->Next)
+	for (j = 0; kp; j = 0, kp = kp->Next) {
+		if (Stringify(kp->Colp)) {
+			switch (*kp->Colp->GetCharValue()) {
+				case '{': j = 1; break;
+				case '[': j = 2; break;
+				default: break;
+			} // endswitch
+
+			b = (!kp->Key || !*kp->Key || *kp->Key == '*');
+		} else
+			b = false;
+
 		if (kp->Jncolp) {
 			if (!(child = MakeDoc(g, kp->Jncolp)))
 				return NULL;
 
-			if (!jcp->Array) {
+			if (!kp->Array) {
 				jkey = env->NewStringUTF(kp->Key);
 
-				if (env->CallBooleanMethod(job, docaddid, parent, jkey, child))
+				if (env->CallBooleanMethod(job, docaddid, parent, jkey, child, j))
 					return NULL;
 
 				env->DeleteLocalRef(jkey);
 			} else
-				if (env->CallBooleanMethod(job, araddid, parent, kp->N, child))
+				if (env->CallBooleanMethod(job, araddid, parent, kp->N, child, j))
 					return NULL;
 
+			env->DeleteLocalRef(child);
 		} else {
 			if (!(val = MakeObject(g, kp->Colp, error))) {
 				if (error)
 					return NULL;
 
-			} else if (!jcp->Array) {
-				jkey = env->NewStringUTF(kp->Key);
+			} else if (!kp->Array) {
+				if (!b) {
+					jkey = env->NewStringUTF(kp->Key);
 
-				if (env->CallBooleanMethod(job, docaddid, parent, jkey, val))
-					return NULL;
+					if (env->CallBooleanMethod(job, docaddid, parent, jkey, val, j))
+						return NULL;
 
-				env->DeleteLocalRef(jkey);
-			} else if (env->CallBooleanMethod(job, araddid, parent, kp->N, val)) {
+					env->DeleteLocalRef(jkey);
+				}	else {
+					env->DeleteLocalRef(parent);
+					parent = env->CallObjectMethod(job, mkbsonid, val, j);
+				}	// endif b
+
+			} else if (env->CallBooleanMethod(job, araddid, parent, kp->N, val, j)) {
 				if (Check(-1))
 					sprintf(g->Message, "ArrayAdd: %s", Msg);
 				else
@@ -688,19 +730,38 @@ jobject JMgoConn::MakeDoc(PGLOBAL g, PJNCOL jcp)
 				return NULL;
 			}	// endif ArrayAdd
 
+			env->DeleteLocalRef(val);
 		} // endif Jncolp
 
-		return parent;
+	} // endfor kp 
+
+	return parent;
 } // end of MakeDoc
 
 /***********************************************************************/
 /*  Insert a new document in the collation.                            */
 /***********************************************************************/
-int JMgoConn::DocWrite(PGLOBAL g)
+int JMgoConn::DocWrite(PGLOBAL g, PCSZ line)
 {
-	jobject doc;
+	int     rc = RC_OK;
+	jobject doc = nullptr;
 
-	if (!Fpc || !(doc = MakeDoc(g, Fpc)))
+	if (line) {
+		int     j;
+		jobject val = env->NewStringUTF(line);
+
+		switch (*line) {
+			case '{': j = 1; break;
+			case '[': j = 2; break;
+			default:  j = 0; break;
+		} // endswitch line
+
+		doc =	env->CallObjectMethod(job, mkbsonid, val, j);
+		env->DeleteLocalRef(val);
+	} else if (Fpc)
+		doc = MakeDoc(g, Fpc);
+
+	if (!doc)
 		return RC_FX;
 
 	if (env->CallBooleanMethod(job, insertid, doc)) {
@@ -709,10 +770,11 @@ int JMgoConn::DocWrite(PGLOBAL g)
 		else
 			sprintf(g->Message, "CollInsert: unknown error");
 
-		return RC_FX;
+		rc = RC_FX;
 	} // endif Insert
 
-	return RC_OK;
+	env->DeleteLocalRef(doc);
+	return rc;
 } // end of DocWrite
 
 /***********************************************************************/
@@ -720,7 +782,7 @@ int JMgoConn::DocWrite(PGLOBAL g)
 /***********************************************************************/
 int JMgoConn::DocUpdate(PGLOBAL g, PTDB tdbp)
 {
-	int     rc = RC_OK;
+	int     j = 0, rc = RC_OK;
 	bool    error;
 	PCOL    colp;
 	jstring jkey;
@@ -733,8 +795,14 @@ int JMgoConn::DocUpdate(PGLOBAL g, PTDB tdbp)
 
 		if (error)
 			return RC_FX;
+		else if (Stringify(colp))
+			switch (*colp->GetCharValue()) {
+				case '{': j = 1; break;
+				case '[': j = 2; break;
+				default: break;
+			} // endswitch
 
-		if (env->CallBooleanMethod(job, docaddid, updlist, jkey, val))
+		if (env->CallBooleanMethod(job, docaddid, updlist, jkey, val, j))
 			return RC_OK;
 
 		env->DeleteLocalRef(jkey);
@@ -744,14 +812,14 @@ int JMgoConn::DocUpdate(PGLOBAL g, PTDB tdbp)
 	upd = env->CallObjectMethod(job, mkdocid);
 	jkey = env->NewStringUTF("$set");
 
-	if (env->CallBooleanMethod(job, docaddid, upd, jkey, updlist))
+	if (env->CallBooleanMethod(job, docaddid, upd, jkey, updlist, 0))
 		return RC_OK;
 
 	env->DeleteLocalRef(jkey);
 
 	jlong ar = env->CallLongMethod(job, updateid, upd);
 
-	if (trace)
+	if (trace(1))
 		htrc("DocUpdate: ar = %ld\n", ar);
 
 	if (Check((int)ar)) {
@@ -770,7 +838,7 @@ int JMgoConn::DocDelete(PGLOBAL g, bool all)
 	int   rc = RC_OK;
 	jlong ar = env->CallLongMethod(job, deleteid, all);
 
-	if (trace)
+	if (trace(1))
 		htrc("DocDelete: ar = %ld\n", ar);
 
 	if (Check((int)ar)) {
@@ -807,7 +875,7 @@ PSZ JMgoConn::GetColumnValue(PSZ path)
 		fn = (jstring)env->CallObjectMethod(job, objfldid, jn);
 
 		if (fn)
-			fld = (PSZ)env->GetStringUTFChars(fn, (jboolean)false);
+			fld = (PSZ)GetUTFString(fn);
 
 	}	// endif objfldid
 

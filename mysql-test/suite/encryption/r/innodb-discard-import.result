@@ -44,6 +44,7 @@ count(*)
 2000
 FLUSH TABLE t1,t2,t3,t4 FOR EXPORT;
 # List before copying files
+db.opt
 t1.cfg
 t1.frm
 t1.ibd
@@ -60,6 +61,7 @@ backup: t1
 backup: t2
 backup: t3
 backup: t4
+db.opt
 t1.cfg
 t1.frm
 t1.ibd

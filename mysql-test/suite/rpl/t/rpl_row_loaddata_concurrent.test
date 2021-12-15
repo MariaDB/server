@@ -10,4 +10,4 @@ DROP TABLE t1;
 
 let $lock_option= CONCURRENT;
 let $engine_type=MyISAM;
--- source extra/rpl_tests/rpl_loaddata.test
+-- source include/rpl_loaddata.test

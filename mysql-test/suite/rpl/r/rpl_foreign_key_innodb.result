@@ -43,8 +43,7 @@ SET FOREIGN_KEY_CHECKS=1;
 connection slave;
 connection master;
 create table t1 (b int primary key) engine = INNODB;
-create table t2 (a int primary key, b int, foreign key (b) references t1(b))
-engine = INNODB;
+create table t2 (a int primary key, b int, foreign key (b) references t1(b)) engine = INNODB;
 insert into t1 set b=1;
 insert into t2 set a=1, b=1;
 set foreign_key_checks=0;

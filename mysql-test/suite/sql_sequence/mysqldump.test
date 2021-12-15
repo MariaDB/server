@@ -11,7 +11,18 @@ CREATE SEQUENCE a1 engine=aria;
 CREATE TABLE t1(a INT, KEY (a)) KEY_BLOCK_SIZE=1024;
 insert into t1 values (1),(2);
 CREATE SEQUENCE x1 engine=innodb;
+--echo # dump whole database
 --exec $MYSQL_DUMP --compact test
+--echo # dump by tables order 1
+--exec $MYSQL_DUMP --compact --tables test t1 a1 x1
+--echo # dump by tables order 2
+--exec $MYSQL_DUMP --compact --tables test a1 t1 x1
+--echo # dump by tables only tables
+--exec $MYSQL_DUMP --compact --tables test t1
+--echo # dump by tables only sequences
+--exec $MYSQL_DUMP --compact --tables test a1 x1
+--echo # end of dumps
+
 DROP TABLE a1,t1,x1;
 
 #

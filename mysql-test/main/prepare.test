@@ -1,0 +1,54 @@
+#
+# MDEV-15738 Server crashes in my_strcasecmp_utf8 on query from I_S with UNION
+# executed as PS
+#
+
+PREPARE stmt1 FROM "
+SELECT table_name FROM information_schema.tables
+WHERE table_name = 't1_first'
+UNION ALL
+SELECT table_name FROM information_schema.tables
+WHERE table_name = 't1_second'";
+execute stmt1;
+execute stmt1;
+
+create or replace table t1 (a int primary key, table_name char(40));
+insert into t1 values(1,"t1_first");
+insert into t1 values(2,"t1_second");
+
+PREPARE stmt2 FROM "
+SELECT table_name FROM t1
+WHERE table_name = 't1_first'
+UNION ALL
+SELECT table_name FROM t1
+WHERE table_name = 't1_second'";
+
+execute stmt2;
+execute stmt2;
+flush tables;
+execute stmt2;
+alter table t1 add column b int;
+execute stmt2;
+execute stmt2;
+drop table t1;
+--error ER_NO_SUCH_TABLE
+execute stmt2;
+create or replace table t1 (a int primary key, table_name char(40));
+insert into t1 values(1,"t1_first");
+execute stmt2;
+
+deallocate prepare stmt1;
+deallocate prepare stmt2;
+drop table t1;
+
+--echo #
+--echo # MDEV-25808 PREPARE/EXECUTE makes signed integer out of unsigned
+--echo #
+prepare p1 from 'select concat(?)';
+execute p1 using 17864960750176564435;
+prepare p1 from 'select SQRT(?) is not null';
+execute p1 using 17864960750176564435;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

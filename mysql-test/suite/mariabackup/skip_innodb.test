@@ -1,0 +1,12 @@
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+CREATE TABLE t(i int);
+INSERT INTO t VALUES(1);
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+exec $XTRABACKUP --prepare --target-dir=$targetdir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+SELECT * from t;
+DROP TABLE t;
+
+rmdir $targetdir;

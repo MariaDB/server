@@ -1,0 +1,86 @@
+SET NAMES utf8mb4;
+#
+# MDEV-8765 mysqldump silently corrupts 4-byte UTF-8 data
+#
+CREATE TABLE t1 (
+point VARCHAR(10) PRIMARY KEY,
+data VARCHAR(10),
+comment VARCHAR(64)
+) CHARACTER SET utf8mb4;
+INSERT INTO t1 VALUES ('01f300', UNHEX('f09f8c80'), 'U+1F300 CYCLONE');
+----
+Testing XML format output
+----
+<?xml version="1.0"?>
+<mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<database name="test">
+	<table_structure name="t1">
+		<field Field="point" Type="varchar(10)" Null="NO" Key="PRI" Extra="" Comment="" />
+		<field Field="data" Type="varchar(10)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
+		<field Field="comment" Type="varchar(64)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
+		<key Table="t1" Non_unique="0" Key_name="PRIMARY" Seq_in_index="1" Column_name="point" Collation="A" Cardinality="1" Null="" Index_type="BTREE" Comment="" Index_comment="" />
+	</table_structure>
+	<table_data name="t1">
+	<row>
+		<field name="point">01f300</field>
+		<field name="data">🌀</field>
+		<field name="comment">U+1F300 CYCLONE</field>
+	</row>
+	</table_data>
+</database>
+</mysqldump>
+----
+Testing text format output
+----
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+DROP TABLE IF EXISTS `t1`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t1` (
+  `point` varchar(10) NOT NULL,
+  `data` varchar(10) DEFAULT NULL,
+  `comment` varchar(64) DEFAULT NULL,
+  PRIMARY KEY (`point`)
+);
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES `t1` WRITE;
+/*!40000 ALTER TABLE `t1` DISABLE KEYS */;
+INSERT INTO `t1` VALUES ('01f300','🌀','U+1F300 CYCLONE');
+/*!40000 ALTER TABLE `t1` ENABLE KEYS */;
+UNLOCK TABLES;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+DROP TABLE t1;
+----
+Testing text format dump/restore
+----
+CREATE TABLE t1 (
+point VARCHAR(10) PRIMARY KEY,
+data VARCHAR(10),
+comment VARCHAR(64)
+) CHARACTER SET utf8mb4;
+INSERT INTO t1 VALUES ('01f300', UNHEX('f09f8c80'), 'U+1F300 CYCLONE');
+DROP TABLE t1;
+SELECT * FROM t1;
+point	data	comment
+01f300	🌀	U+1F300 CYCLONE
+DROP TABLE t1;

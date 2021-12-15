@@ -1,0 +1,70 @@
+set timestamp=unix_timestamp('2001-02-03 10:20:30');
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day
+subpartition by key (i) subpartitions 2
+(partition p1 history, partition pn current);
+set timestamp=unix_timestamp('2001-02-03 10:20:40');
+insert t1 values (1);
+delete from t1;
+set timestamp=unix_timestamp('2001-02-04 10:20:50');
+insert t1 values (2);
+delete from t1;
+select subpartition_name,partition_description,table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
+subpartition_name	partition_description	table_rows
+p1sp0	2001-02-04 10:20:30	1
+p1sp1	2001-02-04 10:20:30	1
+pnsp0	CURRENT	0
+pnsp1	CURRENT	0
+set timestamp=unix_timestamp('2001-02-04 10:20:55');
+alter table t1 add partition (partition p0 history, partition p2 history);
+set timestamp=unix_timestamp('2001-02-04 10:30:00');
+insert t1 values (4),(5);
+set timestamp=unix_timestamp('2001-02-04 10:30:10');
+update t1 set i=6 where i=5;
+select subpartition_name,partition_description,table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
+subpartition_name	partition_description	table_rows
+p1sp0	2001-02-04 10:20:30	1
+p1sp1	2001-02-04 10:20:30	0
+p0sp0	2001-02-05 10:20:30	1
+p0sp1	2001-02-05 10:20:30	1
+p2sp0	2001-02-06 10:20:30	0
+p2sp1	2001-02-06 10:20:30	0
+pnsp0	CURRENT	0
+pnsp1	CURRENT	2
+## pruning check
+set @ts=(select partition_description from information_schema.partitions
+where table_schema='test' and table_name='t1' and partition_name='p0' limit 1);
+select * from t1;
+i
+4
+6
+explain partitions select * from t1;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	pn_pnsp0,pn_pnsp1	ALL	NULL	NULL	NULL	NULL	2	Using where
+explain partitions select * from t1 for system_time as of '2001-02-04 10:20:30';
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0_p0sp0,p0_p0sp1,p2_p2sp0,p2_p2sp1,pn_pnsp0,pn_pnsp1	ALL	NULL	NULL	NULL	NULL	#	Using where
+set @ts=(select row_end from t1 for system_time all where i=1);
+select * from t1 for system_time all where row_end = @ts;
+i
+1
+explain partitions select * from t1 for system_time all where row_end = @ts;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1_p1sp0,p1_p1sp1	#	NULL	NULL	NULL	NULL	#	#
+#
+# MDEV-16023 Unfortunate error message WARN_VERS_PART_FULL
+#
+set timestamp= unix_timestamp('2020-07-29 10:30:10');
+create or replace table t1 (a int) with system versioning
+partition by system_time interval 1 second (
+partition p0 history,
+partition p1 history,
+partition pc current
+);
+set timestamp= unix_timestamp('2020-07-29 10:30:14');
+insert into t1 values (1),(2),(3);
+show warnings;
+Level	Code	Message
+# Cleanup
+set timestamp= default;
+drop table t1;

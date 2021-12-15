@@ -139,8 +139,8 @@ cachetable_put_evict_remove_test (int n) {
     }
 
     // get 0
-    void *v; long s;
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(0), hi[0], &v, &s, wc, fetch, def_pf_req_callback, def_pf_callback, true, 0);
+    void *v;
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(0), hi[0], &v, wc, fetch, def_pf_req_callback, def_pf_callback, true, 0);
     assert(r == 0);
         
     // remove 0

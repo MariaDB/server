@@ -827,7 +827,7 @@ int toku_serialize_ftnode_to(int fd,
         node, n_uncompressed_bytes, n_to_write, io_time, for_checkpoint);
 
     toku_free(compressed_buf);
-    node->dirty = 0;  // See #1957.   Must set the node to be clean after
+    node->clear_dirty();  // See #1957.   Must set the node to be clean after
                       // serializing it so that it doesn't get written again on
                       // the next checkpoint or eviction.
     if (node->height == 0) {
@@ -1170,11 +1170,11 @@ int verify_ftnode_sub_block(struct sub_block *sb,
         fprintf(
             stderr,
             "%s:%d:verify_ftnode_sub_block - "
-            "file[%s], blocknum[%ld], stored_xsum[%u] != actual_xsum[%u]\n",
+            "file[%s], blocknum[%lld], stored_xsum[%u] != actual_xsum[%u]\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
-            blocknum.b,
+            (longlong)blocknum.b,
             stored_xsum,
             actual_xsum);
         dump_bad_block((Bytef *) sb->uncompressed_ptr, sb->uncompressed_size);
@@ -1197,11 +1197,11 @@ static int deserialize_ftnode_info(struct sub_block *sb, FTNODE node) {
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_info - "
-            "file[%s], blocknum[%ld], verify_ftnode_sub_block failed with %d\n",
+            "file[%s], blocknum[%lld], verify_ftnode_sub_block failed with %d\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
-            node->blocknum.b,
+            (longlong)node->blocknum.b,
             r);
         dump_bad_block(static_cast<unsigned char *>(sb->uncompressed_ptr),
                        sb->uncompressed_size);
@@ -1253,11 +1253,11 @@ static int deserialize_ftnode_info(struct sub_block *sb, FTNODE node) {
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_info - "
-            "file[%s], blocknum[%ld], data_size[%d] != rb.ndone[%d]\n",
+            "file[%s], blocknum[%lld], data_size[%d] != rb.ndone[%d]\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
-            node->blocknum.b,
+            (longlong)node->blocknum.b,
             data_size,
             rb.ndone);
         dump_bad_block(rb.buf, rb.size);
@@ -1388,12 +1388,12 @@ static int deserialize_ftnode_partition(
     if (r != 0) {
         fprintf(stderr,
                 "%s:%d:deserialize_ftnode_partition - "
-                "file[%s], blocknum[%ld], "
+                "file[%s], blocknum[%lld], "
                 "verify_ftnode_sub_block failed with %d\n",
                 __FILE__,
                 __LINE__,
                 fname ? fname : "unknown",
-                node->blocknum.b,
+                (longlong)node->blocknum.b,
                 r);
         goto exit;
     }
@@ -1410,12 +1410,12 @@ static int deserialize_ftnode_partition(
         if (ch != FTNODE_PARTITION_MSG_BUFFER) {
             fprintf(stderr,
                     "%s:%d:deserialize_ftnode_partition - "
-                    "file[%s], blocknum[%ld], ch[%d] != "
+                    "file[%s], blocknum[%lld], ch[%d] != "
                     "FTNODE_PARTITION_MSG_BUFFER[%d]\n",
                     __FILE__,
                     __LINE__,
                     fname ? fname : "unknown",
-                    node->blocknum.b,
+                    (longlong)node->blocknum.b,
                     ch,
                     FTNODE_PARTITION_MSG_BUFFER);
             dump_bad_block(rb.buf, rb.size);
@@ -1433,12 +1433,12 @@ static int deserialize_ftnode_partition(
         if (ch != FTNODE_PARTITION_DMT_LEAVES) {
             fprintf(stderr,
                     "%s:%d:deserialize_ftnode_partition - "
-                    "file[%s], blocknum[%ld], ch[%d] != "
+                    "file[%s], blocknum[%lld], ch[%d] != "
                     "FTNODE_PARTITION_DMT_LEAVES[%d]\n",
                     __FILE__,
                     __LINE__,
                     fname ? fname : "unknown",
-                    node->blocknum.b,
+                    (longlong)node->blocknum.b,
                     ch,
                     FTNODE_PARTITION_DMT_LEAVES);
             dump_bad_block(rb.buf, rb.size);
@@ -1457,11 +1457,11 @@ static int deserialize_ftnode_partition(
     if (rb.ndone != rb.size) {
         fprintf(stderr,
                 "%s:%d:deserialize_ftnode_partition - "
-                "file[%s], blocknum[%ld], rb.ndone[%d] != rb.size[%d]\n",
+                "file[%s], blocknum[%lld], rb.ndone[%d] != rb.size[%d]\n",
                 __FILE__,
                 __LINE__,
                 fname ? fname : "unknown",
-                node->blocknum.b,
+                (longlong)node->blocknum.b,
                 rb.ndone,
                 rb.size);
         dump_bad_block(rb.buf, rb.size);
@@ -1485,12 +1485,12 @@ static int decompress_and_deserialize_worker(struct rbuf curr_rbuf,
         const char *fname = toku_ftnode_get_cachefile_fname_in_env(node);
         fprintf(stderr,
                 "%s:%d:decompress_and_deserialize_worker - "
-                "file[%s], blocknum[%ld], read_and_decompress_sub_block failed "
+                "file[%s], blocknum[%lld], read_and_decompress_sub_block failed "
                 "with %d\n",
                 __FILE__,
                 __LINE__,
                 fname ? fname : "unknown",
-                node->blocknum.b,
+                (longlong)node->blocknum.b,
                 r);
         dump_bad_block(curr_rbuf.buf, curr_rbuf.size);
         goto exit;
@@ -1502,12 +1502,12 @@ static int decompress_and_deserialize_worker(struct rbuf curr_rbuf,
         const char *fname = toku_ftnode_get_cachefile_fname_in_env(node);
         fprintf(stderr,
                 "%s:%d:decompress_and_deserialize_worker - "
-                "file[%s], blocknum[%ld], deserialize_ftnode_partition failed "
+                "file[%s], blocknum[%lld], deserialize_ftnode_partition failed "
                 "with %d\n",
                 __FILE__,
                 __LINE__,
                 fname ? fname : "unknown",
-                node->blocknum.b,
+                (longlong)node->blocknum.b,
                 r);
         dump_bad_block(curr_rbuf.buf, curr_rbuf.size);
         goto exit;
@@ -1544,7 +1544,7 @@ static FTNODE alloc_ftnode_for_deserialize(uint32_t fullhash, BLOCKNUM blocknum)
     FTNODE XMALLOC(node);
     node->fullhash = fullhash;
     node->blocknum = blocknum;
-    node->dirty = 0;
+    node->clear_dirty();
     node->oldest_referenced_xid_known = TXNID_NONE;
     node->bp = nullptr;
     node->ct_pair = nullptr;
@@ -1582,11 +1582,11 @@ static int deserialize_ftnode_header_from_rbuf_if_small_enough(
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_header_from_rbuf_if_small_enough - "
-            "file[%s], blocknum[%ld], rb->size[%u] < 24\n",
+            "file[%s], blocknum[%lld], rb->size[%u] < 24\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
-            blocknum.b,
+            (longlong)blocknum.b,
             rb->size);
         dump_bad_block(rb->buf, rb->size);
         // TODO: What error do we return here?
@@ -1602,12 +1602,12 @@ static int deserialize_ftnode_header_from_rbuf_if_small_enough(
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_header_from_rbuf_if_small_enough - "
-            "file[%s], blocknum[%ld], unrecognized magic number "
+            "file[%s], blocknum[%lld], unrecognized magic number "
             "%2.2x %2.2x %2.2x %2.2x   %2.2x %2.2x %2.2x %2.2x\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
-            blocknum.b,
+            (longlong)blocknum.b,
             static_cast<const uint8_t*>(magic)[0],
             static_cast<const uint8_t*>(magic)[1],
             static_cast<const uint8_t*>(magic)[2],
@@ -1627,12 +1627,12 @@ static int deserialize_ftnode_header_from_rbuf_if_small_enough(
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_header_from_rbuf_if_small_enough - "
-            "file[%s], blocknum[%ld], node->layout_version_read_from_disk[%d] "
+            "file[%s], blocknum[%lld], node->layout_version_read_from_disk[%d] "
             "< FT_FIRST_LAYOUT_VERSION_WITH_BASEMENT_NODES[%d]\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
-            blocknum.b,
+            (longlong)blocknum.b,
             node->layout_version_read_from_disk,
             FT_FIRST_LAYOUT_VERSION_WITH_BASEMENT_NODES);
         dump_bad_block(rb->buf, rb->size);
@@ -1667,11 +1667,11 @@ static int deserialize_ftnode_header_from_rbuf_if_small_enough(
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_header_from_rbuf_if_small_enough - "
-            "file[%s], blocknum[%ld], needed_size[%d] > rb->size[%d]\n",
+            "file[%s], blocknum[%lld], needed_size[%d] > rb->size[%d]\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
-            blocknum.b,
+            (longlong)blocknum.b,
             needed_size,
             rb->size);
         dump_bad_block(rb->buf, rb->size);
@@ -1695,11 +1695,11 @@ static int deserialize_ftnode_header_from_rbuf_if_small_enough(
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_header_from_rbuf_if_small_enough - "
-            "file[%s], blocknum[%ld], stored_checksum[%d] != checksum[%d]\n",
+            "file[%s], blocknum[%lld], stored_checksum[%d] != checksum[%d]\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
-            blocknum.b,
+            (longlong)blocknum.b,
             stored_checksum,
             checksum);
         dump_bad_block(rb->buf, rb->size);
@@ -1717,12 +1717,12 @@ static int deserialize_ftnode_header_from_rbuf_if_small_enough(
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_header_from_rbuf_if_small_enough - "
-            "file[%s], blocknum[%ld], rb->size[%d] - rb->ndone[%d] < "
+            "file[%s], blocknum[%lld], rb->size[%d] - rb->ndone[%d] < "
             "sb_node_info.compressed_size[%d] + 8\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
-            blocknum.b,
+            (longlong)blocknum.b,
             rb->size,
             rb->ndone,
             sb_node_info.compressed_size);
@@ -1744,11 +1744,11 @@ static int deserialize_ftnode_header_from_rbuf_if_small_enough(
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_header_from_rbuf_if_small_enough - "
-            "file[%s], blocknum[%ld], sb_node_info.xsum[%d] != actual_xsum[%d]\n",
+            "file[%s], blocknum[%lld], sb_node_info.xsum[%d] != actual_xsum[%d]\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
-            blocknum.b,
+            (longlong)blocknum.b,
             sb_node_info.xsum,
             actual_xsum);
         dump_bad_block(rb->buf, rb->size);
@@ -1774,12 +1774,12 @@ static int deserialize_ftnode_header_from_rbuf_if_small_enough(
             fprintf(
                 stderr,
                 "%s:%d:deserialize_ftnode_header_from_rbuf_if_small_enough - "
-                "file[%s], blocknum[%ld], deserialize_ftnode_info failed with "
+                "file[%s], blocknum[%lld], deserialize_ftnode_info failed with "
                 "%d\n",
                 __FILE__,
                 __LINE__,
                 fname ? fname : "unknown",
-                blocknum.b,
+                (longlong)blocknum.b,
                 r);
             dump_bad_block(
                 static_cast<unsigned char *>(sb_node_info.uncompressed_ptr),
@@ -1812,12 +1812,12 @@ static int deserialize_ftnode_header_from_rbuf_if_small_enough(
             fprintf(
                 stderr,
                 "%s:%d:deserialize_ftnode_header_from_rbuf_if_small_enough - "
-                "file[%s], blocknum[%ld], toku_ftnode_pf_callback failed with "
+                "file[%s], blocknum[%lld], toku_ftnode_pf_callback failed with "
                 "%d\n",
                 __FILE__,
                 __LINE__,
                 fname ? fname : "unknown",
-                blocknum.b,
+                (longlong)blocknum.b,
                 r);
             dump_bad_block(rb->buf, rb->size);
             goto cleanup;
@@ -1951,7 +1951,7 @@ static int deserialize_and_upgrade_internal_node(FTNODE node,
     // Assign the highest msn from our upgrade message buffers
     node->max_msn_applied_to_node_on_disk = highest_msn;
     // Since we assigned MSNs to this node's messages, we need to dirty it.
-    node->dirty = 1;
+    node->set_dirty();
 
     // Must compute the checksum now (rather than at the end, while we
     // still have the pointer to the buffer).
@@ -2164,12 +2164,12 @@ static int deserialize_and_upgrade_ftnode(FTNODE node,
         const char* fname = toku_cachefile_fname_in_env(bfe->ft->cf);
         fprintf(stderr,
                 "%s:%d:deserialize_and_upgrade_ftnode - "
-                "file[%s], blocknum[%ld], "
+                "file[%s], blocknum[%lld], "
                 "read_and_decompress_block_from_fd_into_rbuf failed with %d\n",
                 __FILE__,
                 __LINE__,
                 fname ? fname : "unknown",
-                blocknum.b,
+                (longlong)blocknum.b,
                 r);
         goto exit;
     }
@@ -2190,12 +2190,12 @@ static int deserialize_and_upgrade_ftnode(FTNODE node,
         const char* fname = toku_cachefile_fname_in_env(bfe->ft->cf);
         fprintf(stderr,
                 "%s:%d:deserialize_and_upgrade_ftnode - "
-                "file[%s], blocknum[%ld], version[%d] > "
+                "file[%s], blocknum[%lld], version[%d] > "
                 "FT_LAYOUT_VERSION_14[%d]\n",
                 __FILE__,
                 __LINE__,
                 fname ? fname : "unknown",
-                blocknum.b,
+                (longlong)blocknum.b,
                 version,
                 FT_LAYOUT_VERSION_14);
         dump_bad_block(rb.buf, rb.size);
@@ -2278,12 +2278,12 @@ static int deserialize_ftnode_from_rbuf(FTNODE *ftnode,
         memcmp(magic, "tokunode", 8) != 0) {
         fprintf(stderr,
                 "%s:%d:deserialize_ftnode_from_rbuf - "
-                "file[%s], blocknum[%ld], unrecognized magic number "
+                "file[%s], blocknum[%lld], unrecognized magic number "
                 "%2.2x %2.2x %2.2x %2.2x   %2.2x %2.2x %2.2x %2.2x\n",
                 __FILE__,
                 __LINE__,
                 fname ? fname : "unknown",
-                blocknum.b,
+                (longlong)blocknum.b,
                 static_cast<const uint8_t *>(magic)[0],
                 static_cast<const uint8_t *>(magic)[1],
                 static_cast<const uint8_t *>(magic)[2],
@@ -2309,12 +2309,12 @@ static int deserialize_ftnode_from_rbuf(FTNODE *ftnode,
         if (r != 0) {
             fprintf(stderr,
                     "%s:%d:deserialize_ftnode_from_rbuf - "
-                    "file[%s], blocknum[%ld], deserialize_and_upgrade_ftnode "
+                    "file[%s], blocknum[%lld], deserialize_and_upgrade_ftnode "
                     "failed with %d\n",
                     __FILE__,
                     __LINE__,
                     fname ? fname : "unknown",
-                    blocknum.b,
+                    (longlong)blocknum.b,
                     r);
             dump_bad_block(rb->buf, rb->size);
             goto cleanup;
@@ -2355,11 +2355,11 @@ static int deserialize_ftnode_from_rbuf(FTNODE *ftnode,
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_from_rbuf - "
-            "file[%s], blocknum[%ld], stored_checksum[%d] != checksum[%d]\n",
+            "file[%s], blocknum[%lld], stored_checksum[%d] != checksum[%d]\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
-            blocknum.b,
+            (longlong)blocknum.b,
             stored_checksum,
             checksum);
         dump_bad_block(rb->buf, rb->size);
@@ -2377,12 +2377,12 @@ static int deserialize_ftnode_from_rbuf(FTNODE *ftnode,
             fprintf(
                 stderr,
                 "%s:%d:deserialize_ftnode_from_rbuf - "
-                "file[%s], blocknum[%ld], read_and_decompress_sub_block failed "
+                "file[%s], blocknum[%lld], read_and_decompress_sub_block failed "
                 "with %d\n",
                 __FILE__,
                 __LINE__,
                 fname ? fname : "unknown",
-                blocknum.b,
+                (longlong)blocknum.b,
                 r);
             dump_bad_block(
                 static_cast<unsigned char *>(sb_node_info.uncompressed_ptr),
@@ -2398,12 +2398,12 @@ static int deserialize_ftnode_from_rbuf(FTNODE *ftnode,
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_from_rbuf - "
-            "file[%s], blocknum[%ld], deserialize_ftnode_info failed with "
+            "file[%s], blocknum[%lld], deserialize_ftnode_info failed with "
             "%d\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
-            blocknum.b,
+            (longlong)blocknum.b,
             r);
         dump_bad_block(rb->buf, rb->size);
         goto cleanup;
@@ -2470,12 +2470,12 @@ static int deserialize_ftnode_from_rbuf(FTNODE *ftnode,
                     fprintf(
                         stderr,
                         "%s:%d:deserialize_ftnode_from_rbuf - "
-                        "file[%s], blocknum[%ld], childnum[%d], "
+                        "file[%s], blocknum[%lld], childnum[%d], "
                         "decompress_and_deserialize_worker failed with %d\n",
                         __FILE__,
                         __LINE__,
                         fname ? fname : "unknown",
-                        blocknum.b,
+                        (longlong)blocknum.b,
                         i,
                         r);
                     dump_bad_block(rb->buf, rb->size);
@@ -2490,13 +2490,13 @@ static int deserialize_ftnode_from_rbuf(FTNODE *ftnode,
                 fprintf(
                     stderr,
                     "%s:%d:deserialize_ftnode_from_rbuf - "
-                    "file[%s], blocknum[%ld], childnum[%d], "
+                    "file[%s], blocknum[%lld], childnum[%d], "
                     "check_and_copy_compressed_sub_block_worker failed with "
                     "%d\n",
                     __FILE__,
                     __LINE__,
                     fname ? fname : "unknown",
-                    blocknum.b,
+                    (longlong)blocknum.b,
                     i,
                     r);
                 dump_bad_block(rb->buf, rb->size);
@@ -2641,12 +2641,12 @@ int toku_deserialize_bp_from_compressed(FTNODE node,
         const char* fname = toku_cachefile_fname_in_env(bfe->ft->cf);
         fprintf(stderr,
                 "%s:%d:toku_deserialize_bp_from_compressed - "
-                "file[%s], blocknum[%ld], "
+                "file[%s], blocknum[%lld], "
                 "deserialize_ftnode_partition failed with %d\n",
                 __FILE__,
                 __LINE__,
                 fname ? fname : "unknown",
-                node->blocknum.b,
+                (longlong)node->blocknum.b,
                 r);
         dump_bad_block(static_cast<unsigned char *>(curr_sb->compressed_ptr),
                        curr_sb->compressed_size);
@@ -2689,12 +2689,12 @@ static int deserialize_ftnode_from_fd(int fd,
         fprintf(
             stderr,
             "%s:%d:deserialize_ftnode_from_fd - "
-            "file[%s], blocknum[%ld], deserialize_ftnode_from_rbuf failed with "
+            "file[%s], blocknum[%lld], deserialize_ftnode_from_rbuf failed with "
             "%d\n",
             __FILE__,
             __LINE__,
             fname ? fname : "unknown",
-            blocknum.b,
+            (longlong)blocknum.b,
             r);
         dump_bad_block(rb.buf, rb.size);
     }
@@ -2908,9 +2908,9 @@ int toku_serialize_rollback_log_to(int fd,
     toku_free(compressed_buf);
     if (!is_serialized) {
         toku_static_serialized_rollback_log_destroy(&serialized_local);
-        log->dirty = 0;  // See #1957.   Must set the node to be clean after
-                         // serializing it so that it doesn't get written again
-                         // on the next checkpoint or eviction.
+        log->dirty = false;  // See #1957.   Must set the node to be clean after
+                             // serializing it so that it doesn't get written again
+                             // on the next checkpoint or eviction.
     }
     return 0;
 }

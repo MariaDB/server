@@ -1,0 +1,14 @@
+--source include/have_innodb.inc
+
+#
+# MDEV-18239 ASAN use-after-poison in process_str_arg / ... / mark_unsupported_func or unexpected ER_BAD_FIELD_ERROR upon ALTER TABLE
+#
+create table t1 (a int, b smallint) engine=innodb;
+connect con1,localhost,root,,test;
+alter table t1 add constraint check (b < 8);
+error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON;
+alter table t1 modify column b int, algorithm=inplace;
+connection default;
+alter table t1 add primary key (a);
+drop table t1;
+disconnect con1;

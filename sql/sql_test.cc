@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /* Write some debug info */
@@ -388,10 +388,10 @@ void print_sjm(SJ_MATERIALIZATION_INFO *sjm)
 /*
   Debugging help: force List<...>::elem function not be removed as unused.
 */
-Item* (List<Item>:: *dbug_list_item_elem_ptr)(uint)= &List<Item>::elem;
-Item_equal* (List<Item_equal>:: *dbug_list_item_equal_elem_ptr)(uint)=
+Item* (List<Item>::*dbug_list_item_elem_ptr)(uint)= &List<Item>::elem;
+Item_equal* (List<Item_equal>::*dbug_list_item_equal_elem_ptr)(uint)=
   &List<Item_equal>::elem;
-TABLE_LIST* (List<TABLE_LIST>:: *dbug_list_table_list_elem_ptr)(uint) =
+TABLE_LIST* (List<TABLE_LIST>::*dbug_list_table_list_elem_ptr)(uint) =
   &List<TABLE_LIST>::elem;
 
 #endif
@@ -565,6 +565,7 @@ void mysql_print_status()
   STATUS_VAR tmp;
   uint count;
 
+  tmp= global_status_var;
   count= calc_sum_of_all_status(&tmp);
   printf("\nStatus information:\n\n");
   (void) my_getwd(current_dir, sizeof(current_dir),MYF(0));
@@ -596,13 +597,13 @@ update:     %10lu\n",
 	 tmp.ha_update_count);
   printf("\nTable status:\n\
 Opened tables: %10lu\n\
-Open tables:   %10lu\n\
-Open files:    %10lu\n\
+Open tables:   %10u\n\
+Open files:    %10u\n\
 Open streams:  %10lu\n",
 	 tmp.opened_tables,
-	 (ulong) tc_records(),
-	 (ulong) my_file_opened,
-	 (ulong) my_stream_opened);
+	 tc_records(),
+	 my_file_opened,
+	 my_stream_opened);
 
 #ifndef DONT_USE_THR_ALARM
   ALARM_INFO alarm_info;
@@ -616,8 +617,12 @@ Next alarm time: %lu\n",
 	(ulong)alarm_info.next_alarm_time);
 #endif
   display_table_locks();
-#ifdef HAVE_MALLINFO
+#if defined(HAVE_MALLINFO2)
+  struct mallinfo2 info = mallinfo2();
+#elif defined(HAVE_MALLINFO)
   struct mallinfo info= mallinfo();
+#endif
+#if defined(HAVE_MALLINFO) || defined(HAVE_MALLINFO2)
   char llbuff[10][22];
   printf("\nMemory status:\n\
 Non-mmapped space allocated from system: %s\n\

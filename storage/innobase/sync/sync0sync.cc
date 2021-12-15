@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -19,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -30,7 +31,6 @@ Mutex, the basic synchronization primitive
 Created 9/5/1995 Heikki Tuuri
 *******************************************************/
 
-#include "univ.i"
 #include "sync0rw.h"
 #include "sync0sync.h"
 
@@ -45,9 +45,7 @@ mysql_pfs_key_t	dict_foreign_err_mutex_key;
 mysql_pfs_key_t	dict_sys_mutex_key;
 mysql_pfs_key_t	fil_system_mutex_key;
 mysql_pfs_key_t	flush_list_mutex_key;
-mysql_pfs_key_t	fts_bg_threads_mutex_key;
 mysql_pfs_key_t	fts_delete_mutex_key;
-mysql_pfs_key_t	fts_optimize_mutex_key;
 mysql_pfs_key_t	fts_doc_id_mutex_key;
 mysql_pfs_key_t	fts_pll_tokenize_mutex_key;
 mysql_pfs_key_t	hash_table_mutex_key;
@@ -73,14 +71,12 @@ mysql_pfs_key_t	rw_lock_debug_mutex_key;
 mysql_pfs_key_t rtr_active_mutex_key;
 mysql_pfs_key_t	rtr_match_mutex_key;
 mysql_pfs_key_t	rtr_path_mutex_key;
-mysql_pfs_key_t rtr_ssn_mutex_key;
 mysql_pfs_key_t	rw_lock_list_mutex_key;
 mysql_pfs_key_t	rw_lock_mutex_key;
 mysql_pfs_key_t	srv_innodb_monitor_mutex_key;
 mysql_pfs_key_t	srv_misc_tmpfile_mutex_key;
 mysql_pfs_key_t	srv_monitor_file_mutex_key;
 mysql_pfs_key_t	buf_dblwr_mutex_key;
-mysql_pfs_key_t	trx_undo_mutex_key;
 mysql_pfs_key_t	trx_mutex_key;
 mysql_pfs_key_t	trx_pool_mutex_key;
 mysql_pfs_key_t	trx_pool_manager_mutex_key;
@@ -105,7 +101,6 @@ mysql_pfs_key_t	buf_block_debug_latch_key;
 # endif /* UNIV_DEBUG */
 mysql_pfs_key_t	checkpoint_lock_key;
 mysql_pfs_key_t	dict_operation_lock_key;
-mysql_pfs_key_t	dict_table_stats_key;
 mysql_pfs_key_t	hash_table_locks_key;
 mysql_pfs_key_t	index_tree_rw_lock_key;
 mysql_pfs_key_t	index_online_log_key;

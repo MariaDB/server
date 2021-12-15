@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -23,8 +23,6 @@ Row undo
 
 Created 1/8/1997 Heikki Tuuri
 *******************************************************/
-
-#include "ha_prototypes.h"
 
 #include "row0undo.h"
 #include "fsp0fsp.h"
@@ -42,6 +40,7 @@ Created 1/8/1997 Heikki Tuuri
 #include "row0upd.h"
 #include "row0mysql.h"
 #include "srv0srv.h"
+#include "srv0start.h"
 
 /* How to undo row operations?
 (1) For an insert, we have stored a prefix of the clustered index record
@@ -131,6 +130,7 @@ row_undo_node_create(
 	undo_node_t*	undo;
 
 	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE)
+	      || trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)
 	      || trx_state_eq(trx, TRX_STATE_PREPARED));
 	ut_ad(parent);
 
@@ -168,8 +168,8 @@ row_undo_search_clust_to_pcur(
 	row_ext_t**	ext;
 	const rec_t*	rec;
 	mem_heap_t*	heap		= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(!node->table->skip_alter_undo);
@@ -187,7 +187,8 @@ row_undo_search_clust_to_pcur(
 
 	rec = btr_pcur_get_rec(&node->pcur);
 
-	offsets = rec_get_offsets(rec, clust_index, offsets, true,
+	offsets = rec_get_offsets(rec, clust_index, offsets,
+				  clust_index->n_core_fields,
 				  ULINT_UNDEFINED, &heap);
 
 	found = row_get_rec_roll_ptr(rec, clust_index, offsets)
@@ -195,7 +196,7 @@ row_undo_search_clust_to_pcur(
 
 	if (found) {
 		ut_ad(row_get_rec_trx_id(rec, clust_index, offsets)
-		      == node->trx->id);
+		      == node->trx->id || node->table->is_temporary());
 
 		if (dict_table_has_atomic_blobs(node->table)) {
 			/* There is no prefix of externally stored
@@ -235,7 +236,7 @@ row_undo_search_clust_to_pcur(
 					clust_index, node->update, node->heap);
 		} else {
 			ut_ad((node->row->info_bits == REC_INFO_MIN_REC_FLAG)
-			      == (node->rec_type == TRX_UNDO_INSERT_DEFAULT));
+			      == (node->rec_type == TRX_UNDO_INSERT_METADATA));
 			node->undo_row = NULL;
 			node->undo_ext = NULL;
 		}
@@ -345,26 +346,31 @@ row_undo_step(
 
 	ut_ad(que_node_get_type(node) == QUE_NODE_UNDO);
 
-	if (UNIV_UNLIKELY(trx == trx_roll_crash_recv_trx)
-	    && trx_roll_must_shutdown()) {
+	if (UNIV_UNLIKELY(trx_get_dict_operation(trx) == TRX_DICT_OP_NONE
+			  && !srv_undo_sources
+			  && srv_shutdown_state != SRV_SHUTDOWN_NONE)
+	    && (srv_fast_shutdown == 3 || trx == trx_roll_crash_recv_trx)) {
 		/* Shutdown has been initiated. */
 		trx->error_state = DB_INTERRUPTED;
-		return(NULL);
+		return NULL;
+	}
+
+	if (UNIV_UNLIKELY(trx == trx_roll_crash_recv_trx)) {
+		trx_roll_report_progress();
 	}
 
 	err = row_undo(node, thr);
 
+#ifdef ENABLED_DEBUG_SYNC
+	if (trx->mysql_thd) {
+		DEBUG_SYNC_C("trx_after_rollback_row");
+	}
+#endif /* ENABLED_DEBUG_SYNC */
+
 	trx->error_state = err;
 
-	if (err != DB_SUCCESS) {
-		/* SQL error detected */
-
-		if (err == DB_OUT_OF_FILE_SPACE) {
-			ib::fatal() << "Out of tablespace during rollback."
-				" Consider increasing your tablespace.";
-		}
-
-		ib::fatal() << "Error (" << ut_strerr(err) << ") in rollback.";
+	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
+		ib::fatal() << "Error (" << err << ") in rollback.";
 	}
 
 	return(thr);

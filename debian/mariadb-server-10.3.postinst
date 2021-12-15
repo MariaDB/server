@@ -2,13 +2,16 @@
 
 . /usr/share/debconf/confmodule
 
+# Automatically set version to ease maintenance of this file
+MAJOR_VER="${DPKG_MAINTSCRIPT_PACKAGE#mariadb-server-}"
+
 if [ -n "$DEBIAN_SCRIPT_DEBUG" ]; then set -v -x; DEBIAN_SCRIPT_TRACE=1; fi
 ${DEBIAN_SCRIPT_TRACE:+ echo "#42#DEBUG# RUNNING $0 $*" 1>&2 }
 
 export PATH=$PATH:/sbin:/usr/sbin:/bin:/usr/bin
 
 # This command can be used as pipe to syslog. With "-s" it also logs to stderr.
-ERR_LOGGER="logger -p daemon.err -t mysqld_safe -i"
+ERR_LOGGER="logger -p daemon.err -t mariadb-server-$MAJOR_VER.postinst -i"
 # This will make an error in a logged command immediately apparent by aborting
 # the install, rather than failing silently and leaving a broken install.
 set -o pipefail
@@ -50,14 +53,14 @@ EOF
        return $retval
 }
 
-# This is necessary because mysql_install_db removes the pid file in /var/run
-# and because changed configuration options should take effect immediately.
-# In case the server wasn't running at all it should be ok if the stop
-# script fails. I can't tell at this point because of the cleaned /var/run.
-set +e; invoke stop; set -e
-
 case "$1" in
   configure)
+    # This is needed because mysql_install_db removes the pid file in /var/run
+    # and because changed configuration options should take effect immediately.
+    # In case the server wasn't running at all it should be ok if the stop
+    # script fails. I can't tell at this point because of the cleaned /var/run.
+    set +e; invoke stop; set -e
+
     mysql_statedir=/usr/share/mysql
     mysql_datadir=/var/lib/mysql
     mysql_logdir=/var/log/mysql
@@ -91,7 +94,7 @@ case "$1" in
           mv "$targetdir" "$mysql_tmp"
           cat << EOF > "$mysql_tmp/README"
 
-Ff you're reading this, it's most likely because you had replaced /var/lib/mysql
+If you're reading this, it's most likely because you had replaced /var/lib/mysql
 with a symlink, then upgraded to a new version of mysql, and then dpkg
 removed your symlink (see #182747 and others). The mysql packages noticed
 that this happened, and as a workaround have restored it. However, because
@@ -114,7 +117,7 @@ EOF
     if [ ! -d "$mysql_datadir"  -a ! -L "$mysql_datadir" ]; then mkdir "$mysql_datadir" ; fi
     if [ ! -d "$mysql_logdir"   -a ! -L "$mysql_logdir"  ]; then mkdir "$mysql_logdir"  ; fi
     # When creating an ext3 jounal on an already mounted filesystem like e.g.
-    # /var/lib/mysql, you get a .journal file that is not modifyable by chown.
+    # /var/lib/mysql, you get a .journal file that is not modifiable by chown.
     # The mysql_statedir must not be writable by the mysql user under any
     # circumstances as it contains scripts that are executed by root.
     set +e
@@ -141,9 +144,10 @@ EOF
     # Debian: beware of the bashisms...
     # Debian: can safely run on upgrades with existing databases
     set +e
-    bash /usr/bin/mysql_install_db --rpm --cross-bootstrap --user=mysql --disable-log-bin 2>&1 | $ERR_LOGGER
+    bash /usr/bin/mysql_install_db --rpm --cross-bootstrap --user=mysql \
+                                   --disable-log-bin --skip-test-db 2>&1 | \
+                                   $ERR_LOGGER
     set -e
-
 
     ## On every reconfiguration the maintenance user is recreated.
     #
@@ -240,13 +244,20 @@ EOF
   abort-upgrade|abort-remove|abort-configure)
   ;;
 
+  triggered)
+    if [ -d /run/systemd/system ]; then
+      systemctl --system daemon-reload
+    fi
+    invoke restart
+  ;;
+
   *)
     echo "postinst called with unknown argument '$1'" 1>&2
     exit 1
   ;;
 esac
 
-db_stop # in case invoke failes
+db_stop # in case invoke fails
 
 # dh_systemd_start doesn't emit anything since we still ship /etc/init.d/mysql.
 # Thus MariaDB server is started via init.d script, which in turn redirects to

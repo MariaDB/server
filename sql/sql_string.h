@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2018, MariaDB Corporation.
+   Copyright (c) 2008, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* This file is originally from the mysql distribution. Coded by monty */
 
@@ -27,6 +27,7 @@
 #include "m_ctype.h"                            /* my_charset_bin */
 #include <my_sys.h>              /* alloc_root, my_free, my_realloc */
 #include "m_string.h"                           /* TRASH */
+#include "sql_list.h"
 
 class String;
 typedef struct st_io_cache IO_CACHE;
@@ -78,6 +79,10 @@ public:
   Well_formed_prefix(CHARSET_INFO *cs, const char *str, size_t length)
    :Well_formed_prefix_status(cs, str, str + length, length), m_str(str)
   { }
+  Well_formed_prefix(CHARSET_INFO *cs, LEX_CSTRING str, size_t nchars)
+   :Well_formed_prefix_status(cs, str.str, str.str + str.length, nchars),
+    m_str(str.str)
+  { }
   size_t length() const { return m_source_end_pos - m_str; }
 };
 
@@ -126,7 +131,25 @@ uint convert_to_printable(char *to, size_t to_len,
                           const char *from, size_t from_len,
                           CHARSET_INFO *from_cs, size_t nbytes= 0);
 
-class String
+class Charset
+{
+  CHARSET_INFO *m_charset;
+public:
+  Charset() :m_charset(&my_charset_bin) { }
+  Charset(CHARSET_INFO *cs) :m_charset(cs) { }
+
+  CHARSET_INFO *charset() const { return m_charset; }
+  /*
+    Collation name without the character set name.
+    For example, in case of "latin1_swedish_ci",
+    this method returns "_swedish_ci".
+  */
+  LEX_CSTRING collation_specific_name() const;
+  bool encoding_allows_reinterpret_as(CHARSET_INFO *cs) const;
+  bool eq_collation_specific_names(CHARSET_INFO *cs) const;
+};
+
+class String : public Sql_alloc
 {
   char *Ptr;
   uint32 str_length,Alloced_length, extra_alloc;
@@ -176,23 +199,6 @@ public:
     alloced= thread_specific= 0;
     str_charset=str.str_charset;
   }
-  static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
-  { return (void*) alloc_root(mem_root, size); }
-  static void *operator new[](size_t size, MEM_ROOT *mem_root) throw ()
-  { return alloc_root(mem_root, size); }
-  static void operator delete(void *ptr_arg, size_t size)
-  {
-    (void) ptr_arg;
-    (void) size;
-    TRASH_FREE(ptr_arg, size);
-  }
-  static void operator delete(void *, MEM_ROOT *)
-  { /* never called */ }
-  static void operator delete[](void *ptr, size_t size)
-  { TRASH_FREE(ptr, size); }
-  static void operator delete[](void *ptr, MEM_ROOT *mem_root)
-  { /* never called */ }
-
   ~String() { free(); }
 
   /* Mark variable thread specific it it's not allocated already */
@@ -246,6 +252,11 @@ public:
   {
     LEX_CSTRING skr = { ptr(), length() };
     return skr;
+  }
+
+  size_t lengthsp() const
+  {
+    return str_charset->cset->lengthsp(str_charset, Ptr, str_length);
   }
 
   void set(String &str,size_t offset,size_t arg_length)
@@ -402,9 +413,10 @@ public:
     if (ALIGN_SIZE(arg_length+1) < Alloced_length)
     {
       char *new_ptr;
-      if (!(new_ptr=(char*)
-            my_realloc(Ptr, arg_length,MYF((thread_specific ?
-                                            MY_THREAD_SPECIFIC : 0)))))
+      if (unlikely(!(new_ptr=(char*)
+                     my_realloc(Ptr,
+                                arg_length,MYF((thread_specific ?
+                                                MY_THREAD_SPECIFIC : 0))))))
       {
 	Alloced_length = 0;
 	real_alloc(arg_length);
@@ -436,6 +448,7 @@ public:
   bool copy();					// Alloc string if not alloced
   bool copy(const String &s);			// Allocate new string
   bool copy(const char *s,size_t arg_length, CHARSET_INFO *cs);	// Allocate new string
+  bool copy_or_move(const char *s,size_t arg_length, CHARSET_INFO *cs);
   static bool needs_conversion(size_t arg_length,
   			       CHARSET_INFO *cs_from, CHARSET_INFO *cs_to,
 			       uint32 *offset);
@@ -455,7 +468,7 @@ public:
             CHARSET_INFO *fromcs, const char *src, size_t src_length,
             size_t nchars, String_copier *copier)
   {
-    if (alloc(tocs->mbmaxlen * src_length))
+    if (unlikely(alloc(tocs->mbmaxlen * src_length)))
       return true;
     str_length= copier->well_formed_copy(tocs, Ptr, Alloced_length,
                                          fromcs, src, (uint)src_length, (uint)nchars);
@@ -487,8 +500,16 @@ public:
                  ls->length == strlen(ls->str)));
     return append(ls->str, (uint32) ls->length);
   }
+  bool append(const LEX_CSTRING &ls)
+  {
+    return append(&ls);
+  }
   bool append(const char *s, size_t size);
   bool append(const char *s, size_t arg_length, CHARSET_INFO *cs);
+  bool append(const LEX_CSTRING &s, CHARSET_INFO *cs)
+  {
+    return append(s.str, s.length, cs);
+  }
   bool append_ulonglong(ulonglong val);
   bool append_longlong(longlong val);
   bool append(IO_CACHE* file, uint32 arg_length);
@@ -507,7 +528,7 @@ public:
     }
     else
     {
-      if (realloc_with_extra(str_length + 1))
+      if (unlikely(realloc_with_extra(str_length + 1)))
 	return 1;
       Ptr[str_length++]=chr;
     }
@@ -517,8 +538,8 @@ public:
   {
     for (const char *src_end= src + srclen ; src != src_end ; src++)
     {
-      if (append(_dig_vec_lower[((uchar) *src) >> 4]) ||
-          append(_dig_vec_lower[((uchar) *src) & 0x0F]))
+      if (unlikely(append(_dig_vec_lower[((uchar) *src) >> 4])) ||
+          unlikely(append(_dig_vec_lower[((uchar) *src) & 0x0F])))
         return true;
     }
     return false;
@@ -573,7 +594,8 @@ public:
   }
   void q_append(const char *data, size_t data_len)
   {
-    memcpy(Ptr + str_length, data, data_len);
+    if (data_len)
+      memcpy(Ptr + str_length, data, data_len);
     DBUG_ASSERT(str_length <= UINT_MAX32 - data_len);
     str_length += (uint)data_len;
   }
@@ -624,7 +646,7 @@ public:
   {
     char *buff= Ptr + str_length;
     char *end= ll2str(i, buff, radix, 0);
-    str_length+= (int) (end-buff);
+    str_length+= uint32(end-buff);
   }
 
   /* Inline (general) functions used by the protocol functions */
@@ -634,7 +656,7 @@ public:
     uint32 new_length= arg_length + str_length;
     if (new_length > Alloced_length)
     {
-      if (realloc(new_length + step_alloc))
+      if (unlikely(realloc(new_length + step_alloc)))
         return 0;
     }
     uint32 old_length= str_length;
@@ -646,7 +668,8 @@ public:
   inline bool append(const char *s, uint32 arg_length, uint32 step_alloc)
   {
     uint32 new_length= arg_length + str_length;
-    if (new_length > Alloced_length && realloc(new_length + step_alloc))
+    if (new_length > Alloced_length &&
+        unlikely(realloc(new_length + step_alloc)))
       return TRUE;
     memcpy(Ptr+str_length, s, arg_length);
     str_length+= arg_length;
@@ -746,11 +769,6 @@ public:
   explicit StringBuffer(CHARSET_INFO *cs) : String(buff, buff_sz, cs)
   {
     length(0);
-  }
-  StringBuffer(const char *str, size_t length_arg, CHARSET_INFO *cs)
-    : String(buff, buff_sz, cs)
-  {
-    set(str, length_arg, cs);
   }
 };
 

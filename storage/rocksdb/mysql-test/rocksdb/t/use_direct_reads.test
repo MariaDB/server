@@ -1,0 +1,5 @@
+--source include/have_rocksdb.inc
+
+--let $io_option=--rocksdb_use_direct_reads=1
+
+--source ../include/use_direct_io_option.inc

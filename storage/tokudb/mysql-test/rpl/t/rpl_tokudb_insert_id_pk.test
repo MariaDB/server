@@ -3,4 +3,4 @@
 #################################
 -- source include/have_tokudb.inc
 let $engine_type=tokudb;
--- source extra/rpl_tests/rpl_insert_id_pk.test
+-- source suite/rpl/include/rpl_insert_id_pk.test

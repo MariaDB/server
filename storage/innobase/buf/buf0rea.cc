@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2017, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -24,7 +24,7 @@ The database buffer read
 Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
-#include "ha_prototypes.h"
+#include "univ.i"
 #include <mysql/service_thd_wait.h>
 
 #include "buf0rea.h"
@@ -63,13 +63,14 @@ buf_read_page_handle_error(
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 	const bool	uncompressed = (buf_page_get_state(bpage)
 					== BUF_BLOCK_FILE_PAGE);
+	const page_id_t	old_page_id = bpage->id;
 
 	/* First unfix and release lock on the bpage */
 	buf_pool_mutex_enter(buf_pool);
 	mutex_enter(buf_page_get_mutex(bpage));
 	ut_ad(buf_page_get_io_fix(bpage) == BUF_IO_READ);
-	ut_ad(bpage->buf_fix_count == 0);
 
+	bpage->id.set_corrupt_id();
 	/* Set BUF_IO_NONE before we remove the block from LRU list */
 	buf_page_set_io_fix(bpage, BUF_IO_NONE);
 
@@ -82,7 +83,7 @@ buf_read_page_handle_error(
 	mutex_exit(buf_page_get_mutex(bpage));
 
 	/* remove the block from LRU list */
-	buf_LRU_free_one_page(bpage);
+	buf_LRU_free_one_page(bpage, old_page_id);
 
 	ut_ad(buf_pool->n_pend_reads > 0);
 	buf_pool->n_pend_reads--;
@@ -117,7 +118,7 @@ buf_read_page_low(
 	bool			sync,
 	ulint			type,
 	ulint			mode,
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	bool			unzip,
 	bool			ignore_missing_space = false)
@@ -176,17 +177,6 @@ buf_read_page_low(
 		dst = ((buf_block_t*) bpage)->frame;
 	}
 
-	DBUG_EXECUTE_IF(
-		"innodb_invalid_read_after_truncate",
-		if (fil_space_t* space = fil_space_acquire(page_id.space())) {
-			if (!strcmp(space->name, "test/t1")
-			    && page_id.page_no() == space->size - 1) {
-				type = 0;
-				sync = true;
-			}
-			fil_space_release(space);
-		});
-
 	IORequest	request(type | IORequest::READ);
 
 	*err = fil_io(
@@ -197,13 +187,13 @@ buf_read_page_low(
 		thd_wait_end(NULL);
 	}
 
-	if (*err != DB_SUCCESS) {
+	if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
 		if (*err == DB_TABLESPACE_TRUNCATED) {
 			/* Remove the page which is outside the
 			truncated tablespace bounds when recovering
 			from a crash happened during a truncation */
 			buf_read_page_handle_error(bpage);
-			if (recv_recovery_on) {
+			if (recv_recovery_is_on()) {
 				mutex_enter(&recv_sys->mutex);
 				ut_ad(recv_sys->n_addrs > 0);
 				recv_sys->n_addrs--;
@@ -211,7 +201,8 @@ buf_read_page_low(
 			}
 			return(0);
 		} else if (IORequest::ignore_missing(type)
-			   || *err == DB_TABLESPACE_DELETED) {
+			   || *err == DB_TABLESPACE_DELETED
+			   || *err == DB_IO_ERROR) {
 			buf_read_page_handle_error(bpage);
 			return(0);
 		}
@@ -250,7 +241,7 @@ pages, it may happen that the page at the given page number does not
 get read even if we return a positive value! */
 ulint
 buf_read_ahead_random(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ibool			inside_ibuf)
 {
@@ -289,32 +280,9 @@ buf_read_ahead_random(
 	high = (page_id.page_no() / buf_read_ahead_random_area + 1)
 		* buf_read_ahead_random_area;
 
-	/* Remember the tablespace version before we ask the tablespace size
-	below: if DISCARD + IMPORT changes the actual .ibd file meanwhile, we
-	do not try to read outside the bounds of the tablespace! */
 	if (fil_space_t* space = fil_space_acquire(page_id.space())) {
-
-#ifdef UNIV_DEBUG
-		if (srv_file_per_table) {
-			ulint	size = 0;
-
-			for (const fil_node_t*	node =
-				UT_LIST_GET_FIRST(space->chain);
-			     node != NULL;
-			     node = UT_LIST_GET_NEXT(chain, node)) {
-
-				size += ulint(os_file_get_size(node->handle)
-					/ page_size.physical());
-			}
-
-			ut_ad(size == space->size);
-		}
-#endif /* UNIV_DEBUG */
-
-		if (high > space->size) {
-			high = space->size;
-		}
-		fil_space_release(space);
+		high = space->max_page_number_for_io(high);
+		space->release();
 	} else {
 		return(0);
 	}
@@ -332,19 +300,6 @@ buf_read_ahead_random(
 	that is, reside near the start of the LRU list. */
 
 	for (i = low; i < high; i++) {
-		DBUG_EXECUTE_IF(
-			"innodb_invalid_read_after_truncate",
-			if (fil_space_t* space = fil_space_acquire(
-				    page_id.space())) {
-				bool skip = !strcmp(space->name, "test/t1");
-				fil_space_release(space);
-				if (skip) {
-					high = space->size;
-					buf_pool_mutex_exit(buf_pool);
-					goto read_ahead;
-				}
-			});
-
 		const buf_page_t*	bpage = buf_page_hash_get(
 			buf_pool, page_id_t(page_id.space(), i));
 
@@ -443,7 +398,7 @@ after decryption normal page checksum does not match.
 @retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
 dberr_t
 buf_read_page(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size)
 {
 	ulint		count;
@@ -481,7 +436,7 @@ released by the i/o-handler thread.
 @param[in]	sync		true if synchronous aio is desired */
 void
 buf_read_page_background(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	bool			sync)
 {
@@ -553,7 +508,7 @@ which could result in a deadlock if the OS does not support asynchronous io.
 @return number of page read requests issued */
 ulint
 buf_read_ahead_linear(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ibool			inside_ibuf)
 {
@@ -603,14 +558,11 @@ buf_read_ahead_linear(
 		return(0);
 	}
 
-	/* Remember the tablespace version before we ask te tablespace size
-	below: if DISCARD + IMPORT changes the actual .ibd file meanwhile, we
-	do not try to read outside the bounds of the tablespace! */
 	ulint	space_size;
 
 	if (fil_space_t* space = fil_space_acquire(page_id.space())) {
-		space_size = space->size;
-		fil_space_release(space);
+		space_size = space->committed_size;
+		space->release();
 
 		if (high > space_size) {
 			/* The area is not whole */
@@ -838,15 +790,12 @@ buf_read_ibuf_merge_pages(
 					in the arrays */
 {
 #ifdef UNIV_IBUF_DEBUG
-	ut_a(n_stored < UNIV_PAGE_SIZE);
+	ut_a(n_stored < srv_page_size);
 #endif
 
 	for (ulint i = 0; i < n_stored; i++) {
-		bool			found;
-		const page_size_t	page_size(fil_space_get_page_size(
-			space_ids[i], &found));
-
-		if (!found) {
+		fil_space_t* space = fil_space_acquire_silent(space_ids[i]);
+		if (!space) {
 tablespace_deleted:
 			/* The tablespace was not found: remove all
 			entries for it */
@@ -855,6 +804,24 @@ tablespace_deleted:
 			       && space_ids[i + 1] == space_ids[i]) {
 				i++;
 			}
+			continue;
+		}
+
+		ulint size = space->size;
+		if (!size) {
+			size = fil_space_get_size(space->id);
+		}
+
+		if (UNIV_UNLIKELY(page_nos[i] >= size)) {
+			do {
+				ibuf_delete_recs(page_id_t(space_ids[i],
+							   page_nos[i]));
+			} while (++i < n_stored
+				 && space_ids[i - 1] == space_ids[i]
+				 && page_nos[i] >= size);
+			i--;
+next:
+			space->release();
 			continue;
 		}
 
@@ -872,8 +839,8 @@ tablespace_deleted:
 		buf_read_page_low(&err,
 				  sync && (i + 1 == n_stored),
 				  0,
-				  BUF_READ_ANY_PAGE, page_id, page_size,
-				  true, true /* ignore_missing_space */);
+				  BUF_READ_ANY_PAGE, page_id,
+				  page_size_t(space->flags), true);
 
 		switch(err) {
 		case DB_SUCCESS:
@@ -881,15 +848,20 @@ tablespace_deleted:
 		case DB_ERROR:
 			break;
 		case DB_TABLESPACE_DELETED:
+			space->release();
 			goto tablespace_deleted;
 		case DB_PAGE_CORRUPTED:
 		case DB_DECRYPTION_FAILED:
-			ib::error() << "Failed to read or decrypt " << page_id
-				<< " for change buffer merge";
+			ib::error() << "Failed to read or decrypt page "
+				    << page_nos[i]
+				    << " of '" << space->chain.start->name
+				    << "' for change buffer merge";
 			break;
 		default:
 			ut_error;
 		}
+
+		goto next;
 	}
 
 	os_aio_simulated_wake_handler_threads();
@@ -933,8 +905,12 @@ buf_read_recv_pages(
 		ulint			count = 0;
 
 		buf_pool = buf_pool_get(cur_page_id);
-		while (buf_pool->n_pend_reads >= recv_n_pool_free_frames / 2) {
+		ulint limit = 0;
+		for (ulint j = 0; j < buf_pool->n_chunks; j++) {
+			limit += buf_pool->chunks[j].size / 2;
+		}
 
+		while (buf_pool->n_pend_reads >= limit) {
 			os_aio_simulated_wake_handler_threads();
 			os_thread_sleep(10000);
 

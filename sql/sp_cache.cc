@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -238,11 +238,6 @@ void sp_cache_flush_obsolete(sp_cache **cp, sp_head **sp)
   }
 }
 
-void sp_cache_flush(sp_cache *cp, sp_head *sp)
-{
-  cp->remove(sp);
-}
-
 /**
   Return the current global version of the cache.
 */
@@ -288,7 +283,7 @@ uchar *hash_get_key_for_sp_head(const uchar *ptr, size_t *plen,
 void hash_free_sp_head(void *p)
 {
   sp_head *sp= (sp_head *)p;
-  delete sp;
+  sp_head::destroy(sp);
 }
 
 

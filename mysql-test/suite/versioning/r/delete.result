@@ -1,3 +1,4 @@
+# Basic + delete from view
 create or replace table t1(
 XNo int unsigned,
 sys_start SYS_DATATYPE as row start invisible,
@@ -44,6 +45,7 @@ XNo_vt1
 5
 drop view vt1;
 drop table t1;
+# Check sys_start, sys_end
 create or replace table t1(
 x int,
 sys_start SYS_DATATYPE as row start invisible,
@@ -59,6 +61,7 @@ select x = 1 as A, sys_start = @sys_start as B, sys_end > sys_start as C from t1
 A	B	C
 1	1	1
 drop table t1;
+# Multi-delete
 create or replace table t1(
 x int,
 y int,
@@ -103,9 +106,6 @@ t2_x_all
 14
 drop table t1;
 drop table t2;
-# Basic + delete from view
-# Check sys_start, sys_end
-# Multi-delete
 # Update + delete
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1);
@@ -115,5 +115,37 @@ select x from t1 for system_time all;
 x
 2
 1
-drop database test;
-create database test;
+drop table t1;
+#
+# MDEV-18929 2nd execution of SP does not detect ER_VERS_NOT_VERSIONED
+#
+create or replace table t1 (a int) with system versioning;
+replace into t1 values (1), (2);
+create or replace trigger tr before delete on t1 for each row delete from xx;
+create or replace procedure pr() delete from t1;
+call pr;
+ERROR 42S02: Table 'test.xx' doesn't exist
+call pr;
+ERROR 42S02: Table 'test.xx' doesn't exist
+drop procedure pr;
+drop trigger tr;
+drop table t1;
+#
+# MDEV-21138 Assertion `col->ord_part' or `f.col->ord_part' failed in row_build_index_entry_low
+#
+create table t1 (
+f1 int, f2 text, f3 int, fulltext (f2), key(f1), key(f3),
+foreign key r (f3) references t1 (f1) on delete set null)
+with system versioning engine innodb;
+insert into t1 values (1, repeat('a', 8193), 1), (1, repeat('b', 8193), 1);
+select f1, f3, check_row_ts(row_start, row_end) from t1;
+f1	f3	check_row_ts(row_start, row_end)
+1	1	CURRENT ROW
+1	1	CURRENT ROW
+delete from t1;
+select f1, f3, check_row_ts(row_start, row_end) from t1 for system_time all;
+f1	f3	check_row_ts(row_start, row_end)
+1	1	HISTORICAL ROW
+1	NULL	ERROR: row_end == row_start
+1	1	HISTORICAL ROW
+drop table t1;

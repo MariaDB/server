@@ -318,6 +318,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "sql_servers.h"
 #include "sql_analyse.h"                        // append_escaped()
 #include "sql_show.h"                           // append_identifier()
+#include "tztime.h"                             // my_tz_find()
 
 #ifdef I_AM_PARANOID
 #define MIN_PORT 1023
@@ -339,6 +340,8 @@ static const int bulk_padding= 64;              // bytes "overhead" in packet
 static const uint sizeof_trailing_comma= sizeof(", ") - 1;
 static const uint sizeof_trailing_and= sizeof(" AND ") - 1;
 static const uint sizeof_trailing_where= sizeof(" WHERE ") - 1;
+
+static Time_zone *UTC= 0;
 
 /* Static declaration for handerton */
 static handler *federatedx_create_handler(handlerton *hton,
@@ -795,12 +798,12 @@ static int parse_url(MEM_ROOT *mem_root, FEDERATEDX_SHARE *share,
       goto error;
 
     if (share->hostname[0] == '\0')
-      share->hostname= NULL;
+      share->hostname= strdup_root(mem_root, my_localhost);
 
   }
   if (!share->port)
   {
-    if (!share->hostname || strcmp(share->hostname, my_localhost) == 0)
+    if (0 == strcmp(share->hostname, my_localhost))
       share->socket= (char *) MYSQL_UNIX_ADDR;
     else
       share->port= MYSQL_PORT;
@@ -859,9 +862,11 @@ uint ha_federatedx::convert_row_to_internal_format(uchar *record,
   ulong *lengths;
   Field **field;
   int column= 0;
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
+  Time_zone *saved_time_zone= table->in_use->variables.time_zone;
   DBUG_ENTER("ha_federatedx::convert_row_to_internal_format");
 
+  table->in_use->variables.time_zone= UTC;
   lengths= io->fetch_lengths(result);
 
   for (field= table->field; *field; field++, column++)
@@ -885,7 +890,8 @@ uint ha_federatedx::convert_row_to_internal_format(uchar *record,
     }
     (*field)->move_field_offset(-old_ptr);
   }
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  table->in_use->variables.time_zone= saved_time_zone;
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
   DBUG_RETURN(0);
 }
 
@@ -1213,14 +1219,15 @@ bool ha_federatedx::create_where_from_key(String *to,
   char tmpbuff[FEDERATEDX_QUERY_BUFFER_SIZE];
   String tmp(tmpbuff, sizeof(tmpbuff), system_charset_info);
   const key_range *ranges[2]= { start_key, end_key };
-  my_bitmap_map *old_map;
+  Time_zone *saved_time_zone= table->in_use->variables.time_zone;
   DBUG_ENTER("ha_federatedx::create_where_from_key");
 
   tmp.length(0); 
   if (start_key == NULL && end_key == NULL)
     DBUG_RETURN(1);
 
-  old_map= dbug_tmp_use_all_columns(table, table->write_set);
+  table->in_use->variables.time_zone= UTC;
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
   for (uint i= 0; i <= 1; i++)
   {
     bool needs_quotes;
@@ -1396,7 +1403,8 @@ prepare_for_next_key_part:
                   tmp.c_ptr_quick()));
     }
   }
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
+  table->in_use->variables.time_zone= saved_time_zone;
 
   if (both_not_null)
     if (tmp.append(STRING_WITH_LEN(") ")))
@@ -1411,7 +1419,8 @@ prepare_for_next_key_part:
   DBUG_RETURN(0);
 
 err:
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
+  table->in_use->variables.time_zone= saved_time_zone;
   DBUG_RETURN(1);
 }
 
@@ -1581,6 +1590,12 @@ static FEDERATEDX_SHARE *get_share(const char *table_name, TABLE *table)
   init_alloc_root(&mem_root, "federated", 256, 0, MYF(0));
 
   mysql_mutex_lock(&federatedx_mutex);
+
+  if (unlikely(!UTC))
+  {
+    String tz_00_name(STRING_WITH_LEN("+00:00"), &my_charset_bin);
+    UTC= my_tz_find(current_thd, &tz_00_name);
+  }
 
   tmp_share.share_key= table_name;
   tmp_share.share_key_length= (int)strlen(table_name);
@@ -1978,9 +1993,11 @@ int ha_federatedx::write_row(uchar *buf)
   String insert_field_value_string(insert_field_value_buffer,
                                    sizeof(insert_field_value_buffer),
                                    &my_charset_bin);
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  Time_zone *saved_time_zone= table->in_use->variables.time_zone;
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   DBUG_ENTER("ha_federatedx::write_row");
 
+  table->in_use->variables.time_zone= UTC;
   values_string.length(0);
   insert_field_value_string.length(0);
 
@@ -2032,7 +2049,8 @@ int ha_federatedx::write_row(uchar *buf)
       values_string.append(STRING_WITH_LEN(", "));
     }
   }
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
+  table->in_use->variables.time_zone= saved_time_zone;
 
   /*
     if there were no fields, we don't want to add a closing paren
@@ -2340,6 +2358,8 @@ int ha_federatedx::update_row(const uchar *old_data, const uchar *new_data)
     field=oldvalue
   */
 
+  Time_zone *saved_time_zone= table->in_use->variables.time_zone;
+  table->in_use->variables.time_zone= UTC;
   for (Field **field= table->field; *field; field++)
   {
     if (bitmap_is_set(table->write_set, (*field)->field_index))
@@ -2354,7 +2374,7 @@ int ha_federatedx::update_row(const uchar *old_data, const uchar *new_data)
       else
       {
         /* otherwise = */
-        my_bitmap_map *old_map= tmp_use_all_columns(table, table->read_set);
+        MY_BITMAP *old_map= tmp_use_all_columns(table, &table->read_set);
         bool needs_quote= (*field)->str_needs_quotes();
 	(*field)->val_str(&field_value);
         if (needs_quote)
@@ -2363,7 +2383,7 @@ int ha_federatedx::update_row(const uchar *old_data, const uchar *new_data)
         if (needs_quote)
           update_string.append(value_quote_char);
         field_value.length(0);
-        tmp_restore_column_map(table->read_set, old_map);
+        tmp_restore_column_map(&table->read_set, old_map);
       }
       update_string.append(STRING_WITH_LEN(", "));
     }
@@ -2391,6 +2411,7 @@ int ha_federatedx::update_row(const uchar *old_data, const uchar *new_data)
       where_string.append(STRING_WITH_LEN(" AND "));
     }
   }
+  table->in_use->variables.time_zone= saved_time_zone;
 
   /* Remove last ', '. This works as there must be at least on updated field */
   update_string.length(update_string.length() - sizeof_trailing_comma);
@@ -2451,6 +2472,8 @@ int ha_federatedx::delete_row(const uchar *buf)
                share->table_name_length, ident_quote_char);
   delete_string.append(STRING_WITH_LEN(" WHERE "));
 
+  Time_zone *saved_time_zone= table->in_use->variables.time_zone;
+  table->in_use->variables.time_zone= UTC;
   for (Field **field= table->field; *field; field++)
   {
     Field *cur_field= *field;
@@ -2478,6 +2501,7 @@ int ha_federatedx::delete_row(const uchar *buf)
       delete_string.append(STRING_WITH_LEN(" AND "));
     }
   }
+  table->in_use->variables.time_zone= saved_time_zone;
 
   // Remove trailing AND
   delete_string.length(delete_string.length() - sizeof_trailing_and);
@@ -2908,7 +2932,7 @@ int ha_federatedx::read_next(uchar *buf, FEDERATEDX_IO_RESULT *result)
     DBUG_RETURN(retval);
 
   /* Fetch a row, insert it back in a row format. */
-  if (!(row= io->fetch_row(result)))
+  if (!(row= io->fetch_row(result, &current)))
     DBUG_RETURN(HA_ERR_END_OF_FILE);
 
   if (!(retval= convert_row_to_internal_format(buf, row, result)))
@@ -2952,7 +2976,7 @@ void ha_federatedx::position(const uchar *record __attribute__ ((unused)))
   if (txn->acquire(share, ha_thd(), TRUE, &io))
     DBUG_VOID_RETURN;
 
-  io->mark_position(stored_result, ref);
+  io->mark_position(stored_result, ref, current);
 
   position_called= TRUE;
 
@@ -3216,7 +3240,10 @@ int ha_federatedx::delete_all_rows()
   query.length(0);
 
   query.set_charset(system_charset_info);
-  query.append(STRING_WITH_LEN("TRUNCATE "));
+  if (thd->lex->sql_command == SQLCOM_TRUNCATE)
+    query.append(STRING_WITH_LEN("TRUNCATE "));
+  else
+    query.append(STRING_WITH_LEN("DELETE FROM "));
   append_ident(&query, share->table_name, share->table_name_length,
                ident_quote_char);
 
@@ -3357,8 +3384,7 @@ int ha_federatedx::create(const char *name, TABLE *table_arg,
     goto error;
 
   /* loopback socket connections hang due to LOCK_open mutex */
-  if ((!tmp_share.hostname || !strcmp(tmp_share.hostname,my_localhost)) &&
-      !tmp_share.port)
+  if (0 == strcmp(tmp_share.hostname, my_localhost) && !tmp_share.port)
     goto error;
 
   /*
@@ -3583,6 +3609,11 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
   MYSQL mysql;
   char buf[1024];
   String query(buf, sizeof(buf), cs);
+  static LEX_CSTRING cut_clause={STRING_WITH_LEN(" WITH SYSTEM VERSIONING")};
+  static LEX_CSTRING cut_start={STRING_WITH_LEN("GENERATED ALWAYS AS ROW START")};
+  static LEX_CSTRING cut_end={STRING_WITH_LEN("GENERATED ALWAYS AS ROW END")};
+  static LEX_CSTRING set_ts={STRING_WITH_LEN("DEFAULT TIMESTAMP'1971-01-01 00:00:00'")};
+  int cut_offset;
   MYSQL_RES *res;
   MYSQL_ROW rdata;
   ulong *rlen;
@@ -3593,8 +3624,7 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
 
   mysql_init(&mysql);
   mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, cs->csname);
-  mysql_options(&mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
-                (char*) &my_true);
+  mysql_options(&mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, (char*)&my_true);
 
   if (!mysql_real_connect(&mysql, tmp_share.hostname, tmp_share.username,
                           tmp_share.password, tmp_share.database,
@@ -3618,6 +3648,24 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
     goto err2;
 
   query.copy(rdata[1], rlen[1], cs);
+  cut_offset= (int)query.length() - (int)cut_clause.length;
+  if (cut_offset > 0 && !memcmp(query.ptr() + cut_offset,
+                                cut_clause.str, cut_clause.length))
+  {
+    query.length(cut_offset);
+    const char *ptr= strstr(query.ptr(), cut_start.str);
+    if (ptr)
+    {
+      query.replace((uint32) (ptr - query.ptr()), (uint32) cut_start.length,
+                    set_ts.str, (uint32) set_ts.length);
+    }
+    ptr= strstr(query.ptr(), cut_end.str);
+    if (ptr)
+    {
+      query.replace((uint32) (ptr - query.ptr()), (uint32) cut_end.length,
+                    set_ts.str, (uint32) set_ts.length);
+    }
+  }
   query.append(STRING_WITH_LEN(" CONNECTION='"), cs);
   query.append_for_single_quote(table_s->connect_string.str,
                                 table_s->connect_string.length);
@@ -3645,7 +3693,7 @@ maria_declare_plugin(federatedx)
   &federatedx_storage_engine,
   "FEDERATED",
   "Patrick Galbraith",
-  "FederatedX pluggable storage engine",
+  "Allows to access tables on other MariaDB servers, supports transactions and more",
   PLUGIN_LICENSE_GPL,
   federatedx_db_init, /* Plugin Init */
   federatedx_done, /* Plugin Deinit */

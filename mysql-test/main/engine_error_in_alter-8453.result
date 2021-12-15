@@ -1,0 +1,7 @@
+create table t1 (a int, b int);
+SET @saved_dbug = @@SESSION.debug_dbug;
+SET debug_dbug='+d,external_lock_failure';
+alter table t1 add column c int;
+ERROR HY000: Got error 168 'KABOOM!' from MyISAM
+SET debug_dbug= @saved_dbug;
+drop table t1;

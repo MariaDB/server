@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef MY_DIR_H
 #define MY_DIR_H
@@ -50,7 +50,7 @@ extern "C" {
 #define MY_S_ISREG(m)	(((m) & MY_S_IFMT) == MY_S_IFREG)
 #define MY_S_ISFIFO(m)	(((m) & MY_S_IFMT) == MY_S_IFIFO)
 
-/* Ensure these dosn't clash with anything in my_sys.h */
+/* Ensure these doesn't clash with anything in my_sys.h */
 #define MY_WANT_SORT     8192   /* my_lib; sort files */
 #define MY_WANT_STAT	16384	/* my_lib; stat files */
 #define MY_DONT_SORT        0
@@ -63,7 +63,7 @@ typedef struct my_stat
 {
   dev_t		st_dev;		/* major & minor device numbers */
   ino_t		st_ino;		/* inode number */
-  ushort	st_mode;	/* file permissons (& suid sgid .. bits) */
+  ushort	st_mode;	/* file permissions (& suid sgid .. bits) */
   short		st_nlink;	/* number of links to file */
   ushort	st_uid;		/* user id */
   ushort	st_gid;		/* group id */
@@ -76,10 +76,10 @@ typedef struct my_stat
 
 #else
 
-#if(_MSC_VER)
+#if defined(_MSC_VER)
 #define MY_STAT struct _stati64 /* 64 bit file size */
 #else
-#define MY_STAT struct stat	/* Orginal struct have what we need */
+#define MY_STAT struct stat	/* Original struct has what we need */
 #endif
 
 #endif /* USE_MY_STAT_STRUCT */

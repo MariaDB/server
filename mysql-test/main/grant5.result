@@ -1,0 +1,184 @@
+SHOW GRANTS FOR root@invalid_host;
+ERROR 42000: There is no such grant defined for user 'root' on host 'invalid_host'
+create user test;
+create user foo;
+create role foo;
+grant foo to test;
+connect  conn_1, localhost, test,,;
+set role foo;
+show grants for test;
+Grants for test@%
+GRANT `foo` TO `test`@`%`
+GRANT USAGE ON *.* TO `test`@`%`
+show grants for foo;
+Grants for foo
+GRANT USAGE ON *.* TO `foo`
+show grants for foo@'%';
+ERROR 42000: Access denied for user 'test'@'%' to database 'mysql'
+connection default;
+drop user test, foo;
+drop role foo;
+CREATE TABLE t1 (a INT);
+LOCK TABLE t1 WRITE;
+REVOKE EXECUTE ON PROCEDURE sp FROM u;
+ERROR HY000: Table 'user' was not locked with LOCK TABLES
+REVOKE PROCESS ON *.* FROM u;
+ERROR HY000: Table 'user' was not locked with LOCK TABLES
+DROP TABLE t1;
+create database mysqltest1;
+use mysqltest1;
+create table t1(id int);
+insert t1 values(2);
+create user u1@localhost;
+grant select on mysqltest1.t1 to u1@localhost;
+grant update on mysqltest1.* to u1@localhost;
+connect u1, localhost, u1;
+update mysqltest1.t1 set id=1 where id=2;
+connection default;
+disconnect u1;
+drop user u1@localhost;
+drop database mysqltest1;
+CREATE ROLE test_role;
+CREATE USER test_user;
+GRANT test_role TO test_user;
+SET DEFAULT ROLE test_role FOR test_user;
+SHOW GRANTS FOR test_user;
+Grants for test_user@%
+GRANT `test_role` TO `test_user`@`%`
+GRANT USAGE ON *.* TO `test_user`@`%`
+SET DEFAULT ROLE `test_role` FOR `test_user`@`%`
+SET DEFAULT ROLE NONE for test_user;
+SHOW GRANTS FOR test_user;
+Grants for test_user@%
+GRANT `test_role` TO `test_user`@`%`
+GRANT USAGE ON *.* TO `test_user`@`%`
+SET ROLE test_role;
+SET DEFAULT ROLE test_role;
+SHOW GRANTS;
+Grants for root@localhost
+GRANT `test_role` TO `root`@`localhost` WITH ADMIN OPTION
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT USAGE ON *.* TO `test_role`
+SET DEFAULT ROLE `test_role` FOR `root`@`localhost`
+SET DEFAULT ROLE NONE;
+SHOW GRANTS;
+Grants for root@localhost
+GRANT `test_role` TO `root`@`localhost` WITH ADMIN OPTION
+GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+GRANT USAGE ON *.* TO `test_role`
+DROP USER test_user;
+DROP ROLE test_role;
+#
+# MDEV-20076: SHOW GRANTS does not quote role names properly
+#
+create role 'role1';
+create role 'fetch';
+create role 'role-1';
+create role 'rock\'n\'roll';
+create user 'user1'@'localhost';
+create user 'fetch'@'localhost';
+create user 'user-1'@'localhost';
+create user 'O\'Brien'@'localhost';
+grant select on mysql.user to role1;
+grant select on mysql.user to 'fetch';
+grant select on mysql.user to 'role-1';
+grant select on mysql.user to 'rock\'n\'roll';
+GRANT 'role1' TO 'user1'@'localhost';
+GRANT 'fetch' TO 'fetch'@'localhost';
+GRANT 'role-1' TO 'user-1'@'localhost';
+GRANT 'rock\'n\'roll' TO 'O\'Brien'@'localhost';
+show grants for 'role1';
+Grants for role1
+GRANT USAGE ON *.* TO `role1`
+GRANT SELECT ON `mysql`.`user` TO `role1`
+show grants for 'fetch';
+Grants for fetch
+GRANT USAGE ON *.* TO `fetch`
+GRANT SELECT ON `mysql`.`user` TO `fetch`
+show grants for 'role-1';
+Grants for role-1
+GRANT USAGE ON *.* TO `role-1`
+GRANT SELECT ON `mysql`.`user` TO `role-1`
+show grants for 'rock\'n\'roll';
+Grants for rock'n'roll
+GRANT USAGE ON *.* TO `rock'n'roll`
+GRANT SELECT ON `mysql`.`user` TO `rock'n'roll`
+show grants for 'user1'@'localhost';
+Grants for user1@localhost
+GRANT `role1` TO `user1`@`localhost`
+GRANT USAGE ON *.* TO `user1`@`localhost`
+show grants for 'fetch'@'localhost';
+Grants for fetch@localhost
+GRANT `fetch` TO `fetch`@`localhost`
+GRANT USAGE ON *.* TO `fetch`@`localhost`
+show grants for 'user-1'@'localhost';
+Grants for user-1@localhost
+GRANT `role-1` TO `user-1`@`localhost`
+GRANT USAGE ON *.* TO `user-1`@`localhost`
+show grants for 'O\'Brien'@'localhost';
+Grants for O'Brien@localhost
+GRANT `rock'n'roll` TO `O'Brien`@`localhost`
+GRANT USAGE ON *.* TO `O'Brien`@`localhost`
+set @save_sql_quote_show_create= @@sql_quote_show_create;
+set @@sql_quote_show_create= OFF;
+show grants for 'role1';
+Grants for role1
+GRANT USAGE ON *.* TO role1
+GRANT SELECT ON `mysql`.`user` TO role1
+show grants for 'fetch';
+Grants for fetch
+GRANT USAGE ON *.* TO `fetch`
+GRANT SELECT ON `mysql`.`user` TO `fetch`
+show grants for 'role-1';
+Grants for role-1
+GRANT USAGE ON *.* TO `role-1`
+GRANT SELECT ON `mysql`.`user` TO `role-1`
+show grants for 'rock\'n\'roll';
+Grants for rock'n'roll
+GRANT USAGE ON *.* TO `rock'n'roll`
+GRANT SELECT ON `mysql`.`user` TO `rock'n'roll`
+show grants for 'user1'@'localhost';
+Grants for user1@localhost
+GRANT role1 TO user1@localhost
+GRANT USAGE ON *.* TO user1@localhost
+show grants for 'fetch'@'localhost';
+Grants for fetch@localhost
+GRANT `fetch` TO `fetch`@localhost
+GRANT USAGE ON *.* TO `fetch`@localhost
+show grants for 'user-1'@'localhost';
+Grants for user-1@localhost
+GRANT `role-1` TO `user-1`@localhost
+GRANT USAGE ON *.* TO `user-1`@localhost
+show grants for 'O\'Brien'@'localhost';
+Grants for O'Brien@localhost
+GRANT `rock'n'roll` TO `O'Brien`@localhost
+GRANT USAGE ON *.* TO `O'Brien`@localhost
+set @@sql_quote_show_create= @save_sql_quote_show_create;
+drop role 'role1';
+drop role 'fetch';
+drop role 'role-1';
+drop role 'rock\'n\'roll';
+drop user 'user1'@'localhost';
+drop user 'fetch'@'localhost';
+drop user 'user-1'@'localhost';
+drop user 'O\'Brien'@'localhost';
+#
+# MDEV-26080 SHOW GRANTS does not quote role names properly for DEFAULT ROLE
+#
+CREATE USER 'test-user';
+CREATE ROLE `r``o'l"e`;
+select user from mysql.user where is_role='Y';
+user
+r`o'l"e
+GRANT `r``o'l"e` TO 'test-user';
+SET DEFAULT ROLE `r``o'l"e` FOR 'test-user';
+SHOW GRANTS FOR 'test-user';
+Grants for test-user@%
+GRANT `r``o'l"e` TO `test-user`@`%`
+GRANT USAGE ON *.* TO `test-user`@`%`
+SET DEFAULT ROLE `r``o'l"e` FOR `test-user`@`%`
+DROP ROLE `r``o'l"e`;
+DROP USER 'test-user';
+# End of 10.3 tests

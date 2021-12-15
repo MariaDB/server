@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "hs_compat.h"
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -21,6 +21,7 @@
 #define SPIDER_DBTON_SIZE 15
 
 #define SPIDER_DB_WRAPPER_MYSQL "mysql"
+#define SPIDER_DB_WRAPPER_MARIADB "mariadb"
 
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100204
 #define PLUGIN_VAR_CAN_MEMALLOC
@@ -160,6 +161,8 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_IN_LEN (sizeof(SPIDER_SQL_IN_STR) - 1)
 #define SPIDER_SQL_NOT_IN_STR "not in("
 #define SPIDER_SQL_NOT_IN_LEN (sizeof(SPIDER_SQL_NOT_IN_STR) - 1)
+#define SPIDER_SQL_NOT_LIKE_STR "not like"
+#define SPIDER_SQL_NOT_LIKE_LEN (sizeof(SPIDER_SQL_NOT_LIKE_STR) - 1)
 #define SPIDER_SQL_AS_CHAR_STR " as char"
 #define SPIDER_SQL_AS_CHAR_LEN (sizeof(SPIDER_SQL_AS_CHAR_STR) - 1)
 #define SPIDER_SQL_CAST_STR "cast("
@@ -696,11 +699,14 @@ public:
   SPIDER_TABLE_HOLDER *add_table(
     ha_spider *spider_arg
   );
+  bool all_query_fields_are_query_table_members();
   int create_table_holder(
     uint table_count_arg
   );
   void set_pos_to_first_table_holder();
   SPIDER_TABLE_HOLDER *get_next_table_holder();
+  SPIDER_TABLE_HOLDER *get_table_holder(TABLE *table);
+  uint get_table_count();
   int add_field(Field *field_arg);
   SPIDER_FIELD_HOLDER *create_field_holder();
   void set_pos_to_first_field_holder();
@@ -792,6 +798,7 @@ struct st_spider_db_request_key
 class spider_db_util
 {
 public:
+  uint dbton_id;
   spider_db_util() {}
   virtual ~spider_db_util() {}
   virtual int append_name(
@@ -886,8 +893,11 @@ public:
   ) = 0;
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
   virtual int append_from_and_tables(
+    ha_spider *spider,
     spider_fields *fields,
-    spider_string *str
+    spider_string *str,
+    TABLE_LIST *table_list,
+    uint table_count
   ) = 0;
   virtual int reappend_tables(
     spider_fields *fields,
@@ -935,6 +945,7 @@ public:
     TABLE *tmp_table,
     spider_string *str
   ) = 0;
+  virtual uint get_byte_size() = 0;
 };
 
 class spider_db_result_buffer
@@ -954,8 +965,7 @@ protected:
   SPIDER_DB_CONN *db_conn;
 public:
   uint dbton_id;
-  spider_db_result(SPIDER_DB_CONN *in_db_conn, uint in_dbton_id) :
-    db_conn(in_db_conn), dbton_id(in_dbton_id) {}
+  spider_db_result(SPIDER_DB_CONN *in_db_conn);
   virtual ~spider_db_result() {}
   virtual bool has_result() = 0;
   virtual void free_result() = 0;
@@ -1021,9 +1031,10 @@ class spider_db_conn
 protected:
   SPIDER_CONN    *conn;
 public:
+  uint dbton_id;
   spider_db_conn(
-    SPIDER_CONN *conn
-  ) : conn(conn) {}
+    SPIDER_CONN *in_conn
+  );
   virtual ~spider_db_conn() {}
   virtual int init() = 0;
   virtual bool is_connected() = 0;
@@ -1222,8 +1233,12 @@ protected:
   const char         *mem_calc_file_name;
   ulong              mem_calc_line_no;
 public:
+  uint dbton_id;
   st_spider_share *spider_share;
-  spider_db_share(st_spider_share *share) : spider_share(share) {}
+  spider_db_share(
+    st_spider_share *share,
+    uint dbton_id
+  ) : dbton_id(dbton_id), spider_share(share) {}
   virtual ~spider_db_share() {}
   virtual int init() = 0;
   virtual uint get_column_name_length(
@@ -1257,6 +1272,7 @@ protected:
   const char         *mem_calc_file_name;
   ulong              mem_calc_line_no;
 public:
+  uint dbton_id;
   ha_spider *spider;
   spider_db_share *db_share;
   int first_link_idx;
@@ -1264,7 +1280,8 @@ public:
   SPIDER_LINK_IDX_CHAIN *link_idx_chain;
 #endif
   spider_db_handler(ha_spider *spider, spider_db_share *db_share) :
-    spider(spider), db_share(db_share), first_link_idx(-1) {}
+    dbton_id(db_share->dbton_id), spider(spider), db_share(db_share),
+    first_link_idx(-1) {}
   virtual ~spider_db_handler() {}
   virtual int init() = 0;
   virtual int append_index_hint(
@@ -1743,9 +1760,10 @@ public:
 class spider_db_copy_table
 {
 public:
+  uint dbton_id;
   spider_db_share *db_share;
   spider_db_copy_table(spider_db_share *db_share) :
-    db_share(db_share) {}
+    dbton_id(db_share->dbton_id), db_share(db_share) {}
   virtual ~spider_db_copy_table() {}
   virtual int init() = 0;
   virtual void set_sql_charset(
@@ -1941,6 +1959,7 @@ typedef struct st_spider_result_list
   int                     max_order;
   int                     quick_mode;
   longlong                quick_page_size;
+  longlong                quick_page_byte;
   int                     low_mem_read;
   int                     bulk_update_mode;
   int                     bulk_update_size;

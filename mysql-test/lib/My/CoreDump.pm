@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 package My::CoreDump;
 
@@ -264,6 +264,44 @@ EOF
 }
 
 
+sub _lldb
+{
+  my ($core_name)= @_;
+
+  print "\nTrying 'lldb' to get a backtrace from coredump $core_name\n";
+
+  # Create tempfile containing lldb commands
+  my ($tmp, $tmp_name)= tempfile();
+  print $tmp
+    "bt\n",
+    "thread backtrace all\n",
+    "quit\n";
+  close $tmp or die "Error closing $tmp_name: $!";
+
+  my $lldb_output= `lldb -c '$core_name' -s '$tmp_name' 2>&1`;
+
+  unlink $tmp_name or die "Error removing $tmp_name: $!";
+
+  if ($? == 127)
+  {
+    print "lldb not found, cannot get the stack trace\n";
+    return;
+  }
+
+  return if $?;
+  return unless $lldb_output;
+
+  resfile_print <<EOF . $lldb_output . "\n";
+Output from lldb follows. The first stack trace is from the failing thread.
+The following stack traces are from all threads (so the failing one is
+duplicated).
+--------------------------
+EOF
+  return 1;
+}
+
+
+
 sub show {
   my ($class, $core_name, $exe_mysqld, $parallel)= @_;
   $hint_mysqld= $exe_mysqld;
@@ -282,6 +320,7 @@ sub show {
     (
      \&_dbx,
      \&_gdb,
+     \&_lldb,
      # TODO...
    );
 

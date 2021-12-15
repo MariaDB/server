@@ -1,0 +1,33 @@
+source include/have_debug.inc;
+source include/have_binlog_format_mixed.inc;
+source include/master-slave.inc;
+
+connection slave;
+
+set @old_dbug=@@global.debug_dbug;
+set global debug_dbug='d,fail_com_register_slave';
+
+stop slave;
+reset slave;
+source include/wait_for_slave_to_stop.inc;
+start slave;
+stop slave;
+source include/wait_for_slave_to_stop.inc;
+set global debug_dbug=@old_dbug;
+
+connection master;
+
+let $id=`SELECT id from information_schema.processlist where command='Binlog Dump'`;
+
+if ($id) {
+  replace_result $id DUMP_THREAD;
+  eval kill $id;
+  let $wait_condition= SELECT count(*)=0 from information_schema.processlist where command='Killed';
+  source include/wait_condition.inc;
+}
+
+show slave hosts;
+
+connection slave;
+start slave;
+source include/rpl_end.inc;

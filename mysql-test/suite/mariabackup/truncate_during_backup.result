@@ -1,0 +1,4 @@
+CREATE TABLE t1 ENGINE=InnoDB SELECT 1;
+DROP TABLE t1;
+SET GLOBAL innodb_log_checkpoint_now=1;
+SET GLOBAL innodb_log_checkpoint_now=DEFAULT;

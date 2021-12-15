@@ -244,6 +244,7 @@ TIME,HOSTNAME,root,localhost,ID,0,CONNECT,mysql,,0
 TIME,HOSTNAME,root,localhost,ID,0,DISCONNECT,mysql,,0
 TIME,HOSTNAME,no_such_user,localhost,ID,0,FAILED_CONNECT,,,ID
 TIME,HOSTNAME,no_such_user,localhost,ID,0,DISCONNECT,,,0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_incl_users=\'odin, dva, tri\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'set global server_audit_incl_users=\'odin, root, dva, tri\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,CREATE,test,t2,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,test,'create table t2 (id int)',0

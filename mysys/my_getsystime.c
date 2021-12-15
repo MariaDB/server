@@ -12,15 +12,18 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 #include "mysys_priv.h"
 #include "my_static.h"
 
-#ifdef __WIN__
+#ifdef _WIN32
 #define OFFSET_TO_EPOC 116444736000000000LL
 static ulonglong query_performance_frequency;
+typedef void (WINAPI* get_system_time_as_filetime_t)(LPFILETIME);
+static get_system_time_as_filetime_t
+  my_GetSystemTimePreciseAsFileTime= GetSystemTimeAsFileTime;
 #endif
 #ifdef HAVE_LINUX_UNISTD_H
 #include <linux/unistd.h>
@@ -53,7 +56,7 @@ ulonglong my_interval_timer()
   return tp.tv_sec*1000000000ULL+tp.tv_nsec;
 #elif defined(HAVE_GETHRTIME)
   return gethrtime();
-#elif defined(__WIN__)
+#elif defined(_WIN32)
   LARGE_INTEGER t_cnt;
   if (query_performance_frequency)
   {
@@ -65,7 +68,7 @@ ulonglong my_interval_timer()
   else
   {
     ulonglong newtime;
-    GetSystemTimeAsFileTime((FILETIME*)&newtime);
+    my_GetSystemTimePreciseAsFileTime((FILETIME*)&newtime);
     return newtime*100ULL;
   }
 #else
@@ -82,11 +85,10 @@ ulonglong my_interval_timer()
 my_hrtime_t my_hrtime()
 {
   my_hrtime_t hrtime;
-#if defined(__WIN__)
+#if defined(_WIN32)
   ulonglong newtime;
-  GetSystemTimeAsFileTime((FILETIME*)&newtime);
-  newtime -= OFFSET_TO_EPOC;
-  hrtime.val= newtime/10;
+  my_GetSystemTimePreciseAsFileTime((FILETIME*)&newtime);
+  hrtime.val= (newtime - OFFSET_TO_EPOC)/10;
 #elif defined(HAVE_CLOCK_GETTIME)
   struct timespec tp;
   clock_gettime(CLOCK_REALTIME, &tp);
@@ -97,17 +99,44 @@ my_hrtime_t my_hrtime()
   while (gettimeofday(&t, NULL) != 0) {}
   hrtime.val= t.tv_sec*1000000ULL + t.tv_usec;
 #endif
+  DBUG_EXECUTE_IF("system_time_plus_one_hour", hrtime.val += 3600*1000000ULL;);
+  DBUG_EXECUTE_IF("system_time_minus_one_hour", hrtime.val -= 3600*1000000ULL;);
   return hrtime;
 }
 
+#ifdef _WIN32
+
+/*
+  Low accuracy, "coarse" timer.
+  Has lower latency than my_hrtime(). Used in situations, where microsecond
+  precision is not needed, e.g in Windows pthread_cond_timedwait, where POSIX 
+  interface needs nanoseconds, yet the underlying Windows function only
+  accepts millisecons.
+*/
+my_hrtime_t my_hrtime_coarse()
+{
+  my_hrtime_t hrtime;
+  ulonglong t;
+  GetSystemTimeAsFileTime((FILETIME*)&t);
+  hrtime.val= (t - OFFSET_TO_EPOC)/10;
+  return hrtime;
+}
+
+#endif
 
 void my_time_init()
 {
-#ifdef __WIN__
+#ifdef _WIN32
   compile_time_assert(sizeof(LARGE_INTEGER) ==
                       sizeof(query_performance_frequency));
   if (QueryPerformanceFrequency((LARGE_INTEGER *)&query_performance_frequency) == 0)
     query_performance_frequency= 0;
+
+  get_system_time_as_filetime_t f= (get_system_time_as_filetime_t)
+    GetProcAddress(GetModuleHandle("kernel32"),
+                   "GetSystemTimePreciseAsFileTime");
+  if (f)
+    my_GetSystemTimePreciseAsFileTime= f;
 #endif
 }
 

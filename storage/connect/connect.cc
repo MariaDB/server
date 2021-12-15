@@ -13,10 +13,10 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /***********************************************************************/
-/*  Author Olivier BERTRAND  bertrandop@gmail.com         2004-2017    */
+/*  Author Olivier BERTRAND  bertrandop@gmail.com         2004-2019    */
 /*                                                                     */
 /*  WHAT THIS PROGRAM DOES:                                            */
 /*  -----------------------                                            */
@@ -73,8 +73,7 @@ PGLOBAL CntExit(PGLOBAL g)
 			g->Activityp = NULL;
 		}	// endif Activityp
 
-    PlugExit(g);
-    g= NULL;
+    g= PlugExit(g);
     } // endif g
 
   return g;
@@ -93,7 +92,7 @@ void CntEndDB(PGLOBAL g)
 
     free(dbuserp);
 
-		if (trace)
+		if (trace(1))
 			htrc("CntEndDB: Freeing Dup\n");
 
 		g->Activityp->Aptr = NULL;
@@ -113,14 +112,14 @@ bool CntCheckDB(PGLOBAL g, PHC handler, const char *pathname)
   bool    rc= false;
   PDBUSER dbuserp= PlgGetUser(g);
 
-  if (trace) {
+  if (trace(1)) {
     printf("CntCheckDB: dbuserp=%p\n", dbuserp);
     } // endif trace
 
   if (!dbuserp || !handler)
     return true;
 
-  if (trace)
+  if (trace(1))
     printf("cat=%p oldhandler=%p newhandler=%p\n", dbuserp->Catalog,
     (dbuserp->Catalog) ? ((MYCAT*)dbuserp->Catalog)->GetHandler() : NULL,
            handler);
@@ -151,7 +150,7 @@ bool CntCheckDB(PGLOBAL g, PHC handler, const char *pathname)
   /*********************************************************************/
   sprintf(g->Message, MSG(DATABASE_LOADED), "???");
 
-  if (trace)
+  if (trace(1))
     printf("msg=%s\n", g->Message);
 
   return rc;
@@ -199,7 +198,7 @@ PTDB CntGetTDB(PGLOBAL g, LPCSTR name, MODE mode, PHC h)
 	PDBUSER dup = PlgGetUser(g);
 	volatile PCATLG  cat = (dup) ? dup->Catalog : NULL;  // Safe over throw
 
-	if (trace)
+	if (trace(1))
 		printf("CntGetTDB: name=%s mode=%d cat=%p\n", name, mode, cat);
 
 	if (!cat)
@@ -209,7 +208,7 @@ PTDB CntGetTDB(PGLOBAL g, LPCSTR name, MODE mode, PHC h)
 		// Get table object from the catalog
 		tabp = new(g) XTAB(name);
 
-		if (trace)
+		if (trace(1))
 			printf("CntGetTDB: tabp=%p\n", tabp);
 
 		// Perhaps this should be made thread safe
@@ -219,13 +218,13 @@ PTDB CntGetTDB(PGLOBAL g, LPCSTR name, MODE mode, PHC h)
 			printf("CntGetTDB: %s\n", g->Message);
 
 	} catch (int n) {
-		if (trace)
+		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
   } catch (const char *msg) {
 		strcpy(g->Message, msg);
 	}	// end catch
 
-  if (trace)
+  if (trace(1))
     printf("Returning tdbp=%p mode=%d\n", tdbp, mode);
 
   return tdbp;
@@ -244,7 +243,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 //PCOLUMN cp;
   PDBUSER dup= PlgGetUser(g);
 
-  if (trace)
+  if (trace(1))
     printf("CntOpenTable: tdbp=%p mode=%d\n", tdbp, mode);
 
   if (!tdbp) {
@@ -255,13 +254,13 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
 	try {
 		if (!c1) {
-			if (mode == MODE_INSERT)
+//		if (mode == MODE_INSERT)	 or CHECK TABLE
 				// Allocate all column blocks for that table
 				tdbp->ColDB(g, NULL, 0);
 
 		} else for (p = c1; *p; p += n) {
 			// Allocate only used column blocks
-			if (trace)
+			if (trace(1))
 				printf("Allocating column %s\n", p);
 
 			g->Message[0] = 0;    // To check whether ColDB made an error message
@@ -326,7 +325,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 			tdbp->SetSetCols(tdbp->GetColumns());
 
 		// Now do open the physical table
-		if (trace)
+		if (trace(1))
 			printf("Opening table %s in mode %d tdbp=%p\n",
 				tdbp->GetName(), mode, tdbp);
 
@@ -342,7 +341,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 		} // endif del
 
 
-		if (trace)
+		if (trace(1))
 			printf("About to open the table: tdbp=%p\n", tdbp);
 
 		if (mode != MODE_ANY && mode != MODE_ALTER) {
@@ -355,9 +354,8 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 		} // endif mode
 
 		rcop = false;
-
 	} catch (int n) {
-		if (trace)
+		if (trace(1))
 			htrc("Exception %d: %s\n", n, g->Message);
 	} catch (const char *msg) {
 		strcpy(g->Message, msg);
@@ -389,6 +387,9 @@ RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool reset, bool mrr)
 	try {
 		for (colp = tdbp->GetColumns(); rc == RC_OK && colp;
 			colp = colp->GetNext()) {
+			xtrc(2, "Going to read column %s of table %s\n",
+				colp->GetName(), tdbp->GetName());
+
 			if (reset)
 				colp->Reset();
 
@@ -400,12 +401,13 @@ RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool reset, bool mrr)
 		} // endfor colp
 
 	} catch (int n) {
-		if (trace)
+		if (trace(1))
 			printf("Error %d reading columns: %s\n", n, g->Message);
 
 		rc = RC_FX;
 	} catch (const char *msg) {
 		strcpy(g->Message, msg);
+		rc = RC_NF;
 	} // end catch
 
   return rc;
@@ -550,7 +552,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
 		return rc;
 	} // endif !USE_OPEN
 
-	if (trace)
+	if (trace(1))
 		printf("CntCloseTable: tdbp=%p mode=%d nox=%d abort=%d\n",
 			tdbp, tdbp->GetMode(), nox, abort);
 
@@ -562,7 +564,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
 			rc = tdbp->DeleteDB(g, RC_EF);    // Specific A.M. delete routine
 
 	} else if (tdbp->GetMode() == MODE_UPDATE && tdbp->IsIndexed())
-		rc = ((PTDBDOX)tdbp)->Txfp->UpdateSortedRows(g);
+		rc = ((PTDBDOS)tdbp)->GetTxfp()->UpdateSortedRows(g);
 
 	switch (rc) {
 		case RC_FX:
@@ -580,16 +582,16 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
 		tdbp->CloseDB(g);
 		tdbp->SetAbort(false);
 
-		if (trace > 1)
+		if (trace(2))
 			printf("Table %s closed\n", tdbp->GetName());
 
 		if (!nox && tdbp->GetMode() != MODE_READ && tdbp->GetMode() != MODE_ANY) {
-			if (trace > 1)
+			if (trace(2))
 				printf("About to reset opt\n");
 
 			if (!tdbp->IsRemote()) {
 				// Make all the eventual indexes
-				PTDBDOX tbxp = (PTDBDOX)tdbp;
+				PTDBDOS tbxp = (PTDBDOS)tdbp;
 				tbxp->ResetKindex(g, NULL);
 				tbxp->SetKey_Col(NULL);
 				rc = tbxp->ResetTableOpt(g, true, tbxp->GetDef()->Indexable() == 1);
@@ -604,7 +606,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
 		rc = RC_FX;
 	} // end catch
 
-	if (trace > 1)
+	if (trace(2))
 		htrc("Done rc=%d\n", rc);
 
 	return (rc == RC_OK || rc == RC_INFO) ? 0 : rc;
@@ -618,8 +620,8 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
 int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
   {
   PIXDEF  xdp;
-  PTDBDOX tdbp;
-  DOXDEF *dfp;
+  PTDBDOS tdbp;
+  DOSDEF *dfp;
 
   if (!ptdb)
     return -1;
@@ -629,9 +631,9 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
   } else if (ptdb->GetDef()->Indexable() == 3) {
     return 1;
   } else
-    tdbp= (PTDBDOX)ptdb;
+    tdbp= (PTDBDOS)ptdb;
 
-  dfp= (DOXDEF*)tdbp->To_Def;
+  dfp= (DOSDEF*)tdbp->GetDef();
 
 //if (!(k= colp->GetKey()))
 //  if (colp->GetOpt() >= 2) {
@@ -641,16 +643,16 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
       // This is a pseudo indexed sorted block optimized column
 //    return 0;
 
-  if (tdbp->To_Kindex)
-    if (((XXBASE*)tdbp->To_Kindex)->GetID() == id) {
-      tdbp->To_Kindex->Reset();                // Same index
-      return (tdbp->To_Kindex->IsMul()) ? 2 : 1;
+  if (tdbp->GetKindex())
+    if (((XXBASE*)tdbp->GetKindex())->GetID() == id) {
+      tdbp->GetKindex()->Reset();                // Same index
+      return (tdbp->GetKindex()->IsMul()) ? 2 : 1;
     } else {
-      tdbp->To_Kindex->Close();
-      tdbp->To_Kindex= NULL;
+      tdbp->GetKindex()->Close();
+      tdbp->SetKindex(NULL);
     } // endif colp
 
-  for (xdp= dfp->To_Indx; xdp; xdp= xdp->GetNext())
+  for (xdp= dfp->GetIndx(); xdp; xdp= xdp->GetNext())
     if (xdp->GetID() == id)
       break;
 
@@ -672,7 +674,7 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
   if (tdbp->InitialyzeIndex(g, xdp, sorted))
     return 0;
 
-  return (tdbp->To_Kindex->IsMul()) ? 2 : 1;
+  return (tdbp->GetKindex()->IsMul()) ? 2 : 1;
   } // end of CntIndexInit
 
 #if defined(WORDS_BIGENDIAN)
@@ -706,7 +708,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
   int     n, x;
   RCODE   rc;
   XXBASE *xbp;
-	PTDBDOX tdbp;
+	PTDBDOS tdbp;
 
   if (!ptdb)
     return RC_FX;
@@ -732,12 +734,12 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
 
     goto rnd;
   } else
-    tdbp= (PTDBDOX)ptdb;
+    tdbp= (PTDBDOS)ptdb;
 
   // Set reference values and index operator
-  if (!tdbp->To_Link || !tdbp->To_Kindex) {
+  if (!tdbp->GetLink() || !tdbp->GetKindex()) {
 //  if (!tdbp->To_Xdp) {
-      sprintf(g->Message, "Index not initialized for table %s", tdbp->Name);
+      sprintf(g->Message, "Index not initialized for table %s", tdbp->GetName());
       return RC_FX;
 #if 0
       } // endif !To_Xdp
@@ -750,7 +752,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
 #endif // 0
     } // endif !To_Kindex
 
-  xbp= (XXBASE*)tdbp->To_Kindex;
+  xbp= (XXBASE*)tdbp->GetKindex();
 
   if (kr) {
 		char   *kp= (char*)kr->key;
@@ -760,13 +762,13 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
 		PVAL    valp;
 		PCOL    colp;
 
-    for (n= 0; n < tdbp->Knum; n++) {
-      colp= (PCOL)tdbp->To_Key_Col[n];
+    for (n= 0; n < tdbp->GetKnum(); n++) {
+      colp= (PCOL)tdbp->Key(n);
 
       if (colp->GetColUse(U_NULLS))
         kp++;                   // Skip null byte
 
-      valp= tdbp->To_Link[n]->GetValue();
+      valp= tdbp->Link(n)->GetValue();
 
       if (!valp->IsTypeNum()) {
         if (colp->GetColUse(U_VAR)) {
@@ -836,7 +838,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
   bool    b, rcb;
   PVAL    valp;
   PCOL    colp;
-  PTDBDOX tdbp;
+  PTDBDOS tdbp;
   XXBASE *xbp;
 
   if (!ptdb)
@@ -861,35 +863,35 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
 
     return k[1] - k[0] + 1;
   } else
-    tdbp= (PTDBDOX)ptdb;
+    tdbp= (PTDBDOS)ptdb;
 
-  if (!tdbp->To_Kindex || !tdbp->To_Link) {
-    if (!tdbp->To_Xdp) {
-      sprintf(g->Message, "Index not initialized for table %s", tdbp->Name);
+  if (!tdbp->GetKindex() || !tdbp->GetLink()) {
+    if (!tdbp->GetXdp()) {
+      sprintf(g->Message, "Index not initialized for table %s", tdbp->GetName());
       DBUG_PRINT("Range", ("%s", g->Message));
       return -1;
     } else       // Dynamic index
-      return tdbp->To_Xdp->GetMaxSame();     // TODO a better estimate
+      return tdbp->GetXdp()->GetMaxSame();     // TODO a better estimate
 
   } else
-    xbp= (XXBASE*)tdbp->To_Kindex;
+    xbp= (XXBASE*)tdbp->GetKindex();
 
   for (b= false, i= 0; i < 2; i++) {
     p= kp= key[i];
 
     if (kp) {
-      for (n= 0; n < tdbp->Knum; n++) {
+      for (n= 0; n < tdbp->GetKnum(); n++) {
         if (kmap[i] & (key_part_map)(1 << n)) {
           if (b == true)
             // Cannot do indexing with missing intermediate key
             return -1;
 
-          colp= (PCOL)tdbp->To_Key_Col[n];
+          colp= (PCOL)tdbp->Key(n);
 
           if (colp->GetColUse(U_NULLS))
             p++;                   // Skip null byte  ???
 
-          valp= tdbp->To_Link[n]->GetValue();
+          valp= tdbp->Link(n)->GetValue();
 
           if (!valp->IsTypeNum()) {
             if (colp->GetColUse(U_VAR)) {
@@ -923,7 +925,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
             valp->SetBinValue((void*)p);
 #endif  // !WORDS_BIGENDIAN
 
-          if (trace) {
+          if (trace(1)) {
             char bf[32];
             printf("i=%d n=%d key=%s\n", i, n, valp->GetCharString(bf));
             } // endif trace
@@ -945,7 +947,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
 
       xbp->SetNval(n);
 
-      if (trace)
+      if (trace(1))
         printf("xbp=%p Nval=%d i=%d incl=%d\n", xbp, n, i, incl[i]);
 
       k[i]= xbp->Range(g, i + 1, incl[i]);
@@ -954,7 +956,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
 
     } // endfor i
 
-  if (trace)
+  if (trace(1))
     printf("k1=%d k0=%d\n", k[1], k[0]);
 
   return k[1] - k[0];

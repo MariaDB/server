@@ -10,13 +10,13 @@ f1	f2
 insert into t1 values(2, 3);
 ERROR HY000: Running in read-only mode
 alter table t1 add f3 int not null, algorithm=copy;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 165 "Table is read only")
+ERROR HY000: Can't create table `test`.`t1` (errno: 165 "Table is read only")
 alter table t1 add f3 int not null, algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Operation not allowed when innodb_forced_recovery > 0.. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Running in read-only mode. Try ALGORITHM=COPY
 drop index idx on t1;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 165 "Table is read only")
+ERROR HY000: Can't create table `test`.`t1` (errno: 165 "Table is read only")
 alter table t1 drop index idx, algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Operation not allowed when innodb_forced_recovery > 0.. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Running in read-only mode. Try ALGORITHM=COPY
 update t1 set f1=3 where f2=2;
 ERROR HY000: Running in read-only mode
 create table t3(f1 int not null)engine=innodb;
@@ -28,8 +28,10 @@ ERROR HY000: Error on rename of './test/t1' to './test/t3' (errno: 165 "Table is
 truncate table t1;
 ERROR HY000: Table 't1' is read only
 drop table t1;
+ERROR HY000: Table 't1' is read only
 show tables;
 Tables_in_test
+t1
 t2
 # Restart the server with innodb_force_recovery as 5.
 select * from t2;
@@ -38,25 +40,28 @@ f1	f2
 insert into t2 values(2, 3);
 ERROR HY000: Running in read-only mode
 alter table t2 add f3 int not null, algorithm=copy;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 165 "Table is read only")
+ERROR HY000: Can't create table `test`.`t2` (errno: 165 "Table is read only")
 alter table t2 add f3 int not null, algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Operation not allowed when innodb_forced_recovery > 0.. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Running in read-only mode. Try ALGORITHM=COPY
 drop index idx on t2;
-ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 165 "Table is read only")
+ERROR HY000: Can't create table `test`.`t2` (errno: 165 "Table is read only")
 update t2 set f1=3 where f2=2;
 ERROR HY000: Running in read-only mode
-create table t1(f1 int not null)engine=innodb;
-ERROR HY000: Can't create table `test`.`t1` (errno: 165 "Table is read only")
-drop table t1;
-ERROR 42S02: Unknown table 'test.t1'
+create table t3(f1 int not null)engine=innodb;
+ERROR HY000: Can't create table `test`.`t3` (errno: 165 "Table is read only")
+drop table t3;
+ERROR 42S02: Unknown table 'test.t3'
 rename table t2 to t3;
 ERROR HY000: Error on rename of './test/t2' to './test/t3' (errno: 165 "Table is read only")
 truncate table t2;
 ERROR HY000: Table 't2' is read only
 drop table t2;
 ERROR HY000: Table 't2' is read only
+create schema db;
+drop schema db;
 show tables;
 Tables_in_test
+t1
 t2
 # Restart the server with innodb_force_recovery as 6.
 select * from t2;
@@ -67,15 +72,15 @@ ERROR HY000: Table 't2' is read only
 alter table t2 add f3 int not null, algorithm=copy;
 ERROR HY000: Table 't2' is read only
 alter table t2 add f3 int not null, algorithm=inplace;
-ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Operation not allowed when innodb_forced_recovery > 0.. Try ALGORITHM=COPY
+ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Running in read-only mode. Try ALGORITHM=COPY
 drop index idx on t2;
 ERROR HY000: Table 't2' is read only
 update t2 set f1=3 where f2=2;
 ERROR HY000: Table 't2' is read only
-create table t1(f1 int not null)engine=innodb;
-ERROR HY000: Can't create table `test`.`t1` (errno: 165 "Table is read only")
+create table t3(f1 int not null)engine=innodb;
+ERROR HY000: Can't create table `test`.`t3` (errno: 165 "Table is read only")
 drop table t1;
-ERROR 42S02: Unknown table 'test.t1'
+ERROR HY000: Table 't1' is read only
 rename table t2 to t3;
 ERROR HY000: Error on rename of './test/t2' to './test/t3' (errno: 165 "Table is read only")
 truncate table t2;
@@ -84,6 +89,7 @@ drop table t2;
 ERROR HY000: Table 't2' is read only
 show tables;
 Tables_in_test
+t1
 t2
 # Restart the server with innodb_force_recovery=2
 select * from t2;
@@ -92,10 +98,9 @@ f1	f2
 begin;
 update t2 set f2=3;
 connect  con1,localhost,root,,;
-create table t3(a int)engine=innodb;
 # Force a redo log flush of the above uncommitted UPDATE
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
-drop table t3;
+drop table t1;
 disconnect con1;
 connection default;
 # Kill the server

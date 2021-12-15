@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define spider_free(A,B,C) spider_free_mem(A,B,C)
 #define spider_malloc(A,B,C,D) \
@@ -19,7 +19,7 @@
 #define spider_bulk_malloc(A,B,C,...) \
   spider_bulk_alloc_mem(A,B,__func__,__FILE__,__LINE__,C,__VA_ARGS__)
 #define spider_current_trx \
-  (current_thd ? ((SPIDER_TRX *) *thd_ha_data(current_thd, spider_hton_ptr)) : NULL)
+  (current_thd ? ((SPIDER_TRX *) thd_get_ha_data(current_thd, spider_hton_ptr)) : NULL)
 
 #define init_calc_mem(A) init_mem_calc(A,__func__,__FILE__,__LINE__)
 

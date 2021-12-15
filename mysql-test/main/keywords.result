@@ -1,0 +1,393 @@
+drop table if exists t1;
+create table t1 (time time, date date, timestamp timestamp,
+quarter int, week int, year int, timestampadd int, timestampdiff int);
+insert into t1 values ("12:22:22","97:02:03","1997-01-02",1,2,3,4,5);
+select * from t1;
+time	date	timestamp	quarter	week	year	timestampadd	timestampdiff
+12:22:22	1997-02-03	1997-01-02 00:00:00	1	2	3	4	5
+select t1.time+0,t1.date+0,t1.timestamp+0,concat(date," ",time),
+t1.quarter+t1.week, t1.year+timestampadd,  timestampdiff from t1;
+t1.time+0	t1.date+0	t1.timestamp+0	concat(date," ",time)	t1.quarter+t1.week	t1.year+timestampadd	timestampdiff
+122222	19970203	19970102000000	1997-02-03 12:22:22	3	7	5
+drop table t1;
+create table events(binlog int);
+insert into events values(1);
+select events.binlog from events;
+binlog
+1
+drop table events;
+create procedure p1()
+begin
+declare n int default 2;
+authors: while n > 0 do
+set n = n -1;
+end while authors;
+end|
+create procedure p2()
+begin
+declare n int default 2;
+contributors: while n > 0 do
+set n = n -1;
+end while contributors;
+end|
+drop procedure p1;
+drop procedure p2;
+create table t1 (connection int, b int);
+create procedure p1()
+begin
+declare connection int;
+select max(t1.connection) into connection from t1;
+select concat("max=",connection) 'p1';
+end|
+insert into t1 (connection) values (1);
+call p1();
+p1
+max=1
+drop procedure p1;
+drop table t1;
+CREATE TABLE slow (slow INT, general INT, master_heartbeat_period INT, ignore_server_ids INT);
+INSERT INTO slow(slow, general, master_heartbeat_period, ignore_server_ids) VALUES (1,2,3,4), (5,6,7,8);
+INSERT INTO slow(slow, general, master_heartbeat_period) VALUES (1,2,3), (5,6,7);
+INSERT INTO slow(slow, general) VALUES (1,2), (5,6);
+INSERT INTO slow(slow) VALUES (1), (5);
+SELECT slow, general, master_heartbeat_period, ignore_server_ids FROM slow ORDER BY slow;
+slow	general	master_heartbeat_period	ignore_server_ids
+1	2	3	4
+1	2	3	NULL
+1	2	NULL	NULL
+1	NULL	NULL	NULL
+5	6	7	8
+5	6	7	NULL
+5	6	NULL	NULL
+5	NULL	NULL	NULL
+SELECT slow, general, master_heartbeat_period FROM slow ORDER BY slow;
+slow	general	master_heartbeat_period
+1	2	3
+1	2	3
+1	2	NULL
+1	NULL	NULL
+5	6	7
+5	6	7
+5	6	NULL
+5	NULL	NULL
+SELECT slow, master_heartbeat_period FROM slow ORDER BY slow;
+slow	master_heartbeat_period
+1	3
+1	3
+1	NULL
+1	NULL
+5	7
+5	7
+5	NULL
+5	NULL
+SELECT slow FROM slow ORDER BY slow;
+slow
+1
+1
+1
+1
+5
+5
+5
+5
+DROP TABLE slow;
+CREATE TABLE general (slow INT, general INT, master_heartbeat_period INT, ignore_server_ids INT);
+INSERT INTO general(slow, general, master_heartbeat_period, ignore_server_ids) VALUES (1,2,3,4), (5,6,7,8);
+INSERT INTO general(slow, general, master_heartbeat_period) VALUES (1,2,3), (5,6,7);
+INSERT INTO general(slow, general) VALUES (1,2), (5,6);
+INSERT INTO general(slow) VALUES (1), (5);
+SELECT slow, general, master_heartbeat_period, ignore_server_ids FROM general ORDER BY slow;
+slow	general	master_heartbeat_period	ignore_server_ids
+1	2	3	4
+1	2	3	NULL
+1	2	NULL	NULL
+1	NULL	NULL	NULL
+5	6	7	8
+5	6	7	NULL
+5	6	NULL	NULL
+5	NULL	NULL	NULL
+SELECT slow, general, master_heartbeat_period FROM general ORDER BY slow;
+slow	general	master_heartbeat_period
+1	2	3
+1	2	3
+1	2	NULL
+1	NULL	NULL
+5	6	7
+5	6	7
+5	6	NULL
+5	NULL	NULL
+SELECT slow, master_heartbeat_period FROM general ORDER BY slow;
+slow	master_heartbeat_period
+1	3
+1	3
+1	NULL
+1	NULL
+5	7
+5	7
+5	NULL
+5	NULL
+SELECT slow FROM general ORDER BY slow;
+slow
+1
+1
+1
+1
+5
+5
+5
+5
+DROP TABLE general;
+CREATE TABLE master_heartbeat_period (slow INT, general INT, master_heartbeat_period INT, ignore_server_ids INT);
+INSERT INTO master_heartbeat_period(slow, general, master_heartbeat_period, ignore_server_ids) VALUES (1,2,3,4), (5,6,7,8);
+INSERT INTO master_heartbeat_period(slow, general, master_heartbeat_period) VALUES (1,2,3), (5,6,7);
+INSERT INTO master_heartbeat_period(slow, general) VALUES (1,2), (5,6);
+INSERT INTO master_heartbeat_period(slow) VALUES (1), (5);
+SELECT slow, general, master_heartbeat_period, ignore_server_ids FROM master_heartbeat_period ORDER BY slow;
+slow	general	master_heartbeat_period	ignore_server_ids
+1	2	3	4
+1	2	3	NULL
+1	2	NULL	NULL
+1	NULL	NULL	NULL
+5	6	7	8
+5	6	7	NULL
+5	6	NULL	NULL
+5	NULL	NULL	NULL
+SELECT slow, general, master_heartbeat_period FROM master_heartbeat_period ORDER BY slow;
+slow	general	master_heartbeat_period
+1	2	3
+1	2	3
+1	2	NULL
+1	NULL	NULL
+5	6	7
+5	6	7
+5	6	NULL
+5	NULL	NULL
+SELECT slow, master_heartbeat_period FROM master_heartbeat_period ORDER BY slow;
+slow	master_heartbeat_period
+1	3
+1	3
+1	NULL
+1	NULL
+5	7
+5	7
+5	NULL
+5	NULL
+SELECT slow FROM master_heartbeat_period ORDER BY slow;
+slow
+1
+1
+1
+1
+5
+5
+5
+5
+DROP TABLE master_heartbeat_period;
+CREATE TABLE ignore_server_ids (slow INT, general INT, master_heartbeat_period INT, ignore_server_ids INT);
+INSERT INTO ignore_server_ids(slow, general, master_heartbeat_period, ignore_server_ids) VALUES (1,2,3,4), (5,6,7,8);
+INSERT INTO ignore_server_ids(slow, general, master_heartbeat_period) VALUES (1,2,3), (5,6,7);
+INSERT INTO ignore_server_ids(slow, general) VALUES (1,2), (5,6);
+INSERT INTO ignore_server_ids(slow) VALUES (1), (5);
+SELECT slow, general, master_heartbeat_period, ignore_server_ids FROM ignore_server_ids ORDER BY slow;
+slow	general	master_heartbeat_period	ignore_server_ids
+1	2	3	4
+1	2	3	NULL
+1	2	NULL	NULL
+1	NULL	NULL	NULL
+5	6	7	8
+5	6	7	NULL
+5	6	NULL	NULL
+5	NULL	NULL	NULL
+SELECT slow, general, master_heartbeat_period FROM ignore_server_ids ORDER BY slow;
+slow	general	master_heartbeat_period
+1	2	3
+1	2	3
+1	2	NULL
+1	NULL	NULL
+5	6	7
+5	6	7
+5	6	NULL
+5	NULL	NULL
+SELECT slow, master_heartbeat_period FROM ignore_server_ids ORDER BY slow;
+slow	master_heartbeat_period
+1	3
+1	3
+1	NULL
+1	NULL
+5	7
+5	7
+5	NULL
+5	NULL
+SELECT slow FROM ignore_server_ids ORDER BY slow;
+slow
+1
+1
+1
+1
+5
+5
+5
+5
+DROP TABLE ignore_server_ids;
+CREATE TABLE t1 (slow INT, general INT, ignore_server_ids INT, master_heartbeat_period INT);
+INSERT INTO t1 VALUES (1,2,3,4);
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE slow INT;
+DECLARE general INT;
+DECLARE ignore_server_ids INT;
+DECLARE master_heartbeat_period INT;
+SELECT max(t1.slow) INTO slow FROM t1;
+SELECT max(t1.general) INTO general FROM t1;
+SELECT max(t1.ignore_server_ids) INTO ignore_server_ids FROM t1;
+SELECT max(t1.master_heartbeat_period) INTO master_heartbeat_period FROM t1;
+SELECT slow, general, ignore_server_ids, master_heartbeat_period;
+END|
+CREATE PROCEDURE p2()
+BEGIN
+DECLARE n INT DEFAULT 2;
+general: WHILE n > 0 DO 
+SET n = n -1;
+END WHILE general;
+SET n = 2;
+slow: WHILE n > 0 DO 
+SET n = n -1;
+END WHILE slow;
+SET n = 2;
+ignore_server_ids: WHILE n > 0 DO 
+SET n = n -1;
+END WHILE ignore_server_ids;
+SET n = 2;
+master_heartbeat_period: WHILE n > 0 DO 
+SET n = n -1;
+END WHILE master_heartbeat_period;
+END|
+CALL p1();
+slow	general	ignore_server_ids	master_heartbeat_period
+1	2	3	4
+call p2();
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP TABLE t1;
+create table option (option int not null);
+drop table option;
+set option=1;
+ERROR HY000: Unknown system variable 'option'
+set option option=1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'option=1' at line 1
+#
+# MDEV-9979 Keywords UNBOUNDED, PRECEDING, FOLLOWING, TIES, OTHERS should be non-reserved
+#
+CREATE TABLE EXCLUDE (EXCLUDE INT);
+SELECT EXCLUDE FROM EXCLUDE;
+EXCLUDE
+SELECT EXCLUDE EXCLUDE FROM EXCLUDE;
+EXCLUDE
+SELECT EXCLUDE AS EXCLUDE FROM EXCLUDE;
+EXCLUDE
+DROP TABLE EXCLUDE;
+CREATE TABLE UNBOUNDED (UNBOUNDED INT);
+SELECT UNBOUNDED FROM UNBOUNDED;
+UNBOUNDED
+SELECT UNBOUNDED UNBOUNDEX FROM UNBOUNDED;
+UNBOUNDEX
+SELECT UNBOUNDED AS UNBOUNDEX FROM UNBOUNDED;
+UNBOUNDEX
+DROP TABLE UNBOUNDED;
+CREATE TABLE PRECEDING (PRECEDING INT);
+SELECT PRECEDING FROM PRECEDING;
+PRECEDING
+SELECT PRECEDING PRECEDING FROM PRECEDING;
+PRECEDING
+SELECT PRECEDING AS PRECEDING FROM PRECEDING;
+PRECEDING
+DROP TABLE PRECEDING;
+CREATE TABLE FOLLOWING (FOLLOWING INT);
+SELECT FOLLOWING FROM FOLLOWING;
+FOLLOWING
+SELECT FOLLOWING FOLLOWING FROM FOLLOWING;
+FOLLOWING
+SELECT FOLLOWING AS FOLLOWING FROM FOLLOWING;
+FOLLOWING
+DROP TABLE FOLLOWING;
+CREATE TABLE TIES (TIES INT);
+SELECT TIES FROM TIES;
+TIES
+SELECT TIES TIES FROM TIES;
+TIES
+SELECT TIES AS TIES FROM TIES;
+TIES
+DROP TABLE TIES;
+CREATE TABLE OTHERS (OTHERS INT);
+SELECT OTHERS FROM OTHERS;
+OTHERS
+SELECT OTHERS OTHERS FROM OTHERS;
+OTHERS
+SELECT OTHERS AS OTHERS FROM OTHERS;
+OTHERS
+DROP TABLE OTHERS;
+#
+# MDEV-10585 EXECUTE IMMEDIATE statement
+#
+CREATE TABLE immediate (immediate int);
+DROP TABLE immediate;
+#
+# MDEV-10142 Pluggable parser
+# Testing keywords that were added into lex.h for Oracle compatibility
+# that are not reserved keywords in MariaDB
+#
+CREATE TABLE clob (clob int);
+DROP TABLE clob;
+CREATE TABLE elsif (elsif INT);
+DROP TABLE elsif;
+CREATE TABLE exception (exception INT);
+DROP TABLE exception;
+CREATE TABLE raw (raw int);
+DROP TABLE raw;
+CREATE TABLE varchar2 (varchar2 int);
+DROP TABLE varchar2;
+CREATE TABLE decode (decode int);
+DROP TABLE decode;
+CREATE TABLE rowcount (rowcount int);
+DROP TABLE rowcount;
+CREATE TABLE isopen (isopen int);
+DROP TABLE isopen;
+CREATE TABLE notfound (notfound int);
+DROP TABLE notfound;
+CREATE TABLE raise (raise int);
+DROP TABLE raise;
+CREATE TABLE reuse (reuse int);
+DROP TABLE reuse;
+#
+# MDEV-17363 Compressed columns cannot be restored from dump
+# COMPRESSED is not valid as an SP label any more
+# but is still valid as an SP variable name.
+#
+BEGIN NOT ATOMIC
+compressed:
+BEGIN
+SELECT 1 AS a;
+END;
+END
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'compressed:
+BEGIN
+SELECT 1 AS a;
+END;
+END' at line 2
+BEGIN NOT ATOMIC
+`compressed`:
+BEGIN
+SELECT 1 AS a;
+END;
+END
+$$
+a
+1
+BEGIN NOT ATOMIC
+DECLARE compressed INT DEFAULT 1;
+SELECT compressed;
+END
+$$
+compressed
+1

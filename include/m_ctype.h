@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   A better inplementation of the UNIX ctype(3) library.
@@ -48,7 +48,7 @@ extern "C" {
 /*
   On i386 we store Unicode->CS conversion tables for
   some character sets using Big-endian order,
-  to copy two bytes at onces.
+  to copy two bytes at once.
   This gives some performance improvement.
 */
 #ifdef __i386__
@@ -370,13 +370,13 @@ typedef int (*my_charset_conv_mb_wc)(CHARSET_INFO *, my_wc_t *,
 typedef int (*my_charset_conv_wc_mb)(CHARSET_INFO *, my_wc_t,
                                      uchar *, uchar *);
 typedef size_t (*my_charset_conv_case)(CHARSET_INFO *,
-                                       char *, size_t, char *, size_t);
+                                       const char *, size_t, char *, size_t);
 
 /*
   A structure to return the statistics of a native string copying,
   when no Unicode conversion is involved.
 
-  The stucture is OK to be uninitialized before calling a copying routine.
+  The structure is OK to be uninitialized before calling a copying routine.
   A copying routine must populate the structure as follows:
     - m_source_end_pos must be set by to a non-NULL value
       in the range of the input string.
@@ -517,7 +517,7 @@ struct my_charset_handler_st
   /**
     Write a character to the target string, using its native code.
     For Unicode character sets (utf8, ucs2, utf16, utf16le, utf32, filename)
-    native codes are equvalent to Unicode code points.
+    native codes are equivalent to Unicode code points.
     For 8bit character sets the native code is just the byte value.
     For Asian characters sets:
     - MB1 native code is just the byte value (e.g. on the ASCII range)
@@ -725,9 +725,11 @@ size_t my_copy_fix_mb(CHARSET_INFO *cs,
 /* Functions for 8bit */
 extern size_t my_caseup_str_8bit(CHARSET_INFO *, char *);
 extern size_t my_casedn_str_8bit(CHARSET_INFO *, char *);
-extern size_t my_caseup_8bit(CHARSET_INFO *, char *src, size_t srclen,
+extern size_t my_caseup_8bit(CHARSET_INFO *,
+                             const char *src, size_t srclen,
                              char *dst, size_t dstlen);
-extern size_t my_casedn_8bit(CHARSET_INFO *, char *src, size_t srclen,
+extern size_t my_casedn_8bit(CHARSET_INFO *,
+                             const char *src, size_t srclen,
                              char *dst, size_t dstlen);
 
 extern int my_strcasecmp_8bit(CHARSET_INFO * cs, const char *, const char *);
@@ -821,17 +823,17 @@ int my_charlen_8bit(CHARSET_INFO *, const uchar *str, const uchar *end);
 /* Functions for multibyte charsets */
 extern size_t my_caseup_str_mb(CHARSET_INFO *, char *);
 extern size_t my_casedn_str_mb(CHARSET_INFO *, char *);
-extern size_t my_caseup_mb(CHARSET_INFO *, char *src, size_t srclen,
-                                         char *dst, size_t dstlen);
-extern size_t my_casedn_mb(CHARSET_INFO *, char *src, size_t srclen,
-                                         char *dst, size_t dstlen);
-extern size_t my_caseup_mb_varlen(CHARSET_INFO *, char *src, size_t srclen,
-                                  char *dst, size_t dstlen);
-extern size_t my_casedn_mb_varlen(CHARSET_INFO *, char *src, size_t srclen,
-                                  char *dst, size_t dstlen);
-extern size_t my_caseup_ujis(CHARSET_INFO *, char *src, size_t srclen,
+extern size_t my_caseup_mb(CHARSET_INFO *,
+                           const char *src, size_t srclen,
+                           char *dst, size_t dstlen);
+extern size_t my_casedn_mb(CHARSET_INFO *,
+                           const char *src, size_t srclen,
+                           char *dst, size_t dstlen);
+extern size_t my_caseup_ujis(CHARSET_INFO *,
+                             const char *src, size_t srclen,
                              char *dst, size_t dstlen);
-extern size_t my_casedn_ujis(CHARSET_INFO *, char *src, size_t srclen,
+extern size_t my_casedn_ujis(CHARSET_INFO *,
+                             const char *src, size_t srclen,
                              char *dst, size_t dstlen);
 extern int my_strcasecmp_mb(CHARSET_INFO * cs,const char *, const char *);
 
@@ -964,7 +966,7 @@ uint32 my_convert_using_func(char *to, size_t to_length, CHARSET_INFO *to_cs,
   Bad byte sequences as well as characters that cannot be
   encoded in the destination character set are replaced to '?'.
   Not more than "nchars" characters are copied.
-  Conversion statistics is returnd in "status" and is set as follows:
+  Conversion statistics is returned in "status" and is set as follows:
   - status->m_native_copy_status.m_source_end_pos - to the position
     between (src) and (src+src_length), where the function stopped reading
     the source string.
@@ -1093,7 +1095,7 @@ my_well_formed_length(CHARSET_INFO *cs, const char *b, const char *e,
   MY_STRCOPY_STATUS status;
   (void) cs->cset->well_formed_char_length(cs, b, e, nchars, &status);
   *error= status.m_well_formed_error_pos == NULL ? 0 : 1;
-  return status.m_source_end_pos - b;
+  return (size_t) (status.m_source_end_pos - b);
 }
 
 

@@ -1,0 +1,102 @@
+#
+# Test for minimal row format
+#
+
+--source include/have_log_bin.inc
+--source include/have_binlog_format_row.inc
+
+#
+# MDEV-8426
+# mysqlbinlog: "Corrupted replication event was detected. Not printing the
+# value" with binlog-row-image=minimal
+#
+
+CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 TINYINT, f4 MEDIUMINT, f5 BIGINT, f6 INT, f7 INT, f8 char(1));
+CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMINT, f6 INT, f7 INT, f8 char(1));
+INSERT INTO t1 VALUES (10, 1, 2, 3, 4, 5, 6, 7, "");
+INSERT INTO t1 VALUES (11, 1, 2, 3, 4, 5, 6, 7, NULL);
+INSERT INTO t1 VALUES (12, 1, 2, 3, NULL, 5, 6, 7, "A");
+INSERT INTO t1 VALUES (13, 1, 2, 3, 0, 5, 6, 7, "A");
+INSERT INTO t2 SELECT * FROM t1;
+UPDATE t2 SET f4=5 WHERE f4>0 or f4 is NULL;
+DELETE FROM t1;
+DELETE FROM t2;
+
+--let $binlog = query_get_value(SHOW MASTER STATUS, File, 1)
+--let $datadir = `SELECT @@datadir`
+
+FLUSH BINARY LOGS;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /\d{6} *\d*:\d\d:\d\d/<date>/ /Start:.*at startup/Start: xxx/ /SET TIMESTAMP=\d*/SET TIMESTAMP=X/ /exec_time=\d*/exec_time=x/ /mapped to number \d*/mapped to number num/ /CRC32 0x[0-9a-f]+/CRC32 XXX/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
+--exec $MYSQL_BINLOG --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-16372 ER_BASE64_DECODE_ERROR upon replaying binary log with system table
+--echo #
+FLUSH BINARY LOGS;
+CREATE TABLE t1 (pk INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (1), (2) ON DUPLICATE KEY UPDATE pk= pk + 10;
+
+--let $binlog = query_get_value(SHOW MASTER STATUS, File, 1)
+
+FLUSH BINARY LOGS;
+--exec $MYSQL_BINLOG --verbose $datadir/$binlog > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+--echo Proof: two subsequent patterns must be found
+--let SEARCH_PATTERN= ### UPDATE `test`.`t1`
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN= ### INSERT INTO `test`.`t1`
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+--source include/search_pattern_in_file.inc
+
+DROP TABLE t1;
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+SELECT * FROM t1;
+
+--echo # Cleanup
+DROP TABLE t1;
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+#
+# MDEV-14605 ON UPDATE CURRENT_TIMESTAMP fields by multi-table UPDATE are not logged with binlog_row_image=MINIMAL
+#
+
+CREATE TABLE `t1` (
+
+  `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `is_deleted` BIT(1) DEFAULT b'0',
+  `last_updated` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `ref_id` BIGINT(20) UNSIGNED NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `last_updated_KEY` (`last_updated`)
+);
+
+CREATE TABLE `t2` (
+  `id` BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `short_desc` VARCHAR(50) NOT NULL,
+  PRIMARY KEY (`id`)
+);
+ 
+
+INSERT INTO t2 (id, short_desc) VALUES (1, 'test');
+INSERT INTO t1 (id, is_deleted, ref_id) VALUES (1, b'0', 1);
+FLUSH BINARY LOGS;
+--let $binlog_pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+UPDATE t1 t1 INNER JOIN t2 t2 ON t1.ref_id = t2.id
+  SET t1.is_deleted = TRUE
+  WHERE t1.id = 1;
+
+--let $binlog = query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_end= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+FLUSH BINARY LOGS;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /table id \d*/table id TID/ /mapped to number \d*/mapped to number TID/ /at \d*/at POS/ /end_log_pos \d*/end_log_pos END_LOG_POS/ /GTID \d*-\d*-\d*/GTID D-S-N/ /\d{6} *\d*:\d\d:\d\d/<date>/ /SET TIMESTAMP=\d*/SET TIMESTAMP=X/ /exec_time=\d*/exec_time=x/ /@3=\d*/@3=X/ /CRC32 0x[0-9a-f]+/CRC32 XXX/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/ /thread_id=\d*/thread_id=TID/
+--exec $MYSQL_BINLOG --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog --start-position=$binlog_pos --stop-position=$binlog_end
+
+DROP TABLE t1,t2;
+

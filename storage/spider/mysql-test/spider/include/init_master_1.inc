@@ -94,6 +94,10 @@ if (!$VERSION_COMPILE_OS_WIN)
     CONNECTION='host "localhost", socket "$CHILD2_1_MYSOCK", user "root",
     password ""';
 }
+let $MASTER_1_COMMENT6_P_1_1=
+  COMMENT='database "auto_test_remote", table "ta_ob"'
+  PARTITION BY LIST COLUMNS (e) PARTITIONS 1
+  (PARTITION pt1 values in (510411) COMMENT = 'srv "s_2_1"');
 if ($VERSION_COMPILE_OS_WIN)
 {
   let $MASTER_1_COMMENT_FT_2_1=
@@ -148,6 +152,11 @@ let $MASTER_1_COMMENT_TEXT_PK1_1=
   COMMENT 'tbl "t1", srv "s_2_1"';
 let $MASTER_1_COMMENT_TEXT_KEY1_1=
   COMMENT 'tbl "t1", srv "s_2_1"';
+let $MASTER_1_COMMENT_MDEV_25985=
+  COMMENT='table "t1"'
+  PARTITION BY LIST COLUMNS(`a`) (
+    PARTITION `pt1` DEFAULT COMMENT = 'srv "s_2_1"'
+  );
 let $MASTER_1_CHECK_DIRECT_UPDATE_STATUS=
   SHOW STATUS LIKE 'Spider_direct_update';
 let $MASTER_1_CHECK_DIRECT_DELETE_STATUS=

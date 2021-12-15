@@ -1,0 +1,109 @@
+set global innodb_file_per_table=ON;
+set global innodb_thread_concurrency=20;
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connect  con3,localhost,root,,;
+connect  con4,localhost,root,,;
+connect  con5,localhost,root,,;
+connect  con6,localhost,root,,;
+connect  con7,localhost,root,,;
+connect  con8,localhost,root,,;
+create table t2 (c1 int not null primary key, c2 int not null default 0) engine=InnoDB;
+insert into t2 (c1, c2) values (1, 1);
+create table t3 (c1 int not null primary key, c2 int not null default 0) engine=InnoDB;
+insert into t3 (c1, c2) values (1, 1);
+create table t4 (c1 int not null primary key, c2 int not null default 0) engine=InnoDB;
+insert into t4 (c1, c2) values (1, 1);
+create table t5 (c1 int not null primary key, c2 int not null default 0) engine=InnoDB;
+insert into t5 (c1, c2) values (1, 1);
+create table t6 (c1 int not null primary key, c2 int not null default 0) engine=InnoDB;
+insert into t6 (c1, c2) values (1, 1);
+create database test2;
+create table test2.t7 (c1 int not null primary key, c2 int not null default 0) engine=InnoDB;
+insert into test2.t7 (c1, c2) values (1, 1);
+drop table test2.t7;
+connection con1;
+set @save_dbug=@@global.debug_dbug;
+set global debug_dbug="+d,ib_buf_pool_resize_wait_before_resize";
+set global innodb_buffer_pool_size = 12*1024*1024;
+set global innodb_buffer_pool_size = 8*1024*1024;
+ERROR HY000: Another buffer pool resize is already in progress.
+select @@global.innodb_buffer_pool_size;
+@@global.innodb_buffer_pool_size
+8388608
+select @@global.innodb_adaptive_hash_index;
+@@global.innodb_adaptive_hash_index
+0
+set global innodb_adaptive_hash_index = ON;
+select @@global.innodb_adaptive_hash_index;
+@@global.innodb_adaptive_hash_index
+0
+set global innodb_adaptive_hash_index = OFF;
+select @@global.innodb_adaptive_hash_index;
+@@global.innodb_adaptive_hash_index
+0
+create table t1 (c1 int not null primary key, c2 int not null default 0) engine=InnoDB;
+connection con2;
+analyze table t2;
+connection con3;
+alter table t3 algorithm=inplace, add index idx (c1);
+connection con4;
+alter table t4 rename to t0;
+connection con5;
+drop table t5;
+connection con6;
+alter table t6 discard tablespace;
+connection con7;
+drop database test2;
+connection con8;
+select count(*) > 0 from information_schema.innodb_buffer_page;
+connection default;
+set global debug_dbug=@save_dbug;
+connection con1;
+connection con2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	OK
+connection con3;
+connection con4;
+connection con5;
+connection con6;
+connection con7;
+connection con8;
+count(*) > 0
+1
+connection default;
+disconnect con3;
+disconnect con4;
+disconnect con5;
+disconnect con6;
+disconnect con7;
+disconnect con8;
+disconnect con1;
+disconnect con2;
+call mtr.add_suppression("\\[ERROR\\] InnoDB: buffer pool 0 : failed to allocate new memory.");
+connection default;
+set global debug_dbug="+d,ib_buf_chunk_init_fails";
+set global innodb_buffer_pool_size = 16*1024*1024;
+set global debug_dbug=@save_dbug;
+create table t8 (c1 int not null primary key, c2 int not null default 0) engine=InnoDB;
+insert into t8 (c1, c2) values (1, 1);
+drop table t8;
+drop table t1;
+drop table t2;
+drop table t3;
+drop table t0;
+drop table t6;
+#
+# BUG#23590280 NO WARNING WHEN REDUCING INNODB_BUFFER_POOL_SIZE INSIZE THE FIRST CHUNK
+#
+SET @save_disable = @@GLOBAL.innodb_disable_background_merge;
+SET GLOBAL innodb_disable_background_merge = ON;
+set @old_innodb_disable_resize = @@innodb_disable_resize_buffer_pool_debug;
+set global innodb_disable_resize_buffer_pool_debug = OFF;
+set @before_innodb_buffer_pool_size = @@innodb_buffer_pool_size;
+set global innodb_buffer_pool_size=@before_innodb_buffer_pool_size;
+set global innodb_buffer_pool_size=@before_innodb_buffer_pool_size * 2;
+set global innodb_buffer_pool_size=@before_innodb_buffer_pool_size;
+set global innodb_buffer_pool_size=@before_innodb_buffer_pool_size;
+SET GLOBAL innodb_disable_resize_buffer_pool_debug = @old_innodb_disable_resize;
+SET GLOBAL innodb_disable_background_merge = @save_disable;

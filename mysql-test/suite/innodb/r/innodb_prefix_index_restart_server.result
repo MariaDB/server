@@ -28,6 +28,7 @@ COUNT(*)
 1
 START TRANSACTION;
 connection default;
+SET GLOBAL innodb_fast_shutdown=3;
 SELECT COUNT(*) FROM worklog5743;
 COUNT(*)
 1
@@ -53,6 +54,7 @@ worklog5743;
 col_1_text = REPEAT("a", 3500)	col_2_text = REPEAT("o", 3500)
 1	1
 connection default;
+SET GLOBAL innodb_fast_shutdown=3;
 SELECT COUNT(*) FROM worklog5743;
 COUNT(*)
 1
@@ -76,6 +78,7 @@ worklog5743;
 col_1_text = REPEAT("b", 3500)	col_2_text = REPEAT("o", 3500)
 1	1
 connection default;
+SET GLOBAL innodb_fast_shutdown=3;
 SELECT COUNT(*) FROM worklog5743;
 COUNT(*)
 1

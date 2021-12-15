@@ -14,7 +14,7 @@
    You should have received a copy of the GNU General Public License
    along with this program; see the file COPYING. If not, write to the
    Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-   MA  02110-1301  USA.
+   MA  02110-1335  USA.
 */
 
 /* error.hpp provides a taocrypt error numbers
@@ -58,8 +58,8 @@ TIME_E          = 1030, // "bad TIME"
 
 DATE_SZ_E       = 1031, // "bad Date Size"
 SIG_LEN_E       = 1032, // "bad Signature Length"
-UNKOWN_SIG_E    = 1033, // "unknown signature OID"
-UNKOWN_HASH_E   = 1034, // "unknown hash OID"
+UNKNOWN_SIG_E    = 1033, // "unknown signature OID"
+UNKNOWN_HASH_E   = 1034, // "unknown hash OID"
 DSA_SZ_E        = 1035, // "bad DSA r or s size"
 BEFORE_DATE_E   = 1036, // "before date in the future"
 AFTER_DATE_E    = 1037, // "after date in the past"

@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 package My::Platform;
 
@@ -22,7 +22,7 @@ use File::Basename;
 use File::Path;
 
 use base qw(Exporter);
-our @EXPORT= qw(IS_CYGWIN IS_WINDOWS IS_WIN32PERL
+our @EXPORT= qw(IS_CYGWIN IS_WINDOWS IS_WIN32PERL IS_AIX
 		native_path posix_path mixed_path
                 check_socket_path_length process_alive open_for_append);
 
@@ -51,6 +51,15 @@ BEGIN {
   }
   else {
     eval 'sub IS_WINDOWS { 0 }';
+  }
+}
+
+BEGIN {
+  if ($^O eq "aix") {
+    eval 'sub IS_AIX { 1 }';
+  }
+  else {
+    eval 'sub IS_AIX { 0 }';
   }
 }
 
@@ -112,6 +121,8 @@ sub check_socket_path_length {
   return 0 if ($^O eq 'aix');
   # See Debian bug #670722 - failing on kFreeBSD even after setting short path
   return 0 if $^O eq 'gnukfreebsd' and length $path < 40;
+  # GNU/Hurd doesn't have hostpath(), but no limitation either
+  return 0 if $^O eq 'gnu';
 
   require IO::Socket::UNIX;
 

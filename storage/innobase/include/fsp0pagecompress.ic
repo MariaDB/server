@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (C) 2013, 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
+51 Franklin St, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -39,18 +39,6 @@ fsp_flags_get_page_compression_level(
 
 
 /*******************************************************************//**
-Find out wheather the page is index page or not
-@return	true if page type index page, false if not */
-UNIV_INLINE
-bool
-fil_page_is_index_page(
-/*===================*/
-	byte*	buf)	/*!< in: page */
-{
-	return(mach_read_from_2(buf+FIL_PAGE_TYPE) == FIL_PAGE_INDEX);
-}
-
-/*******************************************************************//**
 Find out wheather the page is page compressed
 @return	true if page is page compressed, false if not */
 UNIV_INLINE
@@ -73,59 +61,3 @@ fil_page_is_compressed_encrypted(
 {
 	return(mach_read_from_2(buf+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
 }
-
-/****************************************************************//**
-Get the name of the compression algorithm used for page
-compression.
-@return compression algorithm name or "UNKNOWN" if not known*/
-UNIV_INLINE
-const char*
-fil_get_compression_alg_name(
-/*=========================*/
-       ib_uint64_t	comp_alg)	/*!<in: compression algorithm number */
-{
-	switch(comp_alg) {
-	case PAGE_UNCOMPRESSED:
-		return ("uncompressed");
-		break;
-	case PAGE_ZLIB_ALGORITHM:
-		return ("ZLIB");
-		break;
-	case PAGE_LZ4_ALGORITHM:
-		return ("LZ4");
-		break;
-	case PAGE_LZO_ALGORITHM:
-		return ("LZO");
-		break;
-	case PAGE_LZMA_ALGORITHM:
-		return ("LZMA");
-		break;
-	case PAGE_BZIP2_ALGORITHM:
-		return ("BZIP2");
-		break;
-	case PAGE_SNAPPY_ALGORITHM:
-		return ("SNAPPY");
-		break;
-	/* No default to get compiler warning */
-	}
-
-	return ("NULL");
-}
-
-#ifndef UNIV_INNOCHECKSUM
-/*******************************************************************//**
-Find out wheather the page is page compressed with lzo method
-@return	true if page is page compressed with lzo method, false if not */
-UNIV_INLINE
-bool
-fil_page_is_lzo_compressed(
-/*=======================*/
-	byte*	buf)	/*!< in: page */
-{
-	return((mach_read_from_2(buf+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED &&
-			mach_read_from_8(buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION) == PAGE_LZO_ALGORITHM) ||
-	       (mach_read_from_2(buf+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED &&
-			mach_read_from_2(buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE) == PAGE_LZO_ALGORITHM));
-}
-
-#endif /* UNIV_INNOCHECKSUM */

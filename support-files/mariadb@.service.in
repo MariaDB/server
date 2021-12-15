@@ -1,29 +1,35 @@
 # Multi instance version of mariadb. For if you run multiple versions at once.
-# Also used for mariadb@bootstrap to bootstrap Galera.
 #
-# create config file @sysconf2dir@/my{instancename}.cnf
+# create config file @sysconf2dir@/my{instancename}.cnf to be used as the
+# configuration file for this service.
 #
 # start as systemctl start mariadb@{instancename}.server
-
+#
+# It's not recommended to modify this file in-place, because it will be
+# overwritten during package upgrades.  If you want to customize, the
+# best way is to create a file "/etc/systemd/system/mariadb@.service",
+# containing
+#	.include /usr/lib/systemd/system/mariadb@.service
+#	...make your changes here...
+# or create a file "/etc/systemd/system/mariadb@.service.d/foo.conf",
+# which doesn't need to include ".include" call and which will be parsed
+# after the file mariadb@.service itself is parsed.
+#
+# For more info about custom unit files, see systemd.unit(5) or
+# https://mariadb.com/kb/en/mariadb/systemd/
+#
+# Copyright notice:
+#
 # This file is free software; you can redistribute it and/or modify it
 # under the terms of the GNU Lesser General Public License as published by
 # the Free Software Foundation; either version 2.1 of the License, or
 # (at your option) any later version.
-#
-# Thanks to:
-# Daniel Black
-# Erkan Yanar
-# David Strauss
-# and probably others
-# Inspired from https://gitweb.gentoo.org/repo/gentoo.git/tree/dev-db/mysql-init-scripts/files/mysqld_at.service
 
 [Unit]
-Description=MariaDB @VERSION@ database server (multi-instance)
+Description=MariaDB @VERSION@ database server (multi-instance %I)
 Documentation=man:mysqld(8)
 Documentation=https://mariadb.com/kb/en/library/systemd/
 After=network.target
-After=syslog.target
-
 ConditionPathExists=@sysconf2dir@/my%I.cnf
 
 [Install]
@@ -68,6 +74,8 @@ ProtectHome=true
 # Execute pre and post scripts as root, otherwise it does it as User=
 PermissionsStartOnly=true
 
+@SYSTEMD_EXECSTARTPRE@
+
 # Perform automatic wsrep recovery. When server is started without wsrep,
 # galera_recovery simply returns an empty string. In any case, however,
 # the script is not expected to return with a non-zero status.
@@ -76,14 +84,14 @@ PermissionsStartOnly=true
 ExecStartPre=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION%I"
 
 ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
- VAR=`@bindir@/galera_recovery --defaults-file=@sysconf2dir@/my%I.cnf`; [ $? -eq 0 ] \
+ VAR=`cd @bindir@/..; @bindir@/galera_recovery --defaults-file=@sysconf2dir@/my%I.cnf`; [ $? -eq 0 ] \
  && systemctl set-environment _WSREP_START_POSITION%I=$VAR || exit 1"
 
 # Alternate: (remove ConditionPathExists above)
 # use [mysqld.INSTANCENAME] as sections in my.cnf
 #
 #ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
-# VAR=`@bindir@/galera_recovery --defaults-group-suffix=%I`; [ $? -eq 0 ] \
+# VAR=`cd @bindir@/..; @bindir@/galera_recovery --defaults-group-suffix=%I`; [ $? -eq 0 ] \
 # && systemctl set-environment _WSREP_START_POSITION%I=$VAR || exit 1"
 
 # Needed to create system tables etc.
@@ -107,6 +115,8 @@ ExecStart=@sbindir@/mysqld --defaults-file=@sysconf2dir@/my%I.cnf \
 
 # Unset _WSREP_START_POSITION environment variable.
 ExecStartPost=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION%I"
+
+@SYSTEMD_EXECSTARTPOST@
 
 KillSignal=SIGTERM
 
@@ -141,14 +151,21 @@ UMask=007
 # LOAD DATA INFILE you can enable PrivateTmp=true for a little more security.
 PrivateTmp=false
 
+# Set an explicit Start and Stop timeout of 900 seconds (15 minutes!)
+# this is the same value as used in SysV init scripts in the past
+# if you need a longer timeout, check the KB:
+# https://mariadb.com/kb/en/library/systemd/#configuring-the-systemd-service-timeout
+TimeoutStartSec=900
+TimeoutStopSec=900
+
 ##
 ## Options previously available to be set via [mysqld_safe]
 ## that now needs to be set by systemd config files as mysqld_safe
 ## isn't executed.
 ##
 
-# Number of files limit. previously [mysqld_safe] open-file-limit
-LimitNOFILE=16364
+# Number of files limit. previously [mysqld_safe] open-files-limit
+LimitNOFILE=32768
 
 # Maximium core size. previously [mysqld_safe] core-file-size
 # LimitCore=

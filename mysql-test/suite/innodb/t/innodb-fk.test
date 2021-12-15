@@ -115,11 +115,9 @@ CREATE TABLE t2 (
   CONSTRAINT fk2 FOREIGN KEY (f2) REFERENCES t1 (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
---replace_regex /#sql-[0-9_a-f-]*/#sql-temporary/
 --error 1005
 ALTER TABLE t2 ADD CONSTRAINT fk3 FOREIGN KEY (f3) REFERENCES t3 (id) ON DELETE CASCADE;
 
---replace_regex /#sql-[0-9_a-f-]*/#sql-temporary/
 show warnings;
 
 drop table t2;

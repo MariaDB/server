@@ -1,0 +1,62 @@
+include/master-slave.inc
+Warnings:
+Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
+Note	####	Storing MySQL user name or password information in the master info repository is not secure and is therefore not recommended. Please consider using the USER and PASSWORD connection options for START SLAVE; see the 'START SLAVE Syntax' in the MySQL Manual for more information.
+[connection master]
+set @@sql_log_bin = 0;
+CREATE TABLE `t1` (
+`a` int(10) unsigned NOT NULL DEFAULT '0',
+`b` bigint(20) unsigned NOT NULL DEFAULT '0',
+`c` bigint(20) unsigned NOT NULL DEFAULT '0',
+`d` bigint(20) unsigned NOT NULL DEFAULT '0',
+`e` varbinary(64) DEFAULT NULL,
+`f` int(10) NOT NULL DEFAULT '0',
+`g` int(10) NOT NULL DEFAULT '0',
+`h` int(10) unsigned NOT NULL DEFAULT '0',
+PRIMARY KEY (`a`,`b`),
+KEY `key1` (`a`, `e`(1)),
+KEY `key2` (`a`,`h`)
+) ENGINE=RocksDB;
+set @@sql_log_bin = 1;
+set @@sql_log_bin = 0;
+CREATE TABLE `t1` (
+`a` int(10) unsigned NOT NULL DEFAULT '0',
+`b` bigint(20) unsigned NOT NULL DEFAULT '0',
+`c` bigint(20) unsigned NOT NULL DEFAULT '0',
+`d` bigint(20) unsigned NOT NULL DEFAULT '0',
+`e` varbinary(64) DEFAULT NULL,
+`f` int(10) NOT NULL DEFAULT '0',
+`g` int(10) NOT NULL DEFAULT '0',
+`x` TINYINT(3) UNSIGNED DEFAULT NULL,
+`y` INT(10) DEFAULT NULL,
+`h` int(10) unsigned NOT NULL DEFAULT '0',
+PRIMARY KEY (`a`,`b`),
+KEY `key1` (`a`, `e`(1)),
+KEY `key2` (`a`,`h`)
+) ENGINE=RocksDB;
+set @@sql_log_bin = 1;
+INSERT INTO t1 VALUES (1, 1, 1, 1, 'a', 1, 1, 1);
+SELECT * FROM t1;
+a	b	c	d	e	f	g	h
+1	1	1	1	a	1	1	1
+SELECT * FROM t1;
+a	b	c	d	e	f	g	x	y	h
+1	1	1	1	a	1	1	NULL	NULL	1
+UPDATE t1 SET h = 10 WHERE h = 1;
+SELECT * FROM t1;
+a	b	c	d	e	f	g	h
+1	1	1	1	a	1	1	10
+SELECT * FROM t1;
+a	b	c	d	e	f	g	x	y	h
+1	1	1	1	a	1	1	NULL	NULL	10
+SELECT COUNT(*) FROM t1 FORCE INDEX (key1) WHERE h = 10 AND a = 1;
+COUNT(*)
+1
+SELECT COUNT(*) FROM t1 FORCE INDEX (key2) WHERE h = 10 AND a = 1;
+COUNT(*)
+1
+SELECT COUNT(*) FROM t1 FORCE INDEX (PRIMARY) WHERE h = 10 AND a = 1;
+COUNT(*)
+1
+DROP TABLE t1;
+include/rpl_end.inc

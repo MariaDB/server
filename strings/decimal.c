@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /*
 =======================================================================
@@ -739,7 +739,7 @@ int decimal_shift(decimal_t *dec, int shift)
   /*
     If there are gaps then fill ren with 0.
 
-    Only one of following 'for' loops will work becouse beg <= end
+    Only one of following 'for' loops will work because beg <= end
   */
   beg= ROUND_UP(beg + 1) - 1;
   end= ROUND_UP(end) - 1;
@@ -812,6 +812,24 @@ internal_str2dec(const char *from, decimal_t *to, char **end, my_bool fixed)
   while (s < end_of_string && my_isdigit(&my_charset_latin1, *s))
     s++;
   intg= (int) (s-s1);
+  /*
+    If the integer part is long enough and it has multiple leading zeros,
+    let's trim them, so this expression can return 1 without overflowing:
+      CAST(CONCAT(REPEAT('0',90),'1') AS DECIMAL(10))
+  */
+  if (intg > DIG_PER_DEC1 && s1[0] == '0' && s1[1] == '0')
+  {
+    /*
+      Keep at least one digit, to avoid an empty string.
+      So we trim '0000' to '0' rather than to ''.
+      Otherwise the below code (converting digits to to->buf)
+      would fail on a fatal error.
+    */
+    const char *iend= s - 1;
+    for ( ; s1 < iend && *s1 == '0'; s1++)
+    { }
+    intg= (int) (s-s1);
+  }
   if (s < end_of_string && *s=='.')
   {
     endp= s+1;
@@ -863,7 +881,7 @@ internal_str2dec(const char *from, decimal_t *to, char **end, my_bool fixed)
         intg=intg1*DIG_PER_DEC1;
     }
   }
-  /* Error is guranteed to be set here */
+  /* Error is guaranteed to be set here */
   to->intg=intg;
   to->frac=frac;
 
@@ -903,20 +921,75 @@ internal_str2dec(const char *from, decimal_t *to, char **end, my_bool fixed)
   if (endp+1 < end_of_string && (*endp == 'e' || *endp == 'E'))
   {
     int str_error;
-    longlong exponent= my_strtoll10(endp+1, (char**) &end_of_string,
+    const char *end_of_exponent= end_of_string;
+    longlong exponent= my_strtoll10(endp+1, (char**) &end_of_exponent,
                                     &str_error);
 
-    if (end_of_string != endp +1)               /* If at least one digit */
+    if (end_of_exponent != endp +1)               /* If at least one digit */
     {
-      *end= (char*) end_of_string;
+      *end= (char*) end_of_exponent;
       if (str_error > 0)
       {
+        if (str_error == MY_ERRNO_ERANGE)
+        {
+          /*
+            Exponent is:
+            - a huge positive number that does not fit into ulonglong
+            - a huge negative number that does not fit into longlong
+            Skip all remaining digits.
+          */
+          for ( ; end_of_exponent < end_of_string &&
+                  my_isdigit(&my_charset_latin1, *end_of_exponent)
+                ; end_of_exponent++)
+          { }
+          *end= (char*) end_of_exponent;
+          if (exponent == ~0)
+          {
+            if (!decimal_is_zero(to))
+            {
+              /*
+                Non-zero mantissa and a huge positive exponent that
+                does not fit into ulonglong, e.g.:
+                  1e111111111111111111111
+              */
+              error= E_DEC_OVERFLOW;
+            }
+            else
+            {
+              /*
+                Zero mantissa and a huge positive exponent that
+                does not fit into ulonglong, e.g.:
+                  0e111111111111111111111
+                Return zero without warnings.
+              */
+            }
+          }
+          else
+          {
+            /*
+              Huge negative exponent that does not fit into longlong, e.g.
+                1e-111111111111111111111
+                0e-111111111111111111111
+              Return zero without warnings.
+            */
+          }
+          goto fatal_error;
+        }
+
+        /*
+          Some other error, e.g. MY_ERRNO_EDOM
+        */
         error= E_DEC_BAD_NUM;
         goto fatal_error;
       }
       if (exponent > INT_MAX/2 || (str_error == 0 && exponent < 0))
       {
-        error= E_DEC_OVERFLOW;
+        /*
+          The exponent fits into ulonglong, but it's still huge, e.g.
+            1e1111111111
+        */
+        if (!decimal_is_zero(to))
+          error= E_DEC_OVERFLOW;
         goto fatal_error;
       }
       if (exponent < INT_MIN/2 && error != E_DEC_OVERFLOW)
@@ -999,6 +1072,12 @@ static int ull2dec(ulonglong from, decimal_t *to)
   dec1 *buf;
 
   sanity(to);
+
+  if (!from)
+  {
+    decimal_make_zero(to);
+    return E_DEC_OK;
+  }
 
   for (intg1=1; from >= DIG_BASE; intg1++, from/=DIG_BASE) {}
   if (unlikely(intg1 > to->len))
@@ -2078,26 +2157,21 @@ int decimal_mul(const decimal_t *from1, const decimal_t *from2, decimal_t *to)
     }
   }
 
-  /* Now we have to check for -0.000 case */
-  if (to->sign)
+  /* Remove trailing zero words in frac part */
+  frac0= ROUND_UP(to->frac);
+
+  if (frac0 > 0 && to->buf[intg0 + frac0 - 1] == 0)
   {
-    dec1 *buf= to->buf;
-    dec1 *end= to->buf + intg0 + frac0;
-    DBUG_ASSERT(buf != end);
-    for (;;)
+    do
     {
-      if (*buf)
-        break;
-      if (++buf == end)
-      {
-        /* We got decimal zero */
-        decimal_make_zero(to);
-        break;
-      }
-    }
+      frac0--;
+    } while (frac0 > 0 && to->buf[intg0 + frac0 - 1] == 0);
+    to->frac= DIG_PER_DEC1 * frac0;
   }
+
+  /* Remove heading zero words in intg part */
   buf1= to->buf;
-  d_to_move= intg0 + ROUND_UP(to->frac);
+  d_to_move= intg0 + frac0;
   while (!*buf1 && (to->intg > DIG_PER_DEC1))
   {
     buf1++;
@@ -2109,6 +2183,14 @@ int decimal_mul(const decimal_t *from1, const decimal_t *from2, decimal_t *to)
     dec1 *cur_d= to->buf;
     for (; d_to_move--; cur_d++, buf1++)
       *cur_d= *buf1;
+  }
+
+  /* Now we have to check for -0.000 case */
+  if (to->sign && to->frac == 0 && to->buf[0] == 0)
+  {
+    DBUG_ASSERT(to->intg <= DIG_PER_DEC1);
+    /* We got decimal zero */
+    decimal_make_zero(to);
   }
   return error;
 }
@@ -2242,7 +2324,7 @@ static int do_div_mod(const decimal_t *from1, const decimal_t *from2,
   */
   norm_factor=DIG_BASE/(*start2+1);
   norm2=(dec1)(norm_factor*start2[0]);
-  if (likely(len2>0))
+  if (unlikely(len2>0))
     norm2+=(dec1)(norm_factor*start2[1]/DIG_BASE);
 
   if (*start1 < *start2)
@@ -2264,7 +2346,7 @@ static int do_div_mod(const decimal_t *from1, const decimal_t *from2,
       guess=(norm_factor*x+norm_factor*y/DIG_BASE)/norm2;
       if (unlikely(guess >= DIG_BASE))
         guess=DIG_BASE-1;
-      if (likely(len2>0))
+      if (unlikely(len2>0))
       {
         /* hmm, this is a suspicious trick - I removed normalization here */
         if (start2[1]*guess > (x-guess*start2[0])*DIG_BASE+y)

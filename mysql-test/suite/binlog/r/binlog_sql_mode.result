@@ -21,6 +21,8 @@ DO
 BEGIN
 UPDATE t1 SET id = id +1;
 END;|
+Warnings:
+Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 Check Result
 select
 (@a:=load_file("MYSQLTEST_VARDIR/tmp/mysqlbinlog_bug39526.binlog"))

@@ -37,11 +37,11 @@ SELECT * FROM t1 WHERE MATCH(b,c) AGAINST ('column');
 SHOW CREATE TABLE t1;
 ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 
-# crash right after the last write_row(), before the first commit of ALTER TABLE
---source include/expect_crash.inc
+# kill right after the last write_row(), before the first commit of ALTER TABLE
+connect (hang,localhost,root);
 
-SET DEBUG_DBUG='+d,crash_commit_before';
---error 2013
+SET DEBUG_SYNC='alter_table_copy_trans_commit SIGNAL hung WAIT_FOR ever';
+send
 # create 32 secondary indexes
 ALTER TABLE t ADD INDEX(b,c,d,a),ADD INDEX(b,c,a,d),ADD INDEX(b,a,c,d),ADD INDEX(b,a,d,c),
               ADD INDEX(b,d,a,c),ADD INDEX(b,d,c,a),ADD INDEX(a,b,c,d),ADD INDEX(a,b,d,c),
@@ -53,8 +53,13 @@ ALTER TABLE t ADD INDEX(b,c,d,a),ADD INDEX(b,c,a,d),ADD INDEX(b,a,c,d),ADD INDEX
               ADD INDEX(a,b,d), ADD INDEX(a,d,b), ADD INDEX(b,c,d), ADD INDEX(b,d,c),
  	      ALGORITHM=COPY;
 
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR hung';
+let $shutdown_timeout=0;
 --let $restart_parameters= --innodb-force-recovery=3
---source include/start_mysqld.inc
+--source include/restart_mysqld.inc
+disconnect hang;
+let $shutdown_timeout=;
 let $datadir=`select @@datadir`;
 --replace_regex /#sql-[0-9a-f_]*/#sql-temporary/ /FTS_[0-9a-f]*_[0-9a-f]*/FTS/
 --list_files $datadir/test

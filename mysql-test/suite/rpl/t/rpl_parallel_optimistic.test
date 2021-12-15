@@ -325,7 +325,7 @@ INSERT INTO t2 VALUES (1,1), (2,1), (3,1), (4,1), (5,1);
 --connection server_2
 --source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc
-SET @old_dbug= @@GLOBAL.debug_dbug;
+SET @old_debug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug= '+d,inject_analyze_table_sleep';
 
 --connection server_1
@@ -484,15 +484,98 @@ SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
 SELECT * FROM t1 WHERE a >= 40 ORDER BY a;
 SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
 
-# Clean up.
+# partial cleanup to reuse the tables by following tests
+--connection server_1
+DELETE FROM t1;
+DELETE FROM t2;
+--source include/save_master_gtid.inc
 
 --connection server_2
+--source include/sync_with_master_gtid.inc
+
+#
+# MDEV-13577 optimistic parallel slave errors out to error log unnecessary
+#
+
+# The 1st of the following two trx:s a blocker on slave
+--connection server_2
+set global log_warnings=2;
+BEGIN;
+INSERT INTO t1 SET a=1;
+
+--connection server_1
+SET @save.binlog_format=@@session.binlog_format;
+SET @@SESSION.binlog_format=row;
+
+BEGIN;
+  INSERT INTO t1 SET a=1;
+  INSERT INTO t2 SET a=1;
+COMMIT;
+
+# This transaction is going to win optimistical race with above INSERT
+# on slave while being depend on it. That means it will face a kind of temporary error
+# and then will retry to succeed.
+BEGIN;
+  DELETE FROM t2;
+COMMIT;
+
+# First make sure DELETE raced indeed to get stuck at retrying stage
+# where it runs "realistically" now. There is nomore optimistic error
+# in the errorlog, which is downgraded to the warning level (when
+# --log-warnings > 1), see above suppression.
+--connection server_2
+--let $wait_condition= SELECT COUNT(*) = 1 FROM information_schema.processlist WHERE state = "Waiting for prior transaction to commit"
+--source include/wait_condition.inc
+
+# Next release the 1st trx to commit.
+--connection server_2
+ROLLBACK;
+
+# MDEV-13577 local cleanup:
+--connection server_1
+SET @@SESSION.binlog_format= @save.binlog_format;
+DELETE FROM t1;
+DELETE FROM t2;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+
+#
+# Clean up.
+#
+--connection server_2
 --source include/stop_slave.inc
+set global log_warnings=default;
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 --source include/start_slave.inc
 
 --connection server_1
 DROP TABLE t1, t2, t3;
+--source include/save_master_gtid.inc
 
+--connection server_2
+--source include/sync_with_master_gtid.inc
+# Check for left-over rows in table mysql.gtid_slave_pos (MDEV-12147).
+#
+# There was a bug when a transaction got a conflict and was rolled back. It
+# might have also handled deletion of some old rows, and these deletions would
+# then also be rolled back. And since the deletes were never re-tried, old no
+# longer needed rows would accumulate in the table without limit.
+# 
+# The earlier part of this test file have plenty of transactions being rolled
+# back. But the last DROP TABLE statement runs on its own and should never
+# conflict, thus at this point the mysql.gtid_slave_pos table should be clean.
+#
+# To support @@gtid_pos_auto_engines, when a row is inserted in the table, it
+# is associated with the engine of the table at insertion time, and it will
+# only be deleted during record_gtid from a table of the same engine. Since we
+# alter the table from MyISAM to InnoDB at the start of this test, we should
+# end up with 4 rows: two left-over from when the table was MyISAM, and two
+# left-over from the InnoDB part.
+--echo Check that no more than the expected last four GTIDs are in mysql.gtid_slave_pos
+select count(4) <= 4 from mysql.gtid_slave_pos order by domain_id, sub_id;
+
+--connection server_1
 --source include/rpl_end.inc

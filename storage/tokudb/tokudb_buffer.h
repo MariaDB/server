@@ -134,8 +134,8 @@ public:
         char* data_offset = (char*)m_data + offset;
         if (new_s != old_s) {
             size_t n = m_size - (offset + old_s);
-            assert_always(
-                offset + new_s + n <= m_limit && offset + old_s + n <= m_limit);
+            assert_always(offset + new_s + n <= m_limit);
+            assert_always(offset + old_s + n <= m_limit);
             memmove(data_offset + new_s, data_offset + old_s, n);
             if (new_s > old_s)
                 m_size += new_s - old_s;

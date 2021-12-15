@@ -1,6 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2020, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -23,11 +24,10 @@ Full Text Search parser helper file.
 Created 2007/3/16 Sunny Bains.
 ***********************************************************************/
 
-#include "ha_prototypes.h"
-
 #include "fts0ast.h"
 #include "fts0pars.h"
 #include "fts0fts.h"
+#include "row0sel.h"
 
 /* The FTS ast visit pass. */
 enum fts_ast_visit_pass_t {
@@ -557,8 +557,7 @@ fts_ast_node_check_union(
 	fts_ast_node_t*	node)
 {
 	if (node->type == FTS_AST_LIST
-	    || node->type == FTS_AST_SUBEXP_LIST
-	    || node->type == FTS_AST_PARSER_PHRASE_LIST) {
+	    || node->type == FTS_AST_SUBEXP_LIST) {
 
 		for (node = node->list.head; node; node = node->next) {
 			if (!fts_ast_node_check_union(node)) {
@@ -566,6 +565,9 @@ fts_ast_node_check_union(
 			}
 		}
 
+	} else if (node->type == FTS_AST_PARSER_PHRASE_LIST) {
+		/* Phrase search for plugin parser */
+		return(false);
 	} else if (node->type == FTS_AST_OPER
 		   && (node->oper == FTS_IGNORE
 		       || node->oper == FTS_EXIST)) {
@@ -602,6 +604,7 @@ fts_ast_visit(
 	bool			revisit = false;
 	bool			will_be_ignored = false;
 	fts_ast_visit_pass_t	visit_pass = FTS_PASS_FIRST;
+	const trx_t*		trx = node->trx;
 
 	start_node = node->list.head;
 
@@ -698,6 +701,10 @@ fts_ast_visit(
 				node->visited = true;
 			}
 		}
+	}
+
+	if (trx_is_interrupted(trx)) {
+		return DB_INTERRUPTED;
 	}
 
 	if (revisit) {

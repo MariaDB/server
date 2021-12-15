@@ -1,0 +1,361 @@
+# Test of the READ_ONLY global variable:
+# check that it blocks updates unless they are only on temporary tables.
+
+# should work with embedded server after mysqltest is fixed
+--source include/not_embedded.inc
+set @start_read_only= @@global.read_only;
+
+# Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1,t2,t3;
+--enable_warnings
+
+# READ_ONLY does nothing to SUPER users
+# so we use a non-SUPER one:
+
+create user test@localhost;
+grant CREATE, SELECT, DROP on *.* to test@localhost;
+
+connect (con1,localhost,test,,test);
+
+connection default;
+
+set global read_only=0;
+
+connection con1;
+
+create table t1 (a int);
+create trigger trg1 before insert on t1 for each row set @a:=1;
+
+insert into t1 values(1);
+
+create table t2 select * from t1;
+
+connection default;
+
+set global read_only=1;
+
+# We check that SUPER can:
+
+create table t3 (a int);
+drop table t3;
+
+connection con1;
+
+select @@global.read_only;
+
+--error ER_OPTION_PREVENTS_STATEMENT
+create table t3 (a int);
+
+--error ER_OPTION_PREVENTS_STATEMENT
+insert into t1 values(1);
+
+--error ER_OPTION_PREVENTS_STATEMENT
+drop trigger trg1;
+
+# if a statement, after parse stage, looks like it will update a
+# non-temp table, it will be rejected, even if at execution it would
+# have turned out that 0 rows would be updated
+--error ER_OPTION_PREVENTS_STATEMENT
+update t1 set a=1 where 1=0;
+
+# multi-update is special (see sql_parse.cc) so we test it
+--error ER_OPTION_PREVENTS_STATEMENT
+update t1,t2 set t1.a=t2.a+1 where t1.a=t2.a;
+
+# check multi-delete to be sure
+--error ER_OPTION_PREVENTS_STATEMENT
+delete t1,t2 from t1,t2 where t1.a=t2.a;
+
+# With temp tables updates should be accepted:
+
+create temporary table t3 (a int);
+
+create temporary table t4 (a int) select * from t3;
+
+insert into t3 values(1);
+
+insert into t4 select * from t3;
+
+--error ER_OPTION_PREVENTS_STATEMENT
+create table t3 (a int);
+
+# a non-temp table updated:
+--error ER_OPTION_PREVENTS_STATEMENT
+update t1,t3 set t1.a=t3.a+1 where t1.a=t3.a;
+
+# no non-temp table updated (just swapped):
+update t1,t3 set t3.a=t1.a+1 where t1.a=t3.a;
+
+update t4,t3 set t4.a=t3.a+1 where t4.a=t3.a;
+
+--error ER_OPTION_PREVENTS_STATEMENT
+delete t1 from t1,t3 where t1.a=t3.a;
+
+delete t3 from t1,t3 where t1.a=t3.a;
+
+delete t4 from t3,t4 where t4.a=t3.a;
+
+# and even homonymous ones
+
+create temporary table t1 (a int);
+
+insert into t1 values(1);
+
+update t1,t3 set t1.a=t3.a+1 where t1.a=t3.a;
+
+delete t1 from t1,t3 where t1.a=t3.a;
+
+drop table t1;
+
+--error ER_OPTION_PREVENTS_STATEMENT
+insert into t1 values(1);
+
+#
+# MDEV-14056 DROP TEMPORARY TABLE IF EXISTS causes error 1290 with read_only option
+#
+drop temporary table if exists t1;
+
+#
+# Bug#11733 COMMITs should not happen if read-only is set
+#
+
+# LOCK TABLE ... WRITE / READ_ONLY
+# - is an error in the same connection
+# - is ok in a different connection
+
+connection default;
+set global read_only=0;
+lock table t1 write;
+
+connection con1;
+lock table t2 write;
+
+connection default;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+set global read_only=1;
+unlock tables ;
+# The following call blocks until con1 releases the write lock.
+# Blocking is expected.
+--echo send set global read_only=1;
+send set global read_only=1;
+
+connection con1;
+select @@global.read_only;
+unlock tables ;
+let $wait_condition= SELECT @@global.read_only= 1;
+--source include/wait_condition.inc
+select @@global.read_only;
+
+connection default;
+--echo reap;
+reap;
+
+# LOCK TABLE ... READ / READ_ONLY
+# - is an error in the same connection
+# - is ok in a different connection
+
+connection default;
+set global read_only=0;
+lock table t1 read;
+
+connection con1;
+lock table t2 read;
+
+connection default;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+set global read_only=1;
+unlock tables ;
+
+# after unlock tables in current connection
+# the next command must be executed successfully
+set global read_only=1;
+select @@global.read_only;
+
+connection con1;
+select @@global.read_only;
+unlock tables ;
+
+connection default;
+
+# pending transaction / READ_ONLY
+# - is an error in the same connection
+# - is ok in a different connection
+
+connection default;
+set global read_only=0;
+BEGIN;
+
+connection con1;
+BEGIN;
+
+connection default;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+set global read_only=1;
+ROLLBACK;
+
+set global read_only=1;
+
+connection con1;
+select @@global.read_only;
+ROLLBACK;
+
+# Verify that FLUSH TABLES WITH READ LOCK do not block READ_ONLY
+# - in the same SUPER connection
+# - in another SUPER connection
+
+connection default;
+set global read_only=0;
+flush tables with read lock;
+set global read_only=1;
+unlock tables;
+
+connect (root2,localhost,root,,test);
+
+connection default;
+set global read_only=0;
+flush tables with read lock;
+
+connection root2;
+set global read_only=1;
+
+connection default;
+select @@global.read_only;
+unlock tables;
+disconnect root2;
+
+# Bug#22077 DROP TEMPORARY TABLE fails with wrong error if read_only is set
+#
+# check if DROP TEMPORARY on a non-existing temporary table returns the right
+# error
+
+--error ER_BAD_TABLE_ERROR
+drop temporary table ttt;
+
+# check if DROP TEMPORARY TABLE IF EXISTS produces a warning with read_only set
+drop temporary table if exists ttt;
+
+#
+# Cleanup
+#
+connection default;
+set global read_only=0;
+disconnect con1;
+drop table t1,t2;
+drop user test@localhost;
+
+--echo #
+--echo # Bug#27440 read_only allows create and drop database
+--echo #
+set global read_only= 1;
+--disable_warnings
+drop database if exists mysqltest_db1;
+drop database if exists mysqltest_db2;
+--enable_warnings
+
+delete from mysql.user where User like 'mysqltest_%';
+delete from mysql.db where User like 'mysqltest_%';
+delete from mysql.tables_priv where User like 'mysqltest_%';
+delete from mysql.columns_priv where User like 'mysqltest_%';
+flush privileges;
+
+create user `mysqltest_u1`@`%`;
+grant all on mysqltest_db2.* to `mysqltest_u1`@`%`;
+create database mysqltest_db1;
+grant all on mysqltest_db1.* to `mysqltest_u1`@`%`;
+flush privileges;
+connect (con_bug27440,127.0.0.1,mysqltest_u1,,test,$MASTER_MYPORT,);
+connection con_bug27440;
+--error ER_OPTION_PREVENTS_STATEMENT
+create database mysqltest_db2;
+show databases like '%mysqltest_db2%';
+--error ER_OPTION_PREVENTS_STATEMENT
+drop database mysqltest_db1;
+disconnect con_bug27440;
+connection default;
+delete from mysql.user where User like 'mysqltest_%';
+delete from mysql.db where User like 'mysqltest_%';
+delete from mysql.tables_priv where User like 'mysqltest_%';
+delete from mysql.columns_priv where User like 'mysqltest_%';
+flush privileges;
+drop database mysqltest_db1;
+set global read_only= @start_read_only;
+
+--echo #
+--echo # MDEV-16987 - ALTER DATABASE possible in read-only mode
+--echo #
+CREATE USER user1@localhost;
+GRANT ALTER ON test1.* TO user1@localhost;
+CREATE DATABASE test1;
+SET GLOBAL read_only=1;
+change_user user1;
+--error ER_OPTION_PREVENTS_STATEMENT
+ALTER DATABASE test1 CHARACTER SET utf8;
+change_user root;
+SET GLOBAL read_only=0;
+DROP DATABASE test1;
+DROP USER user1@localhost;
+USE test;
+
+--echo # End of 5.5 tests
+
+--echo #
+--echo # WL#5968 Implement START TRANSACTION READ (WRITE|ONLY);
+--echo #
+
+--echo #
+--echo # Test interaction with read_only system variable.
+
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (1), (2);
+
+CREATE USER user1;
+connect (con1, localhost, user1);
+connection default;
+
+SET GLOBAL read_only= 1;
+
+--echo # All allowed with super privilege
+START TRANSACTION;
+COMMIT;
+
+START TRANSACTION READ ONLY;
+COMMIT;
+
+START TRANSACTION READ WRITE;
+COMMIT;
+
+--echo # We allow implicit RW transaction without super privilege
+--echo # for compatibility reasons
+connection con1;
+START TRANSACTION;
+--echo # Check that table updates are still disallowed.
+--error ER_OPTION_PREVENTS_STATEMENT
+INSERT INTO t1 VALUES (3);
+--error ER_OPTION_PREVENTS_STATEMENT
+UPDATE t1 SET a= 1;
+--error ER_OPTION_PREVENTS_STATEMENT
+DELETE FROM t1;
+COMMIT;
+
+START TRANSACTION READ ONLY;
+COMMIT;
+
+--echo # Explicit RW trans is not allowed without super privilege
+--error ER_OPTION_PREVENTS_STATEMENT
+START TRANSACTION READ WRITE;
+COMMIT;
+disconnect con1;
+--source include/wait_until_disconnected.inc
+connection default;
+DROP USER user1;
+
+SET GLOBAL read_only= 0;
+DROP TABLE t1;
+
+# Wait till all disconnects are completed
+--source include/wait_until_count_sessions.inc
+
+--echo # End of 10.0 tests

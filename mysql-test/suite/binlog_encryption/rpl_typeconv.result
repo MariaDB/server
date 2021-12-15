@@ -7,9 +7,9 @@ TestNo INT AUTO_INCREMENT PRIMARY KEY,
 Source TEXT,
 Target TEXT,
 Flags TEXT,
-On_Master TEXT,
-On_Slave TEXT,
-Expected TEXT,
+On_Master LONGTEXT,
+On_Slave LONGTEXT,
+Expected LONGTEXT,
 Compare INT,
 Error TEXT);
 SELECT @@global.slave_type_conversions;
@@ -39,18 +39,66 @@ ALL_LOSSY,ALL_NON_LOSSY
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='';
 **** Running tests with @@SLAVE_TYPE_CONVERSIONS = '' ****
+#
+# MDEV-15821 Row format replication from LONGBLOB COMPRESSED to LONGBLOB does not work
+#
+# End of MDEV-15821
+#
+# MDEV-15833 Row format replication between LONGBLOB and MEDIUMBLOB does not work for long values
+#
+# End of MDEV-15833
+#
+# MDEV-17098 DATE <-> DATETIME
+#
+# End of MDEV-17098
 include/rpl_reset.inc
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_NON_LOSSY';
 **** Running tests with @@SLAVE_TYPE_CONVERSIONS = 'ALL_NON_LOSSY' ****
+#
+# MDEV-15821 Row format replication from LONGBLOB COMPRESSED to LONGBLOB does not work
+#
+# End of MDEV-15821
+#
+# MDEV-15833 Row format replication between LONGBLOB and MEDIUMBLOB does not work for long values
+#
+# End of MDEV-15833
+#
+# MDEV-17098 DATE <-> DATETIME
+#
+# End of MDEV-17098
 include/rpl_reset.inc
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_LOSSY';
 **** Running tests with @@SLAVE_TYPE_CONVERSIONS = 'ALL_LOSSY' ****
+#
+# MDEV-15821 Row format replication from LONGBLOB COMPRESSED to LONGBLOB does not work
+#
+# End of MDEV-15821
+#
+# MDEV-15833 Row format replication between LONGBLOB and MEDIUMBLOB does not work for long values
+#
+# End of MDEV-15833
+#
+# MDEV-17098 DATE <-> DATETIME
+#
+# End of MDEV-17098
 include/rpl_reset.inc
 connection slave;
 SET GLOBAL SLAVE_TYPE_CONVERSIONS='ALL_LOSSY,ALL_NON_LOSSY';
 **** Running tests with @@SLAVE_TYPE_CONVERSIONS = 'ALL_LOSSY,ALL_NON_LOSSY' ****
+#
+# MDEV-15821 Row format replication from LONGBLOB COMPRESSED to LONGBLOB does not work
+#
+# End of MDEV-15821
+#
+# MDEV-15833 Row format replication between LONGBLOB and MEDIUMBLOB does not work for long values
+#
+# End of MDEV-15833
+#
+# MDEV-17098 DATE <-> DATETIME
+#
+# End of MDEV-17098
 include/rpl_reset.inc
 connection slave;
 **** Result of conversions ****
@@ -176,6 +224,49 @@ BIT(5)         	BIT(6)         	                         	<Correct error>
 BIT(6)         	BIT(5)         	                         	<Correct error>
 BIT(5)         	BIT(12)        	                         	<Correct error>
 BIT(12)        	BIT(5)         	                         	<Correct error>
+TINYBLOB COMPRE	TINYBLOB       	                         	<Correct error>
+TINYBLOB COMPRE	BLOB           	                         	<Correct error>
+TINYBLOB COMPRE	MEDIUMBLOB     	                         	<Correct error>
+TINYBLOB COMPRE	LONGBLOB       	                         	<Correct error>
+TINYBLOB COMPRE	VARBINARY(255) 	                         	<Correct error>
+BLOB COMPRESSED	TINYBLOB       	                         	<Correct error>
+BLOB COMPRESSED	BLOB           	                         	<Correct error>
+BLOB COMPRESSED	MEDIUMBLOB     	                         	<Correct error>
+BLOB COMPRESSED	LONGBLOB       	                         	<Correct error>
+BLOB COMPRESSED	VARBINARY(65500	                         	<Correct error>
+MEDIUMBLOB COMP	TINYBLOB       	                         	<Correct error>
+MEDIUMBLOB COMP	BLOB           	                         	<Correct error>
+MEDIUMBLOB COMP	MEDIUMBLOB     	                         	<Correct error>
+MEDIUMBLOB COMP	LONGBLOB       	                         	<Correct error>
+MEDIUMBLOB COMP	VARBINARY(65500	                         	<Correct error>
+LONGBLOB COMPRE	TINYBLOB       	                         	<Correct error>
+LONGBLOB COMPRE	BLOB           	                         	<Correct error>
+LONGBLOB COMPRE	MEDIUMBLOB     	                         	<Correct error>
+LONGBLOB COMPRE	LONGBLOB       	                         	<Correct error>
+LONGBLOB COMPRE	VARBINARY(65500	                         	<Correct error>
+TINYBLOB       	BLOB           	                         	<Correct error>
+TINYBLOB       	MEDIUMBLOB     	                         	<Correct error>
+TINYBLOB       	LONGBLOB       	                         	<Correct error>
+TINYBLOB       	VARBINARY(255) 	                         	<Correct error>
+BLOB           	TINYBLOB       	                         	<Correct error>
+BLOB           	MEDIUMBLOB     	                         	<Correct error>
+BLOB           	LONGBLOB       	                         	<Correct error>
+BLOB           	VARBINARY(65500	                         	<Correct error>
+MEDIUMBLOB     	TINYBLOB       	                         	<Correct error>
+MEDIUMBLOB     	BLOB           	                         	<Correct error>
+MEDIUMBLOB     	LONGBLOB       	                         	<Correct error>
+MEDIUMBLOB     	VARBINARY(65500	                         	<Correct error>
+LONGBLOB       	TINYBLOB       	                         	<Correct error>
+LONGBLOB       	BLOB           	                         	<Correct error>
+LONGBLOB       	MEDIUMBLOB     	                         	<Correct error>
+LONGBLOB       	VARBINARY(65500	                         	<Correct error>
+DATE           	DATETIME(6)    	                         	<Correct error>
+DATE           	DATETIME(6)    	                         	<Correct error>
+DATE           	DATETIME(6)    	                         	<Correct error>
+DATE           	DATETIME(0)    	                         	<Correct error>
+DATETIME(6)    	DATE           	                         	<Correct error>
+DATETIME(6)    	DATE           	                         	<Correct error>
+DATETIME(0)    	DATE           	                         	<Correct error>
 TINYBLOB       	TINYBLOB       	ALL_NON_LOSSY            	<Correct value>
 TINYBLOB       	BLOB           	ALL_NON_LOSSY            	<Correct value>
 TINYBLOB       	MEDIUMBLOB     	ALL_NON_LOSSY            	<Correct value>
@@ -297,6 +388,49 @@ BIT(5)         	BIT(6)         	ALL_NON_LOSSY            	<Correct value>
 BIT(6)         	BIT(5)         	ALL_NON_LOSSY            	<Correct error>
 BIT(5)         	BIT(12)        	ALL_NON_LOSSY            	<Correct value>
 BIT(12)        	BIT(5)         	ALL_NON_LOSSY            	<Correct error>
+TINYBLOB COMPRE	TINYBLOB       	ALL_NON_LOSSY            	<Correct value>
+TINYBLOB COMPRE	BLOB           	ALL_NON_LOSSY            	<Correct value>
+TINYBLOB COMPRE	MEDIUMBLOB     	ALL_NON_LOSSY            	<Correct value>
+TINYBLOB COMPRE	LONGBLOB       	ALL_NON_LOSSY            	<Correct value>
+TINYBLOB COMPRE	VARBINARY(255) 	ALL_NON_LOSSY            	<Correct value>
+BLOB COMPRESSED	TINYBLOB       	ALL_NON_LOSSY            	<Correct error>
+BLOB COMPRESSED	BLOB           	ALL_NON_LOSSY            	<Correct value>
+BLOB COMPRESSED	MEDIUMBLOB     	ALL_NON_LOSSY            	<Correct value>
+BLOB COMPRESSED	LONGBLOB       	ALL_NON_LOSSY            	<Correct value>
+BLOB COMPRESSED	VARBINARY(65500	ALL_NON_LOSSY            	<Correct error>
+MEDIUMBLOB COMP	TINYBLOB       	ALL_NON_LOSSY            	<Correct error>
+MEDIUMBLOB COMP	BLOB           	ALL_NON_LOSSY            	<Correct error>
+MEDIUMBLOB COMP	MEDIUMBLOB     	ALL_NON_LOSSY            	<Correct value>
+MEDIUMBLOB COMP	LONGBLOB       	ALL_NON_LOSSY            	<Correct value>
+MEDIUMBLOB COMP	VARBINARY(65500	ALL_NON_LOSSY            	<Correct error>
+LONGBLOB COMPRE	TINYBLOB       	ALL_NON_LOSSY            	<Correct error>
+LONGBLOB COMPRE	BLOB           	ALL_NON_LOSSY            	<Correct error>
+LONGBLOB COMPRE	MEDIUMBLOB     	ALL_NON_LOSSY            	<Correct error>
+LONGBLOB COMPRE	LONGBLOB       	ALL_NON_LOSSY            	<Correct value>
+LONGBLOB COMPRE	VARBINARY(65500	ALL_NON_LOSSY            	<Correct error>
+TINYBLOB       	BLOB           	ALL_NON_LOSSY            	<Correct value>
+TINYBLOB       	MEDIUMBLOB     	ALL_NON_LOSSY            	<Correct value>
+TINYBLOB       	LONGBLOB       	ALL_NON_LOSSY            	<Correct value>
+TINYBLOB       	VARBINARY(255) 	ALL_NON_LOSSY            	<Correct value>
+BLOB           	TINYBLOB       	ALL_NON_LOSSY            	<Correct error>
+BLOB           	MEDIUMBLOB     	ALL_NON_LOSSY            	<Correct value>
+BLOB           	LONGBLOB       	ALL_NON_LOSSY            	<Correct value>
+BLOB           	VARBINARY(65500	ALL_NON_LOSSY            	<Correct error>
+MEDIUMBLOB     	TINYBLOB       	ALL_NON_LOSSY            	<Correct error>
+MEDIUMBLOB     	BLOB           	ALL_NON_LOSSY            	<Correct error>
+MEDIUMBLOB     	LONGBLOB       	ALL_NON_LOSSY            	<Correct value>
+MEDIUMBLOB     	VARBINARY(65500	ALL_NON_LOSSY            	<Correct error>
+LONGBLOB       	TINYBLOB       	ALL_NON_LOSSY            	<Correct error>
+LONGBLOB       	BLOB           	ALL_NON_LOSSY            	<Correct error>
+LONGBLOB       	MEDIUMBLOB     	ALL_NON_LOSSY            	<Correct error>
+LONGBLOB       	VARBINARY(65500	ALL_NON_LOSSY            	<Correct error>
+DATE           	DATETIME(6)    	ALL_NON_LOSSY            	<Correct value>
+DATE           	DATETIME(6)    	ALL_NON_LOSSY            	<Correct value>
+DATE           	DATETIME(6)    	ALL_NON_LOSSY            	<Correct value>
+DATE           	DATETIME(0)    	ALL_NON_LOSSY            	<Correct value>
+DATETIME(6)    	DATE           	ALL_NON_LOSSY            	<Correct error>
+DATETIME(6)    	DATE           	ALL_NON_LOSSY            	<Correct error>
+DATETIME(0)    	DATE           	ALL_NON_LOSSY            	<Correct error>
 TINYBLOB       	TINYBLOB       	ALL_LOSSY                	<Correct value>
 TINYBLOB       	BLOB           	ALL_LOSSY                	<Correct error>
 TINYBLOB       	MEDIUMBLOB     	ALL_LOSSY                	<Correct error>
@@ -418,6 +552,49 @@ BIT(5)         	BIT(6)         	ALL_LOSSY                	<Correct error>
 BIT(6)         	BIT(5)         	ALL_LOSSY                	<Correct value>
 BIT(5)         	BIT(12)        	ALL_LOSSY                	<Correct error>
 BIT(12)        	BIT(5)         	ALL_LOSSY                	<Correct value>
+TINYBLOB COMPRE	TINYBLOB       	ALL_LOSSY                	<Correct error>
+TINYBLOB COMPRE	BLOB           	ALL_LOSSY                	<Correct error>
+TINYBLOB COMPRE	MEDIUMBLOB     	ALL_LOSSY                	<Correct error>
+TINYBLOB COMPRE	LONGBLOB       	ALL_LOSSY                	<Correct error>
+TINYBLOB COMPRE	VARBINARY(255) 	ALL_LOSSY                	<Correct error>
+BLOB COMPRESSED	TINYBLOB       	ALL_LOSSY                	<Correct value>
+BLOB COMPRESSED	BLOB           	ALL_LOSSY                	<Correct error>
+BLOB COMPRESSED	MEDIUMBLOB     	ALL_LOSSY                	<Correct error>
+BLOB COMPRESSED	LONGBLOB       	ALL_LOSSY                	<Correct error>
+BLOB COMPRESSED	VARBINARY(65500	ALL_LOSSY                	<Correct value>
+MEDIUMBLOB COMP	TINYBLOB       	ALL_LOSSY                	<Correct value>
+MEDIUMBLOB COMP	BLOB           	ALL_LOSSY                	<Correct value>
+MEDIUMBLOB COMP	MEDIUMBLOB     	ALL_LOSSY                	<Correct error>
+MEDIUMBLOB COMP	LONGBLOB       	ALL_LOSSY                	<Correct error>
+MEDIUMBLOB COMP	VARBINARY(65500	ALL_LOSSY                	<Correct value>
+LONGBLOB COMPRE	TINYBLOB       	ALL_LOSSY                	<Correct value>
+LONGBLOB COMPRE	BLOB           	ALL_LOSSY                	<Correct value>
+LONGBLOB COMPRE	MEDIUMBLOB     	ALL_LOSSY                	<Correct value>
+LONGBLOB COMPRE	LONGBLOB       	ALL_LOSSY                	<Correct error>
+LONGBLOB COMPRE	VARBINARY(65500	ALL_LOSSY                	<Correct value>
+TINYBLOB       	BLOB           	ALL_LOSSY                	<Correct error>
+TINYBLOB       	MEDIUMBLOB     	ALL_LOSSY                	<Correct error>
+TINYBLOB       	LONGBLOB       	ALL_LOSSY                	<Correct error>
+TINYBLOB       	VARBINARY(255) 	ALL_LOSSY                	<Correct error>
+BLOB           	TINYBLOB       	ALL_LOSSY                	<Correct value>
+BLOB           	MEDIUMBLOB     	ALL_LOSSY                	<Correct error>
+BLOB           	LONGBLOB       	ALL_LOSSY                	<Correct error>
+BLOB           	VARBINARY(65500	ALL_LOSSY                	<Correct value>
+MEDIUMBLOB     	TINYBLOB       	ALL_LOSSY                	<Correct value>
+MEDIUMBLOB     	BLOB           	ALL_LOSSY                	<Correct value>
+MEDIUMBLOB     	LONGBLOB       	ALL_LOSSY                	<Correct error>
+MEDIUMBLOB     	VARBINARY(65500	ALL_LOSSY                	<Correct value>
+LONGBLOB       	TINYBLOB       	ALL_LOSSY                	<Correct value>
+LONGBLOB       	BLOB           	ALL_LOSSY                	<Correct value>
+LONGBLOB       	MEDIUMBLOB     	ALL_LOSSY                	<Correct value>
+LONGBLOB       	VARBINARY(65500	ALL_LOSSY                	<Correct value>
+DATE           	DATETIME(6)    	ALL_LOSSY                	<Correct error>
+DATE           	DATETIME(6)    	ALL_LOSSY                	<Correct error>
+DATE           	DATETIME(6)    	ALL_LOSSY                	<Correct error>
+DATE           	DATETIME(0)    	ALL_LOSSY                	<Correct error>
+DATETIME(6)    	DATE           	ALL_LOSSY                	<Correct value>
+DATETIME(6)    	DATE           	ALL_LOSSY                	<Correct value>
+DATETIME(0)    	DATE           	ALL_LOSSY                	<Correct value>
 TINYBLOB       	TINYBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 TINYBLOB       	BLOB           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 TINYBLOB       	MEDIUMBLOB     	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
@@ -539,6 +716,49 @@ BIT(5)         	BIT(6)         	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 BIT(6)         	BIT(5)         	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 BIT(5)         	BIT(12)        	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 BIT(12)        	BIT(5)         	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+TINYBLOB COMPRE	TINYBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+TINYBLOB COMPRE	BLOB           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+TINYBLOB COMPRE	MEDIUMBLOB     	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+TINYBLOB COMPRE	LONGBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+TINYBLOB COMPRE	VARBINARY(255) 	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+BLOB COMPRESSED	TINYBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+BLOB COMPRESSED	BLOB           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+BLOB COMPRESSED	MEDIUMBLOB     	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+BLOB COMPRESSED	LONGBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+BLOB COMPRESSED	VARBINARY(65500	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+MEDIUMBLOB COMP	TINYBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+MEDIUMBLOB COMP	BLOB           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+MEDIUMBLOB COMP	MEDIUMBLOB     	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+MEDIUMBLOB COMP	LONGBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+MEDIUMBLOB COMP	VARBINARY(65500	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+LONGBLOB COMPRE	TINYBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+LONGBLOB COMPRE	BLOB           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+LONGBLOB COMPRE	MEDIUMBLOB     	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+LONGBLOB COMPRE	LONGBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+LONGBLOB COMPRE	VARBINARY(65500	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+TINYBLOB       	BLOB           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+TINYBLOB       	MEDIUMBLOB     	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+TINYBLOB       	LONGBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+TINYBLOB       	VARBINARY(255) 	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+BLOB           	TINYBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+BLOB           	MEDIUMBLOB     	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+BLOB           	LONGBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+BLOB           	VARBINARY(65500	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+MEDIUMBLOB     	TINYBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+MEDIUMBLOB     	BLOB           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+MEDIUMBLOB     	LONGBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+MEDIUMBLOB     	VARBINARY(65500	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+LONGBLOB       	TINYBLOB       	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+LONGBLOB       	BLOB           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+LONGBLOB       	MEDIUMBLOB     	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+LONGBLOB       	VARBINARY(65500	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+DATE           	DATETIME(6)    	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+DATE           	DATETIME(6)    	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+DATE           	DATETIME(6)    	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+DATE           	DATETIME(0)    	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+DATETIME(6)    	DATE           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+DATETIME(6)    	DATE           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
+DATETIME(0)    	DATE           	ALL_LOSSY,ALL_NON_LOSSY  	<Correct value>
 DROP TABLE type_conversions;
 call mtr.add_suppression("Slave SQL.*Column 1 of table .test.t1. cannot be converted from type.* error.* 1677");
 connection master;

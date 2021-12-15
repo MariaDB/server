@@ -1,0 +1,9 @@
+create table t1 (i int);
+handler test.t1 open handler_a;
+flush status;
+handler handler_a read first;
+i
+show status like 'Com_stmt_prepare%';
+Variable_name	Value
+Com_stmt_prepare	OK
+drop table t1;

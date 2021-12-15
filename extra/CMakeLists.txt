@@ -11,7 +11,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include ${ZLIB_INCLUDE_DIR})
 
@@ -72,6 +72,20 @@ IF(WITH_INNOBASE_STORAGE_ENGINE)
 
   # We use the InnoDB code directly in case the code changes.
   ADD_DEFINITIONS("-DUNIV_INNOCHECKSUM")
+  IF(WITH_INNODB_BUG_ENDIAN_CRC32)
+    ADD_DEFINITIONS(-DINNODB_BUG_ENDIAN_CRC32)
+  ENDIF()
+
+  # Avoid generating Hardware Capabilities due to crc32 instructions
+  IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_SYSTEM_PROCESSOR MATCHES "i386")
+    MY_CHECK_CXX_COMPILER_FLAG("-Wa,-nH")
+    IF(have_CXX__Wa__nH)
+      ADD_COMPILE_FLAGS(
+        ../storage/innobase/ut/ut0crc32.cc
+        COMPILE_FLAGS "-Wa,-nH"
+      )
+    ENDIF()
+  ENDIF()
 
   SET(INNOBASE_SOURCES
       ../storage/innobase/buf/buf0checksum.cc

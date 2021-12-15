@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -25,7 +26,6 @@ Created 9/7/2013 Jimmy Yang
 #ifndef lock0prdt_h
 #define lock0prdt_h
 
-#include "univ.i"
 #include "lock0lock.h"
 
 /* Predicate lock data */
@@ -36,7 +36,7 @@ typedef struct lock_prdt {
 
 /*********************************************************************//**
 Acquire a predicate lock on a block
-@return DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_prdt_lock(
 /*===========*/
@@ -50,13 +50,12 @@ lock_prdt_lock(
 				SELECT FOR UPDATE */
 	ulint		type_mode,
 				/*!< in: LOCK_PREDICATE or LOCK_PRDT_PAGE */
-	que_thr_t*	thr,	/*!< in: query thread
+	que_thr_t*	thr);	/*!< in: query thread
 				(can be NULL if BTR_NO_LOCKING_FLAG) */
-	mtr_t*		mtr);	/*!< in/out: mini-transaction */
 
 /*********************************************************************//**
 Acquire a "Page" lock on a block
-@return DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_place_prdt_page_lock(
 /*======================*/
@@ -106,7 +105,6 @@ Update predicate lock when page splits */
 void
 lock_prdt_update_split(
 /*===================*/
-	buf_block_t*	block,		/*!< in/out: page to be split */
 	buf_block_t*	new_block,	/*!< in/out: the new half page */
 	lock_prdt_t*	prdt,		/*!< in: MBR on the old page */
 	lock_prdt_t*	new_prdt,	/*!< in: MBR on the new page */
@@ -122,14 +120,13 @@ lock_prdt_update_parent(
 	buf_block_t*	right_block,	/*!< in/out: the new half page */
 	lock_prdt_t*	left_prdt,	/*!< in: MBR on the old page */
 	lock_prdt_t*	right_prdt,	/*!< in: MBR on the new page */
-	lock_prdt_t*	parent_prdt,	/*!< in: original parent MBR */
 	ulint		space,		/*!< in: space id */
 	ulint		page_no);	/*!< in: page number */
 
 /*********************************************************************//**
 Checks if locks of other transactions prevent an immediate insert of
 a predicate record.
-@return DB_SUCCESS, DB_LOCK_WAIT, DB_DEADLOCK, or DB_QUE_THR_SUSPENDED */
+@return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_prdt_insert_check_and_lock(
 /*============================*/

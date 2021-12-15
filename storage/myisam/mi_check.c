@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* Describe, check and repair of MyISAM tables */
 
@@ -45,9 +45,6 @@
 #include <my_getopt.h>
 #ifdef HAVE_SYS_VADVISE_H
 #include <sys/vadvise.h>
-#endif
-#ifdef HAVE_SYS_MMAN_H
-#include <sys/mman.h>
 #endif
 #include "rt_index.h"
 #include <mysqld_error.h>
@@ -111,7 +108,7 @@ int chk_status(HA_CHECK *param, register MI_INFO *info)
   if (share->state.open_count != (uint) (info->s->global_changed ? 1 : 0))
   {
     /* Don't count this as a real warning, as check can correct this ! */
-    uint save=param->warning_printed;
+    my_bool save=param->warning_printed;
     mi_check_print_warning(param,
 			   share->state.open_count==1 ? 
 			   "%d client is using or hasn't closed the table properly" : 
@@ -282,7 +279,7 @@ static int check_k_link(HA_CHECK *param, register MI_INFO *info, uint nr)
     /*
       Read the key block with MI_MIN_KEY_BLOCK_LENGTH to find next link.
       If the key cache block size is smaller than block_size, we can so
-      avoid unecessary eviction of cache block.
+      avoid unnecessary eviction of cache block.
     */
     if (!(buff=key_cache_read(info->s->key_cache,
                               info->s->kfile, next_link, DFLT_INIT_HITS,
@@ -526,7 +523,7 @@ int chk_key(HA_CHECK *param, register MI_INFO *info)
 		   (key_part_map)1, HA_READ_KEY_EXACT))
       {
 	/* Don't count this as a real warning, as myisamchk can't correct it */
-	uint save=param->warning_printed;
+	my_bool save=param->warning_printed;
         mi_check_print_warning(param, "Found row where the auto_increment "
                                "column has the value 0");
 	param->warning_printed=save;
@@ -1515,7 +1512,8 @@ int mi_repair(HA_CHECK *param, register MI_INFO *info,
   new_file= -1;
   sort_param.sort_info=&sort_info;
   param->retry_repair= 0;
-  param->warning_printed= param->error_printed= param->note_printed= 0;
+  param->warning_printed= param->note_printed= 0;
+  param->error_printed= 0;
 
   if (!(param->testflag & T_SILENT))
   {
@@ -1585,6 +1583,8 @@ int mi_repair(HA_CHECK *param, register MI_INFO *info,
   sort_param.filepos=new_header_length;
   param->read_cache.end_of_file=sort_info.filelength=
     mysql_file_seek(info->dfile, 0L, MY_SEEK_END, MYF(0));
+  if (info->state->data_file_length == 0)
+    info->state->data_file_length= sort_info.filelength;
   sort_info.dupp=0;
   sort_param.fix_datafile= (my_bool) (! rep_quick);
   sort_param.master=1;
@@ -1895,7 +1895,7 @@ int flush_blocks(HA_CHECK *param, KEY_CACHE *key_cache, File file,
 } /* flush_blocks */
 
 
-	/* Sort index for more efficent reads */
+	/* Sort index for more efficient reads */
 
 int mi_sort_index(HA_CHECK *param, register MI_INFO *info, char * name)
 {
@@ -2210,7 +2210,8 @@ int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
   }
   param->testflag|=T_REP_BY_SORT; /* for easy checking */
   param->retry_repair= 0;
-  param->warning_printed= param->error_printed= param->note_printed= 0;
+  param->warning_printed= param->note_printed= 0;
+  param->error_printed= 0;
 
   if (info->s->options & (HA_OPTION_CHECKSUM | HA_OPTION_COMPRESS_RECORD))
     param->testflag|=T_CALC_CHECKSUM;
@@ -2289,6 +2290,8 @@ int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
   sort_info.buff=0;
   param->read_cache.end_of_file=sort_info.filelength=
     mysql_file_seek(param->read_cache.file, 0L, MY_SEEK_END, MYF(0));
+  if (info->state->data_file_length == 0)
+    info->state->data_file_length= sort_info.filelength;
 
   sort_param.wordlist=NULL;
   init_alloc_root(&sort_param.wordroot, "sort", FTPARSER_MEMROOT_ALLOC_SIZE, 0,
@@ -2609,7 +2612,7 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
 			const char * name, int rep_quick)
 {
   int got_error;
-  uint i,key, total_key_length, istep;
+  uint i,key, istep;
   ulong rec_length;
   ha_rows start_records;
   my_off_t new_header_length,del;
@@ -2756,6 +2759,8 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
   sort_info.buff=0;
   param->read_cache.end_of_file=sort_info.filelength=
     mysql_file_seek(param->read_cache.file, 0L, MY_SEEK_END, MYF(0));
+  if (info->state->data_file_length == 0)
+    info->state->data_file_length= sort_info.filelength;
 
   if (share->data_file_type == DYNAMIC_RECORD)
     rec_length=MY_MAX(share->base.min_pack_length+1,share->base.min_block_length);
@@ -2793,7 +2798,9 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
     mi_check_print_error(param,"Not enough memory for key!");
     goto err;
   }
-  total_key_length=0;
+#ifdef USING_SECOND_APPROACH
+  uint total_key_length=0;
+#endif
   rec_per_key_part= param->rec_per_key_part;
   info->state->records=info->state->del=share->state.split=0;
   info->state->empty=0;
@@ -2862,7 +2869,9 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
       if (keyseg->flag & HA_NULL_PART)
         sort_param[i].key_length++;
     }
+#ifdef USING_SECOND_APPROACH
     total_key_length+=sort_param[i].key_length;
+#endif
 
     if (sort_param[i].keyinfo->flag & HA_FULLTEXT)
     {
@@ -3049,13 +3058,13 @@ err:
   /*
     Destroy the write cache. The master thread did already detach from
     the share by remove_io_thread() or it was not yet started (if the
-    error happend before creating the thread).
+    error happened before creating the thread).
   */
   (void) end_io_cache(&info->rec_cache);
   /*
     Destroy the new data cache in case of non-quick repair. All slave
     threads did either detach from the share by remove_io_thread()
-    already or they were not yet started (if the error happend before
+    already or they were not yet started (if the error happened before
     creating the threads).
   */
   if (!rep_quick && my_b_inited(&new_data_cache))
@@ -4475,6 +4484,10 @@ int update_state_info(HA_CHECK *param, MI_INFO *info,uint update)
     int error;
     uint r_locks=share->r_locks,w_locks=share->w_locks;
     share->r_locks= share->w_locks= share->tot_locks= 0;
+
+    DBUG_EXECUTE_IF("simulate_incorrect_share_wlock_value",
+                    DEBUG_SYNC_C("after_share_wlock_set_to_0"););
+
     error=_mi_writeinfo(info,WRITEINFO_NO_UNLOCK);
     share->r_locks=r_locks;
     share->w_locks=w_locks;
@@ -4592,7 +4605,7 @@ void update_auto_increment_key(HA_CHECK *param, MI_INFO *info,
          keypart_k=c_k for arbitrary constants c_1 ... c_k) 
      
      = {assuming that values have uniform distribution and index contains all
-        tuples from the domain (or that {c_1, ..., c_k} tuple is choosen from
+        tuples from the domain (or that {c_1, ..., c_k} tuple is chosen from
         index tuples}
      
      = #tuples-in-the-index / #distinct-tuples-in-the-index.

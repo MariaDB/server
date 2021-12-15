@@ -5,7 +5,7 @@
 # ==== Usage ====
 #
 # --let $verbose_delayed_slave_state= [0|1]
-# --source extra/rpl_tests/show_delayed_slave_state.inc
+# --source suite/rpl/include/show_delayed_slave_state.inc
 #
 # By default, the output is normalized so that it does not depend on
 # exact timing or exact binlog positions. If

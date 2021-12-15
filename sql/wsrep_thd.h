@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License along
    with this program; if not, write to the Free Software Foundation, Inc.,
-   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA. */
 
 #include <my_config.h>
 
@@ -25,8 +25,9 @@
 int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff,
                           enum enum_var_type scope);
 void wsrep_client_rollback(THD *thd);
+void wsrep_replay_sp_transaction(THD* thd);
 void wsrep_replay_transaction(THD *thd);
-void wsrep_create_appliers(long threads);
+bool wsrep_create_appliers(long threads, bool thread_count_lock=false);
 void wsrep_create_rollbacker();
 
 int  wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr,
@@ -43,6 +44,9 @@ enum wsrep_conflict_state wsrep_thd_conflict_state(void *thd_ptr, my_bool sync);
 extern "C" my_bool  wsrep_thd_is_BF_or_commit(void *thd_ptr, my_bool sync);
 extern "C" my_bool  wsrep_thd_is_local(void *thd_ptr, my_bool sync);
 extern "C" int  wsrep_thd_in_locking_session(void *thd_ptr);
+
+extern void wsrep_report_bf_lock_wait(THD *thd,
+                                      unsigned long long trx_id);
 
 #else /* WITH_WSREP */
 

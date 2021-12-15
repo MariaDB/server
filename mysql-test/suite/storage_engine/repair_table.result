@@ -73,6 +73,7 @@ REPAIR TABLE t1 USE_FRM;
 Table	Op	Msg_type	Msg_text
 test.t1	repair	warning	Number of rows changed from 0 to 3
 test.t1	repair	status	OK
+db.opt
 t1.MYD
 t1.MYI
 t1.frm

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* Some general useful functions */
 
@@ -48,11 +48,9 @@ partition_info *partition_info::get_clone(THD *thd)
   List_iterator<partition_element> part_it(partitions);
   partition_element *part;
   partition_info *clone= new (mem_root) partition_info(*this);
-  if (!clone)
-  {
-    mem_alloc_error(sizeof(partition_info));
+  if (unlikely(!clone))
     DBUG_RETURN(NULL);
-  }
+
   memset(&(clone->read_partitions), 0, sizeof(clone->read_partitions));
   memset(&(clone->lock_partitions), 0, sizeof(clone->lock_partitions));
   clone->bitmaps_are_initialized= FALSE;
@@ -64,21 +62,17 @@ partition_info *partition_info::get_clone(THD *thd)
     partition_element *subpart;
     partition_element *part_clone= new (mem_root) partition_element();
     if (!part_clone)
-    {
-      mem_alloc_error(sizeof(partition_element));
       DBUG_RETURN(NULL);
-    }
-    memcpy(part_clone, part, sizeof(partition_element));
+
+    *part_clone= *part;
     part_clone->subpartitions.empty();
     while ((subpart= (subpart_it++)))
     {
       partition_element *subpart_clone= new (mem_root) partition_element();
       if (!subpart_clone)
-      {
-        mem_alloc_error(sizeof(partition_element));
         DBUG_RETURN(NULL);
-      }
-      memcpy(subpart_clone, subpart, sizeof(partition_element));
+
+      *subpart_clone= *subpart;
       part_clone->subpartitions.push_back(subpart_clone, mem_root);
     }
     clone->partitions.push_back(part_clone, mem_root);
@@ -88,20 +82,15 @@ partition_info *partition_info::get_clone(THD *thd)
       (part_elem_value *)alloc_root(mem_root, sizeof(part_elem_value) *
                                     part->list_val_list.elements);
     if (!new_val_arr)
-    {
-      mem_alloc_error(sizeof(part_elem_value) * part->list_val_list.elements);
       DBUG_RETURN(NULL);
-    }
+
     p_column_list_val *new_colval_arr=
       (p_column_list_val*)alloc_root(mem_root, sizeof(p_column_list_val) *
                                      num_columns *
                                      part->list_val_list.elements);
     if (!new_colval_arr)
-    {
-      mem_alloc_error(sizeof(p_column_list_val) * num_columns *
-                      part->list_val_list.elements);
       DBUG_RETURN(NULL);
-    }
+
     part_elem_value *val;
     while ((val= list_val_it++))
     {
@@ -394,10 +383,6 @@ char *partition_info::create_default_partition_names(THD *thd, uint part_no,
       move_ptr+= MAX_PART_NAME_SIZE;
     } while (++i < num_parts_arg);
   }
-  else
-  {
-    mem_alloc_error(num_parts_arg*MAX_PART_NAME_SIZE);
-  }
   DBUG_RETURN(ptr);
 }
 
@@ -422,13 +407,8 @@ char *partition_info::create_default_subpartition_name(THD *thd, uint subpart_no
   DBUG_ENTER("create_default_subpartition_name");
 
   if (likely(ptr != NULL))
-  {
     my_snprintf(ptr, size_alloc, "%ssp%u", part_name, subpart_no);
-  }
-  else
-  {
-    mem_alloc_error(size_alloc);
-  }
+
   DBUG_RETURN(ptr);
 }
 
@@ -471,6 +451,8 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
     const char *error_string;
     if (part_type == RANGE_PARTITION)
       error_string= "RANGE";
+    else if (part_type == VERSIONING_PARTITION)
+      error_string= "SYSTEM_TIME";
     else
       error_string= "LIST";
     my_error(ER_PARTITIONS_MUST_BE_DEFINED_ERROR, MYF(0), error_string);
@@ -505,10 +487,7 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
       default_name+=MAX_PART_NAME_SIZE;
     }
     else
-    {
-      mem_alloc_error(sizeof(partition_element));
       goto end;
-    }
   } while (++i < num_parts);
   result= FALSE;
 end:
@@ -574,10 +553,7 @@ bool partition_info::set_up_default_subpartitions(THD *thd, handler *file,
         subpart_elem->partition_name= ptr;
       }
       else
-      {
-        mem_alloc_error(sizeof(partition_element));
         goto end;
-      }
     } while (++j < num_subparts);
   } while (++i < num_parts);
   result= FALSE;
@@ -856,21 +832,6 @@ bool partition_info::has_unique_name(partition_element *element)
   DBUG_RETURN(TRUE);
 }
 
-bool partition_info::vers_init_info(THD * thd)
-{
-  part_type= VERSIONING_PARTITION;
-  list_of_part_fields= TRUE;
-  column_list= TRUE;
-  num_columns= 1;
-  vers_info= new (thd->mem_root) Vers_part_info;
-  if (!vers_info)
-  {
-    mem_alloc_error(sizeof(Vers_part_info));
-    return true;
-  }
-  return false;
-}
-
 void partition_info::vers_set_hist_part(THD *thd)
 {
   if (vers_info->limit)
@@ -900,7 +861,7 @@ void partition_info::vers_set_hist_part(THD *thd)
 
   if (vers_info->interval.is_set())
   {
-    if (vers_info->hist_part->range_value > thd->systime())
+    if (vers_info->hist_part->range_value > thd->query_start())
       return;
 
     partition_element *next= NULL;
@@ -911,15 +872,14 @@ void partition_info::vers_set_hist_part(THD *thd)
     while ((next= it++) != vers_info->now_part)
     {
       vers_info->hist_part= next;
-      if (next->range_value > thd->systime())
+      if (next->range_value > thd->query_start())
         return;
     }
-    goto warn;
   }
   return;
 warn:
   my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
-           table->s->db.str, table->s->error_table_name(),
+           table->s->db.str, table->s->table_name.str,
            vers_info->hist_part->partition_name);
 }
 
@@ -935,15 +895,16 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
 
   DBUG_ASSERT(part_type == VERSIONING_PARTITION);
   DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
-  DBUG_ASSERT(num_columns == 1);
 
   if (!alter_add)
   {
     Field *row_end= table->vers_end_field();
-    part_field_list.push_back(row_end->field_name.str, thd->mem_root);
-    DBUG_ASSERT(part_field_list.elements == 1);
     // needed in handle_list_of_fields()
     row_end->flags|= GET_FIXED_FIELDS_FLAG;
+    Name_resolution_context *context= &thd->lex->current_select->context;
+    Item *row_end_item= new (thd->mem_root) Item_field(thd, context, row_end);
+    Item *row_end_ts= new (thd->mem_root) Item_func_unix_timestamp(thd, row_end_item);
+    set_part_expr(thd, row_end_ts, false);
   }
 
   if (alter_add)
@@ -952,12 +913,12 @@ bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
     partition_element *el;
     for(uint32 id= 0; ((el= it++)); id++)
     {
-      DBUG_ASSERT(el->type() != partition_element::CONVENTIONAL);
+      DBUG_ASSERT(el->type != partition_element::CONVENTIONAL);
       /* Newly added element is inserted before AS_OF_NOW. */
-      if (el->id == UINT_MAX32 || el->type() == partition_element::CURRENT)
+      if (el->id == UINT_MAX32 || el->type == partition_element::CURRENT)
       {
         el->id= id;
-        if (el->type() == partition_element::CURRENT)
+        if (el->type == partition_element::CURRENT)
           break;
       }
     }
@@ -1384,13 +1345,13 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
       }
       if (part_type == VERSIONING_PARTITION)
       {
-        if (part_elem->type() == partition_element::HISTORY)
+        if (part_elem->type == partition_element::HISTORY)
         {
           hist_parts++;
         }
         else
         {
-          DBUG_ASSERT(part_elem->type() == partition_element::CURRENT);
+          DBUG_ASSERT(part_elem->type == partition_element::CURRENT);
           now_parts++;
         }
       }
@@ -1473,12 +1434,11 @@ void partition_info::print_no_partition_found(TABLE *table_arg, myf errflag)
   TABLE_LIST table_list;
   THD *thd= current_thd;
 
-  bzero(&table_list, sizeof(table_list));
+  table_list.reset();
   table_list.db= table_arg->s->db;
   table_list.table_name= table_arg->s->table_name;
 
-  if (check_single_table_access(thd,
-                                SELECT_ACL, &table_list, TRUE))
+  if (check_single_table_access(thd, SELECT_ACL, &table_list, TRUE))
   {
     my_message(ER_NO_PARTITION_FOR_GIVEN_VALUE,
                ER_THD(thd, ER_NO_PARTITION_FOR_GIVEN_VALUE_SILENT), errflag);
@@ -1489,13 +1449,13 @@ void partition_info::print_no_partition_found(TABLE *table_arg, myf errflag)
       buf_ptr= (char*)"from column_list";
     else
     {
-      my_bitmap_map *old_map= dbug_tmp_use_all_columns(table_arg, table_arg->read_set);
+      MY_BITMAP *old_map= dbug_tmp_use_all_columns(table_arg, &table_arg->read_set);
       if (part_expr->null_value)
         buf_ptr= (char*)"NULL";
       else
         longlong10_to_str(err_value, buf,
                      part_expr->unsigned_flag ? 10 : -10);
-      dbug_tmp_restore_column_map(table_arg->read_set, old_map);
+      dbug_tmp_restore_column_map(&table_arg->read_set, old_map);
     }
     my_error(ER_NO_PARTITION_FOR_GIVEN_VALUE, errflag, buf_ptr);
   }
@@ -1515,17 +1475,8 @@ void partition_info::print_no_partition_found(TABLE *table_arg, myf errflag)
     FALSE                     Success
 */
 
-bool partition_info::set_part_expr(THD *thd, char *start_token, Item *item_ptr,
-                                   char *end_token, bool is_subpart)
+bool partition_info::set_part_expr(THD *thd, Item *item_ptr, bool is_subpart)
 {
-  size_t expr_len= end_token - start_token;
-  char *func_string= (char*) thd->memdup(start_token, expr_len);
-
-  if (!func_string)
-  {
-    mem_alloc_error(expr_len);
-    return TRUE;
-  }
   if (is_subpart)
   {
     list_of_subpart_fields= FALSE;
@@ -1559,12 +1510,12 @@ bool partition_info::check_partition_field_length()
 
   for (i= 0; i < num_part_fields; i++)
     store_length+= get_partition_field_store_length(part_field_array[i]);
-  if (store_length > MAX_KEY_LENGTH)
+  if (store_length > MAX_DATA_LENGTH_FOR_KEY)
     DBUG_RETURN(TRUE);
   store_length= 0;
   for (i= 0; i < num_subpart_fields; i++)
     store_length+= get_partition_field_store_length(subpart_field_array[i]);
-  if (store_length > MAX_KEY_LENGTH)
+  if (store_length > MAX_DATA_LENGTH_FOR_KEY)
     DBUG_RETURN(TRUE);
   DBUG_RETURN(FALSE);
 }
@@ -1680,7 +1631,6 @@ bool partition_info::set_up_charset_field_preps(THD *thd)
   }
   DBUG_RETURN(FALSE);
 error:
-  mem_alloc_error(size);
   DBUG_RETURN(TRUE);
 }
 
@@ -1713,17 +1663,19 @@ bool check_partition_dirs(partition_info *part_info)
       partition_element *subpart_elem;
       while ((subpart_elem= sub_it++))
       {
-        if (error_if_data_home_dir(subpart_elem->data_file_name,
-                                   "DATA DIRECTORY") ||
-            error_if_data_home_dir(subpart_elem->index_file_name,
-                                   "INDEX DIRECTORY"))
+        if (unlikely(error_if_data_home_dir(subpart_elem->data_file_name,
+                                            "DATA DIRECTORY")) ||
+            unlikely(error_if_data_home_dir(subpart_elem->index_file_name,
+                                            "INDEX DIRECTORY")))
         return 1;
       }
     }
     else
     {
-      if (error_if_data_home_dir(part_elem->data_file_name, "DATA DIRECTORY") ||
-          error_if_data_home_dir(part_elem->index_file_name, "INDEX DIRECTORY"))
+      if (unlikely(error_if_data_home_dir(part_elem->data_file_name,
+                                          "DATA DIRECTORY")) ||
+          unlikely(error_if_data_home_dir(part_elem->index_file_name,
+                                          "INDEX DIRECTORY")))
         return 1;
     }
   }
@@ -1842,9 +1794,11 @@ part_column_list_val *partition_info::add_column_value(THD *thd)
       into the structure used for 1 column. After this we call
       ourselves recursively which should always succeed.
     */
+    num_columns= curr_list_object;
     if (!reorganize_into_single_field_col_val(thd))
     {
-      DBUG_RETURN(add_column_value(thd));
+      if (!init_column_part(thd))
+        DBUG_RETURN(add_column_value(thd));
     }
     DBUG_RETURN(NULL);
   }
@@ -1985,10 +1939,8 @@ bool partition_info::init_column_part(THD *thd)
   if (!(list_val=
       (part_elem_value*) thd->calloc(sizeof(part_elem_value))) ||
       p_elem->list_val_list.push_back(list_val, thd->mem_root))
-  {
-    mem_alloc_error(sizeof(part_elem_value));
     DBUG_RETURN(TRUE);
-  }
+
   if (num_columns)
     loc_num_columns= num_columns;
   else
@@ -1996,10 +1948,8 @@ bool partition_info::init_column_part(THD *thd)
   if (!(col_val_array=
         (part_column_list_val*) thd->calloc(loc_num_columns *
                                             sizeof(part_column_list_val))))
-  {
-    mem_alloc_error(loc_num_columns * sizeof(part_elem_value));
     DBUG_RETURN(TRUE);
-  }
+
   list_val->col_val_array= col_val_array;
   list_val->added_items= 0;
   curr_list_val= list_val;
@@ -2215,7 +2165,6 @@ bool partition_info::fix_column_value_functions(THD *thd,
         thd->variables.sql_mode= save_sql_mode;
         if (!(val_ptr= (uchar*) thd->memdup(field->ptr, len)))
         {
-          mem_alloc_error(len);
           result= TRUE;
           goto end;
         }
@@ -2319,7 +2268,7 @@ bool partition_info::fix_parser_data(THD *thd)
     part_elem= it++;
     List_iterator<part_elem_value> list_val_it(part_elem->list_val_list);
     num_elements= part_elem->list_val_list.elements;
-    if (!num_elements && error_if_requires_values())
+    if (unlikely(!num_elements && error_if_requires_values()))
       DBUG_RETURN(true);
     DBUG_ASSERT(part_type == RANGE_PARTITION ?
                 num_elements == 1U : TRUE);
@@ -2442,7 +2391,7 @@ static bool strcmp_null(const char *a, const char *b)
   such partitioned tables using numeric colums in the partitioning expression.
   For more info see bug#14521864.
   Does not check if columns etc has changed, i.e. only for
-  alter_info->flags == ALTER_PARTITION.
+  alter_info->partition_flags == ALTER_PARTITION_INFO.
 */
 
 bool partition_info::has_same_partitioning(partition_info *new_part_info)
@@ -2662,30 +2611,6 @@ bool partition_info::has_same_partitioning(partition_info *new_part_info)
 }
 
 
-bool partition_info::vers_trx_id_to_ts(THD* thd, Field* in_trx_id, Field_timestamp& out_ts)
-{
-  DBUG_ASSERT(table);
-  handlerton *hton= plugin_hton(table->s->db_plugin);
-  DBUG_ASSERT(hton);
-  ulonglong trx_id= in_trx_id->val_int();
-  TR_table trt(thd);
-  bool found= trt.query(trx_id);
-  if (!found)
-  {
-    push_warning_printf(thd,
-      Sql_condition::WARN_LEVEL_WARN,
-      WARN_VERS_TRX_MISSING,
-      ER_THD(thd, WARN_VERS_TRX_MISSING),
-      trx_id);
-    return true;
-  }
-  MYSQL_TIME ts;
-  trt[TR_table::FLD_COMMIT_TS]->get_date(&ts, 0);
-  out_ts.store_time_dec(&ts, 6);
-  return false;
-}
-
-
 void partition_info::print_debug(const char *str, uint *value)
 {
   DBUG_ENTER("print_debug");
@@ -2695,6 +2620,23 @@ void partition_info::print_debug(const char *str, uint *value)
     DBUG_PRINT("info", ("parser: %s", str));
   DBUG_VOID_RETURN;
 }
+
+bool partition_info::field_in_partition_expr(Field *field) const
+{
+  uint i;
+  for (i= 0; i < num_part_fields; i++)
+  {
+    if (field->eq(part_field_array[i]))
+      return TRUE;
+  }
+  for (i= 0; i < num_subpart_fields; i++)
+  {
+    if (field->eq(subpart_field_array[i]))
+      return TRUE;
+  }
+  return FALSE;
+}
+
 #else /* WITH_PARTITION_STORAGE_ENGINE */
  /*
    For builds without partitioning we need to define these functions
@@ -2707,12 +2649,9 @@ part_column_list_val *partition_info::add_column_value(THD *thd)
   return NULL;
 }
 
-bool partition_info::set_part_expr(THD *thd, char *start_token, Item *item_ptr,
-                                   char *end_token, bool is_subpart)
+bool partition_info::set_part_expr(THD *thd, Item *item_ptr, bool is_subpart)
 {
-  (void)start_token;
   (void)item_ptr;
-  (void)end_token;
   (void)is_subpart;
   return FALSE;
 }
@@ -2746,6 +2685,19 @@ bool check_partition_dirs(partition_info *part_info)
 }
 
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
+
+bool partition_info::vers_init_info(THD * thd)
+{
+  part_type= VERSIONING_PARTITION;
+  list_of_part_fields= true;
+  column_list= false;
+  vers_info= new (thd->mem_root) Vers_part_info;
+  if (unlikely(!vers_info))
+    return true;
+
+  return false;
+}
+
 
 bool partition_info::error_if_requires_values() const
 {

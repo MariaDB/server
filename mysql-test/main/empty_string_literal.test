@@ -1,0 +1,27 @@
+USE test;
+--echo #
+--echo # MDEV-14013 : sql_mode=EMPTY_STRING_IS_NULL
+--echo #
+
+set @mode='EMPTY_STRING_IS_NULL';
+
+--source include/empty_string_literal.inc
+
+--echo #
+--echo # MDEV-20763 Table corruption or Assertion `btr_validate_index(index, 0, false)' failed in row_upd_sec_index_entry with virtual column and EMPTY_STRING_IS_NULL SQL mode
+--echo #
+create table t1 (a int, b binary(1) generated always as (''), key(a,b));
+insert into t1 (a) values (1);
+set sql_mode= default;
+flush tables;
+update t1 set a = 2;
+show create table t1;
+drop table t1;
+
+create table t1 (a int, b binary(1) generated always as (''), key(a,b));
+insert into t1 (a) values (1);
+set sql_mode= 'empty_string_is_null';
+flush tables;
+update t1 set a = 2;
+show create table t1;
+drop table t1;

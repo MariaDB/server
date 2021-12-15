@@ -1,0 +1,35 @@
+--source ../include/direct_sql_with_tmp_table_init.inc
+--echo
+--echo drop and create databases
+
+--connection master_1
+--disable_warnings
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+--enable_warnings
+
+--disable_query_log
+echo CREATE TEMPORARY TABLE tmp_a (
+    pkey int NOT NULL,
+    PRIMARY KEY (pkey)
+) MASTER_1_ENGINE2;
+eval CREATE TEMPORARY TABLE tmp_a (
+    pkey int NOT NULL,
+    PRIMARY KEY (pkey)
+) $MASTER_1_ENGINE2;
+--enable_query_log
+
+eval $DIRECT_SQL_COMMAND;
+SELECT pkey FROM tmp_a;
+
+--echo
+--echo deinit
+--disable_warnings
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+
+--enable_warnings
+--source ../include/direct_sql_with_tmp_table_deinit.inc
+--echo
+--echo end of test

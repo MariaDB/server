@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,7 +27,6 @@ Created 5/30/1994 Heikki Tuuri
 #ifndef ut0mem_h
 #define ut0mem_h
 
-#include "univ.i"
 #include "os0event.h"
 #include "ut0mutex.h"
 
@@ -83,29 +83,6 @@ ut_strlen(const char* str);
 UNIV_INLINE
 int
 ut_strcmp(const char* str1, const char* str2);
-
-/**********************************************************************//**
-Copies up to size - 1 characters from the NUL-terminated string src to
-dst, NUL-terminating the result. Returns strlen(src), so truncation
-occurred if the return value >= size.
-@return strlen(src) */
-ulint
-ut_strlcpy(
-/*=======*/
-	char*		dst,	/*!< in: destination buffer */
-	const char*	src,	/*!< in: source buffer */
-	ulint		size);	/*!< in: size of destination buffer */
-
-/**********************************************************************//**
-Like ut_strlcpy, but if src doesn't fit in dst completely, copies the last
-(size - 1) bytes of src, not the first.
-@return strlen(src) */
-ulint
-ut_strlcpy_rev(
-/*===========*/
-	char*		dst,	/*!< in: destination buffer */
-	const char*	src,	/*!< in: source buffer */
-	ulint		size);	/*!< in: size of destination buffer */
 
 /********************************************************************
 Concatenate 3 strings.*/

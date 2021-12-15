@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "datadict.h"
@@ -89,10 +89,10 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
     ((char*) (engine_name->str))[0]= 0;
   }
 
-  if ((error= mysql_file_read(file, (uchar*) header, sizeof(header), MYF(MY_NABP))))
+  if (unlikely((error= mysql_file_read(file, (uchar*) header, sizeof(header), MYF(MY_NABP)))))
     goto err;
 
-  if (!strncmp((char*) header, "TYPE=VIEW\n", 10))
+  if (unlikely((!strncmp((char*) header, "TYPE=VIEW\n", 10))))
   {
     type= TABLE_TYPE_VIEW;
     goto err;
@@ -196,7 +196,7 @@ bool dd_recreate_table(THD *thd, const char *db, const char *table_name,
   char path_buf[FN_REFLEN + 1];
   DBUG_ENTER("dd_recreate_table");
 
-  memset(&create_info, 0, sizeof(create_info));
+  create_info.init();
 
   if (path)
     create_info.options|= HA_LEX_CREATE_TMP_TABLE;

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "strings_def.h"
 #include <m_ctype.h>
@@ -40,7 +40,7 @@
 /*
   Avoid using my_snprintf
   We cannot use my_snprintf() here, because ctype.o is
-  used to build conf_to_src, which must require minimun
+  used to build conf_to_src, which must require minimum
   dependency.
 */
 

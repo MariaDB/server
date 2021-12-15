@@ -284,7 +284,7 @@ doit (int state) {
         true
         );
     assert(node->height == 1);
-    assert(!node->dirty);
+    assert(!node->dirty());
     BLOCKNUM left_child, right_child;
 
     assert(node->n_children == 2);
@@ -304,7 +304,7 @@ doit (int state) {
         true
         );
     assert(node->height == 0);
-    assert(!node->dirty);
+    assert(!node->dirty());
     assert(node->n_children == 1);
     assert(BLB_DATA(node, 0)->num_klpairs() == 2);
     toku_unpin_ftnode(c_ft->ft, node);
@@ -319,7 +319,7 @@ doit (int state) {
         true
         );
     assert(node->height == 0);
-    assert(!node->dirty);
+    assert(!node->dirty());
     assert(node->n_children == 1);
     assert(BLB_DATA(node, 0)->num_klpairs() == 2);
     toku_unpin_ftnode(c_ft->ft, node);

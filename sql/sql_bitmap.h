@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Implementation of a bitmap type.
@@ -141,16 +141,16 @@ public:
   };
 };
 
-/* An iterator to quickly walk over bits in unlonglong bitmap. */
+/* An iterator to quickly walk over bits in ulonglong bitmap. */
 class Table_map_iterator
 {
   ulonglong bmp;
   uint no;
 public:
   Table_map_iterator(ulonglong t) : bmp(t), no(0) {}
-  int next_bit()
+  uint next_bit()
   {
-    static const char last_bit[16]= {32, 0, 1, 0, 
+    static const uchar last_bit[16]= {32, 0, 1, 0,
                                       2, 0, 1, 0, 
                                       3, 0, 1, 0,
                                       2, 0, 1, 0};
@@ -162,10 +162,10 @@ public:
       if (!bmp)
         return BITMAP_END;
     }
-    bmp &= ~(1LL << bit);
+    bmp &= ~(1ULL << bit);
     return no + bit;
   }
-  int operator++(int) { return next_bit(); }
+  uint operator++(int) { return next_bit(); }
   enum { BITMAP_END= 64 };
 };
 
@@ -201,7 +201,10 @@ public:
   bool is_subset(const Bitmap<64>& map2) const { return !(map & ~map2.map); }
   bool is_overlapping(const Bitmap<64>& map2) const { return (map & map2.map)!= 0; }
   bool operator==(const Bitmap<64>& map2) const { return map == map2.map; }
-  char *print(char *buf) const { longlong2str(map,buf,16); return buf; }
+  char *print(char *buf) const {
+    longlong2str(longlong(map), buf, 16);
+    return buf;
+  }
   ulonglong to_ulonglong() const { return map; }
   class Iterator : public Table_map_iterator
   {

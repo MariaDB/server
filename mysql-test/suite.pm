@@ -13,8 +13,20 @@ sub skip_combinations {
 
   my %skip = ( 'include/have_innodb.combinations' => [ @combinations ]);
 
+  $skip{'include/innodb_encrypt_log.combinations'} = [ 'crypt' ]
+                unless $ENV{DEBUG_KEY_MANAGEMENT_SO};
+
   # don't run tests for the wrong platform
-  $skip{'include/platform.combinations'} = [ (IS_WINDOWS) ? 'unix' : 'win' ];
+  if (IS_WINDOWS) {
+    $skip{'include/platform.combinations'} = [ 'aix', 'unix' ];
+  } elsif (IS_AIX) {
+    $skip{'include/platform.combinations'} = [ 'win', 'unix' ];
+  } else {
+    $skip{'include/platform.combinations'} = [ 'aix', 'win' ];
+  }
+
+  $skip{'include/maybe_debug.combinations'} =
+    [ defined $::mysqld_variables{'debug-dbug'} ? 'release' : 'debug' ];
 
   # and for the wrong word size
   # check for exact values, in case the default changes to be small everywhere
@@ -41,9 +53,25 @@ sub skip_combinations {
              unless $ENV{HA_EXAMPLE_SO};
 
   $skip{'include/not_windows.inc'} = 'Requires not Windows' if IS_WINDOWS;
+  $skip{'include/not_aix.inc'} = 'Requires not AIX' if IS_AIX;
 
-  $skip{'t/plugin_loaderr.test'} = 'needs compiled-in innodb'
+  $skip{'main/plugin_loaderr.test'} = 'needs compiled-in innodb'
             unless $::mysqld_variables{'innodb'} eq "ON";
+
+  $skip{'include/have_mariabackup.inc'} = 'Need mariabackup'
+            unless ::have_mariabackup();
+
+  $skip{'include/have_mariabackup.inc'} = 'Need socket statistics utility'
+            unless IS_WINDOWS || ! ::have_wsrep() || ::which("lsof") || ::which("sockstat") || ::which("ss");
+
+  $skip{'include/have_mariabackup.inc'} = 'Need socat or nc'
+            unless IS_WINDOWS || $ENV{MTR_GALERA_TFMT};
+
+  $skip{'include/have_garbd.inc'} = 'Need garbd'
+            unless ::have_garbd();
+
+  $skip{'include/have_file_key_management.inc'} = 'Needs file_key_management plugin'
+            unless $ENV{FILE_KEY_MANAGEMENT_SO};
 
   # disable tests that use ipv6, if unsupported
   sub ipv6_ok() {
@@ -56,11 +84,15 @@ sub skip_combinations {
   }
   $skip{'include/check_ipv6.inc'} = 'No IPv6' unless ipv6_ok();
 
-  $skip{'t/openssl_6975.test'} = 'no or too old openssl'
+  $skip{'main/openssl_6975.test'} = 'no or wrong openssl version'
     unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
-       and $1 ge "1.0.1d";
+       and $1 ge "1.0.1d" and $1 lt "1.1.1";
 
-  $skip{'t/ssl_7937.combinations'} = [ 'x509v3' ]
+  $skip{'main/ssl_7937.combinations'} = [ 'x509v3' ]
+    unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
+       and $1 ge "1.0.2";
+
+  $skip{'main/ssl_verify_ip.test'} = 'x509v3 support required'
     unless $::mysqld_variables{'version-ssl-library'} =~ /OpenSSL (\S+)/
        and $1 ge "1.0.2";
 
@@ -68,4 +100,3 @@ sub skip_combinations {
 }
 
 bless { };
-

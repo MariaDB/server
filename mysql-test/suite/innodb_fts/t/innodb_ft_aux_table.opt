@@ -1,0 +1,6 @@
+--innodb_ft_default_stopword
+--innodb_ft_deleted
+--innodb_ft_being_deleted
+--innodb_ft_index_cache
+--innodb_ft_index_table
+--innodb_ft_config

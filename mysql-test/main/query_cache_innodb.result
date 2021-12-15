@@ -1,0 +1,91 @@
+set @save_query_cache_size=@@query_cache_size;
+#
+# MDEV-12485: foreign key on delete cascade stale entries with
+# query cache enabled
+#
+SET NAMES utf8;
+set global query_cache_type=1;
+set global query_cache_size=1024*1024;
+set query_cache_type=1;
+create table t1 ( id int unsigned auto_increment, primary key(id) ) engine=innodb;
+create table t2 ( t2id int unsigned, id int unsigned, primary key(t2id, id), foreign key (`id`) references t1(`id`) on delete cascade ) engine=innodb;
+insert into t1 values (1);
+insert into t2 values (1,1);
+select * from t2;
+t2id	id
+1	1
+show status like "Qcache_queries_in_cache";
+Variable_name	Value
+Qcache_queries_in_cache	1
+delete from t1;
+show status like "Qcache_queries_in_cache";
+Variable_name	Value
+Qcache_queries_in_cache	0
+select * from t2;
+t2id	id
+optimize table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t2	optimize	status	OK
+select * from t2;
+t2id	id
+drop table t2;
+drop table t1;
+create database `testdatabase$ї`;
+use `testdatabase$ї`;
+create table `t1$ї` ( id int unsigned auto_increment, primary key(id) ) engine=innodb;
+create table `t2$ї` ( t2id int unsigned, id int unsigned, primary key(t2id, id), foreign key (`id`) references `t1$ї`(`id`) on delete cascade ) engine=innodb;
+insert into `t1$ї` values (1);
+insert into  `t2$ї`values (1,1);
+select * from `t2$ї`;
+t2id	id
+1	1
+show status like "Qcache_queries_in_cache";
+Variable_name	Value
+Qcache_queries_in_cache	1
+delete from `t1$ї`;
+show status like "Qcache_queries_in_cache";
+Variable_name	Value
+Qcache_queries_in_cache	0
+select * from `t2$ї`;
+t2id	id
+optimize table `t2$ї`;
+Table	Op	Msg_type	Msg_text
+testdatabase$ї.t2$ї	optimize	note	Table does not support optimize, doing recreate + analyze instead
+testdatabase$ї.t2$ї	optimize	status	OK
+select * from `t2$ї`;
+t2id	id
+use test;
+drop database `testdatabase$ї`;
+SET NAMES default;
+create database `#mysql50#-`;
+use `#mysql50#-`;
+create table `#mysql50#t-1` ( id int unsigned auto_increment, primary key(id) ) engine=innodb;
+create table `#mysql50#t-2` ( t2id int unsigned, id int unsigned, primary key(t2id, id), foreign key (`id`) references `#mysql50#t-1`(`id`) on delete cascade ) engine=innodb;
+insert into `#mysql50#t-1` values (1);
+insert into  `#mysql50#t-2`values (1,1);
+select * from `#mysql50#t-2`;
+t2id	id
+1	1
+show status like "Qcache_queries_in_cache";
+Variable_name	Value
+Qcache_queries_in_cache	1
+delete from `#mysql50#t-1`;
+show status like "Qcache_queries_in_cache";
+Variable_name	Value
+Qcache_queries_in_cache	0
+select * from `#mysql50#t-2`;
+t2id	id
+optimize table `#mysql50#t-2`;
+Table	Op	Msg_type	Msg_text
+#mysql50#-.#mysql50#t-2	optimize	note	Table does not support optimize, doing recreate + analyze instead
+#mysql50#-.#mysql50#t-2	optimize	status	OK
+select * from `#mysql50#t-2`;
+t2id	id
+use test;
+drop database `#mysql50#-`;
+SET NAMES default;
+FOUND 8 /\[ERROR\] Invalid \(old\?\) table or database name/ in mysqld.1.err
+set global query_cache_type=DEFAULT;
+set global query_cache_size=@save_query_cache_size;
+End of 10.2 tests

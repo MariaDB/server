@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "mysys_priv.h"
 #include "my_static.h"
@@ -61,15 +61,13 @@ FILE *my_fopen(const char *filename, int flags, myf MyFlags)
     int filedesc= my_fileno(fd);
     if ((uint)filedesc >= my_file_limit)
     {
-      thread_safe_increment(my_stream_opened,&THR_LOCK_open);
+      statistic_increment(my_stream_opened,&THR_LOCK_open);
       DBUG_RETURN(fd);				/* safeguard */
     }
-    mysql_mutex_lock(&THR_LOCK_open);
     my_file_info[filedesc].name= (char*) my_strdup(filename,MyFlags);
-    my_stream_opened++;
-    my_file_total_opened++;
+    statistic_increment(my_stream_opened, &THR_LOCK_open);
+    statistic_increment(my_file_total_opened, &THR_LOCK_open);
     my_file_info[filedesc].type= STREAM_BY_FOPEN;
-    mysql_mutex_unlock(&THR_LOCK_open);
     DBUG_PRINT("exit",("stream: %p", fd));
     DBUG_RETURN(fd);
   }
@@ -161,11 +159,17 @@ FILE *my_freopen(const char *path, const char *mode, FILE *stream)
 int my_fclose(FILE *fd, myf MyFlags)
 {
   int err,file;
+  char *name= NULL;
   DBUG_ENTER("my_fclose");
   DBUG_PRINT("my",("stream: %p  MyFlags: %lu", fd, MyFlags));
 
-  mysql_mutex_lock(&THR_LOCK_open);
   file= my_fileno(fd);
+  if ((uint) file < my_file_limit && my_file_info[file].type != UNOPEN)
+  {
+    name= my_file_info[file].name;
+    my_file_info[file].name= NULL;
+    my_file_info[file].type= UNOPEN;
+  }
 #ifndef _WIN32
   err= fclose(fd);
 #else
@@ -176,16 +180,15 @@ int my_fclose(FILE *fd, myf MyFlags)
     my_errno=errno;
     if (MyFlags & (MY_FAE | MY_WME))
       my_error(EE_BADCLOSE, MYF(ME_BELL+ME_WAITTANG),
-	       my_filename(file),errno);
+	       name,errno);
   }
   else
-    my_stream_opened--;
-  if ((uint) file < my_file_limit && my_file_info[file].type != UNOPEN)
+    statistic_decrement(my_stream_opened, &THR_LOCK_open);
+
+  if (name)
   {
-    my_file_info[file].type = UNOPEN;
-    my_free(my_file_info[file].name);
+    my_free(name);
   }
-  mysql_mutex_unlock(&THR_LOCK_open);
   DBUG_RETURN(err);
 } /* my_fclose */
 
@@ -215,13 +218,12 @@ FILE *my_fdopen(File Filedes, const char *name, int Flags, myf MyFlags)
   }
   else
   {
-    mysql_mutex_lock(&THR_LOCK_open);
-    my_stream_opened++;
+    statistic_increment(my_stream_opened, &THR_LOCK_open);
     if ((uint) Filedes < (uint) my_file_limit)
     {
       if (my_file_info[Filedes].type != UNOPEN)
       {
-        my_file_opened--;		/* File is opened with my_open ! */
+        thread_safe_decrement32(&my_file_opened);       /* File is opened with my_open ! */
       }
       else
       {
@@ -229,7 +231,6 @@ FILE *my_fdopen(File Filedes, const char *name, int Flags, myf MyFlags)
       }
       my_file_info[Filedes].type = STREAM_BY_FDOPEN;
     }
-    mysql_mutex_unlock(&THR_LOCK_open);
   }
 
   DBUG_PRINT("exit",("stream: %p", fd));
@@ -260,6 +261,8 @@ FILE *my_fdopen(File Filedes, const char *name, int Flags, myf MyFlags)
     r+ == O_RDWR  
     w+ == O_RDWR|O_TRUNC|O_CREAT  
     a+ == O_RDWR|O_APPEND|O_CREAT
+    b  == FILE_BINARY
+    e  == O_CLOEXEC
 */
 
 static void make_ftype(register char * to, register int flag)

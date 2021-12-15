@@ -24,26 +24,26 @@
 #include "item.h"
 #include "vers_utils.h"
 
-/* System Versioning: VTQ_TRX_ID(), VTQ_COMMIT_ID(), VTQ_BEGIN_TS(), VTQ_COMMIT_TS(), VTQ_ISO_LEVEL() */
-template <TR_table::field_id_t VTQ_FIELD>
-class Create_func_vtq : public Create_native_func
+/* System Versioning: TRT_TRX_ID(), TRT_COMMIT_ID(), TRT_BEGIN_TS(), TRT_COMMIT_TS(), TRT_ISO_LEVEL() */
+template <TR_table::field_id_t TRT_FIELD>
+class Create_func_trt : public Create_native_func
 {
 public:
   virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
 
-  static Create_func_vtq<VTQ_FIELD> s_singleton;
+  static Create_func_trt<TRT_FIELD> s_singleton;
 
 protected:
-  Create_func_vtq<VTQ_FIELD>() {}
-  virtual ~Create_func_vtq<VTQ_FIELD>() {}
+  Create_func_trt<TRT_FIELD>() {}
+  virtual ~Create_func_trt<TRT_FIELD>() {}
 };
 
-template<TR_table::field_id_t VTQ_FIELD>
-Create_func_vtq<VTQ_FIELD> Create_func_vtq<VTQ_FIELD>::s_singleton;
+template<TR_table::field_id_t TRT_FIELD>
+Create_func_trt<TRT_FIELD> Create_func_trt<TRT_FIELD>::s_singleton;
 
-template <TR_table::field_id_t VTQ_FIELD>
+template <TR_table::field_id_t TRT_FIELD>
 Item*
-Create_func_vtq<VTQ_FIELD>::create_native(THD *thd, LEX_CSTRING *name,
+Create_func_trt<TRT_FIELD>::create_native(THD *thd, LEX_CSTRING *name,
   List<Item> *item_list)
 {
   Item *func= NULL;
@@ -56,16 +56,16 @@ Create_func_vtq<VTQ_FIELD>::create_native(THD *thd, LEX_CSTRING *name,
   case 1:
   {
     Item *param_1= item_list->pop();
-    switch (VTQ_FIELD)
+    switch (TRT_FIELD)
     {
     case TR_table::FLD_BEGIN_TS:
     case TR_table::FLD_COMMIT_TS:
-      func= new (thd->mem_root) Item_func_vtq_ts(thd, param_1, VTQ_FIELD);
+      func= new (thd->mem_root) Item_func_trt_ts(thd, param_1, TRT_FIELD);
       break;
     case TR_table::FLD_TRX_ID:
     case TR_table::FLD_COMMIT_ID:
     case TR_table::FLD_ISO_LEVEL:
-      func= new (thd->mem_root) Item_func_vtq_id(thd, param_1, VTQ_FIELD);
+      func= new (thd->mem_root) Item_func_trt_id(thd, param_1, TRT_FIELD);
       break;
     default:
       DBUG_ASSERT(0);
@@ -76,11 +76,11 @@ Create_func_vtq<VTQ_FIELD>::create_native(THD *thd, LEX_CSTRING *name,
   {
     Item *param_1= item_list->pop();
     Item *param_2= item_list->pop();
-    switch (VTQ_FIELD)
+    switch (TRT_FIELD)
     {
     case TR_table::FLD_TRX_ID:
     case TR_table::FLD_COMMIT_ID:
-      func= new (thd->mem_root) Item_func_vtq_id(thd, param_1, param_2, VTQ_FIELD);
+      func= new (thd->mem_root) Item_func_trt_id(thd, param_1, param_2, TRT_FIELD);
       break;
     default:
       goto error;
@@ -98,8 +98,8 @@ Create_func_vtq<VTQ_FIELD>::create_native(THD *thd, LEX_CSTRING *name,
   return func;
 };
 
-template <class Item_func_vtq_trx_seesX>
-class Create_func_vtq_trx_sees : public Create_native_func
+template <class Item_func_trt_trx_seesX>
+class Create_func_trt_trx_sees : public Create_native_func
 {
 public:
   virtual Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list)
@@ -115,7 +115,7 @@ public:
     {
       Item *param_1= item_list->pop();
       Item *param_2= item_list->pop();
-      func= new (thd->mem_root) Item_func_vtq_trx_seesX(thd, param_1, param_2);
+      func= new (thd->mem_root) Item_func_trt_trx_seesX(thd, param_1, param_2);
       break;
     }
     default:
@@ -126,27 +126,27 @@ public:
     return func;
   }
 
-  static Create_func_vtq_trx_sees<Item_func_vtq_trx_seesX> s_singleton;
+  static Create_func_trt_trx_sees<Item_func_trt_trx_seesX> s_singleton;
 
 protected:
-  Create_func_vtq_trx_sees<Item_func_vtq_trx_seesX>() {}
-  virtual ~Create_func_vtq_trx_sees<Item_func_vtq_trx_seesX>() {}
+  Create_func_trt_trx_sees<Item_func_trt_trx_seesX>() {}
+  virtual ~Create_func_trt_trx_sees<Item_func_trt_trx_seesX>() {}
 };
 
 template<class X>
-Create_func_vtq_trx_sees<X> Create_func_vtq_trx_sees<X>::s_singleton;
+Create_func_trt_trx_sees<X> Create_func_trt_trx_sees<X>::s_singleton;
 
 #define BUILDER(F) & F::s_singleton
 
 static Native_func_registry func_array[] =
 {
-  { { C_STRING_WITH_LEN("VTQ_BEGIN_TS") }, BUILDER(Create_func_vtq<TR_table::FLD_BEGIN_TS>)},
-  { { C_STRING_WITH_LEN("VTQ_COMMIT_ID") }, BUILDER(Create_func_vtq<TR_table::FLD_COMMIT_ID>)},
-  { { C_STRING_WITH_LEN("VTQ_COMMIT_TS") }, BUILDER(Create_func_vtq<TR_table::FLD_COMMIT_TS>)},
-  { { C_STRING_WITH_LEN("VTQ_ISO_LEVEL") }, BUILDER(Create_func_vtq<TR_table::FLD_ISO_LEVEL>)},
-  { { C_STRING_WITH_LEN("VTQ_TRX_ID") }, BUILDER(Create_func_vtq<TR_table::FLD_TRX_ID>)},
-  { { C_STRING_WITH_LEN("VTQ_TRX_SEES") }, BUILDER(Create_func_vtq_trx_sees<Item_func_vtq_trx_sees>)},
-  { { C_STRING_WITH_LEN("VTQ_TRX_SEES_EQ") }, BUILDER(Create_func_vtq_trx_sees<Item_func_vtq_trx_sees_eq>)},
+  { { C_STRING_WITH_LEN("TRT_BEGIN_TS") }, BUILDER(Create_func_trt<TR_table::FLD_BEGIN_TS>)},
+  { { C_STRING_WITH_LEN("TRT_COMMIT_ID") }, BUILDER(Create_func_trt<TR_table::FLD_COMMIT_ID>)},
+  { { C_STRING_WITH_LEN("TRT_COMMIT_TS") }, BUILDER(Create_func_trt<TR_table::FLD_COMMIT_TS>)},
+  { { C_STRING_WITH_LEN("TRT_ISO_LEVEL") }, BUILDER(Create_func_trt<TR_table::FLD_ISO_LEVEL>)},
+  { { C_STRING_WITH_LEN("TRT_TRX_ID") }, BUILDER(Create_func_trt<TR_table::FLD_TRX_ID>)},
+  { { C_STRING_WITH_LEN("TRT_TRX_SEES") }, BUILDER(Create_func_trt_trx_sees<Item_func_trt_trx_sees>)},
+  { { C_STRING_WITH_LEN("TRT_TRX_SEES_EQ") }, BUILDER(Create_func_trt_trx_sees<Item_func_trt_trx_sees_eq>)},
   { {0, 0}, NULL}
 };
 
@@ -175,6 +175,7 @@ static int versioning_plugin_init(void *p __attribute__ ((unused)))
 static int versioning_plugin_deinit(void *p __attribute__ ((unused)))
 {
   DBUG_ENTER("versioning_plugin_deinit");
+  (void) item_create_remove(func_array);
   DBUG_RETURN(0);
 }
 

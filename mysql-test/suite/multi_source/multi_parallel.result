@@ -1,0 +1,64 @@
+connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
+connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
+connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;
+set global slave_parallel_threads=10;
+change master 'master1' to
+master_port=MYPORT_1,
+master_host='127.0.0.1',
+master_user='root';
+change master 'master2' to
+master_port=MYPORT_2,
+master_host='127.0.0.1',
+master_user='root';
+start all slaves;
+set default_master_connection = 'master1';
+include/wait_for_slave_to_start.inc
+set default_master_connection = 'master2';
+include/wait_for_slave_to_start.inc
+## Slave status variable
+set default_master_connection = 'master1';
+show status like 'slave_running';
+Variable_name	Value
+Slave_running	ON
+set default_master_connection = 'master2';
+show status like 'slave_running';
+Variable_name	Value
+Slave_running	ON
+#master 1
+connection master1;
+##Running CURD operation
+connection slave;
+Slave_DDL_Groups= 20;
+Slave_Non_Transactional_Groups= 20;
+Slave_Transactional_Groups= 0;
+#master 2
+connection master2;
+##Running CURD operation
+connection slave;
+Slave_DDL_Groups= 20;
+Slave_Non_Transactional_Groups= 20;
+Slave_Transactional_Groups= 0;
+#master 1
+connection master1;
+##Running CURD operation
+connection slave;
+Slave_DDL_Groups= 40;
+Slave_Non_Transactional_Groups= 20;
+Slave_Transactional_Groups= 20;
+stop all slaves;
+Warnings:
+Note	1938	SLAVE 'master2' stopped
+Note	1938	SLAVE 'master1' stopped
+set default_master_connection = 'master1';
+include/wait_for_slave_to_stop.inc
+set default_master_connection = 'master2';
+include/wait_for_slave_to_stop.inc
+set global slave_parallel_threads=0;
+include/reset_master_slave.inc
+disconnect slave;
+connection master1;
+include/reset_master_slave.inc
+disconnect master1;
+connection master2;
+include/reset_master_slave.inc
+disconnect master2;

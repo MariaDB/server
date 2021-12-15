@@ -1,0 +1,27 @@
+CREATE TABLE t1 (a INT, b VARCHAR(10)) ENGINE=InnoDB
+PARTITION BY RANGE(a)
+(PARTITION pa VALUES LESS THAN (3),
+PARTITION pb VALUES LESS THAN (5));
+INSERT INTO t1 VALUES(2,'two'),(2,'two'),(4,'four');
+connect ddl,localhost,root,,test;
+SET DEBUG_SYNC = 'inplace_after_index_build SIGNAL go WAIT_FOR done';
+ALTER TABLE t1 ADD UNIQUE KEY (a,b(3));
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR go';
+BEGIN;
+SELECT * FROM t1 FOR UPDATE;
+a	b
+2	two
+2	two
+4	four
+SET DEBUG_SYNC = 'now SIGNAL done';
+connection ddl;
+ERROR 23000: Duplicate entry '2-two' for key 'a'
+connection default;
+DELETE FROM t1;
+disconnect ddl;
+SET DEBUG_SYNC = 'RESET';
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;

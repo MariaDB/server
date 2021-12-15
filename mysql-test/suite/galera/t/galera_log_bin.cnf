@@ -1,0 +1,9 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+log-bin
+log-slave-updates
+
+[mysqld.2]
+log-bin
+log-slave-updates

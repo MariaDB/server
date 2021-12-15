@@ -1,0 +1,25 @@
+source include/not_embedded.inc;
+
+--echo #
+--echo # MDEV-18328: Make DISKS plugin check some privilege to access
+--echo # information_schema.DISKS table
+--echo #
+
+CREATE USER user1@localhost;
+GRANT SELECT ON *.* TO user1@localhost;
+
+connect (con1,localhost,user1,,);
+connection con1;
+select sum(Total) > sum(Available), sum(Total)>sum(Used) from information_schema.disks;
+disconnect con1;
+
+connection default;
+GRANT FILE ON *.* TO user1@localhost;
+
+connect (con1,localhost,user1,,);
+connection con1;
+select sum(Total) > sum(Available), sum(Total)>sum(Used) from information_schema.disks;
+connection default;
+DROP USER user1@localhost;
+
+--echo # End of 10.1 tests

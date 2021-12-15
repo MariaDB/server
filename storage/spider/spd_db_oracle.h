@@ -1,4 +1,4 @@
-/* Copyright (C) 2012-2017 Kentoku Shiba
+/* Copyright (C) 2012-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 class spider_db_oracle;
 class spider_db_oracle_result;
@@ -129,8 +129,11 @@ public:
   );
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
   int append_from_and_tables(
+    ha_spider *spider,
     spider_fields *fields,
-    spider_string *str
+    spider_string *str,
+    TABLE_LIST *table_list,
+    uint table_count
   );
   int reappend_tables(
     spider_fields *fields,
@@ -165,6 +168,7 @@ public:
   ub2                     *coltp;
   ub2                     *colsz;
   uint                    field_count;
+  uint                    record_size;
   ulong                   *row_size;
   ulong                   *row_size_first;
   CHARSET_INFO            *access_charset;
@@ -198,6 +202,7 @@ public:
     TABLE *tmp_table,
     spider_string *str
   );
+  uint get_byte_size();
   /* for oracle */
   int init();
   void deinit();

@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* Create a MyISAM table */
 
@@ -46,7 +46,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   uint aligned_key_start, block_length, res;
   uint internal_table= flags & HA_CREATE_INTERNAL_TABLE;
   ulong reclength, real_reclength,min_pack_length;
-  char kfilename[FN_REFLEN],klinkname[FN_REFLEN], *klinkname_ptr;
+  char kfilename[FN_REFLEN],klinkname[FN_REFLEN], *klinkname_ptr= 0;
   char dfilename[FN_REFLEN],dlinkname[FN_REFLEN], *dlinkname_ptr= 0;
   ulong pack_reclength;
   ulonglong tot_length,max_rows, tmp;
@@ -184,7 +184,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   if (flags & HA_CREATE_TMP_TABLE)
   {
     options|= HA_OPTION_TMP_TABLE;
-    create_mode|= O_NOFOLLOW;
+    create_mode|= O_NOFOLLOW | (internal_table ? 0 : O_EXCL);
   }
   if (flags & HA_CREATE_CHECKSUM || (options & HA_OPTION_CHECKSUM))
   {
@@ -611,7 +611,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
     klinkname_ptr= klinkname;
     /*
       Don't create the table if the link or file exists to ensure that one
-      doesn't accidently destroy another table.
+      doesn't accidentally destroy another table.
     */
     create_flag=0;
   }
@@ -619,10 +619,9 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   {
     char *iext= strrchr(name, '.');
     int have_iext= iext && !strcmp(iext, MI_NAME_IEXT);
-    fn_format(kfilename, name, "", MI_NAME_IEXT,
-              MY_UNPACK_FILENAME | MY_RETURN_REAL_PATH |
+    fn_format(kfilename, name, "", MI_NAME_IEXT, MY_UNPACK_FILENAME |
+              (internal_table ? 0 : MY_RETURN_REAL_PATH) |
               (have_iext ? MY_REPLACE_EXT : MY_APPEND_EXT));
-    klinkname_ptr= 0;
     /* Replace the current file */
     create_flag=(flags & HA_CREATE_KEEP_FILES) ? 0 : MY_DELETE_OLD;
   }
@@ -712,7 +711,11 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   }
 #endif
 
-  /* Write key and keyseg definitions */
+  /* Write key and keyseg definitions
+
+    TODO: update key and keyseg definitions for inplace alter (grep sql layer by
+          MDEV-25803). Do the same for Aria.
+  */
   DBUG_PRINT("info", ("write key and keyseg definitions"));
   for (i=0 ; i < share.base.keys - uniques; i++)
   {

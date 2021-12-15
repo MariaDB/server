@@ -32,7 +32,7 @@
     Defines: strfill()
 
     strfill(dest, len, fill) makes a string of fill-characters. The result
-    string is of length == len. The des+len character is allways set to NULL.
+    string is of length == len. The des+len character is always set to NULL.
     strfill() returns pointer to dest+len;
 */
 

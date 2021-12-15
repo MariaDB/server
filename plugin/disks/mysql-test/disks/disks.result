@@ -1,0 +1,12 @@
+show create table information_schema.disks;
+Table	Create Table
+DISKS	CREATE TEMPORARY TABLE `DISKS` (
+  `Disk` varchar(4096) NOT NULL DEFAULT '',
+  `Path` varchar(4096) NOT NULL DEFAULT '',
+  `Total` bigint(32) NOT NULL DEFAULT 0,
+  `Used` bigint(32) NOT NULL DEFAULT 0,
+  `Available` bigint(32) NOT NULL DEFAULT 0
+) ENGINE=MEMORY DEFAULT CHARSET=utf8
+select sum(Total) > sum(Available), sum(Total)>sum(Used) from information_schema.disks;
+sum(Total) > sum(Available)	sum(Total)>sum(Used)
+1	1

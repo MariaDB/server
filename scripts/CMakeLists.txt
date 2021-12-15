@@ -12,7 +12,7 @@
 # 
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 # Build comp_sql - used for embedding SQL in C or C++ programs
 IF(NOT CMAKE_CROSSCOMPILING)
@@ -91,18 +91,20 @@ SET(ADD_GIS_SP_EOL ";")
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/maria_add_gis_sp.sql.in
   ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp_bootstrap.sql ESCAPE_QUOTES @ONLY)
 
+IF (NOT WITHOUT_SERVER)
 INSTALL(FILES 
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables.sql 
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_system_tables_data.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_performance_tables.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/mysql_test_db.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/fill_help_tables.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_test_data_timezone.sql
-  ${CMAKE_CURRENT_SOURCE_DIR}/mysql_to_mariadb.sql
   ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp.sql
   ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp_bootstrap.sql
   ${FIX_PRIVILEGES_SQL}
   DESTINATION ${INSTALL_MYSQLSHAREDIR} COMPONENT Server
 )
+ENDIF()
 
 # TCMalloc hacks
 IF(MALLOC_LIB)
@@ -174,6 +176,7 @@ IF(INSTALL_LAYOUT MATCHES "STANDALONE")
   SET(scriptdir ${prefix}/${INSTALL_BINDIR})
   SET(libexecdir ${prefix}/${INSTALL_SBINDIR})
   SET(pkgdatadir ${prefix}/${INSTALL_MYSQLSHAREDIR})
+  SET(pkgplugindir ${prefix}/${INSTALL_PLUGINDIR})
   SET(localstatedir ${prefix}/data)
 ELSE()
   SET(prefix "${CMAKE_INSTALL_PREFIX}")
@@ -182,6 +185,7 @@ ELSE()
   SET(scriptdir ${INSTALL_BINDIRABS})
   SET(libexecdir ${INSTALL_SBINDIRABS})
   SET(pkgdatadir ${INSTALL_MYSQLSHAREDIRABS})
+  SET(pkgplugindir ${INSTALL_PLUGINDIRABS})
   SET(localstatedir ${MYSQL_DATADIR})
 ENDIF()
 
@@ -269,8 +273,6 @@ ELSE()
     SET(WSREP_SCRIPTS
       wsrep_sst_mysqldump
       wsrep_sst_rsync
-      wsrep_sst_xtrabackup
-      wsrep_sst_xtrabackup-v2
       wsrep_sst_mariabackup
     )
     # The following script is sourced from other SST scripts, so it should
@@ -278,6 +280,36 @@ ELSE()
     SET(WSREP_SOURCE
       wsrep_sst_common
     )
+
+    SET (wsrep_sst_rsync_wan ${CMAKE_CURRENT_BINARY_DIR}/wsrep_sst_rsync_wan)
+    ADD_CUSTOM_COMMAND(
+      OUTPUT ${wsrep_sst_rsync_wan}
+      COMMAND ${CMAKE_COMMAND} ARGS -E create_symlink
+        wsrep_sst_rsync
+        wsrep_sst_rsync_wan
+    )
+    ADD_CUSTOM_TARGET(symlink_wsrep_sst_rsync
+        ALL
+        DEPENDS ${wsrep_sst_rsync_wan}
+    )
+    INSTALL(
+      FILES  ${wsrep_sst_rsync_wan}
+      DESTINATION ${INSTALL_BINDIR}
+      COMPONENT Server
+    )
+
+    FOREACH(file ${WSREP_SOURCE})
+      CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}.sh
+        ${CMAKE_CURRENT_BINARY_DIR}/${file} ESCAPE_QUOTES @ONLY)
+      IF(NOT ${file}_COMPONENT)
+        SET(${file}_COMPONENT Server)
+      ENDIF()
+      INSTALL(FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/${file}
+        DESTINATION ${INSTALL_BINDIR}
+        COMPONENT ${${file}_COMPONENT}
+       )
+    ENDFOREACH()
   ENDIF()
   IF (NOT WITHOUT_SERVER)
     SET(SERVER_SCRIPTS
@@ -329,20 +361,6 @@ ELSE()
       COMPONENT ${${file}_COMPONENT}
      )
   ENDFOREACH()
-
-  FOREACH(file ${WSREP_SOURCE})
-    CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}.sh
-      ${CMAKE_CURRENT_BINARY_DIR}/${file} ESCAPE_QUOTES @ONLY)
-    IF(NOT ${file}_COMPONENT)
-      SET(${file}_COMPONENT Server)
-    ENDIF()
-    INSTALL(FILES
-      ${CMAKE_CURRENT_BINARY_DIR}/${file}
-      DESTINATION ${INSTALL_BINDIR}
-      COMPONENT ${${file}_COMPONENT}
-     )
-  ENDFOREACH()
-
 ENDIF()
 
 # Install libgcc as  mylibgcc.a

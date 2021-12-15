@@ -1,7 +1,10 @@
 --disable_query_log
-drop procedure verify_vtq;
-drop procedure verify_vtq_dummy;
-drop function sys_commit_ts;
-drop procedure concat_exec2;
-drop procedure concat_exec3;
+--disable_warnings
+drop procedure if exists verify_trt;
+drop procedure if exists verify_trt_dummy;
+drop function if exists current_row;
+drop function if exists check_row;
+drop function if exists current_row_ts;
+drop function if exists check_row_ts;
+--enable_warnings
 --enable_query_log

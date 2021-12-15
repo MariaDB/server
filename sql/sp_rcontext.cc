@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -29,6 +29,33 @@
 #include "sql_base.h"                       // open_tables_only_view_structure
 #include "sql_acl.h"                        // SELECT_ACL
 #include "sql_parse.h"                      // check_table_access
+
+
+Sp_rcontext_handler_local sp_rcontext_handler_local;
+Sp_rcontext_handler_package_body sp_rcontext_handler_package_body;
+
+sp_rcontext *Sp_rcontext_handler_local::get_rcontext(sp_rcontext *ctx) const
+{
+  return ctx;
+}
+
+sp_rcontext *Sp_rcontext_handler_package_body::get_rcontext(sp_rcontext *ctx) const
+{
+  return ctx->m_sp->m_parent->m_rcontext;
+}
+
+const LEX_CSTRING *Sp_rcontext_handler_local::get_name_prefix() const
+{
+  return &empty_clex_str;
+}
+
+const LEX_CSTRING *Sp_rcontext_handler_package_body::get_name_prefix() const
+{
+  static const LEX_CSTRING sp_package_body_variable_prefix_clex_str=
+                           {STRING_WITH_LEN("PACKAGE_BODY.")};
+  return &sp_package_body_variable_prefix_clex_str;
+}
+
 
 ///////////////////////////////////////////////////////////////////////////
 // sp_rcontext implementation.
@@ -169,11 +196,12 @@ bool sp_rcontext::init_var_table(THD *thd,
 */
 static inline bool
 check_column_grant_for_type_ref(THD *thd, TABLE_LIST *table_list,
-                                const char *str, size_t length)
+                                const char *str, size_t length,
+                                Field *fld)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   table_list->table->grant.want_privilege= SELECT_ACL;
-  return check_column_grant_in_table_ref(thd, table_list, str, length);
+  return check_column_grant_in_table_ref(thd, table_list, str, length, fld);
 #else
   return false;
 #endif
@@ -207,11 +235,11 @@ bool Qualified_column_ident::resolve_type_ref(THD *thd, Column_definition *def)
       !open_tables_only_view_structure(thd, table_list,
                                        thd->mdl_context.has_locks()))
   {
-    if ((src= lex.query_tables->table->find_field_by_name(&m_column)))
+    if (likely((src= lex.query_tables->table->find_field_by_name(&m_column))))
     {
       if (!(rc= check_column_grant_for_type_ref(thd, table_list,
                                                 m_column.str,
-                                                m_column.length)))
+                                                m_column.length, src)))
       {
         *def= Column_definition(thd, src, NULL/*No defaults,no constraints*/);
         def->flags&= (uint) ~NOT_NULL_FLAG;
@@ -275,7 +303,7 @@ bool Table_ident::resolve_table_rowtype_ref(THD *thd,
       LEX_CSTRING tmp= src[0]->field_name;
       Spvar_definition *def;
       if ((rc= check_column_grant_for_type_ref(thd, table_list,
-                                               tmp.str, tmp.length)) ||
+                                               tmp.str, tmp.length,src[0])) ||
           (rc= !(src[0]->field_name.str= thd->strmake(tmp.str, tmp.length))) ||
           (rc= !(def= new (thd->mem_root) Spvar_definition(thd, *src))))
         break;
@@ -397,44 +425,32 @@ bool sp_rcontext::set_return_value(THD *thd, Item **return_value_item)
 }
 
 
-bool sp_rcontext::push_cursor(THD *thd, sp_lex_keeper *lex_keeper)
+void sp_rcontext::push_cursor(sp_cursor *c)
 {
-  /*
-    We should create cursors in the callers arena, as
-    it could be (and usually is) used in several instructions.
-  */
-  sp_cursor *c= new (callers_arena->mem_root) sp_cursor(thd, lex_keeper);
-
-  if (c == NULL)
-    return true;
-
   m_cstack[m_ccount++]= c;
-  return false;
 }
 
 
-void sp_rcontext::pop_cursors(size_t count)
+void sp_rcontext::pop_cursor(THD *thd)
+{
+  DBUG_ASSERT(m_ccount > 0);
+  if (m_cstack[m_ccount - 1]->is_open())
+    m_cstack[m_ccount - 1]->close(thd);
+  m_ccount--;
+}
+
+
+void sp_rcontext::pop_cursors(THD *thd, size_t count)
 {
   DBUG_ASSERT(m_ccount >= count);
-
   while (count--)
-    delete m_cstack[--m_ccount];
+    pop_cursor(thd);
 }
 
 
-bool sp_rcontext::push_handler(sp_handler *handler, uint first_ip)
+bool sp_rcontext::push_handler(sp_instr_hpush_jump *entry)
 {
-  /*
-    We should create handler entries in the callers arena, as
-    they could be (and usually are) used in several instructions.
-  */
-  sp_handler_entry *he=
-    new (callers_arena->mem_root) sp_handler_entry(handler, first_ip);
-
-  if (he == NULL)
-    return true;
-
-  return m_handlers.append(he);
+  return m_handlers.append(entry);
 }
 
 
@@ -459,14 +475,14 @@ bool sp_rcontext::handle_sql_condition(THD *thd,
     handlers from this context are applicable: try to locate one
     in the outer scope.
   */
-  if (thd->is_fatal_sub_stmt_error && m_in_sub_stmt)
+  if (unlikely(thd->is_fatal_sub_stmt_error) && m_in_sub_stmt)
     DBUG_RETURN(false);
 
   Diagnostics_area *da= thd->get_stmt_da();
   const sp_handler *found_handler= NULL;
   const Sql_condition *found_condition= NULL;
 
-  if (thd->is_error())
+  if (unlikely(thd->is_error()))
   {
     found_handler=
       cur_spi->m_ctx->find_handler(da->get_error_condition_identity());
@@ -522,12 +538,12 @@ bool sp_rcontext::handle_sql_condition(THD *thd,
 
   DBUG_ASSERT(found_condition);
 
-  sp_handler_entry *handler_entry= NULL;
+  sp_instr_hpush_jump *handler_entry= NULL;
   for (size_t i= 0; i < m_handlers.elements(); ++i)
   {
-    sp_handler_entry *h= m_handlers.at(i);
+    sp_instr_hpush_jump *h= m_handlers.at(i);
 
-    if (h->handler == found_handler)
+    if (h->get_handler() == found_handler)
     {
       handler_entry= h;
       break;
@@ -556,7 +572,7 @@ bool sp_rcontext::handle_sql_condition(THD *thd,
   // Mark active conditions so that they can be deleted when the handler exits.
   da->mark_sql_conditions_for_removal();
 
-  uint continue_ip= handler_entry->handler->type == sp_handler::CONTINUE ?
+  uint continue_ip= handler_entry->get_handler()->type == sp_handler::CONTINUE ?
     cur_spi->get_cont_dest() : 0;
 
   /* End aborted result set. */
@@ -575,7 +591,7 @@ bool sp_rcontext::handle_sql_condition(THD *thd,
     new (callers_arena->mem_root) Handler_call_frame(cond_info, continue_ip);
   m_handler_call_stack.append(frame);
 
-  *ip= handler_entry->first_ip;
+  *ip= handler_entry->m_ip + 1;
 
   DBUG_RETURN(true);
 }
@@ -705,22 +721,6 @@ bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
 ///////////////////////////////////////////////////////////////////////////
 
 
-sp_cursor::sp_cursor(THD *thd_arg, sp_lex_keeper *lex_keeper):
-   result(thd_arg),
-   m_lex_keeper(lex_keeper),
-   server_side_cursor(NULL),
-   m_fetch_count(0),
-   m_row_count(0),
-   m_found(false)
-{
-  /*
-    currsor can't be stored in QC, so we should prevent opening QC for
-    try to write results which are absent.
-  */
-  lex_keeper->disable_query_cache();
-}
-
-
 /*
   Open an SP cursor
 
@@ -748,33 +748,6 @@ int sp_cursor::open(THD *thd)
 }
 
 
-/**
-  Open the cursor, but do not copy data.
-  This method is used to fetch the cursor structure
-  to cursor%ROWTYPE routine variables.
-  Data copying is suppressed by setting thd->lex->limit_rows_examined to 0.
-*/
-int sp_cursor::open_view_structure_only(THD *thd)
-{
-  int res;
-  int thd_no_errors_save= thd->no_errors;
-  Item *limit_rows_examined= thd->lex->limit_rows_examined; // No data copying
-  if (!(thd->lex->limit_rows_examined= new (thd->mem_root) Item_uint(thd, 0)))
-    return -1;
-  thd->no_errors= true; // Suppress ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT
-  DBUG_ASSERT(!thd->killed);
-  res= open(thd);
-  /*
-    The query possibly exited on LIMIT ROWS EXAMINED and set thd->killed.
-    Reset it now.
-  */
-  thd->reset_killed();
-  thd->no_errors= thd_no_errors_save;
-  thd->lex->limit_rows_examined= limit_rows_examined;
-  return res;
-}
-
-
 int sp_cursor::close(THD *thd)
 {
   if (! server_side_cursor)
@@ -783,8 +756,7 @@ int sp_cursor::close(THD *thd)
                MYF(0));
     return -1;
   }
-  m_row_count= m_fetch_count= 0;
-  m_found= false;
+  sp_cursor_statistics::reset();
   destroy();
   return 0;
 }
@@ -823,9 +795,15 @@ int sp_cursor::fetch(THD *thd, List<sp_variable> *vars, bool error_on_no_data)
 
   result.set_spvar_list(vars);
 
+  DBUG_ASSERT(!thd->is_error());
+
   /* Attempt to fetch one row */
   if (server_side_cursor->is_open())
+  {
     server_side_cursor->fetch(1);
+    if (thd->is_error())
+      return -1; // e.g. data type conversion failed
+  }
 
   /*
     If the cursor was pointing after the last row, the fetch will

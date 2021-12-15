@@ -6,8 +6,8 @@
 
 enum enum_field_types PLGtoMYSQL(int type, bool dbf, char var = 0);
 const char *PLGtoMYSQLtype(int type, bool dbf, char var = 0);
-int  MYSQLtoPLG(char *typname, char *var = NULL);
-int  MYSQLtoPLG(int mytype, char *var = NULL);
+int  MYSQLtoPLG(char *typname, char *var);
+int  MYSQLtoPLG(int mytype, char *var);
 PCSZ MyDateFmt(int mytype);
 PCSZ MyDateFmt(char *typname);
 

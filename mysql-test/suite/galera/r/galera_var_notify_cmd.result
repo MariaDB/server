@@ -1,10 +1,11 @@
-SELECT COUNT(DISTINCT uuid) = 2 FROM mtr_wsrep_notify.membership;
-COUNT(DISTINCT uuid) = 2
-1
-SELECT MAX(size) = 2 FROM mtr_wsrep_notify.status;
-MAX(size) = 2
-1
-SELECT COUNT(DISTINCT idx) = 2 FROM mtr_wsrep_notify.status;
-COUNT(DISTINCT idx) = 2
-1
+connection node_1;
+SELECT COUNT(DISTINCT uuid) AS EXPECT_2 FROM mtr_wsrep_notify.membership;
+EXPECT_2
+2
+SELECT MAX(size) AS EXPECT_2 FROM mtr_wsrep_notify.status;
+EXPECT_2
+2
+SELECT COUNT(DISTINCT idx) AS EXPECT_2 FROM mtr_wsrep_notify.status;
+EXPECT_2
+2
 DROP SCHEMA mtr_wsrep_notify;

@@ -1,0 +1,101 @@
+--source ../include/mdev_21884_init.inc
+--echo
+--echo this test is for MDEV-21884
+--echo
+--echo drop and create databases
+
+--connection master_1
+--disable_warnings
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+--connection child2_1
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+--enable_warnings
+
+--echo
+--echo create table and insert
+
+--connection child2_1
+--disable_query_log
+echo CHILD2_1_CREATE_TABLES;
+--disable_ps_protocol
+eval $CHILD2_1_CREATE_TABLES;
+--enable_ps_protocol
+--enable_query_log
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+--disable_query_log
+echo CREATE TABLE tbl_a (
+  a INT,
+  b CHAR(1),
+  c DATETIME,
+  PRIMARY KEY(a,b)
+) $MASTER_1_ENGINE $MASTER_1_COMMENT_P_2_1;
+eval CREATE TABLE tbl_a (
+  a INT,
+  b CHAR(1),
+  c DATETIME,
+  PRIMARY KEY(a,b)
+) $MASTER_1_ENGINE $MASTER_1_COMMENT_P_2_1;
+echo CREATE TABLE tb_l (
+  a INT,
+  b CHAR(1),
+  c DATETIME,
+  PRIMARY KEY(a)
+) MASTER_1_ENGINE2 MASTER_1_CHARSET2;
+eval CREATE TABLE tb_l (
+  a INT,
+  b CHAR(1),
+  c DATETIME,
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE2 $MASTER_1_CHARSET2;
+--enable_query_log
+INSERT INTO tbl_a (a, b, c) VALUES
+  (11, 'a', '2008-08-01 10:21:39'),
+  (11, 'b', '2000-01-01 00:00:00'),
+  (12, 'e', '2007-06-04 20:03:11'),
+  (12, 'd', '2003-11-30 05:01:03'),
+  (13, 'c', '2001-12-31 23:59:59');
+INSERT INTO tb_l (a, b, c) VALUES
+  (11, 'a', '2008-08-01 10:21:39'),
+  (12, 'b', '2000-01-01 00:00:00'),
+  (13, 'e', '2007-06-04 20:03:11'),
+  (14, 'd', '2003-11-30 05:01:03'),
+  (15, 'c', '2001-12-31 23:59:59');
+
+--echo
+--echo test 1
+
+--connection child2_1
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+SELECT STRAIGHT_JOIN b.a, b.b FROM tb_l a, tbl_a b WHERE a.a = b.a;
+
+--connection child2_1
+SET NAMES utf8;
+eval $CHILD2_1_SELECT_ARGUMENT1;
+--disable_ps_protocol
+eval $CHILD2_1_SELECT_TABLES;
+--enable_ps_protocol
+
+--echo
+--echo deinit
+--disable_warnings
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+
+--enable_warnings
+--source ../include/mdev_21884_deinit.inc
+--echo
+--echo end of test

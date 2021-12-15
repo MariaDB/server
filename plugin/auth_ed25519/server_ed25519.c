@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include <mysql/plugin_auth.h>
 #include "common.h"
@@ -41,17 +41,17 @@ static int auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 
   /* prepare the pk */
   if (info->auth_string_length != PASSWORD_LEN)
-    return CR_AUTH_USER_CREDENTIALS;
+    return CR_ERROR; // bad password in the user table
   memcpy(pw, info->auth_string, PASSWORD_LEN);
   pw[PASSWORD_LEN]= '=';
   if (my_base64_decode(pw, PASSWORD_LEN_BUF, pk, NULL, 0) != CRYPTO_PUBLICKEYBYTES)
-    return CR_AUTH_USER_CREDENTIALS;
+    return CR_ERROR; // bad password in the user table
 
   info->password_used= PASSWORD_USED_YES;
 
   /* prepare random nonce */
   if (my_random_bytes((unsigned char *)nonce, (int)sizeof(nonce)))
-    return CR_AUTH_USER_CREDENTIALS;
+    return CR_ERROR; // eh? OpenSSL error
 
   /* send it */
   if (vio->write_packet(vio, reply + CRYPTO_BYTES, NONCE_BYTES))
@@ -63,7 +63,7 @@ static int auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   memcpy(reply, pkt, CRYPTO_BYTES);
 
   if (crypto_sign_open(reply, CRYPTO_BYTES + NONCE_BYTES, pk))
-    return CR_ERROR;
+    return CR_AUTH_USER_CREDENTIALS; // wrong password provided by the user
 
   return CR_OK;
 }
@@ -100,8 +100,8 @@ maria_declare_plugin(ed25519)
   0x0100,
   NULL,
   NULL,
-  "1.0-alpha",
-  MariaDB_PLUGIN_MATURITY_BETA
+  "1.0",
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
 

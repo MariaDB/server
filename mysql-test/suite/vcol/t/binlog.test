@@ -1,0 +1,83 @@
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+#
+# MDEV-15243
+# Server crashes in in Field_blob::pack upon REPLACE into view with virtual
+# columns with binlog enabled
+#
+
+CREATE TABLE t1 (
+ pk SERIAL,
+ vcol_date DATE AS (col_date) PERSISTENT,
+ vcol_int INT AS (col_int) VIRTUAL,
+ vcol_year YEAR AS (col_year) PERSISTENT,
+ vcol_blob BLOB AS (col_blob) VIRTUAL,
+ col_date DATE,
+ col_int INT NULL,
+ col_blob BLOB NULL,
+ col_year YEAR,
+ PRIMARY KEY(pk)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 (col_date,col_int,col_blob,col_year) VALUES ('2010-04-24',5,'foo',1981);
+SET SQL_MODE='';
+
+set binlog_row_image="FULL";
+CREATE VIEW v1 AS SELECT * FROM t1;
+REPLACE INTO v1 SELECT pk, vcol_date, vcol_int, vcol_year, vcol_blob, col_date, col_int, col_blob, 1982 FROM t1;
+select col_date,col_int,col_blob,col_year from v1;
+sync_slave_with_master;
+select col_date,col_int,col_blob,col_year from v1;
+connection master;
+DROP VIEW v1;
+set binlog_row_image="MINIMAL";
+CREATE VIEW v1 AS SELECT * FROM t1;
+REPLACE INTO v1 SELECT pk, vcol_date, vcol_int, vcol_year, vcol_blob, col_date, col_int, col_blob, 1983 FROM t1;
+select col_date,col_int,col_blob,col_year from v1;
+sync_slave_with_master;
+select col_date,col_int,col_blob,col_year from v1;
+connection master;
+DROP VIEW v1;
+set @@binlog_row_image="NOBLOB";
+CREATE VIEW v1 AS SELECT * FROM t1;
+REPLACE INTO v1 SELECT pk, vcol_date, vcol_int, vcol_year, vcol_blob, col_date, col_int, col_blob, 1984 FROM t1;
+select col_date,col_int,col_blob,col_year from v1;
+sync_slave_with_master;
+select col_date,col_int,col_blob,col_year from v1;
+connection master;
+DROP VIEW v1;
+set @@binlog_row_image=default;
+
+DROP TABLE t1;
+SET SQL_MODE=default;
+
+# MDEV-24782
+# ASAN use-after-poison in Field::pack_int / THD::binlog_update_row
+
+CREATE TABLE t1 (pk INT, a VARCHAR(3), b VARCHAR(1) AS (a) VIRTUAL, PRIMARY KEY (pk));
+INSERT IGNORE INTO t1 (pk, a) VALUES (1,'foo'),(2,'bar');
+--error ER_DATA_TOO_LONG
+REPLACE INTO t1 (pk) VALUES (2);
+UPDATE IGNORE t1 SET a = NULL;
+
+# Cleanup
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-18166 ASSERT_COLUMN_MARKED_FOR_READ failed on tables with vcols
+--echo #
+
+SET SESSION binlog_row_image= noblob;
+CREATE TEMPORARY TABLE t1 SELECT UUID();
+show create table t1;
+CREATE TABLE t2 (a INT PRIMARY KEY, b TEXT, c INT GENERATED ALWAYS AS(b));
+INSERT INTO t2 (a,b) VALUES (1,1);
+
+SET SESSION binlog_row_image= default;
+DROP TABLE t2;
+
+
+--source include/rpl_end.inc

@@ -26,9 +26,25 @@
 #include "tztime.h"
 #include "item.h"
 
-Item_func_vtq_ts::Item_func_vtq_ts(THD *thd, Item* a, TR_table::field_id_t _vtq_field) :
+bool Item_func_history::val_bool()
+{
+  Item_field *f= static_cast<Item_field *>(args[0]);
+  DBUG_ASSERT(f->fixed);
+  DBUG_ASSERT(f->field->flags & VERS_ROW_END);
+  return !f->field->is_max();
+}
+
+void Item_func_history::print(String *str, enum_query_type query_type)
+{
+  str->append(func_name());
+  str->append('(');
+  args[0]->print(str, query_type);
+  str->append(')');
+}
+
+Item_func_trt_ts::Item_func_trt_ts(THD *thd, Item* a, TR_table::field_id_t _trt_field) :
   Item_datetimefunc(thd, a),
-  vtq_field(_vtq_field)
+  trt_field(_trt_field)
 {
   decimals= 6;
   null_value= true;
@@ -37,7 +53,7 @@ Item_func_vtq_ts::Item_func_vtq_ts(THD *thd, Item* a, TR_table::field_id_t _vtq_
 
 
 bool
-Item_func_vtq_ts::get_date(MYSQL_TIME *res, ulonglong fuzzy_date)
+Item_func_trt_ts::get_date(MYSQL_TIME *res, ulonglong fuzzy_date)
 {
   THD *thd= current_thd; // can it differ from constructor's?
   DBUG_ASSERT(thd);
@@ -62,19 +78,16 @@ Item_func_vtq_ts::get_date(MYSQL_TIME *res, ulonglong fuzzy_date)
 
   null_value= !trt.query(trx_id);
   if (null_value)
-  {
-    my_error(ER_VERS_NO_TRX_ID, MYF(0), (longlong) trx_id);
     return true;
-  }
 
-  return trt[vtq_field]->get_date(res, fuzzy_date);
+  return trt[trt_field]->get_date(res, fuzzy_date);
 }
 
 
-Item_func_vtq_id::Item_func_vtq_id(THD *thd, Item* a, TR_table::field_id_t _vtq_field,
+Item_func_trt_id::Item_func_trt_id(THD *thd, Item* a, TR_table::field_id_t _trt_field,
                                    bool _backwards) :
   Item_longlong_func(thd, a),
-  vtq_field(_vtq_field),
+  trt_field(_trt_field),
   backwards(_backwards)
 {
   decimals= 0;
@@ -83,9 +96,9 @@ Item_func_vtq_id::Item_func_vtq_id(THD *thd, Item* a, TR_table::field_id_t _vtq_
   DBUG_ASSERT(arg_count == 1 && args[0]);
 }
 
-Item_func_vtq_id::Item_func_vtq_id(THD *thd, Item* a, Item* b, TR_table::field_id_t _vtq_field) :
+Item_func_trt_id::Item_func_trt_id(THD *thd, Item* a, Item* b, TR_table::field_id_t _trt_field) :
   Item_longlong_func(thd, a, b),
-  vtq_field(_vtq_field),
+  trt_field(_trt_field),
   backwards(false)
 {
   decimals= 0;
@@ -95,7 +108,7 @@ Item_func_vtq_id::Item_func_vtq_id(THD *thd, Item* a, Item* b, TR_table::field_i
 }
 
 longlong
-Item_func_vtq_id::get_by_trx_id(ulonglong trx_id)
+Item_func_trt_id::get_by_trx_id(ulonglong trx_id)
 {
   THD *thd= current_thd;
   DBUG_ASSERT(thd);
@@ -111,11 +124,11 @@ Item_func_vtq_id::get_by_trx_id(ulonglong trx_id)
   if (null_value)
     return 0;
 
-  return trt[vtq_field]->val_int();
+  return trt[trt_field]->val_int();
 }
 
 longlong
-Item_func_vtq_id::get_by_commit_ts(MYSQL_TIME &commit_ts, bool backwards)
+Item_func_trt_id::get_by_commit_ts(MYSQL_TIME &commit_ts, bool backwards)
 {
   THD *thd= current_thd;
   DBUG_ASSERT(thd);
@@ -123,17 +136,17 @@ Item_func_vtq_id::get_by_commit_ts(MYSQL_TIME &commit_ts, bool backwards)
   TR_table trt(thd);
   null_value= !trt.query(commit_ts, backwards);
   if (null_value)
-    return 0;
+    return backwards ? ULONGLONG_MAX : 0;
 
-  return trt[vtq_field]->val_int();
+  return trt[trt_field]->val_int();
 }
 
 longlong
-Item_func_vtq_id::val_int()
+Item_func_trt_id::val_int()
 {
   if (args[0]->is_null())
   {
-    if (arg_count < 2 || vtq_field == TR_table::FLD_TRX_ID)
+    if (arg_count < 2 || trt_field == TR_table::FLD_TRX_ID)
     {
       null_value= true;
       return 0;
@@ -157,7 +170,7 @@ Item_func_vtq_id::val_int()
   }
 }
 
-Item_func_vtq_trx_sees::Item_func_vtq_trx_sees(THD *thd, Item* a, Item* b) :
+Item_func_trt_trx_sees::Item_func_trt_trx_sees(THD *thd, Item* a, Item* b) :
   Item_bool_func(thd, a, b),
   accept_eq(false)
 {
@@ -166,7 +179,7 @@ Item_func_vtq_trx_sees::Item_func_vtq_trx_sees(THD *thd, Item* a, Item* b) :
 }
 
 longlong
-Item_func_vtq_trx_sees::val_int()
+Item_func_trt_trx_sees::val_int()
 {
   THD *thd= current_thd;
   DBUG_ASSERT(thd);

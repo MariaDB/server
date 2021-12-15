@@ -53,8 +53,14 @@ EOF
 
 --source include/rpl_start_server.inc
 --source include/start_slave.inc
+
+# Due to the binlogs being truncated, the slave may still think it's processed up to
+# the truncated binlog and select master_pos_wait() can return prematurely. Add
+# a new transaction to the master to force master_pos_wait() to wait.
 connection master;
+insert into r1 values (2,2000);
 sync_slave_with_master;
+
 connection slave;
 delete r1 from r1 force index (i) where id2=1000;
 select id1,id2 from r1 force index (primary) where id1=1 and id2=1000;

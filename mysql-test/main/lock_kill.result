@@ -1,0 +1,36 @@
+#
+# MDEV-17749 Kill during LOCK TABLE ; ALTER TABLE causes assert
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+connect  con1,localhost,root,,test;
+LOCK TABLE t1 WRITE;
+ALTER TABLE t1 ADD COLUMN b INT;
+connection default;
+Killing connection
+connection con1;
+connection default;
+disconnect con1;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+connect  con1,localhost,root,,test;
+LOCK TABLE t1 WRITE, t2 WRITE;
+ALTER TABLE t1 ADD COLUMN b INT;
+connection default;
+Killing connection
+connection con1;
+connection default;
+disconnect con1;
+DROP TABLE t1, t2;
+CREATE TABLE t1 (id int(11)) ENGINE=InnoDB;
+LOCK TABLES t1 WRITE;
+SET max_statement_time= 0.0001;
+CREATE TRIGGER tr16 AFTER UPDATE ON t1 FOR EACH ROW INSERT INTO t1 VALUES (1);
+SET max_statement_time= default;
+DROP TRIGGER IF EXISTS trg16;
+Warnings:
+Note	1360	Trigger does not exist
+DROP TABLE t1;
+#
+# End of 10.3 tests
+#

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "item_inetfunc.h"
@@ -149,13 +149,14 @@ longlong Item_func_inet_bool_base::val_int()
 {
   DBUG_ASSERT(fixed);
 
-  if (args[0]->result_type() != STRING_RESULT) // String argument expected
+  // String argument expected
+  if (unlikely(args[0]->result_type() != STRING_RESULT))
     return 0;
 
   String buffer;
   String *arg_str= args[0]->val_str(&buffer);
 
-  if (!arg_str) // Out-of memory happened. The error has been reported.
+  if (unlikely(!arg_str)) // Out-of memory happened. error has been reported.
     return 0;   // Or: the underlying field is NULL
 
   return calc_value(arg_str) ? 1 : 0;
@@ -175,7 +176,8 @@ String *Item_func_inet_str_base::val_str_ascii(String *buffer)
 {
   DBUG_ASSERT(fixed);
 
-  if (args[0]->result_type() != STRING_RESULT) // String argument expected
+ // String argument expected
+  if (unlikely(args[0]->result_type() != STRING_RESULT))
   {
     null_value= true;
     return NULL;
@@ -183,15 +185,17 @@ String *Item_func_inet_str_base::val_str_ascii(String *buffer)
 
   StringBuffer<STRING_BUFFER_USUAL_SIZE> tmp;
   String *arg_str= args[0]->val_str(&tmp);
-  if (!arg_str) // Out-of memory happened. The error has been reported.
-  {             // Or: the underlying field is NULL
+  if (unlikely(!arg_str))
+  {
+    // Out-of memory happened. error has been reported.
+    // Or: the underlying field is NULL
     null_value= true;
     return NULL;
   }
 
   null_value= !calc_value(arg_str, buffer);
 
-  return null_value ? NULL : buffer;
+  return unlikely(null_value) ? NULL : buffer;
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -206,7 +210,7 @@ String *Item_func_inet_str_base::val_str_ascii(String *buffer)
 
   @return Completion status.
   @retval false Given string does not represent an IPv4-address.
-  @retval true  The string has been converted sucessfully.
+  @retval true  The string has been converted successfully.
 
   @note The problem with inet_pton() is that it treats leading zeros in
   IPv4-part differently on different platforms.
@@ -331,7 +335,7 @@ static bool str_to_ipv4(const char *str, size_t str_length, in_addr *ipv4_addres
 
   @return Completion status.
   @retval false Given string does not represent an IPv6-address.
-  @retval true  The string has been converted sucessfully.
+  @retval true  The string has been converted successfully.
 
   @note The problem with inet_pton() is that it treats leading zeros in
   IPv4-part differently on different platforms.
@@ -677,7 +681,7 @@ static void ipv6_to_str(const in6_addr *ipv6, char *str)
 
   @return Completion status.
   @retval false Given string does not represent an IP-address.
-  @retval true  The string has been converted sucessfully.
+  @retval true  The string has been converted successfully.
 */
 
 bool Item_func_inet6_aton::calc_value(const String *arg, String *buffer)
@@ -717,7 +721,7 @@ bool Item_func_inet6_aton::calc_value(const String *arg, String *buffer)
 
   @return Completion status.
   @retval false The argument does not correspond to IP-address.
-  @retval true  The string has been converted sucessfully.
+  @retval true  The string has been converted successfully.
 */
 
 bool Item_func_inet6_ntoa::calc_value(const String *arg, String *buffer)

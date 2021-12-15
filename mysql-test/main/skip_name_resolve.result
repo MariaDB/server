@@ -1,0 +1,62 @@
+CREATE USER mysqltest_1@'127.0.0.1/255.255.255.255';
+GRANT ALL ON test.* TO mysqltest_1@'127.0.0.1/255.255.255.255';
+SHOW GRANTS FOR mysqltest_1@'127.0.0.1/255.255.255.255';
+Grants for mysqltest_1@127.0.0.1/255.255.255.255
+GRANT USAGE ON *.* TO `mysqltest_1`@`127.0.0.1/255.255.255.255`
+GRANT ALL PRIVILEGES ON `test`.* TO `mysqltest_1`@`127.0.0.1/255.255.255.255`
+REVOKE ALL ON test.* FROM mysqltest_1@'127.0.0.1/255.255.255.255';
+DROP USER mysqltest_1@'127.0.0.1/255.255.255.255';
+connect  con1, localhost, root, , test, $MASTER_MYPORT, ;
+SELECT USER();
+USER()
+#
+SHOW PROCESSLIST;
+connection default;
+disconnect con1;
+#
+# Bug #37168: Missing variable - skip_name_resolve
+#
+SHOW VARIABLES LIKE 'skip_name_resolve';
+Variable_name	Value
+skip_name_resolve	ON
+SHOW GLOBAL VARIABLES LIKE 'skip_name_resolve';
+Variable_name	Value
+skip_name_resolve	ON
+SHOW SESSION VARIABLES LIKE 'skip_name_resolve';
+Variable_name	Value
+skip_name_resolve	ON
+SELECT @@skip_name_resolve;
+@@skip_name_resolve
+1
+SELECT @@LOCAL.skip_name_resolve;
+ERROR HY000: Variable 'skip_name_resolve' is a GLOBAL variable
+SELECT @@GLOBAL.skip_name_resolve;
+@@GLOBAL.skip_name_resolve
+1
+SET @@skip_name_resolve=0;
+ERROR HY000: Variable 'skip_name_resolve' is a read only variable
+SET @@LOCAL.skip_name_resolve=0;
+ERROR HY000: Variable 'skip_name_resolve' is a read only variable
+SET @@GLOBAL.skip_name_resolve=0;
+ERROR HY000: Variable 'skip_name_resolve' is a read only variable
+#
+# End of 5.1 tests
+#
+#
+# MDEV-26081 set role crashes when a hostname cannot be resolved
+#
+create user u1@`%`;
+create role r1;
+create role r2;
+grant r2 to r1;
+grant r1 to u1@`%`;
+connect u1,127.0.0.1,u1,,,$MASTER_MYPORT;
+set role r2;
+ERROR OP000: User `u1`@`%` has not been granted role `r2`
+disconnect u1;
+connection default;
+drop user u1@`%`;
+drop role r1, r2;
+#
+# End of 10.2 tests
+#

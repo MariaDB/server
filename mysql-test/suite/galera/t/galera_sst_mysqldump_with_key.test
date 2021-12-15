@@ -5,9 +5,12 @@
 --source include/big_test.inc
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
---source include/have_openssl.inc
+--source include/have_ssl_communication.inc
 
 --source suite/galera/include/galera_sst_set_mysqldump.inc
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
 
 --connection node_1
 CREATE USER sslsst;
@@ -16,14 +19,14 @@ GRANT USAGE ON *.* TO sslsst REQUIRE SSL;
 
 SET GLOBAL wsrep_sst_auth = 'sslsst:';
 
---source suite/galera/include/galera_st_disconnect_slave.inc
+# We set the required mysqldump SST options here so that they are used every time the server is restarted during the test
+--let $start_mysqld_params = --wsrep_sst_auth=sst:'sslsst:' --wsrep_sst_method=mysqldump --wsrep-sst-receive-address=127.0.0.1:$NODE_MYPORT_2 --skip-grant-tables
 
+--source suite/galera/include/galera_st_shutdown_slave.inc
+--source suite/galera/include/galera_st_kill_slave.inc
+--source suite/galera/include/galera_st_kill_slave_ddl.inc
+
+--source include/auto_increment_offset_restore.inc
 --source suite/galera/include/galera_sst_restore.inc
+
 DROP USER sslsst;
-
---connection node_2
-# We have to manually restore global_log and slow_query_log due to mysql-wsrep#108
-# Otherwise MTR's check_testcases complains
-
-SET GLOBAL general_log = ON;
-SET GLOBAL slow_query_log = ON;

@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mysys_priv.h"
 #include "mysys_err.h"
@@ -244,7 +244,7 @@ const char *my_open_parent_dir_nosymlinks(const char *pathname, int *pdfd)
       return pathname + (s - buf);
     }
 
-    fd = openat(dfd, s, O_NOFOLLOW | O_PATH);
+    fd = openat(dfd, s, O_NOFOLLOW | O_PATH | O_CLOEXEC);
     if (fd < 0)
       goto err;
 

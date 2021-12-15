@@ -18,6 +18,7 @@ server-id=1
 #sst_port=@OPT.port
 
 log-slave-updates
+wsrep-on=1
 
 innodb-autoinc-lock-mode=2
 default-storage-engine=innodb
@@ -39,6 +40,7 @@ server-id=2
 #sst_port=@OPT.port
 
 log-slave-updates
+wsrep-on=1
 
 innodb-autoinc-lock-mode=2
 default-storage-engine=innodb
@@ -60,6 +62,7 @@ server-id=3
 #sst_port=@OPT.port
 
 log-slave-updates
+wsrep-on=1
 
 innodb-autoinc-lock-mode=2
 default-storage-engine=innodb

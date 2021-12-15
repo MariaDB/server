@@ -1,5 +1,5 @@
 --echo Performing --wsrep-recover ...
---exec $MYSQLD --defaults-group-suffix=.$galera_wsrep_recover_server_id --defaults-file=$MYSQLTEST_VARDIR/my.cnf --innodb --wsrep-recover > $MYSQL_TMP_DIR/galera_wsrep_recover.log 2>&1
+--exec $MYSQLD --defaults-group-suffix=.$galera_wsrep_recover_server_id --defaults-file=$MYSQLTEST_VARDIR/my.cnf --log-error=$MYSQL_TMP_DIR/galera_wsrep_recover.log --innodb --wsrep-recover > $MYSQL_TMP_DIR/galera_wsrep_recover.log 2>&1
 
 --perl
 	use strict;

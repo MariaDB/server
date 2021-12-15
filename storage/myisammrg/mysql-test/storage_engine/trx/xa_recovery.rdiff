@@ -10,7 +10,7 @@
  call mtr.add_suppression("Found 2 prepared XA transactions");
  FLUSH TABLES;
  DROP TABLE IF EXISTS t1;
-@@ -18,12 +24,18 @@
+@@ -18,12 +24,17 @@
  connection default;
  XA RECOVER;
  formatID	gtrid_length	bqual_length	data
@@ -28,6 +28,5 @@
  4
 +Warnings:
 +Error	145	Table './mrg/t1' is marked as crashed and should be repaired
-+Error	1194	Table 't1' is marked as crashed and should be repaired
 +Error	1034	1 client is using or hasn't closed the table properly
  DROP TABLE t1;

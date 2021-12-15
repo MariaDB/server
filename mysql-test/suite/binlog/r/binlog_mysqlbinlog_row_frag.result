@@ -1,0 +1,27 @@
+CREATE TABLE t (a TEXT);
+RESET MASTER;
+INSERT INTO t SET a=repeat('a', 1024);
+SELECT a from t into @a;
+FLUSH LOGS;
+DELETE FROM t;
+FOUND 1 /BINLOG @binlog_fragment_0, @binlog_fragment_1/ in mysqlbinlog.sql
+SELECT a LIKE @a as 'true' FROM t;
+true
+1
+BINLOG number-of-fragments must be exactly two
+BINLOG @binlog_fragment;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+BINLOG @binlog_fragment, @binlog_fragment, @binlog_fragment;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ' @binlog_fragment' at line 1
+SET @binlog_fragment_0='012345';
+SET @binlog_fragment_1='012345';
+BINLOG @binlog_fragment_0, @binlog_fragment_1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use
+SET @binlog_fragment_0='012345';
+BINLOG @binlog_fragment_0, @binlog_fragment_not_exist;
+ERROR 42000: Incorrect argument type to variable 'binlog_fragment_not_exist'
+SET @a= '42';
+BINLOG @a, @a;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use
+# Cleanup
+DROP TABLE t;

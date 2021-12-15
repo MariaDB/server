@@ -172,6 +172,7 @@ SELECT * FROM t1;
 
 # Update using range
 # EXPLAIN SELECT * FROM t1 WHERE c1 BETWEEN 080000 AND 100000;
+--replace_regex /(Data truncated for column 'c2' at row) [1-9][0-9]*/\1 N/
 UPDATE IGNORE t1 SET t1.c2='99999.99999' WHERE c1 BETWEEN 080000 AND 100000;
 --sorted_result
 SELECT * FROM t1;

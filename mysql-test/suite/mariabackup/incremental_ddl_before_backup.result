@@ -1,0 +1,32 @@
+call mtr.add_suppression("InnoDB: New log files created");
+CREATE TABLE t1(i INT) ENGINE INNODB;
+CREATE TABLE t2(i INT PRIMARY KEY) ENGINE INNODB;
+CREATE TABLE t3(i INT) ENGINE INNODB;
+# Create full backup , modify table, then create incremental/differential backup
+create table t4(f1 int not null, f2 int not null)engine=innodb;
+insert into t4 values(1, 2), (2, 2), (3, 3), (5, 5), (6, 6), (4, 4), (9, 9);
+insert into t4 select * from t4;
+insert into t4 select * from t4;
+insert into t4 select * from t4;
+insert into t4 select * from t4;
+insert into t4 select * from t4;
+insert into t4 select * from t4;
+insert into t4 select * from t4;
+insert into t4 select * from t4;
+insert into t4 select * from t4;
+insert into t4 select * from t4;
+rename table t4 to t7;
+select count(*) from t7;
+count(*)
+7168
+# XTRABACKUP INCREMENTAL
+# XTRABACKUP PREPARE
+# XTRABACKUP INCREMENTAL PREPARE
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+select count(*) from t7;
+count(*)
+7168
+drop table t1, t2, t7, t3;

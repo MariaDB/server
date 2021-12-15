@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
 # This is a library file used by the Perl version of mysql-test-run,
 # and is part of the translation of the Bourne shell script with the
@@ -292,7 +292,7 @@ sub combinations_from_file($$)
   } else {
     return () if @::opt_combinations or not -f $filename;
     # Read combinations file in my.cnf format
-    mtr_verbose("Read combinations file");
+    mtr_verbose("Read combinations file $filename");
     my $config= My::Config->new($filename);
     foreach my $group ($config->option_groups()) {
       my $comb= { name => $group->name(), comb_opt => [] };
@@ -398,7 +398,7 @@ sub collect_suite_name($$)
       }
     }
   } else {
-    $suites{$suitename} = [ $::glob_mysql_test_dir,
+    $suites{$suitename} = [ $::glob_mysql_test_dir . "/main",
                             my_find_dir(dirname($::glob_mysql_test_dir),
                                         [ @plugin_suitedirs ],
                                         'main', NOT_REQUIRED) ];
@@ -470,7 +470,9 @@ sub process_suite {
     $suitename = $basename;
   }
 
-  my $suite = load_suite_object($suitename, $suitedir);
+  my $suite = load_suite_object($suitename, (($suitename eq "main") ?
+					     $::glob_mysql_test_dir :
+					     $suitedir));
 
   #
   # Read suite config files, unless it was done aleady
@@ -623,8 +625,10 @@ sub make_combinations($$@)
   {
     # Skip all other combinations if the values they change
     # are already fixed in master_opt or slave_opt
-    if (My::Options::is_set($test->{master_opt}, $comb->{comb_opt}) &&
-        My::Options::is_set($test->{slave_opt}, $comb->{comb_opt}) ){
+    # (empty combinations are not considered a subset of anything)
+    if (@{$comb->{comb_opt}} &&
+        My::Options::is_subset($test->{master_opt}, $comb->{comb_opt}) &&
+        My::Options::is_subset($test->{slave_opt}, $comb->{comb_opt}) ){
 
       $test_combs->{$comb->{name}} = 2;
 
@@ -647,7 +651,7 @@ sub make_combinations($$@)
   {
     # Copy test options
     my $new_test= $test->copy();
-    
+
     # Prepend the combination options to master_opt and slave_opt
     # (on the command line combinations go *before* .opt files)
     unshift @{$new_test->{master_opt}}, @{$comb->{comb_opt}};
@@ -693,8 +697,6 @@ sub collect_one_test_case {
   my $tpath     =  shift;
   my $tname     =  shift;
   my %test_combs = map { $_ => 1 } @_;
-
-
   my $suitename =  $suite->{name};
   my $name      = "$suitename.$tname";
   my $filename  = "$tpath/${tname}.test";
@@ -1096,6 +1098,7 @@ sub get_tags_from_file($$) {
   $file_to_slave_opts{$file}= $slave_opts;
   $file_combinations{$file}= [ ::uniq(@combinations) ];
   $file_in_overlay{$file} = 1 if $in_overlay;
+
   return @{$tags};
 }
 

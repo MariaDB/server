@@ -1,0 +1,210 @@
+#
+# BUG#57373: Multi update+InnoDB reports ER_KEY_NOT_FOUND if a
+#            table is updated twice
+#
+CREATE TABLE t1(
+pk INT,
+a INT,
+b INT,
+PRIMARY KEY (pk)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (0,0,0);
+UPDATE t1 AS A, t1 AS B SET A.pk = 1, B.a = 2;
+ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'
+SELECT * FROM t1;
+pk	a	b
+0	0	0
+CREATE VIEW v1 AS SELECT * FROM t1;
+UPDATE v1 AS A, t1 AS B SET A.pk = 1, B.a = 2;
+ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'
+SELECT * FROM t1;
+pk	a	b
+0	0	0
+UPDATE t1 AS A, t1 AS B SET A.a = 1, B.b = 2;
+# Should be (0,1,2)
+SELECT * FROM t1;
+pk	a	b
+0	1	2
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# BUG#11882110: UPDATE REPORTS ER_KEY_NOT_FOUND IF TABLE IS 
+#               UPDATED TWICE
+#
+CREATE TABLE t1 ( 
+col_int_key int, 
+pk int, 
+col_int int, 
+key(col_int_key), 
+primary key (pk)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,2,3);
+
+CREATE TABLE t2 ( 
+col_int_key int, 
+pk_1 int, 
+pk_2 int, 
+col_int int, 
+key(col_int_key), 
+primary key (pk_1,pk_2)
+) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1,2,3,4);
+
+UPDATE t1 AS A NATURAL JOIN t1 B SET A.pk=5,B.pk=7;
+ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'
+
+SELECT * FROM t1;
+col_int_key	pk	col_int
+1	2	3
+
+UPDATE t2 AS A NATURAL JOIN t2 B SET A.pk_1=5,B.pk_1=7;
+ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'
+
+UPDATE t2 AS A NATURAL JOIN t2 B SET A.pk_2=10,B.pk_2=11;
+ERROR HY000: Primary key/partition key update is not allowed since the table is updated both as 'A' and 'B'
+
+SELECT * FROM t2;
+col_int_key	pk_1	pk_2	col_int
+1	2	3	4
+DROP TABLE t1,t2;
+create table t1 (id serial, size int(11)) engine=innodb;
+create table t2 (id serial, size int, account_id int) engine=innodb;
+create table t3 (id serial, size int, article_id int) engine=innodb;
+create table t4 (id serial, file_id int, article_id int) engine=innodb;
+insert t1 values(null, 400);
+insert t2 values(null, 0, 1), (null, 1, 1);
+insert t3 values(null, 100, 1);
+insert t4 values(null, 1, 2);
+create trigger file_update_article before update on t3 for each row
+update t2 set t2.size = new.size where t2.id = new.article_id;
+create trigger article_update_account before update on t2 for each row
+update t1 set t1.size = t1.size + new.size where t1.id = new.account_id;
+update t3 join t4 on t4.file_id =t3.id and t4.article_id=2 set t3.size=t3.size + 2;
+drop table t1, t2, t3, t4;
+#
+# end of 5.5 tests
+#
+
+# Bug mdev-5970
+# Bug#13256831 - ERROR 1032 (HY000): CAN'T FIND RECORD
+
+CREATE TABLE t1 (f1 INT PRIMARY KEY, f2 INT) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INT PRIMARY KEY, f2 INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (5, 7);
+INSERT INTO t2 VALUES (6, 97);
+CREATE ALGORITHM = MERGE VIEW v1 AS 
+SELECT a2.f1 AS f1, a2.f2 AS f2
+FROM t1 AS a1 JOIN t2 AS a2 ON a1.f2 > a2.f1 
+WITH LOCAL CHECK OPTION;
+SELECT * FROM v1;
+f1	f2
+6	97
+UPDATE v1 SET f1 = 1;
+SELECT * FROM v1;
+f1	f2
+1	97
+DROP TABLE t1, t2;
+DROP VIEW v1;
+#
+# MDEV-5973: MySQL  Bug#11757486:49539: NON-DESCRIPTIVE ERR (ERROR 0
+# FROM STORAGE ENGINE) WITH MULTI-TABLE UPDATE
+#
+CREATE TABLE table_11757486 (field1 tinyint) ENGINE=INNODB;
+INSERT INTO table_11757486 VALUES (0),(0);
+SET SESSION SQL_MODE='STRICT_ALL_TABLES';
+UPDATE IGNORE (SELECT 128 as col1) x, table_11757486 SET field1=x.col1;
+Warnings:
+Warning	1264	Out of range value for column 'field1' at row 1
+Warning	1264	Out of range value for column 'field1' at row 2
+UPDATE IGNORE table_11757486 SET field1=128;
+Warnings:
+Warning	1264	Out of range value for column 'field1' at row 1
+Warning	1264	Out of range value for column 'field1' at row 2
+UPDATE (SELECT 128 as col1) x, table_11757486 SET field1=x.col1;
+ERROR 22003: Out of range value for column 'field1' at row 1
+UPDATE table_11757486 SET field1=128;
+ERROR 22003: Out of range value for column 'field1' at row 1
+SET SESSION SQL_MODE='';
+UPDATE IGNORE (SELECT 128 as col1) x, table_11757486 SET field1=x.col1;
+Warnings:
+Warning	1264	Out of range value for column 'field1' at row 1
+Warning	1264	Out of range value for column 'field1' at row 2
+UPDATE IGNORE table_11757486 SET field1=128;
+Warnings:
+Warning	1264	Out of range value for column 'field1' at row 1
+Warning	1264	Out of range value for column 'field1' at row 2
+DROP TABLE table_11757486;
+SET SESSION SQL_MODE=default;
+create table t1 (
+aclid bigint not null primary key,
+status tinyint(1) not null
+) engine = innodb;
+create table t2 (
+refid bigint not null primary key,
+aclid bigint, index idx_acl(aclid)
+) engine = innodb;
+insert into t2 values(1,null);
+delete t2, t1 from t2 left join t1 on (t2.aclid=t1.aclid) where t2.refid='1';
+drop table t1, t2;
+create table t1 ( c char(8) not null ) engine=innodb;
+insert into t1 values ('0'),('1'),('2'),('3'),('4'),('5'),('6'),('7'),('8'),('9');
+insert into t1 values ('A'),('B'),('C'),('D'),('E'),('F');
+alter table t1 add b char(8) not null;
+alter table t1 add a char(8) not null;
+alter table t1 add primary key (a,b,c);
+update t1 set a=c, b=c;
+create table t2 like t1;
+insert into t2 select * from t1;
+delete t1,t2 from t2,t1 where t1.a<'B' and t2.b=t1.b;
+drop table t1,t2;
+create table t1 ( c char(8) not null ) engine=innodb;
+insert into t1 values ('0'),('1'),('2'),('3'),('4'),('5'),('6'),('7'),('8'),('9');
+insert into t1 values ('A'),('B'),('C'),('D'),('E'),('F');
+alter table t1 add b char(8) not null;
+alter table t1 add a char(8) not null;
+alter table t1 add primary key (a,b,c);
+update t1 set a=c, b=c;
+create table t2 like t1;
+insert into t2 select * from t1;
+delete t1,t2 from t2,t1 where t1.a<'B' and t2.b=t1.b;
+drop table t1,t2;
+#
+# MDEV-16240: Assertion `0' failed in
+# row_sel_convert_mysql_key_to_innobase
+#
+SET @save_sql_mode=@@sql_mode;
+set sql_mode='';
+CREATE TABLE `t3` (
+`f1` TIMESTAMP NOT NULL DEFAULT '0000-00-00 00:00:00' ON UPDATE current_timestamp(),
+`f2` datetime DEFAULT '2000-01-01 00:00:00' ON UPDATE current_timestamp(),
+`f3` TIMESTAMP NULL DEFAULT '2000-01-01 00:00:00',
+`pk` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+`f4` datetime DEFAULT current_timestamp(),
+PRIMARY KEY (`pk`),
+UNIQUE KEY `f2k` (`f2`),
+KEY `f4k` (`f4`)
+) ENGINE=InnoDB;
+INSERT INTO `t3` VALUES ('2018-05-18 15:08:07','2018-05-18 17:08:07','0000-00-00 00:00:00','0000-00-00 00:00:00','0000-00-00 00:00:00'),('0000-00-00 00:00:00','0000-00-00 00:00:00','1999-12-31 23:00:00','2002-07-03 23:04:40','0000-00-00 00:00:00');
+CREATE VIEW `v1` AS
+SELECT `t3`.`pk` AS `pk`,
+`t3`.`f3` AS `f3`,
+`t3`.`f4` AS `f4`,
+`t3`.`f2` AS `f2`,
+`t3`.`f1` AS `f1`
+FROM `t3`;
+CREATE TABLE `t4` (
+`f1` datetime DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+`f3` timestamp NULL DEFAULT NULL,
+`f2` timestamp NULL DEFAULT '1999-12-31 23:00:00' ON UPDATE current_timestamp(),
+`pk` int(11) NOT NULL,
+`f4` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+PRIMARY KEY (`pk`)
+) ENGINE=InnoDB;
+INSERT INTO `t4` VALUES ('2018-05-18 17:08:06','0000-00-00 00:00:00',NULL,1,'2018-05-18 15:08:06'),('2018-05-18 17:08:06','0000-00-00 00:00:00',NULL,2,'2018-05-18 15:08:06'),('2018-05-18 17:08:06','0000-00-00 00:00:00',NULL,3,'2018-05-18 15:08:06'),('0000-00-00 00:00:00','0000-00-00 00:00:00',NULL,1976,'0000-00-00 00:00:00'),('2018-05-18 17:08:06','0000-00-00 00:00:00',NULL,2000,'2018-05-18 15:08:06'),('2018-05-18 17:08:06','0000-00-00 00:00:00',NULL,2001,'2018-05-18 15:08:06'),('2018-05-18 17:08:06','0000-00-00 00:00:00',NULL,2002,'2018-05-18 15:08:06'),('2018-05-18 17:08:06','0000-00-00 00:00:00',NULL,2003,'2018-05-18 15:08:06'),('2018-05-18 17:08:06','0000-00-00 00:00:00',NULL,2004,'2018-05-18 15:08:06'),('2018-05-18 17:08:06','0000-00-00 00:00:00','2018-05-18 15:08:06',2005,'2018-05-18 15:08:06'),('2018-05-18 17:08:06','0000-00-00 00:00:00','2018-05-18 15:08:06',2018,'2018-05-18 15:08:06'),('2018-05-18 17:08:06','0000-00-00 00:00:00','2018-05-18 15:08:06',2019,'2018-05-18 15:08:06'),('2018-05-18 17:08:06','0000-00-00 00:00:00','2018-05-18 15:08:06',2024,'2018-05-18 15:08:06'),('2018-05-18 17:08:06','0000-00-00 00:00:00','1999-12-31 23:00:00',2025,'2018-05-18 15:08:06'),('0000-00-00 00:00:00',NULL,'2018-05-18 15:08:06',2026,'2018-05-18 15:08:06'),('2018-05-18 17:08:07','0000-00-00 00:00:00','0000-00-00 00:00:00',2027,'0000-00-00 00:00:00');
+UPDATE `v1` t1, `t4` t2
+SET t1.`f2` = 6452736 WHERE t1.`f4` = 6272000;
+ERROR 23000: Duplicate entry '0000-00-00 00:00:00' for key 'f2k'
+DROP VIEW v1;
+DROP TABLE t3,t4;
+SET @@sql_mode=@save_sql_mode;
+# End of 10.2 tests

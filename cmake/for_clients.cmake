@@ -11,9 +11,6 @@ SET(LIBS "")
 IF(POLICY CMP0011)
   CMAKE_POLICY(SET CMP0011 NEW)
 ENDIF()
-IF(POLICY CMP0007)
-  CMAKE_POLICY(SET CMP0007 OLD)
-ENDIF()
 
 # Extract dependencies using CMake's internal ${target}_LIB_DEPENDS variable
 # returned string in ${var} is can be passed to linker's command line
@@ -24,7 +21,7 @@ MACRO(EXTRACT_LINK_LIBRARIES target var)
     FOREACH(lib ${${target}_LIB_DEPENDS})
       # Filter out "general", it is not a library, just CMake hint
       # Also, remove duplicates
-      IF(NOT lib STREQUAL "general" AND NOT ${var}  MATCHES "-l${lib} ")
+      IF(NOT lib STREQUAL "general" AND NOT ${var}  MATCHES "-l${lib} " AND NOT lib STREQUAL "zlib")
         IF (lib MATCHES "^\\-")
           SET(${var} "${${var}} ${lib} ") 
         ELSEIF(lib MATCHES "^/")

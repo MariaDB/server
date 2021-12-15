@@ -1,0 +1,18 @@
+--source include/have_debug.inc
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+mkdir $targetdir;
+
+CREATE TABLE t1 ENGINE=InnoDB SELECT 1;
+
+--let after_load_tablespaces=TRUNCATE test.t1
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup  --target-dir=$targetdir  --dbug=+d,mariabackup_events;
+--enable_result_log
+
+--let after_load_tablespaces=
+
+DROP TABLE t1;
+SET GLOBAL innodb_log_checkpoint_now=1;
+SET GLOBAL innodb_log_checkpoint_now=DEFAULT;
+rmdir $targetdir;

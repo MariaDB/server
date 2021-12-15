@@ -700,7 +700,7 @@ ERROR 42000: Incorrect table definition; there can be only one auto column and i
 create table t1 (c char(255), primary key(c(90)));
 insert into t1 values ("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz");
 insert into t1 values ("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz");
-ERROR 23000: Duplicate entry 'abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijkl' for key 'PRIMARY'
+ERROR 23000: Duplicate entry 'abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghi...' for key 'PRIMARY'
 drop table t1;
 CREATE TABLE t1 (a int, key(a)) engine=heap;
 insert into t1 values (0);

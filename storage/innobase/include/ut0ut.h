@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -49,33 +50,6 @@ Created 1/20/1994 Heikki Tuuri
 
 /** Index name prefix in fast index creation, as a string constant */
 #define TEMP_INDEX_PREFIX_STR	"\377"
-
-/** Time stamp */
-typedef time_t	ib_time_t;
-
-#if defined (__GNUC__)
-# define UT_COMPILER_BARRIER() __asm__ __volatile__ ("":::"memory")
-#elif defined (_MSC_VER)
-# define UT_COMPILER_BARRIER() _ReadWriteBarrier()
-#else
-# define UT_COMPILER_BARRIER()
-#endif
-
-/*********************************************************************//**
-Delays execution for at most max_wait_us microseconds or returns earlier
-if cond becomes true.
-@param cond in: condition to wait for; evaluated every 2 ms
-@param max_wait_us in: maximum delay to wait, in microseconds */
-# define UT_WAIT_FOR(cond, max_wait_us)				\
-do {								\
-	uintmax_t	start_us;					\
-	start_us = ut_time_us(NULL);				\
-	while (!(cond)						\
-	       && ut_time_us(NULL) - start_us < (max_wait_us)) {\
-								\
-		os_thread_sleep(2000 /* 2 ms */);		\
-	}							\
-} while (0)
 
 #define ut_max	std::max
 #define ut_min	std::min
@@ -128,26 +102,23 @@ Calculates fast the remainder of n/m when m is a power of two.
 @param n in: numerator
 @param m in: denominator, must be a power of two
 @return the remainder of n/m */
-#define ut_2pow_remainder(n, m) ((n) & ((m) - 1))
+template <typename T> inline T ut_2pow_remainder(T n, T m){return n & (m - 1);}
 /*************************************************************//**
 Calculates the biggest multiple of m that is not bigger than n
 when m is a power of two.  In other words, rounds n down to m * k.
 @param n in: number to round down
 @param m in: alignment, must be a power of two
 @return n rounded down to the biggest possible integer multiple of m */
-#define ut_2pow_round(n, m) ((n) & ~((m) - 1))
-/** Align a number down to a multiple of a power of two.
-@param n in: number to round down
-@param m in: alignment, must be a power of two
-@return n rounded down to the biggest possible integer multiple of m */
-#define ut_calc_align_down(n, m) ut_2pow_round(n, m)
+template <typename T> inline T ut_2pow_round(T n, T m) { return n & ~(m - 1); }
 /********************************************************//**
 Calculates the smallest multiple of m that is not smaller than n
 when m is a power of two.  In other words, rounds n up to m * k.
 @param n in: number to round up
 @param m in: alignment, must be a power of two
 @return n rounded up to the smallest possible integer multiple of m */
-#define ut_calc_align(n, m) (((n) + ((m) - 1)) & ~((m) - 1))
+#define UT_CALC_ALIGN(n, m) ((n + m - 1) & ~(m - 1))
+template <typename T> inline T ut_calc_align(T n, T m)
+{ return UT_CALC_ALIGN(n, m); }
 
 /*************************************************************//**
 Calculates fast the 2-logarithm of a number, rounded upward to an
@@ -182,35 +153,6 @@ store the given number of bits.
 #define UT_BITS_IN_BYTES(b) (((b) + 7) / 8)
 
 /**********************************************************//**
-Returns system time. We do not specify the format of the time returned:
-the only way to manipulate it is to use the function ut_difftime.
-@return system time */
-ib_time_t
-ut_time(void);
-/*=========*/
-
-/**********************************************************//**
-Returns system time.
-Upon successful completion, the value 0 is returned; otherwise the
-value -1 is returned and the global variable errno is set to indicate the
-error.
-@return 0 on success, -1 otherwise */
-int
-ut_usectime(
-/*========*/
-	ulint*	sec,	/*!< out: seconds since the Epoch */
-	ulint*	ms);	/*!< out: microseconds since the Epoch+*sec */
-
-/**********************************************************//**
-Returns the number of microseconds since epoch. Similar to
-time(3), the return value is also stored in *tloc, provided
-that tloc is non-NULL.
-@return us since epoch */
-uintmax_t
-ut_time_us(
-/*=======*/
-	uintmax_t*	tloc);	/*!< out: us since epoch, if non-NULL */
-/**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
 value may wrap around.  It should only be used for heuristic
 purposes.
@@ -218,25 +160,6 @@ purposes.
 ulint
 ut_time_ms(void);
 /*============*/
-
-/**********************************************************//**
-Returns the number of milliseconds since some epoch.  The
-value may wrap around.  It should only be used for heuristic
-purposes.
-@return ms since epoch */
-ulint
-ut_time_ms(void);
-/*============*/
-
-/**********************************************************//**
-Returns the difference of two times in seconds.
-@return time2 - time1 expressed in seconds */
-double
-ut_difftime(
-/*========*/
-	ib_time_t	time2,	/*!< in: time */
-	ib_time_t	time1);	/*!< in: time */
-
 #endif /* !UNIV_INNOCHECKSUM */
 
 /** Determines if a number is zero or a power of two.
@@ -272,14 +195,7 @@ void
 ut_sprintf_timestamp(
 /*=================*/
 	char*	buf); /*!< in: buffer where to sprintf */
-/*************************************************************//**
-Runs an idle loop on CPU. The argument gives the desired delay
-in microseconds on 100 MHz Pentium + Visual C++.
-@return dummy value */
-void
-ut_delay(
-/*=====*/
-	ulint	delay);	/*!< in: delay in microseconds on 100 MHz Pentium */
+
 /*************************************************************//**
 Prints the contents of a memory buffer in hex and ascii. */
 void
@@ -421,48 +337,41 @@ operator<<(
 It contains a std::ostringstream object.  The main purpose of this class is
 to forward operator<< to the underlying std::ostringstream object.  Do not
 use this class directly, instead use one of the derived classes. */
-class logger {
-public:
-	template<typename T>
-	ATTRIBUTE_COLD
-	logger& operator<<(const T& rhs)
-	{
-		m_oss << rhs;
-		return(*this);
-	}
-
-	/** Write the given buffer to the internal string stream object.
-	@param[in]	buf	the buffer whose contents will be logged.
-	@param[in]	count	the length of the buffer buf.
-	@return the output stream into which buffer was written. */
-	ATTRIBUTE_COLD
-	std::ostream&
-	write(
-		const char*		buf,
-		std::streamsize		count)
-	{
-		return(m_oss.write(buf, count));
-	}
-
-	/** Write the given buffer to the internal string stream object.
-	@param[in]	buf	the buffer whose contents will be logged.
-	@param[in]	count	the length of the buffer buf.
-	@return the output stream into which buffer was written. */
-	ATTRIBUTE_COLD
-	std::ostream&
-	write(
-		const byte*		buf,
-		std::streamsize		count)
-	{
-		return(m_oss.write(reinterpret_cast<const char*>(buf), count));
-	}
-
-	std::ostringstream	m_oss;
+class logger
+{
 protected:
-	/* This class must not be used directly, hence making the default
-	constructor protected. */
-	ATTRIBUTE_COLD
-	logger() {}
+  /* This class must not be used directly */
+  ATTRIBUTE_COLD ATTRIBUTE_NOINLINE logger() {}
+public:
+  template<typename T> ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
+  logger& operator<<(const T& rhs)
+  {
+    m_oss << rhs;
+    return *this;
+  }
+
+  /** Handle a fixed character string in the same way as a pointer to
+  an unknown-length character string, to reduce object code bloat. */
+  template<size_t N> logger& operator<<(const char (&rhs)[N])
+  { return *this << static_cast<const char*>(rhs); }
+
+  /** Output an error code name */
+  ATTRIBUTE_COLD logger& operator<<(dberr_t err);
+
+  /** Append a string.
+  @param buf   string buffer
+  @param size  buffer size
+  @return the output stream */
+  ATTRIBUTE_COLD __attribute__((noinline))
+  std::ostream &write(const char *buf, std::streamsize size)
+  {
+    return m_oss.write(buf, size);
+  }
+
+  std::ostream &write(const byte *buf, std::streamsize size)
+  { return write(reinterpret_cast<const char*>(buf), size); }
+
+  std::ostringstream m_oss;
 };
 
 /** The class info is used to emit informational log messages.  It is to be
@@ -496,6 +405,14 @@ class error : public logger {
 public:
 	ATTRIBUTE_COLD
 	~error();
+	/** Indicates that error::~error() was invoked. Can be used to
+	determine if error messages were logged during innodb code execution.
+	@return true if there were error messages, false otherwise. */
+	static bool was_logged() { return logged; }
+
+private:
+	/** true if error::~error() was invoked, false otherwise */
+	static bool logged;
 };
 
 /** The class fatal is used to emit an error message and stop the server

@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
     case OPT_SSL_KEY:
@@ -30,7 +30,7 @@
     */
       opt_use_ssl= 1;
     /* crl has no effect in yaSSL */  
-#ifdef HAVE_YASSL
+#if defined (HAVE_YASSL) && (!defined (_WIN32) || defined (MYSQL_SERVER))
       opt_ssl_crl= NULL;
       opt_ssl_crlpath= NULL;
 #endif

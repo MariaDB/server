@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   rdtsc3 -- multi-platform timer code
@@ -812,7 +812,11 @@ void my_timer_init(MY_TIMER_INFO *mti)
     time1= my_timer_cycles();
     time2= my_timer_ticks();
     time3= time2; /* Avoids a Microsoft/IBM compiler warning */
+#if defined(HAVE_SYS_TIMES_H) && defined(HAVE_TIMES)
+    for (i= 0; i < 1000; ++i)
+#else
     for (i= 0; i < MY_TIMER_ITERATIONS * 1000; ++i)
+#endif
     {
       time3= my_timer_ticks();
       if (time3 - time2 > 10) break;

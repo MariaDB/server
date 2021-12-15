@@ -9,6 +9,6 @@
 -- source include/have_binlog_format_row.inc
 -- source include/master-slave.inc
 let $engine_type=TokuDB;
--- source extra/rpl_tests/rpl_row_blob.test
+-- source suite/rpl/include/rpl_row_blob.test
 
 --source include/rpl_end.inc

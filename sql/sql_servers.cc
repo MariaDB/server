@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /*
@@ -256,7 +256,8 @@ bool servers_reload(THD *thd)
 
   tables[0].init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_SERVERS_NAME, 0, TL_READ);
 
-  if (open_and_lock_tables(thd, tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
+  if (unlikely(open_and_lock_tables(thd, tables, FALSE,
+                                    MYSQL_LOCK_IGNORE_TIMEOUT)))
   {
     /*
       Execution might have been interrupted; only print the error message
@@ -395,11 +396,11 @@ insert_server(THD *thd, FOREIGN_SERVER *server)
     goto end;
 
   /* insert the server into the table */
-  if ((error= insert_server_record(table, server)))
+  if (unlikely(error= insert_server_record(table, server)))
     goto end;
 
   /* insert the server into the cache */
-  if ((error= insert_server_record_into_cache(server)))
+  if (unlikely((error= insert_server_record_into_cache(server))))
     goto end;
 
 end:
@@ -430,7 +431,7 @@ insert_server_record_into_cache(FOREIGN_SERVER *server)
   int error=0;
   DBUG_ENTER("insert_server_record_into_cache");
   /*
-    We succeded in insertion of the server to the table, now insert
+    We succeeded in insertion of the server to the table, now insert
     the server to the cache
   */
   DBUG_PRINT("info", ("inserting server %s at %p, length %zd",
@@ -542,10 +543,12 @@ int insert_server_record(TABLE *table, FOREIGN_SERVER *server)
                          system_charset_info);
 
   /* read index until record is that specified in server_name */
-  if ((error= table->file->ha_index_read_idx_map(table->record[0], 0,
-                                                 (uchar *)table->field[0]->ptr,
-                                                 HA_WHOLE_KEY,
-                                                 HA_READ_KEY_EXACT)))
+  if (unlikely((error=
+                table->file->ha_index_read_idx_map(table->record[0], 0,
+                                                   (uchar *)table->field[0]->
+                                                   ptr,
+                                                   HA_WHOLE_KEY,
+                                                   HA_READ_KEY_EXACT))))
   {
     /* if not found, err */
     if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
@@ -559,12 +562,8 @@ int insert_server_record(TABLE *table, FOREIGN_SERVER *server)
     DBUG_PRINT("info",("record for server '%s' not found!",
                        server->server_name));
     /* write/insert the new server */
-    if ((error=table->file->ha_write_row(table->record[0])))
-    {
+    if (unlikely(error=table->file->ha_write_row(table->record[0])))
       table->file->print_error(error, MYF(0));
-    }
-    else
-      error= 0;
   }
   else
     error= ER_FOREIGN_SERVER_EXISTS;
@@ -608,10 +607,11 @@ static int drop_server_internal(THD *thd, LEX_SERVER_OPTIONS *server_options)
   tables.init_one_table(&MYSQL_SCHEMA_NAME, &MYSQL_SERVERS_NAME, 0, TL_WRITE);
 
   /* hit the memory hit first */
-  if ((error= delete_server_record_in_cache(server_options)))
+  if (unlikely((error= delete_server_record_in_cache(server_options))))
     goto end;
 
-  if (! (table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT)))
+  if (unlikely(!(table= open_ltable(thd, &tables, TL_WRITE,
+                                    MYSQL_LOCK_IGNORE_TIMEOUT))))
   {
     error= my_errno;
     goto end;
@@ -686,7 +686,7 @@ delete_server_record_in_cache(LEX_SERVER_OPTIONS *server_options)
     goto end;
   }
   /*
-    We succeded in deletion of the server to the table, now delete
+    We succeeded in deletion of the server to the table, now delete
     the server from the cache
   */
   DBUG_PRINT("info",("deleting server %s length %zd",
@@ -744,7 +744,7 @@ int update_server(THD *thd, FOREIGN_SERVER *existing, FOREIGN_SERVER *altered)
     goto end;
   }
 
-  if ((error= update_server_record(table, altered)))
+  if (unlikely((error= update_server_record(table, altered))))
     goto end;
 
   error= update_server_record_in_cache(existing, altered);
@@ -892,10 +892,12 @@ update_server_record(TABLE *table, FOREIGN_SERVER *server)
                          server->server_name_length,
                          system_charset_info);
 
-  if ((error= table->file->ha_index_read_idx_map(table->record[0], 0,
-                                                 (uchar *)table->field[0]->ptr,
-                                                 ~(longlong)0,
-                                                 HA_READ_KEY_EXACT)))
+  if (unlikely((error=
+                table->file->ha_index_read_idx_map(table->record[0], 0,
+                                                   (uchar *)table->field[0]->
+                                                   ptr,
+                                                   ~(longlong)0,
+                                                   HA_READ_KEY_EXACT))))
   {
     if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
       table->file->print_error(error, MYF(0));
@@ -907,9 +909,9 @@ update_server_record(TABLE *table, FOREIGN_SERVER *server)
     /* ok, so we can update since the record exists in the table */
     store_record(table,record[1]);
     store_server_fields(table, server);
-    if ((error=table->file->ha_update_row(table->record[1],
-                                          table->record[0])) &&
-        error != HA_ERR_RECORD_IS_THE_SAME)
+    if (unlikely((error=table->file->ha_update_row(table->record[1],
+                                                   table->record[0])) &&
+                 error != HA_ERR_RECORD_IS_THE_SAME))
     {
       DBUG_PRINT("info",("problems with ha_update_row %d", error));
       goto end;
@@ -950,10 +952,12 @@ delete_server_record(TABLE *table, LEX_CSTRING *name)
   /* set the field that's the PK to the value we're looking for */
   table->field[0]->store(name->str, name->length, system_charset_info);
 
-  if ((error= table->file->ha_index_read_idx_map(table->record[0], 0,
-                                                 (uchar *)table->field[0]->ptr,
-                                                 HA_WHOLE_KEY,
-                                                 HA_READ_KEY_EXACT)))
+  if (unlikely((error=
+                table->file->ha_index_read_idx_map(table->record[0], 0,
+                                                   (uchar *)table->field[0]->
+                                                   ptr,
+                                                   HA_WHOLE_KEY,
+                                                   HA_READ_KEY_EXACT))))
   {
     if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
       table->file->print_error(error, MYF(0));
@@ -962,7 +966,7 @@ delete_server_record(TABLE *table, LEX_CSTRING *name)
   }
   else
   {
-    if ((error= table->file->ha_delete_row(table->record[0])))
+    if (unlikely((error= table->file->ha_delete_row(table->record[0]))))
       table->file->print_error(error, MYF(0));
   }
 
@@ -1001,7 +1005,7 @@ int create_server(THD *thd, LEX_SERVER_OPTIONS *server_options)
   {
     if (thd->lex->create_info.or_replace())
     {
-      if ((error= drop_server_internal(thd, server_options)))
+      if (unlikely((error= drop_server_internal(thd, server_options))))
         goto end;
     }
     else if (thd->lex->create_info.if_not_exists())
@@ -1032,7 +1036,7 @@ int create_server(THD *thd, LEX_SERVER_OPTIONS *server_options)
 end:
   mysql_rwlock_unlock(&THR_LOCK_servers);
 
-  if (error)
+  if (unlikely(error))
   {
     DBUG_PRINT("info", ("problem creating server <%s>",
                         server_options->server_name.str));

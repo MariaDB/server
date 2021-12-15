@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software Foundation,
-   51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
 #include "mariadb.h"
@@ -85,6 +85,7 @@ PSI_stage_info MDL_key::m_namespace_to_wait_state_name[NAMESPACE_END]=
   {0, "Waiting for table metadata lock", 0},
   {0, "Waiting for stored function metadata lock", 0},
   {0, "Waiting for stored procedure metadata lock", 0},
+  {0, "Waiting for stored package body metadata lock", 0},
   {0, "Waiting for trigger metadata lock", 0},
   {0, "Waiting for event metadata lock", 0},
   {0, "Waiting for commit lock", 0},
@@ -1083,7 +1084,7 @@ MDL_wait::timed_wait(MDL_context_owner *owner, struct timespec *abs_timeout,
                    DBUG_ASSERT(!debug_sync_set_action((owner->get_thd()),
                                                       STRING_WITH_LEN(act)));
                  };);
-    if (wsrep_thd_is_BF(owner->get_thd(), false))
+    if (WSREP_ON && wsrep_thd_is_BF(owner->get_thd(), false))
     {
       wait_result= mysql_cond_wait(&m_COND_wait_status, &m_LOCK_wait_status);
     }
@@ -1156,7 +1157,7 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
   */
   DBUG_ASSERT(ticket->get_lock());
 #ifdef WITH_WSREP
-  if ((this == &(ticket->get_lock()->m_waiting)) &&
+  if (WSREP_ON && (this == &(ticket->get_lock()->m_waiting)) &&
       wsrep_thd_is_BF(ticket->get_ctx()->get_thd(), false))
   {
     Ticket_iterator itw(ticket->get_lock()->m_waiting);
@@ -1582,7 +1583,7 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
             ticket->is_incompatible_when_granted(type_arg))
         {
 #ifdef WITH_WSREP
-          if (wsrep_thd_is_BF(requestor_ctx->get_thd(),false) &&
+          if (WSREP_ON && wsrep_thd_is_BF(requestor_ctx->get_thd(),false) &&
               key.mdl_namespace() == MDL_key::GLOBAL)
           {
             WSREP_DEBUG("global lock granted for BF: %lu %s",
@@ -1616,7 +1617,7 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
   }
   else
   {
-    if (wsrep_thd_is_BF(requestor_ctx->get_thd(), false) &&
+    if (WSREP_ON && wsrep_thd_is_BF(requestor_ctx->get_thd(), false) &&
 	key.mdl_namespace() == MDL_key::GLOBAL)
     {
       WSREP_DEBUG("global lock granted for BF (waiting queue): %lu %s",
@@ -2844,6 +2845,9 @@ void MDL_context::rollback_to_savepoint(const MDL_savepoint &mdl_savepoint)
 void MDL_context::release_transactional_locks()
 {
   DBUG_ENTER("MDL_context::release_transactional_locks");
+  /* Fail if there are active transactions */
+  DBUG_ASSERT(!(current_thd->server_status &
+                (SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY)));
   release_locks_stored_before(MDL_STATEMENT, NULL);
   release_locks_stored_before(MDL_TRANSACTION, NULL);
   DBUG_VOID_RETURN;
@@ -3043,6 +3047,7 @@ const char *wsrep_get_mdl_namespace_name(MDL_key::enum_mdl_namespace ns)
   case MDL_key::TABLE     : return "TABLE";
   case MDL_key::FUNCTION  : return "FUNCTION";
   case MDL_key::PROCEDURE : return "PROCEDURE";
+  case MDL_key::PACKAGE_BODY: return "PACKAGE BODY";
   case MDL_key::TRIGGER   : return "TRIGGER";
   case MDL_key::EVENT     : return "EVENT";
   case MDL_key::COMMIT    : return "COMMIT";

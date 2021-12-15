@@ -87,9 +87,9 @@ DROP TABLE t1;
 # Testing mixed tag and attribute values
 #
 CREATE TABLE t1 (
-ISBN CHAR(15) FIELD_FORMAT='@',
-LANG CHAR(2)  FIELD_FORMAT='@',
-SUBJECT CHAR(32) FIELD_FORMAT='@',
+ISBN CHAR(15) XPATH='@',
+LANG CHAR(2)  XPATH='@',
+SUBJECT CHAR(32) XPATH='@',
 AUTHOR CHAR(50),
 TITLE CHAR(32),
 TRANSLATOR CHAR(40),
@@ -120,9 +120,9 @@ DROP TABLE t1;
 # Testing INSERT on mixed tag and attribute values
 #
 CREATE TABLE t1 (
-ISBN CHAR(15) FIELD_FORMAT='@',
-LANG CHAR(2)  FIELD_FORMAT='@',
-SUBJECT CHAR(32) FIELD_FORMAT='@',
+ISBN CHAR(15) XPATH='@',
+LANG CHAR(2)  XPATH='@',
+SUBJECT CHAR(32) XPATH='@',
 AUTHOR CHAR(50),
 TITLE CHAR(32),
 TRANSLATOR CHAR(40),
@@ -207,18 +207,18 @@ DROP TABLE t1;
 # Testing XPath
 #
 CREATE TABLE t1 (
-isbn       CHAR(15) FIELD_FORMAT='@ISBN',
-language   CHAR(2)  FIELD_FORMAT='@LANG',
-subject    CHAR(32) FIELD_FORMAT='@SUBJECT',
-authorfn   CHAR(20) FIELD_FORMAT='AUTHOR/FIRSTNAME',
-authorln   CHAR(20) FIELD_FORMAT='AUTHOR/LASTNAME',
-title      CHAR(32) FIELD_FORMAT='TITLE',
-translated CHAR(32) FIELD_FORMAT='TRANSLATOR/@PREFIX',
-tranfn     CHAR(20) FIELD_FORMAT='TRANSLATOR/FIRSTNAME',
-tranln     CHAR(20) FIELD_FORMAT='TRANSLATOR/LASTNAME',
-publisher  CHAR(20) FIELD_FORMAT='PUBLISHER/NAME',
-location   CHAR(20) FIELD_FORMAT='PUBLISHER/PLACE',
-year       INT(4)   FIELD_FORMAT='DATEPUB'
+isbn       CHAR(15) XPATH='@ISBN',
+language   CHAR(2)  XPATH='@LANG',
+subject    CHAR(32) XPATH='@SUBJECT',
+authorfn   CHAR(20) XPATH='AUTHOR/FIRSTNAME',
+authorln   CHAR(20) XPATH='AUTHOR/LASTNAME',
+title      CHAR(32) XPATH='TITLE',
+translated CHAR(32) XPATH='TRANSLATOR/@PREFIX',
+tranfn     CHAR(20) XPATH='TRANSLATOR/FIRSTNAME',
+tranln     CHAR(20) XPATH='TRANSLATOR/LASTNAME',
+publisher  CHAR(20) XPATH='PUBLISHER/NAME',
+location   CHAR(20) XPATH='PUBLISHER/PLACE',
+year       INT(4)   XPATH='DATEPUB'
 ) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
   TABNAME='BIBLIO' OPTION_LIST='rownode=BOOK,skipnull=1,xmlsup=libxml2';
 SELECT * FROM t1;
@@ -260,7 +260,7 @@ DROP TABLE t1;
 #
 CREATE TABLE t1
 (
-isbn       CHAR(15) FIELD_FORMAT='@isbn'
+isbn       CHAR(15) XPATH='@isbn'
 ) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='xsample.xml'
   TABNAME='BIBLIO' OPTION_LIST='rownode=BOOK,skipnull=1,xmlsup=libxml2';
 SELECT * FROM t1;
@@ -325,7 +325,7 @@ HEX(c)	3F3F3F3F3F3F3F
 Warnings:
 Level	Warning
 Code	1366
-Message	Incorrect string value: '\xC3\x81\xC3\x82\xC3\x83...' for column 'c' at row 1
+Message	Incorrect string value: '\xC3\x81\xC3\x82\xC3\x83...' for column `test`.`t1`.`c` at row 1
 Level	Warning
 Code	1105
 Message	Out of range value ÁÂÃÄÅÆÇ for column 'c' at row 1
@@ -333,37 +333,6 @@ DROP TABLE t1;
 #
 # Testing Cyrillic
 #
-CREATE TABLE t1
-(
-c CHAR(16) CHARACTER SET utf8
-) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='cp1251.xml'
-  OPTION_LIST='xmlsup=libxml2,rownode=b';
-SELECT * FROM t1;
-c	БВГДЕЖЗ
-INSERT INTO t1 VALUES ('ИКЛМН');
-SELECT c, HEX(c) FROM t1;
-c	БВГДЕЖЗ
-HEX(c)	D091D092D093D094D095D096D097
-c	ИКЛМН
-HEX(c)	D098D09AD09BD09CD09D
-DROP TABLE t1;
-CREATE TABLE t1
-(
-c CHAR(16) CHARACTER SET cp1251
-) ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='cp1251.xml'
-  OPTION_LIST='xmlsup=libxml2,rownode=b';
-SELECT * FROM t1;
-c	БВГДЕЖЗ
-c	ИКЛМН
-INSERT INTO t1 VALUES ('ОПРСТ');
-SELECT c, HEX(c) FROM t1;
-c	БВГДЕЖЗ
-HEX(c)	C1C2C3C4C5C6C7
-c	ИКЛМН
-HEX(c)	C8CACBCCCD
-c	ОПРСТ
-HEX(c)	CECFD0D1D2
-DROP TABLE t1;
 #
 # Testing that the underlying file is created with a proper Encoding
 #

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Function to handle quick removal of duplicates
@@ -209,7 +209,7 @@ static double get_merge_many_buffs_cost(uint *buffer,
                                         uint last_n_elems, int elem_size,
                                         uint compare_factor)
 {
-  register int i;
+  int i;
   double total_cost= 0.0;
   uint *buff_elems= buffer; /* #s of elements in each of merged sequences */
 
@@ -317,6 +317,9 @@ double Unique::get_use_cost(uint *buffer, size_t nkeys, uint key_size,
 
   max_elements_in_tree= ((size_t) max_in_memory_size /
                          ALIGN_SIZE(sizeof(TREE_ELEMENT)+key_size));
+
+  if (max_elements_in_tree == 0)
+    max_elements_in_tree= 1;
 
   n_full_trees=    nkeys / max_elements_in_tree;
   last_tree_elems= nkeys % max_elements_in_tree;
@@ -509,7 +512,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
                                         key_length);
   /* if piece_size is aligned reuse_freed_buffer will always hit */
   uint piece_size= max_key_count_per_piece * key_length;
-  uint bytes_read;               /* to hold return value of read_to_buffer */
+  ulong bytes_read;               /* to hold return value of read_to_buffer */
   BUFFPEK *top;
   int res= 1;
   uint cnt_ofs= key_length - (with_counters ? sizeof(element_count) : 0);
@@ -525,7 +528,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
     top->base= merge_buffer + (top - begin) * piece_size;
     top->max_keys= max_key_count_per_piece;
     bytes_read= read_to_buffer(file, top, key_length);
-    if (bytes_read == (uint) (-1))
+    if (unlikely(bytes_read == (ulong) -1))
       goto end;
     DBUG_ASSERT(bytes_read);
     queue_insert(&queue, (uchar *) top);
@@ -554,9 +557,9 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
       memcpy(save_key_buff, old_key, key_length);
       old_key= save_key_buff;
       bytes_read= read_to_buffer(file, top, key_length);
-      if (bytes_read == (uint) (-1))
+      if (unlikely(bytes_read == (ulong) -1))
         goto end;
-      else if (bytes_read > 0)      /* top->key, top->mem_count are reset */
+      else if (bytes_read)      /* top->key, top->mem_count are reset */
         queue_replace_top(&queue);             /* in read_to_buffer */
       else
       {
@@ -602,7 +605,7 @@ static bool merge_walk(uchar *merge_buffer, size_t merge_buffer_size,
     }
     while (--top->mem_count);
     bytes_read= read_to_buffer(file, top, key_length);
-    if (bytes_read == (uint) (-1))
+    if (unlikely(bytes_read == (ulong) -1))
       goto end;
   }
   while (bytes_read);
@@ -786,7 +789,12 @@ bool Unique::get(TABLE *table)
   /* Not enough memory; Save the result to file && free memory used by tree */
   if (flush())
     DBUG_RETURN(1);
-  size_t buff_sz= (max_in_memory_size / full_size + 1) * full_size;
+  /*
+    merge_buffer must fit at least MERGEBUFF2 + 1 keys, because
+    merge_index() can merge that many BUFFPEKs at once. The extra space for
+    one key for Sort_param::unique_buff
+  */
+  size_t buff_sz= MY_MAX(MERGEBUFF2+1, max_in_memory_size/full_size+1) * full_size;
   if (!(sort_buffer= (uchar*) my_malloc(buff_sz,
                                         MYF(MY_THREAD_SPECIFIC|MY_WME))))
     DBUG_RETURN(1);

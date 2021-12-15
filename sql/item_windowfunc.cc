@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2016,2017 MariaDB
+   Copyright (c) 2016, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -86,9 +86,9 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed == 0);
 
-  enum_parsing_place place= thd->lex->current_select->context_analysis_place;
-
-  if (!(place == SELECT_LIST || place == IN_ORDER_BY))
+  if (!thd->lex->current_select ||
+      (thd->lex->current_select->context_analysis_place != SELECT_LIST &&
+       thd->lex->current_select->context_analysis_place != IN_ORDER_BY))
   {
     my_error(ER_WRONG_PLACEMENT_OF_WINDOW_FUNCTION, MYF(0));
     return true;
@@ -122,7 +122,8 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
   with_window_func= true;
   with_sum_func= false;
 
-  fix_length_and_dec();
+  if (fix_length_and_dec())
+    return TRUE;
 
   max_length= window_func()->max_length;
   maybe_null= window_func()->maybe_null;
@@ -171,7 +172,8 @@ void Item_window_func::split_sum_func(THD *thd, Ref_ptr_array ref_pointer_array,
 
 bool Item_window_func::check_result_type_of_order_item()
 {
-  if (only_single_element_order_list())
+  switch (window_func()->sum_func()) {
+  case Item_sum::PERCENTILE_CONT_FUNC:
   {
     Item_result rtype= window_spec->order_list->first->item[0]->cmp_type();
     // TODO (varun) : support date type in percentile_cont function
@@ -179,9 +181,29 @@ bool Item_window_func::check_result_type_of_order_item()
         rtype != DECIMAL_RESULT && rtype != TIME_RESULT)
     {
       my_error(ER_WRONG_TYPE_FOR_PERCENTILE_FUNC, MYF(0), window_func()->func_name());
-      return TRUE;
+      return true;
     }
-    setting_handler_for_percentile_functions(rtype);
+    return false;
+  }
+  case Item_sum::PERCENTILE_DISC_FUNC:
+  {
+    Item *src_item= window_spec->order_list->first->item[0];
+    Item_result rtype= src_item->cmp_type();
+    // TODO-10.5: Fix MDEV-20280 PERCENTILE_DISC() rejects temporal and string input
+    if (rtype != REAL_RESULT && rtype != INT_RESULT && rtype != DECIMAL_RESULT)
+    {
+      my_error(ER_WRONG_TYPE_FOR_PERCENTILE_FUNC, MYF(0), window_func()->func_name());
+      return true;
+    }
+    Item_sum_percentile_disc *func=
+      static_cast<Item_sum_percentile_disc*>(window_func());
+    func->set_handler(src_item->type_handler());
+    func->Type_std_attributes::set(src_item);
+    Type_std_attributes::set(src_item);
+    return false;
+  }
+  default:
+    break;
   }
   return FALSE;
 }
@@ -327,44 +349,19 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
 
   for (uint i= 0; i < arg_count; i++)
   {
-    Item *item= args[i];
-    // 'item' can be changed during fix_fields
-    if ((!item->fixed && item->fix_fields(thd, args)) ||
-        (item= args[i])->check_cols(1))
+    if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
       return TRUE;
+    with_window_func|= args[i]->with_window_func;
   }
-  Type_std_attributes::set(args[0]);
+
   for (uint i= 0; i < arg_count && !m_with_subquery; i++)
     m_with_subquery|= args[i]->with_subquery();
 
-  Item *item2= args[0]->real_item();
-  if (item2->type() == Item::FIELD_ITEM)
-    set_handler(item2->type_handler());
-  else if (args[0]->cmp_type() == TIME_RESULT)
-    set_handler(item2->type_handler());
-  else
-    set_handler_by_result_type(item2->result_type(),
-                               max_length, collation.collation);
+  if (fix_length_and_dec())
+    return true;
 
-  switch (result_type()) {
-  case INT_RESULT:
-  case DECIMAL_RESULT:
-  case STRING_RESULT:
-    break;
-  case REAL_RESULT:
-    max_length= float_length(decimals);
-    break;
-  case ROW_RESULT:
-  case TIME_RESULT:
-    DBUG_ASSERT(0); // XXX(cvicentiu) Should this never happen?
-    return TRUE;
-  };
   setup_hybrid(thd, args[0]);
-  /* MIN/MAX can return NULL for empty set indepedent of the used column */
-  maybe_null= 1;
   result_field=0;
-  null_value=1;
-  fix_length_and_dec();
 
   if (check_sum_func(thd, ref))
     return TRUE;
@@ -375,6 +372,14 @@ bool Item_sum_hybrid_simple::fix_fields(THD *thd, Item **ref)
   fixed= 1;
   return FALSE;
 }
+
+
+bool Item_sum_hybrid_simple::fix_length_and_dec()
+{
+  maybe_null= null_value= true;
+  return args[0]->type_handler()->Item_sum_hybrid_fix_length_and_dec(this);
+}
+
 
 bool Item_sum_hybrid_simple::add()
 {
@@ -444,7 +449,7 @@ bool Item_sum_hybrid_simple::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
   if (null_value)
-    return 0;
+    return true;
   bool retval= value->get_date(ltime, fuzzydate);
   if ((null_value= value->null_value))
     DBUG_ASSERT(retval == true);
@@ -545,12 +550,27 @@ void Item_sum_hybrid_simple::update_field()
 
 void Item_window_func::print(String *str, enum_query_type query_type)
 {
+  if (only_single_element_order_list())
+  {
+    print_for_percentile_functions(str, query_type);
+    return;
+  }
   window_func()->print(str, query_type);
   str->append(" over ");
-#ifndef DBUG_OFF
-  if (!window_spec) // one can call dbug_print_item() anytime in gdb
+  if (!window_spec)
     str->append(window_name);
   else
-#endif
-  window_spec->print(str, query_type);
+    window_spec->print(str, query_type);
+}
+void Item_window_func::print_for_percentile_functions(String *str, enum_query_type query_type)
+{
+  window_func()->print(str, query_type);
+  str->append(" within group ");
+  str->append('(');
+  window_spec->print_order(str,query_type);
+  str->append(')');
+  str->append(" over ");
+  str->append('(');
+  window_spec->print_partition(str,query_type);
+  str->append(')');
 }

@@ -1,3 +1,5 @@
+source include/maybe_debug.inc;
+if ($have_debug) {
 --echo Performing State Transfer on a server that has been killed and restarted
 --echo while a DDL was in progress on it
 
@@ -70,7 +72,9 @@ INSERT INTO t1 (f1) VALUES ('node1_to_be_rollbacked_after');
 --connection node_2
 --echo Starting server ...
 --source include/start_mysqld.inc
---source include/wait_until_ready.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
 
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
@@ -106,6 +110,9 @@ INSERT INTO t1 (f1) VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 (f1) VALUES ('node1_to_be_rollbacked_after');
 ROLLBACK;
 
+--let $wait_condition = SELECT COUNT(*)=35 FROM t1
+--source include/wait_condition.inc
+
 SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
 SELECT COUNT(*) = 35 FROM t1;
 SELECT COUNT(*) = 0 FROM (SELECT COUNT(*) AS c, f1 FROM t1 GROUP BY f1 HAVING c NOT IN (5, 10)) AS a1;
@@ -113,6 +120,8 @@ COMMIT;
 SET AUTOCOMMIT=ON;
 
 --connection node_1
+--let $wait_condition = SELECT COUNT(*)=35 FROM t1
+--source include/wait_condition.inc
 SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 't1';
 SELECT COUNT(*) = 35 FROM t1;
 SELECT COUNT(*) = 0 FROM (SELECT COUNT(*) AS c, f1 FROM t1 GROUP BY f1 HAVING c NOT IN (5, 10)) AS a1;
@@ -121,3 +130,4 @@ COMMIT;
 SET AUTOCOMMIT=ON;
 
 SET GLOBAL debug_dbug = $debug_orig;
+}

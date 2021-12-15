@@ -1,0 +1,58 @@
+#
+# Test that wsrep mutexes, condition variables, files and
+# threads are shown in performance schema
+#
+--source include/galera_cluster.inc
+--source include/have_perfschema.inc
+
+use performance_schema;
+
+--vertical_results
+--disable_ps_protocol
+SELECT name
+FROM threads
+WHERE name LIKE 'thread/sql/wsrep%'
+ORDER BY name;
+--enable_ps_protocol
+
+use test;
+create table t1 (a int not null primary key) engine=innodb;
+insert into t1 values (1),(2);
+
+use performance_schema;
+select name from mutex_instances where name like 'wait/synch/mutex/sql/LOCK_wsrep%' order by name;
+select name from cond_instances where name like 'wait/synch/cond/sql/COND_wsrep%' order by name;
+# Whenever a node fails to apply an event on a slave node, the database server creates a
+# special binary log file of the event in the data directory. The naming convention the
+# node uses for the filename is GRA_*.log.
+# Thus, we need to produce a applier failure
+
+--connection node_2
+--exec rm -rf $MYSQLTEST_VARDIR/mysqld.2/data/GRA_*.log
+
+# Create applier failure
+
+use test;
+SET SESSION wsrep_on=OFF;
+CREATE TABLE t2 (f1 INTEGER) engine=innodb;
+
+--connection node_1
+use test;
+CREATE TABLE t2 (f1 INTEGER) engine=innodb;
+
+--connection node_2
+SET SESSION wsrep_on=ON;
+SELECT COUNT(*) FROM t1;
+
+use performance_schema;
+#
+# Below we can't just count number of files as if you run this test more
+# than once, test will create more files
+#
+select count(*)>=1 from file_instances where file_name like '%GRA_%.log';
+CALL mtr.add_suppression("Slave SQL: Error 'Table 't2' already exists' on query");
+
+use test;
+drop table t1;
+drop table t2;
+

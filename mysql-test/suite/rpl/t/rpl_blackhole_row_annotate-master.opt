@@ -1,0 +1,1 @@
+--binlog_annotate_row_events --timezone=GMT-3

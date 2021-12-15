@@ -1,7 +1,4 @@
--- source include/have_ssl_communication.inc
-let $crllen=`select length(trim(coalesce(@@ssl_crl, ''))) + length(trim(coalesce(@@ssl_crlpath, '')))`;
-if (!$crllen)
-{
+if (`SELECT count(*) = 0 FROM information_schema.GLOBAL_VARIABLES WHERE
+      VARIABLE_NAME = 'have_openssl' AND VARIABLE_VALUE = 'YES'`){
   skip Needs OpenSSL;
 }
-

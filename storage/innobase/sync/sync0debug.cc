@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -19,7 +19,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -32,11 +32,9 @@ Created 2012-08-21 Sunny Bains
 
 #include "sync0sync.h"
 #include "sync0debug.h"
-
-#include "ut0new.h"
 #include "srv0start.h"
+#include "fil0fil.h"
 
-#include <map>
 #include <vector>
 #include <string>
 #include <algorithm>
@@ -191,10 +189,10 @@ struct LatchDebug {
 					latch that the thread is trying
 					to acquire
 	@return true if passes, else crash with error message. */
-	bool basic_check(
+	inline bool basic_check(
 		const Latches*	latches,
 		latch_level_t	requested_level,
-		ulint		level) const
+		lint		level) const
 		UNIV_NOTHROW;
 
 	/** Adds a latch and its level in the thread level array. Allocates
@@ -386,8 +384,7 @@ private:
 	{
 		return(latch->get_id() == LATCH_ID_RTR_ACTIVE_MUTEX
 		       || latch->get_id() == LATCH_ID_RTR_PATH_MUTEX
-		       || latch->get_id() == LATCH_ID_RTR_MATCH_MUTEX
-		       || latch->get_id() == LATCH_ID_RTR_SSN_MUTEX);
+		       || latch->get_id() == LATCH_ID_RTR_MATCH_MUTEX);
 	}
 
 private:
@@ -468,7 +465,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_WORK_QUEUE);
 	LEVEL_MAP_INSERT(SYNC_FTS_TOKENIZE);
 	LEVEL_MAP_INSERT(SYNC_FTS_OPTIMIZE);
-	LEVEL_MAP_INSERT(SYNC_FTS_BG_THREADS);
 	LEVEL_MAP_INSERT(SYNC_FTS_CACHE_INIT);
 	LEVEL_MAP_INSERT(SYNC_RECV);
 	LEVEL_MAP_INSERT(SYNC_LOG_FLUSH_ORDER);
@@ -477,7 +473,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_PAGE_CLEANER);
 	LEVEL_MAP_INSERT(SYNC_PURGE_QUEUE);
 	LEVEL_MAP_INSERT(SYNC_TRX_SYS_HEADER);
-	LEVEL_MAP_INSERT(SYNC_REC_LOCK);
 	LEVEL_MAP_INSERT(SYNC_THREADS);
 	LEVEL_MAP_INSERT(SYNC_TRX);
 	LEVEL_MAP_INSERT(SYNC_RW_TRX_HASH_ELEMENT);
@@ -499,7 +494,6 @@ LatchDebug::LatchDebug()
 	LEVEL_MAP_INSERT(SYNC_RSEG_HEADER_NEW);
 	LEVEL_MAP_INSERT(SYNC_NOREDO_RSEG);
 	LEVEL_MAP_INSERT(SYNC_REDO_RSEG);
-	LEVEL_MAP_INSERT(SYNC_TRX_UNDO);
 	LEVEL_MAP_INSERT(SYNC_PURGE_LATCH);
 	LEVEL_MAP_INSERT(SYNC_TREE_NODE);
 	LEVEL_MAP_INSERT(SYNC_TREE_NODE_FROM_HASH);
@@ -607,11 +601,11 @@ LatchDebug::less(
 				The level of the latch that the thread is
 				trying to acquire
 @return true if passes, else crash with error message. */
-bool
+inline bool
 LatchDebug::basic_check(
 	const Latches*	latches,
 	latch_level_t	requested_level,
-	ulint		in_level) const
+	lint		in_level) const
 	UNIV_NOTHROW
 {
 	latch_level_t	level = latch_level_t(in_level);
@@ -739,7 +733,7 @@ LatchDebug::check_order(
 		if (srv_is_being_started) {
 			/* This is violated during trx_sys_create_rsegs()
 			when creating additional rollback segments when
-			upgrading in innobase_start_or_create_for_mysql(). */
+			upgrading in srv_start(). */
 			break;
 		}
 
@@ -747,7 +741,6 @@ LatchDebug::check_order(
 
 	case SYNC_MONITOR_MUTEX:
 	case SYNC_RECV:
-	case SYNC_FTS_BG_THREADS:
 	case SYNC_WORK_QUEUE:
 	case SYNC_FTS_TOKENIZE:
 	case SYNC_FTS_OPTIMIZE:
@@ -767,7 +760,6 @@ LatchDebug::check_order(
 	case SYNC_IBUF_BITMAP_MUTEX:
 	case SYNC_REDO_RSEG:
 	case SYNC_NOREDO_RSEG:
-	case SYNC_TRX_UNDO:
 	case SYNC_PURGE_LATCH:
 	case SYNC_PURGE_QUEUE:
 	case SYNC_DICT_AUTOINC_MUTEX:
@@ -849,15 +841,6 @@ LatchDebug::check_order(
 		}
 		break;
 
-	case SYNC_REC_LOCK:
-
-		if (find(latches, SYNC_LOCK_SYS) != 0) {
-			basic_check(latches, level, SYNC_REC_LOCK - 1);
-		} else {
-			basic_check(latches, level, SYNC_REC_LOCK);
-		}
-		break;
-
 	case SYNC_IBUF_BITMAP:
 
 		/* Either the thread must own the master mutex to all
@@ -894,8 +877,7 @@ LatchDebug::check_order(
 		The purge thread can read the UNDO pages without any covering
 		mutex. */
 
-		ut_a(find(latches, SYNC_TRX_UNDO) != 0
-		     || find(latches, SYNC_REDO_RSEG) != 0
+		ut_a(find(latches, SYNC_REDO_RSEG) != 0
 		     || find(latches, SYNC_NOREDO_RSEG) != 0
 		     || basic_check(latches, level, level - 1));
 		break;
@@ -913,19 +895,10 @@ LatchDebug::check_order(
 
 	case SYNC_TREE_NODE:
 
-		{
-			const latch_t*	fsp_latch;
-
-			fsp_latch = find(latches, SYNC_FSP);
-
-			ut_a((fsp_latch != NULL
-			      && fsp_latch->is_temp_fsp())
-			     || find(latches, SYNC_INDEX_TREE) != 0
-			     || find(latches, SYNC_DICT_OPERATION)
-			     || basic_check(latches,
-					    level, SYNC_TREE_NODE - 1));
-		}
-
+		ut_a(find(latches, SYNC_FSP) == &fil_system.temp_space->latch
+		     || find(latches, SYNC_INDEX_TREE)
+		     || find(latches, SYNC_DICT_OPERATION)
+		     || basic_check(latches, level, SYNC_TREE_NODE - 1));
 		break;
 
 	case SYNC_TREE_NODE_NEW:
@@ -1316,13 +1289,7 @@ sync_latch_meta_init()
 
 	LATCH_ADD_MUTEX(FLUSH_LIST, SYNC_BUF_FLUSH_LIST, flush_list_mutex_key);
 
-	LATCH_ADD_MUTEX(FTS_BG_THREADS, SYNC_FTS_BG_THREADS,
-			fts_bg_threads_mutex_key);
-
 	LATCH_ADD_MUTEX(FTS_DELETE, SYNC_FTS_OPTIMIZE, fts_delete_mutex_key);
-
-	LATCH_ADD_MUTEX(FTS_OPTIMIZE, SYNC_FTS_OPTIMIZE,
-			fts_optimize_mutex_key);
 
 	LATCH_ADD_MUTEX(FTS_DOC_ID, SYNC_FTS_OPTIMIZE, fts_doc_id_mutex_key);
 
@@ -1375,8 +1342,6 @@ sync_latch_meta_init()
 			rw_lock_debug_mutex_key);
 #endif /* UNIV_DEBUG */
 
-	LATCH_ADD_MUTEX(RTR_SSN_MUTEX, SYNC_ANY_LATCH, rtr_ssn_mutex_key);
-
 	LATCH_ADD_MUTEX(RTR_ACTIVE_MUTEX, SYNC_ANY_LATCH,
 			rtr_active_mutex_key);
 
@@ -1399,8 +1364,6 @@ sync_latch_meta_init()
 			srv_monitor_file_mutex_key);
 
 	LATCH_ADD_MUTEX(BUF_DBLWR, SYNC_DOUBLEWRITE, buf_dblwr_mutex_key);
-
-	LATCH_ADD_MUTEX(TRX_UNDO, SYNC_TRX_UNDO, trx_undo_mutex_key);
 
 	LATCH_ADD_MUTEX(TRX_POOL, SYNC_POOL, trx_pool_mutex_key);
 
@@ -1494,9 +1457,6 @@ sync_latch_meta_init()
 
 	LATCH_ADD_RWLOCK(INDEX_TREE, SYNC_INDEX_TREE, index_tree_rw_lock_key);
 
-	LATCH_ADD_RWLOCK(DICT_TABLE_STATS, SYNC_INDEX_TREE,
-			 dict_table_stats_key);
-
 	LATCH_ADD_RWLOCK(HASH_TABLE_RW_LOCK, SYNC_BUF_PAGE_HASH,
 		  hash_table_locks_key);
 
@@ -1509,8 +1469,6 @@ sync_latch_meta_init()
 	LATCH_ADD_MUTEX(DEFRAGMENT_MUTEX, SYNC_NO_ORDER_CHECK,
 			PFS_NOT_INSTRUMENTED);
 	LATCH_ADD_MUTEX(BTR_DEFRAGMENT_MUTEX, SYNC_NO_ORDER_CHECK,
-			PFS_NOT_INSTRUMENTED);
-	LATCH_ADD_MUTEX(FIL_CRYPT_MUTEX, SYNC_NO_ORDER_CHECK,
 			PFS_NOT_INSTRUMENTED);
 	LATCH_ADD_MUTEX(FIL_CRYPT_STAT_MUTEX, SYNC_NO_ORDER_CHECK,
 			PFS_NOT_INSTRUMENTED);
@@ -1578,7 +1536,7 @@ struct CreateTracker {
 	~CreateTracker()
 		UNIV_NOTHROW
 	{
-		ut_d(m_files.empty());
+		ut_ad(m_files.empty());
 
 		m_mutex.destroy();
 	}
@@ -1744,7 +1702,7 @@ sync_check_init()
 
 	ut_d(LatchDebug::init());
 
-	sync_array_init(OS_THREAD_MAX_N);
+	sync_array_init();
 }
 
 /** Free the InnoDB synchronization data structures. */

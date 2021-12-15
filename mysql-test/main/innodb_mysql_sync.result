@@ -1,0 +1,571 @@
+#
+# Bug 42074 concurrent optimize table and 
+# alter table = Assertion failed: thd->is_error()
+#
+DROP TABLE IF EXISTS t1;
+# Create InnoDB table
+CREATE TABLE t1 (id INT) engine=innodb;
+connect  con2, localhost, root;
+# Start optimizing table
+connection default;
+SET DEBUG_SYNC='ha_admin_try_alter SIGNAL optimize_started WAIT_FOR table_altered';
+OPTIMIZE TABLE t1;
+# Change table to engine=memory
+connection con2;
+SET DEBUG_SYNC='now WAIT_FOR optimize_started';
+ALTER TABLE t1 engine=memory;
+SET DEBUG_SYNC='now SIGNAL table_altered';
+# Complete optimization
+connection default;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	error	Got error -1 "Internal error < 0 (Not system error)" from storage engine MEMORY
+test.t1	optimize	status	Operation failed
+Warnings:
+Error	1030	Got error -1 "Internal error < 0 (Not system error)" from storage engine MEMORY
+disconnect con2;
+DROP TABLE t1;
+SET DEBUG_SYNC='RESET';
+#
+# Bug#47459 Assertion in Diagnostics_area::set_eof_status on
+#           OPTIMIZE TABLE
+#
+DROP TABLE IF EXISTS t1;
+connect  con1, localhost, root;
+connection default;
+CREATE TABLE t1(a INT) ENGINE= InnoDB;
+connection con1;
+SET DEBUG_SYNC= "ha_admin_open_ltable SIGNAL opening WAIT_FOR dropped";
+# Sending:
+OPTIMIZE TABLE t1;
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR opening";
+DROP TABLE t1;
+SET DEBUG_SYNC= "now SIGNAL dropped";
+connection con1;
+# Reaping: OPTIMIZE TABLE t1
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	error	Table 'test.t1' doesn't exist
+test.t1	optimize	status	Operation failed
+Warnings:
+Error	1146	Table 'test.t1' doesn't exist
+connection default;
+disconnect con1;
+SET DEBUG_SYNC= "RESET";
+#
+# Bug#53757 assert in mysql_truncate_by_delete
+#
+DROP TABLE IF EXISTS t1, t2;
+CREATE TABLE t1(a INT) Engine=InnoDB;
+CREATE TABLE t2(id INT);
+INSERT INTO t1 VALUES (1), (2);
+connect  con1, localhost, root;
+INSERT INTO t2 VALUES(connection_id());
+SET DEBUG_SYNC= "open_and_process_table SIGNAL opening WAIT_FOR killed";
+# Sending: (not reaped since connection is killed later)
+TRUNCATE t1;
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR opening";
+SELECT ((@id := id) - id) FROM t2;
+((@id := id) - id)
+0
+KILL @id;
+SET DEBUG_SYNC= "now SIGNAL killed";
+DROP TABLE t1, t2;
+disconnect con1;
+SET DEBUG_SYNC= "RESET";
+#
+# Bug#58933 Assertion `thd- >is_error()' fails on shutdown with ongoing
+#           OPTIMIZE TABLE
+#
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1), (2);
+connect  con1,localhost,root;
+SET DEBUG_SYNC= 'ha_admin_open_ltable SIGNAL waiting WAIT_FOR killed';
+# Sending:
+OPTIMIZE TABLE t1;
+connection default;
+SET DEBUG_SYNC= 'now WAIT_FOR waiting';
+KILL QUERY ID;
+SET DEBUG_SYNC= 'now SIGNAL killed';
+connection con1;
+# Reaping: OPTIMIZE TABLE t1
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	error	Query execution was interrupted
+test.t1	optimize	status	Operation failed
+Warnings:
+Error	1317	Query execution was interrupted
+connection default;
+DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
+disconnect con1;
+#
+# Bug#42230 during add index, cannot do queries on storage engines
+#           that implement add_index
+#
+DROP DATABASE IF EXISTS db1;
+DROP TABLE IF EXISTS t1;
+connect con1,localhost,root;
+connect con2,localhost,root;
+# Test 1: Secondary index, should not block reads (original test case).
+connection default;
+CREATE DATABASE db1;
+CREATE TABLE db1.t1(id INT NOT NULL AUTO_INCREMENT PRIMARY KEY, value INT) engine=innodb;
+INSERT INTO db1.t1(value) VALUES (1), (2);
+SET DEBUG_SYNC= "alter_table_inplace_after_lock_downgrade SIGNAL manage WAIT_FOR query";
+# Sending:
+ALTER TABLE db1.t1 ADD INDEX(value);
+connection con1;
+SET DEBUG_SYNC= "now WAIT_FOR manage";
+USE db1;
+SELECT * FROM t1;
+id	value
+1	1
+2	2
+SET DEBUG_SYNC= "now SIGNAL query";
+connection default;
+# Reaping: ALTER TABLE db1.t1 ADD INDEX(value)
+DROP DATABASE db1;
+# Test 2: Primary index (implicit), should block writes.
+CREATE TABLE t1(a INT NOT NULL, b INT NOT NULL) engine=innodb;
+SET DEBUG_SYNC= "alter_table_inplace_after_lock_downgrade SIGNAL manage WAIT_FOR query";
+# Sending:
+ALTER TABLE t1 ADD UNIQUE INDEX(a), LOCK=SHARED;
+connection con1;
+SET DEBUG_SYNC= "now WAIT_FOR manage";
+USE test;
+SELECT * FROM t1;
+a	b
+# Sending:
+UPDATE t1 SET a=NULL;
+connection con2;
+# Waiting for SELECT to be blocked by the metadata lock on t1
+SET DEBUG_SYNC= "now SIGNAL query";
+connection default;
+# Reaping: ALTER TABLE t1 ADD UNIQUE INDEX(a)
+connection con1;
+# Reaping: UPDATE t1 SET a=NULL
+# Test 3: Primary index (explicit), should block writes.
+connection default;
+ALTER TABLE t1 DROP INDEX a;
+SET DEBUG_SYNC= "alter_table_inplace_after_lock_downgrade SIGNAL manage WAIT_FOR query";
+# Sending:
+ALTER TABLE t1 ADD PRIMARY KEY (a), LOCK=SHARED;
+connection con1;
+SET DEBUG_SYNC= "now WAIT_FOR manage";
+SELECT * FROM t1;
+a	b
+# Sending:
+UPDATE t1 SET a=NULL;
+connection con2;
+# Waiting for SELECT to be blocked by the metadata lock on t1
+SET DEBUG_SYNC= "now SIGNAL query";
+connection default;
+# Reaping: ALTER TABLE t1 ADD PRIMARY KEY (a)
+connection con1;
+# Reaping: UPDATE t1 SET a=NULL
+# Test 4: Secondary unique index, should not block reads.
+connection default;
+SET DEBUG_SYNC= "alter_table_inplace_after_lock_downgrade SIGNAL manage WAIT_FOR query";
+# Sending:
+ALTER TABLE t1 ADD UNIQUE (b);
+connection con1;
+SET DEBUG_SYNC= "now WAIT_FOR manage";
+SELECT * FROM t1;
+a	b
+SET DEBUG_SYNC= "now SIGNAL query";
+connection default;
+# Reaping: ALTER TABLE t1 ADD UNIQUE (b)
+disconnect con1;
+disconnect con2;
+SET DEBUG_SYNC= "RESET";
+DROP TABLE t1;
+#
+# Bug#11853126 RE-ENABLE CONCURRENT READS WHILE CREATING SECONDARY INDEX
+#              IN INNODB
+#
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1(a INT NOT NULL, b INT NOT NULL) engine=innodb;
+INSERT INTO t1 VALUES (1, 12345), (2, 23456);
+connect  con1,localhost,root;
+SET SESSION debug_dbug= "+d,alter_table_rollback_new_index";
+ALTER TABLE t1 ADD PRIMARY KEY(a);
+ERROR HY000: Unknown error
+SELECT * FROM t1;
+a	b
+1	12345
+2	23456
+connection default;
+SELECT * FROM t1;
+a	b
+1	12345
+2	23456
+DROP TABLE t1;
+disconnect con1;
+#
+# Bug#13417754 ASSERT IN ROW_DROP_DATABASE_FOR_MYSQL DURING DROP SCHEMA
+#
+DROP TABLE IF EXISTS t1;
+DROP DATABASE IF EXISTS db1;
+CREATE TABLE t1(a int) engine=InnoDB;
+CREATE DATABASE db1;
+connect con1, localhost, root;
+connect con2, localhost, root;
+connection con1;
+SET DEBUG_SYNC= 'after_innobase_rename_table SIGNAL locked WAIT_FOR continue';
+# Sending:
+ALTER TABLE t1 RENAME db1.t1;
+connection con2;
+SET DEBUG_SYNC= 'now WAIT_FOR locked';
+# DROP DATABASE db1 should now be blocked by ALTER TABLE
+# Sending:
+DROP DATABASE db1;
+connection default;
+# Check that DROP DATABASE is blocked by IX lock on db1
+# Resume ALTER TABLE
+SET DEBUG_SYNC= 'now SIGNAL continue';
+connection con1;
+# Reaping: ALTER TABLE t1 RENAME db1.t1;
+connection con2;
+# Reaping: DROP DATABASE db1
+connection default;
+SET DEBUG_SYNC= 'RESET';
+disconnect con1;
+disconnect con2;
+#
+# WL#5534 Online ALTER, Phase 1
+#
+# Multi thread tests.
+# See alter_table.test for single thread tests.
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1(a INT PRIMARY KEY, b INT) engine=InnoDB;
+INSERT INTO t1 VALUES (1,1), (2,2);
+SET DEBUG_SYNC= 'RESET';
+connect  con1, localhost, root;
+SET SESSION lock_wait_timeout= 1;
+#
+# 1: In-place + writes blocked.
+#
+connection default;
+SET DEBUG_SYNC= 'alter_opened_table SIGNAL opened WAIT_FOR continue1';
+SET DEBUG_SYNC= 'alter_table_inplace_after_lock_upgrade SIGNAL upgraded WAIT_FOR continue2';
+SET DEBUG_SYNC= 'alter_table_inplace_before_commit SIGNAL beforecommit WAIT_FOR continue3';
+SET DEBUG_SYNC= 'alter_table_before_main_binlog SIGNAL binlog WAIT_FOR continue4';
+# Sending:
+ALTER TABLE t1 ADD INDEX i1(b), ALGORITHM= INPLACE, LOCK= SHARED;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+# At this point, neither reads nor writes should be blocked.
+SELECT * FROM t1;
+a	b
+1	1
+2	2
+INSERT INTO t1 VALUES (3,3);
+SET DEBUG_SYNC= 'now SIGNAL continue1';
+SET DEBUG_SYNC= 'now WAIT_FOR upgraded';
+# Now both reads and writes should be blocked
+SELECT * FROM t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+INSERT INTO t1 VALUES (4,4);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET DEBUG_SYNC= 'now SIGNAL continue2';
+SET DEBUG_SYNC= 'now WAIT_FOR beforecommit';
+# Still both reads and writes should be blocked.
+SELECT * FROM t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+INSERT INTO t1 VALUES (5,5);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET DEBUG_SYNC= 'now SIGNAL continue3';
+SET DEBUG_SYNC= 'now WAIT_FOR binlog';
+# Same here.
+SELECT * FROM t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+INSERT INTO t1 VALUES (6,6);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET DEBUG_SYNC= 'now SIGNAL continue4';
+connection default;
+# Reaping ALTER TABLE ...
+SET DEBUG_SYNC= 'RESET';
+DELETE FROM t1 WHERE a= 3;
+#
+# 2: Copy + writes blocked.
+#
+SET DEBUG_SYNC= 'alter_opened_table SIGNAL opened WAIT_FOR continue1';
+SET DEBUG_SYNC= 'alter_table_copy_after_lock_upgrade SIGNAL upgraded WAIT_FOR continue2';
+SET DEBUG_SYNC= 'alter_table_before_main_binlog SIGNAL binlog WAIT_FOR continue3';
+# Sending:
+ALTER TABLE t1 ADD INDEX i2(b), ALGORITHM= COPY, LOCK= SHARED;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+# At this point, neither reads nor writes should be blocked.
+SELECT * FROM t1;
+a	b
+1	1
+2	2
+INSERT INTO t1 VALUES (3,3);
+SET DEBUG_SYNC= 'now SIGNAL continue1';
+SET DEBUG_SYNC= 'now WAIT_FOR upgraded';
+# Now writes should be blocked, reads still allowed.
+SELECT * FROM t1;
+a	b
+1	1
+2	2
+3	3
+INSERT INTO t1 VALUES (4,4);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET DEBUG_SYNC= 'now SIGNAL continue2';
+SET DEBUG_SYNC= 'now WAIT_FOR binlog';
+# Now both reads and writes should be blocked.
+SELECT * FROM t1 limit 1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+INSERT INTO t1 VALUES (5,5);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET DEBUG_SYNC= 'now SIGNAL continue3';
+connection default;
+# Reaping ALTER TABLE ...
+Warnings:
+Note	1831	Duplicate index `i2`. This is deprecated and will be disallowed in a future release
+SET DEBUG_SYNC= 'RESET';
+DELETE FROM t1 WHERE a= 3;
+#
+# 3: In-place + writes allowed.
+#
+# TODO: Enable this test once WL#5526 is pushed
+#
+# 4: In-place + reads and writes blocked.
+#
+connection default;
+SET DEBUG_SYNC= 'alter_opened_table SIGNAL opened WAIT_FOR continue1';
+SET DEBUG_SYNC= 'alter_table_inplace_after_lock_upgrade SIGNAL upgraded WAIT_FOR continue2';
+SET DEBUG_SYNC= 'alter_table_inplace_before_commit SIGNAL beforecommit WAIT_FOR continue3';
+SET DEBUG_SYNC= 'alter_table_before_main_binlog SIGNAL binlog WAIT_FOR continue4';
+# Sending:
+ALTER TABLE t1 ADD INDEX i4(b), ALGORITHM= INPLACE, LOCK= EXCLUSIVE;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+# At this point, neither reads nor writes should be blocked.
+SELECT * FROM t1;
+a	b
+1	1
+2	2
+INSERT INTO t1 VALUES (3,3);
+SET DEBUG_SYNC= 'now SIGNAL continue1';
+SET DEBUG_SYNC= 'now WAIT_FOR upgraded';
+# Now both reads and writes should be blocked.
+SELECT * FROM t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+INSERT INTO t1 VALUES (4,4);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET DEBUG_SYNC= 'now SIGNAL continue2';
+SET DEBUG_SYNC= 'now WAIT_FOR beforecommit';
+# Same here.
+SELECT * FROM t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+INSERT INTO t1 VALUES (5,5);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET DEBUG_SYNC= 'now SIGNAL continue3';
+SET DEBUG_SYNC= 'now WAIT_FOR binlog';
+# Same here.
+SELECT * FROM t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+INSERT INTO t1 VALUES (6,6);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET DEBUG_SYNC= 'now SIGNAL continue4';
+connection default;
+# Reaping ALTER TABLE ...
+Warnings:
+Note	1831	Duplicate index `i4`. This is deprecated and will be disallowed in a future release
+SET DEBUG_SYNC= 'RESET';
+connection default;
+disconnect con1;
+DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
+#
+#BUG#13975225:ONLINE OPTIMIZE TABLE FOR INNODB TABLES
+#
+SET DEBUG_SYNC= 'alter_table_inplace_after_lock_downgrade SIGNAL downgraded WAIT_FOR continue';
+connect con1,localhost,root,,;
+#Setting up INNODB table.
+CREATE TABLE t1(fld1 INT, fld2 INT, fld3 INT) ENGINE= INNODB;
+INSERT INTO t1 VALUES (155, 45, 55);
+#Concurrent INSERT, UPDATE, SELECT and DELETE is supported 
+#during OPTIMIZE TABLE operation for INNODB tables.
+connection default;
+#OPTIMIZE TABLE operation.
+OPTIMIZE TABLE t1;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR downgraded';
+# With the patch, concurrent DML operation succeeds.
+INSERT INTO t1 VALUES (10, 11, 12);
+UPDATE t1 SET fld1= 20 WHERE fld1= 155;
+DELETE FROM t1 WHERE fld1= 20;
+SELECT * from t1;
+fld1	fld2	fld3
+10	11	12
+SET DEBUG_SYNC= 'now SIGNAL continue';
+connection default;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
+#Concurrent INSERT, UPDATE, SELECT and DELETE is supported
+#during OPTIMIZE TABLE operation for Partitioned table.
+SET DEBUG_SYNC= 'alter_table_inplace_after_lock_downgrade SIGNAL downgraded WAIT_FOR continue';
+#Setup PARTITIONED table.
+CREATE TABLE t1(fld1 INT) ENGINE= INNODB PARTITION BY HASH(fld1) PARTITIONS 4;
+INSERT INTO t1 VALUES(10);
+#OPTIMIZE TABLE operation.
+OPTIMIZE TABLE t1;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR downgraded';
+# With the patch, concurrent DML operation succeeds.
+INSERT INTO t1 VALUES (30);
+UPDATE t1 SET fld1= 20 WHERE fld1= 10;
+DELETE FROM t1 WHERE fld1= 20;
+SELECT * from t1;
+fld1
+30
+SET DEBUG_SYNC= 'now SIGNAL continue';
+connection default;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+DROP TABLE t1;
+SET DEBUG_SYNC= 'RESET';
+#ALTER TABLE FORCE and ALTER TABLE ENGINE uses online rebuild
+#of the table.
+CREATE TABLE t1(fld1 INT, fld2 INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(10, 20);
+ALTER TABLE t1 FORCE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ENGINE=INNODB;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+#ALTER TABLE FORCE, ALTER TABLE ENGINE and OPTIMIZE TABLE uses
+#table copy when the old_alter_table enabled.
+SET SESSION old_alter_table= TRUE;
+affected rows: 0
+ALTER TABLE t1 FORCE;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ENGINE= INNODB;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 0
+SET DEBUG_SYNC= 'alter_table_copy_after_lock_upgrade SIGNAL upgraded';
+affected rows: 0
+#OPTIMIZE TABLE operation using table copy.
+OPTIMIZE TABLE t1;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR upgraded';
+affected rows: 0
+INSERT INTO t1 VALUES(10, 20);
+affected rows: 1
+connection default;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+affected rows: 2
+SET DEBUG_SYNC= 'RESET';
+affected rows: 0
+SET SESSION old_alter_table= FALSE;
+affected rows: 0
+#ALTER TABLE FORCE and ALTER TABLE ENGINE uses table copy
+#when ALGORITHM COPY is used.
+ALTER TABLE t1 FORCE, ALGORITHM= COPY;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ENGINE= INNODB, ALGORITHM= COPY;
+affected rows: 2
+info: Records: 2  Duplicates: 0  Warnings: 0
+DROP TABLE t1;
+#OPTIMIZE TABLE on a table with FULLTEXT index uses
+#ALTER TABLE FORCE using COPY algorithm here. This
+#test case ensures the COPY table debug sync point is hit.
+SET DEBUG_SYNC= 'alter_table_copy_after_lock_upgrade SIGNAL upgraded';
+#Setup a table with FULLTEXT index.
+connection default;
+CREATE TABLE t1(fld1 CHAR(10), FULLTEXT(fld1), FULLTEXT(fld1)) ENGINE= INNODB;
+Warnings:
+Note	1831	Duplicate index `fld1_2`. This is deprecated and will be disallowed in a future release
+INSERT INTO t1 VALUES("String1");
+#OPTIMIZE TABLE operation.
+OPTIMIZE TABLE t1;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR upgraded';
+INSERT INTO t1 VALUES("String2");
+connection default;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;
+#Test which demonstrates that ALTER TABLE, OPTIMIZE PARTITION
+#takes OPTIMIZE TABLE code path, hence does an online rebuild
+#of the table with the patch. 
+connection default;
+SET DEBUG_SYNC= 'alter_table_inplace_after_lock_downgrade SIGNAL downgraded WAIT_FOR continue';
+#Setup PARTITIONED table.
+CREATE TABLE t1(fld1 INT) ENGINE= INNODB PARTITION BY HASH(fld1) PARTITIONS 4;
+INSERT INTO t1 VALUES(10);
+#OPTIMIZE ALL PARTITIONS operation.
+ALTER TABLE t1 OPTIMIZE PARTITION ALL;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR downgraded';
+# With the patch, concurrent DML operation succeeds.
+INSERT INTO t1 VALUES (30);
+UPDATE t1 SET fld1= 20 WHERE fld1= 10;
+DELETE FROM t1 WHERE fld1= 20;
+SELECT * from t1;
+fld1
+30
+SET DEBUG_SYNC= 'now SIGNAL continue';
+connection default;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize on partitions. All partitions will be rebuilt and analyzed.
+test.t1	optimize	status	OK
+SET DEBUG_SYNC= 'RESET';
+#OPTIMIZE PER PARTITION operation.
+SET DEBUG_SYNC= 'alter_table_inplace_after_lock_downgrade SIGNAL downgraded WAIT_FOR continue';
+ALTER TABLE t1 OPTIMIZE PARTITION p0;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR downgraded';
+# With the patch, concurrent DML operation succeeds.
+INSERT INTO t1 VALUES (30);
+UPDATE t1 SET fld1= 20 WHERE fld1= 10;
+DELETE FROM t1 WHERE fld1= 20;
+SELECT * from t1;
+fld1
+30
+30
+SET DEBUG_SYNC= 'now SIGNAL continue';
+connection default;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize on partitions. All partitions will be rebuilt and analyzed.
+test.t1	optimize	status	OK
+SET DEBUG_SYNC= 'RESET';
+# Test case for Bug#11938817 (ALTER BEHAVIOR DIFFERENT THEN DOCUMENTED).
+# This should not do anything
+ALTER TABLE t1;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL rebuild';
+# Check that we rebuild the table
+ALTER TABLE t1 engine=innodb;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR rebuild';
+connection default;
+SET DEBUG_SYNC= 'RESET';
+SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL rebuild';
+# Check that we rebuild the table
+ALTER TABLE t1 FORCE;
+connection con1;
+SET DEBUG_SYNC= 'now WAIT_FOR rebuild';
+connection default;
+disconnect con1;
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;

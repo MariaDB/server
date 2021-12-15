@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -23,8 +23,6 @@ General row routines
 
 Created 4/20/1996 Heikki Tuuri
 *******************************************************/
-
-#include "ha_prototypes.h"
 
 #include "row0row.h"
 #include "data0type.h"
@@ -46,6 +44,137 @@ Created 4/20/1996 Heikki Tuuri
 #include "gis0geo.h"
 #include "row0mysql.h"
 
+/** Build a spatial index key.
+@param[in]	index	spatial index
+@param[in]	ext	externally stored column prefixes, or NULL
+@param[in,out]	dfield	field of the tuple to be copied
+@param[in]	dfield2	field of the tuple to copy
+@param[in]	flag	ROW_BUILD_NORMAL, ROW_BUILD_FOR_PURGE or
+			ROW_BUILD_FOR_UNDO
+@param[in,out]	heap	memory heap from which the memory
+			of the field entry is allocated.
+@retval false if undo log is logged before spatial index creation. */
+static bool row_build_spatial_index_key(
+	const dict_index_t*	index,
+	const row_ext_t*	ext,
+	dfield_t*		dfield,
+	const dfield_t*		dfield2,
+	ulint			flag,
+	mem_heap_t*		heap)
+{
+	double*			mbr;
+
+	dfield_copy(dfield, dfield2);
+	dfield->type.prtype |= DATA_GIS_MBR;
+
+	/* Allocate memory for mbr field */
+	mbr = static_cast<double*>(mem_heap_alloc(heap, DATA_MBR_LEN));
+
+	/* Set mbr field data. */
+	dfield_set_data(dfield, mbr, DATA_MBR_LEN);
+
+	const fil_space_t* space = index->table->space;
+
+	if (UNIV_UNLIKELY(!dfield2->data || !space)) {
+		/* FIXME: dfield contains uninitialized data,
+		but row_build_index_entry_low() will not return NULL.
+		This bug is inherited from MySQL 5.7.5
+		commit b66ad511b61fffe75c58d0a607cdb837c6e6c821. */
+		return true;
+	}
+
+	const byte* dptr = NULL;
+	ulint	dlen = 0;
+	ulint	flen = 0;
+	double	tmp_mbr[SPDIMS * 2];
+	mem_heap_t*	temp_heap = NULL;
+
+	if (!dfield_is_ext(dfield2)) {
+		dptr = static_cast<const byte*>(dfield_get_data(dfield2));
+		dlen = dfield_get_len(dfield2);
+		goto write_mbr;
+	}
+
+	if (flag == ROW_BUILD_FOR_PURGE) {
+		const byte* ptr = static_cast<const byte*>(
+			dfield_get_data(dfield2));
+
+		switch (dfield_get_spatial_status(dfield2)) {
+		case SPATIAL_ONLY:
+			ut_ad(dfield_get_len(dfield2) == DATA_MBR_LEN);
+			break;
+
+		case SPATIAL_MIXED:
+			ptr += dfield_get_len(dfield2);
+			break;
+
+		case SPATIAL_UNKNOWN:
+			ut_ad(0);
+			/* fall through */
+		case SPATIAL_NONE:
+			/* Undo record is logged before
+			spatial index is created.*/
+			return false;
+		}
+
+		memcpy(mbr, ptr, DATA_MBR_LEN);
+		return true;
+	}
+
+	if (flag == ROW_BUILD_FOR_UNDO
+	    && dict_table_has_atomic_blobs(index->table)) {
+		/* For ROW_FORMAT=DYNAMIC or COMPRESSED, a prefix of
+		off-page records is stored in the undo log record (for
+		any column prefix indexes). For SPATIAL INDEX, we
+		must ignore this prefix. The full column value is
+		stored in the BLOB.  For non-spatial index, we would
+		have already fetched a necessary prefix of the BLOB,
+		available in the "ext" parameter.
+
+		Here, for SPATIAL INDEX, we are fetching the full
+		column, which is potentially wasting a lot of I/O,
+		memory, and possibly involving a concurrency problem,
+		similar to ones that existed before the introduction
+		of row_ext_t.
+
+		MDEV-11657 FIXME: write the MBR directly to the undo
+		log record, and avoid recomputing it here! */
+		flen = BTR_EXTERN_FIELD_REF_SIZE;
+		ut_ad(dfield_get_len(dfield2) >= BTR_EXTERN_FIELD_REF_SIZE);
+		dptr = static_cast<const byte*>(dfield_get_data(dfield2))
+			+ dfield_get_len(dfield2)
+			- BTR_EXTERN_FIELD_REF_SIZE;
+	} else {
+		flen = dfield_get_len(dfield2);
+		dptr = static_cast<const byte*>(dfield_get_data(dfield2));
+	}
+
+	temp_heap = mem_heap_create(1000);
+
+	dptr = btr_copy_externally_stored_field(
+		&dlen, dptr, ext ? ext->page_size : page_size_t(space->flags),
+		flen, temp_heap);
+
+write_mbr:
+	if (dlen <= GEO_DATA_HEADER_SIZE) {
+		for (uint i = 0; i < SPDIMS; i += 2) {
+			tmp_mbr[i] = DBL_MAX;
+			tmp_mbr[i + 1] = -DBL_MAX;
+		}
+	} else {
+		rtree_mbr_from_wkb(dptr + GEO_DATA_HEADER_SIZE,
+				   uint(dlen - GEO_DATA_HEADER_SIZE),
+				   SPDIMS, tmp_mbr);
+	}
+
+	dfield_write_mbr(dfield, tmp_mbr);
+	if (temp_heap) {
+		mem_heap_free(temp_heap);
+	}
+
+	return true;
+}
+
 /*****************************************************************//**
 When an insert or purge to a table is performed, this function builds
 the entry to be inserted into or purged from an index on the table.
@@ -59,8 +188,8 @@ row_build_index_entry_low(
 					inserted or purged */
 	const row_ext_t*	ext,	/*!< in: externally stored column
 					prefixes, or NULL */
-	dict_index_t*		index,	/*!< in: index on the table */
-	mem_heap_t*		heap,	/*!< in: memory heap from which
+	const dict_index_t*	index,	/*!< in: index on the table */
+	mem_heap_t*		heap,	/*!< in,out: memory heap from which
 					the memory for the index entry
 					is allocated */
 	ulint			flag)	/*!< in: ROW_BUILD_NORMAL,
@@ -96,7 +225,7 @@ row_build_index_entry_low(
 		const dict_col_t*	col;
 		ulint			col_no = 0;
 		dfield_t*		dfield;
-		dfield_t*		dfield2;
+		const dfield_t*		dfield2;
 		ulint			len;
 
 		if (i >= entry_len) {
@@ -113,11 +242,10 @@ row_build_index_entry_low(
 			col_no = dict_col_get_no(col);
 			dfield = dtuple_get_nth_field(entry, i);
 		}
-#if DATA_MISSING != 0
-# error "DATA_MISSING != 0"
-#endif
 
-		if (dict_col_is_virtual(col)) {
+		compile_time_assert(DATA_MISSING == 0);
+
+		if (col->is_virtual()) {
 			const dict_v_col_t*	v_col
 				= reinterpret_cast<const dict_v_col_t*>(col);
 
@@ -150,119 +278,11 @@ row_build_index_entry_low(
 		/* Special handle spatial index, set the first field
 		which is for store MBR. */
 		if (dict_index_is_spatial(index) && i == 0) {
-			double*			mbr;
-
-			dfield_copy(dfield, dfield2);
-			dfield->type.prtype |= DATA_GIS_MBR;
-
-			/* Allocate memory for mbr field */
-			ulint mbr_len = DATA_MBR_LEN;
-			mbr = static_cast<double*>(mem_heap_alloc(heap, mbr_len));
-
-			/* Set mbr field data. */
-			dfield_set_data(dfield, mbr, mbr_len);
-
-			if (dfield2->data) {
-				uchar*	dptr = NULL;
-				ulint	dlen = 0;
-				ulint	flen = 0;
-				double	tmp_mbr[SPDIMS * 2];
-				mem_heap_t*	temp_heap = NULL;
-
-				if (dfield_is_ext(dfield2)) {
-					if (flag == ROW_BUILD_FOR_PURGE) {
-						byte*	ptr = NULL;
-
-						spatial_status_t spatial_status;
-						spatial_status =
-							dfield_get_spatial_status(
-								dfield2);
-
-						switch (spatial_status) {
-						case SPATIAL_ONLY:
-						ptr = static_cast<byte*>(
-							dfield_get_data(
-								dfield2));
-						ut_ad(dfield_get_len(dfield2)
-						      == DATA_MBR_LEN);
-						break;
-
-						case SPATIAL_MIXED:
-						ptr = static_cast<byte*>(
-							dfield_get_data(
-								dfield2))
-							+ dfield_get_len(
-								dfield2);
-						break;
-
-						case SPATIAL_UNKNOWN:
-							ut_ad(0);
-							/* fall through */
-						case SPATIAL_NONE:
-						/* Undo record is logged before
-						spatial index is created.*/
-						return(NULL);
-						}
-
-						memcpy(mbr, ptr, DATA_MBR_LEN);
-						continue;
-					}
-
-					if (flag == ROW_BUILD_FOR_UNDO
-					    && dict_table_has_atomic_blobs(
-						    index->table)) {
-						/* For build entry for undo, and
-						the table is Barrcuda, we need
-						to skip the prefix data. */
-						flen = BTR_EXTERN_FIELD_REF_SIZE;
-						ut_ad(dfield_get_len(dfield2) >=
-						      BTR_EXTERN_FIELD_REF_SIZE);
-						dptr = static_cast<byte*>(
-							dfield_get_data(dfield2))
-							+ dfield_get_len(dfield2)
-							- BTR_EXTERN_FIELD_REF_SIZE;
-					} else {
-						flen = dfield_get_len(dfield2);
-						dptr = static_cast<byte*>(
-							dfield_get_data(dfield2));
-					}
-
-					temp_heap = mem_heap_create(1000);
-
-					const page_size_t	page_size
-						= (ext != NULL)
-						? ext->page_size
-						: dict_table_page_size(
-							index->table);
-
-					dptr = btr_copy_externally_stored_field(
-						&dlen, dptr,
-						page_size,
-						flen,
-						temp_heap);
-				} else {
-					dptr = static_cast<uchar*>(
-						dfield_get_data(dfield2));
-					dlen = dfield_get_len(dfield2);
-
-				}
-
-				if (dlen <= GEO_DATA_HEADER_SIZE) {
-					for (uint i = 0; i < SPDIMS; ++i) {
-						tmp_mbr[i * 2] = DBL_MAX;
-						tmp_mbr[i * 2 + 1] = -DBL_MAX;
-					}
-				} else {
-					rtree_mbr_from_wkb(dptr + GEO_DATA_HEADER_SIZE,
-							   static_cast<uint>(dlen
-							   - GEO_DATA_HEADER_SIZE),
-							   SPDIMS, tmp_mbr);
-				}
-				dfield_write_mbr(dfield, tmp_mbr);
-				if (temp_heap) {
-					mem_heap_free(temp_heap);
-				}
+			if (!row_build_spatial_index_key(
+				    index, ext, dfield, dfield2, flag, heap)) {
+				return NULL;
 			}
+
 			continue;
 		}
 
@@ -273,6 +293,8 @@ row_build_index_entry_low(
 		if (dfield_is_null(dfield)) {
 			continue;
 		}
+
+		ut_ad(!(index->type & DICT_FTS));
 
 		if ((!ind_field || ind_field->prefix_len == 0)
 		    && (!dfield_is_ext(dfield)
@@ -294,7 +316,7 @@ row_build_index_entry_low(
 		indexed long columns may be stored off-page. */
 		ut_ad(col->ord_part);
 
-		if (ext) {
+		if (ext && !col->is_virtual()) {
 			/* See if the column is stored externally. */
 			const byte*	buf = row_ext_lookup(ext, col_no,
 							     &len);
@@ -357,7 +379,7 @@ addition of new virtual columns.
 				of an index, or NULL if
 				index->table should be
 				consulted instead
-@param[in]	add_cols	default values of added columns, or NULL
+@param[in]	defaults	default values of added/changed columns, or NULL
 @param[in]	add_v		new virtual columns added
 				along with new indexes
 @param[in]	col_map		mapping of old column
@@ -373,9 +395,9 @@ row_build_low(
 	ulint			type,
 	const dict_index_t*	index,
 	const rec_t*		rec,
-	const ulint*		offsets,
+	const rec_offs*		offsets,
 	const dict_table_t*	col_table,
-	const dtuple_t*		add_cols,
+	const dtuple_t*		defaults,
 	const dict_add_v_col_t*	add_v,
 	const ulint*		col_map,
 	row_ext_t**		ext,
@@ -389,7 +411,7 @@ row_build_low(
 	byte*			buf;
 	ulint			j;
 	mem_heap_t*		tmp_heap	= NULL;
-	ulint			offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs		offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs_init(offsets_);
 
 	ut_ad(index != NULL);
@@ -400,7 +422,8 @@ row_build_low(
 	ut_ad(!col_map || col_table);
 
 	if (!offsets) {
-		offsets = rec_get_offsets(rec, index, offsets_, true,
+		offsets = rec_get_offsets(rec, index, offsets_,
+					  index->n_core_fields,
 					  ULINT_UNDEFINED, &tmp_heap);
 	} else {
 		ut_ad(rec_offs_validate(rec, index, offsets));
@@ -437,17 +460,17 @@ row_build_low(
 	}
 
 	/* Avoid a debug assertion in rec_offs_validate(). */
-	rec_offs_make_valid(copy, index, true, const_cast<ulint*>(offsets));
+	rec_offs_make_valid(copy, index, true, const_cast<rec_offs*>(offsets));
 
 	if (!col_table) {
 		ut_ad(!col_map);
-		ut_ad(!add_cols);
+		ut_ad(!defaults);
 		col_table = index->table;
 	}
 
-	if (add_cols) {
+	if (defaults) {
 		ut_ad(col_map);
-		row = dtuple_copy(add_cols, heap);
+		row = dtuple_copy(defaults, heap);
 		/* dict_table_copy_types() would set the fields to NULL */
 		for (ulint i = 0; i < dict_table_get_n_cols(col_table); i++) {
 			dict_col_copy_type(
@@ -531,7 +554,7 @@ row_build_low(
 		}
 	}
 
-	rec_offs_make_valid(rec, index, true, const_cast<ulint*>(offsets));
+	rec_offs_make_valid(rec, index, true, const_cast<rec_offs*>(offsets));
 
 	ut_ad(dtuple_check_typed(row));
 
@@ -584,7 +607,7 @@ row_build(
 					this record must be at least
 					s-latched and the latch held
 					as long as the row dtuple is used! */
-	const ulint*		offsets,/*!< in: rec_get_offsets(rec,index)
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(rec,index)
 					or NULL, in which case this function
 					will invoke rec_get_offsets() */
 	const dict_table_t*	col_table,
@@ -594,9 +617,9 @@ row_build(
 					of an index, or NULL if
 					index->table should be
 					consulted instead */
-	const dtuple_t*		add_cols,
+	const dtuple_t*		defaults,
 					/*!< in: default values of
-					added columns, or NULL */
+					added and changed columns, or NULL */
 	const ulint*		col_map,/*!< in: mapping of old column
 					numbers to new ones, or NULL */
 	row_ext_t**		ext,	/*!< out, own: cache of
@@ -606,7 +629,7 @@ row_build(
 					 the memory needed is allocated */
 {
 	return(row_build_low(type, index, rec, offsets, col_table,
-			     add_cols, NULL, col_map, ext, heap));
+			     defaults, NULL, col_map, ext, heap));
 }
 
 /** An inverse function to row_build_index_entry. Builds a row from a
@@ -622,7 +645,7 @@ addition of new virtual columns.
 				of an index, or NULL if
 				index->table should be
 				consulted instead
-@param[in]	add_cols	default values of added columns, or NULL
+@param[in]	defaults	default values of added, changed columns, or NULL
 @param[in]	add_v		new virtual columns added
 				along with new indexes
 @param[in]	col_map		mapping of old column
@@ -637,16 +660,16 @@ row_build_w_add_vcol(
 	ulint			type,
 	const dict_index_t*	index,
 	const rec_t*		rec,
-	const ulint*		offsets,
+	const rec_offs*		offsets,
 	const dict_table_t*	col_table,
-	const dtuple_t*		add_cols,
+	const dtuple_t*		defaults,
 	const dict_add_v_col_t*	add_v,
 	const ulint*		col_map,
 	row_ext_t**		ext,
 	mem_heap_t*		heap)
 {
 	return(row_build_low(type, index, rec, offsets, col_table,
-			     add_cols, add_v, col_map, ext, heap));
+			     defaults, add_v, col_map, ext, heap));
 }
 
 /** Convert an index record to a data tuple.
@@ -664,8 +687,7 @@ dtuple_t*
 row_rec_to_index_entry_impl(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	const ulint*		offsets,
-	ulint*			n_ext,
+	const rec_offs*		offsets,
 	mem_heap_t*		heap)
 {
 	dtuple_t*	entry;
@@ -683,8 +705,6 @@ row_rec_to_index_entry_impl(
 	/* Because this function may be invoked by row0merge.cc
 	on a record whose header is in different format, the check
 	rec_offs_validate(rec, index, offsets) must be avoided here. */
-	ut_ad(n_ext);
-	*n_ext = 0;
 
 	rec_len = rec_offs_n_fields(offsets);
 
@@ -711,7 +731,6 @@ row_rec_to_index_entry_impl(
 
 		if (rec_offs_nth_extern(offsets, i)) {
 			dfield_set_ext(dfield);
-			(*n_ext)++;
 		}
 	}
 
@@ -723,18 +742,15 @@ row_rec_to_index_entry_impl(
 @param[in]	rec	index record
 @param[in]	index	index
 @param[in]	offsets	rec_get_offsets(rec, index)
-@param[out]	n_ext	number of externally stored columns
 @param[in,out]	heap	memory heap for allocations */
 dtuple_t*
 row_rec_to_index_entry_low(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	const ulint*		offsets,
-	ulint*			n_ext,
+	const rec_offs*		offsets,
 	mem_heap_t*		heap)
 {
-	return row_rec_to_index_entry_impl<false>(
-		rec, index, offsets, n_ext, heap);
+	return row_rec_to_index_entry_impl<false>(rec, index, offsets, heap);
 }
 
 /*******************************************************************//**
@@ -746,9 +762,7 @@ row_rec_to_index_entry(
 /*===================*/
 	const rec_t*		rec,	/*!< in: record in the index */
 	const dict_index_t*	index,	/*!< in: index */
-	const ulint*		offsets,/*!< in: rec_get_offsets(rec) */
-	ulint*			n_ext,	/*!< out: number of externally
-					stored columns */
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(rec) */
 	mem_heap_t*		heap)	/*!< in: memory heap from which
 					the memory needed is allocated */
 {
@@ -768,11 +782,11 @@ row_rec_to_index_entry(
 	copy_rec = rec_copy(buf, rec, offsets);
 
 	rec_offs_make_valid(copy_rec, index, true,
-			    const_cast<ulint*>(offsets));
+			    const_cast<rec_offs*>(offsets));
 	entry = row_rec_to_index_entry_impl<true>(
-		copy_rec, index, offsets, n_ext, heap);
+		copy_rec, index, offsets, heap);
 	rec_offs_make_valid(rec, index, true,
-			    const_cast<ulint*>(offsets));
+			    const_cast<rec_offs*>(offsets));
 
 	dtuple_set_info_bits(entry,
 			     rec_get_info_bits(rec, rec_offs_comp(offsets)));
@@ -814,8 +828,8 @@ row_build_row_ref(
 	ulint		clust_col_prefix_len;
 	ulint		i;
 	mem_heap_t*	tmp_heap	= NULL;
-	ulint		offsets_[REC_OFFS_NORMAL_SIZE];
-	ulint*		offsets		= offsets_;
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 
 	ut_ad(index != NULL);
@@ -823,7 +837,7 @@ row_build_row_ref(
 	ut_ad(heap != NULL);
 	ut_ad(!dict_index_is_clust(index));
 
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
 				  ULINT_UNDEFINED, &tmp_heap);
 	/* Secondary indexes must not contain externally stored columns. */
 	ut_ad(!rec_offs_any_extern(offsets));
@@ -910,9 +924,8 @@ row_build_row_ref_in_tuple(
 					held as long as the row
 					reference is used! */
 	const dict_index_t*	index,	/*!< in: secondary index */
-	ulint*			offsets,/*!< in: rec_get_offsets(rec, index)
+	rec_offs*		offsets)/*!< in: rec_get_offsets(rec, index)
 					or NULL */
-	trx_t*			trx)	/*!< in: transaction */
 {
 	const dict_index_t*	clust_index;
 	dfield_t*		dfield;
@@ -923,12 +936,9 @@ row_build_row_ref_in_tuple(
 	ulint			clust_col_prefix_len;
 	ulint			i;
 	mem_heap_t*		heap		= NULL;
-	ulint			offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs		offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs_init(offsets_);
 
-	ut_a(ref);
-	ut_a(index);
-	ut_a(rec);
 	ut_ad(!dict_index_is_clust(index));
 	ut_a(index->table);
 
@@ -936,7 +946,8 @@ row_build_row_ref_in_tuple(
 	ut_ad(clust_index);
 
 	if (!offsets) {
-		offsets = rec_get_offsets(rec, index, offsets_, true,
+		offsets = rec_get_offsets(rec, index, offsets_,
+					  index->n_core_fields,
 					  ULINT_UNDEFINED, &heap);
 	} else {
 		ut_ad(rec_offs_validate(rec, index, offsets));
@@ -1014,23 +1025,29 @@ row_search_on_row_ref(
 
 	index = dict_table_get_first_index(table);
 
-	if (UNIV_UNLIKELY(ref->info_bits)) {
-		ut_ad(ref->info_bits == REC_INFO_DEFAULT_ROW);
+	if (UNIV_UNLIKELY(ref->info_bits != 0)) {
+		ut_ad(ref->info_bits == REC_INFO_METADATA);
 		ut_ad(ref->n_fields <= index->n_uniq);
-		btr_pcur_open_at_index_side(true, index, mode, pcur, true, 0,
-					    mtr);
-		btr_pcur_move_to_next_user_rec(pcur, mtr);
+		if (btr_pcur_open_at_index_side(
+			    true, index, mode, pcur, true, 0, mtr)
+		    != DB_SUCCESS
+		    || !btr_pcur_move_to_next_user_rec(pcur, mtr)) {
+			return FALSE;
+		}
 		/* We do not necessarily have index->is_instant() here,
 		because we could be executing a rollback of an
 		instant ADD COLUMN operation. The function
-		rec_is_default_row() asserts index->is_instant();
+		rec_is_metadata() asserts index->is_instant();
 		we do not want to call it here. */
 		return rec_get_info_bits(btr_pcur_get_rec(pcur),
 					 dict_table_is_comp(index->table))
 			& REC_INFO_MIN_REC_FLAG;
 	} else {
 		ut_a(ref->n_fields == index->n_uniq);
-		btr_pcur_open(index, ref, PAGE_CUR_LE, mode, pcur, mtr);
+		if (btr_pcur_open(index, ref, PAGE_CUR_LE, mode, pcur, mtr)
+		    != DB_SUCCESS) {
+			return FALSE;
+		}
 	}
 
 	low_match = btr_pcur_get_low_match(pcur);
@@ -1186,7 +1203,7 @@ row_raw_format_int(
 		value = mach_read_int_type(
 			(const byte*) data, data_len, unsigned_type);
 
-		ret = snprintf(
+		ret = (ulint) snprintf(
 			buf, buf_size,
 			unsigned_type ? "%llu" : "%lld", (longlong) value)+1;
 	} else {

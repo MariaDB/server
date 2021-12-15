@@ -1,0 +1,122 @@
+create database mysqltest1;
+create user ''@localhost;
+create user foo@localhost;
+create role bar;
+grant select on *.* to ''@localhost;
+grant select,insert on *.* to foo@localhost;
+grant select,insert on *.* to bar;
+grant bar to ''@localhost;
+create table t1 (n varchar(100),
+u varchar(100) default user(),
+cu varchar(100) default current_user(),
+cr varchar(100) default current_role(),
+d  varchar(100) default database());
+create definer=foo@localhost view mysqltest1.v1 as select * from t1;
+create definer=bar           view            v2 as select * from t1;
+create                       view            v3 as select * from v2;
+create definer=foo@localhost view mysqltest1.v4 as select default(n),default(u),default(cu),default(cr), default(d) from t1;
+create definer=bar           view            v5 as select default(n),default(u),default(cu),default(cr), default(d) from t1;
+create                       view            v6 as select * from v5;
+insert t1 (n)  values ('t1');
+insert mysqltest1.v1 (n)  values ('v1');
+insert v2 (n)  values ('v2');
+insert v3 (n)  values ('v3');
+select default(n),default(u),default(cu),default(cr), default(d) from t1 limit 1;
+default(n)	default(u)	default(cu)	default(cr)	default(d)
+NULL	root@localhost	root@localhost	NULL	test
+select * from mysqltest1.v4 limit 1;
+default(n)	default(u)	default(cu)	default(cr)	default(d)
+NULL	root@localhost	foo@localhost	NULL	test
+select * from v5 limit 1;
+default(n)	default(u)	default(cu)	default(cr)	default(d)
+NULL	root@localhost	@	bar	test
+select * from v6 limit 1;
+default(n)	default(u)	default(cu)	default(cr)	default(d)
+NULL	root@localhost	@	bar	test
+connect  conn,localhost,conn,,mysqltest1;
+set role bar;
+insert test.t1 (n)  values ('t1');
+insert v1 (n)  values ('v1');
+insert test.v2 (n)  values ('v2');
+insert test.v3 (n)  values ('v3');
+select default(n),default(u),default(cu),default(cr), default(d) from test.t1 limit 1;
+default(n)	default(u)	default(cu)	default(cr)	default(d)
+NULL	conn@localhost	@localhost	bar	mysqltest1
+select * from v4 limit 1;
+default(n)	default(u)	default(cu)	default(cr)	default(d)
+NULL	conn@localhost	foo@localhost	NULL	mysqltest1
+select * from test.v5 limit 1;
+default(n)	default(u)	default(cu)	default(cr)	default(d)
+NULL	conn@localhost	@	bar	mysqltest1
+select * from test.v6 limit 1;
+default(n)	default(u)	default(cu)	default(cr)	default(d)
+NULL	conn@localhost	@	bar	mysqltest1
+connection default;
+disconnect conn;
+select * from t1;
+n	u	cu	cr	d
+t1	root@localhost	root@localhost	NULL	test
+v1	root@localhost	foo@localhost	NULL	test
+v2	root@localhost	@	bar	test
+v3	root@localhost	@	bar	test
+t1	conn@localhost	@localhost	bar	mysqltest1
+v1	conn@localhost	foo@localhost	NULL	mysqltest1
+v2	conn@localhost	@	bar	mysqltest1
+v3	conn@localhost	@	bar	mysqltest1
+drop database mysqltest1;
+drop view v2, v3, v5, v6;
+drop table t1;
+drop user ''@localhost;
+drop user foo@localhost;
+drop role bar;
+create table t1 (a date,
+mn varchar(100) default monthname(a),
+dn varchar(100) default dayname(a),
+df varchar(100) default date_format(a, "%a, %b"));
+insert t1 (a) values ('2010-12-2');
+set lc_time_names=de_DE;
+insert t1 (a) values ('2010-12-2');
+set lc_time_names=default;
+select * from t1;
+a	mn	dn	df
+2010-12-02	December	Thursday	Thu, Dec
+2010-12-02	Dezember	Donnerstag	Do, Dez
+drop table t1;
+create table t1 (a varchar(100) default @@sql_mode);
+insert t1 () values ();
+set sql_mode=ansi;
+insert t1 () values ();
+set sql_mode=default;
+select * from t1;
+a
+STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI
+drop table t1;
+set time_zone='+00:00';
+create table t1 (a int, b datetime default from_unixtime(a), c datetime);
+insert t1 (a, c) values (1569495327, from_unixtime(1569495327));
+set time_zone='+01:00';
+insert t1 (a, c) values (1569495327, from_unixtime(1569495327));
+flush tables;
+insert t1 (a, c) values (1569495327, from_unixtime(1569495327));
+select * from t1;
+a	b	c
+1569495327	2019-09-26 10:55:27	2019-09-26 10:55:27
+1569495327	2019-09-26 11:55:27	2019-09-26 11:55:27
+1569495327	2019-09-26 11:55:27	2019-09-26 11:55:27
+drop table t1;
+set time_zone = "+00:00";
+create table t1 (a int, b timestamp as (from_unixtime(a)) virtual);
+insert into t1 (a) value (1569495327);
+select a, b, from_unixtime(a) from t1;
+a	b	from_unixtime(a)
+1569495327	2019-09-26 10:55:27	2019-09-26 10:55:27
+set time_zone = "+01:00";
+select a, b, from_unixtime(a) from t1;
+a	b	from_unixtime(a)
+1569495327	2019-09-26 11:55:27	2019-09-26 11:55:27
+flush tables;
+select a, b, from_unixtime(a) from t1;
+a	b	from_unixtime(a)
+1569495327	2019-09-26 11:55:27	2019-09-26 11:55:27
+drop table t1;

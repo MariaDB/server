@@ -12,8 +12,15 @@
 // undefine them here to avoid compilation errors.
 #undef __STDC_FORMAT_MACROS
 #undef __STDC_LIMIT_MACROS
-#include <mysql/psi/mysql_file.h>    // PSI_file
-#include <mysql/psi/mysql_thread.h>  // PSI_mutex
+#include "mysql/psi/mysql_file.h"    // PSI_file
+#include "mysql/psi/mysql_thread.h"  // PSI_mutex
+#include "mysql/psi/mysql_stage.h"   // PSI_stage
+
+#if (MYSQL_VERSION_ID >= 80000) && ( MYSQL_VERSION_ID <= 100000)
+#include "mysql/psi/mysql_cond.h"
+#include "mysql/psi/mysql_mutex.h"
+#include "mysql/psi/mysql_rwlock.h"
+#endif  //  (MYSQL_VERSION_ID >= nn)
 
 #ifndef HAVE_PSI_MUTEX_INTERFACE
 #error HAVE_PSI_MUTEX_INTERFACE required

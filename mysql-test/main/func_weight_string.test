@@ -1,0 +1,173 @@
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+set @save_max_allowed_packet=@@max_allowed_packet;
+set global max_allowed_packet=1048576;
+connect (conn1,localhost,root,,);
+connection conn1;
+
+set names latin1;
+
+#
+# If it's BLOB or BINARY or VARBINARY, then output = input.
+#
+select hex(weight_string(0x010203));
+
+#
+# "AS CHAR ( int )" causes padding on the right. The pad
+# character is always space, that is, 0x20 or 0x0020.
+# The padding occurs before the conversion to a weight.
+# The value of "int" is the number of characters, not the number of bytes.
+#
+select hex(weight_string('aa' as char(3)));
+
+#
+# The minimum value of 'int' is 1.
+#
+--error 1064
+select hex(weight_string('a' as char(-1)));
+--error 1064
+select hex(weight_string('a' as char(0)));
+select hex(weight_string('a' as char(1)));
+
+#
+# If 'int' is smaller than the length of 'string',
+# truncation will occur with no warning.
+#
+select hex(weight_string('ab' as char(1)));
+
+#
+# If "AS CHAR ( int )" is omitted, there is no padding and no truncation.
+#
+select hex(weight_string('ab'));
+
+#
+# "AS BINARY ( int )" is like CHAR(int) but causes padding of 0x00
+# so one doesn't have to use "CAST(string AS BINARY(int))".
+#
+select hex(weight_string('aa' as binary(3)));
+select hex(weight_string(cast('aa' as binary(3))));
+
+#
+# If and only if one specifies "LEVEL numeric-list" (not "range"),
+# one may follow any "number" with [ASC|DESC][REVERSE]
+#
+--error 1064
+select hex(weight_string('ab' level 1-1 ASC));
+--error 1064
+select hex(weight_string('ab' level 1-1 DESC));
+--error 1064
+select hex(weight_string('ab' level 1-1 REVERSE));
+
+#
+# If one says "DESC", then the weights come out NOTed
+# or negated for that level. 
+# If one says "REVERSE", then the weights come out in
+# reverse order for that level, that is, starting with
+# the last character and ending with the first character.
+#
+select hex(weight_string('ab' level 1 ASC));
+select hex(weight_string('ab' level 1 DESC));
+select hex(weight_string('ab' level 1 REVERSE));
+select hex(weight_string('ab' level 1 DESC REVERSE));
+
+#
+# If the result length is less than or equal to the
+# maximum possible length for the VARBINARY data type,
+# then the result data type is VARBINARY. Otherwise
+# the result data type is BLOB.
+#
+create table t1 select weight_string('test') as w;
+show create table t1;
+drop table t1;
+create table t1 select weight_string(repeat('t',66000)) as w;
+show create table t1;
+drop table t1;
+
+#
+# If input is NULL, then output is NULL.
+#
+select weight_string(NULL);
+
+#    
+# WEIGHT_STRING and REVERSE will not be a new reserved word.
+#
+select 1 as weight_string, 2 as reverse;
+
+#
+# Check that collation derivation is copied from the argument
+#
+select coercibility(weight_string('test'));
+select coercibility(weight_string('test' collate latin1_swedish_ci));
+
+#
+# Bug#33663 Character sets: weight_string function,
+# varchar column, wrong result
+#
+create table t1 (s1 varchar(5));
+insert into t1 values ('a'),(null);
+select hex(weight_string(s1)) from t1 order by s1;
+drop table t1;
+
+--echo #
+--echo # BUG#11898467 - SERVER CRASHES ON SELECT HEX(WEIGHT_STRING(STR AS [CHAR|BINARY](N))) IF N IS BIG 
+--echo #
+SELECT HEX(WEIGHT_STRING('ab' AS CHAR(1000000000000000000))); 
+SELECT HEX(WEIGHT_STRING('ab' AS BINARY(1000000000000000000))); 
+
+disconnect conn1;
+connection default;
+set global max_allowed_packet=@save_max_allowed_packet;
+
+--echo #
+--echo # Start of 10.1 tests
+--echo #
+
+--echo #
+--echo # MDEV-8369 Unexpected impossible WHERE for a condition on a ZEROFILL field
+--echo #
+CREATE TABLE t1 (a INT(6) ZEROFILL);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 WHERE a=1;
+SELECT * FROM t1 WHERE WEIGHT_STRING(a) IS NULL;
+SELECT * FROM t1 WHERE a=1 AND WEIGHT_STRING(a) IS NULL;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=1 AND WEIGHT_STRING(a) IS NULL;
+ALTER TABLE t1 MODIFY a DOUBLE ZEROFILL;
+SELECT * FROM t1 WHERE a=1 AND WEIGHT_STRING(a) IS NULL;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=1 AND WEIGHT_STRING(a) IS NULL;
+ALTER TABLE t1 MODIFY a DECIMAL(10,1) ZEROFILL;
+SELECT * FROM t1 WHERE a=1 AND WEIGHT_STRING(a) IS NULL;
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=1 AND WEIGHT_STRING(a) IS NULL;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-10134 Add full support for DEFAULT
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1, b VARBINARY(10) DEFAULT WEIGHT_STRING(a AS CHAR(10)));
+SHOW CREATE TABLE t1;
+INSERT INTO t1 (a) VALUES ('a');
+SELECT a, HEX(b) FROM t1;
+DROP TABLE t1;
+
+#
+# Item_func_weight_string::print()
+#
+create view v1 as select weight_string("MySQL" as char(4));
+select * from v1;
+drop view v1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

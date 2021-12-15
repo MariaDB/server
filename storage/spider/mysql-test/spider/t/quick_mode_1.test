@@ -1,0 +1,294 @@
+--source ../include/quick_mode_1_init.inc
+--echo
+--echo drop and create databases
+--connection master_1
+--disable_warnings
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    SET @old_log_output = @@global.log_output;
+    SET GLOBAL log_output = 'TABLE,FILE';
+  }
+  CREATE DATABASE auto_test_remote;
+  USE auto_test_remote;
+  --connection child2_2
+  if ($USE_GENERAL_LOG)
+  {
+    SET @old_log_output = @@global.log_output;
+    SET GLOBAL log_output = 'TABLE,FILE';
+  }
+  CREATE DATABASE auto_test_remote2;
+  USE auto_test_remote2;
+}
+--enable_warnings
+
+--echo
+--echo create table and insert
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    echo CHILD2_1_CREATE_TABLES;
+  }
+  eval $CHILD2_1_CREATE_TABLES;
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+  }
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  --connection child2_2
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    echo CHILD2_2_CREATE_TABLES;
+  }
+  eval $CHILD2_2_CREATE_TABLES;
+  if ($OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+  }
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+--disable_query_log
+echo CREATE TABLE tbl_a (
+    pkey int NOT NULL,
+    PRIMARY KEY (pkey)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
+echo CREATE TABLE tbl_b (
+    pkey int NOT NULL,
+    PRIMARY KEY (pkey)
+) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_2;
+eval CREATE TABLE tbl_a (
+    pkey int NOT NULL,
+    PRIMARY KEY (pkey)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+eval CREATE TABLE tbl_b (
+    pkey int NOT NULL,
+    PRIMARY KEY (pkey)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_2;
+--enable_query_log
+INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+INSERT INTO tbl_a (pkey) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19);
+INSERT INTO tbl_a (pkey) VALUES (20),(21),(22),(23),(24),(25),(26),(27),(28),(29);
+INSERT INTO tbl_b (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+INSERT INTO tbl_b (pkey) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19);
+INSERT INTO tbl_b (pkey) VALUES (20),(21),(22),(23),(24),(25),(26),(27),(28),(29);
+
+--echo
+--echo select test 1
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  --connection child2_2
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
+    eval $CHILD2_1_SELECT_ARGUMENT1;
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  --connection child2_2
+  if ($USE_GENERAL_LOG)
+  {
+    --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
+    eval $CHILD2_2_SELECT_ARGUMENT1;
+  }
+  eval $CHILD2_2_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--connection master_1
+eval $MASTER_1_SET_QUICK_PAGE_BYTE_6;
+
+--echo
+--echo select test 2
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  --connection child2_2
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
+    eval $CHILD2_1_SELECT_ARGUMENT1;
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  --connection child2_2
+  if ($USE_GENERAL_LOG)
+  {
+    --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
+    eval $CHILD2_2_SELECT_ARGUMENT1;
+  }
+  eval $CHILD2_2_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--connection master_1
+eval $MASTER_1_SET_QUICK_PAGE_BYTE_0;
+
+--echo
+--echo select test 3
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  --connection child2_2
+  if ($USE_GENERAL_LOG)
+  {
+    TRUNCATE TABLE mysql.general_log;
+  }
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+--connection master_1
+SELECT a.pkey FROM tbl_a a, tbl_b b WHERE a.pkey = b.pkey;
+if ($USE_CHILD_GROUP2)
+{
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --disable_query_log
+    --disable_result_log
+  }
+  --connection child2_1
+  if ($USE_GENERAL_LOG)
+  {
+    --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
+    eval $CHILD2_1_SELECT_ARGUMENT1;
+  }
+  eval $CHILD2_1_SELECT_TABLES;
+  --connection child2_2
+  if ($USE_GENERAL_LOG)
+  {
+    --replace_regex /tmp_spider_bka_0x[0-9a-f]*/tmp_spider_bka_xxxx/
+    eval $CHILD2_2_SELECT_ARGUMENT1;
+  }
+  eval $CHILD2_2_SELECT_TABLES;
+  if (!$OUTPUT_CHILD_GROUP2)
+  {
+    --enable_query_log
+    --enable_result_log
+  }
+}
+
+--echo
+--echo deinit
+--disable_warnings
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  DROP DATABASE IF EXISTS auto_test_remote;
+  if ($USE_GENERAL_LOG)
+  {
+    SET GLOBAL log_output = @old_log_output;
+  }
+  --connection child2_2
+  DROP DATABASE IF EXISTS auto_test_remote2;
+  if ($USE_GENERAL_LOG)
+  {
+    SET GLOBAL log_output = @old_log_output;
+  }
+}
+--enable_warnings
+--source ../include/quick_mode_1_deinit.inc
+--echo
+--echo end of test

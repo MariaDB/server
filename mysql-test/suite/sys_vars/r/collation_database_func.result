@@ -15,9 +15,6 @@ disconnect con1;
 '#--------------------FN_DYNVARS_011_02-------------------------#'
 connection default;
 DROP TABLE IF EXISTS t1,t2;
-SELECT @@character_set_server,@@collation_server;
-@@character_set_server	@@collation_server
-latin1	latin1_swedish_ci
 '--check if setting collation_database update character_set_database--'
 SET @@session.collation_database = utf8_spanish_ci;
 SELECT @@collation_database, @@character_set_database;
@@ -54,7 +51,7 @@ utf8_roman_ci	utf8_roman_ci	utf8	utf8
 USE test;
 SELECT @@collation_database,@@collation_server,@@character_set_database,@@character_set_server;
 @@collation_database	@@collation_server	@@character_set_database	@@character_set_server
-utf8_roman_ci	utf8_roman_ci	utf8	utf8
+latin1_swedish_ci	utf8_roman_ci	latin1	utf8
 'fill table with some test data';
 CREATE TABLE t1(a CHAR(20))CHARACTER SET=latin1;
 INSERT INTO t1 VALUES('Muffler'),('Müller'),('MX Systems');

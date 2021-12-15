@@ -1,0 +1,93 @@
+CREATE TABLE valid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO valid_values VALUES(0);
+INSERT INTO valid_values VALUES(1);
+INSERT INTO valid_values VALUES(99);
+CREATE TABLE invalid_values (value varchar(255)) ENGINE=myisam;
+INSERT INTO invalid_values VALUES('\'aaa\'');
+SET @start_global_value = @@global.ROCKSDB_MANUAL_COMPACTION_THREADS;
+SELECT @start_global_value;
+@start_global_value
+0
+SET @start_session_value = @@session.ROCKSDB_MANUAL_COMPACTION_THREADS;
+SELECT @start_session_value;
+@start_session_value
+0
+'# Setting to valid values in global scope#'
+"Trying to set variable @@global.ROCKSDB_MANUAL_COMPACTION_THREADS to 0"
+SET @@global.ROCKSDB_MANUAL_COMPACTION_THREADS   = 0;
+SELECT @@global.ROCKSDB_MANUAL_COMPACTION_THREADS;
+@@global.ROCKSDB_MANUAL_COMPACTION_THREADS
+0
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_MANUAL_COMPACTION_THREADS = DEFAULT;
+SELECT @@global.ROCKSDB_MANUAL_COMPACTION_THREADS;
+@@global.ROCKSDB_MANUAL_COMPACTION_THREADS
+0
+"Trying to set variable @@global.ROCKSDB_MANUAL_COMPACTION_THREADS to 1"
+SET @@global.ROCKSDB_MANUAL_COMPACTION_THREADS   = 1;
+SELECT @@global.ROCKSDB_MANUAL_COMPACTION_THREADS;
+@@global.ROCKSDB_MANUAL_COMPACTION_THREADS
+1
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_MANUAL_COMPACTION_THREADS = DEFAULT;
+SELECT @@global.ROCKSDB_MANUAL_COMPACTION_THREADS;
+@@global.ROCKSDB_MANUAL_COMPACTION_THREADS
+0
+"Trying to set variable @@global.ROCKSDB_MANUAL_COMPACTION_THREADS to 99"
+SET @@global.ROCKSDB_MANUAL_COMPACTION_THREADS   = 99;
+SELECT @@global.ROCKSDB_MANUAL_COMPACTION_THREADS;
+@@global.ROCKSDB_MANUAL_COMPACTION_THREADS
+99
+"Setting the global scope variable back to default"
+SET @@global.ROCKSDB_MANUAL_COMPACTION_THREADS = DEFAULT;
+SELECT @@global.ROCKSDB_MANUAL_COMPACTION_THREADS;
+@@global.ROCKSDB_MANUAL_COMPACTION_THREADS
+0
+'# Setting to valid values in session scope#'
+"Trying to set variable @@session.ROCKSDB_MANUAL_COMPACTION_THREADS to 0"
+SET @@session.ROCKSDB_MANUAL_COMPACTION_THREADS   = 0;
+SELECT @@session.ROCKSDB_MANUAL_COMPACTION_THREADS;
+@@session.ROCKSDB_MANUAL_COMPACTION_THREADS
+0
+"Setting the session scope variable back to default"
+SET @@session.ROCKSDB_MANUAL_COMPACTION_THREADS = DEFAULT;
+SELECT @@session.ROCKSDB_MANUAL_COMPACTION_THREADS;
+@@session.ROCKSDB_MANUAL_COMPACTION_THREADS
+0
+"Trying to set variable @@session.ROCKSDB_MANUAL_COMPACTION_THREADS to 1"
+SET @@session.ROCKSDB_MANUAL_COMPACTION_THREADS   = 1;
+SELECT @@session.ROCKSDB_MANUAL_COMPACTION_THREADS;
+@@session.ROCKSDB_MANUAL_COMPACTION_THREADS
+1
+"Setting the session scope variable back to default"
+SET @@session.ROCKSDB_MANUAL_COMPACTION_THREADS = DEFAULT;
+SELECT @@session.ROCKSDB_MANUAL_COMPACTION_THREADS;
+@@session.ROCKSDB_MANUAL_COMPACTION_THREADS
+0
+"Trying to set variable @@session.ROCKSDB_MANUAL_COMPACTION_THREADS to 99"
+SET @@session.ROCKSDB_MANUAL_COMPACTION_THREADS   = 99;
+SELECT @@session.ROCKSDB_MANUAL_COMPACTION_THREADS;
+@@session.ROCKSDB_MANUAL_COMPACTION_THREADS
+99
+"Setting the session scope variable back to default"
+SET @@session.ROCKSDB_MANUAL_COMPACTION_THREADS = DEFAULT;
+SELECT @@session.ROCKSDB_MANUAL_COMPACTION_THREADS;
+@@session.ROCKSDB_MANUAL_COMPACTION_THREADS
+0
+'# Testing with invalid values in global scope #'
+"Trying to set variable @@global.ROCKSDB_MANUAL_COMPACTION_THREADS to 'aaa'"
+SET @@global.ROCKSDB_MANUAL_COMPACTION_THREADS   = 'aaa';
+Got one of the listed errors
+SELECT @@global.ROCKSDB_MANUAL_COMPACTION_THREADS;
+@@global.ROCKSDB_MANUAL_COMPACTION_THREADS
+0
+SET @@global.ROCKSDB_MANUAL_COMPACTION_THREADS = @start_global_value;
+SELECT @@global.ROCKSDB_MANUAL_COMPACTION_THREADS;
+@@global.ROCKSDB_MANUAL_COMPACTION_THREADS
+0
+SET @@session.ROCKSDB_MANUAL_COMPACTION_THREADS = @start_session_value;
+SELECT @@session.ROCKSDB_MANUAL_COMPACTION_THREADS;
+@@session.ROCKSDB_MANUAL_COMPACTION_THREADS
+0
+DROP TABLE valid_values;
+DROP TABLE invalid_values;

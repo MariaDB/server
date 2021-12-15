@@ -1,0 +1,13 @@
+create table d1 (a int);
+create temporary table t1 (a int);
+create temporary table t2 (a int);
+Got one of the listed errors
+create temporary table t3 (a int) engine=Aria;
+Got one of the listed errors
+select * from information_schema.columns where table_schema='test';
+Got one of the listed errors
+flush tables;
+select * from d1;
+a
+drop temporary table t1;
+drop table d1;

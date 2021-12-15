@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 #
 # Galera library does not compile with windows
@@ -26,7 +26,7 @@ ENDIF()
 OPTION(WITH_WSREP "WSREP replication API (to use, e.g. Galera Replication library)" ${with_wsrep_default})
 
 # Set the patch version
-SET(WSREP_PATCH_VERSION "21")
+SET(WSREP_PATCH_VERSION "24")
 
 # Obtain wsrep API version
 FILE(STRINGS "${MySQL_SOURCE_DIR}/wsrep/wsrep_api.h" WSREP_API_VERSION
@@ -40,4 +40,7 @@ SET(WSREP_PROC_INFO ${WITH_WSREP})
 
 IF(WITH_WSREP)
   SET(WSREP_PATCH_VERSION "wsrep_${WSREP_VERSION}")
+ENDIF()
+IF (NOT WIN32)
+  ADD_FEATURE_INFO(WSREP WITH_WSREP "WSREP replication API (to use, e.g. Galera Replication library)")
 ENDIF()

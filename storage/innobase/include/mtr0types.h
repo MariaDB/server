@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -36,16 +36,18 @@ struct mtr_t;
 /** Logging modes for a mini-transaction */
 enum mtr_log_t {
 	/** Default mode: log all operations modifying disk-based data */
-	MTR_LOG_ALL = 21,
+	MTR_LOG_ALL = 0,
 
-	/** Log no operations and dirty pages are not added to the flush list */
-	MTR_LOG_NONE = 22,
+	/** Log no operations and dirty pages are not added to the flush list.
+	Set when applying log in crash recovery or when a modification of a
+	ROW_FORMAT=COMPRESSED page is attempted. */
+	MTR_LOG_NONE,
 
 	/** Don't generate REDO log but add dirty pages to flush list */
-	MTR_LOG_NO_REDO = 23,
+	MTR_LOG_NO_REDO,
 
 	/** Inserts are logged in a shorter form */
-	MTR_LOG_SHORT_INSERTS = 24
+	MTR_LOG_SHORT_INSERTS
 };
 
 /** @name Log item types
@@ -100,13 +102,13 @@ enum mlog_id_t {
 	/** Create an index page */
 	MLOG_PAGE_CREATE = 19,
 
-	/** insert an undo log record (used in MariaDB 10.2) */
+	/** insert an undo log record */
 	MLOG_UNDO_INSERT = 20,
 
 	/** erase an undo log page end (used in MariaDB 10.2) */
 	MLOG_UNDO_ERASE_END = 21,
 
-	/** initialize a page in an undo log (used in MariaDB 10.2) */
+	/** initialize a page in an undo log */
 	MLOG_UNDO_INIT = 22,
 
 	/** reuse an insert undo log header (used in MariaDB 10.2) */
@@ -265,19 +267,17 @@ enum mtr_memo_type_t {
 
 	MTR_MEMO_X_LOCK = RW_X_LATCH << 5,
 
-	MTR_MEMO_SX_LOCK = RW_SX_LATCH << 5
+	MTR_MEMO_SX_LOCK = RW_SX_LATCH << 5,
+
+	/** acquire X-latch on fil_space_t::latch */
+	MTR_MEMO_SPACE_X_LOCK = MTR_MEMO_SX_LOCK << 1
 };
 #endif /* !UNIV_CHECKSUM */
 
-#ifdef UNIV_DEBUG
-# define MTR_MAGIC_N		54551
-#endif /* UNIV_DEBUG */
-
 enum mtr_state_t {
 	MTR_STATE_INIT = 0,
-	MTR_STATE_ACTIVE = 12231,
-	MTR_STATE_COMMITTING = 56456,
-	MTR_STATE_COMMITTED = 34676
+	MTR_STATE_ACTIVE,
+	MTR_STATE_COMMITTED
 };
 
 #endif /* mtr0types_h */

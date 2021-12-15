@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,15 +27,13 @@ Created 10/4/1994 Heikki Tuuri
 #ifndef page0cur_h
 #define page0cur_h
 
-#include "univ.i"
-
 #include "buf0types.h"
 #include "page0page.h"
+#include "rem0types.h"
 #include "rem0rec.h"
 #include "data0data.h"
 #include "mtr0mtr.h"
 #include "gis0type.h"
-
 
 #ifdef UNIV_DEBUG
 /*********************************************************//**
@@ -153,13 +152,10 @@ page_cur_tuple_insert(
 	page_cur_t*	cursor,	/*!< in/out: a page cursor */
 	const dtuple_t*	tuple,	/*!< in: pointer to a data tuple */
 	dict_index_t*	index,	/*!< in: record descriptor */
-	ulint**		offsets,/*!< out: offsets on *rec */
+	rec_offs**	offsets,/*!< out: offsets on *rec */
 	mem_heap_t**	heap,	/*!< in/out: pointer to memory heap, or NULL */
 	ulint		n_ext,	/*!< in: number of externally stored columns */
-	mtr_t*		mtr,	/*!< in: mini-transaction handle, or NULL */
-	bool		use_cache = false)
-				/*!< in: if true, then use record cache to
-				hold the tuple converted record. */
+	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
 	MY_ATTRIBUTE((nonnull(1,2,3,4,5), warn_unused_result));
 /***********************************************************//**
 Inserts a record next to page cursor. Returns pointer to inserted record if
@@ -180,7 +176,7 @@ page_cur_rec_insert(
 	page_cur_t*	cursor,	/*!< in/out: a page cursor */
 	const rec_t*	rec,	/*!< in: record to insert */
 	dict_index_t*	index,	/*!< in: record descriptor */
-	ulint*		offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr);	/*!< in: mini-transaction handle, or NULL */
 /***********************************************************//**
 Inserts a record next to page cursor on an uncompressed page.
@@ -194,7 +190,7 @@ page_cur_insert_rec_low(
 				which the new record is inserted */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: pointer to a physical record */
-	ulint*		offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
 	MY_ATTRIBUTE((nonnull(1,2,3,4), warn_unused_result));
 
@@ -216,7 +212,7 @@ page_cur_insert_rec_zip(
 	page_cur_t*	cursor,	/*!< in/out: page cursor */
 	dict_index_t*	index,	/*!< in: record descriptor */
 	const rec_t*	rec,	/*!< in: pointer to a physical record */
-	ulint*		offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mtr_t*		mtr)	/*!< in: mini-transaction handle, or NULL */
 	MY_ATTRIBUTE((nonnull(1,2,3,4), warn_unused_result));
 /*************************************************************//**
@@ -242,7 +238,7 @@ page_cur_delete_rec(
 /*================*/
 	page_cur_t*		cursor,	/*!< in/out: a page cursor */
 	const dict_index_t*	index,	/*!< in: record descriptor */
-	const ulint*		offsets,/*!< in: rec_get_offsets(
+	const rec_offs*		offsets,/*!< in: rec_get_offsets(
 					cursor->rec, index) */
 	mtr_t*			mtr);	/*!< in: mini-transaction handle */
 
@@ -330,6 +326,20 @@ page_cur_open_on_rnd_user_rec(
 /*==========================*/
 	buf_block_t*	block,	/*!< in: page */
 	page_cur_t*	cursor);/*!< out: page cursor */
+/** Write a redo log record of inserting a record into an index page.
+@param[in]	insert_rec	inserted record
+@param[in]	rec_size	rec_get_size(insert_rec)
+@param[in]	cursor_rec	predecessor of insert_rec
+@param[in,out]	index		index tree
+@param[in,out]	mtr		mini-transaction */
+void
+page_cur_insert_rec_write_log(
+	const rec_t*	insert_rec,
+	ulint		rec_size,
+	const rec_t*	cursor_rec,
+	dict_index_t*	index,
+	mtr_t*		mtr)
+	MY_ATTRIBUTE((nonnull));
 /***********************************************************//**
 Parses a log record of a record insert on a page.
 @return end of log record or NULL */
@@ -376,14 +386,14 @@ page_delete_rec(
 	page_cur_t*		pcur,	/*!< in/out: page cursor on record
 					to delete */
 	page_zip_des_t*		page_zip,/*!< in: compressed page descriptor */
-	const ulint*		offsets);/*!< in: offsets for record */
+	const rec_offs*		offsets);/*!< in: offsets for record */
 
 /** Index page cursor */
 
 struct page_cur_t{
 	const dict_index_t*	index;
 	rec_t*		rec;	/*!< pointer to a record on page */
-	ulint*		offsets;
+	rec_offs*	offsets;
 	buf_block_t*	block;	/*!< pointer to the block containing rec */
 };
 

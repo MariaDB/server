@@ -17,6 +17,7 @@ eval create table t1 (id integer, x integer) engine = InnoDB;
 insert into t1 values(0, 0);
 
 # Enable the debug injection.
+SET @saved_dbug = @@SESSION.debug_dbug;
 set DEBUG_DBUG='+d,fatal-semaphore-timeout';
 set autocommit=0;
 
@@ -87,7 +88,7 @@ while (!$mysql_errno)
   if (!$counter)
   {
     # This will fail this test.
-    --die Server failed to dissapear
+    --die Server failed to disappear
   }
   --sleep 1
 }
@@ -107,7 +108,7 @@ source include/wait_until_connected_again.inc;
 
 --echo # Cleaning up before exit
 --disable_warnings
-set DEBUG_DBUG=NULL;
+SET debug_dbug = @saved_dbug;
 drop table if exists t1;
 --enable_warnings
 

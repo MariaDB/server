@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 #pragma once
 
 /* C++ system header files */
@@ -54,28 +54,66 @@ struct Rdb_index_stats {
   int64_t m_entry_deletes, m_entry_single_deletes;
   int64_t m_entry_merges, m_entry_others;
   std::vector<int64_t> m_distinct_keys_per_prefix;
-  std::string m_name; // name is not persisted
+  std::string m_name;  // name is not persisted
 
-  static std::string materialize(const std::vector<Rdb_index_stats> &stats,
-                                 const float card_adj_extra);
+  static std::string materialize(const std::vector<Rdb_index_stats> &stats);
   static int unmaterialize(const std::string &s,
                            std::vector<Rdb_index_stats> *const ret);
 
   Rdb_index_stats() : Rdb_index_stats({0, 0}) {}
   explicit Rdb_index_stats(GL_INDEX_ID gl_index_id)
-      : m_gl_index_id(gl_index_id), m_data_size(0), m_rows(0),
-        m_actual_disk_size(0), m_entry_deletes(0), m_entry_single_deletes(0),
-        m_entry_merges(0), m_entry_others(0) {}
+      : m_gl_index_id(gl_index_id),
+        m_data_size(0),
+        m_rows(0),
+        m_actual_disk_size(0),
+        m_entry_deletes(0),
+        m_entry_single_deletes(0),
+        m_entry_merges(0),
+        m_entry_others(0) {}
 
-  void merge(const Rdb_index_stats &s, const bool &increment = true,
-             const int64_t &estimated_data_len = 0);
+  void merge(const Rdb_index_stats &s, const bool increment = true,
+             const int64_t estimated_data_len = 0);
+};
+
+// The helper class to calculate index cardinality
+class Rdb_tbl_card_coll {
+ public:
+  explicit Rdb_tbl_card_coll(const uint8_t table_stats_sampling_pct);
+
+ public:
+  void ProcessKey(const rocksdb::Slice &key, const Rdb_key_def *keydef,
+                  Rdb_index_stats *stats);
+  /*
+   * Resets the state of the collector to start calculating statistics for a
+   * next index.
+   */
+  void Reset();
+
+  /*
+   * Cardinality statistics might be calculated using some sampling strategy.
+   * This method adjusts gathered statistics according to the sampling
+   * strategy used. Note that adjusted cardinality value is just an estimate
+   * and can return a value exeeding number of rows in a table, so the
+   * returned value should be capped by row count before using it by
+   * an optrimizer or displaying it to a clent.
+   */
+  void AdjustStats(Rdb_index_stats *stats);
+
+ private:
+  bool ShouldCollectStats();
+  bool IsSampingDisabled();
+
+ private:
+  std::string m_last_key;
+  uint8_t m_table_stats_sampling_pct;
+  unsigned int m_seed;
 };
 
 class Rdb_tbl_prop_coll : public rocksdb::TablePropertiesCollector {
-public:
+ public:
   Rdb_tbl_prop_coll(Rdb_ddl_manager *const ddl_manager,
-                    const Rdb_compact_params &params, const uint32_t &cf_id,
-                    const uint8_t &table_stats_sampling_pct);
+                    const Rdb_compact_params &params, const uint32_t cf_id,
+                    const uint8_t table_stats_sampling_pct);
 
   /*
     Override parent class's virtual methods of interest.
@@ -85,10 +123,10 @@ public:
                                      const rocksdb::Slice &value,
                                      rocksdb::EntryType type,
                                      rocksdb::SequenceNumber seq,
-                                     uint64_t file_size);
+                                     uint64_t file_size) override;
 
-  virtual rocksdb::Status
-  Finish(rocksdb::UserCollectedProperties *properties) override;
+  virtual rocksdb::Status Finish(
+      rocksdb::UserCollectedProperties *properties) override;
 
   virtual const char *Name() const override { return "Rdb_tbl_prop_coll"; }
 
@@ -96,25 +134,25 @@ public:
 
   bool NeedCompact() const override;
 
-public:
+ public:
   uint64_t GetMaxDeletedRows() const { return m_max_deleted_rows; }
 
   static void read_stats_from_tbl_props(
       const std::shared_ptr<const rocksdb::TableProperties> &table_props,
       std::vector<Rdb_index_stats> *out_stats_vector);
 
-private:
+ private:
   static std::string GetReadableStats(const Rdb_index_stats &it);
 
   bool ShouldCollectStats();
   void CollectStatsForRow(const rocksdb::Slice &key,
                           const rocksdb::Slice &value,
                           const rocksdb::EntryType &type,
-                          const uint64_t &file_size);
+                          const uint64_t file_size);
   Rdb_index_stats *AccessStats(const rocksdb::Slice &key);
   void AdjustDeletedRows(rocksdb::EntryType type);
 
-private:
+ private:
   uint32_t m_cf_id;
   std::shared_ptr<const Rdb_key_def> m_keydef;
   Rdb_ddl_manager *m_ddl_manager;
@@ -130,17 +168,16 @@ private:
   uint64_t m_rows, m_window_pos, m_deleted_rows, m_max_deleted_rows;
   uint64_t m_file_size;
   Rdb_compact_params m_params;
-  uint8_t m_table_stats_sampling_pct;
-  unsigned int m_seed;
-  float m_card_adj_extra;
+  Rdb_tbl_card_coll m_cardinality_collector;
+  bool m_recorded;
 };
 
 class Rdb_tbl_prop_coll_factory
     : public rocksdb::TablePropertiesCollectorFactory {
-public:
+ public:
   Rdb_tbl_prop_coll_factory(const Rdb_tbl_prop_coll_factory &) = delete;
-  Rdb_tbl_prop_coll_factory &
-  operator=(const Rdb_tbl_prop_coll_factory &) = delete;
+  Rdb_tbl_prop_coll_factory &operator=(const Rdb_tbl_prop_coll_factory &) =
+      delete;
 
   explicit Rdb_tbl_prop_coll_factory(Rdb_ddl_manager *ddl_manager)
       : m_ddl_manager(ddl_manager) {}
@@ -160,19 +197,19 @@ public:
     return "Rdb_tbl_prop_coll_factory";
   }
 
-public:
+ public:
   void SetCompactionParams(const Rdb_compact_params &params) {
     m_params = params;
   }
 
-  void SetTableStatsSamplingPct(const uint8_t &table_stats_sampling_pct) {
+  void SetTableStatsSamplingPct(const uint8_t table_stats_sampling_pct) {
     m_table_stats_sampling_pct = table_stats_sampling_pct;
   }
 
-private:
+ private:
   Rdb_ddl_manager *const m_ddl_manager;
   Rdb_compact_params m_params;
   uint8_t m_table_stats_sampling_pct;
 };
 
-} // namespace myrocks
+}  // namespace myrocks

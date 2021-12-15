@@ -29,14 +29,20 @@
 class Unique :public Sql_alloc
 {
   DYNAMIC_ARRAY file_ptrs;
-  ulong max_elements;
+  ulong max_elements;   /* Total number of elements that will be stored in-memory */
   size_t max_in_memory_size;
   IO_CACHE file;
   TREE tree;
+ /* Number of elements filtered out due to min_dupl_count when storing results
+    to table. See Unique::get */
   ulong filtered_out_elems;
   uint size;
-  uint full_size;
-  uint min_dupl_count;   /* always 0 for unions, > 0 for intersections */
+
+  uint full_size;   /* Size of element + space needed to store the number of
+                       duplicates found for the element. */
+  uint min_dupl_count;   /* Minimum number of occurences of element required for
+                            it to be written to record_pointers.
+                            always 0 for unions, > 0 for intersections */
   bool with_counters;
 
   bool merge(TABLE *table, uchar *buff, bool without_last_merge);
@@ -77,8 +83,11 @@ public:
   inline static int get_cost_calc_buff_size(size_t nkeys, uint key_size,
                                             size_t max_in_memory_size)
   {
-    register size_t max_elems_in_tree=
+    size_t max_elems_in_tree=
       max_in_memory_size / ALIGN_SIZE(sizeof(TREE_ELEMENT)+key_size);
+
+    if (max_elems_in_tree == 0)
+      max_elems_in_tree= 1;
     return (int) (sizeof(uint)*(1 + nkeys/max_elems_in_tree));
   }
 

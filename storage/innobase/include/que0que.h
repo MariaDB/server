@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,18 +27,13 @@ Created 5/27/1996 Heikki Tuuri
 #ifndef que0que_h
 #define que0que_h
 
-#include "univ.i"
 #include "data0data.h"
-#include "dict0types.h"
 #include "trx0trx.h"
 #include "trx0roll.h"
 #include "srv0srv.h"
 #include "que0types.h"
 #include "row0types.h"
 #include "pars0types.h"
-
-/** Mutex protecting the query threads. */
-extern ib_mutex_t	que_thr_mutex;
 
 /***********************************************************************//**
 Creates a query graph fork node.
@@ -171,16 +166,6 @@ trx_t*
 thr_get_trx(
 /*========*/
 	que_thr_t*	thr);	/*!< in: query thread */
-/*******************************************************************//**
-Determines if this thread is rolling back an incomplete transaction
-in crash recovery.
-@return TRUE if thr is rolling back an incomplete transaction in crash
-recovery */
-UNIV_INLINE
-ibool
-thr_is_recv(
-/*========*/
-	const que_thr_t*	thr);	/*!< in: query thread */
 /***********************************************************************//**
 Gets the type of a graph node. */
 UNIV_INLINE
@@ -318,7 +303,6 @@ que_fork_scheduler_round_robin(
 /** Query thread states */
 enum que_thr_state_t {
 	QUE_THR_RUNNING,
-	QUE_THR_PROCEDURE_WAIT,
 	/** in selects this means that the thread is at the end of its
 	result set (or start, in case of a scroll cursor); in other
 	statements, this means the thread has done its task */
@@ -380,6 +364,9 @@ struct que_thr_t{
 					related delete/updates */
 	row_prebuilt_t*	prebuilt;	/*!< prebuilt structure processed by
 					the query thread */
+
+	/** a slot of srv_sys.sys_threads, for DEBUG_SYNC in purge thread */
+	ut_d(srv_slot_t* thread_slot;)
 };
 
 #define QUE_THR_MAGIC_N		8476583
@@ -443,39 +430,6 @@ struct que_fork_t{
 
 /* Flag which is ORed to control structure statement node types */
 #define QUE_NODE_CONTROL_STAT	1024
-
-/* Query graph node types */
-#define	QUE_NODE_LOCK		1
-#define	QUE_NODE_INSERT		2
-#define QUE_NODE_UPDATE		4
-#define	QUE_NODE_CURSOR		5
-#define	QUE_NODE_SELECT		6
-#define	QUE_NODE_AGGREGATE	7
-#define QUE_NODE_FORK		8
-#define QUE_NODE_THR		9
-#define QUE_NODE_UNDO		10
-#define QUE_NODE_COMMIT		11
-#define QUE_NODE_ROLLBACK	12
-#define QUE_NODE_PURGE		13
-#define QUE_NODE_CREATE_TABLE	14
-#define QUE_NODE_CREATE_INDEX	15
-#define QUE_NODE_SYMBOL		16
-#define QUE_NODE_RES_WORD	17
-#define QUE_NODE_FUNC		18
-#define QUE_NODE_ORDER		19
-#define QUE_NODE_PROC		(20 + QUE_NODE_CONTROL_STAT)
-#define QUE_NODE_IF		(21 + QUE_NODE_CONTROL_STAT)
-#define QUE_NODE_WHILE		(22 + QUE_NODE_CONTROL_STAT)
-#define QUE_NODE_ASSIGNMENT	23
-#define QUE_NODE_FETCH		24
-#define QUE_NODE_OPEN		25
-#define QUE_NODE_COL_ASSIGNMENT	26
-#define QUE_NODE_FOR		(27 + QUE_NODE_CONTROL_STAT)
-#define QUE_NODE_RETURN		28
-#define QUE_NODE_ROW_PRINTF	29
-#define QUE_NODE_ELSIF		30
-#define QUE_NODE_CALL		31
-#define QUE_NODE_EXIT		32
 
 #include "que0que.ic"
 

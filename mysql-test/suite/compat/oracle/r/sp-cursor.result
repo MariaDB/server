@@ -459,7 +459,7 @@ CALL p1('b1');
 msg
 Fetched a record a=0
 Warnings:
-Warning	1366	Incorrect integer value: 'b1' for column 'p_a' at row 1
+Warning	1366	Incorrect integer value: 'b1' for column ``.``.`p_a` at row 1
 DROP PROCEDURE p1;
 #
 # One parameter in SELECT list + subselect
@@ -776,7 +776,7 @@ FETCH c INTO a, b;
 EXIT WHEN c%NOTFOUND;
 SELECT a, b;
 END LOOP;
-CLOSE ' at line 5
+CLO...' at line 5
 DROP TABLE t1;
 #
 # MDEV-10577 sql_mode=ORACLE: %TYPE in variable declarations
@@ -949,3 +949,31 @@ def					c%FOUND	3	1	0	Y	32896	0	63
 def					c%ROWCOUNT	8	21	1	Y	32896	0	63
 c%ISOPEN	c%NOTFOUND	c%FOUND	c%ROWCOUNT
 1	NULL	NULL	0
+#
+# MDEV-17387 MariaDB Server giving wrong error while executing select query from procedure
+#
+CREATE TABLE t1
+(
+JOBN varchar(18) NOT NULL,
+pk int(11) NOT NULL,
+PRIMARY KEY (pk),
+KEY (JOBN)
+);
+CREATE PROCEDURE p1
+AS
+lS NUMBER(10) :=0;
+CURSOR cBPD IS SELECT * FROM t1 WHERE JOBN='x';
+BEGIN
+FOR lbpd IN cBPD LOOP
+lS:=lS+1;
+END LOOP;
+EXCEPTION
+WHEN OTHERS THEN
+BEGIN
+SELECT SQLERRM;
+END;
+END;
+$$
+CALL p1();
+DROP PROCEDURE p1;
+DROP TABLE t1;

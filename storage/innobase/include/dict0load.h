@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -28,13 +28,11 @@ Created 4/24/1996 Heikki Tuuri
 #ifndef dict0load_h
 #define dict0load_h
 
-#include "univ.i"
 #include "dict0types.h"
 #include "trx0types.h"
 #include "ut0byte.h"
 #include "mem0mem.h"
 #include "btr0types.h"
-#include "ut0new.h"
 
 #include <deque>
 
@@ -57,15 +55,6 @@ enum dict_system_id_t {
 	SYS_NUM_SYSTEM_TABLES
 };
 
-/** Status bit for dict_process_sys_tables_rec_and_mtr_commit() */
-enum dict_table_info_t {
-	DICT_TABLE_LOAD_FROM_RECORD = 0,/*!< Directly populate a dict_table_t
-					structure with information from
-					a SYS_TABLES record */
-	DICT_TABLE_LOAD_FROM_CACHE = 1	/*!< Check first whether dict_table_t
-					is in the cache, if so, return it */
-};
-
 /** Check each tablespace found in the data dictionary.
 Look at each table defined in SYS_TABLES that has a space_id > 0.
 If the tablespace is not yet in the fil_system cache, look up the
@@ -78,11 +67,8 @@ space_id information in the data dictionary to what we find in the
 tablespace file. In addition, more validation will be done if recovery
 was needed and force_recovery is not set.
 
-We also scan the biggest space id, and store it to fil_system.
-@param[in]	validate	true if recovery was needed */
-void
-dict_check_tablespaces_and_store_max_id(
-	bool		validate);
+We also scan the biggest space id, and store it to fil_system. */
+void dict_check_tablespaces_and_store_max_id();
 
 /********************************************************************//**
 Finds the first table name in the given database.
@@ -92,14 +78,6 @@ char*
 dict_get_first_table_name_in_db(
 /*============================*/
 	const char*	name);	/*!< in: database name which ends to '/' */
-
-/** Get the first filepath from SYS_DATAFILES for a given space_id.
-@param[in]	space_id	Tablespace ID
-@return First filepath (caller must invoke ut_free() on it)
-@retval NULL if no SYS_DATAFILES entry was found. */
-char*
-dict_get_first_path(
-	ulint	space_id);
 
 /** Make sure the data_file_name is saved in dict_table_t if needed.
 Try to read it from the fil_system first, then from SYS_DATAFILES.
@@ -115,17 +93,12 @@ the cluster definition if the table is a member in a cluster. Also loads
 all foreign key constraints where the foreign key is in the table or where
 a foreign key references columns in this table.
 @param[in]	name		Table name in the dbname/tablename format
-@param[in]	cached		true=add to cache, false=do not
 @param[in]	ignore_err	Error to be ignored when loading
 				table and its index definition
 @return table, NULL if does not exist; if the table is stored in an
 .ibd file, but the file does not exist, then we set the file_unreadable
 flag in the table object we return. */
-dict_table_t*
-dict_load_table(
-	const char*	name,
-	bool		cached,
-	dict_err_ignore_t ignore_err);
+dict_table_t* dict_load_table(const char* name, dict_err_ignore_t ignore_err);
 
 /***********************************************************************//**
 Loads a table object based on the table id.
@@ -201,10 +174,7 @@ dict_process_sys_tables_rec_and_mtr_commit(
 	mem_heap_t*	heap,		/*!< in: temporary memory heap */
 	const rec_t*	rec,		/*!< in: SYS_TABLES record */
 	dict_table_t**	table,		/*!< out: dict_table_t to fill */
-	dict_table_info_t status,	/*!< in: status bit controls
-					options such as whether we shall
-					look for dict_table_t from cache
-					first */
+	bool		cached,		/*!< in: whether to load from cache */
 	mtr_t*		mtr);		/*!< in/out: mini-transaction,
 					will be committed */
 /********************************************************************//**
@@ -245,7 +215,6 @@ information
 @return error message, or NULL on success */
 const char*
 dict_process_sys_virtual_rec(
-	mem_heap_t*	heap,
 	const rec_t*	rec,
 	table_id_t*	table_id,
 	ulint*		pos,

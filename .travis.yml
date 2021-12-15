@@ -11,23 +11,24 @@ language: cpp
 os:
   - linux
   - osx
-osx_image: xcode9.1
+osx_image: xcode12u
 compiler:
   - gcc
   - clang
 
 cache:
+  timeout: 500
   apt: true
-  ccache: true # Does not currently work for clang builds: https://github.com/travis-ci/travis-ci/issues/6201
-  directories:
-    - /usr/local/Cellar # Fails do to permission error: https://github.com/travis-ci/travis-ci/issues/8092
+  ccache: true
 
 env:
   matrix:
-    - GCC_VERSION=4.8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
-    - GCC_VERSION=5   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main,archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
-    - GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb
-    - GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
+    - CC_VERSION=5 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
+    - CC_VERSION=5 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
+    - CC_VERSION=5 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
+    - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption
+    - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb,versioning
+    - CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
 
 matrix:
   exclude:
@@ -46,6 +47,7 @@ matrix:
             - cmake
             - debhelper
             - dh-apparmor
+            - dh-exec
             - dpatch
             - gdb
             - libaio-dev
@@ -81,39 +83,44 @@ matrix:
       # https://github.com/travis-ci/travis-ci/issues/7062 - /run/shm isn't writable or executable
       # in trusty containers
         - export MTR_MEM=/tmp
-        - env DEB_BUILD_OPTIONS="parallel=6" debian/autobake-deb.sh;
+        - env DEB_BUILD_OPTIONS="parallel=4" debian/autobake-deb.sh;
         - ccache --show-stats
-  # Until OSX becomes a bit more stable: MDEV-12435
+  # Until OSX becomes a bit more stable: MDEV-12435 MDEV-16213
   allow_failures:
     - os: osx
       compiler: clang
-      env: GCC_VERSION=4.8 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
+      env: CC_VERSION=5 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rpl
     - os: osx
       compiler: clang
-      env: GCC_VERSION=5   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main,archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
+      env: CC_VERSION=5 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=main
     - os: osx
       compiler: clang
-      env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption,rocksdb
+      env: CC_VERSION=5 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=archive,optimizer_unfixed_bugs,parts,sys_vars,unit,vcol,innodb,innodb_gis,innodb_zip,innodb_fts
     - os: osx
       compiler: clang
-      env: GCC_VERSION=6   TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
+      env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=binlog,binlog_encryption,encryption
+    - os: osx
+      compiler: clang
+      env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=rocksdb,versioning
+    - os: osx
+      compiler: clang
+      env: CC_VERSION=6 TYPE=RelWithDebInfo MYSQL_TEST_SUITES=csv,federated,funcs_1,funcs_2,gcol,handler,heap,json,maria,perfschema,plugins,multi_source,roles
 
 addons:
   apt:
     sources:
       - ubuntu-toolchain-r-test
-      - llvm-toolchain-trusty-4.0
-      - sourceline: 'deb http://apt.llvm.org/trusty/ llvm-toolchain-trusty-5.0 main'
+      - llvm-toolchain-trusty-5.0
+      - llvm-toolchain-trusty-6.0
     packages: # make sure these include all compilers and all build dependencies (see list above)
       - gcc-5
       - g++-5
       - gcc-6
       - g++-6
-      - clang-4.0
-      - llvm-4.0-dev
       - clang-5.0
       - llvm-5.0-dev
-      - libasan0
+      - clang-6.0
+      - llvm-6.0-dev
       - bison
       - chrpath
       - cmake
@@ -148,29 +155,34 @@ addons:
 before_install:
   - if [[ "${TRAVIS_OS_NAME}" == 'osx' ]]; then
       brew update;
-      brew install gnutls lz4 lzo xz snappy ccache jemalloc curl ossp-uuid pcre;
+      brew install gnutls lz4 lzo xz snappy ccache jemalloc curl ossp-uuid pcre zstd;
       brew link ccache;
+      export PATH="/usr/local/opt/ccache/libexec:$PATH";
     fi
 
-script:
+before_script:
+  - df -h
   - ccache --version
-# Clang:
-#   mroonga just generates too many warnings with clang and travis stops the job
-#   tokudb has fatal warnings
+  - ccache --show-stats
+
+script:
+# following modules are disabled after sourcing .travis.compiler.sh:
+# clang disabled: mroonga just generates too many warnings with clang and travis stops the job
+# cland disabled: tokudb has fatal warnings
+# gcc/rpl: tokudb and mroonga
   - source .travis.compiler.sh
   - cmake .
            -DCMAKE_BUILD_TYPE=${TYPE}
            ${CMAKE_OPT}
-           -DWITH_SSL=system -DWITH_ZLIB=system -DPLUGIN_AWS_KEY_MANAGEMENT=DYNAMIC -DAWS_SDK_EXTERNAL_PROJECT=ON
-  - make -j 6
+           -DWITH_SSL=system -DWITH_ZLIB=system
+  - make -j 4
   - cd mysql-test
-# With ASAN --thread-stack=400K to account for overhead
-# Test timeout needs to be 10(minutes) or less due to travis out timeout
-  - ./mtr --force --max-test-fail=20 --parallel=6 --testcase-timeout=2
+  - travis_wait 30 ./mtr --force --max-test-fail=20 --parallel=4 --testcase-timeout=${TEST_CASE_TIMEOUT}
          --suite=${MYSQL_TEST_SUITES}
          --skip-test-list=unstable-tests
          --skip-test=binlog.binlog_unsafe
   - ccache --show-stats
+  - df -h
 
 notifications:
   irc:

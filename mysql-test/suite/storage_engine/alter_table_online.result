@@ -24,7 +24,7 @@ CREATE TABLE t1 (a <INT_COLUMN>, b <INT_COLUMN>, c <CHAR_COLUMN>) ENGINE=<STORAG
 INSERT INTO t1 (a,b,c) VALUES (1,100,'a'),(2,200,'b'),(3,300,'c');
 ALTER ONLINE TABLE t1 DROP COLUMN b, ADD b <INT_COLUMN>;
 ALTER ONLINE TABLE t1 MODIFY b BIGINT <CUSTOM_COL_OPTIONS>;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Cannot change column type INPLACE. Try LOCK=SHARED.
+ERROR 0A000: LOCK=NONE is not supported. Reason: Cannot change column type. Try LOCK=SHARED.
 ALTER ONLINE TABLE t1 ENGINE=MEMORY;
 ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED.
 DROP TABLE t1;

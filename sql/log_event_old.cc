@@ -1,4 +1,5 @@
-/* Copyright (c) 2007, 2016, Oracle and/or its affiliates.
+/* Copyright (c) 2007, 2019, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2019, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mariadb.h"
 #include "sql_priv.h"
@@ -98,23 +99,22 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
     */
     ev_thd->lex->set_stmt_row_injection();
 
-    if (open_and_lock_tables(ev_thd, rgi->tables_to_lock, FALSE, 0))
+    if (unlikely(open_and_lock_tables(ev_thd, rgi->tables_to_lock, FALSE, 0)))
     {
-      uint actual_error= ev_thd->get_stmt_da()->sql_errno();
-      if (ev_thd->is_slave_error || ev_thd->is_fatal_error)
+      if (ev_thd->is_error())
       {
         /*
           Error reporting borrowed from Query_log_event with many excessive
-          simplifications (we don't honour --slave-skip-errors)
+          simplifications.
+          We should not honour --slave-skip-errors at this point as we are
+          having severe errors which should not be skipped.
         */
-        rli->report(ERROR_LEVEL, actual_error, NULL,
+        rli->report(ERROR_LEVEL, ev_thd->get_stmt_da()->sql_errno(), NULL,
                     "Error '%s' on opening tables",
-                    (actual_error ? ev_thd->get_stmt_da()->message() :
-                     "unexpected success or fatal error"));
+                    ev_thd->get_stmt_da()->message());
         ev_thd->is_slave_error= 1;
       }
-      rgi->slave_close_thread_tables(thd);
-      DBUG_RETURN(actual_error);
+      DBUG_RETURN(1);
     }
 
     /*
@@ -227,7 +227,8 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
     while (error == 0 && row_start < ev->m_rows_end)
     {
       uchar const *row_end= NULL;
-      if ((error= do_prepare_row(ev_thd, rgi, table, row_start, &row_end)))
+      if (unlikely((error= do_prepare_row(ev_thd, rgi, table, row_start,
+                                          &row_end))))
         break; // We should perform the after-row operation even in
                // the case of error
 
@@ -266,7 +267,7 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
     error= do_after_row_operations(table, error);
   }
 
-  if (error)
+  if (unlikely(error))
   {                     /* error has occurred during the transaction */
     rli->report(ERROR_LEVEL, ev_thd->get_stmt_da()->sql_errno(), NULL,
                 "Error in %s event: error during transaction execution "
@@ -477,14 +478,14 @@ replace_record(THD *thd, TABLE *table,
   DBUG_PRINT_BITSET("debug", "read_set = %s", table->read_set);
 #endif
 
-  while ((error= table->file->ha_write_row(table->record[0])))
+  while (unlikely(error= table->file->ha_write_row(table->record[0])))
   {
     if (error == HA_ERR_LOCK_DEADLOCK || error == HA_ERR_LOCK_WAIT_TIMEOUT)
     {
       table->file->print_error(error, MYF(0)); /* to check at exec_relay_log_event */
       DBUG_RETURN(error);
     }
-    if ((keynum= table->file->get_dup_key(error)) < 0)
+    if (unlikely((keynum= table->file->get_dup_key(error)) < 0))
     {
       table->file->print_error(error, MYF(0));
       /*
@@ -508,18 +509,16 @@ replace_record(THD *thd, TABLE *table,
     if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
     {
       error= table->file->ha_rnd_pos(table->record[1], table->file->dup_ref);
-      if (error)
+      if (unlikely(error))
       {
         DBUG_PRINT("info",("rnd_pos() returns error %d",error));
-        if (error == HA_ERR_RECORD_DELETED)
-          error= HA_ERR_KEY_NOT_FOUND;
         table->file->print_error(error, MYF(0));
         DBUG_RETURN(error);
       }
     }
     else
     {
-      if (table->file->extra(HA_EXTRA_FLUSH_CACHE))
+      if (unlikely(table->file->extra(HA_EXTRA_FLUSH_CACHE)))
       {
         DBUG_RETURN(my_errno);
       }
@@ -527,7 +526,7 @@ replace_record(THD *thd, TABLE *table,
       if (key.get() == NULL)
       {
         key.assign(static_cast<char*>(my_alloca(table->s->max_unique_length)));
-        if (key.get() == NULL)
+        if (unlikely(key.get() == NULL))
           DBUG_RETURN(ENOMEM);
       }
 
@@ -537,11 +536,9 @@ replace_record(THD *thd, TABLE *table,
                                                 (const uchar*)key.get(),
                                                 HA_WHOLE_KEY,
                                                 HA_READ_KEY_EXACT);
-      if (error)
+      if (unlikely(error))
       {
         DBUG_PRINT("info", ("index_read_idx() returns error %d", error));
-        if (error == HA_ERR_RECORD_DELETED)
-          error= HA_ERR_KEY_NOT_FOUND;
         table->file->print_error(error, MYF(0));
         DBUG_RETURN(error);
       }
@@ -577,7 +574,7 @@ replace_record(THD *thd, TABLE *table,
     {
       error=table->file->ha_update_row(table->record[1],
                                        table->record[0]);
-      if (error && error != HA_ERR_RECORD_IS_THE_SAME)
+      if (unlikely(error) && error != HA_ERR_RECORD_IS_THE_SAME)
         table->file->print_error(error, MYF(0));
       else
         error= 0;
@@ -585,7 +582,7 @@ replace_record(THD *thd, TABLE *table,
     }
     else
     {
-      if ((error= table->file->ha_delete_row(table->record[1])))
+      if (unlikely((error= table->file->ha_delete_row(table->record[1]))))
       {
         table->file->print_error(error, MYF(0));
         DBUG_RETURN(error);
@@ -671,7 +668,8 @@ static int find_and_fetch_row(TABLE *table, uchar *key)
   {
     int error;
     /* We have a key: search the table using the index */
-    if (!table->file->inited && (error= table->file->ha_index_init(0, FALSE)))
+    if (!table->file->inited &&
+        unlikely(error= table->file->ha_index_init(0, FALSE)))
     {
       table->file->print_error(error, MYF(0));
       DBUG_RETURN(error);
@@ -695,9 +693,9 @@ static int find_and_fetch_row(TABLE *table, uchar *key)
     my_ptrdiff_t const pos=
       table->s->null_bytes > 0 ? table->s->null_bytes - 1 : 0;
     table->record[1][pos]= 0xFF;
-    if ((error= table->file->ha_index_read_map(table->record[1], key,
-                                               HA_WHOLE_KEY,
-                                               HA_READ_KEY_EXACT)))
+    if (unlikely((error= table->file->ha_index_read_map(table->record[1], key,
+                                                        HA_WHOLE_KEY,
+                                                        HA_READ_KEY_EXACT))))
     {
       table->file->print_error(error, MYF(0));
       table->file->ha_index_end();
@@ -738,9 +736,6 @@ static int find_and_fetch_row(TABLE *table, uchar *key)
 
       while ((error= table->file->ha_index_next(table->record[1])))
       {
-        /* We just skip records that has already been deleted */
-        if (error == HA_ERR_RECORD_DELETED)
-          continue;
         table->file->print_error(error, MYF(0));
         table->file->ha_index_end();
         DBUG_RETURN(error);
@@ -758,13 +753,12 @@ static int find_and_fetch_row(TABLE *table, uchar *key)
     int error;
 
     /* We don't have a key: search the table using rnd_next() */
-    if ((error= table->file->ha_rnd_init_with_error(1)))
+    if (unlikely((error= table->file->ha_rnd_init_with_error(1))))
       return error;
 
     /* Continue until we find the right record or have made a full loop */
     do
     {
-  restart_rnd_next:
       error= table->file->ha_rnd_next(table->record[1]);
 
       DBUG_DUMP("record[0]", table->record[0], table->s->reclength);
@@ -774,18 +768,11 @@ static int find_and_fetch_row(TABLE *table, uchar *key)
       case 0:
         break;
 
-      /*
-        If the record was deleted, we pick the next one without doing
-        any comparisons.
-      */
-      case HA_ERR_RECORD_DELETED:
-        goto restart_rnd_next;
-
       case HA_ERR_END_OF_FILE:
         if (++restart_count < 2)
         {
           int error2;
-          if ((error2= table->file->ha_rnd_init_with_error(1)))
+          if (unlikely((error2= table->file->ha_rnd_init_with_error(1))))
             DBUG_RETURN(error2);
         }
         break;
@@ -848,12 +835,12 @@ int Write_rows_log_event_old::do_after_row_operations(TABLE *table, int error)
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
   /*
-    reseting the extra with 
+    resetting the extra with 
     table->file->extra(HA_EXTRA_NO_IGNORE_NO_KEY); 
     fires bug#27077
     todo: explain or fix
   */
-  if ((local_error= table->file->ha_end_bulk_insert()))
+  if (unlikely((local_error= table->file->ha_end_bulk_insert())))
   {
     table->file->print_error(local_error, MYF(0));
   }
@@ -985,7 +972,7 @@ int Delete_rows_log_event_old::do_exec_row(TABLE *table)
   int error;
   DBUG_ASSERT(table != NULL);
 
-  if (!(error= ::find_and_fetch_row(table, m_key)))
+  if (likely(!(error= ::find_and_fetch_row(table, m_key))))
   { 
     /*
       Now we should have the right row to delete.  We are using
@@ -1094,7 +1081,7 @@ int Update_rows_log_event_old::do_exec_row(TABLE *table)
   DBUG_ASSERT(table != NULL);
 
   int error= ::find_and_fetch_row(table, m_key);
-  if (error)
+  if (unlikely(error))
     return error;
 
   /*
@@ -1120,7 +1107,7 @@ int Update_rows_log_event_old::do_exec_row(TABLE *table)
     database into the after image delivered from the master.
   */
   error= table->file->ha_update_row(table->record[1], table->record[0]);
-  if (error == HA_ERR_RECORD_IS_THE_SAME)
+  if (unlikely(error == HA_ERR_RECORD_IS_THE_SAME))
     error= 0;
 
   return error;
@@ -1233,7 +1220,14 @@ Old_rows_log_event::Old_rows_log_event(const char *buf, uint event_len,
   DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
   m_width = net_field_length(&ptr_after_width);
   DBUG_PRINT("debug", ("m_width=%lu", m_width));
-  /* if my_bitmap_init fails, catched in is_valid() */
+  /* Avoid reading out of buffer */
+  if (ptr_after_width + m_width > (uchar *)buf + event_len)
+  {
+    m_cols.bitmap= NULL;
+    DBUG_VOID_RETURN;
+  }
+
+  /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols,
                           m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
                           m_width,
@@ -1409,8 +1403,8 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
     */
     lex_start(thd);
 
-    if ((error= lock_tables(thd, rgi->tables_to_lock,
-                               rgi->tables_to_lock_count, 0)))
+    if (unlikely((error= lock_tables(thd, rgi->tables_to_lock,
+                                     rgi->tables_to_lock_count, 0))))
     {
       if (thd->is_slave_error || thd->is_fatal_error)
       {
@@ -1602,7 +1596,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
       DBUG_PRINT("info", ("curr_row: %p; curr_row_end:%p; rows_end: %p",
                           m_curr_row, m_curr_row_end, m_rows_end));
 
-      if (!m_curr_row_end && !error)
+      if (!m_curr_row_end && likely(!error))
         unpack_current_row(rgi);
   
       // at this moment m_curr_row_end should be set
@@ -1619,7 +1613,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
     error= do_after_row_operations(rli, error);
   } // if (table)
 
-  if (error)
+  if (unlikely(error))
   {                     /* error has occurred during the transaction */
     rli->report(ERROR_LEVEL, thd->net.last_errno, NULL,
                 "Error in %s event: error during transaction execution "
@@ -1703,7 +1697,9 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
       already. So there should be no need to rollback the transaction.
     */
     DBUG_ASSERT(! thd->transaction_rollback_request);
-    if ((error= (binlog_error ? trans_rollback_stmt(thd) : trans_commit_stmt(thd))))
+    if (unlikely((error= (binlog_error ?
+                          trans_rollback_stmt(thd) :
+                          trans_commit_stmt(thd)))))
       rli->report(ERROR_LEVEL, error, NULL,
                   "Error in %s event: commit of row events failed, "
                   "table `%s`.`%s`",
@@ -1845,27 +1841,36 @@ void Old_rows_log_event::pack_info(Protocol *protocol)
 
 
 #ifdef MYSQL_CLIENT
+/* Method duplicates Rows_log_event's one */
 bool Old_rows_log_event::print_helper(FILE *file,
                                       PRINT_EVENT_INFO *print_event_info,
                                       char const *const name)
 {
   IO_CACHE *const head= &print_event_info->head_cache;
   IO_CACHE *const body= &print_event_info->body_cache;
+  IO_CACHE *const tail= &print_event_info->tail_cache;
+  bool do_print_encoded=
+    print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
+    print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
+    !print_event_info->short_form;
+
   if (!print_event_info->short_form)
   {
-    bool const last_stmt_event= get_flags(STMT_END_F);
-    if (print_header(head, print_event_info, !last_stmt_event) ||
+    if (print_header(head, print_event_info, !do_print_encoded) ||
         my_b_printf(head, "\t%s: table id %lu%s\n",
                     name, m_table_id,
-                    last_stmt_event ? " flags: STMT_END_F" : "") ||
-        print_base64(body, print_event_info, !last_stmt_event))
+                    do_print_encoded ? " flags: STMT_END_F" : "") ||
+        print_base64(body, print_event_info, do_print_encoded))
       goto err;
   }
 
   if (get_flags(STMT_END_F))
   {
     if (copy_event_cache_to_file_and_reinit(head, file) ||
-        copy_event_cache_to_file_and_reinit(body, file))
+        copy_cache_to_file_wrapped(body, file, do_print_encoded,
+                                   print_event_info->delimiter,
+                                   print_event_info->verbose) ||
+        copy_event_cache_to_file_and_reinit(tail, file))
       goto err;
   }
   return 0;
@@ -1924,8 +1929,9 @@ Old_rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
 
   /* fill table->record[0] with default values */
 
-  if ((error= prepare_record(table, m_width,
-                             TRUE /* check if columns have def. values */)))
+  if (unlikely((error=
+                prepare_record(table, m_width,
+                               TRUE /* check if columns have def. values */))))
     DBUG_RETURN(error);
   
   /* unpack row into table->record[0] */
@@ -1946,14 +1952,14 @@ Old_rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
     TODO: Add safety measures against infinite looping. 
    */
 
-  while ((error= table->file->ha_write_row(table->record[0])))
+  while (unlikely(error= table->file->ha_write_row(table->record[0])))
   {
     if (error == HA_ERR_LOCK_DEADLOCK || error == HA_ERR_LOCK_WAIT_TIMEOUT)
     {
       table->file->print_error(error, MYF(0)); /* to check at exec_relay_log_event */
       DBUG_RETURN(error);
     }
-    if ((keynum= table->file->get_dup_key(error)) < 0)
+    if (unlikely((keynum= table->file->get_dup_key(error)) < 0))
     {
       DBUG_PRINT("info",("Can't locate duplicate key (get_dup_key returns %d)",keynum));
       table->file->print_error(error, MYF(0));
@@ -1979,11 +1985,9 @@ Old_rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
     {
       DBUG_PRINT("info",("Locating offending record using rnd_pos()"));
       error= table->file->ha_rnd_pos(table->record[1], table->file->dup_ref);
-      if (error)
+      if (unlikely(error))
       {
         DBUG_PRINT("info",("rnd_pos() returns error %d",error));
-        if (error == HA_ERR_RECORD_DELETED)
-          error= HA_ERR_KEY_NOT_FOUND;
         table->file->print_error(error, MYF(0));
         DBUG_RETURN(error);
       }
@@ -2001,7 +2005,7 @@ Old_rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
       if (key.get() == NULL)
       {
         key.assign(static_cast<char*>(my_alloca(table->s->max_unique_length)));
-        if (key.get() == NULL)
+        if (unlikely(key.get() == NULL))
         {
           DBUG_PRINT("info",("Can't allocate key buffer"));
           DBUG_RETURN(ENOMEM);
@@ -2014,11 +2018,9 @@ Old_rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
                                                 (const uchar*)key.get(),
                                                 HA_WHOLE_KEY,
                                                 HA_READ_KEY_EXACT);
-      if (error)
+      if (unlikely(error))
       {
         DBUG_PRINT("info",("index_read_idx() returns error %d", error));
-        if (error == HA_ERR_RECORD_DELETED)
-          error= HA_ERR_KEY_NOT_FOUND;
         table->file->print_error(error, MYF(0));
         DBUG_RETURN(error);
       }
@@ -2087,7 +2089,7 @@ Old_rows_log_event::write_row(rpl_group_info *rgi, const bool overwrite)
     else
     {
       DBUG_PRINT("info",("Deleting offending row and trying to write new one again"));
-      if ((error= table->file->ha_delete_row(table->record[1])))
+      if (unlikely((error= table->file->ha_delete_row(table->record[1]))))
       {
         DBUG_PRINT("info",("ha_delete_row() returns error %d",error));
         table->file->print_error(error, MYF(0));
@@ -2175,11 +2177,9 @@ int Old_rows_log_event::find_row(rpl_group_info *rgi)
     */
     DBUG_PRINT("info",("locating record using primary key (position)"));
     int error= table->file->ha_rnd_pos_by_record(table->record[0]);
-    if (error)
+    if (unlikely(error))
     {
       DBUG_PRINT("info",("rnd_pos returns error %d",error));
-      if (error == HA_ERR_RECORD_DELETED)
-        error= HA_ERR_KEY_NOT_FOUND;
       table->file->print_error(error, MYF(0));
     }
     DBUG_RETURN(error);
@@ -2204,7 +2204,8 @@ int Old_rows_log_event::find_row(rpl_group_info *rgi)
     DBUG_PRINT("info",("locating record using primary key (index_read)"));
 
     /* We have a key: search the table using the index */
-    if (!table->file->inited && (error= table->file->ha_index_init(0, FALSE)))
+    if (!table->file->inited &&
+        unlikely(error= table->file->ha_index_init(0, FALSE)))
     {
       DBUG_PRINT("info",("ha_index_init returns error %d",error));
       table->file->print_error(error, MYF(0));
@@ -2234,13 +2235,12 @@ int Old_rows_log_event::find_row(rpl_group_info *rgi)
       table->s->null_bytes > 0 ? table->s->null_bytes - 1 : 0;
     table->record[0][pos]= 0xFF;
     
-    if ((error= table->file->ha_index_read_map(table->record[0], m_key, 
-                                               HA_WHOLE_KEY,
-                                               HA_READ_KEY_EXACT)))
+    if (unlikely((error= table->file->ha_index_read_map(table->record[0],
+                                                        m_key,
+                                                        HA_WHOLE_KEY,
+                                                        HA_READ_KEY_EXACT))))
     {
       DBUG_PRINT("info",("no record matching the key found in the table"));
-      if (error == HA_ERR_RECORD_DELETED)
-        error= HA_ERR_KEY_NOT_FOUND;
       table->file->print_error(error, MYF(0));
       table->file->ha_index_end();
       DBUG_RETURN(error);
@@ -2308,11 +2308,8 @@ int Old_rows_log_event::find_row(rpl_group_info *rgi)
 
     while (record_compare(table))
     {
-      while ((error= table->file->ha_index_next(table->record[0])))
+      while (unlikely(error= table->file->ha_index_next(table->record[0])))
       {
-        /* We just skip records that has already been deleted */
-        if (error == HA_ERR_RECORD_DELETED)
-          continue;
         DBUG_PRINT("info",("no record matching the given row found"));
         table->file->print_error(error, MYF(0));
         (void) table->file->ha_index_end();
@@ -2327,7 +2324,7 @@ int Old_rows_log_event::find_row(rpl_group_info *rgi)
     int restart_count= 0; // Number of times scanning has restarted from top
 
     /* We don't have a key: search the table using rnd_next() */
-    if ((error= table->file->ha_rnd_init_with_error(1)))
+    if (unlikely((error= table->file->ha_rnd_init_with_error(1))))
     {
       DBUG_PRINT("info",("error initializing table scan"
                          " (ha_rnd_init returns %d)",error));
@@ -2345,15 +2342,12 @@ int Old_rows_log_event::find_row(rpl_group_info *rgi)
       case 0:
         break;
 
-      case HA_ERR_RECORD_DELETED:
-        goto restart_rnd_next;
-
       case HA_ERR_END_OF_FILE:
         if (++restart_count < 2)
         {
           int error2;
           table->file->ha_rnd_end();
-          if ((error2= table->file->ha_rnd_init_with_error(1)))
+          if (unlikely((error2= table->file->ha_rnd_init_with_error(1))))
             DBUG_RETURN(error2);
           goto restart_rnd_next;
         }
@@ -2467,12 +2461,12 @@ Write_rows_log_event_old::do_after_row_operations(const Slave_reporting_capabili
   m_table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   m_table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
   /*
-    reseting the extra with 
+    resetting the extra with 
     table->file->extra(HA_EXTRA_NO_IGNORE_NO_KEY); 
     fires bug#27077
     todo: explain or fix
   */
-  if ((local_error= m_table->file->ha_end_bulk_insert()))
+  if (unlikely((local_error= m_table->file->ha_end_bulk_insert())))
   {
     m_table->file->print_error(local_error, MYF(0));
   }
@@ -2486,7 +2480,7 @@ Write_rows_log_event_old::do_exec_row(rpl_group_info *rgi)
   DBUG_ASSERT(m_table != NULL);
   int error= write_row(rgi, TRUE /* overwrite */);
   
-  if (error && !thd->net.last_errno)
+  if (unlikely(error) && !thd->net.last_errno)
     thd->net.last_errno= error;
       
   return error; 
@@ -2589,7 +2583,7 @@ int Delete_rows_log_event_old::do_exec_row(rpl_group_info *rgi)
   int error;
   DBUG_ASSERT(m_table != NULL);
 
-  if (!(error= find_row(rgi))) 
+  if (likely(!(error= find_row(rgi))) )
   { 
     /*
       Delete the record found, located in record[0]
@@ -2689,7 +2683,7 @@ Update_rows_log_event_old::do_exec_row(rpl_group_info *rgi)
   DBUG_ASSERT(m_table != NULL);
 
   int error= find_row(rgi);
-  if (error)
+  if (unlikely(error))
   {
     /*
       We need to read the second image in the event of error to be
@@ -2733,7 +2727,7 @@ Update_rows_log_event_old::do_exec_row(rpl_group_info *rgi)
   error= m_table->file->ha_update_row(m_table->record[1], m_table->record[0]);
   m_table->file->ha_index_or_rnd_end();
 
-  if (error == HA_ERR_RECORD_IS_THE_SAME)
+  if (unlikely(error == HA_ERR_RECORD_IS_THE_SAME))
     error= 0;
 
   return error;

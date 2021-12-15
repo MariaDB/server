@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifndef _my_stacktrace_h_
 #define _my_stacktrace_h_
@@ -41,7 +41,6 @@
 C_MODE_START
 
 #if defined(HAVE_STACKTRACE) || defined(HAVE_BACKTRACE)
-void my_init_stacktrace();
 void my_print_stacktrace(uchar* stack_bottom, ulong thread_stack,
                          my_bool silent);
 int my_safe_print_str(const char* val, size_t max_len);
@@ -52,8 +51,6 @@ char *my_demangle(const char *mangled_name, int *status);
 #ifdef __WIN__
 void my_set_exception_pointers(EXCEPTION_POINTERS *ep);
 #endif /* __WIN__ */
-#else
-#define my_init_stacktrace() do { } while(0)
 #endif /* ! (defined(HAVE_STACKTRACE) || defined(HAVE_BACKTRACE)) */
 
 #ifndef _WIN32

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -20,7 +20,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -39,10 +39,6 @@ Created 1/20/1994 Heikki Tuuri
 #define _IB_TO_STR(s)	#s
 #define IB_TO_STR(s)	_IB_TO_STR(s)
 
-#define INNODB_VERSION_MAJOR	5
-#define INNODB_VERSION_MINOR	7
-#define INNODB_VERSION_BUGFIX	21
-
 /* The following is the InnoDB version as shown in
 SELECT plugin_version FROM information_schema.plugins;
 calculated in make_version_string() in sql/sql_show.cc like this:
@@ -50,16 +46,16 @@ calculated in make_version_string() in sql/sql_show.cc like this:
 because the version is shown with only one dot, we skip the last
 component, i.e. we show M.N.P as M.N */
 #define INNODB_VERSION_SHORT	\
-	(INNODB_VERSION_MAJOR << 8 | INNODB_VERSION_MINOR)
+	(MYSQL_VERSION_MAJOR << 8 | MYSQL_VERSION_MINOR)
 
 #define INNODB_VERSION_STR			\
-	IB_TO_STR(INNODB_VERSION_MAJOR) "."	\
-	IB_TO_STR(INNODB_VERSION_MINOR) "."	\
-	IB_TO_STR(INNODB_VERSION_BUGFIX)
+	IB_TO_STR(MYSQL_VERSION_MAJOR) "."	\
+	IB_TO_STR(MYSQL_VERSION_MINOR) "."	\
+	IB_TO_STR(MYSQL_VERSION_PATCH)
 
-#define REFMAN "http://dev.mysql.com/doc/refman/"	\
-	IB_TO_STR(INNODB_VERSION_MAJOR) "."		\
-	IB_TO_STR(INNODB_VERSION_MINOR) "/en/"
+/** How far ahead should we tell the service manager the timeout
+(time in seconds) */
+#define INNODB_EXTEND_TIMEOUT_INTERVAL 30
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 /* In the dynamic plugin, redefine some externally visible symbols
@@ -96,13 +92,11 @@ support cross-platform development and expose comonly used SQL names. */
 #include <sys/stat.h>
 
 #ifndef _WIN32
-# include <sys/mman.h> /* mmap() for os0proc.cc */
 # include <sched.h>
 # include "my_config.h"
 #endif
 
 #include <stdint.h>
-#define __STDC_FORMAT_MACROS    /* Enable C99 printf format macros */
 #include <inttypes.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -168,9 +162,8 @@ for all cases. This is used by ut0lst.h related code. */
 /* When this macro is defined then additional test functions will be
 compiled. These functions live at the end of each relevant source file
 and have "test_" prefix. These functions can be called from the end of
-innobase_init() or they can be called from gdb after
-innobase_start_or_create_for_mysql() has executed using the call
-command. */
+innodb_init() or they can be called from gdb after srv_start() has executed
+using the call command. */
 /*
 #define UNIV_COMPILE_TEST_FUNCS
 #define UNIV_ENABLE_UNIT_TEST_GET_PARENT_DIR
@@ -179,10 +172,6 @@ command. */
 #define UNIV_ENABLE_UNIT_TEST_ROW_RAW_FORMAT_INT
 */
 
-#if defined HAVE_valgrind && defined HAVE_VALGRIND_MEMCHECK_H
-# define UNIV_DEBUG_VALGRIND
-#endif
-
 #ifdef DBUG_OFF
 # undef UNIV_DEBUG
 #elif !defined UNIV_DEBUG
@@ -190,8 +179,6 @@ command. */
 #endif
 
 #if 0
-#define UNIV_DEBUG_VALGRIND			/* Enable extra
-						Valgrind instrumentation */
 #define UNIV_DEBUG_PRINT			/* Enable the compilation of
 						some debug print functions */
 #define UNIV_AHI_DEBUG				/* Enable adaptive hash index
@@ -209,9 +196,6 @@ command. */
 this will break redo log file compatibility, but it may be useful when
 debugging redo log application problems. */
 #define UNIV_IBUF_DEBUG				/* debug the insert buffer */
-#define UNIV_IBUF_COUNT_DEBUG			/* debug the insert buffer;
-this limits the database to IBUF_COUNT_N_SPACES and IBUF_COUNT_N_PAGES,
-and the insert buffer must be empty when the database is started */
 #define UNIV_PERF_DEBUG                         /* debug flag that enables
                                                 light weight performance
                                                 related stuff. */
@@ -250,6 +234,12 @@ easy way to get it to work. See http://bugs.mysql.com/bug.php?id=52263. */
 # define UNIV_INTERN
 #endif
 
+#if defined(__GNUC__) && (__GNUC__ >= 11)
+# define ATTRIBUTE_ACCESS(X) __attribute__((access X))
+#else
+# define ATTRIBUTE_ACCESS(X)
+#endif
+
 #ifndef MY_ATTRIBUTE
 #if defined(__GNUC__)
 #  define MY_ATTRIBUTE(A) __attribute__(A)
@@ -270,9 +260,6 @@ management to ensure correct alignment for doubles etc. */
 			DATABASE VERSION CONTROL
 			========================
 */
-
-/** The 2-logarithm of UNIV_PAGE_SIZE: */
-#define UNIV_PAGE_SIZE_SHIFT	srv_page_size_shift
 
 #ifdef HAVE_LZO
 #define IF_LZO(A,B) A
@@ -310,32 +297,29 @@ management to ensure correct alignment for doubles etc. */
 #define IF_PUNCH_HOLE(A,B) B
 #endif
 
-/** The universal page size of the database */
-#define UNIV_PAGE_SIZE		((ulint) srv_page_size)
-
 /** log2 of smallest compressed page size (1<<10 == 1024 bytes)
 Note: This must never change! */
-#define UNIV_ZIP_SIZE_SHIFT_MIN		10
+#define UNIV_ZIP_SIZE_SHIFT_MIN		10U
 
 /** log2 of largest compressed page size (1<<14 == 16384 bytes).
 A compressed page directory entry reserves 14 bits for the start offset
 and 2 bits for flags. This limits the uncompressed page size to 16k.
 */
-#define UNIV_ZIP_SIZE_SHIFT_MAX		14
+#define UNIV_ZIP_SIZE_SHIFT_MAX		14U
 
 /* Define the Min, Max, Default page sizes. */
 /** Minimum Page Size Shift (power of 2) */
-#define UNIV_PAGE_SIZE_SHIFT_MIN	12
+#define UNIV_PAGE_SIZE_SHIFT_MIN	12U
 /** log2 of largest page size (1<<16 == 64436 bytes). */
 /** Maximum Page Size Shift (power of 2) */
-#define UNIV_PAGE_SIZE_SHIFT_MAX	16
+#define UNIV_PAGE_SIZE_SHIFT_MAX	16U
 /** log2 of default page size (1<<14 == 16384 bytes). */
 /** Default Page Size Shift (power of 2) */
-#define UNIV_PAGE_SIZE_SHIFT_DEF	14
+#define UNIV_PAGE_SIZE_SHIFT_DEF	14U
 /** Original 16k InnoDB Page Size Shift, in case the default changes */
-#define UNIV_PAGE_SIZE_SHIFT_ORIG	14
+#define UNIV_PAGE_SIZE_SHIFT_ORIG	14U
 /** Original 16k InnoDB Page Size as an ssize (log2 - 9) */
-#define UNIV_PAGE_SSIZE_ORIG		(UNIV_PAGE_SIZE_SHIFT_ORIG - 9)
+#define UNIV_PAGE_SSIZE_ORIG		(UNIV_PAGE_SIZE_SHIFT_ORIG - 9U)
 
 /** Minimum page size InnoDB currently supports. */
 #define UNIV_PAGE_SIZE_MIN	(1U << UNIV_PAGE_SIZE_SHIFT_MIN)
@@ -355,13 +339,13 @@ and 2 bits for flags. This limits the uncompressed page size to 16k.
 /** Largest possible ssize for an uncompressed page.
 (The convention 'ssize' is used for 'log2 minus 9' or the number of
 shifts starting with 512.)
-This max number varies depending on UNIV_PAGE_SIZE. */
+This max number varies depending on srv_page_size. */
 #define UNIV_PAGE_SSIZE_MAX	\
-	static_cast<ulint>(UNIV_PAGE_SIZE_SHIFT - UNIV_ZIP_SIZE_SHIFT_MIN + 1)
+	ulint(srv_page_size_shift - UNIV_ZIP_SIZE_SHIFT_MIN + 1U)
 
 /** Smallest possible ssize for an uncompressed page. */
 #define UNIV_PAGE_SSIZE_MIN	\
-	static_cast<ulint>(UNIV_PAGE_SIZE_SHIFT_MIN - UNIV_ZIP_SIZE_SHIFT_MIN + 1)
+	ulint(UNIV_PAGE_SIZE_SHIFT_MIN - UNIV_ZIP_SIZE_SHIFT_MIN + 1U)
 
 /** Maximum number of parallel threads in a parallelized operation */
 #define UNIV_MAX_PARALLELISM	32
@@ -444,7 +428,7 @@ in both 32-bit and 64-bit environments. */
 #ifdef UNIV_INNOCHECKSUM
 extern bool 			strict_verify;
 extern FILE* 			log_file;
-extern unsigned long long	cur_page_num;
+extern uint32_t			cur_page_num;
 #endif /* UNIV_INNOCHECKSUM */
 
 typedef int64_t ib_int64_t;
@@ -466,7 +450,7 @@ typedef	ib_uint64_t		lsn_t;
 #define UINT64_UNDEFINED	((ib_uint64_t)(-1))
 
 /** The bitmask of 32-bit unsigned integer */
-#define ULINT32_MASK		0xFFFFFFFF
+#define ULINT32_MASK		0xFFFFFFFFU
 /** The undefined 32-bit unsigned integer */
 #define	ULINT32_UNDEFINED	ULINT32_MASK
 
@@ -595,58 +579,6 @@ typedef void* os_thread_ret_t;
 #include "ut0lst.h"
 #include "ut0ut.h"
 #include "sync0types.h"
-
-#ifdef UNIV_DEBUG_VALGRIND
-# include <valgrind/memcheck.h>
-# define UNIV_MEM_VALID(addr, size) VALGRIND_MAKE_MEM_DEFINED(addr, size)
-# define UNIV_MEM_INVALID(addr, size) VALGRIND_MAKE_MEM_UNDEFINED(addr, size)
-# define UNIV_MEM_FREE(addr, size) VALGRIND_MAKE_MEM_NOACCESS(addr, size)
-# define UNIV_MEM_ALLOC(addr, size) VALGRIND_MAKE_MEM_UNDEFINED(addr, size)
-# define UNIV_MEM_DESC(addr, size) VALGRIND_CREATE_BLOCK(addr, size, #addr)
-# define UNIV_MEM_UNDESC(b) VALGRIND_DISCARD(b)
-# define UNIV_MEM_ASSERT_RW_LOW(addr, size, should_abort) do {		\
-	const void* _p = (const void*) (ulint)				\
-		VALGRIND_CHECK_MEM_IS_DEFINED(addr, size);		\
-	if (UNIV_LIKELY_NULL(_p)) {					\
-		fprintf(stderr, "%s:%d: %p[%u] undefined at %ld\n",	\
-			__FILE__, __LINE__,				\
-			(const void*) (addr), (unsigned) (size), (long)	\
-			(((const char*) _p) - ((const char*) (addr))));	\
-		if (should_abort) {					\
-			ut_error;					\
-		}							\
-	}								\
-} while (0)
-# define UNIV_MEM_ASSERT_RW(addr, size)					\
-	UNIV_MEM_ASSERT_RW_LOW(addr, size, false)
-# define UNIV_MEM_ASSERT_RW_ABORT(addr, size)				\
-	UNIV_MEM_ASSERT_RW_LOW(addr, size, true)
-# define UNIV_MEM_ASSERT_W(addr, size) do {				\
-	const void* _p = (const void*) (ulint)				\
-		VALGRIND_CHECK_MEM_IS_ADDRESSABLE(addr, size);		\
-	if (UNIV_LIKELY_NULL(_p))					\
-		fprintf(stderr, "%s:%d: %p[%u] unwritable at %ld\n",	\
-			__FILE__, __LINE__,				\
-			(const void*) (addr), (unsigned) (size), (long)	\
-			(((const char*) _p) - ((const char*) (addr))));	\
-	} while (0)
-# define UNIV_MEM_TRASH(addr, c, size) do {				\
-	ut_d(memset(addr, c, size));					\
-	UNIV_MEM_INVALID(addr, size);					\
-	} while (0)
-#else
-# define UNIV_MEM_VALID(addr, size) do {} while(0)
-# define UNIV_MEM_INVALID(addr, size) do {} while(0)
-# define UNIV_MEM_FREE(addr, size) do {} while(0)
-# define UNIV_MEM_ALLOC(addr, size) do {} while(0)
-# define UNIV_MEM_DESC(addr, size) do {} while(0)
-# define UNIV_MEM_UNDESC(b) do {} while(0)
-# define UNIV_MEM_ASSERT_RW_LOW(addr, size, should_abort) do {} while(0)
-# define UNIV_MEM_ASSERT_RW(addr, size) do {} while(0)
-# define UNIV_MEM_ASSERT_RW_ABORT(addr, size) do {} while(0)
-# define UNIV_MEM_ASSERT_W(addr, size) do {} while(0)
-# define UNIV_MEM_TRASH(addr, c, size) do {} while(0)
-#endif
 
 extern ulong	srv_page_size_shift;
 extern ulong	srv_page_size;

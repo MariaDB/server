@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 die <<EEE unless @ARGV;
 Usage: $0 func1 [func2 [ ...] ]

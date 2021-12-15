@@ -13,7 +13,7 @@
 
   You should have received a copy of the GNU Lesser General Public
   License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 #include <string.h>
 #include "grn_token_cursor.h"
@@ -795,6 +795,36 @@ grn_db_init_mecab_tokenizer(grn_ctx *ctx)
   default :
     return GRN_OPERATION_NOT_SUPPORTED;
   }
+}
+
+void
+grn_db_fin_mecab_tokenizer(grn_ctx *ctx)
+{
+  switch (GRN_CTX_GET_ENCODING(ctx)) {
+  case GRN_ENC_EUC_JP :
+  case GRN_ENC_UTF8 :
+  case GRN_ENC_SJIS :
+#if defined(GRN_EMBEDDED) && defined(GRN_WITH_MECAB)
+    {
+      GRN_PLUGIN_DECLARE_FUNCTIONS(tokenizers_mecab);
+      GRN_PLUGIN_IMPL_NAME_TAGGED(fin, tokenizers_mecab)(ctx);
+    }
+#else /* defined(GRN_EMBEDDED) && defined(GRN_WITH_MECAB) */
+    {
+      const char *mecab_plugin_name = "tokenizers/mecab";
+      char *path;
+      path = grn_plugin_find_path(ctx, mecab_plugin_name);
+      if (path) {
+        GRN_FREE(path);
+        grn_plugin_unregister(ctx, mecab_plugin_name);
+      }
+    }
+#endif /* defined(GRN_EMBEDDED) && defined(GRN_WITH_MECAB) */
+    break;
+  default :
+    break;
+  }
+  return;
 }
 
 #define DEF_TOKENIZER(name, init, next, fin, vars)\

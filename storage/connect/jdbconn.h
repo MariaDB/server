@@ -29,6 +29,7 @@ public:
 	// Attributes
 public:
 	char   *GetQuoteChar(void) { return m_IDQuoteChar; }
+	bool    SetUUID(PGLOBAL g, PTDBJDBC tjp);
 	virtual int  GetMaxValue(int infotype);
 
 public:
@@ -58,13 +59,6 @@ public:
 
 protected:
 	// Members
-#if 0
-	JavaVM   *jvm;              // Pointer to the JVM (Java Virtual Machine)
-	JNIEnv   *env;              // Pointer to native interface
-	jclass    jdi;							// Pointer to the java wrapper class
-	jobject   job;							// The java wrapper class object
-	jmethodID errid;						// The GetErrmsg method ID
-#endif // 0
 	jmethodID xqid;							// The ExecuteQuery method ID
 	jmethodID xuid;							// The ExecuteUpdate method ID
 	jmethodID xid;							// The Execute method ID
@@ -84,8 +78,7 @@ protected:
 	jmethodID timfldid;					// The TimeField method ID
 	jmethodID tspfldid;					// The TimestampField method ID
 	jmethodID bigfldid;					// The BigintField method ID
-//	PCSZ      Msg;
-//	PCSZ      m_Wrap;
+	jmethodID uidfldid;					// The UuidField method ID
 	char      m_IDQuoteChar[2];
 	PCSZ      m_Pwd;
   int       m_Ncol;

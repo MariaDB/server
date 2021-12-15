@@ -1,0 +1,127 @@
+
+--echo #
+--echo # MDEV-15416 Crash when reading I_S.PARAMETERS
+--echo #
+
+--echo # Create in sql_mode=ORACLE, display in sql_mode=ORACLE and sql_mode=DEFAULT
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE PROCEDURE p1(a0 t1.a%TYPE,
+                    a1 test.t1.a%TYPE,
+                    b0 t1%ROWTYPE,
+                    b1 test.t1%ROWTYPE,
+                    d ROW(a INT,b DOUBLE))
+AS
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+--vertical_results
+SET sql_mode=ORACLE;
+SELECT *, '--------' FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME='p1';
+SET sql_mode=DEFAULT;
+SELECT *, '--------' FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME='p1';
+--horizontal_results
+DROP PROCEDURE p1;
+
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE FUNCTION f1(a0 t1.a%TYPE,
+                   a1 test.t1.a%TYPE,
+                   b0 t1%ROWTYPE,
+                   b1 test.t1%ROWTYPE,
+                   d ROW(a INT,b DOUBLE))
+                RETURN INT
+AS
+BEGIN
+  RETURN 0;
+END;
+$$
+DELIMITER ;$$
+--vertical_results
+SET sql_mode=ORACLE;
+SELECT *, '--------' FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME='f1';
+SET sql_mode=DEFAULT;
+SELECT *, '--------' FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME='f1';
+--horizontal_results
+DROP FUNCTION f1;
+
+
+--echo # Create in sql_mode=DEFAULT, display in sql_mode=DEFAULT and sql_mode=ORACLE
+
+SET sql_mode=DEFAULT;
+DELIMITER $$;
+CREATE PROCEDURE p1(a0 TYPE OF t1.a,
+                    a1 TYPE OF test.t1.a,
+                    b0 ROW TYPE OF t1,
+                    b1 ROW TYPE OF test.t1,
+                    d ROW(a INT,b DOUBLE))
+BEGIN
+END;
+$$
+DELIMITER ;$$
+--vertical_results
+SET sql_mode=DEFAULT;
+SELECT *, '--------' FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME='p1';
+SET sql_mode=ORACLE;
+SELECT *, '--------' FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME='p1';
+--horizontal_results
+DROP PROCEDURE p1;
+
+
+SET sql_mode=DEFAULT;
+DELIMITER $$;
+CREATE FUNCTION f1(a0 TYPE OF t1.a,
+                   a1 TYPE OF test.t1.a,
+                   b0 ROW TYPE OF t1,
+                   b1 ROW TYPE OF test.t1,
+                   d ROW(a INT,b DOUBLE))
+                RETURNS INT
+BEGIN
+  RETURN 0;
+END;
+$$
+DELIMITER ;$$
+--vertical_results
+SET sql_mode=DEFAULT;
+SELECT *, '--------' FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME='f1';
+SET sql_mode=ORACLE;
+SELECT *, '--------' FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_NAME='f1';
+--horizontal_results
+DROP FUNCTION f1;
+
+--echo #
+--echo # MDEV 18092 Query with the table I_S.PARAMETERS stop working
+--echo # after a package is created
+--echo #
+
+SET sql_mode=ORACLE;
+
+CREATE DATABASE db1_mdev18092;
+USE db1_mdev18092;
+
+DELIMITER $$;
+
+CREATE PROCEDURE p1(a INT)
+AS BEGIN
+  NULL;
+END;
+$$
+
+CREATE OR REPLACE PACKAGE employee_tools AS
+  FUNCTION getSalary(eid INT) RETURN DECIMAL(10,2);
+  PROCEDURE raiseSalary(eid INT, amount DECIMAL(10,2));
+  PROCEDURE raiseSalaryStd(eid INT);
+  PROCEDURE hire(ename TEXT, esalary DECIMAL(10,2));
+END;
+$$
+DELIMITER ;$$
+
+--vertical_results
+SELECT *, '---------------' FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_SCHEMA='db1_mdev18092';
+--horizontal_results
+
+DROP DATABASE db1_mdev18092;

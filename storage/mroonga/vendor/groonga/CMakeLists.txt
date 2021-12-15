@@ -11,7 +11,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this library; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 # https://buildbot.askmonty.org/buildbot/builders/work-amd64-valgrind/builds/5263/steps/compile/logs/stdio
 # says CMake 2.6.2... We want to drop old software support...
@@ -77,9 +77,8 @@ if(DEFINED GRN_EMBED)
 else()
   set(GRN_EMBED_DEFAULT OFF)
 endif()
-option(GRN_EMBED
-  "Build as a static library to embed into an application"
-  ${GRN_EMBED_DEFAULT})
+set(GRN_EMBED ${GRN_EMBED_DEFAULT} CACHE BOOL
+  "Build as a static library to embed into an application")
 
 set(BIN_DIR "bin")
 set(SBIN_DIR "sbin")
@@ -87,7 +86,9 @@ set(LIB_DIR "lib")
 set(INCLUDE_DIR "include")
 set(GRN_INCLUDE_DIR "include/groonga")
 set(DATA_DIR "share")
-set(GRN_DATA_DIR "${DATA_DIR}/${GRN_PROJECT_NAME}")
+if(NOT DEFINED GRN_DATA_DIR)
+    set(GRN_DATA_DIR "${DATA_DIR}/${GRN_PROJECT_NAME}")
+endif()
 set(CONFIG_DIR "etc")
 set(GRN_CONFIG_DIR "${CONFIG_DIR}/${GRN_PROJECT_NAME}")
 set(GRN_CONFIG_PATH "${CMAKE_INSTALL_PREFIX}/${GRN_CONFIG_DIR}/groonga.conf")
@@ -241,7 +242,6 @@ include(build/ac_macros/check_functions.m4)
 ac_check_symbols(fpclassify math.h)
 ac_check_lib(m fpclassify)
 
-ac_check_lib(dl dlopen)
 ac_check_lib(execinfo backtrace)
 if(HAVE_LIBEXECINFO)
   set(HAVE_BACKTRACE TRUE)
@@ -361,10 +361,18 @@ if(NOT ${GRN_WITH_LZ4} STREQUAL "no")
       pkg_check_modules(LIBLZ4 liblz4)
     endif()
     if(LIBLZ4_FOUND)
+      # According to CMake documentation, this is the recommended way to force
+      # looking in LIBRARY_DIRS first and in regular system paths otherwise.
+      #
+      # pkg_check_modules does not guarantee that LIBLZ4_LIBRARY_DIRS will be
+      # set. If it's not set we won't find the library without looking through
+      # the regular system paths.
       find_library(LZ4_LIBS
-	NAMES ${LIBLZ4_LIBRARIES}
-	PATHS ${LIBLZ4_LIBRARY_DIRS}
-	NO_DEFAULT_PATH)
+        NAMES ${LIBLZ4_LIBRARIES}
+        PATHS ${LIBLZ4_LIBRARY_DIRS}
+        NO_DEFAULT_PATH)
+      find_library(LZ4_LIBS
+        NAMES ${LIBLZ4_LIBRARIES})
       set(GRN_WITH_LZ4 TRUE)
     else()
       if(${GRN_WITH_LZ4} STREQUAL "yes")
@@ -582,14 +590,13 @@ else()
   set(GRN_WITH_MESSAGE_PACK FALSE)
 endif()
 
-find_program(RUBY NAMES
-  "ruby2.3" "ruby23"
-  "ruby2.2" "ruby22"
-  "ruby2.1" "ruby21"
-  "ruby")
-
 option(GRN_WITH_MRUBY "use mruby" OFF)
 if(GRN_WITH_MRUBY)
+  find_program(RUBY NAMES
+    "ruby2.3" "ruby23"
+    "ruby2.2" "ruby22"
+    "ruby2.1" "ruby21"
+    "ruby")
   set(MRUBY_INCLUDE_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/vendor/mruby-source/include")
   set(MRUBY_LIBS mruby)

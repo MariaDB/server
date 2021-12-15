@@ -1,9 +1,25 @@
 #
 # Test the safe_to_bootstrap in grastate.dat 
 #
-
 --source include/galera_cluster.inc
-CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+--source include/force_restart.inc
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
 
 #
 # At start, all grastate.dat files have safe_to_boostrap: 0
@@ -47,8 +63,6 @@ CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 #
 # Shut down one more node
 #
-
---connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
 --source include/shutdown_mysqld.inc
 
@@ -129,9 +143,9 @@ SET SESSION wsrep_on = OFF;
 #
 
 --error 1
---exec $MYSQLD --defaults-group-suffix=.2 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --wsrep-new-cluster | grep 'This node is not safe to bootstrap the cluster'
+--exec $MYSQLD --defaults-group-suffix=.2 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --wsrep-new-cluster --wsrep-cluster-address='gcomm://' | grep 'This node is not safe to bootstrap the cluster'
 --error 1
---exec $MYSQLD --defaults-group-suffix=.3 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --wsrep-new-cluster | grep 'This node is not safe to bootstrap the cluster'
+--exec $MYSQLD --defaults-group-suffix=.3 --defaults-file=$MYSQLTEST_VARDIR/my.cnf --wsrep-new-cluster --wsrep-cluster-address='gcomm://' | grep 'This node is not safe to bootstrap the cluster'
 
 #
 # Attempt to bootstrap starting from node #1, should succeed
@@ -142,9 +156,17 @@ SET SESSION wsrep_on = OFF;
 --source include/start_mysqld.inc
 --source include/wait_until_connected_again.inc
 
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+
 --connection node_2
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 --source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
 
 --connection node_3
 --let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.3.expect
@@ -154,10 +176,23 @@ SET SESSION wsrep_on = OFF;
 --source include/wait_condition.inc
 
 --connection node_2
+CALL mtr.add_suppression("WSREP: no nodes coming from prim view, prim not possible");
+CALL mtr.add_suppression("WSREP: It may not be safe to bootstrap the cluster from this node");
+CALL mtr.add_suppression("WSREP: wsrep::connect(.*) failed: 7");
+CALL mtr.add_suppression("Aborting");
+CALL mtr.add_suppression("WSREP: moving position backwards: [0-9]+ -> 0");
 CALL mtr.add_suppression("Failed to prepare for incremental state transfer");
 
 --connection node_3
+CALL mtr.add_suppression("WSREP: no nodes coming from prim view, prim not possible");
+CALL mtr.add_suppression("WSREP: It may not be safe to bootstrap the cluster from this node");
+CALL mtr.add_suppression("WSREP: wsrep::connect(.*) failed: 7");
+CALL mtr.add_suppression("Aborting");
+CALL mtr.add_suppression("WSREP: moving position backwards: [0-9]+ -> 0");
 CALL mtr.add_suppression("Failed to prepare for incremental state transfer");
 SHOW CREATE TABLE t1;
 
 DROP TABLE t1;
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

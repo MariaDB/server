@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /* This file includes all reserved words and functions */
@@ -23,7 +23,7 @@
 #include "lex_symbol.h"
 
 SYM_GROUP sym_group_common= {"", ""};
-SYM_GROUP sym_group_geom= {"Spatial extentions", "HAVE_SPATIAL"};
+SYM_GROUP sym_group_geom= {"Spatial extensions", "HAVE_SPATIAL"};
 SYM_GROUP sym_group_rtree= {"RTree keys", "HAVE_RTREE_KEYS"};
 
 /* We don't want to include sql_yacc.h into gen_lex_hash */
@@ -45,7 +45,7 @@ SYM_GROUP sym_group_rtree= {"RTree keys", "HAVE_RTREE_KEYS"};
   lists
 */
 
-static SYMBOL symbols[] = {
+SYMBOL symbols[] = {
   { "&&",		SYM(AND_AND_SYM)},
   { "<=",		SYM(LE)},
   { "<>",		SYM(NE)},
@@ -82,14 +82,15 @@ static SYMBOL symbols[] = {
   { "AVG_ROW_LENGTH",	SYM(AVG_ROW_LENGTH)},
   { "BACKUP",	        SYM(BACKUP_SYM)},
   { "BEFORE",	        SYM(BEFORE_SYM)},
-  { "BEGIN",	        SYM(BEGIN_SYM)},
+  { "BEGIN",	        SYM(BEGIN_MARIADB_SYM)},
   { "BETWEEN",		SYM(BETWEEN_SYM)},
   { "BIGINT",		SYM(BIGINT)},
   { "BINARY",		SYM(BINARY)},
   { "BINLOG",		SYM(BINLOG_SYM)},
   { "BIT",		SYM(BIT_SYM)},
-  { "BLOB",		SYM(BLOB_SYM)},
+  { "BLOB",		SYM(BLOB_MARIADB_SYM)},
   { "BLOCK",  SYM(BLOCK_SYM)},
+  { "BODY",             SYM(BODY_MARIADB_SYM)},
   { "BOOL",		SYM(BOOL_SYM)},
   { "BOOLEAN",		SYM(BOOLEAN_SYM)},
   { "BOTH",		SYM(BOTH)},
@@ -114,7 +115,7 @@ static SYMBOL symbols[] = {
   { "CIPHER",		SYM(CIPHER_SYM)},
   { "CLASS_ORIGIN",     SYM(CLASS_ORIGIN_SYM)},
   { "CLIENT",		SYM(CLIENT_SYM)},
-  { "CLOB",             SYM(CLOB)},
+  { "CLOB",             SYM(CLOB_MARIADB_SYM)},
   { "CLOSE",		SYM(CLOSE_SYM)},
   { "COALESCE",		SYM(COALESCE)},
   { "CODE",             SYM(CODE_SYM)},
@@ -144,7 +145,7 @@ static SYMBOL symbols[] = {
   { "CONSTRAINT_SCHEMA", SYM(CONSTRAINT_SCHEMA_SYM)},
   { "CONTAINS",         SYM(CONTAINS_SYM)},
   { "CONTEXT",    SYM(CONTEXT_SYM)},
-  { "CONTINUE",         SYM(CONTINUE_SYM)},
+  { "CONTINUE",         SYM(CONTINUE_MARIADB_SYM)},
   { "CONTRIBUTORS",     SYM(CONTRIBUTORS_SYM)},
   { "CONVERT",		SYM(CONVERT_SYM)},
   { "CPU",        SYM(CPU_SYM)},
@@ -175,7 +176,7 @@ static SYMBOL symbols[] = {
   { "DEALLOCATE",       SYM(DEALLOCATE_SYM)},     
   { "DEC",		SYM(DECIMAL_SYM)},
   { "DECIMAL",		SYM(DECIMAL_SYM)},
-  { "DECLARE",          SYM(DECLARE_SYM)},
+  { "DECLARE",          SYM(DECLARE_MARIADB_SYM)},
   { "DEFAULT",		SYM(DEFAULT)},
   { "DEFINER",          SYM(DEFINER_SYM)},
   { "DELAYED",		SYM(DELAYED_SYM)},
@@ -204,8 +205,8 @@ static SYMBOL symbols[] = {
   { "DYNAMIC",		SYM(DYNAMIC_SYM)},
   { "EACH",             SYM(EACH_SYM)},
   { "ELSE",             SYM(ELSE)},
-  { "ELSEIF",           SYM(ELSEIF_SYM)},
-  { "ELSIF",            SYM(ELSIF_SYM)},
+  { "ELSEIF",           SYM(ELSEIF_MARIADB_SYM)},
+  { "ELSIF",            SYM(ELSIF_MARIADB_SYM)},
   { "ENABLE",		SYM(ENABLE_SYM)},
   { "ENCLOSED",		SYM(ENCLOSED)},
   { "END",		SYM(END)},
@@ -225,9 +226,9 @@ static SYMBOL symbols[] = {
   { "EXCHANGE",         SYM(EXCHANGE_SYM)},
   { "EXCLUDE",          SYM(EXCLUDE_SYM)},
   { "EXECUTE",		SYM(EXECUTE_SYM)},
-  { "EXCEPTION",	SYM(EXCEPTION_SYM)},
+  { "EXCEPTION",	SYM(EXCEPTION_MARIADB_SYM)},
   { "EXISTS",		SYM(EXISTS)},
-  { "EXIT",             SYM(EXIT_SYM)},
+  { "EXIT",             SYM(EXIT_MARIADB_SYM)},
   { "EXPANSION",	SYM(EXPANSION_SYM)},
   { "EXPORT",           SYM(EXPORT_SYM)},
   { "EXPLAIN",		SYM(DESCRIBE)},
@@ -263,7 +264,7 @@ static SYMBOL symbols[] = {
   { "GET_FORMAT",       SYM(GET_FORMAT)},
   { "GET",              SYM(GET_SYM)},
   { "GLOBAL",		SYM(GLOBAL_SYM)},
-  { "GOTO",            SYM(GOTO_SYM)},
+  { "GOTO",             SYM(GOTO_MARIADB_SYM)},
   { "GRANT",		SYM(GRANT)},
   { "GRANTS",	        SYM(GRANTS)},
   { "GROUP",		SYM(GROUP_SYM)},
@@ -433,7 +434,7 @@ static SYMBOL symbols[] = {
   { "NOTFOUND",         SYM(NOTFOUND_SYM)},
   { "NO_WRITE_TO_BINLOG",  SYM(NO_WRITE_TO_BINLOG)},
   { "NULL",		SYM(NULL_SYM)},
-  { "NUMBER",           SYM(NUMBER_SYM)},
+  { "NUMBER",           SYM(NUMBER_MARIADB_SYM)},
   { "NUMERIC",		SYM(NUMERIC_SYM)},
   { "NVARCHAR",		SYM(NVARCHAR_SYM)},
   { "OF",		SYM(OF_SYM)},
@@ -450,12 +451,13 @@ static SYMBOL symbols[] = {
   { "OPTIONALLY",	SYM(OPTIONALLY)},
   { "OR",		SYM(OR_SYM)},
   { "ORDER",		SYM(ORDER_SYM)},
-  { "OTHERS",           SYM(OTHERS_SYM)},
+  { "OTHERS",           SYM(OTHERS_MARIADB_SYM)},
   { "OUT",              SYM(OUT_SYM)},
   { "OUTER",		SYM(OUTER)},
   { "OUTFILE",		SYM(OUTFILE)},
   { "OVER",             SYM(OVER_SYM)},
   { "OWNER",		SYM(OWNER_SYM)},
+  { "PACKAGE",          SYM(PACKAGE_MARIADB_SYM)},
   { "PACK_KEYS",	SYM(PACK_KEYS_SYM)},
   { "PAGE",	        SYM(PAGE_SYM)},
   { "PAGE_CHECKSUM",	SYM(PAGE_CHECKSUM_SYM)},
@@ -493,9 +495,9 @@ static SYMBOL symbols[] = {
   { "QUARTER",          SYM(QUARTER_SYM)},
   { "QUERY",		SYM(QUERY_SYM)},
   { "QUICK",	        SYM(QUICK)},
-  { "RAISE",            SYM(RAISE_SYM)},
+  { "RAISE",            SYM(RAISE_MARIADB_SYM)},
   { "RANGE",            SYM(RANGE_SYM)},
-  { "RAW",              SYM(RAW)},
+  { "RAW",              SYM(RAW_MARIADB_SYM)},
   { "READ",		SYM(READ_SYM)},
   { "READ_ONLY",	SYM(READ_ONLY_SYM)},
   { "READ_WRITE",	SYM(READ_WRITE_SYM)},
@@ -532,7 +534,7 @@ static SYMBOL symbols[] = {
   { "RESTRICT",		SYM(RESTRICT)},
   { "RESUME",           SYM(RESUME_SYM)},
   { "RETURNED_SQLSTATE",SYM(RETURNED_SQLSTATE_SYM)},
-  { "RETURN",           SYM(RETURN_SYM)},
+  { "RETURN",           SYM(RETURN_MARIADB_SYM)},
   { "RETURNING",        SYM(RETURNING_SYM)},
   { "RETURNS",		SYM(RETURNS_SYM)},
   { "REUSE",            SYM(REUSE_SYM)},
@@ -547,7 +549,7 @@ static SYMBOL symbols[] = {
   { "ROW",		SYM(ROW_SYM)},
   { "ROWCOUNT",         SYM(ROWCOUNT_SYM)}, /* Oracle-N */
   { "ROWS",		SYM(ROWS_SYM)},
-  { "ROWTYPE",          SYM(ROWTYPE_SYM)},
+  { "ROWTYPE",          SYM(ROWTYPE_MARIADB_SYM)},
   { "ROW_COUNT",        SYM(ROW_COUNT_SYM)},
   { "ROW_FORMAT",	SYM(ROW_FORMAT_SYM)},
   { "RTREE",		SYM(RTREE_SYM)},
@@ -692,7 +694,7 @@ static SYMBOL symbols[] = {
   { "VARBINARY",	SYM(VARBINARY)},
   { "VARCHAR",		SYM(VARCHAR)},
   { "VARCHARACTER",	SYM(VARCHAR)},
-  { "VARCHAR2",         SYM(VARCHAR2)},
+  { "VARCHAR2",         SYM(VARCHAR2_MARIADB_SYM)},
   { "VARIABLES",	SYM(VARIABLES)},
   { "VARYING",		SYM(VARYING)},
   { "VIA",              SYM(VIA_SYM)},
@@ -720,11 +722,11 @@ static SYMBOL symbols[] = {
   { "YEAR",		SYM(YEAR_SYM)},
   { "YEAR_MONTH",	SYM(YEAR_MONTH_SYM)},
   { "ZEROFILL",		SYM(ZEROFILL)},
-  { "||",		SYM(OR_OR_SYM)}
+  { "||",		SYM(OR2_SYM)}
 };
 
 
-static SYMBOL sql_functions[] = {
+SYMBOL sql_functions[] = {
   { "ADDDATE",		SYM(ADDDATE_SYM)},
   { "BIT_AND",		SYM(BIT_AND)},
   { "BIT_OR",		SYM(BIT_OR)},
@@ -737,7 +739,7 @@ static SYMBOL sql_functions[] = {
   { "DATE_ADD",		SYM(DATE_ADD_INTERVAL)},
   { "DATE_SUB",		SYM(DATE_SUB_INTERVAL)},
   { "DATE_FORMAT",      SYM(DATE_FORMAT_SYM)},
-  { "DECODE",           SYM(DECODE_SYM)},
+  { "DECODE",           SYM(DECODE_MARIADB_SYM)},
   { "DENSE_RANK",       SYM(DENSE_RANK_SYM)},
   { "EXTRACT",		SYM(EXTRACT_SYM)},
   { "FIRST_VALUE",      SYM(FIRST_VALUE_SYM)},
@@ -769,9 +771,13 @@ static SYMBOL sql_functions[] = {
   { "SYSDATE",		SYM(SYSDATE)},
   { "SYSTEM_USER",      SYM(USER_SYM)},
   { "TRIM",		SYM(TRIM)},
+  { "TRIM_ORACLE",	SYM(TRIM_ORACLE)},
   { "VARIANCE",		SYM(VARIANCE_SYM)},
   { "VAR_POP",		SYM(VARIANCE_SYM)},
   { "VAR_SAMP",		SYM(VAR_SAMP_SYM)},
 };
+
+size_t symbols_length= sizeof(symbols) / sizeof(SYMBOL);
+size_t sql_functions_length= sizeof(sql_functions) / sizeof(SYMBOL);
 
 #endif /* LEX_INCLUDED */

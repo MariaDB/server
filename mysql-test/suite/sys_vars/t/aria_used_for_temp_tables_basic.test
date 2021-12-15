@@ -1,5 +1,6 @@
 # bool readonly
 
+--source include/have_aria_used_for_temp_tables.inc
 --source include/have_maria.inc
 #
 # show the global and session values;

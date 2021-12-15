@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -78,6 +78,7 @@ So, we can read full search-structure as 32-bit word
 */
 
 #define NO_YACC_SYMBOLS
+#undef CHECK_UNLIKELY
 #include "mariadb.h"
 #include "mysql_version.h"
 #include "lex.h"
@@ -140,7 +141,8 @@ void insert_into_hash(hash_lex_struct *root, const char *name,
   if (root->first_char>(*name))
   {
     size_t new_size= root->last_char-(*name)+1;
-    if (new_size<real_size) printf("error!!!!\n");
+    if (unlikely(new_size<real_size))
+      printf("error!!!!\n");
     tails= root->char_tails;
     tails= (hash_lex_struct*)realloc((char*)tails,
 				       sizeof(hash_lex_struct)*new_size);
@@ -155,7 +157,8 @@ void insert_into_hash(hash_lex_struct *root, const char *name,
   if (root->last_char<(*name))
   {
     size_t new_size= (*name)-root->first_char+1;
-    if (new_size<real_size) printf("error!!!!\n");
+    if (unlikely(new_size<real_size))
+      printf("error!!!!\n");
     tails= root->char_tails;
     tails= (hash_lex_struct*)realloc((char*)tails,
 				    sizeof(hash_lex_struct)*new_size);
@@ -401,8 +404,8 @@ int main(int argc,char **argv)
 static SYMBOL *get_hash_symbol(const char *s,\n\
                                unsigned int len,bool function)\n\
 {\n\
-  register uchar *hash_map;\n\
-  register const char *cur_str= s;\n\
+  uchar *hash_map;\n\
+  const char *cur_str= s;\n\
 \n\
   if (len == 0) {\n\
     DBUG_PRINT(\"warning\", (\"get_hash_symbol() received a request for a zero-length symbol, which is probably a mistake.\"));\
@@ -414,25 +417,25 @@ static SYMBOL *get_hash_symbol(const char *s,\n\
   if (function){\n\
     if (len>sql_functions_max_len) return 0;\n\
     hash_map= sql_functions_map;\n\
-    register uint32 cur_struct= uint4korr(hash_map+((len-1)*4));\n\
+    uint32 cur_struct= uint4korr(hash_map+((len-1)*4));\n\
 \n\
     for (;;){\n\
-      register uchar first_char= (uchar)cur_struct;\n\
+      uchar first_char= (uchar)cur_struct;\n\
 \n\
       if (first_char == 0)\n\
       {\n\
-        register int16 ires= (int16)(cur_struct>>16);\n\
+        int16 ires= (int16)(cur_struct>>16);\n\
         if (ires==array_elements(symbols)) return 0;\n\
-        register SYMBOL *res;\n\
+        SYMBOL *res;\n\
         if (ires>=0) \n\
           res= symbols+ires;\n\
         else\n\
           res= sql_functions-ires-1;\n\
-		  register uint count= (uint) (cur_str - s);\n\
+        uint count= (uint) (cur_str - s);\n\
         return lex_casecmp(cur_str,res->name+count,len-count) ? 0 : res;\n\
       }\n\
 \n\
-      register uchar cur_char= (uchar)to_upper_lex[(uchar)*cur_str];\n\
+      uchar cur_char= (uchar)to_upper_lex[(uchar)*cur_str];\n\
       if (cur_char<first_char) return 0;\n\
       cur_struct>>=8;\n\
       if (cur_char>(uchar)cur_struct) return 0;\n\
@@ -448,20 +451,20 @@ static SYMBOL *get_hash_symbol(const char *s,\n\
   }else{\n\
     if (len>symbols_max_len) return 0;\n\
     hash_map= symbols_map;\n\
-    register uint32 cur_struct= uint4korr(hash_map+((len-1)*4));\n\
+    uint32 cur_struct= uint4korr(hash_map+((len-1)*4));\n\
 \n\
     for (;;){\n\
-      register uchar first_char= (uchar)cur_struct;\n\
+      uchar first_char= (uchar)cur_struct;\n\
 \n\
-      if (first_char==0){\n\
-        register int16 ires= (int16)(cur_struct>>16);\n\
+      if (first_char==0) {\n\
+        int16 ires= (int16)(cur_struct>>16);\n\
         if (ires==array_elements(symbols)) return 0;\n\
-        register SYMBOL *res= symbols+ires;\n\
-		register uint count= (uint) (cur_str - s);\n\
+        SYMBOL *res= symbols+ires;\n\
+        uint count= (uint) (cur_str - s);\n\
         return lex_casecmp(cur_str,res->name+count,len-count)!=0 ? 0 : res;\n\
       }\n\
 \n\
-      register uchar cur_char= (uchar)to_upper_lex[(uchar)*cur_str];\n\
+      uchar cur_char= (uchar)to_upper_lex[(uchar)*cur_str];\n\
       if (cur_char<first_char) return 0;\n\
       cur_struct>>=8;\n\
       if (cur_char>(uchar)cur_struct) return 0;\n\

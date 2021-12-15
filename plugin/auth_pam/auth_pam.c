@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2011, 2012, Monty Program Ab
+   Copyright (c) 2011, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,10 +12,11 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define _GNU_SOURCE 1 /* for strndup */
 
+#include <config_auth_pam.h>
 #include <mysql/plugin_auth.h>
 #include <stdio.h>
 #include <string.h>
@@ -54,6 +55,8 @@ static char pam_debug = 0;
 #else
 #define PAM_DEBUG(X)   /* no-op */
 #endif
+
+static char winbind_hack = 0;
 
 static int conv(int n, const struct pam_message **msg,
                 struct pam_response **resp, void *data)
@@ -194,9 +197,10 @@ static int pam_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
   PAM_DEBUG((stderr, "PAM: pam_get_item(PAM_USER)\n"));
   DO( pam_get_item(pamh, PAM_USER, (pam_get_item_3_arg) &new_username) );
 
-  if (new_username && strcmp(new_username, info->user_name))
+  if (new_username &&
+      (winbind_hack ? strcasecmp : strcmp)(new_username, info->user_name))
     strncpy(info->authenticated_as, new_username,
-            sizeof(info->authenticated_as));
+            sizeof(info->authenticated_as)-1);
   info->authenticated_as[sizeof(info->authenticated_as)-1]= 0;
 
 end:
@@ -220,6 +224,10 @@ static MYSQL_SYSVAR_BOOL(use_cleartext_plugin, use_cleartext_plugin,
        "supports simple PAM policies that don't require anything besides "
        "a password", NULL, NULL, 0);
 
+static MYSQL_SYSVAR_BOOL(winbind_workaround, winbind_hack, PLUGIN_VAR_OPCMDARG,
+       "Compare usernames case insensitively to work around pam_winbind "
+       "unconditional username lowercasing", NULL, NULL, 0);
+
 #ifndef DBUG_OFF
 static MYSQL_SYSVAR_BOOL(debug, pam_debug, PLUGIN_VAR_OPCMDARG,
        "Log all PAM activity", NULL, NULL, 0);
@@ -228,6 +236,7 @@ static MYSQL_SYSVAR_BOOL(debug, pam_debug, PLUGIN_VAR_OPCMDARG,
 
 static struct st_mysql_sys_var* vars[] = {
   MYSQL_SYSVAR(use_cleartext_plugin),
+  MYSQL_SYSVAR(winbind_workaround),
 #ifndef DBUG_OFF
   MYSQL_SYSVAR(debug),
 #endif

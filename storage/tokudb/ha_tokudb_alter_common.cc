@@ -764,13 +764,14 @@ exit:
     return retval;
 }
 
-#if TOKU_INCLUDE_WRITE_FRM_DATA
+#if defined(TOKU_INCLUDE_WRITE_FRM_DATA) && TOKU_INCLUDE_WRITE_FRM_DATA
 // write the new frm data to the status dictionary using the alter table
 // transaction
 int ha_tokudb::write_frm_data(const uchar* frm_data, size_t frm_len) {
     TOKUDB_DBUG_ENTER("write_frm_data");
 
     int error = 0;
+#if defined(WITH_PARTITION_STORAGE_ENGINE) && WITH_PARTITION_STORAGE_ENGINE
     if (TOKU_PARTITION_WRITE_FRM_DATA || table->part_info == NULL) {
         // write frmdata to status
         THD* thd = ha_thd();
@@ -787,9 +788,10 @@ int ha_tokudb::write_frm_data(const uchar* frm_data, size_t frm_len) {
                 (uint)frm_len,
                 txn);
     }
+#endif  // defined(WITH_PARTITION_STORAGE_ENGINE) && WITH_PARTITION_STORAGE_ENGINE
 
     TOKUDB_DBUG_RETURN(error);
 }
-#endif
+#endif  // defined(TOKU_INCLUDE_WRITE_FRM_DATA) && TOKU_INCLUDE_WRITE_FRM_DATA
 
 #endif

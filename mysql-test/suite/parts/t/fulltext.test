@@ -1,0 +1,9 @@
+--source include/have_partition.inc
+
+#
+# MDEV-17627 Assertion `inited==RND' failed in handler::ha_rnd_end() upon actions on partitioned table with FTS
+#
+create table t1 (i int, f1 varchar(512), f2 varchar(512), fulltext (f1)) engine=myisam partition by hash (i);
+select * from t1 where match (f1) against ('foo');
+select * from t1 where match (f2) against ('bar' in boolean mode)  ;
+drop table t1;

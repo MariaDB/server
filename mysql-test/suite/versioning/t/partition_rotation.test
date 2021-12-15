@@ -1,0 +1,58 @@
+--source include/have_partition.inc
+
+#
+# partition rotation
+#
+set timestamp=unix_timestamp('2001-02-03 10:20:30');
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day
+    subpartition by key (i) subpartitions 2
+    (partition p1 history, partition pn current);
+set timestamp=unix_timestamp('2001-02-03 10:20:40');
+insert t1 values (1); delete from t1;
+set timestamp=unix_timestamp('2001-02-04 10:20:50');
+insert t1 values (2); delete from t1;
+
+select subpartition_name,partition_description,table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
+
+set timestamp=unix_timestamp('2001-02-04 10:20:55');
+alter table t1 add partition (partition p0 history, partition p2 history);
+set timestamp=unix_timestamp('2001-02-04 10:30:00');
+insert t1 values (4),(5);
+set timestamp=unix_timestamp('2001-02-04 10:30:10');
+update t1 set i=6 where i=5;
+
+select subpartition_name,partition_description,table_rows from information_schema.partitions where table_schema='test' and table_name='t1';
+
+--echo ## pruning check
+set @ts=(select partition_description from information_schema.partitions
+  where table_schema='test' and table_name='t1' and partition_name='p0' limit 1);
+--sorted_result
+select * from t1;
+explain partitions select * from t1;
+--replace_column 10 #
+explain partitions select * from t1 for system_time as of '2001-02-04 10:20:30';
+set @ts=(select row_end from t1 for system_time all where i=1);
+select * from t1 for system_time all where row_end = @ts;
+--replace_column 5 # 10 # 11 #
+explain partitions select * from t1 for system_time all where row_end = @ts;
+
+--echo #
+--echo # MDEV-16023 Unfortunate error message WARN_VERS_PART_FULL
+--echo #
+
+set timestamp= unix_timestamp('2020-07-29 10:30:10');
+create or replace table t1 (a int) with system versioning
+  partition by system_time interval 1 second (
+    partition p0 history,
+    partition p1 history,
+    partition pc current
+  );
+
+set timestamp= unix_timestamp('2020-07-29 10:30:14');
+insert into t1 values (1),(2),(3);
+show warnings;
+
+--echo # Cleanup
+set timestamp= default;
+drop table t1;

@@ -1,10 +1,12 @@
--- source include/have_innodb.inc
+--source include/have_innodb.inc
+--source include/default_optimizer_switch.inc
+
+set time_zone="+00:00";
 set default_storage_engine=innodb;
 create or replace table dept (
-  dept_id int(10) primary key, 
+  dept_id int(10) primary key,
   name varchar(100)
-)
-with system versioning;
+) with system versioning;
 
 create or replace table emp (
   emp_id int(10) primary key,
@@ -20,21 +22,29 @@ create or replace table emp (
     foreign key (mgr) references emp (emp_id)
       on delete restrict
       on update restrict
-) 
-with system versioning;
+) with system versioning;
 
 insert into dept (dept_id, name) values (10, "accounting");
 
-insert into emp (emp_id, name, salary, dept_id, mgr) values 
+insert into emp (emp_id, name, salary, dept_id, mgr) values
 (1, "bill", 1000, 10, null),
 (20, "john", 500, 10, 1),
 (30, "jane", 750, 10,1 );
 
-select max(sys_trx_start) into @ts_1 from emp;
+select row_start into @ts_1 from emp where name="jane";
 
 update emp set mgr=30 where name ="john";
-select sys_trx_start into @ts_2 from emp where name="john";
 
+explain extended
+with ancestors as (
+  select e.emp_id, e.name, e.mgr, e.salary from emp as e where name = 'bill'
+    union
+  select e.emp_id, e.name, e.mgr, e.salary from emp as e
+) select * from ancestors for system_time as of @ts_1;
+
+select row_start into @ts_2 from emp where name="john";
+
+let $q=
 /* All report to 'Bill' */
 with recursive
 ancestors
@@ -43,7 +53,7 @@ as
   select e.emp_id, e.name, e.mgr, e.salary
   from emp for system_time as of timestamp @ts_1 as e
   where name = 'bill'
-  union 
+  union
   select e.emp_id, e.name, e.mgr, e.salary
   from emp for system_time as of timestamp @ts_1 as e,
        ancestors as a
@@ -51,21 +61,138 @@ as
 )
 select * from ancestors;
 
-/* Expected 3 rows */
+eval explain extended $q;
+eval $q;
+
+let $q=with recursive
+ancestors
+as
+(
+  select e.emp_id, e.name, e.mgr, e.salary
+  from emp as e
+  where name = 'bill'
+  union
+  select e.emp_id, e.name, e.mgr, e.salary
+  from emp as e,
+       ancestors as a
+  where e.mgr = a.emp_id
+)
+select * from ancestors for system_time as of timestamp @ts_1;
+
+eval explain extended $q;
+eval $q;
+
+let $q=with recursive
+ancestors
+as
+(
+  select e.emp_id, e.name, e.mgr, e.salary
+  from emp as e
+  where name = 'bill'
+  union
+  select e.emp_id, e.name, e.mgr, e.salary
+  from emp as e,
+       ancestors as a
+  where e.mgr = a.emp_id
+)
+select name from emp where emp_id in (select emp_id from ancestors for system_time as of timestamp @ts_1);
+
+eval explain extended $q;
+eval $q;
+
 with recursive
 ancestors
 as
 (
   select e.emp_id, e.name, e.mgr, e.salary
-  from emp for system_time as of timestamp @ts_2 as e
+  from emp as e
   where name = 'bill'
-  union 
+  union
   select e.emp_id, e.name, e.mgr, e.salary
-  from emp for system_time as of timestamp @ts_2 as e,
+  from emp as e,
        ancestors as a
   where e.mgr = a.emp_id
 )
-select * from ancestors;
+select * from ancestors for system_time as of @ts_2,
+              ancestors for system_time as of @ts_2 a2;
+
+--error ER_CONFLICTING_FOR_SYSTEM_TIME
+with recursive
+ancestors
+as
+(
+  select e.emp_id, e.name, e.mgr, e.salary
+  from emp as e
+  where name = 'bill'
+  union
+  select e.emp_id, e.name, e.mgr, e.salary
+  from emp as e,
+       ancestors as a
+  where e.mgr = a.emp_id
+)
+select * from ancestors for system_time as of @ts_2,
+              ancestors for system_time as of now() a2;
+
+--error ER_CONFLICTING_FOR_SYSTEM_TIME
+with recursive
+ancestors
+as
+(
+  select e.emp_id, e.name, e.mgr, e.salary
+  from emp as e
+  where name = 'bill'
+  union
+  select e.emp_id, e.name, e.mgr, e.salary
+  from emp as e,
+       ancestors as a
+  where e.mgr = a.emp_id
+)
+select * from ancestors,
+              ancestors for system_time as of @ts_2 a2;
+
+--error ER_CONFLICTING_FOR_SYSTEM_TIME
+with recursive
+ancestors
+as
+(
+  select e.emp_id, e.name, e.mgr, e.salary
+  from emp as e
+  where name = 'bill'
+  union
+  select e.emp_id, e.name, e.mgr, e.salary
+  from emp as e,
+       ancestors as a
+  where e.mgr = a.emp_id
+)
+select * from ancestors for system_time as of @ts_2,
+              ancestors a2;
+
+--error ER_CONFLICTING_FOR_SYSTEM_TIME
+with recursive
+ancestors
+as
+(
+  select e.emp_id, e.name, e.mgr, e.salary
+  from emp as e
+  where name = 'bill'
+  union
+  select e.emp_id, e.name, e.mgr, e.salary
+  from emp as e,
+       ancestors as a
+  where e.mgr = a.emp_id
+)
+select * from ancestors for system_time as of @ts_2
+ where emp_id in (select * from ancestors);
+
+--echo # SYSTEM_TIME to internal recursive instance is prohibited
+--error ER_VERS_NOT_VERSIONED
+with recursive cte as
+(
+  select * from emp
+  union all
+  select * from cte for system_time as of @ts_1
+)
+select * from cte;
 
 create or replace table emp ( emp_id int, name varchar(127), mgr int) with system versioning;
 create or replace table addr ( emp_id int, address varchar(100)) with system versioning;

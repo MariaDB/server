@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2005, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab & SkySQL Ab.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,12 +16,22 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "sql_partition.h"      /* part_id_range, partition_element */
 #include "queues.h"             /* QUEUE */
 
+struct Ordered_blob_storage
+{
+  String blob;
+  bool set_read_value;
+  Ordered_blob_storage() : set_read_value(false)
+  {}
+};
+
 #define PARTITION_BYTES_IN_POS 2
+#define ORDERED_PART_NUM_OFFSET sizeof(Ordered_blob_storage **)
+#define ORDERED_REC_OFFSET (ORDERED_PART_NUM_OFFSET + PARTITION_BYTES_IN_POS)
 
 
 /** Struct used for partition_name_hash */
@@ -182,16 +192,60 @@ private:
                                      bool is_subpart);
 };
 
+
+/*
+  List of ranges to be scanned by ha_partition's MRR implementation
+
+  This object is
+   - A KEY_MULTI_RANGE structure (the MRR range)
+   - Storage for the range endpoints that the KEY_MULTI_RANGE has pointers to
+   - list of such ranges (connected through the "next" pointer).
+*/
+
 typedef struct st_partition_key_multi_range
 {
+  /*
+    Number of the range. The ranges are numbered in the order RANGE_SEQ_IF has
+    emitted them, starting from 1. The numbering in used by ordered MRR scans.
+  */
   uint id;
   uchar *key[2];
+  /*
+    Sizes of allocated memory in key[]. These may be larger then the actual
+    values as this structure is reused across MRR scans
+  */
   uint length[2];
+
+  /*
+    The range.
+    key_multi_range.ptr is a pointer to the this PARTITION_KEY_MULTI_RANGE
+    object
+  */
   KEY_MULTI_RANGE key_multi_range;
+
+  // Range id from the SQL layer
   range_id_t ptr;
+
+  // The next element in the list of MRR ranges.
   st_partition_key_multi_range *next;
 } PARTITION_KEY_MULTI_RANGE;
 
+
+/*
+  List of ranges to be scanned in a certain [sub]partition
+
+  The idea is that there's a list of ranges to be scanned in the table
+  (formed by PARTITION_KEY_MULTI_RANGE structures),
+  and for each [sub]partition, we only need to scan a subset of that list.
+
+     PKMR1 --> PKMR2 --> PKMR3 -->... // list of PARTITION_KEY_MULTI_RANGE
+       ^                   ^
+       |                   |
+     PPKMR1 ----------> PPKMR2 -->... // list of PARTITION_PART_KEY_MULTI_RANGE
+
+  This way, per-partition lists of PARTITION_PART_KEY_MULTI_RANGE have pointers
+  to the elements of the global list of PARTITION_KEY_MULTI_RANGE.
+*/
 
 typedef struct st_partition_part_key_multi_range
 {
@@ -201,10 +255,23 @@ typedef struct st_partition_part_key_multi_range
 
 
 class ha_partition;
+
+/*
+  The structure holding information about range sequence to be used with one
+  partition.
+  (pointer to this is used as seq_init_param for RANGE_SEQ_IF structure when
+   invoking MRR for an individual partition)
+*/
+
 typedef struct st_partition_part_key_multi_range_hld
 {
+  /* Owner object */
   ha_partition *partition;
+
+  /* id of the the partition this structure is for */
   uint32 part_id;
+
+  /* Current range we're iterating through */
   PARTITION_PART_KEY_MULTI_RANGE *partition_part_key_multi_range;
 } PARTITION_PART_KEY_MULTI_RANGE_HLD;
 
@@ -349,7 +416,6 @@ private:
   /*
     Variables for lock structures.
   */
-  THR_LOCK_DATA lock;                   /* MySQL lock */
 
   bool auto_increment_lock;             /**< lock reading/updating auto_inc */
   /**
@@ -413,11 +479,27 @@ public:
 
   virtual void return_record_by_parent();
 
+  virtual bool vers_can_native(THD *thd)
+  {
+    if (thd->lex->part_info)
+    {
+      // PARTITION BY SYSTEM_TIME is not supported for now
+      return thd->lex->part_info->part_type != VERSIONING_PARTITION;
+    }
+    else
+    {
+      bool can= true;
+      for (uint i= 0; i < m_tot_parts && can; i++)
+        can= can && m_file[i]->vers_can_native(thd);
+      return can;
+    }
+  }
+
   /*
     -------------------------------------------------------------------------
     MODULE create/delete handler object
     -------------------------------------------------------------------------
-    Object create/delete methode. The normal called when a table object
+    Object create/delete method. Normally called when a table object
     exists. There is also a method to create the handler object with only
     partition information. This is used from mysql_create_table when the
     table is to be created and the engine type is deduced to be the
@@ -447,10 +529,6 @@ public:
     Meta data routines to CREATE, DROP, RENAME table and often used at
     ALTER TABLE (update_create_info used from ALTER TABLE and SHOW ..).
 
-    update_table_comment is used in SHOW TABLE commands to provide a
-    chance for the handler to add any interesting comments to the table
-    comments not provided by the users comment.
-
     create_partitioning_metadata is called before opening a new handler object
     with openfrm to call create. It is used to create any local handler
     object needed in opening the object in openfrm
@@ -463,7 +541,6 @@ public:
   virtual int create_partitioning_metadata(const char *name,
                                    const char *old_name, int action_flag);
   virtual void update_create_info(HA_CREATE_INFO *create_info);
-  virtual char *update_table_comment(const char *comment);
   virtual int change_partitions(HA_CREATE_INFO *create_info,
                                 const char *path,
                                 ulonglong * const copied,
@@ -620,8 +697,8 @@ public:
   virtual int bulk_update_row(const uchar *old_data, const uchar *new_data,
                               ha_rows *dup_key_found);
   virtual int update_row(const uchar * old_data, const uchar * new_data);
-  virtual int direct_update_rows_init();
-  virtual int pre_direct_update_rows_init();
+  virtual int direct_update_rows_init(List<Item> *update_fields);
+  virtual int pre_direct_update_rows_init(List<Item> *update_fields);
   virtual int direct_update_rows(ha_rows *update_rows);
   virtual int pre_direct_update_rows();
   virtual bool start_bulk_delete();
@@ -732,7 +809,7 @@ public:
 
   /**
     @breif
-    Positions an index cursor to the index specified in the hanlde. Fetches the
+    Positions an index cursor to the index specified in the handle. Fetches the
     row if available. If the key value is null, begin at first key of the
     index.
   */
@@ -775,21 +852,52 @@ public:
   uint m_mrr_new_full_buffer_size;
   MY_BITMAP m_mrr_used_partitions;
   uint *m_stock_range_seq;
-  uint m_current_range_seq;
+  /* not used: uint m_current_range_seq; */
+
+  /* Value of mrr_mode passed to ha_partition::multi_range_read_init */
   uint m_mrr_mode;
+
+  /* Value of n_ranges passed to ha_partition::multi_range_read_init */
   uint m_mrr_n_ranges;
+
+  /*
+    Ordered MRR mode:  m_range_info[N] has the range_id of the last record that
+    we've got from partition N
+  */
   range_id_t *m_range_info;
+
+  /*
+    TRUE <=> This ha_partition::multi_range_read_next() call is the first one
+  */
   bool m_multi_range_read_first;
-  uint m_mrr_range_init_flags;
+
+  /* not used: uint m_mrr_range_init_flags; */
+
+  /* Number of elements in the list pointed by m_mrr_range_first. Not used */
   uint m_mrr_range_length;
+
+  /* Linked list of ranges to scan */
   PARTITION_KEY_MULTI_RANGE *m_mrr_range_first;
   PARTITION_KEY_MULTI_RANGE *m_mrr_range_current;
+
+  /*
+    For each partition: number of ranges MRR scan will scan in the partition
+  */
   uint *m_part_mrr_range_length;
+
+  /* For each partition: List of ranges to scan in this partition */
   PARTITION_PART_KEY_MULTI_RANGE **m_part_mrr_range_first;
   PARTITION_PART_KEY_MULTI_RANGE **m_part_mrr_range_current;
   PARTITION_PART_KEY_MULTI_RANGE_HLD *m_partition_part_key_multi_range_hld;
+
+  /*
+    Sequence of ranges to be scanned (TODO: why not store this in
+    handler::mrr_{iter,funcs}?)
+  */
   range_seq_t m_seq;
   RANGE_SEQ_IF *m_seq_if;
+
+  /* Range iterator structure to be supplied to partitions */
   RANGE_SEQ_IF m_part_seq_if;
 
   virtual int multi_range_key_create_key(
@@ -827,6 +935,7 @@ private:
   int handle_ordered_next(uchar * buf, bool next_same);
   int handle_ordered_prev(uchar * buf);
   void return_top_record(uchar * buf);
+  void swap_blobs(uchar* rec_buf, Ordered_blob_storage ** storage, bool restore);
 public:
   /*
     -------------------------------------------------------------------------
@@ -844,7 +953,7 @@ public:
   int change_partitions_to_open(List<String> *partition_names);
   int open_read_partitions(char *name_buff, size_t name_buff_size);
   virtual int extra(enum ha_extra_function operation);
-  virtual int extra_opt(enum ha_extra_function operation, ulong cachesize);
+  virtual int extra_opt(enum ha_extra_function operation, ulong arg);
   virtual int reset(void);
   virtual uint count_query_cache_dependant_tables(uint8 *tables_type);
   virtual my_bool
@@ -854,6 +963,8 @@ public:
                                           uint *n);
 
 private:
+  typedef int handler_callback(handler *, void *);
+
   my_bool reg_query_cache_dependant_table(THD *thd,
                                           char *engine_key,
                                           uint engine_key_len,
@@ -864,7 +975,7 @@ private:
                                           **block_table,
                                           handler *file, uint *n);
   static const uint NO_CURRENT_PART_ID= NOT_A_PARTITION_ID;
-  int loop_extra(enum ha_extra_function operation);
+  int loop_partitions(handler_callback callback, void *param);
   int loop_extra_alter(enum ha_extra_function operations);
   void late_extra_cache(uint partition_id);
   void late_extra_no_cache(uint partition_id);
@@ -994,7 +1105,7 @@ public:
 
     HA_REC_NOT_IN_SEQ:
     This flag is set for handlers that cannot guarantee that the rows are
-    returned accroding to incremental positions (0, 1, 2, 3...).
+    returned according to incremental positions (0, 1, 2, 3...).
     This also means that rnd_next() should return HA_ERR_RECORD_DELETED
     if it finds a deleted row.
     (MyISAM (not fixed length row), HEAP, InnoDB)
@@ -1038,6 +1149,10 @@ public:
     Can't define a table without primary key (and cannot handle a table
     with hidden primary key)
     (No handler has this limitation currently)
+
+    HA_WANTS_PRIMARY_KEY:
+    Can't define a table without primary key except sequences
+    (Only InnoDB has this when using innodb_force_primary_key == ON)
 
     HA_STATS_RECORDS_IS_EXACT:
     Does the counter of records after the info call specify an exact
@@ -1188,7 +1303,7 @@ public:
     wrapper function for handlerton alter_table_flags, since
     the ha_partition_hton cannot know all its capabilities
   */
-  virtual ulonglong alter_table_flags(ulonglong flags);
+  virtual alter_table_operations alter_table_flags(alter_table_operations flags);
   /*
     unireg.cc will call the following to make sure that the storage engine
     can handle the data it is about to send.
@@ -1286,6 +1401,19 @@ private:
     if (nr >= part_share->next_auto_inc_val)
       part_share->next_auto_inc_val= nr + 1;
     unlock_auto_increment();
+  }
+
+  void check_insert_autoincrement()
+  {
+    /*
+      If we INSERT into the table having the AUTO_INCREMENT column,
+      we have to read all partitions for the next autoincrement value
+      unless we already did it.
+    */
+    if (!part_share->auto_inc_initialized &&
+        ha_thd()->lex->sql_command == SQLCOM_INSERT &&
+        table->found_next_number_field)
+      bitmap_set_all(&m_part_info->read_partitions);
   }
 
 public:
@@ -1422,18 +1550,6 @@ public:
     void append_row_to_str(String &str);
     public:
 
-  /*
-    -------------------------------------------------------------------------
-    Admin commands not supported currently (almost purely MyISAM routines)
-    This means that the following methods are not implemented:
-    -------------------------------------------------------------------------
-
-    virtual int backup(TD* thd, HA_CHECK_OPT *check_opt);
-    virtual int restore(THD* thd, HA_CHECK_OPT *check_opt);
-    virtual int dump(THD* thd, int fd = -1);
-    virtual int net_read_dump(NET* net);
-  */
-    virtual uint checksum() const;
   /* Enabled keycache for performance reasons, WL#4571 */
     virtual int assign_to_keycache(THD* thd, HA_CHECK_OPT *check_opt);
     virtual int preload_keys(THD* thd, HA_CHECK_OPT* check_opt);
@@ -1484,9 +1600,8 @@ public:
     return h;
   }
 
-  ha_rows part_records(void *_part_elem)
+  ha_rows part_records(partition_element *part_elem)
   {
-    partition_element *part_elem= reinterpret_cast<partition_element *>(_part_elem);
     DBUG_ASSERT(m_part_info);
     uint32 sub_factor= m_part_info->num_subparts ? m_part_info->num_subparts : 1;
     uint32 part_id= part_elem->id * sub_factor;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -28,11 +28,9 @@ Created 9/5/1995 Heikki Tuuri
 #define sync0types_h
 
 #include <vector>
-#include <iostream>
 #include <my_atomic.h>
 
 #include "ut0new.h"
-#include "ut0counter.h"
 
 #ifdef _WIN32
 /** Native mutex */
@@ -107,16 +105,6 @@ Clustered index leaf
 V
 Transaction system header
 |
-V
-Transaction undo mutex			The undo log entry must be written
-|					before any index page is modified.
-|					Transaction undo mutex is for the undo
-|					logs the analogue of the tree latch
-|					for a B-tree. If a thread has the
-|					trx undo mutex reserved, it is allowed
-|					to latch the undo log pages in any
-|					order, and also after it has acquired
-|					the fsp latch.
 V
 Rollback segment mutex			The rollback segment mutex must be
 |					reserved, if, e.g., a new page must
@@ -221,7 +209,6 @@ enum latch_level_t {
 
 	SYNC_FTS_TOKENIZE,
 	SYNC_FTS_OPTIMIZE,
-	SYNC_FTS_BG_THREADS,
 	SYNC_FTS_CACHE_INIT,
 	SYNC_RECV,
 	SYNC_LOG_FLUSH_ORDER,
@@ -230,7 +217,6 @@ enum latch_level_t {
 	SYNC_PAGE_CLEANER,
 	SYNC_PURGE_QUEUE,
 	SYNC_TRX_SYS_HEADER,
-	SYNC_REC_LOCK,
 	SYNC_THREADS,
 	SYNC_TRX,
 	SYNC_RW_TRX_HASH_ELEMENT,
@@ -256,7 +242,6 @@ enum latch_level_t {
 	SYNC_RSEG_HEADER_NEW,
 	SYNC_NOREDO_RSEG,
 	SYNC_REDO_RSEG,
-	SYNC_TRX_UNDO,
 	SYNC_PURGE_LATCH,
 	SYNC_TREE_NODE,
 	SYNC_TREE_NODE_FROM_HASH,
@@ -306,9 +291,7 @@ enum latch_id_t {
 	LATCH_ID_FILE_FORMAT_MAX,
 	LATCH_ID_FIL_SYSTEM,
 	LATCH_ID_FLUSH_LIST,
-	LATCH_ID_FTS_BG_THREADS,
 	LATCH_ID_FTS_DELETE,
-	LATCH_ID_FTS_OPTIMIZE,
 	LATCH_ID_FTS_DOC_ID,
 	LATCH_ID_FTS_PLL_TOKENIZE,
 	LATCH_ID_HASH_TABLE_MUTEX,
@@ -328,7 +311,6 @@ enum latch_id_t {
 	LATCH_ID_REDO_RSEG,
 	LATCH_ID_NOREDO_RSEG,
 	LATCH_ID_RW_LOCK_DEBUG,
-	LATCH_ID_RTR_SSN_MUTEX,
 	LATCH_ID_RTR_ACTIVE_MUTEX,
 	LATCH_ID_RTR_MATCH_MUTEX,
 	LATCH_ID_RTR_PATH_MUTEX,
@@ -338,7 +320,6 @@ enum latch_id_t {
 	LATCH_ID_SRV_MISC_TMPFILE,
 	LATCH_ID_SRV_MONITOR_FILE,
 	LATCH_ID_BUF_DBLWR,
-	LATCH_ID_TRX_UNDO,
 	LATCH_ID_TRX_POOL,
 	LATCH_ID_TRX_POOL_MANAGER,
 	LATCH_ID_TRX,
@@ -379,7 +360,6 @@ enum latch_id_t {
 	LATCH_ID_SCRUB_STAT_MUTEX,
 	LATCH_ID_DEFRAGMENT_MUTEX,
 	LATCH_ID_BTR_DEFRAGMENT_MUTEX,
-	LATCH_ID_FIL_CRYPT_MUTEX,
 	LATCH_ID_FIL_CRYPT_STAT_MUTEX,
 	LATCH_ID_FIL_CRYPT_DATA_MUTEX,
 	LATCH_ID_FIL_CRYPT_THREADS_MUTEX,
@@ -665,10 +645,10 @@ public:
 	}
 
 	/** Iterate over the counters */
-	template <typename Callback>
-	void iterate(Callback& callback) const
-		UNIV_NOTHROW
+	template<typename C> void iterate(const C& callback) UNIV_NOTHROW
 	{
+		m_mutex.enter();
+
 		Counters::const_iterator	end = m_counters.end();
 
 		for (Counters::const_iterator it = m_counters.begin();
@@ -677,6 +657,8 @@ public:
 
 			callback(*it);
 		}
+
+		m_mutex.exit();
 	}
 
 	/** Disable the monitoring */
@@ -991,8 +973,7 @@ struct latch_t {
 		UNIV_NOTHROW
 		:
 		m_id(id),
-		m_rw_lock(),
-		m_temp_fsp() { }
+		m_rw_lock() {}
 
 	/** Destructor */
 	virtual ~latch_t() UNIV_NOTHROW { }
@@ -1026,24 +1007,6 @@ struct latch_t {
 		return(sync_latch_get_level(m_id));
 	}
 
-	/** @return true if the latch is for a temporary file space*/
-	bool is_temp_fsp() const
-		UNIV_NOTHROW
-	{
-		return(m_temp_fsp);
-	}
-
-	/** Set the temporary tablespace flag. (For internal temporary
-	tables, MySQL 5.7 does not always acquire the index->lock. We
-	need to figure out the context and add some special rules
-	during the checks.) */
-	void set_temp_fsp()
-		UNIV_NOTHROW
-	{
-		ut_ad(get_id() == LATCH_ID_FIL_SPACE);
-		m_temp_fsp = true;
-	}
-
 	/** @return the latch name, m_id must be set  */
 	const char* get_name() const
 		UNIV_NOTHROW
@@ -1059,9 +1022,6 @@ struct latch_t {
 	/** true if it is a rw-lock. In debug mode, rw_lock_t derives from
 	this class and sets this variable. */
 	bool		m_rw_lock;
-
-	/** true if it is an temporary space latch */
-	bool		m_temp_fsp;
 };
 
 /** Subclass this to iterate over a thread's acquired latch levels. */
@@ -1153,81 +1113,88 @@ enum rw_lock_flag_t {
 
 #endif /* UNIV_INNOCHECKSUM */
 
-#ifdef _WIN64
 static inline ulint my_atomic_addlint(ulint *A, ulint B)
 {
+#ifdef _WIN64
   return ulint(my_atomic_add64((volatile int64*)A, B));
+#else
+  return ulint(my_atomic_addlong(A, B));
+#endif
 }
 
 static inline ulint my_atomic_loadlint(const ulint *A)
 {
+#ifdef _WIN64
   return ulint(my_atomic_load64((volatile int64*)A));
+#else
+  return ulint(my_atomic_loadlong(A));
+#endif
 }
 
 static inline lint my_atomic_addlint(volatile lint *A, lint B)
 {
+#ifdef _WIN64
   return my_atomic_add64((volatile int64*)A, B);
+#else
+  return my_atomic_addlong(A, B);
+#endif
 }
 
 static inline lint my_atomic_loadlint(const lint *A)
 {
+#ifdef _WIN64
   return lint(my_atomic_load64((volatile int64*)A));
+#else
+  return my_atomic_loadlong(A);
+#endif
 }
 
 static inline void my_atomic_storelint(ulint *A, ulint B)
 {
+#ifdef _WIN64
   my_atomic_store64((volatile int64*)A, B);
-}
 #else
-#define my_atomic_addlint my_atomic_addlong
-#define my_atomic_loadlint my_atomic_loadlong
-#define my_atomic_storelint my_atomic_storelong
+  my_atomic_storelong(A, B);
 #endif
+}
 
-/** Simple counter aligned to CACHE_LINE_SIZE
-@tparam	Type	the integer type of the counter
-@tparam	atomic	whether to use atomic memory access */
-template <typename Type = ulint, bool atomic = false>
+/** Simple non-atomic counter aligned to CACHE_LINE_SIZE
+@tparam	Type	the integer type of the counter */
+template <typename Type>
 struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_counter
 {
 	/** Increment the counter */
 	Type inc() { return add(1); }
 	/** Decrement the counter */
-	Type dec() { return sub(1); }
+	Type dec() { return add(Type(~0)); }
 
 	/** Add to the counter
 	@param[in]	i	amount to be added
 	@return	the value of the counter after adding */
-	Type add(Type i)
-	{
-		compile_time_assert(!atomic || sizeof(Type) == sizeof(lint));
-		if (atomic) {
-#ifdef _MSC_VER
-// Suppress type conversion/ possible loss of data warning
-#pragma warning (push)
-#pragma warning (disable : 4244)
-#endif
-			return Type(my_atomic_addlint(reinterpret_cast<ulint*>
-						      (&m_counter), i));
-#ifdef _MSC_VER
-#pragma warning (pop)
-#endif
-		} else {
-			return m_counter += i;
-		}
-	}
-	/** Subtract from the counter
-	@param[in]	i	amount to be subtracted
-	@return	the value of the counter after adding */
-	Type sub(Type i)
-	{
-		compile_time_assert(!atomic || sizeof(Type) == sizeof(lint));
-		if (atomic) {
-			return Type(my_atomic_addlint(&m_counter, -lint(i)));
-		} else {
-			return m_counter -= i;
-		}
-	}
+	Type add(Type i) { return m_counter += i; }
+
+	/** @return the value of the counter */
+	operator Type() const { return m_counter; }
+
+private:
+	/** The counter */
+	Type	m_counter;
+};
+
+/** Simple atomic counter aligned to CACHE_LINE_SIZE
+@tparam	Type	lint or ulint */
+template <typename Type = ulint>
+struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) simple_atomic_counter
+{
+	/** Increment the counter */
+	Type inc() { return add(1); }
+	/** Decrement the counter */
+	Type dec() { return add(Type(~0)); }
+
+	/** Add to the counter
+	@param[in]	i	amount to be added
+	@return	the value of the counter before adding */
+	Type add(Type i) { return my_atomic_addlint(&m_counter, i); }
 
 	/** @return the value of the counter (non-atomic access)! */
 	operator Type() const { return m_counter; }

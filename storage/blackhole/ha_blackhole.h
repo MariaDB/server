@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
@@ -20,6 +20,7 @@
 #include "thr_lock.h"                           /* THR_LOCK */
 #include "handler.h"                            /* handler */
 #include "table.h"                              /* TABLE_SHARE */
+#include "sql_const.h"                          /* MAX_KEY */
 
 /*
   Shared structure for correct LOCK operation
@@ -65,9 +66,9 @@ public:
             HA_READ_ORDER | HA_KEYREAD_ONLY);
   }
   /* The following defines can be increased if necessary */
-#define BLACKHOLE_MAX_KEY	64		/* Max allowed keys */
+#define BLACKHOLE_MAX_KEY	MAX_KEY		/* Max allowed keys */
 #define BLACKHOLE_MAX_KEY_SEG	16		/* Max segments for key */
-#define BLACKHOLE_MAX_KEY_LENGTH 1000
+#define BLACKHOLE_MAX_KEY_LENGTH	3500		/* Like in InnoDB */
   uint max_supported_keys()          const { return BLACKHOLE_MAX_KEY; }
   uint max_supported_key_length()    const { return BLACKHOLE_MAX_KEY_LENGTH; }
   uint max_supported_key_part_length() const { return BLACKHOLE_MAX_KEY_LENGTH; }

@@ -11,11 +11,11 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "mysys_priv.h"
 
-#ifdef HAVE_LARGE_PAGES
+#ifdef HAVE_LINUX_LARGE_PAGES
 
 #ifdef HAVE_SYS_IPC_H
 #include <sys/ipc.h>
@@ -163,4 +163,4 @@ my_bool my_large_free_int(uchar *ptr)
 }
 #endif /* HAVE_DECL_SHM_HUGETLB */
 
-#endif /* HAVE_LARGE_PAGES */
+#endif /* HAVE_LINUX_LARGE_PAGES */

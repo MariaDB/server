@@ -1,0 +1,16 @@
+CREATE TABLE t1(i INT PRIMARY KEY auto_increment, a int) ENGINE INNODB;
+INSERT INTO t1(a) SELECT * from seq_1_to_10000;
+SET GLOBAL innodb_log_optimize_ddl=ON;
+# xtrabackup backup
+t1.frm
+t1.ibd
+t1.new
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+SELECT COUNT(*) from t1;
+COUNT(*)
+10000
+DROP TABLE t1;

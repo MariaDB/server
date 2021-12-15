@@ -18,7 +18,8 @@
 CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
 
 --connection node_2
-
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
 --let $galera_sync_point = apply_monitor_slave_enter_sync
 --source include/galera_set_sync_point.inc
 
@@ -31,7 +32,7 @@ SET SESSION wsrep_sync_wait = 0;
 # Wait until applier has blocked
 --source include/galera_wait_sync_point.inc
 
-SELECT COUNT(*) = 0 FROM t1;
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
 
 --connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
 --connection node_2a
@@ -61,9 +62,11 @@ INSERT INTO t2 VALUES (2);
 UNLOCK TABLES;
 
 --connection node_2
-SELECT COUNT(*) = 1 FROM t1;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
 INSERT INTO t1 VALUES (3);
 
 --connection node_1
-SELECT COUNT(*) = 2 FROM t1;
+SELECT COUNT(*) AS EXPECT_2 FROM t1;
 DROP TABLE t1;

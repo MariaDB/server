@@ -12,7 +12,7 @@
 --append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 restart
 EOF
---shutdown_server 60
+--shutdown_server
 --source include/wait_until_connected_again.inc
 
 

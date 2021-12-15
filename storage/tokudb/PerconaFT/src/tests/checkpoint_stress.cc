@@ -351,7 +351,7 @@ test_main (int argc, char * const argv[]) {
                 // arg that suppresses valgrind on this child process
                 break;
             }
-            // otherwise, fall through to an error
+            /* fall through */ // otherwise, fall through to an error
 	case 'h':
         case '?':
             usage(argv[0]);

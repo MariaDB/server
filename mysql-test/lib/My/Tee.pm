@@ -1,4 +1,5 @@
 package My::Tee;
+use IO::Handle;
 
 # see PerlIO::via
 
@@ -9,13 +10,14 @@ sub PUSHED
   open($copyfh, '>', "$::opt_vardir/log/stdout.log")
     or die "open(>$::opt_vardir/log/stdout.log): $!"
       unless $copyfh;
- bless { }, shift;
+  bless { }, shift;
 }
 
 sub WRITE
 {
  my ($obj, $buf, $fh) = @_;
  print $fh $buf;
+ $fh->flush;
  print $copyfh $buf;
  return length($buf);
 }

@@ -1,0 +1,16 @@
+create table t1 (f text, vf tinytext as (f), key (vf(64))) engine=innodb;
+insert t1 (f) values ('foo');
+flush tables;
+connect con1,localhost,root,,test;
+set debug_sync='TABLE_after_field_clone WAIT_FOR go';
+delete from t1;
+connection default;
+select * from t1;
+f	vf
+foo	foo
+set debug_sync='now SIGNAL go';
+connection con1;
+disconnect con1;
+connection default;
+drop table t1;
+set debug_sync='reset';

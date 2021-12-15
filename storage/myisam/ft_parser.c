@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* Written by Sergei A. Golubchik, who has a shared copyright to this code */
 
@@ -78,18 +78,25 @@ FT_WORD * ft_linearize(TREE *wtree, MEM_ROOT *mem_root)
   DBUG_RETURN(wlist);
 }
 
-my_bool ft_boolean_check_syntax_string(const uchar *str)
+my_bool ft_boolean_check_syntax_string(const uchar *str, size_t length,
+                                       CHARSET_INFO *cs)
 {
   uint i, j;
 
+  if (cs->mbminlen != 1)
+  {
+    DBUG_ASSERT(0);
+    return 1;
+  }
+
   if (!str ||
-      (strlen((char*) str)+1 != sizeof(DEFAULT_FTB_SYNTAX)) ||
+      (length + 1 != sizeof(DEFAULT_FTB_SYNTAX)) ||
       (str[0] != ' ' && str[1] != ' '))
     return 1;
   for (i=0; i<sizeof(DEFAULT_FTB_SYNTAX); i++)
   {
     /* limiting to 7-bit ascii only */
-    if ((unsigned char)(str[i]) > 127 || my_isalnum(default_charset_info, str[i]))
+    if ((unsigned char)(str[i]) > 127 || my_isalnum(cs, str[i]))
       return 1;
     for (j=0; j<i; j++)
       if (str[i] == str[j] && (i != 11 || j != 10))

@@ -12,7 +12,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 #include <my_global.h>
@@ -106,6 +106,14 @@ static std::mutex mtx;
 
 static Aws::KMS::KMSClient *client;
 
+static void print_kms_error(const char *func, const Aws::Client::AWSError<Aws::KMS::KMSErrors>& err)
+{
+  my_printf_error(ER_UNKNOWN_ERROR,
+    "AWS KMS plugin : KMS Client API '%s' failed : %s - %s",
+    ME_ERROR_LOG,
+    func, err.GetExceptionName().c_str(), err.GetMessage().c_str());
+}
+
 #if WITH_AWS_MOCK
 /* 
   Mock routines to test plugin without actual AWS KMS interaction
@@ -127,7 +135,7 @@ static int mock_generate_encrypted_key(Aws::Utils::ByteBuffer *result)
 }
 
 
-static int mock_decrypt(Aws::Utils::ByteBuffer input, Aws::Utils::ByteBuffer* output, Aws::String *errmsg)
+static int mock_decrypt(Aws::Utils::ByteBuffer input, Aws::Utils::ByteBuffer* output)
 {
   /* We do not encrypt or decrypt in mock mode.*/
   *output = input;
@@ -401,14 +409,14 @@ static unsigned int get_latest_key_version_nolock(unsigned int key_id)
 }
 
 /* Decrypt Byte buffer with AWS. */
-static int aws_decrypt(Aws::Utils::ByteBuffer input, Aws::Utils::ByteBuffer* output, Aws::String *errmsg)
+static int aws_decrypt(Aws::Utils::ByteBuffer input, Aws::Utils::ByteBuffer* output)
 {
   DecryptRequest request;
   request.SetCiphertextBlob(input);
   DecryptOutcome outcome = client->Decrypt(request);
   if (!outcome.IsSuccess())
   {
-    *errmsg = outcome.GetError().GetMessage();
+    print_kms_error("Decrypt", outcome.GetError());
     return -1;
   }
   *output= outcome.GetResult().GetPlaintext();
@@ -416,13 +424,13 @@ static int aws_decrypt(Aws::Utils::ByteBuffer input, Aws::Utils::ByteBuffer* out
 }
 
 
-static int decrypt(Aws::Utils::ByteBuffer input, Aws::Utils::ByteBuffer* output, Aws::String *errmsg)
+static int decrypt(Aws::Utils::ByteBuffer input, Aws::Utils::ByteBuffer* output)
 {
 #if WITH_AWS_MOCK
   if(mock)
-    return mock_decrypt(input,output, errmsg);
+    return mock_decrypt(input,output);
 #endif
-  return aws_decrypt(input, output, errmsg);
+  return aws_decrypt(input, output);
 }
 
 /* 
@@ -452,12 +460,9 @@ static  int read_and_decrypt_key(const char *path, KEY_INFO *info)
 
   Aws::Utils::ByteBuffer input((unsigned char *)contents.data(), pos);
   Aws::Utils::ByteBuffer plaintext;
-  Aws::String errmsg;
 
-  if (decrypt(input, &plaintext, &errmsg))
+  if (decrypt(input, &plaintext))
   {
-      my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin: Decrypt failed for %s : %s", ME_ERROR_LOG, path,
-      errmsg.c_str());
       return -1;
   }
 
@@ -491,9 +496,7 @@ int aws_generate_encrypted_key(Aws::Utils::ByteBuffer *result)
   outcome= client->GenerateDataKeyWithoutPlaintext(request);
   if (!outcome.IsSuccess())
   {
-    my_printf_error(ER_UNKNOWN_ERROR, "AWS KMS plugin : GenerateDataKeyWithoutPlaintext failed : %s - %s", ME_ERROR_LOG,
-      outcome.GetError().GetExceptionName().c_str(),
-      outcome.GetError().GetMessage().c_str());
+    print_kms_error("GenerateDataKeyWithoutPlaintext", outcome.GetError());
     return(-1);
   }
  *result =  outcome.GetResult().GetCiphertextBlob();

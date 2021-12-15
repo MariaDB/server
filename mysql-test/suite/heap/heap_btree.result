@@ -379,3 +379,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	uniq_id	uniq_id	8	NULL	4	Using where
 drop table t1;
 End of 5.3 tests
+create table t1 (id int, a varchar(300) not null, key using btree(a)) engine=heap;
+insert t1 values (1, repeat('a', 300));
+drop table t1;
+End of 5.5 tests

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 /* Functions to handle keys and fields in forms */
@@ -52,8 +52,8 @@
 int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
                  uint *key_length, uint *keypart)
 {
-  reg2 int i;
-  reg3 KEY *key_info;
+  int i;
+  KEY *key_info;
   uint fieldpos;
 
   fieldpos= field->offset(record);
@@ -146,7 +146,8 @@ void key_copy(uchar *to_key, const uchar *from_record, KEY *key_info,
     {
       key_length-= HA_KEY_BLOB_LENGTH;
       length= MY_MIN(key_length, key_part->length);
-      uint bytes= key_part->field->get_key_image(to_key, length, Field::itRAW);
+      uint bytes= key_part->field->get_key_image(to_key, length,
+		      key_info->flags & HA_SPATIAL ? Field::itMBR : Field::itRAW);
       if (with_zerofill && bytes < length)
         bzero((char*) to_key + bytes, length - bytes);
       to_key+= HA_KEY_BLOB_LENGTH;
@@ -227,7 +228,7 @@ void key_restore(uchar *to_record, const uchar *from_key, KEY *key_info,
     {
       /*
         This in fact never happens, as we have only partial BLOB
-        keys yet anyway, so it's difficult to find any sence to
+        keys yet anyway, so it's difficult to find any sense to
         restore the part of a record.
         Maybe this branch is to be removed, but now we
         have to ignore GCov compaining.
@@ -243,14 +244,13 @@ void key_restore(uchar *to_record, const uchar *from_key, KEY *key_info,
     else if (key_part->key_part_flag & HA_VAR_LENGTH_PART)
     {
       Field *field= key_part->field;
-      my_bitmap_map *old_map;
       my_ptrdiff_t ptrdiff= to_record - field->table->record[0];
       field->move_field_offset(ptrdiff);
       key_length-= HA_KEY_BLOB_LENGTH;
       length= MY_MIN(key_length, key_part->length);
-      old_map= dbug_tmp_use_all_columns(field->table, field->table->write_set);
+      MY_BITMAP *old_map= dbug_tmp_use_all_columns(field->table, &field->table->write_set);
       field->set_key_image(from_key, length);
-      dbug_tmp_restore_column_map(field->table->write_set, old_map);
+      dbug_tmp_restore_column_map(&field->table->write_set, old_map);
       from_key+= HA_KEY_BLOB_LENGTH;
       field->move_field_offset(-ptrdiff);
     }
@@ -418,7 +418,7 @@ void field_unpack(String *to, Field *field, const uchar *rec, uint max_length,
 
 void key_unpack(String *to, TABLE *table, KEY *key)
 {
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   DBUG_ENTER("key_unpack");
 
   to->length(0);
@@ -442,7 +442,7 @@ void key_unpack(String *to, TABLE *table, KEY *key)
     field_unpack(to, key_part->field, table->record[0], key_part->length,
                  MY_TEST(key_part->key_part_flag & HA_PART_KEY_SEG));
  }
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
   DBUG_VOID_RETURN;
 }
 
@@ -467,7 +467,7 @@ void key_unpack(String *to, TABLE *table, KEY *key)
 
 bool is_key_used(TABLE *table, uint idx, const MY_BITMAP *fields)
 {
-  table->mark_columns_used_by_index(idx, &table->tmp_set);
+  table->mark_index_columns(idx, &table->tmp_set);
   return bitmap_is_overlapping(&table->tmp_set, fields);
 }
 
@@ -499,7 +499,7 @@ int key_cmp(KEY_PART_INFO *key_part, const uchar *key, uint key_length)
     if (key_part->null_bit)
     {
       /* This key part allows null values; NULL is lower than everything */
-      register bool field_is_null= key_part->field->is_null();
+      bool field_is_null= key_part->field->is_null();
       if (*key)                                 // If range key is null
       {
 	/* the range is expecting a null value */
@@ -611,8 +611,8 @@ int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
         max length. The exceptions are the BLOB and VARCHAR field types
         that take the max length into account.
       */
-      if ((result= field->cmp_max(field->ptr+first_diff, field->ptr+sec_diff,
-                             key_part->length)))
+      if ((result= field->cmp_prefix(field->ptr+first_diff, field->ptr+sec_diff,
+                                     key_part->length)))
         DBUG_RETURN(result);
 next_loop:
       key_part++;

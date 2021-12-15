@@ -12,7 +12,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /*
   This code needs extra visibility in the lexer structures
@@ -32,7 +32,7 @@
 #include "sql_get_diagnostics.h"
 
 /* Generated code */
-#include "sql_yacc.h"
+#include "sql_yacc.hh"
 #define LEX_TOKEN_WITH_DEFINITION
 #include "lex_token.h"
 

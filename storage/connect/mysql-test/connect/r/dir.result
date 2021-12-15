@@ -26,7 +26,7 @@ fname	ftype	size
 boys	.txt	282
 boyswin	.txt	288
 INSERT INTO t1 VALUES ('','','','');
-ERROR 22007: Incorrect double value: '' for column 'size' at row 1
+ERROR 22007: Incorrect double value: '' for column `test`.`t1`.`size` at row 1
 DROP TABLE t1;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=DIR FILE_NAME='*.txt';
 ERROR HY000: Cannot get column info for table type DIR

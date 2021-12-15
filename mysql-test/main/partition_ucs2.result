@@ -1,0 +1,13 @@
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-20855 Crash with PARTITION BY LIST and extended characters
+#
+SET NAMES utf8;
+CREATE OR REPLACE TABLE t1 (a TIME)
+PARTITION BY LIST COLUMNS (a) (PARTITION p0 VALUES IN (_ucs2 0x0411));
+ERROR HY000: This partition function is not allowed
+#
+# End of 10.3 tests
+#

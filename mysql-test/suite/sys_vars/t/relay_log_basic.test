@@ -1,13 +1,21 @@
 --source include/not_embedded.inc
+
+let $MYSQLD_RELAY_LOG=`select @@global.relay_log`;
+
 #
 # only global
 #
+--replace_result $MYSQLD_RELAY_LOG RELAY_LOG
 select @@global.relay_log;
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 select @@session.relay_log;
+--replace_result $MYSQLD_RELAY_LOG RELAY_LOG
 show global variables like 'relay_log';
+--replace_result $MYSQLD_RELAY_LOG RELAY_LOG
 show session variables like 'relay_log';
+--replace_result $MYSQLD_RELAY_LOG RELAY_LOG
 select * from information_schema.global_variables where variable_name='relay_log';
+--replace_result $MYSQLD_RELAY_LOG RELAY_LOG
 select * from information_schema.session_variables where variable_name='relay_log';
 
 #

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,7 +27,6 @@ Created 5/20/1997 Heikki Tuuri
 #ifndef hash0hash_h
 #define hash0hash_h
 
-#include "univ.i"
 #include "mem0mem.h"
 #include "sync0rw.h"
 
@@ -122,7 +122,6 @@ do {\
 	}\
 } while (0)
 
-#ifdef WITH_WSREP
 /*******************************************************************//**
 Inserts a struct to the head of hash table. */
 
@@ -148,7 +147,6 @@ do {							\
 		cell3333->node = DATA;			\
 	}						\
 } while (0)
-#endif /*WITH_WSREP */
 #ifdef UNIV_HASH_DEBUG
 # define HASH_ASSERT_VALID(DATA) ut_a((void*) (DATA) != (void*) -1)
 # define HASH_INVALIDATE(DATA, NAME) *(void**) (&DATA->NAME) = (void*) -1
@@ -186,6 +184,18 @@ do {\
 	HASH_INVALIDATE(DATA, NAME);\
 } while (0)
 
+#define HASH_REPLACE(TYPE, NAME, TABLE, FOLD, DATA_OLD, DATA_NEW)             \
+	do {                                                                  \
+		(DATA_NEW)->NAME = (DATA_OLD)->NAME;                          \
+                                                                              \
+		hash_cell_t& cell3333                                         \
+			= TABLE->array[hash_calc_hash(FOLD, TABLE)];          \
+		TYPE** struct3333 = (TYPE**)&cell3333.node;                   \
+		while (*struct3333 != DATA_OLD) {                             \
+			struct3333 = &((*struct3333)->NAME);                  \
+		}                                                             \
+		*struct3333 = DATA_NEW;                                       \
+	} while (0)
 /*******************************************************************//**
 Gets the first struct in a hash chain, NULL if none. */
 

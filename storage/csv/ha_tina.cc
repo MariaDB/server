@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Make sure to look at ha_tina.h for more details.
@@ -528,7 +528,7 @@ int ha_tina::encode_quote(const uchar *buf)
   String attribute(attribute_buffer, sizeof(attribute_buffer),
                    &my_charset_bin);
   bool ietf_quotes= table_share->option_struct->ietf_quotes;
-  my_bitmap_map *org_bitmap= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *org_bitmap= dbug_tmp_use_all_columns(table, &table->read_set);
   buffer.length(0);
 
   for (Field **field=table->field ; *field ; field++)
@@ -606,7 +606,7 @@ int ha_tina::encode_quote(const uchar *buf)
 
   //buffer.replace(buffer.length(), 0, "\n", 1);
 
-  dbug_tmp_restore_column_map(table->read_set, org_bitmap);
+  dbug_tmp_restore_column_map(&table->read_set, org_bitmap);
   return (buffer.length());
 }
 
@@ -659,7 +659,6 @@ int ha_tina::find_current_row(uchar *buf)
 {
   my_off_t end_offset, curr_offset= current_position;
   int eoln_len;
-  my_bitmap_map *org_bitmap;
   int error;
   bool read_all;
   bool ietf_quotes= table_share->option_struct->ietf_quotes;
@@ -679,7 +678,7 @@ int ha_tina::find_current_row(uchar *buf)
   /* We must read all columns in case a table is opened for update */
   read_all= !bitmap_is_clear_all(table->write_set);
   /* Avoid asserts in ::store() for columns that are not going to be updated */
-  org_bitmap= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *org_bitmap= dbug_tmp_use_all_columns(table, &table->write_set);
   error= HA_ERR_CRASHED_ON_USAGE;
 
   memset(buf, 0, table->s->null_bytes);
@@ -857,7 +856,7 @@ int ha_tina::find_current_row(uchar *buf)
   error= 0;
 
 err:
-  dbug_tmp_restore_column_map(table->write_set, org_bitmap);
+  dbug_tmp_restore_column_map(&table->write_set, org_bitmap);
 
   DBUG_RETURN(error);
 }
@@ -1788,7 +1787,7 @@ maria_declare_plugin(csv)
   &csv_storage_engine,
   "CSV",
   "Brian Aker, MySQL AB",
-  "CSV storage engine",
+  "Stores tables as CSV files",
   PLUGIN_LICENSE_GPL,
   tina_init_func, /* Plugin Init */
   tina_done_func, /* Plugin Deinit */

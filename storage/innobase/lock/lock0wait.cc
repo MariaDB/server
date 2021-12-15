@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2017, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,7 +26,7 @@ Created 25/5/2010 Sunny Bains
 
 #define LOCK_MODULE_IMPLEMENTATION
 
-#include "ha_prototypes.h"
+#include "univ.i"
 #include <mysql/service_thd_wait.h>
 #include <mysql/service_wsrep.h>
 
@@ -48,7 +48,7 @@ lock_wait_table_print(void)
 
 	const srv_slot_t*	slot = lock_sys.waiting_threads;
 
-	for (ulint i = 0; i < OS_THREAD_MAX_N; i++, ++slot) {
+	for (ulint i = 0; i < srv_max_n_threads; i++, ++slot) {
 
 		fprintf(stderr,
 			"Slot %lu: thread type %lu,"
@@ -58,7 +58,7 @@ lock_wait_table_print(void)
 			(ulong) slot->in_use,
 			(ulong) slot->suspended,
 			slot->wait_timeout,
-			(ulong) difftime(ut_time(), slot->suspend_time));
+			(ulong) difftime(time(NULL), slot->suspend_time));
 	}
 }
 
@@ -72,7 +72,7 @@ lock_wait_table_release_slot(
 	srv_slot_t*	slot)		/*!< in: slot to release */
 {
 #ifdef UNIV_DEBUG
-	srv_slot_t*	upper = lock_sys.waiting_threads + OS_THREAD_MAX_N;
+	srv_slot_t*	upper = lock_sys.waiting_threads + srv_max_n_threads;
 #endif /* UNIV_DEBUG */
 
 	lock_wait_mutex_enter();
@@ -142,7 +142,7 @@ lock_wait_table_reserve_slot(
 
 	slot = lock_sys.waiting_threads;
 
-	for (i = OS_THREAD_MAX_N; i--; ++slot) {
+	for (i = srv_max_n_threads; i--; ++slot) {
 		if (!slot->in_use) {
 			slot->in_use = TRUE;
 			slot->thr = thr;
@@ -155,7 +155,7 @@ lock_wait_table_reserve_slot(
 
 			os_event_reset(slot->event);
 			slot->suspended = TRUE;
-			slot->suspend_time = ut_time();
+			slot->suspend_time = time(NULL);
 			slot->wait_timeout = wait_timeout;
 
 			if (slot == lock_sys.last_slot) {
@@ -163,13 +163,13 @@ lock_wait_table_reserve_slot(
 			}
 
 			ut_ad(lock_sys.last_slot
-			      <= lock_sys.waiting_threads + OS_THREAD_MAX_N);
+			      <= lock_sys.waiting_threads + srv_max_n_threads);
 
 			return(slot);
 		}
 	}
 
-	ib::error() << "There appear to be " << OS_THREAD_MAX_N << " user"
+	ib::error() << "There appear to be " << srv_max_n_threads << " user"
 		" threads currently waiting inside InnoDB, which is the upper"
 		" limit. Cannot continue operation. Before aborting, we print"
 		" a list of waiting threads.";
@@ -184,37 +184,27 @@ lock_wait_table_reserve_slot(
 check if lock timeout was for priority thread,
 as a side effect trigger lock monitor
 @param[in]    trx    transaction owning the lock
-@param[in]    locked true if trx and lock_sys.mutex is ownd
 @return	false for regular lock timeout */
 static
 bool
 wsrep_is_BF_lock_timeout(
-	const trx_t*	trx,
-	bool		locked = true)
+	const trx_t*	trx)
 {
-	if (wsrep_on_trx(trx)
-	    && wsrep_thd_is_BF(trx->mysql_thd, FALSE)
-	    && trx->error_state != DB_DEADLOCK) {
-		ib::info() << "WSREP: BF lock wait long for trx:" << ib::hex(trx->id)
+	bool long_wait= (trx->error_state != DB_DEADLOCK &&
+			 trx->is_wsrep() &&
+			 wsrep_thd_is_BF(trx->mysql_thd, false));
+	bool was_wait= true;
+
+	DBUG_EXECUTE_IF("wsrep_instrument_BF_lock_wait",
+			was_wait=false; long_wait=true;);
+
+	if (long_wait) {
+		ib::info() << "WSREP: BF lock wait long for trx:" << trx->id
 			   << " query: " << wsrep_thd_query(trx->mysql_thd);
-		if (!locked) {
-			lock_mutex_enter();
-		}
 
-		ut_ad(lock_mutex_own());
-
-		trx_print_latched(stderr, trx, 3000);
-
-		if (!locked) {
-			lock_mutex_exit();
-		}
-
-		srv_print_innodb_monitor 	= TRUE;
-		srv_print_innodb_lock_monitor 	= TRUE;
-		os_event_set(srv_monitor_event);
-		return true;
-	}
-	return false;
+		return was_wait;
+	} else
+		return false;
 }
 #endif /* WITH_WSREP */
 
@@ -231,13 +221,8 @@ lock_wait_suspend_thread(
 				user OS thread */
 {
 	srv_slot_t*	slot;
-	double		wait_time;
 	trx_t*		trx;
 	ibool		was_declared_inside_innodb;
-	int64_t		start_time = 0;
-	int64_t		finish_time;
-	ulint		sec;
-	ulint		ms;
 	ulong		lock_wait_timeout;
 
 	trx = thr_get_trx(thr);
@@ -283,15 +268,12 @@ lock_wait_suspend_thread(
 	lock_wait_mutex_exit();
 	trx_mutex_exit(trx);
 
+	ulonglong start_time = 0;
+
 	if (thr->lock_state == QUE_THR_LOCK_ROW) {
 		srv_stats.n_lock_wait_count.inc();
 		srv_stats.n_lock_wait_current_count.inc();
-
-		if (ut_usectime(&sec, &ms) == -1) {
-			start_time = -1;
-		} else {
-			start_time = static_cast<int64_t>(sec) * 1000000 + ms;
-		}
+		start_time = my_interval_timer();
 	}
 
 	ulint	lock_type = ULINT_UNDEFINED;
@@ -371,38 +353,29 @@ lock_wait_suspend_thread(
 		row_mysql_freeze_data_dictionary(trx);
 	}
 
-	wait_time = ut_difftime(ut_time(), slot->suspend_time);
+	double wait_time = difftime(time(NULL), slot->suspend_time);
 
 	/* Release the slot for others to use */
 
 	lock_wait_table_release_slot(slot);
 
 	if (thr->lock_state == QUE_THR_LOCK_ROW) {
-		ulint	diff_time;
+		const ulonglong finish_time = my_interval_timer();
 
-		if (ut_usectime(&sec, &ms) == -1) {
-			finish_time = -1;
-		} else {
-			finish_time = static_cast<int64_t>(sec) * 1000000 + ms;
+		if (finish_time >= start_time) {
+			const ulint diff_time = static_cast<ulint>
+				((finish_time - start_time) / 1000);
+			srv_stats.n_lock_wait_time.add(diff_time);
+			/* Only update the variable if we successfully
+			retrieved the start and finish times. See Bug#36819. */
+			if (diff_time > lock_sys.n_lock_max_wait_time) {
+				lock_sys.n_lock_max_wait_time = diff_time;
+			}
+			/* Record the lock wait time for this thread */
+			thd_storage_lock_wait(trx->mysql_thd, diff_time);
 		}
-
-		diff_time = (finish_time > start_time) ?
-			    (ulint) (finish_time - start_time) : 0;
 
 		srv_stats.n_lock_wait_current_count.dec();
-		srv_stats.n_lock_wait_time.add(diff_time);
-
-		/* Only update the variable if we successfully
-		retrieved the start and finish times. See Bug#36819. */
-		if (diff_time > lock_sys.n_lock_max_wait_time
-		    && start_time != -1
-		    && finish_time != -1) {
-
-			lock_sys.n_lock_max_wait_time = diff_time;
-		}
-
-		/* Record the lock wait time for this thread */
-		thd_set_lock_wait_time(trx->mysql_thd, diff_time);
 
 		DBUG_EXECUTE_IF("lock_instrument_slow_query_log",
 			os_thread_sleep(1000););
@@ -416,10 +389,11 @@ lock_wait_suspend_thread(
 	if (lock_wait_timeout < 100000000
 	    && wait_time > (double) lock_wait_timeout
 #ifdef WITH_WSREP
-	    && (!wsrep_on_trx(trx) ||
-	       (!wsrep_is_BF_lock_timeout(trx, false) && trx->error_state != DB_DEADLOCK))
+	    && (!trx->is_wsrep()
+		|| (!wsrep_is_BF_lock_timeout(trx)
+		    && trx->error_state != DB_DEADLOCK))
 #endif /* WITH_WSREP */
-	    && !trx_is_high_priority(trx)) {
+	    ) {
 
 		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
 
@@ -472,19 +446,12 @@ lock_wait_check_and_cancel(
 	const srv_slot_t*	slot)	/*!< in: slot reserved by a user
 					thread when the wait started */
 {
-	trx_t*		trx;
-	double		wait_time;
-	ib_time_t	suspend_time = slot->suspend_time;
-
 	ut_ad(lock_wait_mutex_own());
-
 	ut_ad(slot->in_use);
-
 	ut_ad(slot->suspended);
 
-	wait_time = ut_difftime(ut_time(), suspend_time);
-
-	trx = thr_get_trx(slot->thr);
+	double wait_time = difftime(time(NULL), slot->suspend_time);
+	trx_t* trx = thr_get_trx(slot->thr);
 
 	if (trx_is_interrupted(trx)
 	    || (slot->wait_timeout < 100000000
@@ -502,7 +469,7 @@ lock_wait_check_and_cancel(
 
 		trx_mutex_enter(trx);
 
-		if (trx->lock.wait_lock != NULL && !trx_is_high_priority(trx)) {
+		if (trx->lock.wait_lock != NULL) {
 
 			ut_a(trx->lock.que_state == TRX_QUE_LOCK_WAIT);
 
@@ -519,7 +486,6 @@ lock_wait_check_and_cancel(
 
 		trx_mutex_exit(trx);
 	}
-
 }
 
 /*********************************************************************//**

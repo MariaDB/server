@@ -1,0 +1,14 @@
+--source include/not_embedded.inc
+
+#
+# statement timeout
+#
+SELECT @@MAX_STATEMENT_TIME;
+SET STATEMENT MAX_STATEMENT_TIME=3 FOR SELECT SLEEP(1);
+SHOW STATUS LIKE "max_statement_time_exceeded";
+--error ER_STATEMENT_TIMEOUT
+SET STATEMENT MAX_STATEMENT_TIME=1 FOR SELECT SLEEP(10);
+SHOW STATUS LIKE "max_statement_time_exceeded";
+SELECT @@MAX_STATEMENT_TIME;
+
+

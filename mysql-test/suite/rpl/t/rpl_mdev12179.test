@@ -3,6 +3,8 @@
 --source include/rpl_init.inc
 
 --connection server_2
+call mtr.add_suppression("The automatically created table.*name may not be entirely in lowercase");
+
 --error ER_SLAVE_MUST_STOP
 SET GLOBAL gtid_pos_auto_engines="innodb";
 --source include/stop_slave.inc
@@ -55,7 +57,7 @@ SET sql_log_bin=1;
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 wait
 EOF
---shutdown_server 30
+--shutdown_server
 --source include/wait_until_disconnected.inc
 
 --connection server_1
@@ -94,7 +96,7 @@ SET sql_log_bin=1;
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 wait
 EOF
---shutdown_server 30
+--shutdown_server
 --source include/wait_until_disconnected.inc
 
 --connection server_1
@@ -132,7 +134,7 @@ SET sql_log_bin=1;
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 wait
 EOF
---shutdown_server 30
+--shutdown_server
 --source include/wait_until_disconnected.inc
 
 --connection server_1
@@ -161,7 +163,8 @@ let $wait_condition=
   SELECT EXISTS (SELECT * FROM information_schema.tables
                   WHERE table_schema='mysql' AND table_name='gtid_slave_pos_InnoDB');
 --source include/wait_condition.inc
-SELECT table_name, engine FROM information_schema.tables
+# MDEV-15373 lowercases 'table_name' to satisfy --lower-case-table-names options
+SELECT lower(table_name), engine FROM information_schema.tables
  WHERE table_schema='mysql' AND table_name LIKE 'gtid_slave_pos%'
  ORDER BY table_name;
 
@@ -175,7 +178,7 @@ SET sql_log_bin=1;
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 wait
 EOF
---shutdown_server 30
+--shutdown_server
 --source include/wait_until_disconnected.inc
 
 --connection server_1
@@ -225,7 +228,7 @@ let $wait_condition=
   SELECT EXISTS (SELECT * FROM information_schema.tables
                   WHERE table_schema='mysql' AND table_name='gtid_slave_pos_InnoDB');
 --source include/wait_condition.inc
-SELECT table_name, engine FROM information_schema.tables
+SELECT lower(table_name), engine FROM information_schema.tables
  WHERE table_schema='mysql' AND table_name LIKE 'gtid_slave_pos%'
  ORDER BY table_name;
 SELECT domain_id, max(seq_no) FROM mysql.gtid_slave_pos GROUP BY domain_id;
@@ -265,6 +268,39 @@ while (!$done)
 # Note that at this point, the contents of table t2, as well as the GTID
 # position, is non-deterministic.
 
+# MDEV-15373 engine gtid_slave_pos table name disobeys lower-case-table-names
+# This snippet verifies that engine gtid_slave_pos table is found,
+# its data are up-to-date.
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+--connection server_2
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+--echo *** Restart the slave server to prove 'gtid_slave_pos_innodb' autodiscovery ***
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart: --skip-slave-start=0
+EOF
+
+--connection server_2
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+SELECT max(seq_no) FROM mysql.gtid_slave_pos_InnoDB into @seq_no;
+
+--connection server_1
+INSERT INTO t2(a) SELECT 1+MAX(a) FROM t2;
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+if (`SELECT  max(seq_no) <> @seq_no + 1  FROM mysql.gtid_slave_pos_InnoDB`)
+{
+  SELECT * FROM mysql.gtid_slave_pos_InnoDB;
+  --die Inconsistent table
+}
+#
+# end of MDEV-15373
 
 #--connection server_2
 --source include/stop_slave.inc

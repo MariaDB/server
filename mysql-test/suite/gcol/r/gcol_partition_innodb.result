@@ -1,4 +1,6 @@
 SET @@session.default_storage_engine = 'InnoDB';
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 drop table if exists t1;
 # Case 1. Partitioning by RANGE based on a non-stored generated column.
 CREATE TABLE t1 (
@@ -86,6 +88,46 @@ CHECK TABLE t EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 DROP TABLE t;
+#
+# MDEV-18166 ASSERT_COLUMN_MARKED_FOR_READ failed on tables with vcols
+#
+CREATE TABLE t1 (
+a INT,
+b INT,
+c BIT(4) NOT NULL DEFAULT b'0',
+pk INTEGER AUTO_INCREMENT,
+d BIT(4) AS (c) VIRTUAL,
+PRIMARY KEY(pk),
+KEY (b,d)
+) PARTITION BY HASH(pk);
+INSERT INTO t1 () VALUES (),();
+UPDATE t1 SET a = 0 WHERE b IS NULL ORDER BY pk;
+DROP TABLE t1;
+#
+# MDEV-26220 Server crashes with indexed by prefix virtual column
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b CHAR(20), c CHAR(20) AS (b),
+KEY (c(10),a)) PARTITION BY HASH(pk);
+INSERT INTO t1 (pk,a,b) VALUES (1,10,'foo'),(2,11,'baz');
+SELECT a FROM t1;
+a
+11
+10
+DROP TABLE t1;
+#
+# MDEV-16980 Wrongly set tablename len while opening the
+#                table for purge thread
+#
+CREATE TABLE t1(pk SERIAL, d DATE, vd DATE AS (d) VIRTUAL,
+PRIMARY KEY(pk), KEY (vd))ENGINE=InnoDB
+PARTITION BY HASH(pk) PARTITIONS 2;
+INSERT IGNORE INTO t1 (d) VALUES ('2015-04-14');
+SET sql_mode= '';
+REPLACE INTO t1 SELECT * FROM t1;
+Warnings:
+Warning	1906	The value specified for generated column 'vd' in table 't1' has been ignored
+DROP TABLE t1;
+InnoDB		0 transactions not purged
 DROP VIEW  IF EXISTS v1,v2;
 DROP TABLE IF EXISTS t1,t2,t3;
 DROP PROCEDURE IF EXISTS p1;
@@ -93,3 +135,4 @@ DROP FUNCTION IF EXISTS f1;
 DROP TRIGGER IF EXISTS trg1;
 DROP TRIGGER IF EXISTS trg2;
 set sql_warnings = 0;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,12 +27,9 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0rec_h
 #define trx0rec_h
 
-#include "univ.i"
 #include "trx0types.h"
 #include "row0types.h"
 #include "mtr0mtr.h"
-#include "dict0types.h"
-#include "data0data.h"
 #include "rem0types.h"
 #include "page0types.h"
 #include "row0log.h"
@@ -167,8 +164,7 @@ trx_undo_rec_get_partial_row(
 @param[in,out]	trx	transaction
 @param[in]	table	table that is being renamed
 @return	DB_SUCCESS or error code */
-dberr_t
-trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
+dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /***********************************************************************//**
 Writes information to an undo log about an insert, update, or a delete marking
@@ -195,7 +191,7 @@ trx_undo_report_row_operation(
 	const rec_t*	rec,		/*!< in: case of an update or delete
 					marking, the record in the clustered
 					index; NULL if insert */
-	const ulint*	offsets,	/*!< in: rec_get_offsets(rec) */
+	const rec_offs*	offsets,	/*!< in: rec_get_offsets(rec) */
 	roll_ptr_t*	roll_ptr)	/*!< out: DB_ROLL_PTR to the
 					undo log record */
 	MY_ATTRIBUTE((nonnull(1,2,8), warn_unused_result));
@@ -228,7 +224,7 @@ trx_undo_prev_version_build(
 				index_rec page and purge_view */
 	const rec_t*	rec,	/*!< in: version of a clustered index record */
 	dict_index_t*	index,	/*!< in: clustered index */
-	ulint*		offsets,/*!< in/out: rec_get_offsets(rec, index) */
+	rec_offs*	offsets,/*!< in/out: rec_get_offsets(rec, index) */
 	mem_heap_t*	heap,	/*!< in: memory heap from which the memory
 				needed is allocated */
 	rec_t**		old_vers,/*!< out, own: previous version, or NULL if
@@ -238,13 +234,13 @@ trx_undo_prev_version_build(
 				dtuple if it is not yet created. This heap
 				diffs from "heap" above in that it could be
 				prebuilt->old_vers_heap for selection */
-	const dtuple_t**vrow,	/*!< out: virtual column info, if any */
+	dtuple_t**	vrow,	/*!< out: virtual column info, if any */
 	ulint		v_status);
 				/*!< in: status determine if it is going
 				into this function by purge thread or not.
 				And if we read "after image" of undo log */
 
-/** Parse MLOG_UNDO_INSERT for crash-upgrade from MariaDB 10.2.
+/** Parse MLOG_UNDO_INSERT.
 @param[in]	ptr	log record
 @param[in]	end_ptr	end of log record buffer
 @param[in,out]	page	page or NULL
@@ -284,7 +280,7 @@ void
 trx_undo_read_v_cols(
 	const dict_table_t*	table,
 	const byte*		ptr,
-	const dtuple_t*		row,
+	dtuple_t*		row,
 	bool			in_purge);
 
 /** Read virtual column index from undo log if the undo log contains such
@@ -311,7 +307,7 @@ compilation info multiplied by 16 is ORed to this value in an undo log
 record */
 
 #define	TRX_UNDO_RENAME_TABLE	9	/*!< RENAME TABLE */
-#define	TRX_UNDO_INSERT_DEFAULT	10	/*!< insert a "default value"
+#define	TRX_UNDO_INSERT_METADATA 10	/*!< insert a metadata
 					pseudo-record for instant ALTER */
 #define	TRX_UNDO_INSERT_REC	11	/* fresh insert into clustered index */
 #define	TRX_UNDO_UPD_EXIST_REC	12	/* update of a non-delete-marked
@@ -328,8 +324,8 @@ record */
 					storage fields: used by purge to
 					free the external storage */
 
-/** The search tuple corresponding to TRX_UNDO_INSERT_DEFAULT */
-extern const dtuple_t trx_undo_default_rec;
+/** The search tuple corresponding to TRX_UNDO_INSERT_METADATA */
+extern const dtuple_t trx_undo_metadata;
 
 #include "trx0rec.ic"
 

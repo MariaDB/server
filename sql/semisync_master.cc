@@ -228,7 +228,7 @@ bool Active_tranx::is_tranx_end_pos(const char *log_file_name,
   DBUG_RETURN(entry != NULL);
 }
 
-int Active_tranx::clear_active_tranx_nodes(const char *log_file_name,
+void Active_tranx::clear_active_tranx_nodes(const char *log_file_name,
                                            my_off_t log_file_pos)
 {
   Tranx_node *new_front;
@@ -307,7 +307,7 @@ int Active_tranx::clear_active_tranx_nodes(const char *log_file_name,
                             m_trx_front->log_name, (ulong)m_trx_front->log_pos));
   }
 
-  DBUG_RETURN(0);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -352,7 +352,7 @@ Repl_semi_sync_master::Repl_semi_sync_master()
 
 int Repl_semi_sync_master::init_object()
 {
-  int result;
+  int result= 0;
 
   m_init_done = true;
 
@@ -362,6 +362,8 @@ int Repl_semi_sync_master::init_object()
   set_wait_point(rpl_semi_sync_master_wait_point);
 
   /* Mutex initialization can only be done after MY_INIT(). */
+  mysql_mutex_init(key_LOCK_rpl_semi_sync_master_enabled,
+                   &LOCK_rpl_semi_sync_master_enabled, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_binlog,
                    &LOCK_binlog, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_binlog_send,
@@ -371,19 +373,20 @@ int Repl_semi_sync_master::init_object()
   {
     result = enable_master();
     if (!result)
+    {
       result= ack_receiver.start(); /* Start the ACK thread. */
+      /*
+        If rpl_semi_sync_master_wait_no_slave is disabled, let's temporarily
+        switch off semisync to avoid hang if there's none active slave.
+      */
+      if (!rpl_semi_sync_master_wait_no_slave)
+        switch_off();
+    }
   }
   else
   {
-    result = disable_master();
+    disable_master();
   }
-
-  /*
-    If rpl_semi_sync_master_wait_no_slave is disabled, let's temporarily
-    switch off semisync to avoid hang if there's none active slave.
-  */
-  if (!rpl_semi_sync_master_wait_no_slave)
-    switch_off();
 
   return result;
 }
@@ -420,7 +423,7 @@ int Repl_semi_sync_master::enable_master()
   return result;
 }
 
-int Repl_semi_sync_master::disable_master()
+void Repl_semi_sync_master::disable_master()
 {
   /* Must have the lock when we do enable of disable. */
   lock();
@@ -445,14 +448,13 @@ int Repl_semi_sync_master::disable_master()
   }
 
   unlock();
-
-  return 0;
 }
 
 void Repl_semi_sync_master::cleanup()
 {
   if (m_init_done)
   {
+    mysql_mutex_destroy(&LOCK_rpl_semi_sync_master_enabled);
     mysql_mutex_destroy(&LOCK_binlog);
     mysql_cond_destroy(&COND_binlog_send);
     m_init_done= 0;
@@ -779,7 +781,6 @@ void Repl_semi_sync_master::dump_end(THD* thd)
 int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
                                       my_off_t trx_wait_binlog_pos)
 {
-
   DBUG_ENTER("Repl_semi_sync_master::commit_trx");
 
   if (get_master_enabled() && trx_wait_binlog_name)
@@ -788,15 +789,16 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
     struct timespec abstime;
     int wait_result;
     PSI_stage_info old_stage;
+    THD *thd= current_thd;
 
     set_timespec(start_ts, 0);
 
-    DEBUG_SYNC(current_thd, "rpl_semisync_master_commit_trx_before_lock");
+    DEBUG_SYNC(thd, "rpl_semisync_master_commit_trx_before_lock");
     /* Acquire the mutex. */
     lock();
 
     /* This must be called after acquired the lock */
-    THD_ENTER_COND(NULL, &COND_binlog_send, &LOCK_binlog,
+    THD_ENTER_COND(thd, &COND_binlog_send, &LOCK_binlog,
                    & stage_waiting_for_semi_sync_ack_from_slave,
                    & old_stage);
 
@@ -804,12 +806,12 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
     if (!get_master_enabled() || !is_on())
       goto l_end;
 
-    DBUG_PRINT("semisync", ("%s: wait pos (%s, %lu), repl(%d)\n",
+    DBUG_PRINT("semisync", ("%s: wait pos (%s, %lu), repl(%d)",
                             "Repl_semi_sync_master::commit_trx",
                             trx_wait_binlog_name, (ulong)trx_wait_binlog_pos,
                             (int)is_on()));
 
-    while (is_on() && !thd_killed(current_thd))
+    while (is_on() && !thd_killed(thd))
     {
       if (m_reply_file_name_inited)
       {
@@ -924,7 +926,7 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
       m_active_tranxs may be NULL if someone disabled semi sync during
       cond_timewait()
     */
-    assert(thd_killed(current_thd) || !m_active_tranxs ||
+    assert(thd_killed(thd) || !m_active_tranxs ||
            !m_active_tranxs->is_tranx_end_pos(trx_wait_binlog_name,
                                              trx_wait_binlog_pos));
 
@@ -937,7 +939,7 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
 
     /* The lock held will be released by thd_exit_cond, so no need to
        call unlock() here */
-    THD_EXIT_COND(NULL, & old_stage);
+    THD_EXIT_COND(thd, &old_stage);
   }
 
   DBUG_RETURN(0);
@@ -961,17 +963,15 @@ int Repl_semi_sync_master::commit_trx(const char* trx_wait_binlog_name,
  * the current sending event catches up with last wait position.  If it
  * does match, semi-sync will be switched on again.
  */
-int Repl_semi_sync_master::switch_off()
+void Repl_semi_sync_master::switch_off()
 {
-  int result;
-
   DBUG_ENTER("Repl_semi_sync_master::switch_off");
 
   m_state = false;
 
   /* Clear the active transaction list. */
   assert(m_active_tranxs != NULL);
-  result = m_active_tranxs->clear_active_tranx_nodes(NULL, 0);
+  m_active_tranxs->clear_active_tranx_nodes(NULL, 0);
 
   rpl_semi_sync_master_off_times++;
   m_wait_file_name_inited   = false;
@@ -979,7 +979,7 @@ int Repl_semi_sync_master::switch_off()
   sql_print_information("Semi-sync replication switched OFF.");
   cond_broadcast();                            /* wake up all waiting threads */
 
-  DBUG_RETURN(result);
+  DBUG_VOID_RETURN;
 }
 
 int Repl_semi_sync_master::try_switch_on(int server_id,

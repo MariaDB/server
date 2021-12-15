@@ -1,1 +1,1 @@
---source extra/rpl_tests/rpl_checksum_cache.inc
+--source suite/rpl/include/rpl_checksum_cache.inc

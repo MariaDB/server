@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_partition.inc
 
 #
 # Check and select innodb lock type
@@ -12,26 +13,15 @@ select @@innodb_table_locks;
 # Testing of explicit table locks with enforced table locks
 #
 
-connect (con1,localhost,root,,);
-connect (con2,localhost,root,,);
-
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
-#
-# Testing of explicit table locks with enforced table locks
-#
-
 set @@innodb_table_locks=1;
 
-connection con1;
+connect (con1,localhost,root,,);
 create table t1 (id integer, x integer) engine=INNODB;
 insert into t1 values(0, 0);
 set autocommit=0;
 SELECT * from t1 where id = 0 FOR UPDATE;
 
-connection con2;
+connect (con2,localhost,root,,);
 set autocommit=0;
 
 # The following statement should hang because con1 is locking the page
@@ -166,14 +156,66 @@ let $wait_condition=
   where state = 'Sending data' and
         info = 'SELECT * FROM t1 FOR UPDATE';
 --source include/wait_condition.inc
+disconnect con2;
 
 connection default;
 COMMIT;
 connection con1;
 reap;
 COMMIT;
-disconnect con1;
-disconnect con2;
-
 connection default;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-11080 InnoDB: Failing assertion:
+--echo # table->n_waiting_or_granted_auto_inc_locks > 0
+--echo #
+
+CREATE TABLE t1 (pk INTEGER AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (NULL),(NULL);
+CREATE TABLE t2 LIKE t1;
+
+BEGIN;
+
+connection con1;
+BEGIN;
+DELETE FROM t2;
+connection default;
+--send LOCK TABLE t2 READ;
+connection con1;
+SET innodb_lock_wait_timeout= 1, lock_wait_timeout= 2;
+--error 0,ER_LOCK_WAIT_TIMEOUT
+INSERT INTO t2 SELECT * FROM t1;
+COMMIT;
+
+connection default;
+reap;
+UNLOCK TABLES;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-16709 InnoDB: Error: trx already had an AUTO-INC lock
+--echo #
+
+CREATE TABLE t1 (pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB
+PARTITION BY key (pk) PARTITIONS 2;
+
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2),(3),(4),(5),(6);
+
+CREATE TABLE t3 (b INT) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+connection con1;
+send INSERT t1 SELECT NULL FROM t2;
+
+connection default;
+--error 0,ER_DUP_ENTRY,ER_LOCK_DEADLOCK
+INSERT t1 SELECT NULL FROM t3;
+
+connection con1;
+--error 0,ER_DUP_ENTRY,ER_LOCK_DEADLOCK
+reap;
+disconnect con1;
+connection default;
+DROP TABLE t1, t2, t3;

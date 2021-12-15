@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1994, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2018, MariaDB Corporation.
+Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -91,7 +91,8 @@ UNIV_INLINE
 ib_uint64_t
 page_get_autoinc(const page_t* page)
 {
-	ut_ad(page_is_root(page));
+	ut_ad(fil_page_index_page_check(page));
+	ut_ad(!page_has_siblings(page));
 	return(mach_read_from_8(PAGE_HEADER + PAGE_ROOT_AUTO_INC + page));
 }
 
@@ -172,8 +173,8 @@ page_header_set_field(
 {
 	ut_ad(page);
 	ut_ad(field <= PAGE_N_RECS);
-	ut_ad(field == PAGE_N_HEAP || val < UNIV_PAGE_SIZE);
-	ut_ad(field != PAGE_N_HEAP || (val & 0x7fff) < UNIV_PAGE_SIZE);
+	ut_ad(field == PAGE_N_HEAP || val < srv_page_size);
+	ut_ad(field != PAGE_N_HEAP || (val & 0x7fff) < srv_page_size);
 
 	mach_write_to_2(page + PAGE_HEADER + field, val);
 	if (page_zip) {
@@ -355,6 +356,26 @@ page_rec_is_last(
 }
 
 /************************************************************//**
+true if distance between the records (measured in number of times we have to
+move to the next record) is at most the specified value */
+UNIV_INLINE
+bool
+page_rec_distance_is_at_most(
+/*=========================*/
+	const rec_t*	left_rec,
+	const rec_t*	right_rec,
+	ulint		val)
+{
+	for (ulint i = 0; i <= val; i++) {
+		if (left_rec == right_rec) {
+			return (true);
+		}
+		left_rec = page_rec_get_next_const(left_rec);
+	}
+	return (false);
+}
+
+/************************************************************//**
 true if the record is the second last user record on a page.
 @return true if the second last user record */
 UNIV_INLINE
@@ -396,7 +417,8 @@ page_get_middle_rec(
 /*================*/
 	page_t*	page)	/*!< in: page */
 {
-	ulint	middle = (page_get_n_recs(page) + PAGE_HEAP_NO_USER_LOW) / 2;
+	ulint	middle = (ulint(page_get_n_recs(page))
+			  + PAGE_HEAP_NO_USER_LOW) / 2;
 
 	return(page_rec_get_nth(page, middle));
 }
@@ -520,7 +542,7 @@ page_dir_get_nth_slot(
 	ut_ad(page_dir_get_n_slots(page) > n);
 
 	return((page_dir_slot_t*)
-	       page + UNIV_PAGE_SIZE - PAGE_DIR
+	       page + srv_page_size - PAGE_DIR
 	       - (n + 1) * PAGE_DIR_SLOT_SIZE);
 }
 #endif /* UNIV_DEBUG */
@@ -639,7 +661,7 @@ page_rec_get_next_low(
 
 	offs = rec_get_next_offs(rec, comp);
 
-	if (offs >= UNIV_PAGE_SIZE) {
+	if (offs >= srv_page_size) {
 		fprintf(stderr,
 			"InnoDB: Next record offset is nonsensical %lu"
 			" in record at offset %lu\n"
@@ -653,6 +675,11 @@ page_rec_get_next_low(
 
 		return(NULL);
 	}
+
+	ut_ad(page_rec_is_infimum(rec)
+	      || (!page_is_leaf(page) && !page_has_prev(page))
+	      || !(rec_get_info_bits(page + offs, comp)
+		   & REC_INFO_MIN_REC_FLAG));
 
 	return(page + offs);
 }
@@ -828,9 +855,8 @@ page_rec_get_base_extra_size(
 /*=========================*/
 	const rec_t*	rec)	/*!< in: physical record */
 {
-#if REC_N_NEW_EXTRA_BYTES + 1 != REC_N_OLD_EXTRA_BYTES
-# error "REC_N_NEW_EXTRA_BYTES + 1 != REC_N_OLD_EXTRA_BYTES"
-#endif
+	compile_time_assert(REC_N_NEW_EXTRA_BYTES + 1
+			    == REC_N_OLD_EXTRA_BYTES);
 	return(REC_N_NEW_EXTRA_BYTES + (ulint) !page_rec_is_comp(rec));
 }
 
@@ -851,7 +877,7 @@ page_get_data_size(
 		   ? PAGE_NEW_SUPREMUM_END
 		   : PAGE_OLD_SUPREMUM_END)
 		- page_header_get_field(page, PAGE_GARBAGE);
-	ut_ad(ret < UNIV_PAGE_SIZE);
+	ut_ad(ret < srv_page_size);
 	return(ret);
 }
 
@@ -899,37 +925,16 @@ page_get_free_space_of_empty(
 	ulint	comp)		/*!< in: nonzero=compact page layout */
 {
 	if (comp) {
-		return((ulint)(UNIV_PAGE_SIZE
+		return((ulint)(srv_page_size
 			       - PAGE_NEW_SUPREMUM_END
 			       - PAGE_DIR
 			       - 2 * PAGE_DIR_SLOT_SIZE));
 	}
 
-	return((ulint)(UNIV_PAGE_SIZE
+	return((ulint)(srv_page_size
 		       - PAGE_OLD_SUPREMUM_END
 		       - PAGE_DIR
 		       - 2 * PAGE_DIR_SLOT_SIZE));
-}
-
-/***********************************************************************//**
-Write a 32-bit field in a data dictionary record. */
-UNIV_INLINE
-void
-page_rec_write_field(
-/*=================*/
-	rec_t*	rec,	/*!< in/out: record to update */
-	ulint	i,	/*!< in: index of the field to update */
-	ulint	val,	/*!< in: value to write */
-	mtr_t*	mtr)	/*!< in/out: mini-transaction */
-{
-	byte*	data;
-	ulint	len;
-
-	data = rec_get_nth_field_old(rec, i, &len);
-
-	ut_ad(len == 4);
-
-	mlog_write_ulint(data, val, MLOG_4BYTES, mtr);
 }
 
 /************************************************************//**
@@ -1017,7 +1022,7 @@ page_mem_free(
 	rec_t*			rec,		/*!< in: pointer to the
 						(origin of) record */
 	const dict_index_t*	index,		/*!< in: index of rec */
-	const ulint*		offsets)	/*!< in: array returned by
+	const rec_offs*		offsets)	/*!< in: array returned by
 						rec_get_offsets() */
 {
 	rec_t*		free;
@@ -1043,7 +1048,7 @@ page_mem_free(
 		page_zip_dir_delete(page_zip, rec, index, offsets, free);
 	} else {
 		page_header_set_field(page, page_zip, PAGE_N_RECS,
-				      page_get_n_recs(page) - 1);
+				      ulint(page_get_n_recs(page)) - 1);
 	}
 }
 

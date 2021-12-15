@@ -9,7 +9,6 @@
 # (1) Do not allow creating table with ENCRYPTED=YES
 #
 #
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 --error ER_CANT_CREATE_TABLE
 CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
 c VARCHAR(256), coordinate POINT NOT NULL, SPATIAL index(coordinate)) ENGINE=INNODB
@@ -31,7 +30,6 @@ CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
 c VARCHAR(256), coordinate POINT NOT NULL) ENCRYPTED=YES ENGINE=INNODB;
 # FIXME: MDEV-13851 Encrypted table refuses some form of ALGORITHM=COPY,
 # but allows rebuild by FORCE
---replace_regex /#sql-[0-9a-f_]*`/#sql-temporary`/
 --error ER_CANT_CREATE_TABLE
 ALTER TABLE t1 ADD SPATIAL INDEX b(coordinate), ALGORITHM=COPY;
 --error ER_ILLEGAL_HA_CREATE_OPTION
@@ -69,7 +67,9 @@ INSERT INTO t2 values(1, 'secret', ST_GeomFromText('POINT(903994614 180726515)')
 
 --echo # Success!
 
+--sorted_result
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION > 0;
+--sorted_result
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
 
 DROP TABLE t1, t2;

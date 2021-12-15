@@ -16,7 +16,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include <mysqld_error.h>
 
@@ -37,6 +37,9 @@ enum trg_event_type
   TRG_EVENT_DELETE= 2,
   TRG_EVENT_MAX
 };
+
+static inline uint8 trg2bit(enum trg_event_type trg)
+{ return static_cast<uint8>(1 << static_cast<int>(trg)); }
 
 #include "table.h"                              /* GRANT_INFO */
 
@@ -275,7 +278,7 @@ public:
   Field **nullable_fields() { return record0_field; }
   void reset_extra_null_bitmap()
   {
-    size_t null_bytes= (trigger_table->s->stored_fields -
+    size_t null_bytes= (trigger_table->s->fields -
                         trigger_table->s->null_fields + 7)/8;
     bzero(extra_null_bitmap, null_bytes);
   }

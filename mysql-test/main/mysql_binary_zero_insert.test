@@ -1,0 +1,170 @@
+#
+# Purpose:
+#   This test ensures that the mysql client is able to properly handle the
+# binary data sequence 0x5c00, i.e. the null-terminating character \0, in a
+# string when --binary-mode is enabled. Specifically, this sequence is valid to
+# appear anywhere within a binary data string, and it should not end the string
+# or SQL command. Additionally, \0 outside of a string should still end the
+# query.
+#
+# Methodology:
+#   This test initially inserts data with binary strings containing \0. To
+# ensure the mysql client is able to process this data correctly, perl is used
+# to create a SQL file that contains \0 in strings, and this file is used as
+# input into the client. The row data is then validated by searching for binary
+# zeros in mysqldump output.
+#
+#
+# References:
+#   MDEV-25444: mysql --binary-mode is not able to replay some mysqlbinlog
+#               outputs
+
+--echo # Note: This test assumes NO_BACKSLASH_ESCAPES is not set in SQL_MODE.
+
+--source include/have_log_bin.inc
+
+--echo ##############################
+--echo #      Setup
+--echo ##############################
+
+--echo #
+--echo # Saving old state
+--echo #
+set @old_sql_mode= @@global.SQL_MODE;
+set @@global.SQL_MODE= "";
+
+--echo #
+--echo # Create table for data entry
+--echo #
+CREATE TABLE tb (`id` int(11) NOT NULL AUTO_INCREMENT,`cb` longblob DEFAULT NULL, PRIMARY KEY (`id`)) AUTO_INCREMENT=1 DEFAULT CHARSET=latin1;
+
+# Will replay binlog later and we don't want to recreate the table
+RESET MASTER;
+
+
+--echo ##############################
+--echo #      Test Case
+--echo ##############################
+
+--echo #
+--echo # \0 (0x5c00 in binary) should be allowed in data strings if
+--echo # --binary-mode is enabled.
+--echo #
+--perl
+  my $dir= $ENV{'MYSQL_TMP_DIR'};
+  open (my $FILE, '>', "$dir/binary_zero_inserts.sql") or die "open(): $!";
+
+  print $FILE "TRUNCATE TABLE tb;\n";
+
+  # INSERT INTO tb(cb) VALUES(_binary '\0');
+  print $FILE "INSERT INTO tb(cb) VALUES (_binary '";
+  print $FILE pack "H*","5c00";
+  print $FILE "');\n";
+
+  # INSERT INTO tb(cb) VALUES(_binary '\0A');
+  print $FILE "INSERT INTO tb(cb) VALUES (_binary '";
+  print $FILE pack "H*","5c0041";
+  print $FILE "');\n";
+
+  # INSERT INTO tb(cb) VALUES(_binary 'A\0');
+  print $FILE "INSERT INTO tb(cb) VALUES (_binary '";
+  print $FILE pack "H*","415c00";
+  print $FILE "');\n";
+
+  # INSERT INTO tb(cb) VALUES(_binary 'A\0B');
+  print $FILE "INSERT INTO tb(cb) VALUES (_binary '";
+  print $FILE pack "H*","415c0042";
+  print $FILE "');\n";
+
+  # INSERT INTO tb(cb) VALUES(_binary '\0A\0');
+  print $FILE "INSERT INTO tb(cb) VALUES (_binary '";
+  print $FILE pack "H*","5c00415c00";
+  print $FILE "');\n";
+
+  # INSERT INTO tb(cb) VALUES(_binary '\\\0');
+  print $FILE "INSERT INTO tb(cb) VALUES (_binary '";
+  print $FILE pack "H*","5c5c5c00";
+  print $FILE "');\n";
+
+  # INSERT INTO tb(cb) VALUES(_binary '\0\0');
+  print $FILE "INSERT INTO tb(cb) VALUES (_binary '";
+  print $FILE pack "H*","5c005c00";
+  print $FILE "');\n";
+
+  # INSERT INTO tb(cb) VALUES(_binary '\\0');
+  print $FILE "INSERT INTO tb(cb) VALUES (_binary '";
+  print $FILE pack "H*","5c5c00";
+  print $FILE "');\n";
+
+  close ($FILE);
+EOF
+--let SEARCH_PATTERN= \x5c\x00
+--let SEARCH_FILE= $MYSQL_TMP_DIR/binary_zero_inserts.sql
+--source include/search_pattern_in_file.inc
+--echo # MYSQL --binary-mode test < MYSQL_TMP_DIR/binary_zero_inserts.sql
+--exec $MYSQL --binary-mode test < $MYSQL_TMP_DIR/binary_zero_inserts.sql
+
+--echo #
+--echo # Ensure a row exists from each insert statement with a \0
+--echo #
+SELECT COUNT(*)=8 from tb;
+
+--echo #
+--echo # Ensure that the binary zero was parsed and exists in the row data
+--echo # Note: We only look for 00 because the 5c only served as an escape
+--echo #       in parsing.
+--echo #
+--echo # MYSQL_DUMP test tb --hex-blob > MYSQL_TMP_DIR/dump.sql
+--exec $MYSQL_DUMP test tb --hex-blob > $MYSQL_TMP_DIR/dump.sql
+--let SEARCH_PATTERN= \([0-9]+,0x([1-9][0-9])*00([1-9][0-9])*\)
+--let SEARCH_FILE= $MYSQL_TMP_DIR/dump.sql
+--source include/search_pattern_in_file.inc
+
+--echo #
+--echo # Ensure data consistency on mysqlbinlog replay
+--echo #
+--let $good_checksum= `CHECKSUM TABLE tb`
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
+FLUSH LOGS;
+--echo # MYSQL_BINLOG MYSQLD_DATADIR/binlog_file > MYSQL_TMP_DIR/binlog_zeros.sql
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/$binlog_file > $MYSQL_TMP_DIR/binlog_zeros.sql
+--let SEARCH_PATTERN= \x5c\x00
+--let SEARCH_FILE= $MYSQL_TMP_DIR/binlog_zeros.sql
+--source include/search_pattern_in_file.inc
+--echo # MYSQL --binary-mode test < MYSQL_TMP_DIR/binlog_zeros.sql
+--exec $MYSQL --binary-mode test < $MYSQL_TMP_DIR/binlog_zeros.sql
+if ($good_checksum != `CHECKSUM TABLE tb`)
+{
+    die "Blob with binary zero data changed after binary log replay";
+}
+--echo # Table checksum is equivalent before and after binlog replay
+
+--echo #
+--echo # A \0 should still be treated as end-of-query in binary mode.
+--echo #
+--perl
+  my $dir= $ENV{'MYSQL_TMP_DIR'};
+  open (my $FILE, '>', "$dir/binary_zero_eoq.sql") or die "open(): $!";
+
+  # INSERT INTO tb(cb) VALUES(_binary 'text')\0
+  print $FILE "INSERT INTO tb(cb) VALUES (_binary 'text')";
+  print $FILE pack "H*","5c00";
+
+  close ($FILE);
+EOF
+--echo # MYSQL --binary-mode -B test < MYSQL_TMP_DIR/binary_zero_eoq.sql
+--exec $MYSQL --binary-mode -B test < $MYSQL_TMP_DIR/binary_zero_eoq.sql
+
+
+--echo ##############################
+--echo #      Cleanup
+--echo ##############################
+
+--remove_file $MYSQL_TMP_DIR/binary_zero_inserts.sql
+--remove_file $MYSQL_TMP_DIR/binary_zero_eoq.sql
+--remove_file $MYSQL_TMP_DIR/binlog_zeros.sql
+--remove_file $MYSQL_TMP_DIR/dump.sql
+SET @@global.sql_mode= @old_sql_mode;
+drop table tb;
+RESET MASTER;

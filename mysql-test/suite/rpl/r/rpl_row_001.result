@@ -15,14 +15,15 @@ Aaron
 Aaron
 Ababa
 Ababa
+create temporary table tmp select * from mysql.user where host="localhost" and user="root";
 connection slave;
 STOP SLAVE;
 connection master;
-SET PASSWORD FOR root@"localhost" = PASSWORD('foo');
+UPDATE mysql.user SET password=password('foo') WHERE host='localhost' AND user='root';
 connection slave;
 START SLAVE;
 connection master;
-SET PASSWORD FOR root@"localhost" = PASSWORD('');
+UPDATE mysql.user SET password=password('') WHERE host='localhost' AND user='root';
 CREATE TABLE t3(n INT);
 INSERT INTO t3 VALUES(1),(2);
 connection slave;
@@ -65,5 +66,7 @@ n
 3456
 connection master;
 DROP TABLE t1;
+replace into mysql.user select * from tmp;
+drop temporary table tmp;
 connection slave;
 include/rpl_end.inc

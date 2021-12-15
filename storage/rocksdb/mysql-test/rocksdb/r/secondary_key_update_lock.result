@@ -1,0 +1,18 @@
+connect  con, localhost, root,,;
+connection default;
+create table t1 (a int primary key, b int unique key) engine = rocksdb;
+insert into t1 values(1, 1);
+connection con;
+begin;
+update t1 set b = 2 where b = 1;
+connection default;
+insert into t1 values(2, 1);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con;
+rollback;
+select * from t1;
+a	b
+1	1
+connection default;
+drop table t1;
+disconnect con;

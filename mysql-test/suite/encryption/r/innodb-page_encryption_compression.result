@@ -41,6 +41,14 @@ call innodb_insert_proc(2000);
 insert into innodb_compact select * from innodb_normal;
 insert into innodb_dynamic select * from innodb_normal;
 commit;
+FLUSH TABLES innodb_compact FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES innodb_dynamic FOR EXPORT;
+UNLOCK TABLES;
+select variable_value > 0 from information_schema.global_status
+where variable_name = 'INNODB_NUM_PAGES_PAGE_COMPRESSED';
+variable_value > 0
+1
 set global innodb_compression_algorithm = 1;
 alter table innodb_normal engine=innodb page_compressed=DEFAULT;
 show create table innodb_normal;
@@ -63,6 +71,16 @@ innodb_dynamic	CREATE TABLE `innodb_dynamic` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+FLUSH TABLES innodb_normal FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES innodb_compact FOR EXPORT;
+UNLOCK TABLES;
+FLUSH TABLES innodb_dynamic FOR EXPORT;
+UNLOCK TABLES;
+select variable_value > 0 from information_schema.global_status
+where variable_name = 'INNODB_NUM_PAGES_PAGE_DECOMPRESSED';
+variable_value > 0
+1
 drop procedure innodb_insert_proc;
 drop table innodb_normal;
 drop table innodb_compact;

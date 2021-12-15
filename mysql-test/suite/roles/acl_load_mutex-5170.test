@@ -5,11 +5,12 @@
 create user user1@localhost;
 create role r1 with admin user1@localhost;
 grant all on test.* to r1;
+flush tables;
 
 --append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 wait
 EOF
---shutdown_server 60
+--shutdown_server
 --source include/wait_until_disconnected.inc
 --enable_reconnect
 --append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect

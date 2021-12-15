@@ -300,13 +300,13 @@ typedef void (*register_statement_v1_t)
 typedef void (*register_socket_v1_t)
   (const char *category, struct PSI_socket_info_v1 *info, int count);
 typedef struct PSI_mutex* (*init_mutex_v1_t)
-  (PSI_mutex_key key, const void *identity);
+  (PSI_mutex_key key, void *identity);
 typedef void (*destroy_mutex_v1_t)(struct PSI_mutex *mutex);
 typedef struct PSI_rwlock* (*init_rwlock_v1_t)
-  (PSI_rwlock_key key, const void *identity);
+  (PSI_rwlock_key key, void *identity);
 typedef void (*destroy_rwlock_v1_t)(struct PSI_rwlock *rwlock);
 typedef struct PSI_cond* (*init_cond_v1_t)
-  (PSI_cond_key key, const void *identity);
+  (PSI_cond_key key, void *identity);
 typedef void (*destroy_cond_v1_t)(struct PSI_cond *cond);
 typedef struct PSI_socket* (*init_socket_v1_t)
   (PSI_socket_key key, const my_socket *fd,
@@ -616,5 +616,6 @@ typedef struct PSI_file_locker_state_v1 PSI_file_locker_state;
 typedef struct PSI_table_locker_state_v1 PSI_table_locker_state;
 typedef struct PSI_statement_locker_state_v1 PSI_statement_locker_state;
 typedef struct PSI_socket_locker_state_v1 PSI_socket_locker_state;
+extern MYSQL_PLUGIN_IMPORT my_bool pfs_enabled;
 extern MYSQL_PLUGIN_IMPORT PSI *PSI_server;
 C_MODE_END

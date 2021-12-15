@@ -14,7 +14,7 @@
 
   You should have received a copy of the GNU Lesser General Public
   License along with this library; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
 #ifndef MRN_MYSQL_COMPAT_H_
@@ -430,11 +430,11 @@
 #if ((defined(MRN_MARIADB_P) && MYSQL_VERSION_ID >= 100203)) || \
   (!defined(MRN_MARIADB_P) && MYSQL_VERSION_ID >= 50711)
 #  define MRN_ALTER_INPLACE_INFO_ADD_VIRTUAL_COLUMN \
-  Alter_inplace_info::ADD_VIRTUAL_COLUMN
+  ALTER_ADD_VIRTUAL_COLUMN
 #  define MRN_ALTER_INPLACE_INFO_ADD_STORED_BASE_COLUMN \
-  Alter_inplace_info::ADD_STORED_BASE_COLUMN
+  ALTER_ADD_STORED_BASE_COLUMN
 #  define MRN_ALTER_INPLACE_INFO_ADD_STORED_GENERATED_COLUMN \
-  Alter_inplace_info::ADD_STORED_GENERATED_COLUMN
+  ALTER_ADD_STORED_GENERATED_COLUMN
 #else
 #  define MRN_ALTER_INPLACE_INFO_ADD_VIRTUAL_COLUMN 0
 #  define MRN_ALTER_INPLACE_INFO_ADD_STORED_BASE_COLUMN \

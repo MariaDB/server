@@ -30,4 +30,11 @@ insert into t values (1, 2), (3, 4);
 select * from t for system_time as of timestamp now(6);
 select * from t for system_time as of timestamp now(6) where b is NULL;
 
+#
+# MDEV-15062 Information Schema COLUMNS Table does not show system versioning information
+#
+create or replace table t (x int with system versioning, y int);
+select column_name, extra from information_schema.columns where table_name='t';
+show create table t;
+
 drop table t;

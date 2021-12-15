@@ -1,0 +1,33 @@
+call mtr.add_suppression("InnoDB: New log files created");
+call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation");
+call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified");
+call mtr.add_suppression("InnoDB: If you are installing InnoDB, remember that you must create directories yourself, InnoDB does not create them");
+call mtr.add_suppression("InnoDB: Ignoring tablespace for `test`\\.`t21` because it could not be opened");
+call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: ");
+call mtr.add_suppression("Table .* in the InnoDB data dictionary has tablespace id .*, but tablespace with that id or name does not exist");
+CREATE TABLE t1(i INT PRIMARY KEY auto_increment, a int) ENGINE INNODB;
+ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
+# No longer fails during full backup
+DROP TABLE t1;
+CREATE TABLE t1(i INT PRIMARY KEY auto_increment, a int) ENGINE INNODB;
+INSERT INTO t1(a) select 1 union select 2 union select 3;
+# Create full backup , modify table, then fails during creation of
+#		incremental/differential backup
+ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
+DROP TABLE t1;
+CREATE TABLE t1(i INT) ENGINE INNODB;
+INSERT INTO t1 VALUES(1);
+CREATE TABLE t21(i INT) ENGINE INNODB;
+INSERT INTO t21 VALUES(1);
+CREATE TABLE t2(i int) ENGINE INNODB;
+ALTER TABLE t21 FORCE, ALGORITHM=INPLACE;
+# Create partial backup (excluding table t21), Ignore the
+# unsupported redo log for the table t21.
+t1.ibd
+t2.ibd
+# Prepare the full backup
+t1.ibd
+t2.ibd
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t21;

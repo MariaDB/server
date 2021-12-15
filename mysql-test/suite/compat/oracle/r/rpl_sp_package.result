@@ -1,0 +1,183 @@
+include/master-slave.inc
+[connection master]
+connection master;
+SET sql_mode=ORACLE;
+CREATE PACKAGE pack AS
+FUNCTION f1 RETURN INT;
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+FUNCTION f1 RETURN INT AS
+BEGIN
+RETURN 10;
+END;
+PROCEDURE p1 AS
+BEGIN
+SELECT f1();
+END;
+END pack;
+$$
+connection slave;
+connection slave;
+SELECT * FROM mysql.proc WHERE db='test' AND name='pack';
+db	test
+name	pack
+type	PACKAGE
+specific_name	pack
+language	SQL
+sql_data_access	CONTAINS_SQL
+is_deterministic	NO
+security_type	DEFINER
+param_list	
+returns	
+body	AS
+FUNCTION f1 RETURN INT;
+PROCEDURE p1;
+END
+definer	root@localhost
+created	#
+modified	#
+sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT
+comment	
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+db_collation	latin1_swedish_ci
+body_utf8	
+aggregate	NONE
+db	test
+name	pack
+type	PACKAGE BODY
+specific_name	pack
+language	SQL
+sql_data_access	CONTAINS_SQL
+is_deterministic	NO
+security_type	DEFINER
+param_list	
+returns	
+body	AS
+FUNCTION f1 RETURN INT AS
+BEGIN
+RETURN 10;
+END;
+PROCEDURE p1 AS
+BEGIN
+SELECT f1();
+END;
+END
+definer	root@localhost
+created	#
+modified	#
+sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT
+comment	
+character_set_client	latin1
+collation_connection	latin1_swedish_ci
+db_collation	latin1_swedish_ci
+body_utf8	
+aggregate	NONE
+SELECT * FROM mysql.proc WHERE db='test' AND name LIKE 'pack.%';
+SET @@sql_mode=ORACLE;
+SELECT pack.f1();
+pack.f1()
+10
+CALL pack.p1();
+f1()
+10
+SET @@sql_mode=DEFAULT;
+connection master;
+DROP PACKAGE pack;
+connection slave;
+connection slave;
+SELECT COUNT(*) FROM mysql.proc WHERE db='test' AND name='pack';
+COUNT(*)
+0
+#
+# Creating a package with a COMMENT
+#
+connection master;
+CREATE PACKAGE p1 COMMENT 'package-p1-comment' AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY p1 COMMENT 'package-body-p1-comment' AS
+PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+END;
+$$
+SELECT definer, name, security_type, type, `comment` FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
+definer	name	security_type	type	comment
+root@localhost	p1	DEFINER	PACKAGE	package-p1-comment
+root@localhost	p1	DEFINER	PACKAGE BODY	package-body-p1-comment
+connection slave;
+SELECT definer, name, security_type, type, `comment` FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
+definer	name	security_type	type	comment
+root@localhost	p1	DEFINER	PACKAGE	package-p1-comment
+root@localhost	p1	DEFINER	PACKAGE BODY	package-body-p1-comment
+connection master;
+DROP PACKAGE p1;
+connection slave;
+#
+# Creating a package with a different DEFINER
+#
+connection master;
+CREATE DEFINER=xxx@localhost PACKAGE p1 AS
+PROCEDURE p1;
+END;
+$$
+Warnings:
+Note	1449	The user specified as a definer ('xxx'@'localhost') does not exist
+CREATE DEFINER=xxx@localhost PACKAGE BODY p1 AS
+PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+END;
+$$
+Warnings:
+Note	1449	The user specified as a definer ('xxx'@'localhost') does not exist
+SELECT definer, name, security_type, type FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
+definer	name	security_type	type
+xxx@localhost	p1	DEFINER	PACKAGE
+xxx@localhost	p1	DEFINER	PACKAGE BODY
+connection slave;
+SELECT definer, name, security_type, type FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
+definer	name	security_type	type
+xxx@localhost	p1	DEFINER	PACKAGE
+xxx@localhost	p1	DEFINER	PACKAGE BODY
+connection master;
+DROP PACKAGE p1;
+connection slave;
+#
+# Creating a package with a different DEFINER + SQL SECURITY INVOKER
+#
+connection master;
+CREATE DEFINER=xxx@localhost PACKAGE p1 SQL SECURITY INVOKER AS
+PROCEDURE p1;
+END;
+$$
+Warnings:
+Note	1449	The user specified as a definer ('xxx'@'localhost') does not exist
+CREATE DEFINER=xxx@localhost PACKAGE BODY p1 SQL SECURITY INVOKER AS
+PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+END;
+$$
+Warnings:
+Note	1449	The user specified as a definer ('xxx'@'localhost') does not exist
+SELECT definer, name, security_type, type FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
+definer	name	security_type	type
+xxx@localhost	p1	INVOKER	PACKAGE
+xxx@localhost	p1	INVOKER	PACKAGE BODY
+connection slave;
+SELECT definer, name, security_type, type FROM mysql.proc WHERE name LIKE 'p1%' ORDER BY definer, name, type;
+definer	name	security_type	type
+xxx@localhost	p1	INVOKER	PACKAGE
+xxx@localhost	p1	INVOKER	PACKAGE BODY
+connection master;
+DROP PACKAGE p1;
+connection slave;
+include/rpl_end.inc

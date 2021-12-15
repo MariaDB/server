@@ -1,0 +1,96 @@
+#
+# MDEV-15070 Crash when doing a CREATE VIEW inside a package routine
+#
+SET @object_type='package_replace_pkg1';
+#
+# Start of sp-package-concurrent-dml.inc
+#
+SET sql_mode=ORACLE;
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+PROCEDURE p2 AS
+BEGIN
+SELECT 'This is p2' AS msg;
+END;
+PROCEDURE p1 AS
+BEGIN
+SELECT 'This is p1' AS msg;
+DO GET_LOCK('mdev15070',120);
+CALL p2();
+DO RELEASE_LOCK('mdev15070');
+END;
+END;
+$$
+connect  con2,localhost,root;
+connection con2;
+DO GET_LOCK('mdev15070', 120);
+connection default;
+CALL pkg1.p1;
+connection con2;
+SET sql_mode=ORACLE;
+CREATE OR REPLACE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+DROP PACKAGE pkg1;
+DO RELEASE_LOCK('mdev15070');
+disconnect con2;
+connection default;
+msg
+This is p1
+msg
+This is p2
+DROP PACKAGE IF EXISTS pkg1;
+Warnings:
+Note	1305	PACKAGE test.pkg1 does not exist
+SET @object_type='package_body_replace_pkg1';
+#
+# Start of sp-package-concurrent-dml.inc
+#
+SET sql_mode=ORACLE;
+CREATE PACKAGE pkg1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+PROCEDURE p2 AS
+BEGIN
+SELECT 'This is p2' AS msg;
+END;
+PROCEDURE p1 AS
+BEGIN
+SELECT 'This is p1' AS msg;
+DO GET_LOCK('mdev15070',120);
+CALL p2();
+DO RELEASE_LOCK('mdev15070');
+END;
+END;
+$$
+connect  con2,localhost,root;
+connection con2;
+DO GET_LOCK('mdev15070', 120);
+connection default;
+CALL pkg1.p1;
+connection con2;
+SET sql_mode=ORACLE;
+CREATE OR REPLACE PACKAGE BODY pkg1 AS
+PROCEDURE p1 AS
+BEGIN
+SELECT 'This is p1 version 2' AS msg;
+END;
+END;
+$$
+DROP PACKAGE pkg1;
+DO RELEASE_LOCK('mdev15070');
+disconnect con2;
+connection default;
+msg
+This is p1
+msg
+This is p2
+DROP PACKAGE IF EXISTS pkg1;
+Warnings:
+Note	1305	PACKAGE test.pkg1 does not exist

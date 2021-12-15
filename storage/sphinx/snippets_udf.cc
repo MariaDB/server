@@ -45,7 +45,7 @@ typedef uchar byte;
 
 /// partially copy-pasted stuff that should be moved elsewhere
 
-#if UNALIGNED_RAM_ACCESS
+#ifdef UNALIGNED_RAM_ACCESS
 
 /// pass-through wrapper
 template < typename T > inline T sphUnalignedRead ( const T & tRef )
@@ -83,7 +83,7 @@ void sphUnalignedWrite ( void * pPtr, const T & tVal )
 		*pDst++ = *pSrc++;
 }
 
-#endif
+#endif /* UNALIGNED_RAM_ACCESS */
 
 #define SPHINXSE_MAX_ALLOC			(16*1024*1024)
 
@@ -177,10 +177,10 @@ enum
 	SEARCHD_WARNING	= 3		///< general success, warning message and command-specific reply follow
 };
 
-#define SPHINXSE_DEFAULT_SCHEME		"sphinx"
-#define SPHINXSE_DEFAULT_HOST		"127.0.0.1"
+#define SPHINXSE_DEFAULT_SCHEME		(char*) "sphinx"
+#define SPHINXSE_DEFAULT_HOST		(char*) "127.0.0.1"
 #define SPHINXSE_DEFAULT_PORT		9312
-#define SPHINXSE_DEFAULT_INDEX		"*"
+#define SPHINXSE_DEFAULT_INDEX		(char*) "*"
 
 class CSphBuffer
 {
@@ -446,7 +446,7 @@ int CSphUrl::Connect()
 	uint uServerVersion;
 	uint uClientVersion = htonl ( SPHINX_SEARCHD_PROTO );
 	int iSocket = -1;
-	char * pError = NULL;
+	const char * pError = NULL;
 	do
 	{
 		iSocket = (int)socket ( iDomain, SOCK_STREAM, 0 );

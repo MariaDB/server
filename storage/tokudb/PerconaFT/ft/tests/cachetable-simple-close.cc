@@ -113,10 +113,9 @@ simple_test(bool unlink_on_close) {
     r = toku_cachetable_openf(&f1, ct, fname1, O_RDWR|O_CREAT, S_IRWXU|S_IRWXG|S_IRWXO); assert(r == 0);
     set_cf_userdata(f1);
     void* v1;
-    long s1;
     CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
     wc.flush_callback = flush;
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), toku_cachetable_hash(f1, make_blocknum(1)), &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), toku_cachetable_hash(f1, make_blocknum(1)), &v1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
     r = toku_test_cachetable_unpin(f1, make_blocknum(1), toku_cachetable_hash(f1, make_blocknum(1)), CACHETABLE_DIRTY, make_pair_attr(8));
     toku_cachetable_verify(ct);
     if (unlink_on_close) {
@@ -169,9 +168,8 @@ static void test_pair_stays_in_cache(enum cachetable_dirty dirty) {
 
     r = toku_cachetable_openf(&f1, ct, fname1, O_RDWR|O_CREAT, S_IRWXU|S_IRWXG|S_IRWXO); assert(r == 0);
     void* v1;
-    long s1;
     CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), toku_cachetable_hash(f1, make_blocknum(1)), &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), toku_cachetable_hash(f1, make_blocknum(1)), &v1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
     r = toku_test_cachetable_unpin(f1, make_blocknum(1), toku_cachetable_hash(f1, make_blocknum(1)), dirty, make_pair_attr(8));
     toku_cachefile_close(&f1, false, ZERO_LSN);
     // now reopen the cachefile
@@ -197,13 +195,13 @@ static void test_multiple_cachefiles(bool use_same_hash) {
 
         char fname1[strlen(TOKU_TEST_FILENAME) + sizeof("_1")];    
         strcpy(fname1, TOKU_TEST_FILENAME);
-        strncat(fname1, "_1", sizeof("_1"));
+        strcat(fname1, "_1");
         char fname2[strlen(TOKU_TEST_FILENAME) + sizeof("_2")];    
         strcpy(fname2, TOKU_TEST_FILENAME);
-        strncat(fname2, "_2", sizeof("_2"));
+        strcat(fname2, "_2");
         char fname3[strlen(TOKU_TEST_FILENAME) + sizeof("_3")];    
         strcpy(fname3, TOKU_TEST_FILENAME);
-        strncat(fname3, "_3", sizeof("_3"));
+        strcat(fname3, "_3");
 
         unlink(fname1);
         unlink(fname2);
@@ -217,28 +215,25 @@ static void test_multiple_cachefiles(bool use_same_hash) {
         r = toku_cachetable_openf(&f3, ct, fname3, O_RDWR|O_CREAT, S_IRWXU|S_IRWXG|S_IRWXO); assert(r == 0);
 
         void* v1;
-        long s1;
         void* v2;
-        long s2;
         void* v3;
-        long s3;
 
         CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
         for (int j = 0; j < 3; j++) {
             uint32_t hash = use_same_hash ? 1 : toku_cachetable_hash(f1, make_blocknum(j));
-            r = toku_cachetable_get_and_pin(f1, make_blocknum(j), hash, &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+            r = toku_cachetable_get_and_pin(f1, make_blocknum(j), hash, &v1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
             r = toku_test_cachetable_unpin(f1, make_blocknum(j), hash, CACHETABLE_CLEAN, make_pair_attr(8));
         }
 
         for (int j = 0; j < 3; j++) {
             uint32_t hash = use_same_hash ? 1 : toku_cachetable_hash(f2, make_blocknum(j));
-            r = toku_cachetable_get_and_pin(f2, make_blocknum(j), hash, &v2, &s2, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+            r = toku_cachetable_get_and_pin(f2, make_blocknum(j), hash, &v2, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
             r = toku_test_cachetable_unpin(f2, make_blocknum(j), hash, CACHETABLE_CLEAN, make_pair_attr(8));
         }
 
         for (int j = 0; j < 3; j++) {
             uint32_t hash = use_same_hash ? 1 : toku_cachetable_hash(f3, make_blocknum(j));
-            r = toku_cachetable_get_and_pin(f3, make_blocknum(j), hash, &v3, &s3, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+            r = toku_cachetable_get_and_pin(f3, make_blocknum(j), hash, &v3, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
             r = toku_test_cachetable_unpin(f3, make_blocknum(j), hash, CACHETABLE_CLEAN, make_pair_attr(8));
         }
 
@@ -285,10 +280,10 @@ static void test_evictor(void) {
 
     char fname1[strlen(TOKU_TEST_FILENAME) + sizeof("_1")];    
     strcpy(fname1, TOKU_TEST_FILENAME);
-    strncat(fname1, "_1", sizeof("_1"));
+    strcat(fname1, "_1");
     char fname2[strlen(TOKU_TEST_FILENAME) + sizeof("_2")];    
     strcpy(fname2, TOKU_TEST_FILENAME);
-    strncat(fname2, "_2", sizeof("_2"));
+    strcat(fname2, "_2");
 
     unlink(fname1);
     unlink(fname2);
@@ -299,9 +294,8 @@ static void test_evictor(void) {
     set_cf_userdata(f1);
     r = toku_cachetable_openf(&f2, ct, fname2, O_RDWR|O_CREAT, S_IRWXU|S_IRWXG|S_IRWXO); assert(r == 0);
     void* v1;
-    long s1;
     CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), toku_cachetable_hash(f1, make_blocknum(1)), &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), toku_cachetable_hash(f1, make_blocknum(1)), &v1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
     r = toku_test_cachetable_unpin(f1, make_blocknum(1), toku_cachetable_hash(f1, make_blocknum(1)), CACHETABLE_CLEAN, make_pair_attr(8));
     close_called = false;
     free_called = false;
@@ -311,7 +305,7 @@ static void test_evictor(void) {
 
     // at this point, we should f1, along with one PAIR, stale in the cachetable
     // now let's pin another node, and ensure that it causes an eviction and free of f1
-    r = toku_cachetable_get_and_pin(f2, make_blocknum(1), toku_cachetable_hash(f2, make_blocknum(1)), &v1, &s1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
+    r = toku_cachetable_get_and_pin(f2, make_blocknum(1), toku_cachetable_hash(f2, make_blocknum(1)), &v1, wc, def_fetch, def_pf_req_callback, def_pf_callback, true, NULL);
     r = toku_test_cachetable_unpin(f2, make_blocknum(1), toku_cachetable_hash(f2, make_blocknum(1)), CACHETABLE_CLEAN, make_pair_attr(8));
     // now sleep for 2 seconds, and check to see if f1 has been closed
     sleep(2);

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,14 +27,10 @@ Created 2/23/1996 Heikki Tuuri
 #ifndef btr0pcur_h
 #define btr0pcur_h
 
-#include "univ.i"
 #include "dict0dict.h"
-#include "data0data.h"
-#include "mtr0mtr.h"
-#include "page0cur.h"
 #include "btr0cur.h"
+#include "buf0block_hint.h"
 #include "btr0btr.h"
-#include "btr0types.h"
 #include "gis0rtree.h"
 
 /* Relative positions for a stored cursor position */
@@ -301,6 +297,21 @@ btr_pcur_commit_specify_mtr(
 /*========================*/
 	btr_pcur_t*	pcur,	/*!< in: persistent cursor */
 	mtr_t*		mtr);	/*!< in: mtr to commit */
+
+/** Commits the mtr and sets the clustered index pcur and secondary index
+pcur latch mode to BTR_NO_LATCHES, that is, the cursor becomes detached.
+Function btr_pcur_store_position should be used for both cursor before
+calling this, if restoration of cursor is wanted later.
+@param[in]	pcur		persistent cursor
+@param[in]	sec_pcur	secondary index persistent cursor
+@param[in]	mtr		mtr to commit */
+UNIV_INLINE
+void
+btr_pcurs_commit_specify_mtr(
+	btr_pcur_t*	pcur,
+	btr_pcur_t*	sec_pcur,
+	mtr_t*		mtr);
+
 /*********************************************************//**
 Moves the persistent cursor to the next record in the tree. If no records are
 left, the cursor stays 'after last in tree'.
@@ -321,14 +332,6 @@ btr_pcur_move_to_prev(
 /*==================*/
 	btr_pcur_t*	cursor,	/*!< in: persistent cursor; NOTE that the
 				function may release the page latch */
-	mtr_t*		mtr);	/*!< in: mtr */
-/*********************************************************//**
-Moves the persistent cursor to the last record on the same page. */
-UNIV_INLINE
-void
-btr_pcur_move_to_last_on_page(
-/*==========================*/
-	btr_pcur_t*	cursor,	/*!< in: persistent cursor */
 	mtr_t*		mtr);	/*!< in: mtr */
 /*********************************************************//**
 Moves the persistent cursor to the next user record in the tree. If no user
@@ -426,21 +429,11 @@ btr_pcur_is_before_first_on_page(
 /*********************************************************//**
 Checks if the persistent cursor is before the first user record in
 the index tree. */
-UNIV_INLINE
-ibool
-btr_pcur_is_before_first_in_tree(
-/*=============================*/
-	btr_pcur_t*	cursor,	/*!< in: persistent cursor */
-	mtr_t*		mtr);	/*!< in: mtr */
+static inline bool btr_pcur_is_before_first_in_tree(btr_pcur_t* cursor);
 /*********************************************************//**
 Checks if the persistent cursor is after the last user record in
 the index tree. */
-UNIV_INLINE
-ibool
-btr_pcur_is_after_last_in_tree(
-/*===========================*/
-	btr_pcur_t*	cursor,	/*!< in: persistent cursor */
-	mtr_t*		mtr);	/*!< in: mtr */
+static inline bool btr_pcur_is_after_last_in_tree(btr_pcur_t* cursor);
 /*********************************************************//**
 Moves the persistent cursor to the next record on the same page. */
 UNIV_INLINE
@@ -504,19 +497,18 @@ struct btr_pcur_t{
 	/** if cursor position is stored, contains an initial segment of the
 	latest record cursor was positioned either on, before or after */
 	rec_t*		old_rec;
+	/** btr_cur.index->n_core_fields when old_rec was copied */
+	uint16		old_n_core_fields;
 	/** number of fields in old_rec */
-	ulint		old_n_fields;
+	uint16		old_n_fields;
 	/** BTR_PCUR_ON, BTR_PCUR_BEFORE, or BTR_PCUR_AFTER, depending on
 	whether cursor was on, before, or after the old_rec record */
 	enum btr_pcur_pos_t	rel_pos;
 	/** buffer block when the position was stored */
-	buf_block_t*	block_when_stored;
+	buf::Block_hint		block_when_stored;
 	/** the modify clock value of the buffer block when the cursor position
 	was stored */
 	ib_uint64_t	modify_clock;
-	/** the withdraw clock value of the buffer pool when the cursor
-	position was stored */
-	ulint		withdraw_clock;
 	/** btr_pcur_store_position() and btr_pcur_restore_position() state. */
 	enum pcur_pos_t	pos_state;
 	/** PAGE_CUR_G, ... */
@@ -532,6 +524,17 @@ struct btr_pcur_t{
 	byte*		old_rec_buf;
 	/** old_rec_buf size if old_rec_buf is not NULL */
 	ulint		buf_size;
+
+	btr_pcur_t() :
+		btr_cur(), latch_mode(0), old_stored(false), old_rec(NULL),
+		old_n_fields(0), rel_pos(btr_pcur_pos_t(0)),
+		block_when_stored(),
+		modify_clock(0), pos_state(BTR_PCUR_NOT_POSITIONED),
+		search_mode(PAGE_CUR_UNSUPP), trx_if_known(NULL),
+		old_rec_buf(NULL), buf_size(0)
+	{
+		btr_cur.init();
+	}
 
 	/** Return the index of this persistent cursor */
 	dict_index_t*	index() const { return(btr_cur.index); }

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2012, Monty Program Ab.
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Static variables for mysys library. All definied here for easy making of
@@ -31,14 +31,18 @@ char *mysql_data_home= (char*) ".";
 const char      *my_progname= NULL, *my_progname_short= NULL;
 char		curr_dir[FN_REFLEN]= {0},
 		home_dir_buff[FN_REFLEN]= {0};
-ulong		my_stream_opened=0,my_file_opened=0, my_tmp_file_created=0;
+ulong		my_stream_opened=0,my_tmp_file_created=0;
 ulong           my_file_total_opened= 0;
 int		my_umask=0664, my_umask_dir=0777;
 
 myf             my_global_flags= 0;
+#ifndef DBUG_OFF
+my_bool         my_assert= 1;
+#endif
 my_bool         my_assert_on_error= 0;
 struct st_my_file_info my_file_info_default[MY_NFILE];
 uint   my_file_limit= MY_NFILE;
+int32           my_file_opened=0;
 struct st_my_file_info *my_file_info= my_file_info_default;
 
 	/* From mf_brkhant */
@@ -59,7 +63,7 @@ USED_MEM* my_once_root_block=0;			/* pointer to first block */
 uint	  my_once_extra=ONCE_ALLOC_INIT;	/* Memory to alloc / block */
 
 	/* from my_largepage.c */
-#ifdef HAVE_LARGE_PAGES
+#ifdef HAVE_LINUX_LARGE_PAGES
 my_bool my_use_large_pages= 0;
 uint    my_large_page_size= 0;
 #endif

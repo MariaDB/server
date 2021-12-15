@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef SQL_STATISTICS_H
 #define SQL_STATISTICS_H
@@ -21,7 +21,7 @@ enum enum_use_stat_tables_mode
 {
   NEVER,
   COMPLEMENTARY,
-  PEFERABLY,
+  PREFERABLY,
 } Use_stat_tables_mode;
 
 typedef
@@ -89,12 +89,12 @@ Use_stat_tables_mode get_use_stat_tables_mode(THD *thd)
 }
 
 int read_statistics_for_tables_if_needed(THD *thd, TABLE_LIST *tables);
+int read_statistics_for_tables(THD *thd, TABLE_LIST *tables);
 int collect_statistics_for_table(THD *thd, TABLE *table);
-int alloc_statistics_for_table_share(THD* thd, TABLE_SHARE *share,
-                                     bool is_safe);
+void delete_stat_values_for_table_share(TABLE_SHARE *table_share);
 int alloc_statistics_for_table(THD *thd, TABLE *table);
 int update_statistics_for_table(THD *thd, TABLE *table);
-int delete_statistics_for_table(THD *thd, LEX_CSTRING *db, LEX_CSTRING *tab);
+int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab);
 int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col);
 int delete_statistics_for_index(THD *thd, TABLE *tab, KEY *key_info,
                                 bool ext_prefixes_only);
@@ -111,6 +111,7 @@ double get_column_range_cardinality(Field *field,
                                     key_range *max_endp,
                                     uint range_flag);
 bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table);
+bool is_eits_usable(Field* field);
 
 class Histogram
 {
@@ -211,6 +212,17 @@ public:
 
   bool is_available() { return get_size() > 0 && get_values(); }
 
+  /*
+    This function checks that histograms should be usable only when
+      1) the level of optimizer_use_condition_selectivity > 3
+      2) histograms have been collected
+  */
+  bool is_usable(THD *thd)
+  {
+    return thd->variables.optimizer_use_condition_selectivity > 3 &&
+           is_available();
+  }
+
   void set_value(uint i, double val)
   {
     switch (type) {
@@ -266,8 +278,9 @@ public:
   uchar *min_max_record_buffers;    /* Record buffers for min/max values  */
   Column_statistics *column_stats;  /* Array of statistical data for columns */
   Index_statistics *index_stats;    /* Array of statistical data for indexes */
-  ulong *idx_avg_frequency;   /* Array of records per key for index prefixes */
-  ulong total_hist_size;            /* Total size of all histograms */
+
+  /* Array of records per key for index prefixes */
+  ulonglong *idx_avg_frequency;
   uchar *histograms;                /* Sequence of histograms       */                    
 };
 
@@ -319,7 +332,7 @@ private:
     CHAR values are stripped of trailing spaces.
     Flexible values are stripped of their length prefixes.
   */
-  ulong avg_length;
+  ulonglong avg_length;
 
   /*
     The ratio N/D multiplied by the scale factor Scale_factor_avg_frequency,
@@ -327,17 +340,22 @@ private:
        N is the number of rows with not null value in the column,
        D the number of distinct values among them
   */
-  ulong avg_frequency;
+  ulonglong avg_frequency;
 
 public:
 
   Histogram histogram;
+
+  uint32 no_values_provided_bitmap()
+  {
+    return
+     ((1 << (COLUMN_STAT_HISTOGRAM-COLUMN_STAT_COLUMN_NAME))-1) <<
+      (COLUMN_STAT_COLUMN_NAME+1);
+  }
  
   void set_all_nulls()
   {
-    column_stat_nulls= 
-      ((1 << (COLUMN_STAT_HISTOGRAM-COLUMN_STAT_COLUMN_NAME))-1) <<
-      (COLUMN_STAT_COLUMN_NAME+1);
+    column_stat_nulls= no_values_provided_bitmap();
   }
 
   void set_not_null(uint stat_field_no)
@@ -372,19 +390,33 @@ public:
 
   void set_avg_length (double val)
   {
-    avg_length= (ulong) (val * Scale_factor_avg_length);
+    avg_length= (ulonglong) (val * Scale_factor_avg_length);
   }
 
   void set_avg_frequency (double val)
   {
-    avg_frequency= (ulong) (val * Scale_factor_avg_frequency);
+    avg_frequency= (ulonglong) (val * Scale_factor_avg_frequency);
   }
 
   bool min_max_values_are_provided()
   {
     return !is_null(COLUMN_STAT_MIN_VALUE) && 
-      !is_null(COLUMN_STAT_MIN_VALUE);
-  }          
+      !is_null(COLUMN_STAT_MAX_VALUE);
+  }
+  /*
+    This function checks whether the values for the fields of the statistical
+    tables that were NULL by DEFAULT for a column have changed or not.
+
+    @retval
+    TRUE: Statistics are not present for a column
+    FALSE: Statisitics are present for a column
+  */
+  bool no_stat_values_provided()
+  {
+    if (column_stat_nulls == no_values_provided_bitmap())
+      return true;
+    return false;
+  }
 };
 
 
@@ -402,11 +434,11 @@ private:
     in the first k components, and D is the number of distinct
     k-component prefixes among them 
   */
-  ulong *avg_frequency;
+  ulonglong *avg_frequency;
 
 public:
 
-  void init_avg_frequency(ulong *ptr) { avg_frequency= ptr; }
+  void init_avg_frequency(ulonglong *ptr) { avg_frequency= ptr; }
 
   bool avg_frequency_is_inited() { return avg_frequency != NULL; }
 
@@ -417,7 +449,7 @@ public:
 
   void set_avg_frequency(uint i, double val)
   {
-    avg_frequency[i]= (ulong) (val * Scale_factor_avg_frequency);
+    avg_frequency[i]= (ulonglong) (val * Scale_factor_avg_frequency);
   }
 
 };

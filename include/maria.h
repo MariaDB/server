@@ -1,5 +1,5 @@
 /* Copyright (C) 2006-2008 MySQL AB, 2008-2009 Sun Microsystems, Inc.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* This file should be included when using maria functions */
 
@@ -286,7 +286,6 @@ extern int maria_close(MARIA_HA *file);
 extern int maria_delete(MARIA_HA *file, const uchar *buff);
 extern MARIA_HA *maria_open(const char *name, int mode,
 					uint wait_if_locked);
-extern MARIA_HA *maria_clone(struct st_maria_share *share, int mode);
 extern int maria_panic(enum ha_panic_function function);
 extern int maria_rfirst(MARIA_HA *file, uchar *buf, int inx);
 extern int maria_rkey(MARIA_HA *file, uchar *buf, int inx,
@@ -366,7 +365,7 @@ int maria_sort_index(HA_CHECK *param, MARIA_HA *info, char * name);
 int maria_zerofill(HA_CHECK *param, MARIA_HA *info, const char *name);
 int maria_repair_by_sort(HA_CHECK *param, MARIA_HA *info,
 			 const char *name, my_bool rep_quick);
-int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
+int maria_repair_parallel(HA_CHECK *param, MARIA_HA *info,
 			  const char *name, my_bool rep_quick);
 int maria_change_to_newfile(const char *filename, const char *old_ext,
                             const char *new_ext, time_t backup_time,

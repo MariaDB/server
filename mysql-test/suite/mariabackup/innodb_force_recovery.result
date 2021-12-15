@@ -1,0 +1,26 @@
+CREATE TABLE t(i INT) ENGINE INNODB;
+INSERT INTO t VALUES(1);
+# "innodb_force_recovery=1" should be allowed with "--prepare" only (mariabackup)
+FOUND 1 /should only be used with "--prepare"/ in backup.log
+# "innodb_force_recovery=1" should be allowed with "--apply-log" only (innobackupex)
+FOUND 1 /should only be used with "--apply-log"/ in backup.log
+# "innodb_force_recovery" should be limited to "SRV_FORCE_IGNORE_CORRUPT" (mariabackup)
+FOUND 1 /innodb_force_recovery = 1/ in backup.log
+# "innodb_force_recovery" should be limited to "SRV_FORCE_IGNORE_CORRUPT" (innobackupex)
+FOUND 1 /innodb_force_recovery = 1/ in backup.log
+# "innodb_force_recovery" should be read from "backup-my.cnf" (mariabackup)
+FOUND 1 /innodb_force_recovery = 1/ in backup.log
+# "innodb_force_recovery=1" should be read from "backup-my.cnf" (innobackupex)
+FOUND 1 /innodb_force_recovery = 1/ in backup.log
+# "innodb_force_recovery" from the command line should override "backup-my.cnf" (mariabackup)
+NOT FOUND /innodb_force_recovery = 1/ in backup.log
+# "innodb_force_recovery" from the command line should override "backup-my.cnf" (innobackupex)
+NOT FOUND /innodb_force_recovery = 1/ in backup.log
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+SELECT * FROM t;
+i
+1
+DROP TABLE t;

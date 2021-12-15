@@ -7,8 +7,6 @@
 --source include/not_crashrep.inc
 
 --disable_query_log
-call mtr.add_suppression('InnoDB: cannot find a free slot for an undo log');
-call mtr.add_suppression('InnoDB: row_merge_rename_index_to_add failed with error 47');
 call mtr.add_suppression('InnoDB: Flagged corruption of `c[23]`');
 call mtr.add_suppression('InnoDB: Index `c[23]` .*is corrupted');
 --enable_query_log
@@ -19,6 +17,10 @@ call mtr.add_suppression('InnoDB: Index `c[23]` .*is corrupted');
 
 CREATE TABLE t1(c1 INT PRIMARY KEY, c2 CHAR(1), c3 INT UNSIGNED) ENGINE=InnoDB;
 SET @saved_debug_dbug = @@SESSION.debug_dbug;
+SET DEBUG_DBUG='+d,create_index_metadata_fail';
+--error ER_RECORD_FILE_FULL
+ALTER TABLE t1 ADD INDEX (c2), ADD INDEX (c3);
+
 SET DEBUG_DBUG='+d,ib_create_table_fail_too_many_trx';
 --error ER_TOO_MANY_CONCURRENT_TRXS
 ALTER TABLE t1 ADD INDEX (c2), ADD INDEX (c3);
@@ -194,3 +196,30 @@ SHOW CREATE TABLE t1;
 UPDATE t1 SET d=NULL;
 SELECT * FROM t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22637 Rollback of insert fails when column reorder happens
+--echo #
+SET @@SQL_MODE = REPLACE(@@SQL_MODE, 'STRICT_TRANS_TABLES', '');
+SET @@SQL_MODE = REPLACE(@@SQL_MODE, 'STRICT_ALL_TABLES', '');
+CREATE TABLE t1(f1 INT NOT NULL, f2 CHAR(100),
+		f3 CHAR(100), f4 CHAR(100))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, "This is column2", "This is column3",
+		      "This is column4");
+set DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL scanned WAIT_FOR insert_done';
+--send ALTER TABLE t1 ADD COLUMN f6 int after f3, add primary key(f6, f4(3), f3(3))
+connect(con1,localhost,root,,);
+SET DEBUG_SYNC = 'now WAIT_FOR scanned';
+BEGIN;
+INSERT INTO t1(f1, f2) VALUES(2, "This is column2 value");
+ROLLBACK;
+set DEBUG_SYNC = 'now SIGNAL insert_done';
+
+connection default;
+reap;
+SHOW CREATE TABLE t1;
+SELECT COUNT(*) FROM t1;
+disconnect con1;
+DROP TABLE t1;
+SET DEBUG_SYNC = 'RESET';
+SET SQL_MODE=DEFAULT;

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (C) 2011 Monty Program Ab
+   Copyright (C) 2011, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -69,6 +69,9 @@ bool init_errmessage(void)
 {
   const char **errmsgs;
   bool error= FALSE;
+  const char *lang= my_default_lc_messages->errmsgs->language;
+  my_bool use_english;
+
   DBUG_ENTER("init_errmessage");
 
   free_error_messages();
@@ -77,35 +80,65 @@ bool init_errmessage(void)
 
   error_message_charset_info= system_charset_info;
 
-  /* Read messages from file. */
-  if (read_texts(ERRMSG_FILE, my_default_lc_messages->errmsgs->language,
-                 &original_error_messages))
+  use_english= !strcmp(lang, "english");
+  if (!use_english)
   {
-    /*
-      No error messages.  Create a temporary empty error message so
-      that we don't get a crash if some code wrongly tries to access
-      a non existing error message.
-    */
-    if (!(original_error_messages= (const char***)
-          my_malloc(MAX_ERROR_RANGES * sizeof(char**) +
-                    (ERRORS_PER_RANGE * sizeof(char*)),
-                     MYF(0))))
-      DBUG_RETURN(TRUE);
-    errmsgs= (const char**) (original_error_messages + MAX_ERROR_RANGES);
+    /* Read messages from file. */
+    use_english= read_texts(ERRMSG_FILE,lang, &original_error_messages);
+    error= use_english != FALSE;
+    if (error)
+      sql_print_error("Could not load error messages for %s",lang);
+  }
 
-    for (uint i=0 ; i < MAX_ERROR_RANGES ; i++)
+  if (use_english)
+  {
+    static const struct
     {
-      original_error_messages[i]= errmsgs;
-      errors_per_range[i]= ERRORS_PER_RANGE;
+      const char* name;
+      uint id;
+      const char* fmt;
     }
-    errors_per_range[2]= 0;                     // MYSYS error messages
+    english_msgs[]=
+    {
+      #include <mysqld_ername.h>
+    };
 
-    for (const char **ptr= errmsgs;
-         ptr < errmsgs + ERRORS_PER_RANGE ;
-         ptr++)
-      *ptr= "";
+    memset(errors_per_range, 0, sizeof(errors_per_range));
+    /* Calculate nr of messages per range. */
+    for (size_t i= 0; i < array_elements(english_msgs); i++)
+    {
+      uint id= english_msgs[i].id;
 
-    error= TRUE;
+      // We rely on the fact the array is sorted by id.
+      DBUG_ASSERT(i == 0 || english_msgs[i-1].id < id);
+
+      errors_per_range[id/ERRORS_PER_RANGE-1]= id%ERRORS_PER_RANGE + 1;
+    }
+
+    size_t all_errors= 0;
+    for (size_t i= 0; i < MAX_ERROR_RANGES; i++)
+      all_errors+= errors_per_range[i];
+
+    if (!(original_error_messages= (const char***)
+          my_malloc((all_errors + MAX_ERROR_RANGES)* sizeof(void*),
+                     MYF(MY_ZEROFILL))))
+      DBUG_RETURN(TRUE);
+
+    errmsgs= (const char**)(original_error_messages + MAX_ERROR_RANGES);
+
+    original_error_messages[0]= errmsgs;
+    for (uint i= 1; i < MAX_ERROR_RANGES; i++)
+    {
+      original_error_messages[i]=
+        original_error_messages[i-1] + errors_per_range[i-1];
+    }
+
+    for (uint i= 0; i < array_elements(english_msgs); i++)
+    {
+      uint id= english_msgs[i].id;
+      original_error_messages[id/ERRORS_PER_RANGE-1][id%ERRORS_PER_RANGE]=
+         english_msgs[i].fmt;
+    }
   }
 
   /* Register messages for use with my_error(). */
@@ -203,7 +236,7 @@ static File open_error_msg_file(const char *file_name, const char *language,
                              MYF(0))) < 0)
   {
     /*
-      Trying pre-5.4 sematics of the --language parameter.
+      Trying pre-5.4 semantics of the --language parameter.
       It included the language-specific part, e.g.:
       --language=/path/to/english/
     */
@@ -232,7 +265,8 @@ static File open_error_msg_file(const char *file_name, const char *language,
   ret->errors=      uint2korr(head+12);
   ret->sections=    uint2korr(head+14);
 
-  if (ret->max_error < error_messages || ret->sections != MAX_ERROR_RANGES)
+  if (unlikely(ret->max_error < error_messages ||
+               ret->sections != MAX_ERROR_RANGES))
   {
     sql_print_error("\
 Error message file '%s' had only %d error messages, but it should contain at least %d error messages.\nCheck that the above file is the right version for this program!",
@@ -276,8 +310,8 @@ bool read_texts(const char *file_name, const char *language,
   struct st_msg_file msg_file;
   DBUG_ENTER("read_texts");
 
-  if ((file= open_error_msg_file(file_name, language, error_messages,
-                                 &msg_file)) == FERR)
+  if (unlikely((file= open_error_msg_file(file_name, language, error_messages,
+                                          &msg_file)) == FERR))
     DBUG_RETURN(1);
 
   if (!(*data= (const char***)

@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* ======================================================================
    Open Query Graph Computation Engine, based on a concept by Arjen Lentz
@@ -27,6 +27,8 @@
 #define BOOST_ALL_NO_LIB 1
 #define BOOST_NO_RTTI 1
 #define BOOST_NO_TYPEID 1
+#define BOOST_NO_HASH 1
+#define BOOST_NO_SLIST 1
 
 #ifdef DBUG_OFF
 #define NDEBUG 1

@@ -1,18 +1,12 @@
 
-IF(WIN32)
+IF(WIN32 OR WITHOUT_SERVER)
   # Handlersocket does not compile on Windows, compiles but does 
-  # not start on FreeBSD.  
+  # not start on FreeBSD.
+  # It is a server plugin and disable it explicitly here.
   RETURN()
 ENDIF()
 
-#Remove -fno-implicit-templates from compiler flags(handlersocket would not work  with  it)
-STRING(REPLACE "-fno-implicit-templates" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-
-include(CheckCXXCompilerFlag)
-check_cxx_compiler_flag(" -Wdeprecated-declarations" HAVE_CXX_WDEPRECATED_DECLARATIONS)
-IF (HAVE_CXX_WDEPRECATED_DECLARATIONS)
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
-ENDIF()
+MY_CHECK_AND_SET_COMPILER_FLAG("-Wno-deprecated-declarations")
 
 INCLUDE_DIRECTORIES(libhsclient)
 

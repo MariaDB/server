@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef SQL_SHOW_H
 #define SQL_SHOW_H
@@ -106,7 +106,7 @@ bool mysqld_show_contributors(THD *thd);
 bool mysqld_show_privileges(THD *thd);
 char *make_backup_log_name(char *buff, const char *name, const char* log_ext);
 uint calc_sum_of_all_status(STATUS_VAR *to);
-void append_definer(THD *thd, String *buffer, const LEX_CSTRING *definer_user,
+bool append_definer(THD *thd, String *buffer, const LEX_CSTRING *definer_user,
                     const LEX_CSTRING *definer_host);
 int add_status_vars(SHOW_VAR *list);
 void remove_status_vars(SHOW_VAR *list);
@@ -203,10 +203,6 @@ typedef struct st_lookup_field_values
   bool wild_table_value;
 } LOOKUP_FIELD_VALUES;  
 
-int make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING *> *table_names,
-                         LEX *lex, LOOKUP_FIELD_VALUES *lookup_field_vals,
-                         LEX_CSTRING *db_name);
-
 /*
   INFORMATION_SCHEMA: Execution plan for get_all_tables() call
 */
@@ -242,6 +238,7 @@ public:
 };
 
 bool optimize_schema_tables_reads(JOIN *join);
+bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables);
 
 /* Handle the ignored database directories list for SHOW/I_S. */
 bool ignore_db_dirs_init();

@@ -15,7 +15,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 
@@ -91,7 +91,7 @@ class engine_option_value;
 struct ha_index_option_struct;
 
 typedef struct st_key {
-  uint	key_length;			/* Tot length of key */
+  uint	key_length;			/* total length of user defined key parts  */
   ulong flags;                          /* dupp key and pack flags */
   uint	user_defined_key_parts;	   /* How many key_parts */
   uint	usable_key_parts; /* Should normally be = user_defined_key_parts */
@@ -109,8 +109,8 @@ typedef struct st_key {
       pk2 is explicitly present in idx1, it is not in the extension, so
       ext_key_part_map.is_set(1) == false
   */
-  LEX_CSTRING name;
   key_part_map ext_key_part_map;
+  LEX_CSTRING name;
   uint  block_size;
   enum  ha_key_alg algorithm;
   /* 
@@ -148,9 +148,6 @@ typedef struct st_key {
   */
   Index_statistics *collected_stats;
  
-  union {
-    int  bdb_return_if_eq;
-  } handler;
   TABLE *table;
   LEX_CSTRING comment;
   /** reference to the list of options or NULL */
@@ -613,6 +610,10 @@ public:
   {
     set(handler, 0, 0);
   }
+  void set_handler(const Type_handler *handler)
+  {
+    m_handler= handler;
+  }
   const Type_handler *type_handler() const { return m_handler; }
 };
 
@@ -692,26 +693,41 @@ public:
 struct Lex_for_loop_bounds_st
 {
 public:
-  class sp_assignment_lex *m_index;
-  class sp_assignment_lex *m_upper_bound;
+  class sp_assignment_lex *m_index;  // The first iteration value (or cursor)
+  class sp_assignment_lex *m_target_bound; // The last iteration value
   int8 m_direction;
   bool m_implicit_cursor;
-  bool is_for_loop_cursor() const { return m_upper_bound == NULL; }
+  bool is_for_loop_cursor() const { return m_target_bound == NULL; }
+};
+
+
+class Lex_for_loop_bounds_intrange: public Lex_for_loop_bounds_st
+{
+public:
+  Lex_for_loop_bounds_intrange(int8 direction,
+                               class sp_assignment_lex *left_expr,
+                               class sp_assignment_lex *right_expr)
+  {
+    m_direction= direction;
+    m_index=        direction > 0 ? left_expr  : right_expr;
+    m_target_bound= direction > 0 ? right_expr : left_expr;
+    m_implicit_cursor= false;
+  }
 };
 
 
 struct Lex_for_loop_st
 {
 public:
-  class sp_variable *m_index;
-  class sp_variable *m_upper_bound;
+  class sp_variable *m_index;  // The first iteration value (or cursor)
+  class sp_variable *m_target_bound; // The last iteration value
   int m_cursor_offset;
   int8 m_direction;
   bool m_implicit_cursor;
   void init()
   {
     m_index= 0;
-    m_upper_bound= 0;
+    m_target_bound= 0;
     m_direction= 0;
     m_implicit_cursor= false;
   }
@@ -719,13 +735,78 @@ public:
   {
     *this= other;
   }
-  bool is_for_loop_cursor() const { return m_upper_bound == NULL; }
+  bool is_for_loop_cursor() const { return m_target_bound == NULL; }
+  bool is_for_loop_explicit_cursor() const
+  {
+    return is_for_loop_cursor() && !m_implicit_cursor;
+  }
 };
 
 
-struct Lex_string_with_pos_st: public LEX_CSTRING
+enum trim_spec { TRIM_LEADING, TRIM_TRAILING, TRIM_BOTH };
+
+struct Lex_trim_st
 {
-  const char *m_pos;
+  Item *m_remove;
+  Item *m_source;
+  trim_spec m_spec;
+public:
+  void set(trim_spec spec, Item *remove, Item *source)
+  {
+    m_spec= spec;
+    m_remove= remove;
+    m_source= source;
+  }
+  void set(trim_spec spec, Item *source)
+  {
+    set(spec, NULL, source);
+  }
+  Item *make_item_func_trim_std(THD *thd) const;
+  Item *make_item_func_trim_oracle(THD *thd) const;
+  Item *make_item_func_trim(THD *thd) const;
+};
+
+
+class Lex_trim: public Lex_trim_st
+{
+public:
+  Lex_trim(trim_spec spec, Item *source) { set(spec, source); }
+};
+
+
+class Load_data_param
+{
+protected:
+  CHARSET_INFO *m_charset;   // Character set of the file
+  ulonglong m_fixed_length;  // Sum of target field lengths for fixed format
+  bool m_is_fixed_length;
+  bool m_use_blobs;
+public:
+  Load_data_param(CHARSET_INFO *cs, bool is_fixed_length):
+    m_charset(cs),
+    m_fixed_length(0),
+    m_is_fixed_length(is_fixed_length),
+    m_use_blobs(false)
+  { }
+  bool add_outvar_field(THD *thd, const Field *field);
+  bool add_outvar_user_var(THD *thd);
+  CHARSET_INFO *charset() const { return m_charset; }
+  bool is_fixed_length() const { return m_is_fixed_length; }
+  bool use_blobs() const { return m_use_blobs; }
+};
+
+
+class Load_data_outvar
+{
+public:
+  virtual ~Load_data_outvar() {}
+  virtual bool load_data_set_null(THD *thd, const Load_data_param *param)= 0;
+  virtual bool load_data_set_value(THD *thd, const char *pos, uint length,
+                                   const Load_data_param *param)= 0;
+  virtual bool load_data_set_no_data(THD *thd, const Load_data_param *param)= 0;
+  virtual void load_data_print_for_log_event(THD *thd, class String *to) const= 0;
+  virtual bool load_data_add_outvar(THD *thd, Load_data_param *param) const= 0;
+  virtual uint load_data_fixed_length() const= 0;
 };
 
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation. All Rights Reserved.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -29,8 +29,8 @@ Created 2013-03-26 Sunny Bains.
 #ifndef ib0mutex_h
 #define ib0mutex_h
 
-#include "ut0ut.h"
-#include "ut0rnd.h"
+#include "my_atomic.h"
+#include "my_cpu.h"
 #include "os0event.h"
 #include "sync0arr.h"
 
@@ -53,15 +53,8 @@ struct OSTrackMutex {
 		ut_ad(!m_destroy_at_exit || !m_locked);
 	}
 
-	/** Initialise the mutex.
-	@param[in]	id              Mutex ID
-	@param[in]	filename	File where mutex was created
-	@param[in]	line		Line in filename */
-	void init(
-		latch_id_t	id,
-		const char*	filename,
-		uint32_t	line)
-		UNIV_NOTHROW
+	/** Initialise the mutex. */
+	void init(latch_id_t, const char*, uint32_t) UNIV_NOTHROW
 	{
 		ut_ad(m_freed);
 		ut_ad(!m_locked);
@@ -92,16 +85,8 @@ struct OSTrackMutex {
 		m_mutex.exit();
 	}
 
-	/** Acquire the mutex.
-	@param[in]	max_spins	max number of spins
-	@param[in]	max_delay	max delay per spin
-	@param[in]	filename	from where called
-	@param[in]	line		within filename */
-	void enter(
-		uint32_t	max_spins,
-		uint32_t	max_delay,
-		const char*	filename,
-		uint32_t	line)
+	/** Acquire the mutex. */
+	void enter(uint32_t, uint32_t, const char*, uint32_t)
 		UNIV_NOTHROW
 	{
 		ut_ad(!m_freed);
@@ -186,15 +171,8 @@ struct TTASFutexMutex {
 	}
 
 	/** Called when the mutex is "created". Note: Not from the constructor
-	but when the mutex is initialised.
-	@param[in]	id		Mutex ID
-	@param[in]	filename	File where mutex was created
-	@param[in]	line		Line in filename */
-	void init(
-		latch_id_t	id,
-		const char*	filename,
-		uint32_t	line)
-		UNIV_NOTHROW
+	but when the mutex is initialised. */
+	void init(latch_id_t, const char*, uint32_t) UNIV_NOTHROW
 	{
 		ut_a(m_lock_word == MUTEX_STATE_UNLOCKED);
 	}
@@ -208,14 +186,9 @@ struct TTASFutexMutex {
 
 	/** Acquire the mutex.
 	@param[in]	max_spins	max number of spins
-	@param[in]	max_delay	max delay per spin
-	@param[in]	filename	from where called
-	@param[in]	line		within filename */
-	void enter(
-		uint32_t	max_spins,
-		uint32_t	max_delay,
-		const char*	filename,
-		uint32_t	line) UNIV_NOTHROW
+	@param[in]	max_delay	max delay per spin */
+	void enter(uint32_t max_spins, uint32_t max_delay,
+		   const char*, uint32_t) UNIV_NOTHROW
 	{
 		uint32_t n_spins, n_waits;
 
@@ -308,15 +281,8 @@ struct TTASMutex {
 	}
 
 	/** Called when the mutex is "created". Note: Not from the constructor
-	but when the mutex is initialised.
-	@param[in]	id		Mutex ID
-	@param[in]	filename	File where mutex was created
-	@param[in]	line		Line in filename */
-	void init(
-		latch_id_t	id,
-		const char*	filename,
-		uint32_t	line)
-		UNIV_NOTHROW
+	but when the mutex is initialised. */
+	void init(latch_id_t) UNIV_NOTHROW
 	{
 		ut_ad(m_lock_word == MUTEX_STATE_UNLOCKED);
 	}
@@ -349,14 +315,9 @@ struct TTASMutex {
 
 	/** Acquire the mutex.
 	@param max_spins	max number of spins
-	@param max_delay	max delay per spin
-	@param filename		from where called
-	@param line		within filename */
-	void enter(
-		uint32_t	max_spins,
-		uint32_t	max_delay,
-		const char*	filename,
-		uint32_t	line) UNIV_NOTHROW
+	@param max_delay	max delay per spin */
+	void enter(uint32_t max_spins, uint32_t max_delay,
+		   const char*, uint32_t) UNIV_NOTHROW
 	{
 		const uint32_t	step = max_spins;
 		uint32_t n_spins = 0;
@@ -420,14 +381,8 @@ struct TTASEventMutex {
 
 	/** Called when the mutex is "created". Note: Not from the constructor
 	but when the mutex is initialised.
-	@param[in]	id		Mutex ID
-	@param[in]	filename	File where mutex was created
-	@param[in]	line		Line in filename */
-	void init(
-		latch_id_t	id,
-		const char*	filename,
-		uint32_t	line)
-		UNIV_NOTHROW
+	@param[in]	id		Mutex ID */
+	void init(latch_id_t id, const char*, uint32_t) UNIV_NOTHROW
 	{
 		ut_a(m_event == 0);
 		ut_a(m_lock_word == MUTEX_STATE_UNLOCKED);
@@ -527,7 +482,9 @@ struct TTASEventMutex {
 	int32 state() const
 		UNIV_NOTHROW
 	{
-		return(m_lock_word);
+		return(my_atomic_load32_explicit(const_cast<int32*>
+						 (&m_lock_word),
+						 MY_MEMORY_ORDER_RELAXED));
 	}
 
 	/** The event that the mutex will wait in sync0arr.cc

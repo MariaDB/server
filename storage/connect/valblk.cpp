@@ -23,7 +23,7 @@
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <windows.h>
 #else
 #include "osutil.h"
@@ -53,7 +53,7 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
   {
   PVBLK blkp;
 
-  if (trace)
+  if (trace(1))
     htrc("AVB: mp=%p type=%d nval=%d len=%d check=%u blank=%u\n",
          mp, type, nval, len, check, blank);
 
@@ -206,6 +206,7 @@ void VALBLK::ChkIndx(int n)
   {
   if (n < 0 || n >= Nval) {
     PGLOBAL& g = Global;
+		xtrc(1, "ChkIndx: n=%d Nval=%d\n", n, Nval);
     strcpy(g->Message, MSG(BAD_VALBLK_INDX));
 		throw Type;
 	} // endif n
@@ -216,7 +217,8 @@ void VALBLK::ChkTyp(PVAL v)
   {
   if (Check && (Type != v->GetType() || Unsigned != v->IsUnsigned())) {
     PGLOBAL& g = Global;
-    strcpy(g->Message, MSG(VALTYPE_NOMATCH));
+		xtrc(1, "ChkTyp: Type=%d valType=%d\n", Type, v->GetType());
+		strcpy(g->Message, MSG(VALTYPE_NOMATCH));
 		throw Type;
 	} // endif Type
 
@@ -266,14 +268,14 @@ bool TYPBLK<TYPE>::Init(PGLOBAL g, bool check)
 template <class TYPE>
 char *TYPBLK<TYPE>::GetCharString(char *p, int n)
   {
-  sprintf(p, Fmt, Typp[n]);
+  sprintf(p, Fmt, UnalignedRead(n));
   return p;
   } // end of GetCharString
 
 template <>
 char *TYPBLK<double>::GetCharString(char *p, int n)
   {
-  sprintf(p, Fmt, Prec, Typp[n]);
+  sprintf(p, Fmt, Prec, UnalignedRead(n));
   return p;
   } // end of GetCharString
 
@@ -289,7 +291,7 @@ void TYPBLK<TYPE>::SetValue(PVAL valp, int n)
   ChkTyp(valp);
 
   if (!(b = valp->IsNull()))
-    Typp[n] = GetTypedValue(valp);
+    UnalignedWrite(n, GetTypedValue(valp));
   else
     Reset(n);
 
@@ -351,9 +353,9 @@ void TYPBLK<TYPE>::SetValue(PCSZ p, int n)
   ulonglong val = CharToNumber(p, strlen(p), maxval, Unsigned, &minus); 
     
   if (minus && val < maxval)
-    Typp[n] = (TYPE)(-(signed)val);
+    UnalignedWrite(n, (TYPE)(-(signed)val));
   else
-    Typp[n] = (TYPE)val;
+    UnalignedWrite(n, (TYPE)val);
 
   SetNull(n, false);
   } // end of SetValue
@@ -396,7 +398,7 @@ void TYPBLK<double>::SetValue(PCSZ p, int n)
 		throw Type;
 	} // endif Check
 
-  Typp[n] = atof(p);
+  UnalignedWrite(n, atof(p));
   SetNull(n, false);
   } // end of SetValue
 
@@ -428,7 +430,7 @@ void TYPBLK<TYPE>::SetValue(PVBLK pv, int n1, int n2)
   ChkTyp(pv);
 
   if (!(b = pv->IsNull(n2) && Nullable))
-    Typp[n1] = GetTypedValue(pv, n2);
+    UnalignedWrite(n1, GetTypedValue(pv, n2));
   else
     Reset(n1);
 
@@ -479,10 +481,10 @@ void TYPBLK<TYPE>::SetMin(PVAL valp, int n)
   {
   CheckParms(valp, n)
   TYPE  tval = GetTypedValue(valp);
-  TYPE& tmin = Typp[n];
+  TYPE  tmin = UnalignedRead(n);
 
   if (tval < tmin)
-    tmin = tval;
+    UnalignedWrite(n, tval);
 
   } // end of SetMin
 
@@ -494,10 +496,10 @@ void TYPBLK<TYPE>::SetMax(PVAL valp, int n)
   {
   CheckParms(valp, n)
   TYPE  tval = GetTypedValue(valp);
-  TYPE& tmin = Typp[n];
+  TYPE  tmin = UnalignedRead(n);
 
   if (tval > tmin)
-    tmin = tval;
+    UnalignedWrite(n, tval);
 
   } // end of SetMax
 
@@ -511,8 +513,7 @@ void TYPBLK<TYPE>::SetValues(PVBLK pv, int k, int n)
   CheckType(pv)
   TYPE *lp = ((TYPBLK*)pv)->Typp;
 
-  for (register int i = k; i < n; i++)          // TODO
-    Typp[i] = lp[i];
+  memcpy(Typp + k, lp + k, sizeof(TYPE) * n);
 
   } // end of SetValues
 #endif // 0
@@ -523,7 +524,7 @@ void TYPBLK<TYPE>::SetValues(PVBLK pv, int k, int n)
 template <class TYPE>
 void TYPBLK<TYPE>::Move(int i, int j)
   {
-  Typp[j] = Typp[i];
+  UnalignedWrite(j, UnalignedRead(i));
   MoveNull(i, j);
   } // end of Move
 
@@ -537,7 +538,7 @@ int TYPBLK<TYPE>::CompVal(PVAL vp, int n)
   ChkIndx(n);
   ChkTyp(vp);
 #endif   // _DEBUG
-  TYPE mlv = Typp[n];
+  TYPE mlv = UnalignedRead(n);
   TYPE vlv = GetTypedValue(vp);
 
   return (vlv > mlv) ? 1 : (vlv < mlv) ? (-1) : 0;
@@ -549,8 +550,8 @@ int TYPBLK<TYPE>::CompVal(PVAL vp, int n)
 template <class TYPE>
 int TYPBLK<TYPE>::CompVal(int i1, int i2)
   {
-  TYPE lv1 = Typp[i1];
-  TYPE lv2 = Typp[i2];
+  TYPE lv1 = UnalignedRead(i1);
+  TYPE lv2 = UnalignedRead(i2);
 
   return (lv1 > lv2) ? 1 : (lv1 < lv2) ? (-1) : 0;
   } // end of CompVal
@@ -587,7 +588,7 @@ int TYPBLK<TYPE>::Find(PVAL vp)
   TYPE n = GetTypedValue(vp);
 
   for (i = 0; i < Nval; i++)
-    if (n == Typp[i])
+    if (n == UnalignedRead(i))
       break;
 
   return (i < Nval) ? i : (-1);
@@ -603,7 +604,7 @@ int TYPBLK<TYPE>::GetMaxLength(void)
   int i, n, m;
 
   for (i = n = 0; i < Nval; i++) {
-    m = sprintf(buf, Fmt, Typp[i]);
+    m = sprintf(buf, Fmt, UnalignedRead(i));
     n = MY_MAX(n, m);
     } // endfor i
 
@@ -805,7 +806,7 @@ void CHRBLK::SetValue(const char *sp, uint len, int n)
 
   if (Blanks) {
     // Suppress eventual ending zero and right fill with blanks
-    for (register int i = len; i < Long; i++)
+    for (int i = len; i < Long; i++)
       p[i] = ' ';
 
   } else if ((signed)len < Long)
@@ -1333,7 +1334,7 @@ char *DATBLK::GetCharString(char *p, int n)
   char *vp;
 
   if (Dvalp) {
-    Dvalp->SetValue(Typp[n]);
+    Dvalp->SetValue(UnalignedRead(n));
     vp = Dvalp->GetCharString(p);
   } else
     vp = TYPBLK<int>::GetCharString(p, n);
@@ -1349,7 +1350,7 @@ void DATBLK::SetValue(PCSZ p, int n)
   if (Dvalp) {
     // Decode the string according to format
     Dvalp->SetValue_psz(p);
-    Typp[n] = Dvalp->GetIntValue();
+    UnalignedWrite(n, Dvalp->GetIntValue());
   } else
     TYPBLK<int>::SetValue(p, n);
 

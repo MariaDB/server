@@ -1,10 +1,6 @@
 -- source include/have_innodb.inc
+-- source include/innodb_page_size_small.inc
 -- source include/have_file_key_management_plugin.inc
-# embedded does not support restart
--- source include/not_embedded.inc
--- source include/not_valgrind.inc
-# Avoid CrashReporter popup on Mac
--- source include/not_crashrep.inc
 
 #
 # MDEV-8770: Incorrect error message when importing page compressed tablespace
@@ -28,7 +24,9 @@ create table t1(c1 bigint not null, b char(200))  engine=innodb encrypted=yes en
 show warnings;
 create table t2(c1 bigint not null, b char(200))  engine=innodb page_compressed=1 encrypted=yes encryption_key_id=4;
 show warnings;
-create table t3(c1 bigint not null, b char(200))  engine=innodb row_format=compressed encrypted=yes encryption_key_id=4;
+let $kbs= `select floor(@@global.innodb_page_size/1024)`;
+--replace_regex / key_block_size=\d+//i
+eval create table t3(c1 bigint not null, b char(200))  engine=innodb row_format=compressed encrypted=yes encryption_key_id=4 key_block_size=$kbs;
 show warnings;
 create table t4(c1 bigint not null, b char(200))  engine=innodb page_compressed=1;
 show warnings;
@@ -89,6 +87,7 @@ ALTER TABLE t2 IMPORT TABLESPACE;
 SHOW CREATE TABLE t2;
 SELECT COUNT(*) FROM t2;
 ALTER TABLE t3 IMPORT TABLESPACE;
+--replace_regex / key_block_size=\d+//i
 SHOW CREATE TABLE t3;
 SELECT COUNT(*) FROM t3;
 ALTER TABLE t4 IMPORT TABLESPACE;
@@ -118,5 +117,5 @@ DROP TABLE t1,t2,t3,t4;
 
 # reset system
 --disable_query_log
-EVAL SET GLOBAL innodb_compression_algorithm = $innodb_compression_algo;
+eval SET GLOBAL innodb_compression_algorithm = $innodb_compression_algo;
 --enable_query_log

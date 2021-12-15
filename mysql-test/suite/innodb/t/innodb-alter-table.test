@@ -1,5 +1,7 @@
 --source include/innodb_page_size.inc
 --source include/have_partition.inc
+# This test is slow on buildbot.
+--source include/big_test.inc
 
 #
 # MMDEV-8386: MariaDB creates very big tmp file and hangs on xtradb

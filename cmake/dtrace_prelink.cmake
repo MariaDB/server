@@ -12,7 +12,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 # Generates an ELF object file with dtrace entry points.
 # This object that must to be linked with together with 
@@ -34,7 +34,7 @@ ENDMACRO()
 IF(TYPE STREQUAL "MERGE")
   # Rerun dtrace on objects that are already in static libraries.
   # Object paths are stored in text files named 'dtrace_objects'
-  # in the input directores. We have to copy the objects into temp.
+  # in the input directories. We have to copy the objects into temp.
   # directory, as running dtrace -G on original files will change
   # timestamps and cause rebuilds or the libraries / excessive 
   # relink

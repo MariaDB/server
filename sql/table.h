@@ -1,8 +1,7 @@
 #ifndef TABLE_INCLUDED
 #define TABLE_INCLUDED
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
-   Copyright (c) 2016, 2017, MariaDB Corporation.
+/* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "sql_plist.h"
 #include "sql_list.h"                           /* Sql_alloc */
@@ -56,6 +55,7 @@ class Virtual_column_info;
 class Table_triggers_list;
 class TMP_TABLE_PARAM;
 class SEQUENCE;
+struct Name_resolution_context;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -321,10 +321,24 @@ typedef struct st_grant_info
 
 enum tmp_table_type
 {
-  NO_TMP_TABLE, NON_TRANSACTIONAL_TMP_TABLE, TRANSACTIONAL_TMP_TABLE,
+  NO_TMP_TABLE= 0, NON_TRANSACTIONAL_TMP_TABLE, TRANSACTIONAL_TMP_TABLE,
   INTERNAL_TMP_TABLE, SYSTEM_TMP_TABLE
 };
 enum release_type { RELEASE_NORMAL, RELEASE_WAIT_FOR_DROP };
+
+
+enum vcol_init_mode
+{
+  VCOL_INIT_DEPENDENCY_FAILURE_IS_WARNING= 1,
+  VCOL_INIT_DEPENDENCY_FAILURE_IS_ERROR= 2
+  /*
+    There may be new flags here.
+    e.g. to automatically remove sql_mode dependency:
+      GENERATED ALWAYS AS (char_col) ->
+      GENERATED ALWAYS AS (RTRIM(char_col))
+  */
+};
+
 
 enum enum_vcol_update_mode
 {
@@ -487,10 +501,11 @@ typedef struct st_table_field_def
 class Table_check_intact
 {
 protected:
+  bool has_keys;
   virtual void report_error(uint code, const char *fmt, ...)= 0;
 
 public:
-  Table_check_intact() {}
+  Table_check_intact(bool keys= false) : has_keys(keys) {}
   virtual ~Table_check_intact() {}
 
   /** Checks whether a table is intact. */
@@ -505,6 +520,8 @@ class Table_check_intact_log_error : public Table_check_intact
 {
 protected:
   void report_error(uint, const char *fmt, ...);
+public:
+  Table_check_intact_log_error() : Table_check_intact(true) {}
 };
 
 
@@ -564,15 +581,94 @@ enum open_frm_error {
   from persistent statistical tables
 */
 
-struct TABLE_STATISTICS_CB
+class TABLE_STATISTICS_CB
 {
+  class Statistics_state
+  {
+    enum state_codes
+    {
+      EMPTY,   /** data is not loaded */
+      LOADING, /** data is being loaded in some connection */
+      READY    /** data is loaded and available for use */
+    };
+    int32 state;
+
+  public:
+    /** No state copy */
+    Statistics_state &operator=(const Statistics_state &) { return *this; }
+
+    /** Checks if data loading have been completed */
+    bool is_ready() const
+    {
+      return my_atomic_load32_explicit(const_cast<int32*>(&state),
+                                       MY_MEMORY_ORDER_ACQUIRE) == READY;
+    }
+
+    /**
+      Sets mutual exclusion for data loading
+
+      If stats are in LOADING state, waits until state change.
+
+      @return
+        @retval true atomic EMPTY -> LOADING transfer completed, ok to load
+        @retval false stats are in READY state, no need to load
+    */
+    bool start_load()
+    {
+      for (;;)
+      {
+        int32 expected= EMPTY;
+        if (my_atomic_cas32_weak_explicit(&state, &expected, LOADING,
+                                          MY_MEMORY_ORDER_RELAXED,
+                                          MY_MEMORY_ORDER_RELAXED))
+          return true;
+        if (expected == READY)
+          return false;
+        (void) LF_BACKOFF();
+      }
+    }
+
+    /** Marks data available for subsequent use */
+    void end_load()
+    {
+      DBUG_ASSERT(my_atomic_load32_explicit(&state, MY_MEMORY_ORDER_RELAXED) ==
+                  LOADING);
+      my_atomic_store32_explicit(&state, READY, MY_MEMORY_ORDER_RELEASE);
+    }
+
+    /** Restores empty state on error (e.g. OOM) */
+    void abort_load()
+    {
+      DBUG_ASSERT(my_atomic_load32_explicit(&state, MY_MEMORY_ORDER_RELAXED) ==
+                  LOADING);
+      my_atomic_store32_explicit(&state, EMPTY, MY_MEMORY_ORDER_RELAXED);
+    }
+  };
+
+  class Statistics_state stats_state;
+  class Statistics_state hist_state;
+
+public:
   MEM_ROOT  mem_root; /* MEM_ROOT to allocate statistical data for the table */
   Table_statistics *table_stats; /* Structure to access the statistical data */
-  bool stats_can_be_read;        /* Memory for statistical data is allocated */
-  bool stats_is_read;            /* Statistical data for table has been read
-                                    from statistical tables */
-  bool histograms_can_be_read;
-  bool histograms_are_read;   
+  ulong total_hist_size;         /* Total size of all histograms */
+
+  bool histograms_are_ready() const
+  {
+    return !total_hist_size || hist_state.is_ready();
+  }
+
+  bool start_histograms_load()
+  {
+    return total_hist_size && hist_state.start_load();
+  }
+
+  void end_histograms_load() { hist_state.end_load(); }
+  void abort_histograms_load() { hist_state.abort_load(); }
+  bool stats_are_ready() const { return stats_state.is_ready(); }
+  bool start_stats_load() { return stats_state.start_load(); }
+  void end_stats_load() { stats_state.end_load(); }
+  void abort_stats_load() { stats_state.abort_load(); }
 };
 
 /**
@@ -636,16 +732,6 @@ struct TABLE_SHARE
   LEX_CSTRING normalized_path;		/* unpack_filename(path) */
   LEX_CSTRING connect_string;
 
-  const char* orig_table_name;          /* Original table name for this tmp table */
-  const char* error_table_name() const  /* Get table name for error messages */
-  {
-    return tmp_table ? (
-      orig_table_name ?
-        orig_table_name :
-        "(temporary)") :
-      table_name.str;
-  }
-
   /* 
      Set of keys in use, implemented as a Bitmap.
      Excludes keys disabled by ALTER TABLE ... DISABLE KEYS.
@@ -685,8 +771,11 @@ struct TABLE_SHARE
   */
   uint null_bytes_for_compare;
   uint fields;                          /* number of fields */
-  uint stored_fields;                   /* number of stored fields, purely virtual not included */
+  /* number of stored fields, purely virtual not included */
+  uint stored_fields;
   uint virtual_fields;                  /* number of purely virtual fields */
+  /* number of purely virtual not stored blobs */
+  uint virtual_not_stored_blob_fields;
   uint null_fields;                     /* number of null fields */
   uint blob_fields;                     /* number of blob fields */
   uint varchar_fields;                  /* number of varchar fields */
@@ -699,7 +788,7 @@ struct TABLE_SHARE
   uint rec_buff_length;                 /* Size of table->record[] buffer */
   uint keys, key_parts;
   uint ext_key_parts;       /* Total number of key parts in extended keys */
-  uint max_key_length, max_unique_length, total_key_length;
+  uint max_key_length, max_unique_length;
   uint uniques;                         /* Number of UNIQUE index */
   uint db_create_options;		/* Create options from database */
   uint db_options_in_use;		/* Options in use */
@@ -715,21 +804,27 @@ struct TABLE_SHARE
   uint column_bitmap_size;
   uchar frm_version;
 
+  enum enum_v_keys { NOT_INITIALIZED=0, NO_V_KEYS, V_KEYS };
+  enum_v_keys check_set_initialized;
+
   bool use_ext_keys;                    /* Extended keys can be used */
   bool null_field_first;
   bool system;                          /* Set if system table (one record) */
   bool not_usable_by_query_cache;
+  /*
+    This is used by log tables, for tables that have their own internal
+    binary logging or for tables that doesn't support statement or row logging
+   */
   bool no_replicate;
   bool crashed;
   bool is_view;
   bool can_cmp_whole_record;
+  /* This is set for temporary tables where CREATE was binary logged */
   bool table_creation_was_logged;
   bool non_determinstic_insert;
   bool vcols_need_refixing;
-  bool check_set_initialized;
   bool has_update_default_function;
   bool can_do_row_logging;              /* 1 if table supports RBR */
-
   ulong table_map_id;                   /* for row-based replication */
 
   /*
@@ -748,9 +843,6 @@ struct TABLE_SHARE
   /* For sequence tables, the current sequence state */
   SEQUENCE *sequence;
 
-  /* Name of the tablespace used for this table */
-  char *tablespace;
-
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   /* filled in when reading from frm */
   bool auto_partitioned;
@@ -765,7 +857,6 @@ struct TABLE_SHARE
    */
 
   vers_sys_type_t versioned;
-  bool vtmd;
   uint16 row_start_field;
   uint16 row_end_field;
 
@@ -796,6 +887,8 @@ struct TABLE_SHARE
 
   /** Instrumentation for this table share. */
   PSI_table_share *m_psi;
+
+  inline void reset() { bzero((void*)this, sizeof(*this)); }
 
   /*
     Set share's table cache key and update its db and table name appropriately.
@@ -847,12 +940,6 @@ struct TABLE_SHARE
   {
     memcpy(key_buff, key, key_length);
     set_table_cache_key(key_buff, key_length);
-  }
-
-  inline bool honor_global_locks()
-  {
-    return ((table_category == TABLE_CATEGORY_USER)
-            || (table_category == TABLE_CATEGORY_SYSTEM));
   }
 
   inline bool require_write_privileges()
@@ -1225,9 +1312,16 @@ public:
   /* number of select if it is derived table */
   uint          derived_select_number;
   /*
-    0 or JOIN_TYPE_{LEFT|RIGHT}. Currently this is only compared to 0.
-    If maybe_null !=0, this table is inner w.r.t. some outer join operation,
-    and null_row may be true.
+    Possible values:
+     - 0 by default
+     - JOIN_TYPE_{LEFT|RIGHT} if the table is inner w.r.t an outer join
+       operation
+     - 1 if the SELECT has mixed_implicit_grouping=1. example:
+       select max(col1), col2 from t1. In this case, the query produces
+       one row with all columns having NULL values.
+
+    Interpetation: If maybe_null!=0, all fields of the table are considered
+    NULLable (and have NULL values when null_row=true)
   */
   uint maybe_null;
   int		current_lock;           /* Type of lock on table */
@@ -1312,8 +1406,8 @@ public:
   bool insert_or_update;             /* Can be used by the handler */
   bool alias_name_used;              /* true if table_name is alias */
   bool get_fields_in_item_tree;      /* Signal to fix_field */
-  bool m_needs_reopen;
 private:
+  bool m_needs_reopen;
   bool created;    /* For tmp tables. TRUE <=> tmp table was actually created.*/
 public:
 #ifdef HAVE_REPLICATION
@@ -1355,6 +1449,8 @@ public:
   SplM_opt_info *spl_opt_info;
   key_map keys_usable_for_splitting;
 
+
+  inline void reset() { bzero((void*)this, sizeof(*this)); }
   void init(THD *thd, TABLE_LIST *tl);
   bool fill_item_list(List<Item> *item_list) const;
   void reset_item_list(List<Item> *item_list, uint skip) const;
@@ -1363,8 +1459,9 @@ public:
   MY_BITMAP *prepare_for_keyread(uint index, MY_BITMAP *map);
   MY_BITMAP *prepare_for_keyread(uint index)
   { return prepare_for_keyread(index, &tmp_set); }
-  void mark_columns_used_by_index(uint index, MY_BITMAP *map);
-  void mark_columns_used_by_index_no_reset(uint index, MY_BITMAP *map);
+  void mark_index_columns(uint index, MY_BITMAP *bitmap);
+  void mark_index_columns_no_reset(uint index, MY_BITMAP *bitmap);
+  void mark_index_columns_for_read(uint index);
   void restore_column_maps_after_keyread(MY_BITMAP *backup);
   void mark_auto_increment_column(void);
   void mark_columns_needed_for_update(void);
@@ -1376,7 +1473,7 @@ public:
   bool check_virtual_columns_marked_for_read();
   bool check_virtual_columns_marked_for_write();
   void mark_default_fields_for_write(bool insert_fl);
-  void mark_columns_used_by_check_constraints(void);
+  void mark_columns_used_by_virtual_fields(void);
   void mark_check_constraint_columns_for_read(void);
   int verify_constraints(bool ignore_failure);
   inline void column_bitmaps_set(MY_BITMAP *read_set_arg)
@@ -1431,6 +1528,16 @@ public:
   /** Should this instance of the table be reopened? */
   inline bool needs_reopen()
   { return !db_stat || m_needs_reopen; }
+  /*
+    Mark that all current connection instances of the table should be
+    reopen at end of statement
+  */
+  void mark_table_for_reopen();
+  /* Should only be called from Locked_tables_list::mark_table_for_reopen() */
+  void internal_set_needs_reopen(bool value)
+  {
+    m_needs_reopen= value;
+  }
 
   bool alloc_keys(uint key_count);
   bool check_tmp_key(uint key, uint key_parts,
@@ -1471,17 +1578,21 @@ public:
   bool is_filled_at_execution();
 
   bool update_const_key_parts(COND *conds);
+  void initialize_quick_structures();
 
   my_ptrdiff_t default_values_offset() const
   { return (my_ptrdiff_t) (s->default_values - record[0]); }
 
   void move_fields(Field **ptr, const uchar *to, const uchar *from);
+  void remember_blob_values(String *blob_storage);
+  void restore_blob_values(String *blob_storage);
 
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
   int update_virtual_field(Field *vf);
   int update_virtual_fields(handler *h, enum_vcol_update_mode update_mode);
-  int update_default_fields(bool update, bool ignore_errors);
+  int update_default_fields(bool ignore_errors);
+  void evaluate_update_default_function();
   void reset_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }
 
@@ -1496,11 +1607,13 @@ public:
                                       TABLE *tmp_table,
                                       TMP_TABLE_PARAM *tmp_table_param,
                                       bool with_cleanup);
+  int fix_vcol_exprs(THD *thd);
   Field *find_field_by_name(LEX_CSTRING *str) const;
   bool export_structure(THD *thd, class Row_definition_list *defs);
   bool is_splittable() { return spl_opt_info != NULL; }
   void set_spl_opt_info(SplM_opt_info *spl_info);
   void deny_splitting();
+  double get_materialization_cost(); // Now used only if is_splittable()==true
   void add_splitting_info_for_key_field(struct KEY_FIELD *key_field);
 
   /**
@@ -1521,16 +1634,17 @@ public:
     return s->versioned == type;
   }
 
-  bool versioned_write(vers_sys_type_t type= VERS_UNDEFINED) const
+  bool versioned_write() const
   {
     DBUG_ASSERT(versioned() || !vers_write);
-    return versioned(type) ? vers_write : false;
+    return versioned() ? vers_write : false;
   }
 
-  bool vers_vtmd() const
+  bool versioned_write(vers_sys_type_t type) const
   {
-    DBUG_ASSERT(s);
-    return s->versioned && s->vtmd;
+    DBUG_ASSERT(type);
+    DBUG_ASSERT(versioned() || !vers_write);
+    return versioned(type) ? vers_write : false;
   }
 
   Field *vers_start_field() const
@@ -1547,6 +1661,8 @@ public:
 
   ulonglong vers_start_id() const;
   ulonglong vers_end_id() const;
+
+  bool vers_check_update(List<Item> &items);
 
   int delete_row();
   void vers_update_fields();
@@ -1832,22 +1948,39 @@ public:
     fix_item();
   }
   void empty() { unit= VERS_UNDEFINED; item= NULL; }
-  void print(String *str, enum_query_type, const char *prefix, size_t plen);
-  void resolve_unit(bool timestamps_only);
+  void print(String *str, enum_query_type, const char *prefix, size_t plen) const;
+  bool resolve_unit(THD *thd);
+  bool resolve_unit_trx_id(THD *thd)
+  {
+    if (unit == VERS_UNDEFINED)
+      unit= VERS_TRX_ID;
+    return false;
+  }
+  bool resolve_unit_timestamp(THD *thd)
+  {
+    if (unit == VERS_UNDEFINED)
+      unit= VERS_TIMESTAMP;
+    return false;
+  }
+  void bad_expression_data_type_error(const char *type) const;
+  bool eq(const vers_history_point_t &point) const;
 };
 
 struct vers_select_conds_t
 {
   vers_system_time_t type;
-  bool from_query:1;
+  vers_system_time_t orig_type;
   bool used:1;
+  bool delete_history:1;
   Vers_history_point start;
   Vers_history_point end;
 
   void empty()
   {
     type= SYSTEM_TIME_UNSPECIFIED;
-    used= from_query= false;
+    orig_type= SYSTEM_TIME_UNSPECIFIED;
+    used= false;
+    delete_history= false;
     start.empty();
     end.empty();
   }
@@ -1857,32 +1990,32 @@ struct vers_select_conds_t
             Vers_history_point _end= Vers_history_point())
   {
     type= _type;
-    used= from_query= false;
+    orig_type= _type;
+    used= false;
+    delete_history= (type == SYSTEM_TIME_HISTORY ||
+      type == SYSTEM_TIME_BEFORE);
     start= _start;
     end= _end;
   }
 
-  void print(String *str, enum_query_type query_type);
+  void print(String *str, enum_query_type query_type) const;
 
   bool init_from_sysvar(THD *thd);
 
-  bool operator== (vers_system_time_t b)
-  {
-    return type == b;
-  }
-  bool operator!= (vers_system_time_t b)
-  {
-    return type != b;
-  }
-  operator bool() const
+  bool is_set() const
   {
     return type != SYSTEM_TIME_UNSPECIFIED;
   }
-  void resolve_units(bool timestamps_only);
-  bool user_defined() const
+  bool was_set() const
   {
-    return !from_query && type != SYSTEM_TIME_UNSPECIFIED;
+    return orig_type != SYSTEM_TIME_UNSPECIFIED;
   }
+  bool need_setup() const
+  {
+    return type != SYSTEM_TIME_UNSPECIFIED && type != SYSTEM_TIME_ALL;
+  }
+  bool resolve_units(THD *thd);
+  bool eq(const vers_select_conds_t &conds) const;
 };
 
 /*
@@ -1924,6 +2057,29 @@ struct vers_select_conds_t
 
 struct LEX;
 class Index_hint;
+
+/*
+  @struct TABLE_CHAIN
+  @brief Subchain of global chain of table references
+
+  The structure contains a pointer to the address of the next_global
+  pointer to the first TABLE_LIST objectof the subchain and the address
+  of the next_global pointer to the element right after the last
+  TABLE_LIST object of the subchain.  For an empty subchain both pointers
+  have the same value.
+*/
+
+struct TABLE_CHAIN
+{
+  TABLE_CHAIN() {}
+
+  TABLE_LIST **start_pos;
+  TABLE_LIST ** end_pos;
+
+  void set_start_pos(TABLE_LIST **pos) { start_pos= pos; }
+  void set_end_pos(TABLE_LIST **pos) { end_pos= pos; }
+};
+
 struct TABLE_LIST
 {
   TABLE_LIST() {}                          /* Remove gcc warning */
@@ -1937,12 +2093,21 @@ struct TABLE_LIST
     Prepare TABLE_LIST that consists of one table instance to use in
     open_and_lock_tables
   */
+  inline void reset() { bzero((void*)this, sizeof(*this)); }
   inline void init_one_table(const LEX_CSTRING *db_arg,
                              const LEX_CSTRING *table_name_arg,
                              const LEX_CSTRING *alias_arg,
                              enum thr_lock_type lock_type_arg)
   {
-    bzero((char*) this, sizeof(*this));
+    enum enum_mdl_type mdl_type;
+    if (lock_type_arg >= TL_WRITE_ALLOW_WRITE)
+      mdl_type= MDL_SHARED_WRITE;
+    else if (lock_type_arg == TL_READ_NO_INSERT)
+      mdl_type= MDL_SHARED_NO_WRITE;
+    else
+      mdl_type= MDL_SHARED_READ;
+
+    reset();
     DBUG_ASSERT(!db_arg->str || strlen(db_arg->str) == db_arg->length);
     DBUG_ASSERT(!table_name_arg->str || strlen(table_name_arg->str) == table_name_arg->length);
     DBUG_ASSERT(!alias_arg || strlen(alias_arg->str) == alias_arg->length);
@@ -1950,9 +2115,8 @@ struct TABLE_LIST
     table_name= *table_name_arg;
     alias= (alias_arg ? *alias_arg : *table_name_arg);
     lock_type= lock_type_arg;
-    mdl_request.init(MDL_key::TABLE, db.str, table_name.str,
-                     (lock_type >= TL_WRITE_ALLOW_WRITE) ?
-                     MDL_SHARED_WRITE : MDL_SHARED_READ,
+    updating= lock_type >= TL_WRITE_ALLOW_WRITE;
+    mdl_request.init(MDL_key::TABLE, db.str, table_name.str, mdl_type,
                      MDL_TRANSACTION);
   }
 
@@ -1971,7 +2135,8 @@ struct TABLE_LIST
                                             prelocking_types prelocking_type,
                                             TABLE_LIST *belong_to_view_arg,
                                             uint8 trg_event_map_arg,
-                                            TABLE_LIST ***last_ptr)
+                                            TABLE_LIST ***last_ptr,
+                                            my_bool insert_data)
 
   {
     init_one_table(db_arg, table_name_arg, alias_arg, lock_type_arg);
@@ -1982,11 +2147,16 @@ struct TABLE_LIST
                 OT_BASE_ONLY);
     belong_to_view= belong_to_view_arg;
     trg_event_map= trg_event_map_arg;
+    /* MDL is enough for read-only FK checks, we don't need the table */
+    if (prelocking_type == PRELOCK_FK && lock_type < TL_WRITE_ALLOW_WRITE)
+      open_strategy= OPEN_STUB;
 
     **last_ptr= this;
     prev_global= *last_ptr;
     *last_ptr= &next_global;
+    for_insert_data= insert_data;
   }
+
 
   /*
     List of tables local to a subquery (used by SQL_I_List). Considers
@@ -2002,6 +2172,7 @@ struct TABLE_LIST
   LEX_CSTRING   alias;
   const char    *option;                /* Used by cache index  */
   Item		*on_expr;		/* Used with outer join */
+  Name_resolution_context *on_context;  /* For ON expressions */
 
   Item          *sj_on_expr;
   /*
@@ -2070,7 +2241,7 @@ struct TABLE_LIST
   /* Index names in a "... JOIN ... USE/IGNORE INDEX ..." clause. */
   List<Index_hint> *index_hints;
   TABLE        *table;                          /* opened table */
-  uint          table_id; /* table id (from binlog) for opened table */
+  ulonglong         table_id; /* table id (from binlog) for opened table */
   /*
     select_result for derived table to pass it from table creation to table
     filling procedure
@@ -2233,6 +2404,20 @@ struct TABLE_LIST
   /* call back function for asking handler about caching in query cache */
   qc_engine_callback callback_func;
   thr_lock_type lock_type;
+
+  /*
+    Two fields below are set during parsing this table reference in the cases
+    when the table reference can be potentially a reference to a CTE table.
+    In this cases the fact that the reference is a reference to a CTE or not
+    will be ascertained at the very end of parsing of the query when referencies
+    to CTE are resolved. For references to CTE and to derived tables no mdl
+    requests are needed while for other table references they are. If a request
+    is possibly postponed the info that allows to issue this request must be
+    saved in 'mdl_type' and 'table_options'.
+  */
+  enum_mdl_type mdl_type;
+  ulong         table_options;
+
   uint		outer_join;		/* Which join type */
   uint		shared;			/* Used in multi-upd */
   bool          updatable;		/* VIEW/TABLE can be updated now */
@@ -2266,7 +2451,7 @@ struct TABLE_LIST
   /* TABLE_TYPE_UNKNOWN if any type is acceptable */
   Table_type    required_type;
   handlerton	*db_type;		/* table_type for handler */
-  char		timestamp_buffer[20];	/* buffer for timestamp (19+1) */
+  char		timestamp_buffer[MAX_DATETIME_WIDTH + 1];
   /*
     This TABLE_LIST object is just placeholder for prelocking, it will be
     used for implicit LOCK TABLES only and won't be used in real statement.
@@ -2298,8 +2483,6 @@ struct TABLE_LIST
   /* TODO: replace with derived_type */
   bool          merged;
   bool          merged_for_insert;
-  /* TRUE <=> don't prepare this derived table/view as it should be merged.*/
-  bool          skip_prepare_derived;
   bool          sequence;  /* Part of NEXTVAL/CURVAL/LASTVAL */
 
   /*
@@ -2309,7 +2492,6 @@ struct TABLE_LIST
   List<Item>    used_items;
   /* Sublist (tail) of persistent used_items */
   List<Item>    persistent_used_items;
-  Item          **materialized_items;
 
   /* View creation context. */
 
@@ -2340,8 +2522,12 @@ struct TABLE_LIST
     Indicates what triggers we need to pre-load for this TABLE_LIST
     when opening an associated TABLE. This is filled after
     the parsed tree is created.
+
+    slave_fk_event_map is filled on the slave side with bitmaps value
+    representing row-based event operation to help find and prelock
+    possible FK constrain-related child tables.
   */
-  uint8 trg_event_map;
+  uint8 trg_event_map, slave_fk_event_map;
   /* TRUE <=> this table is a const one and was optimized away. */
   bool optimized_away;
 
@@ -2376,7 +2562,7 @@ struct TABLE_LIST
   List<String> *partition_names;
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
 
-  void calc_md5(const char *buffer);
+  void calc_md5(char *buffer);
   int view_check_option(THD *thd, bool ignore_failure);
   bool create_field_translation(THD *thd);
   bool setup_underlying(THD *thd);
@@ -2397,8 +2583,8 @@ struct TABLE_LIST
 
   /* System Versioning */
   vers_select_conds_t vers_conditions;
-  bool vers_vtmd_name(String &out) const;
-  bool vers_force_alias;
+
+  my_bool for_insert_data;
 
   /**
      @brief
@@ -2464,8 +2650,7 @@ struct TABLE_LIST
 
     @sa check_and_update_table_version()
   */
-  inline
-  bool is_table_ref_id_equal(TABLE_SHARE *s) const
+  inline bool is_table_ref_id_equal(TABLE_SHARE *s) const
   {
     return (m_table_ref_type == s->get_table_ref_type() &&
             m_table_ref_version == s->get_table_ref_version());
@@ -2477,12 +2662,10 @@ struct TABLE_LIST
 
     @sa check_and_update_table_version()
   */
-  inline
-  void set_table_ref_id(TABLE_SHARE *s)
+  inline void set_table_ref_id(TABLE_SHARE *s)
   { set_table_ref_id(s->get_table_ref_type(), s->get_table_ref_version()); }
 
-  inline
-  void set_table_ref_id(enum_table_ref_type table_ref_type_arg,
+  inline void set_table_ref_id(enum_table_ref_type table_ref_type_arg,
                         ulong table_ref_version_arg)
   {
     m_table_ref_type= table_ref_type_arg;
@@ -2546,6 +2729,7 @@ struct TABLE_LIST
     DBUG_PRINT("enter", ("Alias: '%s'  Unit: %p",
                         (alias.str ? alias.str : "<NULL>"),
                          get_unit()));
+    derived= get_unit();
     derived_type= ((derived_type & (derived ? DTYPE_MASK : DTYPE_VIEW)) |
                    DTYPE_TABLE | DTYPE_MATERIALIZE);
     set_check_materialized();
@@ -2605,6 +2789,16 @@ struct TABLE_LIST
   void set_lock_type(THD* thd, enum thr_lock_type lock);
   void check_pushable_cond_for_table(Item *cond);
   Item *build_pushable_cond_for_table(THD *thd, Item *cond); 
+
+  void remove_join_columns()
+  {
+    if (join_columns)
+    {
+      join_columns->empty();
+      join_columns= NULL;
+      is_join_columns_complete= FALSE;
+    }
+  }
 
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);
@@ -2744,9 +2938,31 @@ public:
 };
 
 
+#define JOIN_OP_NEST       1
+#define REBALANCED_NEST    2
+
 typedef struct st_nested_join
 {
   List<TABLE_LIST>  join_list;       /* list of elements in the nested join */
+  /*
+    Currently the valid values for nest type are:
+    JOIN_OP_NEST - for nest created for JOIN operation used as an operand in
+    a join expression, contains 2 elements;
+    JOIN_OP_NEST | REBALANCED_NEST -  nest created after tree re-balancing
+    in st_select_lex::add_cross_joined_table(), contains 1 element;
+    0 - for all other nests.
+    Examples:
+    1.  SELECT * FROM t1 JOIN t2 LEFT JOIN t3 ON t2.a=t3.a;
+    Here the nest created for LEFT JOIN at first has nest_type==JOIN_OP_NEST.
+    After re-balancing in st_select_lex::add_cross_joined_table() this nest
+    has nest_type==JOIN_OP_NEST | REBALANCED_NEST. The nest for JOIN created
+    in st_select_lex::add_cross_joined_table() has nest_type== JOIN_OP_NEST.
+    2.  SELECT * FROM t1 JOIN (t2 LEFT JOIN t3 ON t2.a=t3.a)
+    Here the nest created for LEFT JOIN has nest_type==0, because it's not
+    an operand in a join expression. The nest created for JOIN has nest_type
+    set to JOIN_OP_NEST.
+  */
+  uint nest_type;
   /* 
     Bitmap of tables within this nested join (including those embedded within
     its children), including tables removed by table elimination.
@@ -2766,9 +2982,11 @@ typedef struct st_nested_join
     Before each use the counters are zeroed by reset_nj_counters.
   */
   uint              counter;
+
   /*
-    Number of elements in join_list that were not (or contain table(s) that 
-    weren't) removed by table elimination.
+    Number of elements in join_list that participate in the join plan choice:
+    - Base tables that were not removed by table elimination
+    - Join nests that were not removed by mark_join_nest_as_const
   */
   uint              n_tables;
   nested_join_map   nj_map;          /* Bit used to identify this nested join*/
@@ -2807,25 +3025,25 @@ typedef struct st_open_table_list{
 } OPEN_TABLE_LIST;
 
 
-static inline my_bitmap_map *tmp_use_all_columns(TABLE *table,
-                                                 MY_BITMAP *bitmap)
+static inline MY_BITMAP *tmp_use_all_columns(TABLE *table,
+                                             MY_BITMAP **bitmap)
 {
-  my_bitmap_map *old= bitmap->bitmap;
-  bitmap->bitmap= table->s->all_set.bitmap;
+  MY_BITMAP *old= *bitmap;
+  *bitmap= &table->s->all_set;
   return old;
 }
 
 
-static inline void tmp_restore_column_map(MY_BITMAP *bitmap,
-                                          my_bitmap_map *old)
+static inline void tmp_restore_column_map(MY_BITMAP **bitmap,
+                                          MY_BITMAP *old)
 {
-  bitmap->bitmap= old;
+  *bitmap= old;
 }
 
 /* The following is only needed for debugging */
 
-static inline my_bitmap_map *dbug_tmp_use_all_columns(TABLE *table,
-                                                      MY_BITMAP *bitmap)
+static inline MY_BITMAP *dbug_tmp_use_all_columns(TABLE *table,
+                                                      MY_BITMAP **bitmap)
 {
 #ifdef DBUG_ASSERT_EXISTS
   return tmp_use_all_columns(table, bitmap);
@@ -2834,8 +3052,8 @@ static inline my_bitmap_map *dbug_tmp_use_all_columns(TABLE *table,
 #endif
 }
 
-static inline void dbug_tmp_restore_column_map(MY_BITMAP *bitmap,
-                                               my_bitmap_map *old)
+static inline void dbug_tmp_restore_column_map(MY_BITMAP **bitmap,
+                                               MY_BITMAP *old)
 {
 #ifdef DBUG_ASSERT_EXISTS
   tmp_restore_column_map(bitmap, old);
@@ -2848,22 +3066,22 @@ static inline void dbug_tmp_restore_column_map(MY_BITMAP *bitmap,
   Provide for the possiblity of the read set being the same as the write set
 */
 static inline void dbug_tmp_use_all_columns(TABLE *table,
-                                            my_bitmap_map **save,
-                                            MY_BITMAP *read_set,
-                                            MY_BITMAP *write_set)
+                                            MY_BITMAP **save,
+                                            MY_BITMAP **read_set,
+                                            MY_BITMAP **write_set)
 {
 #ifdef DBUG_ASSERT_EXISTS
-  save[0]= read_set->bitmap;
-  save[1]= write_set->bitmap;
+  save[0]= *read_set;
+  save[1]= *write_set;
   (void) tmp_use_all_columns(table, read_set);
   (void) tmp_use_all_columns(table, write_set);
 #endif
 }
 
 
-static inline void dbug_tmp_restore_column_maps(MY_BITMAP *read_set,
-                                                MY_BITMAP *write_set,
-                                                my_bitmap_map **old)
+static inline void dbug_tmp_restore_column_maps(MY_BITMAP **read_set,
+                                                MY_BITMAP **write_set,
+                                                MY_BITMAP **old)
 {
 #ifdef DBUG_ASSERT_EXISTS
   tmp_restore_column_map(read_set, old[0]);
@@ -2881,7 +3099,7 @@ enum get_table_share_flags {
   GTS_FORCE_DISCOVERY      = 16
 };
 
-size_t max_row_length(TABLE *table, const uchar *data);
+size_t max_row_length(TABLE *table, MY_BITMAP const *cols, const uchar *data);
 
 void init_mdl_requests(TABLE_LIST *table_list);
 
@@ -2894,7 +3112,7 @@ bool fix_session_vcol_expr(THD *thd, Virtual_column_info *vcol);
 bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
                                     Virtual_column_info *vcol);
 bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
-                     bool *error_reported);
+                     bool *error_reported, vcol_init_mode expr);
 TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
                                const char *key, uint key_length);
 void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
@@ -2961,7 +3179,14 @@ inline void mark_as_null_row(TABLE *table)
 {
   table->null_row=1;
   table->status|=STATUS_NULL_ROW;
-  bfill(table->null_flags,table->s->null_bytes,255);
+  if (table->s->null_bytes)
+    bfill(table->null_flags,table->s->null_bytes,255);
+}
+
+inline void unmark_as_null_row(TABLE *table)
+{
+  table->null_row=0;
+  table->status= STATUS_NO_RECORD;
 }
 
 bool is_simple_order(ORDER *order);
@@ -3041,7 +3266,7 @@ public:
 
      @param[in] timestamp
      @param[in] true if we search for a lesser timestamp, false if greater
-     @retval true if exists, false it not exists or an error occured
+     @retval true if exists, false it not exists or an error occurred
    */
   bool query(MYSQL_TIME &commit_time, bool backwards);
   /**

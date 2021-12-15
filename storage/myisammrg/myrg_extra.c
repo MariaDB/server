@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   Extra functions we want to do with a database
@@ -31,7 +31,7 @@ int myrg_extra(MYRG_INFO *info,enum ha_extra_function function,
   DBUG_PRINT("info",("function: %lu", (ulong) function));
 
   if (!info->children_attached)
-    DBUG_RETURN(1);
+    DBUG_RETURN(0);
   if (function == HA_EXTRA_CACHE)
   {
     info->cache_in_use=1;

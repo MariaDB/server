@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* Scan through all rows */
 
@@ -50,7 +50,9 @@ int heap_scan(register HP_INFO *info, uchar *record)
   }
   else
   {
-    info->next_block+=share->block.records_in_block;
+    /* increase next_block to the next records_in_block boundary */
+    ulong rem= info->next_block % share->block.records_in_block;
+    info->next_block+=share->block.records_in_block - rem;
     if (info->next_block >= share->records+share->deleted)
     {
       info->next_block= share->records+share->deleted;

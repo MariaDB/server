@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -32,10 +33,7 @@
 static void trans_track_end_trx(THD *thd)
 {
   if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
-  {
-    ((Transaction_state_tracker *)
-     thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER))->end_trx(thd);
-  }
+    thd->session_tracker.transaction_info.end_trx(thd);
 }
 #else
 #define trans_track_end_trx(A) do{}while(0)
@@ -51,11 +49,8 @@ void trans_reset_one_shot_chistics(THD *thd)
 #ifndef EMBEDDED_LIBRARY
   if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
   {
-    Transaction_state_tracker *tst= (Transaction_state_tracker *)
-      thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER);
-
-    tst->set_read_flags(thd, TX_READ_INHERIT);
-    tst->set_isol_level(thd, TX_ISOL_INHERIT);
+    thd->session_tracker.transaction_info.set_read_flags(thd, TX_READ_INHERIT);
+    thd->session_tracker.transaction_info.set_isol_level(thd, TX_ISOL_INHERIT);
   }
 #endif //EMBEDDED_LIBRARY
   thd->tx_isolation= (enum_tx_isolation) thd->variables.tx_isolation;
@@ -162,19 +157,10 @@ static bool xa_trans_force_rollback(THD *thd)
 bool trans_begin(THD *thd, uint flags)
 {
   int res= FALSE;
-#ifndef EMBEDDED_LIBRARY
-  Transaction_state_tracker *tst= NULL;
-#endif //EMBEDDED_LIBRARY
   DBUG_ENTER("trans_begin");
 
   if (trans_check(thd))
     DBUG_RETURN(TRUE);
-
-#ifndef EMBEDDED_LIBRARY
-  if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
-    tst= (Transaction_state_tracker *)
-      thd->session_tracker.get_tracker(TRANSACTION_INFO_TRACKER);
-#endif //EMBEDDED_LIBRARY
 
   thd->locked_tables_list.unlock_locked_tables(thd);
 
@@ -203,6 +189,7 @@ bool trans_begin(THD *thd, uint flags)
   thd->transaction.all.reset();
   thd->has_waiter= false;
   thd->waiting_on_group_commit= false;
+  thd->transaction.start_time.reset(thd);
 
   if (res)
     DBUG_RETURN(TRUE);
@@ -211,7 +198,7 @@ bool trans_begin(THD *thd, uint flags)
     Release transactional metadata locks only after the
     transaction has been committed.
   */
-  thd->mdl_context.release_transactional_locks();
+  thd->release_transactional_locks();
 
   // The RO/RW options are mutually exclusive.
   DBUG_ASSERT(!((flags & MYSQL_START_TRANS_OPT_READ_ONLY) &&
@@ -220,8 +207,8 @@ bool trans_begin(THD *thd, uint flags)
   {
     thd->tx_read_only= true;
 #ifndef EMBEDDED_LIBRARY
-    if (tst)
-      tst->set_read_flags(thd, TX_READ_ONLY);
+    if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
+      thd->session_tracker.transaction_info.set_read_flags(thd, TX_READ_ONLY);
 #endif //EMBEDDED_LIBRARY
   }
   else if (flags & MYSQL_START_TRANS_OPT_READ_WRITE)
@@ -245,8 +232,8 @@ bool trans_begin(THD *thd, uint flags)
       just from the session's default.
     */
 #ifndef EMBEDDED_LIBRARY
-    if (tst)
-      tst->set_read_flags(thd, TX_READ_WRITE);
+    if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
+      thd->session_tracker.transaction_info.set_read_flags(thd, TX_READ_WRITE);
 #endif //EMBEDDED_LIBRARY
   }
 
@@ -263,16 +250,16 @@ bool trans_begin(THD *thd, uint flags)
   DBUG_PRINT("info", ("setting SERVER_STATUS_IN_TRANS"));
 
 #ifndef EMBEDDED_LIBRARY
-  if (tst)
-    tst->add_trx_state(thd, TX_EXPLICIT);
+  if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
+    thd->session_tracker.transaction_info.add_trx_state(thd, TX_EXPLICIT);
 #endif //EMBEDDED_LIBRARY
 
   /* ha_start_consistent_snapshot() relies on OPTION_BEGIN flag set. */
   if (flags & MYSQL_START_TRANS_OPT_WITH_CONS_SNAPSHOT)
   {
 #ifndef EMBEDDED_LIBRARY
-    if (tst)
-      tst->add_trx_state(thd, TX_WITH_SNAPSHOT);
+    if (thd->variables.session_track_transaction_info > TX_TRACK_NONE)
+      thd->session_tracker.transaction_info.add_trx_state(thd, TX_WITH_SNAPSHOT);
 #endif //EMBEDDED_LIBRARY
     res= ha_start_consistent_snapshot(thd);
   }
@@ -633,6 +620,9 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
   if (thd->transaction.xid_state.check_has_uncommitted_xa())
     DBUG_RETURN(TRUE);
 
+  if (WSREP_ON)
+    wsrep_register_hton(thd, thd->in_multi_stmt_transaction_mode());
+
   sv= find_savepoint(thd, name);
 
   if (*sv) /* old savepoint of the same name exists */
@@ -656,7 +646,7 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
     we'll lose a little bit of memory in transaction mem_root, but it'll
     be free'd when transaction ends anyway
   */
-  if (ha_savepoint(thd, newsv))
+  if (unlikely(ha_savepoint(thd, newsv)))
     DBUG_RETURN(TRUE);
 
   newsv->prev= thd->transaction.savepoints;
@@ -709,31 +699,8 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
   if (thd->transaction.xid_state.check_has_uncommitted_xa())
     DBUG_RETURN(TRUE);
 
-  /**
-    Checking whether it is safe to release metadata locks acquired after
-    savepoint, if rollback to savepoint is successful.
-  
-    Whether it is safe to release MDL after rollback to savepoint depends
-    on storage engines participating in transaction:
-  
-    - InnoDB doesn't release any row-locks on rollback to savepoint so it
-      is probably a bad idea to release MDL as well.
-    - Binary log implementation in some cases (e.g when non-transactional
-      tables involved) may choose not to remove events added after savepoint
-      from transactional cache, but instead will write them to binary
-      log accompanied with ROLLBACK TO SAVEPOINT statement. Since the real
-      write happens at the end of transaction releasing MDL on tables
-      mentioned in these events (i.e. acquired after savepoint and before
-      rollback ot it) can break replication, as concurrent DROP TABLES
-      statements will be able to drop these tables before events will get
-      into binary log,
-  
-    For backward-compatibility reasons we always release MDL if binary
-    logging is off.
-  */
-  bool mdl_can_safely_rollback_to_savepoint=
-                (!(mysql_bin_log.is_open() && thd->variables.sql_log_bin) ||
-                 ha_rollback_to_savepoint_can_release_mdl(thd));
+  if (WSREP_ON)
+    wsrep_register_hton(thd, thd->in_multi_stmt_transaction_mode());
 
   if (ha_rollback_to_savepoint(thd, sv))
     res= TRUE;
@@ -746,7 +713,14 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
 
   thd->transaction.savepoints= sv;
 
-  if (!res && mdl_can_safely_rollback_to_savepoint)
+  if (res)
+    /* An error occurred during rollback; we cannot release any MDL */;
+  else if (thd->variables.sql_log_bin && mysql_bin_log.is_open())
+    /* In some cases (such as with non-transactional tables) we may
+    choose to preserve events that were added after the SAVEPOINT,
+    delimiting them by SAVEPOINT and ROLLBACK TO SAVEPOINT statements.
+    Prematurely releasing MDL on such objects would break replication. */;
+  else if (ha_rollback_to_savepoint_can_release_mdl(thd))
     thd->mdl_context.rollback_to_savepoint(sv->mdl_savepoint);
 
   DBUG_RETURN(MY_TEST(res));
@@ -902,11 +876,13 @@ bool trans_xa_prepare(THD *thd)
 
 /**
   Commit and terminate the a XA transaction.
+  Transactional locks are released if transaction ended
 
   @param thd    Current thread
 
   @retval FALSE  Success
   @retval TRUE   Failure
+
 */
 
 bool trans_xa_commit(THD *thd)
@@ -997,6 +973,7 @@ bool trans_xa_commit(THD *thd)
   thd->transaction.xid_state.xa_state= XA_NOTR;
 
   trans_track_end_trx(thd);
+  thd->mdl_context.release_transactional_locks();
 
   DBUG_RETURN(res);
 }
@@ -1004,6 +981,7 @@ bool trans_xa_commit(THD *thd)
 
 /**
   Roll back and terminate a XA transaction.
+  Transactional locks are released if transaction ended
 
   @param thd    Current thread
 
@@ -1054,6 +1032,7 @@ bool trans_xa_rollback(THD *thd)
   thd->transaction.xid_state.xa_state= XA_NOTR;
 
   trans_track_end_trx(thd);
+  thd->mdl_context.release_transactional_locks();
 
   DBUG_RETURN(res);
 }

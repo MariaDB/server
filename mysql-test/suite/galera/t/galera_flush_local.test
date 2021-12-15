@@ -5,6 +5,7 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 --source include/have_query_cache.inc
+--source include/have_wsrep_replicate_myisam.inc
 
 --disable_warnings
 DROP TABLE IF EXISTS t1, t2, x1, x2;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -24,16 +24,11 @@ Tablespace data file implementation
 Created 2013-7-26 by Kevin Lewis
 *******************************************************/
 
-#include "ha_prototypes.h"
-
 #include "fil0fil.h"
 #include "fsp0types.h"
-#include "fsp0sysspace.h"
 #include "os0file.h"
 #include "page0page.h"
 #include "srv0start.h"
-#include "ut0new.h"
-#include "fil0crypt.h"
 
 /** Initialize the name, size and order of this datafile
 @param[in]	name	tablespace name, will be copied
@@ -302,7 +297,7 @@ Datafile::read_first_page(bool read_only_mode)
 	/* Align the memory for a possible read from a raw device */
 
 	m_first_page = static_cast<byte*>(
-		ut_align(m_first_page_buf, UNIV_PAGE_SIZE));
+		ut_align(m_first_page_buf, srv_page_size));
 
 	IORequest	request;
 	dberr_t		err = DB_ERROR;
@@ -336,7 +331,7 @@ Datafile::read_first_page(bool read_only_mode)
 			ib::error()
 				<< "Cannot read first page of '"
 				<< m_filepath << "' "
-				<< ut_strerr(err);
+				<< err;
 			break;
 		}
 	}
@@ -518,9 +513,9 @@ Datafile::validate_first_page(lsn_t* flush_lsn)
 
 	if (error_txt != NULL) {
 err_exit:
-		ib::error() << error_txt << " in datafile: " << m_filepath
+		ib::info() << error_txt << " in datafile: " << m_filepath
 			<< ", Space ID:" << m_space_id  << ", Flags: "
-			<< m_flags << ". " << TROUBLESHOOT_DATADICT_MSG;
+			<< m_flags;
 		m_is_valid = false;
 		free_first_page();
 		return(DB_CORRUPTION);
@@ -529,7 +524,7 @@ err_exit:
 	/* Check if the whole page is blank. */
 	if (!m_space_id && !m_flags) {
 		const byte*	b		= m_first_page;
-		ulint		nonzero_bytes	= UNIV_PAGE_SIZE;
+		ulint		nonzero_bytes	= srv_page_size;
 
 		while (*b == '\0' && --nonzero_bytes != 0) {
 
@@ -550,13 +545,13 @@ err_exit:
 
 	const page_size_t	page_size(m_flags);
 
-	if (univ_page_size.logical() != page_size.logical()) {
-		/* Page size must be univ_page_size. */
+	if (srv_page_size != page_size.logical()) {
+		/* Logical size must be innodb_page_size. */
 		ib::error()
 			<< "Data file '" << m_filepath << "' uses page size "
 			<< page_size.logical() << ", but the innodb_page_size"
 			" start-up parameter is "
-			<< univ_page_size.logical();
+			<< srv_page_size;
 		free_first_page();
 		return(DB_ERROR);
 	}
@@ -567,8 +562,7 @@ err_exit:
 		goto err_exit;
 	}
 
-	if (m_space_id == ULINT_UNDEFINED) {
-		/* The space_id can be most anything, except -1. */
+	if (m_space_id >= SRV_LOG_SPACE_FIRST_ID) {
 		error_txt = "A bad Space ID was found";
 		goto err_exit;
 	}
@@ -683,8 +677,8 @@ Datafile::find_space_id()
 			bool	noncompressed_ok = false;
 
 			/* For noncompressed pages, the page size must be
-			equal to univ_page_size.physical(). */
-			if (page_size == univ_page_size.physical()) {
+			equal to srv_page_size. */
+			if (page_size == srv_page_size) {
 				noncompressed_ok = !buf_page_is_corrupted(
 					false, page, univ_page_size, NULL);
 			}
@@ -698,11 +692,11 @@ Datafile::find_space_id()
 			assume the page is compressed if univ_page_size.
 			logical() is equal to or less than 16k and the
 			page_size we are checking is equal to or less than
-			univ_page_size.logical(). */
-			if (univ_page_size.logical() <= UNIV_PAGE_SIZE_DEF
-			    && page_size <= univ_page_size.logical()) {
+			srv_page_size. */
+			if (srv_page_size <= UNIV_PAGE_SIZE_DEF
+			    && page_size <= srv_page_size) {
 				const page_size_t	compr_page_size(
-					page_size, univ_page_size.logical(),
+					page_size, srv_page_size,
 					true);
 
 				compressed_ok = !buf_page_is_corrupted(
@@ -774,10 +768,10 @@ Datafile::restore_from_doublewrite()
 	}
 
 	/* Find if double write buffer contains page_no of given space id. */
-	const byte*	page = recv_sys->dblwr.find_page(m_space_id, 0);
 	const page_id_t	page_id(m_space_id, 0);
+	const byte*	page = recv_sys->dblwr.find_page(page_id);
 
-	if (page == NULL) {
+	if (!page) {
 		/* If the first page of the given user tablespace is not there
 		in the doublewrite buffer, then the recovery is going to fail
 		now. Hence this is treated as an error. */
@@ -794,15 +788,10 @@ Datafile::restore_from_doublewrite()
 		FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
 
 	if (!fsp_flags_is_valid(flags, m_space_id)) {
-		ulint cflags = fsp_flags_convert_from_101(flags);
-		if (cflags == ULINT_UNDEFINED) {
-			ib::warn()
-				<< "Ignoring a doublewrite copy of page "
-				<< page_id
-				<< " due to invalid flags " << ib::hex(flags);
-			return(true);
-		}
-		flags = cflags;
+		flags = fsp_flags_convert_from_101(flags);
+		/* recv_dblwr_t::validate_page() inside find_page()
+		checked this already. */
+		ut_ad(flags != ULINT_UNDEFINED);
 		/* The flags on the page should be converted later. */
 	}
 
@@ -831,7 +820,10 @@ open that file, and read the contents into m_filepath.
 dberr_t
 RemoteDatafile::open_link_file()
 {
-	set_link_filepath(NULL);
+	if (m_link_filepath == NULL) {
+		m_link_filepath = fil_make_filepath(NULL, name(), ISL, false);
+	}
+
 	m_filepath = read_link_file(m_link_filepath);
 
 	return(m_filepath == NULL ? DB_CANNOT_OPEN_FILE : DB_SUCCESS);
@@ -894,18 +886,6 @@ RemoteDatafile::shutdown()
 	if (m_link_filepath != 0) {
 		ut_free(m_link_filepath);
 		m_link_filepath = 0;
-	}
-}
-
-/** Set the link filepath. Use default datadir, the base name of
-the path provided without its suffix, plus DOT_ISL.
-@param[in]	path	filepath which contains a basename to use.
-			If NULL, use m_name as the basename. */
-void
-RemoteDatafile::set_link_filepath(const char* path)
-{
-	if (m_link_filepath == NULL) {
-		m_link_filepath = fil_make_filepath(NULL, name(), ISL, false);
 	}
 }
 
@@ -1043,7 +1023,7 @@ char*
 RemoteDatafile::read_link_file(
 	const char*	link_filepath)
 {
-	FILE* file = fopen(link_filepath, "r+b");
+	FILE* file = fopen(link_filepath, "r+b" STR_O_CLOEXEC);
 	if (file == NULL) {
 		return(NULL);
 	}

@@ -352,7 +352,7 @@ include/save_master_gtid.inc
 connection server_2;
 include/sync_with_master_gtid.inc
 include/stop_slave.inc
-SET @old_dbug= @@GLOBAL.debug_dbug;
+SET @old_debug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug= '+d,inject_analyze_table_sleep';
 connection server_1;
 ALTER TABLE t2 COMMENT "123abc";
@@ -610,11 +610,50 @@ a	b
 57	7
 58	8
 59	9
+connection server_1;
+DELETE FROM t1;
+DELETE FROM t2;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_2;
+set global log_warnings=2;
+BEGIN;
+INSERT INTO t1 SET a=1;
+connection server_1;
+SET @save.binlog_format=@@session.binlog_format;
+SET @@SESSION.binlog_format=row;
+BEGIN;
+INSERT INTO t1 SET a=1;
+INSERT INTO t2 SET a=1;
+COMMIT;
+BEGIN;
+DELETE FROM t2;
+COMMIT;
+connection server_2;
+connection server_2;
+ROLLBACK;
+connection server_1;
+SET @@SESSION.binlog_format= @save.binlog_format;
+DELETE FROM t1;
+DELETE FROM t2;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
 connection server_2;
 include/stop_slave.inc
+set global log_warnings=default;
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
 connection server_1;
 DROP TABLE t1, t2, t3;
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+Check that no more than the expected last four GTIDs are in mysql.gtid_slave_pos
+select count(4) <= 4 from mysql.gtid_slave_pos order by domain_id, sub_id;
+count(4) <= 4
+1
+connection server_1;
 include/rpl_end.inc

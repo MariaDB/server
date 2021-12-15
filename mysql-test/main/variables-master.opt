@@ -1,0 +1,1 @@
+--max-user-connections=1 --myisam_recover_options=BACKUP,QUICK

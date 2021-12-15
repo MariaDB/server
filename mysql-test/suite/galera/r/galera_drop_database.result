@@ -1,0 +1,48 @@
+connection node_1;
+connection node_2;
+CREATE DATABASE fts;
+USE fts;
+CREATE TABLE fts_t1 (f1 INT PRIMARY KEY AUTO_INCREMENT, f2 VARCHAR(100), FULLTEXT (f2)) ENGINE=InnoDB;
+CREATE TABLE fts_t2 (f2 VARCHAR(100), FULLTEXT (f2)) ENGINE=InnoDB;
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+INSERT INTO fts_t1 (f2) SELECT 'foobarbaz' FROM ten AS a1, ten AS a2, ten AS a3;
+INSERT INTO fts_t2 (f2) SELECT 'foobarbaz' FROM ten AS a1, ten AS a2, ten AS a3;
+DROP TABLE ten;
+UPDATE fts_t1 SET f2 = 'abcd';
+UPDATE fts_t2 SET f2 = 'efjh';
+SELECT COUNT(*) AS EXPECT_1000 FROM fts_t1;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM fts_t2;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM fts_t1 where f2 = 'abcd';
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM fts_t2 where f2 = 'efjh';
+EXPECT_1000
+1000
+connection node_2;
+connection node_1;
+connection node_2;
+SELECT COUNT(*) AS EXPECT_1000 FROM fts_t1;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM fts_t2;
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM fts_t1 where f2 = 'abcd';
+EXPECT_1000
+1000
+SELECT COUNT(*) AS EXPECT_1000 FROM fts_t2 where f2 = 'efjh';
+EXPECT_1000
+1000
+connection node_1;
+USE fts;
+DROP TABLE fts_t1;
+DROP TABLE fts_t2;
+SHOW TABLES;
+Tables_in_fts
+DROP DATABASE fts;
+connection node_2;

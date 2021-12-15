@@ -76,12 +76,9 @@ run_test (void) {
     r = toku_cachetable_openf(&f1, ct, fname1, O_RDWR|O_CREAT, S_IRWXU|S_IRWXG|S_IRWXO); assert(r == 0);
     
     void* vs[5];
-    //void* v2;
-    long ss[5];
-    //long s2;
     CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
     wc.cleaner_callback = my_cleaner_callback;
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &vs[0], &ss[0],
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &vs[0],
                                     wc,
                                     def_fetch,
                                     def_pf_req_callback,
@@ -92,7 +89,7 @@ run_test (void) {
     attr.cache_pressure_size = 100;
     r = toku_test_cachetable_unpin(f1, make_blocknum(1), 1, CACHETABLE_CLEAN, attr);
 
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(2), 1, &vs[1], &ss[1],
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(2), 1, &vs[1],
                                     wc,
                                     def_fetch,
                                     def_pf_req_callback,

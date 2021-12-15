@@ -1,0 +1,56 @@
+--source include/have_debug.inc
+
+call mtr.add_suppression("InnoDB: New log files created");
+
+let $basedir=$MYSQLTEST_VARDIR/tmp/backup;
+let $incremental_dir=$MYSQLTEST_VARDIR/tmp/backup_inc1;
+
+CREATE TABLE t1(i INT PRIMARY KEY) ENGINE INNODB;
+CREATE TABLE t2(i INT PRIMARY KEY) ENGINE INNODB;
+CREATE TABLE t3(i INT) ENGINE INNODB;
+CREATE TABLE t10(i INT PRIMARY KEY) ENGINE INNODB;
+
+echo # Create full backup , modify table, then create incremental/differential backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$basedir;
+--enable_result_log
+
+INSERT into t1 values(1);
+
+--let after_load_tablespaces=CREATE TABLE test.t4 ENGINE=INNODB SELECT UUID() from test.seq_1_to_10000
+--let after_copy_test_t1=RENAME TABLE  test.t1 TO test.t1_renamed
+--let after_copy_test_t2=DROP TABLE test.t2
+--let after_copy_test_t3=CREATE INDEX a_i ON test.t3(i);
+--let before_copy_test_t10=DROP TABLE test.t10
+--let wait_innodb_redo_before_copy_test_t10 = 1
+
+# mariabackup should crash with assertion if MDEV-24026 is not fixed
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --target-dir=$incremental_dir --incremental-basedir=$basedir --dbug=+d,mariabackup_events,mariabackup_inject_code;
+--let after_load_tablespaces=
+--disable_result_log
+echo # Prepare full backup, apply incremental one;
+exec $XTRABACKUP --apply-log-only --prepare --target-dir=$basedir;
+exec $XTRABACKUP --prepare --target-dir=$basedir --incremental-dir=$incremental_dir ;
+
+echo # Restore and check results;
+let $targetdir=$basedir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+# Test that t1 does not exist, but t1_renamed does
+CREATE TABLE t1(i int);
+DROP TABLE t1;
+
+SELECT * from t1_renamed;
+DROP TABLE t1_renamed;
+
+# Test that t2 does not exist;
+CREATE TABLE t2(i INT PRIMARY KEY) ENGINE INNODB;
+DROP TABLE t2;
+
+DROP TABLE t3;
+DROP TABLE t4;
+
+# Cleanup
+rmdir $basedir;
+rmdir $incremental_dir;

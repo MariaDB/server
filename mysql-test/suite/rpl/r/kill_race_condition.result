@@ -1,0 +1,24 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table t1 (a int);
+connection slave;
+connection slave;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+set global debug_dbug='d,rows_log_event_before_open_table';
+connection master;
+insert t1 values (1),(2),(3);
+connection slave;
+set debug_sync='now WAIT_FOR before_open_table';
+kill slave_sql_thread;
+set debug_sync='now SIGNAL go_ahead_sql';
+include/wait_for_slave_sql_error.inc [errno=1927]
+Last_SQL_Error = Error executing row event: 'Connection was killed'
+SET @@GLOBAL.debug_dbug = @saved_dbug;
+set debug_sync='RESET';
+connection master;
+drop table t1;
+connection slave;
+include/start_slave.inc
+Last_SQL_Error = 
+include/rpl_end.inc

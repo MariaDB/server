@@ -1,4 +1,4 @@
-call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT.");
+call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT\\.");
 call mtr.add_suppression("Index for table 't2' is corrupt; try to repair it");
 FLUSH TABLES;
 CREATE TABLE t1
@@ -7,36 +7,35 @@ b char(22),
 c varchar(255),
 KEY (b))
 ENGINE = InnoDB;
-insert into t1 (b, c) values ('Apa', 'Filler........'),
+CREATE TEMPORARY TABLE t (b char(22),c varchar(255));
+INSERT INTO t VALUES
+('Apa', 'Filler........'),
 ('Banan', 'Filler........'), ('Cavalry', '..asdasdfaeraf'),
 ('Devotion', 'asdfuihknaskdf'), ('Evolution', 'lsjndofiabsoibeg');
-INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
-INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
-INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
-INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
-INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
-INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
-INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
+INSERT INTO t1 (b,c) SELECT b,c FROM t,seq_1_to_128;
+DROP TEMPORARY TABLE t;
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 640
 SELECT * FROM t1 ORDER BY b,a DESC LIMIT 3;
 a	b	c
-819	Apa	Filler........
-814	Apa	Filler........
-809	Apa	Filler........
+636	Apa	Filler........
+631	Apa	Filler........
+626	Apa	Filler........
 SELECT * FROM t1 ORDER BY a DESC LIMIT 3;
 a	b	c
-823	Evolution	lsjndofiabsoibeg
-822	Devotion	asdfuihknaskdf
-821	Cavalry	..asdasdfaeraf
+640	Evolution	lsjndofiabsoibeg
+639	Devotion	asdfuihknaskdf
+638	Cavalry	..asdasdfaeraf
 CREATE TABLE t2(a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+db.opt
 t1.frm
 t1.ibd
 t2.frm
 t2.ibd
 FLUSH TABLE t1, t2 FOR EXPORT;
 # List before copying files
+db.opt
 t1.cfg
 t1.frm
 t1.ibd
@@ -50,23 +49,25 @@ COUNT(*)
 1280
 SELECT * FROM t1 ORDER BY b,a DESC LIMIT 3;
 a	b	c
-1459	Apa	Filler........
-1454	Apa	Filler........
-1449	Apa	Filler........
+1276	Apa	Filler........
+1271	Apa	Filler........
+1266	Apa	Filler........
 SELECT * FROM t1 ORDER BY a DESC LIMIT 3;
 a	b	c
-1463	Evolution	lsjndofiabsoibeg
-1462	Devotion	asdfuihknaskdf
-1461	Cavalry	..asdasdfaeraf
+1280	Evolution	lsjndofiabsoibeg
+1279	Devotion	asdfuihknaskdf
+1278	Cavalry	..asdasdfaeraf
 # Restarting server
 # Done restarting server
 # List before t1 DISCARD
+db.opt
 t1.frm
 t1.ibd
 t2.frm
 t2.ibd
 ALTER TABLE t1 DISCARD TABLESPACE;
 # List after t1 DISCARD
+db.opt
 t1.frm
 t2.frm
 t2.ibd
@@ -77,14 +78,15 @@ COUNT(*)
 640
 SELECT * FROM t1 ORDER BY b,a DESC LIMIT 3;
 a	b	c
-819	Apa	Filler........
-814	Apa	Filler........
-809	Apa	Filler........
+636	Apa	Filler........
+631	Apa	Filler........
+626	Apa	Filler........
 SELECT * FROM t1 ORDER BY a DESC LIMIT 3;
 a	b	c
-823	Evolution	lsjndofiabsoibeg
-822	Devotion	asdfuihknaskdf
-821	Cavalry	..asdasdfaeraf
+640	Evolution	lsjndofiabsoibeg
+639	Devotion	asdfuihknaskdf
+638	Cavalry	..asdasdfaeraf
+db.opt
 t1.cfg
 t1.frm
 t1.ibd
@@ -95,21 +97,22 @@ COUNT(*)
 640
 SELECT * FROM t1 ORDER BY b,a DESC LIMIT 3;
 a	b	c
-819	Apa	Filler........
-814	Apa	Filler........
-809	Apa	Filler........
+636	Apa	Filler........
+631	Apa	Filler........
+626	Apa	Filler........
 SELECT * FROM t1 ORDER BY a DESC LIMIT 3;
 a	b	c
-823	Evolution	lsjndofiabsoibeg
-822	Devotion	asdfuihknaskdf
-821	Cavalry	..asdasdfaeraf
+640	Evolution	lsjndofiabsoibeg
+639	Devotion	asdfuihknaskdf
+638	Cavalry	..asdasdfaeraf
 DROP TABLE t1;
 ALTER TABLE t2 ROW_FORMAT=DYNAMIC;
 ALTER TABLE t2 DISCARD TABLESPACE;
 # List after t2 DISCARD
+db.opt
 t2.frm
 ALTER TABLE t2 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x21 and the meta-data file has 0x1)
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x21 and the meta-data file has 0x1; .cfg file uses ROW_FORMAT=COMPACT)
 ALTER TABLE t2 IMPORT TABLESPACE;
 ERROR HY000: Schema mismatch (Expected FSP_SPACE_FLAGS=0x*, .ibd file contains 0x*.)
 DROP TABLE t2;
@@ -130,18 +133,13 @@ DROP TABLE t1;
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT) ENGINE=InnoDB;
-INSERT INTO t1(c2) VALUES(1);
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
+db.opt
 t1.frm
 t1.ibd
 FLUSH TABLES t1 FOR EXPORT;
-SELECT COUNT(*) FROM t1;
-COUNT(*)
-16
 backup: t1
+db.opt
 t1.cfg
 t1.frm
 t1.ibd
@@ -154,6 +152,7 @@ ALTER TABLE t1 DISCARD TABLESPACE;
 SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
+db.opt
 t1.cfg
 t1.frm
 t1.ibd
@@ -168,26 +167,20 @@ DROP TABLE t1;
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT) ENGINE=InnoDB;
-INSERT INTO t1(c2) VALUES(1);
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
+db.opt
 t1.frm
 t1.ibd
 FLUSH TABLES t1 FOR EXPORT;
-SELECT COUNT(*) FROM t1;
-COUNT(*)
-16
 backup: t1
+db.opt
 t1.cfg
 t1.frm
 t1.ibd
 UNLOCK TABLES;
+db.opt
 t1.frm
 t1.ibd
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
 DROP TABLE t1;
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -196,6 +189,7 @@ ALTER TABLE t1 DISCARD TABLESPACE;
 SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
+db.opt
 t1.cfg
 t1.frm
 t1.ibd
@@ -210,22 +204,14 @@ DROP TABLE t1;
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT, INDEX(c2)) ENGINE=InnoDB;
-INSERT INTO t1(c2) VALUES(1);
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
 FLUSH TABLES t1 FOR EXPORT;
-SELECT COUNT(*) FROM t1 WHERE c2 = 1;
-COUNT(*)
-16
 backup: t1
+db.opt
 t1.cfg
 t1.frm
 t1.ibd
 UNLOCK TABLES;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
 DROP TABLE t1;
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -245,19 +231,10 @@ DROP TABLE t1;
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT, INDEX idx(c2)) ENGINE=InnoDB;
-INSERT INTO t1(c2) VALUES(1);
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
 FLUSH TABLES t1 FOR EXPORT;
-SELECT COUNT(*) FROM t1 WHERE c2 = 1;
-COUNT(*)
-16
 backup: t1
 UNLOCK TABLES;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
 DROP TABLE t1;
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -285,39 +262,32 @@ c1	c2
 2	1
 3	1
 4	1
+5	1
 6	1
 7	1
 8	1
 9	1
+10	1
+11	1
+12	1
 13	1
 14	1
 15	1
 16	1
-17	1
-18	1
-19	1
-20	1
 unlink: t1.cfg
 DROP TABLE t1;
 SET GLOBAL innodb_file_per_table = 0;
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT) ENGINE=InnoDB;
-INSERT INTO t1(c2) VALUES(1);
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-SELECT COUNT(*) FROM t1;
-COUNT(*)
-16
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=latin1
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1
 FLUSH TABLES t1 FOR EXPORT;
 Warnings:
 Warning	1809	Table `test`.`t1` in system tablespace
@@ -327,12 +297,7 @@ SET GLOBAL innodb_file_per_table = 1;
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT, INDEX idx(c2)) ENGINE=InnoDB;
-INSERT INTO t1(c2) VALUES(1);
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -340,41 +305,7 @@ t1	CREATE TABLE `t1` (
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`),
   KEY `idx` (`c2`)
-) ENGINE=InnoDB AUTO_INCREMENT=59 DEFAULT CHARSET=latin1
-SELECT * FROM t1;
-c1	c2
-1	1
-2	1
-3	1
-4	1
-6	1
-7	1
-8	1
-9	1
-13	1
-14	1
-15	1
-16	1
-17	1
-18	1
-19	1
-20	1
-28	1
-29	1
-30	1
-31	1
-32	1
-33	1
-34	1
-35	1
-36	1
-37	1
-38	1
-39	1
-40	1
-41	1
-42	1
-43	1
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1
 FLUSH TABLES t1 FOR EXPORT;
 backup: t1
 UNLOCK TABLES;
@@ -412,7 +343,7 @@ SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Column c2 precise type mismatch.)
+ERROR HY000: Schema mismatch (Column c2 precise type mismatch, it's 0X408 in the table and 0X403 in the tablespace meta file)
 unlink: t1.ibd
 unlink: t1.cfg
 DROP TABLE t1;
@@ -435,51 +366,30 @@ t1	CREATE TABLE `t1` (
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`),
   KEY `idx` (`c2`)
-) ENGINE=InnoDB AUTO_INCREMENT=59 DEFAULT CHARSET=latin1
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1
 SELECT * FROM t1;
 c1	c2
 1	1
 2	1
 3	1
 4	1
+5	1
 6	1
 7	1
 8	1
 9	1
+10	1
+11	1
+12	1
 13	1
 14	1
 15	1
 16	1
-17	1
-18	1
-19	1
-20	1
-28	1
-29	1
-30	1
-31	1
-32	1
-33	1
-34	1
-35	1
-36	1
-37	1
-38	1
-39	1
-40	1
-41	1
-42	1
-43	1
 DROP TABLE t1;
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
-INSERT INTO t1(c2) VALUES(1);
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -487,41 +397,7 @@ t1	CREATE TABLE `t1` (
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`),
   KEY `idx` (`c2`)
-) ENGINE=InnoDB AUTO_INCREMENT=59 DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
-SELECT * FROM t1;
-c1	c2
-1	1
-2	1
-3	1
-4	1
-6	1
-7	1
-8	1
-9	1
-13	1
-14	1
-15	1
-16	1
-17	1
-18	1
-19	1
-20	1
-28	1
-29	1
-30	1
-31	1
-32	1
-33	1
-34	1
-35	1
-36	1
-37	1
-38	1
-39	1
-40	1
-41	1
-42	1
-43	1
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
 FLUSH TABLES t1 FOR EXPORT;
 backup: t1
 UNLOCK TABLES;
@@ -545,41 +421,25 @@ t1	CREATE TABLE `t1` (
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`),
   KEY `idx` (`c2`)
-) ENGINE=InnoDB AUTO_INCREMENT=59 DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
 SELECT * FROM t1;
 c1	c2
 1	1
 2	1
 3	1
 4	1
+5	1
 6	1
 7	1
 8	1
 9	1
+10	1
+11	1
+12	1
 13	1
 14	1
 15	1
 16	1
-17	1
-18	1
-19	1
-20	1
-28	1
-29	1
-30	1
-31	1
-32	1
-33	1
-34	1
-35	1
-36	1
-37	1
-38	1
-39	1
-40	1
-41	1
-42	1
-43	1
 DROP TABLE t1;
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -589,7 +449,7 @@ SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x1 and the meta-data file has 0x0)
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x1 and the meta-data file has 0x0; .cfg file uses ROW_FORMAT=REDUNDANT)
 unlink: t1.ibd
 unlink: t1.cfg
 DROP TABLE t1;
@@ -601,7 +461,19 @@ SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x21 and the meta-data file has 0x0)
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x21 and the meta-data file has 0x0; .cfg file uses ROW_FORMAT=REDUNDANT)
+unlink: t1.ibd
+unlink: t1.cfg
+DROP TABLE t1;
+CREATE TABLE t1(
+c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT * FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x29 and the meta-data file has 0x0; .cfg file uses ROW_FORMAT=REDUNDANT)
 unlink: t1.ibd
 unlink: t1.cfg
 DROP TABLE t1;
@@ -621,51 +493,30 @@ t1	CREATE TABLE `t1` (
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`),
   KEY `idx` (`c2`)
-) ENGINE=InnoDB AUTO_INCREMENT=59 DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
 SELECT * FROM t1;
 c1	c2
 1	1
 2	1
 3	1
 4	1
+5	1
 6	1
 7	1
 8	1
 9	1
+10	1
+11	1
+12	1
 13	1
 14	1
 15	1
 16	1
-17	1
-18	1
-19	1
-20	1
-28	1
-29	1
-30	1
-31	1
-32	1
-33	1
-34	1
-35	1
-36	1
-37	1
-38	1
-39	1
-40	1
-41	1
-42	1
-43	1
 DROP TABLE t1;
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
-INSERT INTO t1(c2) VALUES(1);
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -673,41 +524,7 @@ t1	CREATE TABLE `t1` (
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`),
   KEY `idx` (`c2`)
-) ENGINE=InnoDB AUTO_INCREMENT=59 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
-SELECT * FROM t1;
-c1	c2
-1	1
-2	1
-3	1
-4	1
-6	1
-7	1
-8	1
-9	1
-13	1
-14	1
-15	1
-16	1
-17	1
-18	1
-19	1
-20	1
-28	1
-29	1
-30	1
-31	1
-32	1
-33	1
-34	1
-35	1
-36	1
-37	1
-38	1
-39	1
-40	1
-41	1
-42	1
-43	1
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
 FLUSH TABLES t1 FOR EXPORT;
 backup: t1
 UNLOCK TABLES;
@@ -731,41 +548,25 @@ t1	CREATE TABLE `t1` (
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`),
   KEY `idx` (`c2`)
-) ENGINE=InnoDB AUTO_INCREMENT=59 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
 SELECT * FROM t1;
 c1	c2
 1	1
 2	1
 3	1
 4	1
+5	1
 6	1
 7	1
 8	1
 9	1
+10	1
+11	1
+12	1
 13	1
 14	1
 15	1
 16	1
-17	1
-18	1
-19	1
-20	1
-28	1
-29	1
-30	1
-31	1
-32	1
-33	1
-34	1
-35	1
-36	1
-37	1
-38	1
-39	1
-40	1
-41	1
-42	1
-43	1
 DROP TABLE t1;
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -775,7 +576,7 @@ SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x0 and the meta-data file has 0x1)
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x0 and the meta-data file has 0x1; .cfg file uses ROW_FORMAT=COMPACT)
 unlink: t1.ibd
 unlink: t1.cfg
 DROP TABLE t1;
@@ -787,7 +588,19 @@ SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x21 and the meta-data file has 0x1)
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x21 and the meta-data file has 0x1; .cfg file uses ROW_FORMAT=COMPACT)
+unlink: t1.ibd
+unlink: t1.cfg
+DROP TABLE t1;
+CREATE TABLE t1(
+c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT * FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x29 and the meta-data file has 0x1; .cfg file uses ROW_FORMAT=COMPACT)
 unlink: t1.ibd
 unlink: t1.cfg
 DROP TABLE t1;
@@ -810,51 +623,30 @@ t1	CREATE TABLE `t1` (
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`),
   KEY `idx` (`c2`)
-) ENGINE=InnoDB AUTO_INCREMENT=59 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
 SELECT * FROM t1;
 c1	c2
 1	1
 2	1
 3	1
 4	1
+5	1
 6	1
 7	1
 8	1
 9	1
+10	1
+11	1
+12	1
 13	1
 14	1
 15	1
 16	1
-17	1
-18	1
-19	1
-20	1
-28	1
-29	1
-30	1
-31	1
-32	1
-33	1
-34	1
-35	1
-36	1
-37	1
-38	1
-39	1
-40	1
-41	1
-42	1
-43	1
 DROP TABLE t1;
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
-INSERT INTO t1(c2) VALUES(1);
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
-INSERT INTO t1(c2) SELECT c2 FROM t1;
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -862,41 +654,7 @@ t1	CREATE TABLE `t1` (
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`),
   KEY `idx` (`c2`)
-) ENGINE=InnoDB AUTO_INCREMENT=59 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
-SELECT * FROM t1;
-c1	c2
-1	1
-2	1
-3	1
-4	1
-6	1
-7	1
-8	1
-9	1
-13	1
-14	1
-15	1
-16	1
-17	1
-18	1
-19	1
-20	1
-28	1
-29	1
-30	1
-31	1
-32	1
-33	1
-34	1
-35	1
-36	1
-37	1
-38	1
-39	1
-40	1
-41	1
-42	1
-43	1
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 FLUSH TABLES t1 FOR EXPORT;
 backup: t1
 UNLOCK TABLES;
@@ -920,41 +678,25 @@ t1	CREATE TABLE `t1` (
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`),
   KEY `idx` (`c2`)
-) ENGINE=InnoDB AUTO_INCREMENT=59 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 SELECT * FROM t1;
 c1	c2
 1	1
 2	1
 3	1
 4	1
+5	1
 6	1
 7	1
 8	1
 9	1
+10	1
+11	1
+12	1
 13	1
 14	1
 15	1
 16	1
-17	1
-18	1
-19	1
-20	1
-28	1
-29	1
-30	1
-31	1
-32	1
-33	1
-34	1
-35	1
-36	1
-37	1
-38	1
-39	1
-40	1
-41	1
-42	1
-43	1
 DROP TABLE t1;
 CREATE TABLE t1(
 c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -964,7 +706,7 @@ SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x1 and the meta-data file has 0x21)
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x1 and the meta-data file has 0x21; .cfg file uses ROW_FORMAT=DYNAMIC)
 unlink: t1.ibd
 unlink: t1.cfg
 DROP TABLE t1;
@@ -976,7 +718,19 @@ SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x0 and the meta-data file has 0x21)
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x0 and the meta-data file has 0x21; .cfg file uses ROW_FORMAT=DYNAMIC)
+unlink: t1.ibd
+unlink: t1.cfg
+DROP TABLE t1;
+CREATE TABLE t1(
+c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT * FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x29 and the meta-data file has 0x21; .cfg file uses ROW_FORMAT=DYNAMIC)
 unlink: t1.ibd
 unlink: t1.cfg
 DROP TABLE t1;
@@ -999,43 +753,169 @@ t1	CREATE TABLE `t1` (
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`),
   KEY `idx` (`c2`)
-) ENGINE=InnoDB AUTO_INCREMENT=59 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 SELECT * FROM t1;
 c1	c2
 1	1
 2	1
 3	1
 4	1
+5	1
 6	1
 7	1
 8	1
 9	1
+10	1
+11	1
+12	1
 13	1
 14	1
 15	1
 16	1
-17	1
-18	1
-19	1
-20	1
-28	1
-29	1
-30	1
-31	1
-32	1
-33	1
-34	1
-35	1
-36	1
-37	1
-38	1
-39	1
-40	1
-41	1
-42	1
-43	1
+DROP TABLE t1;
+CREATE TABLE t1(
+c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+INSERT INTO t1 SELECT seq,1 FROM seq_1_to_16;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) NOT NULL AUTO_INCREMENT,
+  `c2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`c1`),
+  KEY `idx` (`c2`)
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED
+FLUSH TABLES t1 FOR EXPORT;
+backup: t1
+UNLOCK TABLES;
+DROP TABLE t1;
+CREATE TABLE t1(
+c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT * FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+unlink: t1.cfg
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) NOT NULL AUTO_INCREMENT,
+  `c2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`c1`),
+  KEY `idx` (`c2`)
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED
+SELECT * FROM t1;
+c1	c2
+1	1
+2	1
+3	1
+4	1
+5	1
+6	1
+7	1
+8	1
+9	1
+10	1
+11	1
+12	1
+13	1
+14	1
+15	1
+16	1
+DROP TABLE t1;
+CREATE TABLE t1(
+c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT * FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x0 and the meta-data file has 0x29; .cfg file uses ROW_FORMAT=COMPRESSED)
+unlink: t1.ibd
+unlink: t1.cfg
+DROP TABLE t1;
+CREATE TABLE t1(
+c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT * FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x1 and the meta-data file has 0x29; .cfg file uses ROW_FORMAT=COMPRESSED)
+unlink: t1.ibd
+unlink: t1.cfg
+DROP TABLE t1;
+CREATE TABLE t1(
+c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT * FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x21 and the meta-data file has 0x29; .cfg file uses ROW_FORMAT=COMPRESSED)
+unlink: t1.ibd
+unlink: t1.cfg
+DROP TABLE t1;
+CREATE TABLE t1(
+c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+c2 INT, INDEX idx(c2)) ENGINE=InnoDB
+ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT * FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Schema mismatch (Table flags don't match, server table has 0x23 and the meta-data file has 0x29; .cfg file uses ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8)
+unlink: t1.ibd
+unlink: t1.cfg
+DROP TABLE t1;
+CREATE TABLE t1(
+c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SELECT * FROM t1;
+ERROR HY000: Tablespace has been discarded for table `t1`
+restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+unlink: t1.cfg
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) NOT NULL AUTO_INCREMENT,
+  `c2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`c1`),
+  KEY `idx` (`c2`)
+) ENGINE=InnoDB AUTO_INCREMENT=17 DEFAULT CHARSET=latin1 ROW_FORMAT=COMPRESSED
+SELECT * FROM t1;
+c1	c2
+1	1
+2	1
+3	1
+4	1
+5	1
+6	1
+7	1
+8	1
+9	1
+10	1
+11	1
+12	1
+13	1
+14	1
+15	1
+16	1
 DROP TABLE t1;
 call mtr.add_suppression("Got error -1 when reading table '.*'");
-call mtr.add_suppression("InnoDB: Error: tablespace id and flags in file '.*'.*");
+call mtr.add_suppression("InnoDB: Error: tablespace id and flags in file '.*'");
 call mtr.add_suppression("InnoDB: The table .* doesn't have a corresponding tablespace, it was discarded");
-FLUSH TABLES;

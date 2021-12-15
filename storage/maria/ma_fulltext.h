@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Written by Sergei A. Golubchik, who has a shared copyright to this code */
 
@@ -19,6 +19,11 @@
 
 #include "maria_def.h"
 #include "ft_global.h"
+
+/* If HA_FT_MAXLEN is change to 127 or over, it must be tested properly as
+   it may cause different representation on disk for full text indexes
+*/
+#define HA_FT_MAXLEN 126
 
 int  _ma_ft_cmp(MARIA_HA *, uint, const uchar *, const uchar *);
 int  _ma_ft_add(MARIA_HA *, uint, uchar *, const uchar *, my_off_t);

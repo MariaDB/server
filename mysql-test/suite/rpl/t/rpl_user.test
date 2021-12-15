@@ -42,6 +42,17 @@ sync_slave_with_master;
 select Host,User from mysql.user where Host='fakehost';
 
 #
+# Test alter user
+#
+connection master;
+alter user 'foofoo'@'fakehost' identified by 'foo';
+--error ER_CANNOT_USER
+alter user 'non_exist_user1'@'fakehost' identified by 'foo', 'barbar'@'fakehost' identified by 'bar';
+--error ER_CANNOT_USER
+alter user 'non_exist_user1'@'fakehost' identified by 'foo', 'non_exist_user2'@'fakehost' identified by 'bar';
+sync_slave_with_master;
+
+#
 # Test drop user
 #
 connection master;

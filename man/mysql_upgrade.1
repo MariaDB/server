@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQL_UPGRADE\FR" "1" "9 May 2017" "MariaDB 10\&.3" "MariaDB Database System"
+.TH "\FBMYSQL_UPGRADE\FR" "1" "20 July 2020" "MariaDB 10\&.3" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -164,6 +164,8 @@ mysql_upgrade_info
 in the data directory\&. This is used to quickly check whether all tables have been checked for this release so that table\-checking can be skipped\&. To ignore this file and perform the check regardless, use the
 \fB\-\-force\fR
 option\&.
+.PP
+For this reason, \fBmysql_upgrade\fR needs to be run as a user with write access to the data directory\&.
 .PP
 If you install MariaDB from RPM packages on Linux, you must install the server and client RPMs\&.
 \fBmysql_upgrade\fR
@@ -702,7 +704,7 @@ This documentation is free software; you can redistribute it and/or modify it on
 .PP
 This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 .PP
-You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA or see http://www.gnu.org/licenses/.
 .sp
 .SH "SEE ALSO"
 For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/

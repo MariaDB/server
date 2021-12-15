@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -42,8 +42,8 @@ buf_buddy_alloc_low(
 	buf_pool_t*	buf_pool,	/*!< in/out: buffer pool instance */
 	ulint		i,		/*!< in: index of buf_pool->zip_free[],
 					or BUF_BUDDY_SIZES */
-	ibool*		lru)		/*!< in: pointer to a variable that
-					will be assigned TRUE if storage was
+	bool*		lru)		/*!< in: pointer to a variable that
+					will be assigned true if storage was
 					allocated from the LRU list and
 					buf_pool->mutex was temporarily
 					released */
@@ -96,9 +96,9 @@ buf_buddy_alloc(
 					the page resides */
 	ulint		size,		/*!< in: compressed page size
 					(between UNIV_ZIP_SIZE_MIN and
-					UNIV_PAGE_SIZE) */
-	ibool*		lru)		/*!< in: pointer to a variable
-					that will be assigned TRUE if
+					srv_page_size) */
+	bool*		lru)		/*!< in: pointer to a variable
+					that will be assigned true if
 				       	storage was allocated from the
 				       	LRU list and buf_pool->mutex was
 				       	temporarily released */
@@ -106,7 +106,7 @@ buf_buddy_alloc(
 	ut_ad(buf_pool_mutex_own(buf_pool));
 	ut_ad(ut_is_2pow(size));
 	ut_ad(size >= UNIV_ZIP_SIZE_MIN);
-	ut_ad(size <= UNIV_PAGE_SIZE);
+	ut_ad(size <= srv_page_size);
 
 	return((byte*) buf_buddy_alloc_low(buf_pool, buf_buddy_get_slot(size),
 					   lru));
@@ -123,12 +123,12 @@ buf_buddy_free(
 	void*		buf,		/*!< in: block to be freed, must not
 					be pointed to by the buffer pool */
 	ulint		size)		/*!< in: block size,
-					up to UNIV_PAGE_SIZE */
+					up to srv_page_size */
 {
 	ut_ad(buf_pool_mutex_own(buf_pool));
 	ut_ad(ut_is_2pow(size));
 	ut_ad(size >= UNIV_ZIP_SIZE_MIN);
-	ut_ad(size <= UNIV_PAGE_SIZE);
+	ut_ad(size <= srv_page_size);
 
 	buf_buddy_free_low(buf_pool, buf, buf_buddy_get_slot(size));
 }

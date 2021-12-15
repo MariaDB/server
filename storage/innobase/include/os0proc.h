@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2019, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -41,12 +41,6 @@ typedef unsigned long int	os_process_id_t;
 /** The total amount of memory currently allocated from the operating
 system with os_mem_alloc_large(). */
 extern ulint	os_total_large_mem_allocated;
-
-/** Whether to use large pages in the buffer pool */
-extern my_bool	os_use_large_pages;
-
-/** Large page size. This may be a boot-time option on some platforms */
-extern uint	os_large_page_size;
 
 /** Converts the current process id to a number.
 @return process id as a number */

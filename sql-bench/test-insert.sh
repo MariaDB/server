@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 # Copyright (c) 2000-2003, 2006, 2007 MySQL AB, 2009 Sun Microsystems, Inc.
 # Use is subject to license terms.
 #
@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Library General Public
 # License along with this library; if not, write to the Free
 # Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
-# MA 02110-1301, USA
+# MA 02110-1335  USA
 #
 # Test of creating a simple table and inserting $record_count records in it,
 # $opt_loop_count rows in order, $opt_loop_count rows in reverse order and
@@ -993,11 +993,22 @@ $end_time=new Benchmark;
 print "Time for update_with_key (" . ($opt_loop_count*3) . "):  " .
   timestr(timediff($end_time, $loop_time),"all") . "\n";
 
+print "Testing update with key, no changes in data\n";
+$loop_time=new Benchmark;
+for ($i=0 ; $i < $opt_loop_count*3 ; $i++)
+{
+  $sth = $dbh->do("update bench1 set dummy1='updated' where id=$i and id2=$i") or die $DBI::errstr;
+}
+
+$end_time=new Benchmark;
+print "Time for update_with_key_record_unchanged (" . ($opt_loop_count*3) . "):  " .
+  timestr(timediff($end_time, $loop_time),"all") . "\n";
+
 $loop_time=new Benchmark;
 $count=0;
 for ($i=1 ; $i < $opt_loop_count*3 ; $i+=3)
 {
-  $sth = $dbh->do("update bench1 set dummy1='updated' where id=$i") or die $DBI::errstr;
+  $sth = $dbh->do("update bench1 set dummy1='really updated' where id=$i") or die $DBI::errstr;
   $end_time=new Benchmark;
   last if ($estimated=predict_query_time($loop_time,$end_time,\$i,($i-1)/3,
 					 $opt_loop_count));

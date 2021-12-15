@@ -9,10 +9,6 @@
 # Crash tests don't work with embedded
 --source include/not_embedded.inc
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 --let $DATADIR= `SELECT @@datadir;`
 
 # Waiting for wl#6723
@@ -34,6 +30,7 @@ INSERT INTO t1 VALUES (6, 'X 6 row'), (7, 'Seventh row'), (8, 'Last row');
 ALTER TABLE t1 ADD INDEX new_b_index (b);
 ALTER TABLE t1 DROP INDEX new_b_index;
 
+SET @saved_dbug=@@debug_dbug;
 SET SESSION debug_dbug = "+d,ha_partition_fail_final_add_index";
 
 --error ER_NO_PARTITION_FOR_GIVEN_VALUE
@@ -49,7 +46,7 @@ SHOW CREATE TABLE t1;
 --sorted_result
 SELECT * FROM t1;
 
-SET SESSION debug_dbug = "-d,ha_partition_fail_final_add_index";
+SET SESSION debug_dbug = @saved_dbug;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 }

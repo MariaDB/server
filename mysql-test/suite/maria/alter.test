@@ -11,7 +11,7 @@ drop table if exists t1;
 CREATE TABLE t1 (pk INT, d DATETIME, PRIMARY KEY(pk), KEY(d)) ENGINE=Aria;
 ALTER TABLE t1 DISABLE KEYS;
 INSERT INTO t1 VALUES (1,'2000-01-01 22:22:22'),(2,'2012-12-21 12:12:12');
-INSERT INTO t1 VALUES (3, '2008-07-24'); 
+INSERT INTO t1 VALUES (3, '2008-07-24');
 ALTER TABLE t1 ENABLE KEYS;
 
 SELECT t1a.pk FROM t1 AS t1a LEFT JOIN t1 AS t1b ON t1a.pk = t1b.pk;
@@ -25,3 +25,68 @@ INSERT INTO t1 VALUES (2,0),(3,33),(4,0),(5,55),(6,66),(7,0),(8,88),(9,99);
 ALTER TABLE t1 ENABLE KEYS;
 SELECT * FROM t1 WHERE i = 0 OR pk BETWEEN 6 AND 10;
 DROP TABLE t1;
+
+#
+# MDEV-14943
+# Assertion `block->type == PAGECACHE_EMPTY_PAGE || block->type == type ||
+# type == PAGECACHE_LSN_PAGE || type == PAGECACHE_READ_UNKNOWN_PAGE ||
+# block->type == PAGECACHE_READ_UNKNOWN_PAGE' failed in pagecache_read upon
+# CREATE ... SELECT from Aria table
+#
+
+CREATE TABLE t1 (f INT) ENGINE=Aria transactional=1;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES (1),(2);
+--error ER_BAD_FIELD_ERROR
+ALTER TABLE t1 ORDER BY unknown_column;
+SHOW CREATE TABLE t1;
+CREATE TABLE t2 SELECT * FROM t1;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-19055 Assertion `(_my_thread_var())->thr_errno != 0' failed in pagecache_read
+--echo #
+
+--disable_warnings
+CREATE OR REPLACE TABLE t1 (x INT) ENGINE=Aria;
+CREATE TEMPORARY TABLE t2 (a TIME) ENGINE=Aria;
+ALTER TABLE t2 ADD b DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE t2 ADD CHECK (b = 4);
+INSERT IGNORE INTO t2 () VALUES (),(),(),();
+ALTER IGNORE TABLE t2 ADD c INT;
+SELECT count(a),sum(a) FROM t2;
+DELETE FROM t2 ORDER BY c LIMIT 1;
+INSERT IGNORE INTO t2 SELECT * FROM t2;
+OPTIMIZE TABLE t2;
+SELECT count(a),sum(a) FROM t2;
+INSERT IGNORE INTO t2 SELECT * FROM t2;
+SET SQL_MODE= 'STRICT_ALL_TABLES';
+SELECT count(a),sum(a) FROM t2;
+--error ER_TRUNCATED_WRONG_VALUE
+ALTER TABLE t2 CHANGE IF EXISTS d c INT;
+SELECT count(a),sum(a) FROM t2;
+ALTER IGNORE TABLE t2 ADD IF NOT EXISTS e BIT;
+ALTER TABLE t1 MODIFY IF EXISTS xx INT;
+INSERT IGNORE INTO t2 () VALUES (),(),(),();
+SELECT count(a),sum(a) FROM t2;
+--enable_warnings
+check table t1;
+check table t2;
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-17576
+--echo # Assertion `share->reopen == 1' failed in maria_extra upon ALTER on
+--echo # Aria table with triggers and locks
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=Aria;
+CREATE TRIGGER tr BEFORE INSERT ON t1 FOR EACH ROW INSERT INTO t1 SELECT * FROM t1;
+LOCK TABLE t1 WRITE;
+ALTER TABLE t1 FORCE, LOCK=EXCLUSIVE;
+DROP TRIGGER tr;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.2 test
+--echo #

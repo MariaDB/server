@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -29,6 +29,8 @@ Created 3/26/1996 Heikki Tuuri
 
 #include "trx0rseg.h"
 #include "que0types.h"
+
+#include <queue>
 
 /** A dummy undo record used as a return value when we have a whole undo log
 which needs no purge */
@@ -59,33 +61,12 @@ trx_purge(
 /*======*/
 	ulint	n_purge_threads,	/*!< in: number of purge tasks to
 					submit to task queue. */
-	bool	truncate);		/*!< in: truncate history if true */
-/*******************************************************************//**
-Stop purge and wait for it to stop, move to PURGE_STATE_STOP. */
-void
-trx_purge_stop(void);
-/*================*/
-/*******************************************************************//**
-Resume purge, move to PURGE_STATE_RUN. */
-void
-trx_purge_run(void);
-/*================*/
-
-/** Purge states */
-enum purge_state_t {
-	PURGE_STATE_INIT,		/*!< Purge instance created */
-	PURGE_STATE_RUN,		/*!< Purge should be running */
-	PURGE_STATE_STOP,		/*!< Purge should be stopped */
-	PURGE_STATE_EXIT,		/*!< Purge has been shutdown */
-	PURGE_STATE_DISABLED		/*!< Purge was never started */
-};
-
-/*******************************************************************//**
-Get the purge state.
-@return purge state. */
-purge_state_t
-trx_purge_state(void);
-/*=================*/
+	bool	truncate		/*!< in: truncate history if true */
+#ifdef UNIV_DEBUG
+	, srv_slot_t *slot		/*!< in/out: purge coordinator
+					thread slot */
+#endif
+);
 
 /** Rollback segements from a given transaction with trx-no
 scheduled for purge. */
@@ -97,20 +78,16 @@ public:
 	typedef trx_rsegs_t::iterator iterator;
 	typedef trx_rsegs_t::const_iterator const_iterator;
 
-	/** Default constructor */
-	TrxUndoRsegs() {}
+	TrxUndoRsegs() : trx_no(0), m_rsegs() {}
 	/** Constructor */
 	TrxUndoRsegs(trx_rseg_t& rseg)
-		: m_commit(rseg.last_commit), m_rsegs(1, &rseg) {}
+		: trx_no(rseg.last_trx_no()), m_rsegs(1, &rseg) {}
 	/** Constructor */
 	TrxUndoRsegs(trx_id_t trx_no, trx_rseg_t& rseg)
-		: m_commit(trx_no << 1), m_rsegs(1, &rseg) {}
-
-	/** @return the transaction commit identifier */
-	trx_id_t trx_no() const { return m_commit >> 1; }
+		: trx_no(trx_no), m_rsegs(1, &rseg) {}
 
 	bool operator!=(const TrxUndoRsegs& other) const
-	{ return m_commit != other.m_commit; }
+	{ return trx_no != other.trx_no; }
 	bool empty() const { return m_rsegs.empty(); }
 	void erase(iterator& it) { m_rsegs.erase(it); }
 	iterator begin() { return(m_rsegs.begin()); }
@@ -124,14 +101,14 @@ public:
 	@return true if elem1 > elem2 else false.*/
 	bool operator()(const TrxUndoRsegs& lhs, const TrxUndoRsegs& rhs)
 	{
-		return(lhs.m_commit > rhs.m_commit);
+		return(lhs.trx_no > rhs.trx_no);
 	}
 
+	/** Copy of trx_rseg_t::last_trx_no() */
+	trx_id_t trx_no;
 private:
-	/** Copy trx_rseg_t::last_commit */
-	trx_id_t		m_commit;
 	/** Rollback segments of a transaction, scheduled for purge. */
-	trx_rsegs_t		m_rsegs;
+	trx_rsegs_t m_rsegs;
 };
 
 typedef std::priority_queue<
@@ -165,27 +142,6 @@ namespace undo {
 
 	typedef std::vector<ulint>		undo_spaces_t;
 	typedef	std::vector<trx_rseg_t*>	rseg_for_trunc_t;
-
-	/** Magic Number to indicate truncate action is complete. */
-	const ib_uint32_t			s_magic = 76845412;
-
-	/** Truncate Log file Prefix. */
-	const char* const			s_log_prefix = "undo_";
-
-	/** Truncate Log file Extension. */
-	const char* const			s_log_ext = "trunc.log";
-
-	/** Populate log file name based on space_id
-	@param[in]	space_id	id of the undo tablespace.
-	@return DB_SUCCESS or error code */
-	dberr_t populate_log_file_name(
-		ulint	space_id,
-		char*&	log_file_name);
-
-	/** Create the truncate log file.
-	@param[in]	space_id	id of the undo tablespace to truncate.
-	@return DB_SUCCESS or error code. */
-	dberr_t init(ulint space_id);
 
 	/** Mark completion of undo truncate action by writing magic number to
 	the log file and then removing it from the disk.
@@ -348,23 +304,6 @@ namespace undo {
 			return(m_purge_rseg_truncate_frequency);
 		}
 
-		/* Start writing log information to a special file.
-		On successfull completion, file is removed.
-		On crash, file is used to complete the truncate action.
-		@param	space_id	space id of undo tablespace
-		@return DB_SUCCESS or error code. */
-		dberr_t start_logging(ulint space_id)
-		{
-			return(init(space_id));
-		}
-
-		/* Mark completion of logging./
-		@param	space_id	space id of undo tablespace */
-		void done_logging(ulint space_id)
-		{
-			return(done(space_id));
-		}
-
 	private:
 		/** UNDO tablespace is mark for truncate. */
 		ulint			m_undo_for_trunc;
@@ -396,54 +335,44 @@ namespace undo {
 /** The control structure used in the purge operation */
 class purge_sys_t
 {
-  bool m_initialised;
 public:
+	/** signal state changes; os_event_reset() and os_event_set()
+	are protected by rw_lock_x_lock(latch) */
 	MY_ALIGNED(CACHE_LINE_SIZE)
-	rw_lock_t	latch;		/*!< The latch protecting the purge
-					view. A purge operation must acquire an
-					x-latch here for the instant at which
-					it changes the purge view: an undo
-					log operation can prevent this by
-					obtaining an s-latch here. It also
-					protects state and running */
+	os_event_t	event;
+	/** latch protecting view, m_enabled */
 	MY_ALIGNED(CACHE_LINE_SIZE)
-	os_event_t	event;		/*!< State signal event;
-					os_event_set() and os_event_reset()
-					are protected by purge_sys_t::latch
-					X-lock */
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	ulint		n_stop;		/*!< Counter to track number stops */
-
-	volatile bool	running;	/*!< true, if purge is active,
-					we check this without the latch too */
-	volatile purge_state_t	state;	/*!< Purge coordinator thread states,
-					we check this in several places
-					without holding the latch. */
+	rw_lock_t	latch;
+private:
+	/** whether purge is enabled; protected by latch and my_atomic */
+	int32_t		m_enabled;
+	/** number of pending stop() calls without resume() */
+	int32_t		m_paused;
+public:
 	que_t*		query;		/*!< The query graph which will do the
 					parallelized purge operation */
 	MY_ALIGNED(CACHE_LINE_SIZE)
 	ReadView	view;		/*!< The purge will not remove undo logs
 					which are >= this view (purge view) */
-	ulint	n_submitted;	/*!< Count of total tasks submitted
-					to the task queue */
-	ulint	n_completed;	/*!< Count of total tasks completed */
+	/** Total number of tasks submitted by srv_purge_coordinator_thread.
+	Not accessed by other threads. */
+	ulint	n_submitted;
+	/** Number of completed tasks. Accessed by srv_purge_coordinator
+	and srv_worker_thread by my_atomic. */
+	ulint	n_completed;
 
 	/** Iterator to the undo log records of committed transactions */
 	struct iterator
 	{
 		bool operator<=(const iterator& other) const
 		{
-			if (commit < other.commit) return true;
-			if (commit > other.commit) return false;
+			if (trx_no < other.trx_no) return true;
+			if (trx_no > other.trx_no) return false;
 			return undo_no <= other.undo_no;
 		}
 
-		/** @return the commit number of the transaction */
-		trx_id_t trx_no() const { return commit >> 1; }
-		void reset_trx_no(trx_id_t trx_no) { commit = trx_no << 1; }
-
-		/** 2 * trx_t::no + old_insert of the committed transaction */
-		trx_id_t	commit;
+		/** trx_t::no of the committed transaction */
+		trx_id_t	trx_no;
 		/** The record number within the committed transaction's undo
 		log, increasing, purged from from 0 onwards */
 		undo_no_t	undo_no;
@@ -491,10 +420,7 @@ public:
     uninitialised. Real initialisation happens in create().
   */
 
-  purge_sys_t() : m_initialised(false) {}
-
-
-  bool is_initialised() const { return m_initialised; }
+  purge_sys_t() : event(NULL), m_enabled(false) {}
 
 
   /** Create the instance */
@@ -502,6 +428,49 @@ public:
 
   /** Close the purge system on shutdown */
   void close();
+
+  /** @return whether purge is enabled */
+  bool enabled()
+  {
+    return my_atomic_load32_explicit(&m_enabled, MY_MEMORY_ORDER_RELAXED);
+  }
+  /** @return whether purge is enabled */
+  bool enabled_latched()
+  {
+    ut_ad(rw_lock_own_flagged(&latch, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
+    return bool(m_enabled);
+  }
+  /** @return whether the purge coordinator is paused */
+  bool paused()
+  { return my_atomic_load32_explicit(&m_paused, MY_MEMORY_ORDER_RELAXED); }
+  /** @return whether the purge coordinator is paused */
+  bool paused_latched()
+  {
+    ut_ad(rw_lock_own_flagged(&latch, RW_LOCK_FLAG_X | RW_LOCK_FLAG_S));
+    return m_paused != 0;
+  }
+
+  /** Enable purge at startup. Not protected by latch; the main thread
+  will wait for purge_sys.enabled() in srv_start() */
+  void coordinator_startup()
+  {
+    ut_ad(!enabled());
+    my_atomic_store32_explicit(&m_enabled, true, MY_MEMORY_ORDER_RELAXED);
+  }
+
+  /** Disable purge at shutdown */
+  void coordinator_shutdown()
+  {
+    ut_ad(enabled());
+    my_atomic_store32_explicit(&m_enabled, false, MY_MEMORY_ORDER_RELAXED);
+  }
+
+  /** @return whether the purge coordinator thread is active */
+  bool running();
+  /** Stop purge during FLUSH TABLES FOR EXPORT */
+  void stop();
+  /** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
+  void resume();
 };
 
 /** The global data structure coordinating a purge */

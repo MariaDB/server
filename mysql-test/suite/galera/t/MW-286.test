@@ -7,7 +7,7 @@
 --source include/big_test.inc
 
 --connection node_1
-CREATE TABLE ten (f1 INTEGER);
+CREATE TABLE ten (f1 INTEGER) Engine=InnoDB;
 INSERT INTO ten VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
 CREATE TABLE t1 (f1 INTEGER) Engine=InnoDB;
@@ -22,12 +22,13 @@ INSERT INTO t1 (f1) SELECT 000000 + (10000 * a1.f1) + (1000 * a2.f1) + (100 * a3
 SET GLOBAL wsrep_desync = TRUE;
 SET wsrep_on = FALSE;
 
---error ER_QUERY_INTERRUPTED
+--error 0,ER_QUERY_INTERRUPTED
 ALTER TABLE t1 ADD PRIMARY KEY (f1);
 
-SET SESSION wsrep_sync_wait = 0;
 SET wsrep_on = TRUE;
 SET GLOBAL wsrep_desync = FALSE;
 
+--connection node_1
+reap;
 DROP TABLE t1;
 DROP TABLE ten;

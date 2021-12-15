@@ -139,3 +139,24 @@ select next value for t1;
 alter sequence t1 restart with 90;
 select next value for t1;
 drop sequence t1;
+
+#
+# MDEV-19977 Assertion `(0xFUL & mode) == LOCK_S || (0xFUL & mode) == LOCK_X'
+# failed in lock_rec_lock
+#
+
+CREATE SEQUENCE t1 engine=innodb;
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+ALTER IGNORE TABLE t1 ADD CHECK (start_value < minimum_value);
+DROP SEQUENCE t1;
+
+#
+# MDEV-19320 Sequence gets corrupted and produces ER_KEY_NOT_FOUND (Can't
+# find record) after ALTER .. ORDER BY
+#
+
+CREATE SEQUENCE s;
+--error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
+ALTER TABLE s ORDER BY cache_size;
+SELECT NEXTVAL(s);
+DROP SEQUENCE s;

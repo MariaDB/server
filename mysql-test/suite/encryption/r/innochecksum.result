@@ -26,7 +26,7 @@ CREATE TABLE t6 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
 # Run innochecksum on t2
 # Run innochecksum on t3
 # Run innochecksum on t6
-# no encryption corrupting the field should not have effect
+# Space ID mismatch
 # Restore the original tables
 # Corrupt FIL_DATA+10 (data)
 # Run innochecksum on t2

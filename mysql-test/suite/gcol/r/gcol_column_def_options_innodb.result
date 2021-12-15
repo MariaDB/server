@@ -255,9 +255,9 @@ a	b	c
 4	-4	-3
 drop table t1;
 create table t1 (a int, b int generated always as(-b) virtual, c int generated always as (b + 1) virtual);
-ERROR 01000: Expression for field `b` is refering to uninitialized field `b`
+ERROR 01000: Expression for field `b` is referring to uninitialized field `b`
 create table t1 (a int, b int generated always as(-c) virtual, c int generated always as (b + 1) virtual);
-ERROR 01000: Expression for field `b` is refering to uninitialized field `c`
+ERROR 01000: Expression for field `b` is referring to uninitialized field `c`
 create table t1 (pk int auto_increment primary key, col_int_nokey int generated always as (pk + col_int_key) stored, col_int_key int);
 ERROR HY000: Function or expression 'AUTO_INCREMENT' cannot be used in the GENERATED ALWAYS AS clause of `pk`
 # Bug#20339347: FAIL TO USE CREATE ....SELECT STATEMENT TO CREATE A NEW TABLE
@@ -277,7 +277,7 @@ drop table t1,tt;
 #   THD->CHANGE_LIST.IS_EMPTY()
 #
 CREATE TABLE t1(a bigint AS (a between 1 and 1));
-ERROR 01000: Expression for field `a` is refering to uninitialized field `a`
+ERROR 01000: Expression for field `a` is referring to uninitialized field `a`
 # Bug#20757211: GENERATED COLUMNS: ALTER TABLE CRASHES
 #  IN FIND_FIELD_IN_TABLE
 #
@@ -357,14 +357,14 @@ DROP TABLE t1;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 (c1 INT, c2 INT AS (c1 * 2)) SELECT 1 AS c1, 5 AS c2;
 Warnings:
-Warning	1906	The value specified for generated column 'c2' in table 't1' ignored
+Warning	1906	The value specified for generated column 'c2' in table 't1' has been ignored
 CREATE TABLE t2 (a int);
 INSERT INTO t2 values(1);
 DROP TABLE t1;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 CREATE TABLE t1 (c1 INT, c2 INT AS (c1 * 2)) SELECT 1 AS c1, a AS c2 from t2;
 Warnings:
-Warning	1906	The value specified for generated column 'c2' in table 't1' ignored
+Warning	1906	The value specified for generated column 'c2' in table 't1' has been ignored
 DROP TABLE t1;
 CREATE TABLE t1 (c1 INT, c2 INT AS (c1 * 2)) SELECT 1 AS c1, 5;
 SELECT * FROM t1;
@@ -426,10 +426,20 @@ INSERT INTO t1(a) VALUES(0);
 DELETE FROM t1 WHERE c=1;
 DROP TABLE t1;
 CREATE TABLE t1 (c CHAR(10) CHARACTER SET utf8 COLLATE utf8_bin GENERATED ALWAYS AS ("foo bar"));
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'GENERATED ALWAYS AS ("foo bar"))' at line 1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` char(10) CHARACTER SET utf8 COLLATE utf8_bin GENERATED ALWAYS AS ('foo bar') VIRTUAL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
 CREATE TABLE t1 (i INT);
 ALTER TABLE t1 ADD COLUMN c CHAR(10) CHARACTER SET utf8 COLLATE utf8_bin GENERATED ALWAYS AS ("foo bar");
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'GENERATED ALWAYS AS ("foo bar")' at line 1
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `i` int(11) DEFAULT NULL,
+  `c` char(10) CHARACTER SET utf8 COLLATE utf8_bin GENERATED ALWAYS AS ('foo bar') VIRTUAL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE t1;
 CREATE TABLE t1 (i INT COLLATE utf8_bin, c INT COLLATE utf8_bin GENERATED ALWAYS AS (10));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'GENERATED ALWAYS AS (10))' at line 1
@@ -689,6 +699,12 @@ ADD COLUMN c INT AS (1 + DEFAULT(a)) VIRTUAL;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 DROP TABLE t1;
+#
+# MDEV-26262 frm is corrupted after ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
+#
+CREATE TABLE MDEV_26262 (a INT,b INT AS (b) VIRTUAL);
+ERROR 01000: Expression for field `b` is referring to uninitialized field `b`
+NOT FOUND /Incorrect information in file: './test/MDEV_26262.frm'/ in mysqld.1.err
 DROP VIEW  IF EXISTS v1,v2;
 DROP TABLE IF EXISTS t1,t2,t3;
 DROP PROCEDURE IF EXISTS p1;

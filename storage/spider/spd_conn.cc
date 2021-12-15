@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2018 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
@@ -86,10 +86,10 @@ extern PSI_thread_key spd_key_thd_bg_crd;
 extern PSI_thread_key spd_key_thd_bg_mon;
 #endif
 #endif
-
-extern pthread_mutex_t spider_global_trx_mutex;
-extern SPIDER_TRX *spider_global_trx;
 #endif
+
+/* UTC time zone for timestamp columns */
+extern Time_zone *UTC;
 
 HASH spider_open_connections;
 uint spider_open_connections_id;
@@ -456,6 +456,13 @@ SPIDER_CONN *spider_create_conn(
   char *tmp_wrapper, *tmp_ssl_ca, *tmp_ssl_capath, *tmp_ssl_cert;
   char *tmp_ssl_cipher, *tmp_ssl_key, *tmp_default_file, *tmp_default_group;
   DBUG_ENTER("spider_create_conn");
+
+  if (unlikely(!UTC))
+  {
+    /* UTC time zone for timestamp columns */
+    String tz_00_name(STRING_WITH_LEN("+00:00"), &my_charset_bin);
+    UTC = my_tz_find(current_thd, &tz_00_name);
+  }
 
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   if (conn_kind == SPIDER_CONN_KIND_MYSQL)
@@ -1432,6 +1439,15 @@ void spider_conn_queue_time_zone(
   DBUG_VOID_RETURN;
 }
 
+void spider_conn_queue_UTC_time_zone(
+  SPIDER_CONN *conn
+) {
+  DBUG_ENTER("spider_conn_queue_UTC_time_zone");
+  DBUG_PRINT("info", ("spider conn=%p", conn));
+  spider_conn_queue_time_zone(conn, UTC);
+  DBUG_VOID_RETURN;
+}
+
 void spider_conn_queue_start_transaction(
   SPIDER_CONN *conn
 ) {
@@ -2071,6 +2087,7 @@ void spider_bg_all_conn_break(
 #endif
     if (spider->quick_targets[roop_count])
     {
+      spider_db_free_one_quick_result((SPIDER_RESULT *) result_list->current);
       DBUG_ASSERT(spider->quick_targets[roop_count] == conn->quick_target);
       DBUG_PRINT("info", ("spider conn[%p]->quick_target=NULL", conn));
       conn->quick_target = NULL;
@@ -2577,6 +2594,7 @@ void *spider_bg_conn_action(
           sql_type = SPIDER_SQL_TYPE_SELECT_HS;
         }
 #endif
+        pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
         if (dbton_handler->need_lock_before_set_sql_for_exec(sql_type))
         {
           pthread_mutex_lock(&conn->mta_conn_mutex);
@@ -2617,6 +2635,8 @@ void *spider_bg_conn_action(
         if (!result_list->bgs_error)
         {
           conn->need_mon = &spider->need_mons[conn->link_idx];
+          DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+          DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = TRUE;
           conn->mta_conn_mutex_unlock_later = TRUE;
 #ifdef HA_CAN_BULK_ACCESS
@@ -2694,6 +2714,8 @@ void *spider_bg_conn_action(
 #ifdef HA_CAN_BULK_ACCESS
           }
 #endif
+          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
           conn->mta_conn_mutex_lock_already = FALSE;
           conn->mta_conn_mutex_unlock_later = FALSE;
           SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -2704,11 +2726,14 @@ void *spider_bg_conn_action(
         }
       } else {
         spider->connection_ids[conn->link_idx] = conn->connection_id;
+        pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+        DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_unlock_later = TRUE;
         result_list->bgs_error =
           spider_db_store_result(spider, conn->link_idx, result_list->table);
         if ((result_list->bgs_error_with_message = thd->is_error()))
           strmov(result_list->bgs_error_msg, spider_stmt_da_message(thd));
+        DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
         conn->mta_conn_mutex_unlock_later = FALSE;
       }
       conn->bg_search = FALSE;
@@ -2772,12 +2797,26 @@ void *spider_bg_conn_action(
     {
       DBUG_PRINT("info",("spider bg exec sql start"));
       spider = (ha_spider*) conn->bg_target;
+      pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+      pthread_mutex_lock(&conn->mta_conn_mutex);
+      SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
+      conn->need_mon = &spider->need_mons[conn->link_idx];
+      DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = TRUE;
+      conn->mta_conn_mutex_unlock_later = TRUE;
       *conn->bg_error_num = spider_db_query_with_set_names(
         conn->bg_sql_type,
         spider,
         conn,
         conn->link_idx
       );
+      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+      conn->mta_conn_mutex_lock_already = FALSE;
+      conn->mta_conn_mutex_unlock_later = FALSE;
+      SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+      pthread_mutex_unlock(&conn->mta_conn_mutex);
       conn->bg_exec_sql = FALSE;
       continue;
     }
@@ -2994,9 +3033,6 @@ void *spider_bg_sts_action(
     DBUG_RETURN(NULL);
   }
   share->bg_sts_thd = thd;
-/*
-  spider.trx = spider_global_trx;
-*/
   spider.trx = trx;
   spider.share = share;
   spider.conns = conns;
@@ -3105,13 +3141,11 @@ void *spider_bg_sts_action(
       {
         if (!conns[spider.search_link_idx])
         {
-          pthread_mutex_lock(&spider_global_trx_mutex);
           spider_get_conn(share, spider.search_link_idx,
             share->conn_keys[spider.search_link_idx],
-            spider_global_trx, &spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
+            trx, &spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
             &error_num);
           conns[spider.search_link_idx]->error_mode = 0;
-          pthread_mutex_unlock(&spider_global_trx_mutex);
 /*
           if (
             error_num &&
@@ -3120,7 +3154,7 @@ void *spider_bg_sts_action(
           ) {
             lex_start(thd);
             error_num = spider_ping_table_mon_from_table(
-                spider_global_trx,
+                trx,
                 thd,
                 share,
                 spider.search_link_idx,
@@ -3142,7 +3176,6 @@ void *spider_bg_sts_action(
         }
         if (spider.search_link_idx != -1 && conns[spider.search_link_idx])
         {
-          DBUG_ASSERT(!conns[spider.search_link_idx]->thd);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
           if (spider_get_sts(share, spider.search_link_idx,
             share->bg_sts_try_time, &spider,
@@ -3163,7 +3196,7 @@ void *spider_bg_sts_action(
             ) {
               lex_start(thd);
               error_num = spider_ping_table_mon_from_table(
-                  spider_global_trx,
+                  trx,
                   thd,
                   share,
                   spider.search_link_idx,
@@ -3369,9 +3402,6 @@ void *spider_bg_crd_action(
   table.s = share->table_share;
   table.field = share->table_share->field;
   table.key_info = share->table_share->key_info;
-/*
-  spider.trx = spider_global_trx;
-*/
   spider.trx = trx;
   spider.change_table_ptr(&table, share->table_share);
   spider.share = share;
@@ -3481,13 +3511,11 @@ void *spider_bg_crd_action(
       {
         if (!conns[spider.search_link_idx])
         {
-          pthread_mutex_lock(&spider_global_trx_mutex);
           spider_get_conn(share, spider.search_link_idx,
             share->conn_keys[spider.search_link_idx],
-            spider_global_trx, &spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
+            trx, &spider, FALSE, FALSE, SPIDER_CONN_KIND_MYSQL,
             &error_num);
           conns[spider.search_link_idx]->error_mode = 0;
-          pthread_mutex_unlock(&spider_global_trx_mutex);
 /*
           if (
             error_num &&
@@ -3496,7 +3524,7 @@ void *spider_bg_crd_action(
           ) {
             lex_start(thd);
             error_num = spider_ping_table_mon_from_table(
-                spider_global_trx,
+                trx,
                 thd,
                 share,
                 spider.search_link_idx,
@@ -3518,7 +3546,6 @@ void *spider_bg_crd_action(
         }
         if (spider.search_link_idx != -1 && conns[spider.search_link_idx])
         {
-          DBUG_ASSERT(!conns[spider.search_link_idx]->thd);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
           if (spider_get_crd(share, spider.search_link_idx,
             share->bg_crd_try_time, &spider, &table,
@@ -3539,7 +3566,7 @@ void *spider_bg_crd_action(
             ) {
               lex_start(thd);
               error_num = spider_ping_table_mon_from_table(
-                  spider_global_trx,
+                  trx,
                   thd,
                   share,
                   spider.search_link_idx,
@@ -3902,7 +3929,7 @@ void *spider_bg_mon_action(
     {
       lex_start(thd);
       error_num = spider_ping_table_mon_from_table(
-        spider_global_trx,
+        trx,
         thd,
         share,
         link_idx,
@@ -4539,6 +4566,7 @@ SPIDER_IP_PORT_CONN* spider_create_ipport_conn(SPIDER_CONN *conn)
     memcpy(ret->key, conn->conn_key, ret->key_len);
 
     strncpy(ret->remote_ip_str, conn->tgt_host, sizeof(ret->remote_ip_str));
+    ret->remote_ip_str[sizeof ret->remote_ip_str - 1] = '\0';
     ret->remote_port = conn->tgt_port;
     ret->conn_id = conn->conn_id;
     ret->ip_port_count = 1; // init

@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -163,7 +163,7 @@ row_upd_rec_sys_fields(
 	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
 				uncompressed part will be updated, or NULL */
 	dict_index_t*	index,	/*!< in: clustered index */
-	const ulint*	offsets,/*!< in: rec_get_offsets(rec, index) */
+	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
 	const trx_t*	trx,	/*!< in: transaction */
 	roll_ptr_t	roll_ptr)/*!< in: DB_ROLL_PTR to the undo log */
 {
@@ -181,9 +181,8 @@ row_upd_rec_sys_fields(
 			offset = row_get_trx_id_offset(index, offsets);
 		}
 
-#if DATA_TRX_ID + 1 != DATA_ROLL_PTR
-# error "DATA_TRX_ID + 1 != DATA_ROLL_PTR"
-#endif
+		compile_time_assert(DATA_TRX_ID + 1 == DATA_ROLL_PTR);
+
 		/* During IMPORT the trx id in the record can be in the
 		future, if the .ibd file is being imported from another
 		instance. During IMPORT roll_ptr will be 0. */

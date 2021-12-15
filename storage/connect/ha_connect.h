@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+	Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /** @file ha_connect.h
 	Author Olivier Bertrand
@@ -31,6 +31,10 @@
 /*  mycat.h contains the TOS, PTOS, ha_table_option_struct declarations.    */
 /****************************************************************************/
 #include "mycat.h"
+
+#if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
+bool MongoEnabled(void);
+#endif   // JAVA_SUPPORT || CMGO_SUPPORT
 
 /****************************************************************************/
 /*  Structures used to pass info between CONNECT and ha_connect.            */
@@ -100,7 +104,9 @@ struct ha_field_option_struct
   uint opt;
   const char *dateformat;
   const char *fieldformat;
-  char *special;
+	const char* jsonpath;
+	const char* xmlpath;
+	char *special;
 };
 
 /*
@@ -347,11 +353,7 @@ PFIL  CondFilter(PGLOBAL g, Item *cond);
 //PFIL  CheckFilter(PGLOBAL g);
 
 /** admin commands - called from mysql_admin_table */
-virtual int check(THD* thd, HA_CHECK_OPT* check_opt)
-{
-	// TODO: implement it
-	return HA_ADMIN_OK;	// Just to avoid error message with checktables
-}	// end of check
+virtual int check(THD* thd, HA_CHECK_OPT* check_opt);
 
  /**
    Number of rows in table. It will only be called if
@@ -511,7 +513,8 @@ private:
 protected:
   bool check_privileges(THD *thd, PTOS options, const char *dbn, bool quick=false);
   MODE CheckMode(PGLOBAL g, THD *thd, MODE newmode, bool *chk, bool *cras);
-  char *GetDBfromName(const char *name);
+	int  check_stmt(PGLOBAL g, MODE newmode, bool cras);
+	char *GetDBfromName(const char *name);
 
   // Members
   static ulong  num;                  // Tracable handler number

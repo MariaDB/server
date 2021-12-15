@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #include <my_global.h>
 
@@ -21,9 +21,9 @@
 
 /* C++ standard header files */
 #include <array>
+#include <sstream>
 #include <string>
 #include <vector>
-#include <sstream>
 
 /* C standard header files */
 #include <ctype.h>
@@ -49,9 +49,6 @@ namespace myrocks {
 */
 const char *rdb_skip_spaces(const struct charset_info_st *const cs,
                             const char *str) {
-  DBUG_ASSERT(cs != nullptr);
-  DBUG_ASSERT(str != nullptr);
-
   while (my_isspace(cs, *str)) {
     str++;
   }
@@ -65,9 +62,6 @@ const char *rdb_skip_spaces(const struct charset_info_st *const cs,
   of characters in str2.
 */
 bool rdb_compare_strings_ic(const char *const str1, const char *const str2) {
-  DBUG_ASSERT(str1 != nullptr);
-  DBUG_ASSERT(str2 != nullptr);
-
   // Scan through the strings
   size_t ii;
   for (ii = 0; str2[ii]; ii++) {
@@ -88,10 +82,6 @@ const char *rdb_find_in_string(const char *str, const char *pattern,
                                bool *const succeeded) {
   char quote = '\0';
   bool escape = false;
-
-  DBUG_ASSERT(str != nullptr);
-  DBUG_ASSERT(pattern != nullptr);
-  DBUG_ASSERT(succeeded != nullptr);
 
   *succeeded = false;
 
@@ -136,11 +126,6 @@ const char *rdb_find_in_string(const char *str, const char *pattern,
 const char *rdb_check_next_token(const struct charset_info_st *const cs,
                                  const char *str, const char *const pattern,
                                  bool *const succeeded) {
-  DBUG_ASSERT(cs != nullptr);
-  DBUG_ASSERT(str != nullptr);
-  DBUG_ASSERT(pattern != nullptr);
-  DBUG_ASSERT(succeeded != nullptr);
-
   // Move past any spaces
   str = rdb_skip_spaces(cs, str);
 
@@ -159,9 +144,6 @@ const char *rdb_check_next_token(const struct charset_info_st *const cs,
 */
 const char *rdb_parse_id(const struct charset_info_st *const cs,
                          const char *str, std::string *const id) {
-  DBUG_ASSERT(cs != nullptr);
-  DBUG_ASSERT(str != nullptr);
-
   // Move past any spaces
   str = rdb_skip_spaces(cs, str);
 
@@ -221,17 +203,14 @@ const char *rdb_parse_id(const struct charset_info_st *const cs,
 */
 const char *rdb_skip_id(const struct charset_info_st *const cs,
                         const char *str) {
-  DBUG_ASSERT(cs != nullptr);
-  DBUG_ASSERT(str != nullptr);
-
   return rdb_parse_id(cs, str, nullptr);
 }
 
 /*
   Parses a given string into tokens (if any) separated by a specific delimiter.
 */
-const std::vector<std::string> parse_into_tokens(
-  const std::string& s, const char delim) {
+const std::vector<std::string> parse_into_tokens(const std::string &s,
+                                                 const char delim) {
   std::vector<std::string> tokens;
   std::string t;
   std::stringstream ss(s);
@@ -254,8 +233,6 @@ static const std::array<char, 16> rdb_hexdigit = {{'0', '1', '2', '3', '4', '5',
 */
 std::string rdb_hexdump(const char *data, const std::size_t data_len,
                         const std::size_t maxsize) {
-  DBUG_ASSERT(data != nullptr);
-
   // Count the elements in the string
   std::size_t elems = data_len;
   // Calculate the amount of output needed
@@ -352,4 +329,41 @@ const char *get_rocksdb_supported_compression_types()
   return compression_methods_buf.c_str();
 }
 
-} // namespace myrocks
+bool rdb_check_rocksdb_corruption() {
+  return !my_access(myrocks::rdb_corruption_marker_file_name().c_str(), F_OK);
+}
+
+void rdb_persist_corruption_marker() {
+  const std::string &fileName(myrocks::rdb_corruption_marker_file_name());
+  /* O_SYNC is not supported on windows */
+  int fd = my_open(fileName.c_str(), O_CREAT | IF_WIN(0, O_SYNC), MYF(MY_WME));
+  if (fd < 0) {
+    // NO_LINT_DEBUG
+    sql_print_error(
+        "RocksDB: Can't create file %s to mark rocksdb as "
+        "corrupted.",
+        fileName.c_str());
+  } else {
+    // NO_LINT_DEBUG
+    sql_print_information(
+        "RocksDB: Creating the file %s to abort mysqld "
+        "restarts. Remove this file from the data directory "
+        "after fixing the corruption to recover. ",
+        fileName.c_str());
+  }
+
+#ifdef _WIN32
+  /* A replacement for O_SYNC flag above */
+  if (fd >= 0)
+    my_sync(fd, MYF(0));
+#endif
+
+  int ret = my_close(fd, MYF(MY_WME));
+  if (ret) {
+    // NO_LINT_DEBUG
+    sql_print_error("RocksDB: Error (%d) closing the file %s", ret,
+                    fileName.c_str());
+  }
+}
+
+}  // namespace myrocks

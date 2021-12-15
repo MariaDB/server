@@ -1,0 +1,68 @@
+#
+# Test for compressed row event 
+#
+
+--source include/have_log_bin.inc
+--source include/have_binlog_format_row.inc
+
+#
+#  
+# mysqlbinlog: compressed row event 
+# 
+#
+
+SET GLOBAL log_bin_compress=on;
+SET GLOBAL log_bin_compress_min_len=10;
+CREATE TABLE t1 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 TINYINT, f4 MEDIUMINT, f5 BIGINT, f6 INT, f7 INT, f8 char(1));
+CREATE TABLE t2 (pk INT PRIMARY KEY, f1 INT, f2 INT, f3 INT, f4 INT, f5 MEDIUMINT, f6 INT, f7 INT, f8 char(1));
+INSERT INTO t1 VALUES (10, 1, 2, 3, 4, 5, 6, 7, "");
+INSERT INTO t1 VALUES (11, 1, 2, 3, 4, 5, 6, 7, NULL);
+INSERT INTO t1 VALUES (12, 1, 2, 3, NULL, 5, 6, 7, "A");
+INSERT INTO t1 VALUES (13, 1, 2, 3, 0, 5, 6, 7, "A");
+INSERT INTO t2 SELECT * FROM t1;
+UPDATE t2 SET f4=5 WHERE f4>0 or f4 is NULL;
+DELETE FROM t1;
+DELETE FROM t2;
+
+--let $binlog = query_get_value(SHOW MASTER STATUS, File, 1)
+--let $datadir = `SELECT @@datadir`
+
+FLUSH BINARY LOGS;
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--replace_regex /\d{6} *\d*:\d\d:\d\d/<date>/ /Start:.*at startup/Start: xxx/ /SET TIMESTAMP=\d*/SET TIMESTAMP=X/ /exec_time=\d*/exec_time=x/ /mapped to number \d*/mapped to number num/ /CRC32 0x[0-9a-f]+/CRC32 XXX/ /@@session.sql_mode=\d+/@@session.sql_mode=#/ /collation_server=\d+/collation_server=#/
+--exec $MYSQL_BINLOG --verbose --verbose --base64-output=DECODE-ROWS $datadir/$binlog
+
+--echo
+--echo Test mysqlbinlog | mysql type point-in-time recovery with compressed events.
+--echo
+
+FLUSH BINARY LOGS;
+--let $binlog_file = query_get_value(SHOW MASTER STATUS, File, 1)
+CREATE TABLE t3 (a INT PRIMARY KEY, b INT, c VARCHAR(100));
+INSERT INTO t3 VALUES (0, 10, "hello");
+BEGIN;
+INSERT INTO t3 VALUES (1, 10, "cat"), (2, 10, "mouse"), (3, 10, "dog");
+INSERT INTO t3 VALUES (4, 10, "goodbye");
+COMMIT;
+UPDATE t3 SET b=b+100 where a<>1;
+DELETE FROM t3 WHERE a=2;
+SET @old_image=@@binlog_row_image;
+SET binlog_row_image=minimal;
+INSERT INTO t3 VALUES (5, 20, "red"), (6, 30, "green"), (7, 40, "blue");
+INSERT INTO t3 VALUES (8, 20, "rigel");
+UPDATE t3 SET c = concat("colour of ", c) WHERE a > 5;
+UPDATE t3 SET b=b*2 WHERE a IN (5,6,7);
+DELETE FROM t3 WHERE a=6;
+SET binlog_row_image=@old_image;
+SELECT * FROM t3 ORDER BY a;
+FLUSH LOGS;
+DROP TABLE t3;
+
+--let $MYSQLD_DATADIR= `select @@datadir`
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/$binlog_file | $MYSQL
+
+SELECT * FROM t3 ORDER BY a;
+
+DROP TABLE t1,t2,t3;
+SET GLOBAL log_bin_compress=off;
+SET GLOBAL log_bin_compress_min_len=256;

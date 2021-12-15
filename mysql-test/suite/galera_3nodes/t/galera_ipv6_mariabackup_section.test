@@ -1,0 +1,72 @@
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/check_ipv6.inc
+--source include/have_innodb.inc
+--source include/have_mariabackup.inc
+--source include/force_restart.inc
+
+# Confirm that initial handshake happened over ipv6
+
+SELECT VARIABLE_VALUE LIKE '%[::1]%' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_incoming_addresses';
+SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+# Force IST
+
+--connection node_2
+SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+SET GLOBAL wsrep_provider_options='gmcast.isolate=0';
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready';
+--source include/wait_condition.inc
+
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+
+DROP TABLE t1;
+
+# Confirm that key messages around SST and IST reference IPv6
+
+--connection node_1
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_only_after = CURRENT_TEST
+
+# The SSTs happen when nodes are started first time
+--let $assert_count= 2
+--let $assert_text = Streaming the backup to joiner at \[::1\]
+--let $assert_select = Streaming the backup to joiner at \[::1\]
+--source include/assert_grep.inc
+
+# There will be 1 ISTs donated from node_1 in Galera 3.
+# Two first happen at the initial startup to populate the certification
+# index. The third one is from the IST which happens during the actual test.
+--let $assert_count= 1
+--let $assert_text = async IST sender starting to serve tcp://\[::1\]:
+--let $assert_select = async IST sender starting to serve tcp://\[::1\]:
+--source include/assert_grep.inc
+
+--connection node_2
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.2.err
+--let $assert_only_after = CURRENT_TEST
+
+# There is one ISTs on joiner at Galera 3.
+--let $assert_count= 1
+--let $assert_text = IST receiver addr using tcp://\[::1\]
+--let $assert_select = IST receiver addr using tcp://\[::1\]
+--source include/assert_grep.inc
+
+# The receiver expects IST
+--let $assert_count = 1
+--let $assert_text = , listening at: tcp://\[::1\]
+--let $assert_select = , listening at: tcp://\[::1\]
+--source include/assert_grep.inc

@@ -1,17 +1,24 @@
 /* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @file storage/perfschema/pfs_instr.cc
@@ -1265,7 +1272,6 @@ find_or_create_file(PFS_thread *thread, PFS_file_class *klass,
   char dirbuffer[FN_REFLEN];
   size_t dirlen;
   const char *normalized_filename;
-  int normalized_length;
 
   dirlen= dirname_length(safe_filename);
   if (dirlen == 0)
@@ -1296,7 +1302,7 @@ find_or_create_file(PFS_thread *thread, PFS_file_class *klass,
   *buf_end= '\0';
 
   normalized_filename= buffer;
-  normalized_length= (int)strlen(normalized_filename);
+  uint normalized_length= static_cast<uint>(strlen(normalized_filename));
 
   PFS_file **entry;
   uint retry_count= 0;
@@ -1345,7 +1351,7 @@ search:
         pfs->m_class= klass;
         pfs->m_enabled= klass->m_enabled && flag_global_instrumentation;
         pfs->m_timed= klass->m_timed;
-        strncpy(pfs->m_filename, normalized_filename, normalized_length);
+        strncpy(pfs->m_filename, normalized_filename, normalized_length + 1);
         pfs->m_filename[normalized_length]= '\0';
         pfs->m_filename_length= normalized_length;
         pfs->m_file_stat.m_open_count= 1;

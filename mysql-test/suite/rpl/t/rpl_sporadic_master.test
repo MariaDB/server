@@ -1,1 +1,1 @@
---source extra/rpl_tests/rpl_sporadic_master.inc
+--source include/rpl_sporadic_master.inc

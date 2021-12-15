@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB Corporation.
+   Copyright (c) 2010, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,12 +12,13 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifndef MYSQLD_INCLUDED
 #define MYSQLD_INCLUDED
 
 #include "sql_basic_types.h"			/* query_id_t */
+#include "sql_mode.h"                           /* Sql_mode_dependency */
 #include "sql_plugin.h"
 #include "sql_bitmap.h"                         /* Bitmap */
 #include "my_decimal.h"                         /* my_decimal */
@@ -65,7 +66,7 @@ typedef Bitmap<((MAX_INDEXES+7)/8*8)> key_map; /* Used for finding keys */
 #define OPT_SESSION SHOW_OPT_SESSION
 #define OPT_GLOBAL SHOW_OPT_GLOBAL
 
-extern MY_TIMER_INFO sys_timer_info;
+extern MYSQL_PLUGIN_IMPORT MY_TIMER_INFO sys_timer_info;
 
 /*
   Values for --slave-parallel-mode
@@ -169,11 +170,13 @@ extern ulong opt_tc_log_size, tc_log_max_pages_used, tc_log_page_size;
 extern ulong tc_log_page_waits;
 extern my_bool relay_log_purge, opt_innodb_safe_binlog, opt_innodb;
 extern my_bool relay_log_recovery;
-extern uint test_flags,select_errors,ha_open_options;
+extern uint select_errors,ha_open_options;
+extern ulonglong test_flags;
 extern uint protocol_version, mysqld_port, dropping_tables;
 extern ulong delay_key_write_options;
 extern char *opt_logname, *opt_slow_logname, *opt_bin_logname, 
             *opt_relay_logname;
+extern char *opt_binlog_index_name;
 extern char *opt_backup_history_logname, *opt_backup_progress_logname,
             *opt_backup_settings_name;
 extern const char *log_output_str;
@@ -186,25 +189,22 @@ enum vers_system_time_t
   SYSTEM_TIME_AS_OF,
   SYSTEM_TIME_FROM_TO,
   SYSTEM_TIME_BETWEEN,
-  SYSTEM_TIME_BEFORE,
+  SYSTEM_TIME_BEFORE,  // used for DELETE HISTORY ... BEFORE
+  SYSTEM_TIME_HISTORY, // used for DELETE HISTORY
   SYSTEM_TIME_ALL
 };
 
 struct vers_asof_timestamp_t
 {
   ulong type;
-  MYSQL_TIME ltime;
-  vers_asof_timestamp_t() :
-    type(SYSTEM_TIME_UNSPECIFIED)
-  {}
+  my_time_t unix_time;
+  ulong second_part;
 };
 
 enum vers_alter_history_enum
 {
   VERS_ALTER_HISTORY_ERROR= 0,
-  VERS_ALTER_HISTORY_KEEP,
-  VERS_ALTER_HISTORY_SURVIVE,
-  VERS_ALTER_HISTORY_DROP
+  VERS_ALTER_HISTORY_KEEP
 };
 /* System Versioning end */
 
@@ -242,8 +242,8 @@ extern uint  slave_net_timeout;
 extern int max_user_connections;
 extern volatile ulong cached_thread_count;
 extern ulong what_to_log,flush_time;
-extern ulong max_prepared_stmt_count, prepared_stmt_count;
-extern ulong open_files_limit;
+extern uint max_prepared_stmt_count, prepared_stmt_count;
+extern MYSQL_PLUGIN_IMPORT ulong open_files_limit;
 extern ulonglong binlog_cache_size, binlog_stmt_cache_size, binlog_file_cache_size;
 extern ulonglong max_binlog_cache_size, max_binlog_stmt_cache_size;
 extern ulong max_binlog_size;
@@ -267,7 +267,7 @@ extern time_t server_start_time, flush_status_time;
 extern char *opt_mysql_tmpdir, mysql_charsets_dir[];
 extern size_t mysql_unpacked_real_data_home_len;
 extern MYSQL_PLUGIN_IMPORT MY_TMPDIR mysql_tmpdir_list;
-extern const char *first_keyword, *delayed_user, *binary_keyword;
+extern const char *first_keyword, *delayed_user;
 extern MYSQL_PLUGIN_IMPORT const char  *my_localhost;
 extern MYSQL_PLUGIN_IMPORT const char **errmesg;			/* Error messages */
 extern const char *myisam_recover_options_str;
@@ -304,7 +304,9 @@ extern my_bool encrypt_binlog;
 extern my_bool encrypt_tmp_disk_tables, encrypt_tmp_files;
 extern ulong encryption_algorithm;
 extern const char *encryption_algorithm_names[];
-extern const char *quoted_string;
+extern long opt_secure_timestamp;
+
+enum secure_timestamp { SECTIME_NO, SECTIME_SUPER, SECTIME_REPL, SECTIME_YES };
 
 #ifdef HAVE_PSI_INTERFACE
 #ifdef HAVE_MMAP
@@ -581,7 +583,7 @@ extern ulonglong my_pcre_frame_size;
  */
 extern my_bool opt_large_pages;
 extern uint opt_large_page_size;
-extern char lc_messages_dir[FN_REFLEN];
+extern MYSQL_PLUGIN_IMPORT char lc_messages_dir[FN_REFLEN];
 extern char *lc_messages_dir_ptr, *log_error_file_ptr;
 extern MYSQL_PLUGIN_IMPORT char reg_ext[FN_EXTLEN];
 extern MYSQL_PLUGIN_IMPORT uint reg_ext_length;
@@ -613,11 +615,10 @@ extern mysql_mutex_t
        LOCK_item_func_sleep, LOCK_status, LOCK_show_status,
        LOCK_error_log, LOCK_delayed_insert, LOCK_short_uuid_generator,
        LOCK_delayed_status, LOCK_delayed_create, LOCK_crypt, LOCK_timezone,
-       LOCK_slave_list, LOCK_active_mi, LOCK_manager,
-       LOCK_global_system_variables, LOCK_user_conn,
-       LOCK_prepared_stmt_count, LOCK_error_messages, LOCK_connection_count,
-       LOCK_slave_background;
-extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_thread_count;
+       LOCK_slave_list, LOCK_active_mi, LOCK_manager, LOCK_user_conn,
+       LOCK_prepared_stmt_count, LOCK_error_messages, LOCK_connection_count;
+extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_thread_count,
+  LOCK_global_system_variables;
 extern mysql_mutex_t LOCK_start_thread;
 #ifdef HAVE_OPENSSL
 extern char* des_key_file;
@@ -629,7 +630,6 @@ extern mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
 extern mysql_prlock_t LOCK_system_variables_hash;
 extern mysql_cond_t COND_thread_count, COND_start_thread;
 extern mysql_cond_t COND_manager;
-extern mysql_cond_t COND_slave_background;
 extern int32 thread_count, service_thread_count;
 
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,
@@ -789,26 +789,6 @@ inline void table_case_convert(char * name, uint length)
   if (lower_case_table_names)
     files_charset_info->cset->casedn(files_charset_info,
                                      name, length, name, length);
-}
-
-inline void thread_safe_increment32(int32 *value)
-{
-  (void) my_atomic_add32_explicit(value, 1, MY_MEMORY_ORDER_RELAXED);
-}
-
-inline void thread_safe_decrement32(int32 *value)
-{
-  (void) my_atomic_add32_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
-}
-
-inline void thread_safe_increment64(int64 *value)
-{
-  (void) my_atomic_add64_explicit(value, 1, MY_MEMORY_ORDER_RELAXED);
-}
-
-inline void thread_safe_decrement64(int64 *value)
-{
-  (void) my_atomic_add64_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
 }
 
 extern void set_server_version(char *buf, size_t size);

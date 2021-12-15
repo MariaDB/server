@@ -1,0 +1,55 @@
+--source include/not_embedded.inc
+--source include/not_aix.inc
+# Test that wait_timeout does not cause connection to be closed, when connection is delayed due to
+# threadpool internal problems, e.g misconfiguration - too few threads and queueing.
+# So if client did not cause wait_timeout, do not report it either.
+# See MDEV-21101 for details.
+
+# Intentionally misconfigure threadpool to have at most 1 or 2 threads (
+# depends on the implementation). Use minimal wait_timeout, do some slow queries from
+# different connections simultaneously, to force queueing occurs.
+# Verify connections are intact, even if queueing time exceeds wait_timeout
+
+SELECT
+  @@global.wait_timeout, @@global.thread_pool_max_threads, @@global.thread_pool_size,
+  @@global.thread_pool_oversubscribe,  @@global.thread_pool_stall_limit
+INTO
+  @_wait_timeout,@_thread_pool_max_threads,@_thread_pool_size,
+  @_thread_pool_oversubscribe,@_thread_pool_stall_limit;
+
+SET @@global.wait_timeout=1,
+    @@global.thread_pool_max_threads=2,
+    @@global.thread_pool_size=1,
+    @@global.thread_pool_oversubscribe=1,
+    @@global.thread_pool_stall_limit=10;
+ 
+--connect (c1, localhost, root,,)
+--connect (c2, localhost, root,,)
+--connect (c3, localhost, root,,)
+--connection c1
+--send select sleep(1.1)
+--connection c2
+--send select sleep(1.1)
+--connection c3
+--send select sleep(1.1)
+--connection default
+--send select sleep(1.1)
+--connection c1
+--reap
+--connection c2
+--reap
+--connection c3
+--reap
+--connection default
+--reap
+--disconnect c1
+--disconnect c2
+--disconnect c3
+--connection default
+
+SET @@global.wait_timeout=@_wait_timeout,
+    @@global.thread_pool_max_threads=@_thread_pool_max_threads,
+    @@global.thread_pool_size=@_thread_pool_size,
+    @@global.thread_pool_oversubscribe=@_thread_pool_oversubscribe,
+    @@global.thread_pool_stall_limit=@_thread_pool_stall_limit;
+ 

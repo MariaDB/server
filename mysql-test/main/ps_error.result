@@ -1,0 +1,73 @@
+#
+# MDEV-17741 Assertion `thd->Item_change_list::is_empty()' failed in mysql_parse after unsuccessful PS
+#
+SET SQL_MODE= 'STRICT_ALL_TABLES';
+CREATE TABLE t1 (a INT);
+PREPARE stmt FROM "CREATE TABLE tmp AS SELECT * FROM t1 WHERE 'foo' && 0";
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+EXECUTE stmt;
+ERROR 22007: Truncated incorrect DOUBLE value: 'foo'
+SELECT a FROM t1 GROUP BY NULL WITH ROLLUP;
+a
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+SET SQL_MODE= 'STRICT_ALL_TABLES';
+CREATE TABLE t1 (a INT);
+PREPARE stmt FROM "CREATE TABLE tmp AS SELECT * FROM t1 WHERE 'foo' && 0";
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+EXECUTE stmt;
+ERROR 22007: Truncated incorrect DOUBLE value: 'foo'
+SET @a = REPLACE( @@global.optimizer_switch, '=on', '=off' ) ;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+#
+# MDEV-17738 Server crashes in Item::delete_self on closing connection after unsuccessful PS
+#
+SET SQL_MODE='STRICT_ALL_TABLES';
+PREPARE stmt FROM "CREATE TABLE ps AS SELECT 1 FROM DUAL WHERE 'foo' && 0";
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+EXECUTE stmt;
+ERROR 22007: Truncated incorrect DOUBLE value: 'foo'
+SELECT 'All done';
+All done
+All done
+SET SQL_MODE=DEFAULT;
+SET SQL_MODE='STRICT_ALL_TABLES';
+PREPARE stmt FROM "CREATE TABLE ps AS SELECT 1 FROM DUAL WHERE 'foo' && 0";
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+EXECUTE stmt;
+ERROR 22007: Truncated incorrect DOUBLE value: 'foo'
+DEALLOCATE PREPARE stmt;
+SELECT 'All done';
+All done
+All done
+SET SQL_MODE=DEFAULT;
+SET SQL_MODE= 'STRICT_ALL_TABLES';
+CREATE TABLE t1 (a INT);
+PREPARE stmt FROM "CREATE TABLE tmp AS SELECT * FROM t1 WHERE 'foo' && 0";
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+EXECUTE stmt;
+ERROR 22007: Truncated incorrect DOUBLE value: 'foo'
+SELECT a FROM t1 GROUP BY a;
+a
+SELECT * FROM t1;
+a
+DROP TABLE t1;
+SET SQL_MODE=DEFAULT;
+SET SQL_MODE= 'STRICT_ALL_TABLES';
+CREATE TABLE t1 (a INT);
+PREPARE stmt FROM "CREATE TABLE tmp AS SELECT * FROM t1 WHERE 'foo' && 0";
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'foo'
+EXECUTE stmt;
+ERROR 22007: Truncated incorrect DOUBLE value: 'foo'
+SELECT a FROM t1 GROUP BY a;
+a
+INSERT t1 SELECT * FROM ( SELECT * FROM t1 ) sq;
+DROP TABLE t1;
+SET SQL_MODE=DEFAULT;

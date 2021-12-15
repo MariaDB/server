@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 #pragma once
 
 #include <log.h>
@@ -22,7 +22,7 @@
 namespace myrocks {
 
 class Rdb_logger : public rocksdb::Logger {
-public:
+ public:
   explicit Rdb_logger(const rocksdb::InfoLogLevel log_level =
                           rocksdb::InfoLogLevel::ERROR_LEVEL)
       : m_mysql_log_level(log_level) {}
@@ -77,9 +77,9 @@ public:
     m_mysql_log_level = log_level;
   }
 
-private:
+ private:
   std::shared_ptr<rocksdb::Logger> m_logger;
   rocksdb::InfoLogLevel m_mysql_log_level;
 };
 
-} // namespace myrocks
+}  // namespace myrocks

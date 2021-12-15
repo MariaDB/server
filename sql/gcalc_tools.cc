@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
 #include "mariadb.h"
@@ -663,6 +663,17 @@ Gcalc_operation_reducer::Gcalc_operation_reducer(size_t blk_size) :
 {}
 
 
+Gcalc_operation_reducer::Gcalc_operation_reducer(
+                           const Gcalc_operation_reducer &gor) :
+  Gcalc_dyn_list(gor),
+#ifndef GCALC_DBUG_OFF
+  n_res_points(0),
+#endif /*GCALC_DBUG_OFF*/
+  m_res_hook((Gcalc_dyn_list::Item **)&m_result),
+  m_first_active_thread(NULL)
+{}
+
+
 void Gcalc_operation_reducer::init(Gcalc_function *fn, modes mode)
 {
   m_fn= fn;
@@ -1173,14 +1184,14 @@ int Gcalc_operation_reducer::connect_threads(
     {
       rp0->outer_poly= prev_range->thread_start;
       tb->thread_start= prev_range->thread_start;
-      /* Chack if needed */
+      /* Check if needed */
       ta->thread_start= prev_range->thread_start;
     }
     else
     {
       rp0->outer_poly= 0;
       ta->thread_start= rp0;
-      /* Chack if needed */
+      /* Check if needed */
       tb->thread_start= rp0;
     }
     GCALC_DBUG_RETURN(0);

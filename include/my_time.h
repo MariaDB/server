@@ -13,7 +13,7 @@
 
  You should have received a copy of the GNU General Public License
  along with this program; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /*
   This is a private header of sql-common library, containing
@@ -78,7 +78,7 @@ extern uchar days_in_month[];
 #define MYSQL_TIME_WARN_HAVE_WARNINGS(x) MY_TEST((x) & MYSQL_TIME_WARN_WARNINGS)
 #define MYSQL_TIME_WARN_HAVE_NOTES(x) MY_TEST((x) & MYSQL_TIME_WARN_NOTES)
 
-/* Usefull constants */
+/* Useful constants */
 #define SECONDS_IN_24H 86400L
 
 /* Limits for the TIME data type */
@@ -104,7 +104,8 @@ typedef struct st_mysql_time_status
 
 static inline void my_time_status_init(MYSQL_TIME_STATUS *status)
 {
-  status->warnings= status->precision= 0;
+  status->warnings= 0;
+  status->precision= 0;
 }
 
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
@@ -119,7 +120,7 @@ longlong number_to_datetime(longlong nr, ulong sec_part, MYSQL_TIME *time_res,
 static inline
 longlong double_to_datetime(double nr, MYSQL_TIME *ltime, ulonglong flags, int *cut)
 {
-  if (nr < 0 || nr > LONGLONG_MAX)
+  if (nr < 0 || nr > (double)LONGLONG_MAX)
     nr= (double)LONGLONG_MAX;
   return number_to_datetime((longlong) floor(nr),
                             (ulong)((nr-floor(nr))*TIME_SECOND_PART_FACTOR),

@@ -1,0 +1,16 @@
+set use_stat_tables='preferably';
+CREATE TABLE t1(
+class   INT,
+id      INT,
+title   VARCHAR(100)
+) ENGINE=InnoDB;
+insert into t1 select seq, seq, concat('a', seq) from seq_1_to_500;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+500
+set @@max_heap_table_size=16384;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+DROP TABLE t1;

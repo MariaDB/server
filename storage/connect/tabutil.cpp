@@ -14,7 +14,7 @@
 #include "sql_class.h"
 #include "table.h"
 #include "field.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <stdlib.h>
 #include <stdio.h>
 #if defined(__BORLANDC__)
@@ -59,10 +59,22 @@ int GetConvSize(void);
 /*  Used by MYSQL tables to get MySQL parameters from the calling proxy */
 /*  table (PROXY, TBL, XCL, or OCCUR) when used by one of these.        */
 /************************************************************************/
-void Remove_tshp(PCATLG cat)
+TABLE_SHARE *Remove_tshp(PCATLG cat)
 {
-  ((MYCAT*)cat)->GetHandler()->tshp = NULL;
+  TABLE_SHARE *s = ((MYCAT*)cat)->GetHandler()->tshp;
+
+	((MYCAT*)cat)->GetHandler()->tshp = NULL;
+	return s;
 } // end of Remove_thsp
+
+/************************************************************************/
+/*  Used by MYSQL tables to get MySQL parameters from the calling proxy */
+/*  table (PROXY, TBL, XCL, or OCCUR) when used by one of these.        */
+/************************************************************************/
+void Restore_tshp(PCATLG cat, TABLE_SHARE *s)
+{
+	((MYCAT*)cat)->GetHandler()->tshp = s;
+} // end of Restore_thsp
 
 /************************************************************************/
 /*  GetTableShare: allocates and open a table share.                    */
@@ -429,7 +441,7 @@ PTDB TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
       char buf[MAX_STR];
 
       strcpy(buf, g->Message);
-      sprintf(g->Message, "Error accessing %s.%s: %s", db, name, buf);
+      snprintf(g->Message, MAX_STR, "Error accessing %s.%s: %s", db, name, buf);
       hc->tshp = NULL;
       goto err;
       } // endif Define
@@ -457,7 +469,7 @@ PTDB TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
     hc->get_table()->s->option_struct->srcdef = sp;
   } // endif s
 
-  if (trace && tdbp)
+  if (trace(1) && tdbp)
     htrc("Subtable %s in %s\n", 
           name, SVP(tdbp->GetDef()->GetDB()));
  
@@ -647,7 +659,7 @@ PRXCOL::PRXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PCSZ am)
   Pseudo = false;
   Colnum = cdp->GetOffset();     // If columns are retrieved by number
 
-  if (trace)
+  if (trace(1))
     htrc(" making new %sCOL C%d %s at %p\n", am, Index, Name, this);
 
   } // end of PRXCOL constructor
@@ -732,7 +744,7 @@ void PRXCOL::Reset(void)
 /***********************************************************************/
 void PRXCOL::ReadColumn(PGLOBAL g)
   {
-  if (trace > 1)
+  if (trace(2))
     htrc("PRX ReadColumn: name=%s\n", Name);
 
   if (Colp) {
@@ -759,7 +771,7 @@ void PRXCOL::ReadColumn(PGLOBAL g)
 /***********************************************************************/
 void PRXCOL::WriteColumn(PGLOBAL g)
   {
-  if (trace > 1)
+  if (trace(2))
     htrc("PRX WriteColumn: name=%s\n", Name);
 
   if (Colp) {

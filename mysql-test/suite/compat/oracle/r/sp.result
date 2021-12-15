@@ -166,6 +166,13 @@ IF a=10 THEN NULL; ELSE NULL; END IF;
 END;
 /
 DROP PROCEDURE p1;
+# Keywords that are OK for table names, but not for SP variables
+CREATE TABLE function (function int);
+INSERT INTO function SET function=10;
+SELECT function.function FROM function;
+function
+10
+DROP TABLE function;
 # Testing that (some) keyword_sp are allowed in Oracle-style assignments
 CREATE PROCEDURE p1 (action OUT INT) AS BEGIN action:=10; END;/
 DROP PROCEDURE p1/
@@ -836,7 +843,7 @@ CREATE FUNCTION f1 (a INT, b INT) RETURN INT
 AS
 total INT := 0;
 BEGIN
-FOR i IN REVERSE a..1
+FOR i IN REVERSE 1..a
 LOOP
 total:= total + i;
 IF i = b THEN
@@ -1697,15 +1704,15 @@ t2	CREATE TABLE "t2" (
   "dc100" decimal(10,0) DEFAULT NULL,
   "dc103" decimal(10,3) DEFAULT NULL,
   "dc209" decimal(20,9) DEFAULT NULL,
-  "cc" varchar(10) DEFAULT NULL,
+  "cc" char(10) DEFAULT NULL,
   "cv" varchar(10) DEFAULT NULL,
   "cvu" varchar(10) CHARACTER SET utf8 DEFAULT NULL,
   "t1" tinytext DEFAULT NULL,
   "t2" text DEFAULT NULL,
   "t3" mediumtext DEFAULT NULL,
   "t4" longtext DEFAULT NULL,
-  "enum1" varchar(1) DEFAULT NULL,
-  "set1" varchar(5) DEFAULT NULL,
+  "enum1" char(1) DEFAULT NULL,
+  "set1" char(5) DEFAULT NULL,
   "blob1" tinyblob DEFAULT NULL,
   "blob2" longblob DEFAULT NULL,
   "blob3" mediumblob DEFAULT NULL,
@@ -1859,15 +1866,15 @@ t2	CREATE TABLE "t2" (
   "dc100" decimal(10,0) DEFAULT NULL,
   "dc103" decimal(10,3) DEFAULT NULL,
   "dc209" decimal(20,9) DEFAULT NULL,
-  "cc" varchar(10) DEFAULT NULL,
+  "cc" char(10) DEFAULT NULL,
   "cv" varchar(10) DEFAULT NULL,
   "cvu" varchar(10) CHARACTER SET utf8 DEFAULT NULL,
   "t1" tinytext DEFAULT NULL,
   "t2" text DEFAULT NULL,
   "t3" mediumtext DEFAULT NULL,
   "t4" longtext DEFAULT NULL,
-  "enum1" varchar(1) DEFAULT NULL,
-  "set1" varchar(5) DEFAULT NULL,
+  "enum1" char(1) DEFAULT NULL,
+  "set1" char(5) DEFAULT NULL,
   "blob1" tinyblob DEFAULT NULL,
   "blob2" longblob DEFAULT NULL,
   "blob3" mediumblob DEFAULT NULL,
@@ -2065,7 +2072,7 @@ t1	CREATE TABLE "t1" (
   "tables_table_name" varchar(64) CHARACTER SET utf8 DEFAULT NULL,
   "tables_table_rows" bigint(21) unsigned DEFAULT NULL,
   "processlist_info" longtext CHARACTER SET utf8 DEFAULT NULL,
-  "processlist_info_binary" blob DEFAULT NULL
+  "processlist_info_binary" blob(65535) DEFAULT NULL
 )
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -2375,7 +2382,7 @@ t1	CREATE TABLE "t1" (
   "a_flt0" float DEFAULT NULL,
   "a_dbl0" double DEFAULT NULL,
   "a_bit3" bit(3) DEFAULT NULL,
-  "a_enum0" varchar(1) DEFAULT NULL,
+  "a_enum0" char(1) DEFAULT NULL,
   "a_varchar10" varchar(10) DEFAULT NULL,
   "a_text1" text DEFAULT NULL,
   "a_tinytext1" tinytext DEFAULT NULL,
@@ -2393,7 +2400,7 @@ t1	CREATE TABLE "t1" (
   "aa_flt0" float DEFAULT NULL,
   "aa_dbl0" double DEFAULT NULL,
   "aa_bit3" bit(3) DEFAULT NULL,
-  "aa_enum0" varchar(1) DEFAULT NULL,
+  "aa_enum0" char(1) DEFAULT NULL,
   "aa_varchar10" varchar(10) DEFAULT NULL,
   "aa_text1" text DEFAULT NULL,
   "aa_tinytext1" tinytext DEFAULT NULL,
@@ -2495,3 +2502,61 @@ BEGIN
 SELECT 'a' IN ('b',v);
 END $$
 ERROR HY000: Illegal parameter data types varchar and row for operation 'in'
+#
+# MDEV-17253 Oracle compatibility: The REVERSE key word for FOR loop behaves incorrectly
+#
+DECLARE
+totalprice DECIMAL(12,2):=NULL;
+loop_start INTEGER := 1;
+BEGIN
+FOR idx IN REVERSE loop_start..10 LOOP
+SELECT idx;
+END LOOP;
+END;
+$$
+idx
+10
+idx
+9
+idx
+8
+idx
+7
+idx
+6
+idx
+5
+idx
+4
+idx
+3
+idx
+2
+idx
+1
+CREATE PROCEDURE p1 AS
+loop_start INTEGER := 1;
+BEGIN
+FOR idx IN REVERSE 3..loop_start LOOP
+SELECT idx;
+END LOOP;
+END;
+$$
+CALL p1();
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1 AS
+loop_start INTEGER := 1;
+BEGIN
+FOR idx IN REVERSE loop_start..3 LOOP
+SELECT idx;
+END LOOP;
+END;
+$$
+CALL p1();
+idx
+3
+idx
+2
+idx
+1
+DROP PROCEDURE p1;

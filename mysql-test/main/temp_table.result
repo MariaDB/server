@@ -1,0 +1,604 @@
+drop table if exists t1,t2;
+drop view if exists v1;
+#
+# test basic creation of temporary tables together with normal table
+#
+create table t1 (a int);
+create temporary table t1 AS SELECT 1;
+create temporary table t1 AS SELECT 1;
+ERROR 42S01: Table 't1' already exists
+create temporary table t1 (a int);
+ERROR 42S01: Table 't1' already exists
+drop temporary table t1;
+drop table t1;
+create temporary table t1 AS SELECT 1;
+create temporary table t1 AS SELECT 1;
+ERROR 42S01: Table 't1' already exists
+create temporary table t1 (a int);
+ERROR 42S01: Table 't1' already exists
+drop temporary table t1;
+#
+# Test with rename
+#
+CREATE TABLE t1 (c int not null, d char (10) not null);
+insert into t1 values(1,""),(2,"a"),(3,"b");
+CREATE TEMPORARY TABLE t1 (a int not null, b char (10) not null);
+insert into t1 values(4,"e"),(5,"f"),(6,"g");
+alter table t1 rename t2;
+select * from t1;
+c	d
+1	
+2	a
+3	b
+select * from t2;
+a	b
+4	e
+5	f
+6	g
+CREATE TABLE t2 (x int not null, y int not null);
+alter table t2 rename t1;
+select * from t1;
+a	b
+4	e
+5	f
+6	g
+create TEMPORARY TABLE t2 engine=heap select * from t1;
+create TEMPORARY TABLE IF NOT EXISTS t2 (a int) engine=heap;
+Warnings:
+Note	1050	Table 't2' already exists
+CREATE TEMPORARY TABLE t1 (a int not null, b char (10) not null);
+ERROR 42S01: Table 't1' already exists
+ALTER TABLE t1 RENAME t2;
+ERROR 42S01: Table 't2' already exists
+select * from t2;
+a	b
+4	e
+5	f
+6	g
+alter table t2 add primary key (a,b);
+drop table t1,t2;
+select * from t1;
+c	d
+1	
+2	a
+3	b
+drop table t2;
+create temporary table t1 select *,2 as "e" from t1;
+select * from t1;
+c	d	e
+1		2
+2	a	2
+3	b	2
+drop table t1;
+drop table t1;
+CREATE TABLE t1 (pkCrash INTEGER PRIMARY KEY,strCrash VARCHAR(255));
+INSERT INTO t1 ( pkCrash, strCrash ) VALUES ( 1, '1');
+SELECT CONCAT_WS(pkCrash, strCrash) FROM t1;
+CONCAT_WS(pkCrash, strCrash)
+1
+drop table t1;
+create temporary table t1 select 1 as 'x';
+drop table t1;
+CREATE TABLE t1 (x INT);
+INSERT INTO t1 VALUES (1), (2), (3);
+CREATE TEMPORARY TABLE tmp SELECT *, NULL FROM t1;
+drop table t1;
+create temporary table t1 (id int(10) not null unique);
+create temporary table t2 (id int(10) not null primary key, 
+val int(10) not null);
+insert into t1 values (1),(2),(4);
+insert into t2 values (1,1),(2,1),(3,1),(4,2);
+select one.id, two.val, elt(two.val,'one','two') from t1 one, t2 two where two.id=one.id order by one.id;
+id	val	elt(two.val,'one','two')
+1	1	one
+2	1	one
+4	2	two
+drop table t1,t2;
+create temporary table t1 (a int not null);
+insert into t1 values (1),(1);
+alter table t1 add primary key (a);
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+drop table t1;
+CREATE TABLE t1 (
+d datetime default NULL
+) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('2002-10-24 14:50:32'),('2002-10-24 14:50:33'),('2002-10-24 14:50:34'),('2002-10-24 14:50:34'),('2002-10-24 14:50:34'),('2002-10-24 14:50:35'),('2002-10-24 14:50:35'),('2002-10-24 14:50:35'),('2002-10-24 14:50:35'),('2002-10-24 14:50:36'),('2002-10-24 14:50:36'),('2002-10-24 14:50:36'),('2002-10-24 14:50:36'),('2002-10-24 14:50:37'),('2002-10-24 14:50:37'),('2002-10-24 14:50:37'),('2002-10-24 14:50:37'),('2002-10-24 14:50:38'),('2002-10-24 14:50:38'),('2002-10-24 14:50:38'),('2002-10-24 14:50:39'),('2002-10-24 14:50:39'),('2002-10-24 14:50:39'),('2002-10-24 14:50:39'),('2002-10-24 14:50:40'),('2002-10-24 14:50:40'),('2002-10-24 14:50:40');
+flush status;
+select * from t1 group by d;
+d
+2002-10-24 14:50:32
+2002-10-24 14:50:33
+2002-10-24 14:50:34
+2002-10-24 14:50:35
+2002-10-24 14:50:36
+2002-10-24 14:50:37
+2002-10-24 14:50:38
+2002-10-24 14:50:39
+2002-10-24 14:50:40
+show status like "created_tmp%tables";
+Variable_name	Value
+Created_tmp_disk_tables	0
+Created_tmp_tables	1
+drop table t1;
+create temporary table v1 as select 'This is temp. table' A;
+create view v1 as select 'This is view' A;
+select * from v1;
+A
+This is temp. table
+show create table v1;
+Table	Create Table
+v1	CREATE TEMPORARY TABLE `v1` (
+  `A` varchar(19) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select 'This is view' AS `A`	latin1	latin1_swedish_ci
+drop view v1;
+select * from v1;
+A
+This is temp. table
+create view v1 as select 'This is view again' A;
+select * from v1;
+A
+This is temp. table
+drop table v1;
+select * from v1;
+A
+This is view again
+drop view v1;
+create table t1 (a int, b int, index(a), index(b));
+create table t2 (c int auto_increment, d varchar(255), primary key (c));
+insert into t1 values (3,1),(3,2);
+insert into t2 values (NULL, 'foo'), (NULL, 'bar');
+select d, c from t1 left join t2 on b = c where a = 3 order by d;
+d	c
+bar	2
+foo	1
+drop table t1, t2;
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1 (i INT);
+LOCK TABLE t1 WRITE;
+connect  conn1, localhost, root,,;
+CREATE TEMPORARY TABLE t1 (i INT);
+The following command should not block
+DROP TEMPORARY TABLE t1;
+disconnect conn1;
+connection default;
+DROP TABLE t1;
+CREATE TABLE t1 (i INT);
+CREATE TEMPORARY TABLE t2 (i INT);
+DROP TEMPORARY TABLE t2, t1;
+ERROR 42S02: Unknown table 'test.t1'
+SELECT * FROM t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+SELECT * FROM t1;
+i
+DROP TABLE t1;
+End of 4.1 tests.
+CREATE TABLE t1 ( c FLOAT( 20, 14 ) );
+INSERT INTO t1 VALUES( 12139 );
+CREATE TABLE t2 ( c FLOAT(30,18) );
+INSERT INTO t2 VALUES( 123456 );
+SELECT AVG( c ) FROM t1 UNION SELECT 1;
+AVG( c )
+12139.000000000000000000
+1.000000000000000000
+SELECT 1 UNION SELECT AVG( c ) FROM t1;
+1
+1.000000000000000000
+12139.000000000000000000
+SELECT 1 UNION SELECT * FROM t2 UNION SELECT 1;
+1
+1.000000000000000000
+123456.000000000000000000
+SELECT c/1 FROM t1 UNION SELECT 1;
+c/1
+12139.000000000000000000
+1.000000000000000000
+DROP TABLE t1, t2;
+create temporary table t1 (a int);
+insert into t1 values (4711);
+select * from t1;
+a
+4711
+truncate t1;
+insert into t1 values (42);
+select * from t1;
+a
+42
+drop table t1;
+CREATE TEMPORARY TABLE t1(a INT, b VARCHAR(20));
+INSERT INTO t1 VALUES(1, 'val1'), (2, 'val2'), (3, 'val3');
+DELETE FROM t1 WHERE a=1;
+SELECT count(*) FROM t1;
+count(*)
+2
+DELETE FROM t1;
+SELECT * FROM t1;
+a	b
+DROP TABLE t1;
+DROP TABLE IF EXISTS t1,t2;
+DROP FUNCTION IF EXISTS f1;
+CREATE TEMPORARY TABLE t1 (a INT);
+CREATE TEMPORARY TABLE t2 LIKE t1;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+return 1;
+END|
+INSERT INTO t2 SELECT * FROM t1;
+INSERT INTO t1 SELECT f1();
+CREATE TABLE t3 SELECT * FROM t1;
+INSERT INTO t1 SELECT f1();
+UPDATE t1,t2 SET t1.a = t2.a;
+INSERT INTO t2 SELECT f1();
+DROP TABLE t1,t2,t3;
+DROP FUNCTION f1;
+#
+# Bug #48067: A temp table with the same name as an existing table, 
+#             makes drop database fail.
+#
+DROP TEMPORARY TABLE IF EXISTS bug48067.t1;
+DROP DATABASE IF EXISTS bug48067;
+CREATE DATABASE bug48067;
+CREATE TABLE bug48067.t1 (c1 int);
+INSERT INTO bug48067.t1 values (1);
+CREATE TEMPORARY TABLE bug48067.t1 (c1 int);
+DROP DATABASE bug48067;
+DROP TEMPORARY table bug48067.t1;
+End of 5.1 tests
+#
+# Test that admin statements work for temporary tables.
+#
+DROP TABLE IF EXISTS t1,t2;
+CREATE TEMPORARY TABLE t1(a INT);
+CREATE TEMPORARY TABLE t2(b INT);
+CREATE TEMPORARY TABLE t3(c INT);
+INSERT INTO t1 VALUES (1), (2), (3);
+INSERT INTO t2 VALUES (11), (12), (13);
+INSERT INTO t3 VALUES (101), (102), (103);
+ANALYZE TABLE t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+test.t2	analyze	status	OK
+test.t3	analyze	status	OK
+INSERT INTO t1 VALUES (1), (2), (3);
+INSERT INTO t2 VALUES (11), (12), (13);
+INSERT INTO t3 VALUES (101), (102), (103);
+CHECK TABLE t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+INSERT INTO t1 VALUES (1), (2), (3);
+INSERT INTO t2 VALUES (11), (12), (13);
+INSERT INTO t3 VALUES (101), (102), (103);
+CHECKSUM TABLE t1, t2, t3;
+Table	Checksum
+test.t1	xxx
+test.t2	xxx
+test.t3	xxx
+INSERT INTO t1 VALUES (1), (2), (3);
+INSERT INTO t2 VALUES (11), (12), (13);
+INSERT INTO t3 VALUES (101), (102), (103);
+OPTIMIZE TABLE t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+test.t2	optimize	status	OK
+test.t3	optimize	status	OK
+INSERT INTO t1 VALUES (1), (2), (3);
+INSERT INTO t2 VALUES (11), (12), (13);
+INSERT INTO t3 VALUES (101), (102), (103);
+REPAIR TABLE t1, t2, t3;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+test.t2	repair	status	OK
+test.t3	repair	status	OK
+DROP TABLES t1, t2, t3;
+CREATE TEMPORARY TABLE t1 (a int);
+RENAME TABLE t1 TO t2;
+DROP TABLE t2;
+create temporary temporary table t1 (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'temporary table t1 (a int)' at line 1
+flush status;
+create table t1 (a int);
+create temporary table t2 (a int);
+create temporary table t3 (a int);
+drop table t1;
+drop table t2;
+drop temporary table t3;
+show status like 'com_create%table';
+Variable_name	Value
+Com_create_table	1
+Com_create_temporary_table	2
+show status like 'com_drop%table';
+Variable_name	Value
+Com_drop_table	2
+Com_drop_temporary_table	1
+#
+# Some more generic temporary table tests
+# added during MDEV-5535.
+#
+DROP DATABASE IF EXISTS temp_db;
+CREATE DATABASE temp_db;
+USE temp_db;
+#
+# SHOW TABLES do not list temporary tables.
+#
+CREATE TEMPORARY TABLE temp_t1(i INT) ENGINE=INNODB;
+INSERT INTO temp_t1 VALUES(1);
+SELECT * FROM temp_t1;
+i
+1
+SHOW TABLES;
+Tables_in_temp_db
+DROP TABLE temp_t1;
+#
+# Create and drop a temporary table.
+#
+CREATE TEMPORARY TABLE temp_t1(i INT) ENGINE=INNODB;
+INSERT INTO temp_t1 VALUES(1);
+SELECT * FROM temp_t1;
+i
+1
+DROP TABLE temp_t1;
+SELECT * FROM temp_t1;
+ERROR 42S02: Table 'temp_db.temp_t1' doesn't exist
+#
+# Create a temporary table and base table with same name and DROP TABLE.
+#
+CREATE TABLE t1(c1 VARCHAR(20)) ENGINE=INNODB;
+INSERT INTO t1 VALUES("BASE TABLE");
+CREATE TEMPORARY TABLE t1(c1 VARCHAR(20)) ENGINE=INNODB;
+INSERT INTO t1 VALUES("TEMPORARY TABLE");
+SELECT * FROM t1;
+c1
+TEMPORARY TABLE
+DROP TABLE t1;
+SELECT * FROM t1;
+c1
+BASE TABLE
+DROP TABLE t1;
+SELECT * FROM t1;
+ERROR 42S02: Table 'temp_db.t1' doesn't exist
+#
+# Create a temporary table and base table with same name and DROP TEMPORARY
+# TABLE.
+#
+CREATE TABLE t1(c1 VARCHAR(20)) ENGINE=INNODB;
+INSERT INTO t1 VALUES("BASE TABLE");
+CREATE TEMPORARY TABLE t1(c1 VARCHAR(20)) ENGINE=INNODB;
+INSERT INTO t1 VALUES("TEMPORARY TABLE");
+SELECT * FROM t1;
+c1
+TEMPORARY TABLE
+DROP TEMPORARY TABLE t1;
+SELECT * FROM t1;
+c1
+BASE TABLE
+DROP TEMPORARY TABLE t1;
+ERROR 42S02: Unknown table 'temp_db.t1'
+SELECT * FROM t1;
+c1
+BASE TABLE
+DROP TABLE t1;
+#
+# Create a temporary table and drop its parent database.
+#
+USE temp_db;
+CREATE TEMPORARY TABLE temp_t1(i INT) ENGINE=INNODB;
+INSERT INTO temp_t1 VALUES (1);
+DROP DATABASE temp_db;
+CREATE DATABASE temp_db;
+USE temp_db;
+DROP TEMPORARY TABLE temp_t1;
+#
+# Similar to above, but this time with a base table with same name.
+#
+USE temp_db;
+CREATE TABLE t1(i INT)ENGINE=INNODB;
+CREATE TEMPORARY TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1);
+DROP DATABASE temp_db;
+CREATE DATABASE temp_db;
+USE temp_db;
+DROP TEMPORARY TABLE t1;
+DROP TABLE t1;
+ERROR 42S02: Unknown table 'temp_db.t1'
+#
+# Create a temporary table within a function.
+#
+USE temp_db;
+CREATE FUNCTION f1() RETURNS INT
+BEGIN
+DROP TEMPORARY TABLE IF EXISTS temp_t1;
+CREATE TEMPORARY TABLE temp_t1(i INT) ENGINE=INNODB;
+INSERT INTO `temp_t1` VALUES(1);
+RETURN (SELECT COUNT(*) FROM temp_t1);
+END|
+SELECT f1();
+f1()
+1
+SELECT * FROM temp_t1;
+i
+1
+DROP TABLE temp_t1;
+CREATE TEMPORARY TABLE `temp_t1`(i INT) ENGINE=INNODB;
+SELECT f1();
+f1()
+1
+SELECT * FROM temp_t1;
+i
+1
+DROP FUNCTION f1;
+#
+# Create and drop a temporary table within a function.
+#
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+DROP TEMPORARY TABLE IF EXISTS temp_t1;
+CREATE TEMPORARY TABLE temp_t1(i INT) ENGINE=INNODB;
+INSERT INTO temp_t1 VALUES(1);
+DROP TABLE temp_t1;
+RETURN 0;
+END|
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+DROP TEMPORARY TABLE IF EXISTS temp_t1;
+CREATE TEMPORARY TABLE temp_t1(i INT) ENGINE=INNODB;
+INSERT INTO temp_t1 VALUES(1);
+DROP TEMPORARY TABLE temp_t1;
+RETURN 0;
+END|
+SELECT f2();
+f2()
+0
+DROP FUNCTION f2;
+#
+# Create a temporary table within a function and select it from another
+# function.
+#
+CREATE FUNCTION f2() RETURNS INT
+BEGIN
+DROP TEMPORARY TABLE IF EXISTS temp_t1;
+CREATE TEMPORARY TABLE temp_t1 (i INT) ENGINE=INNODB;
+INSERT INTO temp_t1 VALUES (1);
+RETURN f2_1();
+END|
+CREATE FUNCTION f2_1() RETURNS INT
+RETURN (SELECT COUNT(*) FROM temp_t1)|
+SELECT f2();
+f2()
+1
+DROP TEMPORARY TABLE temp_t1;
+DROP FUNCTION f2;
+#
+# Create temporary table like base table.
+#
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+CREATE TEMPORARY TABLE temp_t1 LIKE t1;
+SELECT * FROM temp_t1;
+i
+CREATE TEMPORARY TABLE t1 LIKE t1;
+ERROR 42000: Not unique table/alias: 't1'
+DROP TABLE temp_t1, t1;
+#
+# Create temporary table as base table.
+#
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+CREATE TEMPORARY TABLE temp_t1 AS SELECT * FROM t1;
+SELECT * FROM temp_t1;
+i
+1
+DROP TABLE temp_t1, t1;
+#
+# ALTER TABLE RENAME & ENABLE/DISABLE KEYS (shortcuts)
+#
+CREATE TEMPORARY TABLE t1(i INT PRIMARY KEY) ENGINE=MYISAM;
+INSERT INTO t1 VALUES(1);
+SELECT COUNT(*)=1 FROM t1;
+COUNT(*)=1
+1
+ALTER TABLE t1 RENAME t2;
+SELECT COUNT(*)=1 FROM t2;
+COUNT(*)=1
+1
+ALTER TABLE t2 RENAME t1;
+ALTER TABLE t1 DISABLE KEYS;
+ALTER TABLE t1 ENABLE KEYS;
+LOCK TABLES t1 WRITE;
+ALTER TABLE t1 RENAME t2;
+SELECT COUNT(*)=1 FROM t2;
+COUNT(*)=1
+1
+ALTER TABLE t2 RENAME t1;
+ALTER TABLE t1 DISABLE KEYS;
+ALTER TABLE t1 ENABLE KEYS;
+UNLOCK TABLES;
+LOCK TABLES t1 READ;
+ALTER TABLE t1 RENAME t2;
+SELECT COUNT(*)=1 FROM t2;
+COUNT(*)=1
+1
+ALTER TABLE t2 RENAME t1;
+ALTER TABLE t1 DISABLE KEYS;
+ALTER TABLE t1 ENABLE KEYS;
+UNLOCK TABLES;
+FLUSH TABLES WITH READ LOCK;
+ALTER TABLE t1 RENAME t2;
+SELECT COUNT(*)=1 FROM t2;
+COUNT(*)=1
+1
+ALTER TABLE t2 RENAME t1;
+ALTER TABLE t1 DISABLE KEYS;
+ALTER TABLE t1 ENABLE KEYS;
+UNLOCK TABLES;
+ALTER TABLE t1 RENAME t2, LOCK SHARED;
+ALTER TABLE t2 RENAME t1, LOCK EXCLUSIVE;
+DROP TABLE t1;
+#
+# MDEV-10792: Assertion `thd->mdl_context.is_lock_owner
+# (MDL_key::TABLE, table->db, table->table_name, MDL_SHARED)'
+# failed in mysql_rm_table_no_locks
+#
+CREATE TEMPORARY TABLE t1 (i INT);
+DROP TABLE nonexisting_table, t1;
+ERROR 42S02: Unknown table 'temp_db.nonexisting_table'
+# Cleanup
+DROP DATABASE temp_db;
+USE test;
+#
+# MDEV-17167 - InnoDB: Failing assertion: table->get_ref_count() == 0
+#              upon truncating a temporary table
+#
+CREATE TEMPORARY TABLE t1(a INT) ENGINE=InnoDB;
+SELECT * FROM t1 AS t1a1, t1 AS t2a2;
+a	a
+TRUNCATE TABLE t1;
+LOCK TABLES t1 WRITE;
+TRUNCATE TABLE t1;
+SELECT * FROM t1;
+a
+UNLOCK TABLES;
+LOCK TABLES t1 AS t1a1 WRITE, t1 AS t1a2 WRITE;
+TRUNCATE TABLE t1;
+SELECT * FROM t1 AS t1a1, t1 AS t1a2;
+a	a
+UNLOCK TABLES;
+CREATE TABLE t2(a INT) ENGINE=InnoDB;
+LOCK TABLES t2 WRITE;
+TRUNCATE TABLE t1;
+UNLOCK TABLES;
+DROP TABLE t1, t2;
+#
+# MDEV-19449 1030: Got error 168 "Unknown (generic) error from engine"
+# for valid TRUNCATE (temporary) TABLE
+#
+CREATE TEMPORARY TABLE t1 (col1 BIGINT) ENGINE = InnoDB;
+INSERT INTO t1 (no_such_col) SELECT * FROM t1;
+ERROR 42S22: Unknown column 'no_such_col' in 'field list'
+TRUNCATE TABLE t1;
+ALTER TABLE t1 CHANGE no_such_col1 col1 BIGINT NULL;
+ERROR 42S22: Unknown column 'no_such_col1' in 't1'
+TRUNCATE TABLE t1;
+DROP TEMPORARY TABLE t1;
+#
+# MDEV-21695 Server crashes in TABLE::evaluate_update_default_function upon UPDATE on temporary table
+#
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
+CREATE TEMPORARY TABLE t1 (a DATETIME ON UPDATE CURRENT_TIMESTAMP);
+ALTER TABLE t1 ADD b INT;
+INSERT INTO t1 (b) VALUES (1),(2);
+ALTER TABLE t1 CHANGE COLUMN x xx INT;
+ERROR 42S22: Unknown column 'x' in 't1'
+UPDATE t1 SET b = 3;
+SELECT * FROM t1;
+a	b
+2001-01-01 10:20:30	3
+2001-01-01 10:20:30	3
+DROP TEMPORARY TABLE t1;
+#
+# End of 10.2 tests
+#

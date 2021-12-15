@@ -3,6 +3,8 @@ debian/additions/debian-start.inc.sh usr/share/mysql
 debian/additions/echo_stderr usr/share/mysql
 debian/additions/mysqld_safe_syslog.cnf etc/mysql/conf.d
 etc/apparmor.d/usr.sbin.mysqld
+etc/security/user_map.conf
+lib/*/security/pam_user_map.so
 lib/systemd/system/mariadb@bootstrap.service.d/use_galera_new_cluster.conf
 usr/bin/aria_chk
 usr/bin/aria_dump_log
@@ -36,11 +38,10 @@ usr/bin/wsrep_sst_common
 usr/bin/wsrep_sst_mariabackup
 usr/bin/wsrep_sst_mysqldump
 usr/bin/wsrep_sst_rsync
-usr/bin/wsrep_sst_xtrabackup
-usr/bin/wsrep_sst_xtrabackup-v2
 usr/lib/mysql/plugin/auth_ed25519.so
 usr/lib/mysql/plugin/auth_pam.so
 usr/lib/mysql/plugin/auth_socket.so
+usr/lib/mysql/plugin/disks.so
 usr/lib/mysql/plugin/file_key_management.so
 usr/lib/mysql/plugin/ha_archive.so
 usr/lib/mysql/plugin/ha_blackhole.so
@@ -87,10 +88,9 @@ usr/share/man/man1/replace.1
 usr/share/man/man1/resolve_stack_dump.1
 usr/share/man/man1/resolveip.1
 usr/share/man/man1/wsrep_sst_common.1
+usr/share/man/man1/wsrep_sst_mariabackup.1
 usr/share/man/man1/wsrep_sst_mysqldump.1
 usr/share/man/man1/wsrep_sst_rsync.1
-usr/share/man/man1/wsrep_sst_xtrabackup-v2.1
-usr/share/man/man1/wsrep_sst_xtrabackup.1
 usr/share/mysql/errmsg-utf8.txt
 usr/share/mysql/fill_help_tables.sql
 usr/share/mysql/maria_add_gis_sp_bootstrap.sql
@@ -98,4 +98,5 @@ usr/share/mysql/mysql_performance_tables.sql
 usr/share/mysql/mysql_system_tables.sql
 usr/share/mysql/mysql_system_tables_data.sql
 usr/share/mysql/mysql_test_data_timezone.sql
+usr/share/mysql/mysql_test_db.sql
 usr/share/mysql/wsrep_notify

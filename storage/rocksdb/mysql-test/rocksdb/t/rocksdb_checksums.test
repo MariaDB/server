@@ -5,6 +5,11 @@
 #
 --source include/have_debug.inc
 
+--let LOG=$MYSQLTEST_VARDIR/tmp/rocksdb_checksum.err
+--let $_mysqld_option=--log-error=$LOG
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--source include/restart_mysqld_with_option.inc
+
 set @save_rocksdb_store_row_debug_checksums=@@global.rocksdb_store_row_debug_checksums;
 set @save_rocksdb_verify_row_debug_checksums=@@global.rocksdb_verify_row_debug_checksums;
 set @save_rocksdb_checksums_pct=@@global.rocksdb_checksums_pct;
@@ -14,8 +19,10 @@ show variables like 'rocksdb_%checksum%';
 create table t1 (pk int primary key, a int, b int, key(a), key(b)) engine=rocksdb;
 insert into t1 values (1,1,1),(2,2,2),(3,3,3);
 check table t1;
---let SEARCH_FILE=$MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_FILE=$LOG
 --let SEARCH_PATTERN=0 table records had checksums
+--let SEARCH_PATTERN=CHECKTABLE t1[^\n]*
+--let SEARCH_OUTPUT=matches
 --source include/search_pattern_in_file.inc
 
 drop table t1;
@@ -24,7 +31,7 @@ set session rocksdb_store_row_debug_checksums=on;
 create table t2 (pk int primary key, a int, b int, key(a), key(b)) engine=rocksdb;
 insert into t2 values (1,1,1),(2,2,2),(3,3,3);
 check table t2;
---let SEARCH_PATTERN=3 table records had checksums
+--let SEARCH_PATTERN=CHECKTABLE t2[^\n]*
 --source include/search_pattern_in_file.inc
 
 --echo # Now, make a table that has both rows with checksums and without
@@ -34,7 +41,7 @@ set session rocksdb_store_row_debug_checksums=off;
 update t3 set b=3 where a=2;
 set session rocksdb_store_row_debug_checksums=on;
 check table t3;
---let SEARCH_PATTERN=2 table records had checksums
+--let SEARCH_PATTERN=CHECKTABLE t3[^\n]*
 --source include/search_pattern_in_file.inc
 
 set session rocksdb_store_row_debug_checksums=on;
@@ -43,7 +50,7 @@ create table t4 (pk int primary key, a int, b int, key(a), key(b)) engine=rocksd
 --disable_query_log
 let $i=0;
 let $x= 100000;
-while ($i<10000)
+while ($i<4000)
 {
   inc $i;
   eval insert t4(pk,a,b) values($i, $i, $i div 10);
@@ -53,11 +60,12 @@ while ($i<10000)
 --enable_query_log
 check table t4;
 perl;
-$total=10000;
+$total=4000;
 $pct=5;
 @out=();
 
-$filename= "$ENV{MYSQLTEST_VARDIR}/log/mysqld.1.err";
+$filename= "$ENV{LOG}";
+print $filename "\n";
 open(F, '<', $filename) || die("Can't open file $filename: $!");
 while(<F>) {
   @out=() if /^CURRENT_TEST:/;
@@ -137,5 +145,8 @@ set session debug_dbug= "-d,myrocks_simulate_bad_key_checksum1";
 set @@global.rocksdb_store_row_debug_checksums=@save_rocksdb_store_row_debug_checksums;
 set @@global.rocksdb_verify_row_debug_checksums=@save_rocksdb_verify_row_debug_checksums;
 set @@global.rocksdb_checksums_pct=@save_rocksdb_checksums_pct;
+
+--source include/restart_mysqld.inc
+#--remove_file $LOG
 
 drop table t2,t3,t4;

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2012, Monty Program Ab
+   Copyright (c) 2008, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /**
   @file
@@ -58,7 +58,8 @@ bool Protocol_binary::net_store_data(const uchar *from, size_t length)
       packet->realloc(packet_length+9+length))
     return 1;
   uchar *to= net_store_length((uchar*) packet->ptr()+packet_length, length);
-  memcpy(to,from,length);
+  if (length)
+    memcpy(to,from,length);
   packet->length((uint) (to+length-(uchar*) packet->ptr()));
   return 0;
 }
@@ -217,8 +218,6 @@ net_send_ok(THD *thd,
   NET *net= &thd->net;
   StringBuffer<MYSQL_ERRMSG_SIZE + 10> store;
 
-  bool state_changed= false;
-
   bool error= FALSE;
   DBUG_ENTER("net_send_ok");
 
@@ -245,6 +244,11 @@ net_send_ok(THD *thd,
   /* last insert id */
   store.q_net_store_length(id);
 
+  /* if client has not session tracking capability, don't send state change flag*/
+  if (!(thd->client_capabilities & CLIENT_SESSION_TRACK)) {
+    server_status &= ~SERVER_SESSION_STATE_CHANGED;
+  }
+
   if (thd->client_capabilities & CLIENT_PROTOCOL_41)
   {
     DBUG_PRINT("info",
@@ -265,30 +269,24 @@ net_send_ok(THD *thd,
   }
   thd->get_stmt_da()->set_overwrite_status(true);
 
-  state_changed=
-    (thd->client_capabilities & CLIENT_SESSION_TRACK) &&
-    (server_status & SERVER_SESSION_STATE_CHANGED);
-
-  if (state_changed || (message && message[0]))
+  if ((server_status & SERVER_SESSION_STATE_CHANGED) || (message && message[0]))
   {
     DBUG_ASSERT(safe_strlen(message) <= MYSQL_ERRMSG_SIZE);
     store.q_net_store_data((uchar*) safe_str(message), safe_strlen(message));
   }
 
-  if (unlikely(state_changed))
+  if (unlikely(server_status & SERVER_SESSION_STATE_CHANGED))
   {
     store.set_charset(thd->variables.collation_database);
-
     thd->session_tracker.store(thd, &store);
+    thd->server_status&= ~SERVER_SESSION_STATE_CHANGED;
   }
 
   DBUG_ASSERT(store.length() <= MAX_PACKET_LENGTH);
 
   error= my_net_write(net, (const unsigned char*)store.ptr(), store.length());
-  if (!error && (!skip_flush || is_eof))
+  if (likely(!error) && (!skip_flush || is_eof))
     error= net_flush(net);
-
-  thd->server_status&= ~SERVER_SESSION_STATE_CHANGED;
 
   thd->get_stmt_da()->set_overwrite_status(false);
   DBUG_PRINT("info", ("OK sent, so no more error sending allowed"));
@@ -349,7 +347,7 @@ net_send_eof(THD *thd, uint server_status, uint statement_warn_count)
   {
     thd->get_stmt_da()->set_overwrite_status(true);
     error= write_eof_packet(thd, net, server_status, statement_warn_count);
-    if (!error)
+    if (likely(!error))
       error= net_flush(net);
     thd->get_stmt_da()->set_overwrite_status(false);
     DBUG_PRINT("info", ("EOF sent, so no more error sending allowed"));
@@ -393,7 +391,7 @@ static bool write_eof_packet(THD *thd, NET *net,
       because if 'is_fatal_error' is set the server is not going to execute
       other queries (see the if test in dispatch_command / COM_QUERY)
     */
-    if (thd->is_fatal_error)
+    if (unlikely(thd->is_fatal_error))
       server_status&= ~SERVER_MORE_RESULTS_EXISTS;
     int2store(buff + 3, server_status);
     error= my_net_write(net, buff, 5);
@@ -461,6 +459,17 @@ bool net_send_error_packet(THD *thd, uint sql_errno, const char *err,
   */
   if ((save_compress= net->compress))
     net->compress= 2;
+
+  /*
+    Sometimes, we send errors "out-of-band", e.g ER_CONNECTION_KILLED
+    on an idle connection. The current protocol "sequence number" is 0,
+    however some client drivers would however always   expect packets
+    coming from server to have seq_no > 0, due to missing awareness
+    of "out-of-band" operations. Make these clients happy.
+  */
+  if (!net->pkt_nr)
+   net->pkt_nr= 1;
+
   ret= net_write_command(net,(uchar) 255, (uchar*) "", 0, (uchar*) buff,
                          length);
   net->compress= save_compress;
@@ -590,7 +599,7 @@ void Protocol::end_statement()
                    thd->get_stmt_da()->skip_flush());
     break;
   }
-  if (!error)
+  if (likely(!error))
     thd->get_stmt_da()->set_is_sent(true);
   DBUG_VOID_RETURN;
 }
@@ -705,13 +714,14 @@ void net_send_progress_packet(THD *thd)
 uchar *net_store_data(uchar *to, const uchar *from, size_t length)
 {
   to=net_store_length_fast(to,length);
-  memcpy(to,from,length);
+  if (length)
+    memcpy(to,from,length);
   return to+length;
 }
 
 uchar *net_store_data(uchar *to,int32 from)
 {
-  char buff[20];
+  char buff[22];
   uint length=(uint) (int10_to_str(from,buff,10)-buff);
   to=net_store_length_fast(to,length);
   memcpy(to,buff,length);
@@ -821,7 +831,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
     char *pos;
     CHARSET_INFO *cs= system_charset_info;
     Send_field field;
-    item->make_field(thd, &field);
+    item->make_send_field(thd, &field);
 
     /* limit number of decimals for float and double */
     if (field.type == MYSQL_TYPE_FLOAT || field.type == MYSQL_TYPE_DOUBLE)
@@ -990,7 +1000,7 @@ bool Protocol::send_result_set_row(List<Item> *row_items)
       DBUG_RETURN(TRUE);
     }
     /* Item::send() may generate an error. If so, abort the loop. */
-    if (thd->is_error())
+    if (unlikely(thd->is_error()))
       DBUG_RETURN(TRUE);
   }
 
@@ -1137,7 +1147,7 @@ bool Protocol_text::store_tiny(longlong from)
   DBUG_ASSERT(field_types == 0 || field_types[field_pos] == MYSQL_TYPE_TINY);
   field_pos++;
 #endif
-  char buff[20];
+  char buff[22];
   return net_store_data((uchar*) buff,
 			(size_t) (int10_to_str((int) from, buff, -10) - buff));
 }
@@ -1151,7 +1161,7 @@ bool Protocol_text::store_short(longlong from)
 	      field_types[field_pos] == MYSQL_TYPE_SHORT);
   field_pos++;
 #endif
-  char buff[20];
+  char buff[22];
   return net_store_data((uchar*) buff,
 			(size_t) (int10_to_str((int) from, buff, -10) -
                                   buff));
@@ -1166,7 +1176,7 @@ bool Protocol_text::store_long(longlong from)
               field_types[field_pos] == MYSQL_TYPE_LONG);
   field_pos++;
 #endif
-  char buff[20];
+  char buff[22];
   return net_store_data((uchar*) buff,
 			(size_t) (int10_to_str((long int)from, buff,
                                                (from <0)?-10:10)-buff));
@@ -1209,7 +1219,7 @@ bool Protocol_text::store(float from, uint32 decimals, String *buffer)
 	      field_types[field_pos] == MYSQL_TYPE_FLOAT);
   field_pos++;
 #endif
-  buffer->set_real((double) from, decimals, thd->charset());
+  Float(from).to_string(buffer, decimals);
   return net_store_data((uchar*) buffer->ptr(), buffer->length());
 }
 
@@ -1238,15 +1248,15 @@ bool Protocol_text::store(Field *field)
   CHARSET_INFO *tocs= this->thd->variables.character_set_results;
 #ifdef DBUG_ASSERT_EXISTS
   TABLE *table= field->table;
-  my_bitmap_map *old_map= 0;
+  MY_BITMAP *old_map= 0;
   if (table->file)
-    old_map= dbug_tmp_use_all_columns(table, table->read_set);
+    old_map= dbug_tmp_use_all_columns(table, &table->read_set);
 #endif
 
   field->val_str(&str);
 #ifdef DBUG_ASSERT_EXISTS
   if (old_map)
-    dbug_tmp_restore_column_map(table->read_set, old_map);
+    dbug_tmp_restore_column_map(&table->read_set, old_map);
 #endif
 
   return store_string_aux(str.ptr(), str.length(), str.charset(), tocs);

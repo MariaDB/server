@@ -1,3 +1,49 @@
+/*======
+This file is part of PerconaFT.
+
+Copyright (c) 2006, 2015, Percona and/or its affiliates. All rights reserved.
+
+    PerconaFT is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License, version 2,
+    as published by the Free Software Foundation.
+
+    PerconaFT is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with PerconaFT.  If not, see <http://www.gnu.org/licenses/>.
+
+----------------------------------------
+
+    PerconaFT is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Affero General Public License, version 3,
+    as published by the Free Software Foundation.
+
+    PerconaFT is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Affero General Public License for more details.
+
+    You should have received a copy of the GNU Affero General Public License
+    along with PerconaFT.  If not, see <http://www.gnu.org/licenses/>.
+
+----------------------------------------
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+======= */
+
 #pragma once
 
 #include <stdio.h>  // FILE
@@ -41,7 +87,7 @@ class toku_instr_probe_empty {
 
 extern toku_instr_key toku_uninstrumented;
 
-#ifndef MYSQL_TOKUDB_ENGINE
+#ifndef TOKU_MYSQL_WITH_PFS
 
 #include <pthread.h>
 
@@ -52,6 +98,8 @@ class toku_instr_key {
                    UU(const char *name)) {}
 
     explicit toku_instr_key(UU(pfs_key_t key_id)) {}
+
+    ~toku_instr_key() {}
 };
 
 typedef toku_instr_probe_empty toku_instr_probe;
@@ -243,10 +291,10 @@ inline void toku_instr_rwlock_wrlock_wait_end(
 
 inline void toku_instr_rwlock_unlock(UU(toku_pthread_rwlock_t &rwlock)) {}
 
-#else  // MYSQL_TOKUDB_ENGINE
+#else  // TOKU_MYSQL_WITH_PFS
 // There can be not only mysql but also mongodb or any other PFS stuff
 #include <toku_instr_mysql.h>
-#endif  // MYSQL_TOKUDB_ENGINE
+#endif  // TOKU_MYSQL_WITH_PFS
 
 extern toku_instr_key toku_uninstrumented;
 

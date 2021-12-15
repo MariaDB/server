@@ -1,0 +1,268 @@
+SET sql_mode=ORACLE;
+CREATE PACKAGE p1 AS
+PROCEDURE p1;
+FUNCTION f1 RETURN INT;
+END;
+$$
+CREATE PACKAGE IF NOT EXISTS p1 AS
+PROCEDURE p1;
+FUNCTION f1 RETURN INT;
+END;
+$$
+Warnings:
+Note	1304	PACKAGE p1 already exists
+CREATE PACKAGE BODY p1 AS
+PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+FUNCTION f1 RETURN INT AS
+BEGIN
+RETURN 10;
+END;
+END;
+$$
+DROP PACKAGE BODY p1;
+DROP PACKAGE p1;
+DROP PACKAGE IF EXISTS p1;
+Warnings:
+Note	1305	PACKAGE test.p1 does not exist
+#
+# Creating a package with a COMMENT clause
+#
+CREATE PACKAGE p1 COMMENT 'package-p1-comment' AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY p1 COMMENT 'package-body-p1-comment' AS
+PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+END;
+$$
+DROP PACKAGE p1;
+#
+# Creating a package with a different DEFINER
+#
+CREATE DEFINER=xxx@localhost PACKAGE p1 AS
+PROCEDURE p1;
+END;
+$$
+Warnings:
+Note	1449	The user specified as a definer ('xxx'@'localhost') does not exist
+CREATE DEFINER=xxx@localhost PACKAGE BODY p1 AS
+PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+END;
+$$
+Warnings:
+Note	1449	The user specified as a definer ('xxx'@'localhost') does not exist
+DROP PACKAGE p1;
+#
+# Creating a package with a different DEFINER, with SQL SECURITY INVOKER
+#
+CREATE DEFINER=xxx@localhost PACKAGE p1 SQL SECURITY INVOKER AS
+PROCEDURE p1;
+END;
+$$
+Warnings:
+Note	1449	The user specified as a definer ('xxx'@'localhost') does not exist
+CREATE DEFINER=xxx@localhost PACKAGE BODY p1 SQL SECURITY INVOKER AS
+PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+END;
+$$
+Warnings:
+Note	1449	The user specified as a definer ('xxx'@'localhost') does not exist
+DROP PACKAGE p1;
+#
+# Creating a new package in a remote database
+#
+CREATE DATABASE test2;
+CREATE PACKAGE test2.test2 COMMENT 'package-test2-comment' AS
+FUNCTION f1 RETURN INT;
+PROCEDURE p1;
+END
+$$
+CREATE PACKAGE BODY test2.test2 COMMENT 'package-body-test2-comment' AS
+FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
+PROCEDURE p1 AS BEGIN SELECT f1(); END;
+END;
+$$
+DROP PACKAGE BODY test2.test2;
+DROP PACKAGE test2.test2;
+DROP DATABASE test2;
+#
+# MDEV-13139 Package-wide variables in CREATE PACKAGE
+#
+CREATE TABLE t1 (a INT);
+CREATE PACKAGE p1 AS
+PROCEDURE p1;
+END;
+$$
+CREATE PACKAGE BODY p1 AS
+a INT:=0;
+PROCEDURE p1 AS
+BEGIN
+INSERT INTO t1 VALUES (a);
+a:=a+1;
+END;
+BEGIN
+a:=10;
+END;
+$$
+CALL p1.p1();
+CALL p1.p1();
+SELECT * FROM t1;
+a
+10
+11
+# sp-cache-invalidate
+CALL p1.p1();
+CALL p1.p1();
+SELECT * FROM t1;
+a
+10
+11
+10
+11
+DROP PACKAGE p1;
+DROP TABLE t1;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER="root"@"localhost" PACKAGE "p1" AS
+PROCEDURE p1;
+FUNCTION f1 RETURN INT;
+END
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER="root"@"localhost" PACKAGE IF NOT EXISTS "p1" AS
+PROCEDURE p1;
+FUNCTION f1 RETURN INT;
+END
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER="root"@"localhost" PACKAGE BODY "p1" AS
+PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+FUNCTION f1 RETURN INT AS
+BEGIN
+RETURN 10;
+END;
+END
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP PACKAGE BODY p1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP PACKAGE p1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP PACKAGE IF EXISTS p1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER="root"@"localhost" PACKAGE "p1"    COMMENT 'package-p1-comment'
+ AS
+PROCEDURE p1;
+END
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER="root"@"localhost" PACKAGE BODY "p1"    COMMENT 'package-body-p1-comment'
+ AS
+PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+END
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP PACKAGE p1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER="xxx"@"localhost" PACKAGE "p1" AS
+PROCEDURE p1;
+END
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER="xxx"@"localhost" PACKAGE BODY "p1" AS
+PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+END
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP PACKAGE p1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER="xxx"@"localhost" PACKAGE "p1"    SQL SECURITY INVOKER
+ AS
+PROCEDURE p1;
+END
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER="xxx"@"localhost" PACKAGE BODY "p1"    SQL SECURITY INVOKER
+ AS
+PROCEDURE p1 AS
+BEGIN
+NULL;
+END;
+END
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP PACKAGE p1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	CREATE DATABASE test2
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER="root"@"localhost" PACKAGE "test2"."test2"    COMMENT 'package-test2-comment'
+ AS
+FUNCTION f1 RETURN INT;
+PROCEDURE p1;
+END
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER="root"@"localhost" PACKAGE BODY "test2"."test2"    COMMENT 'package-body-test2-comment'
+ AS
+FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;
+PROCEDURE p1 AS BEGIN SELECT f1(); END;
+END
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP PACKAGE BODY test2.test2
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP PACKAGE test2.test2
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	DROP DATABASE test2
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (a INT)
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER="root"@"localhost" PACKAGE "p1" AS
+PROCEDURE p1;
+END
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER="root"@"localhost" PACKAGE BODY "p1" AS
+a INT:=0;
+PROCEDURE p1 AS
+BEGIN
+INSERT INTO t1 VALUES (a);
+a:=a+1;
+END;
+BEGIN
+a:=10;
+END
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES ( NAME_CONST('a',10))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES ( NAME_CONST('a',11))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER="root"@"localhost" FUNCTION "dummy"() RETURN int(11)
+AS
+BEGIN
+RETURN 1;
+END
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP FUNCTION dummy
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES ( NAME_CONST('a',10))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES ( NAME_CONST('a',11))
+master-bin.000001	#	Query	#	#	COMMIT
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP PACKAGE p1
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; DROP TABLE "t1" /* generated by server */

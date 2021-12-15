@@ -12,7 +12,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -32,26 +32,12 @@ Created 2013/06/04 Shaohua Wang
 /******************************************************************//**
 FTS default parser init
 @return 0 */
-static
-int
-fts_default_parser_init(
-/*====================*/
-	MYSQL_FTPARSER_PARAM *param)	/*!< in: plugin parser param */
-{
-	return(0);
-}
+static int fts_default_parser_init(MYSQL_FTPARSER_PARAM*) { return 0; }
 
 /******************************************************************//**
 FTS default parser deinit
 @return 0 */
-static
-int
-fts_default_parser_deinit(
-/*======================*/
-	MYSQL_FTPARSER_PARAM *param)	/*!< in: plugin parser param */
-{
-        return(0);
-}
+static int fts_default_parser_deinit(MYSQL_FTPARSER_PARAM*) { return 0; }
 
 /******************************************************************//**
 FTS default parser parse from ft_static.c in MYISAM.
@@ -134,7 +120,7 @@ fts_query_add_word_for_parser(
 
 	case FT_TOKEN_WORD:
 		term_node = fts_ast_create_node_term_for_parser(
-			state, word, word_len);
+			state, word, ulint(word_len));
 
 		if (info->trunc) {
 			fts_ast_term_set_wildcard(term_node);
@@ -251,7 +237,7 @@ fts_parse_query_internal(
 		int ret = param->mysql_add_word(
 				param,
 				reinterpret_cast<char*>(w.pos),
-				w.len, &info);
+				int(w.len), &info);
 		if (ret) {
 			return(ret);
 		}

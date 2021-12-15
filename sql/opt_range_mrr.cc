@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /****************************************************************************
   MRR Range Sequence Interface implementation that walks a SEL_ARG* tree.
@@ -72,7 +72,9 @@ typedef struct st_sel_arg_range_seq
 range_seq_t sel_arg_range_seq_init(void *init_param, uint n_ranges, uint flags)
 {
   SEL_ARG_RANGE_SEQ *seq= (SEL_ARG_RANGE_SEQ*)init_param;
+  seq->param->range_count=0;
   seq->at_start= TRUE;
+  seq->param->max_key_part= 0;
   seq->stack[0].key_tree= NULL;
   seq->stack[0].min_key= seq->param->min_key;
   seq->stack[0].min_key_flag= 0;
@@ -135,7 +137,7 @@ static void step_down_to(SEL_ARG_RANGE_SEQ *arg, SEL_ARG *key_tree)
     TRUE   No more ranges in the sequence
 */
 
-#if (_MSC_FULL_VER == 160030319)
+#if defined(_MSC_FULL_VER) && (_MSC_FULL_VER == 160030319)
 /*
    Workaround Visual Studio 2010 RTM compiler backend bug, the function enters 
    infinite loop.
@@ -272,25 +274,44 @@ walk_up_n_right:
       key_info= NULL;
     else
       key_info= &seq->param->table->key_info[seq->real_keyno];
-    
+
     /*
-      Conditions below:
-       (1) - range analysis is used for estimating condition selectivity
-       (2) - This is a unique key, and we have conditions for all its 
-             user-defined key parts.
-       (3) - The table uses extended keys, this key covers all components,
-             and we have conditions for all key parts.
+      This is an equality range (keypart_0=X and ... and keypart_n=Z) if
+        (1) - There are no flags indicating open range (e.g.,
+              "keypart_x > y") or GIS.
+        (2) - The lower bound and the upper bound of the range has the
+              same value (min_key == max_key).
     */
-    if (!(cur->min_key_flag & ~NULL_RANGE) && !cur->max_key_flag &&
-        (!key_info ||   // (1)
-         ((uint)key_tree->part+1 == key_info->user_defined_key_parts && // (2)
-	  key_info->flags & HA_NOSAME) ||                               // (2)
-         ((key_info->flags & HA_EXT_NOSAME) &&                 // (3)
-          (uint)key_tree->part+1 == key_info->ext_key_parts)  // (3)
-        ) &&
-        range->start_key.length == range->end_key.length &&
-        !memcmp(seq->param->min_key,seq->param->max_key,range->start_key.length))
-      range->range_flag= UNIQUE_RANGE | (cur->min_key_flag & NULL_RANGE);
+    const uint is_open_range =
+        (NO_MIN_RANGE | NO_MAX_RANGE | NEAR_MIN | NEAR_MAX | GEOM_FLAG);
+    const bool is_eq_range_pred =
+        !(cur->min_key_flag & is_open_range) &&              // (1)
+        !(cur->max_key_flag & is_open_range) &&              // (1)
+        range->start_key.length == range->end_key.length &&  // (2)
+        !memcmp(seq->param->min_key, seq->param->max_key,    // (2)
+                range->start_key.length);
+
+    if (is_eq_range_pred)
+    {
+      range->range_flag = EQ_RANGE;
+
+      /*
+        Conditions below:
+          (1) - Range analysis is used for estimating condition selectivity
+          (2) - This is a unique key, and we have conditions for all its
+                user-defined key parts.
+          (3) - The table uses extended keys, this key covers all components,
+             and we have conditions for all key parts.
+      */
+      if (
+          !key_info ||                                                   // (1)
+          ((uint)key_tree->part+1 == key_info->user_defined_key_parts && // (2)
+	   key_info->flags & HA_NOSAME) ||                               // (2)
+          ((key_info->flags & HA_EXT_NOSAME) &&                          // (3)
+           (uint)key_tree->part+1 == key_info->ext_key_parts)            // (3)
+         )
+        range->range_flag |= UNIQUE_RANGE | (cur->min_key_flag & NULL_RANGE);
+    }
       
     if (seq->param->is_ror_scan)
     {
@@ -315,7 +336,7 @@ walk_up_n_right:
   return 0;
 }
 
-#if (_MSC_FULL_VER == 160030319)
+#if defined(_MSC_FULL_VER) && (_MSC_FULL_VER == 160030319)
 /* VS2010 compiler bug workaround */
 #pragma optimize("g", on)
 #endif

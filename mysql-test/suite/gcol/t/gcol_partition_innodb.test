@@ -30,6 +30,8 @@
 # Set the session storage engine
 --source include/have_innodb.inc
 eval SET @@session.default_storage_engine = 'InnoDB';
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 
 ##### Workarounds for known open engine specific bugs
 #     none
@@ -41,6 +43,24 @@ eval SET @@session.default_storage_engine = 'InnoDB';
 #------------------------------------------------------------------------------#
 # Execute storage engine specific tests
 
+--echo #
+--echo # MDEV-16980 Wrongly set tablename len while opening the
+--echo #                table for purge thread
+--echo #
+
+CREATE TABLE t1(pk SERIAL, d DATE, vd DATE AS (d) VIRTUAL,
+                PRIMARY KEY(pk), KEY (vd))ENGINE=InnoDB
+                PARTITION BY HASH(pk) PARTITIONS 2;
+
+INSERT IGNORE INTO t1 (d) VALUES ('2015-04-14');
+SET sql_mode= '';
+REPLACE INTO t1 SELECT * FROM t1;
+
+# Cleanup
+DROP TABLE t1;
+
+--source suite/innodb/include/wait_all_purged.inc
 #------------------------------------------------------------------------------#
 # Cleanup
 --source suite/gcol/inc/gcol_cleanup.inc
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

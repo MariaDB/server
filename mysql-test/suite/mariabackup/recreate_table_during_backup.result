@@ -1,0 +1,23 @@
+CREATE TABLE t1(i int) ENGINE=INNODB;
+CREATE TABLE t2(i int) ENGINE=INNODB;
+CREATE TABLE t3(a CHAR(36)) ENGINE INNODB;
+INSERT INTO t3 SELECT UUID() FROM seq_1_to_1000;
+# xtrabackup backup
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+SELECT COUNT(*) from t1;
+COUNT(*)
+100
+SELECT COUNT(*) from t2;
+COUNT(*)
+1000
+SELECT COUNT(*) from t3;
+COUNT(*)
+1000
+DROP INDEX index_a ON t3;
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;

@@ -17,6 +17,7 @@ select * from t1;
 a
 1
 2
+db.opt
 t1.ARZ
 t1.frm
 #
@@ -30,6 +31,7 @@ show tables;
 Tables_in_test
 t1
 t2
+db.opt
 t1.ARZ
 t2.ARZ
 t2.frm
@@ -41,6 +43,7 @@ show full tables;
 Tables_in_test	Table_type
 t1	BASE TABLE
 t2	BASE TABLE
+db.opt
 t1.ARZ
 t2.ARZ
 t2.frm
@@ -50,6 +53,7 @@ t2.frm
 flush tables;
 truncate table t1;
 ERROR HY000: Storage engine ARCHIVE of the table `test`.`t1` doesn't have this option
+db.opt
 t1.ARZ
 t1.frm
 t2.ARZ
@@ -59,6 +63,7 @@ t2.frm
 #
 flush tables;
 rename table t2 to t0;
+db.opt
 t0.ARZ
 t1.ARZ
 t1.frm
@@ -76,6 +81,7 @@ t1	CREATE TABLE `t1` (
 #
 flush tables;
 drop table t1;
+db.opt
 t0.ARZ
 #
 # discover of table non-existance on drop
@@ -84,6 +90,7 @@ select * from t0;
 a
 flush tables;
 drop table t0;
+db.opt
 show status like 'Handler_discover';
 Variable_name	Value
 Handler_discover	6
@@ -130,6 +137,7 @@ a
 flush tables;
 select * from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
+db.opt
 create table t1 (a int) engine=archive;
 select * from t1;
 a

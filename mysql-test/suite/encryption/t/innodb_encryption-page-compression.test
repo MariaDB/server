@@ -2,9 +2,10 @@
 -- source include/have_example_key_management_plugin.inc
 -- source include/not_embedded.inc
 
-SET GLOBAL innodb_file_per_table = ON;
+let $innodb_encrypt_tables_orig = `SELECT @@innodb_encrypt_tables`;
+let $innodb_encryption_threads_orig = `SELECT @@innodb_encryption_threads`;
+
 SET GLOBAL innodb_encryption_threads = 4;
-SET GLOBAL innodb_encrypt_tables = on;
 
 # zlib
 set global innodb_compression_algorithm = 1;
@@ -111,12 +112,12 @@ innodb_page_compressed3, innodb_page_compressed4,
 innodb_page_compressed5, innodb_page_compressed6,
 innodb_page_compressed7, innodb_page_compressed8,
 innodb_page_compressed9 for export;
+
 unlock tables;
 
 --echo # Wait until dirty pages are compressed and encrypted 2
 let $wait_condition= select variable_value > 0 from information_schema.global_status where variable_name = 'INNODB_NUM_PAGES_PAGE_COMPRESSED';
 --source include/wait_condition.inc
-unlock tables;
 let $wait_condition= select variable_value > 0 from information_schema.global_status where variable_name = 'INNODB_NUM_PAGES_DECRYPTED';
 --source include/wait_condition.inc
 
@@ -135,3 +136,9 @@ drop table innodb_page_compressed6;
 drop table innodb_page_compressed7;
 drop table innodb_page_compressed8;
 drop table innodb_page_compressed9;
+
+# reset system
+--disable_query_log
+EVAL SET GLOBAL innodb_encrypt_tables = $innodb_encrypt_tables_orig;
+EVAL SET GLOBAL innodb_encryption_threads = $innodb_encryption_threads_orig;
+--enable_query_log

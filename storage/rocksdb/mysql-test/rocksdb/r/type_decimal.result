@@ -34,7 +34,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 explain
 select col1, col2 from t1 where col1 between -8 and 8;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	key1	key1	3	NULL	#	Using where; Using index
+1	SIMPLE	t1	index	key1	key1	6	NULL	#	Using where; Using index
 select col1, col2 from t1 where col1 between -8 and 8;
 col1	col2
 0.3	2.5
@@ -46,7 +46,7 @@ insert into t1 values (10, -8.4, NULL, 'row2-with-null');
 explain
 select col1, col2 from t1 force index(key1) where col1 is null or col1 < -7;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	key1	key1	3	NULL	#	Using where; Using index
+1	SIMPLE	t1	index	key1	key1	6	NULL	#	Using where; Using index
 select col1, col2 from t1 force index(key1) where col1 is null or col1 < -7;
 col1	col2
 NULL	0.9
@@ -92,7 +92,7 @@ test.t1	analyze	status	OK
 explain
 select col1, col2 from t1 force index(key1) where col1 between -800 and 800;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	key1	key1	7	NULL	#	Using where; Using index
+1	SIMPLE	t1	index	key1	key1	14	NULL	#	Using where; Using index
 select col1, col2 from t1 force index(key1) where col1 between -800 and 800;
 col1	col2
 -700.002000	100.006000

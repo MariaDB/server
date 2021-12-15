@@ -1,0 +1,64 @@
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+--disable_warnings
+drop table if exists s1, t1, t2;
+--enable_warnings
+
+#
+# MDEV-14831 CREATE OR REPLACE SEQUENCE under LOCK TABLE corrupts the
+# sequence, causes ER_KEY_NOT_FOUND
+#
+CREATE SEQUENCE s1;
+create table t1 (a int);
+create table t2 (a int);
+LOCK TABLE s1 WRITE, t1 write;
+create or replace sequence s1;
+select * from s1;
+select * from t1;
+--error ER_TABLE_NOT_LOCKED
+select * from t2;
+unlock tables;
+select * from t1;
+select * from t2;
+drop tables s1, t1, t2;
+
+#
+# MDEV-15742 Assertion `table_share->tmp_table != NO_TMP_TABLE ||
+# m_lock_type == 1' failed in handler::ha_write_row
+#
+
+CREATE SEQUENCE s1;
+LOCK TABLE s1 READ;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+SELECT NEXTVAL(s1);
+--error ER_TABLE_NOT_LOCKED
+SELECT NEXTVAL(s);
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+DROP SEQUENCE s1;
+unlock tables;
+DROP SEQUENCE s1;
+
+#
+# MDEV-15106 Unexpected ER_WRONG_INSERT_INTO_SEQUENCE upon INSERT with
+# multiple locks on sequences
+#
+
+CREATE SEQUENCE seq1;
+CREATE SEQUENCE seq2;
+LOCK TABLE seq1 WRITE, seq2 WRITE;
+INSERT INTO seq1 VALUES (1, 1, 100000, 1, 1, 100, 1, 1);
+DROP SEQUENCE seq1, seq2;
+
+#
+# MDEV-15970
+# Assertion `!is_set() || (m_status == DA_OK_BULK && is_bulk_op())' failure and/or
+# ER_KEY_NOT_FOUND upon TRUNCATE sequence under lock
+#
+
+CREATE OR REPLACE SEQUENCE s1 ENGINE=MyISAM;
+LOCK TABLE s1 WRITE;
+--error ER_ILLEGAL_HA
+TRUNCATE TABLE s1;
+# Cleanup
+DROP SEQUENCE s1;

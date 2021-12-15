@@ -1,4 +1,3 @@
-drop table if exists t1;
 set global transaction isolation level repeatable read;
 CREATE TABLE t1(
 id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -79,31 +78,25 @@ affected rows: 0
 #
 # Parallel execution
 #
-connect con1, localhost, root;
 connect con2, localhost, root;
 SET DEBUG_SYNC='now WAIT_FOR write_row_done';
-connection con1;
-#
-# Connection 1
-#
+connect con1, localhost, root;
 SET DEBUG_SYNC='ha_write_row_end SIGNAL write_row_done WAIT_FOR continue';
 affected rows: 0
 INSERT INTO t1(k) VALUES (1), (2), (3) ON DUPLICATE KEY UPDATE c='1';
 connection con2;
-#
-# Connection 2
-#
 affected rows: 0
 SET DEBUG_SYNC='execute_command_after_close_tables SIGNAL continue';
 affected rows: 0
 INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+affected rows: 3
+info: Records: 3  Duplicates: 0  Warnings: 0
 connection con1;
 #
 # 2 duplicates
 #
-affected rows: 3
-info: Records: 3  Duplicates: 0  Warnings: 0
+affected rows: 4
+info: Records: 3  Duplicates: 1  Warnings: 0
 connection default;
 #
 # 3 rows
@@ -111,19 +104,21 @@ connection default;
 SELECT * FROM t1 order by k;
 id	k	c
 1	1	NULL
-2	2	NULL
-3	3	NULL
-affected rows: 3
+4	2	1
+2	3	NULL
+5	4	NULL
+6	5	NULL
+affected rows: 5
 INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
-affected rows: 4
-info: Records: 3  Duplicates: 1  Warnings: 0
+affected rows: 6
+info: Records: 3  Duplicates: 3  Warnings: 0
 SELECT * FROM t1 order by k;
 id	k	c
 1	1	NULL
-2	2	2
-3	3	NULL
-7	4	NULL
-8	5	NULL
+4	2	2
+2	3	NULL
+5	4	2
+6	5	2
 affected rows: 5
 disconnect con1;
 disconnect con2;
@@ -140,18 +135,10 @@ k INT,
 c CHAR(1),
 UNIQUE KEY(k)) ENGINE=InnoDB;
 connect con1, localhost, root;
-connect con2, localhost, root;
-connection con1;
-#
-# Connection 1
-#
 SET DEBUG_SYNC='ha_write_row_end SIGNAL continue2 WAIT_FOR continue1';
 affected rows: 0
 INSERT INTO t1(k) VALUES (1), (2), (3) ON DUPLICATE KEY UPDATE c='1';
-connection con2;
-#
-# Connection 2
-#
+connect con2, localhost, root;
 SET DEBUG_SYNC='ha_write_row_start WAIT_FOR continue2';
 affected rows: 0
 SET DEBUG_SYNC='after_mysql_insert SIGNAL continue1';
@@ -159,6 +146,7 @@ affected rows: 0
 INSERT INTO t1(k) VALUES (2), (4), (5) ON DUPLICATE KEY UPDATE c='2';
 affected rows: 3
 info: Records: 3  Duplicates: 0  Warnings: 0
+disconnect con2;
 connection con1;
 affected rows: 4
 info: Records: 3  Duplicates: 1  Warnings: 0
@@ -174,7 +162,6 @@ id	k	c
 5	4	NULL
 6	5	NULL
 disconnect con1;
-disconnect con2;
 connection default;
 DROP TABLE t1;
 set global transaction isolation level repeatable read;

@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,9 +27,7 @@ Created 11/5/1995 Heikki Tuuri
 #ifndef buf0rea_h
 #define buf0rea_h
 
-#include "univ.i"
 #include "buf0buf.h"
-#include "buf0types.h"
 
 /** High-level function which reads a page asynchronously from a file to the
 buffer buf_pool if it is not already there. Sets the io_fix flag and sets
@@ -44,7 +42,7 @@ after decryption normal page checksum does not match.
 @retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
 dberr_t
 buf_read_page(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size);
 
 /********************************************************************//**
@@ -57,7 +55,7 @@ released by the i/o-handler thread.
 @param[in]	sync		true if synchronous aio is desired */
 void
 buf_read_page_background(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	bool			sync);
 
@@ -79,7 +77,7 @@ pages, it may happen that the page at the given page number does not
 get read even if we return a positive value! */
 ulint
 buf_read_ahead_random(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ibool			inside_ibuf);
 
@@ -111,7 +109,7 @@ which could result in a deadlock if the OS does not support asynchronous io.
 @return number of page read requests issued */
 ulint
 buf_read_ahead_linear(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size,
 	ibool			inside_ibuf);
 

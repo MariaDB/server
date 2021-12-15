@@ -1,0 +1,53 @@
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+--echo # Set the environmental variables
+let MYSQLD_BASEDIR= `SELECT @@basedir`;
+let MYSQLD_DATADIR= `SELECT @@datadir`;
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+
+create table t1(f1 int not null)engine=innodb;
+insert into t1 values(1), (2), (3);
+let $resultlog=$MYSQLTEST_VARDIR/tmp/result.log;
+
+--source include/shutdown_mysqld.inc
+--echo # Change the page offset
+perl;
+use strict;
+use warnings;
+use Fcntl qw(:DEFAULT :seek);
+do "$ENV{MTR_SUITE_DIR}/../innodb/include/crc32.pl";
+
+my $page_size = $ENV{INNODB_PAGE_SIZE};
+
+sysopen IBD_FILE, "$ENV{MYSQLD_DATADIR}/test/t1.ibd", O_RDWR
+|| die "Cannot open t1.ibd\n";
+sysread(IBD_FILE, $_, 38) || die "Cannot read t1.ibd\n";
+my $space = unpack("x[34]N", $_);
+sysseek(IBD_FILE, $page_size * 3, SEEK_SET) || die "Cannot seek t1.ibd\n";
+
+my $head = pack("Nx[18]", 4); # better to have a valid page number
+my $body = chr(0) x ($page_size - 38 - 8);
+
+# Calculate innodb_checksum_algorithm=crc32 for the unencrypted page.
+# The following bytes are excluded:
+# bytes 0..3 (the checksum is stored there)
+# bytes 26..37 (encryption key version, post-encryption checksum, tablespace id)
+# bytes $page_size-8..$page_size-1 (checksum, LSB of FIL_PAGE_LSN)
+my $polynomial = 0x82f63b78; # CRC-32C
+my $ck = mycrc32($head, 0, $polynomial) ^ mycrc32($body, 0, $polynomial);
+
+my $page= pack("N",$ck).$head.pack("NNN",1,$ck,$space).$body.pack("Nx[4]",$ck);
+die unless syswrite(IBD_FILE, $page, $page_size) == $page_size;
+close IBD_FILE;
+EOF
+
+--error 1
+exec $INNOCHECKSUM -C crc32 -l $resultlog $MYSQLD_DATADIR/test/t1.ibd;
+
+let SEARCH_FILE = $MYSQLTEST_VARDIR/tmp/result.log;
+let SEARCH_PATTERN=page id mismatch;
+--source include/search_pattern_in_file.inc
+
+--remove_file $resultlog
+--source include/start_mysqld.inc
+drop table t1;

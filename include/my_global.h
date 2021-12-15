@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2001, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB Corporation
+   Copyright (c) 2009, 2019, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /* This is the include file that should be included 'first' in every C file. */
 
@@ -164,7 +164,7 @@
 #  if defined(__i386__) || defined(__ppc__)
 #    define SIZEOF_CHARP 4
 #    define SIZEOF_LONG 4
-#  elif defined(__x86_64__) || defined(__ppc64__)
+#  elif defined(__x86_64__) || defined(__ppc64__) || defined(__aarch64__)
 #    define SIZEOF_CHARP 8
 #    define SIZEOF_LONG 8
 #  else
@@ -188,15 +188,6 @@
 #if !defined(__GNUC__) || (__GNUC__ == 2 && __GNUC_MINOR__ < 96)
 #define __builtin_expect(x, expected_value) (x)
 #endif
-
-/**
-  The semantics of builtin_expect() are that
-  1) its two arguments are long
-  2) it's likely that they are ==
-  Those of our likely(x) are that x can be bool/int/longlong/pointer.
-*/
-#define likely(x)	__builtin_expect(((x) != 0),1)
-#define unlikely(x)	__builtin_expect(((x) != 0),0)
 
 /* Fix problem with S_ISLNK() on Linux */
 #if defined(TARGET_OS_LINUX) || defined(__GLIBC__)
@@ -255,7 +246,9 @@
   AIX includes inttypes.h from sys/types.h
   Explicitly request format macros before the first inclusion of inttypes.h
 */
-#define __STDC_FORMAT_MACROS  
+#if !defined(__STDC_FORMAT_MACROS)
+#define __STDC_FORMAT_MACROS
+#endif  // !defined(__STDC_FORMAT_MACROS)
 #endif
 
 
@@ -384,6 +377,36 @@ C_MODE_END
 #include <crypt.h>
 #endif
 
+/* Add checking if we are using likely/unlikely wrong */
+#ifdef CHECK_UNLIKELY
+C_MODE_START
+extern void init_my_likely(), end_my_likely(FILE *);
+extern int my_likely_ok(const char *file_name, uint line);
+extern int my_likely_fail(const char *file_name, uint line);
+C_MODE_END
+
+#define likely(A) ((A) ? (my_likely_ok(__FILE__, __LINE__),1) : (my_likely_fail(__FILE__, __LINE__), 0))
+#define unlikely(A) ((A) ? (my_likely_fail(__FILE__, __LINE__),1) : (my_likely_ok(__FILE__, __LINE__), 0))
+/*
+  These macros should be used when the check fails often when running benchmarks but
+  we know for sure that the check is correct in a production environment
+*/
+#define checked_likely(A) (A)
+#define checked_unlikely(A) (A)
+#else
+/**
+  The semantics of builtin_expect() are that
+  1) its two arguments are long
+  2) it's likely that they are ==
+  Those of our likely(x) are that x can be bool/int/longlong/pointer.
+*/
+
+#define likely(x)	__builtin_expect(((x) != 0),1)
+#define unlikely(x)	__builtin_expect(((x) != 0),0)
+#define checked_likely(x) likely(x)
+#define checked_unlikely(x) unlikely(x)
+#endif /* CHECK_UNLIKELY */
+
 /*
   A lot of our programs uses asserts, so better to always include it
   This also fixes a problem when people uses DBUG_ASSERT without including
@@ -422,6 +445,20 @@ C_MODE_END
 #if HAVE_MADVISE && !HAVE_DECL_MADVISE && defined(__cplusplus)
 extern "C" int madvise(void *addr, size_t len, int behav);
 #endif
+#ifdef HAVE_SYS_MMAN_H
+#include <sys/mman.h>
+#endif
+/** FreeBSD equivalent */
+#if defined(MADV_CORE) && !defined(MADV_DODUMP)
+#define MADV_DODUMP MADV_CORE
+#define MADV_DONTDUMP MADV_NOCORE
+#define DODUMP_STR "MADV_CORE"
+#define DONTDUMP_STR "MADV_NOCORE"
+#else
+#define DODUMP_STR "MADV_DODUMP"
+#define DONTDUMP_STR "MADV_DONTDUMP"
+#endif
+
 
 #define QUOTE_ARG(x)		#x	/* Quote argument (before cpp) */
 #define STRINGIFY_ARG(x) QUOTE_ARG(x)	/* Quote argument, after cpp */
@@ -460,7 +497,7 @@ extern "C" int madvise(void *addr, size_t len, int behav);
 #define UNINIT_VAR(x) x
 #endif
 
-/* This is only to be used when reseting variables in a class constructor */
+/* This is only to be used when resetting variables in a class constructor */
 #if defined(_lint) || defined(FORCE_INIT_OF_VARS)
 #define LINT_INIT(x) x= 0
 #else
@@ -529,13 +566,6 @@ typedef int	my_socket;	/* File descriptor for sockets */
 #endif
 /* Type for functions that handles signals */
 #define sig_handler RETSIGTYPE
-C_MODE_START
-#ifdef HAVE_SIGHANDLER_T
-#define sig_return sighandler_t
-#else
-typedef void (*sig_return)(void); /* Returns type from signal */
-#endif
-C_MODE_END
 #if defined(__GNUC__) && !defined(_lint)
 typedef char	pchar;		/* Mixed prototypes can take char */
 typedef char	puchar;		/* Mixed prototypes can take char */
@@ -553,7 +583,7 @@ C_MODE_START
 typedef int	(*qsort_cmp)(const void *,const void *);
 typedef int	(*qsort_cmp2)(void*, const void *,const void *);
 C_MODE_END
-#define qsort_t RETQSORTTYPE	/* Broken GCC cant handle typedef !!!! */
+#define qsort_t RETQSORTTYPE	/* Broken GCC can't handle typedef !!!! */
 #ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
 #endif
@@ -579,8 +609,8 @@ typedef SOCKET_SIZE_TYPE size_socket;
 #endif
 #endif /* O_SHARE */
 
-#ifndef O_TEMPORARY
-#define O_TEMPORARY	0
+#ifndef O_SEQUENTIAL
+#define O_SEQUENTIAL	0
 #endif
 #ifndef O_SHORT_LIVED
 #define O_SHORT_LIVED	0
@@ -591,8 +621,15 @@ typedef SOCKET_SIZE_TYPE size_socket;
 #ifndef O_CLOEXEC
 #define O_CLOEXEC       0
 #endif
+#ifdef __GLIBC__
+#define STR_O_CLOEXEC "e"
+#else
+#define STR_O_CLOEXEC ""
+#endif
 #ifndef SOCK_CLOEXEC
 #define SOCK_CLOEXEC    0
+#else
+#define HAVE_SOCK_CLOEXEC
 #endif
 
 /* additional file share flags for win32 */
@@ -705,7 +742,7 @@ typedef SOCKET_SIZE_TYPE size_socket;
 #define closesocket(A)	close(A)
 #endif
 
-#if (_MSC_VER)
+#if defined(_MSC_VER)
 #if !defined(_WIN64)
 inline double my_ulonglong2double(unsigned long long value)
 {
@@ -802,37 +839,6 @@ inline unsigned long long my_double2ulonglong(double d)
 #define SIZE_T_MAX      (~((size_t) 0))
 #endif
 
-#ifndef HAVE_FINITE
-#define finite(x) (1.0 / fabs(x) > 0.0)
-#endif
-
-#ifndef isfinite
-#define isfinite(x) finite(x)
-#endif
-
-#ifndef HAVE_ISNAN
-#define isnan(x) ((x) != (x))
-#endif
-#define my_isnan(x) isnan(x)
-
-#ifndef HAVE_ISINF
-#define isinf(X) (!isfinite(X) && !isnan(X))
-#endif
-#define my_isinf(X) isinf(X)
-
-#ifdef __cplusplus
-#include <cmath>
-#ifndef isfinite
-#define isfinite(X) std::isfinite(X)
-#endif
-#ifndef isnan
-#define isnan(X) std::isnan(X)
-#endif
-#ifndef isinf
-#define isinf(X) std::isinf(X)
-#endif
-#endif
-
 /* Define missing math constants. */
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -842,17 +848,6 @@ inline unsigned long long my_double2ulonglong(double d)
 #endif
 #ifndef M_LN2
 #define M_LN2 0.69314718055994530942
-#endif
-
-#ifndef HAVE_LOG2
-/*
-  This will be slightly slower and perhaps a tiny bit less accurate than
-  doing it the IEEE754 way but log2() should be available on C99 systems.
-*/
-static inline double log2(double x)
-{
-  return (log(x) / M_LN2);
-}
 #endif
 
 /*
@@ -998,7 +993,6 @@ typedef unsigned long my_off_t;
   TODO Convert these to use Bitmap class.
  */
 typedef ulonglong table_map;          /* Used for table bits in join */
-typedef ulong nesting_map;  /* Used for flags of nesting constructs */
 
 /* often used type names - opaque declarations */
 typedef const struct charset_info_st CHARSET_INFO;
@@ -1056,6 +1050,19 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 #define reg16 register
 #endif
 
+/*
+  MYSQL_PLUGIN_IMPORT macro is used to export mysqld data
+  (i.e variables) for usage in storage engine loadable plugins.
+  Outside of Windows, it is dummy.
+*/
+#ifndef MYSQL_PLUGIN_IMPORT
+#if (defined(_WIN32) && defined(MYSQL_DYNAMIC_PLUGIN))
+#define MYSQL_PLUGIN_IMPORT __declspec(dllimport)
+#else
+#define MYSQL_PLUGIN_IMPORT
+#endif
+#endif
+
 #include <my_dbug.h>
 
 /* Some helper macros */
@@ -1066,7 +1073,9 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 
 #include <my_byteorder.h>
 
-#ifdef HAVE_CHARSET_utf8
+#ifdef HAVE_CHARSET_utf8mb4
+#define MYSQL_UNIVERSAL_CLIENT_CHARSET "utf8mb4"
+#elif defined(HAVE_CHARSET_utf8)
 #define MYSQL_UNIVERSAL_CLIENT_CHARSET "utf8"
 #else
 #define MYSQL_UNIVERSAL_CLIENT_CHARSET MYSQL_DEFAULT_CHARSET_NAME
@@ -1084,7 +1093,7 @@ typedef ulong		myf;	/* Type of MyFlags in my_funcs */
 static inline char *dlerror(void)
 {
   static char win_errormsg[2048];
-  FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM,
+  FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM,
     0, GetLastError(), 0, win_errormsg, 2048, NULL);
   return win_errormsg;
 }
@@ -1161,7 +1170,7 @@ typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
 
 /* Provide __func__ macro definition for platforms that miss it. */
 #if !defined (__func__)
-#if __STDC_VERSION__ < 199901L
+#if defined(__STDC_VERSION__) && __STDC_VERSION__ < 199901L
 #  if __GNUC__ >= 2
 #    define __func__ __FUNCTION__
 #  else
@@ -1179,54 +1188,6 @@ typedef struct { const char *dli_fname, dli_fbase; } Dl_info;
 #  define __func__ "<unknown>"
 #endif
 #endif /* !defined(__func__) */
-
-#ifndef HAVE_RINT
-/**
-   All integers up to this number can be represented exactly as double precision
-   values (DBL_MANT_DIG == 53 for IEEE 754 hardware).
-*/
-#define MAX_EXACT_INTEGER ((1LL << DBL_MANT_DIG) - 1)
-
-/**
-   rint(3) implementation for platforms that do not have it.
-   Always rounds to the nearest integer with ties being rounded to the nearest
-   even integer to mimic glibc's rint() behavior in the "round-to-nearest"
-   FPU mode. Hardware-specific optimizations are possible (frndint on x86).
-   Unlike this implementation, hardware will also honor the FPU rounding mode.
-*/
-
-static inline double rint(double x)
-{
-  double f, i;
-  f = modf(x, &i);
-  /*
-    All doubles with absolute values > MAX_EXACT_INTEGER are even anyway,
-    no need to check it.
-  */
-  if (x > 0.0)
-    i += (double) ((f > 0.5) || (f == 0.5 &&
-                                 i <= (double) MAX_EXACT_INTEGER &&
-                                 (longlong) i % 2));
-  else
-    i -= (double) ((f < -0.5) || (f == -0.5 &&
-                                  i >= (double) -MAX_EXACT_INTEGER &&
-                                  (longlong) i % 2));
-  return i;
-}
-#endif /* HAVE_RINT */
-
-/* 
-  MYSQL_PLUGIN_IMPORT macro is used to export mysqld data
-  (i.e variables) for usage in storage engine loadable plugins.
-  Outside of Windows, it is dummy.
-*/
-#ifndef MYSQL_PLUGIN_IMPORT
-#if (defined(_WIN32) && defined(MYSQL_DYNAMIC_PLUGIN))
-#define MYSQL_PLUGIN_IMPORT __declspec(dllimport)
-#else
-#define MYSQL_PLUGIN_IMPORT
-#endif
-#endif
 
 /* Defines that are unique to the embedded version of MySQL */
 
@@ -1253,7 +1214,7 @@ static inline double rint(double x)
   CMake using getconf
 */
 #if !defined(CPU_LEVEL1_DCACHE_LINESIZE) || CPU_LEVEL1_DCACHE_LINESIZE == 0
-  #if CPU_LEVEL1_DCACHE_LINESIZE == 0
+  #if defined(CPU_LEVEL1_DCACHE_LINESIZE) && CPU_LEVEL1_DCACHE_LINESIZE == 0
     #undef CPU_LEVEL1_DCACHE_LINESIZE
   #endif
 
@@ -1274,5 +1235,4 @@ static inline double rint(double x)
 #else
 #define NOT_FIXED_DEC           FLOATING_POINT_DECIMALS
 #endif
-
 #endif /* my_global_h */

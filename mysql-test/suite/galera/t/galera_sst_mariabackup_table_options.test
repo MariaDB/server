@@ -1,0 +1,230 @@
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_file_key_management.inc
+--source include/innodb_encrypt_tables.inc
+--source include/innodb_page_size_small.inc
+--source include/have_mariabackup.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--echo Performing State Transfer on a server that starts from a clean var directory
+--echo This is accomplished by shutting down node #2 and removing its var directory before restarting it
+
+--connection node_1
+CREATE TABLE t1 (f1 CHAR(255)) ENGINE=InnoDB;
+CREATE TABLE t2 (f1 CHAR(255)) ENGINE=InnoDB PAGE_COMPRESSED=1;
+CREATE TABLE t3 (f1 CHAR(255)) ENGINE=InnoDB PAGE_COMPRESSED=1 ENCRYPTED=NO;
+CREATE TABLE t4 (f1 CHAR(255)) ENGINE=InnoDB PAGE_COMPRESSED=1 ENCRYPTED=YES;
+CREATE TABLE t5 (f1 CHAR(255)) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+CREATE TABLE t6 (f1 CHAR(255)) ENGINE=InnoDB ROW_FORMAT=COMPRESSED ENCRYPTED=NO;
+CREATE TABLE t7 (f1 CHAR(255)) ENGINE=InnoDB ROW_FORMAT=COMPRESSED ENCRYPTED=YES;
+CREATE TABLE t8 (f1 CHAR(255)) ENGINE=InnoDB ENCRYPTED=NO;
+CREATE TABLE t9 (f1 CHAR(255)) ENGINE=InnoDB ENCRYPTED=YES;
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+let $tables = 9;
+while ($tables)
+{
+  let $rows = 5;
+  while($rows)
+  {
+    eval insert into t$tables values ('node1_committed_before');
+    dec $rows;
+  }
+  dec $tables;
+}
+COMMIT;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 5 FROM t7;
+--source include/wait_condition.inc
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+let $tables = 9;
+while ($tables)
+{
+  let $rows = 5;
+  while($rows)
+  {
+    eval insert into t$tables values ('node2_committed_before');
+    dec $rows;
+  }
+  dec $tables;
+}
+COMMIT;
+
+--echo Shutting down server ...
+--source include/shutdown_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--echo Cleaning var directory ...
+--remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/mtr
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/performance_schema
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/test
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/mysql
+--remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+let $tables = 9;
+while ($tables)
+{
+  let $rows = 5;
+  while($rows)
+  {
+    eval insert into t$tables values ('node1_committed_during');
+    dec $rows;
+  }
+  dec $tables;
+}
+COMMIT;
+
+START TRANSACTION;
+let $tables = 9;
+while ($tables)
+{
+  let $rows = 5;
+  while($rows)
+  {
+    eval insert into t$tables values ('node1_to_be_committed_after');
+    dec $rows;
+  }
+  dec $tables;
+}
+
+--connect node_1a_galera_st_clean_slave, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+let $tables = 9;
+while ($tables)
+{
+  let $rows = 5;
+  while($rows)
+  {
+    eval insert into t$tables values ('node1_to_be_rollbacked_after');
+    dec $rows;
+  }
+  dec $tables;
+}
+
+--connection node_2
+--echo Starting server ...
+--source include/start_mysqld.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+while ($tables)
+{
+  let $rows = 5;
+  while($rows)
+  {
+    eval insert into t$tables values ('node2_committed_after');
+    dec $rows;
+  }
+  dec $tables;
+}
+COMMIT;
+
+--connection node_1
+let $tables = 9;
+while ($tables)
+{
+  let $rows = 5;
+  while($rows)
+  {
+    eval insert into t$tables values ('node1_to_be_committed_after');
+    dec $rows;
+  }
+  dec $tables;
+}
+COMMIT;
+
+SET AUTOCOMMIT=OFF;
+START TRANSACTION;
+let $tables = 9;
+while ($tables)
+{
+  let $rows = 5;
+  while($rows)
+  {
+    eval insert into t$tables values ('node1_committed_after');
+    dec $rows;
+  }
+  dec $tables;
+}
+COMMIT;
+
+--connection node_1a_galera_st_clean_slave
+while ($tables)
+{
+  let $rows = 5;
+  while($rows)
+  {
+    eval insert into t$tables values ('node1_to_be_rollbacked_after');
+    dec $rows;
+  }
+  dec $tables;
+}
+ROLLBACK;
+
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM t2;
+SELECT COUNT(*) FROM t3;
+SELECT COUNT(*) FROM t4;
+SELECT COUNT(*) FROM t5;
+SELECT COUNT(*) FROM t6;
+SELECT COUNT(*) FROM t7;
+SELECT COUNT(*) FROM t8;
+SELECT COUNT(*) FROM t9;
+SELECT * FROM t1;
+SELECT * FROM t2;
+SELECT * FROM t3;
+SELECT * FROM t4;
+SELECT * FROM t5;
+SELECT * FROM t6;
+SELECT * FROM t7;
+SELECT * FROM t8;
+SELECT * FROM t9;
+COMMIT;
+SET AUTOCOMMIT=ON;
+
+--connection node_1
+SELECT COUNT(*) FROM t1;
+SELECT COUNT(*) FROM t2;
+SELECT COUNT(*) FROM t3;
+SELECT COUNT(*) FROM t4;
+SELECT COUNT(*) FROM t5;
+SELECT COUNT(*) FROM t6;
+SELECT COUNT(*) FROM t7;
+SELECT COUNT(*) FROM t8;
+SELECT COUNT(*) FROM t9;
+SELECT * FROM t1;
+SELECT * FROM t2;
+SELECT * FROM t3;
+SELECT * FROM t4;
+SELECT * FROM t5;
+SELECT * FROM t6;
+SELECT * FROM t7;
+SELECT * FROM t8;
+SELECT * FROM t9;
+COMMIT;
+
+DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8,t9;
+COMMIT;
+SET AUTOCOMMIT=ON;
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc
+--source include/galera_end.inc

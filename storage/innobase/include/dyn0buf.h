@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2018, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -12,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -26,37 +27,32 @@ Created 2013-03-16 Sunny Bains
 #ifndef dyn0buf_h
 #define dyn0buf_h
 
-#include "univ.i"
-#include "ut0lst.h"
 #include "mem0mem.h"
 #include "dyn0types.h"
+#include "ilist.h"
+
 
 /** Class that manages dynamic buffers. It uses a UT_LIST of
-dyn_buf_t::block_t instances. We don't use STL containers in
+mtr_buf_t::block_t instances. We don't use STL containers in
 order to avoid the overhead of heap calls. Using a custom memory
 allocator doesn't solve the problem either because we have to get
 the memory from somewhere. We can't use the block_t::m_data as the
 backend for the custom allocator because we would like the data in
 the blocks to be contiguous. */
-template <size_t SIZE = DYN_ARRAY_DATA_SIZE>
-class dyn_buf_t {
+class mtr_buf_t {
 public:
+	/** SIZE - sizeof(m_node) + sizeof(m_used) */
+	enum { MAX_DATA_SIZE = DYN_ARRAY_DATA_SIZE
+	       - sizeof(ilist_node<>) + sizeof(uint32_t) };
 
-	class block_t;
-
-	typedef UT_LIST_NODE_T(block_t) block_node_t;
-	typedef UT_LIST_BASE_NODE_T(block_t) block_list_t;
-
-	class block_t {
+	class block_t : public ilist_node<> {
 	public:
 
 		block_t()
 		{
-			ut_ad(MAX_DATA_SIZE <= (2 << 15));
+			compile_time_assert(MAX_DATA_SIZE <= (2 << 15));
 			init();
 		}
-
-		~block_t() { }
 
 		/**
 		Gets the number of used bytes in a block.
@@ -112,12 +108,12 @@ public:
 		/**
 		@return pointer to start of reserved space */
 		template <typename Type>
-		Type push(ib_uint32_t size)
+		Type push(uint32_t size)
 		{
 			Type	ptr = reinterpret_cast<Type>(end());
 
 			m_used += size;
-			ut_ad(m_used <= static_cast<ib_uint32_t>(MAX_DATA_SIZE));
+			ut_ad(m_used <= uint32_t(MAX_DATA_SIZE));
 
 			return(ptr);
 		}
@@ -131,7 +127,7 @@ public:
 			ut_ad(ptr <= begin() + m_buf_end);
 
 			/* We have done the boundary check above */
-			m_used = static_cast<ib_uint32_t>(ptr - begin());
+			m_used = uint32_t(ptr - begin());
 
 			ut_ad(m_used <= MAX_DATA_SIZE);
 			ut_d(m_buf_end = 0);
@@ -154,40 +150,29 @@ public:
 		ulint		m_magic_n;
 #endif /* UNIV_DEBUG */
 
-		/** SIZE - sizeof(m_node) + sizeof(m_used) */
-		enum {
-			MAX_DATA_SIZE = SIZE
-				      - sizeof(block_node_t)
-				      + sizeof(ib_uint32_t)
-		};
-
 		/** Storage */
 		byte		m_data[MAX_DATA_SIZE];
 
-		/** Doubly linked list node. */
-		block_node_t	m_node;
-
 		/** number of data bytes used in this block;
 		DYN_BLOCK_FULL_FLAG is set when the block becomes full */
-		ib_uint32_t	m_used;
+		uint32_t	m_used;
 
-		friend class dyn_buf_t;
+		friend class mtr_buf_t;
 	};
 
-	enum { MAX_DATA_SIZE = block_t::MAX_DATA_SIZE};
+	typedef sized_ilist<block_t> list_t;
 
 	/** Default constructor */
-	dyn_buf_t()
+	mtr_buf_t()
 		:
 		m_heap(),
 		m_size()
 	{
-		UT_LIST_INIT(m_list, &block_t::m_node);
 		push_back(&m_first_block);
 	}
 
 	/** Destructor */
-	~dyn_buf_t()
+	~mtr_buf_t()
 	{
 		erase();
 	}
@@ -200,11 +185,11 @@ public:
 			m_heap = NULL;
 
 			/* Initialise the list and add the first block. */
-			UT_LIST_INIT(m_list, &block_t::m_node);
-			push_back(&m_first_block);
+			m_list.clear();
+			m_list.push_back(m_first_block);
 		} else {
 			m_first_block.init();
-			ut_ad(UT_LIST_GET_LEN(m_list) == 1);
+			ut_ad(m_list.size() == 1);
 		}
 
 		m_size = 0;
@@ -236,7 +221,7 @@ public:
 	@param ptr	end of used space */
 	void close(const byte* ptr)
 	{
-		ut_ad(UT_LIST_GET_LEN(m_list) > 0);
+		ut_ad(!m_list.empty());
 		block_t*	block = back();
 
 		m_size -= block->used();
@@ -252,7 +237,7 @@ public:
 	@param size	in bytes of the element
 	@return	pointer to the element */
 	template <typename Type>
-	Type push(ib_uint32_t size)
+	Type push(uint32_t size)
 	{
 		ut_ad(size > 0);
 		ut_ad(size <= MAX_DATA_SIZE);
@@ -272,17 +257,11 @@ public:
 	Pushes n bytes.
 	@param str	string to write
 	@param len	string length */
-	void push(const byte* ptr, ib_uint32_t len)
+	void push(const byte* ptr, uint32_t len)
 	{
 		while (len > 0) {
-			ib_uint32_t	n_copied;
-
-			if (len >= MAX_DATA_SIZE) {
-				n_copied = MAX_DATA_SIZE;
-			} else {
-				n_copied = len;
-			}
-
+			uint32_t n_copied = std::min(len,
+						     uint32_t(MAX_DATA_SIZE));
 			::memmove(push<byte*>(n_copied), ptr, n_copied);
 
 			ptr += n_copied;
@@ -298,7 +277,7 @@ public:
 	const Type at(ulint pos) const
 	{
 		block_t*	block = const_cast<block_t*>(
-			const_cast<dyn_buf_t*>(this)->find(pos));
+			const_cast<mtr_buf_t*>(this)->find(pos));
 
 		return(reinterpret_cast<Type>(block->begin() + pos));
 	}
@@ -324,11 +303,9 @@ public:
 #ifdef UNIV_DEBUG
 		ulint	total_size = 0;
 
-		for (const block_t* block = UT_LIST_GET_FIRST(m_list);
-		     block != NULL;
-		     block = UT_LIST_GET_NEXT(m_node, block)) {
-
-			total_size += block->used();
+		for (list_t::iterator it = m_list.begin(), end = m_list.end();
+		     it != end; ++it) {
+			total_size += it->used();
 		}
 
 		ut_ad(total_size == m_size);
@@ -342,12 +319,29 @@ public:
 	template <typename Functor>
 	bool for_each_block(Functor& functor) const
 	{
-		for (const block_t* block = UT_LIST_GET_FIRST(m_list);
-		     block != NULL;
-		     block = UT_LIST_GET_NEXT(m_node, block)) {
+		for (list_t::iterator it = m_list.begin(), end = m_list.end();
+		     it != end; ++it) {
 
-			if (!functor(block)) {
-				return(false);
+			if (!functor(&*it)) {
+				return false;
+			}
+		}
+
+		return(true);
+	}
+
+	/**
+	Iterate over each block and call the functor.
+	@return	false if iteration was terminated. */
+	template <typename Functor>
+	bool for_each_block(const Functor& functor) const
+	{
+		for (typename list_t::iterator it = m_list.begin(),
+					       end = m_list.end();
+		     it != end; ++it) {
+
+			if (!functor(&*it)) {
+				return false;
 			}
 		}
 
@@ -360,12 +354,30 @@ public:
 	template <typename Functor>
 	bool for_each_block_in_reverse(Functor& functor) const
 	{
-		for (block_t* block = UT_LIST_GET_LAST(m_list);
-		     block != NULL;
-		     block = UT_LIST_GET_PREV(m_node, block)) {
+		for (list_t::reverse_iterator it = m_list.rbegin(),
+					      end = m_list.rend();
+		     it != end; ++it) {
 
-			if (!functor(block)) {
-				return(false);
+			if (!functor(&*it)) {
+				return false;
+			}
+		}
+
+		return(true);
+	}
+
+	/**
+	Iterate over all the blocks in reverse and call the iterator
+	@return	false if iteration was terminated. */
+	template <typename Functor>
+	bool for_each_block_in_reverse(const Functor& functor) const
+	{
+		for (list_t::reverse_iterator it = m_list.rbegin(),
+					      end = m_list.rend();
+		     it != end; ++it) {
+
+			if (!functor(&*it)) {
+				return false;
 			}
 		}
 
@@ -377,8 +389,7 @@ public:
 	block_t* front()
 		MY_ATTRIBUTE((warn_unused_result))
 	{
-		ut_ad(UT_LIST_GET_LEN(m_list) > 0);
-		return(UT_LIST_GET_FIRST(m_list));
+		return &m_list.front();
 	}
 
 	/**
@@ -391,22 +402,21 @@ public:
 
 private:
 	// Disable copying
-	dyn_buf_t(const dyn_buf_t&);
-	dyn_buf_t& operator=(const dyn_buf_t&);
+	mtr_buf_t(const mtr_buf_t&);
+	mtr_buf_t& operator=(const mtr_buf_t&);
 
 	/**
 	Add the block to the end of the list*/
 	void push_back(block_t* block)
 	{
 		block->init();
-
-		UT_LIST_ADD_LAST(m_list, block);
+		m_list.push_back(*block);
 	}
 
 	/** @return the last block in the list */
-	block_t* back()
+	block_t* back() const
 	{
-		return(UT_LIST_GET_LAST(m_list));
+		return &const_cast<block_t&>(m_list.back());
 	}
 
 	/*
@@ -429,25 +439,21 @@ private:
 	@return the block containing the pos. */
 	block_t* find(ulint& pos)
 	{
-		block_t*	block;
+		ut_ad(!m_list.empty());
 
-		ut_ad(UT_LIST_GET_LEN(m_list) > 0);
+		for (list_t::iterator it = m_list.begin(), end = m_list.end();
+		     it != end; ++it) {
 
-		for (block = UT_LIST_GET_FIRST(m_list);
-		     block != NULL;
-		     block = UT_LIST_GET_NEXT(m_node, block)) {
+			if (pos < it->used()) {
+				ut_ad(it->used() >= pos);
 
-			if (pos < block->used()) {
-				break;
+				return &*it;
 			}
 
-			pos -= block->used();
+			pos -= it->used();
 		}
 
-		ut_ad(block != NULL);
-		ut_ad(block->used() >= pos);
-
-		return(block);
+		return NULL;
 	}
 
 	/**
@@ -473,7 +479,7 @@ private:
 	mem_heap_t*		m_heap;
 
 	/** Allocated blocks */
-	block_list_t		m_list;
+	list_t			m_list;
 
 	/** Total size used by all blocks */
 	ulint			m_size;
@@ -483,8 +489,6 @@ private:
 	for small REDO log records */
 	block_t			m_first_block;
 };
-
-typedef dyn_buf_t<DYN_ARRAY_DATA_SIZE> mtr_buf_t;
 
 /** mtr_buf_t copier */
 struct mtr_buf_copy_t {

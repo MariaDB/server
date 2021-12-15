@@ -1,17 +1,24 @@
 /* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include <my_global.h>
 #include "table_session_connect_attrs.h"
@@ -31,10 +38,10 @@ table_session_connect_attrs::m_share=
   sizeof(pos_connect_attr_by_thread_by_attr), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE session_connect_attrs("
-                      "PROCESSLIST_ID INT NOT NULL,"
-                      "ATTR_NAME VARCHAR(32) NOT NULL,"
-                      "ATTR_VALUE VARCHAR(1024),"
-                      "ORDINAL_POSITION INT"
+                      "PROCESSLIST_ID INT NOT NULL comment 'Session connection identifier.',"
+                      "ATTR_NAME VARCHAR(32) NOT NULL comment 'Attribute name.',"
+                      "ATTR_VALUE VARCHAR(1024) comment 'Attribute value.',"
+                      "ORDINAL_POSITION INT comment 'Order in which attribute was added to the connection attributes.'"
                       ") CHARACTER SET utf8 COLLATE utf8_bin") }
 };
 

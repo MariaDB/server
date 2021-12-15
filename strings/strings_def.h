@@ -13,13 +13,13 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* This file is to be include first in all files in the string directory */
 
 #undef DBUG_ASSERT_AS_PRINTF
-#include <my_global.h>		/* Define standar vars */
-#include "m_string.h"		/* Exernal defintions of string functions */
+#include <my_global.h>		/* Define standard vars */
+#include "m_string.h"		/* Exernal definitions of string functions */
 
 /*
   We can't use the original DBUG_ASSERT() (which includes _db_flush())

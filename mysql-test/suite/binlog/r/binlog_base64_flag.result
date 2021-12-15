@@ -28,6 +28,25 @@ a
 1
 1
 3
+DELETE FROM t1 WHERE a=3;
+BINLOG '
+ODdYRw8BAAAAZgAAAGoAAAABAAQANS4xLjIzLXJjLWRlYnVnLWxvZwAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAAA4N1hHEzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
+';
+SET @binlog_fragment_0='
+TFtYRxMBAAAAKQAAAH8BAAAAABAAAAAAAAAABHRlc3QAAnQxAAEDAAE=
+TFtYRxcBAAAAIgAAAKEBAAAQABAAAAAAAAEAAf/+AwAAAA==
+';
+SET @binlog_fragment_1='';
+BINLOG @binlog_fragment_0, @binlog_fragment_1;
+select * from t1;
+a
+1
+1
+3
+SELECT @binlog_fragment_0, @binlog_fragment_1 as 'NULL','NULL';
+@binlog_fragment_0	NULL	NULL
+NULL	NULL	NULL
 ==== Test --base64-output=never on a binlog with row events ====
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
 /*!40019 SET @@session.max_insert_delayed_threads=0*/;
@@ -38,7 +57,7 @@ ROLLBACK/*!*/;
 <#>
 use `test`/*!*/;
 SET TIMESTAMP=1196959712/*!*/;
-<#>SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=0/*!*/;
+<#>SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1/*!*/;
 SET @@session.sql_mode=0/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
 /*!\C latin1 *//*!*/;

@@ -28,6 +28,8 @@ call mtr.add_suppression("Can't generate a unique log-filename");
 RESET MASTER;
 
 -- let $MYSQLD_DATADIR= `select @@datadir`
+-- let $log_bin_index=`select substring_index(@@log_bin_index,'/',-1)`
+-- let $log_bin_basename=`select substring_index(@@log_bin_basename,'/',-1)`
 
 ###############################################
 # check hitting maximum file name extension:
@@ -39,13 +41,13 @@ RESET MASTER;
 
 # 1. Stop master server
 -- exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
--- shutdown_server 10
+-- shutdown_server
 -- source include/wait_until_disconnected.inc
 
 # 2. Prepare log and index file
--- copy_file $MYSQLD_DATADIR/mysqld-bin.index $MYSQLD_DATADIR/mysqld-bin.index.orig
--- copy_file $MYSQLD_DATADIR/master-bin.000001 $MYSQLD_DATADIR/master-bin.2147483646
--- append_file $MYSQLD_DATADIR/mysqld-bin.index
+-- copy_file $MYSQLD_DATADIR/$log_bin_index $MYSQLD_DATADIR/$log_bin_index.orig
+-- copy_file $MYSQLD_DATADIR/$log_bin_basename.000001 $MYSQLD_DATADIR/$log_bin_basename.2147483646
+-- append_file $MYSQLD_DATADIR/$log_bin_index
 master-bin.2147483646
 EOF
 
@@ -68,16 +70,16 @@ FLUSH LOGS;
 
 # 1. Stop the server
 -- exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
--- shutdown_server 10
+-- shutdown_server
 -- source include/wait_until_disconnected.inc
 
 # 2. Undo changes to index and log files
--- remove_file $MYSQLD_DATADIR/mysqld-bin.index
--- copy_file $MYSQLD_DATADIR/mysqld-bin.index.orig $MYSQLD_DATADIR/mysqld-bin.index
--- remove_file $MYSQLD_DATADIR/mysqld-bin.index.orig
+-- remove_file $MYSQLD_DATADIR/$log_bin_index
+-- copy_file $MYSQLD_DATADIR/$log_bin_index.orig $MYSQLD_DATADIR/$log_bin_index
+-- remove_file $MYSQLD_DATADIR/$log_bin_index.orig
 
--- remove_file $MYSQLD_DATADIR/master-bin.2147483646
--- remove_file $MYSQLD_DATADIR/master-bin.2147483647
+-- remove_file $MYSQLD_DATADIR/$log_bin_basename.2147483646
+-- remove_file $MYSQLD_DATADIR/$log_bin_basename.2147483647
 
 # 3. Restart the server
 -- exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect

@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Remove all rows from a MARIA table */
 /* This clears the status information and truncates files */
@@ -38,6 +38,9 @@ int maria_delete_all_rows(MARIA_HA *info)
   MARIA_SHARE *share= info->s;
   my_bool log_record;
   LSN lsn;
+#ifdef HAVE_MMAP
+  my_bool mmap_file= share->file_map != 0;
+#endif
   DBUG_ENTER("maria_delete_all_rows");
 
   if (share->options & HA_OPTION_READ_ONLY_DATA)
@@ -95,7 +98,7 @@ int maria_delete_all_rows(MARIA_HA *info)
   */
 
 #ifdef HAVE_MMAP
-  if (share->file_map)
+  if (mmap_file)
     _ma_unmap_file(info);
 #endif
 
@@ -135,10 +138,13 @@ int maria_delete_all_rows(MARIA_HA *info)
       goto err;
   }
 
+  if (info->opt_flag & WRITE_CACHE_USED)
+    reinit_io_cache(&info->rec_cache, WRITE_CACHE, 0, 1, 1);
+
   _ma_writeinfo(info, WRITEINFO_UPDATE_KEYFILE);
 #ifdef HAVE_MMAP
   /* Map again */
-  if (share->file_map)
+  if (mmap_file)
     _ma_dynmap_file(info, (my_off_t) 0);
 #endif
   DBUG_RETURN(0);

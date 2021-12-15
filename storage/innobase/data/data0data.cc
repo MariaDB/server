@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -23,8 +23,6 @@ SQL data field and tuple
 
 Created 5/30/1994 Heikki Tuuri
 *************************************************************************/
-
-#include "ha_prototypes.h"
 
 #include "data0data.h"
 #include "rem0rec.h"
@@ -39,12 +37,13 @@ Created 5/30/1994 Heikki Tuuri
 /** Dummy variable to catch access to uninitialized fields.  In the
 debug version, dtuple_create() will make all fields of dtuple_t point
 to data_error. */
-byte	data_error;
+ut_d(byte data_error);
 #endif /* UNIV_DEBUG */
 
 /** Trim the tail of an index tuple before insert or update.
 After instant ADD COLUMN, if the last fields of a clustered index tuple
-match the 'default row', there will be no need to store them.
+match the default values that were explicitly specified or implied during
+ADD COLUMN, there will be no need to store them.
 NOTE: A page latch in the index must be held, so that the index
 may not lose 'instantness' before the trimmed tuple has been
 inserted or updated.
@@ -118,8 +117,6 @@ dtuple_set_n_fields(
 	dtuple_t*	tuple,		/*!< in: tuple */
 	ulint		n_fields)	/*!< in: number of fields */
 {
-	ut_ad(tuple);
-
 	tuple->n_fields = n_fields;
 	tuple->n_fields_cmp = n_fields;
 }
@@ -231,41 +228,20 @@ dtuple_validate(
 /*============*/
 	const dtuple_t*	tuple)	/*!< in: tuple */
 {
-	const dfield_t*	field;
-	ulint		n_fields;
-	ulint		len;
-	ulint		i;
-
 	ut_ad(tuple->magic_n == DATA_TUPLE_MAGIC_N);
+#ifdef HAVE_valgrind
+	const ulint n_fields = dtuple_get_n_fields(tuple);
 
-	n_fields = dtuple_get_n_fields(tuple);
-
-	/* We dereference all the data of each field to test
-	for memory traps */
-
-	for (i = 0; i < n_fields; i++) {
-
-		field = dtuple_get_nth_field(tuple, i);
-		len = dfield_get_len(field);
+	for (ulint i = 0; i < n_fields; i++) {
+		const dfield_t*	field = dtuple_get_nth_field(tuple, i);
 
 		if (!dfield_is_null(field)) {
-
-			const byte*	data;
-
-			data = static_cast<const byte*>(dfield_get_data(field));
-#ifndef UNIV_DEBUG_VALGRIND
-			ulint		j;
-
-			for (j = 0; j < len; j++) {
-				data++;
-			}
-#endif /* !UNIV_DEBUG_VALGRIND */
-
-			UNIV_MEM_ASSERT_RW(data, len);
+			MEM_CHECK_DEFINED(dfield_get_data(field),
+					  dfield_get_len(field));
 		}
 	}
-
-	ut_a(dtuple_check_typed(tuple));
+#endif /* HAVE_valgrind */
+	ut_ad(dtuple_check_typed(tuple));
 
 	return(TRUE);
 }
@@ -346,7 +322,7 @@ dfield_print_also_hex(
 			val = mach_read_from_1(data);
 
 			if (!(prtype & DATA_UNSIGNED)) {
-				val &= ~0x80;
+				val &= ~0x80U;
 				fprintf(stderr, "%ld", (long) val);
 			} else {
 				fprintf(stderr, "%lu", (ulong) val);
@@ -357,7 +333,7 @@ dfield_print_also_hex(
 			val = mach_read_from_2(data);
 
 			if (!(prtype & DATA_UNSIGNED)) {
-				val &= ~0x8000;
+				val &= ~0x8000U;
 				fprintf(stderr, "%ld", (long) val);
 			} else {
 				fprintf(stderr, "%lu", (ulong) val);
@@ -368,7 +344,7 @@ dfield_print_also_hex(
 			val = mach_read_from_3(data);
 
 			if (!(prtype & DATA_UNSIGNED)) {
-				val &= ~0x800000;
+				val &= ~0x800000U;
 				fprintf(stderr, "%ld", (long) val);
 			} else {
 				fprintf(stderr, "%lu", (ulong) val);
@@ -453,7 +429,7 @@ dfield_print_also_hex(
 			break;
 		}
 
-		data = static_cast<byte*>(dfield_get_data(dfield));
+		data = static_cast<const byte*>(dfield_get_data(dfield));
 		/* fall through */
 
 	case DATA_BINARY:
@@ -600,21 +576,13 @@ dtuple_convert_big_rec(
 	dict_field_t*	ifield;
 	ulint		size;
 	ulint		n_fields;
-	ulint		local_len;
 	ulint		local_prefix_len;
 
 	if (!dict_index_is_clust(index)) {
 		return(NULL);
 	}
 
-	if (!dict_table_has_atomic_blobs(index->table)) {
-		/* up to MySQL 5.1: store a 768-byte prefix locally */
-		local_len = BTR_EXTERN_FIELD_REF_SIZE
-			+ DICT_ANTELOPE_MAX_INDEX_COL_LEN;
-	} else {
-		/* new-format table: do not store any BLOB prefix locally */
-		local_len = BTR_EXTERN_FIELD_REF_SIZE;
-	}
+	const ulint local_len = index->table->get_overflow_field_local_len();
 
 	ut_a(dtuple_check_typed_no_assert(entry));
 
@@ -728,14 +696,6 @@ skip_field:
 		memcpy(data, dfield_get_data(dfield), local_prefix_len);
 		/* Clear the extern field reference (BLOB pointer). */
 		memset(data + local_prefix_len, 0, BTR_EXTERN_FIELD_REF_SIZE);
-#if 0
-		/* The following would fail the Valgrind checks in
-		page_cur_insert_rec_low() and page_cur_insert_rec_zip().
-		The BLOB pointers in the record will be initialized after
-		the record and the BLOBs have been written. */
-		UNIV_MEM_ALLOC(data + local_prefix_len,
-			       BTR_EXTERN_FIELD_REF_SIZE);
-#endif
 
 		dfield_set_data(dfield, data, local_len);
 		dfield_set_ext(dfield);
@@ -778,7 +738,7 @@ void
 dtuple_convert_back_big_rec(
 /*========================*/
 	dict_index_t*	index MY_ATTRIBUTE((unused)),	/*!< in: index */
-	dtuple_t*	entry,	/*!< in: entry whose data was put to vector */
+	dtuple_t*	entry,	/*!< in/out: entry whose data was put to vector */
 	big_rec_t*	vector)	/*!< in, own: big rec vector; it is
 				freed in this function */
 {

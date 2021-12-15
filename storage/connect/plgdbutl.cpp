@@ -1,11 +1,11 @@
 /********** PlgDBUtl Fpe C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: PLGDBUTL                                              */
 /* -------------                                                       */
-/*  Version 4.0                                                        */
+/*  Version 4.1                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2020    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -39,12 +39,12 @@
 /***********************************************************************/
 #include "my_global.h"
 #include "my_pthread.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <fcntl.h>
 #include <errno.h>
 #define BIGMEM         1048576            // 1 Megabyte
-#else     // !__WIN__
+#else     // !_WIN32
 #include <unistd.h>
 #include <fcntl.h>
 //#if defined(THREAD)
@@ -52,7 +52,7 @@
 //#endif   // THREAD
 #include <stdarg.h>
 #define BIGMEM      2147483647            // Max int value
-#endif    // !__WIN__
+#endif    // !_WIN32
 #include <locale.h>
 
 /***********************************************************************/
@@ -89,11 +89,11 @@ extern "C" {
 extern char version[];
 } // extern "C"
 
-//#if defined(__WIN__)
+//#if defined(_WIN32)
 //extern CRITICAL_SECTION parsec;      // Used calling the Flex parser
-//#else   // !__WIN__
+//#else   // !_WIN32
 extern pthread_mutex_t parmut;
-//#endif  // !__WIN__
+//#endif  // !_WIN32
 
 // The debug trace used by the main thread
 FILE *pfile = NULL;
@@ -215,35 +215,13 @@ int global_open(GLOBAL *g, int msgid, const char *path, int flags, int mode)
 }
 
 DllExport void SetTrc(void)
-  {
+{
   // If tracing is on, debug must be initialized.
   debug = pfile;
-  } // end of SetTrc
-
-#if 0
-/**************************************************************************/
-/*  Tracing output function.                                              */
-/**************************************************************************/
-void ptrc(char const *fmt, ...)
-  {
-  va_list ap;
-  va_start (ap, fmt);
-
-//  if (trace == 0 || (trace == 1 && !pfile) || !fmt)
-//    printf("In %s wrong trace=%d pfile=%p fmt=%p\n", 
-//      __FILE__, trace, pfile, fmt);
-
-  if (trace == 1)
-    vfprintf(pfile, fmt, ap);
-  else
-    vprintf(fmt, ap);
-
-  va_end (ap);
-  } // end of ptrc
-#endif // 0
+} // end of SetTrc
 
 /**************************************************************************/
-/*  Allocate the result structure that will contain result data.          */
+/*  SubAllocate the result structure that will contain result data.       */
 /**************************************************************************/
 PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
                        int *buftyp, XFLD *fldtyp, 
@@ -307,7 +285,7 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
 			else
 				crp->Kdata = NULL;
 
-			if (trace)
+			if (trace(1))
 				htrc("Column(%d) %s type=%d len=%d value=%p\n",
 					crp->Ncol, crp->Name, crp->Type, crp->Length, crp->Kdata);
 
@@ -408,11 +386,11 @@ char *SetPath(PGLOBAL g, const char *path)
 		} // endif path
 
 		if (*path != '.') {
-#if defined(__WIN__)
+#if defined(_WIN32)
 			const char *s = "\\";
-#else   // !__WIN__
+#else   // !_WIN32
 			const char *s = "/";
-#endif  // !__WIN__
+#endif  // !_WIN32
 			strcat(strcat(strcat(strcpy(buf, "."), s), path), s);
 		} else
 			strcpy(buf, path);
@@ -431,7 +409,7 @@ char *ExtractFromPath(PGLOBAL g, char *pBuff, char *FileName, OPVAL op)
   char *drive = NULL, *direc = NULL, *fname = NULL, *ftype = NULL;
 
   switch (op) {           // Determine which part to extract
-#if defined(__WIN__)
+#if defined(_WIN32)
     case OP_FDISK: drive = pBuff; break;
 #endif   // !UNIX
     case OP_FPATH: direc = pBuff; break;
@@ -475,7 +453,7 @@ bool PlugEvalLike(PGLOBAL g, LPCSTR strg, LPCSTR pat, bool ci)
   char *tp, *sp;
   bool  b;
 
-  if (trace)
+  if (trace(2))
     htrc("LIKE: strg='%s' pattern='%s'\n", strg, pat);
 
   if (ci) {                        /* Case insensitive test             */
@@ -544,7 +522,7 @@ bool EvalLikePattern(LPCSTR sp, LPCSTR tp)
   ssize_t   n;
   bool  b, t = false;
 
-  if (trace)
+  if (trace(2))
     htrc("Eval Like: sp=%s tp=%s\n", 
          (sp) ? sp : "Null", (tp) ? tp : "Null");
 
@@ -582,7 +560,7 @@ bool EvalLikePattern(LPCSTR sp, LPCSTR tp)
   else
     n = strlen(tp);                   /* Get length of pattern head    */
 
-  if (trace)
+  if (trace(2))
     htrc(" testing: t=%d sp=%s tp=%s p=%p\n", t, sp, tp, p);
 
   if (n > (signed)strlen(sp))         /* If head is longer than strg   */
@@ -628,7 +606,7 @@ bool EvalLikePattern(LPCSTR sp, LPCSTR tp)
       b = !strcmp(sp, tp);
     } /* endif p */
 
-  if (trace)
+  if (trace(2))
     htrc(" done: b=%d n=%d sp=%s tp=%s\n",
           b, n, (sp) ? sp : "Null", tp);
 
@@ -668,7 +646,7 @@ char *MakeEscape(PGLOBAL g, char* str, char q)
 /***********************************************************************/
 void PlugConvertConstant(PGLOBAL g, void* & value, short& type)
   {
-  if (trace)
+  if (trace(1))
     htrc("PlugConvertConstant: value=%p type=%hd\n", value, type);
 
   if (type != TYPE_XOBJECT) {
@@ -688,7 +666,7 @@ PDTP MakeDateFormat(PGLOBAL g, PCSZ dfmt, bool in, bool out, int flag)
 	int  rc;
   PDTP pdp = (PDTP)PlugSubAlloc(g, NULL, sizeof(DATPAR));
 
-  if (trace)
+  if (trace(1))
     htrc("MakeDateFormat: dfmt=%s\n", dfmt);
 
   memset(pdp, 0, sizeof(DATPAR));
@@ -711,7 +689,7 @@ PDTP MakeDateFormat(PGLOBAL g, PCSZ dfmt, bool in, bool out, int flag)
   rc = fmdflex(pdp);
   pthread_mutex_unlock(&parmut);
 
-  if (trace)
+  if (trace(1))
     htrc("Done: in=%s out=%s rc=%d\n", SVP(pdp->InFmt), SVP(pdp->OutFmt), rc);
 
   return pdp;
@@ -733,7 +711,7 @@ int ExtractDate(char *dts, PDTP pdp, int defy, int val[6])
   else            // assume standard MySQL date format
     fmt = "%4d-%2d-%2d %2d:%2d:%2d";
 
-  if (trace > 1)
+  if (trace(2))
     htrc("ExtractDate: dts=%s fmt=%s defy=%d\n", dts, fmt, defy);
 
   // Set default values for time only use
@@ -816,7 +794,7 @@ int ExtractDate(char *dts, PDTP pdp, int defy, int val[6])
 
     } // endfor i
 
-  if (trace > 1)
+  if (trace(2))
     htrc("numval=%d val=(%d,%d,%d,%d,%d,%d)\n",
           numval, val[0], val[1], val[2], val[3], val[4], val[5]); 
 
@@ -833,18 +811,18 @@ FILE *PlugOpenFile(PGLOBAL g, LPCSTR fname, LPCSTR ftype)
   PFBLOCK   fp;
   PDBUSER   dbuserp = (PDBUSER)g->Activityp->Aptr;
 
-  if (trace) {
+  if (trace(1)) {
     htrc("PlugOpenFile: fname=%s ftype=%s\n", fname, ftype);
     htrc("dbuserp=%p\n", dbuserp);
     } // endif trace
 
   if ((fop= global_fopen(g, MSGID_OPEN_MODE_STRERROR, fname, ftype)) != NULL) {
-    if (trace)
+    if (trace(1))
       htrc(" fop=%p\n", fop);
 
     fp = (PFBLOCK)PlugSubAlloc(g, NULL, sizeof(FBLOCK));
 
-    if (trace)
+    if (trace(1))
       htrc(" fp=%p\n", fp);
 
     // fname may be in volatile memory such as stack
@@ -857,7 +835,7 @@ FILE *PlugOpenFile(PGLOBAL g, LPCSTR fname, LPCSTR ftype)
     dbuserp->Openlist = fp;
     } /* endif fop */
 
-  if (trace)
+  if (trace(1))
     htrc(" returning fop=%p\n", fop);
 
   return (fop);
@@ -888,7 +866,7 @@ int PlugCloseFile(PGLOBAL g, PFBLOCK fp, bool all)
   {
   int rc = 0;
 
-  if (trace)
+  if (trace(1))
     htrc("PlugCloseFile: fp=%p count=%hd type=%hd\n",
           fp, ((fp) ? fp->Count : 0), ((fp) ? fp->Type : 0));
 
@@ -1050,7 +1028,7 @@ int GetIniSize(char *section, char *key, char *def, char *ini)
         n *= 1024;
       } // endswitch c
 
-  if (trace)
+  if (trace(1))
     htrc("GetIniSize: key=%s buff=%s i=%d n=%d\n", key, buff, i, n);
 
   return n;
@@ -1086,7 +1064,7 @@ DllExport PSZ GetIniString(PGLOBAL g, void *mp, LPCSTR sec, LPCSTR key,
 
   p = (PSZ)PlugSubAlloc(g, mp, n + 1);
 
-  if (trace)
+  if (trace(1))
     htrc("GetIniString: sec=%s key=%s buf=%s\n", sec, key, buf);
 
   strcpy(p, buf);
@@ -1237,7 +1215,7 @@ char *GetExceptionDesc(PGLOBAL g, unsigned int e)
 /*  so it can be freed at the normal or error query completion.        */
 /***********************************************************************/
 void *PlgDBalloc(PGLOBAL g, void *area, MBLOCK& mp)
-  {
+{
 //bool        b;
   size_t      maxsub, minsub;
   void       *arp = (area) ? area : g->Sarea;
@@ -1253,7 +1231,7 @@ void *PlgDBalloc(PGLOBAL g, void *area, MBLOCK& mp)
     // done to check whether the block is already there.
 //  b = mp.Sub;
     mp.Sub = false;    // Restrict suballocation to one quarter
-    } // endif Memp
+  } // endif Memp
 
   // Suballoc when possible if mp.Sub is initially true, but leaving
   // a minimum amount of storage for future operations such as the
@@ -1263,35 +1241,40 @@ void *PlgDBalloc(PGLOBAL g, void *area, MBLOCK& mp)
   maxsub = (pph->FreeBlk < minsub) ? 0 : pph->FreeBlk - minsub;
   mp.Sub = mp.Size <= ((mp.Sub) ? maxsub : (maxsub >> 2));
 
-  if (trace > 1)
-    htrc("PlgDBalloc: in %p size=%d used=%d free=%d sub=%d\n",
-          arp, mp.Size, pph->To_Free, pph->FreeBlk, mp.Sub);
+	if (trace(2))
+		htrc("PlgDBalloc: in %p size=%zd used=%zd free=%zd sub=%d\n",
+			arp, mp.Size, pph->To_Free, pph->FreeBlk, mp.Sub);
 
-  if (!mp.Sub) {
+	if (!mp.Sub) {
     // For allocations greater than one fourth of remaining storage
     // in the area, do allocate from virtual storage.
-#if defined(__WIN__)
-    if (mp.Size >= BIGMEM)
-      mp.Memp = VirtualAlloc(NULL, mp.Size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    else
+		const char*v = "malloc";
+#if defined(_WIN32)
+		if (mp.Size >= BIGMEM) {
+			v = "VirtualAlloc";
+			mp.Memp = VirtualAlloc(NULL, mp.Size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+		} else
 #endif
       mp.Memp = malloc(mp.Size);
 
-    if (!mp.Inlist && mp.Memp) {
+		if (trace(8))
+			htrc("PlgDBalloc: %s(%zd) at %p\n", v, mp.Size, mp.Memp);
+
+		if (!mp.Inlist && mp.Memp) {
       // New allocated block, put it in the memory block chain.
       PDBUSER dbuserp = (PDBUSER)g->Activityp->Aptr;
 
       mp.Next = dbuserp->Memlist;
       dbuserp->Memlist = &mp;
       mp.Inlist = true;
-      } // endif mp
+    } // endif mp
 
   } else
     // Suballocating is Ok.
     mp.Memp = PlugSubAlloc(g, area, mp.Size);
 
   return mp.Memp;
-  } // end of PlgDBalloc
+} // end of PlgDBalloc
 
 /***********************************************************************/
 /*  PlgDBrealloc: reallocates memory conditionally.                    */
@@ -1306,8 +1289,8 @@ void *PlgDBrealloc(PGLOBAL g, void *area, MBLOCK& mp, size_t newsize)
 //  assert (mp.Memp != NULL);
 #endif
 
-  if (trace > 1)
-    htrc("PlgDBrealloc: %p size=%d sub=%d\n", mp.Memp, mp.Size, mp.Sub);
+  if (trace(2))
+    htrc("PlgDBrealloc: %p size=%zd sub=%d\n", mp.Memp, mp.Size, mp.Sub);
 
   if (newsize == mp.Size)
     return mp.Memp;      // Nothing to do
@@ -1326,10 +1309,14 @@ void *PlgDBrealloc(PGLOBAL g, void *area, MBLOCK& mp, size_t newsize)
       mp.Memp = PlugSubAlloc(g, area, newsize);
       memcpy(mp.Memp, m.Memp, MY_MIN(m.Size, newsize));
       PlgDBfree(m);    // Free the old block
-    } else if (!(mp.Memp = realloc(mp.Memp, newsize))) {
-      mp = m;          // Possible only if newsize > Size
-      return NULL;     // Failed
-    } // endif's
+    } else {
+			if (!(mp.Memp = realloc(mp.Memp, newsize))) {
+				mp = m;          // Possible only if newsize > Size
+				return NULL;     // Failed
+			} else if (trace(8))
+				htrc("PlgDBrealloc: realloc(%ld) at %p\n", newsize, mp.Memp);
+
+		} // endif's
 
     mp.Size = newsize;
   } else if (!mp.Sub || newsize > mp.Size) {
@@ -1352,8 +1339,8 @@ void *PlgDBrealloc(PGLOBAL g, void *area, MBLOCK& mp, size_t newsize)
 
   } // endif's
 
-  if (trace)
-    htrc(" newsize=%d newp=%p sub=%d\n", mp.Size, mp.Memp, mp.Sub);
+  if (trace(8))
+    htrc(" newsize=%zd newp=%p sub=%d\n", mp.Size, mp.Memp, mp.Sub);
 
   return mp.Memp;
   } // end of PlgDBrealloc
@@ -1363,16 +1350,20 @@ void *PlgDBrealloc(PGLOBAL g, void *area, MBLOCK& mp, size_t newsize)
 /***********************************************************************/
 void PlgDBfree(MBLOCK& mp)
   {
-  if (trace > 1)
-    htrc("PlgDBfree: %p sub=%d size=%d\n", mp.Memp, mp.Sub, mp.Size);
-
-  if (!mp.Sub && mp.Memp)
-#if defined(__WIN__)
-    if (mp.Size >= BIGMEM)
-      VirtualFree(mp.Memp, 0, MEM_RELEASE);
-    else
+	if (!mp.Sub && mp.Memp) {
+		const char*v = "free";
+#if defined(_WIN32)
+		if (mp.Size >= BIGMEM) {
+			v = "VirtualFree";
+			VirtualFree(mp.Memp, 0, MEM_RELEASE);
+		} else
 #endif
-      free(mp.Memp);
+			free(mp.Memp);
+
+		if (trace(8))
+			htrc("PlgDBfree: %s(%p) size=%d\n", v, mp.Memp, mp.Size);
+
+	}	// endif mp
 
   // Do not reset Next to avoid cutting the Mblock chain
   mp.Memp = NULL;
@@ -1384,7 +1375,7 @@ void PlgDBfree(MBLOCK& mp)
 /*  Program for sub-allocating one item in a storage area.             */
 /*  Note: This function is equivalent to PlugSubAlloc except that in   */
 /*  case of insufficient memory, it returns NULL instead of doing a    */
-/*  long jump. The caller must test the return value for error.        */
+/*  throw. The caller must test the return value for error.            */
 /***********************************************************************/
 void *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size)
   {
@@ -1400,16 +1391,16 @@ void *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size)
   size = ((size + 7) / 8) * 8;       /* Round up size to multiple of 8 */
   pph = (PPOOLHEADER)memp;
 
-  if (trace > 1)
-    htrc("PlgDBSubAlloc: memp=%p size=%d used=%d free=%d\n",
+  if (trace(16))
+    htrc("PlgDBSubAlloc: memp=%p size=%zd used=%zd free=%zd\n",
          memp, size, pph->To_Free, pph->FreeBlk);
 
-  if ((uint)size > pph->FreeBlk) {   /* Not enough memory left in pool */
+  if (size > pph->FreeBlk) {   /* Not enough memory left in pool */
     sprintf(g->Message,
-    "Not enough memory in Work area for request of %d (used=%d free=%d)",
-            (int) size, pph->To_Free, pph->FreeBlk);
+    "Not enough memory in Work area for request of %zd (used=%zd free=%zd)",
+            size, pph->To_Free, pph->FreeBlk);
 
-    if (trace)
+    if (trace(1))
       htrc("%s\n", g->Message);
 
     return NULL;
@@ -1422,8 +1413,8 @@ void *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size)
   pph->To_Free += size;                 // New offset of pool free block
   pph->FreeBlk -= size;                 // New size   of pool free block
 
-  if (trace > 1)
-    htrc("Done memp=%p used=%d free=%d\n",
+  if (trace(16))
+    htrc("Done memp=%p used=%zd free=%zd\n",
          memp, pph->To_Free, pph->FreeBlk);
 
   return (memp);
@@ -1453,7 +1444,7 @@ void PlugPutOut(PGLOBAL g, FILE *f, short t, void *v, uint n)
   {
   char  m[64];
 
-  if (trace)
+  if (trace(1))
     htrc("PUTOUT: f=%p t=%d v=%p n=%d\n", f, t, v, n);
 
   if (!v)
@@ -1563,11 +1554,11 @@ int FileComp(PGLOBAL g, char *file1, char *file2)
   bp[0] = buff1; bp[1] = buff2;
 
   for (i = 0; i < 2; i++) {
-#if defined(__WIN__)
+#if defined(_WIN32)
     h[i]= global_open(g, MSGID_NONE, fn[i], _O_RDONLY | _O_BINARY);
-#else   // !__WIN__
+#else   // !_WIN32
     h[i]= global_open(g, MSGOD_NONE, fn[i], O_RDONLY);
-#endif  // !__WIN__
+#endif  // !_WIN32
 
     if (h[i] == -1) {
 //      if (errno != ENOENT) {

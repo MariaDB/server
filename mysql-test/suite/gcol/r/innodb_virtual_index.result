@@ -54,7 +54,7 @@ c10 time GENERATED ALWAYS AS(addtime(c7,c8)) VIRTUAL,
 c11 DATE GENERATED ALWAYS AS(addtime(c9,c8)) VIRTUAL,
 c11a time GENERATED ALWAYS AS(addtime(c7,c10)) VIRTUAL,
 c12 CHAR(1),
-c13 CHAR(2)GENERATED ALWAYS AS (concat(c12,c12)) VIRTUAL,
+c13 CHAR(2)GENERATED ALWAYS AS (concat(RTRIM(c12),RTRIM(c12))) VIRTUAL,
 c14 CHAR(4)GENERATED ALWAYS AS (concat(c13,'x')) VIRTUAL,
 PRIMARY KEY(c1),
 KEY c13(c13),
@@ -119,8 +119,6 @@ FULLTEXT KEY `ftsic` (`c`,`b`)
 Warnings:
 Note	1831	Duplicate index `vbidxcol_2`. This is deprecated and will be disallowed in a future release
 ALTER TABLE ibstd_08  ADD COLUMN nc07006 BIGINT  AUTO_INCREMENT NOT NULL  , ADD KEY auto_nc07006(nc07006);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 DROP TABLE ibstd_08;
 #
 # Bug 22899305 - GCOLS: FAILING ASSERTION: !(COL->PRTYPE & 256)
@@ -137,7 +135,7 @@ key (d)
 insert into t(a) values ((select d from s for update));
 insert into s(c) values ('');
 Warnings:
-Warning	1366	Incorrect integer value: '' for column 'c' at row 1
+Warning	1366	Incorrect integer value: '' for column `test`.`s`.`c` at row 1
 SET sql_mode = default;
 drop table if exists t,s;
 #
@@ -183,8 +181,6 @@ ALTER TABLE t1 ADD COLUMN col7a INT GENERATED ALWAYS AS (col5x % col6x)
 VIRTUAL, ADD FULLTEXT KEY ftidx ( col9 ), algorithm=inplace;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: INPLACE ADD or DROP of virtual columns cannot be combined with other ALTER TABLE actions. Try ALGORITHM=COPY
 CREATE FULLTEXT INDEX idx ON t1(col9);
-Warnings:
-Warning	124	InnoDB rebuilding table to add column FTS_DOC_ID
 ALTER TABLE t1 ADD COLUMN col7a INT GENERATED ALWAYS AS (col5x % col6x)
 VIRTUAL, ADD FULLTEXT KEY ftidx ( col9 ), algorithm=inplace;
 DROP TABLE t1;
@@ -198,3 +194,119 @@ VIRTUAL, ADD UNIQUE index idx (col1), algorithm=inplace;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: INPLACE ADD or DROP of virtual columns cannot be combined with other ALTER TABLE actions. Try ALGORITHM=COPY
 DROP TABLE t1;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
+#
+# Bug 27122803 - BACKPORT FIX FOR BUG 25899959 TO MYSQL-5.7
+#
+CREATE TABLE t1 (col1 int(10)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+ALTER TABLE t1 ADD col2 char(21) AS (col1 * col1), ADD INDEX n (col2);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `col1` int(10) DEFAULT NULL,
+  `col2` char(21) GENERATED ALWAYS AS (`col1` * `col1`) VIRTUAL,
+  KEY `n` (`col2`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+DROP TABLE t1;
+#
+# Bug #27968952  INNODB CRASH/CORRUPTION WITH TEXT PREFIX INDEXES
+#
+CREATE TABLE t1(
+a INT NOT NULL UNIQUE,
+b INT NOT NULL,
+c TEXT GENERATED ALWAYS AS (a <> b) VIRTUAL,
+d TEXT NOT NULL,
+UNIQUE KEY (c(1)), KEY(d(1))
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+SET @t = REPEAT('t',@@innodb_page_size);
+INSERT INTO t1 (a,b,d) VALUES (1,0,@t), (0,0,@t);
+UPDATE t1 SET b = a;
+ERROR 23000: Duplicate entry '0' for key 'c'
+REPLACE INTO t1 SET a = 0, b = 1, d = 'd';
+SELECT * FROM t1;
+a	b	c	d
+0	1	1	d
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+CREATE TABLE t1(
+a VARCHAR(1000) GENERATED ALWAYS AS ('1') VIRTUAL,
+b VARCHAR(1000) NOT NULL,
+c VARCHAR(1000) GENERATED ALWAYS AS (b) STORED,
+KEY (b(1)),
+KEY (a(1))
+) ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
+INSERT INTO t1(b) VALUES(REPEAT('b',1000));
+DELETE FROM t1;
+DROP TABLE t1;
+#
+# Bug #22990029 GCOLS: INCORRECT BEHAVIOR
+# AFTER DATA INSERTED WITH IGNORE KEYWORD
+#
+CREATE TABLE t1(a INT PRIMARY KEY, b INT, vb DATE AS(b) VIRTUAL, KEY(vb))
+ENGINE=InnoDB;
+INSERT IGNORE INTO t1 (a,b) VALUES(1,20190132);
+Warnings:
+Warning	1265	Data truncated for column 'vb' at row 1
+BEGIN;
+DELETE FROM t1;
+INSERT INTO t1 (a,b) VALUES(1,20190123);
+ERROR 22007: Incorrect date value: '20190132' for column `test`.`t1`.`vb` at row 1
+SELECT * FROM t1;
+a	b	vb
+ROLLBACK;
+SELECT * FROM t1;
+a	b	vb
+1	20190132	0000-00-00
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;
+#
+# MDEV-25872 InnoDB: Assertion failure in row_merge_read_clustered_index
+#	upon ALTER on table with indexed virtual columns
+#
+CREATE TABLE t1 (
+id BIGINT AUTO_INCREMENT PRIMARY KEY,
+a INT,
+va INT ZEROFILL AS (a) VIRTUAL,
+b TIMESTAMP,
+c CHAR(204),
+vc CHAR(8),
+KEY(vc,c(64),b,va)
+) ENGINE=InnoDB CHARACTER SET utf32;
+INSERT INTO t1 (id) SELECT NULL FROM seq_1_to_75;
+INSERT IGNORE INTO t1 (id, a) VALUES (NULL, -1);
+Warnings:
+Warning	1264	Out of range value for column 'va' at row 1
+ALTER TABLE t1 FORCE;
+ERROR 22003: Out of range value for column 'va' at row 1
+DROP TABLE t1;
+#
+# MDEV-24713 Assertion `dict_table_is_comp(index->table)' failed
+#		in row_merge_buf_add()
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(3),
+b CHAR(8) AS (a) VIRTUAL, KEY(b))
+ROW_FORMAT=REDUNDANT ENGINE=InnoDB
+CHARACTER SET utf8;
+INSERT INTO t1 (id,a) VALUES (1,'foo');
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+DROP TABLE t1;
+#
+# MDEV-20154 Assertion `len <= col->len || ((col->mtype) == 5
+# || (col->mtype) == 14)' failed in row_merge_buf_add
+#
+CREATE TABLE t1 (
+a VARCHAR(2500),
+b VARCHAR(2499) AS (a) VIRTUAL
+) ENGINE=InnoDB;
+INSERT INTO t1 (a) VALUES ('foo');
+ALTER TABLE t1 MODIFY a VARCHAR(2600), ALGORITHM=INPLACE;
+ALTER TABLE t1 ADD KEY (b), ALGORITHM=INPLACE;
+# Cleanup
+DROP TABLE t1;
+# End of 10.2 tests

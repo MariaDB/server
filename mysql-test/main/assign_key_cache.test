@@ -1,0 +1,13 @@
+#
+# MDEV-15216 Assertion `! is_set() || m_can_overwrite_status' failed in Diagnostics_area::set_error_status upon operation inside XA
+#
+--source include/have_partition.inc
+set global my_cache.key_buffer_size = 1024*1024;
+create table t1 (i int) engine=myisam partition by hash (i) partitions 2;
+xa start 'xid';
+cache index t1 partition (non_existing_partition) in my_cache;
+cache index t1 partition (p1) in my_cache;
+xa end 'xid';
+xa rollback 'xid';
+drop table t1;
+set global my_cache.key_buffer_size = 0;

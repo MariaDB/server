@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2011, 2019, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include "common.h"
 #include <sddl.h>   // for ConvertSidToStringSid()
@@ -375,7 +375,7 @@ char* wchar_to_utf8(const wchar_t *string, size_t *len)
 
   /*
     A conversion from utf8 to wchar_t will never take more than 3 bytes per
-    character, so a buffer of length 3 * str_len schould be sufficient. 
+    character, so a buffer of length 3 * str_len should be sufficient. 
     We check that assumption with an assertion later.
   */
 

@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -22,7 +22,7 @@ Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 ***********************************************************************/
 
@@ -68,10 +68,6 @@ the OS actually supports it: Win 95 does not, NT does. */
 /** File handle */
 typedef HANDLE os_file_t;
 
-/** Convert a C file descriptor to a native file handle
-@param fd file descriptor
-@return native file handle */
-# define OS_FILE_FROM_FD(fd) (HANDLE) _get_osfhandle(fd)
 
 #else /* _WIN32 */
 
@@ -80,14 +76,9 @@ typedef DIR*	os_file_dir_t;	/*!< directory stream */
 /** File handle */
 typedef int	os_file_t;
 
-/** Convert a C file descriptor to a native file handle
-@param fd file descriptor
-@return native file handle */
-# define OS_FILE_FROM_FD(fd) fd
-
 #endif /* _WIN32 */
 
-static const os_file_t OS_FILE_CLOSED = os_file_t(~0);
+static const os_file_t OS_FILE_CLOSED = IF_WIN(os_file_t(INVALID_HANDLE_VALUE),-1);
 
 /** File descriptor with optional PERFORMANCE_SCHEMA instrumentation */
 struct pfs_os_file_t
@@ -159,7 +150,7 @@ static const ulint OS_FILE_NORMAL = 62;
 /** Types for file create @{ */
 static const ulint OS_DATA_FILE = 100;
 static const ulint OS_LOG_FILE = 101;
-static const ulint OS_DATA_TEMP_FILE = 102;
+static const ulint OS_DATA_FILE_NO_O_DIRECT = 103;
 /* @} */
 
 /** Error codes from os_file_get_last_error @{ */
@@ -535,14 +526,11 @@ struct os_file_stat_t {
 };
 
 /** Create a temporary file. This function is like tmpfile(3), but
-the temporary file is created in the given parameter path. If the path
-is null then it will create the file in the mysql server configuration
+the temporary file is created in the in the mysql server configuration
 parameter (--tmpdir).
-@param[in]	path	location for creating temporary file
 @return temporary file handle, or NULL on error */
 FILE*
-os_file_create_tmpfile(
-	const char*	path);
+os_file_create_tmpfile();
 
 /** The os_file_opendir() function opens a directory stream corresponding to the
 directory named by the dirname argument. The directory stream is positioned
@@ -808,9 +796,7 @@ os_file_rename
 os_aio
 os_file_read
 os_file_read_no_error_handling
-os_file_read_no_error_handling_int_fd
 os_file_write
-os_file_write_int_fd
 
 The wrapper functions have the prefix of "innodb_". */
 
@@ -846,17 +832,9 @@ The wrapper functions have the prefix of "innodb_". */
 	pfs_os_file_read_no_error_handling_func(			\
 		type, file, buf, offset, n, o, __FILE__, __LINE__)
 
-# define os_file_read_no_error_handling_int_fd(type, file, buf, offset, n) \
-	pfs_os_file_read_no_error_handling_int_fd_func(			\
-		type, file, buf, offset, n, __FILE__, __LINE__)
-
 # define os_file_write(type, name, file, buf, offset, n)	\
 	pfs_os_file_write_func(type, name, file, buf, offset,	\
 			       n, __FILE__, __LINE__)
-
-# define os_file_write_int_fd(type, name, file, buf, offset, n)		\
-	pfs_os_file_write_int_fd_func(type, name, file, buf, offset,	\
-		n, __FILE__, __LINE__)
 
 # define os_file_flush(file)					\
 	pfs_os_file_flush_func(file, __FILE__, __LINE__)
@@ -1194,13 +1172,9 @@ to original un-instrumented file I/O APIs */
 
 # define os_file_read_no_error_handling(type, file, buf, offset, n, o)	\
 	os_file_read_no_error_handling_func(type, file, buf, offset, n, o)
-# define os_file_read_no_error_handling_int_fd(type, file, buf, offset, n) \
-	os_file_read_no_error_handling_func(type, OS_FILE_FROM_FD(file), buf, offset, n, NULL)
 
 # define os_file_write(type, name, file, buf, offset, n)	\
 	os_file_write_func(type, name, file, buf, offset, n)
-# define os_file_write_int_fd(type, name, file, buf, offset, n)	\
-	os_file_write_func(type, name, OS_FILE_FROM_FD(file), buf, offset, n)
 
 # define os_file_flush(file)	os_file_flush_func(file)
 
@@ -1261,17 +1235,18 @@ bool
 os_file_set_eof(
 	FILE*		file);	/*!< in: file to be truncated */
 
-/** Truncates a file to a specified size in bytes. Do nothing if the size
-preserved is smaller or equal than current size of file.
+/** Truncate a file to a specified size in bytes.
 @param[in]	pathname	file path
 @param[in]	file		file to be truncated
 @param[in]	size		size preserved in bytes
+@param[in]	allow_shrink	whether to allow the file to become smaller
 @return true if success */
 bool
 os_file_truncate(
 	const char*	pathname,
 	os_file_t	file,
-	os_offset_t	size);
+	os_offset_t	size,
+	bool		allow_shrink = false);
 
 /** NOTE! Use the corresponding macro os_file_flush(), not directly this
 function!
@@ -1567,7 +1542,7 @@ path. If the path is NULL then it will be created on --tmpdir location.
 This function is defined in ha_innodb.cc.
 @param[in]	path	location for creating temporary file
 @return temporary file descriptor, or < 0 on error */
-int
+os_file_t
 innobase_mysql_tmpfile(
 	const char*	path);
 

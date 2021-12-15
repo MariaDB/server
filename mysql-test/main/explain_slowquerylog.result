@@ -1,0 +1,60 @@
+drop table if exists t0,t1;
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+explain select * from t0 where a < 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+# 
+# MDEV-5045: Server crashes in QPF_query::print_explain with log_slow_verbosity='query_plan,explain'
+# 
+set autocommit=1;
+drop table t0;
+# 
+# MDEV-5047 virtual THD::~THD(): Assertion `status_var.memory_used == 0' fails on disconnect
+# 
+connect  con1,localhost,root,,;
+ALTER TABLE nonexisting ENABLE KEYS;
+ERROR 42S02: Table 'test.nonexisting' doesn't exist
+SHOW WARNINGS;
+Level	Code	Message
+Error	1146	Table 'test.nonexisting' doesn't exist
+disconnect con1;
+connection default;
+SELECT 1;
+1
+1
+#
+# MDEV-5060 Server crashes on EXPLAIN EXTENDED or EXPLAIN PARTITIONS with explain in slow_log
+#
+EXPLAIN PARTITIONS SELECT 1 ;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+#
+# MDEV-5106: Server crashes in Explain_union::print_explain on ER_TOO_BIG_SELECT with explain in slow log
+#
+CREATE TABLE t1 (i INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES
+(1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+SET max_join_size = 10;
+( SELECT ta.* FROM t1 ta, t1 tb ) UNION ( SELECT * FROM t1 );
+ERROR 42000: The SELECT would examine more than MAX_JOIN_SIZE rows; check your WHERE and use SET SQL_BIG_SELECTS=1 or SET MAX_JOIN_SIZE=# if the SELECT is okay
+SELECT 'Server still alive?' as 'Yes';
+Yes
+Server still alive?
+DROP TABLE t1;
+#
+# MDEV-5308 Crash when running with slow_query_log=1
+#
+SET @save1= @@log_slow_rate_limit;
+SET @save2= @@long_query_time;
+SET log_slow_rate_limit=1000;
+SET long_query_time=0.000001;
+SELECT 1;
+1
+1
+SET log_slow_rate_limit=@save1;
+SET long_query_time=@save2;
+create table t1 (a int);
+execute immediate "select * from t1 join t1 t2 on (t1.a>5) where exists (select 1)";
+a	a
+drop table t1;

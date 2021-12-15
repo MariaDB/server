@@ -1,0 +1,67 @@
+#
+# This test tests a DROP empty database
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+# Create test database with two sets of the FTS indexes:
+CREATE DATABASE fts;
+USE fts;
+CREATE TABLE fts_t1 (f1 INT PRIMARY KEY AUTO_INCREMENT, f2 VARCHAR(100), FULLTEXT (f2)) ENGINE=InnoDB;
+CREATE TABLE fts_t2 (f2 VARCHAR(100), FULLTEXT (f2)) ENGINE=InnoDB;
+
+# Insert 1K rows
+CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
+INSERT INTO ten VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+INSERT INTO fts_t1 (f2) SELECT 'foobarbaz' FROM ten AS a1, ten AS a2, ten AS a3;
+INSERT INTO fts_t2 (f2) SELECT 'foobarbaz' FROM ten AS a1, ten AS a2, ten AS a3;
+DROP TABLE ten;
+UPDATE fts_t1 SET f2 = 'abcd';
+UPDATE fts_t2 SET f2 = 'efjh';
+SELECT COUNT(*) AS EXPECT_1000 FROM fts_t1;
+SELECT COUNT(*) AS EXPECT_1000 FROM fts_t2;
+SELECT COUNT(*) AS EXPECT_1000 FROM fts_t1 where f2 = 'abcd';
+SELECT COUNT(*) AS EXPECT_1000 FROM fts_t2 where f2 = 'efjh';
+
+# Restart the second node:
+--connection node_2
+--source include/restart_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_2
+--source include/wait_until_ready.inc
+--let $wait_condition = SELECT COUNT(*) = 1000 FROM fts_t1 where f2 = 'abcd';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1000 FROM fts_t2 where f2 = 'efjh';
+--source include/wait_condition.inc
+SELECT COUNT(*) AS EXPECT_1000 FROM fts_t1;
+SELECT COUNT(*) AS EXPECT_1000 FROM fts_t2;
+SELECT COUNT(*) AS EXPECT_1000 FROM fts_t1 where f2 = 'abcd';
+SELECT COUNT(*) AS EXPECT_1000 FROM fts_t2 where f2 = 'efjh';
+
+# Drop the tables and database after nodes restarted:
+--connection node_1
+USE fts;
+DROP TABLE fts_t1;
+DROP TABLE fts_t2;
+SHOW TABLES;
+DROP DATABASE fts;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'fts_t1';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'fts_t2';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'fts';
+--source include/wait_condition.inc
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc

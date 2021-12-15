@@ -1,0 +1,173 @@
+drop table if exists t1;
+set @save_max_allowed_packet=@@max_allowed_packet;
+set global max_allowed_packet=1048576;
+connect  conn1,localhost,root,,;
+connection conn1;
+set names latin1;
+select hex(weight_string(0x010203));
+hex(weight_string(0x010203))
+010203
+select hex(weight_string('aa' as char(3)));
+hex(weight_string('aa' as char(3)))
+414120
+select hex(weight_string('a' as char(-1)));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-1)))' at line 1
+select hex(weight_string('a' as char(0)));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '0)))' at line 1
+select hex(weight_string('a' as char(1)));
+hex(weight_string('a' as char(1)))
+41
+select hex(weight_string('ab' as char(1)));
+hex(weight_string('ab' as char(1)))
+41
+select hex(weight_string('ab'));
+hex(weight_string('ab'))
+4142
+select hex(weight_string('aa' as binary(3)));
+hex(weight_string('aa' as binary(3)))
+616100
+select hex(weight_string(cast('aa' as binary(3))));
+hex(weight_string(cast('aa' as binary(3))))
+616100
+select hex(weight_string('ab' level 1-1 ASC));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ASC))' at line 1
+select hex(weight_string('ab' level 1-1 DESC));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'DESC))' at line 1
+select hex(weight_string('ab' level 1-1 REVERSE));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'REVERSE))' at line 1
+select hex(weight_string('ab' level 1 ASC));
+hex(weight_string('ab' level 1 ASC))
+4142
+select hex(weight_string('ab' level 1 DESC));
+hex(weight_string('ab' level 1 DESC))
+BEBD
+select hex(weight_string('ab' level 1 REVERSE));
+hex(weight_string('ab' level 1 REVERSE))
+4241
+select hex(weight_string('ab' level 1 DESC REVERSE));
+hex(weight_string('ab' level 1 DESC REVERSE))
+BDBE
+create table t1 select weight_string('test') as w;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `w` varbinary(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 select weight_string(repeat('t',66000)) as w;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `w` mediumblob DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+select weight_string(NULL);
+weight_string(NULL)
+NULL
+select 1 as weight_string, 2 as reverse;
+weight_string	reverse
+1	2
+select coercibility(weight_string('test'));
+coercibility(weight_string('test'))
+4
+select coercibility(weight_string('test' collate latin1_swedish_ci));
+coercibility(weight_string('test' collate latin1_swedish_ci))
+0
+create table t1 (s1 varchar(5));
+insert into t1 values ('a'),(null);
+select hex(weight_string(s1)) from t1 order by s1;
+hex(weight_string(s1))
+NULL
+41
+drop table t1;
+#
+# BUG#11898467 - SERVER CRASHES ON SELECT HEX(WEIGHT_STRING(STR AS [CHAR|BINARY](N))) IF N IS BIG 
+#
+SELECT HEX(WEIGHT_STRING('ab' AS CHAR(1000000000000000000)));
+HEX(WEIGHT_STRING('ab' AS CHAR(1000000000000000000)))
+NULL
+Warnings:
+Warning	1301	Result of weight_string() was larger than max_allowed_packet (1048576) - truncated
+SELECT HEX(WEIGHT_STRING('ab' AS BINARY(1000000000000000000)));
+HEX(WEIGHT_STRING('ab' AS BINARY(1000000000000000000)))
+NULL
+Warnings:
+Warning	1301	Result of cast_as_binary() was larger than max_allowed_packet (1048576) - truncated
+Warning	1301	Result of weight_string() was larger than max_allowed_packet (1048576) - truncated
+disconnect conn1;
+connection default;
+set global max_allowed_packet=@save_max_allowed_packet;
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-8369 Unexpected impossible WHERE for a condition on a ZEROFILL field
+#
+CREATE TABLE t1 (a INT(6) ZEROFILL);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 WHERE a=1;
+a
+000001
+SELECT * FROM t1 WHERE WEIGHT_STRING(a) IS NULL;
+a
+000001
+000002
+SELECT * FROM t1 WHERE a=1 AND WEIGHT_STRING(a) IS NULL;
+a
+000001
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=1 AND WEIGHT_STRING(a) IS NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1 and weight_string(`test`.`t1`.`a`,0,0,1) is null
+ALTER TABLE t1 MODIFY a DOUBLE ZEROFILL;
+SELECT * FROM t1 WHERE a=1 AND WEIGHT_STRING(a) IS NULL;
+a
+0000000000000000000001
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=1 AND WEIGHT_STRING(a) IS NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1 and weight_string(`test`.`t1`.`a`,0,0,1) is null
+ALTER TABLE t1 MODIFY a DECIMAL(10,1) ZEROFILL;
+SELECT * FROM t1 WHERE a=1 AND WEIGHT_STRING(a) IS NULL;
+a
+000000001.0
+EXPLAIN EXTENDED
+SELECT * FROM t1 WHERE a=1 AND WEIGHT_STRING(a) IS NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1 and weight_string(`test`.`t1`.`a`,0,0,1) is null
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-10134 Add full support for DEFAULT
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1, b VARBINARY(10) DEFAULT WEIGHT_STRING(a AS CHAR(10)));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) DEFAULT NULL,
+  `b` varbinary(10) DEFAULT weight_string(`a`,0,10,65)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 (a) VALUES ('a');
+SELECT a, HEX(b) FROM t1;
+a	HEX(b)
+a	41202020202020202020
+DROP TABLE t1;
+create view v1 as select weight_string("MySQL" as char(4));
+select * from v1;
+weight_string("MySQL" as char(4))
+MYSQ
+drop view v1;
+#
+# End of 10.2 tests
+#

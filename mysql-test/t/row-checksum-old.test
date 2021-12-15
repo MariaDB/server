@@ -1,4 +1,0 @@
-#
-# Run row-checksum.test with old mode
-#
---source t/row-checksum.test

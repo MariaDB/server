@@ -121,11 +121,8 @@ cachetable_test (void) {
     r = toku_cachetable_openf(&f1, ct, fname1, O_RDWR|O_CREAT, S_IRWXU|S_IRWXG|S_IRWXO); assert(r == 0);
     
     void* v1;
-    //void* v2;
-    long s1;
-    //long s2;
     CACHETABLE_WRITE_CALLBACK wc = def_write_callback(NULL);
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, &s1, wc, fetch, pf_req_callback, pf_callback, true, NULL);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, wc, fetch, pf_req_callback, pf_callback, true, NULL);
     assert(&fetch_val == v1);
     //
     // verify that a prefetch of this node will fail
@@ -148,16 +145,19 @@ cachetable_test (void) {
     //
     // now get and pin node again, and make sure that partial fetch and fetch are not called
     //
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, &s1, wc, err_fetch, pf_req_callback, err_pf_callback, true, NULL);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, wc, err_fetch, pf_req_callback, err_pf_callback, true, NULL);
     r = toku_test_cachetable_unpin(f1, make_blocknum(1), 1, CACHETABLE_CLEAN, make_pair_attr(8));
     //
     // now make sure that if we say a partial fetch is required, that we get a partial fetch
     // and that read_extraargs properly passed down
     //
     pf_req_called = false;
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, &s1, wc, err_fetch, true_pf_req_callback, true_pf_callback, true, &fetch_val);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, wc, err_fetch, true_pf_req_callback, true_pf_callback, true, &fetch_val);
     assert(pf_req_called);
-    assert(s1 == sizeof(fetch_val)+1);
+    PAIR_ATTR attr;
+    r = toku_cachetable_get_attr(f1, make_blocknum(1), 1, &attr);
+    assert(r == 0);
+    assert(attr.size == sizeof(fetch_val)+1);
     r = toku_test_cachetable_unpin(f1, make_blocknum(1), 1, CACHETABLE_CLEAN, make_pair_attr(8));
 
     // close and reopen cachefile so we can do some simple prefetch tests
@@ -185,7 +185,7 @@ cachetable_test (void) {
     //
     // now verify we can pin it, and NO fetch callback should get called
     //
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, &s1, wc, err_fetch, pf_req_callback, err_pf_callback, true, NULL);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, wc, err_fetch, pf_req_callback, err_pf_callback, true, NULL);
     assert(&fetch_val == v1);
     r = toku_test_cachetable_unpin(f1, make_blocknum(1), 1, CACHETABLE_CLEAN, make_pair_attr(8));
 
@@ -205,7 +205,7 @@ cachetable_test (void) {
         &doing_prefetch
         );
     assert(doing_prefetch);
-    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, &s1, wc, err_fetch, pf_req_callback, err_pf_callback, true, NULL);
+    r = toku_cachetable_get_and_pin(f1, make_blocknum(1), 1, &v1, wc, err_fetch, pf_req_callback, err_pf_callback, true, NULL);
     assert(&fetch_val == v1);
     r = toku_test_cachetable_unpin(f1, make_blocknum(1), 1, CACHETABLE_CLEAN, make_pair_attr(8));
     

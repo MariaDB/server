@@ -1,0 +1,104 @@
+connect  con1,localhost,root,,;
+connect  con2,localhost,root,,;
+connection con1;
+drop table if exists t1,t2;
+drop view if exists v1;
+create table t1(n int not null, key(n), key(n), key(n), key(n));
+Warnings:
+Note	1831	Duplicate index `n_2`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `n_3`. This is deprecated and will be disallowed in a future release
+Note	1831	Duplicate index `n_4`. This is deprecated and will be disallowed in a future release
+check table t1 extended;
+connection con2;
+insert into t1 values (200000);
+connection con1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+connection default;
+disconnect con1;
+disconnect con2;
+drop table t1;
+Create table t1(f1 int);
+Create table t2(f1 int);
+Create view v1 as Select * from t1;
+Check Table v1,t2;
+Table	Op	Msg_type	Msg_text
+test.v1	check	status	OK
+test.t2	check	status	OK
+drop view v1;
+drop table t1, t2;
+CREATE TEMPORARY TABLE t1(a INT);
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+REPAIR TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+DROP TABLE t1;
+#
+# Bug#56422 CHECK TABLE run when the table is locked reports corruption
+#           along with timeout
+#
+DROP TABLE IF EXISTS t1;
+CREATE TABLE t1(a INT);
+LOCK TABLE t1 WRITE;
+connect con1, localhost, root;
+SET lock_wait_timeout= 1;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Error	Lock wait timeout exceeded; try restarting transaction
+test.t1	check	status	Operation failed
+connection default;
+UNLOCK TABLES;
+DROP TABLE t1;
+disconnect con1;
+#
+# MDEV-15338
+# Assertion `!table || (!table->read_set ||
+# bitmap_is_set(table->read_set, field_index))'
+# failed on dropping column with CHECK
+#
+CREATE TABLE t1 (a INT, b INT, CHECK (a>0)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,2),(3,4);
+ALTER TABLE t1 DROP COLUMN a;
+CREATE OR REPLACE TABLE t1 (a INT, b INT, CHECK (a>0)) ENGINE=MyISAM;
+ALTER TABLE t1 DROP COLUMN b;
+CREATE OR REPLACE TABLE t1 (a INT, b INT, c INT, CHECK (a+b>0)) ENGINE=MyISAM;
+ALTER TABLE t1 DROP COLUMN b;
+ERROR 42S22: Unknown column 'b' in 'CHECK'
+ALTER TABLE t1 DROP COLUMN a, DROP COLUMN b;
+CREATE OR REPLACE TABLE t1 (a INT, b INT, c INT, CHECK (a+b>0)) ENGINE=MyISAM;
+ALTER TABLE t1 DROP CONSTRAINT `CONSTRAINT_1`;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+CREATE OR REPLACE TABLE t1 (a INT, b INT, c INT, CHECK (a+b>0)) ENGINE=MyISAM;
+ALTER TABLE t1 DROP COLUMN b, DROP CONSTRAINT `CONSTRAINT_1`;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+create temporary table t1 (
+id int not null auto_increment primary key,
+f int not null default 0
+);
+insert into t1 () values ();
+alter ignore table t1 add constraint check (f > 0);
+Warnings:
+Warning	4025	CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+alter table t1;
+drop table t1;
+create temporary table t1 (a int default 0, check (a > 0));
+alter table t1 drop constraint if exists non_existing_constraint;
+Warnings:
+Note	1091	Can't DROP CONSTRAINT `non_existing_constraint`; check that it exists
+insert into t1 () values ();
+ERROR 23000: CONSTRAINT `CONSTRAINT_1` failed for `test`.`t1`
+drop table t1;

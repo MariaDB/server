@@ -1,17 +1,24 @@
 /* Copyright (c) 2008, 2013, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #ifndef MYSQL_THREAD_H
 #define MYSQL_THREAD_H
@@ -602,7 +609,7 @@ typedef struct st_mysql_cond mysql_cond_t;
 
 /**
   @def mysql_thread_set_psi_id(I)
-  Set the thread indentifier for the instrumentation.
+  Set the thread identifier for the instrumentation.
   @param I The thread identifier
 */
 #ifdef HAVE_PSI_THREAD_INTERFACE
@@ -682,7 +689,7 @@ static inline int inline_mysql_mutex_lock(
   int result;
 
 #ifdef HAVE_PSI_MUTEX_INTERFACE
-  if (that->m_psi != NULL)
+  if (psi_likely(that->m_psi != NULL))
   {
     /* Instrumentation start */
     PSI_mutex_locker *locker;
@@ -725,7 +732,7 @@ static inline int inline_mysql_mutex_trylock(
   int result;
 
 #ifdef HAVE_PSI_MUTEX_INTERFACE
-  if (that->m_psi != NULL)
+  if (psi_likely(that->m_psi != NULL))
   {
     /* Instrumentation start */
     PSI_mutex_locker *locker;
@@ -768,7 +775,7 @@ static inline int inline_mysql_mutex_unlock(
   int result;
 
 #ifdef HAVE_PSI_MUTEX_INTERFACE
-  if (that->m_psi != NULL)
+  if (psi_likely(that->m_psi != NULL))
     PSI_MUTEX_CALL(unlock_mutex)(that->m_psi);
 #endif
 
@@ -835,7 +842,7 @@ static inline int inline_mysql_rwlock_destroy(
   mysql_rwlock_t *that)
 {
 #ifdef HAVE_PSI_RWLOCK_INTERFACE
-  if (that->m_psi != NULL)
+  if (psi_likely(that->m_psi != NULL))
   {
     PSI_RWLOCK_CALL(destroy_rwlock)(that->m_psi);
     that->m_psi= NULL;
@@ -849,7 +856,7 @@ static inline int inline_mysql_prlock_destroy(
   mysql_prlock_t *that)
 {
 #ifdef HAVE_PSI_RWLOCK_INTERFACE
-  if (that->m_psi != NULL)
+  if (psi_likely(that->m_psi != NULL))
   {
     PSI_RWLOCK_CALL(destroy_rwlock)(that->m_psi);
     that->m_psi= NULL;
@@ -869,7 +876,7 @@ static inline int inline_mysql_rwlock_rdlock(
   int result;
 
 #ifdef HAVE_PSI_RWLOCK_INTERFACE
-  if (that->m_psi != NULL)
+  if (psi_likely(that->m_psi != NULL))
   {
     /* Instrumentation start */
     PSI_rwlock_locker *locker;
@@ -905,7 +912,7 @@ static inline int inline_mysql_prlock_rdlock(
   int result;
 
 #ifdef HAVE_PSI_RWLOCK_INTERFACE
-  if (that->m_psi != NULL)
+  if (psi_likely(that->m_psi != NULL))
   {
     /* Instrumentation start */
     PSI_rwlock_locker *locker;
@@ -941,7 +948,7 @@ static inline int inline_mysql_rwlock_wrlock(
   int result;
 
 #ifdef HAVE_PSI_RWLOCK_INTERFACE
-  if (that->m_psi != NULL)
+  if (psi_likely(that->m_psi != NULL))
   {
     /* Instrumentation start */
     PSI_rwlock_locker *locker;
@@ -977,7 +984,7 @@ static inline int inline_mysql_prlock_wrlock(
   int result;
 
 #ifdef HAVE_PSI_RWLOCK_INTERFACE
-  if (that->m_psi != NULL)
+  if (psi_likely(that->m_psi != NULL))
   {
     /* Instrumentation start */
     PSI_rwlock_locker *locker;
@@ -1013,7 +1020,7 @@ static inline int inline_mysql_rwlock_tryrdlock(
   int result;
 
 #ifdef HAVE_PSI_RWLOCK_INTERFACE
-  if (that->m_psi != NULL)
+  if (psi_likely(that->m_psi != NULL))
   {
     /* Instrumentation start */
     PSI_rwlock_locker *locker;
@@ -1048,7 +1055,7 @@ static inline int inline_mysql_rwlock_trywrlock(
   int result;
 
 #ifdef HAVE_PSI_RWLOCK_INTERFACE
-  if (that->m_psi != NULL)
+  if (psi_likely(that->m_psi != NULL))
   {
     /* Instrumentation start */
     PSI_rwlock_locker *locker;
@@ -1078,7 +1085,7 @@ static inline int inline_mysql_rwlock_unlock(
 {
   int result;
 #ifdef HAVE_PSI_RWLOCK_INTERFACE
-  if (that->m_psi != NULL)
+  if (psi_likely(that->m_psi != NULL))
     PSI_RWLOCK_CALL(unlock_rwlock)(that->m_psi);
 #endif
   result= rw_unlock(&that->m_rwlock);
@@ -1091,7 +1098,7 @@ static inline int inline_mysql_prlock_unlock(
 {
   int result;
 #ifdef HAVE_PSI_RWLOCK_INTERFACE
-  if (that->m_psi != NULL)
+  if (psi_likely(that->m_psi != NULL))
     PSI_RWLOCK_CALL(unlock_rwlock)(that->m_psi);
 #endif
   result= rw_pr_unlock(&that->m_prlock);
@@ -1135,7 +1142,7 @@ static inline int inline_mysql_cond_destroy(
   mysql_cond_t *that)
 {
 #ifdef HAVE_PSI_COND_INTERFACE
-  if (that->m_psi != NULL)
+  if (psi_likely(that->m_psi != NULL))
   {
     PSI_COND_CALL(destroy_cond)(that->m_psi);
     that->m_psi= NULL;
@@ -1155,7 +1162,7 @@ static inline int inline_mysql_cond_wait(
   int result;
 
 #ifdef HAVE_PSI_COND_INTERFACE
-  if (that->m_psi != NULL)
+  if (psi_likely(that->m_psi != NULL))
   {
     /* Instrumentation start */
     PSI_cond_locker *locker;
@@ -1192,7 +1199,7 @@ static inline int inline_mysql_cond_timedwait(
   int result;
 
 #ifdef HAVE_PSI_COND_INTERFACE
-  if (that->m_psi != NULL)
+  if (psi_likely(that->m_psi != NULL))
   {
     /* Instrumentation start */
     PSI_cond_locker *locker;
@@ -1204,7 +1211,7 @@ static inline int inline_mysql_cond_timedwait(
     result= my_cond_timedwait(&that->m_cond, &mutex->m_mutex, abstime);
 
     /* Instrumentation end */
-    if (locker != NULL)
+    if (psi_likely(locker != NULL))
       PSI_COND_CALL(end_cond_wait)(locker, result);
 
     return result;
@@ -1222,7 +1229,7 @@ static inline int inline_mysql_cond_signal(
 {
   int result;
 #ifdef HAVE_PSI_COND_INTERFACE
-  if (that->m_psi != NULL)
+  if (psi_likely(that->m_psi != NULL))
     PSI_COND_CALL(signal_cond)(that->m_psi);
 #endif
   result= pthread_cond_signal(&that->m_cond);
@@ -1234,7 +1241,7 @@ static inline int inline_mysql_cond_broadcast(
 {
   int result;
 #ifdef HAVE_PSI_COND_INTERFACE
-  if (that->m_psi != NULL)
+  if (psi_likely(that->m_psi != NULL))
     PSI_COND_CALL(broadcast_cond)(that->m_psi);
 #endif
   result= pthread_cond_broadcast(&that->m_cond);

@@ -1,0 +1,31 @@
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # MDEV-15739 -  sql_mode=ORACLE: Make LPAD and RPAD return NULL instead of empty string
+--echo #
+
+SELECT RPAD('a',0), RPAD('abc',1), RPAD('abc',2) ;
+SELECT RPAD('a',0,'.'), RPAD('abc',1,'.'), RPAD('abc',2,'.') ;
+SELECT LPAD('a',0), LPAD('abc',1), LPAD('abc',2) ;
+SELECT LPAD('a',0,'.'), LPAD('abc',1,'.'), LPAD('abc',2,'.') ;
+
+CREATE TABLE t1 (c1 VARCHAR(10),c2 INTEGER, c3 VARCHAR(10), ord INTEGER);
+INSERT INTO t1 VALUES ('a',1,null,1);
+INSERT INTO t1 VALUES ('a',null,'.',2);
+INSERT INTO t1 VALUES (null,1,'.',3);
+INSERT INTO t1 VALUES ('a',-1,'.',4);
+INSERT INTO t1 VALUES ('a',0,'.',5);
+INSERT INTO t1 VALUES ('a',1,'.',6);
+INSERT INTO t1 VALUES ('a',2,'.',7);
+
+SELECT LPAD(c1,c2,c3), LPAD(c1,c2) FROM t1 ORDER BY ord;
+SELECT RPAD(c1,c2,c3), RPAD(c1,c2) FROM t1 ORDER BY ord;
+
+EXPLAIN EXTENDED SELECT RPAD('a',0,'.'), LPAD('a',0,'.'), LPAD(c1,c2,c3), LPAD(c1,c2), RPAD(c1,c2,c3), RPAD(c1,c2) FROM t1 ORDER BY ord;
+
+CREATE VIEW v1 AS SELECT RPAD('a',0,'.') AS "C1", LPAD('a',0,'.') AS "C2", LPAD(c1,c2,c3) AS "C3", LPAD(c1,c2) AS "C4", RPAD(c1,c2,c3) AS "C5", RPAD(c1,c2) AS "C6" FROM t1 ORDER BY ord;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+SELECT c1||'-'||c2||'-'||c3||'-'||c4||'-'||c5||'-'||c6 FROM v1;
+DROP VIEW v1;
+DROP TABLE t1;

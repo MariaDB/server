@@ -1,0 +1,6 @@
+!include my.cnf
+[mysqld.1]
+gtid_domain_id=1
+
+[mysqld.2]
+gtid_domain_id=2

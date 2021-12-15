@@ -64,7 +64,9 @@ DROP TABLE t1;
 
 
 --connection node_1
+--disable_warnings
 CREATE EVENT event1 ON SCHEDULE AT '2038-01-01 23:59:59' DO SELECT 1;
+--enable_warnings
 
 --connection node_2
 SHOW CREATE EVENT event1;

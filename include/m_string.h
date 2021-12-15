@@ -12,10 +12,10 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-/* There may be prolems include all of theese. Try to test in
-   configure with ones are needed? */
+/* There may be problems included in all of these. Try to test in
+   configure which ones are needed? */
 
 /*  This is needed for the definitions of strchr... on solaris */
 
@@ -99,7 +99,7 @@ extern	char *strmake(char *dst,const char *src,size_t length);
 #define strmake_buf(D,S)        strmake(D, S, sizeof(D) - 1)
 #else
 #define strmake_buf(D,S) ({                             \
-  compile_time_assert(sizeof(D) != sizeof(char*));      \
+  typeof (D) __x __attribute__((unused)) = { 2 };       \
   strmake(D, S, sizeof(D) - 1);                         \
   })
 #endif

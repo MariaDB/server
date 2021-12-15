@@ -13,10 +13,10 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation // gcc: Class implementation
+#pragma implementation  // gcc: Class implementation
 #endif
 
 #include <my_global.h>
@@ -28,7 +28,7 @@ namespace myrocks {
 
 void *Rdb_thread::thread_func(void *const thread_ptr) {
   DBUG_ASSERT(thread_ptr != nullptr);
-  Rdb_thread *const thread = static_cast<Rdb_thread *const>(thread_ptr);
+  Rdb_thread *const thread = static_cast<Rdb_thread *>(thread_ptr);
   if (!thread->m_run_once.exchange(true)) {
     thread->setname();
     thread->run();
@@ -42,7 +42,7 @@ void Rdb_thread::init(
     my_core::PSI_mutex_key stop_bg_psi_mutex_key,
     my_core::PSI_cond_key stop_bg_psi_cond_key
 #endif
-    ) {
+) {
   DBUG_ASSERT(!m_run_once);
   mysql_mutex_init(stop_bg_psi_mutex_key, &m_signal_mutex, MY_MUTEX_INIT_FAST);
   mysql_cond_init(stop_bg_psi_cond_key, &m_signal_cond, nullptr);
@@ -58,7 +58,7 @@ int Rdb_thread::create_thread(const std::string &thread_name
                               ,
                               PSI_thread_key background_psi_thread_key
 #endif
-                              ) {
+) {
   // Make a copy of the name so we can return without worrying that the
   // caller will free the memory
   m_name = thread_name;
@@ -68,7 +68,7 @@ int Rdb_thread::create_thread(const std::string &thread_name
 
 }
 
-void Rdb_thread::signal(const bool &stop_thread) {
+void Rdb_thread::signal(const bool stop_thread) {
   RDB_MUTEX_LOCK_CHECK(m_signal_mutex);
 
   if (stop_thread) {
@@ -80,4 +80,4 @@ void Rdb_thread::signal(const bool &stop_thread) {
   RDB_MUTEX_UNLOCK_CHECK(m_signal_mutex);
 }
 
-} // namespace myrocks
+}  // namespace myrocks

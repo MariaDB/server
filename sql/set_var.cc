@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* variable declarations are in sys_vars.cc now !!! */
 
@@ -233,22 +233,22 @@ bool sys_var::update(THD *thd, set_var *var)
   }
 }
 
-uchar *sys_var::session_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *sys_var::session_value_ptr(THD *thd, const LEX_CSTRING *base) const
 {
   return session_var_ptr(thd);
 }
 
-uchar *sys_var::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *sys_var::global_value_ptr(THD *thd, const LEX_CSTRING *base) const
 {
   return global_var_ptr();
 }
 
 bool sys_var::check(THD *thd, set_var *var)
 {
-  if ((var->value && do_check(thd, var))
-      || (on_check && on_check(this, thd, var)))
+  if (unlikely((var->value && do_check(thd, var)) ||
+               (on_check && on_check(this, thd, var))))
   {
-    if (!thd->is_error())
+    if (likely(!thd->is_error()))
     {
       char buff[STRING_BUFFER_USUAL_SIZE];
       String str(buff, sizeof(buff), system_charset_info), *res;
@@ -271,8 +271,8 @@ bool sys_var::check(THD *thd, set_var *var)
   return false;
 }
 
-uchar *sys_var::value_ptr(THD *thd, enum_var_type type,
-                          const LEX_CSTRING *base)
+const uchar *sys_var::value_ptr(THD *thd, enum_var_type type,
+                                const LEX_CSTRING *base) const
 {
   DBUG_ASSERT(base);
   if (type == OPT_GLOBAL || scope() == GLOBAL)
@@ -454,6 +454,22 @@ void sys_var::do_deprecated_warning(THD *thd)
 
   @retval         true on error, false otherwise (warning or ok)
  */
+
+
+bool throw_bounds_warning(THD *thd, const char *name,const char *v)
+{
+  if (thd->variables.sql_mode & MODE_STRICT_ALL_TABLES)
+  {
+    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, v);
+    return true;
+  }
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_TRUNCATED_WRONG_VALUE,
+                      ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), name, v);
+  return false;
+}
+
+
 bool throw_bounds_warning(THD *thd, const char *name,
                           bool fixed, bool is_unsigned, longlong v)
 {
@@ -471,9 +487,7 @@ bool throw_bounds_warning(THD *thd, const char *name,
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, buf);
       return true;
     }
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_TRUNCATED_WRONG_VALUE,
-                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), name, buf);
+    return throw_bounds_warning(thd, name, buf);
   }
   return false;
 }
@@ -491,14 +505,12 @@ bool throw_bounds_warning(THD *thd, const char *name, bool fixed, double v)
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name, buf);
       return true;
     }
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_TRUNCATED_WRONG_VALUE,
-                        ER_THD(thd, ER_TRUNCATED_WRONG_VALUE), name, buf);
+    return throw_bounds_warning(thd, name, buf);
   }
   return false;
 }
 
-CHARSET_INFO *sys_var::charset(THD *thd)
+CHARSET_INFO *sys_var::charset(THD *thd) const
 {
   return is_os_charset ? thd->variables.character_set_filesystem :
     system_charset_info;
@@ -688,17 +700,6 @@ sys_var *intern_find_sys_var(const char *str, size_t length)
 }
 
 
-bool find_sys_var_null_base(THD *thd, struct sys_var_with_base *tmp)
-{
-  tmp->var= find_sys_var(thd, tmp->base_name.str, tmp->base_name.length);
-
-  if (tmp->var != NULL)
-    tmp->base_name= null_clex_str;
-
-  return thd->is_error();
-}
-
-
 /**
   Execute update of all variables.
 
@@ -729,10 +730,10 @@ int sql_set_variables(THD *thd, List<set_var_base> *var_list, bool free)
   set_var_base *var;
   while ((var=it++))
   {
-    if ((error= var->check(thd)))
+    if (unlikely((error= var->check(thd))))
       goto err;
   }
-  if (was_error || !(error= MY_TEST(thd->is_error())))
+  if (unlikely(was_error) || likely(!(error= MY_TEST(thd->is_error()))))
   {
     it.rewind();
     while ((var= it++))
@@ -779,8 +780,7 @@ int set_var::check(THD *thd)
   if (!value)
     return 0;
 
-  if ((!value->fixed &&
-       value->fix_fields(thd, &value)) || value->check_cols(1))
+  if (value->fix_fields_if_needed_for_scalar(thd, &value))
     return -1;
   if (var->check_update_type(value))
   {
@@ -808,14 +808,13 @@ int set_var::light_check(THD *thd)
   if (var->check_type(type))
   {
     int err= type == OPT_GLOBAL ? ER_LOCAL_VARIABLE : ER_GLOBAL_VARIABLE;
-    my_error(err, MYF(0), var->name);
+    my_error(err, MYF(0), var->name.str);
     return -1;
   }
   if (type == OPT_GLOBAL && check_global_access(thd, SUPER_ACL))
     return 1;
 
-  if (value && ((!value->fixed && value->fix_fields(thd, &value)) ||
-                value->check_cols(1)))
+  if (value && value->fix_fields_if_needed_for_scalar(thd, &value))
     return -1;
   return 0;
 }
@@ -974,8 +973,17 @@ int set_var_default_role::check(THD *thd)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   real_user= get_current_user(thd, user);
-  int status= acl_check_set_default_role(thd, real_user->host.str, real_user->user.str);
-  return status;
+  real_role= role.str;
+  if (role.str == current_role.str)
+  {
+    if (!thd->security_ctx->priv_role[0])
+      real_role= "NONE";
+    else
+      real_role= thd->security_ctx->priv_role;
+  }
+
+  return acl_check_set_default_role(thd, real_user->host.str,
+                                    real_user->user.str, real_role);
 #else
   return 0;
 #endif
@@ -986,7 +994,8 @@ int set_var_default_role::update(THD *thd)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Reprepare_observer *save_reprepare_observer= thd->m_reprepare_observer;
   thd->m_reprepare_observer= 0;
-  int res= acl_set_default_role(thd, real_user->host.str, real_user->user.str, role.str);
+  int res= acl_set_default_role(thd, real_user->host.str, real_user->user.str,
+                                real_role);
   thd->m_reprepare_observer= save_reprepare_observer;
   return res;
 #else
@@ -1017,26 +1026,14 @@ int set_var_collation_client::update(THD *thd)
 
   /* Mark client collation variables as changed */
 #ifndef EMBEDDED_LIBRARY
-  if (thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->is_enabled())
+  if (thd->session_tracker.sysvars.is_enabled())
   {
-    sys_var *svar;
-    mysql_mutex_lock(&LOCK_plugin);
-    if ((svar= find_sys_var_ex(thd, "character_set_client",
-                               sizeof("character_set_client") - 1,
-                               false, true)))
-      thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
-        mark_as_changed(thd, (LEX_CSTRING*)svar);
-    if ((svar= find_sys_var_ex(thd, "character_set_results",
-                             sizeof("character_set_results") - 1,
-                               false, true)))
-      thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
-        mark_as_changed(thd, (LEX_CSTRING*)svar);
-    if ((svar= find_sys_var_ex(thd, "character_set_connection",
-                                sizeof("character_set_connection") - 1,
-                               false, true)))
-      thd->session_tracker.get_tracker(SESSION_SYSVARS_TRACKER)->
-        mark_as_changed(thd, (LEX_CSTRING*)svar);
-    mysql_mutex_unlock(&LOCK_plugin);
+    thd->session_tracker.sysvars.
+      mark_as_changed(thd, (LEX_CSTRING*)Sys_character_set_client_ptr);
+    thd->session_tracker.sysvars.
+      mark_as_changed(thd, (LEX_CSTRING*)Sys_character_set_results_ptr);
+    thd->session_tracker.sysvars.
+      mark_as_changed(thd, (LEX_CSTRING*)Sys_character_set_connection_ptr);
   }
   thd->session_tracker.mark_as_changed(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
 #endif //EMBEDDED_LIBRARY
@@ -1050,7 +1047,7 @@ int set_var_collation_client::update(THD *thd)
  INFORMATION_SCHEMA.SYSTEM_VARIABLES
 *****************************************************************************/
 static void store_value_ptr(Field *field, sys_var *var, String *str,
-                            uchar *value_ptr)
+                            const uchar *value_ptr)
 {
   field->set_notnull();
   str= var->val_str_nolock(str, field->table->in_use, value_ptr);
@@ -1071,7 +1068,6 @@ static void store_var(Field *field, sys_var *var, enum_var_type scope,
 int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   char name_buffer[NAME_CHAR_LEN];
-  enum_check_fields save_count_cuted_fields= thd->count_cuted_fields;
   bool res= 1;
   CHARSET_INFO *scs= system_charset_info;
   StringBuffer<STRING_BUFFER_USUAL_SIZE> strbuf(scs);
@@ -1081,7 +1077,6 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
   DBUG_ASSERT(tables->table->in_use == thd);
 
   cond= make_cond_for_info_schema(thd, cond, tables);
-  thd->count_cuted_fields= CHECK_FIELD_WARN;
   mysql_prlock_rdlock(&LOCK_system_variables_hash);
 
   for (uint i= 0; i < system_variable_hash.records; i++)
@@ -1120,8 +1115,8 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     fields[3]->store(origin->str, origin->length, scs);
 
     // DEFAULT_VALUE
-    uchar *def= var->is_readonly() && var->option.id < 0
-                ? 0 : var->default_value_ptr(thd);
+    const uchar *def= var->is_readonly() && var->option.id < 0
+                      ? 0 : var->default_value_ptr(thd);
     if (def)
       store_value_ptr(fields[4], var, &strbuf, def);
 
@@ -1246,7 +1241,6 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
   res= 0;
 end:
   mysql_prlock_unlock(&LOCK_system_variables_hash);
-  thd->count_cuted_fields= save_count_cuted_fields;
   return res;
 }
 

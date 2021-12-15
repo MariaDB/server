@@ -2,18 +2,15 @@ source include/master-slave.inc;
 source include/have_binlog_format_statement.inc;
 source include/have_tokudb.inc;
 
-set default_storage_engine='tokudb';
-create table tt (id int primary key, x int);
-
-set session tokudb_disable_slow_upsert=1;
+create table tt (id int primary key, x int) engine = tokudb;
 
 connection master;
-show variables like 'binlog_format';
-show variables like 'server_id';
+source ../include/setup_fast_update_upsert.inc;
+set session tokudb_enable_fast_update=1;
 
 connection slave;
-show variables like 'binlog_format';
-show variables like 'server_id';
+source ../include/setup_fast_update_upsert.inc;
+set session tokudb_enable_fast_update=1;
 
 connection master;
 
@@ -36,7 +33,7 @@ while ($i < $n) {
 # update a bunch of rows
 let $i=0;
 while ($i < $n) {
-        eval update noar tt set x=x+1 where id=$i;
+        eval update tt set x=x+1 where id=$i;
         inc $i;
 }
 select * from tt where x != 2;

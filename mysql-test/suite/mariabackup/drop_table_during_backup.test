@@ -1,0 +1,33 @@
+--source include/have_debug.inc
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+CREATE TABLE t1 (i int) ENGINE=INNODB;
+CREATE TABLE t2 (i int) ENGINE=INNODB;
+CREATE TABLE t3 (i int) ENGINE=INNODB;
+CREATE TABLE t4 (i int) ENGINE=INNODB;
+CREATE TABLE t5 (i int) ENGINE=INNODB;
+
+--let before_copy_test_t1=DROP TABLE test.t1
+--let after_copy_test_t2=DROP TABLE test.t2;
+# MDEV-18185, drop + rename combination
+--let after_copy_test_t5=BEGIN NOT ATOMIC DROP TABLE test.t5; RENAME TABLE test.t4 TO test.t5; END
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --dbug=+d,mariabackup_events;
+--enable_result_log
+
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+#check that the table t1 does not exist in backup
+CREATE TABLE t1(i int);
+DROP TABLE t1;
+CREATE TABLE t2(i int);
+DROP TABLE t2;
+DROP TABLE t3;
+CREATE TABLE t4(i int);
+DROP TABLE t4;
+DROP TABLE t5;
+rmdir $targetdir;

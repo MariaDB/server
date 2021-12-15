@@ -11,6 +11,7 @@
 --source include/not_embedded.inc
 --source include/have_debug.inc
 --source include/have_perfschema.inc
+--source include/have_hostname_cache.inc
 
 # Enforce a clean state
 --source ../include/wait_for_pfs_thread_count.inc
@@ -30,6 +31,7 @@ select current_user();
 disconnect con1;
 
 --connection default
+SET @saved_dbug = @@GLOBAL.debug_dbug;
 set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4";
 
 connect (con2a,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
@@ -176,8 +178,16 @@ disconnect con4c;
 --source ../include/wait_for_pfs_thread_count.inc
 
 set global max_user_connections = 0;
-set global max_connections = 3;
+set global max_connections = 10;
 flush user_resources;
+
+connect (tmp_con1,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect (tmp_con2,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect (tmp_con3,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect (tmp_con4,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect (tmp_con5,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect (tmp_con6,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
+connect (tmp_con7,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
 
 connect (con5a,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
 select "Con4a is alive";
@@ -233,6 +243,13 @@ connect (con5d,"127.0.0.1",quota,,test,$MASTER_MYPORT,);
 
 disconnect con5a;
 disconnect con5b;
+--disconnect tmp_con1
+--disconnect tmp_con2
+--disconnect tmp_con3
+--disconnect tmp_con4
+--disconnect tmp_con5
+--disconnect tmp_con6
+--disconnect tmp_con7
 
 # Wait for all disconnects
 --source ../include/wait_for_pfs_thread_count.inc
@@ -243,5 +260,5 @@ set global max_user_connections = @saved_max_user_connections;
 # revoke all privileges on test.* from 'quota'@'santa.claus.ipv4.example.com';
 drop user 'quota'@'santa.claus.ipv4.example.com';
 
-set global debug_dbug= default;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
 

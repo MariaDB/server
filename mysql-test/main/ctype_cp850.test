@@ -1,0 +1,48 @@
+--echo #
+--echo # Start of 5.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-9862 Illegal mix of collation, when comparing column with CASE expression
+--echo #
+SET NAMES cp850;
+CREATE TABLE t1 (a CHAR(1) CHARACTER SET latin1);
+SELECT a FROM t1 WHERE CASE a WHEN 'aaaa' THEN 'Y' WHEN 'aaaa' THEN 'Y' ELSE NULL END <> a;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 5.5 tests
+--echo #
+
+--echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-25610 Assertion `escape != -1' failed in Item_func_like::val_int
+--echo #
+
+SET NAMES cp850;
+SELECT '' LIKE '' ESCAPE _cp850 0xFF;
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE ch INT DEFAULT 0x00;
+  DECLARE query TEXT DEFAULT 'SELECT _cp850'''' LIKE _cp850'''' ESCAPE _cp850 0xFF';
+  WHILE ch <= 0xFF DO
+    SET @query= REPLACE(query, 'FF', CONV(ch, 10, 16));
+    SELECT @query;
+    PREPARE stmt FROM @query;
+    EXECUTE stmt;
+    DEALLOCATE PREPARE stmt;
+    SET ch=ch+1;
+  END WHILE;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

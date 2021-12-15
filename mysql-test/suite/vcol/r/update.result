@@ -8,9 +8,21 @@ select * from t1;
 a	b	c
 2	3	4
 drop table t1;
-create table t1 (a int, c int as(a), p varchar(20) as(y), y char(20), index (p,c));
+create table t1 (a int, c int as(a), p varchar(20) as(rtrim(y)), y char(20), index (p,c));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `c` int(11) GENERATED ALWAYS AS (`a`) VIRTUAL,
+  `p` varchar(20) GENERATED ALWAYS AS (rtrim(`y`)) VIRTUAL,
+  `y` char(20) DEFAULT NULL,
+  KEY `p` (`p`,`c`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 insert into t1 (a,y) values(1, "yyy");
 update t1 set a = 100 where a = 1;
+check table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
 drop table t1;
 create table t1 (
 a varchar(10000),
@@ -62,10 +74,10 @@ b int, c blob as (b), index (c(57)),
 d blob, e blob as (d), index (e(57)))
 replace select * from t1;
 Warnings:
-Warning	1906	The value specified for generated column 'c' in table 't' ignored
-Warning	1906	The value specified for generated column 'e' in table 't' ignored
-Warning	1906	The value specified for generated column 'c' in table 't' ignored
-Warning	1906	The value specified for generated column 'e' in table 't' ignored
+Warning	1906	The value specified for generated column 'c' in table 't' has been ignored
+Warning	1906	The value specified for generated column 'e' in table 't' has been ignored
+Warning	1906	The value specified for generated column 'c' in table 't' has been ignored
+Warning	1906	The value specified for generated column 'e' in table 't' has been ignored
 check table t;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK

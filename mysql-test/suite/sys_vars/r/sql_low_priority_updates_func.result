@@ -20,7 +20,7 @@ INSERT INTO t1 VALUES('3');
 INSERT INTO t1 VALUES('4');
 INSERT INTO t1 VALUES('5');
 INSERT INTO t1 VALUES('6');
-LOCK TABLE v1 WRITE;
+LOCK TABLE v1 WRITE CONCURRENT;
 connection con1;
 ** Asynchronous Execution **
 UPDATE t1 SET a = CONCAT(a,"-updated");|
@@ -56,7 +56,7 @@ INSERT INTO t1 VALUES('3');
 INSERT INTO t1 VALUES('4');
 INSERT INTO t1 VALUES('5');
 INSERT INTO t1 VALUES('6');
-LOCK TABLE v1 WRITE;
+LOCK TABLE v1 READ;
 connection con1;
 ** Asynchronous Execution **
 UPDATE t1 SET a = CONCAT(a,"-updated");|

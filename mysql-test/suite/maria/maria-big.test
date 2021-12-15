@@ -69,6 +69,6 @@ drop table t1;
 --disable_result_log
 --disable_query_log
 set global aria_log_file_size=default;
-set global max_allowed_packet=default;
+eval set global max_allowed_packet= $default_max_allowed_packet;
 --enable_result_log
 --enable_query_log

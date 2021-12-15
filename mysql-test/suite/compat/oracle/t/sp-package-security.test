@@ -1,0 +1,332 @@
+--source include/not_embedded.inc
+--source include/default_charset.inc
+
+SET sql_mode=ORACLE;
+
+CREATE DATABASE db1;
+CREATE USER u1@localhost IDENTIFIED BY '';
+GRANT SELECT ON db1.* TO u1@localhost;
+
+connect (conn1,localhost,u1,,db1);
+SELECT CURRENT_USER;
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # User u1 cannot drop PROCEDURE, PACKAGE, PACKAGE BODY by default
+--echo #
+
+--error ER_PROCACCESS_DENIED_ERROR
+DROP PROCEDURE p1;
+--error ER_PROCACCESS_DENIED_ERROR
+DROP PACKAGE pkg1;
+--error ER_PROCACCESS_DENIED_ERROR
+DROP PACKAGE BODY pkg1;
+
+--echo #
+--echo # User u1 cannot create PROCEDURE, PACKAGE, PACKAGE BODY by default
+--echo #
+
+DELIMITER $$;
+--error ER_DBACCESS_DENIED_ERROR
+CREATE PROCEDURE p1 AS
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_DBACCESS_DENIED_ERROR
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+END;
+$$
+DELIMITER ;$$
+
+# TODO: this should probably return ER_DBACCESS_DENIED_ERROR
+DELIMITER $$;
+--error ER_SP_DOES_NOT_EXIST
+CREATE PACKAGE BODY pkg1 AS
+  PROCEDURE p1 AS BEGIN NULL; END;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Now create a PACKAGE by root
+--echo #
+
+connection default;
+USE db1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1root AS
+BEGIN
+  SELECT 1;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN TEXT;
+END;
+$$
+DELIMITER ;$$
+SHOW CREATE PACKAGE pkg1;
+
+--echo #
+--echo # u1 cannot SHOW yet:
+--echo # - the standalone procedure earlier created by root
+--echo # - the package specifications earlier create by root
+--echo #
+
+connection conn1;
+--error ER_SP_DOES_NOT_EXIST
+SHOW CREATE PROCEDURE p1root;
+--error ER_SP_DOES_NOT_EXIST
+SHOW CREATE PACKAGE pkg1;
+
+
+--echo #
+--echo # User u1 still cannot create a PACKAGE BODY
+--echo #
+
+connection conn1;
+DELIMITER $$;
+--error ER_DBACCESS_DENIED_ERROR
+CREATE PACKAGE BODY pkg1 AS
+  PROCEDURE p1 AS BEGIN NULL; END;
+  FUNCTION f1 RETURN TEXT AS BEGIN RETURN 'This is f1'; END;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Now grant EXECUTE:
+--echo # - on the standalone procedure earlier created by root
+--echo # - on the package specification earlier created by root
+--echo #
+connection default;
+GRANT EXECUTE ON PROCEDURE db1.p1root TO u1@localhost;
+GRANT EXECUTE ON PACKAGE db1.pkg1 TO u1@localhost;
+
+--echo #
+--echo # Now u1 can do SHOW for:
+--echo # - the standalone procedure earlier created by root
+--echo # - the package specification earlier created by root
+--echo #
+
+disconnect conn1;
+connect (conn1,localhost,u1,,db1);
+SET sql_mode=ORACLE;
+SHOW CREATE PROCEDURE db1.p1root;
+SHOW CREATE PACKAGE db1.pkg1;
+
+
+--echo #
+--echo # Now revoke EXECUTE and grant CREATE ROUTINE instead
+--echo #
+
+connection default;
+REVOKE EXECUTE ON PROCEDURE db1.p1root FROM u1@localhost;
+REVOKE EXECUTE ON PACKAGE db1.pkg1 FROM u1@localhost;
+GRANT CREATE ROUTINE ON db1.* TO u1@localhost;
+
+--echo #
+--echo # Reconnect u1 to make new grants have effect
+--echo #
+
+disconnect conn1;
+connect (conn1,localhost,u1,,db1);
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # Now u1 can SHOW:
+--echo # - standalone routines earlier created by root
+--echo # - package specifications earlier created by root
+--echo #
+SHOW CREATE PROCEDURE p1root;
+SHOW CREATE PACKAGE pkg1;
+
+--echo #
+--echo # Now u1 can CREATE, DROP and EXECUTE its own standalone procedures
+--echo #
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+SHOW GRANTS;
+CALL p1;
+DROP PROCEDURE p1;
+SHOW GRANTS;
+
+--echo #
+--echo # Now u1 can also CREATE, DROP its own package specifications
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE pkg2 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN TEXT;
+END;
+$$
+DELIMITER ;$$
+SHOW CREATE PACKAGE pkg2;
+SHOW GRANTS;
+DROP PACKAGE pkg2;
+SHOW GRANTS;
+
+
+--echo #
+--echo # Now u1 can also CREATE, DROP package bodies and EXECUTE package body routines
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE BODY pkg1 AS
+  PROCEDURE p1 AS BEGIN SELECT 'This is pkg1.p1' AS `comment`; END;
+  FUNCTION f1 RETURN TEXT AS BEGIN RETURN 'This is pkg1.f1'; END;
+END;
+$$
+DELIMITER ;$$
+SHOW CREATE PACKAGE pkg1;
+SHOW CREATE PACKAGE BODY pkg1;
+SHOW GRANTS;
+CALL pkg1.p1;
+SELECT pkg1.f1();
+DROP PACKAGE BODY pkg1;
+SHOW GRANTS;
+
+--echo #
+--echo # Now create a PACKAGE BODY by root.
+--echo # u1 does not have EXECUTE access by default.
+--echo #
+
+connection default;
+DELIMITER $$;
+CREATE PACKAGE BODY pkg1 AS
+  PROCEDURE p1 AS BEGIN SELECT 'This is pkg1.p1' AS `comment`; END;
+  FUNCTION f1 RETURN TEXT AS BEGIN RETURN 'This is pkg1.f1'; END;
+END;
+$$
+DELIMITER ;$$
+
+connection conn1;
+SHOW CREATE PACKAGE pkg1;
+SHOW CREATE PACKAGE BODY pkg1;
+--error ER_PROCACCESS_DENIED_ERROR
+CALL pkg1.p1;
+--error ER_PROCACCESS_DENIED_ERROR
+SELECT pkg1.f1();
+
+--echo #
+--echo # Now grant EXECUTE to u1 on the PACKAGE BODY created by root
+--echo #
+
+connection default;
+GRANT EXECUTE ON PACKAGE BODY db1.pkg1 TO u1@localhost;
+disconnect conn1;
+connect (conn1,localhost,u1,,db1);
+SELECT CURRENT_USER;
+SET sql_mode=ORACLE;
+SHOW GRANTS;
+CALL pkg1.p1;
+SELECT pkg1.f1();
+
+connection default;
+DROP PACKAGE BODY pkg1;
+
+
+--echo #
+--echo # u1 still cannot DROP the package specification earlier created by root.
+--echo #
+
+connection conn1;
+--error ER_PROCACCESS_DENIED_ERROR
+DROP PACKAGE pkg1;
+
+--echo #
+--echo # Grant ALTER ROUTINE to u1
+--echo #
+
+connection default;
+GRANT ALTER ROUTINE ON db1.* TO u1@localhost;
+
+--echo #
+--echo # Now u1 can DROP:
+--echo # - the standalone procedure earlier created by root
+--echo # - the package specification earlier created by root
+--echo #
+
+disconnect conn1;
+connect (conn1,localhost,u1,,db1);
+SET sql_mode=ORACLE;
+DROP PACKAGE pkg1;
+DROP PROCEDURE p1root;
+
+disconnect conn1;
+connection default;
+
+DROP USER u1@localhost;
+DROP DATABASE db1;
+USE test;
+
+
+--echo #
+--echo # Creator=root, definer=xxx
+--echo #
+
+CREATE USER xxx@localhost;
+DELIMITER $$;
+CREATE DEFINER=xxx@localhost PACKAGE p1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE DEFINER=xxx@localhost PACKAGE BODY p1 AS
+  PROCEDURE p1 AS
+  BEGIN
+    SELECT SESSION_USER(), CURRENT_USER(), 'p1.p1' AS msg;
+  END;
+BEGIN
+  SELECT SESSION_USER(), CURRENT_USER(), 'package body p1' AS msg;
+END;
+$$
+DELIMITER ;$$
+--error ER_PROCACCESS_DENIED_ERROR
+CALL p1.p1;
+GRANT EXECUTE ON PACKAGE BODY test.p1 TO xxx@localhost;
+CALL p1.p1;
+DROP PACKAGE p1;
+DROP USER xxx@localhost;
+
+
+--echo #
+--echo # Creator=root, definer=xxx, SQL SECURITY INVOKER
+--echo #
+
+CREATE USER xxx@localhost;
+DELIMITER $$;
+CREATE DEFINER=xxx@localhost PACKAGE p1 AS
+  PROCEDURE p1;
+END;
+$$
+CREATE DEFINER=xxx@localhost PACKAGE BODY p1 SQL SECURITY INVOKER AS
+  PROCEDURE p1 AS
+  BEGIN
+    SELECT SESSION_USER(), CURRENT_USER(), 'p1.p1' AS msg;
+  END;
+BEGIN
+  SELECT SESSION_USER(), CURRENT_USER(), 'package body p1' AS msg;
+END;
+$$
+DELIMITER ;$$
+CALL p1.p1;
+DROP PACKAGE p1;
+DROP USER xxx@localhost;

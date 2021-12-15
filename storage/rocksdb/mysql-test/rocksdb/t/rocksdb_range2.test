@@ -15,6 +15,19 @@ while ($i<10000)
 --enable_query_log
 analyze table t1;
 select count(*) from t1;
+--replace_column 9 #
 explain select c1 from t1 where c1 > 5 limit 10;
+drop table t1;
+
+--echo #
+--echo # MDEV-17414: MyROCKS order desc limit 1 fails
+--echo #
+create table t1 (date date);
+insert into t1 values ('2018-10-04'), ('2018-10-05');
+select * from t1 where date < '2018-10-09' order by date desc limit 1; # Works as expected
+alter table t1 add index date_index (date);
+select * from t1 where date < '2018-10-05' order by date desc limit 1; # Works as expected
+--echo # this should not produce an empty set:
+select * from t1 where date < '2018-10-09' order by date desc limit 1;
 drop table t1;
 

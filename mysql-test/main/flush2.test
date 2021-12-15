@@ -1,0 +1,19 @@
+#
+# Bug#17733 Flushing logs causes daily server crash
+#
+
+--source include/not_embedded.inc
+
+set @save_expire_logs_days=@@global.expire_logs_days;
+
+flush logs;
+set global expire_logs_days = 3;
+let $relay_prefix=`select concat(substring_index(@@relay_log,"-",1),"-")`;
+show variables like 'log_bin%';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR $relay_prefix XXX-
+show variables like 'relay_log%';
+flush logs;
+show variables like 'log_bin%';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR $relay_prefix XXX-
+show variables like 'relay_log%';
+set global expire_logs_days=@save_expire_logs_days;

@@ -22,7 +22,7 @@
 
 
 /*
-   This file is basicly tis620 character sets with some extra functions
+   This file is basically tis620 character sets with some extra functions
    for tis-620 handling
 */
 
@@ -502,7 +502,7 @@ static size_t thai2sortable(uchar *tstr, size_t len)
   string
 
   NOTE:
-    We can't cut strings at end \0 as this would break comparision with
+    We can't cut strings at end \0 as this would break comparison with
     LIKE characters, where the min range is stored as end \0
 
   Arg: 2 Strings and it compare length
@@ -553,9 +553,11 @@ int my_strnncollsp_tis620(CHARSET_INFO * cs __attribute__((unused)),
     alloced= a= (uchar*) my_malloc(a_length+b_length+2, MYF(MY_FAE));
   
   b= a + a_length+1;
-  memcpy((char*) a, (char*) a0, a_length);
+  if (a_length)
+    memcpy((char*) a, (char*) a0, a_length);
   a[a_length]= 0;	/* if length(a0)> len1, need to put 'end of string' */
-  memcpy((char *)b, (char *)b0, b_length);
+  if (b_length)
+    memcpy((char *)b, (char *)b0, b_length);
   b[b_length]= 0;	/* put end of string */
   a_length= thai2sortable(a, a_length);
   b_length= thai2sortable(b, b_length);
@@ -594,7 +596,7 @@ int my_strnncollsp_tis620_nopad(CHARSET_INFO * cs __attribute__((unused)),
   strnxfrm replacment, convert Thai string to sortable string
 
   Arg: Destination buffer, source string, dest length and source length
-  Ret: Conveted string size
+  Ret: Converted string size
 */
 
 static size_t
@@ -603,8 +605,8 @@ my_strnxfrm_tis620(CHARSET_INFO *cs,
                    const uchar *src, size_t srclen, uint flags)
 {
   size_t len, dstlen0= dstlen;
-  len= (uint) (strmake((char*) dst, (char*) src, MY_MIN(dstlen, srclen)) -
-	               (char*) dst);
+  len= MY_MIN(dstlen, srclen);
+  memcpy(dst, src, len);
   len= thai2sortable(dst, len);
   set_if_smaller(dstlen, nweights);
   set_if_smaller(len, dstlen); 
@@ -626,8 +628,8 @@ my_strnxfrm_tis620_nopad(CHARSET_INFO *cs,
                          const uchar *src, size_t srclen, uint flags)
 {
   size_t len, dstlen0= dstlen;
-  len= (uint) (strmake((char*) dst, (char*) src, MY_MIN(dstlen, srclen)) -
-	               (char*) dst);
+  len= MY_MIN(dstlen, srclen);
+  memcpy(dst, src, len);
   len= thai2sortable(dst, len);
   set_if_smaller(dstlen, nweights);
   set_if_smaller(len, dstlen);

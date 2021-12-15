@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2017, MariaDB Corporation.
+Copyright (c) 2013, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -13,7 +13,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -27,13 +27,10 @@ Created 12/18/1995 Heikki Tuuri
 #ifndef fsp0fsp_h
 #define fsp0fsp_h
 
-#include "univ.i"
-
 #include "fsp0types.h"
 
 #ifndef UNIV_INNOCHECKSUM
 
-#include "fsp0space.h"
 #include "fut0lst.h"
 #include "mtr0mtr.h"
 #include "page0types.h"
@@ -41,12 +38,11 @@ Created 12/18/1995 Heikki Tuuri
 #include "ut0byte.h"
 
 #endif /* !UNIV_INNOCHECKSUM */
-#include "fsp0types.h"
 
 /** @return the PAGE_SSIZE flags for the current innodb_page_size */
 #define FSP_FLAGS_PAGE_SSIZE()						\
-	((UNIV_PAGE_SIZE == UNIV_PAGE_SIZE_ORIG) ?			\
-	 0 : (UNIV_PAGE_SIZE_SHIFT - UNIV_ZIP_SIZE_SHIFT_MIN + 1)	\
+	((srv_page_size == UNIV_PAGE_SIZE_ORIG) ?			\
+	 0U : (srv_page_size_shift - UNIV_ZIP_SIZE_SHIFT_MIN + 1)	\
 	 << FSP_FLAGS_POS_PAGE_SSIZE)
 
 /* @defgroup Compatibility macros for MariaDB 10.1.0 through 10.1.20;
@@ -294,22 +290,6 @@ the extent are free and which contain old tuple version to clean. */
 #ifndef UNIV_INNOCHECKSUM
 /* @} */
 
-/**********************************************************************//**
-Initializes the file space system. */
-void
-fsp_init(void);
-/*==========*/
-
-/**********************************************************************//**
-Gets the size of the system tablespace from the tablespace header.  If
-we do not have an auto-extending data file, this should be equal to
-the size of the data files.  If there is an auto-extending data file,
-this can be smaller.
-@return size in pages */
-ulint
-fsp_header_get_tablespace_size(void);
-/*================================*/
-
 /** Calculate the number of pages to extend a datafile.
 We extend single-table tablespaces first one extent at a time,
 but 4 at a time for bigger tablespaces. It is not enough to extend always
@@ -334,7 +314,7 @@ UNIV_INLINE
 ulint
 fsp_get_extent_size_in_pages(const page_size_t&	page_size)
 {
-	return(FSP_EXTENT_SIZE * UNIV_PAGE_SIZE / page_size.physical());
+	return (FSP_EXTENT_SIZE << srv_page_size_shift) / page_size.physical();
 }
 
 /**********************************************************************//**
@@ -397,56 +377,25 @@ fsp_header_init_fields(
 	ulint	flags);		/*!< in: tablespace flags (FSP_SPACE_FLAGS):
 				0, or table->flags if newer than COMPACT */
 /** Initialize a tablespace header.
-@param[in]	space_id	space id
-@param[in]	size		current size in blocks
-@param[in,out]	mtr		mini-transaction */
-void
-fsp_header_init(ulint space_id, ulint size, mtr_t* mtr);
+@param[in,out]	space	tablespace
+@param[in]	size	current size in blocks
+@param[in,out]	mtr	mini-transaction */
+void fsp_header_init(fil_space_t* space, ulint size, mtr_t* mtr)
+	MY_ATTRIBUTE((nonnull));
 
-/**********************************************************************//**
-Increases the space size field of a space. */
-void
-fsp_header_inc_size(
-/*================*/
-	ulint	space_id,	/*!< in: space id */
-	ulint	size_inc,	/*!< in: size increment in pages */
-	mtr_t*	mtr);		/*!< in/out: mini-transaction */
-/**********************************************************************//**
-Creates a new segment.
-@return the block where the segment header is placed, x-latched, NULL
-if could not create segment because of lack of space */
+/** Create a new segment.
+@param space                tablespace
+@param byte_offset          byte offset of the created segment header
+@param mtr                  mini-transaction
+@param has_done_reservation whether fsp_reserve_free_extents() was invoked
+@param block                block where segment header is placed,
+                            or NULL to allocate an additional page for that
+@return the block where the segment header is placed, x-latched
+@retval NULL if could not create segment because of lack of space */
 buf_block_t*
-fseg_create(
-/*========*/
-	ulint	space_id,/*!< in: space id */
-	ulint	page,	/*!< in: page where the segment header is placed: if
-			this is != 0, the page must belong to another segment,
-			if this is 0, a new page will be allocated and it
-			will belong to the created segment */
-	ulint	byte_offset, /*!< in: byte offset of the created segment header
-			on the page */
-	mtr_t*	mtr);	/*!< in/out: mini-transaction */
-/**********************************************************************//**
-Creates a new segment.
-@return the block where the segment header is placed, x-latched, NULL
-if could not create segment because of lack of space */
-buf_block_t*
-fseg_create_general(
-/*================*/
-	ulint	space_id,/*!< in: space id */
-	ulint	page,	/*!< in: page where the segment header is placed: if
-			this is != 0, the page must belong to another segment,
-			if this is 0, a new page will be allocated and it
-			will belong to the created segment */
-	ulint	byte_offset, /*!< in: byte offset of the created segment header
-			on the page */
-	ibool	has_done_reservation, /*!< in: TRUE if the caller has already
-			done the reservation for the pages with
-			fsp_reserve_free_extents (at least 2 extents: one for
-			the inode and the other for the segment) then there is
-			no need to do the check for this individual
-			operation */
-	mtr_t*	mtr);	/*!< in/out: mini-transaction */
+fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
+            bool has_done_reservation= false, buf_block_t *block= NULL);
+
 /**********************************************************************//**
 Calculates the number of pages reserved by a segment, and how many pages are
 currently used.
@@ -508,7 +457,7 @@ fseg_alloc_free_page_general(
 use several pages from the tablespace should call this function beforehand
 and reserve enough free extents so that they certainly will be able
 to do their operation, like a B-tree page split, fully. Reservations
-must be released with function fil_space_release_free_extents!
+must be released with function fil_space_t::release_free_extents()!
 
 The alloc_type below has the following meaning: FSP_NORMAL means an
 operation which will probably result in more space usage, like an
@@ -534,7 +483,7 @@ free pages available.
 				return true and the tablespace size is <
 				FSP_EXTENT_SIZE pages, then this can be 0,
 				otherwise it is n_ext
-@param[in]	space_id	tablespace identifier
+@param[in,out]	space		tablespace
 @param[in]	n_ext		number of extents to reserve
 @param[in]	alloc_type	page reservation type (FSP_BLOB, etc)
 @param[in,out]	mtr		the mini transaction
@@ -545,49 +494,23 @@ free pages available.
 bool
 fsp_reserve_free_extents(
 	ulint*		n_reserved,
-	ulint		space_id,
+	fil_space_t*	space,
 	ulint		n_ext,
 	fsp_reserve_t	alloc_type,
 	mtr_t*		mtr,
 	ulint		n_pages = 2);
 
-/** Calculate how many KiB of new data we will be able to insert to the
-tablespace without running out of space.
-@param[in]	space_id	tablespace ID
-@return available space in KiB
-@retval UINTMAX_MAX if unknown */
-uintmax_t
-fsp_get_available_space_in_free_extents(
-	ulint		space_id);
-
-/** Calculate how many KiB of new data we will be able to insert to the
-tablespace without running out of space. Start with a space object that has
-been acquired by the caller who holds it for the calculation,
-@param[in]	space		tablespace object from fil_space_acquire()
-@return available space in KiB */
-uintmax_t
-fsp_get_available_space_in_free_extents(
-	const fil_space_t*	space);
-
-/**********************************************************************//**
-Frees a single page of a segment. */
+/** Free a page in a file segment.
+@param[in,out]	seg_header	file segment header
+@param[in,out]	space		tablespace
+@param[in]	offset		page number
+@param[in,out]	mtr		mini-transaction */
 void
-fseg_free_page_func(
-	fseg_header_t*	seg_header, /*!< in: segment header */
-	ulint		space_id, /*!< in: space id */
-	ulint		page,	/*!< in: page offset */
-#ifdef BTR_CUR_HASH_ADAPT
-	bool		ahi,	/*!< in: whether we may need to drop
-				the adaptive hash index */
-#endif /* BTR_CUR_HASH_ADAPT */
-	mtr_t*		mtr);	/*!< in/out: mini-transaction */
-#ifdef BTR_CUR_HASH_ADAPT
-# define fseg_free_page(header, space_id, page, ahi, mtr)	\
-	fseg_free_page_func(header, space_id, page, ahi, mtr)
-#else /* BTR_CUR_HASH_ADAPT */
-# define fseg_free_page(header, space_id, page, ahi, mtr)	\
-	fseg_free_page_func(header, space_id, page, mtr)
-#endif /* BTR_CUR_HASH_ADAPT */
+fseg_free_page(
+	fseg_header_t*	seg_header,
+	fil_space_t*	space,
+	ulint		offset,
+	mtr_t*		mtr);
 /** Determine whether a page is free.
 @param[in,out]	space	tablespace
 @param[in]	page	page number
@@ -600,45 +523,63 @@ Frees part of a segment. This function can be used to free a segment
 by repeatedly calling this function in different mini-transactions.
 Doing the freeing in a single mini-transaction might result in
 too big a mini-transaction.
-@return TRUE if freeing completed */
-ibool
-fseg_free_step_func(
+@return whether the freeing was completed */
+bool
+fseg_free_step(
 	fseg_header_t*	header,	/*!< in, own: segment header; NOTE: if the header
 				resides on the first page of the frag list
 				of the segment, this pointer becomes obsolete
 				after the last freeing step */
-#ifdef BTR_CUR_HASH_ADAPT
-	bool		ahi,	/*!< in: whether we may need to drop
-				the adaptive hash index */
-#endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((warn_unused_result));
-#ifdef BTR_CUR_HASH_ADAPT
-# define fseg_free_step(header, ahi, mtr) fseg_free_step_func(header, ahi, mtr)
-#else /* BTR_CUR_HASH_ADAPT */
-# define fseg_free_step(header, ahi, mtr) fseg_free_step_func(header, mtr)
-#endif /* BTR_CUR_HASH_ADAPT */
 /**********************************************************************//**
 Frees part of a segment. Differs from fseg_free_step because this function
 leaves the header page unfreed.
-@return TRUE if freeing completed, except the header page */
-ibool
-fseg_free_step_not_header_func(
+@return whether the freeing was completed, except for the header page */
+bool
+fseg_free_step_not_header(
 	fseg_header_t*	header,	/*!< in: segment header which must reside on
 				the first fragment page of the segment */
-#ifdef BTR_CUR_HASH_ADAPT
-	bool		ahi,	/*!< in: whether we may need to drop
-				the adaptive hash index */
-#endif /* BTR_CUR_HASH_ADAPT */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((warn_unused_result));
-#ifdef BTR_CUR_HASH_ADAPT
-# define fseg_free_step_not_header(header, ahi, mtr)	\
-	fseg_free_step_not_header_func(header, ahi, mtr)
-#else /* BTR_CUR_HASH_ADAPT */
-# define fseg_free_step_not_header(header, ahi, mtr)	\
-	fseg_free_step_not_header_func(header, mtr)
-#endif /* BTR_CUR_HASH_ADAPT */
+
+/** Reset the page type.
+Data files created before MySQL 5.1.48 may contain garbage in FIL_PAGE_TYPE.
+In MySQL 3.23.53, only undo log pages and index pages were tagged.
+Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
+@param[in]	block	block with invalid FIL_PAGE_TYPE
+@param[in]	type	expected page type
+@param[in,out]	mtr	mini-transaction */
+ATTRIBUTE_COLD
+void fil_block_reset_type(const buf_block_t& block, ulint type, mtr_t* mtr);
+
+/** Get the file page type.
+@param[in]	page	file page
+@return page type */
+inline uint16_t fil_page_get_type(const byte* page)
+{
+	return mach_read_from_2(page + FIL_PAGE_TYPE);
+}
+
+/** Check (and if needed, reset) the page type.
+Data files created before MySQL 5.1.48 may contain
+garbage in the FIL_PAGE_TYPE field.
+In MySQL 3.23.53, only undo log pages and index pages were tagged.
+Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
+@param[in]	page_id	page number
+@param[in,out]	page	page with possibly invalid FIL_PAGE_TYPE
+@param[in]	type	expected page type
+@param[in,out]	mtr	mini-transaction */
+inline void
+fil_block_check_type(
+	const buf_block_t&	block,
+	ulint			type,
+	mtr_t*			mtr)
+{
+	if (UNIV_UNLIKELY(type != fil_page_get_type(block.frame))) {
+		fil_block_reset_type(block, type, mtr);
+	}
+}
 
 /** Checks if a page address is an extent descriptor page address.
 @param[in]	page_id		page id
@@ -647,18 +588,33 @@ fseg_free_step_not_header_func(
 UNIV_INLINE
 ibool
 fsp_descr_page(
-	const page_id_t&	page_id,
+	const page_id_t		page_id,
 	const page_size_t&	page_size);
 
-/***********************************************************//**
-Parses a redo log record of a file page init.
-@return end of log record or NULL */
-byte*
-fsp_parse_init_file_page(
-/*=====================*/
-	byte*		ptr,	/*!< in: buffer */
-	byte*		end_ptr, /*!< in: buffer end */
-	buf_block_t*	block);	/*!< in: block or NULL */
+/** Initialize a file page whose prior contents should be ignored.
+@param[in,out]	block	buffer pool block */
+void fsp_apply_init_file_page(buf_block_t* block);
+
+/** Initialize a file page.
+@param[in]	space	tablespace
+@param[in,out]	block	file page
+@param[in,out]	mtr	mini-transaction */
+inline void fsp_init_file_page(
+#ifdef UNIV_DEBUG
+	const fil_space_t* space,
+#endif
+	buf_block_t* block, mtr_t* mtr)
+{
+	ut_d(space->modify_check(*mtr));
+	ut_ad(space->id == block->page.id.space());
+	fsp_apply_init_file_page(block);
+	mlog_write_initial_log_record(block->frame, MLOG_INIT_FILE_PAGE2, mtr);
+}
+
+#ifndef UNIV_DEBUG
+# define fsp_init_file_page(space, block, mtr) fsp_init_file_page(block, mtr)
+#endif
+
 #ifdef UNIV_BTR_PRINT
 /*******************************************************************//**
 Writes info of a segment. */
@@ -743,7 +699,7 @@ fsp_flags_convert_from_101(ulint flags)
 
 	/* Bits 13..16 are the wrong position for PAGE_SSIZE, and they
 	should contain one of the values 3,4,6,7, that is, be of the form
-	0b0011 or 0b01xx (except 0b0110).
+	0b0011 or 0b01xx (except 0b0101).
 	In correct versions, these bits should be 0bc0se
 	where c is the MariaDB COMPRESSED flag
 	and e is the MySQL 5.7 ENCRYPTION flag

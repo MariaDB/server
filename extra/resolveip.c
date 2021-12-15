@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* Resolves IP's to hostname and hostnames to IP's */
 
@@ -79,6 +79,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
   case 'I':
   case '?':
     usage();
+    my_end(0);
     exit(0);
   }
   return 0;
@@ -91,7 +92,10 @@ static int get_options(int *argc,char ***argv)
   int ho_error;
 
   if ((ho_error=handle_options(argc, argv, my_long_options, get_one_option)))
+  {
+    my_end(0);
     exit(ho_error);
+  }
 
   if (*argc == 0)
   {
@@ -113,10 +117,14 @@ int main(int argc, char **argv)
   MY_INIT(argv[0]);
 
   if (get_options(&argc,&argv))
+  {
+    my_end(0);
     exit(1);
+  }
 
   while (argc--)
   {
+    my_bool do_more;
 #ifndef WIN32
     struct in_addr addr;
 #endif
@@ -125,13 +133,13 @@ int main(int argc, char **argv)
     /* Not compatible with IPv6!  Probably should use getnameinfo(). */
 #ifdef WIN32
     taddr = inet_addr(ip);
-    if(taddr != INADDR_NONE)
-    {
+    do_more= (taddr != INADDR_NONE);
 #else
-    if (inet_aton(ip, &addr) != 0)
-    {
+    if ((do_more= (inet_aton(ip, &addr) != 0)))
       taddr= addr.s_addr;
 #endif
+    if (do_more)
+    {
       if (taddr == htonl(INADDR_BROADCAST))
       {	
 	puts("Broadcast");
@@ -205,5 +213,6 @@ int main(int argc, char **argv)
       }
     }
   }
+  my_end(0);
   exit(error);
 }

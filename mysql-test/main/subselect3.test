@@ -1,0 +1,10 @@
+--disable_warnings
+drop table if exists t0, t1, t2, t3, t4, t5, t11, t12, t21, t22;
+--enable_warnings
+--source include/default_optimizer_switch.inc
+
+set join_cache_level=1;
+
+--source subselect3.inc
+
+--echo # end of 10.2 test

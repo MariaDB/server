@@ -35,6 +35,8 @@ insert ignore into t1(id) values(NULL)	1	1	Affected rows
 Warning	0	1364	Field 'msg' doesn't have a default value
 update t1 set msg = 'Four' where id = 4	0	1	Affected rows
 select * from t1	0	2	Result set columns
+Warnings:
+Warning	1105	Result set columns
 #
 # Checking Using Procedure
 #
@@ -48,9 +50,13 @@ CALL p1('insert ignore into t1(id) values(NULL)');
 command	warnings	number	message
 insert ignore into t1(id) values(NULL)	1	1	Affected rows
 Warning	0	1364	Field 'msg' doesn't have a default value
+Warnings:
+Warning	1105	Affected rows
 CALL p1('update t1 set msg = "Five" where id = 5');
 command	warnings	number	message
 update t1 set msg = "Five" where id = 5	0	1	Affected rows
+Warnings:
+Warning	1105	Affected rows
 DROP PROCEDURE p1;
 DROP TABLE t1;
 connection slave;

@@ -4,19 +4,19 @@ DROP TABLE IF EXISTS t3;
 SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=1;
 create table t1 (a int) engine=rocksdb;
 drop table t1;
-select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
+select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type<>'DDL_DROP_INDEX_ONGOING';
 TYPE	NAME	VALUE
 MAX_INDEX_ID	MAX_INDEX_ID	max_index_id
 CF_FLAGS	0	default [0]
 CF_FLAGS	1	__system__ [0]
-DDL_DROP_INDEX_ONGOING	cf_id:0,index_id:max_index_id	
-select count(*) from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
+select count(*) from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO where type<>'DDL_DROP_INDEX_ONGOING';
 count(*)
-4
+3
 SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK=0;
 select VALUE into @keysIn from INFORMATION_SCHEMA.ROCKSDB_COMPACTION_STATS where CF_NAME = 'default' and LEVEL = 'Sum' and TYPE = 'KeyIn';
 CREATE TABLE t1 (i1 INT, i2 INT, PRIMARY KEY (i1)) ENGINE = ROCKSDB;
 INSERT INTO t1 VALUES (1, 1), (2, 2), (3, 3);
+set global rocksdb_force_flush_memtable_now = true;
 select * from INFORMATION_SCHEMA.ROCKSDB_GLOBAL_INFO;
 TYPE	NAME	VALUE
 MAX_INDEX_ID	MAX_INDEX_ID	max_index_id

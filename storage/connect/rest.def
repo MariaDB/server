@@ -1,0 +1,4 @@
+LIBRARY     REST2
+EXPORTS
+   GetREST     @1
+   ColREST     @2

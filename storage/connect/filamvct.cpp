@@ -5,7 +5,7 @@
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2017    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2020    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -21,7 +21,7 @@
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <fcntl.h>
 #if defined(__BORLANDC__)
@@ -29,7 +29,7 @@
 #endif   // __BORLAND__
 //#include <windows.h>
 #include <sys/stat.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #if defined(UNIX)
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -40,7 +40,7 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -64,11 +64,6 @@
 
 extern int num_read, num_there;                          // Statistics
 static int num_write;
-
-#if defined(UNIX)
-// Add dummy strerror  (NGC)
-char *strerror(int num);
-#endif   // UNIX
 
 /***********************************************************************/
 /*  Header containing block info for not split VEC tables.             */
@@ -336,7 +331,7 @@ int VCTFAM::Cardinality(PGLOBAL g)
         else
           sprintf(g->Message, MSG(NOT_FIXED_LEN), To_File, len, clen);
 
-      if (trace)
+      if (trace(1))
         htrc(" Computed max_K=%d Filen=%d Clen=%d\n", card, len, clen);
 
       } else
@@ -353,7 +348,7 @@ int VCTFAM::Cardinality(PGLOBAL g)
 
     } // endif split
 
-    return (Block) ? ((Block - 1) * Nrec + Last) : 0;
+  return (Block) ? ((Block - 1) * Nrec + Last) : 0;
   } // end of Cardinality
 
 /***********************************************************************/
@@ -376,11 +371,11 @@ bool VCTFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
   int  h, n;
 
   PlugSetPath(filename, fn, Tdbp->GetPath());
-#if defined(__WIN__)
+#if defined(_WIN32)
   h= global_open(g, MSGID_OPEN_EMPTY_FILE, filename, _O_CREAT | _O_WRONLY, S_IREAD | S_IWRITE);
-#else   // !__WIN__
+#else   // !_WIN32
   h= global_open(g, MSGID_OPEN_EMPTY_FILE, filename,  O_CREAT |  O_WRONLY, S_IREAD | S_IWRITE);
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   if (h == -1)
     return true;
@@ -469,14 +464,14 @@ bool VCTFAM::OpenTableFile(PGLOBAL g)
   PlugSetPath(filename, To_File, Tdbp->GetPath());
 
   if (!(Stream = PlugOpenFile(g, filename, opmode))) {
-    if (trace)
+    if (trace(1))
       htrc("%s\n", g->Message);
 
     return (mode == MODE_READ && errno == ENOENT)
             ? PushWarning(g, Tdbp) : true;
     } // endif Stream
 
-  if (trace)
+  if (trace(1))
     htrc("File %s is open in mode %s\n", filename, opmode);
 
   To_Fb = dbuserp->Openlist;     // Keep track of File block
@@ -515,7 +510,8 @@ bool VCTFAM::AllocateBuffer(PGLOBAL g)
     for (; cp; cp = (PVCTCOL)cp->Next)
       cp->Blk = AllocValBlock(g, NewBlock + Nrec * cp->Deplac,
                               cp->Buf_Type, Nrec, cp->Format.Length,
-                                                  cp->Format.Prec, chk);
+                              cp->Format.Prec, chk, true, 
+				                      cp->IsUnsigned());
 
     return InitInsert(g);    // Initialize inserting
   } else {
@@ -549,7 +545,8 @@ bool VCTFAM::AllocateBuffer(PGLOBAL g)
     for (; cp; cp = (PVCTCOL)cp->Next)
       if (!cp->IsSpecial())            // Not a pseudo column
         cp->Blk = AllocValBlock(g, NULL, cp->Buf_Type, Nrec,
-                                cp->Format.Length, cp->Format.Prec);
+                                cp->Format.Length, cp->Format.Prec,
+				                        true, true, cp->IsUnsigned());
 
   } //endif mode
 
@@ -581,7 +578,7 @@ bool VCTFAM::InitInsert(PGLOBAL g)
 				cp->ReadBlock(g);
 
 		} catch (int n) {
-			if (trace)
+			if (trace(1))
 				htrc("Exception %d: %s\n", n, g->Message);
 			rc = true;
 		} catch (const char *msg) {
@@ -652,7 +649,7 @@ int VCTFAM::ReadBuffer(PGLOBAL g)
     OldBlk = CurBlk;             // Last block actually read
     } // endif oldblk
 
-  if (trace)
+  if (trace(1))
     htrc(" Read: CurNum=%d CurBlk=%d rc=%d\n", CurNum, CurBlk, RC_OK);
 
   return rc;
@@ -663,7 +660,7 @@ int VCTFAM::ReadBuffer(PGLOBAL g)
 /***********************************************************************/
 int VCTFAM::WriteBuffer(PGLOBAL g)
   {
-  if (trace)
+  if (trace(1))
     htrc("VCT WriteBuffer: R%d Mode=%d CurNum=%d CurBlk=%d\n",
           Tdbp->GetTdb_No(), Tdbp->GetMode(), CurNum, CurBlk);
 
@@ -756,7 +753,7 @@ int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
   {
   bool eof = false;
 
-  if (trace)
+  if (trace(1))
     htrc("VCT DeleteDB: rc=%d UseTemp=%d Fpos=%d Tpos=%d Spos=%d\n",
           irc, UseTemp, Fpos, Tpos, Spos);
 
@@ -766,7 +763,7 @@ int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
     /*******************************************************************/
     Fpos = (Block - 1) * Nrec + Last;
 
-    if (trace)
+    if (trace(1))
       htrc("Fpos placed at file end=%d\n", Fpos);
 
     eof = UseTemp && !MaxBlk;
@@ -807,7 +804,7 @@ int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
 #endif
     Spos++;          // New start position is on next line
 
-    if (trace)
+    if (trace(1))
       htrc("after: Tpos=%d Spos=%d\n", Tpos, Spos);
 
   } else {
@@ -856,7 +853,7 @@ int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
 
         close(h);
 
-        if (trace)
+        if (trace(1))
           htrc("done, h=%d irc=%d\n", h, irc);
 
       } else
@@ -899,7 +896,7 @@ bool VCTFAM::OpenTempFile(PGLOBAL g)
     opmode = "wb";
 
   if (!(T_Stream = PlugOpenFile(g, tempname, opmode))) {
-    if (trace)
+    if (trace(1))
       htrc("%s\n", g->Message);
 
     rc = true;
@@ -947,7 +944,7 @@ bool VCTFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 
       len = fread(To_Buf, Clens[i], req, Stream);
 
-      if (trace)
+      if (trace(1))
         htrc("after read req=%d len=%d\n", req, len);
 
       if (len != req) {
@@ -976,7 +973,7 @@ bool VCTFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 
         } // endif UseTemp
 
-      if (trace)
+      if (trace(1))
         htrc("after write pos=%d\n", ftell(Stream));
 
       } // endfor i
@@ -1007,7 +1004,7 @@ bool VCTFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 
       } // endif UseTemp
 
-    if (trace)
+    if (trace(1))
       htrc("loop: Tpos=%d Spos=%d\n", Tpos, Spos);
 
     } // endfor n
@@ -1144,7 +1141,7 @@ void VCTFAM::CloseTableFile(PGLOBAL g, bool abort)
   if (!(UseTemp && T_Stream))
     rc = PlugCloseFile(g, To_Fb);
 
-  if (trace)
+  if (trace(1))
     htrc("VCT CloseTableFile: closing %s wrc=%d rc=%d\n",
           To_File, wrc, rc);
 
@@ -1217,7 +1214,7 @@ bool VCTFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
   else                                        // Blocked vector format
     len = Nrec * (colp->Deplac + Lrecl * CurBlk);
 
-  if (trace)
+  if (trace(1))
     htrc("len=%d Nrec=%d Deplac=%d Lrecl=%d CurBlk=%d maxblk=%d\n",
           len, Nrec, colp->Deplac, Lrecl, CurBlk, MaxBlk);
 
@@ -1236,13 +1233,13 @@ bool VCTFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
       sprintf(g->Message, MSG(READ_ERROR),
               To_File, strerror(errno));
 
-    if (trace)
+    if (trace(1))
       htrc(" Read error: %s\n", g->Message);
 
     return true;
     } // endif
 
-  if (trace)
+  if (trace(1))
     num_read++;
 
   return false;
@@ -1268,7 +1265,7 @@ bool VCTFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
   else                                      // Old VCT format
     len = Nrec * (colp->Deplac + Lrecl * colp->ColBlk);
 
-  if (trace)
+  if (trace(1))
     htrc("modif=%d len=%d Nrec=%d Deplac=%d Lrecl=%d colblk=%d\n",
           Modif, len, Nrec, colp->Deplac, Lrecl, colp->ColBlk);
 
@@ -1287,7 +1284,7 @@ bool VCTFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
     sprintf(g->Message, MSG(WRITE_STRERROR),
             (UseTemp) ? To_Fbt->Fname : To_File, strerror(errno));
 
-    if (trace)
+    if (trace(1))
       htrc("Write error: %s\n", strerror(errno));
 
     return true;
@@ -1330,7 +1327,7 @@ VCMFAM::VCMFAM(PVCMFAM txfp) : VCTFAM(txfp)
 bool VCMFAM::OpenTableFile(PGLOBAL g)
   {
   char    filename[_MAX_PATH];
-  int    len;
+  size_t  len;
   MODE    mode = Tdbp->GetMode();
   PFBLOCK fp = NULL;
   PDBUSER dbuserp = (PDBUSER)g->Activityp->Aptr;
@@ -1358,7 +1355,7 @@ bool VCMFAM::OpenTableFile(PGLOBAL g)
                      && fp->Count && fp->Mode == mode)
         break;
 
-    if (trace)
+    if (trace(1))
       htrc("Mapping VCM file, fp=%p cnt=%d\n", fp, fp->Count);
 
   } else
@@ -1416,7 +1413,7 @@ bool VCMFAM::OpenTableFile(PGLOBAL g)
         sprintf(g->Message, MSG(OPEN_MODE_ERROR),
                 "map", (int) rc, filename);
 
-      if (trace)
+      if (trace(1))
         htrc("%s\n", g->Message);
 
       return (mode == MODE_READ && rc == ENOENT)
@@ -1424,10 +1421,14 @@ bool VCMFAM::OpenTableFile(PGLOBAL g)
       } // endif hFile
 
     /*******************************************************************/
-    /*  Get the file size (assuming file is smaller than 4 GB)         */
+    /*  Get the file size.                                             */
     /*******************************************************************/
-    len = mm.lenL;
-    Memory = (char *)mm.memory;
+		len = (size_t)mm.lenL;
+
+		if (mm.lenH)
+			len += ((size_t)mm.lenH * 0x000000001LL);
+
+		Memory = (char *)mm.memory;
 
     if (!len) {             // Empty or deleted file
       CloseFileHandle(hFile);
@@ -1467,7 +1468,7 @@ bool VCMFAM::OpenTableFile(PGLOBAL g)
 
   To_Fb = fp;                               // Useful when closing
 
-  if (trace)
+  if (trace(1))
     htrc("fp=%p count=%d MapView=%p len=%d Top=%p\n",
           fp, fp->Count, Memory, len);
 
@@ -1516,7 +1517,8 @@ bool VCMFAM::AllocateBuffer(PGLOBAL g)
   for (cp = (PVCTCOL)Tdbp->GetColumns(); cp; cp = (PVCTCOL)cp->Next)
     if (!cp->IsSpecial()) {            // Not a pseudo column
       cp->Blk = AllocValBlock(g, (void*)1, cp->Buf_Type, Nrec,
-                              cp->Format.Length, cp->Format.Prec);
+                              cp->Format.Length, cp->Format.Prec,
+				                      true, true, cp->IsUnsigned());
       cp->AddStatus(BUF_MAPPED);
       } // endif IsSpecial
 
@@ -1551,7 +1553,7 @@ bool VCMFAM::InitInsert(PGLOBAL g)
 			cp->ReadBlock(g);
 
 	} catch (int n) {
-	  if (trace)
+	  if (trace(1))
 		  htrc("Exception %d: %s\n", n, g->Message);
 		rc = true;
   } catch (const char *msg) {
@@ -1567,7 +1569,7 @@ bool VCMFAM::InitInsert(PGLOBAL g)
 /***********************************************************************/
 int VCMFAM::WriteBuffer(PGLOBAL g)
   {
-  if (trace)
+  if (trace(1))
     htrc("VCM WriteBuffer: R%d Mode=%d CurNum=%d CurBlk=%d\n",
           Tdbp->GetTdb_No(), Tdbp->GetMode(), CurNum, CurBlk);
 
@@ -1608,7 +1610,7 @@ int VCMFAM::WriteBuffer(PGLOBAL g)
 /***********************************************************************/
 int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
   {
-  if (trace)
+  if (trace(1))
     htrc("VCM DeleteDB: irc=%d tobuf=%p Tpos=%p Spos=%p\n",
                         irc, To_Buf, Tpos, Spos);
 
@@ -1618,7 +1620,7 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
     /*******************************************************************/
     Fpos = (Block - 1) * Nrec + Last;
 
-    if (trace)
+    if (trace(1))
       htrc("Fpos placed at file top=%p\n", Fpos);
 
   } else     // Fpos is the Deleted line position
@@ -1636,7 +1638,7 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
   if (irc == RC_OK) {
     Spos = Fpos + 1;                               // New start position
 
-    if (trace)
+    if (trace(1))
       htrc("after: Tpos=%p Spos=%p\n", Tpos, Spos);
 
   } else {
@@ -1670,7 +1672,7 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
       // Remove extra blocks
       n = Block * Blksize;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
       DWORD drc = SetFilePointer(fp->Handle, n, NULL, FILE_BEGIN);
 
       if (drc == 0xFFFFFFFF) {
@@ -1680,7 +1682,7 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
         return RC_FX;
         } // endif
 
-      if (trace)
+      if (trace(1))
         htrc("done, Tpos=%p newsize=%d drc=%d\n", Tpos, n, drc);
 
       if (!SetEndOfFile(fp->Handle)) {
@@ -1755,7 +1757,7 @@ bool VCMFAM::MoveIntermediateLines(PGLOBAL, bool *)
       Tpos += n;
     } // endif MaxBlk
 
-    if (trace)
+    if (trace(1))
       htrc("move %d bytes\n", n);
 
     } // endif n
@@ -1812,14 +1814,14 @@ bool VCMFAM::ReadBlock(PGLOBAL, PVCTCOL colp)
   /*********************************************************************/
   mempos = Memcol[i] + n * CurBlk;
 
-  if (trace)
+  if (trace(1))
     htrc("mempos=%p i=%d Nrec=%d Clen=%d CurBlk=%d\n",
           mempos, i, Nrec, colp->Clen, CurBlk);
 
   if (colp->GetStatus(BUF_MAPPED))
     colp->Blk->SetValPointer(mempos);
 
-  if (trace)
+  if (trace(1))
     num_read++;
 
   return false;
@@ -1843,7 +1845,7 @@ bool VCMFAM::WriteBlock(PGLOBAL, PVCTCOL colp __attribute__((unused)))
   /*********************************************************************/
   mempos = Memcol[i] + n * CurBlk;
 
-  if (trace)
+  if (trace(1))
     htrc("modif=%d mempos=%p i=%d Nrec=%d Clen=%d colblk=%d\n",
           Modif, mempos, i, Nrec, colp->Clen, colp->ColBlk);
 
@@ -2008,14 +2010,14 @@ bool VECFAM::OpenColumnFile(PGLOBAL g, PCSZ opmode, int i)
   sprintf(filename, Colfn, i+1);
 
   if (!(Streams[i] = PlugOpenFile(g, filename, opmode))) {
-    if (trace)
+    if (trace(1))
       htrc("%s\n", g->Message);
 
     return (Tdbp->GetMode() == MODE_READ && errno == ENOENT)
             ? PushWarning(g, Tdbp) : true;
     } // endif Streams
 
-  if (trace)
+  if (trace(1))
     htrc("File %s is open in mode %s\n", filename, opmode);
 
   To_Fbs[i] = dup->Openlist;       // Keep track of File blocks
@@ -2067,7 +2069,7 @@ bool VECFAM::AllocateBuffer(PGLOBAL g)
     for (cp = (PVCTCOL)tdbp->Columns; cp; cp = (PVCTCOL)cp->Next)
       cp->Blk = AllocValBlock(g, To_Bufs[cp->Index - 1],
                               cp->Buf_Type, Nrec, cp->Format.Length,
-                                                  cp->Format.Prec, chk);
+                              cp->Format.Prec, chk, true, cp->IsUnsigned());
 
     return InitInsert(g);
   } else {
@@ -2116,7 +2118,8 @@ bool VECFAM::AllocateBuffer(PGLOBAL g)
     for (cp = (PVCTCOL)tdbp->Columns; cp; cp = (PVCTCOL)cp->Next)
       if (!cp->IsSpecial())            // Not a pseudo column
           cp->Blk = AllocValBlock(g, NULL, cp->Buf_Type, Nrec,
-                                  cp->Format.Length, cp->Format.Prec);
+                                  cp->Format.Length, cp->Format.Prec,
+						                      true, true, cp->IsUnsigned());
 
   } // endif mode
 
@@ -2163,7 +2166,7 @@ void VECFAM::ResetBuffer(PGLOBAL g)
 /***********************************************************************/
 int VECFAM::WriteBuffer(PGLOBAL g)
   {
-  if (trace)
+  if (trace(1))
     htrc("VCT WriteBuffer: R%d Mode=%d CurNum=%d CurBlk=%d\n",
           Tdbp->GetTdb_No(), Tdbp->GetMode(), CurNum, CurBlk);
 
@@ -2205,7 +2208,7 @@ int VECFAM::WriteBuffer(PGLOBAL g)
 /***********************************************************************/
 int VECFAM::DeleteRecords(PGLOBAL g, int irc)
   {
-  if (trace)
+  if (trace(1))
     htrc("VEC DeleteDB: rc=%d UseTemp=%d Fpos=%d Tpos=%d Spos=%d\n",
           irc, UseTemp, Fpos, Tpos, Spos);
 
@@ -2215,7 +2218,7 @@ int VECFAM::DeleteRecords(PGLOBAL g, int irc)
     /*******************************************************************/
     Fpos = Cardinality(g);
 
-    if (trace)
+    if (trace(1))
       htrc("Fpos placed at file end=%d\n", Fpos);
 
   } else     // Fpos is the Deleted line position
@@ -2251,7 +2254,7 @@ int VECFAM::DeleteRecords(PGLOBAL g, int irc)
 #endif
     Spos++;          // New start position is on next line
 
-    if (trace)
+    if (trace(1))
       htrc("after: Tpos=%d Spos=%d\n", Tpos, Spos);
 
   } else {
@@ -2294,7 +2297,7 @@ int VECFAM::DeleteRecords(PGLOBAL g, int irc)
 
         close(h);
 
-        if (trace)
+        if (trace(1))
           htrc("done, h=%d irc=%d\n", h, irc);
 
         } // endfor i
@@ -2332,7 +2335,7 @@ bool VECFAM::OpenTempFile(PGLOBAL g)
       sprintf(tempname, Tempat, i+1);
 
       if (!(T_Streams[i] = PlugOpenFile(g, tempname, "wb"))) {
-        if (trace)
+        if (trace(1))
           htrc("%s\n", g->Message);
 
         return true;
@@ -2391,7 +2394,7 @@ bool VECFAM::MoveIntermediateLines(PGLOBAL g, bool *)
 
       len = fread(To_Buf, Clens[i], req, Streams[i]);
 
-      if (trace)
+      if (trace(1))
         htrc("after read req=%d len=%d\n", req, len);
 
       if (len != req) {
@@ -2410,7 +2413,7 @@ bool VECFAM::MoveIntermediateLines(PGLOBAL g, bool *)
         return true;
         } // endif
 
-      if (trace)
+      if (trace(1))
         htrc("after write pos=%d\n", ftell(Streams[i]));
 
       } // endfor i
@@ -2418,7 +2421,7 @@ bool VECFAM::MoveIntermediateLines(PGLOBAL g, bool *)
     Tpos += (int)req;
     Spos += (int)req;
 
-    if (trace)
+    if (trace(1))
       htrc("loop: Tpos=%d Spos=%d\n", Tpos, Spos);
 
     b = true;
@@ -2454,11 +2457,11 @@ int VECFAM::RenameTempFile(PGLOBAL g)
       remove(filetemp);   // May still be there from previous error
   
       if (rename(filename, filetemp)) {    // Save file for security
-        sprintf(g->Message, MSG(RENAME_ERROR),
+        snprintf(g->Message, MAX_STR, MSG(RENAME_ERROR),
                 filename, filetemp, strerror(errno));
         rc = RC_FX;
       } else if (rename(tempname, filename)) {
-        sprintf(g->Message, MSG(RENAME_ERROR),
+        snprintf(g->Message, MAX_STR, MSG(RENAME_ERROR),
                 tempname, filename, strerror(errno));
         rc = rename(filetemp, filename);   // Restore saved file
         rc = RC_FX;
@@ -2541,7 +2544,7 @@ void VECFAM::CloseTableFile(PGLOBAL g, bool abort)
         To_Fbs[i] = NULL;
         } // endif Streams
 
-  if (trace)
+  if (trace(1))
     htrc("VCT CloseTableFile: closing %s wrc=%d rc=%d\n", To_File, wrc, rc);
 
   } // end of CloseTableFile
@@ -2560,7 +2563,7 @@ bool VECFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
   len = Nrec * colp->Clen * CurBlk;
   i = colp->Index - 1;
 
-  if (trace)
+  if (trace(1))
     htrc("len=%d i=%d Nrec=%d Deplac=%d Lrecl=%d CurBlk=%d\n",
           len, i, Nrec, colp->Deplac, Lrecl, CurBlk);
 
@@ -2576,23 +2579,23 @@ bool VECFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
     char fn[_MAX_PATH];
 
     sprintf(fn, Colfn, colp->Index);
-#if defined(__WIN__)
+#if defined(_WIN32)
     if (feof(Streams[i]))
-#else   // !__WIN__
+#else   // !_WIN32
     if (errno == NO_ERROR)
-#endif  // !__WIN__
+#endif  // !_WIN32
       sprintf(g->Message, MSG(BAD_READ_NUMBER), (int) n, fn);
     else
       sprintf(g->Message, MSG(READ_ERROR),
               fn, strerror(errno));
 
-    if (trace)
+    if (trace(1))
       htrc(" Read error: %s\n", g->Message);
 
     return true;
     } // endif
 
-  if (trace)
+  if (trace(1))
     num_read++;
 
   return false;
@@ -2615,7 +2618,7 @@ bool VECFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
   len = Nrec * colp->Clen * colp->ColBlk;
   i = colp->Index - 1;
 
-  if (trace)
+  if (trace(1))
     htrc("modif=%d len=%d i=%d Nrec=%d Deplac=%d Lrecl=%d colblk=%d\n",
           Modif, len, i, Nrec, colp->Deplac, Lrecl, colp->ColBlk);
 
@@ -2638,7 +2641,7 @@ bool VECFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
     sprintf(fn, (UseTemp) ? Tempat : Colfn, colp->Index);
     sprintf(g->Message, MSG(WRITE_STRERROR), fn, strerror(errno));
 
-    if (trace)
+    if (trace(1))
       htrc("Write error: %s\n", strerror(errno));
 
     return true;
@@ -2763,7 +2766,7 @@ bool VMPFAM::OpenTableFile(PGLOBAL g)
 bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
   {
   char    filename[_MAX_PATH];
-  int    len;
+  size_t  len;
   HANDLE  hFile;
   MEMMAP  mm;
   PFBLOCK fp;
@@ -2782,7 +2785,7 @@ bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
                      && fp->Count && fp->Mode == mode)
         break;
 
-    if (trace)
+    if (trace(1))
       htrc("Mapping file, fp=%p\n", fp);
 
   } else
@@ -2807,7 +2810,7 @@ bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
       if (!(*g->Message))
         sprintf(g->Message, MSG(OPEN_MODE_ERROR),
                 "map", (int) rc, filename);
-      if (trace)
+      if (trace(1))
         htrc("%s\n", g->Message);
 
       return (mode == MODE_READ && rc == ENOENT)
@@ -2817,8 +2820,12 @@ bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
     /*****************************************************************/
     /*  Get the file size (assuming file is smaller than 4 GB)       */
     /*****************************************************************/
-    len = mm.lenL;
-    Memcol[i] = (char *)mm.memory;
+		len = (size_t)mm.lenL;
+
+		if (mm.lenH)
+			len += ((size_t)mm.lenH * 0x000000001LL);
+
+		Memcol[i] = (char *)mm.memory;
 
     if (!len) {             // Empty or deleted file
       CloseFileHandle(hFile);
@@ -2858,7 +2865,7 @@ bool VMPFAM::MapColumnFile(PGLOBAL g, MODE mode, int i)
 
   To_Fbs[i] = fp;                              // Useful when closing
 
-  if (trace)
+  if (trace(1))
     htrc("fp=%p count=%d MapView=%p len=%d\n",
           fp, fp->Count, Memcol[i], len);
 
@@ -2887,7 +2894,8 @@ bool VMPFAM::AllocateBuffer(PGLOBAL g)
   for (cp = (PVCTCOL)Tdbp->GetColumns(); cp; cp = (PVCTCOL)cp->Next)
     if (!cp->IsSpecial()) {            // Not a pseudo column
       cp->Blk = AllocValBlock(g, (void*)1, cp->Buf_Type, Nrec,
-                              cp->Format.Length, cp->Format.Prec);
+                              cp->Format.Length, cp->Format.Prec,
+				                      true, true, cp->IsUnsigned());
       cp->AddStatus(BUF_MAPPED);
       } // endif IsSpecial
 
@@ -2903,7 +2911,7 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
   int  i;
   int m, n;
 
-  if (trace)
+  if (trace(1))
     htrc("VMP DeleteDB: irc=%d tobuf=%p Tpos=%p Spos=%p\n",
                         irc, To_Buf, Tpos, Spos);
 
@@ -2913,7 +2921,7 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
     /*******************************************************************/
     Fpos = (Block - 1) * Nrec + Last;
 
-    if (trace)
+    if (trace(1))
       htrc("Fpos placed at file top=%p\n", Fpos);
 
   } else     // Fpos is the Deleted line position
@@ -2936,7 +2944,7 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
 
     Tpos += n;
 
-    if (trace)
+    if (trace(1))
       htrc("move %d bytes\n", n);
 
     } // endif n
@@ -2944,7 +2952,7 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
   if (irc == RC_OK) {
     Spos = Fpos + 1;                               // New start position
 
-    if (trace)
+    if (trace(1))
       htrc("after: Tpos=%p Spos=%p\n", Tpos, Spos);
 
   } else {
@@ -2971,7 +2979,7 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
       /*****************************************************************/
       n = Tpos * Clens[i];
 
-#if defined(__WIN__)
+#if defined(_WIN32)
       DWORD drc = SetFilePointer(fp->Handle, n, NULL, FILE_BEGIN);
 
       if (drc == 0xFFFFFFFF) {
@@ -2981,7 +2989,7 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
         return RC_FX;
         } // endif
 
-      if (trace)
+      if (trace(1))
         htrc("done, Tpos=%p newsize=%d drc=%d\n", Tpos, n, drc);
 
       if (!SetEndOfFile(fp->Handle)) {
@@ -3051,7 +3059,7 @@ BGVFAM::BGVFAM(PBGVFAM txfp) : VCTFAM(txfp)
 /***********************************************************************/
 bool BGVFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, bool b)
   {
-#if defined(__WIN__)
+#if defined(_WIN32)
   char          buf[256];
   DWORD         drc, m = (b) ? FILE_END : FILE_BEGIN;
   LARGE_INTEGER of;
@@ -3067,12 +3075,12 @@ bool BGVFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, bool b)
     sprintf(g->Message, MSG(SFP_ERROR), buf);
     return true;
     } // endif
-#else   // !__WIN__
+#else   // !_WIN32
   if (lseek64(h, pos, (b) ? SEEK_END : SEEK_SET) < 0) {
     sprintf(g->Message, MSG(ERROR_IN_LSK), errno);
     return true;
     } // endif
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   return false;
   } // end of BigSeek
@@ -3084,11 +3092,11 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
   {
   bool rc = false;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   DWORD nbr, drc, len = (DWORD)req;
   bool  brc = ReadFile(h, inbuf, len, &nbr, NULL);
 
-  if (trace)
+  if (trace(1))
     htrc("after read req=%d brc=%d nbr=%d\n", req, brc, nbr);
 
   if (!brc || nbr != len) {
@@ -3105,12 +3113,12 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     sprintf(g->Message, MSG(READ_ERROR), To_File, buf);
 
-    if (trace)
+    if (trace(1))
       htrc("BIGREAD: %s\n", g->Message);
 
     rc = true;
     } // endif brc || nbr
-#else   // !__WIN__
+#else   // !_WIN32
   size_t  len = (size_t)req;
   ssize_t nbr = read(h, inbuf, len);
 
@@ -3119,13 +3127,13 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     sprintf(g->Message, MSG(READ_ERROR), fn, strerror(errno));
 
-    if (trace)
+    if (trace(1))
       htrc("BIGREAD: nbr=%d len=%d errno=%d %s\n",
                      nbr, len, errno, g->Message);
 
     rc = true;
     } // endif nbr
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   return rc;
   } // end of BigRead
@@ -3137,11 +3145,11 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
   {
   bool rc = false;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   DWORD nbw, drc, len = (DWORD)req;
   bool  brc = WriteFile(h, inbuf, len, &nbw, NULL);
 
-  if (trace)
+  if (trace(1))
     htrc("after write req=%d brc=%d nbw=%d\n", req, brc, nbw);
 
   if (!brc || nbw != len) {
@@ -3159,13 +3167,13 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     sprintf(g->Message, MSG(WRITE_STRERROR), fn, buf);
 
-    if (trace)
+    if (trace(1))
       htrc("BIGWRITE: nbw=%d len=%d errno=%d %s\n",
                       nbw, len, drc, g->Message);
 
     rc = true;
     } // endif brc || nbw
-#else   // !__WIN__
+#else   // !_WIN32
   size_t  len = (size_t)req;
   ssize_t nbw = write(h, inbuf, len);
 
@@ -3174,13 +3182,13 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     sprintf(g->Message, MSG(WRITE_STRERROR), fn, strerror(errno));
 
-    if (trace)
+    if (trace(1))
       htrc("BIGWRITE: nbw=%d len=%d errno=%d %s\n",
                       nbw, len, errno, g->Message);
 
     rc = true;
     } // endif nbr
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   return rc;
   } // end of BigWrite
@@ -3206,7 +3214,7 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
   if (Header == 2)
     strcat(PlugRemoveType(filename, filename), ".blk");
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   LARGE_INTEGER len;
 
   h = CreateFile(filename, GENERIC_READ, FILE_SHARE_READ, NULL,
@@ -3218,13 +3226,13 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
     } // endif h
 
   if (h == INVALID_HANDLE_VALUE || !len.QuadPart) {
-#else   // !__WIN__
+#else   // !_WIN32
   h = open64(filename, O_RDONLY, 0);
 
   if (h == INVALID_HANDLE_VALUE || !_filelength(h)) {
-#endif  // !__WIN__
+#endif  // !_WIN32
     // Consider this is a void table
-    if (trace)
+    if (trace(1))
       htrc("Void table h=%d\n", h);
 
     Last = Nrec;
@@ -3248,7 +3256,7 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
     Block = (vh.NumRec > 0) ? (vh.NumRec + Nrec - 1) / Nrec : 0;
     Last  = (vh.NumRec + Nrec - 1) % Nrec + 1;
 
-    if (trace)
+    if (trace(1))
       htrc("Block=%d Last=%d\n", Block, Last);
 
   } // endif's
@@ -3283,17 +3291,17 @@ bool BGVFAM::SetBlockInfo(PGLOBAL g)
     strcat(PlugRemoveType(filename, filename), ".blk");
 
   if (h == INVALID_HANDLE_VALUE) {
-#if defined(__WIN__)
+#if defined(_WIN32)
     DWORD creation = (b) ? OPEN_EXISTING : TRUNCATE_EXISTING;
 
     h = CreateFile(filename, GENERIC_READ | GENERIC_WRITE, 0,
                    NULL, creation, FILE_ATTRIBUTE_NORMAL, NULL);
 
-#else   // !__WIN__
+#else   // !_WIN32
     int oflag = (b) ?  O_RDWR : O_RDWR | O_TRUNC;
 
     h = open64(filename, oflag, 0);
-#endif  // !__WIN__
+#endif  // !_WIN32
 
     if (h == INVALID_HANDLE_VALUE) {
       sprintf(g->Message, "Error opening header file %s", filename);
@@ -3331,7 +3339,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
 
   PlugSetPath(filename, fn, Tdbp->GetPath());
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   PCSZ          p;
   DWORD         rc;
   bool          brc;
@@ -3348,7 +3356,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
 
   of.QuadPart = (BIGINT)n + (BIGINT)MaxBlk * (BIGINT)Blksize - (BIGINT)1;
 
-  if (trace)
+  if (trace(1))
     htrc("MEF: of=%lld n=%d maxblk=%d blksize=%d\n",
                of.QuadPart, n, MaxBlk, Blksize);
 
@@ -3383,7 +3391,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
     CloseHandle(h);
 
   return true;
-#else   // !__WIN__
+#else   // !_WIN32
   int    h;
   BIGINT pos;
 
@@ -3394,7 +3402,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
 
   pos = (BIGINT)n + (BIGINT)MaxBlk * (BIGINT)Blksize - (BIGINT)1;
 
-  if (trace)
+  if (trace(1))
     htrc("MEF: pos=%lld n=%d maxblk=%d blksize=%d\n",
                pos, n, MaxBlk, Blksize);
 
@@ -3412,7 +3420,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
   sprintf(g->Message, MSG(MAKE_EMPTY_FILE), To_File, strerror(errno));
   close(h);
   return true;
-#endif  // !__WIN__
+#endif  // !_WIN32
   } // end of MakeEmptyFile
 
 /***********************************************************************/
@@ -3439,11 +3447,11 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
 
   PlugSetPath(filename, To_File, Tdbp->GetPath());
 
-  if (trace)
+  if (trace(1))
     htrc("OpenTableFile: filename=%s mode=%d Last=%d\n",
                          filename, mode, Last);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   DWORD access, creation, share = 0, rc = 0;
 
   /*********************************************************************/
@@ -3516,7 +3524,7 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
     strcat(g->Message, filename);
     } // endif Hfile
 
-  if (trace)
+  if (trace(1))
     htrc(" rc=%d access=%p share=%p creation=%d handle=%p fn=%s\n",
            rc, access, share, creation, Hfile, filename);
 
@@ -3605,7 +3613,7 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
     strcat(g->Message, strerror(errno));
     } // endif Hfile
 
-  if (trace)
+  if (trace(1))
     htrc(" rc=%d oflag=%p mode=%p handle=%d fn=%s\n",
            rc, oflag, mode, Hfile, filename);
 #endif  // UNIX
@@ -3626,7 +3634,7 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
     To_Fb->Mode = mode;
     To_Fb->Handle = Hfile;
 
-    if (trace)
+    if (trace(1))
       htrc("File %s is open in mode %d\n", filename, mode);
 
     if (del)
@@ -3669,7 +3677,7 @@ bool BGVFAM::AllocateBuffer(PGLOBAL g)
       for (; cp; cp = (PVCTCOL)cp->Next)
         cp->Blk = AllocValBlock(g, NewBlock + Nrec * cp->Deplac,
                                 cp->Buf_Type, Nrec, cp->Format.Length,
-                                                    cp->Format.Prec, chk);
+                                cp->Format.Prec, chk, true, cp->IsUnsigned());
 
       InitInsert(g);    // Initialize inserting
 
@@ -3717,7 +3725,8 @@ bool BGVFAM::AllocateBuffer(PGLOBAL g)
     for (; cp; cp = (PVCTCOL)cp->Next)
       if (!cp->IsSpecial())            // Not a pseudo column
         cp->Blk = AllocValBlock(g, NULL, cp->Buf_Type, Nrec,
-                                cp->Format.Length, cp->Format.Prec);
+                                cp->Format.Length, cp->Format.Prec,
+					                      true, true, cp->IsUnsigned());
 
   } //endif mode
 
@@ -3729,7 +3738,7 @@ bool BGVFAM::AllocateBuffer(PGLOBAL g)
 /***********************************************************************/
 int BGVFAM::WriteBuffer(PGLOBAL g)
   {
-  if (trace)
+  if (trace(1))
     htrc("BGV WriteDB: R%d Mode=%d CurNum=%d CurBlk=%d\n",
           Tdbp->GetTdb_No(), Tdbp->GetMode(), CurNum, CurBlk);
 
@@ -3770,7 +3779,7 @@ int BGVFAM::WriteBuffer(PGLOBAL g)
 
         if (!Closing && !MaxBlk) {
           // Close the VCT file and reopen it in mode Insert
-//#if defined(__WIN__)  //OB
+//#if defined(_WIN32)  //OB
 //          CloseHandle(Hfile);
 //#else    // UNIX
 //          close(Hfile);
@@ -3829,7 +3838,7 @@ int BGVFAM::DeleteRecords(PGLOBAL g, int irc)
   /*  2 - directly move the not deleted lines inside the original      */
   /*      file, and at the end erase all trailing records.             */
   /*********************************************************************/
-  if (trace)
+  if (trace(1))
     htrc("BGV DeleteDB: irc=%d UseTemp=%d Fpos=%d Tpos=%d Spos=%d\n",
                         irc, UseTemp, Fpos, Tpos, Spos);
 
@@ -3839,7 +3848,7 @@ int BGVFAM::DeleteRecords(PGLOBAL g, int irc)
     /*******************************************************************/
     Fpos = (Block - 1) * Nrec + Last;
 
-    if (trace)
+    if (trace(1))
       htrc("Fpos placed at file end=%d\n", Fpos);
 
     eof = UseTemp && !MaxBlk;
@@ -3878,7 +3887,7 @@ int BGVFAM::DeleteRecords(PGLOBAL g, int irc)
 #endif
     Spos++;          // New start position is on next line
 
-    if (trace)
+    if (trace(1))
       htrc("after: Tpos=%d Spos=%d\n", Tpos, Spos);
 
   } else {
@@ -3897,7 +3906,7 @@ int BGVFAM::DeleteRecords(PGLOBAL g, int irc)
         /***************************************************************/
         /*  Remove extra records.                                      */
         /***************************************************************/
-#if defined(__WIN__)
+#if defined(_WIN32)
         BIGINT pos = (BIGINT)Block * (BIGINT)Blksize;
 
         if (BigSeek(g, Hfile, pos))
@@ -3909,12 +3918,12 @@ int BGVFAM::DeleteRecords(PGLOBAL g, int irc)
           sprintf(g->Message, MSG(SETEOF_ERROR), drc);
           return RC_FX;
           } // endif error
-#else   // !__WIN__
+#else   // !_WIN32
         if (ftruncate64(Hfile, (BIGINT)(Tpos * Lrecl))) {
           sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
           return RC_FX;
           } // endif
-#endif  // !__WIN__
+#endif  // !_WIN32
       } else // MaxBlk
         // Clean the unused space in the file, this is required when
         // inserting again with a partial column list.
@@ -3951,7 +3960,7 @@ bool BGVFAM::OpenTempFile(PGLOBAL g)
   else if (MakeEmptyFile(g, tempname))
     return true;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   DWORD access = (MaxBlk) ? OPEN_EXISTING : CREATE_NEW;
 
   Tfile = CreateFile(tempname, GENERIC_WRITE, 0, NULL,
@@ -4065,7 +4074,7 @@ bool BGVFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 
       } // endif Usetemp...
 
-    if (trace)
+    if (trace(1))
       htrc("loop: Tpos=%d Spos=%d\n", Tpos, Spos);
 
     } // endfor n
@@ -4201,7 +4210,7 @@ void BGVFAM::CloseTableFile(PGLOBAL g, bool abort)
   if (Hfile != INVALID_HANDLE_VALUE)
     rc = PlugCloseFile(g, To_Fb);
 
-  if (trace)
+  if (trace(1))
     htrc("BGV CloseTableFile: closing %s wrc=%d rc=%d\n",
           To_File, wrc, rc);
 
@@ -4222,7 +4231,7 @@ void BGVFAM::Rewind(void)
   CurNum = Nrec - 1;
 
 #if 0 // This is probably unuseful as the file is directly accessed
-#if defined(__WIN__)  //OB
+#if defined(_WIN32)  //OB
   SetFilePointer(Hfile, 0, NULL, FILE_BEGIN);
 #else    // UNIX
   lseek64(Hfile, 0, SEEK_SET);
@@ -4247,7 +4256,7 @@ bool BGVFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
     pos = (BIGINT)Nrec * ((BIGINT)colp->Deplac
         + (BIGINT)Lrecl * (BIGINT)CurBlk);
 
-  if (trace)
+  if (trace(1))
     htrc("RB: offset=%lld Nrec=%d Deplac=%d Lrecl=%d CurBlk=%d MaxBlk=%d\n",
           pos, Nrec, colp->Deplac, Lrecl, CurBlk, MaxBlk);
 
@@ -4257,7 +4266,7 @@ bool BGVFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
   if (BigRead(g, Hfile, colp->Blk->GetValPointer(), colp->Clen * Nrec))
     return true;
 
-  if (trace)
+  if (trace(1))
     num_read++;
 
   return false;
@@ -4284,7 +4293,7 @@ bool BGVFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
     pos = (BIGINT)Nrec * ((BIGINT)colp->Deplac
         + (BIGINT)Lrecl * (BIGINT)colp->ColBlk);
 
-  if (trace)
+  if (trace(1))
     htrc("WB: offset=%lld Nrec=%d Deplac=%d Lrecl=%d ColBlk=%d\n",
           pos, Nrec, colp->Deplac, Lrecl, colp->ColBlk);
 

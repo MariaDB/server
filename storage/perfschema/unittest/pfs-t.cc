@@ -1,17 +1,24 @@
-/* Copyright (c) 2008, 2017, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2018, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include <my_global.h>
 #include <my_pthread.h>
@@ -898,6 +905,7 @@ void test_init_disabled()
   psi->create_file(file_key_A, "foo-instrumented", (File) 12);
   file_A1= lookup_file_by_name("foo-instrumented");
   ok(file_A1 != NULL, "file_A1 instrumented");
+  destroy_file(reinterpret_cast<PFS_thread*>(psi->get_thread()), file_A1);
 
   /* broken key + enabled T-1: no instrumentation */
 
@@ -1149,6 +1157,8 @@ void test_locker_disabled()
   psi->create_file(file_key_A, "foo", (File) 12);
   file_A1= (PSI_file*) lookup_file_by_name("foo");
   ok(file_A1 != NULL, "instrumented");
+  destroy_file(reinterpret_cast<PFS_thread*>(psi->get_thread()),
+               reinterpret_cast<PFS_file*>(file_A1));
 
   socket_class_A->m_enabled= true;
   socket_A1= psi->init_socket(socket_key_A, NULL, NULL, 0);

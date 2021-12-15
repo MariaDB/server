@@ -1,0 +1,22 @@
+#
+# MDEV-17349 Assertion `!table || (!table->read_set || bitmap_is_set(table->read_set, field_index))' failed on concurrent SELECT and DELETE after RENAME from table with index on virtual column
+#
+source include/have_innodb.inc;
+source include/have_debug_sync.inc;
+create table t1 (f text, vf tinytext as (f), key (vf(64))) engine=innodb;
+insert t1 (f) values ('foo');
+flush tables;
+connect con1,localhost,root,,test;
+set debug_sync='TABLE_after_field_clone WAIT_FOR go';
+send delete from t1;
+connection default;
+let $wait_condition= select state like 'debug sync point%' from information_schema.processlist;
+source include/wait_condition.inc;
+select * from t1;
+set debug_sync='now SIGNAL go';
+connection con1;
+reap;
+disconnect con1;
+connection default;
+drop table t1;
+set debug_sync='reset';

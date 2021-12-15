@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /* Write a row to a MARIA table */
 
@@ -88,7 +88,7 @@ int maria_write(MARIA_HA *info, uchar *record)
   MARIA_SHARE *share= info->s;
   uint i;
   int save_errno;
-  MARIA_RECORD_POS filepos;
+  MARIA_RECORD_POS filepos, oldpos= info->cur_row.lastpos;
   uchar *buff;
   my_bool lock_tree= share->lock_key_trees;
   my_bool fatal_error;
@@ -302,7 +302,7 @@ int maria_write(MARIA_HA *info, uchar *record)
   share->state.changed|= STATE_NOT_MOVABLE | STATE_NOT_ZEROFILLED;
   info->state->changed= 1;
 
-  info->cur_row.lastpos= filepos;
+  info->cur_row.lastpos= oldpos;
   _ma_writeinfo(info, WRITEINFO_UPDATE_KEYFILE);
   if (info->invalidator != 0)
   {
@@ -335,12 +335,6 @@ err:
       my_errno == HA_ERR_NULL_IN_SPATIAL ||
       my_errno == HA_ERR_OUT_OF_MEM)
   {
-    if (info->bulk_insert)
-    {
-      uint j;
-      for (j=0 ; j < share->base.keys ; j++)
-        maria_flush_bulk_insert(info, j);
-    }
     info->errkey= i < share->base.keys ? (int) i : -1;
     /*
       We delete keys in the reverse order of insertion. This is the order that
@@ -366,6 +360,7 @@ err:
         {
           if (_ma_ft_del(info,i,buff,record,filepos))
 	  {
+            fatal_error= 1;
 	    if (local_lock_tree)
 	      mysql_rwlock_unlock(&keyinfo->root_lock);
             break;
@@ -380,6 +375,7 @@ err:
                                                       filepos,
                                                       info->trn->trid)))
 	  {
+            fatal_error= 1;
 	    if (local_lock_tree)
 	      mysql_rwlock_unlock(&keyinfo->root_lock);
 	    break;
@@ -397,6 +393,13 @@ err:
   {
     if ((*share->write_record_abort)(info))
       fatal_error= 1;
+  }
+
+  if (info->bulk_insert)
+  {
+    uint j;
+    for (j=0 ; j < share->base.keys ; j++)
+      maria_flush_bulk_insert(info, j);
   }
 
   if (fatal_error)
@@ -669,13 +672,18 @@ static int w_search(register MARIA_HA *info, uint32 comp_flag, MARIA_KEY *key,
       else
       {
         /* popular word. two-level tree. going down */
-        my_off_t root=dup_key_pos;
-        keyinfo= &share->ft2_keyinfo;
-        get_key_full_length_rdonly(off, key);
-        key+=off;
+        my_off_t root= dup_key_pos;
+        MARIA_KEY subkey;
+        get_key_full_length_rdonly(off, key->data);
+        subkey.keyinfo= keyinfo= &share->ft2_keyinfo;
+        subkey.data= key->data + off;
+        subkey.data_length= key->data_length - off;
+        subkey.ref_length= key->ref_length;
+        subkey.flag= key->flag;
+
         /* we'll modify key entry 'in vivo' */
         keypos-= keyinfo->keylength + page.node;
-        error= _ma_ck_real_write_btree(info, key, &root, comp_flag);
+        error= _ma_ck_real_write_btree(info, &subkey, &root, comp_flag);
         _ma_dpointer(share, keypos+HA_FT_WLEN, root);
         subkeys--; /* should there be underflow protection ? */
         DBUG_ASSERT(subkeys < 0);
@@ -839,9 +847,8 @@ int _ma_insert(register MARIA_HA *info, MARIA_KEY *key,
   a_length+=t_length;
 
   if (key->flag & (SEARCH_USER_KEY_HAS_TRANSID | SEARCH_PAGE_KEY_HAS_TRANSID))
-  {
     _ma_mark_page_with_transid(share, anc_page);
-  }
+
   anc_page->size= a_length;
   page_store_size(share, anc_page);
 
@@ -1672,14 +1679,15 @@ static int keys_compare(bulk_insert_param *param, uchar *key1, uchar *key2)
 }
 
 
-static int keys_free(uchar *key, TREE_FREE mode, bulk_insert_param *param)
+static int keys_free(void* key_arg, TREE_FREE mode, void *param_arg)
 {
   /*
     Probably I can use info->lastkey here, but I'm not sure,
     and to be safe I'd better use local lastkey.
   */
+  bulk_insert_param *param= (bulk_insert_param*)param_arg;
   MARIA_SHARE *share= param->info->s;
-  uchar lastkey[MARIA_MAX_KEY_BUFF];
+  uchar lastkey[MARIA_MAX_KEY_BUFF], *key= (uchar*)key_arg;
   uint keylen;
   MARIA_KEYDEF *keyinfo= share->keyinfo + param->keynr;
   MARIA_KEY tmp_key;
@@ -1706,13 +1714,14 @@ static int keys_free(uchar *key, TREE_FREE mode, bulk_insert_param *param)
       copying middle key up if tree is growing
     */
     memcpy(lastkey, key, tmp_key.data_length + tmp_key.ref_length);
-    return _ma_ck_write_btree(param->info, &tmp_key);
+    _ma_ck_write_btree(param->info, &tmp_key);
+    return 0;
   case free_end:
     if (share->lock_key_trees)
       mysql_rwlock_unlock(&keyinfo->root_lock);
     return 0;
   }
-  return 1;
+  return 0;
 }
 
 
@@ -1768,8 +1777,7 @@ int maria_init_bulk_insert(MARIA_HA *info, size_t cache_size, ha_rows rows)
       init_tree(&info->bulk_insert[i],
                 cache_size * key[i].maxlength,
                 cache_size * key[i].maxlength, 0,
-		(qsort_cmp2)keys_compare,
-		(tree_element_free) keys_free, (void *)params++, MYF(0));
+                (qsort_cmp2) keys_compare, keys_free, (void *)params++, MYF(0));
     }
     else
      info->bulk_insert[i].root=0;

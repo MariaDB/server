@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #include <my_global.h>
 #include <my_sys.h>
@@ -768,7 +768,7 @@ static void do_verify_prepare_field(MYSQL_RES *result,
 {
   MYSQL_FIELD *field;
   CHARSET_INFO *cs;
-  ulonglong expected_field_length;
+  ulonglong expected_field_length= length;
 
   if (!(field= mysql_fetch_field_direct(result, no)))
   {
@@ -777,7 +777,7 @@ static void do_verify_prepare_field(MYSQL_RES *result,
   }
   cs= get_charset(field->charsetnr, 0);
   DIE_UNLESS(cs);
-  if ((expected_field_length= length * cs->mbmaxlen) > UINT_MAX32)
+  if ((expected_field_length*= cs->mbmaxlen) > UINT_MAX32)
     expected_field_length= UINT_MAX32;
   if (!opt_silent)
   {
@@ -1419,8 +1419,7 @@ int main(int argc, char **argv)
   for (i= 0; i < argc; i++)
     original_argv[i]= strdup(argv[i]);
 
-  if (load_defaults("my", client_test_load_default_groups, &argc, &argv))
-    exit(1);
+  load_defaults_or_exit("my", client_test_load_default_groups, &argc, &argv);
 
   get_options(&argc, &argv);
   /* Set main opt_count. */

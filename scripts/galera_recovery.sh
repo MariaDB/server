@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
 # This script is intended to be executed by systemd. It starts mysqld with
@@ -101,14 +101,12 @@ wsrep_recover_position() {
 
 # Safety checks
 if [ -n "$log_file" -a -f "$log_file" ]; then
-  [ "$euid" = "0" ] && chown $user $log_file
-      chmod 600 $log_file
+  chmod 600 $log_file
 else
   log "WSREP: mktemp failed"
 fi
 
-parse_arguments `$print_defaults $cmdline_args --loose-verbose \
- mariadb mariadb_safe mysqld mysqld_safe safe_mysqld galera`
+parse_arguments `$print_defaults $cmdline_args --loose-verbose --mysqld`
 
 # Perform wsrep position recovery if wsrep_on=1, skip otherwise.
 if [ "$wsrep_on" -eq 1 ]; then

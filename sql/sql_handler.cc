@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 
 /* HANDLER ... commands - direct access to ISAM */
@@ -195,13 +195,14 @@ static void mysql_ha_close_childs(THD *thd, TABLE_LIST *current_table_list,
 
 static void mysql_ha_close_table(SQL_HANDLER *handler)
 {
+  DBUG_ENTER("mysql_ha_close_table");
   THD *thd= handler->thd;
   TABLE *table= handler->table;
   TABLE_LIST *current_table_list= NULL, *next_global;
 
   /* check if table was already closed */
   if (!table)
-    return;
+    DBUG_VOID_RETURN;
 
   if ((next_global= table->file->get_next_global_for_child()))
     current_table_list= next_global->parent_l;
@@ -232,6 +233,7 @@ static void mysql_ha_close_table(SQL_HANDLER *handler)
   }
   my_free(handler->lock);
   handler->init();
+  DBUG_VOID_RETURN;
 }
 
 /*
@@ -345,7 +347,7 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
   error= (thd->open_temporary_tables(tables) ||
           open_tables(thd, &tables, &counter, 0));
 
-  if (error)
+  if (unlikely(error))
     goto err;
 
   table= tables->table;
@@ -371,7 +373,7 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     /* The ticket returned is within a savepoint. Make a copy.  */
     error= thd->mdl_context.clone_ticket(&table_list->mdl_request);
     table_list->table->mdl_ticket= table_list->mdl_request.ticket;
-    if (error)
+    if (unlikely(error))
       goto err;
   }
   }
@@ -415,8 +417,6 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     sql_handler->reset();
   }    
   sql_handler->table= table;
-  memcpy(&sql_handler->mdl_request, &tables->mdl_request,
-         sizeof(tables->mdl_request));
 
   if (!(sql_handler->lock= get_lock_data(thd, &sql_handler->table, 1,
                                          GET_LOCK_STORE_LOCKS)))
@@ -426,9 +426,10 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
   thd->set_n_backup_active_arena(&sql_handler->arena, &backup_arena);
   error= table->fill_item_list(&sql_handler->fields);
   thd->restore_active_arena(&sql_handler->arena, &backup_arena);
-
-  if (error)
+  if (unlikely(error))
     goto err;
+
+  sql_handler->mdl_request.move_from(tables->mdl_request);
 
   /* Always read all columns */
   table->read_set= &table->s->all_set;
@@ -468,9 +469,6 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
   {
     table_list->table->open_by_handler= 1;
   }
-
-  /* Safety, cleanup the pointer to satisfy MDL assertions. */
-  tables->mdl_request.ticket= NULL;
 
   if (! reopen)
     my_ok(thd);
@@ -619,7 +617,7 @@ static SQL_HANDLER *mysql_ha_find_handler(THD *thd, const LEX_CSTRING *name)
 static bool
 mysql_ha_fix_cond_and_key(SQL_HANDLER *handler, 
                           enum enum_ha_read_modes mode, const char *keyname,
-                          List<Item> *key_expr,
+                          List<Item> *key_expr, enum ha_rkey_function ha_rkey_mode,
                           Item *cond, bool in_prepare)
 {
   THD *thd= handler->thd;
@@ -629,8 +627,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
     /* This can only be true for temp tables */
     if (table->query_id != thd->query_id)
       cond->cleanup();                          // File was reopened
-    if ((!cond->fixed &&
-	 cond->fix_fields(thd, &cond)) || cond->check_cols(1))
+    if (cond->fix_fields_if_needed_for_bool(thd, &cond))
       return 1;
   }
 
@@ -661,6 +658,18 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
       Item *item;
       key_part_map keypart_map;
       uint key_len;
+      const KEY *c_key= table->s->key_info + handler->keyno;
+
+      if ((c_key->flags & HA_SPATIAL) ||
+           c_key->algorithm == HA_KEY_ALG_FULLTEXT ||
+          (ha_rkey_mode != HA_READ_KEY_EXACT &&
+           (table->file->index_flags(handler->keyno, 0, TRUE) &
+            (HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE)) == 0))
+      {
+        my_error(ER_KEY_DOESNT_SUPPORT, MYF(0),
+                 table->file->index_type(handler->keyno), keyinfo->name.str);
+        return 1;
+      }
 
       if (key_expr->elements > keyinfo->user_defined_key_parts)
       {
@@ -668,14 +677,22 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
                  keyinfo->user_defined_key_parts);
         return 1;
       }
+
+      if (key_expr->elements < keyinfo->user_defined_key_parts &&
+               (table->file->index_flags(handler->keyno, 0, TRUE) &
+                HA_ONLY_WHOLE_INDEX))
+      {
+        my_error(ER_KEY_DOESNT_SUPPORT, MYF(0),
+                 table->file->index_type(handler->keyno), keyinfo->name.str);
+        return 1;
+      }
+
       for (keypart_map= key_len=0 ; (item=it_ke++) ; key_part++)
       {
-        my_bitmap_map *old_map;
 	/* note that 'item' can be changed by fix_fields() call */
-        if ((!item->fixed &&
-             item->fix_fields(thd, it_ke.ref())) ||
-	    (item= *it_ke.ref())->check_cols(1))
+        if (item->fix_fields_if_needed_for_scalar(thd, it_ke.ref()))
           return 1;
+        item= *it_ke.ref();
 	if (item->used_tables() & ~(RAND_TABLE_BIT | PARAM_TABLE_BIT))
         {
           my_error(ER_WRONG_ARGUMENTS,MYF(0),"HANDLER ... READ");
@@ -683,9 +700,9 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
         }
         if (!in_prepare)
         {
-          old_map= dbug_tmp_use_all_columns(table, table->write_set);
+          MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
           (void) item->save_in_field(key_part->field, 1);
-          dbug_tmp_restore_column_map(table->write_set, old_map);
+          dbug_tmp_restore_column_map(&table->write_set, old_map);
         }
         key_len+= key_part->store_length;
         keypart_map= (keypart_map << 1) | 1;
@@ -768,6 +785,9 @@ retry:
   if (!(handler= mysql_ha_find_handler(thd, &tables->alias)))
     goto err0;
 
+  if (thd->transaction.xid_state.check_has_uncommitted_xa())
+    goto err0;
+
   table= handler->table;
   tables->table= table;                         // This is used by fix_fields
   table->pos_in_table_list= tables;
@@ -838,11 +858,12 @@ retry:
       goto retry;
     }
 
-    if (lock_error)
+    if (unlikely(lock_error))
       goto err0; // mysql_lock_tables() printed error message already
   }
 
-  if (mysql_ha_fix_cond_and_key(handler, mode, keyname, key_expr, cond, 0))
+  if (mysql_ha_fix_cond_and_key(handler, mode, keyname, key_expr,
+                                ha_rkey_mode, cond, 0))
     goto err;
   mode= handler->mode;
   keyno= handler->keyno;
@@ -880,14 +901,14 @@ retry:
     case RFIRST:
       if (keyname)
       {
-        if (!(error= table->file->ha_index_or_rnd_end()) &&
-            !(error= table->file->ha_index_init(keyno, 1)))
+        if (likely(!(error= table->file->ha_index_or_rnd_end())) &&
+            likely(!(error= table->file->ha_index_init(keyno, 1))))
           error= table->file->ha_index_first(table->record[0]);
       }
       else
       {
-        if (!(error= table->file->ha_index_or_rnd_end()) &&
-	    !(error= table->file->ha_rnd_init(1)))
+        if (likely(!(error= table->file->ha_index_or_rnd_end())) &&
+	    likely(!(error= table->file->ha_rnd_init(1))))
           error= table->file->ha_rnd_next(table->record[0]);
       }
       mode= RNEXT;
@@ -906,8 +927,8 @@ retry:
       /* else fall through */
     case RLAST:
       DBUG_ASSERT(keyname != 0);
-      if (!(error= table->file->ha_index_or_rnd_end()) &&
-          !(error= table->file->ha_index_init(keyno, 1)))
+      if (likely(!(error= table->file->ha_index_or_rnd_end())) &&
+          likely(!(error= table->file->ha_index_init(keyno, 1))))
         error= table->file->ha_index_last(table->record[0]);
       mode=RPREV;
       break;
@@ -921,13 +942,13 @@ retry:
     {
       DBUG_ASSERT(keyname != 0);
 
-      if (!(key= (uchar*) thd->calloc(ALIGN_SIZE(handler->key_len))))
+      if (unlikely(!(key= (uchar*) thd->calloc(ALIGN_SIZE(handler->key_len)))))
 	goto err;
-      if ((error= table->file->ha_index_or_rnd_end()))
+      if (unlikely((error= table->file->ha_index_or_rnd_end())))
         break;
       key_copy(key, table->record[0], table->key_info + keyno,
                handler->key_len);
-      if (!(error= table->file->ha_index_init(keyno, 1)))
+      if (unlikely(!(error= table->file->ha_index_init(keyno, 1))))
         error= table->file->ha_index_read_map(table->record[0],
                                               key, handler->keypart_map,
                                               ha_rkey_mode);
@@ -940,10 +961,8 @@ retry:
       goto err;
     }
 
-    if (error)
+    if (unlikely(error))
     {
-      if (error == HA_ERR_RECORD_DELETED)
-        continue;
       if (error != HA_ERR_KEY_NOT_FOUND && error != HA_ERR_END_OF_FILE)
       {
         /* Don't give error in the log file for some expected problems */
@@ -1003,14 +1022,17 @@ err0:
 SQL_HANDLER *mysql_ha_read_prepare(THD *thd, TABLE_LIST *tables,
                                    enum enum_ha_read_modes mode,
                                    const char *keyname,
-                                   List<Item> *key_expr, Item *cond)
+                                   List<Item> *key_expr, enum ha_rkey_function ha_rkey_mode,
+                                   Item *cond)
 {
   SQL_HANDLER *handler;
   DBUG_ENTER("mysql_ha_read_prepare");
   if (!(handler= mysql_ha_find_handler(thd, &tables->alias)))
     DBUG_RETURN(0);
   tables->table= handler->table;         // This is used by fix_fields
-  if (mysql_ha_fix_cond_and_key(handler, mode, keyname, key_expr, cond, 1))
+  handler->table->pos_in_table_list= tables;
+  if (mysql_ha_fix_cond_and_key(handler, mode, keyname, key_expr,
+                                ha_rkey_mode, cond, 1))
     DBUG_RETURN(0);
   DBUG_RETURN(handler);
 }

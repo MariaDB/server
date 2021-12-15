@@ -1,17 +1,24 @@
 /* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; version 2 of the License.
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
+  GNU General Public License, version 2.0, for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software Foundation,
-  51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
+  51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 /**
   @file storage/perfschema/table_socket_summary_by_instance.cc
@@ -41,30 +48,30 @@ table_socket_summary_by_instance::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE socket_summary_by_instance("
-                      "EVENT_NAME VARCHAR(128) not null,"
-                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null,"
-                      "COUNT_STAR BIGINT unsigned not null,"
-                      "SUM_TIMER_WAIT BIGINT unsigned not null,"
-                      "MIN_TIMER_WAIT BIGINT unsigned not null,"
-                      "AVG_TIMER_WAIT BIGINT unsigned not null,"
-                      "MAX_TIMER_WAIT BIGINT unsigned not null,"
-                      "COUNT_READ BIGINT unsigned not null,"
-                      "SUM_TIMER_READ BIGINT unsigned not null,"
-                      "MIN_TIMER_READ BIGINT unsigned not null,"
-                      "AVG_TIMER_READ BIGINT unsigned not null,"
-                      "MAX_TIMER_READ BIGINT unsigned not null,"
-                      "SUM_NUMBER_OF_BYTES_READ BIGINT unsigned not null,"
-                      "COUNT_WRITE BIGINT unsigned not null,"
-                      "SUM_TIMER_WRITE BIGINT unsigned not null,"
-                      "MIN_TIMER_WRITE BIGINT unsigned not null,"
-                      "AVG_TIMER_WRITE BIGINT unsigned not null,"
-                      "MAX_TIMER_WRITE BIGINT unsigned not null,"
-                      "SUM_NUMBER_OF_BYTES_WRITE BIGINT unsigned not null,"
-                      "COUNT_MISC BIGINT unsigned not null,"
-                      "SUM_TIMER_MISC BIGINT unsigned not null,"
-                      "MIN_TIMER_MISC BIGINT unsigned not null,"
-                      "AVG_TIMER_MISC BIGINT unsigned not null,"
-                      "MAX_TIMER_MISC BIGINT unsigned not null)") }
+                      "EVENT_NAME VARCHAR(128) not null comment 'Socket instrument.',"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Address in memory.',"
+                      "COUNT_STAR BIGINT unsigned not null comment 'Number of summarized events',"
+                      "SUM_TIMER_WAIT BIGINT unsigned not null comment 'Total wait time of the summarized events that are timed.',"
+                      "MIN_TIMER_WAIT BIGINT unsigned not null comment 'Minimum wait time of the summarized events that are timed.',"
+                      "AVG_TIMER_WAIT BIGINT unsigned not null comment 'Average wait time of the summarized events that are timed.',"
+                      "MAX_TIMER_WAIT BIGINT unsigned not null comment 'Maximum wait time of the summarized events that are timed.',"
+                      "COUNT_READ BIGINT unsigned not null comment 'Number of all read operations, including RECV, RECVFROM, and RECVMSG.',"
+                      "SUM_TIMER_READ BIGINT unsigned not null comment 'Total wait time of all read operations that are timed.',"
+                      "MIN_TIMER_READ BIGINT unsigned not null comment 'Minimum wait time of all read operations that are timed.',"
+                      "AVG_TIMER_READ BIGINT unsigned not null comment 'Average wait time of all read operations that are timed.',"
+                      "MAX_TIMER_READ BIGINT unsigned not null comment 'Maximum wait time of all read operations that are timed.',"
+                      "SUM_NUMBER_OF_BYTES_READ BIGINT unsigned not null comment 'Bytes read by read operations.',"
+                      "COUNT_WRITE BIGINT unsigned not null comment 'Number of all write operations, including SEND, SENDTO, and SENDMSG.',"
+                      "SUM_TIMER_WRITE BIGINT unsigned not null comment 'Total wait time of all write operations that are timed.',"
+                      "MIN_TIMER_WRITE BIGINT unsigned not null comment 'Minimum wait time of all write operations that are timed.',"
+                      "AVG_TIMER_WRITE BIGINT unsigned not null comment 'Average wait time of all write operations that are timed.',"
+                      "MAX_TIMER_WRITE BIGINT unsigned not null comment 'Maximum wait time of all write operations that are timed.',"
+                      "SUM_NUMBER_OF_BYTES_WRITE BIGINT unsigned not null comment 'Bytes written by write operations.',"
+                      "COUNT_MISC BIGINT unsigned not null comment 'Number of all miscellaneous operations not counted above, including CONNECT, LISTEN, ACCEPT, CLOSE, and SHUTDOWN.',"
+                      "SUM_TIMER_MISC BIGINT unsigned not null comment 'Total wait time of all miscellaneous operations that are timed.',"
+                      "MIN_TIMER_MISC BIGINT unsigned not null comment 'Minimum wait time of all miscellaneous operations that are timed.',"
+                      "AVG_TIMER_MISC BIGINT unsigned not null comment 'Average wait time of all miscellaneous operations that are timed.',"
+                      "MAX_TIMER_MISC BIGINT unsigned not null comment 'Maximum wait time of all miscellaneous operations that are timed.')") }
 };
 
 PFS_engine_table* table_socket_summary_by_instance::create(void)

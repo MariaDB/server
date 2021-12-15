@@ -1,0 +1,46 @@
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+CREATE SEQUENCE s2 ENGINE=InnoDB;
+connect  con1,localhost,root,,test;
+CREATE TABLE s3 LIKE s2;;
+connection default;
+CREATE SEQUENCE s4 ENGINE=InnoDB;
+SELECT * from s1 WHERE start_value IN (SELECT start_value FROM s2);
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+connection con1;
+disconnect con1;
+connection default;
+DROP SEQUENCE s1, s2, s3, s4;
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+PREPARE stmt FROM "CREATE TABLE s2 LIKE s1";
+execute stmt;
+drop table s2;
+execute stmt;
+drop table s2;
+execute stmt;
+select * from s2;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+DROP SEQUENCE s1, s2;
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+connect  con1,localhost,root,,test;
+CREATE TABLE s2 LIKE s1;;
+connection default;
+FLUSH TABLES;
+connection con1;
+disconnect con1;
+connection default;
+DROP TABLE s1,s2;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connect  con1,localhost,root,,test;
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+FLUSH TABLES;
+disconnect con1;
+connection default;
+SELECT NEXTVAL(s1);
+NEXTVAL(s1)
+1
+COMMIT;
+DROP TABLE t1;
+DROP SEQUENCE s1;

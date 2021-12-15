@@ -13,12 +13,12 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
 #include "client_priv.h"
 #include <sslopt-vars.h>
-#include "../scripts/mysql_fix_privilege_tables_sql.c"
+#include <../scripts/mysql_fix_privilege_tables_sql.c>
 
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
@@ -153,7 +153,7 @@ static struct my_option my_long_options[]=
    &opt_systables_only, &opt_systables_only, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 #define USER_OPT (array_elements(my_long_options) - 6)
-  {"user", 'u', "User for login if not current user.", &opt_user,
+  {"user", 'u', "User for login.", &opt_user,
    &opt_user, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"verbose", 'v', "Display more output about the process; Using it twice will print connection argument; Using it 3 times will print out all CHECK, RENAME and ALTER TABLE during the check phase.",
    &opt_not_used, &opt_not_used, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
@@ -503,7 +503,7 @@ static void find_tool(char *tool_executable_name, const char *tool_name,
 
     len= (int)(last_fn_libchar - self_name);
 
-    my_snprintf(tool_executable_name, FN_REFLEN, "%.*s%c%s",
+    my_snprintf(tool_executable_name, FN_REFLEN, "%.*b%c%s",
                 len, self_name, FN_LIBCHAR, tool_name);
   }
 
@@ -558,8 +558,7 @@ static int run_query(const char *query, DYNAMIC_STRING *ds_res,
   DBUG_PRINT("enter", ("query: %s", query));
   if ((fd= create_temp_file(query_file_path, 
                             opt_tmpdir[0] ? opt_tmpdir : NULL,
-                            "sql", O_CREAT | O_SHARE | O_RDWR,
-                            MYF(MY_WME))) < 0)
+                            "sql", O_SHARE, MYF(MY_WME))) < 0)
     die("Failed to create temporary file for defaults");
 
   /*
@@ -1007,6 +1006,64 @@ static int install_used_engines(void)
   return 0;
 }
 
+static int check_slave_repositories(void)
+{
+  DYNAMIC_STRING ds_result;
+  int row_count= 0;
+  int error= 0;
+  const char *query = "SELECT COUNT(*) AS c1 FROM mysql.slave_master_info";
+
+  if (init_dynamic_string(&ds_result, "", 512, 512))
+    die("Out of memory");
+
+  run_query(query, &ds_result, TRUE);
+
+  if (ds_result.length)
+  {
+    row_count= atoi((char *)ds_result.str);
+    if (row_count)
+    {
+      fprintf(stderr,"Slave info repository compatibility check:"
+              " Found data in `mysql`.`slave_master_info` table.\n");
+      fprintf(stderr,"Warning: Content of `mysql`.`slave_master_info` table"
+              " will be ignored as MariaDB supports file based info "
+              "repository.\n");
+      error= 1;
+    }
+  }
+  dynstr_free(&ds_result);
+
+  query = "SELECT COUNT(*) AS c1 FROM mysql.slave_relay_log_info";
+
+  if (init_dynamic_string(&ds_result, "", 512, 512))
+    die("Out of memory");
+
+  run_query(query, &ds_result, TRUE);
+
+  if (ds_result.length)
+  {
+    row_count= atoi((char *)ds_result.str);
+    if (row_count)
+    {
+      fprintf(stderr, "Slave info repository compatibility check:"
+              " Found data in `mysql`.`slave_relay_log_info` table.\n");
+      fprintf(stderr, "Warning: Content of `mysql`.`slave_relay_log_info` "
+              "table will be ignored as MariaDB supports file based "
+              "repository.\n");
+      error= 1;
+    }
+  }
+  dynstr_free(&ds_result);
+  if (error)
+  {
+    fprintf(stderr,"Slave server may not possess the correct replication "
+            "metadata.\n");
+    fprintf(stderr, "Execution of CHANGE MASTER as per "
+            "`mysql`.`slave_master_info` and  `mysql`.`slave_relay_log_info` "
+            "table content is recommended.\n");
+  }
+  return 0;
+}
 
 /*
   Update all system tables in MySQL Server to current
@@ -1141,8 +1198,10 @@ int main(int argc, char **argv)
   char self_name[FN_REFLEN + 1];
 
   MY_INIT(argv[0]);
+  load_defaults_or_exit("my", load_default_groups, &argc, &argv);
+  defaults_argv= argv; /* Must be freed by 'free_defaults' */
 
-#if __WIN__
+#if defined(__WIN__)
   if (GetModuleFileName(NULL, self_name, FN_REFLEN) == 0)
 #endif
   {
@@ -1152,10 +1211,6 @@ int main(int argc, char **argv)
   if (init_dynamic_string(&ds_args, "", 512, 256) ||
       init_dynamic_string(&conn_args, "", 512, 256))
     die("Out of memory");
-
-  if (load_defaults("my", load_default_groups, &argc, &argv))
-    die(NULL);
-  defaults_argv= argv; /* Must be freed by 'free_defaults' */
 
   if (handle_options(&argc, &argv, my_long_options, get_one_option))
     die(NULL);
@@ -1178,7 +1233,7 @@ int main(int argc, char **argv)
   cnf_file_path= strmov(defaults_file, "--defaults-file=");
   {
     int fd= create_temp_file(cnf_file_path, opt_tmpdir[0] ? opt_tmpdir : NULL,
-                             "mysql_upgrade-", O_CREAT | O_WRONLY, MYF(MY_FAE));
+                             "mysql_upgrade-", 0, MYF(MY_FAE));
     if (fd < 0)
       die(NULL);
     my_write(fd, USTRING_WITH_LEN( "[client]\n"), MYF(MY_FAE));
@@ -1220,7 +1275,8 @@ int main(int argc, char **argv)
       run_mysqlcheck_views() ||
       run_sql_fix_privilege_tables() ||
       run_mysqlcheck_fixnames() ||
-      run_mysqlcheck_upgrade(FALSE))
+      run_mysqlcheck_upgrade(FALSE) ||
+      check_slave_repositories())
     die("Upgrade failed" );
 
   verbose("Phase %d/%d: Running 'FLUSH PRIVILEGES'", ++phase, phases_total);

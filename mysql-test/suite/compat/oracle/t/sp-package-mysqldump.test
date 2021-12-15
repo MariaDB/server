@@ -1,0 +1,94 @@
+--source include/have_utf8mb4.inc
+--source include/not_embedded.inc
+
+SET sql_mode=ORACLE;
+
+#
+# Create a standalone procedure test.p1 and a package pkg1.
+# The standalone routine test.p1 and the package routines call each other.
+#
+
+DELIMITER $$;
+CREATE PROCEDURE p1 AS
+BEGIN
+  SELECT pkg1.f1(); -- a standalone routine calls a package routine
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+CREATE PACKAGE BODY pkg1 AS
+  PROCEDURE p1 AS
+  BEGIN
+    CALL test.p1;  -- a package routine calls a standalone routine
+  END;
+  FUNCTION f1 RETURN INT AS
+  BEGIN
+    RETURN 10;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CALL p1;
+CALL pkg1.p1;
+SELECT pkg1.f1();
+
+
+#
+# Create specifications for one more package, without a BODY
+#
+DELIMITER $$;
+CREATE PACKAGE pkg2 AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN INT;
+END;
+$$
+DELIMITER ;$$
+
+
+--exec $MYSQL_DUMP --skip-comments --routines --default-character-set=utf8mb4 test
+--exec $MYSQL_DUMP --skip-comments --routines --xml test
+
+let $dump = $MYSQLTEST_VARDIR/tmp/sp-package-mysqldump.sql;
+
+--exec $MYSQL_DUMP --compact --routines test > $dump
+
+DROP PACKAGE pkg1;
+DROP PACKAGE pkg2;
+DROP PROCEDURE p1;
+
+--exec $MYSQL test < $dump
+
+--vertical_results
+--replace_column 4 'root@localhost'  5 '0000-00-00 00:00:00' 6 '0000-00-00 00:00:00'
+SHOW PACKAGE STATUS;
+--replace_column 4 'root@localhost'  5 '0000-00-00 00:00:00' 6 '0000-00-00 00:00:00'
+SHOW PACKAGE BODY STATUS;
+--horizontal_results
+
+SHOW CREATE PACKAGE pkg1;
+SHOW CREATE PACKAGE pkg2;
+SHOW CREATE PACKAGE BODY pkg1;
+
+CALL p1;
+CALL pkg1.p1;
+SELECT pkg1.f1();
+
+DROP PACKAGE pkg1;
+DROP PACKAGE pkg2;
+DROP PROCEDURE p1;
+
+--echo # removing the dump file
+--error 0,1
+--remove_file $dump

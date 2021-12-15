@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
  */
 
 //! @file some utility functions and classes not directly related to replication
@@ -414,7 +414,7 @@ process::wait ()
   return err_;
 }
 
-thd::thd (my_bool won) : init(), ptr(new THD(0))
+thd::thd (my_bool won, bool system_thread) : init(), ptr(new THD(0))
 {
   if (ptr)
   {
@@ -422,6 +422,8 @@ thd::thd (my_bool won) : init(), ptr(new THD(0))
     ptr->store_globals();
     ptr->variables.option_bits&= ~OPTION_BIN_LOG; // disable binlog
     ptr->variables.wsrep_on = won;
+    if (system_thread)
+      ptr->system_thread= SYSTEM_THREAD_GENERIC;
     ptr->security_ctx->master_access= ~(ulong)0;
     lex_start(ptr);
   }

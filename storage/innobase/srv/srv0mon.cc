@@ -14,7 +14,7 @@ FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License along with
 this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
 
@@ -423,7 +423,7 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_DEFAULT_START, MONITOR_FLUSH_AVG_TIME},
 
 	{"buffer_flush_adaptive_avg_pass", "buffer",
-	 "Numner of adaptive flushes passed during the recent Avg period.",
+	 "Number of adaptive flushes passed during the recent Avg period.",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_FLUSH_ADAPTIVE_AVG_PASS},
 
@@ -922,15 +922,18 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_MAX_AGE_SYNC},
 
 	{"log_pending_log_flushes", "recovery", "Pending log flushes",
-	 MONITOR_NONE,
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
 	 MONITOR_DEFAULT_START, MONITOR_PENDING_LOG_FLUSH},
 
 	{"log_pending_checkpoint_writes", "recovery", "Pending checkpoints",
-	 MONITOR_NONE,
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
 	 MONITOR_DEFAULT_START, MONITOR_PENDING_CHECKPOINT_WRITE},
 
 	{"log_num_log_io", "recovery", "Number of log I/Os",
-	 MONITOR_NONE,
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
 	 MONITOR_DEFAULT_START, MONITOR_LOG_IO},
 
 	{"log_waits", "recovery",
@@ -1485,8 +1488,8 @@ srv_mon_set_module_control(
 	mon_option_t	set_option)	/*!< in: Turn on/off reset the
 					counter */
 {
-	ulint	ix;
-	ulint	start_id;
+	lint	ix;
+	lint	start_id;
 	ibool	set_current_module = FALSE;
 
 	ut_a(module_id <= NUM_MONITOR);
@@ -1838,7 +1841,7 @@ srv_mon_process_existing_counter(
 
 	/* innodb_page_size */
 	case MONITOR_OVLD_SRV_PAGE_SIZE:
-		value = UNIV_PAGE_SIZE;
+		value = srv_page_size;
 		break;
 
 	case MONITOR_OVLD_RWLOCK_S_SPIN_WAITS:
@@ -1960,7 +1963,7 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_N_FILE_OPENED:
-		value = fil_n_file_opened;
+		value = fil_system.n_open;
 		break;
 
 	case MONITOR_OVLD_IBUF_MERGE_INSERT:
@@ -2000,11 +2003,30 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_LSN_FLUSHDISK:
-		value = (mon_type_t) log_sys->flushed_to_disk_lsn;
+		value = (mon_type_t) log_sys.flushed_to_disk_lsn;
 		break;
 
 	case MONITOR_OVLD_LSN_CURRENT:
-		value = (mon_type_t) log_sys->lsn;
+		value = (mon_type_t) log_sys.lsn;
+		break;
+
+	case MONITOR_PENDING_LOG_FLUSH:
+		mutex_enter(&log_sys.mutex);
+		value = static_cast<mon_type_t>(log_sys.n_pending_flushes);
+		mutex_exit(&log_sys.mutex);
+		break;
+
+	case MONITOR_PENDING_CHECKPOINT_WRITE:
+		mutex_enter(&log_sys.mutex);
+		value = static_cast<mon_type_t>(
+		    log_sys.n_pending_checkpoint_writes);
+		mutex_exit(&log_sys.mutex);
+		break;
+
+	case MONITOR_LOG_IO:
+		mutex_enter(&log_sys.mutex);
+		value = static_cast<mon_type_t>(log_sys.n_log_ios);
+		mutex_exit(&log_sys.mutex);
 		break;
 
 	case MONITOR_OVLD_BUF_OLDEST_LSN:
@@ -2012,15 +2034,15 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_LSN_CHECKPOINT:
-		value = (mon_type_t) log_sys->last_checkpoint_lsn;
+		value = (mon_type_t) log_sys.last_checkpoint_lsn;
 		break;
 
 	case MONITOR_OVLD_MAX_AGE_ASYNC:
-		value = log_sys->max_modified_age_async;
+		value = log_sys.max_modified_age_async;
 		break;
 
 	case MONITOR_OVLD_MAX_AGE_SYNC:
-		value = log_sys->max_modified_age_sync;
+		value = log_sys.max_modified_age_sync;
 		break;
 
 #ifdef BTR_CUR_HASH_ADAPT
@@ -2030,7 +2052,7 @@ srv_mon_process_existing_counter(
 #endif /* BTR_CUR_HASH_ADAPT */
 
 	case MONITOR_OVLD_ADAPTIVE_HASH_SEARCH_BTREE:
-		value = btr_cur_n_non_sea;
+		value = my_atomic_loadlint(&btr_cur_n_non_sea);
 		break;
 
         case MONITOR_OVLD_PAGE_COMPRESS_SAVED:

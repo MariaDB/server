@@ -1,0 +1,142 @@
+########
+# Test for generating "innodb_corrupted_pages" file during full and
+# incremental backup, including DDL processing
+###
+
+CREATE TABLE t1_corrupted(c INT) ENGINE INNODB;
+CREATE TABLE t2_corrupted(c INT) ENGINE INNODB;
+CREATE TABLE t3(c INT) ENGINE INNODB;
+CREATE TABLE t5_corrupted_to_rename(c INT) ENGINE INNODB;
+CREATE TABLE t6_corrupted_to_drop(c INT) ENGINE INNODB;
+CREATE TABLE t7_corrupted_to_alter(c INT) ENGINE INNODB;
+CREATE TABLE t1_inc_corrupted(c INT) ENGINE INNODB;
+CREATE TABLE t2_inc_corrupted(c INT) ENGINE INNODB;
+CREATE TABLE t3_inc(c INT) ENGINE INNODB;
+CREATE TABLE t5_inc_corrupted_to_rename(c INT) ENGINE INNODB;
+CREATE TABLE t6_inc_corrupted_to_drop(c INT) ENGINE INNODB;
+CREATE TABLE t7_inc_corrupted_to_alter(c INT) ENGINE INNODB;
+INSERT INTO t1_corrupted VALUES (3), (4), (5), (6), (7), (8), (9);
+INSERT INTO t2_corrupted VALUES (3), (4), (5), (6), (7), (8), (9);
+INSERT INTO t3 VALUES (3), (4), (5), (6), (7), (8), (9);
+INSERT INTO t5_corrupted_to_rename VALUES (3), (4), (5), (6), (7), (8), (9);
+INSERT INTO t6_corrupted_to_drop VALUES (3), (4), (5), (6), (7), (8), (9);
+INSERT INTO t7_corrupted_to_alter VALUES (3), (4), (5), (6), (7), (8), (9);
+# Corrupt tables
+# Backup must  fail due to page corruption
+FOUND 1 /Database page corruption detected.*/ in backup.log
+# "innodb_corrupted_pages" file must not exist
+# Backup must not fail, but "innodb_corrupted_pages" file must be created due to --log-innodb-page-corruption option
+FOUND 1 /Database page corruption detected.*/ in backup.log
+FOUND 1 /completed OK!/ in backup.log
+--- "innodb_corrupted_pages" file content: ---
+test/t1_corrupted
+6 8 9
+test/t2_corrupted
+7 8 10
+test/t4_corrupted_new
+1
+test/t5_corrupted_to_rename_renamed
+6
+test/t7_corrupted_to_alter
+3
+------
+INSERT INTO t1_inc_corrupted VALUES (3), (4), (5), (6), (7), (8), (9);
+INSERT INTO t2_inc_corrupted VALUES (3), (4), (5), (6), (7), (8), (9);
+INSERT INTO t3_inc VALUES (3), (4), (5), (6), (7), (8), (9);
+# Backup must not fail, but "innodb_corrupted_pages" file must be created due to --log-innodb-page-corruption option
+--- "innodb_corrupted_pages" file content: ---
+test/t1_corrupted
+6 8 9
+test/t1_inc_corrupted
+6 8 9
+test/t2_corrupted
+7 8 10
+test/t2_inc_corrupted
+7 8 10
+test/t4_inc_corrupted_new
+1
+test/t5_corrupted_to_rename_renamed
+6
+test/t5_inc_corrupted_to_rename_renamed
+6
+test/t7_inc_corrupted_to_alter
+3
+------
+# Check if corrupted pages were copied to delta files, and non-corrupted pages are not copied.
+DROP TABLE t1_corrupted;
+DROP TABLE t2_corrupted;
+DROP TABLE t4_corrupted_new;
+DROP TABLE t5_corrupted_to_rename_renamed;
+DROP TABLE t7_corrupted_to_alter;
+DROP TABLE t1_inc_corrupted;
+DROP TABLE t2_inc_corrupted;
+DROP TABLE t4_inc_corrupted_new;
+DROP TABLE t5_inc_corrupted_to_rename_renamed;
+DROP TABLE t7_inc_corrupted_to_alter;
+
+########
+# Test for --prepare with "innodb_corrupted_pages" file
+###
+
+# Extend some tablespace and corrupt extended pages for full backup
+# Full backup with --log-innodb-page-corruption
+--- "innodb_corrupted_pages" file content: ---
+test/t3
+6 8
+------
+# Extend some tablespace and corrupt extended pages for incremental backup
+# Incremental backup --log-innodb-page-corruption
+--- "innodb_corrupted_pages" file content: ---
+test/t3
+6 8
+test/t3_inc
+6 8
+------
+# Full backup prepare
+# "innodb_corrupted_pages" file must not exist after successful prepare
+FOUND 1 /was successfuly fixed.*/ in backup.log
+# Check that fixed pages are zero-filled
+# Incremental backup prepare
+# "innodb_corrupted_pages" file must not exist after successful prepare
+# do not remove "innodb_corrupted_pages" in incremental dir
+FOUND 1 /was successfuly fixed.*/ in backup.log
+# Check that fixed pages are zero-filled
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart server
+SELECT * FROM t3;
+c
+3
+4
+5
+6
+7
+8
+9
+SELECT * FROM t3_inc;
+c
+3
+4
+5
+6
+7
+8
+9
+# Test the case when not all corrupted pages are fixed
+
+# Add some fake corrupted pages
+# Full backup prepare
+FOUND 1 /Error: corrupted page.*/ in backup.log
+--- "innodb_corrupted_pages" file content: ---
+test/t3
+3
+------
+# Incremental backup prepare
+FOUND 1 /Error: corrupted page.*/ in backup.log
+--- "innodb_corrupted_pages" file content: ---
+test/t3
+3
+------
+DROP TABLE t3;
+DROP TABLE t3_inc;

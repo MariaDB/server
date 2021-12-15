@@ -8,5 +8,5 @@
 
 let $engine_type=Innodb;
 let $database_name=test;
---source extra/rpl_tests/rpl_mixing_engines.test
+--source include/rpl_mixing_engines.test
 --source include/rpl_end.inc

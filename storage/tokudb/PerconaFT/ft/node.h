@@ -155,6 +155,12 @@ private:
     size_t _total_size;
 };
 
+extern int writing_rollback;
+
+extern "C" {
+extern uint force_recovery;
+}
+
 // TODO: class me up
 struct ftnode {
     // max_msn_applied that will be written to disk
@@ -173,8 +179,21 @@ struct ftnode {
     uint32_t build_id;
     // height is always >= 0.  0 for leaf, >0 for nonleaf.
     int height;
-    int dirty;
+    int dirty_;
     uint32_t fullhash;
+
+    void set_dirty() {
+        if(force_recovery) assert(writing_rollback);
+        dirty_ = 1;
+    }
+
+    void clear_dirty() {
+        dirty_ = 0;
+    }
+
+    bool dirty() {
+        return dirty_;
+    }
 
     // for internal nodes, if n_children==fanout+1 then the tree needs to be
     // rebalanced. for leaf nodes, represents number of basement nodes

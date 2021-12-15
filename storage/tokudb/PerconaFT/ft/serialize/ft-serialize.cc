@@ -340,7 +340,7 @@ int deserialize_ft_versioned(int fd, struct rbuf *rb, FT *ftp, uint32_t version)
     {
         struct ft_header h = {
             .type = FT_CURRENT,
-            .dirty = 0,
+            .dirty_ = 0,
             .checkpoint_count = checkpoint_count,
             .checkpoint_lsn = checkpoint_lsn,
             .layout_version = FT_LAYOUT_VERSION,
@@ -656,20 +656,20 @@ exit:
     fprintf(stderr, \
             "%s:%d toku_deserialize_ft_from: " \
             "filename[%s] " \
-            "r[%d] max_acceptable_lsn[%lu]" \
-            "r0[%d] checkpoint_lsn_0[%lu] checkpoint_count_0[%lu] " \
-            "r1[%d] checkpoint_lsn_1[%lu] checkpoint_count_1[%lu]\n", \
+            "r[%d] max_acceptable_lsn[%llu]" \
+            "r0[%d] checkpoint_lsn_0[%llu] checkpoint_count_0[%llu] " \
+            "r1[%d] checkpoint_lsn_1[%llu] checkpoint_count_1[%llu]\n", \
             __FILE__, \
             __LINE__, \
             fn, \
             r, \
-            max_acceptable_lsn.lsn, \
+            (ulonglong)max_acceptable_lsn.lsn, \
             r0, \
-            checkpoint_lsn_0.lsn, \
-            checkpoint_count_0, \
+            (ulonglong)checkpoint_lsn_0.lsn, \
+            (ulonglong)checkpoint_count_0, \
             r1, \
-            checkpoint_lsn_1.lsn, \
-            checkpoint_count_1);
+            (ulonglong)checkpoint_lsn_1.lsn, \
+            (ulonglong)checkpoint_count_1);
 
 int toku_deserialize_ft_from(int fd,
                              const char *fn,

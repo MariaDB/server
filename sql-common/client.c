@@ -1,5 +1,5 @@
 /* Copyright (c) 2003, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
 /*
   This file is included by both libmysql.c (the MySQL client C API)
@@ -111,6 +111,12 @@ my_bool	net_flush(NET *net);
 #include <mysql/client_plugin.h>
 #include <my_context.h>
 #include <mysql_async.h>
+
+typedef enum {
+  ALWAYS_ACCEPT,       /* heuristics is disabled, use CLIENT_LOCAL_FILES */
+  WAIT_FOR_QUERY,      /* heuristics is enabled, not sending files */
+  ACCEPT_FILE_REQUEST  /* heuristics is enabled, ready to send a file */
+} auto_local_infile_state;
 
 #define native_password_plugin_name "mysql_native_password"
 #define old_password_plugin_name    "mysql_old_password"
@@ -715,6 +721,8 @@ cli_advanced_command(MYSQL *mysql, enum enum_server_command command,
       set_mysql_error(mysql, CR_NET_PACKET_TOO_LARGE, unknown_sqlstate);
       goto end;
     }
+    if (net->last_errno == ER_NET_ERROR_ON_WRITE && command == COM_BINLOG_DUMP)
+      goto end;
     end_server(mysql);
     if (mysql_reconnect(mysql) || stmt_skip)
       goto end;
@@ -1343,7 +1351,9 @@ unpack_fields(MYSQL *mysql, MYSQL_DATA *data,MEM_ROOT *alloc,uint fields,
     {
       uchar *pos;
       /* fields count may be wrong */
-      DBUG_ASSERT((uint) (field - result) < fields);
+      if (field >= result + fields)
+        goto err;
+
       cli_fetch_lengths(&lengths[0], row->data, default_value ? 8 : 7);
       field->catalog=   strmake_root(alloc,(char*) row->data[0], lengths[0]);
       field->db=        strmake_root(alloc,(char*) row->data[1], lengths[1]);
@@ -1361,12 +1371,7 @@ unpack_fields(MYSQL *mysql, MYSQL_DATA *data,MEM_ROOT *alloc,uint fields,
 
       /* Unpack fixed length parts */
       if (lengths[6] != 12)
-      {
-        /* malformed packet. signal an error. */
-        free_rows(data);			/* Free old data */
-        set_mysql_error(mysql, CR_MALFORMED_PACKET, unknown_sqlstate);
-        DBUG_RETURN(0);
-      }
+        goto err;
 
       pos= (uchar*) row->data[6];
       field->charsetnr= uint2korr(pos);
@@ -1393,9 +1398,25 @@ unpack_fields(MYSQL *mysql, MYSQL_DATA *data,MEM_ROOT *alloc,uint fields,
     /* old protocol, for backward compatibility */
     for (row=data->data; row ; row = row->next,field++)
     {
+      if (field >= result + fields)
+        goto err;
+
+      /*
+       If any of the row->data[] below is NULL, it can result in a
+       crash. Error out early as it indicates a malformed packet.
+       For data[0], data[1] and data[5], strmake_root will handle
+       NULL values.
+      */
+      if (!row->data[2] || !row->data[3] || !row->data[4])
+      {
+        free_rows(data);
+        set_mysql_error(mysql, CR_MALFORMED_PACKET, unknown_sqlstate);
+        DBUG_RETURN(0);
+      }
+
       cli_fetch_lengths(&lengths[0], row->data, default_value ? 6 : 5);
-      field->org_table= field->table=  strdup_root(alloc,(char*) row->data[0]);
-      field->name=   strdup_root(alloc,(char*) row->data[1]);
+      field->org_table= field->table=  strmake_root(alloc,(char*) row->data[0], lengths[0]);
+      field->name=   strmake_root(alloc,(char*) row->data[1], lengths[1]);
       field->length= (uint) uint3korr(row->data[2]);
       field->type=   (enum enum_field_types) (uchar) row->data[3][0];
 
@@ -1420,7 +1441,7 @@ unpack_fields(MYSQL *mysql, MYSQL_DATA *data,MEM_ROOT *alloc,uint fields,
         field->flags|= NUM_FLAG;
       if (default_value && row->data[5])
       {
-        field->def=strdup_root(alloc,(char*) row->data[5]);
+        field->def= strmake_root(alloc,(char*) row->data[5], lengths[5]);
 	field->def_length= lengths[5];
       }
       else
@@ -1429,8 +1450,17 @@ unpack_fields(MYSQL *mysql, MYSQL_DATA *data,MEM_ROOT *alloc,uint fields,
     }
   }
 #endif /* DELETE_SUPPORT_OF_4_0_PROTOCOL */
+  if (field < result + fields)
+    goto err;
   free_rows(data);				/* Free old data */
   DBUG_RETURN(result);
+
+err:
+  /* malformed packet. signal an error. */
+  free_rows(data);
+  free_root(alloc, MYF(0));
+  set_mysql_error(mysql, CR_MALFORMED_PACKET, unknown_sqlstate);
+  DBUG_RETURN(0);
 }
 
 /* Read all rows (fields or data) from server */
@@ -1450,6 +1480,7 @@ MYSQL_DATA *cli_read_rows(MYSQL *mysql,MYSQL_FIELD *mysql_fields,
 
   if ((pkt_len= cli_safe_read(mysql)) == packet_error)
     DBUG_RETURN(0);
+  if (pkt_len == 0) DBUG_RETURN(0);
   if (!(result=(MYSQL_DATA*) my_malloc(sizeof(MYSQL_DATA),
 				       MYF(MY_WME | MY_ZEROFILL))))
   {
@@ -1499,7 +1530,7 @@ MYSQL_DATA *cli_read_rows(MYSQL *mysql,MYSQL_FIELD *mysql_fields,
       else
       {
 	cur->data[field] = to;
-        if (len > (ulong) (end_to - to))
+        if (unlikely(len > (ulong)(end_to-to) || to > end_to))
         {
           free_rows(result);
           set_mysql_error(mysql, CR_MALFORMED_PACKET, unknown_sqlstate);
@@ -1571,7 +1602,7 @@ read_one_row(MYSQL *mysql,uint fields,MYSQL_ROW row, ulong *lengths)
     }
     else
     {
-      if (len > (ulong) (end_pos - pos))
+      if (unlikely(len > (ulong)(end_pos - pos) || pos > end_pos))
       {
         set_mysql_error(mysql, CR_UNKNOWN_ERROR, unknown_sqlstate);
         return -1;
@@ -1619,8 +1650,10 @@ mysql_init(MYSQL *mysql)
     --enable-local-infile
   */
 
-#if defined(ENABLED_LOCAL_INFILE) && !defined(MYSQL_SERVER)
+#if ENABLED_LOCAL_INFILE && !defined(MYSQL_SERVER)
   mysql->options.client_flag|= CLIENT_LOCAL_FILES;
+  mysql->auto_local_infile= ENABLED_LOCAL_INFILE == LOCAL_INFILE_MODE_AUTO
+                            ? WAIT_FOR_QUERY : ALWAYS_ACCEPT;
 #endif
 
 #ifdef HAVE_SMEM
@@ -1815,7 +1848,10 @@ static int ssl_verify_server_cert(Vio *vio, const char* server_hostname, const c
   */
 
 #ifdef HAVE_X509_check_host
-  ret_validation= X509_check_host(server_cert, server_hostname, 0, 0, 0) != 1;
+  ret_validation=
+   (X509_check_host(server_cert, server_hostname,
+       strlen(server_hostname), 0, 0) != 1) &&
+   (X509_check_ip_asc(server_cert, server_hostname, 0) != 1);
 #else
   subject= X509_get_subject_name(server_cert);
   cn_loc= X509_NAME_get_index_by_NID(subject, NID_commonName, -1);
@@ -1900,250 +1936,13 @@ static MYSQL_METHODS client_methods=
 };
 
 
-
-typedef enum my_cs_match_type_enum
-{
-  /* MySQL and OS charsets are fully compatible */
-  my_cs_exact,
-  /* MySQL charset is very close to OS charset  */
-  my_cs_approx,
-  /*
-    MySQL knows this charset, but it is not supported as client character set.
-  */
-  my_cs_unsupp
-} my_cs_match_type;
-
-
-typedef struct str2str_st
-{
-  const char *os_name;
-  const char *my_name;
-  my_cs_match_type param;
-} MY_CSET_OS_NAME;
-
-const MY_CSET_OS_NAME charsets[]=
-{
-#ifdef __WIN__
-  {"cp437",          "cp850",    my_cs_approx},
-  {"cp850",          "cp850",    my_cs_exact},
-  {"cp852",          "cp852",    my_cs_exact},
-  {"cp858",          "cp850",    my_cs_approx},
-  {"cp866",          "cp866",    my_cs_exact},
-  {"cp874",          "tis620",   my_cs_approx},
-  {"cp932",          "cp932",    my_cs_exact},
-  {"cp936",          "gbk",      my_cs_approx},
-  {"cp949",          "euckr",    my_cs_approx},
-  {"cp950",          "big5",     my_cs_exact},
-  {"cp1200",         "utf16le",  my_cs_unsupp},
-  {"cp1201",         "utf16",    my_cs_unsupp},
-  {"cp1250",         "cp1250",   my_cs_exact},
-  {"cp1251",         "cp1251",   my_cs_exact},
-  {"cp1252",         "latin1",   my_cs_exact},
-  {"cp1253",         "greek",    my_cs_exact},
-  {"cp1254",         "latin5",   my_cs_exact},
-  {"cp1255",         "hebrew",   my_cs_approx},
-  {"cp1256",         "cp1256",   my_cs_exact},
-  {"cp1257",         "cp1257",   my_cs_exact},
-  {"cp10000",        "macroman", my_cs_exact},
-  {"cp10001",        "sjis",     my_cs_approx},
-  {"cp10002",        "big5",     my_cs_approx},
-  {"cp10008",        "gb2312",   my_cs_approx},
-  {"cp10021",        "tis620",   my_cs_approx},
-  {"cp10029",        "macce",    my_cs_exact},
-  {"cp12001",        "utf32",    my_cs_unsupp},
-  {"cp20107",        "swe7",     my_cs_exact},
-  {"cp20127",        "latin1",   my_cs_approx},
-  {"cp20866",        "koi8r",    my_cs_exact},
-  {"cp20932",        "ujis",     my_cs_exact},
-  {"cp20936",        "gb2312",   my_cs_approx},
-  {"cp20949",        "euckr",    my_cs_approx},
-  {"cp21866",        "koi8u",    my_cs_exact},
-  {"cp28591",        "latin1",   my_cs_approx},
-  {"cp28592",        "latin2",   my_cs_exact},
-  {"cp28597",        "greek",    my_cs_exact},
-  {"cp28598",        "hebrew",   my_cs_exact},
-  {"cp28599",        "latin5",   my_cs_exact},
-  {"cp28603",        "latin7",   my_cs_exact},
-#ifdef UNCOMMENT_THIS_WHEN_WL_4579_IS_DONE
-  {"cp28605",        "latin9",   my_cs_exact},
-#endif
-  {"cp38598",        "hebrew",   my_cs_exact},
-  {"cp51932",        "ujis",     my_cs_exact},
-  {"cp51936",        "gb2312",   my_cs_exact},
-  {"cp51949",        "euckr",    my_cs_exact},
-  {"cp51950",        "big5",     my_cs_exact},
-#ifdef UNCOMMENT_THIS_WHEN_WL_WL_4024_IS_DONE
-  {"cp54936",        "gb18030",  my_cs_exact},
-#endif
-  {"cp65001",        "utf8",     my_cs_exact},
-
-#else /* not Windows */
-
-  {"646",            "latin1",   my_cs_approx}, /* Default on Solaris */
-  {"ANSI_X3.4-1968", "latin1",   my_cs_approx},
-  {"ansi1251",       "cp1251",   my_cs_exact},
-  {"armscii8",       "armscii8", my_cs_exact},
-  {"armscii-8",      "armscii8", my_cs_exact},
-  {"ASCII",          "latin1",   my_cs_approx},
-  {"Big5",           "big5",     my_cs_exact},
-  {"cp1251",         "cp1251",   my_cs_exact},
-  {"cp1255",         "hebrew",   my_cs_approx},
-  {"CP866",          "cp866",    my_cs_exact},
-  {"eucCN",          "gb2312",   my_cs_exact},
-  {"euc-CN",         "gb2312",   my_cs_exact},
-  {"eucJP",          "ujis",     my_cs_exact},
-  {"euc-JP",         "ujis",     my_cs_exact},
-  {"eucKR",          "euckr",    my_cs_exact},
-  {"euc-KR",         "euckr",    my_cs_exact},
-#ifdef UNCOMMENT_THIS_WHEN_WL_WL_4024_IS_DONE
-  {"gb18030",        "gb18030",  my_cs_exact},
-#endif
-  {"gb2312",         "gb2312",   my_cs_exact},
-  {"gbk",            "gbk",      my_cs_exact},
-  {"georgianps",     "geostd8",  my_cs_exact},
-  {"georgian-ps",    "geostd8",  my_cs_exact},
-  {"IBM-1252",       "cp1252",   my_cs_exact},
-
-  {"iso88591",       "latin1",   my_cs_approx},
-  {"ISO_8859-1",     "latin1",   my_cs_approx},
-  {"ISO8859-1",      "latin1",   my_cs_approx},
-  {"ISO-8859-1",     "latin1",   my_cs_approx},
-
-  {"iso885913",      "latin7",   my_cs_exact},
-  {"ISO_8859-13",    "latin7",   my_cs_exact},
-  {"ISO8859-13",     "latin7",   my_cs_exact},
-  {"ISO-8859-13",    "latin7",   my_cs_exact},
-
-#ifdef UNCOMMENT_THIS_WHEN_WL_4579_IS_DONE
-  {"iso885915",      "latin9",   my_cs_exact},
-  {"ISO_8859-15",    "latin9",   my_cs_exact},
-  {"ISO8859-15",     "latin9",   my_cs_exact},
-  {"ISO-8859-15",    "latin9",   my_cs_exact},
-#endif
-
-  {"iso88592",       "latin2",   my_cs_exact},
-  {"ISO_8859-2",     "latin2",   my_cs_exact},
-  {"ISO8859-2",      "latin2",   my_cs_exact},
-  {"ISO-8859-2",     "latin2",   my_cs_exact},
-
-  {"iso88597",       "greek",    my_cs_exact},
-  {"ISO_8859-7",     "greek",    my_cs_exact},
-  {"ISO8859-7",      "greek",    my_cs_exact},
-  {"ISO-8859-7",     "greek",    my_cs_exact},
-
-  {"iso88598",       "hebrew",   my_cs_exact},
-  {"ISO_8859-8",     "hebrew",   my_cs_exact},
-  {"ISO8859-8",      "hebrew",   my_cs_exact},
-  {"ISO-8859-8",     "hebrew",   my_cs_exact},
-
-  {"iso88599",       "latin5",   my_cs_exact},
-  {"ISO_8859-9",     "latin5",   my_cs_exact},
-  {"ISO8859-9",      "latin5",   my_cs_exact},
-  {"ISO-8859-9",     "latin5",   my_cs_exact},
-
-  {"koi8r",          "koi8r",    my_cs_exact},
-  {"KOI8-R",         "koi8r",    my_cs_exact},
-  {"koi8u",          "koi8u",    my_cs_exact},
-  {"KOI8-U",         "koi8u",    my_cs_exact},
-
-  {"roman8",         "hp8",      my_cs_exact}, /* Default on HP UX */
-
-  {"Shift_JIS",      "sjis",     my_cs_exact},
-  {"SJIS",           "sjis",     my_cs_exact},
-  {"shiftjisx0213",  "sjis",     my_cs_exact},
-  
-  {"tis620",         "tis620",   my_cs_exact},
-  {"tis-620",        "tis620",   my_cs_exact},
-
-  {"ujis",           "ujis",     my_cs_exact},
-
-  {"US-ASCII",       "latin1",   my_cs_approx},
-
-  {"utf8",           "utf8",     my_cs_exact},
-  {"utf-8",          "utf8",     my_cs_exact},
-#endif
-  {NULL,             NULL,       0}
-};
-
-
-static const char *
-my_os_charset_to_mysql_charset(const char *csname)
-{
-  const MY_CSET_OS_NAME *csp;
-  for (csp= charsets; csp->os_name; csp++)
-  {
-    if (!my_strcasecmp(&my_charset_latin1, csp->os_name, csname))
-    {
-      switch (csp->param)
-      {
-      case my_cs_exact:
-        return csp->my_name;
-
-      case my_cs_approx:
-        /*
-          Maybe we should print a warning eventually:
-          character set correspondence is not exact.
-        */
-        return csp->my_name;
-
-      default:
-        my_printf_error(ER_UNKNOWN_ERROR,
-                        "OS character set '%s'"
-                        " is not supported by MySQL client",
-                         MYF(0), csp->my_name);
-        goto def;
-      }
-    }
-  }
-
-  my_printf_error(ER_UNKNOWN_ERROR,
-                  "Unknown OS character set '%s'.",
-                  MYF(0), csname);
-
-def:
-  csname= MYSQL_DEFAULT_CHARSET_NAME;
-  my_printf_error(ER_UNKNOWN_ERROR,
-                  "Switching to the default character set '%s'.",
-                  MYF(0), csname);
-  return csname;
-}
-
-
-#ifndef __WIN__
-#include <stdlib.h> /* for getenv() */
-#ifdef HAVE_LANGINFO_H
-#include <langinfo.h>
-#endif
-#ifdef HAVE_LOCALE_H
-#include <locale.h>
-#endif
-#endif /* __WIN__ */
-
-
+#include <my_sys.h>
 static int
 mysql_autodetect_character_set(MYSQL *mysql)
 {
-  const char *csname= MYSQL_DEFAULT_CHARSET_NAME;
-
-#ifdef __WIN__
-  char cpbuf[64];
-  {
-    UINT cp= GetConsoleCP();
-    if (cp == 0)
-      cp= GetACP();
-    my_snprintf(cpbuf, sizeof(cpbuf), "cp%d", (int)cp);
-    csname= my_os_charset_to_mysql_charset(cpbuf);
-  }
-#elif defined(HAVE_SETLOCALE) && defined(HAVE_NL_LANGINFO)
-  {
-    if (setlocale(LC_CTYPE, "") && (csname= nl_langinfo(CODESET)))
-      csname= my_os_charset_to_mysql_charset(csname);
-  }
-#endif
-
   if (mysql->options.charset_name)
     my_free(mysql->options.charset_name);
-  if (!(mysql->options.charset_name= my_strdup(csname, MYF(MY_WME))))
+  if (!(mysql->options.charset_name= my_strdup(my_default_csname(),MYF(MY_WME))))
     return 1;
   return 0;
 }
@@ -2184,16 +1983,13 @@ C_MODE_START
 int mysql_init_character_set(MYSQL *mysql)
 {
   /* Set character set */
-  if (!mysql->options.charset_name)
+  if (!mysql->options.charset_name ||
+      !strcmp(mysql->options.charset_name,
+              MYSQL_AUTODETECT_CHARSET_NAME))
   {
-    if (!(mysql->options.charset_name= 
-       my_strdup(MYSQL_DEFAULT_CHARSET_NAME,MYF(MY_WME))))
+    if (mysql_autodetect_character_set(mysql))
       return 1;
   }
-  else if (!strcmp(mysql->options.charset_name,
-                   MYSQL_AUTODETECT_CHARSET_NAME) &&
-            mysql_autodetect_character_set(mysql))
-    return 1;
 
   mysql_set_character_set_with_default_collation(mysql);
 
@@ -2505,10 +2301,14 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
   if (mysql->client_flag & CLIENT_MULTI_STATEMENTS)
     mysql->client_flag|= CLIENT_MULTI_RESULTS;
 
-#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+#ifdef HAVE_OPENSSL
+  if (mysql->options.ssl_key || mysql->options.ssl_cert ||
+      mysql->options.ssl_ca || mysql->options.ssl_capath ||
+      mysql->options.ssl_cipher)
+    mysql->options.use_ssl = 1;
   if (mysql->options.use_ssl)
     mysql->client_flag|= CLIENT_SSL;
-#endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY*/
+#endif /* HAVE_OPENSSL */
 
   if (mpvio->db)
     mysql->client_flag|= CLIENT_CONNECT_WITH_DB;
@@ -2563,6 +2363,9 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     enum enum_ssl_init_error ssl_init_error;
     const char *cert_error;
     unsigned long ssl_error;
+#ifdef EMBEDDED_LIBRARY
+    DBUG_ASSERT(0); // embedded should not do SSL connect
+#endif
 
     /*
       Send mysql->client_flag, max_packet_size - unencrypted otherwise
@@ -2731,7 +2534,7 @@ static int client_mpvio_read_packet(struct st_plugin_vio *mpv, uchar **buf)
   *buf= mysql->net.read_pos;
 
   /* was it a request to change plugins ? */
-  if (**buf == 254)
+  if (pkt_len == packet_error || **buf == 254)
     return (int)packet_error; /* if yes, this plugin shan't continue */
 
   /*
@@ -2916,7 +2719,7 @@ int run_plugin_auth(MYSQL *mysql, char *data, uint data_len,
 
   compile_time_assert(CR_OK == -1);
   compile_time_assert(CR_ERROR == 0);
-  if (res > CR_OK && mysql->net.read_pos[0] != 254)
+  if (res > CR_OK && (mysql->net.last_errno || mysql->net.read_pos[0] != 254))
   {
     /*
       the plugin returned an error. write it down in mysql,
@@ -3048,6 +2851,7 @@ set_connect_attributes(MYSQL *mysql, char *buff, size_t buf_len)
   rc+= mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_DELETE, "_client_name");
   rc+= mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_DELETE, "_os");
   rc+= mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_DELETE, "_platform");
+  rc+= mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_DELETE, "_server_host");
   rc+= mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_DELETE, "_pid");
   rc+= mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_DELETE, "_thread");
   rc+= mysql_options(mysql, MYSQL_OPT_CONNECT_ATTR_DELETE, "_client_version");
@@ -3063,6 +2867,8 @@ set_connect_attributes(MYSQL *mysql, char *buff, size_t buf_len)
                       "_os", SYSTEM_TYPE);
   rc+= mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
                       "_platform", MACHINE_TYPE);
+  rc+= mysql_options4(mysql, MYSQL_OPT_CONNECT_ATTR_ADD,
+                      "_server_host", mysql->host);                      
 #ifdef __WIN__
   snprintf(buff, buf_len, "%lu", (ulong) GetCurrentProcessId());
 #else
@@ -3110,9 +2916,6 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     set_mysql_error(mysql, CR_ALREADY_CONNECTED, unknown_sqlstate);
     DBUG_RETURN(0);
   }
-
-  if (set_connect_attributes(mysql, buff, sizeof(buff)))
-    DBUG_RETURN(0);
 
   mysql->methods= &client_methods;
   mysql->client_flag=0;			/* For handshake */
@@ -3485,7 +3288,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     /* New protocol with 16 bytes to describe server characteristics */
     mysql->server_language=end[2];
     mysql->server_status=uint2korr(end+3);
-    mysql->server_capabilities|= uint2korr(end+5) << 16;
+    mysql->server_capabilities|= ((unsigned) uint2korr(end+5)) << 16;
     pkt_scramble_len= end[7];
     if (pkt_scramble_len < 0)
     {
@@ -3554,7 +3357,10 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
       scramble_data_len= pkt_scramble_len;
       scramble_plugin= scramble_data + scramble_data_len;
       if (scramble_data + scramble_data_len > pkt_end)
-        scramble_data_len= (int)(pkt_end - scramble_data);
+      {
+        set_mysql_error(mysql, CR_MALFORMED_PACKET, unknown_sqlstate);
+        goto error;
+      }
     }
     else
     {
@@ -3566,6 +3372,8 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
     mysql->server_capabilities&= ~CLIENT_SECURE_CONNECTION;
 
   mysql->client_flag= client_flag;
+
+  set_connect_attributes(mysql, buff, sizeof(buff));
 
   /*
     Part 2: invoke the plugin to send the authentication data to the server
@@ -3642,7 +3450,7 @@ error:
     end_server(mysql);
     mysql_close_free(mysql);
     if (!(client_flag & CLIENT_REMEMBER_OPTIONS) &&
-        !mysql->options.extension->async_context)
+        !(mysql->options.extension && mysql->options.extension->async_context))
       mysql_close_free_options(mysql);
   }
   DBUG_RETURN(0);
@@ -3738,7 +3546,7 @@ my_bool mysql_reconnect(MYSQL *mysql)
   if (ctxt)
     my_context_install_suspend_resume_hook(ctxt, NULL, NULL);
 
-  DBUG_PRINT("info", ("reconnect succeded"));
+  DBUG_PRINT("info", ("reconnect succeeded"));
   tmp_mysql.reconnect= 1;
   tmp_mysql.free_me= mysql->free_me;
 
@@ -3979,7 +3787,13 @@ static my_bool cli_read_query_result(MYSQL *mysql)
   ulong field_count;
   MYSQL_DATA *fields;
   ulong length;
+#ifdef MYSQL_CLIENT
+  my_bool can_local_infile= mysql->auto_local_infile != WAIT_FOR_QUERY;
+#endif
   DBUG_ENTER("cli_read_query_result");
+
+  if (mysql->auto_local_infile == ACCEPT_FILE_REQUEST)
+    mysql->auto_local_infile= WAIT_FOR_QUERY;
 
   if ((length = cli_safe_read(mysql)) == packet_error)
     DBUG_RETURN(1);
@@ -4017,7 +3831,8 @@ get_info:
   {
     int error;
 
-    if (!(mysql->options.client_flag & CLIENT_LOCAL_FILES))
+    if (!(mysql->options.client_flag & CLIENT_LOCAL_FILES) ||
+        !can_local_infile)
     {
       set_mysql_error(mysql, CR_MALFORMED_PACKET, unknown_sqlstate);
       DBUG_RETURN(1);
@@ -4055,6 +3870,13 @@ int STDCALL
 mysql_send_query(MYSQL* mysql, const char* query, ulong length)
 {
   DBUG_ENTER("mysql_send_query");
+  if (mysql->options.client_flag & CLIENT_LOCAL_FILES &&
+      mysql->auto_local_infile == WAIT_FOR_QUERY &&
+      (*query == 'l' || *query == 'L'))
+  {
+    if (strncasecmp(query, STRING_WITH_LEN("load")) == 0)
+      mysql->auto_local_infile= ACCEPT_FILE_REQUEST;
+  }
   DBUG_RETURN(simple_command(mysql, COM_QUERY, (uchar*) query, length, 1));
 }
 
@@ -4268,10 +4090,12 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
     mysql->options.protocol=MYSQL_PROTOCOL_PIPE; /* Force named pipe */
     break;
   case MYSQL_OPT_LOCAL_INFILE:			/* Allow LOAD DATA LOCAL ?*/
-    if (!arg || MY_TEST(*(uint*) arg))
+    if (!arg || *(uint*) arg)
       mysql->options.client_flag|= CLIENT_LOCAL_FILES;
     else
       mysql->options.client_flag&= ~CLIENT_LOCAL_FILES;
+    mysql->auto_local_infile= arg && *(uint*)arg == LOCAL_INFILE_MODE_AUTO
+                              ? WAIT_FOR_QUERY : ALWAYS_ACCEPT;
     break;
   case MYSQL_INIT_COMMAND:
     add_init_command(&mysql->options,arg);

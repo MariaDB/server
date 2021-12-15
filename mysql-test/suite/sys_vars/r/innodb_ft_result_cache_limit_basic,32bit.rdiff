@@ -1,0 +1,13 @@
+--- innodb_ft_result_cache_limit_basic.result
++++ innodb_ft_result_cache_limit_basic,32bit.reject
+@@ -31,7 +31,9 @@
+ @@innodb_ft_result_cache_limit
+ 4294967295
+ set global innodb_ft_result_cache_limit=4*1024*1024*1024;
++Warnings:
++Warning	1292	Truncated incorrect innodb_ft_result_cache_limit value: '4294967296'
+ select @@innodb_ft_result_cache_limit;
+ @@innodb_ft_result_cache_limit
+-4294967296
++4294967295
+ set global innodb_ft_result_cache_limit = @save_limit;

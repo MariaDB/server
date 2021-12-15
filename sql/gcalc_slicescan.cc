@@ -12,7 +12,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
 #include "mariadb.h"
@@ -175,6 +175,17 @@ Gcalc_dyn_list::Gcalc_dyn_list(size_t blk_size, size_t sizeof_item):
   m_free(NULL),
   m_keep(NULL)
 {}
+
+
+Gcalc_dyn_list::Gcalc_dyn_list(const Gcalc_dyn_list &dl)
+{
+  m_blk_size= dl.m_blk_size;
+  m_sizeof_item= dl.m_sizeof_item;
+  m_points_per_blk= dl.m_points_per_blk;
+  m_blk_hook= &m_first_blk;
+  m_free= NULL;
+  m_keep= NULL;
+}
 
 
 void Gcalc_dyn_list::format_blk(void* block)
@@ -982,6 +993,8 @@ void Gcalc_heap::reset()
 {
   if (m_n_points)
   {
+    if (m_hook)
+      *m_hook= NULL;
     free_list(m_first);
     m_n_points= 0;
   }
@@ -1864,7 +1877,7 @@ int Gcalc_scan_iterator::add_eq_node(Gcalc_heap::Info *node, point *sp)
   if (!en)
     GCALC_DBUG_RETURN(1);
 
-  /* eq_node iserted after teh equal point. */
+  /* eq_node inserted after the equal point. */
   en->next= node->get_next();
   node->next= en;
 

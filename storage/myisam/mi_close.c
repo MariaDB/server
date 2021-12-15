@@ -11,7 +11,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 /* close a isam-database */
 /*
@@ -20,7 +20,7 @@
    to open other files during the time we flush the cache and close this file
 */
 
-#include "myisamdef.h"
+#include "ftdefs.h"
 
 int mi_close(register MI_INFO *info)
 {
@@ -60,16 +60,15 @@ int mi_close(register MI_INFO *info)
   mysql_mutex_unlock(&share->intern_lock);
 
   my_free(mi_get_rec_buff_ptr(info, info->rec_buff));
+  ftparser_call_deinitializer(info);
+
   if (flag)
   {
     DBUG_EXECUTE_IF("crash_before_flush_keys",
                     if (share->kfile >= 0) DBUG_SUICIDE(););
     if (share->kfile >= 0 &&
-	flush_key_blocks(share->key_cache, share->kfile,
-                         &share->dirty_part_map,
-                         ((share->temporary || share->deleting) ?
-                          FLUSH_IGNORE_CHANGED :
-                          FLUSH_RELEASE)))
+	flush_key_blocks(share->key_cache, share->kfile, &share->dirty_part_map,
+                         share->deleting ? FLUSH_IGNORE_CHANGED : FLUSH_RELEASE))
       error=my_errno;
     if (share->kfile >= 0)
     {
@@ -77,10 +76,14 @@ int mi_close(register MI_INFO *info)
         If we are crashed, we can safely flush the current state as it will
         not change the crashed state.
         We can NOT write the state in other cases as other threads
-        may be using the file at this point
-        IF using --external-locking.
+        may be using the file at this point IF using --external-locking.
+
+        Also, write the state if a temporary table is not being dropped
+        (the server might want to reopen it, and mi_lock_database() only
+        writes the state for non-temp ones)
       */
-      if (share->mode != O_RDONLY && mi_is_crashed(info))
+      if (share->mode != O_RDONLY &&
+          (mi_is_crashed(info) || (share->temporary && !share->deleting)))
 	mi_state_info_write(share->kfile, &share->state, 1);
       /* Decrement open count must be last I/O on this file. */
       _mi_decrement_open_count(info);

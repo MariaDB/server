@@ -8,8 +8,9 @@
 -- source include/not_embedded.inc
 
 call mtr.add_suppression("InnoDB: Table `test`\\.`t[13]` (has an unreadable root page|is corrupted)");
-call mtr.add_suppression("InnoDB: The page \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\] in file '.*test.t[123]\\.ibd' cannot be decrypted\\.");
-call mtr.add_suppression("failed to read or decrypt \\[page id: space=[1-9][0-9]*, page number=[1-9][0-9]*\\]");
+call mtr.add_suppression("InnoDB: Encrypted page \\[page id: space=\\d+, page number=[36]\\] in file .*test.t[123]\\.ibd looks corrupted; key_version=3221342974");
+call mtr.add_suppression("\\[ERROR\\] InnoDB: We detected index corruption in an InnoDB type table");
+call mtr.add_suppression("\\[ERROR\\] mysqld.*: Index for table 't2' is corrupt; try to repair it");
 
 SET GLOBAL innodb_file_per_table = ON;
 set global innodb_compression_algorithm = 1;
@@ -51,17 +52,17 @@ perl;
 open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t1.ibd") or die "open";
 binmode FILE;
 seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 26, SEEK_SET) or die "seek";
-print FILE pack("H*", "c00lcafedeadb017");
+print FILE pack("H*", "c001cafedeadb017");
 close FILE or die "close";
 open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t2.ibd") or die "open";
 binmode FILE;
 seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 26, SEEK_SET) or die "seek";
-print FILE pack("H*", "c00lcafedeadb017");
+print FILE pack("H*", "c001cafedeadb017");
 close FILE or die "close";
 open(FILE, "+<", "$ENV{MYSQLD_DATADIR}/test/t3.ibd") or die "open";
 binmode FILE;
 seek(FILE, $ENV{'INNODB_PAGE_SIZE'} * 3 + 26, SEEK_SET) or die "seek";
-print FILE pack("H*", "c00lcafedeadb017");
+print FILE pack("H*", "c001cafedeadb017");
 close FILE or die "close";
 EOF
 
@@ -69,7 +70,7 @@ EOF
 
 --error ER_NO_SUCH_TABLE_IN_ENGINE
 SELECT * FROM t1;
---error ER_GET_ERRMSG
+--error ER_GET_ERRMSG,ER_NOT_KEYFILE
 SELECT * FROM t2;
 --error ER_NO_SUCH_TABLE_IN_ENGINE
 SELECT * FROM t3;

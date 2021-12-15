@@ -14,7 +14,7 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA */
 
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
@@ -55,11 +55,11 @@ struct Vers_part_info : public Sql_alloc
     if (now_part)
     {
       DBUG_ASSERT(now_part->id != UINT_MAX32);
-      DBUG_ASSERT(now_part->type() == partition_element::CURRENT);
+      DBUG_ASSERT(now_part->type == partition_element::CURRENT);
       if (hist_part)
       {
         DBUG_ASSERT(hist_part->id != UINT_MAX32);
-        DBUG_ASSERT(hist_part->type() == partition_element::HISTORY);
+        DBUG_ASSERT(hist_part->type == partition_element::HISTORY);
       }
       return true;
     }
@@ -366,8 +366,7 @@ public:
   void init_col_val(part_column_list_val *col_val, Item *item);
   int reorganize_into_single_field_col_val(THD *thd);
   part_column_list_val *add_column_value(THD *thd);
-  bool set_part_expr(THD *thd, char *start_token, Item *item_ptr,
-                     char *end_token, bool is_subpart);
+  bool set_part_expr(THD *thd, Item *item_ptr, bool is_subpart);
   bool set_up_charset_field_preps(THD *thd);
   bool check_partition_field_length();
   bool init_column_part(THD *thd);
@@ -392,18 +391,29 @@ private:
 public:
   bool set_read_partitions(List<char> *partition_names);
   bool has_unique_name(partition_element *element);
+  bool field_in_partition_expr(Field *field) const;
 
   bool vers_init_info(THD *thd);
-  bool vers_set_interval(Item *item, interval_type int_type, my_time_t start)
+  bool vers_set_interval(THD *thd, Item *item,
+                         interval_type int_type, my_time_t start)
   {
     DBUG_ASSERT(part_type == VERSIONING_PARTITION);
     vers_info->interval.type= int_type;
     vers_info->interval.start= start;
-    return get_interval_value(item, int_type, &vers_info->interval.step) ||
+    if (item->fix_fields_if_needed_for_scalar(thd, &item))
+      return true;
+    bool error= get_interval_value(item, int_type, &vers_info->interval.step) ||
            vers_info->interval.step.neg || vers_info->interval.step.second_part ||
           !(vers_info->interval.step.year || vers_info->interval.step.month ||
             vers_info->interval.step.day || vers_info->interval.step.hour ||
             vers_info->interval.step.minute || vers_info->interval.step.second);
+    if (error)
+    {
+      my_error(ER_PART_WRONG_VALUE, MYF(0),
+               thd->lex->create_last_non_select_table->table_name.str,
+               "INTERVAL");
+    }
+    return error;
   }
   bool vers_set_limit(ulonglong limit)
   {
@@ -424,7 +434,6 @@ public:
     }
     return NULL;
   }
-  bool vers_trx_id_to_ts(THD *thd, Field *in_trx_id, Field_timestamp &out_ts);
 };
 
 uint32 get_next_partition_id_range(struct st_partition_iter* part_iter);
