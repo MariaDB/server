@@ -633,10 +633,6 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
   if (newsv == NULL)
     DBUG_RETURN(TRUE);
 
-  int error= online_alter_savepoint_set(thd, name);
-  if (unlikely(error))
-    DBUG_RETURN(error);
-
   /*
     if we'll get an error here, don't add new savepoint to the list.
     we'll lose a little bit of memory in transaction mem_root, but it'll
@@ -644,6 +640,11 @@ bool trans_savepoint(THD *thd, LEX_CSTRING name)
   */
   if (unlikely(ha_savepoint(thd, newsv)))
     DBUG_RETURN(TRUE);
+
+  int error= online_alter_savepoint_set(thd, name);
+  if (unlikely(error))
+    DBUG_RETURN(error);
+
 
   newsv->prev= thd->transaction->savepoints;
   thd->transaction->savepoints= newsv;
@@ -695,19 +696,17 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_CSTRING name)
   if (thd->transaction->xid_state.check_has_uncommitted_xa())
     DBUG_RETURN(TRUE);
 
-  res= online_alter_savepoint_rollback(thd, name);
+  if (ha_rollback_to_savepoint(thd, sv))
+    res= TRUE;
+  else if (((thd->variables.option_bits & OPTION_KEEP_LOG) ||
+            thd->transaction->all.modified_non_trans_table) &&
+           !thd->slave_thread)
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                 ER_WARNING_NOT_COMPLETE_ROLLBACK,
+                 ER_THD(thd, ER_WARNING_NOT_COMPLETE_ROLLBACK));
 
-  if (res == 0)
-  {
-    if (ha_rollback_to_savepoint(thd, sv))
-      res= TRUE;
-    else if (((thd->variables.option_bits & OPTION_KEEP_LOG) ||
-              thd->transaction->all.modified_non_trans_table) &&
-             !thd->slave_thread)
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   ER_WARNING_NOT_COMPLETE_ROLLBACK,
-                   ER_THD(thd, ER_WARNING_NOT_COMPLETE_ROLLBACK));
-  }
+  res= res || online_alter_savepoint_rollback(thd, name);
+
 
   thd->transaction->savepoints= sv;
 

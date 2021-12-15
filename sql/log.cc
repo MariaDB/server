@@ -7595,6 +7595,9 @@ int online_alter_savepoint_set(THD *thd, LEX_CSTRING name)
 
   for (auto &cache: thd->online_alter_cache_list)
   {
+    if (cache.share->db_type()->savepoint_set == NULL)
+      continue;
+
     SAVEPOINT *sv= savepoint_add(thd, name, &cache.sv_list, NULL);
     if(unlikely(sv == NULL))
       DBUG_RETURN(1);
@@ -7614,6 +7617,9 @@ int online_alter_savepoint_rollback(THD *thd, LEX_CSTRING name)
 #ifdef HAVE_REPLICATION
   for (auto &cache: thd->online_alter_cache_list)
   {
+    if (cache.share->db_type()->savepoint_set == NULL)
+      continue;
+
     SAVEPOINT **sv= find_savepoint_in_list(thd, name, &cache.sv_list);
     // sv is null if savepoint was set up before online table was modified
     my_off_t pos= *sv ? *(my_off_t*)(*sv+1) : 0;
