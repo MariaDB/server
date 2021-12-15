@@ -13,6 +13,16 @@ SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_N
 
 # Force IST
 
+--connection node_1
+select @@wsrep_sst_receive_address;
+--connection node_2
+select @@wsrep_sst_receive_address;
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+--connection node_3
+select @@wsrep_sst_receive_address;
+
 --connection node_2
 SET GLOBAL wsrep_provider_options='gmcast.isolate=1';
 
