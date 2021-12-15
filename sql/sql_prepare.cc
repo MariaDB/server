@@ -4283,7 +4283,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     Restore original values of variables modified on handling
     SET STATEMENT clause.
   */
-  thd->lex->restore_set_statement_var();
+  error|= thd->lex->restore_set_statement_var();
 
   /* The order is important */
   lex->unit.cleanup();
