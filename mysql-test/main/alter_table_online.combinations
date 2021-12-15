@@ -1,4 +1,2 @@
 [innodb]
-default-storage-engine=innodb
 [rocksdb]
-default-storage-engine=rocksdb

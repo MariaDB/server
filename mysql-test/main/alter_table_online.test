@@ -2,12 +2,16 @@
 -- source include/not_embedded.inc
 -- source alter_table_online_binlog.inc
 
+-- disable_query_log
 -- if ($MTR_COMBINATION_INNODB) {
 -- source include/have_innodb.inc
+set default_storage_engine= innodb;
 -- }
 -- if ($MTR_COMBINATION_ROCKSDB) {
 -- source include/have_rocksdb.inc
+set default_storage_engine= rocksdb;
 -- }
+-- enable_query_log
 
 -- let $default_engine= `select @@default_storage_engine`
 
