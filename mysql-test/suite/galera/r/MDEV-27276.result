@@ -1,0 +1,36 @@
+connection node_2;
+connection node_1;
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1;
+CREATE TABLE p (id INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+connection node_1;
+SET AUTOCOMMIT=ON;
+START TRANSACTION;
+INSERT INTO p VALUES(1,0);
+connection node_1a;
+SET SESSION wsrep_sync_wait = 0;
+SET GLOBAL wsrep_provider_options = 'dbug=d,apply_monitor_slave_enter_sync';
+connection node_2;
+CREATE TABLE c(id INT NOT NULL PRIMARY KEY, p_id INT,  FOREIGN KEY (p_id)  REFERENCES p(id)  ON DELETE CASCADE) ENGINE=InnoDB;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'dbug=';
+SET GLOBAL wsrep_provider_options = 'dbug=d,local_monitor_master_enter_sync';
+connection node_1;
+COMMIT;
+connection node_1a;
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 1;
+SET GLOBAL wsrep_provider_options = 'signal=apply_monitor_slave_enter_sync';
+SET GLOBAL wsrep_provider_options = 'signal=local_monitor_master_enter_sync';
+SET GLOBAL wsrep_provider_options = 'dbug=';
+connection node_1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+connection node_2;
+SELECT * FROM p;
+id	f2
+SELECT * FROM c;
+id	p_id
+DROP TABLE c;
+DROP TABLE p;
