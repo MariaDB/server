@@ -1,6 +1,14 @@
--- source include/have_innodb.inc
 -- source include/have_debug_sync.inc
 -- source include/not_embedded.inc
+
+-- if ($MTR_COMBINATION_INNODB) {
+-- source include/have_innodb.inc
+-- }
+-- if ($MTR_COMBINATION_ROCKSDB) {
+-- source include/have_rocksdb.inc
+-- }
+
+-- let $default_engine= `select @@default_storage_engine`
 
 --connect (con2, localhost, root,,)
 --connection default
@@ -407,7 +415,7 @@ select * from t1;
 --echo #
 --echo # Test system versioning
 --echo #
-create or replace table t1 (a int primary key, b int) engine=innodb;
+create or replace table t1 (a int primary key, b int);
 insert t1 values (1, 22);
 insert t1 values (3, 44);
 
@@ -435,6 +443,7 @@ set debug_sync= 'now SIGNAL end';
 
 --connection default
 --reap
+-- replace_result $default_engine *SUBSTITUTED*
 show create table t1;
 select *, UNIX_TIMESTAMP(row_start), UNIX_TIMESTAMP(row_end) from t1 for system_time all;
 
@@ -459,6 +468,7 @@ set debug_sync= 'now SIGNAL end';
 --echo # Can't UPDATE versioned -> plain (and can't DELETE)
 --error ER_DUP_ENTRY
 --reap
+-- replace_result $default_engine *SUBSTITUTED*
 show create table t1;
 select *, UNIX_TIMESTAMP(row_start), UNIX_TIMESTAMP(row_end) from t1 for system_time all;
 
@@ -482,6 +492,7 @@ set debug_sync= 'now SIGNAL end';
 --connection default
 --echo # INSERT versioned -> plain works fine since it is a single versioned op.
 --reap
+-- replace_result $default_engine *SUBSTITUTED*
 show create table t1;
 select * from t1;
 
