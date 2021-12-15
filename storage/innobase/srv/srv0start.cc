@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -426,6 +426,10 @@ create_log_files(
 		return(DB_READ_ONLY);
 	}
 
+	if (!log_set_capacity(srv_log_file_size_requested)) {
+		return(DB_ERROR);
+	}
+
 	/* Crashing after deleting the first file should be
 	recoverable. The buffer pool was clean, and we can simply
 	create all log files from the scratch. */
@@ -482,9 +486,6 @@ create_log_files(
 	}
 
 	log_init(srv_n_log_files);
-	if (!log_set_capacity(srv_log_file_size_requested)) {
-		return(DB_ERROR);
-	}
 
 	fil_open_log_and_system_tablespace_files();
 
@@ -1936,6 +1937,12 @@ innobase_start_or_create_for_mysql()
 			logfilename, dirnamelen, flushed_lsn, logfile0);
 
 		if (err != DB_SUCCESS) {
+			for (Tablespace::const_iterator
+			       i = srv_sys_space.begin();
+			     i != srv_sys_space.end(); i++) {
+				os_file_delete(innodb_data_file_key,
+					       i->filepath());
+			}
 			return(srv_init_abort(err));
 		}
 	} else {

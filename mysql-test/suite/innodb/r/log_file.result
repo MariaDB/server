@@ -14,7 +14,6 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 FOUND 1 /File .path.to.non-existent.*ib_logfile101: 'create' returned OS error \d+/ in mysqld.1.err
-# Remove ibdata1 & ibdata2
 # Successfully let InnoDB create tablespaces
 SELECT COUNT(*) `1` FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine='innodb'
