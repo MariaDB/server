@@ -384,7 +384,7 @@ SELECT * FROM t1 WHERE a=0;
 a
 connection con1;
 # Sending:
-ALTER TABLE t1 MODIFY a INT UNSIGNED;;
+ALTER TABLE t1 MODIFY a INT UNSIGNED, LOCK=SHARED;;
 connection default;
 # Wait until ALTER TABLE is blocked on table 't1'.
 INSERT DELAYED INTO t1 VALUES (3);
