@@ -18,3 +18,4 @@ INSERT INTO t1 VALUES (1);
 ERROR HY000: Can't execute the query because you have a conflicting read lock
 UNLOCK TABLES;
 DROP TABLE t1;
+CALL mtr.add_suppression("CREATE TABLE isolation failure");

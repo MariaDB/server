@@ -1405,7 +1405,7 @@ static bool wsrep_prepare_keys_for_isolation(THD*              thd,
       goto err;
   }
 
-  if (alter_info && (alter_info->flags & (ALTER_ADD_FOREIGN_KEY)))
+  if (alter_info)
   {
     if (!wsrep_prepare_keys_for_alter_add_fk(table_list->db.str, alter_info, ka))
       goto err;
@@ -1538,7 +1538,7 @@ wsrep::key_array wsrep_prepare_keys_for_toi(const char* db,
     ret.push_back(wsrep_prepare_key_for_toi(table->db.str, table->table_name.str,
                                             wsrep::key::exclusive));
   }
-  if (alter_info && (alter_info->flags & ALTER_ADD_FOREIGN_KEY))
+  if (alter_info)
   {
     wsrep::key_array fk(wsrep_prepare_keys_for_alter_add_fk(table_list->db.str, alter_info));
     if (!fk.empty())
@@ -1803,7 +1803,6 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
   switch (lex->sql_command)
   {
   case SQLCOM_CREATE_TABLE:
-    DBUG_ASSERT(!table_list);
     if (thd->lex->create_info.options & HA_LEX_CREATE_TMP_TABLE)
     {
       return false;
