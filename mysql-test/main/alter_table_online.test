@@ -1,5 +1,6 @@
 -- source include/have_debug_sync.inc
 -- source include/not_embedded.inc
+-- source alter_table_online_binlog.inc
 
 -- if ($MTR_COMBINATION_INNODB) {
 -- source include/have_innodb.inc
