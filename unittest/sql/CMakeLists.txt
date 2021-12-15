@@ -31,6 +31,6 @@ ADD_DEPENDENCIES(mf_iocache-t GenError)
 MY_ADD_TEST(mf_iocache)
 
 # Json writer needs String which needs sql library
-#ADD_EXECUTABLE(my_json_writer-t my_json_writer-t.cc dummy_builtins.cc)
-#TARGET_LINK_LIBRARIES(my_json_writer-t sql mytap)
-#MY_ADD_TEST(my_json_writer)
+ADD_EXECUTABLE(my_json_writer-t my_json_writer-t.cc dummy_builtins.cc)
+TARGET_LINK_LIBRARIES(my_json_writer-t sql mytap)
+MY_ADD_TEST(my_json_writer)

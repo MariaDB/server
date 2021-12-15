@@ -334,6 +334,8 @@
 #define UNCACHEABLE_DEPENDENT (UNCACHEABLE_DEPENDENT_GENERATED | \
                                UNCACHEABLE_DEPENDENT_INJECTED)
 
+#define FAKE_SELECT_LEX_ID UINT_MAX
+
 /* Used to check GROUP BY list in the MODE_ONLY_FULL_GROUP_BY mode */
 #define UNDEF_POS (-1)
 
