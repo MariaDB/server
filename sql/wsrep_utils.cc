@@ -102,7 +102,7 @@ node_status::set(enum wsrep::server_state::state new_status,
     {
         wsrep_notify_status(new_status, view);
         status= new_status;
-        Wsrep_status::report_state(status, 0);
+        Wsrep_status::report_state(status);
     }
 }
 
