@@ -455,9 +455,10 @@ void wsrep_init_schema()
       unireg_abort(1);
     }
     // If we are bootstraping new cluster we should 
-    // populate allowlist from variable
+    // clear allowlist table and populate it from variable
     if (wsrep_new_cluster) 
     {
+      wsrep_schema->clear_allowlist();
       std::vector<std::string> ip_allowlist;
       if (wsrep_split_allowlist(ip_allowlist))
       {

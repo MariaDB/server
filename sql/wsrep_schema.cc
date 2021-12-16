@@ -1516,6 +1516,51 @@ out:
   DBUG_RETURN(ret);
 }
 
+void Wsrep_schema::clear_allowlist()
+{
+  THD* thd= new THD(next_thread_id());
+  if (!thd) 
+  {
+    WSREP_ERROR("Unable to get thd");
+    return;
+  }
+  thd->thread_stack= (char*)&thd;
+  wsrep_init_thd_for_schema(thd);
+  TABLE* allowlist_table= 0;
+  int error= 0;
+  
+  Wsrep_schema_impl::init_stmt(thd);
+
+  if (Wsrep_schema_impl::open_for_write(thd, allowlist_table_str.c_str(),
+                                        &allowlist_table) || 
+      Wsrep_schema_impl::init_for_scan(allowlist_table))
+  {
+    WSREP_ERROR("Failed to open mysql.wsrep_allowlist table");
+    goto out;
+  }
+
+  while (0 == error)
+  {
+    if ((error= Wsrep_schema_impl::next_record(allowlist_table)) == 0)
+    {
+      Wsrep_schema_impl::delete_row(allowlist_table);
+    }
+    else if (error == HA_ERR_END_OF_FILE)
+    {
+      continue;
+    }
+    else
+    {
+      WSREP_ERROR("Allowlist table scan returned error %d", error);
+    }
+  }
+
+  Wsrep_schema_impl::end_scan(allowlist_table);
+  Wsrep_schema_impl::finish_stmt(thd);
+out:
+  delete thd;
+}
+
 void Wsrep_schema::store_allowlist(std::vector<std::string>& ip_allowlist)
 {
   THD* thd= new THD(next_thread_id());
