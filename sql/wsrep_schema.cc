@@ -1,4 +1,4 @@
-/* Copyright (C) 2015-2021 Codership Oy <info@codership.com>
+/* Copyright (C) 2015-2022 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -95,7 +95,7 @@ static const std::string create_frag_table_str=
 static const std::string create_allowlist_table_str=
   "CREATE TABLE IF NOT EXISTS " + wsrep_schema_str + "." + allowlist_table_str +
   "("
-  "ip CHAR(64) NOT NULL,"	
+  "ip CHAR(64) NOT NULL,"
   "PRIMARY KEY (ip)"
   ") ENGINE=InnoDB STATS_PERSISTENT=0";
 
@@ -1518,14 +1518,62 @@ out:
   DBUG_RETURN(ret);
 }
 
-void Wsrep_schema::store_allowlist(std::vector<std::string>& ip_allowlist)
+void Wsrep_schema::clear_allowlist()
 {
   THD* thd= new THD(next_thread_id());
-  if (!thd) 
+  if (!thd)
   {
     WSREP_ERROR("Unable to get thd");
     return;
   }
+  my_thread_init();
+  thd->thread_stack= (char*)&thd;
+  wsrep_init_thd_for_schema(thd);
+  TABLE* allowlist_table= 0;
+  int error= 0;
+
+  Wsrep_schema_impl::init_stmt(thd);
+
+  if (Wsrep_schema_impl::open_for_write(thd, allowlist_table_str.c_str(),
+                                        &allowlist_table) ||
+      Wsrep_schema_impl::init_for_scan(allowlist_table))
+  {
+    WSREP_ERROR("Failed to open mysql.wsrep_allowlist table");
+    goto out;
+  }
+
+  while (0 == error)
+  {
+    if ((error= Wsrep_schema_impl::next_record(allowlist_table)) == 0)
+    {
+      Wsrep_schema_impl::delete_row(allowlist_table);
+    }
+    else if (error == HA_ERR_END_OF_FILE)
+    {
+      continue;
+    }
+    else
+    {
+      WSREP_ERROR("Allowlist table scan returned error %d", error);
+    }
+  }
+
+  Wsrep_schema_impl::end_scan(allowlist_table);
+  Wsrep_schema_impl::finish_stmt(thd);
+out:
+  delete thd;
+  my_thread_end();
+}
+
+void Wsrep_schema::store_allowlist(std::vector<std::string>& ip_allowlist)
+{
+  THD* thd= new THD(next_thread_id());
+  if (!thd)
+  {
+    WSREP_ERROR("Unable to get thd");
+    return;
+  }
+  my_thread_init();
   thd->thread_stack= (char*)&thd;
   wsrep_init_thd_for_schema(thd);
   TABLE* allowlist_table= 0;
@@ -1541,7 +1589,7 @@ void Wsrep_schema::store_allowlist(std::vector<std::string>& ip_allowlist)
   {
     Wsrep_schema_impl::store(allowlist_table, 0, ip_allowlist[i]);
     if ((error= Wsrep_schema_impl::insert(allowlist_table)))
-    { 
+    {
       if (error == HA_ERR_FOUND_DUPP_KEY)
       {
         WSREP_WARN("Duplicate entry (%s) found in `wsrep_allowlist` list", ip_allowlist[i].c_str());
@@ -1556,6 +1604,7 @@ void Wsrep_schema::store_allowlist(std::vector<std::string>& ip_allowlist)
   Wsrep_schema_impl::finish_stmt(thd);
 out:
   delete thd;
+  my_thread_end();
 }
 
 bool Wsrep_schema::allowlist_check(Wsrep_allowlist_key key,
@@ -1566,14 +1615,13 @@ bool Wsrep_schema::allowlist_check(Wsrep_allowlist_key key,
   {
     return true;
   }
-  my_thread_init();
   THD *thd = new THD(next_thread_id());
-  if (!thd) 
+  if (!thd)
   {
-    my_thread_end();
     WSREP_ERROR("Unable to get thd");
     return false;
   }
+  my_thread_init();
   thd->thread_stack= (char*)&thd;
   int error;
   TABLE *allowlist_table= 0;
@@ -1586,19 +1634,18 @@ bool Wsrep_schema::allowlist_check(Wsrep_allowlist_key key,
    * Read allowlist table
    */
   Wsrep_schema_impl::init_stmt(thd);
-  if (Wsrep_schema_impl::open_for_read(thd, 
-                                       allowlist_table_str.c_str(), 
+  if (Wsrep_schema_impl::open_for_read(thd,
+                                       allowlist_table_str.c_str(),
                                        &allowlist_table) ||
-      Wsrep_schema_impl::init_for_scan(allowlist_table)) 
- 	
+      Wsrep_schema_impl::init_for_scan(allowlist_table))
   {
     goto out;
   }
-  while (true) 
+  while (true)
   {
-    if ((error= Wsrep_schema_impl::next_record(allowlist_table)) == 0) 
+    if ((error= Wsrep_schema_impl::next_record(allowlist_table)) == 0)
     {
-      if (Wsrep_schema_impl::scan(allowlist_table, 0, row, sizeof(row))) 
+      if (Wsrep_schema_impl::scan(allowlist_table, 0, row, sizeof(row)))
       {
         goto out;
       }
@@ -1609,7 +1656,7 @@ bool Wsrep_schema::allowlist_check(Wsrep_allowlist_key key,
         break;
       }
     }
-    else if (error == HA_ERR_END_OF_FILE) 
+    else if (error == HA_ERR_END_OF_FILE)
     {
       if (!table_have_rows)
       {
@@ -1619,12 +1666,12 @@ bool Wsrep_schema::allowlist_check(Wsrep_allowlist_key key,
       }
       break;
     }
-    else 
+    else
     {
       goto out;
     }
   }
-  if (Wsrep_schema_impl::end_scan(allowlist_table)) 
+  if (Wsrep_schema_impl::end_scan(allowlist_table))
   {
     goto out;
   }
