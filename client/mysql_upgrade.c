@@ -37,6 +37,7 @@
 #endif
 
 static int phase = 0;
+static int info_file;
 static const int phases_total = 7;
 static char mysql_path[FN_REFLEN];
 static char mysqlcheck_path[FN_REFLEN];
@@ -718,29 +719,38 @@ static int upgrade_already_done(void)
 
 */
 
+static char upgrade_info_file[FN_REFLEN]= {0};
+
 static void create_mysql_upgrade_info_file(void)
 {
-  FILE *out;
-  char upgrade_info_file[FN_REFLEN]= {0};
 
   if (get_upgrade_info_file_name(upgrade_info_file))
     return; /* Could not get filename => skip */
 
-  if (!(out= my_fopen(upgrade_info_file, O_TRUNC | O_WRONLY, MYF(0))))
+  if ((info_file= my_create(upgrade_info_file, 0,
+                            O_WRONLY | O_TRUNC | O_EXCL | O_NOFOLLOW,
+                            MYF(MY_WME))) < 0)
   {
+    if (errno == EBUSY)
+      die("Could not exclusively lock file '%s'\n", upgrade_info_file);
+
     fprintf(stderr,
             "Could not create the upgrade info file '%s' in "
             "the MySQL Servers datadir, errno: %d\n",
             upgrade_info_file, errno);
     return;
   }
+}
 
+
+static void finish_mysql_upgrade_info_file(void)
+{
   /* Write new version to file */
-  fputs(MYSQL_SERVER_VERSION, out);
-  my_fclose(out, MYF(0));
+  my_write(info_file, (uchar*) MYSQL_SERVER_VERSION, sizeof(MYSQL_SERVER_VERSION), MYF(0));
+  my_close(info_file, MYF(0));
 
   /*
-    Check if the upgrad_info_file was properly created/updated
+    Check if the upgrade_info_file was properly created/updated
     It's not a fatal error -> just print a message if it fails
   */
   if (!upgrade_already_done())
@@ -1273,6 +1283,9 @@ int main(int argc, char **argv)
 
   upgrade_from_mysql= is_mysql();
 
+  /* Create a file indicating upgrade exclusively */
+  create_mysql_upgrade_info_file();
+
   /*
     Run "mysqlcheck" and "mysql_fix_privilege_tables.sql"
   */
@@ -1291,8 +1304,8 @@ int main(int argc, char **argv)
 
   verbose("OK");
 
-  /* Create a file indicating upgrade has been performed */
-  create_mysql_upgrade_info_file();
+  /* Finish writing indicating upgrade has been performed */
+  finish_mysql_upgrade_info_file();
 
   DBUG_ASSERT(phase == phases_total);
 
