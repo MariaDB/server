@@ -390,7 +390,7 @@ Rdb_key_def::~Rdb_key_def() {
   m_pack_info = nullptr;
 }
 
-void Rdb_key_def::setup(const TABLE *const tbl,
+uint Rdb_key_def::setup(const TABLE *const tbl,
                         const Rdb_tbl_def *const tbl_def) {
   DBUG_ASSERT(tbl != nullptr);
   DBUG_ASSERT(tbl_def != nullptr);
@@ -406,7 +406,7 @@ void Rdb_key_def::setup(const TABLE *const tbl,
     RDB_MUTEX_LOCK_CHECK(m_mutex);
     if (m_maxlength != 0) {
       RDB_MUTEX_UNLOCK_CHECK(m_mutex);
-      return;
+      return HA_EXIT_SUCCESS;
     }
 
     KEY *key_info = nullptr;
@@ -487,6 +487,14 @@ void Rdb_key_def::setup(const TABLE *const tbl,
       /* this loop also loops over the 'extended key' tail */
       for (uint src_i = 0; src_i < m_key_parts; src_i++, keypart_to_set++) {
         Field *const field = key_part ? key_part->field : nullptr;
+
+        if (key_part && key_part->key_part_flag & HA_REVERSE_SORT)
+        {
+          my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0),
+                   "ROCKSDB", "DESC");
+          RDB_MUTEX_UNLOCK_CHECK(m_mutex);
+          return HA_EXIT_FAILURE;
+        }
 
         if (simulating_extkey && !hidden_pk_exists) {
           DBUG_ASSERT(secondary_key);
@@ -591,6 +599,7 @@ void Rdb_key_def::setup(const TABLE *const tbl,
 
     RDB_MUTEX_UNLOCK_CHECK(m_mutex);
   }
+  return HA_EXIT_SUCCESS;
 }
 
 /*
