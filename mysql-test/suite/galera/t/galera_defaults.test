@@ -16,6 +16,8 @@
 --let $galera_version=26.4.11
 source ../wsrep/include/check_galera_version.inc;
 
+SELECT COUNT(*) `expect 51` FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME LIKE 'wsrep_%';
+
 # Global Variables
 
 SELECT VARIABLE_NAME, VARIABLE_VALUE

@@ -95,7 +95,7 @@ static const std::string create_frag_table_str=
 static const std::string create_allowlist_table_str=
   "CREATE TABLE IF NOT EXISTS " + wsrep_schema_str + "." + allowlist_table_str +
   "("
-  "ip CHAR(64) NOT NULL,"	
+  "ip CHAR(64) NOT NULL,"
   "PRIMARY KEY (ip)"
   ") ENGINE=InnoDB STATS_PERSISTENT=0";
 
@@ -1518,15 +1518,61 @@ out:
   DBUG_RETURN(ret);
 }
 
-void Wsrep_schema::store_allowlist(std::vector<std::string>& ip_allowlist)
+void Wsrep_schema::clear_allowlist()
 {
+  my_thread_init();
   THD* thd= new THD(next_thread_id());
   if (!thd)
   {
     WSREP_ERROR("Unable to get thd");
     return;
   }
+  thd->thread_stack= (char*)&thd;
+  wsrep_init_thd_for_schema(thd);
+  TABLE* allowlist_table= 0;
+  int error= 0;
+
+  Wsrep_schema_impl::init_stmt(thd);
+
+  if (Wsrep_schema_impl::open_for_write(thd, allowlist_table_str.c_str(),
+                                        &allowlist_table) ||
+      Wsrep_schema_impl::init_for_scan(allowlist_table))
+  {
+    WSREP_ERROR("Failed to open mysql.wsrep_allowlist table");
+    goto out;
+  }
+
+  while (0 == error)
+  {
+    if ((error= Wsrep_schema_impl::next_record(allowlist_table)) == 0)
+    {
+      Wsrep_schema_impl::delete_row(allowlist_table);
+    }
+    else if (error == HA_ERR_END_OF_FILE)
+    {
+      continue;
+    }
+    else
+    {
+      WSREP_ERROR("Allowlist table scan returned error %d", error);
+    }
+  }
+
+  Wsrep_schema_impl::end_scan(allowlist_table);
+  Wsrep_schema_impl::finish_stmt(thd);
+out:
+  delete thd;
+}
+
+void Wsrep_schema::store_allowlist(std::vector<std::string>& ip_allowlist)
+{
   my_thread_init();
+  THD* thd= new THD(next_thread_id());
+  if (!thd)
+  {
+    WSREP_ERROR("Unable to get thd");
+    return;
+  }
   thd->thread_stack= (char*)&thd;
   wsrep_init_thd_for_schema(thd);
   TABLE* allowlist_table= 0;
@@ -1557,7 +1603,6 @@ void Wsrep_schema::store_allowlist(std::vector<std::string>& ip_allowlist)
   Wsrep_schema_impl::finish_stmt(thd);
 out:
   delete thd;
-  my_thread_end();
 }
 
 bool Wsrep_schema::allowlist_check(Wsrep_allowlist_key key,
@@ -1568,13 +1613,13 @@ bool Wsrep_schema::allowlist_check(Wsrep_allowlist_key key,
   {
     return true;
   }
+  my_thread_init();
   THD *thd = new THD(next_thread_id());
   if (!thd)
   {
     WSREP_ERROR("Unable to get thd");
     return false;
   }
-  my_thread_init();
   thd->thread_stack= (char*)&thd;
   int error;
   TABLE *allowlist_table= 0;
@@ -1632,6 +1677,5 @@ bool Wsrep_schema::allowlist_check(Wsrep_allowlist_key key,
   (void)trans_commit(thd);
 out:
   delete thd;
-  my_thread_end();
   return match_found_or_empty;
 }
