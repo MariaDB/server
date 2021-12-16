@@ -1,4 +1,4 @@
-if (`SELECT VERSION() NOT LIKE '%embedded%'`)
+if(!$MYSQL_EMBEDDED)
 {
    --skip Test requires: embedded server
 }
