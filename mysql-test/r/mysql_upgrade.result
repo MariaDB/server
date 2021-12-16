@@ -854,4 +854,16 @@ GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 GRANT USAGE ON *.* TO 'aRole'
 DROP ROLE `aRole`;
 FLUSH PRIVILEGES;
+#
+# MDEV-27279: mariadb_upgrade add --check-if-upgrade-is-needed
+#
+#
+#
+# MDEV-27279: mariadb_upgrade check-if-upgrade absence is do it
+#
+#
+#
+# MDEV-27279: mariadb_upgrade check-if-upgrade major version only.
+#
+#
 End of 10.2 tests

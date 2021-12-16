@@ -239,6 +239,21 @@ Old option accepted for backward compatibility but ignored\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysql_upgrade: check-if-upgrade-is-needed option
+.\" check-if-upgrade-is-needed option: mysql_upgrade
+\fB\-\-check\-if\-upgrade\-is\-needed\fR
+.sp
+Exit with a status code indicating if an upgrade is needed\&. Returns 0 if upgrade needed or current version couldn't be determined, 1 when no action required\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysql_upgrade: datadir option
 .\" datadir option: mysql_upgrade
 \fB\-\-datadir=\fR\fB\fIpath\fR\fR

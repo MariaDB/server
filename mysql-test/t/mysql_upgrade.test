@@ -279,6 +279,36 @@ SHOW GRANTS;
 DROP ROLE `aRole`;
 --exec $MYSQL mysql < $MYSQLTEST_VARDIR/tmp/user.sql
 FLUSH PRIVILEGES;
+
+--echo #
+--echo # MDEV-27279: mariadb_upgrade add --check-if-upgrade-is-needed
+--echo #
+--echo #
+
+--error 1
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed
+
+--echo #
+--echo # MDEV-27279: mariadb_upgrade check-if-upgrade absence is do it
+--echo #
+--echo #
+
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed
+
+--echo #
+--echo # MDEV-27279: mariadb_upgrade check-if-upgrade major version only.
+--echo #
+--echo #
+
+# take 3rd number of version and change to 0
+let $SERVER_VERION_LOW=`select regexp_replace(version(),'^([[:digit:]]+\.[[:digit:]])\.[[:digit:]]+\.(.*)','\\1.0.\\2')`;
+--write_file $MYSQLD_DATADIR/mysql_upgrade_info
+$SERVER_VERSION_LOW
+EOF
+
+--exec $MYSQL_UPGRADE --check-if-upgrade-is-needed
 --remove_file $MYSQLD_DATADIR/mysql_upgrade_info
 
 --echo End of 10.2 tests

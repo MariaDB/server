@@ -99,6 +99,7 @@ enum options_client
   OPT_SKIP_ANNOTATE_ROWS_EVENTS,
   OPT_SSL_CRL, OPT_SSL_CRLPATH,
   OPT_IGNORE_DATA,
+  OPT_CHECK_IF_UPGRADE_NEEDED,
   OPT_MAX_CLIENT_OPTION /* should be always the last */
 };
 

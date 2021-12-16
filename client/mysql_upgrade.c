@@ -43,7 +43,7 @@ static char mysqlcheck_path[FN_REFLEN];
 
 static my_bool opt_force, opt_verbose, debug_info_flag, debug_check_flag,
                opt_systables_only, opt_version_check;
-static my_bool opt_not_used, opt_silent;
+static my_bool opt_not_used, opt_silent, opt_check_upgrade;
 static uint my_end_arg= 0;
 static char *opt_user= (char*)"root";
 
@@ -110,6 +110,10 @@ static struct my_option my_long_options[]=
    "Default authentication client-side plugin to use.",
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"check-if-upgrade-is-needed", OPT_CHECK_IF_UPGRADE_NEEDED,
+   "Exits with status 0 if an upgrades is required, 1 otherwise.",
+   &opt_check_upgrade, &opt_check_upgrade,
+   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"force", 'f', "Force execution of mysqlcheck even if mysql_upgrade "
    "has already been executed for the current version of MySQL.",
    &opt_force, &opt_force, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -271,6 +275,7 @@ static void add_one_option_cnf_file(DYNAMIC_STRING *ds,
   dynstr_append(ds, "\n");
 }
 
+
 static my_bool
 get_one_option(int optid, const struct my_option *opt,
                char *argument)
@@ -343,6 +348,7 @@ get_one_option(int optid, const struct my_option *opt,
     opt_verbose= 0;
     add_option= 0;
     break;
+  case OPT_CHECK_IF_UPGRADE_NEEDED: /* --check-if-upgrade-needed */
   case 'f': /* --force     */
   case 's':                                     /* --upgrade-system-tables */
   case OPT_WRITE_BINLOG:                        /* --write-binlog */
@@ -676,6 +682,8 @@ static int get_upgrade_info_file_name(char* name)
 static int upgrade_already_done(void)
 {
   FILE *in;
+  const char *version = MYSQL_SERVER_VERSION;
+  const char *s;
   char upgrade_info_file[FN_REFLEN]= {0};
 
   if (get_upgrade_info_file_name(upgrade_info_file))
@@ -692,8 +700,10 @@ static int upgrade_already_done(void)
 
   my_fclose(in, MYF(0));
 
+  s= strchr(version, '.');
+  s= strchr(s + 1, '.');
   return (strncmp(upgrade_from_version, MYSQL_SERVER_VERSION,
-                  sizeof(MYSQL_SERVER_VERSION)-1)==0);
+                  (size_t)(s - version + 1))==0);
 }
 
 
@@ -1236,6 +1246,9 @@ int main(int argc, char **argv)
 
   /* Find mysql */
   find_tool(mysql_path, IF_WIN("mysql.exe", "mysql"), self_name);
+
+  if (opt_check_upgrade)
+    exit(upgrade_already_done());
 
   /* Find mysqlcheck */
   find_tool(mysqlcheck_path, IF_WIN("mysqlcheck.exe", "mysqlcheck"), self_name);
