@@ -28,23 +28,24 @@ public:
   static void init_once(const std::string& file_name);
   static void destroy();
 
-  static void report_state(enum wsrep::server_state::state const state,
-                           float const progress = wsrep::reporter::indefinite)
+  static void report_state(enum wsrep::server_state::state const state)
   {
     if (!Wsrep_status::m_instance) return;
 
-    Wsrep_status::m_instance->report_state(state, progress);
+    Wsrep_status::m_instance->report_state(state);
+  }
+
+  static void report_progress(const std::string& progress)
+  {
+    if (!Wsrep_status::m_instance) return;
+
+    Wsrep_status::m_instance->report_progress(progress);
   }
 
   static void report_log_msg(wsrep::reporter::log_level level,
                              const char* tag, size_t tag_len,
                              const char* buf, size_t buf_len,
                              double const tstamp = wsrep::reporter::undefined);
-//  {
-//    if (!Wsrep_status::m_instance) return;
-//
-//    Wsrep_status::m_instance->report_log_msg(level, msg, tstamp);
-//  }
 
   static bool is_instance_initialized()
   {
