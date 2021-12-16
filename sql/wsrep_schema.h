@@ -133,6 +133,12 @@ class Wsrep_schema
   */
   int recover_sr_transactions(THD* orig_thd);
 
+
+  /**
+     Delete all rows on bootstrap from `wsrep_allowlist` variable
+  */
+  void clear_allowlist();
+
   /**
      Store allowlist ip on bootstrap from `wsrep_allowlist` variable
   */
