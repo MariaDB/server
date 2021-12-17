@@ -1593,15 +1593,6 @@ Sets the max tablespace id counter if the given number is bigger than the
 previous value. */
 void fil_set_max_space_id_if_bigger(uint32_t max_id);
 
-/** Write the flushed LSN to the page header of the first page in the
-system tablespace.
-@param[in]	lsn	flushed LSN
-@return DB_SUCCESS or error number */
-dberr_t
-fil_write_flushed_lsn(
-	lsn_t	lsn)
-MY_ATTRIBUTE((warn_unused_result));
-
 MY_ATTRIBUTE((warn_unused_result))
 /** Delete a tablespace and associated .ibd file.
 @param id    tablespace identifier

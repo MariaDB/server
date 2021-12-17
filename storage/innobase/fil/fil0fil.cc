@@ -1382,48 +1382,6 @@ void fil_set_max_space_id_if_bigger(uint32_t max_id)
 	mysql_mutex_unlock(&fil_system.mutex);
 }
 
-/** Write the flushed LSN to the page header of the first page in the
-system tablespace.
-@param[in]	lsn	flushed LSN
-@return DB_SUCCESS or error number */
-dberr_t
-fil_write_flushed_lsn(
-	lsn_t	lsn)
-{
-	byte*	buf;
-	ut_ad(!srv_read_only_mode);
-
-	if (!fil_system.sys_space->acquire()) {
-		return DB_ERROR;
-	}
-
-	buf = static_cast<byte*>(aligned_malloc(srv_page_size, srv_page_size));
-
-	auto fio = fil_system.sys_space->io(IORequestRead, 0, srv_page_size,
-					    buf);
-
-	if (fio.err == DB_SUCCESS) {
-		mach_write_to_8(buf + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
-				lsn);
-
-		uint32_t fsp_flags = mach_read_from_4(
-			buf + FSP_HEADER_OFFSET + FSP_SPACE_FLAGS);
-
-		if (fil_space_t::full_crc32(fsp_flags)) {
-			buf_flush_assign_full_crc32_checksum(buf);
-		}
-
-		fio = fil_system.sys_space->io(IORequestWrite,
-					       0, srv_page_size, buf);
-		fil_flush_file_spaces();
-	} else {
-		fil_system.sys_space->release();
-	}
-
-	aligned_free(buf);
-	return fio.err;
-}
-
 /** Acquire a tablespace reference.
 @param id      tablespace identifier
 @return tablespace
