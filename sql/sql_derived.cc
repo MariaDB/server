@@ -420,6 +420,24 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
       goto exit_merge;
     }
 
+    if (unlikely(thd->trace_started()))
+    {
+      /*
+        Add to optimizer trace whether a derived table/view
+        is merged into the parent select or not.
+      */
+      OPT_TRACE_VIEWS_TRANSFORM(thd, trace_wrapper, trace_derived,
+                      derived->is_derived() ? "derived" : "view",
+                      derived->alias.str ? derived->alias.str : "<NULL>",
+                      derived->get_unit()->first_select()->select_number,
+                      derived->is_merged_derived() ? "merged" : "materialized");
+      if (derived->is_merged_derived())
+      {
+        opt_trace_print_expanded_union(thd, derived->get_unit(),
+                                       &trace_derived);
+      }
+    }
+
     /*
       exclude select lex so it doesn't show up in explain.
       do this only for derived table as for views this is already done.
@@ -822,18 +840,6 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     }
   }
 
-  if (unlikely(thd->trace_started()))
-  {
-    /*
-      Add to optimizer trace whether a derived table/view
-      is merged into the parent select or not.
-    */
-    OPT_TRACE_VIEWS_TRANSFORM(thd, trace_wrapper, trace_derived,
-                    derived->is_derived() ? "derived" : "view",
-                    derived->alias.str ? derived->alias.str : "<NULL>",
-                    derived->get_unit()->first_select()->select_number,
-                    derived->is_merged_derived() ? "merged" : "materialized");
-  }
   /*
     Above cascade call of prepare is important for PS protocol, but after it
     is called we can check if we really need prepare for this derived

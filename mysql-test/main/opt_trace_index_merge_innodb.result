@@ -28,18 +28,9 @@ QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from t1 where pk1 != 0  and key1 = 1	{
   "steps": [
     {
-      "join_preparation": {
-        "select_id": 1,
-        "steps": [
-          {
-            "expanded_query": "select t1.pk1 AS pk1,t1.pk2 AS pk2,t1.key1 AS key1,t1.key2 AS key2 from t1 where t1.pk1 <> 0 and t1.key1 = 1"
-          }
-        ]
-      }
-    },
-    {
       "join_optimization": {
         "select_id": 1,
+        "expanded_query": "select t1.pk1 AS pk1,t1.pk2 AS pk2,t1.key1 AS key1,t1.key2 AS key2 from t1 where t1.pk1 <> 0 and t1.key1 = 1",
         "steps": [
           {
             "condition_processing": {

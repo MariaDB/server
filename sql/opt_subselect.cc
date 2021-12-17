@@ -549,6 +549,12 @@ bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
     and, depending on the rewrite, either do it, or record it to be done at a
     later phase.
 
+    NOTE
+    * This function called at Prepare phase. It should NOT do any rewrites.
+      It only collects information that's used for doing the rewrites at the
+      optimization phase.
+    * Optimizer trace is NOT yet enabled when this function is called.
+
   RETURN
     0      - OK
     Other  - Some sort of query error
@@ -703,8 +709,6 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
     {
       DBUG_PRINT("info", ("Subquery is semi-join conversion candidate"));
 
-      (void)subquery_types_allow_materialization(thd, in_subs);
-
       in_subs->is_flattenable_semijoin= TRUE;
 
       /* Register the subquery for further processing in flatten_subqueries() */
@@ -717,10 +721,6 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         if (arena)
           thd->restore_active_arena(arena, &backup);
         in_subs->is_registered_semijoin= TRUE;
-        OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
-                            select_lex->select_number,
-                            "IN (SELECT)", "semijoin");
-        trace_transform.add("chosen", true);
       }
     }
     else
@@ -1262,6 +1262,7 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
   while ((in_subq= li++))
   {
     bool remove_item= TRUE;
+    (void)subquery_types_allow_materialization(thd, in_subq);
 
     /* Stop processing if we've reached a subquery that's attached to the ON clause */
     if (in_subq->do_not_convert_to_sj)

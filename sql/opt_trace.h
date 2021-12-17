@@ -69,10 +69,34 @@ struct Opt_trace_info
   @param  query        query
   @param  length       query's length
   @param  charset      charset which was used to encode this query
+
+  @detail
+    == Lifecycle ==
+    The trace is created before the Name Resolution phase. Reasons:
+    1. This way, we can have one place where we start the trace for all kinds of
+       queries. If we tried to start tracing right before query optimization
+       starts, we would have to construct Opt_trace_start object in many
+       places: one for SELECT, for UPDATE, for DELETE, etc.
+
+    2. Privilege checking code may notify the trace that the user doesn't have
+       enough permissions to perform tracing. The trace must exist to receive
+       the notication. See missing_privilege() and the opt_trace_disable_if_...
+       functions below for details.
+
+    == Handling Query Errors ==
+    The trace is kept when query error occurs, except for the case when
+    nothing [meaningful] was traced. The second part is necessary for mtr to
+    produce the same output with and without --ps-protocol. If there is an
+    error on prepare phase, then:
+     - In --ps-protocol: PREPARE command produces no trace. The EXECUTE
+       command is not run. The trace is not generated at all.
+     - Regular SQL query: should also NOT produce any trace to match the above.
+    This is handled by trace_heading_done() and clean_empty_trace().
 */
 
 
-class Opt_trace_start {
+class Opt_trace_start
+{
  public:
   Opt_trace_start(THD *thd_arg, TABLE_LIST *tbl,
                   enum enum_sql_command sql_command,
@@ -82,8 +106,17 @@ class Opt_trace_start {
                   const CHARSET_INFO *query_charset);
   ~Opt_trace_start();
 
+  void trace_heading_done();
+  void clean_empty_trace();
  private:
   Opt_trace_context *const ctx;
+
+  /* Number of bytes written to the trace after the heading was written/ */
+  size_t trace_heading_size;
+
+  /* If true, trace should be removed (See Handling Query Errors above) */
+  bool clean_me= false;
+
   /*
     True: the query will be traced
     False: otherwise
@@ -101,6 +134,9 @@ class Opt_trace_start {
 */
 void opt_trace_print_expanded_query(THD *thd, SELECT_LEX *select_lex,
                                     Json_writer_object *trace_object);
+
+void opt_trace_print_expanded_union(THD *thd, SELECT_LEX_UNIT *unit,
+                                    Json_writer_object *writer);
 
 void add_table_scan_values_to_trace(THD *thd, JOIN_TAB *tab);
 void trace_plan_prefix(JOIN *join, uint idx, table_map join_tables);

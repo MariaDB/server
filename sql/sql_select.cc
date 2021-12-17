@@ -1287,11 +1287,6 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   join_list= &select_lex->top_join_list;
   union_part= unit_arg->is_unit_op();
 
-  Json_writer_object trace_wrapper(thd);
-  Json_writer_object trace_prepare(thd, "join_preparation");
-  trace_prepare.add_select_number(select_lex->select_number);
-  Json_writer_array trace_steps(thd, "steps");
-
   // simple check that we got usable conds
   dbug_print_item(conds);
 
@@ -1675,12 +1670,6 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     }
   }
 
-  if (thd->trace_started())
-  {
-    Json_writer_object trace_wrapper(thd);
-    opt_trace_print_expanded_query(thd, select_lex, &trace_wrapper);
-  }
-
   if (!procedure && result && result->prepare(fields_list, unit_arg))
     goto err;					/* purecov: inspected */
 
@@ -1985,7 +1974,11 @@ JOIN::optimize_inner()
 
   Json_writer_object trace_wrapper(thd);
   Json_writer_object trace_prepare(thd, "join_optimization");
-  trace_prepare.add_select_number(select_lex->select_number);
+  if (thd->trace_started())
+  {
+    trace_prepare.add_select_number(select_lex->select_number);
+    opt_trace_print_expanded_query(thd, select_lex, &trace_prepare);
+  }
   Json_writer_array trace_steps(thd, "steps");
 
   /*

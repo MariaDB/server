@@ -20,18 +20,9 @@ QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from t1 where a=1 or b=1	{
   "steps": [
     {
-      "join_preparation": {
-        "select_id": 1,
-        "steps": [
-          {
-            "expanded_query": "select t1.a AS a,t1.b AS b,t1.c AS c,t1.filler AS filler from t1 where t1.a = 1 or t1.b = 1"
-          }
-        ]
-      }
-    },
-    {
       "join_optimization": {
         "select_id": 1,
+        "expanded_query": "select t1.a AS a,t1.b AS b,t1.c AS c,t1.filler AS filler from t1 where t1.a = 1 or t1.b = 1",
         "steps": [
           {
             "condition_processing": {

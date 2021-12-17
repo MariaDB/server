@@ -16,7 +16,6 @@ select * from db1.t1;
 ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
 select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
-		0	1
 set optimizer_trace="enabled=off";
 grant select(a)  on db1.t1 to 'foo'@'%';
 set optimizer_trace="enabled=on";
@@ -51,18 +50,9 @@ QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 select * from db1.t1	{
   "steps": [
     {
-      "join_preparation": {
-        "select_id": 1,
-        "steps": [
-          {
-            "expanded_query": "select db1.t1.a AS a from t1"
-          }
-        ]
-      }
-    },
-    {
       "join_optimization": {
         "select_id": 1,
+        "expanded_query": "select db1.t1.a AS a from t1",
         "steps": [
           {
             "table_dependencies": [
@@ -156,36 +146,18 @@ QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 select * from db1.v1	{
   "steps": [
     {
-      "join_preparation": {
+      "join_optimization": {
         "select_id": 1,
+        "expanded_query": "/* select#1 */ select db1.t1.a AS a from v1",
         "steps": [
           {
             "view": {
               "table": "v1",
               "select_id": 2,
-              "algorithm": "merged"
+              "algorithm": "merged",
+              "expanded_query": "/* select#2 */ select db1.t1.a AS a from t1"
             }
           },
-          {
-            "join_preparation": {
-              "select_id": 2,
-              "steps": [
-                {
-                  "expanded_query": "/* select#2 */ select db1.t1.a AS a from t1"
-                }
-              ]
-            }
-          },
-          {
-            "expanded_query": "/* select#1 */ select db1.t1.a AS a from v1"
-          }
-        ]
-      }
-    },
-    {
-      "join_optimization": {
-        "select_id": 1,
-        "steps": [
           {
             "table_dependencies": [
               {

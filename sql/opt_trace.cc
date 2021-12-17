@@ -106,6 +106,27 @@ inline bool sql_command_can_be_traced(enum enum_sql_command sql_command)
          sql_command == SQLCOM_UPDATE_MULTI;
 }
 
+
+void opt_trace_print_expanded_union(THD *thd, SELECT_LEX_UNIT *unit,
+                                    Json_writer_object *writer)
+{
+  DBUG_ASSERT(thd->trace_started());
+
+  StringBuffer<1024> str(system_charset_info);
+  ulonglong save_option_bits= thd->variables.option_bits;
+  thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
+  unit->print(&str, enum_query_type(QT_TO_SYSTEM_CHARSET |
+                                    QT_SHOW_SELECT_NUMBER |
+                                    QT_ITEM_IDENT_SKIP_DB_NAMES |
+                                    QT_VIEW_INTERNAL));
+  thd->variables.option_bits= save_option_bits;
+  /*
+    The output is not very pretty lots of back-ticks, the output
+    is as the one in explain extended , lets try to improved it here.
+  */
+  writer->add("expanded_query", str.c_ptr_safe(), str.length());
+}
+
 void opt_trace_print_expanded_query(THD *thd, SELECT_LEX *select_lex,
                                     Json_writer_object *writer)
 
@@ -499,10 +520,49 @@ Opt_trace_start::Opt_trace_start(THD *thd, TABLE_LIST *tbl,
   }
 }
 
+
+/*
+  @brief
+    See "Handing Query Errors" section of comment for Opt_trace_start
+*/
+
+void Opt_trace_start::trace_heading_done()
+{
+  Json_writer *w;
+  if (traceable && (w= ctx->get_current_json()))
+    trace_heading_size= w->get_written_size();
+  else
+    trace_heading_size= 0;
+}
+
+
+/*
+  @brief
+    See "Handing Query Errors" section of comment for Opt_trace_start
+
+  @detail
+    We can't delete the trace right now, because some final writes (e.g.
+    the top-level closing '}' will still be made to it. Just set clean_me=true
+    so that it is deleted instead of saving it.
+*/
+
+void Opt_trace_start::clean_empty_trace()
+{
+  Json_writer *w;
+  if (traceable && (w= ctx->get_current_json()))
+  {
+    if (w->get_written_size() == trace_heading_size)
+      clean_me= true;
+  }
+}
+
+
 Opt_trace_start::~Opt_trace_start()
 {
   if (traceable)
   {
+    if (clean_me)
+      ctx->abort_trace();
     ctx->end();
     traceable= FALSE;
   }

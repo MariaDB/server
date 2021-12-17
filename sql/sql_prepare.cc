@@ -2435,17 +2435,6 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   lex->first_select_lex()->context.resolve_in_table_list_only(select_lex->
                                                      get_table_list());
 
-  /*
-    For the optimizer trace, this is the symmetric, for statement preparation,
-    of what is done at statement execution (in mysql_execute_command()).
-  */
-  Opt_trace_start ots(thd, tables, lex->sql_command, &lex->var_list,
-                      thd->query(), thd->query_length(),
-                      thd->variables.character_set_client);
-
-  Json_writer_object trace_command(thd);
-  Json_writer_array trace_command_steps(thd, "steps");
-
   /* Reset warning count for each query that uses tables */
   if (tables)
     thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);

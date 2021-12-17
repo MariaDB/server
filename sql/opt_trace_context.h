@@ -114,6 +114,12 @@ public:
 
   bool is_enabled();
 
+  void abort_trace()
+  {
+    delete current_trace;
+    current_trace= NULL;
+  }
+
   void missing_privilege();
 
   static const char *flag_names[];

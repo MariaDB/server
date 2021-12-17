@@ -224,6 +224,14 @@ public:
 
   size_t get_truncated_bytes() { return output.get_truncated_bytes(); }
 
+  /*
+    Note: this may not return exact value due to pretty-printer doing
+    buffering
+  */
+  size_t get_written_size() {
+    return output.length() + output.get_truncated_bytes();
+  }
+
   Json_writer() : 
     indent_level(0), document_start(true), element_started(false), 
     first_child(true)
