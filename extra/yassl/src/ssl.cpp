@@ -773,7 +773,7 @@ void SSL_CTX_set_verify(SSL_CTX* ctx, int mode, VerifyCallback vc)
 int SSL_CTX_load_verify_locations(SSL_CTX* ctx, const char* file,
                                   const char* path)
 {
-    int       ret = SSL_FAILURE;
+    int       ret = SSL_SUCCESS;
 
     if (file) ret = read_file(ctx, file, SSL_FILETYPE_PEM, CA);
 
