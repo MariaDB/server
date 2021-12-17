@@ -510,7 +510,9 @@ sub main {
 
   if ( not @$completed ) {
     my $test_name= mtr_grab_file($path_current_testlog);
-    $test_name =~ s/^CURRENT_TEST:\s//;
+    if ( $test_name ) {
+      $test_name =~ s/^CURRENT_TEST:\s//;
+    }
     my $tinfo = My::Test->new(name => $test_name);
     $tinfo->{result}= 'MTR_RES_FAILED';
     $tinfo->{logfile}=$path_current_testlog;

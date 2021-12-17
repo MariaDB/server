@@ -50,9 +50,11 @@ sub copy {
 
 sub fullname {
   my ($self)= @_;
-  $self->{name} . (defined $self->{combinations}
-                   ? " '" . join(',', sort @{$self->{combinations}}) . "'"
-                   : "")
+  if ( $self->{combinations} ) {
+    return $self->{name} . " '" . join(',', sort @{$self->{combinations}}) . "'";
+  } else {
+    return $self->{name};
+  }
 }
 
 #
