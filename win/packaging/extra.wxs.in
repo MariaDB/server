@@ -84,17 +84,17 @@
           <Publish Event="EndDialog" Value="Return">NOT WixUI_InstallMode</Publish>
 
         </Control>
-        <Control Id="RemoveDatadirText" Type="Text" X="60" Y="85" Width="280" Height="20">
-          <Text>Remove default database directory [DATADIR]. Ensures proper cleanup on uninstall.</Text>
+        <Control Id="RemoveDatadirText" Type="Text" X="60" Y="85" Width="280" Height="30">
+          <Text>Remove [DATADIR]. Ensures proper cleanup on uninstall.</Text>
         </Control>
 
-        <Control Id="KeepDatadirButton" Type="PushButton" X="40" Y="118" Width="80" Height="18"
+        <Control Id="KeepDatadirButton" Type="PushButton" X="40" Y="128" Width="80" Height="18"
                  Text="Keep data">
           <Publish Property="CLEANUPDATA">1</Publish>
           <Publish Event="NewDialog" Value="VerifyReadyDlg">WixUI_InstallMode</Publish>
           <Publish Event="EndDialog" Value="Return">NOT WixUI_InstallMode</Publish>
         </Control>
-        <Control Id="KeepDataDirText" Type="Text" X="60" Y="138" Width="280" Height="70" >
+        <Control Id="KeepDataDirText" Type="Text" X="60" Y="148" Width="280" Height="70" >
           <Text>Do not remove [DATADIR]. Choose this option if you intend to use data in the future</Text>
         </Control>
 
