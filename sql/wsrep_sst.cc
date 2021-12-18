@@ -630,14 +630,13 @@ static void* sst_joiner_thread (void* a)
     wsrep_uuid_t  ret_uuid = WSREP_UUID_UNDEFINED;
     wsrep_seqno_t ret_seqno= WSREP_SEQNO_UNDEFINED;
 
-    // current state progress
+    // current stage progress
     long long total= 0;
     long long complete= 0;
     // previous stages cumulative progress
     long long total_prev= 0;
 
-    // in case of successfull receiver start, wait for SST
-    // completion/end
+    // in case of successful receiver start, wait for SST completion/end
     const char* tmp= NULL;
     err= EINVAL;
 
