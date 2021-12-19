@@ -525,15 +525,10 @@ SysTablespace::open_file(
 }
 
 /** Check the tablespace header for this tablespace.
-@param[out]	flushed_lsn	the value of FIL_PAGE_FILE_FLUSH_LSN
 @return DB_SUCCESS or error code */
-dberr_t
-SysTablespace::read_lsn_and_check_flags(lsn_t* flushed_lsn)
+inline dberr_t SysTablespace::read_lsn_and_check_flags()
 {
 	dberr_t	err;
-
-	/* Only relevant for the system tablespace. */
-	ut_ad(space_id() == TRX_SYS_SPACE);
 
 	files_t::iterator it = m_files.begin();
 
@@ -566,7 +561,7 @@ SysTablespace::read_lsn_and_check_flags(lsn_t* flushed_lsn)
 	first datafile. */
 	for (int retry = 0; retry < 2; ++retry) {
 
-		err = it->validate_first_page(flushed_lsn);
+		err = it->validate_first_page();
 
 		if (err != DB_SUCCESS
 		    && (retry == 1
@@ -830,14 +825,12 @@ SysTablespace::check_file_spec(
 @param[in]  is_temp		whether this is a temporary tablespace
 @param[in]  create_new_db	whether we are creating a new database
 @param[out] sum_new_sizes	sum of sizes of the new files added
-@param[out] flush_lsn		FIL_PAGE_FILE_FLUSH_LSN of first file
 @return DB_SUCCESS or error code */
 dberr_t
 SysTablespace::open_or_create(
 	bool	is_temp,
 	bool	create_new_db,
-	ulint*	sum_new_sizes,
-	lsn_t*	flush_lsn)
+	ulint*	sum_new_sizes)
 {
 	dberr_t		err	= DB_SUCCESS;
 	fil_space_t*	space	= NULL;
@@ -886,10 +879,9 @@ SysTablespace::open_or_create(
 
 	}
 
-	if (!create_new_db && flush_lsn) {
-		/* Validate the header page in the first datafile
-		and read LSNs fom the others. */
-		err = read_lsn_and_check_flags(flush_lsn);
+	if (!create_new_db && space_id() == TRX_SYS_SPACE) {
+		/* Validate the header page in the first datafile. */
+		err = read_lsn_and_check_flags();
 		if (err != DB_SUCCESS) {
 			return(err);
 		}

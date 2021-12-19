@@ -1161,8 +1161,6 @@ then
     # May need xtrabackup_checkpoints later on
     [ -f "$DATA/xtrabackup_binary"      ] && rm -f "$DATA/xtrabackup_binary"
     [ -f "$DATA/xtrabackup_galera_info" ] && rm -f "$DATA/xtrabackup_galera_info"
-    [ -f "$DATA/ib_logfile0"            ] && rm -f "$DATA/ib_logfile0"
-
     ADDR="$WSREP_SST_OPT_ADDR"
 
     if [ "${tmode#VERIFY}" != "$tmode" ]

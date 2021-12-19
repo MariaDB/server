@@ -458,7 +458,7 @@ EOF
         rsync ${STUNNEL:+--rsh="$STUNNEL"} \
               --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
-              $WHOLE_FILE_OPT -f '+ /ib_logfile[0-9]*' -f '+ /aria_log.*' \
+              $WHOLE_FILE_OPT -f '+ /ib_logfile0' -f '+ /aria_log.*' \
               -f '+ /aria_log_control' -f '- **' "$WSREP_LOG_DIR/" \
               "rsync://$WSREP_SST_OPT_ADDR-log_dir" >&2 || RC=$?
 
@@ -610,8 +610,6 @@ $SILENT
 [$MODULE-data_dir]
     path = $INNODB_DATA_HOME_DIR
 EOF
-
-#   rm -rf "$DATA/ib_logfile"* # we don't want old logs around
 
     # If the IP is local, listen only on it:
     if is_local_ip "$RSYNC_ADDR_UNESCAPED"

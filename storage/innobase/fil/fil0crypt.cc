@@ -533,7 +533,7 @@ static byte* fil_encrypt_buf_for_full_crc32(
 	ut_a(dstlen == srclen);
 
 	const ulint payload = size - FIL_PAGE_FCRC32_CHECKSUM;
-	mach_write_to_4(dst_frame + payload, ut_crc32(dst_frame, payload));
+	mach_write_to_4(dst_frame + payload, my_crc32c(0, dst_frame, payload));
 	/* Clean the rest of the buffer. FIXME: Punch holes when writing! */
 	memset(dst_frame + (payload + 4), 0, srv_page_size - (payload + 4));
 

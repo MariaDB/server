@@ -2597,7 +2597,7 @@ static bool ibuf_get_volume_buffered_hash(const rec_t *rec, ulint *hash,
   ut_ad(rec_get_n_fields_old(rec) > IBUF_REC_FIELD_USER);
   const ulint start= rec_get_field_start_offs(rec, IBUF_REC_FIELD_USER);
   const ulint len= rec_get_data_size_old(rec) - start;
-  const uint32_t fold= ut_crc32(rec + start, len);
+  const uint32_t fold= my_crc32c(0, rec + start, len);
   hash+= (fold / (CHAR_BIT * sizeof *hash)) % size;
   ulint bitmask= static_cast<ulint>(1) << (fold % (CHAR_BIT * sizeof(*hash)));
 

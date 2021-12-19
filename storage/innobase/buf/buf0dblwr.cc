@@ -332,7 +332,7 @@ func_exit:
 /** Process and remove the double write buffer pages for all tablespaces. */
 void buf_dblwr_t::recover()
 {
-  ut_ad(recv_sys.parse_start_lsn);
+  ut_ad(log_sys.last_checkpoint_lsn);
   if (!is_initialised())
     return;
 
@@ -350,13 +350,13 @@ void buf_dblwr_t::recover()
       continue;
 
     const lsn_t lsn= mach_read_from_8(page + FIL_PAGE_LSN);
-    if (recv_sys.parse_start_lsn > lsn)
+    if (log_sys.last_checkpoint_lsn > lsn)
       /* Pages written before the checkpoint are not useful for recovery. */
       continue;
     const uint32_t space_id= page_get_space_id(page);
     const page_id_t page_id(space_id, page_no);
 
-    if (recv_sys.scanned_lsn < lsn)
+    if (recv_sys.recovered_lsn < lsn)
     {
       ib::info() << "Ignoring a doublewrite copy of page " << page_id
                  << " with future log sequence number " << lsn;

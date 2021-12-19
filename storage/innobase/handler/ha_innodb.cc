@@ -3965,23 +3965,6 @@ static int innodb_init_params()
 			<< srv_page_size_shift);
 	}
 
-	if (srv_log_write_ahead_size > srv_page_size) {
-		srv_log_write_ahead_size = srv_page_size;
-	} else {
-		ulong	srv_log_write_ahead_size_tmp = OS_FILE_LOG_BLOCK_SIZE;
-
-		while (srv_log_write_ahead_size_tmp
-		       < srv_log_write_ahead_size) {
-			srv_log_write_ahead_size_tmp
-				= srv_log_write_ahead_size_tmp * 2;
-		}
-		if (srv_log_write_ahead_size_tmp
-		    != srv_log_write_ahead_size) {
-			srv_log_write_ahead_size
-				= srv_log_write_ahead_size_tmp / 2;
-		}
-	}
-
 	srv_buf_pool_size = ulint(innobase_buffer_pool_size);
 
 	if (innobase_open_files < 10) {
@@ -18265,31 +18248,28 @@ static my_bool	innodb_buf_flush_list_now = TRUE;
 static uint	innodb_merge_threshold_set_all_debug
 	= DICT_INDEX_MERGE_THRESHOLD_DEFAULT;
 
-/****************************************************************//**
-Force innodb to checkpoint. */
+/** Force an InnoDB log checkpoint. */
 static
 void
-checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
+checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void *save)
 {
-	if (*(my_bool*) save) {
-		mysql_mutex_unlock(&LOCK_global_system_variables);
+  if (!*static_cast<const my_bool*>(save))
+    return;
+  const auto size= log_sys.is_encrypted()
+    ? SIZE_OF_FILE_CHECKPOINT + 8 : SIZE_OF_FILE_CHECKPOINT;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  lsn_t lsn;
+  while (log_sys.last_checkpoint_lsn.load(std::memory_order_acquire) + size <
+         (lsn= log_sys.get_lsn(std::memory_order_acquire)))
+  {
+    log_make_checkpoint();
+    log_sys.log.flush();
+  }
 
-		lsn_t lsn;
+  if (dberr_t err= fil_write_flushed_lsn(lsn))
+    sql_print_warning("innodb_checkpoint_now_set failed: %d", err);
 
-		while (log_sys.last_checkpoint_lsn.load(
-			       std::memory_order_acquire)
-		       + SIZE_OF_FILE_CHECKPOINT
-		       < (lsn= log_sys.get_lsn(std::memory_order_acquire))) {
-			log_make_checkpoint();
-			log_sys.log.flush();
-		}
-
-		if (dberr_t err = fil_write_flushed_lsn(lsn)) {
-			ib::warn() << "Checkpoint set failed " << err;
-		}
-
-		mysql_mutex_lock(&LOCK_global_system_variables);
-	}
+  mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 /****************************************************************//**
@@ -18434,51 +18414,6 @@ buffer_pool_load_abort(
 		buf_load_abort();
 		mysql_mutex_lock(&LOCK_global_system_variables);
 	}
-}
-
-/****************************************************************//**
-Update the system variable innodb_log_write_ahead_size using the "saved"
-value. This function is registered as a callback with MySQL. */
-static
-void
-innodb_log_write_ahead_size_update(
-/*===============================*/
-	THD*				thd,	/*!< in: thread handle */
-	st_mysql_sys_var*, void*,
-	const void*			save)	/*!< in: immediate result
-						from check function */
-{
-	ulong	val = OS_FILE_LOG_BLOCK_SIZE;
-	ulong	in_val = *static_cast<const ulong*>(save);
-
-	while (val < in_val) {
-		val = val * 2;
-	}
-
-	if (val > srv_page_size) {
-		val = srv_page_size;
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    ER_WRONG_ARGUMENTS,
-				    "innodb_log_write_ahead_size cannot"
-				    " be set higher than innodb_page_size.");
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    ER_WRONG_ARGUMENTS,
-				    "Setting innodb_log_write_ahead_size"
-				    " to %lu",
-				    srv_page_size);
-	} else if (val != in_val) {
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    ER_WRONG_ARGUMENTS,
-				    "innodb_log_write_ahead_size should be"
-				    " set 2^n value and larger than 512.");
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    ER_WRONG_ARGUMENTS,
-				    "Setting innodb_log_write_ahead_size"
-				    " to %lu",
-				    val);
-	}
-
-	srv_log_write_ahead_size = val;
 }
 
 /** Update innodb_status_output or innodb_status_output_locks,
@@ -19296,16 +19231,8 @@ static MYSQL_SYSVAR_ULONG(log_buffer_size, srv_log_buffer_size,
 
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Size of each log file in a log group.",
-  NULL, NULL, 96 << 20, 1 << 20, std::numeric_limits<ulonglong>::max(),
-  UNIV_PAGE_SIZE_MAX);
-
-static MYSQL_SYSVAR_ULONG(log_write_ahead_size, srv_log_write_ahead_size,
-  PLUGIN_VAR_RQCMDARG,
-  "Redo log write ahead unit size to avoid read-on-write,"
-  " it should match the OS cache block IO size",
-  NULL, innodb_log_write_ahead_size_update,
-  8*1024L, OS_FILE_LOG_BLOCK_SIZE, UNIV_PAGE_SIZE_DEF, OS_FILE_LOG_BLOCK_SIZE);
+  "Redo log size in bytes",
+  NULL, NULL, 96 << 20, 1U << 20, std::numeric_limits<ulonglong>::max(), 4096);
 
 static MYSQL_SYSVAR_UINT(old_blocks_pct, innobase_old_blocks_pct,
   PLUGIN_VAR_RQCMDARG,
@@ -19783,7 +19710,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(page_size),
   MYSQL_SYSVAR(log_buffer_size),
   MYSQL_SYSVAR(log_file_size),
-  MYSQL_SYSVAR(log_write_ahead_size),
   MYSQL_SYSVAR(log_group_home_dir),
   MYSQL_SYSVAR(max_dirty_pages_pct),
   MYSQL_SYSVAR(max_dirty_pages_pct_lwm),

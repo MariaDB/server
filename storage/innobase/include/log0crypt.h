@@ -34,17 +34,20 @@ extern my_bool srv_encrypt_log;
 
 /** Initialize the redo log encryption key and random parameters
 when creating a new redo log.
-The random parameters will be persisted in the log checkpoint pages.
-@see log_crypt_write_checkpoint_buf()
-@see log_crypt_read_checkpoint_buf()
+The random parameters will be persisted in the log header.
+@see log_crypt_write_header()
+@see log_crypt_read_header()
 @return whether the operation succeeded */
 bool log_crypt_init();
 
-/*********************************************************************//**
-Writes the crypto (version, msg and iv) info, which has been used for
-log blocks with lsn <= this checkpoint's lsn, to a log header's
-checkpoint buf. */
-void log_crypt_write_checkpoint_buf(byte *buf);
+/** Add the encryption information to the log header buffer.
+@param buf   part of log header buffer */
+void log_crypt_write_header(byte *buf);
+
+/** Read the encryption information from a redo log checkpoint buffer.
+@param buf   part of checkpoint buffer
+@return whether the operation was successful */
+bool log_crypt_read_header(const byte *buf);
 
 /** Read the MariaDB 10.1 checkpoint crypto (version, msg and iv) info.
 @param[in]	buf	checkpoint buffer
@@ -60,25 +63,28 @@ ATTRIBUTE_COLD bool log_crypt_101_read_block(byte* buf, lsn_t start_lsn);
 /** Read the checkpoint crypto (version, msg and iv) info.
 @param[in]	buf	checkpoint buffer
 @return	whether the operation was successful */
-bool log_crypt_read_checkpoint_buf(const byte* buf);
+ATTRIBUTE_COLD bool log_crypt_read_checkpoint_buf(const byte* buf);
 
-/** log_crypt() operation code */
-enum log_crypt_t {
-	/** encrypt a log block without rotating key */
-	LOG_ENCRYPT,
-	/** decrypt a log block */
-	LOG_DECRYPT,
-	/** attempt to rotate the key, and encrypt a log block */
-	LOG_ENCRYPT_ROTATE_KEY
-};
-
-/** Encrypt or decrypt log blocks.
-@param[in,out]	buf	log blocks to encrypt or decrypt
+/** Decrypt log blocks.
+@param[in,out]	buf	log blocks to decrypt
 @param[in]	lsn	log sequence number of the start of the buffer
 @param[in]	size	size of the buffer, in bytes
-@param[in]	op	whether to decrypt, encrypt, or rotate key and encrypt
-@return	whether the operation succeeded (encrypt always does) */
-bool log_crypt(byte* buf, lsn_t lsn, ulint size, log_crypt_t op = LOG_ENCRYPT);
+@return	whether the operation succeeded */
+ATTRIBUTE_COLD bool log_decrypt(byte* buf, lsn_t lsn, ulint size);
+
+/** Decrypt part of a log record.
+@param iv    initialization vector
+@param buf   buffer for the decrypted data
+@param data  the encrypted data
+@param len   length of the data, in bytes
+@return buf */
+byte *log_decrypt_buf(const byte *iv, byte *buf, const byte *data, uint len);
+
+/** Decrypt a log snippet.
+@param iv    initialization vector
+@param buf   buffer to be replaced with encrypted contents
+@param end   pointer past the end of buf */
+void log_decrypt_buf(const byte *iv, byte *buf, const byte *const end);
 
 /** Encrypt or decrypt a temporary file block.
 @param[in]	src		block to encrypt or decrypt

@@ -781,8 +781,9 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_DEFAULT_START, MONITOR_MODULE_RECOVERY},
 
 	{"log_checkpoints", "recovery", "Number of checkpoints",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_NUM_CHECKPOINT},
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_CHECKPOINTS},
 
 	{"log_lsn_last_flush", "recovery", "LSN of Last flush",
 	 static_cast<monitor_type_t>(
@@ -849,12 +850,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 static_cast<monitor_type_t>(
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_LOG_WRITES},
-
-	{"log_padded", "recovery",
-	 "Bytes of log padded for log write ahead",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_LOG_PADDED},
 
 	/* ========== Counters for Page Compression ========== */
 	{"module_compress", "compression", "Page Compression Info",
@@ -1600,10 +1595,6 @@ srv_mon_process_existing_counter(
 		value = srv_stats.log_writes;
 		break;
 
-	case MONITOR_OVLD_LOG_PADDED:
-		value = srv_stats.log_padded;
-		break;
-
 	/* innodb_dblwr_writes */
 	case MONITOR_OVLD_SRV_DBLWR_WRITES:
 		buf_dblwr.lock();
@@ -1760,21 +1751,19 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_PENDING_LOG_FLUSH:
-		value = static_cast<mon_type_t>(log_sys.pending_flushes);
-
+		value = log_sys.get_pending_flushes();
 		break;
 
 	case MONITOR_PENDING_CHECKPOINT_WRITE:
-		mysql_mutex_lock(&log_sys.mutex);
-		value = static_cast<mon_type_t>(
-		    log_sys.n_pending_checkpoint_writes);
-		mysql_mutex_unlock(&log_sys.mutex);
+		value = log_sys.n_pending_checkpoint_writes;
 		break;
 
 	case MONITOR_LOG_IO:
-		mysql_mutex_lock(&log_sys.mutex);
-		value = static_cast<mon_type_t>(log_sys.n_log_ios);
-		mysql_mutex_unlock(&log_sys.mutex);
+		value = log_sys.n_log_ios;
+		break;
+
+        case MONITOR_OVLD_CHECKPOINTS:
+		value = log_sys.next_checkpoint_no;
 		break;
 
 	case MONITOR_LSN_CHECKPOINT_AGE:

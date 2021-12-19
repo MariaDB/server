@@ -373,8 +373,8 @@ static bool buf_tmp_page_decrypt(byte* tmp_frame, byte* src_frame)
 			  src_frame + srv_page_size - FIL_PAGE_FCRC32_CHECKSUM,
 			  FIL_PAGE_FCRC32_CHECKSUM);
 
-	memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(src_frame, tmp_frame,
-					       srv_page_size);
+	memcpy_aligned<UNIV_PAGE_SIZE_MIN>(src_frame, tmp_frame,
+					   srv_page_size);
 	srv_stats.pages_decrypted.inc();
 	srv_stats.n_temp_blocks_decrypted.inc();
 
@@ -1323,7 +1323,7 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 	hash_lock.lock();
 
 	if (block->page.can_relocate()) {
-		memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(
+		memcpy_aligned<UNIV_PAGE_SIZE_MIN>(
 			new_block->page.frame, block->page.frame,
 			srv_page_size);
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);

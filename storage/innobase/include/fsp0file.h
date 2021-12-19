@@ -216,11 +216,10 @@ public:
 	tablespace is opened.  This occurs before the fil_space_t is created
 	so the Space ID found here must not already be open.
 	m_is_valid is set true on success, else false.
-	@param[out]	flush_lsn	contents of FIL_PAGE_FILE_FLUSH_LSN
 	@retval DB_SUCCESS on if the datafile is valid
 	@retval DB_CORRUPTION if the datafile is not readable
 	@retval DB_TABLESPACE_EXISTS if there is a duplicate space_id */
-	dberr_t validate_first_page(lsn_t* flush_lsn)
+	dberr_t validate_first_page()
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Get Datafile::m_filepath.

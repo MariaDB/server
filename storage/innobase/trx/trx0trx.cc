@@ -1149,7 +1149,7 @@ sync:
   if ((cb.m_param = innodb_thd_increment_pending_ops(trx->mysql_thd)))
   {
     cb.m_callback = (void (*)(void *)) thd_decrement_pending_ops;
-    log_write_up_to(lsn, flush, false, &cb);
+    log_write_up_to(lsn, flush, &cb);
   }
   else
     goto sync;

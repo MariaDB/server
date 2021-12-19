@@ -177,6 +177,7 @@ void buf_pool_t::insert_into_flush_list(buf_block_t *block, lsn_t lsn)
   mysql_mutex_assert_not_owner(&mutex);
   mysql_mutex_assert_owner(&log_sys.flush_order_mutex);
   ut_ad(lsn > 2);
+  static_assert(log_t::FIRST_LSN >= 2, "compatibility");
   ut_ad(!fsp_is_system_temporary(block->page.id().space()));
 
   mysql_mutex_lock(&flush_list_mutex);
@@ -424,7 +425,7 @@ void buf_flush_assign_full_crc32_checksum(byte* page)
 	ut_ad(!corrupted);
 	ut_ad(size == uint(srv_page_size));
 	const ulint payload = srv_page_size - FIL_PAGE_FCRC32_CHECKSUM;
-	mach_write_to_4(page + payload, ut_crc32(page, payload));
+	mach_write_to_4(page + payload, my_crc32c(0, page, payload));
 }
 
 /** Initialize a page for writing to the tablespace.
@@ -605,7 +606,7 @@ static byte* buf_tmp_page_encrypt(ulint offset, const byte* s, byte* d)
     return NULL;
 
   const ulint payload= srv_page_size - FIL_PAGE_FCRC32_CHECKSUM;
-  mach_write_to_4(d + payload, ut_crc32(d, payload));
+  mach_write_to_4(d + payload, my_crc32c(0, d, payload));
 
   srv_stats.pages_encrypted.inc();
   srv_stats.n_temp_blocks_encrypted.inc();
@@ -732,7 +733,7 @@ not_compressed:
     if (full_crc32)
     {
       static_assert(FIL_PAGE_FCRC32_CHECKSUM == 4, "alignment");
-      mach_write_to_4(tmp + len - 4, ut_crc32(tmp, len - 4));
+      mach_write_to_4(tmp + len - 4, my_crc32c(0, tmp, len - 4));
       ut_ad(!buf_page_is_corrupted(true, tmp, space->flags));
     }
 
@@ -1663,6 +1664,47 @@ ulint buf_flush_LRU(ulint max_n)
   return n_flushed;
 }
 
+
+/** Write checkpoint information to the log header and release mutex.
+@param end_lsn    start LSN of the FILE_CHECKPOINT mini-transaction */
+inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
+{
+  ut_ad(!srv_read_only_mode);
+  ut_ad(end_lsn >= next_checkpoint_lsn);
+  ut_ad(end_lsn <= get_lsn());
+  ut_ad(end_lsn + SIZE_OF_FILE_CHECKPOINT <= get_lsn() ||
+        srv_shutdown_state > SRV_SHUTDOWN_INITIATED);
+
+  DBUG_PRINT("ib_log",
+             ("checkpoint at " LSN_PF " written", next_checkpoint_lsn));
+  mach_write_to_8(my_assume_aligned<8>(checkpoint_buf), next_checkpoint_lsn);
+  mach_write_to_8(my_assume_aligned<8>(checkpoint_buf + 8), end_lsn);
+  ut_ad(!memcmp_aligned<4>(checkpoint_buf + 16, field_ref_zero, 60 - 16));
+
+  mach_write_to_4(my_assume_aligned<4>(60 + checkpoint_buf),
+                  my_crc32c(0, checkpoint_buf, 60));
+
+  auto n= next_checkpoint_no;
+  n_pending_checkpoint_writes++;
+
+  mysql_mutex_unlock(&mutex);
+  /* FIXME: issue an asynchronous write */
+  log.write((n & 1) ? CHECKPOINT_2 : CHECKPOINT_1,
+            {checkpoint_buf, log_sys.BLOCK_SIZE});
+  log.flush();
+  mysql_mutex_lock(&log_sys.mutex);
+
+  n_pending_checkpoint_writes--;
+  ut_ad(!n_pending_checkpoint_writes);
+  next_checkpoint_no++;
+  last_checkpoint_lsn= next_checkpoint_lsn;
+
+  DBUG_PRINT("ib_log", ("checkpoint ended at " LSN_PF ", flushed to " LSN_PF,
+                        next_checkpoint_lsn, get_flushed_lsn()));
+
+  mysql_mutex_unlock(&mutex);
+}
+
 /** Initiate a log checkpoint, discarding the start of the log.
 @param oldest_lsn   the checkpoint LSN
 @param end_lsn      log_sys.get_lsn()
@@ -1675,15 +1717,10 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
   ut_ad(end_lsn == log_sys.get_lsn());
   ut_ad(!recv_no_log_write);
 
-  ut_ad(oldest_lsn >= log_sys.last_checkpoint_lsn);
-
-  if (oldest_lsn > log_sys.last_checkpoint_lsn + SIZE_OF_FILE_CHECKPOINT)
-    /* Some log has been written since the previous checkpoint. */;
-  else if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED)
-    /* MariaDB startup expects the redo log file to be logically empty
-    (not even containing a FILE_CHECKPOINT record) after a clean shutdown.
-    Perform an extra checkpoint at shutdown. */;
-  else
+  if (oldest_lsn == log_sys.last_checkpoint_lsn ||
+      (oldest_lsn == end_lsn && oldest_lsn == log_sys.last_checkpoint_lsn +
+       (log_sys.is_encrypted()
+        ? SIZE_OF_FILE_CHECKPOINT + 8 : SIZE_OF_FILE_CHECKPOINT)))
   {
     /* Do nothing, because nothing was logged (other than a
     FILE_CHECKPOINT record) since the previous checkpoint. */
@@ -1691,6 +1728,7 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
     return true;
   }
 
+  ut_ad(oldest_lsn > log_sys.last_checkpoint_lsn);
   /* Repeat the FILE_MODIFY records after the checkpoint, in case some
   log records between the checkpoint and log_sys.lsn need them.
   Finally, write a FILE_CHECKPOINT record. Redo log apply expects to
@@ -1701,24 +1739,16 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
   dirty pages are flushed to the tablespace files.  At this point,
   because we hold log_sys.mutex, mtr_t::commit() in other threads will
   be blocked, and no pages can be added to the flush lists. */
-  lsn_t flush_lsn= oldest_lsn;
-
-  if (fil_names_clear(flush_lsn, oldest_lsn != end_lsn ||
-                      srv_shutdown_state <= SRV_SHUTDOWN_INITIATED))
+  const lsn_t flush_lsn{fil_names_clear(oldest_lsn)};
+  ut_ad(flush_lsn >= end_lsn + SIZE_OF_FILE_CHECKPOINT);
+  mysql_mutex_unlock(&log_sys.mutex);
+  log_write_up_to(flush_lsn, true);
+  mysql_mutex_lock(&log_sys.mutex);
+  if (log_sys.last_checkpoint_lsn >= oldest_lsn)
   {
-    flush_lsn= log_sys.get_lsn();
-    ut_ad(flush_lsn >= end_lsn + SIZE_OF_FILE_CHECKPOINT);
     mysql_mutex_unlock(&log_sys.mutex);
-    log_write_up_to(flush_lsn, true, true);
-    mysql_mutex_lock(&log_sys.mutex);
-    if (log_sys.last_checkpoint_lsn >= oldest_lsn)
-    {
-      mysql_mutex_unlock(&log_sys.mutex);
-      return true;
-    }
+    return true;
   }
-  else
-    ut_ad(oldest_lsn >= log_sys.last_checkpoint_lsn);
 
   ut_ad(log_sys.get_flushed_lsn() >= flush_lsn);
 
@@ -1730,7 +1760,7 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
   }
 
   log_sys.next_checkpoint_lsn= oldest_lsn;
-  log_write_checkpoint_info(end_lsn);
+  log_sys.write_checkpoint(end_lsn);
   mysql_mutex_assert_not_owner(&log_sys.mutex);
 
   return true;

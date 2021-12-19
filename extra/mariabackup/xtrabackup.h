@@ -79,9 +79,6 @@ extern uint		opt_protocol;
 extern ds_ctxt_t	*ds_meta;
 extern ds_ctxt_t	*ds_data;
 
-/* The last checkpoint LSN at the backup startup time */
-extern lsn_t checkpoint_lsn_start;
-
 extern xb_page_bitmap *changed_page_bitmap;
 
 extern char		*xtrabackup_incremental;

@@ -301,18 +301,15 @@ enum mfile_type_t
   FILE_RENAME = 0xa0,
   /** Modify a file. Followed by tablespace ID and the file name. */
   FILE_MODIFY = 0xb0,
-#if 1 /* MDEV-14425 FIXME: Remove this! */
-  /** End-of-checkpoint marker. Followed by 2 dummy bytes of page identifier,
-  8 bytes of LSN, and padded with a NUL; @see SIZE_OF_FILE_CHECKPOINT. */
+  /** End-of-checkpoint marker, at the end of a mini-transaction.
+  Followed by 2 dummy bytes of page identifier and 8 bytes of LSN;
+  @see SIZE_OF_FILE_CHECKPOINT. */
   FILE_CHECKPOINT = 0xf0
-#endif
 };
 
-#if 1 /* MDEV-14425 FIXME: Remove this! */
 /** Size of a FILE_CHECKPOINT record, including the trailing byte to
-terminate the mini-transaction. */
-constexpr byte SIZE_OF_FILE_CHECKPOINT= 3/*type,page_id*/ + 8/*LSN*/ + 1;
-#endif
+terminate the mini-transaction and the CRC-32C. */
+constexpr byte SIZE_OF_FILE_CHECKPOINT= 3/*type,page_id*/ + 8/*LSN*/ + 1 + 4;
 
 #ifndef UNIV_INNOCHECKSUM
 /** Types for the mlock objects to store in the mtr_t::m_memo */

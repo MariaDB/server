@@ -173,7 +173,6 @@ SET(INNOBASE_SOURCES
 	include/lock0types.h
 	include/log0crypt.h
 	include/log0log.h
-	include/log0log.ic
 	include/log0recv.h
 	include/log0types.h
 	include/mach0data.h
