@@ -9248,5 +9248,22 @@ json_detailed(json_extract(trace, '$**.best_join_order'))
     ]
 ]
 DROP TABLE t1;
+#
+# MDEV-27306: SET STATEMENT optimizer_trace=1 Doesn't save the trace
+#
+set optimizer_trace=0;
+set statement optimizer_trace=1 for select * from seq_1_to_10 where seq<2;
+seq
+1
+# The trace must not be empty:
+select left(trace, 100) from information_schema.optimizer_trace;
+left(trace, 100)
+{
+  "steps": [
+    {
+      "join_preparation": {
+        "select_id": 1,
+        "steps": [
+        
 # End of 10.6 tests
 set optimizer_trace='enabled=off';
