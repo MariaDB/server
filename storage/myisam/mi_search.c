@@ -309,6 +309,7 @@ int _mi_prefix_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
   uchar *UNINIT_VAR(saved_vseg);
   uint  saved_length=0, saved_prefix_len=0;
   uint  length_pack;
+  const int reverse = keyinfo->seg->flag & HA_REVERSE_SORT;
   DBUG_ENTER("_mi_prefix_search");
 
   t_buff[0]=0;                                  /* Avoid bugs */
@@ -452,7 +453,7 @@ int _mi_prefix_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
             break;
       }
 
-      if (my_flag>0)      /* mismatch */
+      if ((reverse ? -my_flag : my_flag) > 0)      /* mismatch */
         break;
       if (my_flag==0) /* match */
       {
@@ -478,13 +479,10 @@ int _mi_prefix_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
 	    for ( ; k < k_end && *k == ' '; k++) ;
 	    if (k == k_end)
 	      goto cmp_rest;		/* should never happen */
-	    if (*k < (uchar) ' ')
-	    {
-	      my_flag= 1;		/* Compared string is smaller */
-	      break;
-	    }
-	    my_flag= -1;		/* Continue searching */
+	    my_flag= (uchar)' ' - *k;
 	  }
+          if ((reverse ? -my_flag : my_flag) > 0)
+            break;
         }
         else if (len > cmplen)
         {
@@ -498,13 +496,10 @@ int _mi_prefix_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
 	       vseg++, matched++) ;
 	  DBUG_ASSERT(vseg < vseg_end);
 
-	  if (*vseg > (uchar) ' ')
-	  {
-	    my_flag= 1;			/* Compared string is smaller */
+          my_flag= *vseg - (uchar)' ';
+          if ((reverse ? -my_flag : my_flag) > 0)
 	    break;
 	  }
-	  my_flag= -1;			/* Continue searching */
-        }
         else
 	{
       cmp_rest:
@@ -541,7 +536,7 @@ int _mi_prefix_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
     *ret_pos=page;
   }
   if (my_flag)
-    flag=(keyinfo->seg->flag & HA_REVERSE_SORT) ? -my_flag : my_flag;
+    flag= reverse ? -my_flag : my_flag;
   if (flag == 0)
   {
     memcpy(buff,t_buff,saved_length=seg_len_pack+prefix_len);

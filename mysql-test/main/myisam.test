@@ -1830,3 +1830,39 @@ DROP TABLE t1;
 --echo #
 --echo # End of 5.5 tests
 --echo #
+
+--echo #
+--echo # MDEV-27303 Table corruption after insert into a non-InnoDB table with DESC index
+--echo #
+create table t1 (
+  a bigint default 0,
+  b bigint default 0,
+  c binary(128) not null,
+  d datetime default '0000-00-00 00:00:00',
+  key (c desc,b,d,a)
+) engine=aria;
+insert into t1 (c) values
+  ('xx'),('bb'),('tt'),('pp'),('mm'),('yy'),('rr'),('bb'),('yy'),('gg'),
+  ('dd'),('fx'),('wi'),('ix'),('ox'),('mu'),('ux'),('pm'),('mx'),('xu'),
+  ('ul'),('lp'),('px'),('lp'),('xx'),('pq'),('qs'),('se'),('ee'),('xx'),
+  ('rv'),('ff'),('vj'),('jy'),('yn'),('nc'),('nx'),('hj'),('ji'),('ik'),
+  ('kk'),('ww'),('xx'),('yd'),('dw'),('wk'),('kr'),('dd'),('rj'),('jf'),
+  ('bx'),('fc'),('cp'),('pm'),('mw'),('wy'),('yl'),('li'),('ic'),('he'),
+  ('ci'),('il'),('lz'),('zd'),('gz'),('xd'),('ze'),('dm'),('ms'),('xd'),
+  ('sw'),('we'),('nb'),('tx'),('vr'),('xw'),('aa'),('ah'),('hd'),('jl'),
+  ('lf'),('fw'),('wx'),('xh'),('hr'),('zx'),('vw'),('rm'),('mx'),('xt'),
+  ('tp'),('ps'),('sh'),('ga'),('df'),('as'),('gz'),('xd'),('yy'),('xr');
+check table t1 extended;
+drop table t1;
+
+--echo #
+--echo # MDEV-27330 Wrong sorting order with DESC index and empty strings in MyISAM/Aria table
+--echo #
+create table t (id int, c char(128) not null, key (c desc));
+insert into t values (1,''),(2,'foo'),(3,''),(4,'bar');
+select c from t order by c;
+drop table t;
+
+--echo #
+--echo # End of 10.8 tests
+--echo #

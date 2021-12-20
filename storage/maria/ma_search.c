@@ -446,6 +446,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
   MARIA_KEYDEF *keyinfo= key->keyinfo;
   MARIA_SHARE *share= keyinfo->share;
   const uchar *sort_order= keyinfo->seg->charset->sort_order;
+  const int reverse = keyinfo->seg->flag & HA_REVERSE_SORT;
   DBUG_ENTER("_ma_prefix_search");
 
   t_buff[0]=0;                                  /* Avoid bugs */
@@ -579,7 +580,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 
       /*
         If prefix_len > cmplen then we are in the end-space comparison
-        phase. Do not try to acces the key any more ==> left= 0.
+        phase. Do not try to access the key any more ==> left= 0.
       */
       left= ((len <= cmplen) ? suffix_len :
              ((prefix_len < cmplen) ? cmplen - prefix_len : 0));
@@ -599,7 +600,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
             break;
       }
 
-      if (my_flag>0)      /* mismatch */
+      if ((reverse ? -my_flag : my_flag) > 0)      /* mismatch */
         break;
       if (my_flag==0) /* match */
       {
@@ -626,13 +627,10 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 	    for ( ; k < k_end && *k == ' '; k++) ;
 	    if (k == k_end)
 	      goto cmp_rest;		/* should never happen */
-	    if ((uchar) *k < (uchar) ' ')
-	    {
-	      my_flag= 1;		/* Compared string is smaller */
-	      break;
-	    }
-	    my_flag= -1;		/* Continue searching */
+	    my_flag= (uchar)' ' - *k;
 	  }
+          if ((reverse ? -my_flag : my_flag) > 0)
+            break;
         }
         else if (len > cmplen)
         {
@@ -646,12 +644,9 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 	       vseg++, matched++) ;
 	  DBUG_ASSERT(vseg < vseg_end);
 
-	  if ((uchar) *vseg > (uchar) ' ')
-	  {
-	    my_flag= 1;			/* Compared string is smaller */
-	    break;
-	  }
-	  my_flag= -1;			/* Continue searching */
+          my_flag= *vseg - (uchar)' ';
+          if ((reverse ? -my_flag : my_flag) > 0)
+            break;
         }
         else
 	{
@@ -690,7 +685,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
     *ret_pos=page;
   }
   if (my_flag)
-    flag=(keyinfo->seg->flag & HA_REVERSE_SORT) ? -my_flag : my_flag;
+    flag= reverse ? -my_flag : my_flag;
   if (flag == 0)
   {
     memcpy(buff,t_buff,saved_length=seg_len_pack+prefix_len);
