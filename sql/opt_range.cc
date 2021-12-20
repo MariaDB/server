@@ -1879,7 +1879,6 @@ SEL_ARG::SEL_ARG(SEL_ARG &arg) :Sql_alloc()
   max_flag=arg.max_flag;
   maybe_flag=arg.maybe_flag;
   maybe_null=arg.maybe_null;
-  is_ascending= arg.is_ascending;
   part=arg.part;
   field=arg.field;
   min_value=arg.min_value;
@@ -1905,10 +1904,9 @@ inline void SEL_ARG::make_root()
   use_count=0; elements=1;
 }
 
-SEL_ARG::SEL_ARG(Field *f, bool is_asc, const uchar *min_value_arg,
+SEL_ARG::SEL_ARG(Field *f, const uchar *min_value_arg,
                  const uchar *max_value_arg)
   :min_flag(0), max_flag(0), maybe_flag(0), maybe_null(f->real_maybe_null()),
-   is_ascending(is_asc),
    elements(1), use_count(1), field(f), min_value((uchar*) min_value_arg),
    max_value((uchar*) max_value_arg), next(0),prev(0),
    next_key_part(0), color(BLACK), type(KEY_RANGE), weight(1)
@@ -1917,11 +1915,11 @@ SEL_ARG::SEL_ARG(Field *f, bool is_asc, const uchar *min_value_arg,
   max_part_no= 1;
 }
 
-SEL_ARG::SEL_ARG(Field *field_,uint8 part_, bool is_asc_,
+SEL_ARG::SEL_ARG(Field *field_,uint8 part_,
                  uchar *min_value_, uchar *max_value_,
 		 uint8 min_flag_,uint8 max_flag_,uint8 maybe_flag_)
   :min_flag(min_flag_),max_flag(max_flag_),maybe_flag(maybe_flag_),
-   part(part_),maybe_null(field_->real_maybe_null()), is_ascending(is_asc_),
+   part(part_),maybe_null(field_->real_maybe_null()),
    elements(1),use_count(1),
    field(field_), min_value(min_value_), max_value(max_value_),
    next(0),prev(0),next_key_part(0),color(BLACK),type(KEY_RANGE), weight(1)
@@ -1941,8 +1939,8 @@ SEL_ARG::SEL_ARG(Field *field_,uint8 part_, bool is_asc_,
 class SEL_ARG_LE: public SEL_ARG
 {
 public:
-  SEL_ARG_LE(const uchar *key, Field *field, bool is_asc)
-   :SEL_ARG(field, is_asc, key, key)
+  SEL_ARG_LE(const uchar *key, Field *field)
+   :SEL_ARG(field, key, key)
   {
     if (!field->real_maybe_null())
       min_flag= NO_MIN_RANGE;     // From start
@@ -1962,17 +1960,17 @@ public:
     Use this constructor if value->save_in_field() went precisely,
     without any data rounding or truncation.
   */
-  SEL_ARG_LT(const uchar *key, Field *field, bool is_asc)
-   :SEL_ARG_LE(key, field, is_asc)
+  SEL_ARG_LT(const uchar *key, Field *field)
+   :SEL_ARG_LE(key, field)
   { max_flag= NEAR_MAX; }
   /*
     Use this constructor if value->save_in_field() returned success,
     but we don't know if rounding or truncation happened
     (as some Field::store() do not report minor data changes).
   */
-  SEL_ARG_LT(THD *thd, const uchar *key, Field *field, bool is_asc,
+  SEL_ARG_LT(THD *thd, const uchar *key, Field *field,
              Item *value)
-   :SEL_ARG_LE(key, field, is_asc)
+   :SEL_ARG_LE(key, field)
   {
     if (stored_field_cmp_to_item(thd, field, value) == 0)
       max_flag= NEAR_MAX;
@@ -1988,7 +1986,7 @@ public:
     without any data rounding or truncation.
   */
   SEL_ARG_GT(const uchar *key, const KEY_PART *key_part, Field *field)
-   :SEL_ARG(field, !(key_part->flag & HA_REVERSE_SORT), key, key)
+   :SEL_ARG(field, key, key)
   {
     // Don't use open ranges for partial key_segments
     if (!(key_part->flag & HA_PART_KEY_SEG))
@@ -2002,7 +2000,7 @@ public:
   */
   SEL_ARG_GT(THD *thd, const uchar *key,
              const KEY_PART *key_part, Field *field, Item *value)
-   :SEL_ARG(field, !(key_part->flag & HA_REVERSE_SORT), key, key)
+   :SEL_ARG(field, key, key)
   {
     // Don't use open ranges for partial key_segments
     if ((!(key_part->flag & HA_PART_KEY_SEG)) &&
@@ -2020,8 +2018,8 @@ public:
     Use this constructor if value->save_in_field() went precisely,
     without any data rounding or truncation.
   */
-  SEL_ARG_GE(const uchar *key, Field *field, bool is_asc)
-   :SEL_ARG(field, is_asc, key, key)
+  SEL_ARG_GE(const uchar *key, Field *field)
+   :SEL_ARG(field, key, key)
   {
     max_flag= NO_MAX_RANGE;
   }
@@ -2032,7 +2030,7 @@ public:
   */
   SEL_ARG_GE(THD *thd, const uchar *key,
              const KEY_PART *key_part, Field *field, Item *value)
-   :SEL_ARG(field, !(key_part->flag & HA_REVERSE_SORT), key, key)
+   :SEL_ARG(field, key, key)
   {
     // Don't use open ranges for partial key_segments
     if ((!(key_part->flag & HA_PART_KEY_SEG)) &&
@@ -2063,7 +2061,7 @@ SEL_ARG *SEL_ARG::clone(RANGE_OPT_PARAM *param, SEL_ARG *new_parent,
   }
   else
   {
-    if (!(tmp= new (param->mem_root) SEL_ARG(field, part, is_ascending,
+    if (!(tmp= new (param->mem_root) SEL_ARG(field, part,
                                              min_value, max_value,
                                              min_flag, max_flag, maybe_flag)))
       return 0;					// OOM
@@ -3244,6 +3242,7 @@ double records_in_column_ranges(PARAM *param, uint idx,
 
   seq.keyno= idx;
   seq.real_keyno= MAX_KEY;
+  seq.key_parts= param->key[idx];
   seq.param= param;
   seq.start= tree;
   seq.is_ror_scan= FALSE;
@@ -8672,8 +8671,7 @@ Item_func_null_predicate::get_mm_leaf(RANGE_OPT_PARAM *param,
   if (!field->real_maybe_null())
     DBUG_RETURN(type == ISNULL_FUNC ? &null_element : NULL);
   SEL_ARG *tree;
-  bool is_asc= !(key_part->flag & HA_REVERSE_SORT);
-  if (!(tree= new (alloc) SEL_ARG(field, is_asc, is_null_string, is_null_string)))
+  if (!(tree= new (alloc) SEL_ARG(field, is_null_string, is_null_string)))
     DBUG_RETURN(0);
   if (type == Item_func::ISNOTNULL_FUNC)
   {
@@ -8773,8 +8771,7 @@ Item_func_like::get_mm_leaf(RANGE_OPT_PARAM *param,
     int2store(min_str + maybe_null, min_length);
     int2store(max_str + maybe_null, max_length);
   }
-  bool is_asc= !(key_part->flag & HA_REVERSE_SORT);
-  SEL_ARG *tree= new (param->mem_root) SEL_ARG(field, is_asc, min_str, max_str);
+  SEL_ARG *tree= new (param->mem_root) SEL_ARG(field, min_str, max_str);
   DBUG_RETURN(tree);
 }
 
@@ -9022,19 +9019,18 @@ SEL_ARG *Field::stored_field_make_mm_leaf(RANGE_OPT_PARAM *param,
   if (!(str= make_key_image(param->mem_root, key_part)))
     DBUG_RETURN(0);
 
-  bool is_asc= !(key_part->flag & HA_REVERSE_SORT);
   switch (op) {
   case SCALAR_CMP_LE:
-    DBUG_RETURN(new (mem_root) SEL_ARG_LE(str, this, is_asc));
+    DBUG_RETURN(new (mem_root) SEL_ARG_LE(str, this));
   case SCALAR_CMP_LT:
-    DBUG_RETURN(new (mem_root) SEL_ARG_LT(thd, str, this, is_asc, value));
+    DBUG_RETURN(new (mem_root) SEL_ARG_LT(thd, str, this, value));
   case SCALAR_CMP_GT:
     DBUG_RETURN(new (mem_root) SEL_ARG_GT(thd, str, key_part, this, value));
   case SCALAR_CMP_GE:
     DBUG_RETURN(new (mem_root) SEL_ARG_GE(thd, str, key_part, this, value));
   case SCALAR_CMP_EQ:
   case SCALAR_CMP_EQUAL:
-    DBUG_RETURN(new (mem_root) SEL_ARG(this, is_asc, str, str));
+    DBUG_RETURN(new (mem_root) SEL_ARG(this, str, str));
     break;
   }
   DBUG_ASSERT(0);
@@ -9052,19 +9048,18 @@ SEL_ARG *Field::stored_field_make_mm_leaf_exact(RANGE_OPT_PARAM *param,
   if (!(str= make_key_image(param->mem_root, key_part)))
     DBUG_RETURN(0);
 
-  bool is_asc= !(key_part->flag & HA_REVERSE_SORT);
   switch (op) {
   case SCALAR_CMP_LE:
-    DBUG_RETURN(new (param->mem_root) SEL_ARG_LE(str, this, is_asc));
+    DBUG_RETURN(new (param->mem_root) SEL_ARG_LE(str, this));
   case SCALAR_CMP_LT:
-    DBUG_RETURN(new (param->mem_root) SEL_ARG_LT(str, this, is_asc));
+    DBUG_RETURN(new (param->mem_root) SEL_ARG_LT(str, this));
   case SCALAR_CMP_GT:
     DBUG_RETURN(new (param->mem_root) SEL_ARG_GT(str, key_part, this));
   case SCALAR_CMP_GE:
-    DBUG_RETURN(new (param->mem_root) SEL_ARG_GE(str, this, is_asc));
+    DBUG_RETURN(new (param->mem_root) SEL_ARG_GE(str, this));
   case SCALAR_CMP_EQ:
   case SCALAR_CMP_EQUAL:
-    DBUG_RETURN(new (param->mem_root) SEL_ARG(this, is_asc, str, str));
+    DBUG_RETURN(new (param->mem_root) SEL_ARG(this, str, str));
     break;
   }
   DBUG_ASSERT(0);
@@ -11534,6 +11529,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
 
   seq.keyno= idx;
   seq.real_keyno= keynr;
+  seq.key_parts= param->key[idx];
   seq.param= param;
   seq.start= tree;
 
@@ -11788,9 +11784,9 @@ void SEL_ARG::store_next_min_max_keys(KEY_PART *key,
                                       int *min_part, int *max_part)
 {
   DBUG_ASSERT(next_key_part);
-  bool asc = next_key_part->is_ascending;
+  const bool asc = !(key[next_key_part->part].flag & HA_REVERSE_SORT);
 
-  if (!get_min_flag())
+  if (!get_min_flag(key))
   {
     if (asc)
     {
@@ -11805,7 +11801,7 @@ void SEL_ARG::store_next_min_max_keys(KEY_PART *key,
       *cur_min_flag = invert_max_flag(tmp_flag);
     }
   }
-  if (!get_max_flag())
+  if (!get_max_flag(key))
   {
     if (asc)
     {
@@ -11835,7 +11831,8 @@ get_quick_keys(PARAM *param,QUICK_RANGE_SELECT *quick,KEY_PART *key,
   int min_part= key_tree->part-1, // # of keypart values in min_key buffer
       max_part= key_tree->part-1; // # of keypart values in max_key buffer
 
-  SEL_ARG *next_tree = key_tree->is_ascending ? key_tree->left : key_tree->right;
+  const bool asc = !(key[key_tree->part].flag & HA_REVERSE_SORT);
+  SEL_ARG *next_tree = asc ? key_tree->left : key_tree->right;
   if (next_tree != &null_element)
   {
     if (get_quick_keys(param,quick,key,next_tree,
@@ -11844,7 +11841,7 @@ get_quick_keys(PARAM *param,QUICK_RANGE_SELECT *quick,KEY_PART *key,
   }
   uchar *tmp_min_key=min_key,*tmp_max_key=max_key;
 
-  key_tree->store_min_max(key[key_tree->part].store_length,
+  key_tree->store_min_max(key, key[key_tree->part].store_length,
                           &tmp_min_key, min_key_flag,
                           &tmp_max_key, max_key_flag,
                           &min_part, &max_part);
@@ -11867,8 +11864,8 @@ get_quick_keys(PARAM *param,QUICK_RANGE_SELECT *quick,KEY_PART *key,
       goto end;					// Ugly, but efficient
     }
     {
-      uint tmp_min_flag= key_tree->get_min_flag();
-      uint tmp_max_flag= key_tree->get_max_flag();
+      uint tmp_min_flag= key_tree->get_min_flag(key);
+      uint tmp_max_flag= key_tree->get_max_flag(key);
 
       key_tree->store_next_min_max_keys(key,
                                         &tmp_min_key, &tmp_min_flag,
@@ -11879,7 +11876,7 @@ get_quick_keys(PARAM *param,QUICK_RANGE_SELECT *quick,KEY_PART *key,
   }
   else
   {
-    if (key_tree->is_ascending)
+    if (asc)
     {
       flag= (key_tree->min_flag & GEOM_FLAG) ? key_tree->min_flag:
                                               (key_tree->min_flag |
@@ -11951,7 +11948,7 @@ get_quick_keys(PARAM *param,QUICK_RANGE_SELECT *quick,KEY_PART *key,
     return 1;
 
  end:
-  next_tree = key_tree->is_ascending ? key_tree->right : key_tree->left;
+  next_tree= asc ? key_tree->right : key_tree->left;
   if (next_tree != &null_element)
     return get_quick_keys(param,quick,key,next_tree,
 			  min_key,min_key_flag,
@@ -16562,6 +16559,7 @@ static void trace_ranges(Json_writer_array *range_trace,
   uint n_key_parts= param->table->actual_n_key_parts(keyinfo);
   DBUG_ASSERT(range_trace->trace_started());
   seq.keyno= idx;
+  seq.key_parts= param->key[idx];
   seq.real_keyno= param->real_keynr[idx];
   seq.param= param;
   seq.start= keypart;
