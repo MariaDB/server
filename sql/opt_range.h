@@ -307,11 +307,6 @@ public:
   uint8 part;					// Which key part
   uint8 maybe_null;
   /*
-    Whether the keypart is ascending or descending.
-    See HowRangeOptimizerHandlesDescKeyparts for details.
-  */
-  uint8 is_ascending;
-  /*
     The ordinal number the least significant component encountered in
     the ranges of the SEL_ARG tree (the first component has number 1)
 
@@ -361,14 +356,14 @@ public:
 
   SEL_ARG() {}
   SEL_ARG(SEL_ARG &);
-  SEL_ARG(Field *, bool is_asc, const uchar *, const uchar *);
-  SEL_ARG(Field *field, uint8 part, bool is_asc,
+  SEL_ARG(Field *, const uchar *, const uchar *);
+  SEL_ARG(Field *field, uint8 part,
           uchar *min_value, uchar *max_value,
 	  uint8 min_flag, uint8 max_flag, uint8 maybe_flag);
 
   /* This is used to construct degenerate SEL_ARGS like ALWAYS, IMPOSSIBLE, etc */
   SEL_ARG(enum Type type_arg)
-    :min_flag(0), is_ascending(false),
+    :min_flag(0),
      max_part_no(0) /* first key part means 1. 0 mean 'no parts'*/,
      elements(1),use_count(1),left(0),right(0),
      next_key_part(0), color(BLACK), type(type_arg), weight(1)
@@ -447,20 +442,20 @@ public:
     {
       new_max=arg->max_value; flag_max=arg->max_flag;
     }
-    return new (thd->mem_root) SEL_ARG(field, part, is_ascending,
+    return new (thd->mem_root) SEL_ARG(field, part,
                                        new_min, new_max, flag_min,
                                        flag_max,
                                        MY_TEST(maybe_flag && arg->maybe_flag));
   }
   SEL_ARG *clone_first(SEL_ARG *arg)
   {						// min <= X < arg->min
-    return new SEL_ARG(field, part, is_ascending, min_value, arg->min_value,
+    return new SEL_ARG(field, part, min_value, arg->min_value,
 		       min_flag, arg->min_flag & NEAR_MIN ? 0 : NEAR_MAX,
 		       maybe_flag | arg->maybe_flag);
   }
   SEL_ARG *clone_last(SEL_ARG *arg)
   {						// min <= X <= key_max
-    return new SEL_ARG(field, part, is_ascending, min_value, arg->max_value,
+    return new SEL_ARG(field, part, min_value, arg->max_value,
 		       min_flag, arg->max_flag, maybe_flag | arg->maybe_flag);
   }
   SEL_ARG *clone(RANGE_OPT_PARAM *param, SEL_ARG *new_parent, SEL_ARG **next);
@@ -544,44 +539,45 @@ public:
   }
 
   /* Save minimum and maximum, taking index order into account  */
-  void store_min_max(uint length,
+  void store_min_max(KEY_PART *kp,
+                     uint length,
                      uchar **min_key, uint min_flag,
                      uchar **max_key, uint max_flag,
                      int *min_part, int *max_part)
   {
-    if (is_ascending) {
-      *min_part += store_min(length, min_key, min_flag);
-      *max_part += store_max(length, max_key, max_flag);
-    } else {
+    if (kp[part].flag & HA_REVERSE_SORT) {
       *max_part += store_min(length, max_key, min_flag);
       *min_part += store_max(length, min_key, max_flag);
+    } else {
+      *min_part += store_min(length, min_key, min_flag);
+      *max_part += store_max(length, max_key, max_flag);
     }
   }
   /*
     Get the flag for range's starting endpoint, taking index order into
     account.
   */
-  uint get_min_flag()
+  uint get_min_flag(KEY_PART *kp)
   {
-    return (is_ascending ? min_flag : invert_max_flag(max_flag));
+    return (kp[part].flag & HA_REVERSE_SORT)? invert_max_flag(max_flag) : min_flag;
   }
   /*
     Get the flag for range's starting endpoint, taking index order into
     account.
   */
-  uint get_max_flag()
+  uint get_max_flag(KEY_PART *kp)
   {
-    return (is_ascending ? max_flag : invert_min_flag(min_flag));
+    return (kp[part].flag & HA_REVERSE_SORT)? invert_min_flag(min_flag) : max_flag ;
   }
   /* Get the previous interval, taking index order into account */
-  inline SEL_ARG* index_order_prev()
+  inline SEL_ARG* index_order_prev(KEY_PART *kp)
   {
-    return is_ascending? prev: next;
+    return (kp[part].flag & HA_REVERSE_SORT)? next : prev;
   }
   /* Get the next interval, taking index order into account */
-  inline SEL_ARG* index_order_next()
+  inline SEL_ARG* index_order_next(KEY_PART *kp)
   {
-    return is_ascending? next: prev;
+    return (kp[part].flag & HA_REVERSE_SORT)? prev : next;
   }
 
   /*
@@ -621,7 +617,7 @@ public:
 	nkp->part == key_tree->part+1 &&
 	!(*range_key_flag & (NO_MIN_RANGE | NEAR_MIN)))
     {
-      const bool asc = nkp->is_ascending;
+      const bool asc = !(key[key_tree->part].flag & HA_REVERSE_SORT);
       if (start_key == asc)
       {
         res+= nkp->store_min_key(key, range_key, range_key_flag, last_part,
@@ -657,7 +653,7 @@ public:
 	nkp->part == key_tree->part+1 &&
 	!(*range_key_flag & (NO_MAX_RANGE | NEAR_MAX)))
     {
-      const bool asc = nkp->is_ascending;
+      const bool asc = !(key[key_tree->part].flag & HA_REVERSE_SORT);
       if ((!start_key && asc) || (start_key && !asc))
       {
         res += nkp->store_max_key(key, range_key, range_key_flag, last_part,
@@ -785,9 +781,6 @@ public:
 
   Range Optimizer handles this as follows:
 
-  The SEL_ARG object has SEL_ARG::is_ascending which specifies whether the
-  keypart is ascending.
-
   Other than that, the SEL_ARG graph is built without any regard to DESC
   keyparts.
 
@@ -799,7 +792,7 @@ public:
 
     kp1 BETWEEN 10 and 20       (RANGE-1)
 
-  the SEL_ARG will have min_value=10, max_value=20, is_ascending=false.
+  the SEL_ARG will have min_value=10, max_value=20
 
   The ordering of key parts is taken into account when SEL_ARG graph is
   linearized to ranges, in sel_arg_range_seq_next() and get_quick_keys().
@@ -850,7 +843,7 @@ class SEL_ARG_IMPOSSIBLE: public SEL_ARG
 {
 public:
   SEL_ARG_IMPOSSIBLE(Field *field)
-   :SEL_ARG(field, false, 0, 0)
+   :SEL_ARG(field, 0, 0)
   {
     type= SEL_ARG::IMPOSSIBLE;
   }
