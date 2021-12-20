@@ -3071,8 +3071,7 @@ lsn_t fil_names_clear(lsn_t lsn)
 
 	mysql_mutex_assert_owner(&log_sys.mutex);
 	ut_ad(lsn);
-	ut_ad(log_sys.log.format == log_t::FORMAT_10_8
-	      || log_sys.log.format == log_t::FORMAT_ENC_10_8);
+	ut_ad(log_sys.is_latest());
 
 	mtr.start();
 

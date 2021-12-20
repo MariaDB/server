@@ -1988,7 +1988,8 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse_mtr(store_t store)
   map::iterator cached_pages_it{pages.end()};
 
   /* Check that the entire mini-transaction is included within the buffer */
-  const byte *const begin{buf + recovered_offset}, *const end{&buf[len]};
+  const byte *const begin{buf + recovered_offset},
+    *const end{&buf[len >= MTR_SIZE_MAX ? MTR_SIZE_MAX : len]};
   if (begin >= end)
   {
     ut_ad(begin == end);
@@ -2018,7 +2019,7 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse_mtr(store_t store)
   }
 
   /* Not the entire mini-transaction was present. */
-  return PREMATURE_EOF;
+  return recovered_offset < log_sys.BLOCK_SIZE ? GOT_EOF : PREMATURE_EOF;
 
  eom_found:
   if (*l != log_sys.get_sequence_bit((l - begin) + recovered_lsn))
@@ -2076,7 +2077,7 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse_mtr(store_t store)
 
     if (b <= 1)
     {
-      l+= log_sys.log.format == log_t::FORMAT_ENC_10_8 ? 8 + 4 : 4;
+      l+= log_sys.is_encrypted() ? 8 + 4 : 4;
       break;
     }
 
