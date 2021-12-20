@@ -288,7 +288,7 @@ void WSREP_LOG(void (*fun)(const char* fmt, ...), const char* fmt, ...)
   char msg[128] = {'\0'};
   va_list arglist;
   va_start(arglist, fmt);
-  int n= vsnprintf(msg, sizeof(msg) - 1, fmt, arglist);
+  int n= vsnprintf(msg, sizeof(msg), fmt, arglist);
   va_end(arglist);
   if (n < 0)
   {
