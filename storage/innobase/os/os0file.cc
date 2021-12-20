@@ -37,9 +37,10 @@ Created 10/21/1995 Heikki Tuuri
 #include "os0file.h"
 #include "sql_const.h"
 
-#ifdef UNIV_LINUX
+#ifdef __linux__
 # include <sys/types.h>
 # include <sys/stat.h>
+# include <sys/sysmacros.h>
 #endif
 
 #include "srv0mon.h"
@@ -63,13 +64,6 @@ Created 10/21/1995 Heikki Tuuri
 # include <fcntl.h>
 # include <linux/falloc.h>
 #endif /* HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE */
-
-#if defined(UNIV_LINUX) && defined(HAVE_SYS_IOCTL_H)
-# include <sys/ioctl.h>
-# ifndef DFS_IOCTL_ATOMIC_WRITE_SET
-#  define DFS_IOCTL_ATOMIC_WRITE_SET _IOW(0x95, 2, uint)
-# endif
-#endif
 
 #ifdef _WIN32
 #include <winioctl.h>
@@ -1287,21 +1281,60 @@ os_file_create_func(
 
 	} while (retry);
 
-	/* We disable OS caching (O_DIRECT) only on data files */
-	if (!read_only
-	    && *success
-	    && type == OS_DATA_FILE) {
-		os_file_set_nocache(file, name, mode_str);
+	if (read_only || !*success) {
+		return file;
 	}
 
+#if (defined(UNIV_SOLARIS) && defined(DIRECTIO_ON)) || defined O_DIRECT
+	if (type == OS_DATA_FILE) {
+# ifdef __linux__
+use_o_direct:
+# endif
+		os_file_set_nocache(file, name, mode_str);
+# ifdef __linux__
+	} else if (type == OS_LOG_FILE) {
+		struct stat st;
+		if (fstat(file, &st) || st.st_size & (log_sys.BLOCK_SIZE -1)) {
+			goto skip_o_direct;
+		}
+		/* Linux seems to allow up to 15 partitions per block device.
+		Partition number 0 is the whole block device. */
+		char b[20 + sizeof "/sys/dev/block/" ":"
+		       "/queue/physical_block_size"];
+		if (snprintf(b, sizeof b,
+			     "/sys/dev/block/%u:%u/queue/physical_block_size",
+			     major(st.st_dev), minor(st.st_dev) & ~15U)
+		    >= static_cast<int>(sizeof b)) {
+			goto skip_o_direct;
+		}
+		int f = open(b, O_RDONLY);
+		if (f == -1) {
+			goto skip_o_direct;
+		}
+
+		ssize_t l = read(f, b, sizeof b);
+		bool use_o_direct = false;
+		if (l > 0 && static_cast<size_t>(l) < sizeof b
+		    && b[l - 1] == '\n') {
+			char* end = b;
+			unsigned long ps = strtoul(b, &end, 10);
+			if (b != end && *end == '\n'
+			    && ps == log_sys.BLOCK_SIZE) {
+				use_o_direct = true;
+			}
+		}
+		close(f);
+		if (use_o_direct) {
+			goto use_o_direct;
+		}
+	}
+skip_o_direct:
+# endif
+#endif
+
 #ifdef USE_FILE_LOCK
-	if (!read_only
-	    && *success
-	    && create_mode != OS_FILE_OPEN_RAW
-	    && os_file_lock(file, name)) {
-
+	if (create_mode != OS_FILE_OPEN_RAW && os_file_lock(file, name)) {
 		if (create_mode == OS_FILE_OPEN_RETRY) {
-
 			ib::info()
 				<< "Retrying to lock the first data file";
 
