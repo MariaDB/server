@@ -446,6 +446,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
   MARIA_KEYDEF *keyinfo= key->keyinfo;
   MARIA_SHARE *share= keyinfo->share;
   const uchar *sort_order= keyinfo->seg->charset->sort_order;
+  const int reverse = keyinfo->seg->flag & HA_REVERSE_SORT;
   DBUG_ENTER("_ma_prefix_search");
 
   t_buff[0]=0;                                  /* Avoid bugs */
@@ -599,7 +600,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
             break;
       }
 
-      if (my_flag>0)      /* mismatch */
+      if ((reverse ? -my_flag : my_flag) > 0)      /* mismatch */
         break;
       if (my_flag==0) /* match */
       {
@@ -690,7 +691,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
     *ret_pos=page;
   }
   if (my_flag)
-    flag=(keyinfo->seg->flag & HA_REVERSE_SORT) ? -my_flag : my_flag;
+    flag= reverse ? -my_flag : my_flag;
   if (flag == 0)
   {
     memcpy(buff,t_buff,saved_length=seg_len_pack+prefix_len);
