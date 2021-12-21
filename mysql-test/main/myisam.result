@@ -2739,5 +2739,17 @@ ALTER  TABLE t1 ADD KEY(c DESC, id);
 INSERT INTO t1 VALUES (1,NULL),(2,''),(3,'');
 DROP TABLE t1;
 #
+# MDEV-27330 Wrong sorting order with DESC index and empty strings in MyISAM/Aria table
+#
+create table t (id int, c char(128) not null, key (c desc));
+insert into t values (1,''),(2,'foo'),(3,''),(4,'bar');
+select c from t order by c;
+c
+
+
+bar
+foo
+drop table t;
+#
 # End of 10.8 tests
 #

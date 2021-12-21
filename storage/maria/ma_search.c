@@ -580,7 +580,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 
       /*
         If prefix_len > cmplen then we are in the end-space comparison
-        phase. Do not try to acces the key any more ==> left= 0.
+        phase. Do not try to access the key any more ==> left= 0.
       */
       left= ((len <= cmplen) ? suffix_len :
              ((prefix_len < cmplen) ? cmplen - prefix_len : 0));
@@ -627,13 +627,10 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 	    for ( ; k < k_end && *k == ' '; k++) ;
 	    if (k == k_end)
 	      goto cmp_rest;		/* should never happen */
-	    if ((uchar) *k < (uchar) ' ')
-	    {
-	      my_flag= 1;		/* Compared string is smaller */
-	      break;
-	    }
-	    my_flag= -1;		/* Continue searching */
+	    my_flag= (uchar)' ' - *k;
 	  }
+          if ((reverse ? -my_flag : my_flag) > 0)
+            break;
         }
         else if (len > cmplen)
         {
@@ -647,12 +644,9 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 	       vseg++, matched++) ;
 	  DBUG_ASSERT(vseg < vseg_end);
 
-	  if ((uchar) *vseg > (uchar) ' ')
-	  {
-	    my_flag= 1;			/* Compared string is smaller */
-	    break;
-	  }
-	  my_flag= -1;			/* Continue searching */
+          my_flag= *vseg - (uchar)' ';
+          if ((reverse ? -my_flag : my_flag) > 0)
+            break;
         }
         else
 	{
