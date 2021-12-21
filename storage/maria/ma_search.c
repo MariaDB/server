@@ -600,8 +600,6 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
             break;
       }
 
-      if ((reverse ? -my_flag : my_flag) > 0)      /* mismatch */
-        break;
       if (my_flag==0) /* match */
       {
 	/*
@@ -629,8 +627,6 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 	      goto cmp_rest;		/* should never happen */
 	    my_flag= (uchar)' ' - *k;
 	  }
-          if ((reverse ? -my_flag : my_flag) > 0)
-            break;
         }
         else if (len > cmplen)
         {
@@ -643,10 +639,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 	       vseg < vseg_end && *vseg == (uchar) ' ';
 	       vseg++, matched++) ;
 	  DBUG_ASSERT(vseg < vseg_end);
-
           my_flag= *vseg - (uchar)' ';
-          if ((reverse ? -my_flag : my_flag) > 0)
-            break;
         }
         else
 	{
@@ -674,6 +667,8 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 	  }
 	}
       }
+      if ((reverse ? -my_flag : my_flag) > 0)      /* mismatch */
+        break;
       matched-=left;
     }
     /* else (matched < prefix_len) ---> do nothing. */
