@@ -168,7 +168,6 @@ void log_t::create()
 {
   ut_ad(this == &log_sys);
   ut_ad(!is_initialised());
-  m_initialised= true;
 
 #if defined(__aarch64__)
   mysql_mutex_init(log_sys_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
@@ -213,6 +212,8 @@ void log_t::create()
   buf_free= 0;
   checkpoint_buf= static_cast<byte*>(aligned_malloc(4096, 4096));
   memset_aligned<4096>(checkpoint_buf, 0, 4096);
+
+  ut_ad(is_initialised());
 }
 
 file_os_io::file_os_io(file_os_io &&rhs) : m_fd(rhs.m_fd)
@@ -1265,7 +1266,6 @@ void log_t::close()
 {
   ut_ad(this == &log_sys);
   if (!is_initialised()) return;
-  m_initialised= false;
   log.close();
 
   ut_free_dodump(buf, srv_log_buffer_size);
@@ -1280,6 +1280,8 @@ void log_t::close()
 
   aligned_free(checkpoint_buf);
   checkpoint_buf= nullptr;
+
+  max_buf_free= 0;
 }
 
 std::string get_log_file_path(const char *filename)

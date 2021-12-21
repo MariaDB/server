@@ -394,23 +394,12 @@ public:
   byte *checkpoint_buf;
 	/* @} */
 
-private:
-  bool m_initialised;
-public:
-  /**
-    Constructor.
-
-    Some members may require late initialisation, thus we just mark object as
-    uninitialised. Real initialisation happens in create().
-  */
-  log_t(): m_initialised(false) {}
-
   /** @return whether the redo log is encrypted */
   bool is_encrypted() const { return(log.is_encrypted()); }
   /** @return whether the redo log is in the latest format */
   bool is_latest() const { return log.is_latest(); }
 
-  bool is_initialised() const { return m_initialised; }
+  bool is_initialised() const noexcept { return max_buf_free != 0; }
 
   lsn_t get_lsn(std::memory_order order= std::memory_order_relaxed) const
   { return lsn.load(order); }
