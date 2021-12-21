@@ -836,13 +836,16 @@ processed:
         space->free_len= flst_get_len(FSP_HEADER_OFFSET + FSP_FREE + page);
         fil_node_t *node= UT_LIST_GET_FIRST(space->chain);
         if (!space->acquire())
+	{
+free_space:
+          fil_space_free(it->first, false);
           goto next_item;
+	}
         if (os_file_write(IORequestWrite, node->name, node->handle,
-                          page, 0, fil_space_t::physical_size(flags) !=
-            DB_SUCCESS))
+                          page, 0, fil_space_t::physical_size(flags)) !=            DB_SUCCESS)
         {
           space->release();
-          goto next_item;
+          goto free_space;
         }
         space->release();
         it->second.space= space;
