@@ -97,6 +97,13 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 drop table t1;
 #
+# MDEV-27309 Server crash or ASAN memcpy-param-overlap upon INSERT into Aria/MyISAM table with DESC key
+#
+CREATE TABLE t1 (id INT, c BINARY(80), PRIMARY KEY(id));
+ALTER  TABLE t1 ADD KEY(c DESC, id);
+INSERT INTO t1 VALUES (1,NULL),(2,''),(3,'');
+DROP TABLE t1;
+#
 # MDEV-27330 Wrong sorting order with DESC index and empty strings in MyISAM/Aria table
 #
 create table t (id int, c char(128) not null, key (c desc)) engine=aria;
@@ -107,6 +114,31 @@ c
 
 bar
 foo
+drop table t;
+#
+# MDEV-27340 NULL gets lost (becomes empty string), SELECT hangs with DESC index on MyISAM/Aria table
+#
+create table t (c char(8), key(c desc)) engine=aria character set utf8mb4;
+insert into t values (''),('foo'),(null),(''),('bar');
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select distinct c from t;
+c
+NULL
+
+bar
+foo
+select c from t;
+c
+foo
+bar
+
+
+NULL
 drop table t;
 #
 # End of 10.8 tests

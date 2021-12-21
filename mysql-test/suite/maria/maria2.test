@@ -139,11 +139,30 @@ check table t1 extended;
 drop table t1;
 
 --echo #
+--echo # MDEV-27309 Server crash or ASAN memcpy-param-overlap upon INSERT into Aria/MyISAM table with DESC key
+--echo #
+CREATE TABLE t1 (id INT, c BINARY(80), PRIMARY KEY(id));
+ALTER  TABLE t1 ADD KEY(c DESC, id);
+INSERT INTO t1 VALUES (1,NULL),(2,''),(3,'');
+DROP TABLE t1;
+
+--echo #
 --echo # MDEV-27330 Wrong sorting order with DESC index and empty strings in MyISAM/Aria table
 --echo #
 create table t (id int, c char(128) not null, key (c desc)) engine=aria;
 insert into t values (1,''),(2,'foo'),(3,''),(4,'bar');
 select c from t order by c;
+drop table t;
+
+--echo #
+--echo # MDEV-27340 NULL gets lost (becomes empty string), SELECT hangs with DESC index on MyISAM/Aria table
+--echo #
+create table t (c char(8), key(c desc)) engine=aria character set utf8mb4;
+insert into t values (''),('foo'),(null),(''),('bar');
+check table t;
+check table t extended;
+select distinct c from t;
+select c from t;
 drop table t;
 
 --echo #

@@ -2039,7 +2039,7 @@ _ma_calc_var_pack_key_length(const MARIA_KEY *int_key, uint nod_flag,
   DBUG_PRINT("test",("tot_length: %u  length: %d  uniq_key_length: %u",
                      key_length, length, s_temp->key_length));
 
-        /* If something after that hasn't length=0, test if we can combine */
+  /* If something after that hasn't length=0, test if we can combine */
   if ((s_temp->next_key_pos=next_key))
   {
     uint packed,n_length;
@@ -2052,7 +2052,7 @@ _ma_calc_var_pack_key_length(const MARIA_KEY *int_key, uint nod_flag,
     }
     else
       n_length= *next_key++ & 127;
-    if (!packed)
+    if (!packed && n_length)
       n_length-= s_temp->store_not_null;
 
     if (n_length || packed)             /* Don't pack 0 length keys */
@@ -2352,7 +2352,7 @@ void _ma_store_var_pack_key(MARIA_KEYDEF *keyinfo  __attribute__((unused)),
       store_key_length_inc(key_pos,s_temp->n_length);
     }
   }
-  else
+  else if (s_temp->n_length)
   {
     s_temp->n_length+= s_temp->store_not_null;
     store_pack_length(s_temp->pack_marker == 128,key_pos,s_temp->n_length);
