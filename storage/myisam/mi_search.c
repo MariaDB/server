@@ -453,8 +453,6 @@ int _mi_prefix_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
             break;
       }
 
-      if ((reverse ? -my_flag : my_flag) > 0)      /* mismatch */
-        break;
       if (my_flag==0) /* match */
       {
 	/*
@@ -481,8 +479,6 @@ int _mi_prefix_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
 	      goto cmp_rest;		/* should never happen */
 	    my_flag= (uchar)' ' - *k;
 	  }
-          if ((reverse ? -my_flag : my_flag) > 0)
-            break;
         }
         else if (len > cmplen)
         {
@@ -497,9 +493,7 @@ int _mi_prefix_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
 	  DBUG_ASSERT(vseg < vseg_end);
 
           my_flag= *vseg - (uchar)' ';
-          if ((reverse ? -my_flag : my_flag) > 0)
-	    break;
-	  }
+        }
         else
 	{
       cmp_rest:
@@ -525,6 +519,8 @@ int _mi_prefix_search(MI_INFO *info, register MI_KEYDEF *keyinfo, uchar *page,
 	  }
 	}
       }
+      if ((reverse ? -my_flag : my_flag) > 0)      /* mismatch */
+        break;
       matched-=left;
     }
     /* else (matched < prefix_len) ---> do nothing. */
