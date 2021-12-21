@@ -1856,5 +1856,13 @@ check table t1 extended;
 drop table t1;
 
 --echo #
+--echo # MDEV-27309 Server crash or ASAN memcpy-param-overlap upon INSERT into Aria/MyISAM table with DESC key
+--echo #
+CREATE TABLE t1 (id INT, c BINARY(80), PRIMARY KEY(id));
+ALTER  TABLE t1 ADD KEY(c DESC, id);
+INSERT INTO t1 VALUES (1,NULL),(2,''),(3,'');
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.8 tests
 --echo #

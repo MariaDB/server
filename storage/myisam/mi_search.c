@@ -1609,7 +1609,7 @@ _mi_calc_var_pack_key_length(MI_KEYDEF *keyinfo,uint nod_flag,uchar *next_key,
     }
     else
       n_length= *next_key++ & 127;
-    if (!packed)
+    if (!packed && n_length)
       n_length-= s_temp->store_not_null;
 
     if (n_length || packed)             /* Don't pack 0 length keys */
