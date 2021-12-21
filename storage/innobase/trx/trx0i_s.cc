@@ -1275,6 +1275,8 @@ static void fetch_data_into_cache_low(trx_i_s_cache_t *cache, const trx_t *trx)
 
 static void fetch_data_into_cache(trx_i_s_cache_t *cache)
 {
+  const trx_t *const purge_trx= purge_sys.query ? purge_sys.query->trx : NULL;
+
   ut_ad(lock_mutex_own());
   trx_i_s_cache_clear(cache);
 
@@ -1284,7 +1286,7 @@ static void fetch_data_into_cache(trx_i_s_cache_t *cache)
        trx != NULL;
        trx= UT_LIST_GET_NEXT(trx_list, trx))
   {
-    if (trx->state != TRX_STATE_NOT_STARTED && trx != purge_sys.query->trx)
+    if (trx != purge_trx && trx->state != TRX_STATE_NOT_STARTED)
     {
       mutex_enter(&trx->mutex);
       if (trx->state != TRX_STATE_NOT_STARTED)
