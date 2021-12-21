@@ -465,7 +465,7 @@ void log_t::file::open_file(std::string path)
   fd= log_file_t(std::move(path));
   if (const dberr_t err= fd.open(srv_read_only_mode))
     ib::fatal() << "open(" << fd.get_path() << ") returned " << err;
-  file_size= os_file_get_size(fd.get_path().c_str()).m_total_size;
+  log_sys.file_size= os_file_get_size(fd.get_path().c_str()).m_total_size;
 }
 
 /** Update the log block checksum. */
@@ -562,14 +562,14 @@ static void log_write_buf(const byte *buf, size_t len, lsn_t offset)
   ut_ad(!(size_t(buf) & (log_sys.BLOCK_SIZE - 1)));
   ut_ad(len);
 
-  if (UNIV_LIKELY(offset + len <= log_sys.log.file_size))
+  if (UNIV_LIKELY(offset + len <= log_sys.file_size))
   {
 write:
     log_sys.log.write(offset, {buf, len});
     return;
   }
 
-  const size_t write_len= size_t(log_sys.log.file_size - offset);
+  const size_t write_len= size_t(log_sys.file_size - offset);
   log_sys.log.write(offset, {buf, write_len});
   len-= write_len;
   buf+= write_len;
@@ -713,81 +713,63 @@ static size_t log_pad(lsn_t lsn, size_t pad, byte *begin, byte *extra)
 }
 #endif
 
-/**
-Writes log buffer to disk
-which is the "write" part of log_write_up_to().
-
-This function does not flush anything.
-
-Note : the caller must have log_sys.mutex locked, and this
-mutex is released in the function.
-
-*/
-static void log_write(lsn_t lsn)
+/** Write the log buffer to the file and release the mutex.
+@param lsn  the current log sequence number */
+inline void log_t::write(lsn_t lsn) noexcept
 {
-  mysql_mutex_assert_owner(&log_sys.mutex);
-  ut_ad(lsn == log_sys.get_lsn());
+  mysql_mutex_assert_owner(&mutex);
+  ut_ad(lsn == get_lsn());
   ut_ad(!recv_no_log_write);
 
-  if (!log_sys.buf_free)
+  if (!buf_free)
   {
     /* Nothing to write */
-    ut_ad(lsn == log_sys.write_lsn);
-    mysql_mutex_unlock(&log_sys.mutex);
+    ut_ad(lsn == write_lsn);
+    mysql_mutex_unlock(&mutex);
     return;
   }
 
-  const lsn_t offset{
-    log_sys.log.calc_lsn_offset(log_sys.write_lsn) &
-    ~(log_sys.BLOCK_SIZE - 1)
-  };
+  const lsn_t offset{calc_lsn_offset(write_lsn) & ~(BLOCK_SIZE - 1)};
   DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF " at " LSN_PF,
-                        log_sys.write_lsn, lsn, offset));
-  const byte *write_buf{log_sys.buf};
-  size_t length{log_sys.buf_free};
-  ut_ad(length >= (log_sys.log.calc_lsn_offset(log_sys.write_lsn) &
-                   (log_sys.BLOCK_SIZE - 1)));
-  log_sys.buf_free&= log_sys.BLOCK_SIZE - 1;
-  ut_ad(log_sys.buf_free == ((lsn - log_sys.log.get_first_lsn()) &
-                             (log_sys.BLOCK_SIZE - 1)));
+                        write_lsn, lsn, offset));
+  const byte *write_buf{buf};
+  size_t length{buf_free};
+  ut_ad(length >= (calc_lsn_offset(write_lsn) & (BLOCK_SIZE - 1)));
+  buf_free&= BLOCK_SIZE - 1;
+  ut_ad(buf_free == ((lsn - first_lsn) & (BLOCK_SIZE - 1)));
 
-  if (log_sys.buf_free)
+  if (buf_free)
   {
 #if 0 /* TODO: Pad the last log block with dummy records. */
-    log_sys.buf_free= log_pad(lsn, log_sys.BLOCK_SIZE - log_sys.buf_free,
-                              log_sys.buf + log_sys.buf_free,
-                              log_sys.flush_buf);
+    buf_free= log_pad(lsn, BLOCK_SIZE - buf_free, buf + buf_free, flush_buf);
     ... /* TODO: Update the LSN and adjust other code. */
 #else
     /* The rest of the block will be written as garbage.
     This block will be overwritten later, once records beyond
     the current LSN are generated. */
-    MEM_MAKE_DEFINED(log_sys.buf + length,
-                     log_sys.BLOCK_SIZE - log_sys.buf_free);
-    log_sys.buf[length]= 0; /* allow recovery to catch EOF faster */
-    length&= ~(log_sys.BLOCK_SIZE - 1);
-    memcpy_aligned<16>(log_sys.flush_buf, log_sys.buf + length,
-                       (log_sys.buf_free + 15) & ~15);
-    length+= log_sys.BLOCK_SIZE;
+    MEM_MAKE_DEFINED(buf + length, BLOCK_SIZE - buf_free);
+    buf[length]= 0; /* allow recovery to catch EOF faster */
+    length&= ~(BLOCK_SIZE - 1);
+    memcpy_aligned<16>(flush_buf, buf + length, (buf_free + 15) & ~15);
+    length+= BLOCK_SIZE;
 #endif
   }
 
-  std::swap(log_sys.buf, log_sys.flush_buf);
-  mysql_mutex_unlock(&log_sys.mutex);
+  std::swap(buf, flush_buf);
+  mysql_mutex_unlock(&mutex);
 
   if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED))
   {
     service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-                                   "InnoDB log write: " LSN_PF,
-                                   log_sys.write_lsn);
+                                   "InnoDB log write: " LSN_PF, write_lsn);
   }
 
   /* Do the write to the log file */
   log_write_buf(write_buf, length, offset);
-  log_sys.write_lsn= lsn;
-  if (log_sys.log.writes_are_durable())
+  write_lsn= lsn;
+  if (log.writes_are_durable())
   {
-    log_sys.set_flushed_lsn(lsn);
+    set_flushed_lsn(lsn);
     log_flush_notify(lsn);
   }
 }
@@ -841,7 +823,7 @@ repeat:
     {
       write_lock.set_pending(write_lsn);
       ut_ad(log_sys.write_lsn < write_lsn);
-      log_write(write_lsn);
+      log_sys.write(write_lsn);
       ut_ad(log_sys.write_lsn == write_lsn);
     }
     ret_lsn1= write_lock.release(write_lsn);
@@ -897,7 +879,7 @@ ATTRIBUTE_COLD void log_write_and_flush()
   ut_ad(!srv_read_only_mode);
   auto lsn= log_sys.get_lsn();
   write_lock.set_pending(lsn);
-  log_write(lsn);
+  log_sys.write(lsn);
   ut_a(log_sys.write_lsn == lsn);
   write_lock.release(lsn);
 

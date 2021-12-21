@@ -2201,7 +2201,7 @@ static bool innodb_init()
 
   recv_sys.recovered_lsn= log_sys.next_checkpoint_lsn=
     log_sys.get_lsn() - SIZE_OF_FILE_CHECKPOINT;
-  log_sys.log.format= log_t::FORMAT_10_8; // not encrypted
+  log_sys.set_latest_format(false); // not encrypted
   log_hdr_init();
   byte *b= &log_hdr_buf[log_t::START_OFFSET];
   b[0]= FILE_CHECKPOINT | 10;
@@ -2895,18 +2895,18 @@ static bool xtrabackup_copy_logfile()
   mysql_mutex_lock(&recv_sys.mutex);
   recv_sys.len= 0;
   recv_sys.recovered_offset=
-    size_t(recv_sys.recovered_lsn - log_sys.log.get_first_lsn()) &
+    size_t(recv_sys.recovered_lsn - log_sys.get_first_lsn()) &
     (log_sys.BLOCK_SIZE - 1);
 
   for (unsigned retry_count{0};;)
   {
     auto source_offset=
-      log_sys.log.calc_lsn_offset(recv_sys.recovered_lsn + recv_sys.len -
-                                  recv_sys.recovered_offset);
+      log_sys.calc_lsn_offset(recv_sys.recovered_lsn + recv_sys.len -
+                              recv_sys.recovered_offset);
     source_offset&= ~(log_sys.BLOCK_SIZE - 1);
     size_t size{recv_sys.PARSING_BUF_SIZE - recv_sys.len};
-    if (source_offset + size > log_sys.log.file_size)
-      size= static_cast<size_t>(log_sys.log.file_size - source_offset);
+    if (source_offset + size > log_sys.file_size)
+      size= static_cast<size_t>(log_sys.file_size - source_offset);
 
     ut_ad(size <= recv_sys.PARSING_BUF_SIZE);
     log_sys.log.read(source_offset, {recv_sys.buf, size});

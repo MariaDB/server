@@ -225,7 +225,7 @@ inline void log_t::create(lsn_t lsn) noexcept
 {
   mysql_mutex_assert_owner(&mutex);
   set_lsn(lsn);
-  log.set_first_lsn(lsn);
+  set_first_lsn(lsn);
 
   write_lsn= lsn;
 
@@ -290,7 +290,7 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
 	ret = os_file_close(file);
 	ut_a(ret);
 
-	log_sys.log.create(srv_encrypt_log);
+	log_sys.set_latest_format(srv_encrypt_log);
 	log_sys.log.open_file(logfile0);
 	if (!fil_system.sys_space->open(create_new_db)) {
 		return DB_ERROR;
@@ -882,7 +882,7 @@ same_size:
                         ib::info()
 				<< msg << ib::bytes_iec{srv_log_file_size}
 				<< "; LSN=" << flushed_lsn;
-		} else if (srv_log_file_size == log_sys.log.file_size) {
+		} else if (srv_log_file_size == log_sys.file_size) {
 			msg = srv_encrypt_log
 				? "Encrypting redo log: "
 				: "Removing redo log encryption: ";
@@ -900,7 +900,7 @@ same_size:
 
 			ib::info()
 				<< msg << " redo log from "
-				<< ib::bytes_iec{log_sys.log.file_size}
+				<< ib::bytes_iec{log_sys.file_size}
 				<< " to "
 				<< ib::bytes_iec{srv_log_file_size}
 				<< "; LSN=" << flushed_lsn;
@@ -965,7 +965,7 @@ static dberr_t find_and_check_log_file()
     return DB_ERROR;
   }
 
-  log_sys.log.file_size= size;
+  log_sys.file_size= size;
   return DB_SUCCESS;
 }
 
@@ -1232,7 +1232,7 @@ dberr_t srv_start(bool create_new_db)
 		err = find_and_check_log_file();
 
 		if (err == DB_SUCCESS) {
-			log_sys.log.create(false);
+			log_sys.set_latest_format(false);
 			log_sys.log.open_file(get_log_file_path());
 
 			if (!log_set_capacity(srv_log_file_size)) {
@@ -1485,8 +1485,8 @@ dberr_t srv_start(bool create_new_db)
 			/* Completely ignore the redo log. */
 		} else if (srv_read_only_mode) {
 			/* Leave the redo log alone. */
-		} else if (log_sys.log.file_size == srv_log_file_size
-			   && log_sys.log.format
+		} else if (log_sys.file_size == srv_log_file_size
+			   && log_sys.format
 			   == (srv_encrypt_log
 			       ? log_t::FORMAT_ENC_10_8
 			       : log_t::FORMAT_10_8)) {

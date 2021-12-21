@@ -278,18 +278,19 @@ public:
   /** log_buffer, writing data to file from this buffer.
   Before flushing write_buf is swapped with flush_buf */
   byte *flush_buf;
-  /** Log file stuff. Protected by mutex. */
-  struct file {
-    /** format of the redo log: e.g., FORMAT_10_8 */
-    uint32_t format;
-    /** log file size in bytes, including the header */
-    lsn_t file_size;
-  private:
-    /** the log sequence number at the start of the log file */
-    lsn_t first_lsn;
+
+  /** log file size in bytes, including the header */
+  lsn_t file_size;
+private:
+  /** the log sequence number at the start of the log file */
+  lsn_t first_lsn;
+public:
+  /** format of the redo log: e.g., FORMAT_10_8 */
+  uint32_t format;
+  /** Log file */
+  class file {
     /** log file */
     log_file_t fd;
-
   public:
     /** opens log file which must be closed prior this call */
     void open_file(std::string path);
@@ -312,41 +313,8 @@ public:
     /** closes log file */
     void close_file();
 
-    /** @return whether the redo log is encrypted */
-    bool is_encrypted() const { return format & FORMAT_ENCRYPTED; }
-    /** @return whether the redo log is in the latest format */
-    bool is_latest() const
-    { return (~FORMAT_ENCRYPTED & format) == FORMAT_10_8; }
-    /** @return capacity in bytes */
-    lsn_t capacity() const{ return file_size - START_OFFSET; }
-
-    /** Set the LSN of the log file at file creation. */
-    void set_first_lsn(lsn_t lsn) noexcept { first_lsn= lsn; }
-    /** @return the first LSN of the log file */
-    lsn_t get_first_lsn() const noexcept { return first_lsn; }
-
-    /** Initialize the redo log buffer. */
-    void create(bool encrypted)
-    { format= encrypted ? FORMAT_ENC_10_8 : FORMAT_10_8; }
-
     /** Close the redo log buffer. */
     void close() { close_file(); }
-
-    /** Determine the sequence bit at a log sequence number */
-    byte get_sequence_bit(lsn_t lsn) const noexcept
-    {
-      ut_ad(lsn >= first_lsn);
-      return !(((lsn - first_lsn) / capacity()) & 1);
-    }
-
-    /** Calculate the offset of a log sequence number.
-    @param lsn   log sequence number
-    @return byte offset within ib_logfile0 */
-    lsn_t calc_lsn_offset(lsn_t lsn) const noexcept
-    {
-      ut_ad(lsn >= first_lsn);
-      return START_OFFSET + (lsn - first_lsn) % capacity();
-    }
   } log;
 
 	/** The fields involved in the log buffer flush @{ */
@@ -393,11 +361,6 @@ public:
   /** buffer for checkpoint header */
   byte *checkpoint_buf;
 	/* @} */
-
-  /** @return whether the redo log is encrypted */
-  bool is_encrypted() const { return(log.is_encrypted()); }
-  /** @return whether the redo log is in the latest format */
-  bool is_latest() const { return log.is_latest(); }
 
   bool is_initialised() const noexcept { return max_buf_free != 0; }
 
@@ -450,12 +413,46 @@ public:
     ut_ad(buf_free <= size_t{srv_log_buffer_size});
   }
 
+  /** Set the log file format. */
+  void set_latest_format(bool encrypted) noexcept
+  { format= encrypted ? FORMAT_ENC_10_8 : FORMAT_10_8; }
+  /** @return whether the redo log is encrypted */
+  bool is_encrypted() const noexcept { return format & FORMAT_ENCRYPTED; }
+  /** @return whether the redo log is in the latest format */
+  bool is_latest() const noexcept
+  { return (~FORMAT_ENCRYPTED & format) == FORMAT_10_8; }
+
+  /** @return capacity in bytes */
+  lsn_t capacity() const{ return file_size - START_OFFSET; }
+
+  /** Set the LSN of the log file at file creation. */
+  void set_first_lsn(lsn_t lsn) noexcept { first_lsn= lsn; }
+  /** @return the first LSN of the log file */
+  lsn_t get_first_lsn() const noexcept { return first_lsn; }
+
+  /** Determine the sequence bit at a log sequence number */
   byte get_sequence_bit(lsn_t lsn) const noexcept
-  { return log.get_sequence_bit(lsn); }
+  {
+    ut_ad(lsn >= first_lsn);
+    return !(((lsn - first_lsn) / capacity()) & 1);
+  }
+
+  /** Calculate the offset of a log sequence number.
+      @param lsn   log sequence number
+      @return byte offset within ib_logfile0 */
+  lsn_t calc_lsn_offset(lsn_t lsn) const noexcept
+  {
+    ut_ad(lsn >= first_lsn);
+    return START_OFFSET + (lsn - first_lsn) % capacity();
+  }
 
   /** Write checkpoint information to the log header and release mutex.
   @param end_lsn    start LSN of the FILE_CHECKPOINT mini-transaction */
   inline void write_checkpoint(lsn_t end_lsn) noexcept;
+
+  /** Write the log buffer to the file and release the mutex.
+  @param lsn  the current log sequence number */
+  void write(lsn_t lsn) noexcept;
 
   /** Create the log. */
   inline void create(lsn_t lsn) noexcept;

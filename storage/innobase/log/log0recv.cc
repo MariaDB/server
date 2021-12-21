@@ -1115,8 +1115,8 @@ inline void recv_sys_t::trim(const page_id_t page_id, lsn_t lsn)
 
 inline void recv_sys_t::read(os_offset_t total_offset, span<byte> buf)
 {
-  size_t file_idx= static_cast<size_t>(total_offset / log_sys.log.file_size);
-  os_offset_t offset= total_offset % log_sys.log.file_size;
+  size_t file_idx= static_cast<size_t>(total_offset / log_sys.file_size);
+  os_offset_t offset= total_offset % log_sys.file_size;
   dberr_t err= recv_sys.files[file_idx].read(offset, buf);
   ut_a(err == DB_SUCCESS);
 }
@@ -1524,7 +1524,7 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
 {
   uint64_t max_no= 0;
 
-  ut_ad(log_sys.log.format == 0);
+  ut_ad(log_sys.format == 0);
 
   /** Offset of the first checkpoint checksum */
   constexpr uint CHECKSUM_1= 288;
@@ -1538,7 +1538,7 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
   constexpr uint OFFS_LO= 16;
 
   lsn_t source_offset= 0;
-  const lsn_t log_size{(log_sys.log.file_size - 2048) * recv_sys.files_size()};
+  const lsn_t log_size{(log_sys.file_size - 2048) * recv_sys.files_size()};
   for (size_t field= 512; field < 2048; field+= 1024)
   {
     const byte *buf= log_sys.checkpoint_buf + field;
@@ -1633,7 +1633,7 @@ static dberr_t recv_log_recover_10_5(lsn_t lsn_offset)
 		return DB_CORRUPTION;
 	}
 
-	if (log_sys.log.is_encrypted()
+	if (log_sys.is_encrypted()
 	    && !log_decrypt(buf, log_sys.next_checkpoint_lsn & ~511, 512)) {
 		return DB_ERROR;
 	}
@@ -1669,8 +1669,8 @@ dberr_t recv_sys_t::find_checkpoint()
   log_sys.log.read(0, {buf, 4096});
   /* Check the header page checksum. There was no
   checksum in the first redo log format (version 0). */
-  log_sys.log.format = mach_read_from_4(buf + LOG_HEADER_FORMAT);
-  if (log_sys.log.format == log_t::FORMAT_3_23)
+  log_sys.format= mach_read_from_4(buf + LOG_HEADER_FORMAT);
+  if (log_sys.format == log_t::FORMAT_3_23)
   {
     if (!correct_sizes)
       return DB_CORRUPTION;
@@ -1694,7 +1694,7 @@ dberr_t recv_sys_t::find_checkpoint()
   }
 
   const lsn_t first_lsn{mach_read_from_8(buf + LOG_HEADER_START_LSN)};
-  log_sys.log.set_first_lsn(first_lsn);
+  log_sys.set_first_lsn(first_lsn);
   char creator[LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR + 1];
   memcpy(creator, buf + LOG_HEADER_CREATOR, sizeof creator);
   /* Ensure that the string is NUL-terminated. */
@@ -1702,7 +1702,7 @@ dberr_t recv_sys_t::find_checkpoint()
 
   lsn_t lsn_offset= 0;
 
-  switch (log_sys.log.format) {
+  switch (log_sys.format) {
   default:
     sql_print_error("InnoDB: Unsupported redo log format."
                     " The redo log was created with %s.", creator);
@@ -1727,7 +1727,7 @@ dberr_t recv_sys_t::find_checkpoint()
       return DB_ERROR;
     }
     else
-      log_sys.log.format= log_t::FORMAT_ENC_10_8;
+      log_sys.format= log_t::FORMAT_ENC_10_8;
 
     for (size_t field= log_t::CHECKPOINT_1; field <= log_t::CHECKPOINT_2;
          field+= log_t::CHECKPOINT_2 - log_t::CHECKPOINT_1)
@@ -1770,7 +1770,7 @@ dberr_t recv_sys_t::find_checkpoint()
   case log_t::FORMAT_10_4:
   case log_t::FORMAT_10_4 | log_t::FORMAT_ENCRYPTED:
     uint64_t max_no= 0;
-    const lsn_t log_size{(log_sys.log.file_size - 2048) * files.size()};
+    const lsn_t log_size{(log_sys.file_size - 2048) * files.size()};
     for (size_t field= 512; field < 2048; field += 1024)
     {
       const byte *b = buf + field;
@@ -3204,12 +3204,12 @@ static bool recv_scan_log(bool last_phase)
   DBUG_ENTER("recv_scan_log");
   DBUG_ASSERT(!last_phase || recv_sys.file_checkpoint);
 
-  ut_ad(log_sys.log.is_latest());
+  ut_ad(log_sys.is_latest());
 
   mysql_mutex_lock(&recv_sys.mutex);
   recv_sys.len= 0;
   recv_sys.recovered_offset=
-    size_t(recv_sys.recovered_lsn - log_sys.log.get_first_lsn()) &
+    size_t(recv_sys.recovered_lsn - log_sys.get_first_lsn()) &
     (log_sys.BLOCK_SIZE - 1);
   recv_sys.clear();
   ut_d(recv_sys.after_apply= last_phase);
@@ -3222,7 +3222,7 @@ static bool recv_scan_log(bool last_phase)
   {
     mysql_mutex_assert_owner(&log_sys.mutex);
 #ifdef UNIV_DEBUG
-    const bool wrap{source_offset + recv_sys.len == log_sys.log.file_size};
+    const bool wrap{source_offset + recv_sys.len == log_sys.file_size};
 #endif
     if (size_t size= recv_sys.PARSING_BUF_SIZE - recv_sys.len)
     {
@@ -3231,13 +3231,13 @@ static bool recv_scan_log(bool last_phase)
       lsn_t
 #endif
       source_offset=
-        log_sys.log.calc_lsn_offset(recv_sys.recovered_lsn + recv_sys.len -
-                                    recv_sys.recovered_offset);
+        log_sys.calc_lsn_offset(recv_sys.recovered_lsn + recv_sys.len -
+                                recv_sys.recovered_offset);
       ut_ad(!wrap || source_offset == log_t::START_OFFSET);
       source_offset&= ~(log_sys.BLOCK_SIZE - 1);
 
-      if (source_offset + size > log_sys.log.file_size)
-        size= static_cast<size_t>(log_sys.log.file_size - source_offset);
+      if (source_offset + size > log_sys.file_size)
+        size= static_cast<size_t>(log_sys.file_size - source_offset);
 
       log_sys.n_log_ios++;
       log_sys.log.read(source_offset, {recv_sys.buf + recv_sys.len, size});
@@ -3693,7 +3693,7 @@ dberr_t recv_recovery_from_checkpoint_start()
 	ut_ad(recv_sys.pages.empty());
 	ut_d(size_t sizeof_checkpoint = 0);
 
-	switch (log_sys.log.format) {
+	switch (log_sys.format) {
 	case log_t::FORMAT_3_23:
 		mysql_mutex_unlock(&log_sys.mutex);
 		return DB_SUCCESS;
@@ -3838,13 +3838,13 @@ read_only_recovery:
 	if (!srv_read_only_mode && log_sys.is_latest()) {
 		log_sys.write_lsn = log_sys.get_lsn();
 		ut_ad(recv_sys.recovered_lsn == log_sys.write_lsn);
-		auto offset = log_sys.log.calc_lsn_offset(log_sys.write_lsn);
-		size_t size= size_t(log_sys.log.file_size - offset);
+		auto offset = log_sys.calc_lsn_offset(log_sys.write_lsn);
+		size_t size= size_t(log_sys.file_size - offset);
 		if (size > log_sys.BLOCK_SIZE) {
 			size = log_sys.BLOCK_SIZE;
 		}
 		log_sys.log.read(offset & ~(log_sys.BLOCK_SIZE - 1),
-				 {log_sys.buf, size});
+                                 {log_sys.buf, size});
 		log_sys.buf_free = size_t(offset) & (log_sys.BLOCK_SIZE - 1);
 		if (recv_needed_recovery
 		    && srv_operation == SRV_OPERATION_NORMAL) {

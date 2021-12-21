@@ -182,8 +182,8 @@ ATTRIBUTE_COLD bool log_decrypt(byte* buf, lsn_t lsn, ulint size)
 	lsn &= ~lsn_t{511};
 
 	const bool has_encryption_key_rotation
-		= log_sys.log.format == log_t::FORMAT_ENC_10_4
-		|| log_sys.log.format == log_t::FORMAT_ENC_10_5;
+		= log_sys.format == log_t::FORMAT_ENC_10_4
+		|| log_sys.format == log_t::FORMAT_ENC_10_5;
 
 	for (const byte* const end = buf + size; buf != end;
 	     buf += 512, lsn += 512) {
