@@ -509,7 +509,7 @@ void log_t::file::write_header_durable(lsn_t lsn)
 
 void log_t::file::read(os_offset_t offset, span<byte> buf)
 {
-  ut_ad(!(offset & (log_sys.BLOCK_SIZE - 1)));
+  ut_ad(!(offset & (log_sys.get_block_size() - 1)));
   if (const dberr_t err= fd.read(offset, buf))
     ib::fatal() << "read(" << fd.get_path() << ") returned "<< err;
 }
@@ -557,9 +557,10 @@ static void log_write_buf(const byte *buf, size_t len, lsn_t offset)
 {
   ut_ad(log_write_lock_own());
   ut_ad(!recv_no_log_write);
-  ut_ad(!(offset & (log_sys.BLOCK_SIZE - 1)));
-  ut_ad(!(len & (log_sys.BLOCK_SIZE - 1)));
-  ut_ad(!(size_t(buf) & (log_sys.BLOCK_SIZE - 1)));
+  ut_d(const size_t block_size_1= log_sys.get_block_size() - 1);
+  ut_ad(!(offset & block_size_1));
+  ut_ad(!(len & block_size_1));
+  ut_ad(!(size_t(buf) & block_size_1));
   ut_ad(len);
 
   if (UNIV_LIKELY(offset + len <= log_sys.file_size))
@@ -612,7 +613,7 @@ static const unsigned char pad_crc[15][4]= {
 ATTRIBUTE_NOINLINE
 static size_t log_pad(lsn_t lsn, size_t pad, byte *begin, byte *extra)
 {
-  ut_ad(!(size_t(begin + pad) & (log_sys.BLOCK_SIZE - 1)));
+  ut_ad(!(size_t(begin + pad) & (log_sys.get_block_size() - 1)));
   byte *b= begin;
   const byte seq{log_sys.get_sequence_bit(lsn)};
   /* The caller should never request padding such that the
@@ -729,29 +730,31 @@ inline void log_t::write(lsn_t lsn) noexcept
     return;
   }
 
-  const lsn_t offset{calc_lsn_offset(write_lsn) & ~(BLOCK_SIZE - 1)};
+  const size_t block_size_1{get_block_size() - 1};
+  const lsn_t offset{calc_lsn_offset(write_lsn) & ~block_size_1};
   DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF " at " LSN_PF,
                         write_lsn, lsn, offset));
   const byte *write_buf{buf};
   size_t length{buf_free};
-  ut_ad(length >= (calc_lsn_offset(write_lsn) & (BLOCK_SIZE - 1)));
-  buf_free&= BLOCK_SIZE - 1;
-  ut_ad(buf_free == ((lsn - first_lsn) & (BLOCK_SIZE - 1)));
+  ut_ad(length >= (calc_lsn_offset(write_lsn) & block_size_1));
+  buf_free&= block_size_1;
+  ut_ad(buf_free == ((lsn - first_lsn) & block_size_1));
 
   if (buf_free)
   {
 #if 0 /* TODO: Pad the last log block with dummy records. */
-    buf_free= log_pad(lsn, BLOCK_SIZE - buf_free, buf + buf_free, flush_buf);
+    buf_free= log_pad(lsn, get_block_size() - buf_free,
+                      buf + buf_free, flush_buf);
     ... /* TODO: Update the LSN and adjust other code. */
 #else
     /* The rest of the block will be written as garbage.
     This block will be overwritten later, once records beyond
     the current LSN are generated. */
-    MEM_MAKE_DEFINED(buf + length, BLOCK_SIZE - buf_free);
+    MEM_MAKE_DEFINED(buf + length, get_block_size() - buf_free);
     buf[length]= 0; /* allow recovery to catch EOF faster */
-    length&= ~(BLOCK_SIZE - 1);
+    length&= ~block_size_1;
     memcpy_aligned<16>(flush_buf, buf + length, (buf_free + 15) & ~15);
-    length+= BLOCK_SIZE;
+    length+= get_block_size();
 #endif
   }
 

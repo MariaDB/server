@@ -1690,7 +1690,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   mysql_mutex_unlock(&mutex);
   /* FIXME: issue an asynchronous write */
   log.write((n & 1) ? CHECKPOINT_2 : CHECKPOINT_1,
-            {checkpoint_buf, log_sys.BLOCK_SIZE});
+            {checkpoint_buf, log_sys.get_block_size()});
   log.flush();
   mysql_mutex_lock(&log_sys.mutex);
 

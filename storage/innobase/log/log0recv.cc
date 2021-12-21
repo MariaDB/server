@@ -1732,7 +1732,7 @@ dberr_t recv_sys_t::find_checkpoint()
     for (size_t field= log_t::CHECKPOINT_1; field <= log_t::CHECKPOINT_2;
          field+= log_t::CHECKPOINT_2 - log_t::CHECKPOINT_1)
     {
-      log_sys.log.read(field, {buf, log_sys.BLOCK_SIZE});
+      log_sys.log.read(field, {buf, log_sys.get_block_size()});
       const lsn_t checkpoint_lsn{mach_read_from_8(buf)};
       const lsn_t end_lsn{mach_read_from_8(buf + 8)};
       if (checkpoint_lsn < first_lsn || end_lsn < checkpoint_lsn ||
@@ -2019,7 +2019,7 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse_mtr(store_t store)
   }
 
   /* Not the entire mini-transaction was present. */
-  return recovered_offset < log_sys.BLOCK_SIZE ? GOT_EOF : PREMATURE_EOF;
+  return recovered_offset < 4096 ? GOT_EOF : PREMATURE_EOF;
 
  eom_found:
   if (*l != log_sys.get_sequence_bit((l - begin) + recovered_lsn))
@@ -3205,12 +3205,12 @@ static bool recv_scan_log(bool last_phase)
   DBUG_ASSERT(!last_phase || recv_sys.file_checkpoint);
 
   ut_ad(log_sys.is_latest());
+  const size_t block_size_1{log_sys.get_block_size() - 1};
 
   mysql_mutex_lock(&recv_sys.mutex);
   recv_sys.len= 0;
   recv_sys.recovered_offset=
-    size_t(recv_sys.recovered_lsn - log_sys.get_first_lsn()) &
-    (log_sys.BLOCK_SIZE - 1);
+    size_t(recv_sys.recovered_lsn - log_sys.get_first_lsn()) & block_size_1;
   recv_sys.clear();
   ut_d(recv_sys.after_apply= last_phase);
   ut_ad(!last_phase || recv_sys.file_checkpoint);
@@ -3234,7 +3234,7 @@ static bool recv_scan_log(bool last_phase)
         log_sys.calc_lsn_offset(recv_sys.recovered_lsn + recv_sys.len -
                                 recv_sys.recovered_offset);
       ut_ad(!wrap || source_offset == log_t::START_OFFSET);
-      source_offset&= ~(log_sys.BLOCK_SIZE - 1);
+      source_offset&= ~block_size_1;
 
       if (source_offset + size > log_sys.file_size)
         size= static_cast<size_t>(log_sys.file_size - source_offset);
@@ -3342,11 +3342,11 @@ static bool recv_scan_log(bool last_phase)
         (recv_sys.recovered_offset &&
          recv_sys.len >= recv_sys.PARSING_BUF_SIZE - recv_sys.MTR_SIZE_MAX))
     {
-      const auto ofs= recv_sys.recovered_offset & ~(log_sys.BLOCK_SIZE - 1);
+      const size_t ofs{recv_sys.recovered_offset & ~block_size_1};
       memmove_aligned<512>(recv_sys.buf, recv_sys.buf + ofs,
                            recv_sys.len - ofs);
       recv_sys.len-= ofs;
-      recv_sys.recovered_offset&= log_sys.BLOCK_SIZE - 1;
+      recv_sys.recovered_offset&= block_size_1;
     }
   }
 
@@ -3838,14 +3838,12 @@ read_only_recovery:
 	if (!srv_read_only_mode && log_sys.is_latest()) {
 		log_sys.write_lsn = log_sys.get_lsn();
 		ut_ad(recv_sys.recovered_lsn == log_sys.write_lsn);
-		auto offset = log_sys.calc_lsn_offset(log_sys.write_lsn);
-		size_t size= size_t(log_sys.file_size - offset);
-		if (size > log_sys.BLOCK_SIZE) {
-			size = log_sys.BLOCK_SIZE;
-		}
-		log_sys.log.read(offset & ~(log_sys.BLOCK_SIZE - 1),
-                                 {log_sys.buf, size});
-		log_sys.buf_free = size_t(offset) & (log_sys.BLOCK_SIZE - 1);
+		size_t offset{log_sys.calc_lsn_offset(log_sys.write_lsn)};
+		const size_t size{std::min(size_t(log_sys.file_size - offset),
+                                           log_sys.get_block_size())};
+		const size_t block_size_1{log_sys.get_block_size() - 1};
+		log_sys.log.read(offset & ~block_size_1, {log_sys.buf, size});
+		log_sys.buf_free = size_t(offset) & block_size_1;
 		if (recv_needed_recovery
 		    && srv_operation == SRV_OPERATION_NORMAL) {
 			/* Write a FILE_CHECKPOINT marker as the first thing,

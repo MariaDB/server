@@ -2891,19 +2891,19 @@ static bool xtrabackup_copy_logfile()
   ut_a(dst_log_file);
   ut_ad(recv_sys.is_initialised());
   const size_t sequence_offset{log_sys.is_encrypted() ? 8U + 5U : 5U};
+  const size_t block_size_1{log_sys.get_block_size() - 1};
 
   mysql_mutex_lock(&recv_sys.mutex);
   recv_sys.len= 0;
   recv_sys.recovered_offset=
-    size_t(recv_sys.recovered_lsn - log_sys.get_first_lsn()) &
-    (log_sys.BLOCK_SIZE - 1);
+    size_t(recv_sys.recovered_lsn - log_sys.get_first_lsn()) & block_size_1;
 
   for (unsigned retry_count{0};;)
   {
     auto source_offset=
       log_sys.calc_lsn_offset(recv_sys.recovered_lsn + recv_sys.len -
                               recv_sys.recovered_offset);
-    source_offset&= ~(log_sys.BLOCK_SIZE - 1);
+    source_offset&= ~block_size_1;
     size_t size{recv_sys.PARSING_BUF_SIZE - recv_sys.len};
     if (source_offset + size > log_sys.file_size)
       size= static_cast<size_t>(log_sys.file_size - source_offset);
@@ -2940,11 +2940,11 @@ static bool xtrabackup_copy_logfile()
         return true;
       }
 
-      const auto ofs= recv_sys.recovered_offset & ~(log_sys.BLOCK_SIZE - 1);
+      const auto ofs= recv_sys.recovered_offset & ~block_size_1;
       memmove_aligned<512>(recv_sys.buf, recv_sys.buf + ofs,
               recv_sys.len - ofs);
       recv_sys.len-= ofs;
-      recv_sys.recovered_offset&= log_sys.BLOCK_SIZE - 1;
+      recv_sys.recovered_offset&= block_size_1;
       pthread_cond_broadcast(&scanned_lsn_cond);
 
       if (r == recv_sys_t::GOT_EOF)
@@ -2959,7 +2959,7 @@ static bool xtrabackup_copy_logfile()
     }
     else
     {
-      recv_sys.len= recv_sys.recovered_offset & ~(log_sys.BLOCK_SIZE - 1);
+      recv_sys.len= recv_sys.recovered_offset & ~block_size_1;
 
       if (retry_count == 100)
         break;

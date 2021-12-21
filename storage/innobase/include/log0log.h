@@ -248,9 +248,6 @@ struct log_t{
   (used to be 2048 before FORMAT_10_8). */
   static constexpr lsn_t FIRST_LSN= START_OFFSET;
 
-  /** The physical block size of the storage; FIXME: determine from OS */
-  static constexpr size_t BLOCK_SIZE{512};
-
 private:
   /** The log sequence number of the last change of durable InnoDB files */
   MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)
@@ -284,6 +281,10 @@ public:
 private:
   /** the log sequence number at the start of the log file */
   lsn_t first_lsn;
+#if defined __linux__ || defined _WIN32
+  /** The physical block size of the storage */
+  uint32_t block_size;
+#endif
 public:
   /** format of the redo log: e.g., FORMAT_10_8 */
   uint32_t format;
@@ -396,6 +397,19 @@ public:
 
   /** Shut down the redo log subsystem. */
   void close();
+
+#if defined __linux__ || defined _WIN32
+  /** @return the physical block size of the storage */
+  size_t get_block_size() const noexcept
+  { ut_ad(block_size); return block_size; }
+#else
+  /** @return the physical block size of the storage */
+  static size_t get_block_size() { return 512; }
+#endif
+
+  /** Set the log block size for file I/O. */
+  size_t set_block_size(uint32_t size) noexcept
+  { std::swap(size, block_size); return size; }
 
   /** Reserve space in the log buffer for appending data.
   @param size   upper limit of the length of the data to append(), in bytes

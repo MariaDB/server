@@ -33,9 +33,9 @@ The interface to the operating system file i/o primitives
 Created 10/21/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef UNIV_INNOCHECKSUM
 #include "os0file.h"
 #include "sql_const.h"
+#include "log.h"
 
 #ifdef __linux__
 # include <sys/types.h>
@@ -1281,7 +1281,7 @@ os_file_create_func(
 
 	} while (retry);
 
-	if (read_only || !*success) {
+	if (!*success) {
 		return file;
 	}
 
@@ -1294,46 +1294,54 @@ use_o_direct:
 # ifdef __linux__
 	} else if (type == OS_LOG_FILE) {
 		struct stat st;
-		if (fstat(file, &st) || st.st_size & (log_sys.BLOCK_SIZE -1)) {
+		char b[20 + sizeof "/sys/dev/block/" ":"
+		       "/queue/physical_block_size"];
+		int f;
+		if (fstat(file, &st) || st.st_size & 4095) {
 			goto skip_o_direct;
 		}
 		/* Linux seems to allow up to 15 partitions per block device.
 		Partition number 0 is the whole block device. */
-		char b[20 + sizeof "/sys/dev/block/" ":"
-		       "/queue/physical_block_size"];
 		if (snprintf(b, sizeof b,
 			     "/sys/dev/block/%u:%u/queue/physical_block_size",
 			     major(st.st_dev), minor(st.st_dev) & ~15U)
 		    >= static_cast<int>(sizeof b)) {
 			goto skip_o_direct;
 		}
-		int f = open(b, O_RDONLY);
-		if (f == -1) {
-			goto skip_o_direct;
-		}
+		if ((f = open(b, O_RDONLY)) != -1) {
+			ssize_t l = read(f, b, sizeof b);
+			unsigned long s = 0;
 
-		ssize_t l = read(f, b, sizeof b);
-		bool use_o_direct = false;
-		if (l > 0 && static_cast<size_t>(l) < sizeof b
-		    && b[l - 1] == '\n') {
-			char* end = b;
-			unsigned long ps = strtoul(b, &end, 10);
-			if (b != end && *end == '\n'
-			    && ps == log_sys.BLOCK_SIZE) {
-				use_o_direct = true;
+			if (l > 0 && static_cast<size_t>(l) < sizeof b
+			    && b[l - 1] == '\n') {
+				char* end = b;
+				s = strtoul(b, &end, 10);
+				if (b == end || *end != '\n') {
+					s = 0;
+				}
 			}
-		}
-		close(f);
-		if (use_o_direct) {
+			close(f);
+			if (s > 4096 || s < 64 || !ut_is_2pow(s)) {
+				goto skip_o_direct;
+			}
+			if (log_sys.set_block_size(uint32_t(s))
+			    != uint32_t(s)) {
+				sql_print_information(
+					"InnoDB: File system buffers for log"
+					" disabled (block size=%u bytes)",
+					unsigned(s));
+			}
 			goto use_o_direct;
 		}
-	}
 skip_o_direct:
+		log_sys.set_block_size(512);
+	}
 # endif
 #endif
 
 #ifdef USE_FILE_LOCK
-	if (create_mode != OS_FILE_OPEN_RAW && os_file_lock(file, name)) {
+	if (!read_only
+	    && create_mode != OS_FILE_OPEN_RAW && os_file_lock(file, name)) {
 		if (create_mode == OS_FILE_OPEN_RETRY) {
 			ib::info()
 				<< "Retrying to lock the first data file";
@@ -2091,38 +2099,6 @@ os_file_create_directory(
 	return(true);
 }
 
-/** Check that IO of specific size is possible for the file
-opened with FILE_FLAG_NO_BUFFERING.
-
-The requirement is that IO is multiple of the disk sector size.
-
-@param[in]	file      file handle
-@param[in]	io_size   expected io size
-@return true - unbuffered io of requested size is possible, false otherwise.
-
-@note: this function only works correctly with Windows 8 or later,
-(GetFileInformationByHandleEx with FileStorageInfo is only supported there).
-It will return true on earlier Windows version.
- */
-static bool unbuffered_io_possible(HANDLE file, size_t io_size)
-{
-  ut_ad(ut_is_2pow(io_size));
-
-  DWORD high, low= GetFileSize(file, &high);
-  if (low & (io_size - 1))
-    // Normally, the size of ib_logfile0 will be a multiple of 4096 bytes.
-    // In mariadb-backup, that is not the case. An abnormal-sized log file
-    // will not be written to; it will be resized on InnoDB startup.
-    // The minimal valid ib_logfile0 size is 0x3010 bytes.
-    return false;
-
-  FILE_STORAGE_INFO info;
-  if (GetFileInformationByHandleEx(file, FileStorageInfo, &info, sizeof info))
-    if (ULONG sector_size= info.PhysicalBytesPerSectorForPerformance)
-      return (ut_is_2pow(sector_size) && !(io_size & (sector_size - 1)));
-  return true;
-}
-
 
 /** NOTE! Use the corresponding macro os_file_create(), not directly
 this function!
@@ -2258,17 +2234,39 @@ os_file_create_func(
 			name, access, share_mode, my_win_file_secattr(),
 			create_flag, attributes, NULL);
 
-		/* If FILE_FLAG_NO_BUFFERING was set, check if this
-		can work at all, for expected IO sizes. Reopen without
-		the unbuffered flag, if it won't work*/
-		if ((file != INVALID_HANDLE_VALUE)
-		    && (attributes & FILE_FLAG_NO_BUFFERING)
-		    && (type == OS_LOG_FILE)
-		    && !unbuffered_io_possible(file, log_sys.BLOCK_SIZE)) {
-			ut_a(CloseHandle(file));
-			attributes &= ~FILE_FLAG_NO_BUFFERING;
-			create_flag = OPEN_ALWAYS;
-			continue;
+		if (file != INVALID_HANDLE_VALUE && type == OS_LOG_FILE
+		    && (attributes & FILE_FLAG_NO_BUFFERING)) {
+			/* If FILE_FLAG_NO_BUFFERING was set on the log file,
+			check if this can work at all, for the expected sizes.
+			Reopen without the flag, if it won't work. */
+			DWORD high, low= GetFileSize(file, &high);
+			if (low & 4095) {
+				/* mariadb-backup creates odd-sized files that
+				will be resized before the log is being
+				written to */
+			skip_o_direct:
+				ut_a(CloseHandle(file));
+				attributes &= ~FILE_FLAG_NO_BUFFERING;
+				create_flag = OPEN_ALWAYS;
+				log_sys.set_block_size(512);
+				continue;
+			}
+			FILE_STORAGE_INFO i;
+			if (!GetFileInformationByHandleEx(file, FileStorageInfo,
+							  &i, sizeof i)) {
+				goto skip_o_direct;
+			}
+			const ULONG s = i.PhysicalBytesPerSectorForPerformance;
+			if (s > 4096 || s < 64 || !ut_is_2pow(s)) {
+				goto skip_o_direct;
+			}
+			if (log_sys.set_block_size(uint32_t(s))
+			    != uint32_t(s)) {
+				sql_print_information(
+					"InnoDB: File system buffers for log"
+					" disabled (block size=%u bytes)",
+					unsigned(s));
+			}
 		}
 
 		*success = (file != INVALID_HANDLE_VALUE);
@@ -4287,5 +4285,3 @@ invalid:
   space->set_sizes(this->size);
   return true;
 }
-
-#endif /* !UNIV_INNOCHECKSUM */
