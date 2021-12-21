@@ -1,3 +1,6 @@
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_SCHEMA='sys';
+COUNT(*)
+0
 DESC sys.sys_config;
 Field	Type	Null	Key	Default	Extra
 variable	varchar(128)	NO	PRI	NULL	

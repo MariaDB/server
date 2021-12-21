@@ -1,0 +1,20 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+wsrep_sst_method=rsync
+ssl-cert=@ENV.MYSQL_TEST_DIR/std_data/server-cert.pem
+ssl-key=@ENV.MYSQL_TEST_DIR/std_data/server-key.pem
+ssl-capath=@ENV.MYSQL_TEST_DIR/std_data/capath
+# We need to turn off the default setting for the duration
+# of the test (to test working with a directory instead of
+# a file):
+ssl-ca=
+
+[sst]
+ssl-mode=VERIFY_CA
+
+[mysqld.1]
+wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=1;pc.ignore_sb=true'
+
+[mysqld.2]
+wsrep_provider_options='base_port=@mysqld.2.#galera_port;gcache.size=1;pc.ignore_sb=true'
