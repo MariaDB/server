@@ -799,17 +799,9 @@ buf_madvise_do_dump()
 
 	/* mirrors allocation in log_t::create() */
 	if (log_sys.buf) {
-		ret += madvise(log_sys.buf,
-			       srv_log_buffer_size,
+		ret += madvise(log_sys.buf, log_sys.buf_size, MADV_DODUMP);
+		ret += madvise(log_sys.flush_buf, log_sys.buf_size,
 			       MADV_DODUMP);
-		ret += madvise(log_sys.flush_buf,
-			       srv_log_buffer_size,
-			       MADV_DODUMP);
-	}
-	/* mirrors recv_sys_t::create() */
-	if (recv_sys.buf)
-	{
-		ret+= madvise(recv_sys.buf, recv_sys.len, MADV_DODUMP);
 	}
 
 	mysql_mutex_lock(&buf_pool.mutex);

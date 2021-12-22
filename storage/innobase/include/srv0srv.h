@@ -290,7 +290,6 @@ extern char*	srv_log_group_home_dir;
 /** The InnoDB redo log file size, or 0 when changing the redo log format
 at startup (while disallowing writes to the redo log). */
 extern ulonglong	srv_log_file_size;
-extern ulong	srv_log_buffer_size;
 extern ulong	srv_flush_log_at_trx_commit;
 extern uint	srv_flush_log_at_timeout;
 extern my_bool	srv_adaptive_flushing;

@@ -1309,12 +1309,6 @@ void recv_sys_t::close()
     deferred_spaces.clear();
     ut_d(mysql_mutex_unlock(&mutex));
 
-    if (buf)
-    {
-      ut_free_dodump(buf, PARSING_BUF_SIZE);
-      buf= nullptr;
-    }
-
     last_stored_lsn= 0;
     mysql_mutex_destroy(&mutex);
     pthread_cond_destroy(&cond);
@@ -1337,8 +1331,6 @@ void recv_sys_t::create()
 	apply_log_recs = false;
 	apply_batch_on = false;
 
-	buf = static_cast<byte*>(ut_malloc_dontdump(PARSING_BUF_SIZE,
-						    PSI_INSTRUMENT_ME));
 	len = 0;
 	recovered_offset = 0;
 	recovered_lsn = 0;
@@ -1385,9 +1377,6 @@ void recv_sys_t::debug_free()
 
   recovery_on= false;
   pages.clear();
-  ut_free_dodump(buf, PARSING_BUF_SIZE);
-
-  buf= nullptr;
 
   mysql_mutex_unlock(&mutex);
 }
@@ -1991,8 +1980,8 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse_mtr(store_t store)
   map::iterator cached_pages_it{pages.end()};
 
   /* Check that the entire mini-transaction is included within the buffer */
-  const byte *const begin{buf + recovered_offset},
-    *const end{&buf[len >= MTR_SIZE_MAX ? MTR_SIZE_MAX : len]};
+  const byte *const begin{log_sys.buf + recovered_offset},
+    *const end{&log_sys.buf[len >= MTR_SIZE_MAX ? MTR_SIZE_MAX : len]};
   if (begin >= end)
   {
     ut_ad(begin == end);
@@ -2056,7 +2045,7 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse_mtr(store_t store)
   }
 
   recovered_lsn+= l - begin;
-  recovered_offset= l - buf;
+  recovered_offset= l - log_sys.buf;
 
   ut_d(const byte *const el{l});
   ut_d(std::set<page_id_t> freed);
@@ -3220,6 +3209,7 @@ static bool recv_scan_log(bool last_phase)
 
   store_t store= last_phase
     ? STORE_IF_EXISTS : recv_sys.file_checkpoint ? STORE_YES : STORE_NO;
+  const size_t buf_size{log_sys.buf_size};
 
   for (ut_d(lsn_t source_offset= 0);;)
   {
@@ -3227,9 +3217,8 @@ static bool recv_scan_log(bool last_phase)
 #ifdef UNIV_DEBUG
     const bool wrap{source_offset + recv_sys.len == log_sys.file_size};
 #endif
-    if (size_t size= recv_sys.PARSING_BUF_SIZE - recv_sys.len)
+    if (size_t size= buf_size - recv_sys.len)
     {
-      // FIXME: use log_sys.buf (and srv_log_buffer_size)
 #ifndef UNIV_DEBUG
       lsn_t
 #endif
@@ -3243,7 +3232,7 @@ static bool recv_scan_log(bool last_phase)
         size= static_cast<size_t>(log_sys.file_size - source_offset);
 
       log_sys.n_log_ios++;
-      log_sys.log.read(source_offset, {recv_sys.buf + recv_sys.len, size});
+      log_sys.log.read(source_offset, {log_sys.buf + recv_sys.len, size});
       recv_sys.len+= size;
     }
 
@@ -3265,7 +3254,7 @@ static bool recv_scan_log(bool last_phase)
 
       for (;;)
       {
-        const byte b{recv_sys.buf[recv_sys.recovered_offset]};
+        const byte b{log_sys.buf[recv_sys.recovered_offset]};
         r= recv_sys.parse_mtr(store);
         if (r == recv_sys_t::OK)
         {
@@ -3335,13 +3324,12 @@ static bool recv_scan_log(bool last_phase)
       break;
     }
 
-    if (recv_sys.recovered_offset > recv_sys.PARSING_BUF_SIZE / 4 ||
-        (recv_sys.recovered_offset &&
-         recv_sys.len >= recv_sys.PARSING_BUF_SIZE - recv_sys.MTR_SIZE_MAX))
+    if (recv_sys.recovered_offset > buf_size / 4 ||
+        (recv_sys.recovered_offset > block_size_1 &&
+         recv_sys.len >= buf_size - recv_sys.MTR_SIZE_MAX))
     {
       const size_t ofs{recv_sys.recovered_offset & ~block_size_1};
-      memmove_aligned<512>(recv_sys.buf, recv_sys.buf + ofs,
-                           recv_sys.len - ofs);
+      memmove_aligned<64>(log_sys.buf, log_sys.buf + ofs, recv_sys.len - ofs);
       recv_sys.len-= ofs;
       recv_sys.recovered_offset&= block_size_1;
     }
@@ -3820,12 +3808,12 @@ read_only_recovery:
 	if (!srv_read_only_mode && log_sys.is_latest()) {
 		log_sys.write_lsn = log_sys.get_lsn();
 		ut_ad(recv_sys.recovered_lsn == log_sys.write_lsn);
-		size_t offset{log_sys.calc_lsn_offset(log_sys.write_lsn)};
-		const size_t size{std::min(size_t(log_sys.file_size - offset),
-                                           log_sys.get_block_size())};
-		const size_t block_size_1{log_sys.get_block_size() - 1};
-		log_sys.log.read(offset & ~block_size_1, {log_sys.buf, size});
-		log_sys.buf_free = size_t(offset) & block_size_1;
+		const size_t bs_1{log_sys.get_block_size() - 1};
+		memmove_aligned<64>(log_sys.buf, log_sys.buf
+				    + (recv_sys.recovered_offset & ~bs_1),
+				    (recv_sys.recovered_offset + bs_1)
+				    & ~bs_1);
+		log_sys.buf_free = recv_sys.recovered_offset &= bs_1;
 		if (recv_needed_recovery
 		    && srv_operation == SRV_OPERATION_NORMAL) {
 			/* Write a FILE_CHECKPOINT marker as the first thing,

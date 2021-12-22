@@ -153,8 +153,6 @@ char*	srv_log_group_home_dir;
 /** The InnoDB redo log file size, or 0 when changing the redo log format
 at startup (while disallowing writes to the redo log). */
 ulonglong	srv_log_file_size;
-/** innodb_log_buffer_size, in bytes */
-ulong		srv_log_buffer_size;
 /** innodb_flush_log_at_trx_commit */
 ulong		srv_flush_log_at_trx_commit;
 /** innodb_flush_log_at_timeout */

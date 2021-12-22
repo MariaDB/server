@@ -1490,8 +1490,9 @@ struct my_option xb_server_options[] =
 
   {"innodb_log_buffer_size", OPT_INNODB_LOG_BUFFER_SIZE,
    "The size of the buffer which InnoDB uses to write log to the log files on disk.",
-   (G_PTR*) &srv_log_buffer_size, (G_PTR*) &srv_log_buffer_size, 0,
-   GET_ULONG, REQUIRED_ARG, 1024*1024L, 256*1024L, LONG_MAX, 0, 1024, 0},
+   (G_PTR*) &log_sys.buf_size, (G_PTR*) &log_sys.buf_size, 0,
+   IF_WIN(GET_ULL,GET_ULONG), REQUIRED_ARG, recv_sys_t::PARSING_BUF_SIZE,
+   recv_sys_t::PARSING_BUF_SIZE, SIZE_T_MAX, 0, 4096, 0},
   {"innodb_log_file_size", OPT_INNODB_LOG_FILE_SIZE,
    "Ignored for mysqld option compatibility",
    (G_PTR*) &srv_log_file_size, (G_PTR*) &srv_log_file_size, 0,
@@ -2909,10 +2910,10 @@ static bool xtrabackup_copy_logfile()
       size= static_cast<size_t>(log_sys.file_size - source_offset);
 
     ut_ad(size <= recv_sys.PARSING_BUF_SIZE);
-    log_sys.log.read(source_offset, {recv_sys.buf, size});
+    log_sys.log.read(source_offset, {log_sys.buf, size});
     recv_sys.len= size;
 
-    if (!recv_sys.buf[recv_sys.recovered_offset])
+    if (!log_sys.buf[recv_sys.recovered_offset])
       break;
 
     const size_t start_offset{recv_sys.recovered_offset};
@@ -2923,7 +2924,7 @@ static bool xtrabackup_copy_logfile()
       do
       {
         /* Set the sequence bit (the backed-up log will not wrap around) */
-        byte *seq= &recv_sys.buf[recv_sys.recovered_offset - sequence_offset];
+        byte *seq= &log_sys.buf[recv_sys.recovered_offset - sequence_offset];
         ut_ad(*seq == log_sys.get_sequence_bit(recv_sys.recovered_lsn -
                                                (log_sys.is_encrypted()
                                                 ? 8 + 5 : 5)));
@@ -2931,7 +2932,7 @@ static bool xtrabackup_copy_logfile()
       }
       while ((r= recv_sys.parse_mtr(STORE_IF_EXISTS)) == recv_sys_t::OK);
 
-      if (ds_write(dst_log_file, recv_sys.buf + start_offset,
+      if (ds_write(dst_log_file, log_sys.buf + start_offset,
                    recv_sys.recovered_offset - start_offset))
       {
         mysql_mutex_unlock(&log_sys.mutex);
@@ -2941,8 +2942,7 @@ static bool xtrabackup_copy_logfile()
       }
 
       const auto ofs= recv_sys.recovered_offset & ~block_size_1;
-      memmove_aligned<512>(recv_sys.buf, recv_sys.buf + ofs,
-              recv_sys.len - ofs);
+      memmove_aligned<64>(log_sys.buf, log_sys.buf + ofs, recv_sys.len - ofs);
       recv_sys.len-= ofs;
       recv_sys.recovered_offset&= block_size_1;
       pthread_cond_broadcast(&scanned_lsn_cond);

@@ -800,7 +800,7 @@ inline lsn_t log_t::append_prepare(size_t size) noexcept
     set_check_flush_or_checkpoint();
 
   /* Calculate the amount of free space needed. */
-  size= (4 * 4096) - size + srv_log_buffer_size;
+  size= (4 * 4096) - size + log_sys.buf_size;
 
   for (ut_d(int count= 50); UNIV_UNLIKELY(buf_free > size); )
   {
@@ -886,9 +886,6 @@ inline std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::finish_write(size_t len)
   mysql_mutex_assert_owner(&log_sys.mutex);
   ut_ad(!recv_no_log_write);
   ut_ad(m_log_mode == MTR_LOG_ALL);
-
-  if (len > srv_log_buffer_size / 2)
-    log_buffer_extend(ulong((len + 1) * 2));
 
   const lsn_t start_lsn= log_sys.append_prepare(len);
   const auto start= log_sys.buf_free;

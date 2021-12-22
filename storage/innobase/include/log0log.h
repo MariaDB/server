@@ -42,8 +42,6 @@ Created 12/9/1995 Heikki Tuuri
 
 using st_::span;
 
-extern ulong srv_log_buffer_size;
-
 static const char LOG_FILE_NAME_PREFIX[] = "ib_logfile";
 static const char LOG_FILE_NAME[] = "ib_logfile0";
 
@@ -62,10 +60,6 @@ static inline void delete_log_file(const char* suffix)
   auto path = get_log_file_path(LOG_FILE_NAME_PREFIX).append(suffix);
   os_file_delete_if_exists(innodb_log_file_key, path.c_str(), nullptr);
 }
-
-/** Extends the log buffer.
-@param[in]	len	requested minimum size in bytes */
-void log_buffer_extend(ulong len);
 
 /** Calculate the recommended highest values for lsn - last_checkpoint_lsn
 and lsn - buf_pool.get_oldest_modification().
@@ -275,6 +269,8 @@ public:
   /** log_buffer, writing data to file from this buffer.
   Before flushing write_buf is swapped with flush_buf */
   byte *flush_buf;
+  /** innodb_log_buffer_size (size of buf and flush_buf, in bytes) */
+  size_t buf_size;
 
   /** log file size in bytes, including the header */
   lsn_t file_size;
@@ -424,7 +420,7 @@ public:
     mysql_mutex_assert_owner(&mutex);
     memcpy(buf + buf_free, s, size);
     buf_free+= size;
-    ut_ad(buf_free <= size_t{srv_log_buffer_size});
+    ut_ad(buf_free <= buf_size);
   }
 
   /** Set the log file format. */

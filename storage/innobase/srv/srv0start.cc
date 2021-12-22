@@ -232,8 +232,8 @@ inline void log_t::create(lsn_t lsn) noexcept
   last_checkpoint_lsn= 0;
   buf_free= 0;
 
-  memset(buf, 0, srv_log_buffer_size);
-  memset(flush_buf, 0, srv_log_buffer_size);
+  memset(buf, 0, buf_size);
+  memset(flush_buf, 0, buf_size);
   memset_aligned<4096>(checkpoint_buf, 0, 4096);
   log.write_header_durable(lsn);
 }

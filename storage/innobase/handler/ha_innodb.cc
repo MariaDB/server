@@ -19221,10 +19221,10 @@ static MYSQL_SYSVAR_ULONG(page_size, srv_page_size,
   NULL, NULL, UNIV_PAGE_SIZE_DEF,
   UNIV_PAGE_SIZE_MIN, UNIV_PAGE_SIZE_MAX, 0);
 
-static MYSQL_SYSVAR_ULONG(log_buffer_size, srv_log_buffer_size,
+static MYSQL_SYSVAR_SIZE_T(log_buffer_size, log_sys.buf_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "The size of the buffer which InnoDB uses to write log to the log files on disk.",
-  NULL, NULL, 16L << 20, 256L << 10, LONG_MAX, 1024);
+  NULL, NULL, 16UL << 20, recv_sys_t::PARSING_BUF_SIZE, SIZE_T_MAX, 4096);
 
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

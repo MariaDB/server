@@ -69,50 +69,6 @@ log_t	log_sys;
 #define LOG_BUF_FLUSH_MARGIN	((4 * 4096) /* cf. log_t::append_prepare() */ \
 				 + (4U << srv_page_size_shift))
 
-/** Extends the log buffer.
-@param[in]	len	requested minimum size in bytes */
-void log_buffer_extend(ulong len)
-{
-	const size_t new_buf_size = ut_calc_align(len, srv_page_size);
-	byte* new_buf = static_cast<byte*>
-		(ut_malloc_dontdump(new_buf_size, PSI_INSTRUMENT_ME));
-	byte* new_flush_buf = static_cast<byte*>
-		(ut_malloc_dontdump(new_buf_size, PSI_INSTRUMENT_ME));
-
-	mysql_mutex_lock(&log_sys.mutex);
-
-	if (len <= srv_log_buffer_size) {
-		/* Already extended enough by the others */
-		mysql_mutex_unlock(&log_sys.mutex);
-		ut_free_dodump(new_buf, new_buf_size);
-		ut_free_dodump(new_flush_buf, new_buf_size);
-		return;
-	}
-
-	sql_print_warning("InnoDB: The redo log transaction size %lu"
-			  " exceeds innodb_log_buffer_size=%lu",
-			  srv_log_buffer_size / 2);
-
-	byte* old_buf = log_sys.buf;
-	byte* old_flush_buf = log_sys.flush_buf;
-	const ulong old_buf_size = srv_log_buffer_size;
-	srv_log_buffer_size = static_cast<ulong>(new_buf_size);
-	log_sys.buf = new_buf;
-	log_sys.flush_buf = new_flush_buf;
-	memcpy_aligned<4096>(new_buf, old_buf, log_sys.buf_free);
-
-	log_sys.max_buf_free = new_buf_size / LOG_BUF_FLUSH_RATIO
-		- LOG_BUF_FLUSH_MARGIN;
-
-	mysql_mutex_unlock(&log_sys.mutex);
-
-	ut_free_dodump(old_buf, old_buf_size);
-	ut_free_dodump(old_flush_buf, old_buf_size);
-
-	sql_print_information("InnoDB: innodb_log_buffer_size was extended"
-			      " to %zu.", new_buf_size);
-}
-
 /** Calculate the recommended highest values for lsn - last_checkpoint_lsn
 and lsn - buf_pool.get_oldest_modification().
 @param[in]	file_size	requested innodb_log_file_size
@@ -184,17 +140,13 @@ void log_t::create()
   set_lsn(FIRST_LSN);
   set_flushed_lsn(FIRST_LSN);
 
-  ut_ad(srv_log_buffer_size >= 4U << srv_page_size_shift);
-
-  buf= static_cast<byte*>(ut_malloc_dontdump(srv_log_buffer_size,
-                                             PSI_INSTRUMENT_ME));
-  TRASH_ALLOC(buf, srv_log_buffer_size);
-  flush_buf= static_cast<byte*>(ut_malloc_dontdump(srv_log_buffer_size,
+  buf= static_cast<byte*>(ut_malloc_dontdump(buf_size, PSI_INSTRUMENT_ME));
+  TRASH_ALLOC(buf, buf_size);
+  flush_buf= static_cast<byte*>(ut_malloc_dontdump(buf_size,
                                                    PSI_INSTRUMENT_ME));
-  TRASH_ALLOC(flush_buf, srv_log_buffer_size);
+  TRASH_ALLOC(flush_buf, buf_size);
 
-  max_buf_free= srv_log_buffer_size / LOG_BUF_FLUSH_RATIO -
-    LOG_BUF_FLUSH_MARGIN;
+  max_buf_free= buf_size / LOG_BUF_FLUSH_RATIO - LOG_BUF_FLUSH_MARGIN;
   set_check_flush_or_checkpoint();
 
   n_log_ios_old= n_log_ios;
@@ -1253,9 +1205,9 @@ void log_t::close()
   if (!is_initialised()) return;
   log.close();
 
-  ut_free_dodump(buf, srv_log_buffer_size);
+  ut_free_dodump(buf, buf_size);
   buf= nullptr;
-  ut_free_dodump(flush_buf, srv_log_buffer_size);
+  ut_free_dodump(flush_buf, buf_size);
   flush_buf= nullptr;
 
   mysql_mutex_destroy(&mutex);
