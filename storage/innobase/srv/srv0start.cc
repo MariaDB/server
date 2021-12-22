@@ -866,7 +866,8 @@ static lsn_t srv_prepare_to_delete_redo_log_file()
 
 		flushed_lsn = log_sys.get_lsn();
 
-		if (latest_format && flushed_lsn != log_sys.next_checkpoint_lsn
+		if (latest_format && !(log_sys.file_size & 4095) &&
+		    flushed_lsn != log_sys.next_checkpoint_lsn
 		    + (log_sys.is_encrypted()
 		       ? SIZE_OF_FILE_CHECKPOINT + 8
 		       : SIZE_OF_FILE_CHECKPOINT)) {

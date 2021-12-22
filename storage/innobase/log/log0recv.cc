@@ -3256,65 +3256,58 @@ static bool recv_scan_log(bool last_phase)
                                      recv_sys.recovered_lsn);
     }
 
-    if (!recv_sys.file_checkpoint)
-    {
-      ut_ad(store == STORE_NO);
-      ut_ad(recv_sys.recovered_lsn >= log_sys.next_checkpoint_lsn);
-
-      if (recv_sys.buf[recv_sys.recovered_offset] !=
-          (FILE_CHECKPOINT | (2 + 8)) &&
-          srv_read_only_mode)
-      {
-        recv_needed_recovery= true;
-        mysql_mutex_unlock(&recv_sys.mutex);
-        DBUG_RETURN(false);
-      }
-
-      while (recv_sys.parse_mtr(store) == recv_sys_t::OK);
-
-      if (recv_sys.is_corrupt_log() || recv_sys.is_corrupt_fs())
-        break;
-      if (!recv_sys.file_checkpoint)
-      {
-        mysql_mutex_unlock(&recv_sys.mutex);
-        recv_sys.set_corrupt_log();
-        sql_print_error("InnoDB: Missing FILE_CHECKPOINT(" LSN_PF
-                        ") at " LSN_PF, log_sys.next_checkpoint_lsn,
-                        recv_sys.recovered_lsn);
-        DBUG_RETURN(true);
-      }
-      ut_ad(recv_sys.file_checkpoint == recv_sys.recovered_lsn);
-
-      if (recv_sys.recovered_lsn - log_sys.next_checkpoint_lsn
-          != (log_sys.is_encrypted()
-              ? SIZE_OF_FILE_CHECKPOINT + 8
-              : SIZE_OF_FILE_CHECKPOINT))
-        /* Rewind to the checkpoint LSN */
-        recv_sys.recovered_lsn= log_sys.next_checkpoint_lsn;
-      mysql_mutex_unlock(&recv_sys.mutex);
-      DBUG_RETURN(true);
-    }
+    recv_sys_t::parse_mtr_result r;
 
     if (UNIV_UNLIKELY(!recv_needed_recovery))
     {
-      ut_ad(recv_sys.recovered_lsn == log_sys.next_checkpoint_lsn ||
-            recv_sys.recovered_lsn - log_sys.next_checkpoint_lsn ==
-            (log_sys.is_encrypted()
-             ? SIZE_OF_FILE_CHECKPOINT + 8 : SIZE_OF_FILE_CHECKPOINT));
-      if (recv_sys.parse_mtr(store) != recv_sys_t::OK)
-        break;
-      recv_needed_recovery= true;
-      if (srv_read_only_mode)
+      ut_ad(store == (recv_sys.file_checkpoint ? STORE_YES : STORE_NO));
+      ut_ad(recv_sys.recovered_lsn >= log_sys.next_checkpoint_lsn);
+
+      for (;;)
       {
-        mysql_mutex_unlock(&recv_sys.mutex);
-        DBUG_RETURN(false);
+        const byte b{recv_sys.buf[recv_sys.recovered_offset]};
+        r= recv_sys.parse_mtr(store);
+        if (r == recv_sys_t::OK)
+        {
+          if (store == STORE_NO &&
+              (b == FILE_CHECKPOINT + 2 + 8 || (b & 0xf0) == FILE_MODIFY))
+            continue;
+        }
+        else if (r == recv_sys_t::PREMATURE_EOF)
+          goto read_more;
+        else if (store != STORE_NO)
+          break;
+
+        if (store == STORE_NO)
+        {
+          const lsn_t end{recv_sys.file_checkpoint};
+          mysql_mutex_unlock(&recv_sys.mutex);
+
+          if (!end)
+          {
+            recv_sys.set_corrupt_log();
+            sql_print_error("InnoDB: Missing FILE_CHECKPOINT(" LSN_PF
+                            ") at " LSN_PF, log_sys.next_checkpoint_lsn,
+                            recv_sys.recovered_lsn);
+          }
+          else
+            ut_ad(end == recv_sys.recovered_lsn);
+          DBUG_RETURN(true);
+        }
+
+        recv_needed_recovery= true;
+        if (srv_read_only_mode)
+        {
+          mysql_mutex_unlock(&recv_sys.mutex);
+          DBUG_RETURN(false);
+        }
+        sql_print_information("InnoDB: Starting crash recovery from"
+                              " checkpoint LSN="  LSN_PF,
+                              log_sys.next_checkpoint_lsn);
+        break;
       }
-      sql_print_information("InnoDB: Starting crash recovery from"
-                            " checkpoint LSN="  LSN_PF,
-                            log_sys.next_checkpoint_lsn);
     }
 
-    recv_sys_t::parse_mtr_result r;
     while ((r= recv_sys.parse_mtr(store)) == recv_sys_t::OK)
     {
       if (store != STORE_NO && recv_sys.is_memory_exhausted())
@@ -3335,6 +3328,7 @@ static bool recv_scan_log(bool last_phase)
       }
     }
 
+  read_more:
     if (r != recv_sys_t::PREMATURE_EOF)
     {
       ut_ad(r == recv_sys_t::GOT_EOF);
@@ -3694,17 +3688,17 @@ dberr_t recv_recovery_from_checkpoint_start()
 	be contiguously written. */
 
 	ut_ad(recv_sys.pages.empty());
-	ut_d(size_t sizeof_checkpoint = 0);
 
-	switch (log_sys.format) {
-	case log_t::FORMAT_3_23:
+	if (log_sys.format == log_t::FORMAT_3_23) {
 		mysql_mutex_unlock(&log_sys.mutex);
 		return DB_SUCCESS;
-	default:
-		break;
-	case log_t::FORMAT_10_8:
-	case log_t::FORMAT_ENC_10_8:
+	}
+
+	if (log_sys.is_latest()) {
+		const bool rewind = recv_sys.recovered_lsn
+			!= log_sys.next_checkpoint_lsn;
 		log_sys.last_checkpoint_lsn = log_sys.next_checkpoint_lsn;
+
 		recv_scan_log(false);
 		if (recv_needed_recovery) {
 read_only_recovery:
@@ -3720,12 +3714,7 @@ read_only_recovery:
 			return DB_ERROR;
 		}
 		ut_ad(recv_sys.file_checkpoint);
-		const size_t checkpoint_size = log_sys.is_encrypted()
-			? SIZE_OF_FILE_CHECKPOINT + 8
-			: SIZE_OF_FILE_CHECKPOINT;
-		ut_d(sizeof_checkpoint = checkpoint_size);
-		if (recv_sys.recovered_lsn
-		    != log_sys.next_checkpoint_lsn + checkpoint_size) {
+		if (rewind) {
 			recv_sys.recovered_lsn = log_sys.next_checkpoint_lsn;
 			recv_sys.recovered_offset = 0;
 			recv_sys.len = 0;
@@ -3827,16 +3816,6 @@ read_only_recovery:
 		mysql_mutex_unlock(&log_sys.mutex);
 		return DB_ERROR;
 	}
-
-#ifdef UNIV_DEBUG
-	if (recv_needed_recovery) {
-	} else if (!log_sys.is_latest()) {
-		ut_ad(log_sys.next_checkpoint_lsn == recv_sys.recovered_lsn);
-	} else {
-		ut_ad(log_sys.next_checkpoint_lsn + sizeof_checkpoint
-		      == recv_sys.recovered_lsn);
-	}
-#endif
 
 	if (!srv_read_only_mode && log_sys.is_latest()) {
 		log_sys.write_lsn = log_sys.get_lsn();

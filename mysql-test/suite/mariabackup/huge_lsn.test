@@ -19,7 +19,8 @@ my $file= "$ENV{MYSQLD_DATADIR}/ib_logfile0";
 open(FILE, ">", $file) or die "Unable to open $file\n";
 binmode FILE;
 # the desired log sequence number, plus 16
-my $lsn_hi=4096,$lsn_lo=0xfffffe00;
+my $extra_repeat = 139820;
+my $lsn_hi=4096,$lsn_lo=0xfffffe00 - $extra_repeat * 15;
 my $polynomial = 0x82f63b78; # CRC-32C
 my ($header, $checkpoint, $log);
 $header = "Phys" . pack("x[4]NN", $lsn_hi, $lsn_lo) .
@@ -29,13 +30,18 @@ $checkpoint = pack("NNNNx[44]", $lsn_hi, $lsn_lo, $lsn_hi, $lsn_lo);
 $checkpoint .= pack("Nx[8128]", mycrc32($checkpoint, 0, $polynomial));
 $log = pack("CxxNN", 0xfa, $lsn_hi, $lsn_lo);
 $log .= pack("CN", 1, mycrc32($log, 0, $polynomial));
-print FILE $header, $checkpoint, $log;
+
+# Write more than 2MiB of FILE_MODIFY mini-transactions to exercise the parser.
+my $extra = pack("CCxa*", 0xb9, 127, "a/b.ibd");
+$extra .= pack("CN", 1, mycrc32($extra, 0, $polynomial));
+
+print FILE $header, $checkpoint, $extra x $extra_repeat, $log;
 close(FILE) or die "Unable to close $file\n";
 EOF
 
 --source include/start_mysqld.inc
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
---let SEARCH_PATTERN= redo log from 12\\.016KiB to [0-9.]*[KMGT]iB; LSN=17596481011216\\b
+--let SEARCH_PATTERN= redo log from 2\\.012MiB to [0-9.]*[KMGT]iB; LSN=17596481011216\\b
 --source include/search_pattern_in_file.inc
 
 CREATE TABLE t(i INT) ENGINE INNODB;
