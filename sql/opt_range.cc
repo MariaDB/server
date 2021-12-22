@@ -16637,6 +16637,8 @@ void print_keyparts_name(String *out, const KEY_PART_INFO *key_part,
       else
         out->append(STRING_WITH_LEN(","));
       out->append(key_part->field->field_name);
+      if (key_part->key_part_flag & HA_REVERSE_SORT)
+        out->append(STRING_WITH_LEN(" DESC"));
     }
     else
       break;
