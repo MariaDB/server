@@ -1295,20 +1295,28 @@ use_o_direct:
 	} else if (type == OS_LOG_FILE) {
 		struct stat st;
 		char b[20 + sizeof "/sys/dev/block/" ":"
-		       "/queue/physical_block_size"];
+		       "/../queue/physical_block_size"];
 		int f;
 		if (fstat(file, &st) || st.st_size & 4095) {
 			goto skip_o_direct;
 		}
-		/* Linux seems to allow up to 15 partitions per block device.
-		Partition number 0 is the whole block device. */
 		if (snprintf(b, sizeof b,
 			     "/sys/dev/block/%u:%u/queue/physical_block_size",
-			     major(st.st_dev), minor(st.st_dev) & ~15U)
+			     major(st.st_dev), minor(st.st_dev))
 		    >= static_cast<int>(sizeof b)) {
 			goto skip_o_direct;
 		}
-		if ((f = open(b, O_RDONLY)) != -1) {
+		if ((f = open(b, O_RDONLY)) == -1) {
+			if (snprintf(b, sizeof b,
+				     "/sys/dev/block/%u:%u/../queue/"
+				     "physical_block_size",
+				     major(st.st_dev), minor(st.st_dev))
+			    >= static_cast<int>(sizeof b)) {
+				goto skip_o_direct;
+			}
+			f = open(b, O_RDONLY);
+		}
+		if (f != -1) {
 			ssize_t l = read(f, b, sizeof b);
 			unsigned long s = 0;
 
