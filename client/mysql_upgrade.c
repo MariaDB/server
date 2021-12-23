@@ -37,13 +37,14 @@
 #endif
 
 static int phase = 0;
+static int info_file;
 static const int phases_total = 7;
 static char mysql_path[FN_REFLEN];
 static char mysqlcheck_path[FN_REFLEN];
 
 static my_bool opt_force, opt_verbose, debug_info_flag, debug_check_flag,
                opt_systables_only, opt_version_check;
-static my_bool opt_not_used, opt_silent;
+static my_bool opt_not_used, opt_silent, opt_check_upgrade;
 static uint my_end_arg= 0;
 static char *opt_user= (char*)"root";
 
@@ -110,6 +111,10 @@ static struct my_option my_long_options[]=
    "Default authentication client-side plugin to use.",
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"check-if-upgrade-is-needed", OPT_CHECK_IF_UPGRADE_NEEDED,
+   "Exits with status 0 if an upgrades is required, 1 otherwise.",
+   &opt_check_upgrade, &opt_check_upgrade,
+   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"force", 'f', "Force execution of mysqlcheck even if mysql_upgrade "
    "has already been executed for the current version of MariaDB.",
    &opt_force, &opt_force, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -339,6 +344,7 @@ get_one_option(int optid, const struct my_option *opt,
     opt_verbose= 0;
     add_option= 0;
     break;
+  case OPT_CHECK_IF_UPGRADE_NEEDED: /* --check-if-upgrade-needed */
   case 'f': /* --force     */
   case 's':                                     /* --upgrade-system-tables */
   case OPT_WRITE_BINLOG:                        /* --write-binlog */
@@ -447,10 +453,10 @@ static int run_tool(char *tool_path, DYNAMIC_STRING *ds_res, ...)
 
 /**
   Look for the filename of given tool, with the presumption that it is in the
-  same directory as mysql_upgrade and that the same executable-searching 
+  same directory as mysql_upgrade and that the same executable-searching
   mechanism will be used when we run our sub-shells with popen() later.
 */
-static void find_tool(char *tool_executable_name, const char *tool_name, 
+static void find_tool(char *tool_executable_name, const char *tool_name,
                       const char *self_name)
 {
   char *last_fn_libchar;
@@ -551,7 +557,7 @@ static int run_query(const char *query, DYNAMIC_STRING *ds_res,
 
   DBUG_ENTER("run_query");
   DBUG_PRINT("enter", ("query: %s", query));
-  if ((fd= create_temp_file(query_file_path, 
+  if ((fd= create_temp_file(query_file_path,
                             opt_tmpdir[0] ? opt_tmpdir : NULL,
                             "sql", O_SHARE, MYF(MY_WME))) < 0)
     die("Failed to create temporary file for defaults");
@@ -708,22 +714,41 @@ static int upgrade_already_done(myf flags)
 
 */
 
+/* //TEMP Q. Monty
+ used by:
+ - create_mysql_upgrade_info_file
+ - finish_mysql_upgrade_info_file
+ - upgrade_already_done
+define inside function or outside only once (and char or static char)?
+*/
+static char upgrade_info_file[FN_REFLEN]= {0};
+
 static void create_mysql_upgrade_info_file(void)
 {
-  FILE *out;
-  char upgrade_info_file[FN_REFLEN]= {0};
 
   if (get_upgrade_info_file_name(upgrade_info_file))
     return; /* Could not get filename => skip */
 
-  if (!(out= my_fopen(upgrade_info_file, O_TRUNC | O_WRONLY, MYF(0))))
+  if ((info_file= my_create(upgrade_info_file, 0,
+                            O_WRONLY | O_TRUNC | O_EXCL | O_NOFOLLOW,
+                            MYF(MY_WME))) < 0)
   {
+    if (errno == EBUSY)
+      die("Could not exclusively lock file '%s'\n", upgrade_info_file);
+
     fprintf(stderr,
             "Could not create the upgrade info file '%s' in "
             "the MariaDB Servers datadir, errno: %d\n",
             upgrade_info_file, errno);
     return;
   }
+}
+
+
+FILE *out; /* //TEMP Q. Monty: is that correct? */
+
+static void finish_mysql_upgrade_info_file(void)
+{
 
   /* Write new version to file */
   my_fwrite(out, (uchar*) MYSQL_SERVER_VERSION,
@@ -731,7 +756,7 @@ static void create_mysql_upgrade_info_file(void)
   my_fclose(out, MYF(MY_WME));
 
   /*
-    Check if the upgrad_info_file was properly created/updated
+    Check if the upgrade_info_file was properly created/updated
     It's not a fatal error -> just print a message if it fails
   */
   if (!upgrade_already_done(MY_WME))
@@ -756,7 +781,7 @@ static void print_conn_args(const char *tool_name)
           conn_args.str);
   else
     verbose("Running '%s with default connection arguments", tool_name);
-}  
+}
 
 /*
   Check and upgrade(if necessary) all tables
@@ -1244,6 +1269,9 @@ int main(int argc, char **argv)
   /* Find mysql */
   find_tool(mysql_path, IF_WIN("mysql.exe", "mysql"), self_name);
 
+  if (opt_check_upgrade)
+    exit(upgrade_already_done(MY_FAE)); /* //TEMP Q. Monty, not sure about the flag, should I use 0? */
+
   /* Find mysqlcheck */
   find_tool(mysqlcheck_path, IF_WIN("mysqlcheck.exe", "mysqlcheck"), self_name);
 
@@ -1267,6 +1295,9 @@ int main(int argc, char **argv)
 
   upgrade_from_mysql= is_mysql();
 
+  /* Create a file indicating upgrade exclusively */
+  create_mysql_upgrade_info_file();
+
   /*
     Run "mysqlcheck" and "mysql_fix_privilege_tables.sql"
   */
@@ -1285,8 +1316,8 @@ int main(int argc, char **argv)
 
   verbose("OK");
 
-  /* Create a file indicating upgrade has been performed */
-  create_mysql_upgrade_info_file();
+  /* Finish writing indicating upgrade has been performed */
+  finish_mysql_upgrade_info_file();
 
   DBUG_ASSERT(phase == phases_total);
 
