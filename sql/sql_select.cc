@@ -11404,7 +11404,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           trace_const_cond.add("condition_on_constant_tables", const_cond);
           if (const_cond->is_expensive())
           {
-            trace_const_cond.add("evalualted", "false")
+            trace_const_cond.add("evaluated", "false")
                             .add("cause", "expensive cond");
           }
           else
@@ -11417,7 +11417,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             if (!const_cond_result)
             {
               DBUG_PRINT("info",("Found impossible WHERE condition"));
-              trace_const_cond.add("evalualted", "true")
+              trace_const_cond.add("evaluated", "true")
                               .add("found", "impossible where");
               join->exec_const_cond= NULL;
               DBUG_RETURN(1);
