@@ -11409,7 +11409,11 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           }
           else
           {
-            const bool const_cond_result = const_cond->val_int() != 0;
+            bool const_cond_result;
+            {
+              Json_writer_array a(thd, "computing_condition");
+              const_cond_result= const_cond->val_int() != 0;
+            }
             if (!const_cond_result)
             {
               DBUG_PRINT("info",("Found impossible WHERE condition"));

@@ -644,5 +644,15 @@ SELECT query, trace FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 SET optimizer_trace=DEFAULT;
 
 --echo #
+--echo # MDEV-27238: Assertion `got_name == named_item_expected()' failed in Json_writer::on_start_object
+--echo #
+
+CREATE TABLE t1 (a INT KEY,b INT,KEY(b)) ENGINE=MEMORY;
+SET optimizer_trace=1;
+INSERT INTO t1 VALUES (0,0);
+SELECT a FROM t1 WHERE (a,b) in (SELECT @c,@d);
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.4 tests
 --echo #
