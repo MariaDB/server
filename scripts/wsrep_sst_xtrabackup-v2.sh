@@ -31,7 +31,6 @@ eformat=""
 ekey=""
 ekeyfile=""
 encrypt=0
-ecode=0
 ssyslog=""
 ssystag=""
 BACKUP_PID=""
@@ -160,7 +159,7 @@ get_keys()
         return
     fi
 
-    wsrep_log_info "Key based encryption enabled in my.cnf - supported only from Xtrabackup 2.1.4"
+    wsrep_log_info "Key based encryption enabled in my.cnf"
 
     if [ -z "$ealgo" ]; then
         wsrep_log_error "FATAL: Encryption algorithm empty from my.cnf, bailing out"
@@ -470,49 +469,6 @@ adjust_progress()
 
 encgroups='--mysqld|sst|xtrabackup'
 
-check_server_ssl_config()
-{
-    # backward-compatible behavior:
-    tcert=$(parse_cnf 'sst' 'tca')
-    tcap=$(parse_cnf 'sst' 'tcapath')
-    tpem=$(parse_cnf 'sst' 'tcert')
-    tkey=$(parse_cnf 'sst' 'tkey')
-    # reading new ssl configuration options:
-    local tcert2=$(parse_cnf "$encgroups" 'ssl-ca')
-    local tcap2=$(parse_cnf "$encgroups" 'ssl-capath')
-    local tpem2=$(parse_cnf "$encgroups" 'ssl-cert')
-    local tkey2=$(parse_cnf "$encgroups" 'ssl-key')
-    # if there are no old options, then we take new ones:
-    if [ -z "$tcert" -a -z "$tcap" -a -z "$tpem" -a -z "$tkey" ]; then
-        tcert="$tcert2"
-        tcap="$tcap2"
-        tpem="$tpem2"
-        tkey="$tkey2"
-    # checking for presence of the new-style SSL configuration:
-    elif [ -n "$tcert2" -o -n "$tcap2" -o -n "$tpem2" -o -n "$tkey2" ]; then
-        if [ "$tcert" != "$tcert2" -o \
-             "$tcap"  != "$tcap2"  -o \
-             "$tpem"  != "$tpem2"  -o \
-             "$tkey"  != "$tkey2" ]
-        then
-            wsrep_log_info \
-               "new ssl configuration options (ssl-ca[path], ssl-cert" \
-               "and ssl-key) are ignored by SST due to presence" \
-               "of the tca[path], tcert and/or tkey in the [sst] section"
-        fi
-    fi
-    if [ -n "$tcert" ]; then
-        tcert=$(trim_string "$tcert")
-        if [ "${tcert%/}" != "$tcert" ] || [ -d "$tcert" ]; then
-            tcap="$tcert"
-            tcert=""
-        fi
-    fi
-    if [ -n "$tcap" ]; then
-        tcap=$(trim_string "$tcap")
-    fi
-}
-
 read_cnf()
 {
     sfmt=$(parse_cnf sst streamfmt 'xbstream')
@@ -659,7 +615,7 @@ cleanup_at_exit()
                 cleanup_pid $CHECK_PID "$BACKUP_PID"
             fi
         fi
-        [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE"
+        [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE" || :
     fi
 
     if [ -n "$progress" -a -p "$progress" ]; then
@@ -670,25 +626,29 @@ cleanup_at_exit()
     wsrep_log_info "Cleaning up temporary directories"
 
     if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
-        if [ -n "$STATDIR" ]; then
-           [ -d "$STATDIR" ] && rm -rf "$STATDIR"
-        fi
+        [ -n "$STATDIR" -a -d "$STATDIR" ] && rm -rf "$STATDIR" || :
     else
         [ -n "$xtmpdir" -a -d "$xtmpdir" ] && rm -rf "$xtmpdir" || :
         [ -n "$itmpdir" -a -d "$itmpdir" ] && rm -rf "$itmpdir" || :
     fi
 
     # Final cleanup
-    pgid=$(ps -o pgid= $$ | grep -o '[0-9]*')
+    pgid=$(ps -o pgid= $$ 2>/dev/null | grep -o '[0-9]*' || :)
 
     # This means no setsid done in mysqld.
     # We don't want to kill mysqld here otherwise.
-    if [ $$ -eq $pgid ]; then
-        # This means a signal was delivered to the process.
-        # So, more cleanup.
-        if [ $estatus -ge 128 ]; then
-            kill -KILL -- -$$ || :
+    if [ -n "$pgid" ]; then
+        if [ $$ -eq $pgid ]; then
+            # This means a signal was delivered to the process.
+            # So, more cleanup.
+            if [ $estatus -ge 128 ]; then
+                kill -KILL -- -$$ || :
+            fi
         fi
+    fi
+
+    if [ -n "${SST_PID:-}" ]; then
+        [ -f "$SST_PID" ] && rm -f "$SST_PID" || :
     fi
 
     exit $estatus
@@ -862,7 +822,7 @@ monitor_process()
     done
 }
 
-# check the version, we require XB-2.4 to ensure that we can pass the
+# check the version, we require XB-2.3.5 to ensure that we can pass the
 # datadir via the command-line option
 XB_REQUIRED_VERSION="2.3.5"
 
@@ -992,13 +952,13 @@ setup_commands()
     if [ -n "$INNODB_FORCE_RECOVERY" ]; then
         recovery=" --innodb-force-recovery=$INNODB_FORCE_RECOVERY"
     fi
-    INNOAPPLY="$BACKUP_BIN$disver$recovery${iapts:+ }$iapts$INNOEXTRA --apply-log $rebuildcmd '$DATA' $INNOAPPLY"
-    INNOMOVE="$BACKUP_BIN$WSREP_SST_OPT_CONF --move-back$disver${impts:+ }$impts --force-non-empty-directories '$DATA' $INNOMOVE"
+    INNOAPPLY="$BACKUP_BIN$disver$recovery${iapts:+ }$iapts$INNOEXTRA --apply-log${rebuildcmd:+ }$rebuildcmd --datadir='$DATA' '$DATA' $INNOAPPLY"
+    INNOMOVE="$BACKUP_BIN$WSREP_SST_OPT_CONF --move-back$disver${impts:+ }$impts --force-non-empty-directories --datadir='${TDATA:-$DATA}' '$DATA' $INNOMOVE"
     local sfmt_work="$sfmt"
     if [ "$sfmt" = 'mbstream' ]; then
         sfmt_work='xbstream'
     fi
-    INNOBACKUP="$BACKUP_BIN$WSREP_SST_OPT_CONF$disver${iopts:+ }$iopts $tmpopts$INNOEXTRA --galera-info --stream=$sfmt_work '$itmpdir' $INNOBACKUP"
+    INNOBACKUP="$BACKUP_BIN$WSREP_SST_OPT_CONF$disver${iopts:+ }$iopts$tmpopts$INNOEXTRA --galera-info --stream=$sfmt_work --datadir='$DATA' '$itmpdir' $INNOBACKUP"
 }
 
 get_stream
@@ -1026,7 +986,7 @@ then
         fi
 
         wsrep_log_info "Using '$xtmpdir' as xtrabackup temporary directory"
-        tmpopts="--tmpdir='$xtmpdir'"
+        tmpopts=" --tmpdir='$xtmpdir'"
 
         itmpdir="$(mktemp -d)"
         wsrep_log_info "Using '$itmpdir' as xtrabackup working directory"
@@ -1192,10 +1152,23 @@ then
         impts="--parallel=$backup_threads${impts:+ }$impts"
     fi
 
-    stagemsg='Joiner-Recv'
+    SST_PID="$WSREP_SST_OPT_DATA/wsrep_sst.pid"
 
-    sencrypted=1
-    nthreads=1
+    # give some time for previous SST to complete:
+    check_round=0
+    while check_pid "$SST_PID" 0; do
+        wsrep_log_info "previous SST is not completed, waiting for it to exit"
+        check_round=$(( check_round + 1 ))
+        if [ $check_round -eq 10 ]; then
+            wsrep_log_error "previous SST script still running."
+            exit 114 # EALREADY
+        fi
+        sleep 1
+    done
+
+    echo $$ > "$SST_PID"
+
+    stagemsg='Joiner-Recv'
 
     MODULE="xtrabackup_sst"
 
@@ -1239,7 +1212,7 @@ then
     fi
 
     get_keys
-    if [ $encrypt -eq 1 -a $sencrypted -eq 1 ]; then
+    if [ $encrypt -eq 1 ]; then
         strmcmd="$ecmd | $strmcmd"
     fi
 
@@ -1294,12 +1267,14 @@ then
 
         if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
             binlog_dir=$(dirname "$WSREP_SST_OPT_BINLOG")
-            cd "$binlog_dir"
-            wsrep_log_info "Cleaning the binlog directory $binlog_dir as well"
-            rm -fv "$WSREP_SST_OPT_BINLOG".[0-9]* 1>&2 \+ || :
-            [ -f "$WSREP_SST_OPT_BINLOG_INDEX" ] && \
-                rm -fv "$WSREP_SST_OPT_BINLOG_INDEX" 1>&2 \+ || :
-            cd "$OLD_PWD"
+            if [ -d "$binlog_dir" ]; then
+                cd "$binlog_dir"
+                wsrep_log_info "Cleaning the binlog directory $binlog_dir as well"
+                rm -fv "$WSREP_SST_OPT_BINLOG".[0-9]* 1>&2 \+ || :
+                [ -f "$WSREP_SST_OPT_BINLOG_INDEX" ] && \
+                    rm -fv "$WSREP_SST_OPT_BINLOG_INDEX" 1>&2 \+
+                cd "$OLD_PWD"
+            fi
         fi
 
         TDATA="$DATA"
@@ -1316,7 +1291,7 @@ then
         fi
 
         # Rebuild indexes for compact backups
-        if grep -q -F 'compact = 1' "$DATA/xtrabackup_checkpoints"; then
+        if grep -qw -F 'compact = 1' "$DATA/xtrabackup_checkpoints"; then
             wsrep_log_info "Index compaction detected"
             get_proc
             nthreads=$(parse_cnf "$encgroups" 'rebuild-threads' $nproc)

@@ -1,4 +1,7 @@
+connection node_1;
+connection node_2;
 Performing State Transfer on a server that has been shut down cleanly and restarted
+connection node_1;
 CREATE TABLE t1 (f1 CHAR(255)) ENGINE=InnoDB;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
@@ -8,6 +11,7 @@ INSERT INTO t1 VALUES ('node1_committed_before');
 INSERT INTO t1 VALUES ('node1_committed_before');
 INSERT INTO t1 VALUES ('node1_committed_before');
 COMMIT;
+connection node_2;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 VALUES ('node2_committed_before');
@@ -17,6 +21,7 @@ INSERT INTO t1 VALUES ('node2_committed_before');
 INSERT INTO t1 VALUES ('node2_committed_before');
 COMMIT;
 Shutting down server ...
+connection node_1;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 VALUES ('node1_committed_during');
@@ -31,6 +36,7 @@ INSERT INTO t1 VALUES ('node1_to_be_committed_after');
 INSERT INTO t1 VALUES ('node1_to_be_committed_after');
 INSERT INTO t1 VALUES ('node1_to_be_committed_after');
 INSERT INTO t1 VALUES ('node1_to_be_committed_after');
+connect node_1a_galera_st_shutdown_slave, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
@@ -38,6 +44,7 @@ INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
+connection node_2;
 Starting server ...
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
@@ -47,6 +54,7 @@ INSERT INTO t1 VALUES ('node2_committed_after');
 INSERT INTO t1 VALUES ('node2_committed_after');
 INSERT INTO t1 VALUES ('node2_committed_after');
 COMMIT;
+connection node_1;
 INSERT INTO t1 VALUES ('node1_to_be_committed_after');
 INSERT INTO t1 VALUES ('node1_to_be_committed_after');
 INSERT INTO t1 VALUES ('node1_to_be_committed_after');
@@ -61,6 +69,7 @@ INSERT INTO t1 VALUES ('node1_committed_after');
 INSERT INTO t1 VALUES ('node1_committed_after');
 INSERT INTO t1 VALUES ('node1_committed_after');
 COMMIT;
+connection node_1a_galera_st_shutdown_slave;
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
@@ -75,6 +84,7 @@ COUNT(*) = 0
 1
 COMMIT;
 SET AUTOCOMMIT=ON;
+connection node_1;
 SELECT COUNT(*) = 35 FROM t1;
 COUNT(*) = 35
 1
@@ -86,6 +96,7 @@ COMMIT;
 SET AUTOCOMMIT=ON;
 Performing State Transfer on a server that starts from a clean var directory
 This is accomplished by shutting down node #2 and removing its var directory before restarting it
+connection node_1;
 CREATE TABLE t1 (f1 CHAR(255)) ENGINE=InnoDB;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
@@ -95,6 +106,7 @@ INSERT INTO t1 VALUES ('node1_committed_before');
 INSERT INTO t1 VALUES ('node1_committed_before');
 INSERT INTO t1 VALUES ('node1_committed_before');
 COMMIT;
+connection node_2;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 VALUES ('node2_committed_before');
@@ -104,6 +116,7 @@ INSERT INTO t1 VALUES ('node2_committed_before');
 INSERT INTO t1 VALUES ('node2_committed_before');
 COMMIT;
 Shutting down server ...
+connection node_1;
 Cleaning var directory ...
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
@@ -119,6 +132,7 @@ INSERT INTO t1 VALUES ('node1_to_be_committed_after');
 INSERT INTO t1 VALUES ('node1_to_be_committed_after');
 INSERT INTO t1 VALUES ('node1_to_be_committed_after');
 INSERT INTO t1 VALUES ('node1_to_be_committed_after');
+connect node_1a_galera_st_clean_slave, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
@@ -126,6 +140,7 @@ INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
+connection node_2;
 Starting server ...
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
@@ -135,6 +150,7 @@ INSERT INTO t1 VALUES ('node2_committed_after');
 INSERT INTO t1 VALUES ('node2_committed_after');
 INSERT INTO t1 VALUES ('node2_committed_after');
 COMMIT;
+connection node_1;
 INSERT INTO t1 VALUES ('node1_to_be_committed_after');
 INSERT INTO t1 VALUES ('node1_to_be_committed_after');
 INSERT INTO t1 VALUES ('node1_to_be_committed_after');
@@ -149,6 +165,7 @@ INSERT INTO t1 VALUES ('node1_committed_after');
 INSERT INTO t1 VALUES ('node1_committed_after');
 INSERT INTO t1 VALUES ('node1_committed_after');
 COMMIT;
+connection node_1a_galera_st_clean_slave;
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
@@ -163,6 +180,7 @@ COUNT(*) = 0
 1
 COMMIT;
 SET AUTOCOMMIT=ON;
+connection node_1;
 SELECT COUNT(*) = 35 FROM t1;
 COUNT(*) = 35
 1
@@ -173,6 +191,7 @@ DROP TABLE t1;
 COMMIT;
 SET AUTOCOMMIT=ON;
 Performing State Transfer on a server that has been killed and restarted
+connection node_1;
 CREATE TABLE t1 (f1 CHAR(255)) ENGINE=InnoDB;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
@@ -182,6 +201,7 @@ INSERT INTO t1 VALUES ('node1_committed_before');
 INSERT INTO t1 VALUES ('node1_committed_before');
 INSERT INTO t1 VALUES ('node1_committed_before');
 COMMIT;
+connection node_2;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 VALUES ('node2_committed_before');
@@ -191,6 +211,7 @@ INSERT INTO t1 VALUES ('node2_committed_before');
 INSERT INTO t1 VALUES ('node2_committed_before');
 COMMIT;
 Killing server ...
+connection node_1;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 VALUES ('node1_committed_during');
@@ -205,6 +226,7 @@ INSERT INTO t1 VALUES ('node1_to_be_committed_after');
 INSERT INTO t1 VALUES ('node1_to_be_committed_after');
 INSERT INTO t1 VALUES ('node1_to_be_committed_after');
 INSERT INTO t1 VALUES ('node1_to_be_committed_after');
+connect node_1a_galera_st_kill_slave, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
@@ -212,6 +234,7 @@ INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
+connection node_2;
 Performing --wsrep-recover ...
 Starting server ...
 Using --wsrep-start-position when starting mysqld ...
@@ -223,6 +246,7 @@ INSERT INTO t1 VALUES ('node2_committed_after');
 INSERT INTO t1 VALUES ('node2_committed_after');
 INSERT INTO t1 VALUES ('node2_committed_after');
 COMMIT;
+connection node_1;
 INSERT INTO t1 VALUES ('node1_to_be_committed_after');
 INSERT INTO t1 VALUES ('node1_to_be_committed_after');
 INSERT INTO t1 VALUES ('node1_to_be_committed_after');
@@ -237,6 +261,7 @@ INSERT INTO t1 VALUES ('node1_committed_after');
 INSERT INTO t1 VALUES ('node1_committed_after');
 INSERT INTO t1 VALUES ('node1_committed_after');
 COMMIT;
+connection node_1a_galera_st_kill_slave;
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
 INSERT INTO t1 VALUES ('node1_to_be_rollbacked_after');
@@ -251,6 +276,7 @@ COUNT(*) = 0
 1
 COMMIT;
 SET AUTOCOMMIT=ON;
+connection node_1;
 SELECT COUNT(*) = 35 FROM t1;
 COUNT(*) = 35
 1
