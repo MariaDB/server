@@ -955,7 +955,8 @@ static SHOW_VAR innodb_status_variables[]= {
   {"checkpoint_age", &export_vars.innodb_checkpoint_age, SHOW_SIZE_T},
   {"checkpoint_max_age", &export_vars.innodb_checkpoint_max_age, SHOW_SIZE_T},
   {"data_fsyncs", &export_vars.innodb_data_fsyncs, SHOW_SIZE_T},
-  {"data_pending_fsyncs", &export_vars.innodb_data_pending_fsyncs,SHOW_SIZE_T},
+  {"data_pending_fsyncs",
+   (size_t*) &fil_n_pending_tablespace_flushes, SHOW_SIZE_T},
   {"data_pending_reads", &export_vars.innodb_data_pending_reads, SHOW_SIZE_T},
   {"data_pending_writes", &export_vars.innodb_data_pending_writes,SHOW_SIZE_T},
   {"data_read", &export_vars.innodb_data_read, SHOW_SIZE_T},
@@ -994,9 +995,6 @@ static SHOW_VAR innodb_status_variables[]= {
   {"mem_adaptive_hash", &export_vars.innodb_mem_adaptive_hash, SHOW_SIZE_T},
 #endif
   {"mem_dictionary", &export_vars.innodb_mem_dictionary, SHOW_SIZE_T},
-  {"os_log_fsyncs", &export_vars.innodb_os_log_fsyncs, SHOW_SIZE_T},
-  {"os_log_pending_fsyncs", &export_vars.innodb_os_log_pending_fsyncs,
-   SHOW_SIZE_T},
   {"os_log_pending_writes", &export_vars.innodb_os_log_pending_writes,
    SHOW_SIZE_T},
   {"os_log_written", &export_vars.innodb_os_log_written, SHOW_SIZE_T},
@@ -1594,7 +1592,7 @@ static void innodb_drop_database(handlerton*, char *path)
     for (pfs_os_file_t detached : to_close)
       os_file_close(detached);
     /* Any changes must be persisted before we return. */
-    log_write_up_to(mtr.commit_lsn(), true);
+    log_write_up_to(mtr.commit_lsn());
   }
 
   my_free(namebuf);
@@ -1622,54 +1620,12 @@ innobase_start_trx_and_assign_read_view(
 					be committed */
 
 /** Flush InnoDB redo logs to the file system.
-@param[in]	hton			InnoDB handlerton
-@param[in]	binlog_group_flush	true if we got invoked by binlog
-group commit during flush stage, false in other cases.
 @return false */
-static
-bool
-innobase_flush_logs(
-	handlerton*	hton,
-	bool		binlog_group_flush)
+static bool innobase_flush_logs(handlerton*)
 {
-	DBUG_ENTER("innobase_flush_logs");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
-	if (srv_read_only_mode) {
-		DBUG_RETURN(false);
-	}
-
-	/* If !binlog_group_flush, we got invoked by FLUSH LOGS or similar.
-	Else, we got invoked by binlog group commit during flush stage. */
-
-	if (binlog_group_flush && srv_flush_log_at_trx_commit == 0) {
-		/* innodb_flush_log_at_trx_commit=0
-		(write and sync once per second).
-		Do not flush the redo log during binlog group commit. */
-		DBUG_RETURN(false);
-	}
-
-	/* Flush the redo log buffer to the redo log file.
-	Sync it to disc if we are in FLUSH LOGS, or if
-	innodb_flush_log_at_trx_commit=1
-	(write and sync at each commit). */
-	log_buffer_flush_to_disk(!binlog_group_flush
-				 || srv_flush_log_at_trx_commit == 1);
-
-	DBUG_RETURN(false);
-}
-
-/** Flush InnoDB redo logs to the file system.
-@param[in]	hton			InnoDB handlerton
-@param[in]	binlog_group_flush	true if we got invoked by binlog
-group commit during flush stage, false in other cases.
-@return false */
-static
-bool
-innobase_flush_logs(
-	handlerton*	hton)
-{
-	return innobase_flush_logs(hton, true);
+  if (UNIV_LIKELY(!srv_read_only_mode))
+    log_buffer_flush_to_disk();
+  return false;
 }
 
 /************************************************************************//**
@@ -4709,7 +4665,7 @@ static void innodb_log_flush_request(void *cookie)
     flush about once every srv_flush_log_at_timeout seconds.  But,
     starting with the innodb_force_recovery=2 level, that background
     task will not run. */
-    log_write_up_to(flush_lsn= lsn, true);
+    log_write_up_to(flush_lsn= lsn);
   else if (log_flush_request *req= static_cast<log_flush_request*>
            (my_malloc(PSI_INSTRUMENT_ME, sizeof *req, MYF(MY_WME))))
   {
@@ -13189,7 +13145,7 @@ ha_innobase::create(
 		for (pfs_os_file_t d : deleted) os_file_close(d);
 		error = info.create_table_update_dict();
 		if (!(info.flags2() & DICT_TF2_TEMPORARY)) {
-			log_write_up_to(trx->commit_lsn, true);
+			log_write_up_to(trx->commit_lsn);
 		}
 	}
 
@@ -13609,7 +13565,7 @@ err_exit:
   row_mysql_unlock_data_dictionary(trx);
   for (pfs_os_file_t d : deleted)
     os_file_close(d);
-  log_write_up_to(trx->commit_lsn, true);
+  log_write_up_to(trx->commit_lsn);
   if (trx != parent_trx)
     trx->free();
   if (!fts)
@@ -14077,7 +14033,7 @@ ha_innobase::rename_table(
 	}
 	row_mysql_unlock_data_dictionary(trx);
 	if (error == DB_SUCCESS) {
-		log_write_up_to(trx->commit_lsn, true);
+		log_write_up_to(trx->commit_lsn);
 	}
 	trx->free();
 
@@ -17503,7 +17459,7 @@ func_exit:
 					   [FIL_PAGE_SPACE_ID]);
 	}
 	mtr.commit();
-	log_write_up_to(mtr.commit_lsn(), true);
+	log_write_up_to(mtr.commit_lsn());
 	goto func_exit;
 }
 #endif // UNIV_DEBUG
@@ -18261,10 +18217,7 @@ checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void *save)
   lsn_t lsn;
   while (log_sys.last_checkpoint_lsn.load(std::memory_order_acquire) + size <
          (lsn= log_sys.get_lsn(std::memory_order_acquire)))
-  {
     log_make_checkpoint();
-    log_sys.log.flush();
-  }
 
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
@@ -18646,7 +18599,7 @@ innobase_wsrep_set_checkpoint(
 	if (wsrep_is_wsrep_xid(xid)) {
 
 		trx_rseg_update_wsrep_checkpoint(xid);
-		innobase_flush_logs(hton, false);
+		innobase_flush_logs(hton);
 		return 0;
 	} else {
 		return 1;

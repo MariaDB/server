@@ -663,18 +663,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_OS_LOG_WRITTEN},
 
-	{"os_log_fsyncs", "os",
-	 "Number of fsync log writes (innodb_os_log_fsyncs)",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_OS_LOG_FSYNC},
-
-	{"os_log_pending_fsyncs", "os",
-	 "Number of pending fsync write (innodb_os_log_pending_fsyncs)",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_OS_LOG_PENDING_FSYNC},
-
 	{"os_log_pending_writes", "os",
 	 "Number of pending log file writes (innodb_os_log_pending_writes)",
 	 static_cast<monitor_type_t>(
@@ -817,16 +805,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 static_cast<monitor_type_t>(
 	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_MAX_AGE_ASYNC},
-
-	{"log_pending_log_flushes", "recovery", "Pending log flushes",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
-	 MONITOR_DEFAULT_START, MONITOR_PENDING_LOG_FLUSH},
-
-	{"log_pending_checkpoint_writes", "recovery", "Pending checkpoints",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
-	 MONITOR_DEFAULT_START, MONITOR_PENDING_CHECKPOINT_WRITE},
 
 	{"log_num_log_io", "recovery", "Number of log I/Os",
 	 static_cast<monitor_type_t>(
@@ -1563,17 +1541,6 @@ srv_mon_process_existing_counter(
 		value = (mon_type_t) srv_stats.os_log_written;
 		break;
 
-	/* innodb_os_log_fsyncs */
-	case MONITOR_OVLD_OS_LOG_FSYNC:
-		value = log_sys.get_flushes();
-		break;
-
-	/* innodb_os_log_pending_fsyncs */
-	case MONITOR_OVLD_OS_LOG_PENDING_FSYNC:
-		value = log_sys.get_pending_flushes();
-		update_min = TRUE;
-		break;
-
 	/* innodb_os_log_pending_writes */
 	case MONITOR_OVLD_OS_LOG_PENDING_WRITES:
 		value = srv_stats.os_log_pending_writes;
@@ -1748,14 +1715,6 @@ srv_mon_process_existing_counter(
 
 	case MONITOR_OVLD_LSN_CURRENT:
 		value = log_sys.get_lsn();
-		break;
-
-	case MONITOR_PENDING_LOG_FLUSH:
-		value = log_sys.get_pending_flushes();
-		break;
-
-	case MONITOR_PENDING_CHECKPOINT_WRITE:
-		value = log_sys.n_pending_checkpoint_writes;
 		break;
 
 	case MONITOR_LOG_IO:

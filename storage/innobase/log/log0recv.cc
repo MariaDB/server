@@ -1670,10 +1670,9 @@ dberr_t recv_sys_t::find_checkpoint()
       return err;
   upgrade:
     /* Mark the redo log for upgrading. */
-    log_sys.last_checkpoint_lsn=
-      log_sys.write_lsn= log_sys.current_flush_lsn=
-      log_sys.next_checkpoint_lsn;
+    log_sys.last_checkpoint_lsn= log_sys.next_checkpoint_lsn;
     log_sys.set_lsn(log_sys.next_checkpoint_lsn);
+    log_sys.set_flushed_lsn(log_sys.next_checkpoint_lsn);
     recovered_lsn= file_checkpoint= log_sys.next_checkpoint_lsn;
     log_sys.next_checkpoint_no= 0;
     return DB_SUCCESS;
@@ -3806,8 +3805,8 @@ read_only_recovery:
 	}
 
 	if (!srv_read_only_mode && log_sys.is_latest()) {
-		log_sys.write_lsn = log_sys.get_lsn();
-		ut_ad(recv_sys.recovered_lsn == log_sys.write_lsn);
+		ut_ad(log_sys.get_flushed_lsn() == log_sys.get_lsn());
+		ut_ad(recv_sys.recovered_lsn == log_sys.get_lsn());
 		const size_t bs_1{log_sys.get_block_size() - 1};
 		memmove_aligned<64>(log_sys.buf, log_sys.buf
 				    + (recv_sys.recovered_offset & ~bs_1),

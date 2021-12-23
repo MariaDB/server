@@ -176,14 +176,4 @@ ERROR 23000: Duplicate entry '4' for key 'PRIMARY'
 # There must be no UPDATE query event;
 include/show_binlog_events.inc
 drop table t1, t2;
-*** MDEV-11937: InnoDB flushes redo log too often ***
-CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
-SET @old_flush = @@GLOBAL.innodb_flush_log_at_trx_commit;
-SET GLOBAL innodb_flush_log_at_trx_commit=1;
-SELECT IF(@num_sync < 100*1.5, "OK",
-CONCAT("ERROR: More than 1 fsync per commit (saw ", @num_sync/100, ")")) AS status;
-status
-OK
-DROP TABLE t1;
-SET GLOBAL innodb_flush_log_at_trx_commit=@old_flush;
 End of tests

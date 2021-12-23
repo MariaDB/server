@@ -4101,7 +4101,7 @@ static void unlock_and_close_files(const std::vector<pfs_os_file_t> &deleted,
   row_mysql_unlock_data_dictionary(trx);
   for (pfs_os_file_t d : deleted)
     os_file_close(d);
-  log_write_up_to(trx->commit_lsn, true);
+  log_write_up_to(trx->commit_lsn);
 }
 
 /** Commit a DDL transaction and unlink any deleted files. */
@@ -11230,7 +11230,7 @@ foreign_fail:
 		}
 
 		unlock_and_close_files(deleted, trx);
-		log_write_up_to(trx->commit_lsn, true);
+		log_write_up_to(trx->commit_lsn);
 		DBUG_EXECUTE_IF("innodb_alter_commit_crash_after_commit",
 				DBUG_SUICIDE(););
 		trx->free();
@@ -11285,7 +11285,7 @@ foreign_fail:
 	}
 
 	unlock_and_close_files(deleted, trx);
-	log_write_up_to(trx->commit_lsn, true);
+	log_write_up_to(trx->commit_lsn);
 	DBUG_EXECUTE_IF("innodb_alter_commit_crash_after_commit",
 			DBUG_SUICIDE(););
 	trx->free();

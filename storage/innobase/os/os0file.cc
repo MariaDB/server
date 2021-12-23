@@ -1242,16 +1242,24 @@ os_file_create_func(
 
 	ut_a(purpose == OS_FILE_AIO || purpose == OS_FILE_NORMAL);
 
-	/* We let O_DSYNC only affect log files */
-
-	if (!read_only
-	    && type == OS_LOG_FILE
-	    && srv_file_flush_method == SRV_O_DSYNC) {
+	if (!read_only) {
+		switch (srv_file_flush_method) {
+		case SRV_FSYNC:
+		case SRV_LITTLESYNC:
+		case SRV_NOSYNC:
+		case SRV_O_DIRECT_NO_FSYNC:
+			if (type != OS_LOG_FILE) {
+				break;
+			}
+			/* fall through */
+		case SRV_O_DIRECT:
+		case SRV_O_DSYNC:
 #ifdef O_DSYNC
-		create_flag |= O_DSYNC;
+			create_flag |= O_DSYNC;
 #else
-		create_flag |= O_SYNC;
+			create_flag |= O_SYNC;
 #endif
+		}
 	}
 
 	os_file_t	file;
@@ -2204,18 +2212,17 @@ os_file_create_func(
 	DWORD attributes = (purpose == OS_FILE_AIO && srv_use_native_aio)
 		? FILE_FLAG_OVERLAPPED : 0;
 
-	switch (srv_file_flush_method) {
-	case SRV_O_DSYNC:
-		if (type == OS_LOG_FILE) {
-			/* Map O_DSYNC to FILE_WRITE_THROUGH */
-			goto set_direct;
-		}
-		break;
+	if (type == OS_LOG_FILE) {
+		goto set_direct;
+	}
 
+	switch (srv_file_flush_method) {
 	case SRV_O_DIRECT_NO_FSYNC:
 	case SRV_O_DIRECT:
 	case SRV_ALL_O_DIRECT_FSYNC:
+	case SRV_O_DSYNC:
 		if (type == OS_DATA_FILE_NO_O_DIRECT) {
+			attributes |= FILE_FLAG_WRITE_THROUGH;
 			break;
 		}
 	set_direct:
@@ -3915,10 +3922,8 @@ os_aio_print(FILE*	file)
 	time_elapsed = 0.001 + difftime(current_time, os_last_printout);
 
 	fprintf(file,
-		"Pending flushes (fsync) log: " ULINTPF
-		"; buffer pool: " ULINTPF "\n"
+		"Pending flushes (fsync): " ULINTPF "\n"
 		ULINTPF " OS file reads, %zu OS file writes, %zu OS fsyncs\n",
-		log_sys.get_pending_flushes(),
 		ulint{fil_n_pending_tablespace_flushes},
 		ulint{os_n_file_reads},
 		static_cast<size_t>(os_n_file_writes),

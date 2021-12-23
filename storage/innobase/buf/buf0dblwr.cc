@@ -683,7 +683,7 @@ void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
                                        static_cast<const byte*>(frame)));
     ut_ad(lsn);
     ut_ad(lsn >= bpage->oldest_modification());
-    log_write_up_to(lsn, true);
+    log_write_up_to(lsn);
     e.request.node->space->io(e.request, bpage->physical_offset(), e_size,
                               frame, bpage);
   }

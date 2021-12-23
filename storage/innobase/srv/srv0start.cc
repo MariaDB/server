@@ -892,10 +892,7 @@ same_size:
 
 		mysql_mutex_unlock(&log_sys.mutex);
 
-		if (flushed_lsn != log_sys.get_flushed_lsn()) {
-			log_write_up_to(flushed_lsn, false);
-			log_sys.log.flush();
-		}
+		log_write_up_to(flushed_lsn);
 
 		ut_ad(flushed_lsn == log_sys.get_lsn());
 
@@ -1400,7 +1397,7 @@ dberr_t srv_start(bool create_new_db)
 				fil_system.sys_space->size_in_header
 					= uint32_t(size);
 				mtr.commit();
-				log_write_up_to(mtr.commit_lsn(), true);
+				log_write_up_to(mtr.commit_lsn());
 			}
 		}
 

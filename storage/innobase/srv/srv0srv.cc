@@ -1007,10 +1007,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_data_pending_writes =
 		ulint(MONITOR_VALUE(MONITOR_OS_PENDING_WRITES));
 
-	export_vars.innodb_data_pending_fsyncs =
-		log_sys.get_pending_flushes()
-		+ fil_n_pending_tablespace_flushes;
-
 	export_vars.innodb_data_fsyncs = os_n_fsyncs;
 
 	export_vars.innodb_data_read = srv_stats.data_read;
@@ -1089,11 +1085,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_log_waits = srv_stats.log_waits;
 
 	export_vars.innodb_os_log_written = srv_stats.os_log_written;
-
-	export_vars.innodb_os_log_fsyncs = log_sys.get_flushes();
-
-	export_vars.innodb_os_log_pending_fsyncs
-		= log_sys.get_pending_flushes();
 
 	export_vars.innodb_os_log_pending_writes =
 		srv_stats.os_log_pending_writes;

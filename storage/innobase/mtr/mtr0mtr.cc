@@ -806,7 +806,7 @@ inline lsn_t log_t::append_prepare(size_t size) noexcept
   {
     mysql_mutex_unlock(&mutex);
     DEBUG_SYNC_C("log_buf_size_exceeded");
-    log_write_up_to(log_sys.get_lsn(), false);
+    log_buffer_flush_to_disk();
     srv_stats.log_waits.inc();
     ut_ad(count--);
     mysql_mutex_lock(&mutex);

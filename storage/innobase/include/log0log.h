@@ -77,20 +77,17 @@ struct completion_callback;
 log entry (such as that of a transaction commit). Start a new write, or
 wait and check if an already running write is covering the request.
 @param lsn      log sequence number that should be included in the file write
-@param durable  whether the log should be durably written
 @param callback log write completion callback */
-void log_write_up_to(lsn_t lsn, bool durable,
-                     const completion_callback *callback= nullptr);
+void log_write_up_to(lsn_t lsn, const completion_callback *callback= nullptr);
 
-/** Write to the log file up to the last log entry.
-@param sync  whether to wait for a durable write to complete */
-void log_buffer_flush_to_disk(bool sync= true);
+/** Write to the log file up to the last log entry. */
+void log_buffer_flush_to_disk();
 
 
 /** Prepare to invoke log_write_and_flush(), before acquiring log_sys.mutex. */
 ATTRIBUTE_COLD void log_write_and_flush_prepare();
 
-/** Durably write the log up to log_sys.lsn() and release log_sys.mutex. */
+/** Durably write the log */
 ATTRIBUTE_COLD void log_write_and_flush();
 
 /** Make a checkpoint */
@@ -139,7 +136,6 @@ or the MySQL version that created the redo log file. */
 class file_io
 {
 public:
-  file_io(bool durable_writes= false) : m_durable_writes(durable_writes) {}
   virtual ~file_io() noexcept {};
   virtual dberr_t open(const char *path, bool read_only) noexcept= 0;
   virtual dberr_t rename(const char *old_path,
@@ -148,13 +144,6 @@ public:
   virtual dberr_t read(os_offset_t offset, span<byte> buf) noexcept= 0;
   virtual dberr_t write(const char *path, os_offset_t offset,
                         span<const byte> buf) noexcept= 0;
-  virtual dberr_t flush() noexcept= 0;
-
-  /** Durable writes doesn't require calling flush() */
-  bool writes_are_durable() const noexcept { return m_durable_writes; }
-
-protected:
-  bool m_durable_writes;
 };
 
 class file_os_io final: public file_io
@@ -174,7 +163,6 @@ public:
   dberr_t read(os_offset_t offset, span<byte> buf) noexcept final;
   dberr_t write(const char *path, os_offset_t offset,
                 span<const byte> buf) noexcept final;
-  dberr_t flush() noexcept final;
 
 private:
   pfs_os_file_t m_fd{OS_FILE_CLOSED};
@@ -194,9 +182,7 @@ public:
   dberr_t rename(std::string new_path) noexcept;
   dberr_t close() noexcept;
   dberr_t read(os_offset_t offset, span<byte> buf) noexcept;
-  bool writes_are_durable() const noexcept;
   dberr_t write(os_offset_t offset, span<const byte> buf) noexcept;
-  dberr_t flush() noexcept;
   void free()
   {
     m_path.clear();
@@ -297,14 +283,10 @@ public:
     @param[in]	offset		offset in log file
     @param[in]	buf		buffer where to read */
     void read(os_offset_t offset, span<byte> buf);
-    /** Tells whether writes require calling flush() */
-    bool writes_are_durable() const noexcept;
     /** writes buffer to log file
     @param[in]	offset		offset in log file
     @param[in]	buf		buffer from which to write */
     void write(os_offset_t offset, span<const byte> buf);
-    /** flushes OS page cache (excluding metadata!) for log file */
-    void flush();
     /** closes log file */
     void close_file();
 
@@ -313,12 +295,6 @@ public:
   } log;
 
 	/** The fields involved in the log buffer flush @{ */
-
-	lsn_t		write_lsn;	/*!< last written lsn */
-	lsn_t		current_flush_lsn;/*!< end lsn for the current running
-					write + flush operation */
-	std::atomic<size_t> pending_flushes; /*!< system calls in progress */
-	std::atomic<size_t> flushes;	/*!< system calls counter */
 
 	ulint		n_log_ios;	/*!< number of log i/os initiated thus
 					far */
@@ -363,8 +339,9 @@ public:
   { return lsn.load(order); }
   void set_lsn(lsn_t lsn) { this->lsn.store(lsn, std::memory_order_release); }
 
-  lsn_t get_flushed_lsn() const
-  { return flushed_to_disk_lsn.load(std::memory_order_acquire); }
+  lsn_t get_flushed_lsn(std::memory_order order= std::memory_order_acquire)
+    const
+  { return flushed_to_disk_lsn.load(order); }
   void set_flushed_lsn(lsn_t lsn)
   { flushed_to_disk_lsn.store(lsn, std::memory_order_release); }
 
@@ -375,16 +352,6 @@ public:
   }
   void set_check_flush_or_checkpoint(bool flag= true)
   { check_flush_or_checkpoint_.store(flag, std::memory_order_relaxed); }
-
-  size_t get_pending_flushes() const
-  {
-    return pending_flushes.load(std::memory_order_relaxed);
-  }
-
-  size_t get_flushes() const
-  {
-    return flushes.load(std::memory_order_relaxed);
-  }
 
   /** Initialise the redo log subsystem. */
   void create();
@@ -468,9 +435,6 @@ public:
 
 /** Redo log system */
 extern log_t	log_sys;
-#ifdef UNIV_DEBUG
-extern bool log_write_lock_own();
-#endif
 
 inline void log_free_check()
 {
