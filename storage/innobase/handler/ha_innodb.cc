@@ -19223,7 +19223,7 @@ static MYSQL_SYSVAR_ULONG(page_size, srv_page_size,
 
 static MYSQL_SYSVAR_SIZE_T(log_buffer_size, log_sys.buf_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "The size of the buffer which InnoDB uses to write log to the log files on disk.",
+  "Redo log buffer size in bytes.",
   NULL, NULL, 16UL << 20, recv_sys_t::PARSING_BUF_SIZE, SIZE_T_MAX, 4096);
 
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
