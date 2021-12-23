@@ -1111,7 +1111,7 @@ verify_ca_matches_cert()
     [ -n "$ca"  ] &&  [ ! -r "$ca"   ] && readable=0
     [ -n "$cap" ] &&  [ ! -r "$cap"  ] && readable=0
 
-    if [ readable -eq 0 ]; then
+    if [ $readable -eq 0 ]; then
         wsrep_log_error \
             "Both PEM file and CA file (or path) must be readable"
         exit 22

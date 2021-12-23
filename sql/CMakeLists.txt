@@ -368,6 +368,7 @@ ADD_CUSTOM_TARGET(
         ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
         ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
 )
+ADD_DEPENDENCIES(sql GenServerSource)
 
 IF(WIN32 OR HAVE_DLOPEN AND NOT DISABLE_SHARED)
   ADD_LIBRARY(udf_example MODULE udf_example.c udf_example.def)

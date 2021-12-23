@@ -1,4 +1,3 @@
--- source include/have_log_bin.inc
 
 # We change binlog format inside the test, so no need to re-run with
 # more than one binlog_format.
@@ -9,12 +8,8 @@
 
 # save status
 
-let $oblf=`select @@SESSION.BINLOG_FORMAT`;
 let $otfc=`select @@log_bin_trust_function_creators`;
-
 set global log_bin_trust_function_creators=0;
-
-
 
 # fail *on definition*
 
@@ -186,6 +181,7 @@ drop function fn16456;
 # restore status
 
 --disable_query_log
-eval set binlog_format=$oblf;
+set binlog_format=STATEMENT;
 eval set global log_bin_trust_function_creators=$otfc;
+reset master;
 --enable_query_log
