@@ -221,23 +221,6 @@ srv_file_check_mode(
 	return(true);
 }
 
-inline void log_t::create(lsn_t lsn) noexcept
-{
-  mysql_mutex_assert_owner(&mutex);
-  set_lsn(lsn);
-  set_first_lsn(lsn);
-
-  write_lsn= lsn;
-
-  last_checkpoint_lsn= 0;
-  buf_free= 0;
-
-  memset(buf, 0, buf_size);
-  memset(flush_buf, 0, buf_size);
-  memset_aligned<4096>(checkpoint_buf, 0, 4096);
-  log.write_header_durable(lsn);
-}
-
 /** Initial number of the redo log file */
 static const char INIT_LOG_FILE0[]= "101";
 

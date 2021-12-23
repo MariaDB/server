@@ -1533,7 +1533,7 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
   const lsn_t log_size{(log_sys.file_size - 2048) * recv_sys.files_size()};
   for (size_t field= 512; field < 2048; field+= 1024)
   {
-    const byte *buf= log_sys.checkpoint_buf + field;
+    const byte *buf= log_sys.buf + field;
 
     if (static_cast<uint32_t>(ut_fold_binary(buf, CHECKSUM_1)) !=
         mach_read_from_4(buf + CHECKSUM_1) ||
@@ -1657,7 +1657,7 @@ dberr_t recv_sys_t::find_checkpoint()
   const bool correct_sizes{redo_file_sizes_are_correct()};
   log_sys.next_checkpoint_lsn= 0;
   recovered_lsn= 0;
-  byte *buf= my_assume_aligned<4096>(log_sys.checkpoint_buf);
+  byte *buf= my_assume_aligned<4096>(log_sys.buf);
   log_sys.log.read(0, {buf, 4096});
   /* Check the header page checksum. There was no
   checksum in the first redo log format (version 0). */

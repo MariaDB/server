@@ -426,13 +426,23 @@ static void log_block_store_checksum(byte* block)
   mach_write_to_4(my_assume_aligned<4>(508 + block), my_crc32c(0, block, 508));
 }
 
-void log_t::file::write_header_durable(lsn_t lsn)
+void log_t::create(lsn_t lsn) noexcept
 {
+  mysql_mutex_assert_owner(&mutex);
   ut_ad(!recv_no_log_write);
-  ut_ad(log_sys.is_latest());
+  ut_ad(is_latest());
+  ut_ad(this == &log_sys);
 
-  byte *buf= log_sys.checkpoint_buf;
-  memset_aligned<4096>(buf, 0, 4096);
+  set_lsn(lsn);
+  set_first_lsn(lsn);
+
+  write_lsn= lsn;
+
+  last_checkpoint_lsn= 0;
+  buf_free= 0;
+
+  memset_aligned<4096>(flush_buf, 0, buf_size);
+  memset_aligned<4096>(buf, 0, buf_size);
 
   mach_write_to_4(buf + LOG_HEADER_FORMAT, FORMAT_10_8);
   mach_write_to_8(buf + LOG_HEADER_START_LSN, lsn);
@@ -450,11 +460,11 @@ void log_t::file::write_header_durable(lsn_t lsn)
     log_crypt_write_header(buf + LOG_HEADER_CREATOR_END);
   log_block_store_checksum(buf);
 
-  DBUG_PRINT("ib_log", ("write " LSN_PF, lsn));
+  DBUG_PRINT("ib_log", ("write header " LSN_PF, lsn));
 
-  log_sys.log.write(0, {buf, 4096});
-  if (!log_sys.log.writes_are_durable())
-    log_sys.log.flush();
+  log.write(0, {buf, 4096});
+  if (!log.writes_are_durable())
+    log.flush();
 
   memset_aligned<4096>(buf, 0, 4096);
 }
