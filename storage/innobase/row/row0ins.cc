@@ -3370,10 +3370,13 @@ row_ins_index_entry(
 			DBUG_SET("-d,row_ins_index_entry_timeout");
 			return(DB_LOCK_WAIT);});
 
-	if (auto t= trx->check_bulk_buffer(index->table)) {
-		/* MDEV-25036 FIXME: check also foreign key constraints */
-		ut_ad(!trx->check_foreigns);
-		return t->bulk_insert_buffered(*entry, *index, trx);
+	if (index->is_btree()) {
+		if (auto t= trx->check_bulk_buffer(index->table)) {
+			/* MDEV-25036 FIXME: check also foreign key
+			constraints */
+			ut_ad(!trx->check_foreigns);
+			return t->bulk_insert_buffered(*entry, *index, trx);
+		}
 	}
 
 	if (index->is_primary()) {
