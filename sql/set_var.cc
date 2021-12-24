@@ -1278,7 +1278,8 @@ end:
   and update it directly.
 */
 
-void set_sys_var_value_origin(void *ptr, enum sys_var::where here)
+void set_sys_var_value_origin(void *ptr, enum sys_var::where here,
+                              const char *filename)
 {
   bool found __attribute__((unused))= false;
   DBUG_ASSERT(!mysqld_server_started); // only to be used during startup
@@ -1289,6 +1290,7 @@ void set_sys_var_value_origin(void *ptr, enum sys_var::where here)
     if (var->option.value == ptr)
     {
       found= true;
+      var->origin_filename= filename;
       var->value_origin= here;
       /* don't break early, search for all matches */
     }

@@ -450,7 +450,8 @@ int sql_set_variables(THD *thd, List<set_var_base> *var_list, bool free);
     }                                                   \
   } while(0)
 
-void set_sys_var_value_origin(void *ptr, enum sys_var::where here);
+void set_sys_var_value_origin(void *ptr, enum sys_var::where here,
+                              const char *filename= NULL);
 
 enum sys_var::where get_sys_var_value_origin(void *ptr);
 inline bool IS_SYSVAR_AUTOSIZE(void *ptr)
