@@ -3000,8 +3000,8 @@ void Show_explain_request::call_in_target_thread()
   DBUG_ASSERT(current_thd == target_thd);
   set_current_thd(request_thd);
   if (target_thd->lex->print_explain(explain_buf, 0 /* explain flags*/,
-                                     false /*TODO: analyze? */,
-                                     is_json_format, &printed_anything))
+                                     is_analyze, is_json_format,
+                                     &printed_anything))
   {
     failed_to_produce= TRUE;
   }
@@ -3119,16 +3119,16 @@ void select_result_text_buffer::save_to(String *res)
 
 
 /*
-  Store the SHOW EXPLAIN output in the temporary table.
+  Store the SHOW EXPLAIN/SHOW ANALYZE output in the temporary table.
 */
 
-int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond,
-                      bool json_format)
+int fill_show_explain_or_analyze(THD *thd, TABLE_LIST *table, COND *cond,
+                                 bool json_format, bool is_analyze)
 {
   const char *calling_user;
   THD *tmp;
   my_thread_id  thread_id;
-  DBUG_ENTER("fill_show_explain");
+  DBUG_ENTER("fill_show_explain_or_analyze");
 
   DBUG_ASSERT(cond==NULL);
   thread_id= thd->lex->value_list.head()->val_int();
@@ -3140,10 +3140,10 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond,
     Security_context *tmp_sctx= tmp->security_ctx;
     /*
       If calling_user==NULL, calling thread has SUPER or PROCESS
-      privilege, and so can do SHOW EXPLAIN on any user.
+      privilege, and so can do SHOW EXPLAIN/SHOW ANALYZE on any user.
       
-      if calling_user!=NULL, he's only allowed to view SHOW EXPLAIN on
-      his own threads.
+      if calling_user!=NULL, he's only allowed to view
+      SHOW EXPLAIN/SHOW ANALYZE on his own threads.
     */
     if (calling_user && (!tmp_sctx->user || strcmp(calling_user, 
                                                    tmp_sctx->user)))
@@ -3163,7 +3163,7 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond,
     bool bres;
     /* 
       Ok we've found the thread of interest and it won't go away because 
-      we're holding its LOCK_thd_kill. Post it a SHOW EXPLAIN request.
+      we're holding its LOCK_thd_kill. Post it a SHOW EXPLAIN/SHOW ANALYZE request.
     */
     bool timed_out;
     int timeout_sec= 30;
@@ -3173,6 +3173,7 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond,
     
     explain_buf= new select_result_explain_buffer(thd, table->table);
 
+    explain_req.is_analyze= is_analyze;
     explain_req.explain_buf= explain_buf;
     explain_req.target_thd= tmp;
     explain_req.request_thd= thd;
@@ -3233,13 +3234,28 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond,
 
 int fill_show_explain_tabular(THD *thd, TABLE_LIST *table, COND *cond)
 {
-  return fill_show_explain(thd, table, cond, false /*json_format*/);
+  return fill_show_explain_or_analyze(
+    thd, table, cond, FALSE /* json_format */, FALSE /* is_analyze */);
 }
 
 
 int fill_show_explain_json(THD *thd, TABLE_LIST *table, COND *cond)
 {
-  return fill_show_explain(thd, table, cond, true /*json_format*/);
+  return fill_show_explain_or_analyze(
+    thd, table, cond, TRUE /* json_format */, TRUE /* is_analyze */);
+
+
+int fill_show_analyze_tabular(THD * thd, TABLE_LIST * table, COND * cond)
+{
+  return fill_show_explain_or_analyze(
+      thd, table, cond, FALSE /* json_format */, TRUE /* is_analyze */);
+}
+
+
+int fill_show_analyze_json(THD * thd, TABLE_LIST * table, COND * cond)
+{
+  return fill_show_explain_or_analyze(
+    thd, table, cond, TRUE /* json_format */, TRUE /* is_analyze */);
 }
 
 
@@ -9660,6 +9676,29 @@ ST_FIELD_INFO show_explain_json_fields_info[]=
 };
 
 
+ST_FIELD_INFO show_analyze_fields_info[]=
+{
+  Column("id",            SLonglong(3),                  NULLABLE, "id"),
+  Column("select_type",   Varchar(19),                   NOT_NULL, "select_type"),
+  Column("table",         Name(),                        NULLABLE, "table"),
+  Column("type",          Varchar(15),                   NULLABLE, "type"),
+  Column("possible_keys",Varchar(NAME_CHAR_LEN*MAX_KEY), NULLABLE, "possible_keys"),
+  Column("key",          Varchar(NAME_CHAR_LEN*MAX_KEY), NULLABLE, "key"),
+  Column("key_len",      Varchar(NAME_CHAR_LEN*MAX_KEY), NULLABLE, "key_len"),
+  Column("ref",     Varchar(NAME_CHAR_LEN*MAX_REF_PARTS),NULLABLE, "ref"),
+  Column("rows",          SLonglong(10),                 NULLABLE, "rows"),
+  Column("r_rows",        Varchar(NAME_CHAR_LEN),        NULLABLE, "r_rows"),
+
+  /* Fields of type DECIMAL(5,2) to represent percentage.
+  See Show::Type::decimal_precision() and Show::Type::decimal_scale() to learn
+  how 502 converts to precision and scale (5 and 2)*/
+  Column("filtered",      Decimal(502),                  NULLABLE, "filtered"),
+  Column("r_filtered",    Decimal(502),                  NULLABLE, "r_filtered"),
+  Column("Extra",         Varchar(255),                  NOT_NULL, "Extra"),
+  CEnd()
+};
+
+
 ST_FIELD_INFO check_constraints_fields_info[]=
 {
   Column("CONSTRAINT_CATALOG", Catalog(), NOT_NULL, OPEN_FULL_TABLE),
@@ -9723,6 +9762,8 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"EXPLAIN", Show::show_explain_tabular_fields_info, 0, fill_show_explain_tabular,
   make_old_format, 0, -1, -1, TRUE /*hidden*/ , 0},
   {"EXPLAIN_JSON", Show::show_explain_json_fields_info, 0, fill_show_explain_json,
+  make_old_format, 0, -1, -1, TRUE /*hidden*/, 0},
+  {"ANALYZE", Show::show_analyze_fields_info, 0, fill_show_analyze_tabular,
    make_old_format, 0, -1, -1, TRUE /*hidden*/, 0},
   {"FILES", Show::files_fields_info, 0,
    hton_fill_schema_table, 0, 0, -1, -1, 0, 0},

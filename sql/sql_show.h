@@ -155,33 +155,36 @@ THD *find_thread_by_id(longlong id, bool query_id= false);
 
 class select_result_explain_buffer;
 /*
-  SHOW EXPLAIN request object. 
+  SHOW EXPLAIN/SHOW ANALYZE request object.
 */
 
 class Show_explain_request : public Apc_target::Apc_call
 {
 public:
-  THD *target_thd;  /* thd that we're running SHOW EXPLAIN for */
-  THD *request_thd; /* thd that run SHOW EXPLAIN command */
-  
+  THD *target_thd;  /* thd that we're running SHOW EXPLAIN/ANALYZE for */
+  THD *request_thd; /* thd that run SHOW EXPLAIN/ANALYZE command */
+ 
   /*
     Set to TRUE if you need the result in JSON format,
     FALSE - in traditional tabular
   */
   bool is_json_format= false;
 
+  /* FALSE for SHOW EXPLAIN, TRUE - for SHOW ANALYZE*/
+  bool is_analyze;
+
   /* If true, there was some error when producing EXPLAIN output. */
   bool failed_to_produce;
    
-  /* SHOW EXPLAIN will be stored here */
+  /* SHOW EXPLAIN/ANALYZE will be stored here */
   select_result_explain_buffer *explain_buf;
   
-  /* Query that we've got SHOW EXPLAIN for */
+  /* Query that we've got SHOW EXPLAIN/ANALYZE for */
   String query_str;
   
-  /* Overloaded virtual function */
-  void call_in_target_thread();
+  void call_in_target_thread() override;
 };
+
 
 /**
   Condition pushdown used for INFORMATION_SCHEMA / SHOW queries.
