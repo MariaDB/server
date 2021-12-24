@@ -20,7 +20,6 @@ if (`SELECT IF($PLUGIN_VERSION = 3, 1, 0)`)
   if ($HAS_REWRITE)
   {
     DROP FUNCTION spider_flush_rewrite_cache;
-    UNINSTALL PLUGIN spider_rewrite;
     DROP TABLE IF EXISTS mysql.spider_rewrite_tables;
     DROP TABLE IF EXISTS mysql.spider_rewrite_table_tables;
     DROP TABLE IF EXISTS mysql.spider_rewrite_table_partitions;
@@ -33,8 +32,7 @@ DROP FUNCTION spider_copy_tables;
 DROP FUNCTION spider_ping_table;
 DROP FUNCTION spider_bg_direct_sql;
 DROP FUNCTION spider_direct_sql;
-UNINSTALL PLUGIN spider_alloc_mem;
-UNINSTALL PLUGIN spider;
+UNINSTALL SONAME "ha_spider.so";
 DROP TABLE IF EXISTS mysql.spider_xa;
 DROP TABLE IF EXISTS mysql.spider_xa_member;
 DROP TABLE IF EXISTS mysql.spider_xa_failed_log;
