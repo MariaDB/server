@@ -13951,6 +13951,13 @@ show_param:
               MYSQL_YYABORT;
             add_value_to_list(thd, $3);
           }
+        | ANALYZE_SYM FOR_SYM expr
+          {
+            Lex->sql_command= SQLCOM_SHOW_ANALYZE;
+            if (unlikely(prepare_schema_table(thd, Lex, 0, SCH_ANALYZE)))
+              MYSQL_YYABORT;
+            add_value_to_list(thd, $3);
+          }
         | IDENT_sys remember_tok_start wild_and_where
            {
              LEX *lex= Lex;

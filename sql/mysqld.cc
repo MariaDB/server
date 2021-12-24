@@ -3492,6 +3492,7 @@ SHOW_VAR com_status_vars[]= {
   {"show_errors",          STMT_STATUS(SQLCOM_SHOW_ERRORS)},
   {"show_events",          STMT_STATUS(SQLCOM_SHOW_EVENTS)},
   {"show_explain",         STMT_STATUS(SQLCOM_SHOW_EXPLAIN)},
+  {"show_analyze",         STMT_STATUS(SQLCOM_SHOW_ANALYZE)},
   {"show_fields",          STMT_STATUS(SQLCOM_SHOW_FIELDS)},
 #ifndef DBUG_OFF
   {"show_function_code",   STMT_STATUS(SQLCOM_SHOW_FUNC_CODE)},

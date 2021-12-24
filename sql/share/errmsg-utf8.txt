@@ -7224,7 +7224,7 @@ ER_NO_SUCH_TABLE_IN_ENGINE 42S02
         hindi "टेबल '%-.192s.%-.192s' इंजन में मौजूद नहीं है"
         swe "Det finns ingen tabell som heter '%-.192s.%-.192s' i handlern"
 ER_TARGET_NOT_EXPLAINABLE
-        eng "Target is not running an EXPLAINable command"
+        eng "Target is not executing an operation with a query plan"
 ER_CONNECTION_ALREADY_EXISTS
         eng "Connection '%.*s' conflicts with existing connection '%.*s'"
 ER_MASTER_LOG_PREFIX
