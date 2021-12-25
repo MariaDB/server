@@ -418,6 +418,10 @@ create_log_files(
 		return(DB_READ_ONLY);
 	}
 
+	if (!log_set_capacity(srv_log_file_size_requested)) {
+		return(DB_ERROR);
+	}
+
 	/* Crashing after deleting the first file should be
 	recoverable. The buffer pool was clean, and we can simply
 	create all log files from the scratch. */
@@ -474,9 +478,6 @@ create_log_files(
 	}
 
 	log_sys.log.create(srv_n_log_files);
-	if (!log_set_capacity(srv_log_file_size_requested)) {
-		return(DB_ERROR);
-	}
 
 	fil_open_log_and_system_tablespace_files();
 
@@ -1635,6 +1636,12 @@ dberr_t srv_start(bool create_new_db)
 			logfilename, dirnamelen, flushed_lsn, logfile0);
 
 		if (err != DB_SUCCESS) {
+			for (Tablespace::const_iterator
+			       i = srv_sys_space.begin();
+			     i != srv_sys_space.end(); i++) {
+				os_file_delete(innodb_data_file_key,
+					       i->filepath());
+			}
 			return(srv_init_abort(err));
 		}
 	} else {

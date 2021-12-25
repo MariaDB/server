@@ -17,7 +17,7 @@
 
 # This is a common command line parser to be sourced by other SST scripts
 
-set -u
+set -ue
 
 # Setting the path for some utilities on CentOS
 export PATH="$PATH:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -879,9 +879,9 @@ fi
 
 wsrep_cleanup_progress_file()
 {
-    [ -n "$SST_PROGRESS_FILE" -a \
-      -f "$SST_PROGRESS_FILE" ] && \
-      rm -f "$SST_PROGRESS_FILE" 2>/dev/null || :
+    if [ -n "$SST_PROGRESS_FILE" -a -f "$SST_PROGRESS_FILE" ]; then
+        rm -f "$SST_PROGRESS_FILE" 2>/dev/null || :
+    fi
 }
 
 wsrep_check_program()
@@ -897,13 +897,10 @@ wsrep_check_program()
 wsrep_check_programs()
 {
     local ret=0
-
-    while [ $# -gt 0 ]
-    do
+    while [ $# -gt 0 ]; do
         wsrep_check_program "$1" || ret=$?
         shift
     done
-
     return $ret
 }
 
@@ -1028,11 +1025,11 @@ check_sockets_utils()
 #
 check_port()
 {
-    local pid="$1"
+    local pid="${1:-0}"
     local port="$2"
     local utils="$3"
 
-    [ -z "$pid" ] || [ $pid -eq 0 ] && pid='[0-9]+'
+    [ $pid -le 0 ] && pid='[0-9]+'
 
     local rc=1
 
@@ -1070,14 +1067,20 @@ check_for_dhparams()
     if [ ! -r "$ssl_dhparams" ]; then
         get_openssl
         if [ -n "$OPENSSL_BINARY" ]; then
-            wsrep_log_info "Could not find dhparams file, creating $ssl_dhparams"
-            if ! "$OPENSSL_BINARY" dhparam -out "$ssl_dhparams" 2048 >/dev/null 2>&1
-            then
+            wsrep_log_info \
+                "Could not find dhparams file, creating $ssl_dhparams"
+            local bug=0
+            local errmsg
+            errmsg=$("$OPENSSL_BINARY" \
+                         dhparam -out "$ssl_dhparams" 2048 2>&1) || bug=1
+            if [ $bug -ne 0 ]; then
+                wsrep_log_info "run: \"$OPENSSL_BINARY\" dhparam -out \"$ssl_dhparams\" 2048"
+                wsrep_log_info "output: $errmsg"
                 wsrep_log_error "******** ERROR *****************************************"
                 wsrep_log_error "* Could not create the dhparams.pem file with OpenSSL. *"
                 wsrep_log_error "********************************************************"
                 ssl_dhparams=""
-             fi
+            fi
         else
             # Rollback: if openssl is not installed, then use
             # the default parameters:
@@ -1099,6 +1102,16 @@ verify_ca_matches_cert()
     local ca="$2"
     local cap="$3"
 
+    local readable=1; [ ! -r "$cert" ] && readable=0
+         [ -n "$ca"  -a ! -r "$ca"   ] && readable=0
+         [ -n "$cap" -a ! -r "$cap"  ] && readable=0
+
+    if [ $readable -eq 0 ]; then
+        wsrep_log_error \
+            "Both PEM file and CA file (or path) must be readable"
+        exit 22
+    fi
+
     # If the openssl utility is not installed, then
     # we will not do this certificate check:
     get_openssl
@@ -1107,22 +1120,12 @@ verify_ca_matches_cert()
         return
     fi
 
-    local readable=1; [ ! -r "$cert" ] && readable=0
-    [ -n "$ca"  ] &&  [ ! -r "$ca"   ] && readable=0
-    [ -n "$cap" ] &&  [ ! -r "$cap"  ] && readable=0
-
-    if [ readable -eq 0 ]; then
-        wsrep_log_error \
-            "Both PEM file and CA file (or path) must be readable"
-        exit 22
-    fi
-
     local not_match=0
     local errmsg
     errmsg=$("$OPENSSL_BINARY" verify -verbose \
-                               ${ca:+ -CAfile} ${ca:+ "$ca"} \
-                               ${cap:+ -CApath} ${cap:+ "$cap"} \
-                               "$cert" 2>&1) || not_match=1
+                 ${ca:+ -CAfile} ${ca:+ "$ca"} \
+                 ${cap:+ -CApath} ${cap:+ "$cap"} \
+                 "$cert" 2>&1) || not_match=1
 
     if [ $not_match -eq 1 ]; then
         wsrep_log_info "run: \"$OPENSSL_BINARY\" verify -verbose${ca:+ -CAfile \"$ca\"}${cap:+ -CApath \"$cap\"} \"$cert\""
@@ -1158,6 +1161,7 @@ verify_cert_matches_key()
     # If the diff utility is not installed, then
     # we will not do this certificate check:
     if [ -z "$(commandex diff)" ]; then
+        wsrep_log_info "diff utility not found"
         return
     fi
 
@@ -1165,6 +1169,7 @@ verify_cert_matches_key()
     # we will not do this certificate check:
     get_openssl
     if [ -z "$OPENSSL_BINARY" ]; then
+        wsrep_log_info "openssl utility not found"
         return
     fi
 
@@ -1253,18 +1258,18 @@ check_pid()
 {
     local pid_file="$1"
     if [ -r "$pid_file" ]; then
-        local pid=$(cat "$pid_file" 2>/dev/null)
+        local pid=$(cat "$pid_file" 2>/dev/null || :)
         if [ -n "$pid" ]; then
-            if [ $pid -ne 0 ]; then
-                if ps -p "$pid" >/dev/null 2>&1; then
+            if [ $pid -gt 0 ]; then
+                if ps -p $pid >/dev/null 2>&1; then
                     CHECK_PID=$pid
                     return 0
                 fi
             fi
         fi
         local remove=${2:-0}
-        if [ $remove -eq 1 ]; then
-            rm -f "$pid_file"
+        if [ $remove -ne 0 ]; then
+            rm -f "$pid_file" || :
         fi
     fi
     CHECK_PID=0
@@ -1289,25 +1294,25 @@ cleanup_pid()
     local pid_file="${2:-}"
     local config="${3:-}"
 
-    if [ $pid -ne 0 ]; then
+    if [ $pid -gt 0 ]; then
         if ps -p $pid >/dev/null 2>&1; then
             if kill $pid >/dev/null 2>&1; then
                 sleep 0.5
                 local round=0
                 local force=0
                 while ps -p $pid >/dev/null 2>&1; do
-                   sleep 1
-                   round=$(( round+1 ))
-                   if [ $round -eq 16 ]; then
-                       if [ $force -eq 0 ]; then
-                           round=8
-                           force=1
-                           kill -9 $pid >/dev/null 2>&1
-                           sleep 0.5
-                       else
-                           return 1
-                       fi
-                   fi
+                    sleep 1
+                    round=$(( round+1 ))
+                    if [ $round -eq 16 ]; then
+                        if [ $force -eq 0 ]; then
+                            round=8
+                            force=1
+                            kill -9 $pid >/dev/null 2>&1 || :
+                            sleep 0.5
+                        else
+                            return 1
+                        fi
+                    fi
                 done
             elif ps -p $pid >/dev/null 2>&1; then
                 wsrep_log_warning "Unable to kill PID=$pid ($pid_file)"
@@ -1316,8 +1321,8 @@ cleanup_pid()
         fi
     fi
 
-    [ -n "$pid_file" ] && [ -f "$pid_file" ] && rm -f "$pid_file"
-    [ -n "$config" ]   && [ -f "$config" ]   && rm -f "$config"
+    [ -n "$pid_file" -a -f "$pid_file" ] && rm -f "$pid_file" || :
+    [ -n "$config" -a -f "$config" ] && rm -f "$config" || :
 
     return 0
 }
@@ -1337,5 +1342,48 @@ get_proc()
         if [ -z "$nproc" ] || [ $nproc -eq 0 ]; then
             nproc=1
         fi
+    fi
+}
+
+check_server_ssl_config()
+{
+    # backward-compatible behavior:
+    tcert=$(parse_cnf 'sst' 'tca')
+    tcap=$(parse_cnf 'sst' 'tcapath')
+    tpem=$(parse_cnf 'sst' 'tcert')
+    tkey=$(parse_cnf 'sst' 'tkey')
+    # reading new ssl configuration options:
+    local tcert2=$(parse_cnf "$encgroups" 'ssl-ca')
+    local tcap2=$(parse_cnf "$encgroups" 'ssl-capath')
+    local tpem2=$(parse_cnf "$encgroups" 'ssl-cert')
+    local tkey2=$(parse_cnf "$encgroups" 'ssl-key')
+    # if there are no old options, then we take new ones:
+    if [ -z "$tcert" -a -z "$tcap" -a -z "$tpem" -a -z "$tkey" ]; then
+        tcert="$tcert2"
+        tcap="$tcap2"
+        tpem="$tpem2"
+        tkey="$tkey2"
+    # checking for presence of the new-style SSL configuration:
+    elif [ -n "$tcert2" -o -n "$tcap2" -o -n "$tpem2" -o -n "$tkey2" ]; then
+        if [ "$tcert" != "$tcert2" -o \
+             "$tcap"  != "$tcap2"  -o \
+             "$tpem"  != "$tpem2"  -o \
+             "$tkey"  != "$tkey2" ]
+        then
+            wsrep_log_info \
+               "new ssl configuration options (ssl-ca[path], ssl-cert" \
+               "and ssl-key) are ignored by SST due to presence" \
+               "of the tca[path], tcert and/or tkey in the [sst] section"
+        fi
+    fi
+    if [ -n "$tcert" ]; then
+        tcert=$(trim_string "$tcert")
+        if [ "${tcert%/}" != "$tcert" -o -d "$tcert" ]; then
+            tcap="$tcert"
+            tcert=""
+        fi
+    fi
+    if [ -n "$tcap" ]; then
+        tcap=$(trim_string "$tcap")
     fi
 }

@@ -16,7 +16,6 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 FOUND 1 /File .path.to.non-existent.*ib_logfile101: 'create' returned OS error \d+/ in mysqld.1.err
-# Remove ibdata1 & ibdata2
 # Successfully let InnoDB create tablespaces
 # restart: --innodb-log-files-in-group=3 --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_file --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_file --innodb-undo-directory=MYSQLTEST_VARDIR/tmp/log_file --innodb-undo-logs=20 --innodb-undo-tablespaces=3 --innodb-data-file-path=ibdata1:16M;ibdata2:10M:autoextend
 SELECT COUNT(*) `1` FROM INFORMATION_SCHEMA.ENGINES

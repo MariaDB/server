@@ -1343,12 +1343,13 @@ struct my_rnd_struct sql_rand; ///< used by sql_class.cc:THD::THD()
 
 #ifndef EMBEDDED_LIBRARY
 MYSQL_SOCKET unix_sock, base_ip_sock, extra_ip_sock;
+C_MODE_START
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 /**
   Error reporter that buffer log messages.
   @param level          log message level
   @param format         log message format string
 */
-C_MODE_START
 static void buffered_option_error_reporter(enum loglevel level,
                                            const char *format, ...)
 {
@@ -1360,6 +1361,7 @@ static void buffered_option_error_reporter(enum loglevel level,
   va_end(args);
   buffered_logs.buffer(level, buffer);
 }
+#endif
 
 
 /**
@@ -5539,7 +5541,7 @@ int mysqld_main(int argc, char **argv)
     Initialize the array of performance schema instrument configurations.
   */
   init_pfs_instrument_array();
-#endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
+
   /*
     Logs generated while parsing the command line
     options are buffered and printed later.
@@ -5547,7 +5549,7 @@ int mysqld_main(int argc, char **argv)
   buffered_logs.init();
   my_getopt_error_reporter= buffered_option_error_reporter;
   my_charset_error_reporter= buffered_option_error_reporter;
-#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
+
   pfs_param.m_pfs_instrument= const_cast<char*>("");
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
   my_timer_init(&sys_timer_info);

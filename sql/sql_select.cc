@@ -19152,6 +19152,8 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   MEM_CHECK_DEFINED(table->record[0], table->s->reclength);
   MEM_CHECK_DEFINED(share->default_values, table->s->reclength);
 
+  empty_record(table);
+  table->status= STATUS_NO_RECORD;
   thd->mem_root= mem_root_save;
 
   DBUG_RETURN(table);
@@ -20253,7 +20255,9 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
     if (create_internal_tmp_table(table, keyinfo, start_recinfo, recinfo,
                                   options))
       return TRUE;
-    MEM_CHECK_DEFINED(table->record[0], table->s->reclength);
+    // Make empty record so random data is not written to disk
+    empty_record(table);
+    table->status= STATUS_NO_RECORD;
   }
   if (open_tmp_table(table))
     return TRUE;
@@ -23736,7 +23740,15 @@ check_reverse_order:
       }
     }
     else if (select && select->quick)
+    {
+      /* Cancel "Range checked for each record" */
+      if (tab->use_quick == 2)
+      {
+        tab->use_quick= 1;
+        tab->read_first_record= join_init_read_record;
+      }
       select->quick->need_sorted_output();
+    }
 
     tab->read_record.unlock_row= (tab->type == JT_EQ_REF) ?
                                  join_read_key_unlock_row : rr_unlock_row;
