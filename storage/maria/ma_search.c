@@ -2352,7 +2352,7 @@ void _ma_store_var_pack_key(MARIA_KEYDEF *keyinfo  __attribute__((unused)),
       store_key_length_inc(key_pos,s_temp->n_length);
     }
   }
-  else
+  else if (s_temp->n_length)
   {
     s_temp->n_length+= s_temp->store_not_null;
     store_pack_length(s_temp->pack_marker == 128,key_pos,s_temp->n_length);

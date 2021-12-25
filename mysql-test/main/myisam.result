@@ -2751,5 +2751,30 @@ bar
 foo
 drop table t;
 #
+# MDEV-27340 NULL gets lost (becomes empty string), SELECT hangs with DESC index on MyISAM/Aria table
+#
+create table t (c char(8), key(c desc)) character set utf8mb4;
+insert into t values (''),('foo'),(null),(''),('bar');
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select distinct c from t;
+c
+NULL
+
+bar
+foo
+select c from t;
+c
+foo
+bar
+
+
+NULL
+drop table t;
+#
 # End of 10.8 tests
 #

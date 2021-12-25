@@ -1872,5 +1872,16 @@ select c from t order by c;
 drop table t;
 
 --echo #
+--echo # MDEV-27340 NULL gets lost (becomes empty string), SELECT hangs with DESC index on MyISAM/Aria table
+--echo #
+create table t (c char(8), key(c desc)) character set utf8mb4;
+insert into t values (''),('foo'),(null),(''),('bar');
+check table t;
+check table t extended;
+select distinct c from t;
+select c from t;
+drop table t;
+
+--echo #
 --echo # End of 10.8 tests
 --echo #
