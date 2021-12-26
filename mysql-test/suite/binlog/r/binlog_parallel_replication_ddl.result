@@ -1,0 +1,8 @@
+RESET MASTER;
+CREATE OR REPLACE SEQUENCE s1;
+DROP SEQUENCE s1;
+FLUSH LOGS;
+FOUND 2 /GTID [0-9]+-[0-9]+-[0-9]+/ in mysqlbinlog.sql
+The same as above number of samples must be found:
+FOUND 2 /GTID [0-9]+-[0-9]+-[0-9]+ ddl/ in mysqlbinlog.sql
+End of the tests

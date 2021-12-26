@@ -1,0 +1,30 @@
+# Check binlog properties of various DDL:s.
+# Motivated by MDEV-27365.
+#
+--source include/have_log_bin.inc
+--source include/have_binlog_format_mixed.inc
+
+RESET MASTER;
+
+# MDEV-27365 CREATE-or-REPLACE SEQUENCE bilogged without DDL flag
+# Prove it is logged with the DDL flag.
+CREATE OR REPLACE SEQUENCE s1;
+
+# This one has been always correct.
+DROP SEQUENCE s1;
+FLUSH LOGS;
+
+--let $MYSQLD_DATADIR= `select @@datadir`
+--exec $MYSQL_BINLOG --base64-output=decode-rows $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+
+--let SEARCH_PATTERN= GTID [0-9]+-[0-9]+-[0-9]+
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+--source include/search_pattern_in_file.inc
+
+--echo The same as above number of samples must be found:
+--let SEARCH_PATTERN= GTID [0-9]+-[0-9]+-[0-9]+ ddl
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+--source include/search_pattern_in_file.inc
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.sql
+
+--echo End of the tests
