@@ -68,3 +68,189 @@ SELECT * FROM child;
 DROP TABLE child;
 DROP TABLE parent;
 DROP TABLE grandparent;
+
+--echo
+--echo Scenario 2, testing PA applying with FK cascade delete
+--echo
+
+CREATE TABLE p1 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE p2 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p1_id INTEGER, p2_id INTEGER,
+                f2 INTEGER,
+                CONSTRAINT fk_1 FOREIGN KEY (p1_id) REFERENCES p1 (f1)
+                    ON DELETE CASCADE,
+                CONSTRAINT fk_2 FOREIGN KEY (p2_id) REFERENCES p2 (f1)
+                    ON DELETE CASCADE);
+
+--let $count = 100
+--disable_query_log
+while ($count)
+{
+    --eval INSERT INTO p1 VALUES ($count, 0);
+    --eval INSERT INTO p2 VALUES ($count, 0);
+    --eval INSERT INTO c VALUES ($count, $count, $count, 0);
+    --dec $count
+}
+
+--connection node_2
+set global wsrep_slave_threads=2;
+
+--connection node_1
+--let $count = 100
+while ($count)
+{
+    --eval DELETE FROM p2 WHERE f1=$count;
+    --eval DELETE FROM p1 WHERE f1=$count;
+
+--dec $count
+}
+--enable_query_log
+
+--connection node_2
+set global wsrep_slave_threads=DEFAULT;
+
+
+SELECT * FROM p1;
+SELECT * FROM p2;
+SELECT * FROM c;
+
+--connection node_1
+DROP TABLE c;
+DROP TABLE p1,p2;
+
+--echo
+--echo Scenario 4, testing PA applying with FK cascade delete on
+--echo more than one level
+--echo
+CREATE TABLE gp1 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE gp2 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE p1 (f1 INTEGER PRIMARY KEY, p1_id INTEGER, p2_id INTEGER,
+                 f2 INTEGER,
+                CONSTRAINT pfk_3 FOREIGN KEY (p1_id) REFERENCES gp1 (f1)
+                    ON DELETE CASCADE
+                ) ENGINE=INNODB;
+CREATE TABLE p2 (f1 INTEGER PRIMARY KEY,p1_id INTEGER, p2_id INTEGER,
+                 f2 INTEGER,
+                CONSTRAINT pfk_4 FOREIGN KEY (p1_id) REFERENCES gp2 (f1)
+                    ON DELETE CASCADE
+		 ) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p1_id INTEGER, p2_id INTEGER,
+                f2 INTEGER,
+                CONSTRAINT fk_1 FOREIGN KEY (p1_id) REFERENCES p1 (f1)
+                    ON DELETE CASCADE,
+                CONSTRAINT fk_2 FOREIGN KEY (p2_id) REFERENCES p2 (f1)
+                    ON DELETE CASCADE) ENGINE=INNODB;
+
+--let $count = 100
+--disable_query_log
+while ($count)
+{
+    --eval INSERT INTO gp1 VALUES ($count, 0);
+    --eval INSERT INTO gp2 VALUES ($count, 0);
+    --eval INSERT INTO p1 VALUES ($count, $count, $count, 0);
+    --eval INSERT INTO p2 VALUES ($count, $count, $count, 0);
+    --eval INSERT INTO c VALUES ($count, $count, $count, 0);
+    --dec $count
+}
+
+--connection node_2
+set global wsrep_slave_threads=2;
+
+--connection node_1
+--let $count = 100
+while ($count)
+{
+    --eval DELETE FROM gp1 WHERE f1=$count;
+    --eval DELETE FROM gp2 WHERE f1=$count;
+
+--dec $count
+}
+--enable_query_log
+
+--connection node_2
+set global wsrep_slave_threads=DEFAULT;
+
+SELECT * FROM gp1;
+SELECT * FROM gp2;
+SELECT * FROM p1;
+SELECT * FROM p2;
+SELECT * FROM c;
+
+--connection node_1
+DROP TABLE c;
+DROP TABLE p1,p2;
+DROP TABLE gp1,gp2;
+
+--echo
+--echo Scenario 3, testing PA applying with FK cascade delete on
+--echo more than one level in a diamond topology
+--echo
+CREATE TABLE ggp1 (f1 INTEGER PRIMARY KEY, f2 INTEGER) ENGINE=INNODB;
+CREATE TABLE gp1 (f1 INTEGER PRIMARY KEY, p1_id INTEGER, p2_id INTEGER,
+                  f2 INTEGER,
+                  CONSTRAINT pfk_6 FOREIGN KEY (p1_id) REFERENCES ggp1 (f1)
+                  ON DELETE CASCADE
+		  ) ENGINE=INNODB;
+CREATE TABLE gp2 (f1 INTEGER PRIMARY KEY, p1_id INTEGER, p2_id INTEGER,
+                  f2 INTEGER,
+                  CONSTRAINT pfk_5 FOREIGN KEY (p1_id) REFERENCES ggp1 (f1)
+                  ON DELETE CASCADE
+		  ) ENGINE=INNODB;
+CREATE TABLE p1 (f1 INTEGER PRIMARY KEY, p1_id INTEGER, p2_id INTEGER,
+                 f2 INTEGER,
+                CONSTRAINT pfk_3 FOREIGN KEY (p1_id) REFERENCES gp1 (f1)
+                    ON DELETE CASCADE
+                ) ENGINE=INNODB;
+CREATE TABLE p2 (f1 INTEGER PRIMARY KEY,p1_id INTEGER, p2_id INTEGER,
+                 f2 INTEGER,
+                CONSTRAINT pfk_4 FOREIGN KEY (p1_id) REFERENCES gp2 (f1)
+                    ON DELETE CASCADE
+		 ) ENGINE=INNODB;
+CREATE TABLE c (f1 INTEGER PRIMARY KEY, p1_id INTEGER, p2_id INTEGER,
+                f2 INTEGER,
+                CONSTRAINT fk_1 FOREIGN KEY (p1_id) REFERENCES p1 (f1)
+                    ON DELETE CASCADE,
+                CONSTRAINT fk_2 FOREIGN KEY (p2_id) REFERENCES p2 (f1)
+                    ON DELETE CASCADE) ENGINE=INNODB;
+
+--let $count = 100
+--disable_query_log
+while ($count)
+{
+    --eval INSERT INTO ggp1 VALUES ($count, 0);
+    --eval INSERT INTO gp1 VALUES ($count, $count, $count, 0);
+    --eval INSERT INTO gp2 VALUES ($count,  $count, $count, 0);
+    --eval INSERT INTO p1 VALUES ($count, $count, $count, 0);
+    --eval INSERT INTO p2 VALUES ($count, $count, $count, 0);
+    --eval INSERT INTO c VALUES ($count, $count, $count, 0);
+    --dec $count
+}
+
+--connection node_2
+set global wsrep_slave_threads=2;
+
+--connection node_1
+--let $count = 100
+while ($count)
+{
+    --eval DELETE FROM ggp1 WHERE f1=$count;
+
+--dec $count
+}
+--enable_query_log
+
+--connection node_2
+set global wsrep_slave_threads=DEFAULT;
+
+SELECT * FROM ggp1;
+SELECT * FROM gp2;
+SELECT * FROM gp1;
+SELECT * FROM p1;
+SELECT * FROM p2;
+SELECT * FROM c;
+
+--connection node_1
+DROP TABLE c;
+DROP TABLE p1,p2;
+DROP TABLE gp1,gp2;
+DROP TABLE ggp1;

@@ -2372,6 +2372,10 @@ Adjust encrypt tables
 @param[in]	val		New setting for innodb-encrypt-tables */
 void fil_crypt_set_encrypt_tables(ulong val)
 {
+	if (!fil_crypt_threads_inited) {
+		return;
+	}
+
 	mutex_enter(&fil_system.mutex);
 
 	srv_encrypt_tables = val;

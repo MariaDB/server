@@ -40,8 +40,7 @@
   if (WSREP(thd) && wsrep_thd_is_local(thd) &&				\
       wsrep_to_isolation_begin(thd, db_, table_,			\
                                table_list_, alter_info_,		\
-                               fk_tables_, create_info_))		\
-    goto wsrep_error_label;
+                               fk_tables_, create_info_))
 
 #define WSREP_TO_ISOLATION_END                                          \
   if ((WSREP(thd) && wsrep_thd_is_local_toi(thd)) ||                    \

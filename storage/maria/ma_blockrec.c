@@ -6395,16 +6395,19 @@ uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
     pin_method=  PAGECACHE_PIN_LEFT_PINNED;
 
     share->pagecache->readwrite_flags&= ~MY_WME;
+    share->silence_encryption_errors= 1;
     buff= pagecache_read(share->pagecache, &info->dfile,
                          page, 0, 0,
                          PAGECACHE_PLAIN_PAGE, PAGECACHE_LOCK_WRITE,
                          &page_link.link);
     share->pagecache->readwrite_flags= share->pagecache->org_readwrite_flags;
+    share->silence_encryption_errors= 0;
     if (!buff)
     {
       /* Skip errors when reading outside of file and uninitialized pages */
       if (!new_page || (my_errno != HA_ERR_FILE_TOO_SHORT &&
-                        my_errno != HA_ERR_WRONG_CRC))
+                        my_errno != HA_ERR_WRONG_CRC &&
+                        my_errno != HA_ERR_DECRYPTION_FAILED))
       {
         DBUG_PRINT("error", ("Error %d when reading page", (int) my_errno));
         goto err;
@@ -6896,6 +6899,7 @@ uint _ma_apply_redo_insert_row_blobs(MARIA_HA *info,
         else
         {
           share->pagecache->readwrite_flags&= ~MY_WME;
+          share->silence_encryption_errors= 1;
           buff= pagecache_read(share->pagecache,
                                &info->dfile,
                                page, 0, 0,
@@ -6903,10 +6907,12 @@ uint _ma_apply_redo_insert_row_blobs(MARIA_HA *info,
                                PAGECACHE_LOCK_WRITE, &page_link.link);
           share->pagecache->readwrite_flags= share->pagecache->
             org_readwrite_flags;
+          share->silence_encryption_errors= 0;
           if (!buff)
           {
             if (my_errno != HA_ERR_FILE_TOO_SHORT &&
-                my_errno != HA_ERR_WRONG_CRC)
+                my_errno != HA_ERR_WRONG_CRC &&
+                my_errno != HA_ERR_DECRYPTION_FAILED)
             {
               /* If not read outside of file */
               pagecache_unlock_by_link(share->pagecache, page_link.link,

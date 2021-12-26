@@ -48,12 +48,12 @@ create view v1 as select a from t1 group by b;
 create view v2 as select a from t2;
 
 --echo # Mergeable view
+--optimizer_trace
 explain select * from v2 ;
-select * from information_schema.OPTIMIZER_TRACE;
 
 --echo # Non-Mergeable view
+--optimizer_trace
 explain select * from v1 ;
-select * from information_schema.OPTIMIZER_TRACE;
 drop table t1,t2;
 drop view v1,v2;
 
@@ -642,6 +642,16 @@ SET optimizer_trace="enabled=on";
 SELECT 'a\0' LIMIT 0;
 SELECT query, trace FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 SET optimizer_trace=DEFAULT;
+
+--echo #
+--echo # MDEV-27238: Assertion `got_name == named_item_expected()' failed in Json_writer::on_start_object
+--echo #
+
+CREATE TABLE t1 (a INT KEY,b INT,KEY(b)) ENGINE=MEMORY;
+SET optimizer_trace=1;
+INSERT INTO t1 VALUES (0,0);
+SELECT a FROM t1 WHERE (a,b) in (SELECT @c,@d);
+DROP TABLE t1;
 
 --echo #
 --echo # End of 10.4 tests
