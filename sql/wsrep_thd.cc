@@ -122,7 +122,7 @@ bool wsrep_create_appliers(long threads, bool mutex_protected)
   */
   if (!WSREP_PROVIDER_EXISTS)
   {
-    return false;
+    return true;
   }
 
   DBUG_ASSERT(wsrep_cluster_address[0]);
