@@ -7029,7 +7029,6 @@ void MYSQL_BIN_LOG::purge()
     DBUG_EXECUTE_IF("expire_logs_always", { purge_time = my_time(0); });
     if (purge_time >= 0)
     {
-      ha_flush_logs();
       purge_logs_before_date(purge_time);
     }
     DEBUG_SYNC(current_thd, "after_purge_logs_before_date");
