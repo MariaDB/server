@@ -240,16 +240,11 @@ public:
   void position(const uchar *record);                            //required
   /*
     A ref is a pointer inside a local buffer. It is not comparable to
-    other ref's. This is never called as HA_NON_COMPARABLE_ROWID is set.
+    other ref's.
   */
   int cmp_ref(const uchar *ref1, const uchar *ref2)
   {
-#ifdef NOT_YET
-    DBUG_ASSERT(0);
-    return 0;
-#else
-    return handler::cmp_ref(ref1,ref2);         /* Works if table scan is used */
-#endif
+    return handler::cmp_ref(ref1,ref2);    /* Works if table scan is used */
   }
   int info(uint);                                              //required
   int extra(ha_extra_function operation);
@@ -285,4 +280,3 @@ public:
   int execute_simple_query(const char *query, int len);
   int reset(void);
 };
-
