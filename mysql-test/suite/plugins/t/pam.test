@@ -54,6 +54,36 @@ EOF
 --error 1
 --exec $MYSQL_TEST -u test_pam -pbadpassword --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_good2.txt
 
+--echo #
+--echo # MDEV-26339 Account specifics to be handled before proxying
+--echo #
+
+# one can connect if the proxy account is locked
+alter user pam_test account lock;
+alter user pam_test require subject 'foobar';
+alter user pam_test password expire;
+--error 0
+--exec $MYSQL_TEST -u test_pam -pgoodpassword --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_good2.txt
+alter user pam_test account unlock;
+alter user pam_test require none;
+alter user pam_test identified by '';
+show create user pam_test;
+
+#one cannot connect if the proxied account is locked
+alter user test_pam account lock;
+--error 1
+--exec $MYSQL_TEST -u test_pam -pgoodpassword --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_good2.txt
+alter user test_pam account unlock;
+
+alter user test_pam require subject 'foobar';
+--error 1
+--exec $MYSQL_TEST -u test_pam -pgoodpassword --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_good2.txt
+alter user test_pam require none;
+
+alter user test_pam password expire;
+--error 1
+--exec $MYSQL_TEST -u test_pam -pgoodpassword --plugin-dir=$plugindir < $MYSQLTEST_VARDIR/tmp/pam_good2.txt
+
 drop user test_pam;
 drop user pam_test;
 create user PAM_TEST identified via pam using 'mariadb_mtr';
