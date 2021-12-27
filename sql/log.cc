@@ -3463,6 +3463,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
             opt_slave_sql_verify_checksum ? (enum_binlog_checksum_alg) binlog_checksum_options
                                           : BINLOG_CHECKSUM_ALG_OFF;
         s.checksum_alg= relay_log_checksum_alg;
+        s.set_relay_log_event();
       }
       else
         s.checksum_alg= (enum_binlog_checksum_alg)binlog_checksum_options;
