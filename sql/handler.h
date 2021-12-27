@@ -357,8 +357,17 @@ enum chf_create_flags {
 /* Implements SELECT ... FOR UPDATE SKIP LOCKED */
 #define HA_CAN_SKIP_LOCKED  (1ULL << 60)
 
-#define HA_LAST_TABLE_FLAG HA_CAN_SKIP_LOCKED
+/*
+  Rowid's are not comparable. This is set if the rowid is unique to the
+  current open handler, like it is with federated where the rowid is a
+  pointer to a local result set buffer. The effect of having this set is
+  that the optimizer will not consirer the following optimizations for
+  the table:
+  ror scans or filtering
+*/
+#define HA_NON_COMPARABLE_ROWID (1ULL << 61)
 
+#define HA_LAST_TABLE_FLAG HA_NON_COMPARABLE_ROWID
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */

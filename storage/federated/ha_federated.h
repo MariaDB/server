@@ -146,7 +146,7 @@ public:
             HA_NO_PREFIX_CHAR_KEYS | HA_PRIMARY_KEY_REQUIRED_FOR_DELETE |
             HA_NO_TRANSACTIONS /* until fixed by WL#2952 */ |
             HA_PARTIAL_COLUMN_READ | HA_NULL_IN_KEY |
-            HA_CAN_ONLINE_BACKUPS |
+            HA_CAN_ONLINE_BACKUPS | HA_NON_COMPARABLE_ROWID |
             HA_CAN_REPAIR);
   }
   /*
@@ -238,6 +238,19 @@ public:
   int rnd_next_int(uchar *buf);
   int rnd_pos(uchar *buf, uchar *pos);                            //required
   void position(const uchar *record);                            //required
+  /*
+    A ref is a pointer inside a local buffer. It is not comparable to
+    other ref's. This is never called as HA_NON_COMPARABLE_ROWID is set.
+  */
+  int cmp_ref(const uchar *ref1, const uchar *ref2)
+  {
+#ifdef NOT_YET
+    DBUG_ASSERT(0);
+    return 0;
+#else
+    return handler::cmp_ref(ref1,ref2);         /* Works if table scan is used */
+#endif
+  }
   int info(uint);                                              //required
   int extra(ha_extra_function operation);
 
