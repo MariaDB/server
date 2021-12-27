@@ -231,3 +231,12 @@ SELECT COUNT(*) FROM t WHERE MBRWithin(t.c, POINT(1,1));
 COUNT(*)
 1
 DROP TABLE t;
+#
+#  MDEV-27318	Assertion data_size < srv_sort_buf_size failed in row_merge_bulk_buf_add
+#
+CREATE TABLE t1(f1 MEDIUMTEXT)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(REPEAT(1, 8459264));
+SELECT length(f1) FROM t1;
+length(f1)
+8459264
+DROP TABLE t1;
