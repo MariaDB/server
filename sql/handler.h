@@ -329,7 +329,17 @@ enum enum_alter_inplace_result {
 
 /* Support native hash index */
 #define HA_CAN_HASH_KEYS        (1ULL << 58)
-#define HA_LAST_TABLE_FLAG HA_CAN_HASH_KEYS
+/*
+  Rowid's are not comparable. This is set if the rowid is unique to the
+  current open handler, like it is with federated where the rowid is a
+  pointer to a local result set buffer. The effect of having this set is
+  that the optimizer will not consirer the following optimizations for
+  the table:
+  ror scans or filtering
+*/
+#define HA_NON_COMPARABLE_ROWID (1ULL << 59)
+
+#define HA_LAST_TABLE_FLAG HA_NON_COMPARABLE_ROWID
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */

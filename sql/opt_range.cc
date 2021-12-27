@@ -2678,6 +2678,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   records= head->stat_records();
   if (!records)
     records++;					/* purecov: inspected */
+  if (head->file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
+    only_single_index_range_scan= 1;
 
   if (head->force_index || force_quick_range)
     scan_time= read_time= DBL_MAX;
@@ -11312,6 +11314,9 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
                                 table_key->user_defined_key_parts);
   uint pk_number;
   
+  if (param->table->file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
+    return false;
+
   for (KEY_PART_INFO *kp= table_key->key_part; kp < key_part; kp++)
   {
     uint16 fieldnr= param->table->key_info[keynr].

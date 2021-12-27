@@ -1,0 +1,39 @@
+#
+#Test optimizer flags related to federated tables
+#
+
+--source have_federatedx.inc
+--source include/federated.inc
+
+connection default;
+
+--echo #
+--echo # MDEV-14907 FEDERATEDX doesn't respect DISTINCT
+--echo #
+
+CREATE TABLE t1 (
+  `foo_id` bigint(20) unsigned NOT NULL,
+  `foo_name` varchar(255) DEFAULT NULL,
+  `parent_foo_id` bigint(20) unsigned DEFAULT NULL,
+  PRIMARY KEY (`foo_id`),
+  KEY `foo_name` (`foo_name`),
+  KEY `parent_foo_id` (`parent_foo_id`)
+) DEFAULT CHARSET=utf8;
+ 
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CREATE TABLE `fed_t1` ENGINE=FEDERATED DEFAULT CHARSET=utf8 CONNECTION='mysql://root@127.0.0.1:$MASTER_MYPORT/test/t1';
+INSERT INTO t1 VALUES (968903, 'STRING - 0', 822857);
+INSERT INTO t1 VALUES (968953, 'STRING - 1', 822857);
+INSERT INTO t1 VALUES (971603, 'STRING - 2', 822857);
+INSERT INTO t1 VALUES (971803, 'STRING - 3', 822857);
+INSERT INTO t1 VALUES (975103, 'STRING - 4', 822857);
+INSERT INTO t1 VALUES (822857, 'STRING', NULL);
+
+select foo_id,parent_foo_id,foo_name from t1 where parent_foo_id = 822857 or foo_name like 'STRING%';
+
+explain
+select foo_id,parent_foo_id,foo_name from fed_t1 where parent_foo_id = 822857 or foo_name like 'STRING%';
+select foo_id,parent_foo_id,foo_name from fed_t1 where parent_foo_id = 822857 or foo_name like 'STRING%';
+DROP TABLE fed_t1, t1;
+
+source include/federated_cleanup.inc;

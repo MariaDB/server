@@ -1,0 +1,52 @@
+connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
+connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
+connection master;
+CREATE DATABASE federated;
+connection slave;
+CREATE DATABASE federated;
+connection default;
+#
+# MDEV-14907 FEDERATEDX doesn't respect DISTINCT
+#
+CREATE TABLE t1 (
+`foo_id` bigint(20) unsigned NOT NULL,
+`foo_name` varchar(255) DEFAULT NULL,
+`parent_foo_id` bigint(20) unsigned DEFAULT NULL,
+PRIMARY KEY (`foo_id`),
+KEY `foo_name` (`foo_name`),
+KEY `parent_foo_id` (`parent_foo_id`)
+) DEFAULT CHARSET=utf8;
+CREATE TABLE `fed_t1` ENGINE=FEDERATED DEFAULT CHARSET=utf8 CONNECTION='mysql://root@127.0.0.1:MASTER_PORT/test/t1';
+INSERT INTO t1 VALUES (968903, 'STRING - 0', 822857);
+INSERT INTO t1 VALUES (968953, 'STRING - 1', 822857);
+INSERT INTO t1 VALUES (971603, 'STRING - 2', 822857);
+INSERT INTO t1 VALUES (971803, 'STRING - 3', 822857);
+INSERT INTO t1 VALUES (975103, 'STRING - 4', 822857);
+INSERT INTO t1 VALUES (822857, 'STRING', NULL);
+select foo_id,parent_foo_id,foo_name from t1 where parent_foo_id = 822857 or foo_name like 'STRING%';
+foo_id	parent_foo_id	foo_name
+968903	822857	STRING - 0
+968953	822857	STRING - 1
+971603	822857	STRING - 2
+971803	822857	STRING - 3
+975103	822857	STRING - 4
+822857	NULL	STRING
+explain
+select foo_id,parent_foo_id,foo_name from fed_t1 where parent_foo_id = 822857 or foo_name like 'STRING%';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	fed_t1	ALL	foo_name,parent_foo_id	NULL	NULL	NULL	6	Using where
+select foo_id,parent_foo_id,foo_name from fed_t1 where parent_foo_id = 822857 or foo_name like 'STRING%';
+foo_id	parent_foo_id	foo_name
+968903	822857	STRING - 0
+968953	822857	STRING - 1
+971603	822857	STRING - 2
+971803	822857	STRING - 3
+975103	822857	STRING - 4
+822857	NULL	STRING
+DROP TABLE fed_t1, t1;
+connection master;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;
+connection slave;
+DROP TABLE IF EXISTS federated.t1;
+DROP DATABASE IF EXISTS federated;
