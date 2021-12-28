@@ -28,45 +28,45 @@ DROP FUNCTION test.f1;
 #########################################################################
 DESCRIBE          information_schema.VIEWS;
 Field	Type	Null	Key	Default	Extra
-TABLE_CATALOG	varchar(512)	NO			
-TABLE_SCHEMA	varchar(64)	NO			
-TABLE_NAME	varchar(64)	NO			
-VIEW_DEFINITION	longtext	NO			
-CHECK_OPTION	varchar(8)	NO			
-IS_UPDATABLE	varchar(3)	NO			
-DEFINER	varchar(189)	NO			
-SECURITY_TYPE	varchar(7)	NO			
-CHARACTER_SET_CLIENT	varchar(32)	NO			
-COLLATION_CONNECTION	varchar(32)	NO			
-ALGORITHM	varchar(10)	NO			
+TABLE_CATALOG	varchar(512)	NO		NULL	
+TABLE_SCHEMA	varchar(64)	NO		NULL	
+TABLE_NAME	varchar(64)	NO		NULL	
+VIEW_DEFINITION	longtext	NO		NULL	
+CHECK_OPTION	varchar(8)	NO		NULL	
+IS_UPDATABLE	varchar(3)	NO		NULL	
+DEFINER	varchar(189)	NO		NULL	
+SECURITY_TYPE	varchar(7)	NO		NULL	
+CHARACTER_SET_CLIENT	varchar(32)	NO		NULL	
+COLLATION_CONNECTION	varchar(32)	NO		NULL	
+ALGORITHM	varchar(10)	NO		NULL	
 SHOW CREATE TABLE information_schema.VIEWS;
 Table	Create Table
 VIEWS	CREATE TEMPORARY TABLE `VIEWS` (
-  `TABLE_CATALOG` varchar(512) NOT NULL DEFAULT '',
-  `TABLE_SCHEMA` varchar(64) NOT NULL DEFAULT '',
-  `TABLE_NAME` varchar(64) NOT NULL DEFAULT '',
-  `VIEW_DEFINITION` longtext NOT NULL DEFAULT '',
-  `CHECK_OPTION` varchar(8) NOT NULL DEFAULT '',
-  `IS_UPDATABLE` varchar(3) NOT NULL DEFAULT '',
-  `DEFINER` varchar(189) NOT NULL DEFAULT '',
-  `SECURITY_TYPE` varchar(7) NOT NULL DEFAULT '',
-  `CHARACTER_SET_CLIENT` varchar(32) NOT NULL DEFAULT '',
-  `COLLATION_CONNECTION` varchar(32) NOT NULL DEFAULT '',
-  `ALGORITHM` varchar(10) NOT NULL DEFAULT ''
+  `TABLE_CATALOG` varchar(512) NOT NULL,
+  `TABLE_SCHEMA` varchar(64) NOT NULL,
+  `TABLE_NAME` varchar(64) NOT NULL,
+  `VIEW_DEFINITION` longtext NOT NULL,
+  `CHECK_OPTION` varchar(8) NOT NULL,
+  `IS_UPDATABLE` varchar(3) NOT NULL,
+  `DEFINER` varchar(189) NOT NULL,
+  `SECURITY_TYPE` varchar(7) NOT NULL,
+  `CHARACTER_SET_CLIENT` varchar(32) NOT NULL,
+  `COLLATION_CONNECTION` varchar(32) NOT NULL,
+  `ALGORITHM` varchar(10) NOT NULL
 )  DEFAULT CHARSET=utf8
 SHOW COLUMNS FROM information_schema.VIEWS;
 Field	Type	Null	Key	Default	Extra
-TABLE_CATALOG	varchar(512)	NO			
-TABLE_SCHEMA	varchar(64)	NO			
-TABLE_NAME	varchar(64)	NO			
-VIEW_DEFINITION	longtext	NO			
-CHECK_OPTION	varchar(8)	NO			
-IS_UPDATABLE	varchar(3)	NO			
-DEFINER	varchar(189)	NO			
-SECURITY_TYPE	varchar(7)	NO			
-CHARACTER_SET_CLIENT	varchar(32)	NO			
-COLLATION_CONNECTION	varchar(32)	NO			
-ALGORITHM	varchar(10)	NO			
+TABLE_CATALOG	varchar(512)	NO		NULL	
+TABLE_SCHEMA	varchar(64)	NO		NULL	
+TABLE_NAME	varchar(64)	NO		NULL	
+VIEW_DEFINITION	longtext	NO		NULL	
+CHECK_OPTION	varchar(8)	NO		NULL	
+IS_UPDATABLE	varchar(3)	NO		NULL	
+DEFINER	varchar(189)	NO		NULL	
+SECURITY_TYPE	varchar(7)	NO		NULL	
+CHARACTER_SET_CLIENT	varchar(32)	NO		NULL	
+COLLATION_CONNECTION	varchar(32)	NO		NULL	
+ALGORITHM	varchar(10)	NO		NULL	
 SELECT table_catalog, table_schema, table_name
 FROM information_schema.views WHERE table_catalog IS NOT NULL;
 table_catalog	table_schema	table_name

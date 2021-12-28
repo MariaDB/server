@@ -17850,8 +17850,15 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
         The test for item->marker == 4 is ensure we don't create a group-by
         key over a bit field as heap tables can't handle that.
       */
-      Field *new_field= (param->schema_table) ?
-        item->create_field_for_schema(thd, table) :
+      Field *new_field;
+      if (param->schema_table)
+      {
+        if ((new_field= item->create_field_for_schema(thd, table)))
+          new_field->flags|= NO_DEFAULT_VALUE_FLAG;
+      }
+      else
+      {
+        new_field=
         create_tmp_field(thd, table, item, type, &copy_func,
                          tmp_from_field, &default_field[fieldnr],
                          group != 0,
@@ -17866,7 +17873,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
                          */
                          item->marker == 4  || param->bit_fields_as_long,
                          force_copy_fields);
-
+      }
       if (unlikely(!new_field))
       {
 	if (unlikely(thd->is_fatal_error))
