@@ -1,8 +1,8 @@
 SHOW CREATE TABLE INFORMATION_SCHEMA.INNODB_LOCK_WAITS;
 Table	Create Table
 INNODB_LOCK_WAITS	CREATE TEMPORARY TABLE `INNODB_LOCK_WAITS` (
-  `requesting_trx_id` bigint(21) unsigned NOT NULL DEFAULT 0,
-  `requested_lock_id` varchar(81) NOT NULL DEFAULT '',
-  `blocking_trx_id` bigint(21) unsigned NOT NULL DEFAULT 0,
-  `blocking_lock_id` varchar(81) NOT NULL DEFAULT ''
+  `requesting_trx_id` bigint(21) unsigned NOT NULL,
+  `requested_lock_id` varchar(81) NOT NULL,
+  `blocking_trx_id` bigint(21) unsigned NOT NULL,
+  `blocking_lock_id` varchar(81) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8

@@ -19377,16 +19377,7 @@ bool Create_tmp_table::add_schema_fields(THD *thd, TABLE *table,
       DBUG_RETURN(true); // EOM
     }
     field->init(table);
-    switch (def.def()) {
-    case DEFAULT_NONE:
-      field->flags|= NO_DEFAULT_VALUE_FLAG;
-      break;
-    case DEFAULT_TYPE_IMPLICIT:
-      break;
-    default:
-      DBUG_ASSERT(0);
-      break;
-    }
+    field->flags|= NO_DEFAULT_VALUE_FLAG;
     add_field(table, field, fieldnr, param->force_not_null_cols);
   }
 

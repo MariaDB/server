@@ -12,24 +12,24 @@ USE test;
 SHOW CREATE TABLE INFORMATION_SCHEMA.PROCESSLIST;
 Table	Create Table
 PROCESSLIST	CREATE TEMPORARY TABLE `PROCESSLIST` (
-  `ID` bigint(4) NOT NULL DEFAULT 0,
-  `USER` varchar(128) NOT NULL DEFAULT '',
-  `HOST` varchar(64) NOT NULL DEFAULT '',
-  `DB` varchar(64) DEFAULT NULL,
-  `COMMAND` varchar(16) NOT NULL DEFAULT '',
-  `TIME` int(7) NOT NULL DEFAULT 0,
-  `STATE` varchar(64) DEFAULT NULL,
-  `INFO` longtext DEFAULT NULL,
-  `TIME_MS` decimal(22,3) NOT NULL DEFAULT 0.000,
-  `STAGE` tinyint(2) NOT NULL DEFAULT 0,
-  `MAX_STAGE` tinyint(2) NOT NULL DEFAULT 0,
-  `PROGRESS` decimal(7,3) NOT NULL DEFAULT 0.000,
-  `MEMORY_USED` bigint(7) NOT NULL DEFAULT 0,
-  `MAX_MEMORY_USED` bigint(7) NOT NULL DEFAULT 0,
-  `EXAMINED_ROWS` int(7) NOT NULL DEFAULT 0,
-  `QUERY_ID` bigint(4) NOT NULL DEFAULT 0,
-  `INFO_BINARY` blob DEFAULT NULL,
-  `TID` bigint(4) NOT NULL DEFAULT 0
+  `ID` bigint(4) NOT NULL,
+  `USER` varchar(128) NOT NULL,
+  `HOST` varchar(64) NOT NULL,
+  `DB` varchar(64),
+  `COMMAND` varchar(16) NOT NULL,
+  `TIME` int(7) NOT NULL,
+  `STATE` varchar(64),
+  `INFO` longtext,
+  `TIME_MS` decimal(22,3) NOT NULL,
+  `STAGE` tinyint(2) NOT NULL,
+  `MAX_STAGE` tinyint(2) NOT NULL,
+  `PROGRESS` decimal(7,3) NOT NULL,
+  `MEMORY_USED` bigint(7) NOT NULL,
+  `MAX_MEMORY_USED` bigint(7) NOT NULL,
+  `EXAMINED_ROWS` int(7) NOT NULL,
+  `QUERY_ID` bigint(4) NOT NULL,
+  `INFO_BINARY` blob,
+  `TID` bigint(4) NOT NULL
 )  DEFAULT CHARSET=utf8
 # Ensure that the information about the own connection is correct.
 #--------------------------------------------------------------------------
