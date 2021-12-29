@@ -1947,3 +1947,14 @@ Warnings:
 Warning	1082	InnoDB: Table test/t contains 0 indexes inside InnoDB, which is different from the number of indexes 1 defined in the MariaDB 
 Warning	1082	InnoDB: Table test/t contains 0 indexes inside InnoDB, which is different from the number of indexes 1 defined in the MariaDB 
 DROP TABLE t;
+#
+#  MDEV-27374  InnoDB table becomes corrupt after renaming DESC-indexed column
+#
+CREATE TABLE t1 (a VARCHAR(8), PRIMARY KEY(a DESC)) ENGINE=InnoDB;
+ALTER TABLE t1 RENAME COLUMN a TO b, ALGORITHM=INPLACE;
+SELECT TABLE_ID INTO @table_id FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME="test/t1";
+SELECT INDEX_ID INTO @index_id FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE TABLE_ID = @table_id;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS WHERE INDEX_ID=@index_id;
+NAME
+b
+DROP TABLE t1;
