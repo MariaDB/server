@@ -192,7 +192,7 @@ static int oqgraph_init(void *p)
   hton->discover_table_structure= oqgraph_discover_table_structure;
 
   hton->close_connection = oqgraph_close_connection;
-  hton->drop_table= [](handlerton *, const char*) { return 0; };
+  hton->drop_table= [](handlerton *, const char*) { return -1; };
 
   oqgraph_init_done= TRUE;
   return 0;
