@@ -2644,7 +2644,7 @@ public:
                             bool any_privileges);
   bool check_vcol_func_processor(void *arg)
   {
-    if (table_name)
+    if (alias_name_used)
     {
       /*
          NOTE: alias is different in every statement, we must update it.
@@ -2865,7 +2865,7 @@ public:
   bool check_table_name_processor(void *arg)
   {
     Check_table_name_prm &p= *(Check_table_name_prm *) arg;
-    if (!field && p.table_name.length && table_name)
+    if (p.table_name.length && table_name)
     {
       DBUG_ASSERT(p.db.length);
       if ((db_name &&

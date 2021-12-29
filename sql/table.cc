@@ -3230,6 +3230,8 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     goto err;
 
   outparam->alias.set(tmp_alias, tmp_length, table_alias_charset);
+  outparam->alias_name_used= my_strcasecmp(table_alias_charset,
+                                           share->table_name.str, alias);
   outparam->quick_keys.init();
   outparam->covering_keys.init();
   outparam->intersect_keys.init();
@@ -4781,7 +4783,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
 {
   DBUG_ASSERT(s->tmp_table != NO_TMP_TABLE || s->tdc->ref_count > 0);
 
-  if (thd->lex->need_correct_ident())
+//   if (thd->lex->need_correct_ident())
     alias_name_used= my_strcasecmp(table_alias_charset,
                                    s->table_name.str,
                                    tl->alias);
