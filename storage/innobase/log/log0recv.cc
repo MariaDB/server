@@ -1705,16 +1705,19 @@ dberr_t recv_sys_t::find_checkpoint()
       return DB_CORRUPTION;
     }
 
-    if (first_lsn < log_t::FIRST_LSN)
+    if (*reinterpret_cast<const uint32_t*>(buf + LOG_HEADER_FORMAT + 4) ||
+        first_lsn < log_t::FIRST_LSN)
     {
-      sql_print_error("InnoDB: Invalid ib_logfile0 header block");
+      sql_print_error("InnoDB: Invalid ib_logfile0 header block;"
+                      " the log was created with %s.", creator);
       return DB_CORRUPTION;
     }
 
     if (!mach_read_from_4(buf + LOG_HEADER_CREATOR_END));
     else if (!log_crypt_read_header(buf + LOG_HEADER_CREATOR_END))
     {
-      sql_print_error("InnoDB: Reading log encryption info failed.");
+      sql_print_error("InnoDB: Reading log encryption info failed;"
+                      " the log was created with %s.", creator);
       return DB_ERROR;
     }
     else
