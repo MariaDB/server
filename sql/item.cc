@@ -9165,6 +9165,48 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
                                                 &view_error_processor);
 }
 
+double Item_default_value::val_result()
+{
+  calculate();
+  return Item_field::val_result();
+}
+
+longlong Item_default_value::val_int_result()
+{
+  calculate();
+  return Item_field::val_int_result();
+}
+
+String *Item_default_value::str_result(String* tmp)
+{
+  calculate();
+  return Item_field::str_result(tmp);
+}
+
+bool Item_default_value::val_bool_result()
+{
+  calculate();
+  return Item_field::val_bool_result();
+}
+
+bool Item_default_value::is_null_result()
+{
+  calculate();
+  return Item_field::is_null_result();
+}
+
+my_decimal *Item_default_value::val_decimal_result(my_decimal *decimal_value)
+{
+  calculate();
+  return Item_field::val_decimal_result(decimal_value);
+}
+
+bool Item_default_value::get_date_result(MYSQL_TIME *ltime,ulonglong fuzzydate)
+{
+  calculate();
+  return Item_field::get_date_result(ltime, fuzzydate);
+}
+
 table_map Item_default_value::used_tables() const
 {
   if (!field || !field->default_value)

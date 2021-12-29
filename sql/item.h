@@ -5478,6 +5478,16 @@ public:
   longlong val_int();
   my_decimal *val_decimal(my_decimal *decimal_value);
   bool get_date(MYSQL_TIME *ltime,ulonglong fuzzydate);
+
+  /* Result variants */
+  double val_result();
+  longlong val_int_result();
+  String *str_result(String* tmp);
+  my_decimal *val_decimal_result(my_decimal *val);
+  bool val_bool_result();
+  bool is_null_result();
+  bool get_date_result(MYSQL_TIME *ltime,ulonglong fuzzydate);
+
   bool send(Protocol *protocol, String *buffer);
   int save_in_field(Field *field_arg, bool no_conversions);
   bool save_in_param(THD *thd, Item_param *param)
