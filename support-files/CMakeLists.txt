@@ -88,7 +88,7 @@ IF(UNIX)
         INSTALL(FILES ${out} DESTINATION ${inst_location}/policy/selinux COMPONENT SupportFiles)
       ENDFOREACH()
       IF(RPM)
-        EXECUTE_PROCESS(COMMAND rpm -q --qf "%{VERSION}" libsepol
+        EXECUTE_PROCESS(COMMAND rpm -q --qf "%{VERSION}" libsepol."${CMAKE_SYSTEM_PROCESSOR}"
                         OUTPUT_VARIABLE LIBSEPOL_VERSION RESULT_VARIABLE err)
         IF (NOT err)
           SET(CPACK_RPM_server_PACKAGE_REQUIRES
