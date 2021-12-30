@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -6271,7 +6271,7 @@ acquire_lock:
 	}
 
 	if (fts_exist) {
-		purge_sys.stop_FTS();
+		purge_sys.stop_FTS(*ctx->new_table);
 		if (error == DB_SUCCESS) {
 			error = fts_lock_tables(ctx->trx, *ctx->new_table);
 		}
@@ -8718,7 +8718,7 @@ inline bool rollback_inplace_alter_table(Alter_inplace_info *ha_alter_info,
     if (fts_exist)
     {
       fts_optimize_remove_table(ctx->new_table);
-      purge_sys.stop_FTS();
+      purge_sys.stop_FTS(*ctx->new_table);
     }
     if (ctx->need_rebuild())
     {
@@ -10876,13 +10876,13 @@ ha_innobase::commit_inplace_alter_table(
 		}
 	}
 
-	if (fts_exist) {
-		purge_sys.stop_FTS();
-	}
-
 	for (inplace_alter_handler_ctx** pctx = ctx_array; *pctx; pctx++) {
 		auto ctx = static_cast<ha_innobase_inplace_ctx*>(*pctx);
 		dberr_t error = DB_SUCCESS;
+
+		if (fts_exist) {
+			purge_sys.stop_FTS(*ctx->old_table);
+		}
 
 		if (new_clustered && ctx->old_table->fts) {
 			ut_ad(!ctx->old_table->fts->add_wq);

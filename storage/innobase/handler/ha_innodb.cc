@@ -4,7 +4,7 @@ Copyright (c) 2000, 2020, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -13457,7 +13457,7 @@ int ha_innobase::delete_table(const char *name)
   if (fts)
   {
     fts_optimize_remove_table(table);
-    purge_sys.stop_FTS();
+    purge_sys.stop_FTS(*table);
     err= fts_lock_tables(trx, *table);
   }
 
@@ -13835,7 +13835,7 @@ int ha_innobase::truncate()
 
 	if (fts) {
 		fts_optimize_remove_table(ib_table);
-		purge_sys.stop_FTS();
+		purge_sys.stop_FTS(*ib_table);
 		error = fts_lock_tables(trx, *ib_table);
 	}
 
