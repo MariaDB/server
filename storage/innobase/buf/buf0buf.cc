@@ -1082,7 +1082,7 @@ inline const buf_block_t *buf_pool_t::chunk_t::not_freed() const
       {
         /* The page cleaner is disabled in read-only mode.  No pages
         can be dirtied, so all of them must be clean. */
-        ut_ad(lsn == 0 || lsn == recv_sys.recovered_lsn ||
+        ut_ad(lsn == 0 || lsn == recv_sys.lsn ||
               srv_force_recovery == SRV_FORCE_NO_LOG_REDO);
         break;
       }

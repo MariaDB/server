@@ -1268,7 +1268,7 @@ static void srv_monitor()
 void srv_monitor_task(void*)
 {
 	/* number of successive fatal timeouts observed */
-	static lsn_t		old_lsn = recv_sys.recovered_lsn;
+	static lsn_t		old_lsn = recv_sys.lsn;
 
 	ut_ad(!srv_read_only_mode);
 

@@ -213,9 +213,9 @@ public:
   /** number of bytes in log_sys.buf */
   size_t len;
   /** start offset of non-parsed log records in log_sys.buf */
-  size_t recovered_offset;
-  /** log sequence number of the last parsed record */
-  lsn_t recovered_lsn;
+  size_t offset;
+  /** log sequence number of the first non-parsed record */
+  lsn_t lsn;
   /** log sequence number at the end of the FILE_CHECKPOINT record, or 0 */
   lsn_t file_checkpoint;
   /** the time when progress was last reported */

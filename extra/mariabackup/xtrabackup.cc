@@ -2153,7 +2153,7 @@ static void log_hdr_init()
     log_crypt_write_header(log_hdr_buf + LOG_HEADER_CREATOR_END);
   mach_write_to_4(508 + log_hdr_buf, my_crc32c(0, log_hdr_buf, 508));
   mach_write_to_8(log_hdr_buf + 0x1000, log_sys.next_checkpoint_lsn);
-  mach_write_to_8(log_hdr_buf + 0x1008, recv_sys.recovered_lsn);
+  mach_write_to_8(log_hdr_buf + 0x1008, recv_sys.lsn);
   mach_write_to_4(log_hdr_buf + 0x103c,
                   my_crc32c(0, log_hdr_buf + 0x1000, 60));
 }
@@ -2200,13 +2200,13 @@ static bool innodb_init()
     return true;
   }
 
-  recv_sys.recovered_lsn= log_sys.next_checkpoint_lsn=
+  recv_sys.lsn= log_sys.next_checkpoint_lsn=
     log_sys.get_lsn() - SIZE_OF_FILE_CHECKPOINT;
   log_sys.set_latest_format(false); // not encrypted
   log_hdr_init();
   byte *b= &log_hdr_buf[log_t::START_OFFSET];
   b[0]= FILE_CHECKPOINT | 10;
-  mach_write_to_8(b + 3, recv_sys.recovered_lsn);
+  mach_write_to_8(b + 3, recv_sys.lsn);
   b[11]= 1;
   mach_write_to_4(b + 12, my_crc32c(0, b, 11));
   static_assert(12 + 4 == SIZE_OF_FILE_CHECKPOINT, "compatibility");
@@ -2896,14 +2896,13 @@ static bool xtrabackup_copy_logfile()
 
   mysql_mutex_lock(&recv_sys.mutex);
   recv_sys.len= 0;
-  recv_sys.recovered_offset=
-    size_t(recv_sys.recovered_lsn - log_sys.get_first_lsn()) & block_size_1;
+  recv_sys.offset= size_t(recv_sys.lsn - log_sys.get_first_lsn()) &
+    block_size_1;
 
   for (unsigned retry_count{0};;)
   {
     auto source_offset=
-      log_sys.calc_lsn_offset(recv_sys.recovered_lsn + recv_sys.len -
-                              recv_sys.recovered_offset);
+      log_sys.calc_lsn_offset(recv_sys.lsn + recv_sys.len - recv_sys.offset);
     source_offset&= ~block_size_1;
     size_t size{log_sys.buf_size - recv_sys.len};
     if (source_offset + size > log_sys.file_size)
@@ -2913,10 +2912,10 @@ static bool xtrabackup_copy_logfile()
     log_sys.log.read(source_offset, {log_sys.buf, size});
     recv_sys.len= size;
 
-    if (!log_sys.buf[recv_sys.recovered_offset])
+    if (!log_sys.buf[recv_sys.offset])
       break;
 
-    const size_t start_offset{recv_sys.recovered_offset};
+    const size_t start_offset{recv_sys.offset};
 
     if (recv_sys.parse_mtr(STORE_IF_EXISTS) == recv_sys_t::OK)
     {
@@ -2924,8 +2923,8 @@ static bool xtrabackup_copy_logfile()
       do
       {
         /* Set the sequence bit (the backed-up log will not wrap around) */
-        byte *seq= &log_sys.buf[recv_sys.recovered_offset - sequence_offset];
-        ut_ad(*seq == log_sys.get_sequence_bit(recv_sys.recovered_lsn -
+        byte *seq= &log_sys.buf[recv_sys.offset - sequence_offset];
+        ut_ad(*seq == log_sys.get_sequence_bit(recv_sys.lsn -
                                                (log_sys.is_encrypted()
                                                 ? 8 + 5 : 5)));
         *seq= 1;
@@ -2933,7 +2932,7 @@ static bool xtrabackup_copy_logfile()
       while ((r= recv_sys.parse_mtr(STORE_IF_EXISTS)) == recv_sys_t::OK);
 
       if (ds_write(dst_log_file, log_sys.buf + start_offset,
-                   recv_sys.recovered_offset - start_offset))
+                   recv_sys.offset - start_offset))
       {
         mysql_mutex_unlock(&log_sys.mutex);
         mysql_mutex_unlock(&recv_sys.mutex);
@@ -2941,10 +2940,10 @@ static bool xtrabackup_copy_logfile()
         return true;
       }
 
-      const auto ofs= recv_sys.recovered_offset & ~block_size_1;
+      const auto ofs= recv_sys.offset & ~block_size_1;
       memmove_aligned<64>(log_sys.buf, log_sys.buf + ofs, recv_sys.len - ofs);
       recv_sys.len-= ofs;
-      recv_sys.recovered_offset&= block_size_1;
+      recv_sys.offset&= block_size_1;
       pthread_cond_broadcast(&scanned_lsn_cond);
 
       if (r == recv_sys_t::GOT_EOF)
@@ -2959,14 +2958,14 @@ static bool xtrabackup_copy_logfile()
     }
     else
     {
-      recv_sys.len= recv_sys.recovered_offset & ~block_size_1;
+      recv_sys.len= recv_sys.offset & ~block_size_1;
 
       if (retry_count == 100)
         break;
 
       mysql_mutex_unlock(&recv_sys.mutex);
       if (!retry_count++)
-        msg("Retrying read of log at LSN=" LSN_PF, recv_sys.recovered_lsn);
+        msg("Retrying read of log at LSN=" LSN_PF, recv_sys.lsn);
       my_sleep(1000);
     }
 
@@ -2974,7 +2973,7 @@ static bool xtrabackup_copy_logfile()
   }
 
   mysql_mutex_unlock(&recv_sys.mutex);
-  msg(">> log scanned up to (" LSN_PF ")", recv_sys.recovered_lsn);
+  msg(">> log scanned up to (" LSN_PF ")", recv_sys.lsn);
   return false;
 }
 
@@ -2984,17 +2983,17 @@ Wait until redo log copying thread processes given lsn
 void backup_wait_for_lsn(lsn_t lsn)
 {
   mysql_mutex_lock(&recv_sys.mutex);
-  for (lsn_t last_lsn{recv_sys.recovered_lsn}; last_lsn < lsn; )
+  for (lsn_t last_lsn{recv_sys.lsn}; last_lsn < lsn; )
   {
     timespec abstime;
     set_timespec(abstime, 5);
     if (my_cond_timedwait(&scanned_lsn_cond, &recv_sys.mutex.m_mutex,
                           &abstime) &&
-        last_lsn == recv_sys.recovered_lsn)
+        last_lsn == recv_sys.lsn)
       die("Was only able to copy log from " LSN_PF " to " LSN_PF
           ", not " LSN_PF "; try increasing innodb_log_file_size",
           log_sys.next_checkpoint_lsn, last_lsn, lsn);
-    last_lsn= recv_sys.recovered_lsn;
+    last_lsn= recv_sys.lsn;
   }
   mysql_mutex_unlock(&recv_sys.mutex);
 }
@@ -3006,7 +3005,7 @@ static void log_copying_thread()
   my_thread_init();
   mysql_mutex_lock(&log_sys.mutex);
   while (!xtrabackup_copy_logfile() &&
-         (!metadata_to_lsn || metadata_to_lsn > recv_sys.recovered_lsn))
+         (!metadata_to_lsn || metadata_to_lsn > recv_sys.lsn))
   {
     timespec abstime;
     set_timespec_nsec(abstime, 1000ULL * xtrabackup_log_copy_interval);
@@ -4312,7 +4311,7 @@ static bool xtrabackup_backup_low()
 
 	/* read the latest checkpoint lsn */
 	{
-		const lsn_t lsn = recv_sys.recovered_lsn;
+		const lsn_t lsn = recv_sys.lsn;
 		if (recv_sys.find_checkpoint() == DB_SUCCESS
 		    && log_sys.is_latest()) {
 			metadata_to_lsn = log_sys.next_checkpoint_lsn;
@@ -4323,7 +4322,7 @@ static bool xtrabackup_backup_low()
 			msg("Error: recv_sys.find_checkpoint() failed.");
 		}
 
-		recv_sys.recovered_lsn = lsn;
+		recv_sys.lsn = lsn;
 		mysql_cond_broadcast(&log_copying_stop);
 		const bool running= log_copying_running;
 		mysql_mutex_unlock(&log_sys.mutex);
@@ -4354,7 +4353,7 @@ static bool xtrabackup_backup_low()
 		strcpy(metadata_type, "incremental");
 		metadata_from_lsn = incremental_lsn;
 	}
-	metadata_last_lsn = recv_sys.recovered_lsn;
+	metadata_last_lsn = recv_sys.lsn;
 
 	if (!xtrabackup_stream_metadata(ds_meta)) {
 		msg("Error: failed to stream metadata.");
@@ -4571,7 +4570,7 @@ free_and_fail:
 	/* copy log file by current position */
 
 	mysql_mutex_lock(&log_sys.mutex);
-	recv_sys.recovered_lsn = log_sys.next_checkpoint_lsn;
+	recv_sys.lsn = log_sys.next_checkpoint_lsn;
 
 	const bool log_copy_failed = xtrabackup_copy_logfile();
 
@@ -4670,16 +4669,16 @@ free_and_fail:
 	xtrabackup_destroy_datasinks();
 
 	msg("Redo log (from LSN " LSN_PF " to " LSN_PF ") was copied.",
-	    log_sys.next_checkpoint_lsn, recv_sys.recovered_lsn);
+	    log_sys.next_checkpoint_lsn, recv_sys.lsn);
 	xb_filters_free();
 
 	xb_data_files_close();
 
 	/* Make sure that the latest checkpoint was included */
-	if (metadata_to_lsn > recv_sys.recovered_lsn) {
+	if (metadata_to_lsn > recv_sys.lsn) {
 		msg("Error: failed to copy enough redo log ("
 		    "LSN=" LSN_PF "; checkpoint LSN=" LSN_PF ").",
-		    recv_sys.recovered_lsn, metadata_to_lsn);
+		    recv_sys.lsn, metadata_to_lsn);
 		goto fail;
 	}
 
@@ -5890,11 +5889,10 @@ error:
 	}
 
 	/* Check whether the log is applied enough or not. */
-	if (recv_sys.recovered_lsn && recv_sys.recovered_lsn < target_lsn) {
+	if (recv_sys.lsn && recv_sys.lsn < target_lsn) {
 		msg("mariabackup: error: "
 		    "The log was only applied up to LSN " LSN_PF
-		    ", instead of " LSN_PF,
-		    recv_sys.recovered_lsn, target_lsn);
+		    ", instead of " LSN_PF, recv_sys.lsn, target_lsn);
 		ok = false;
 	}
 #ifdef WITH_WSREP

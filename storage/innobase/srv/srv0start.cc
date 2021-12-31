@@ -1671,10 +1671,10 @@ skip_monitors:
 	srv_is_being_started = false;
 
 	if (srv_print_verbose_log) {
-		ib::info() << INNODB_VERSION_STR
-			   << " started; log sequence number "
-			   << recv_sys.recovered_lsn
-			   << "; transaction id " << trx_sys.get_max_trx_id();
+		sql_print_information("InnoDB: " INNODB_VERSION_STR
+				      " started; log sequence number " LSN_PF
+				      "; transaction id " TRX_ID_FMT,
+				      recv_sys.lsn, trx_sys.get_max_trx_id());
 	}
 
 	if (srv_force_recovery == 0) {

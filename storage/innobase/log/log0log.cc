@@ -1017,7 +1017,7 @@ wait_suspend_loop:
 			goto loop;
 		}
 	} else {
-		lsn = recv_sys.recovered_lsn;
+		lsn = recv_sys.lsn;
 	}
 
 	srv_shutdown_state = SRV_SHUTDOWN_LAST_PHASE;
@@ -1032,10 +1032,10 @@ wait_suspend_loop:
 	ut_a(lsn == log_sys.get_lsn()
 	     || srv_force_recovery == SRV_FORCE_NO_LOG_REDO);
 
-	if (UNIV_UNLIKELY(lsn < recv_sys.recovered_lsn)) {
-		ib::error() << "Shutdown LSN=" << lsn
-			    << " is less than start LSN="
-			    << recv_sys.recovered_lsn;
+	if (UNIV_UNLIKELY(lsn < recv_sys.lsn)) {
+		sql_print_error("InnoDB: Shutdown LSN=" LSN_PF
+				" is less than start LSN=" LSN_PF,
+				lsn, recv_sys.lsn);
 	}
 
 	srv_shutdown_lsn = lsn;
