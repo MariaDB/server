@@ -204,17 +204,15 @@ private:
 public:
   /** @return maximum guaranteed size of a mini-transaction on recovery */
   static constexpr size_t MTR_SIZE_MAX{1U << 20};
-  /** Size of the parsing buffer (and the minimum size of log_sys.buf) */
-  static constexpr size_t PARSING_BUF_SIZE{2U << 20};
 
   /** whether we are applying redo log records during crash recovery */
   bool recovery_on;
   /** whether recv_recover_page(), invoked from buf_page_t::read_complete(),
   should apply log records*/
   bool apply_log_recs;
-  /** number of bytes in buf */
+  /** number of bytes in log_sys.buf */
   size_t len;
-  /** start offset of non-parsed log records in buf */
+  /** start offset of non-parsed log records in log_sys.buf */
   size_t recovered_offset;
   /** log sequence number of the last parsed record */
   lsn_t recovered_lsn;

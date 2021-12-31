@@ -1489,10 +1489,10 @@ struct my_option xb_server_options[] =
    IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_O_DIRECT), 0, 0, 0, 0, 0},
 
   {"innodb_log_buffer_size", OPT_INNODB_LOG_BUFFER_SIZE,
-   "The size of the buffer which InnoDB uses to write log to the log files on disk.",
+   "Redo log buffer size in bytes.",
    (G_PTR*) &log_sys.buf_size, (G_PTR*) &log_sys.buf_size, 0,
-   IF_WIN(GET_ULL,GET_ULONG), REQUIRED_ARG, recv_sys_t::PARSING_BUF_SIZE,
-   recv_sys_t::PARSING_BUF_SIZE, SIZE_T_MAX, 0, 4096, 0},
+   IF_WIN(GET_ULL,GET_ULONG), REQUIRED_ARG, 2U << 20,
+   2U << 20, SIZE_T_MAX, 0, 4096, 0},
   {"innodb_log_file_size", OPT_INNODB_LOG_FILE_SIZE,
    "Ignored for mysqld option compatibility",
    (G_PTR*) &srv_log_file_size, (G_PTR*) &srv_log_file_size, 0,
@@ -2905,11 +2905,11 @@ static bool xtrabackup_copy_logfile()
       log_sys.calc_lsn_offset(recv_sys.recovered_lsn + recv_sys.len -
                               recv_sys.recovered_offset);
     source_offset&= ~block_size_1;
-    size_t size{recv_sys.PARSING_BUF_SIZE - recv_sys.len};
+    size_t size{log_sys.buf_size - recv_sys.len};
     if (source_offset + size > log_sys.file_size)
       size= static_cast<size_t>(log_sys.file_size - source_offset);
 
-    ut_ad(size <= recv_sys.PARSING_BUF_SIZE);
+    ut_ad(size <= log_sys.buf_size);
     log_sys.log.read(source_offset, {log_sys.buf, size});
     recv_sys.len= size;
 

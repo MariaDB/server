@@ -2006,7 +2006,7 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse_mtr(store_t store)
       if (l + rlen >= end)
         break;
       const uint32_t addlen= mlog_decode_varint(l);
-      if (UNIV_UNLIKELY(addlen == MLOG_DECODE_ERROR))
+      if (UNIV_UNLIKELY(addlen >= recv_sys.MTR_SIZE_MAX))
         return GOT_EOF;
       rlen= addlen + 15;
     }

@@ -19177,11 +19177,11 @@ static MYSQL_SYSVAR_ULONG(page_size, srv_page_size,
 static MYSQL_SYSVAR_SIZE_T(log_buffer_size, log_sys.buf_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Redo log buffer size in bytes.",
-  NULL, NULL, 16UL << 20, recv_sys_t::PARSING_BUF_SIZE, SIZE_T_MAX, 4096);
+  NULL, NULL, 16U << 20, 2U << 20, SIZE_T_MAX, 4096);
 
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Redo log size in bytes",
+  "Redo log size in bytes.",
   NULL, NULL, 96 << 20, 1U << 20, std::numeric_limits<ulonglong>::max(), 4096);
 
 static MYSQL_SYSVAR_UINT(old_blocks_pct, innobase_old_blocks_pct,
