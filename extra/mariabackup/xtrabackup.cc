@@ -2181,7 +2181,7 @@ static bool innodb_init()
   ut_ad(recv_no_log_write);
   buf_flush_sync();
   DBUG_ASSERT(!buf_pool.any_io_pending());
-  log_sys.log.close();
+  log_sys.close_file();
 
   if (xtrabackup_incremental)
     /* Reset the ib_logfile0 in --target-dir, not --incremental-dir. */
@@ -2895,80 +2895,181 @@ static bool xtrabackup_copy_logfile()
   const size_t block_size_1{log_sys.get_block_size() - 1};
 
   mysql_mutex_lock(&recv_sys.mutex);
-  recv_sys.len= 0;
-  recv_sys.offset= size_t(recv_sys.lsn - log_sys.get_first_lsn()) &
-    block_size_1;
+#ifdef HAVE_PMEM
+  if (log_sys.is_pmem())
+  {
+    recv_sys.offset= size_t(log_sys.calc_lsn_offset(recv_sys.lsn));
+    recv_sys.len= size_t(log_sys.file_size);
+  }
+  else
+#endif
+  {
+    recv_sys.offset= size_t(recv_sys.lsn - log_sys.get_first_lsn()) &
+      block_size_1;
+    recv_sys.len= 0;
+  }
 
   for (unsigned retry_count{0};;)
   {
-    auto source_offset=
-      log_sys.calc_lsn_offset(recv_sys.lsn + recv_sys.len - recv_sys.offset);
-    source_offset&= ~block_size_1;
-    size_t size{log_sys.buf_size - recv_sys.len};
-    if (source_offset + size > log_sys.file_size)
-      size= static_cast<size_t>(log_sys.file_size - source_offset);
+    recv_sys_t::parse_mtr_result r;
+    size_t start_offset{recv_sys.offset};
 
-    ut_ad(size <= log_sys.buf_size);
-    log_sys.log.read(source_offset, {log_sys.buf, size});
-    recv_sys.len= size;
-
-    if (!log_sys.buf[recv_sys.offset])
-      break;
-
-    const size_t start_offset{recv_sys.offset};
-
-    if (recv_sys.parse_mtr(STORE_IF_EXISTS) == recv_sys_t::OK)
+#ifdef HAVE_PMEM
+    if (log_sys.is_pmem())
     {
-      recv_sys_t::parse_mtr_result r;
-      do
+      if ((ut_d(r=) recv_sys.parse_pmem(STORE_IF_EXISTS)) != recv_sys_t::OK)
       {
-        /* Set the sequence bit (the backed-up log will not wrap around) */
-        byte *seq= &log_sys.buf[recv_sys.offset - sequence_offset];
-        ut_ad(*seq == log_sys.get_sequence_bit(recv_sys.lsn -
-                                               (log_sys.is_encrypted()
-                                                ? 8 + 5 : 5)));
-        *seq= 1;
+        ut_ad(r == recv_sys_t::GOT_EOF);
+        goto retry;
       }
-      while ((r= recv_sys.parse_mtr(STORE_IF_EXISTS)) == recv_sys_t::OK);
-
-      if (ds_write(dst_log_file, log_sys.buf + start_offset,
-                   recv_sys.offset - start_offset))
-      {
-        mysql_mutex_unlock(&log_sys.mutex);
-        mysql_mutex_unlock(&recv_sys.mutex);
-        msg("Error: write to logfile failed");
-        return true;
-      }
-
-      const auto ofs= recv_sys.offset & ~block_size_1;
-      memmove_aligned<64>(log_sys.buf, log_sys.buf + ofs, recv_sys.len - ofs);
-      recv_sys.len-= ofs;
-      recv_sys.offset&= block_size_1;
-      pthread_cond_broadcast(&scanned_lsn_cond);
-
-      if (r == recv_sys_t::GOT_EOF)
-        break;
-
-      mysql_mutex_unlock(&recv_sys.mutex);
-
-      if (xtrabackup_throttle && io_ticket-- < 0)
-        mysql_cond_wait(&wait_throttle, &log_sys.mutex);
 
       retry_count= 0;
+
+      do
+      {
+        const byte seq{log_sys.get_sequence_bit(recv_sys.lsn -
+                                                sequence_offset)};
+        ut_ad(recv_sys.offset >= log_sys.START_OFFSET);
+        ut_ad(recv_sys.offset < recv_sys.len);
+        ut_ad(log_sys.buf[recv_sys.offset
+                          >= log_sys.START_OFFSET + sequence_offset
+                          ? recv_sys.offset - sequence_offset
+                          : recv_sys.len - sequence_offset +
+                          recv_sys.offset - log_sys.START_OFFSET] ==
+              seq);
+        static const byte seq_1{1};
+        if (UNIV_UNLIKELY(start_offset > recv_sys.offset))
+        {
+          const ssize_t so(recv_sys.offset - (log_sys.START_OFFSET +
+                                              sequence_offset));
+          if (so <= 0)
+          {
+            if (ds_write(dst_log_file, log_sys.buf + start_offset,
+                         recv_sys.len - start_offset + so) ||
+                ds_write(dst_log_file, &seq_1, 1))
+              goto write_error;
+            if (so < -1 &&
+                ds_write(dst_log_file, log_sys.buf + recv_sys.len - (1 - so),
+                         1 - so))
+              goto write_error;
+            if (ds_write(dst_log_file, log_sys.buf + log_sys.START_OFFSET,
+                         recv_sys.offset - log_sys.START_OFFSET))
+              goto write_error;
+          }
+          else
+          {
+            if (ds_write(dst_log_file, log_sys.buf + start_offset,
+                         recv_sys.len - start_offset))
+              goto write_error;
+            if (ds_write(dst_log_file, log_sys.buf + log_sys.START_OFFSET, so))
+              goto write_error;
+            if (ds_write(dst_log_file, &seq_1, 1))
+              goto write_error;
+            if (so > 1 &&
+                ds_write(dst_log_file, log_sys.buf + recv_sys.offset -
+                         (so - 1), so - 1))
+              goto write_error;
+          }
+        }
+        else if (seq == 1)
+        {
+          if (ds_write(dst_log_file, log_sys.buf + start_offset,
+                       recv_sys.offset - start_offset))
+            goto write_error;
+        }
+        else if (ds_write(dst_log_file, log_sys.buf + start_offset,
+                          recv_sys.offset - start_offset - sequence_offset) ||
+                 ds_write(dst_log_file, &seq_1, 1) ||
+                 ds_write(dst_log_file, log_sys.buf +
+                          recv_sys.offset - sequence_offset + 1,
+                          sequence_offset - 1))
+          goto write_error;
+
+        start_offset= recv_sys.offset;
+      }
+      while ((ut_d(r=)recv_sys.parse_pmem(STORE_IF_EXISTS)) == recv_sys_t::OK);
+
+      ut_ad(r == recv_sys_t::GOT_EOF);
+      pthread_cond_broadcast(&scanned_lsn_cond);
+      break;
     }
     else
+#endif
     {
-      recv_sys.len= recv_sys.offset & ~block_size_1;
+      {
+        auto source_offset=
+          log_sys.calc_lsn_offset(recv_sys.lsn + recv_sys.len -
+                                  recv_sys.offset);
+        source_offset&= ~block_size_1;
+        size_t size{log_sys.buf_size - recv_sys.len};
+        if (source_offset + size > log_sys.file_size)
+          size= static_cast<size_t>(log_sys.file_size - source_offset);
+        ut_ad(size <= log_sys.buf_size);
+        log_sys.log.read(source_offset, {log_sys.buf, size});
+        recv_sys.len= size;
+      }
 
-      if (retry_count == 100)
-        break;
+      if (recv_sys.parse_mtr(STORE_IF_EXISTS) == recv_sys_t::OK)
+      {
+        do
+        {
+          /* Set the sequence bit (the backed-up log will not wrap around) */
+          byte *seq= &log_sys.buf[recv_sys.offset - sequence_offset];
+          ut_ad(*seq == log_sys.get_sequence_bit(recv_sys.lsn -
+                                                 sequence_offset));
+          *seq= 1;
+        }
+        while ((r= recv_sys.parse_mtr(STORE_IF_EXISTS)) == recv_sys_t::OK);
 
-      mysql_mutex_unlock(&recv_sys.mutex);
-      if (!retry_count++)
-        msg("Retrying read of log at LSN=" LSN_PF, recv_sys.lsn);
-      my_sleep(1000);
+        if (ds_write(dst_log_file, log_sys.buf + start_offset,
+                     recv_sys.offset - start_offset))
+        {
+#ifdef HAVE_PMEM
+        write_error:
+#endif
+          mysql_mutex_unlock(&recv_sys.mutex);
+          msg("Error: write to ib_logfile0 failed");
+          return true;
+        }
+        else
+        {
+          const auto ofs= recv_sys.offset & ~block_size_1;
+          memmove_aligned<64>(log_sys.buf, log_sys.buf + ofs,
+                              recv_sys.len - ofs);
+          recv_sys.len-= ofs;
+          recv_sys.offset&= block_size_1;
+        }
+
+        pthread_cond_broadcast(&scanned_lsn_cond);
+
+        if (r == recv_sys_t::GOT_EOF)
+          break;
+
+        if (recv_sys.offset < log_sys.get_block_size())
+          break;
+
+        mysql_mutex_unlock(&recv_sys.mutex);
+
+        if (xtrabackup_throttle && io_ticket-- < 0)
+          mysql_cond_wait(&wait_throttle, &log_sys.mutex);
+
+        retry_count= 0;
+      }
+      else
+      {
+        recv_sys.len= recv_sys.offset & ~block_size_1;
+#ifdef HAVE_PMEM
+      retry:
+#endif
+        if (retry_count == 100)
+          break;
+
+        mysql_mutex_unlock(&recv_sys.mutex);
+        if (!retry_count++)
+          msg("Retrying read of log at LSN=" LSN_PF, recv_sys.lsn);
+        my_sleep(1000);
+      }
     }
-
     mysql_mutex_lock(&recv_sys.mutex);
   }
 
@@ -4474,27 +4575,6 @@ fail:
 		goto fail;
 	}
 
-	log_sys.create();
-	log_sys.log.open_file(get_log_file_path());
-
-	/* create extra LSN dir if it does not exist. */
-	if (xtrabackup_extra_lsndir
-		&&!my_stat(xtrabackup_extra_lsndir,&stat_info,MYF(0))
-		&& (my_mkdir(xtrabackup_extra_lsndir,0777,MYF(0)) < 0)) {
-		msg("Error: cannot mkdir %d: %s\n",
-		    my_errno, xtrabackup_extra_lsndir);
-		goto fail;
-	}
-
-	/* create target dir if not exist */
-	if (!xtrabackup_stream_str && !my_stat(xtrabackup_target_dir,&stat_info,MYF(0))
-		&& (my_mkdir(xtrabackup_target_dir,0777,MYF(0)) < 0)){
-		msg("Error: cannot mkdir %d: %s\n",
-		    my_errno, xtrabackup_target_dir);
-		goto fail;
-	}
-
-
 	if (auto b = aligned_malloc(UNIV_PAGE_SIZE_MAX, 4096)) {
 		field_ref_zero = static_cast<byte*>(
 			memset_aligned<4096>(b, 0, UNIV_PAGE_SIZE_MAX));
@@ -4502,8 +4582,7 @@ fail:
 		goto fail;
 	}
 
-        {
-
+	log_sys.create();
 	/* get current checkpoint_lsn */
 
 	mysql_mutex_lock(&log_sys.mutex);
@@ -4525,6 +4604,23 @@ free_and_fail:
 
 	recv_needed_recovery = true;
 	mysql_mutex_unlock(&log_sys.mutex);
+
+	/* create extra LSN dir if it does not exist. */
+	if (xtrabackup_extra_lsndir
+		&&!my_stat(xtrabackup_extra_lsndir,&stat_info,MYF(0))
+		&& (my_mkdir(xtrabackup_extra_lsndir,0777,MYF(0)) < 0)) {
+		msg("Error: cannot mkdir %d: %s\n",
+		    my_errno, xtrabackup_extra_lsndir);
+		goto free_and_fail;
+	}
+
+	/* create target dir if not exist */
+	if (!xtrabackup_stream_str && !my_stat(xtrabackup_target_dir,&stat_info,MYF(0))
+		&& (my_mkdir(xtrabackup_target_dir,0777,MYF(0)) < 0)){
+		msg("Error: cannot mkdir %d: %s\n",
+		    my_errno, xtrabackup_target_dir);
+		goto free_and_fail;
+	}
 
 	xtrabackup_init_datasinks();
 
@@ -4636,7 +4732,6 @@ free_and_fail:
 
 	pthread_mutex_destroy(&count_mutex);
 	free(data_threads);
-	}
 
 	bool ok = backup_start(corrupted_pages);
 

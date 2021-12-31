@@ -799,6 +799,22 @@ inline lsn_t log_t::append_prepare(size_t size) noexcept
   throttle:
     set_check_flush_or_checkpoint();
 
+  if (is_pmem())
+  {
+    for (ut_d(int count= 50); capacity() - size <
+           size_t(lsn - flushed_to_disk_lsn.load(std::memory_order_relaxed)); )
+    {
+      mysql_mutex_unlock(&mutex);
+      DEBUG_SYNC_C("log_buf_size_exceeded");
+      log_write_up_to(lsn, nullptr);
+      srv_stats.log_waits.inc();
+      ut_ad(count--);
+      mysql_mutex_lock(&mutex);
+      lsn= get_lsn();
+    }
+    return lsn;
+  }
+
   /* Calculate the amount of free space needed. */
   size= (4 * 4096) - size + log_sys.buf_size;
 
@@ -806,7 +822,7 @@ inline lsn_t log_t::append_prepare(size_t size) noexcept
   {
     mysql_mutex_unlock(&mutex);
     DEBUG_SYNC_C("log_buf_size_exceeded");
-    log_buffer_flush_to_disk();
+    log_write_up_to(lsn, nullptr);
     srv_stats.log_waits.inc();
     ut_ad(count--);
     mysql_mutex_lock(&mutex);
@@ -881,26 +897,74 @@ inline size_t mtr_t::prepare_write()
 
 /** Write the mini-transaction log to the redo log buffer.
 @return {start_lsn,flush_ahead} */
-inline std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::finish_write(size_t len)
+std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::finish_write(size_t len)
 {
   mysql_mutex_assert_owner(&log_sys.mutex);
   ut_ad(!recv_no_log_write);
   ut_ad(m_log_mode == MTR_LOG_ALL);
 
   const lsn_t start_lsn= log_sys.append_prepare(len);
-  const auto start= log_sys.buf_free;
-  m_log.for_each_block([](const mtr_buf_t::block_t *b)
-  { log_sys.append(b->begin(), b->used()); return true; });
-  log_sys.buf[log_sys.buf_free]=
-    log_sys.get_sequence_bit(start_lsn + log_sys.buf_free - start);
-  mach_write_to_4(&log_sys.buf[log_sys.buf_free + 1], m_crc);
-  log_sys.buf_free+= 5;
-
-  if (m_commit_lsn)
+  const size_t size{m_commit_lsn ? 5U + 8U : 5U};
+#ifdef HAVE_PMEM
+  if (log_sys.is_pmem() &&
+      UNIV_UNLIKELY(log_sys.buf_free + len >= log_sys.file_size))
   {
-    mach_write_to_8(&log_sys.buf[log_sys.buf_free], m_commit_lsn);
-    log_sys.buf_free+= 8;
+    m_log.for_each_block([](const mtr_buf_t::block_t *b)
+    {
+      size_t size{b->used()};
+      const size_t size_left{log_sys.file_size - log_sys.buf_free};
+      const byte *src= b->begin();
+      if (size <= size_left)
+      {
+        ::memcpy(log_sys.buf + log_sys.buf_free, src, size);
+        log_sys.buf_free+= size;
+      }
+      else
+      {
+        size-= size_left;
+        ::memcpy(log_sys.buf + log_sys.buf_free, src, size_left);
+        ::memcpy(log_sys.buf + log_sys.START_OFFSET, src + size_left, size);
+        log_sys.buf_free= log_sys.START_OFFSET + size;
+      }
+      return true;
+    });
+    const size_t size_left{log_sys.file_size - log_sys.buf_free};
+    if (size_left > size)
+      goto write_trailer;
+
+    byte tail[5 + 8];
+    tail[0]= log_sys.get_sequence_bit(start_lsn + len - size);
+
+    mach_write_to_4(tail + 1, m_crc);
+    if (m_commit_lsn)
+      mach_write_to_8(tail + 5, m_commit_lsn);
+
+    ::memcpy(log_sys.buf + log_sys.buf_free, tail, size_left);
+    ::memcpy(log_sys.buf + log_sys.START_OFFSET, tail + size_left,
+             size - size_left);
+    log_sys.buf_free= log_sys.START_OFFSET + (size - size_left);
   }
+  else
+#endif
+  {
+    m_log.for_each_block([](const mtr_buf_t::block_t *b)
+    { log_sys.append(b->begin(), b->used()); return true; });
+
+#ifdef HAVE_PMEM
+  write_trailer:
+#endif
+    log_sys.buf[log_sys.buf_free]=
+      log_sys.get_sequence_bit(start_lsn + len - size);
+    mach_write_to_4(&log_sys.buf[log_sys.buf_free + 1], m_crc);
+    log_sys.buf_free+= 5;
+
+    if (m_commit_lsn)
+    {
+      mach_write_to_8(&log_sys.buf[log_sys.buf_free], m_commit_lsn);
+      log_sys.buf_free+= 8;
+    }
+  }
+
   m_commit_lsn= start_lsn + len;
   return {start_lsn, log_close(m_commit_lsn)};
 }

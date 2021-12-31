@@ -21,7 +21,7 @@ path
 DROP DATABASE abc_def;
 # restart
 DROP DATABASE abc_def2;
-call mtr.add_suppression("InnoDB: (Operating system error|The error means|Cannot rename file)");
+call mtr.add_suppression("InnoDB: (Operating system error|Error number \\d+ means|Cannot rename file)");
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 RENAME TABLE t1 TO non_existing_db.t1;
 ERROR HY000: Error on rename of './test/t1' to './non_existing_db/t1' (errno: 168 "Unknown (generic) error from engine")

@@ -146,7 +146,7 @@ DROP TABLE t0;
 --disable_query_log
 # The following are for the orphan file t0.ibd or for the directory t2.ibd:
 call mtr.add_suppression("InnoDB: Operating system error number [0-9]* in a file operation");
-call mtr.add_suppression("InnoDB: Error number [0-9]* means '(File exists|Is a directory)'");
+call mtr.add_suppression("InnoDB: Error number \\d+ means");
 call mtr.add_suppression("InnoDB: Cannot create file '.*t0.ibd'");
 call mtr.add_suppression("InnoDB: The file '.*t0\.ibd' already exists");
 call mtr.add_suppression("InnoDB: Cannot open datafile for read-write: '.*t2\.ibd'");

@@ -170,57 +170,6 @@ static PSI_stage_info*	srv_stages[] =
 };
 #endif /* HAVE_PSI_STAGE_INTERFACE */
 
-/*********************************************************************//**
-Check if a file can be opened in read-write mode.
-@return true if it doesn't exist or can be opened in rw mode. */
-static
-bool
-srv_file_check_mode(
-/*================*/
-	const char*	name)		/*!< in: filename to check */
-{
-	os_file_stat_t	stat;
-
-	memset(&stat, 0x0, sizeof(stat));
-
-	dberr_t		err = os_file_get_status(
-		name, &stat, true, srv_read_only_mode);
-
-	if (err == DB_FAIL) {
-		ib::error() << "os_file_get_status() failed on '" << name
-			<< "'. Can't determine file permissions.";
-		return(false);
-
-	} else if (err == DB_SUCCESS) {
-
-		/* Note: stat.rw_perm is only valid of files */
-
-		if (stat.type == OS_FILE_TYPE_FILE) {
-
-			if (!stat.rw_perm) {
-				const char*	mode = srv_read_only_mode
-					? "read" : "read-write";
-				ib::error() << name << " can't be opened in "
-					<< mode << " mode.";
-				return(false);
-			}
-		} else {
-			/* Not a regular file, bail out. */
-			ib::error() << "'" << name << "' not a regular file.";
-
-			return(false);
-		}
-	} else {
-
-		/* This is OK. If the file create fails on RO media, there
-		is nothing we can do. */
-
-		ut_a(err == DB_NOT_FOUND);
-	}
-
-	return(true);
-}
-
 /** Initial number of the redo log file */
 static const char INIT_LOG_FILE0[]= "101";
 
@@ -244,7 +193,10 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
 
 	DBUG_ASSERT(!buf_pool.any_io_pending());
 
+	mysql_mutex_lock(&log_sys.mutex);
 	if (!log_set_capacity(srv_log_file_size)) {
+err_exit:
+		mysql_mutex_unlock(&log_sys.mutex);
 		return DB_ERROR;
 	}
 
@@ -259,7 +211,7 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
 
 	if (!ret) {
 		sql_print_error("InnoDB: Cannot create %s", logfile0.c_str());
-		return DB_ERROR;
+		goto err_exit;
 	}
 
 	ret = os_file_set_size(logfile0.c_str(), file, srv_log_file_size);
@@ -267,22 +219,18 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
 		os_file_close(file);
 		ib::error() << "Cannot set log file " << logfile0
 			    << " size to " << ib::bytes_iec{srv_log_file_size};
-		return DB_ERROR;
+		goto err_exit;
 	}
 
-	ret = os_file_close(file);
-	ut_a(ret);
-
 	log_sys.set_latest_format(srv_encrypt_log);
-	log_sys.log.open_file(logfile0);
+	log_sys.attach(file, srv_log_file_size);
 	if (!fil_system.sys_space->open(create_new_db)) {
-		return DB_ERROR;
+		goto err_exit;
 	}
 
 	/* Create a log checkpoint. */
-	mysql_mutex_lock(&log_sys.mutex);
 	if (log_sys.is_encrypted() && !log_crypt_init()) {
-		return DB_ERROR;
+		goto err_exit;
 	}
 	ut_d(recv_no_log_write = false);
 	log_sys.create(lsn);
@@ -307,16 +255,19 @@ static dberr_t create_log_file_rename(lsn_t lsn, std::string &logfile0)
   ut_d(srv_log_file_created= true);
 
   std::string new_name{get_log_file_path()};
-  mysql_mutex_lock(&log_sys.mutex);
   ut_ad(logfile0.size() == 2 + new_name.size());
+
+  if (IF_WIN(!MoveFileEx(logfile0.c_str(), new_name.c_str(),
+                         MOVEFILE_REPLACE_EXISTING),
+             rename(logfile0.c_str(), new_name.c_str())))
+  {
+    sql_print_error("InnoDB: Failed to rename log from %s to %s",
+                    logfile0.c_str(), new_name.c_str());
+    return DB_ERROR;
+  }
+
   logfile0= new_name;
-  const dberr_t err{log_sys.log.rename(std::move(new_name))};
-  mysql_mutex_unlock(&log_sys.mutex);
-
-  if (err != DB_SUCCESS)
-    sql_print_error("InnoDB: Failed to rename log to %s", logfile0.c_str());
-
-  return err;
+  return DB_SUCCESS;
 }
 
 /** Create an undo tablespace file
@@ -920,36 +871,6 @@ same_size:
 	DBUG_RETURN(flushed_lsn);
 }
 
-/** Tries to locate ib_logfile0 check its size, etc.
-@return	dberr_t with DB_SUCCESS or some error */
-static dberr_t find_and_check_log_file()
-{
-  auto logfile0= get_log_file_path();
-  os_file_stat_t stat_info;
-  const dberr_t err= os_file_get_status(logfile0.c_str(), &stat_info, false,
-                                        srv_read_only_mode);
-
-  if (err == DB_NOT_FOUND || stat_info.type != OS_FILE_TYPE_FILE)
-  {
-    sql_print_error("InnoDB: ib_logfile0 does not exist");
-    return DB_ERROR;
-  }
-
-  if (!srv_file_check_mode(logfile0.c_str()))
-    return DB_ERROR;
-
-  const os_offset_t size= stat_info.size;
-
-  if (size < log_t::START_OFFSET + SIZE_OF_FILE_CHECKPOINT)
-  {
-    sql_print_error("InnoDB: ib_logfile0 is too small");
-    return DB_ERROR;
-  }
-
-  log_sys.file_size= size;
-  return DB_SUCCESS;
-}
-
 static tpool::task_group rollback_all_recovered_group(1);
 static tpool::task rollback_all_recovered_task(trx_rollback_all_recovered,
 					       nullptr,
@@ -1207,21 +1128,6 @@ dberr_t srv_start(bool create_new_db)
 				os_file_delete(innodb_data_file_key,
 					       file.filepath());
 			}
-			return srv_init_abort(err);
-		}
-	} else if (srv_force_recovery < SRV_FORCE_NO_LOG_REDO) {
-		err = find_and_check_log_file();
-
-		if (err == DB_SUCCESS) {
-			log_sys.set_latest_format(false);
-			log_sys.log.open_file(get_log_file_path());
-
-			if (!log_set_capacity(srv_log_file_size)) {
-				err = DB_ERROR;
-			}
-		}
-
-		if (err != DB_SUCCESS) {
 			return srv_init_abort(err);
 		}
 	}
@@ -1486,7 +1392,7 @@ dberr_t srv_start(bool create_new_db)
 			DBUG_ASSERT(!buf_pool.any_io_pending());
 
 			/* Close the redo log file, so that we can replace it */
-			log_sys.log.close_file();
+			log_sys.close_file();
 
 			DBUG_EXECUTE_IF("innodb_log_abort_5",
 					return(srv_init_abort(DB_ERROR)););

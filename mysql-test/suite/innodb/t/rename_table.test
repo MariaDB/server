@@ -32,7 +32,7 @@ DROP DATABASE abc_def;
 
 DROP DATABASE abc_def2;
 
-call mtr.add_suppression("InnoDB: (Operating system error|The error means|Cannot rename file)");
+call mtr.add_suppression("InnoDB: (Operating system error|Error number \\d+ means|Cannot rename file)");
 
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 --replace_result "\\" "/"

@@ -314,11 +314,27 @@ public:
 
   enum parse_mtr_result { OK, PREMATURE_EOF, GOT_EOF };
 
+private:
   /** Parse and register one log_t::FORMAT_10_8 mini-transaction.
-  @param store           whether to store the records
-  @return whether FILE_CHECKPOINT record was seen the first time,
-  or corruption was noticed */
-  parse_mtr_result parse_mtr(store_t store);
+  @param store   whether to store the records
+  @param l       log data source */
+  template<typename source>
+  inline parse_mtr_result parse(store_t store, source& l) noexcept;
+public:
+  /** Parse and register one log_t::FORMAT_10_8 mini-transaction,
+  handling log_sys.is_pmem() buffer wrap-around.
+  @param store           whether to store the records */
+  static parse_mtr_result parse_mtr(store_t store) noexcept;
+
+  /** Parse and register one log_t::FORMAT_10_8 mini-transaction,
+  handling log_sys.is_pmem() buffer wrap-around.
+  @param store   whether to store the records */
+  static parse_mtr_result parse_pmem(store_t store) noexcept
+#ifdef HAVE_PMEM
+    ;
+#else
+  { return parse_mtr(store); }
+#endif
 
   /** Clear a fully processed set of stored redo log records. */
   inline void clear();

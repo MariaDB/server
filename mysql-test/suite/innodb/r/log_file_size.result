@@ -50,13 +50,13 @@ FOUND 2 /InnoDB: innodb_read_only prevents crash recovery/ in mysqld.1.err
 # restart
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
-FOUND 1 /InnoDB: ib_logfile0 is too small/ in mysqld.1.err
+FOUND 1 /InnoDB: File .*ib_logfile0 is too small/ in mysqld.1.err
 # restart
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
 FOUND 1 /InnoDB: Expecting only ib_logfile0/ in mysqld.1.err
 # restart
-FOUND 1 /InnoDB: ib_logfile0 does not exist/ in mysqld.1.err
+FOUND 1 /InnoDB: File .*ib_logfile0 was not found/ in mysqld.1.err
 # restart
 SELECT * FROM t1;
 a

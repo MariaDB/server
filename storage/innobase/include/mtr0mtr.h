@@ -639,7 +639,7 @@ private:
   /** Append the redo log records to the redo log buffer.
   @param len   number of bytes to write
   @return {start_lsn,flush_ahead} */
-  inline std::pair<lsn_t,page_flush_ahead> finish_write(size_t len);
+  std::pair<lsn_t,page_flush_ahead> finish_write(size_t len);
 
   /** Release the resources */
   inline void release_resources();

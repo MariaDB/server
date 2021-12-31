@@ -1663,6 +1663,9 @@ ulint buf_flush_LRU(ulint max_n)
   return n_flushed;
 }
 
+#ifdef HAVE_PMEM
+# include <libpmem.h>
+#endif
 
 /** Write checkpoint information to the log header and release mutex.
 @param end_lsn    start LSN of the FILE_CHECKPOINT mini-transaction */
@@ -1676,23 +1679,31 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 
   DBUG_PRINT("ib_log",
              ("checkpoint at " LSN_PF " written", next_checkpoint_lsn));
-  mach_write_to_8(my_assume_aligned<8>(checkpoint_buf), next_checkpoint_lsn);
-  mach_write_to_8(my_assume_aligned<8>(checkpoint_buf + 8), end_lsn);
-  ut_ad(!memcmp_aligned<4>(checkpoint_buf + 16, field_ref_zero, 60 - 16));
-
-  mach_write_to_4(my_assume_aligned<4>(60 + checkpoint_buf),
-                  my_crc32c(0, checkpoint_buf, 60));
 
   auto n= next_checkpoint_no;
-  n_pending_checkpoint_writes++;
+  const size_t offset{(n & 1) ? CHECKPOINT_2 : CHECKPOINT_1};
+  static_assert(CPU_LEVEL1_DCACHE_LINESIZE >= 64, "efficiency");
+  static_assert(CPU_LEVEL1_DCACHE_LINESIZE <= 4096, "compatibility");
+  byte* c= my_assume_aligned<CPU_LEVEL1_DCACHE_LINESIZE>
+    (is_pmem() ? buf + offset : checkpoint_buf);
+  memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(c, 0, CPU_LEVEL1_DCACHE_LINESIZE);
+  mach_write_to_8(my_assume_aligned<8>(c), next_checkpoint_lsn);
+  mach_write_to_8(my_assume_aligned<8>(c + 8), end_lsn);
+  mach_write_to_4(my_assume_aligned<4>(c + 60), my_crc32c(0, c, 60));
+#ifdef HAVE_PMEM
+  if (is_pmem())
+    pmem_deep_persist(c, 64);
+  else
+#endif
+  {
+    n_pending_checkpoint_writes++;
+    mysql_mutex_unlock(&mutex);
+    /* FIXME: issue an asynchronous write */
+    log.write(offset, {c, get_block_size()});
+    mysql_mutex_lock(&mutex);
+    n_pending_checkpoint_writes--;
+  }
 
-  mysql_mutex_unlock(&mutex);
-  /* FIXME: issue an asynchronous write */
-  log.write((n & 1) ? CHECKPOINT_2 : CHECKPOINT_1,
-            {checkpoint_buf, log_sys.get_block_size()});
-  mysql_mutex_lock(&log_sys.mutex);
-
-  n_pending_checkpoint_writes--;
   ut_ad(!n_pending_checkpoint_writes);
   next_checkpoint_no++;
   last_checkpoint_lsn= next_checkpoint_lsn;

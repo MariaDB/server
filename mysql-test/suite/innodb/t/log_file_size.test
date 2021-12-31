@@ -14,7 +14,7 @@ call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE faile
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("InnoDB: innodb_read_only prevents crash recovery");
 call mtr.add_suppression("InnoDB: Log file .*ib_logfile1.* size");
-call mtr.add_suppression("InnoDB: ib_logfile0 (is too small|does not exist)");
+call mtr.add_suppression("InnoDB: File .*ib_logfile0 (is too small|was not found)");
 call mtr.add_suppression("InnoDB: Expecting only ib_logfile0");
 FLUSH TABLES;
 --enable_query_log
@@ -147,7 +147,7 @@ EOF
 --source include/restart_mysqld.inc
 --error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
-let SEARCH_PATTERN= InnoDB: ib_logfile0 is too small;
+let SEARCH_PATTERN= InnoDB: File .*ib_logfile0 is too small;
 --source include/search_pattern_in_file.inc
 --move_file $MYSQLD_DATADIR/ib_logfile0 $MYSQLD_DATADIR/ib_logfile1
 --move_file $MYSQLD_DATADIR/ib_logfile101 $MYSQLD_DATADIR/ib_logfile0
@@ -163,7 +163,7 @@ let SEARCH_PATTERN= InnoDB: Expecting only ib_logfile0;
 
 --source include/restart_mysqld.inc
 --error ER_UNKNOWN_STORAGE_ENGINE
-let SEARCH_PATTERN= InnoDB: ib_logfile0 does not exist;
+let SEARCH_PATTERN= InnoDB: File .*ib_logfile0 was not found;
 --source include/search_pattern_in_file.inc
 --move_file $MYSQLD_DATADIR/ib_logfile101 $MYSQLD_DATADIR/ib_logfile0
 

@@ -811,18 +811,15 @@ os_file_get_last_error_low(
 	}
 
 	if (report_all_errors
-	    || (err != ENOSPC && err != EEXIST && !on_error_silent)) {
+	    || (err != ENOSPC && err != EEXIST && err != ENOENT
+		&& !on_error_silent)) {
 
 		ib::error()
 			<< "Operating system error number "
 			<< err
 			<< " in a file operation.";
 
-		if (err == ENOENT) {
-			ib::error()
-				<< "The error means the system"
-				" cannot find the path specified.";
-		} else if (err == EACCES) {
+		if (err == EACCES) {
 
 			ib::error()
 				<< "The error means mariadbd does not have"
@@ -1107,7 +1104,14 @@ os_file_create_simple_func(
 	OS caching (O_DIRECT) here as we do in os_file_create_func(), so
 	we open the same file in the same mode, see man page of open(2). */
 	if (!srv_read_only_mode && *success) {
-		os_file_set_nocache(file, name, mode_str);
+		switch (srv_file_flush_method) {
+		case SRV_O_DIRECT:
+		case SRV_O_DIRECT_NO_FSYNC:
+			os_file_set_nocache(file, name, mode_str);
+			break;
+		default:
+			break;
+		}
 	}
 
 #ifdef USE_FILE_LOCK
@@ -1295,12 +1299,19 @@ os_file_create_func(
 
 #if (defined(UNIV_SOLARIS) && defined(DIRECTIO_ON)) || defined O_DIRECT
 	if (type == OS_DATA_FILE) {
+		switch (srv_file_flush_method) {
+		case SRV_O_DIRECT:
+		case SRV_O_DIRECT_NO_FSYNC:
 # ifdef __linux__
 use_o_direct:
 # endif
-		os_file_set_nocache(file, name, mode_str);
+			os_file_set_nocache(file, name, mode_str);
+			break;
+		default:
+			break;
+		}
 # ifdef __linux__
-	} else if (type == OS_LOG_FILE) {
+	} else if (type == OS_LOG_FILE && !log_sys.is_opened()) {
 		struct stat st;
 		char b[20 + sizeof "/sys/dev/block/" ":"
 		       "/../queue/physical_block_size"];
@@ -1340,17 +1351,11 @@ use_o_direct:
 			if (s > 4096 || s < 64 || !ut_is_2pow(s)) {
 				goto skip_o_direct;
 			}
-			if (log_sys.set_block_size(uint32_t(s))
-			    != uint32_t(s)) {
-				sql_print_information(
-					"InnoDB: File system buffers for log"
-					" disabled (block size=%u bytes)",
-					unsigned(s));
-			}
+			log_sys.set_block_size(uint32_t(s));
 			goto use_o_direct;
 		}
 skip_o_direct:
-		log_sys.set_block_size(512);
+		log_sys.set_block_size(0);
 	}
 # endif
 #endif
@@ -1879,29 +1884,26 @@ os_file_get_last_error_low(
 	if (report_all_errors
 	    || (!on_error_silent
 		&& err != ERROR_DISK_FULL
+		&& err != ERROR_FILE_NOT_FOUND
 		&& err != ERROR_FILE_EXISTS)) {
 
 		ib::error()
 			<< "Operating system error number " << err
 			<< " in a file operation.";
 
-		if (err == ERROR_PATH_NOT_FOUND) {
-			ib::error()
-				<< "The error means the system"
-				" cannot find the path specified.";
-
-		} else if (err == ERROR_ACCESS_DENIED) {
-
+		switch (err) {
+		case ERROR_PATH_NOT_FOUND:
+			break;
+		case ERROR_ACCESS_DENIED:
 			ib::error()
 				<< "The error means mariadbd does not have"
 				" the access rights to"
 				" the directory. It may also be"
 				" you have created a subdirectory"
 				" of the same name as a data file.";
-
-		} else if (err == ERROR_SHARING_VIOLATION
-			   || err == ERROR_LOCK_VIOLATION) {
-
+			break;
+		case ERROR_SHARING_VIOLATION:
+		case ERROR_LOCK_VIOLATION:
 			ib::error()
 				<< "The error means that another program"
 				" is using InnoDB's files."
@@ -1909,29 +1911,23 @@ os_file_get_last_error_low(
 				" software or another instance"
 				" of MariaDB."
 				" Please close it to get rid of this error.";
-
-		} else if (err == ERROR_WORKING_SET_QUOTA
-			   || err == ERROR_NO_SYSTEM_RESOURCES) {
-
+			break;
+		case ERROR_WORKING_SET_QUOTA:
+		case ERROR_NO_SYSTEM_RESOURCES:
 			ib::error()
 				<< "The error means that there are no"
 				" sufficient system resources or quota to"
 				" complete the operation.";
-
-		} else if (err == ERROR_OPERATION_ABORTED) {
-
+			break;
+		case ERROR_OPERATION_ABORTED:
 			ib::error()
 				<< "The error means that the I/O"
 				" operation has been aborted"
 				" because of either a thread exit"
 				" or an application request."
 				" Retry attempt is made.";
-		} else if (err == ERROR_PATH_NOT_FOUND) {
-			ib::error()
-				<< "This error means that directory did not exist"
-				" during file creation.";
-		} else {
-
+			break;
+		default:
 			ib::info() << OPERATING_SYSTEM_ERROR_MSG;
 		}
 	}
@@ -2251,6 +2247,18 @@ os_file_create_func(
 
 		if (file != INVALID_HANDLE_VALUE && type == OS_LOG_FILE
 		    && (attributes & FILE_FLAG_NO_BUFFERING)) {
+			if (log_sys.is_opened()) {
+				/* If we are upgrading from multiple log files,
+				never disable buffering on other than the
+				first file. We only keep track of the block
+				size of the first file. */
+			no_o_direct:
+				ut_a(CloseHandle(file));
+				attributes &= ~FILE_FLAG_NO_BUFFERING;
+				create_flag = OPEN_ALWAYS;
+				continue;
+			}
+
 			/* If FILE_FLAG_NO_BUFFERING was set on the log file,
 			check if this can work at all, for the expected sizes.
 			Reopen without the flag, if it won't work. */
@@ -2260,11 +2268,8 @@ os_file_create_func(
 				will be resized before the log is being
 				written to */
 			skip_o_direct:
-				ut_a(CloseHandle(file));
-				attributes &= ~FILE_FLAG_NO_BUFFERING;
-				create_flag = OPEN_ALWAYS;
-				log_sys.set_block_size(512);
-				continue;
+				log_sys.set_block_size(0);
+				goto no_o_direct;
 			}
 			FILE_STORAGE_INFO i;
 			if (!GetFileInformationByHandleEx(file, FileStorageInfo,
@@ -2275,13 +2280,7 @@ os_file_create_func(
 			if (s > 4096 || s < 64 || !ut_is_2pow(s)) {
 				goto skip_o_direct;
 			}
-			if (log_sys.set_block_size(uint32_t(s))
-			    != uint32_t(s)) {
-				sql_print_information(
-					"InnoDB: File system buffers for log"
-					" disabled (block size=%u bytes)",
-					unsigned(s));
-			}
+			log_sys.set_block_size(uint32_t(s));
 		}
 
 		*success = (file != INVALID_HANDLE_VALUE);
@@ -3145,8 +3144,13 @@ os_file_handle_error_cond_exit(
 	case OS_FILE_PATH_ERROR:
 	case OS_FILE_ALREADY_EXISTS:
 	case OS_FILE_ACCESS_VIOLATION:
-
 		return(false);
+
+        case OS_FILE_NOT_FOUND:
+		if (!on_error_silent) {
+			sql_print_error("InnoDB: File %s was not found", name);
+		}
+		return false;
 
 	case OS_FILE_SHARING_VIOLATION:
 
@@ -3194,15 +3198,6 @@ os_file_set_nocache(
 	const char*	file_name	MY_ATTRIBUTE((unused)),
 	const char*	operation_name	MY_ATTRIBUTE((unused)))
 {
-	const auto innodb_flush_method = srv_file_flush_method;
-	switch (innodb_flush_method) {
-	case SRV_O_DIRECT:
-	case SRV_O_DIRECT_NO_FSYNC:
-		break;
-	default:
-		return;
-	}
-
 	/* some versions of Solaris may not have DIRECTIO_ON */
 #if defined(UNIV_SOLARIS) && defined(DIRECTIO_ON)
 	if (directio(fd, DIRECTIO_ON) == -1) {
