@@ -1857,6 +1857,9 @@ extern int ZEXPORT unzReadCurrentFile  (unzFile file, voidp buf, unsigned len)
               err = Z_DATA_ERROR;
 
             uTotalOutAfter = pfile_in_zip_read_info->stream.total_out;
+            /* Detect overflow, because z_stream.total_out is uLong (32 bits) */
+            if (uTotalOutAfter<uTotalOutBefore)
+                uTotalOutAfter += 1LL << 32; /* Add maximum value of uLong + 1 */
             uOutThis = uTotalOutAfter-uTotalOutBefore;
 
             pfile_in_zip_read_info->total_out_64 = pfile_in_zip_read_info->total_out_64 + uOutThis;
