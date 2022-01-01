@@ -1261,6 +1261,7 @@ bool ha_federatedx::create_where_from_key(String *to,
       uint store_length= key_part->store_length;
       uint part_length= MY_MIN(store_length, length);
       bool needs_quotes= field->str_needs_quotes();
+      bool reverse= key_part->key_part_flag & HA_REVERSE_SORT;
       static const LEX_CSTRING lt={STRING_WITH_LEN(" < ") };
       static const LEX_CSTRING gt={STRING_WITH_LEN(" > ") };
       static const LEX_CSTRING le={STRING_WITH_LEN(" <= ") };
@@ -1338,12 +1339,12 @@ bool ha_federatedx::create_where_from_key(String *to,
 
           if (i > 0) /* end key */
           {
-            if (tmp.append(le))
+            if (tmp.append(reverse ? ge : le))
               goto err;
           }
           else /* start key */
           {
-            if (tmp.append(gt))
+            if (tmp.append(reverse ? lt : gt))
               goto err;
           }
 
@@ -1358,7 +1359,7 @@ bool ha_federatedx::create_where_from_key(String *to,
       case HA_READ_KEY_OR_NEXT:
         DBUG_PRINT("info", ("federatedx HA_READ_KEY_OR_NEXT %d", i));
         if (emit_key_part_name(&tmp, key_part) ||
-            tmp.append(ge) ||
+            tmp.append(reverse ? le : ge) ||
             emit_key_part_element(&tmp, key_part, needs_quotes, 0, ptr,
               part_length))
           goto err;
@@ -1368,7 +1369,7 @@ bool ha_federatedx::create_where_from_key(String *to,
         if (store_length >= length)
         {
           if (emit_key_part_name(&tmp, key_part) ||
-              tmp.append(lt) ||
+              tmp.append(reverse ? gt : lt) ||
               emit_key_part_element(&tmp, key_part, needs_quotes, 0, ptr,
                                     part_length))
             goto err;
@@ -1378,7 +1379,7 @@ bool ha_federatedx::create_where_from_key(String *to,
       case HA_READ_KEY_OR_PREV:
         DBUG_PRINT("info", ("federatedx HA_READ_KEY_OR_PREV %d", i));
         if (emit_key_part_name(&tmp, key_part) ||
-            tmp.append(le) ||
+            tmp.append(reverse ? ge : le) ||
             emit_key_part_element(&tmp, key_part, needs_quotes, 0, ptr,
                                   part_length))
           goto err;
