@@ -88,12 +88,12 @@ typedef voidp zipFile;
 /* tm_zip contain date/time info */
 typedef struct tm_zip_s
 {
-    uInt tm_sec;            /* seconds after the minute - [0,59] */
-    uInt tm_min;            /* minutes after the hour - [0,59] */
-    uInt tm_hour;           /* hours since midnight - [0,23] */
-    uInt tm_mday;           /* day of the month - [1,31] */
-    uInt tm_mon;            /* months since January - [0,11] */
-    uInt tm_year;           /* years - [1980..2044] */
+    int tm_sec;             /* seconds after the minute - [0,59] */
+    int tm_min;             /* minutes after the hour - [0,59] */
+    int tm_hour;            /* hours since midnight - [0,23] */
+    int tm_mday;            /* day of the month - [1,31] */
+    int tm_mon;             /* months since January - [0,11] */
+    int tm_year;            /* years - [1980..2044] */
 } tm_zip;
 
 typedef struct
