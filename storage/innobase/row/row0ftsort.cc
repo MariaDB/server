@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -188,7 +188,6 @@ row_fts_psort_info_init(
 	fts_psort_t*		merge_info = NULL;
 	ulint			block_size;
 	ibool			ret = TRUE;
-	bool			encrypted = false;
 	ut_ad(ut_is_2pow(old_zip_size));
 
 	block_size = 3 * srv_sort_buf_size;
@@ -218,10 +217,6 @@ row_fts_psort_info_init(
 	common_info->all_info = psort_info;
 	pthread_cond_init(&common_info->sort_cond, nullptr);
 	common_info->opt_doc_id_size = opt_doc_id_size;
-
-	if (log_tmp_is_encrypted()) {
-		encrypted = true;
-	}
 
 	ut_ad(trx->mysql_thd != NULL);
 	const char*	path = thd_innodb_tmpdir(trx->mysql_thd);
@@ -264,7 +259,7 @@ row_fts_psort_info_init(
 
 			/* If tablespace is encrypted, allocate additional buffer for
 			encryption/decryption. */
-			if (encrypted) {
+			if (srv_encrypt_log) {
 				/* Need to align memory for O_DIRECT write */
 				psort_info[j].crypt_block[i] =
 					static_cast<row_merge_block_t*>(

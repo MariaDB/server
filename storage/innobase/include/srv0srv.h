@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -468,8 +468,12 @@ extern my_bool srv_print_all_deadlocks;
 
 extern my_bool	srv_cmp_per_index_enabled;
 
+/** innodb_encrypt_log */
+extern my_bool	srv_encrypt_log;
+
 /* is encryption enabled */
 extern ulong	srv_encrypt_tables;
+
 
 /** Status variables to be passed to MySQL */
 extern struct export_var_t export_vars;

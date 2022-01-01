@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2021, MariaDB Corporation.
+Copyright (C) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -32,9 +32,6 @@ MDEV-11782: Rewritten for MariaDB 10.2 by Marko Mäkelä, MariaDB Corporation.
 #include "log0crypt.h"
 #include "log0recv.h"  // for recv_sys
 #include "mach0data.h"
-
-/** innodb_encrypt_log: whether to encrypt the redo log */
-my_bool srv_encrypt_log;
 
 /** Redo log encryption key ID */
 #define LOG_DEFAULT_ENCRYPTION_KEY 1
@@ -564,7 +561,7 @@ static size_t log_encrypt_buf(byte iv[MY_AES_BLOCK_SIZE],
 /** Encrypt the log */
 ATTRIBUTE_NOINLINE void mtr_t::encrypt()
 {
-  ut_ad(srv_encrypt_log);
+  ut_ad(log_sys.format == log_t::FORMAT_ENC_10_8);
   ut_ad(m_log.size());
 
   alignas(8) byte iv[MY_AES_BLOCK_SIZE];

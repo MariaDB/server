@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -128,6 +128,9 @@ static bool		srv_start_has_been_called;
 
 /** Whether any undo log records can be generated */
 bool	srv_undo_sources;
+
+/** innodb_encrypt_log */
+my_bool srv_encrypt_log;
 
 #ifdef UNIV_DEBUG
 /** InnoDB system tablespace to set during recovery */

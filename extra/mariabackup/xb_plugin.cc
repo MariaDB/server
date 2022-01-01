@@ -1,4 +1,4 @@
-/* Copyright (c) 2017, MariaDB Corporation.
+/* Copyright (c) 2017, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@
 #include <vector>
 #include <common.h>
 #include <backup_mysql.h>
-#include <log0crypt.h>
+#include <srv0srv.h>
 
 
 extern struct st_maria_plugin *mysql_optional_plugins[];

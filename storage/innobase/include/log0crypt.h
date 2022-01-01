@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2021, MariaDB Corporation.
+Copyright (C) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,13 +24,9 @@ Created 11/25/2013 Minli Zhu
 Modified           Jan Lindström jan.lindstrom@mariadb.com
 MDEV-11782: Rewritten for MariaDB 10.2 by Marko Mäkelä, MariaDB Corporation.
 *******************************************************/
-#ifndef log0crypt_h
-#define log0crypt_h
+#pragma once
 
 #include "log0log.h"
-
-/** innodb_encrypt_log: whether to encrypt the redo log */
-extern my_bool srv_encrypt_log;
 
 /** Initialize the redo log encryption key and random parameters
 when creating a new redo log.
@@ -117,7 +113,3 @@ log_tmp_block_decrypt(
 {
 	return(log_tmp_block_encrypt(src, size, dst, offs, false));
 }
-
-/** @return whether temporary files are encrypted */
-inline bool log_tmp_is_encrypted() { return srv_encrypt_log; }
-#endif  // log0crypt.h
