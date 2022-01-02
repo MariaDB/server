@@ -62,3 +62,16 @@ NULL	NULL	NULL
 #
 # End of 4.1 tests
 #
+#
+# MDEV-27393 Timezone tables cannot have descending indexes
+#
+call mtr.add_suppression('mysql.time_zone_transition_type table is incorrectly defined or corrupted');
+alter table mysql.time_zone_transition_type drop primary key;
+alter table mysql.time_zone_transition_type add primary key (time_zone_id,transition_type_id desc);
+SET @@time_zone='Japan';
+ERROR HY000: Unknown or incorrect time zone: 'Japan'
+alter table mysql.time_zone_transition_type drop primary key;
+alter table mysql.time_zone_transition_type add primary key (time_zone_id,transition_type_id);
+#
+# End of 10.8 tests
+#

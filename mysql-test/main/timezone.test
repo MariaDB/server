@@ -59,3 +59,18 @@ select unix_timestamp('1969-12-31 23:59:59'), unix_timestamp('1970-01-01 00:00:0
 --echo #
 --echo # End of 4.1 tests
 --echo #
+
+--echo #
+--echo # MDEV-27393 Timezone tables cannot have descending indexes
+--echo #
+call mtr.add_suppression('mysql.time_zone_transition_type table is incorrectly defined or corrupted');
+alter table mysql.time_zone_transition_type drop primary key;
+alter table mysql.time_zone_transition_type add primary key (time_zone_id,transition_type_id desc);
+--error ER_UNKNOWN_TIME_ZONE
+SET @@time_zone='Japan';
+alter table mysql.time_zone_transition_type drop primary key;
+alter table mysql.time_zone_transition_type add primary key (time_zone_id,transition_type_id);
+
+--echo #
+--echo # End of 10.8 tests
+--echo #
