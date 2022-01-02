@@ -2004,7 +2004,11 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
 #endif
 
     /* ttid is increasing because we are reading using index */
-    DBUG_ASSERT(ttid >= tmp_tz_info.typecnt);
+    if (ttid < tmp_tz_info.typecnt)
+    {
+      sql_print_error("mysql.time_zone_transition_type table is incorrectly defined or corrupted");
+      goto end;
+    }
 
     tmp_tz_info.typecnt= ttid + 1;
 
