@@ -2862,3 +2862,16 @@ set global default_storage_engine=@save_default_storage_engine;
 --echo #
 --echo # End of 10.0 tests
 --echo #
+
+--echo #
+--echo # MDEV-27407 Different ASC/DESC index attributes on MERGE and underlying table can cause wrong results
+--echo #
+create table t (a int, key(a desc)) engine=myisam;
+create table tm (a int, key(a)) engine=merge union(t);
+--error ER_WRONG_MRG_TABLE
+select * from tm;
+drop table tm, t;
+
+--echo #
+--echo # End of 10.8 tests
+--echo #

@@ -3904,3 +3904,14 @@ set global default_storage_engine=@save_default_storage_engine;
 #
 # End of 10.0 tests
 #
+#
+# MDEV-27407 Different ASC/DESC index attributes on MERGE and underlying table can cause wrong results
+#
+create table t (a int, key(a desc)) engine=myisam;
+create table tm (a int, key(a)) engine=merge union(t);
+select * from tm;
+ERROR HY000: Unable to open underlying table which is differently defined or of non-MyISAM type or doesn't exist
+drop table tm, t;
+#
+# End of 10.8 tests
+#
