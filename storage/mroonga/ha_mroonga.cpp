@@ -3844,6 +3844,14 @@ int ha_mroonga::storage_create_validate_index(TABLE *table)
     KEY *key_info = &(table->s->key_info[i]);
     // must be single column key
     int key_parts = KEY_N_KEY_PARTS(key_info);
+    for (int j = 0; j < key_parts; j++) {
+      if (key_info->key_part[j].key_part_flag & HA_REVERSE_SORT) {
+        GRN_LOG(ctx, GRN_LOG_ERROR, "DESC indexes are not supported");
+        error = ER_CANT_CREATE_TABLE;
+        my_message(error, "DESC indexes are not supported", MYF(0));
+        DBUG_RETURN(error);
+      }
+    }
     if (key_parts != 1) {
       continue;
     }
