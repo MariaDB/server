@@ -310,6 +310,8 @@ struct SplM_field_ext_info: public SplM_field_info
        occurred also in the select list of this join
     9. There are defined some keys usable for ref access of fields from C
        with available statistics.
+    10. The select doesn't use WITH ROLLUP (This limitation can probably be
+       lifted)
 
   @retval
     true   if the answer is positive
@@ -326,7 +328,8 @@ bool JOIN::check_for_splittable_materialized()
       (unit->first_select()->next_select()) ||                        // !(3)
       (derived->prohibit_cond_pushdown) ||                            // !(4)
       (derived->is_recursive_with_table()) ||                         // !(5)
-      (table_count == 0 || const_tables == top_join_tab_count))       // !(6)
+      (table_count == 0 || const_tables == top_join_tab_count) ||     // !(6)
+      rollup.state != ROLLUP::STATE_NONE)                             // (10)
     return false;
   if (group_list)                                                     // (7.1)
   {
