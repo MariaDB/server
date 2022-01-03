@@ -554,7 +554,8 @@ int check_definition(MI_KEYDEF *t1_keyinfo, MI_COLUMNDEF *t1_recinfo,
           t1_keysegs_j__type != t2_keysegs[j].type ||
           t1_keysegs[j].null_bit != t2_keysegs[j].null_bit ||
           t1_keysegs[j].length != t2_keysegs[j].length ||
-          t1_keysegs[j].start != t2_keysegs[j].start)
+          t1_keysegs[j].start != t2_keysegs[j].start ||
+          (t1_keysegs[j].flag ^ t2_keysegs[j].flag) & HA_REVERSE_SORT)
       {
         DBUG_PRINT("error", ("Key segment %d (key %d) has different "
                              "definition", j, i));
