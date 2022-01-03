@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1971,35 +1971,30 @@ static void store_freed_or_init_rec(page_id_t page_id, bool freed)
 }
 
 /** Wrapper for log_sys.buf[] between recv_sys.offset and recv_sys.len */
-class recv_buf
+struct recv_buf
 {
   const byte *ptr;
 
-  const byte *end() const noexcept { return &log_sys.buf[recv_sys.len]; }
-public:
   constexpr recv_buf(const byte *ptr) : ptr(ptr) {}
+  constexpr bool operator==(const recv_buf other) { return ptr == other.ptr; }
 
-  const byte *begin() const noexcept { return ptr; }
+  static const byte *end() { return &log_sys.buf[recv_sys.len]; }
 
   const char *get_filename(byte*, size_t) const noexcept
   { return reinterpret_cast<const char*>(ptr); }
 
-  static constexpr bool is_too_large() { return false; }
   bool is_eof(size_t len= 0) const noexcept { return ptr + len >= end(); }
-
-  bool operator==(const recv_buf other) const noexcept
-  { return ptr == other.ptr; }
 
   byte operator*() const noexcept
   {
-    ut_ad(!is_eof());
+    ut_ad(ptr >= log_sys.buf);
+    ut_ad(ptr < end());
     return *ptr;
   }
-
-  recv_buf &operator++() noexcept { ++ptr; return *this; }
-
-  recv_buf operator++(int) noexcept { return recv_buf{ptr++}; }
-
+  byte operator[](size_t size) const noexcept { return *(*this + size); }
+  recv_buf operator+(size_t len) const noexcept
+  { recv_buf r{*this}; return r+= len; }
+  recv_buf &operator++() noexcept { return *this+= 1; }
   recv_buf &operator+=(size_t len) noexcept { ptr+= len; return *this; }
 
   size_t operator-(const recv_buf start) const noexcept
@@ -2008,11 +2003,9 @@ public:
     return size_t(ptr - start.ptr);
   }
 
-  bool is_valid_crc32c(const recv_buf start) const noexcept
+  uint32_t crc32c(const recv_buf start) const noexcept
   {
-    ut_ad(!is_eof(4));
-    return my_crc32c(0, start.ptr, ptr - start.ptr) ==
-      mach_read_from_4(ptr + 1);
+    return my_crc32c(0, start.ptr, ptr - start.ptr);
   }
 
   void *memcpy(void *buf, size_t size) const noexcept
@@ -2032,9 +2025,6 @@ public:
   { ut_ad(!is_eof(7)); return mach_read_from_8(ptr); }
   uint32_t read4() const noexcept
   { ut_ad(!is_eof(3)); return mach_read_from_4(ptr); }
-
-  byte operator[](size_t size) const noexcept
-  { ut_ad(!is_eof(size)); return ptr[size]; }
 
   /** Update the pointer if the new pointer is within the buffer. */
   bool set_if_contains(const byte *pos) noexcept
@@ -2072,34 +2062,13 @@ public:
 };
 
 #ifdef HAVE_PMEM
-/** Wrapper for log_sys.buf[] as a ring buffer;
-    recv_sys.len == log_sys.file_size */
-class recv_ring
+/** Ring buffer wrapper for log_sys.buf[]; recv_sys.len == log_sys.file_size */
+struct recv_ring : public recv_buf
 {
-  /** pointer to the ring buffer;
-      log_sys.buf[log_sys.START_OFFSET] to log_sys.buf[log_sys.file_size-1] */
-  const byte *ptr;
-
-  static const byte *end() noexcept { return &log_sys.buf[recv_sys.len]; }
-
-public:
-  constexpr recv_ring(const byte *ptr) : ptr(ptr) {}
-
-  const byte *begin() const noexcept { return ptr; }
+  constexpr recv_ring(const byte *ptr) : recv_buf(ptr) {}
 
   constexpr static bool is_eof() { return false; }
   constexpr static bool is_eof(size_t) { return false; }
-  bool set_if_contains(const byte *pos) noexcept
-  {
-    if (pos > end() || pos < ptr)
-      return false;
-    ptr= pos;
-    return true;
-  }
-
-  byte operator[](size_t size) const noexcept { return *(*this + size); }
-  bool operator==(const recv_ring other) const noexcept
-  { return ptr == other.ptr; }
 
   byte operator*() const noexcept
   {
@@ -2107,10 +2076,10 @@ public:
     ut_ad(ptr < end());
     return *ptr;
   }
-
+  byte operator[](size_t size) const noexcept { return *(*this + size); }
+  recv_ring operator+(size_t len) const noexcept
+  { recv_ring r{*this}; return r+= len; }
   recv_ring &operator++() noexcept { return *this+= 1; }
-  recv_ring operator++(int) noexcept
-  { recv_ring r{*this}; *this+= 1; return r; }
   recv_ring &operator+=(size_t len) noexcept
   {
     ut_ad(ptr < end());
@@ -2125,9 +2094,6 @@ public:
     }
     return *this;
   }
-  recv_ring operator+(size_t len) const noexcept
-  { recv_ring r{*this}; return r+= len; }
-
   size_t operator-(const recv_ring start) const noexcept
   {
     auto s= ptr - start.ptr;
@@ -2136,18 +2102,13 @@ public:
       : size_t(s + recv_sys.len - log_sys.START_OFFSET);
   }
 
-  bool is_valid_crc32c(const recv_ring start) const noexcept
+  uint32_t crc32c(const recv_ring start) const noexcept
   {
-    uint32_t crc;
-    if (ptr >= start.ptr)
-      crc= my_crc32c(0, start.ptr, ptr - start.ptr);
-    else
-    {
-      crc= my_crc32c(0, start.ptr, end() - start.ptr);
-      crc= my_crc32c(crc, &log_sys.buf[log_sys.START_OFFSET],
-                     ptr - &log_sys.buf[log_sys.START_OFFSET]);
-    }
-    return crc == (*this + 1).read4();
+    return ptr >= start.ptr
+      ? my_crc32c(0, start.ptr, ptr - start.ptr)
+      : my_crc32c(my_crc32c(0, start.ptr, end() - start.ptr),
+                  &log_sys.buf[log_sys.START_OFFSET],
+                  ptr - &log_sys.buf[log_sys.START_OFFSET]);
   }
 
   void *memcpy(void *buf, size_t size) const noexcept
@@ -2267,7 +2228,8 @@ inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
       return GOT_EOF;
     if (*l <= 1)
       goto eom_found;
-    rlen= *l++ & 0xf;
+    rlen= *l & 0xf;
+    ++l;
     if (!rlen)
     {
       if (l.is_eof(0))
@@ -2302,7 +2264,7 @@ inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
                     }
                   });
 
-  if (!l.is_valid_crc32c(begin))
+  if (l.crc32c(begin) != (l + 1).read4())
     return GOT_EOF;
 
   l+= 5;
@@ -2317,7 +2279,7 @@ inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
 
   ut_d(const source el{l});
   lsn+= l - begin;
-  offset= l.begin() - log_sys.buf;
+  offset= l.ptr - log_sys.buf;
 
   ut_d(std::set<page_id_t> freed);
 #if 0 && defined UNIV_DEBUG /* MDEV-21727 FIXME: enable this */
@@ -2336,7 +2298,8 @@ inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
   for (l= begin;; l+= rlen)
   {
     const source recs{l};
-    const byte b= *l++;
+    ++l;
+    const byte b= *recs;
 
     if (b <= 1)
       break;
@@ -2458,7 +2421,7 @@ inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
     if (got_page_op)
     {
     same_page:
-      const byte *cl= l.begin();
+      const byte *cl= l.ptr;
       if (!rlen);
       else if (UNIV_UNLIKELY(l - recs + rlen > srv_page_size))
         goto record_corrupted;
