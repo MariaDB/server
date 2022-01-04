@@ -4986,7 +4986,7 @@ row_merge_bulk_t::row_merge_bulk_t(dict_table_t *table)
   for (dict_index_t *index= UT_LIST_GET_FIRST(table->indexes);
        index; index= UT_LIST_GET_NEXT(indexes, index))
   {
-    if (index->type & DICT_FTS)
+    if (!index->is_btree())
       continue;
     n_index++;
   }
@@ -4998,7 +4998,7 @@ row_merge_bulk_t::row_merge_bulk_t(dict_table_t *table)
   for (dict_index_t *index= UT_LIST_GET_FIRST(table->indexes);
        index; index= UT_LIST_GET_NEXT(indexes, index))
   {
-    if (index->type & DICT_FTS)
+    if (!index->is_btree())
       continue;
 
     mem_heap_t *heap= mem_heap_create(100);
@@ -5019,7 +5019,7 @@ row_merge_bulk_t::~row_merge_bulk_t()
   for (dict_index_t *index= UT_LIST_GET_FIRST(table->indexes);
        index; index= UT_LIST_GET_NEXT(indexes, index))
   {
-    if (index->type & DICT_FTS)
+    if (!index->is_btree())
       continue;
     row_merge_buf_free(&m_merge_buf[i]);
     if (m_merge_files)
@@ -5049,7 +5049,7 @@ void row_merge_bulk_t::init_tmp_file()
   for (dict_index_t *index= UT_LIST_GET_FIRST(table->indexes);
        index; index= UT_LIST_GET_NEXT(indexes, index))
   {
-    if (index->type & DICT_FTS)
+    if (!index->is_btree())
       continue;
     n_index++;
   }
@@ -5112,7 +5112,7 @@ dberr_t row_merge_bulk_t::bulk_insert_buffered(const dtuple_t &row,
   for (dict_index_t *index= UT_LIST_GET_FIRST(ind.table->indexes);
        index; index= UT_LIST_GET_NEXT(indexes, index))
   {
-    if (index->type & DICT_FTS)
+    if (!index->is_btree())
       continue;
 
     if (index != &ind)
@@ -5210,7 +5210,7 @@ dberr_t row_merge_bulk_t::write_to_table(dict_table_t *table, trx_t *trx)
   for (dict_index_t *index= UT_LIST_GET_FIRST(table->indexes);
        index; index= UT_LIST_GET_NEXT(indexes, index))
   {
-    if (index->type & DICT_FTS)
+    if (!index->is_btree())
       continue;
 
     dberr_t err= write_to_index(i, trx);

@@ -4991,6 +4991,22 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1, t2, t3;
 
+--echo #
+--echo # MDEV-21866: Assertion `!result' failed in convert_const_to_int upon 2nd execution of PS
+--echo #
+
+CREATE TABLE t1 (a BIGINT DEFAULT -1);
+CREATE VIEW v1 AS SELECT DISTINCT a FROM t1;
+PREPARE stmt FROM 'SELECT * FROM v1 WHERE a <=> NULL';
+EXECUTE stmt;
+EXECUTE stmt;
+
+# Cleanup
+DEALLOCATE PREPARE stmt;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
 --echo # End of 10.2 tests
 --echo #
 

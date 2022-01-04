@@ -1,0 +1,11 @@
+#
+# Start of 10.3 tests
+#
+#
+# MDEV-27195 SIGSEGV in Table_scope_and_contents_source_st::vers_check_system_fields
+#
+CREATE TABLE t1 ENGINE=MyISAM WITH SYSTEM VERSIONING AS SELECT 0;
+DROP TABLE t1;
+#
+# End of 10.3 tests
+#

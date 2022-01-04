@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -378,12 +378,23 @@ eval_substr(
 
 	str1 = static_cast<byte*>(dfield_get_data(que_node_get_val(arg1)));
 
+	const ulint str1_len = dfield_get_len(que_node_get_val(arg1));
+
 	len1 = (ulint) eval_node_get_int_val(arg2);
 	len2 = (ulint) eval_node_get_int_val(arg3);
 
 	dfield = que_node_get_val(func_node);
 
-	dfield_set_data(dfield, str1 + len1, len2);
+	if (len1 > str1_len) {
+		len2 = 0;
+	} else {
+		str1 += len1;
+		if (len2 > str1_len - len1) {
+			len2 = str1_len - len1;
+		}
+	}
+
+	dfield_set_data(dfield, str1, len2);
 }
 
 /*****************************************************************//**

@@ -211,6 +211,6 @@ maria_declare_plugin(type_mysql_json)
   NULL,
   NULL,
   "0.1",
-  MariaDB_PLUGIN_MATURITY_ALPHA
+  MariaDB_PLUGIN_MATURITY_BETA
 }
 maria_declare_plugin_end;

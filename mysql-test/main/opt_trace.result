@@ -585,7 +585,6 @@ create view v2 as select a from t2;
 explain select * from v2 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	
-select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from v2	{
   "steps": [
@@ -698,7 +697,6 @@ explain select * from v1 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
-select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from v1	{
   "steps": [
@@ -2409,7 +2407,8 @@ select t1.a from t1 left join t2 on t1.a=t2.a	{
             }
           },
           {
-            "condition_on_constant_tables": "1"
+            "condition_on_constant_tables": "1",
+            "computing_condition": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -2585,7 +2584,8 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
             }
           },
           {
-            "condition_on_constant_tables": "1"
+            "condition_on_constant_tables": "1",
+            "computing_condition": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -2755,7 +2755,8 @@ explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
             }
           },
           {
-            "condition_on_constant_tables": "1"
+            "condition_on_constant_tables": "1",
+            "computing_condition": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -3073,7 +3074,8 @@ explain extended select * from t1 where a in (select pk from t10)	{
             }
           },
           {
-            "condition_on_constant_tables": "1"
+            "condition_on_constant_tables": "1",
+            "computing_condition": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -4782,7 +4784,8 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
             }
           },
           {
-            "condition_on_constant_tables": "1"
+            "condition_on_constant_tables": "1",
+            "computing_condition": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -7438,7 +7441,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             }
           },
           {
-            "condition_on_constant_tables": "1"
+            "condition_on_constant_tables": "1",
+            "computing_condition": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -8707,6 +8711,15 @@ SELECT 'a\0' LIMIT 0	{
 }
 SET optimizer_trace=DEFAULT;
 #
+# MDEV-27238: Assertion `got_name == named_item_expected()' failed in Json_writer::on_start_object
+#
+CREATE TABLE t1 (a INT KEY,b INT,KEY(b)) ENGINE=MEMORY;
+SET optimizer_trace=1;
+INSERT INTO t1 VALUES (0,0);
+SELECT a FROM t1 WHERE (a,b) in (SELECT @c,@d);
+a
+DROP TABLE t1;
+#
 # End of 10.4 tests
 #
 set optimizer_trace='enabled=on';
@@ -9252,5 +9265,22 @@ json_detailed(json_extract(trace, '$**.best_join_order'))
     ]
 ]
 DROP TABLE t1;
+#
+# MDEV-27306: SET STATEMENT optimizer_trace=1 Doesn't save the trace
+#
+set optimizer_trace=0;
+set statement optimizer_trace=1 for select * from seq_1_to_10 where seq<2;
+seq
+1
+# The trace must not be empty:
+select left(trace, 100) from information_schema.optimizer_trace;
+left(trace, 100)
+{
+  "steps": [
+    {
+      "join_preparation": {
+        "select_id": 1,
+        "steps": [
+        
 # End of 10.6 tests
 set optimizer_trace='enabled=off';

@@ -1,4 +1,5 @@
 --let galera_connection_address=::1
+--source include/big_test.inc
 --source include/galera_cluster.inc
 --source include/check_ipv6.inc
 --source include/have_innodb.inc
