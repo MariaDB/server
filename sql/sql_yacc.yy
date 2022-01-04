@@ -5760,6 +5760,7 @@ field_type_or_serial:
             Lex->last_field->set_handler(&type_handler_ulonglong);
             Lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG
                                      | UNSIGNED_FLAG | UNIQUE_KEY_FLAG;
+            Lex->alter_info.flags|= ALTER_ADD_INDEX;
           }
           opt_serial_attribute
         ;

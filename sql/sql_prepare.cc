@@ -2439,9 +2439,9 @@ static bool check_prepared_statement(Prepared_statement *stmt)
     For the optimizer trace, this is the symmetric, for statement preparation,
     of what is done at statement execution (in mysql_execute_command()).
   */
-  Opt_trace_start ots(thd, tables, lex->sql_command, &lex->var_list,
-                      thd->query(), thd->query_length(),
-                      thd->variables.character_set_client);
+  Opt_trace_start ots(thd);
+  ots.init(thd, tables, lex->sql_command, &lex->var_list, thd->query(),
+           thd->query_length(), thd->variables.character_set_client);
 
   Json_writer_object trace_command(thd);
   Json_writer_array trace_command_steps(thd, "steps");

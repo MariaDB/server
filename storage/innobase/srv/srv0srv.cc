@@ -562,7 +562,7 @@ char	srv_buffer_pool_load_at_startup = TRUE;
 
 #ifdef HAVE_PSI_STAGE_INTERFACE
 /** Performance schema stage event for monitoring ALTER TABLE progress
-everything after flush log_make_checkpoint(). */
+in ha_innobase::commit_inplace_alter_table(). */
 PSI_stage_info	srv_stage_alter_table_end
 	= {0, "alter table (end)", PSI_FLAG_STAGE_PROGRESS};
 

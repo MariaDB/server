@@ -390,6 +390,7 @@ ADD_CUSTOM_TARGET(
         ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
         ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
 )
+ADD_DEPENDENCIES(sql GenServerSource)
 
 IF(TARGET libfmt)
   ADD_DEPENDENCIES(sql libfmt)

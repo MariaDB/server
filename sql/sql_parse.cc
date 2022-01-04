@@ -3642,12 +3642,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 #ifdef HAVE_REPLICATION
   } /* endif unlikely slave */
 #endif
-  Opt_trace_start ots(thd, all_tables, lex->sql_command, &lex->var_list,
-                      thd->query(), thd->query_length(),
-                      thd->variables.character_set_client);
-
-  Json_writer_object trace_command(thd);
-  Json_writer_array trace_command_steps(thd, "steps");
+  Opt_trace_start ots(thd);
 
   /* store old value of binlog format */
   enum_binlog_format orig_binlog_format,orig_current_stmt_binlog_format;
@@ -3712,6 +3707,10 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   */
   if (run_set_statement_if_requested(thd, lex))
     goto error;
+
+  /* After SET STATEMENT is done, we can initialize the Optimizer Trace: */
+  ots.init(thd, all_tables, lex->sql_command, &lex->var_list, thd->query(),
+           thd->query_length(), thd->variables.character_set_client);
 
   if (thd->lex->mi.connection_name.str == NULL)
       thd->lex->mi.connection_name= thd->variables.default_master_connection;

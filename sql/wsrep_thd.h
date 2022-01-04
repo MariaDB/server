@@ -90,8 +90,6 @@ void wsrep_create_rollbacker();
 bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd);
 int  wsrep_abort_thd(THD *bf_thd_ptr, THD *victim_thd_ptr, my_bool signal);
 
-extern void  wsrep_thd_set_PA_safe(void *thd_ptr, my_bool safe);
-
 /*
   Helper methods to deal with thread local storage.
   The purpose of these methods is to hide the details of thread

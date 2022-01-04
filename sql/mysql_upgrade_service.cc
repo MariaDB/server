@@ -549,8 +549,8 @@ int main(int argc, char **argv)
     if (WaitForSingleObject(mysqld_process, 0) != WAIT_TIMEOUT)
       die("mysqld.exe did not start");
 
-    if (run_tool(P_WAIT, mysqladmin_path, "--protocol=pipe",
-      socket_param, "ping",  NULL) == 0)
+    if (run_tool(P_WAIT, mysqladmin_path, "--protocol=pipe", socket_param,
+                 "ping", "--no-beep", NULL) == 0)
     {
       break;
     }

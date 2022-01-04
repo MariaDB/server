@@ -9,7 +9,6 @@
 --echo #            enabled assertion fails in Diagnostics_area::set_error_status
 --echo #
 
-select @@binlog_format;
 --connect (con1,localhost,root,,)
 connection default;
 

@@ -6,6 +6,10 @@ init:
 
 version: build-{build}~branch-{branch}
 
+cache:
+  - C:\ProgramData\chocolatey\bin -> appveyor.yml
+  - C:\ProgramData\chocolatey\lib -> appveyor.yml
+
 clone_depth: 1
 
 build_script:
