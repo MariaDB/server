@@ -1145,7 +1145,6 @@ static void setup_connection_simple(struct connection_info *ci)
 
 
 #define MAX_HOSTNAME 61
-#define USERNAME_LENGTH 384
 
 static void setup_connection_connect(struct connection_info *cn,
     const struct mysql_event_connection *event)

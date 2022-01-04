@@ -222,6 +222,22 @@ struct json_service_st json_handler=
   json_unescape_json
 };
 
+struct sql_service_st sql_service_handler=
+{
+  mysql_init,
+  mysql_real_connect_local,
+  mysql_real_connect,
+  mysql_errno,
+  mysql_error,
+  mysql_real_query,
+  mysql_affected_rows,
+  mysql_num_rows,
+  mysql_store_result,
+  mysql_free_result,
+  mysql_fetch_row,
+  mysql_close,
+};
+
 static struct st_service_ref list_of_services[]=
 {
   { "base64_service",              VERSION_base64,              &base64_handler },
@@ -245,5 +261,6 @@ static struct st_service_ref list_of_services[]=
   { "thd_timezone_service",        VERSION_thd_timezone,        &thd_timezone_handler },
   { "thd_wait_service",            VERSION_thd_wait,            &thd_wait_handler },
   { "wsrep_service",               VERSION_wsrep,               &wsrep_handler },
-  { "json_service",                VERSION_json,                &json_handler }
+  { "json_service",                VERSION_json,                &json_handler },
+  { "sql_service",                 VERSION_sql_service,         &sql_service_handler },
 };

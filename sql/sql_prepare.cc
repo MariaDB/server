@@ -129,6 +129,7 @@ static const uint PARAMETER_FLAG_UNSIGNED= 128U << 8;
 #include "wsrep_mysqld.h"
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
+#include "sql_audit.h"    // mysql_audit_release
 
 /**
   A result class used to send cursor rows using the binary protocol.
@@ -247,63 +248,6 @@ private:
 
 
 class Ed_connection;
-
-/**
-  Protocol_local: a helper class to intercept the result
-  of the data written to the network. 
-*/
-
-class Protocol_local :public Protocol
-{
-public:
-  Protocol_local(THD *thd, Ed_connection *ed_connection);
-  ~Protocol_local() { free_root(&m_rset_root, MYF(0)); }
-protected:
-  virtual void prepare_for_resend();
-  virtual bool write();
-  virtual bool store_null();
-  virtual bool store_tiny(longlong from);
-  virtual bool store_short(longlong from);
-  virtual bool store_long(longlong from);
-  virtual bool store_longlong(longlong from, bool unsigned_flag);
-  virtual bool store_decimal(const my_decimal *);
-  virtual bool store(const char *from, size_t length, CHARSET_INFO *cs);
-  virtual bool store(const char *from, size_t length,
-                     CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
-  virtual bool store(MYSQL_TIME *time, int decimals);
-  virtual bool store_date(MYSQL_TIME *time);
-  virtual bool store_time(MYSQL_TIME *time, int decimals);
-  virtual bool store(float value, uint32 decimals, String *buffer);
-  virtual bool store(double value, uint32 decimals, String *buffer);
-  virtual bool store(Field *field);
-
-  virtual bool send_result_set_metadata(List<Item> *list, uint flags);
-  virtual bool send_out_parameters(List<Item_param> *sp_params);
-#ifdef EMBEDDED_LIBRARY
-  void remove_last_row();
-#endif
-  virtual enum enum_protocol_type type() { return PROTOCOL_LOCAL; };
-
-  virtual bool send_ok(uint server_status, uint statement_warn_count,
-                       ulonglong affected_rows, ulonglong last_insert_id,
-                       const char *message, bool skip_flush);
-
-  virtual bool send_eof(uint server_status, uint statement_warn_count);
-  virtual bool send_error(uint sql_errno, const char *err_msg, const char* sqlstate);
-private:
-  bool store_string(const char *str, size_t length,
-                    CHARSET_INFO *src_cs, CHARSET_INFO *dst_cs);
-
-  bool store_column(const void *data, size_t length);
-  void opt_add_row_to_rset();
-private:
-  Ed_connection *m_connection;
-  MEM_ROOT m_rset_root;
-  List<Ed_row> *m_rset;
-  size_t m_column_count;
-  Ed_column *m_current_row;
-  Ed_column *m_current_column;
-};
 
 /******************************************************************************
   Implementation
@@ -3943,19 +3887,22 @@ Execute_sql_statement(LEX_STRING sql_text)
   executions without having to cleanup/reset THD in between.
 */
 
-bool
-Execute_sql_statement::execute_server_code(THD *thd)
+static bool execute_server_code(THD *thd,
+                                const char *sql_text, size_t sql_len)
 {
   PSI_statement_locker *parent_locker;
   bool error;
+  query_id_t save_query_id= thd->query_id;
+  query_id_t next_id= next_query_id();
 
-  if (alloc_query(thd, m_sql_text.str, m_sql_text.length))
+  if (alloc_query(thd, sql_text, sql_len))
     return TRUE;
 
   Parser_state parser_state;
   if (parser_state.init(thd, thd->query(), thd->query_length()))
     return TRUE;
 
+  thd->query_id= next_id;
   parser_state.m_lip.multi_statements= FALSE;
   lex_start(thd);
 
@@ -3973,15 +3920,25 @@ Execute_sql_statement::execute_server_code(THD *thd)
 
   /* report error issued during command execution */
   if (likely(error == 0) && thd->spcont == NULL)
-    general_log_write(thd, COM_STMT_EXECUTE,
+    general_log_write(thd, COM_QUERY,
                       thd->query(), thd->query_length());
 
 end:
   thd->lex->restore_set_statement_var();
+  thd->query_id= save_query_id;
+  delete_explain_query(thd->lex);
+
   lex_end(thd->lex);
 
   return error;
 }
+
+
+bool Execute_sql_statement::execute_server_code(THD *thd)
+{
+  return ::execute_server_code(thd, m_sql_text.str, m_sql_text.length);
+}
+
 
 /***************************************************************************
  Prepared_statement
@@ -5265,12 +5222,12 @@ Ed_connection::free_old_result()
 */
 
 bool
-Ed_connection::execute_direct(LEX_STRING sql_text)
+Ed_connection::execute_direct(Protocol *p, LEX_STRING sql_text)
 {
   Execute_sql_statement execute_sql_statement(sql_text);
   DBUG_PRINT("ed_query", ("%s", sql_text.str));
 
-  return execute_direct(&execute_sql_statement);
+  return execute_direct(p, &execute_sql_statement);
 }
 
 
@@ -5287,10 +5244,9 @@ Ed_connection::execute_direct(LEX_STRING sql_text)
   @param server_runnable A code fragment to execute.
 */
 
-bool Ed_connection::execute_direct(Server_runnable *server_runnable)
+bool Ed_connection::execute_direct(Protocol *p, Server_runnable *server_runnable)
 {
   bool rc= FALSE;
-  Protocol_local protocol_local(m_thd, this);
   Prepared_statement stmt(m_thd);
   Protocol *save_protocol= m_thd->protocol;
   Diagnostics_area *save_diagnostics_area= m_thd->get_stmt_da();
@@ -5299,7 +5255,7 @@ bool Ed_connection::execute_direct(Server_runnable *server_runnable)
 
   free_old_result(); /* Delete all data from previous execution, if any */
 
-  m_thd->protocol= &protocol_local;
+  m_thd->protocol= p;
   m_thd->set_stmt_da(&m_diagnostics_area);
 
   rc= stmt.execute_server_runnable(server_runnable);
@@ -5386,354 +5342,831 @@ Ed_connection::store_result_set()
   return ed_result_set;
 }
 
-/*************************************************************************
-* Protocol_local
-**************************************************************************/
+#include <mysql.h>
+#include "../libmysqld/embedded_priv.h"
 
-Protocol_local::Protocol_local(THD *thd, Ed_connection *ed_connection)
-  :Protocol(thd),
-  m_connection(ed_connection),
-  m_rset(NULL),
-  m_column_count(0),
-  m_current_row(NULL),
-  m_current_column(NULL)
+class Protocol_local : public Protocol_text
 {
-  clear_alloc_root(&m_rset_root);
+public:
+  struct st_mysql_data *cur_data;
+  struct st_mysql_data *first_data;
+  struct st_mysql_data **data_tail;
+  void clear_data_list();
+  struct st_mysql_data *alloc_new_dataset();
+  char **next_field;
+  MYSQL_FIELD *next_mysql_field;
+  MEM_ROOT *alloc;
+  THD *new_thd;
+  Security_context empty_ctx;
+
+  Protocol_local(THD *thd_arg, THD *new_thd_arg, ulong prealloc) :
+    Protocol_text(thd_arg, prealloc),
+    cur_data(0), first_data(0), data_tail(&first_data), alloc(0),
+    new_thd(new_thd_arg)
+  {}
+ 
+protected:
+  bool net_store_data(const uchar *from, size_t length);
+  bool net_store_data_cs(const uchar *from, size_t length,
+                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
+  bool net_send_eof(THD *thd, uint server_status, uint statement_warn_count);
+  bool net_send_ok(THD *, uint, uint, ulonglong, ulonglong, const char *,
+                   bool, bool);
+  bool net_send_error_packet(THD *, uint, const char *, const char *);
+  bool begin_dataset();
+  bool begin_dataset(THD *thd, uint numfields);
+
+  bool write();
+  bool flush();
+
+  bool store_field_metadata(const THD *thd, const Send_field &field,
+                            CHARSET_INFO *charset_for_protocol,
+                            uint pos);
+  bool send_result_set_metadata(List<Item> *list, uint flags);
+  void remove_last_row();
+  bool store_null();
+  void prepare_for_resend();
+  bool send_list_fields(List<Field> *list, const TABLE_LIST *table_list);
+ 
+  enum enum_protocol_type type() { return PROTOCOL_LOCAL; };
+};
+
+static
+bool
+write_eof_packet_local(THD *thd,
+    Protocol_local *p, uint server_status, uint statement_warn_count)
+{
+//  if (!thd->mysql)            // bootstrap file handling
+//    return FALSE;
+  /*
+    The following test should never be true, but it's better to do it
+    because if 'is_fatal_error' is set the server is not going to execute
+    other queries (see the if test in dispatch_command / COM_QUERY)
+  */
+  if (thd->is_fatal_error)
+    thd->server_status&= ~SERVER_MORE_RESULTS_EXISTS;
+  p->cur_data->embedded_info->server_status= server_status;
+  /*
+    Don't send warn count during SP execution, as the warn_list
+    is cleared between substatements, and mysqltest gets confused
+  */
+  p->cur_data->embedded_info->warning_count=
+    (thd->spcont ? 0 : MY_MIN(statement_warn_count, 65535));
+  return FALSE;
 }
 
-/**
-  Called between two result set rows.
 
-  Prepare structures to fill result set rows.
-  Unfortunately, we can't return an error here. If memory allocation
-  fails, we'll have to return an error later. And so is done
-  in methods such as @sa store_column().
-*/
-
-void Protocol_local::prepare_for_resend()
+MYSQL_DATA *Protocol_local::alloc_new_dataset()
 {
-  DBUG_ASSERT(alloc_root_inited(&m_rset_root));
+  MYSQL_DATA *data;
+  struct embedded_query_result *emb_data;
+  if (!my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
+                       &data, sizeof(*data),
+                       &emb_data, sizeof(*emb_data),
+                       NULL))
+    return NULL;
 
-  opt_add_row_to_rset();
-  /* Start a new row. */
-  m_current_row= (Ed_column *) alloc_root(&m_rset_root,
-                                          sizeof(Ed_column) * m_column_count);
-  m_current_column= m_current_row;
+  emb_data->prev_ptr= &data->data;
+  cur_data= data;
+  *data_tail= data;
+  data_tail= &emb_data->next;
+  data->embedded_info= emb_data;
+  return data;
+}
+
+
+void Protocol_local::clear_data_list()
+{
+  while (first_data)
+  {
+    MYSQL_DATA *data= first_data;
+    first_data= data->embedded_info->next;
+    free_rows(data);
+  }
+  data_tail= &first_data;
+  free_rows(cur_data);
+  cur_data= 0;
+}
+
+
+static char *dup_str_aux(MEM_ROOT *root, const char *from, uint length,
+                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
+{
+  uint32 dummy32;
+  uint dummy_err;
+  char *result;
+
+  /* 'tocs' is set 0 when client issues SET character_set_results=NULL */
+  if (tocs && String::needs_conversion(0, fromcs, tocs, &dummy32))
+  {
+    uint new_len= (tocs->mbmaxlen * length) / fromcs->mbminlen + 1;
+    result= (char *)alloc_root(root, new_len);
+    length= copy_and_convert(result, new_len,
+                             tocs, from, length, fromcs, &dummy_err);
+  }
+  else
+  {
+    result= (char *)alloc_root(root, length + 1);
+    memcpy(result, from, length);
+  }
+
+  result[length]= 0;
+  return result;
+}
+
+
+static char *dup_str_aux(MEM_ROOT *root, const LEX_CSTRING &from,
+                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
+{
+  return dup_str_aux(root, from.str, (uint) from.length, fromcs, tocs);
+}
+
+
+static char *dup_str_aux(MEM_ROOT *root, const char *from,
+                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
+{
+  return dup_str_aux(root, from, from ? strlen(from) : 0 , fromcs, tocs);
+}
+
+
+bool Protocol_local::net_store_data(const uchar *from, size_t length)
+{
+  char *field_buf;
+//  if (!thd->mysql)            // bootstrap file handling
+//    return FALSE;
+
+  if (!(field_buf= (char*) alloc_root(alloc, length + sizeof(uint) + 1)))
+    return TRUE;
+  *(uint *)field_buf= (uint) length;
+  *next_field= field_buf + sizeof(uint);
+  memcpy((uchar*) *next_field, from, length);
+  (*next_field)[length]= 0;
+  if (next_mysql_field->max_length < length)
+    next_mysql_field->max_length= (unsigned long) length;
+  ++next_field;
+  ++next_mysql_field;
+  return FALSE;
+}
+
+
+bool Protocol_local::net_store_data_cs(const uchar *from, size_t length,
+                       CHARSET_INFO *from_cs, CHARSET_INFO *to_cs)
+{
+  uint conv_length= (uint) (to_cs->mbmaxlen * length / from_cs->mbminlen);
+  uint dummy_error;
+  char *field_buf;
+//  if (!thd->mysql)            // bootstrap file handling
+//    return false;
+
+  if (!(field_buf= (char*) alloc_root(alloc, conv_length + sizeof(uint) + 1)))
+    return true;
+  *next_field= field_buf + sizeof(uint);
+  length= copy_and_convert(*next_field, conv_length, to_cs,
+                           (const char*) from, length, from_cs, &dummy_error);
+  *(uint *) field_buf= (uint) length;
+  (*next_field)[length]= 0;
+  if (next_mysql_field->max_length < length)
+    next_mysql_field->max_length= (unsigned long) length;
+  ++next_field;
+  ++next_mysql_field;
+  return false;
 }
 
 
 /**
-  In "real" protocols this is called to finish a result set row.
-  Unused in the local implementation.
+  Embedded library implementation of OK response.
+
+  This function is used by the server to write 'OK' packet to
+  the "network" when the server is compiled as an embedded library.
+  Since there is no network in the embedded configuration,
+  a different implementation is necessary.
+  Instead of marshalling response parameters to a network representation
+  and then writing it to the socket, here we simply copy the data to the
+  corresponding client-side connection structures. 
+
+  @sa Server implementation of net_send_ok in protocol.cc for
+  description of the arguments.
+
+  @return
+    @retval TRUE An error occurred
+    @retval FALSE Success
 */
+
+bool
+Protocol_local::net_send_ok(THD *thd,
+  uint server_status, uint statement_warn_count,
+  ulonglong affected_rows, ulonglong id, const char *message, bool, bool)
+{
+  DBUG_ENTER("emb_net_send_ok");
+  MYSQL_DATA *data;
+//  MYSQL *mysql= thd->mysql;
+
+//  if (!mysql)            // bootstrap file handling
+//    DBUG_RETURN(FALSE);
+  if (!(data= alloc_new_dataset()))
+    DBUG_RETURN(TRUE);
+  data->embedded_info->affected_rows= affected_rows;
+  data->embedded_info->insert_id= id;
+  if (message)
+    strmake_buf(data->embedded_info->info, message);
+
+  bool error= write_eof_packet_local(thd, this,
+                                     server_status, statement_warn_count);
+  cur_data= 0;
+  DBUG_RETURN(error);
+}
+
+
+/**
+  Embedded library implementation of EOF response.
+
+  @sa net_send_ok
+
+  @return
+    @retval TRUE  An error occurred
+    @retval FALSE Success
+*/
+
+bool
+Protocol_local::net_send_eof(THD *thd, uint server_status,
+                             uint statement_warn_count)
+{
+  bool error= write_eof_packet_local(thd, this, server_status,
+                                     statement_warn_count);
+  cur_data= 0;
+  return error;
+}
+
+
+bool Protocol_local::net_send_error_packet(THD *thd, uint sql_errno,
+       const char *err, const char *sqlstate)
+{
+  uint error;
+  char converted_err[MYSQL_ERRMSG_SIZE];
+  MYSQL_DATA *data= cur_data;
+  struct embedded_query_result *ei;
+ 
+//  if (!thd->mysql)            // bootstrap file handling
+//  {
+//    fprintf(stderr, "ERROR: %d  %s\n", sql_errno, err);
+//    return TRUE;
+//  }
+  if (!data)
+    data= alloc_new_dataset();
+
+  ei= data->embedded_info;
+  ei->last_errno= sql_errno;
+  convert_error_message(converted_err, sizeof(converted_err),
+                        thd->variables.character_set_results,
+                        err, strlen(err),
+                        system_charset_info, &error);
+  /* Converted error message is always null-terminated. */
+  strmake_buf(ei->info, converted_err);
+  strmov(ei->sqlstate, sqlstate);
+  ei->server_status= thd->server_status;
+  cur_data= 0;
+  return FALSE;
+}
+
+
+bool Protocol_local::begin_dataset()
+{
+  MYSQL_DATA *data= alloc_new_dataset();
+  if (!data)
+    return 1;
+  alloc= &data->alloc;
+  /* Assume rowlength < 8192 */
+  init_alloc_root(alloc, "dataset", 8192, 0, MYF(0));
+  alloc->min_malloc= sizeof(MYSQL_ROWS);
+  return 0;
+}
+
+
+bool Protocol_local::begin_dataset(THD *thd, uint numfields)
+{
+  if (begin_dataset())
+    return true;
+  MYSQL_DATA *data= cur_data;
+  data->fields= field_count= numfields;
+  if (!(data->embedded_info->fields_list=
+      (MYSQL_FIELD*)alloc_root(&data->alloc, sizeof(MYSQL_FIELD)*field_count)))
+    return true;
+  return false;
+}
+
 
 bool Protocol_local::write()
 {
-  return FALSE;
+//  if (!thd->mysql)            // bootstrap file handling
+//    return false;
+
+  *next_field= 0;
+  return false;
 }
 
-/**
-  A helper function to add the current row to the current result
-  set. Called in @sa prepare_for_resend(), when a new row is started,
-  and in send_eof(), when the result set is finished.
-*/
 
-void Protocol_local::opt_add_row_to_rset()
+bool Protocol_local::flush()
 {
-  if (m_current_row)
+  return 0;
+}
+
+
+bool Protocol_local::store_field_metadata(const THD * thd,
+                                          const Send_field &server_field,
+                                          CHARSET_INFO *charset_for_protocol,
+                                          uint pos)
+{
+  CHARSET_INFO *cs= system_charset_info;
+  CHARSET_INFO *thd_cs= thd->variables.character_set_results;
+  MYSQL_DATA *data= cur_data;
+  MEM_ROOT *field_alloc= &data->alloc;
+  MYSQL_FIELD *client_field= &cur_data->embedded_info->fields_list[pos];
+  DBUG_ASSERT(server_field.is_sane());
+
+  client_field->db= dup_str_aux(field_alloc, server_field.db_name,
+                                cs, thd_cs);
+  client_field->table= dup_str_aux(field_alloc, server_field.table_name,
+                                   cs, thd_cs);
+  client_field->name= dup_str_aux(field_alloc, server_field.col_name,
+                                  cs, thd_cs);
+  client_field->org_table= dup_str_aux(field_alloc, server_field.org_table_name,
+                                       cs, thd_cs);
+  client_field->org_name= dup_str_aux(field_alloc, server_field.org_col_name,
+                                      cs, thd_cs);
+  if (charset_for_protocol == &my_charset_bin || thd_cs == NULL)
   {
-    /* Add the old row to the result set */
-    Ed_row *ed_row= new (&m_rset_root) Ed_row(m_current_row, m_column_count);
-    if (ed_row)
-      m_rset->push_back(ed_row, &m_rset_root);
+    /* No conversion */
+    client_field->charsetnr= charset_for_protocol->number;
+    client_field->length= server_field.length;
+  }
+  else
+  {
+    /* With conversion */
+    client_field->charsetnr= thd_cs->number;
+    client_field->length= server_field.max_octet_length(charset_for_protocol,
+                                                        thd_cs);
+  }
+  client_field->type= server_field.type_handler()->type_code_for_protocol();
+  client_field->flags= (uint16) server_field.flags;
+  client_field->decimals= server_field.decimals;
+
+  client_field->db_length=        (unsigned int) strlen(client_field->db);
+  client_field->table_length=     (unsigned int) strlen(client_field->table);
+  client_field->name_length=      (unsigned int) strlen(client_field->name);
+  client_field->org_name_length=  (unsigned int) strlen(client_field->org_name);
+  client_field->org_table_length= (unsigned int) strlen(client_field->org_table);
+
+  client_field->catalog= dup_str_aux(field_alloc, "def", 3, cs, thd_cs);
+  client_field->catalog_length= 3;
+
+  if (IS_NUM(client_field->type))
+    client_field->flags|= NUM_FLAG;
+
+  client_field->max_length= 0;
+  client_field->def= 0;
+  return false;
+}
+
+
+void Protocol_local::remove_last_row()
+{
+  MYSQL_DATA *data= cur_data;
+  MYSQL_ROWS **last_row_hook= &data->data;
+  my_ulonglong count= data->rows;
+  DBUG_ENTER("Protocol_text::remove_last_row");
+  while (--count)
+    last_row_hook= &(*last_row_hook)->next;
+
+  *last_row_hook= 0;
+  data->embedded_info->prev_ptr= last_row_hook;
+  data->rows--;
+
+  DBUG_VOID_RETURN;
+}
+
+
+bool Protocol_local::send_result_set_metadata(List<Item> *list, uint flags)
+{
+  List_iterator_fast<Item> it(*list);
+  Item *item;
+  DBUG_ENTER("send_result_set_metadata");
+
+//  if (!thd->mysql)            // bootstrap file handling
+//    DBUG_RETURN(0);
+
+  if (begin_dataset(thd, list->elements))
+    goto err;
+
+  for (uint pos= 0 ; (item= it++); pos++)
+  {
+    Send_field sf(thd, item);
+    if (store_field_metadata(thd, sf, item->charset_for_protocol(), pos))
+      goto err;
+  }
+
+  if (flags & SEND_EOF)
+    write_eof_packet_local(thd, this, thd->server_status,
+                     thd->get_stmt_da()->current_statement_warn_count());
+
+  DBUG_RETURN(prepare_for_send(list->elements));
+ err:
+  my_error(ER_OUT_OF_RESOURCES, MYF(0));        /* purecov: inspected */
+  DBUG_RETURN(1);				/* purecov: inspected */
+}
+
+
+static void
+list_fields_send_default(THD *thd, Protocol_local *p, Field *fld, uint pos)
+{
+  char buff[80];
+  String tmp(buff, sizeof(buff), default_charset_info), *res;
+  MYSQL_FIELD *client_field= &p->cur_data->embedded_info->fields_list[pos];
+
+  if (fld->is_null() || !(res= fld->val_str(&tmp)))
+  {
+    client_field->def_length= 0;
+    client_field->def= strmake_root(&p->cur_data->alloc, "", 0);
+  }
+  else
+  {
+    client_field->def_length= res->length();
+    client_field->def= strmake_root(&p->cur_data->alloc, res->ptr(),
+                                    client_field->def_length);
   }
 }
 
 
-/**
-  Add a NULL column to the current row.
-*/
+bool Protocol_local::send_list_fields(List<Field> *list, const TABLE_LIST *table_list)
+{
+  DBUG_ENTER("send_result_set_metadata");
+  Protocol_text prot(thd);
+  List_iterator_fast<Field> it(*list);
+  Field *fld;
+
+//  if (!thd->mysql)            // bootstrap file handling
+//    DBUG_RETURN(0);
+
+  if (begin_dataset(thd, list->elements))
+    goto err;
+
+  for (uint pos= 0 ; (fld= it++); pos++)
+  {
+    if (prot.store_field_metadata_for_list_fields(thd, fld, table_list, pos))
+      goto err;
+    list_fields_send_default(thd, this, fld, pos);
+  }
+
+  DBUG_RETURN(prepare_for_send(list->elements));
+err:
+  my_error(ER_OUT_OF_RESOURCES, MYF(0));
+  DBUG_RETURN(1);
+}
+
+
+void Protocol_local::prepare_for_resend()
+{
+  MYSQL_ROWS *cur;
+  MYSQL_DATA *data= cur_data;
+  DBUG_ENTER("send_data");
+
+//  if (!thd->mysql)            // bootstrap file handling
+//    DBUG_VOID_RETURN;
+
+  data->rows++;
+  if (!(cur= (MYSQL_ROWS *)alloc_root(alloc, sizeof(MYSQL_ROWS)+(field_count + 1) * sizeof(char *))))
+  {
+    my_error(ER_OUT_OF_RESOURCES,MYF(0));
+    DBUG_VOID_RETURN;
+  }
+  cur->data= (MYSQL_ROW)(((char *)cur) + sizeof(MYSQL_ROWS));
+
+  *data->embedded_info->prev_ptr= cur;
+  data->embedded_info->prev_ptr= &cur->next;
+  next_field=cur->data;
+  next_mysql_field= data->embedded_info->fields_list;
+#ifndef DBUG_OFF
+  field_pos= 0;
+#endif
+
+  DBUG_VOID_RETURN;
+}
 
 bool Protocol_local::store_null()
 {
-  if (m_current_column == NULL)
-    return TRUE; /* prepare_for_resend() failed to allocate memory. */
-
-  bzero(m_current_column, sizeof(*m_current_column));
-  ++m_current_column;
-  return FALSE;
+  *(next_field++)= NULL;
+  ++next_mysql_field;
+  return false;
 }
 
 
-/**
-  A helper method to add any column to the current row
-  in its binary form.
+#include <sql_common.h>
+#include <errmsg.h>
 
-  Allocates memory for the data in the result set memory root.
-*/
-
-bool Protocol_local::store_column(const void *data, size_t length)
+static void embedded_get_error(MYSQL *mysql, MYSQL_DATA *data)
 {
-  if (m_current_column == NULL)
-    return TRUE; /* prepare_for_resend() failed to allocate memory. */
-  /*
-    alloc_root() automatically aligns memory, so we don't need to
-    do any extra alignment if we're pointing to, say, an integer.
-  */
-  m_current_column->str= (char*) memdup_root(&m_rset_root,
-                                             data,
-                                             length + 1 /* Safety */);
-  if (! m_current_column->str)
-    return TRUE;
-  m_current_column->str[length]= '\0'; /* Safety */
-  m_current_column->length= length;
-  ++m_current_column;
-  return FALSE;
+  NET *net= &mysql->net;
+  struct embedded_query_result *ei= data->embedded_info;
+  net->last_errno= ei->last_errno;
+  strmake_buf(net->last_error, ei->info);
+  memcpy(net->sqlstate, ei->sqlstate, sizeof(net->sqlstate));
+  mysql->server_status= ei->server_status;
+  my_free(data);
 }
 
 
-/**
-  Store a string value in a result set column, optionally
-  having converted it to character_set_results.
-*/
-
-bool
-Protocol_local::store_string(const char *str, size_t length,
-                             CHARSET_INFO *src_cs, CHARSET_INFO *dst_cs)
+static my_bool loc_read_query_result(MYSQL *mysql)
 {
-  /* Store with conversion */
-  uint error_unused;
+  Protocol_local *p= (Protocol_local *) mysql->thd;
 
-  if (dst_cs && !my_charset_same(src_cs, dst_cs) &&
-      src_cs != &my_charset_bin &&
-      dst_cs != &my_charset_bin)
+  MYSQL_DATA *res= p->first_data;
+  DBUG_ASSERT(!p->cur_data);
+  p->first_data= res->embedded_info->next;
+  if (res->embedded_info->last_errno &&
+      !res->embedded_info->fields_list)
   {
-    if (unlikely(convert->copy(str, length, src_cs, dst_cs, &error_unused)))
-      return TRUE;
-    str= convert->ptr();
-    length= convert->length();
+    embedded_get_error(mysql, res);
+    return 1;
   }
-  return store_column(str, length);
+
+  mysql->warning_count= res->embedded_info->warning_count;
+  mysql->server_status= res->embedded_info->server_status;
+  mysql->field_count= res->fields;
+  if (!(mysql->fields= res->embedded_info->fields_list))
+  {
+    mysql->affected_rows= res->embedded_info->affected_rows;
+    mysql->insert_id= res->embedded_info->insert_id;
+  }
+  net_clear_error(&mysql->net);
+  mysql->info= 0;
+
+  if (res->embedded_info->info[0])
+  {
+    strmake(mysql->info_buffer, res->embedded_info->info, MYSQL_ERRMSG_SIZE-1);
+    mysql->info= mysql->info_buffer;
+  }
+
+  if (res->embedded_info->fields_list)
+  {
+    mysql->status=MYSQL_STATUS_GET_RESULT;
+    p->cur_data= res;
+  }
+  else
+    my_free(res);
+
+  return 0;
 }
 
 
-/** Store a tiny int as is (1 byte) in a result set column. */
-
-bool Protocol_local::store_tiny(longlong value)
+static my_bool
+loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
+                     const uchar *header, ulong header_length,
+                     const uchar *arg, ulong arg_length, my_bool skip_check,
+                     MYSQL_STMT *stmt)
 {
-  char v= (char) value;
-  return store_column(&v, 1);
+  my_bool result= 1;
+  Protocol_local *p= (Protocol_local *) mysql->thd;
+  NET *net= &mysql->net;
+
+  if (p->thd && p->thd->killed != NOT_KILLED)
+  {
+    if (p->thd->killed < KILL_CONNECTION)
+      p->thd->killed= NOT_KILLED;
+    else
+      return 1;
+  }
+
+  p->clear_data_list();
+  /* Check that we are calling the client functions in right order */
+  if (mysql->status != MYSQL_STATUS_READY)
+  {
+    set_mysql_error(mysql, CR_COMMANDS_OUT_OF_SYNC, unknown_sqlstate);
+    goto end;
+  }
+
+  /* Clear result variables */
+  p->thd->clear_error(1);
+  mysql->affected_rows= ~(my_ulonglong) 0;
+  mysql->field_count= 0;
+  net_clear_error(net);
+
+  /* 
+     We have to call free_old_query before we start to fill mysql->fields 
+     for new query. In the case of embedded server we collect field data
+     during query execution (not during data retrieval as it is in remote
+     client). So we have to call free_old_query here
+  */
+  free_old_query(mysql);
+
+  if (header)
+  {
+    arg= header;
+    arg_length= header_length;
+  }
+
+  if (p->new_thd)
+  {
+    THD *thd_orig= current_thd;
+    set_current_thd(p->thd);
+    p->thd->thread_stack= (char*) &result;
+    p->thd->set_time();
+    result= execute_server_code(p->thd, (const char *)arg, arg_length);
+    p->thd->cleanup_after_query();
+    mysql_audit_release(p->thd);
+    p->end_statement();
+    set_current_thd(thd_orig);
+  }
+  else
+  {
+    Ed_connection con(p->thd);
+    Security_context *ctx_orig= p->thd->security_ctx;
+    MYSQL_LEX_STRING sql_text;
+    DBUG_ASSERT(current_thd == p->thd);
+    sql_text.str= (char *) arg;
+    sql_text.length= arg_length;
+    p->thd->security_ctx= &p->empty_ctx;
+    result= con.execute_direct(p, sql_text);
+    p->thd->security_ctx= ctx_orig;
+  }
+  if (skip_check)
+    result= 0;
+  p->cur_data= 0;
+
+end:
+  return result;
 }
 
 
-/** Store a short as is (2 bytes, host order) in a result set column. */
+/*
+  reads dataset from the next query result
 
-bool Protocol_local::store_short(longlong value)
-{
-  int16 v= (int16) value;
-  return store_column(&v, 2);
-}
+  SYNOPSIS
+  loc_read_rows()
+  mysql		connection handle
+  other parameters are not used
 
+  NOTES
+    It just gets next MYSQL_DATA from the result's queue
 
-/** Store a "long" as is (4 bytes, host order) in a result set column.  */
-
-bool Protocol_local::store_long(longlong value)
-{
-  int32 v= (int32) value;
-  return store_column(&v, 4);
-}
-
-
-/** Store a "longlong" as is (8 bytes, host order) in a result set column. */
-
-bool Protocol_local::store_longlong(longlong value, bool unsigned_flag)
-{
-  int64 v= (int64) value;
-  return store_column(&v, 8);
-}
-
-
-/** Store a decimal in string format in a result set column */
-
-bool Protocol_local::store_decimal(const my_decimal *value)
-{
-  DBUG_ASSERT(0); // This method is not used yet
-  StringBuffer<DECIMAL_MAX_STR_LENGTH> str;
-  return value->to_string(&str) ? store_column(str.ptr(), str.length()) : true;
-}
-
-
-/** Convert to cs_results and store a string. */
-
-bool Protocol_local::store(const char *str, size_t length,
-                           CHARSET_INFO *src_cs)
-{
-  CHARSET_INFO *dst_cs;
-
-  dst_cs= m_connection->m_thd->variables.character_set_results;
-  return store_string(str, length, src_cs, dst_cs);
-}
-
-
-/** Store a string. */
-
-bool Protocol_local::store(const char *str, size_t length,
-                           CHARSET_INFO *src_cs, CHARSET_INFO *dst_cs)
-{
-  return store_string(str, length, src_cs, dst_cs);
-}
-
-
-/* Store MYSQL_TIME (in binary format) */
-
-bool Protocol_local::store(MYSQL_TIME *time, int decimals)
-{
-  if (decimals != AUTO_SEC_PART_DIGITS)
-    my_datetime_trunc(time, decimals);
-  return store_column(time, sizeof(MYSQL_TIME));
-}
-
-
-/** Store MYSQL_TIME (in binary format) */
-
-bool Protocol_local::store_date(MYSQL_TIME *time)
-{
-  return store_column(time, sizeof(MYSQL_TIME));
-}
-
-
-/** Store MYSQL_TIME (in binary format) */
-
-bool Protocol_local::store_time(MYSQL_TIME *time, int decimals)
-{
-  if (decimals != AUTO_SEC_PART_DIGITS)
-    my_time_trunc(time, decimals);
-  return store_column(time, sizeof(MYSQL_TIME));
-}
-
-
-/* Store a floating point number, as is. */
-
-bool Protocol_local::store(float value, uint32 decimals, String *buffer)
-{
-  return store_column(&value, sizeof(float));
-}
-
-
-/* Store a double precision number, as is. */
-
-bool Protocol_local::store(double value, uint32 decimals, String *buffer)
-{
-  return store_column(&value, sizeof (double));
-}
-
-
-/* Store a Field. */
-
-bool Protocol_local::store(Field *field)
-{
-  if (field->is_null())
-    return store_null();
-  return field->send_binary(this);
-}
-
-
-/** Called to start a new result set. */
-
-bool Protocol_local::send_result_set_metadata(List<Item> *columns, uint)
-{
-  DBUG_ASSERT(m_rset == 0 && !alloc_root_inited(&m_rset_root));
-
-  init_sql_alloc(&m_rset_root, "send_result_set_metadata",
-                 MEM_ROOT_BLOCK_SIZE, 0, MYF(MY_THREAD_SPECIFIC));
-
-  if (! (m_rset= new (&m_rset_root) List<Ed_row>))
-    return TRUE;
-
-  m_column_count= columns->elements;
-
-  return FALSE;
-}
-
-
-/**
-  Normally this is a separate result set with OUT parameters
-  of stored procedures. Currently unsupported for the local
-  version.
+  RETURN
+    pointer to MYSQL_DATA with the coming recordset
 */
 
-bool Protocol_local::send_out_parameters(List<Item_param> *sp_params)
+static MYSQL_DATA *
+loc_read_rows(MYSQL *mysql, MYSQL_FIELD *mysql_fields __attribute__((unused)),
+              unsigned int fields __attribute__((unused)))
 {
-  return FALSE;
+  MYSQL_DATA *result= ((Protocol_local *)mysql->thd)->cur_data;
+  ((Protocol_local *)mysql->thd)->cur_data= 0;
+  if (result->embedded_info->last_errno)
+  {
+    embedded_get_error(mysql, result);
+    return NULL;
+  }
+  *result->embedded_info->prev_ptr= NULL;
+  return result;
 }
 
 
-/** Called for statements that don't have a result set, at statement end. */
+/**************************************************************************
+  Get column lengths of the current row
+  If one uses mysql_use_result, res->lengths contains the length information,
+  else the lengths are calculated from the offset between pointers.
+**************************************************************************/
 
-bool
-Protocol_local::send_ok(uint server_status, uint statement_warn_count,
-                        ulonglong affected_rows, ulonglong last_insert_id,
-                        const char *message, bool skip_flush)
+static void loc_fetch_lengths(ulong *to, MYSQL_ROW column,
+                              unsigned int field_count)
 {
-  /*
-    Just make sure nothing is sent to the client, we have grabbed
-    the status information in the connection diagnostics area.
-  */
-  return FALSE;
+  MYSQL_ROW end;
+
+  for (end=column + field_count; column != end ; column++,to++)
+    *to= *column ? *(uint *)((*column) - sizeof(uint)) : 0;
 }
 
 
-/**
-  Called at the end of a result set. Append a complete
-  result set to the list in Ed_connection.
-
-  Don't send anything to the client, but instead finish
-  building of the result set at hand.
-*/
-
-bool Protocol_local::send_eof(uint server_status, uint statement_warn_count)
+static void loc_flush_use_result(MYSQL *mysql, my_bool)
 {
-  Ed_result_set *ed_result_set;
-
-  DBUG_ASSERT(m_rset);
-
-  opt_add_row_to_rset();
-  m_current_row= 0;
-
-  ed_result_set= new (&m_rset_root) Ed_result_set(m_rset, m_column_count,
-                                                  &m_rset_root);
-
-  m_rset= NULL;
-
-  if (! ed_result_set)
-    return TRUE;
-
-  /* In case of successful allocation memory ownership was transferred. */
-  DBUG_ASSERT(!alloc_root_inited(&m_rset_root));
-
-  /*
-    Link the created Ed_result_set instance into the list of connection
-    result sets. Never fails.
-  */
-  m_connection->add_result_set(ed_result_set);
-  return FALSE;
+  Protocol_local *p= (Protocol_local *) mysql->thd;
+  if (p->cur_data)
+  {
+    free_rows(p->cur_data);
+    p->cur_data= 0;
+  }
+  else if (p->first_data)
+  {
+    MYSQL_DATA *data= p->first_data;
+    p->first_data= data->embedded_info->next;
+    free_rows(data);
+  }
 }
 
 
-/** Called to send an error to the client at the end of a statement. */
-
-bool
-Protocol_local::send_error(uint sql_errno, const char *err_msg, const char*)
+static void loc_on_close_free(MYSQL *mysql)
 {
-  /*
-    Just make sure that nothing is sent to the client (default
-    implementation).
-  */
-  return FALSE;
+  Protocol_local *p= (Protocol_local *) mysql->thd;
+  THD *thd= p->new_thd;
+  delete p;
+  if (thd)
+  {
+    delete thd;
+    local_connection_thread_count--;
+  }
+  my_free(mysql->info_buffer);
+  mysql->info_buffer= 0;
 }
 
+static MYSQL_RES *loc_use_result(MYSQL *mysql)
+{
+  return mysql_store_result(mysql);
+}
 
+static MYSQL_METHODS local_methods=
+{
+  loc_read_query_result,                       /* read_query_result */
+  loc_advanced_command,                        /* advanced_command */
+  loc_read_rows,                               /* read_rows */
+  loc_use_result,                              /* use_result */
+  loc_fetch_lengths,                           /* fetch_lengths */
+  loc_flush_use_result,                        /* flush_use_result */
+  NULL,                                        /* read_change_user_result */
+  loc_on_close_free                            /* on_close_free */
 #ifdef EMBEDDED_LIBRARY
-void Protocol_local::remove_last_row()
-{ }
+  ,NULL,                                       /* list_fields */
+  NULL,                                        /* read_prepare_result */
+  NULL,                                        /* stmt_execute */
+  NULL,                                        /* read_binary_rows */
+  NULL,                                        /* unbuffered_fetch */
+  NULL,                                        /* read_statistics */
+  NULL,                                        /* next_result */
+  NULL                                         /* read_rows_from_cursor */
 #endif
+};
+
+
+Atomic_counter<uint32_t> local_connection_thread_count;
+
+extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
+{
+  THD *thd_orig= current_thd;
+  THD *new_thd;
+  Protocol_local *p;
+  DBUG_ENTER("mysql_real_connect_local");
+
+  /* Test whether we're already connected */
+  if (mysql->server_version)
+  {
+    set_mysql_error(mysql, CR_ALREADY_CONNECTED, unknown_sqlstate);
+    DBUG_RETURN(0);
+  }
+
+  mysql->methods= &local_methods;
+  mysql->user= NULL;
+
+  mysql->info_buffer= (char *) my_malloc(MYSQL_ERRMSG_SIZE, MYF(0));
+  if (!thd_orig || thd_orig->lock)
+  {
+    /*
+      When we start with the empty current_thd (that happens when plugins
+      are loaded during the server start) or when some tables are locked
+      with the current_thd already (that happens when INSTALL PLUGIN
+      calls the plugin_init or with queries), we create the new THD for
+      the local connection. So queries with this MYSQL will be run with
+      it rather than the current THD.
+    */
+
+    new_thd= new THD(0);
+    local_connection_thread_count++;
+    new_thd->thread_stack= (char*) &thd_orig;
+    new_thd->store_globals();
+    new_thd->security_ctx->skip_grants();
+    new_thd->query_cache_is_applicable= 0;
+    new_thd->variables.wsrep_on= 0;
+    /*
+      TOSO: decide if we should turn the auditing off
+      for such threads.
+      We can do it like this:
+        new_thd->audit_class_mask[0]= ~0;
+    */
+    bzero((char*) &new_thd->net, sizeof(new_thd->net));
+    set_current_thd(thd_orig);
+    thd_orig= new_thd;
+  }
+  else
+    new_thd= NULL;
+
+  p= new Protocol_local(thd_orig, new_thd, 0);
+  if (new_thd)
+    new_thd->protocol= p;
+  else
+  {
+    p->empty_ctx.init();
+    p->empty_ctx.skip_grants();
+  }
+
+  mysql->thd= p;
+  mysql->server_status= SERVER_STATUS_AUTOCOMMIT;
+
+
+  DBUG_PRINT("exit",("Mysql handler: %p", mysql));
+  DBUG_RETURN(mysql);
+}
+
