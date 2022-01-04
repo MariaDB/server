@@ -908,6 +908,13 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   if (check_grant(thd, ALTER_ACL, first_table, FALSE, 1, FALSE))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
+#ifdef WITH_WSREP
+  if (WSREP_ON && WSREP(thd) &&
+      wsrep_to_isolation_begin(thd, first_table->db.str,
+	                       first_table->table_name.str,
+		               first_table))
+    DBUG_RETURN(TRUE);
+#endif /* WITH_WSREP */
   if (if_exists())
     thd->push_internal_handler(&no_such_table_handler);
   error= open_and_lock_tables(thd, first_table, FALSE, 0);

@@ -1,0 +1,24 @@
+--source include/galera_cluster.inc
+
+--connection node_1
+CREATE SEQUENCE `seq` start with 1 minvalue 1 maxvalue 1000000 increment by 0 cache 1000 nocycle ENGINE=InnoDB;
+SHOW CREATE SEQUENCE seq;
+
+--connection node_2
+SHOW CREATE SEQUENCE seq;
+
+--connection node_1
+ALTER SEQUENCE seq MAXVALUE = 10000;
+SHOW CREATE SEQUENCE seq;
+
+--connection node_2
+SHOW CREATE SEQUENCE seq;
+
+--connection node_1
+DROP SEQUENCE seq;
+--error ER_NO_SUCH_TABLE
+SHOW CREATE SEQUENCE seq;
+
+--connection node_2
+--error ER_NO_SUCH_TABLE
+SHOW CREATE SEQUENCE seq;
