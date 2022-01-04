@@ -47,6 +47,8 @@ ANALYZE TABLE t2;
 create view v1 as select a from t1 group by b;
 create view v2 as select a from t2;
 
+# MDEV-27421 ./mtr --ps-protocol main.opt_trace fails to produce some traces
+--disable_ps_protocol
 --echo # Mergeable view
 --optimizer_trace
 explain select * from v2 ;
@@ -54,6 +56,7 @@ explain select * from v2 ;
 --echo # Non-Mergeable view
 --optimizer_trace
 explain select * from v1 ;
+--enable_ps_protocol
 drop table t1,t2;
 drop view v1,v2;
 
