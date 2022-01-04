@@ -132,6 +132,7 @@ static my_bool disable_info= 1;
 static my_bool abort_on_error= 1, opt_continue_on_error= 0;
 static my_bool server_initialized= 0;
 static my_bool is_windows= 0;
+static my_bool optimizer_trace_active= 0;
 static char **default_argv;
 static const char *load_default_groups[]=
 { "mysqltest", "mariadb-test", "client", "client-server", "client-mariadb",
@@ -388,6 +389,7 @@ enum enum_commands {
   Q_MOVE_FILE, Q_REMOVE_FILES_WILDCARD, Q_SEND_EVAL,
   Q_ENABLE_PREPARE_WARNINGS, Q_DISABLE_PREPARE_WARNINGS,
   Q_RESET_CONNECTION,
+  Q_OPTIMIZER_TRACE,
   Q_UNKNOWN,			       /* Unknown command.   */
   Q_COMMENT,			       /* Comments, ignored. */
   Q_COMMENT_WITH_COMMAND,
@@ -498,7 +500,7 @@ const char *command_names[]=
   "enable_prepare_warnings",
   "disable_prepare_warnings",
   "reset_connection",
-
+  "optimizer_trace",
   0
 };
 
@@ -643,6 +645,9 @@ void free_all_replace(){
 }
 
 void var_set_int(const char* name, int value);
+void enable_optimizer_trace(struct st_connection *con);
+void display_optimizer_trace(struct st_connection *con,
+                             DYNAMIC_STRING *ds);
 
 
 class LogFile {
@@ -1551,6 +1556,8 @@ static void die(const char *fmt, ...)
 {
   char buff[DIE_BUFF_SIZE];
   va_list args;
+  DBUG_ENTER("die");
+
   va_start(args, fmt);
   make_error_message(buff, sizeof(buff), fmt, args);
   really_die(buff);
@@ -7900,7 +7907,7 @@ static void handle_no_active_connection(struct st_command *command,
 */
 
 void run_query_normal(struct st_connection *cn, struct st_command *command,
-                      int flags, char *query, size_t query_len,
+                      int flags, const char *query, size_t query_len,
                       DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings)
 {
   MYSQL_RES *res= 0;
@@ -8019,6 +8026,7 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
 
   /* If we come here the query is both executed and read successfully */
   handle_no_error(command);
+  display_optimizer_trace(cn, ds);
   revert_properties();
 
 end:
@@ -9676,6 +9684,9 @@ int main(int argc, char **argv)
         break;
       case Q_RESET_CONNECTION:
         do_reset_connection();
+        break;
+      case Q_OPTIMIZER_TRACE:
+        enable_optimizer_trace(cur_con);
         break;
       case Q_SEND_SHUTDOWN:
         handle_command_error(command,
@@ -11356,4 +11367,91 @@ char *mysql_authentication_dialog_ask(MYSQL *mysql, int type,
   fputc('\n', stdout);
 
   return buf;
+}
+
+/*
+  Enable optimizer trace for the next command
+*/
+
+LEX_CSTRING enable_optimizer_trace_query=
+{
+  STRING_WITH_LEN("set @mysqltest_save_optimzer_trace=@@optimizer_trace,@@optimizer_trace=\"enabled=on\"")
+};
+
+LEX_CSTRING restore_optimizer_trace_query=
+{
+  STRING_WITH_LEN("set @@optimizer_trace=@mysqltest_save_optimzer_trace")
+};
+
+
+LEX_CSTRING display_optimizer_trace_query
+{
+  STRING_WITH_LEN("SELECT * from information_schema.optimizer_trace")
+};
+
+
+void enable_optimizer_trace(struct st_connection *con)
+{
+  MYSQL *mysql= con->mysql;
+  my_bool save_ps_protocol_enabled= ps_protocol_enabled;
+  my_bool save_view_protocol_enabled= view_protocol_enabled;
+  DYNAMIC_STRING ds_result;
+  DYNAMIC_STRING ds_warnings;
+  struct st_command command;
+  DBUG_ENTER("enable_optimizer_trace");
+
+  if (!mysql)
+    DBUG_VOID_RETURN;
+  ps_protocol_enabled= view_protocol_enabled= 0;
+
+  init_dynamic_string(&ds_result, NULL, 0, 256);
+  init_dynamic_string(&ds_warnings, NULL, 0, 256);
+  bzero(&command, sizeof(command));
+
+  run_query_normal(con, &command, QUERY_SEND_FLAG | QUERY_REAP_FLAG,
+                   enable_optimizer_trace_query.str,
+                   enable_optimizer_trace_query.length,
+                   &ds_result, &ds_warnings);
+  dynstr_free(&ds_result);
+  dynstr_free(&ds_warnings);
+  ps_protocol_enabled= save_ps_protocol_enabled;
+  view_protocol_enabled= save_view_protocol_enabled;
+  optimizer_trace_active= 1;
+  DBUG_VOID_RETURN;
+}
+
+
+void display_optimizer_trace(struct st_connection *con,
+                             DYNAMIC_STRING *ds)
+{
+  my_bool save_ps_protocol_enabled= ps_protocol_enabled;
+  my_bool save_view_protocol_enabled= view_protocol_enabled;
+  DYNAMIC_STRING ds_result;
+  DYNAMIC_STRING ds_warnings;
+  struct st_command command;
+  DBUG_ENTER("display_optimizer_trace");
+
+  if (!optimizer_trace_active)
+    DBUG_VOID_RETURN;
+
+  optimizer_trace_active= 0;
+  ps_protocol_enabled= view_protocol_enabled= 0;
+
+  init_dynamic_string(&ds_result, NULL, 0, 256);
+  init_dynamic_string(&ds_warnings, NULL, 0, 256);
+  bzero(&command, sizeof(command));
+
+  run_query_normal(con, &command, QUERY_SEND_FLAG | QUERY_REAP_FLAG,
+                   display_optimizer_trace_query.str,
+                   display_optimizer_trace_query.length,
+                   ds, &ds_warnings);
+  run_query_normal(con, &command, QUERY_SEND_FLAG | QUERY_REAP_FLAG,
+                   restore_optimizer_trace_query.str,
+                   restore_optimizer_trace_query.length,
+                   ds, &ds_warnings);
+  dynstr_free(&ds_result);
+  dynstr_free(&ds_warnings);
+  ps_protocol_enabled= save_ps_protocol_enabled;
+  view_protocol_enabled= save_view_protocol_enabled;
+  DBUG_VOID_RETURN;
 }

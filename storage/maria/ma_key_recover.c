@@ -767,7 +767,8 @@ uint _ma_apply_redo_index_new_page(MARIA_HA *info, LSN lsn,
                                &page_link.link)))
     {
       if (my_errno != HA_ERR_FILE_TOO_SHORT &&
-          my_errno != HA_ERR_WRONG_CRC)
+          my_errno != HA_ERR_WRONG_CRC &&
+          my_errno != HA_ERR_DECRYPTION_FAILED)
       {
         result= 1;
         goto err;

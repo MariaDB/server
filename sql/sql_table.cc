@@ -11903,8 +11903,14 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
           (!thd->is_current_stmt_binlog_format_row() ||
            !create_info.tmp_table()))
       {
-        WSREP_TO_ISOLATION_BEGIN_CREATE(create_table->db.str, create_table->table_name.str,
-                                        create_table, &create_info);
+#ifdef WITH_WSREP
+        WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str, create_table->table_name.str,
+				       first_table, &alter_info, NULL, &create_info)
+	{
+	  WSREP_WARN("CREATE TABLE isolation failure");
+	  DBUG_RETURN(true);
+	}
+#endif /* WITH_WSREP */
       }
       /* Regular CREATE TABLE */
       res= mysql_create_table(thd, create_table, &create_info, &alter_info);
@@ -11926,9 +11932,4 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 
 end_with_restore_list:
   DBUG_RETURN(res);
-
-#ifdef WITH_WSREP
-wsrep_error_label:
-  DBUG_RETURN(true);
-#endif
 }

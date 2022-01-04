@@ -2249,6 +2249,9 @@ Adjust encrypt tables
 @param[in]	val		New setting for innodb-encrypt-tables */
 void fil_crypt_set_encrypt_tables(ulong val)
 {
+  if (!fil_crypt_threads_inited)
+    return;
+
   mysql_mutex_lock(&fil_crypt_threads_mutex);
 
   mysql_mutex_lock(&fil_system.mutex);

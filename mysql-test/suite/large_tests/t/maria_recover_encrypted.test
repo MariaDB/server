@@ -1,0 +1,90 @@
+# MDEV-18187: If server crashes before flushing index pages in an
+# encrypted Aria table, it could permanently fail to repair the table
+
+--source include/have_maria.inc
+--source include/default_charset.inc
+
+# Cleanup
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP PROCEDURE IF EXISTS proc_insert_many;
+--enable_warnings
+
+# --------
+
+# Configure encryption
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--shutdown_server
+--source include/wait_until_disconnected.inc
+
+--write_file $MYSQLTEST_VARDIR/key.txt
+1;76025E3ADC78D74819927DB02AAA4C35
+EOF
+
+--exec echo "restart:--aria-encrypt-tables=1 --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/key.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+# Create table with many indexes so that its index size grows quickly
+# and it can be grown to needed size without too many inserts
+CREATE TABLE t1 (
+  field1 INTEGER NOT NULL,
+  field2 INTEGER NOT NULL,
+  field3 INTEGER NOT NULL,
+  KEY i_1   (field1),
+  KEY i_2   (field2),
+  KEY i_3   (field3),
+  KEY i_12  (field1, field2),
+  KEY i_13  (field1, field3),
+  KEY i_21  (field2, field1),
+  KEY i_23  (field2, field3),
+  KEY i_31  (field3, field1),
+  KEY i_32  (field3, field2),
+  KEY i_123 (field1, field2, field3),
+  KEY i_132 (field1, field3, field2),
+  KEY i_213 (field2, field1, field3),
+  KEY i_231 (field2, field3, field1),
+  KEY i_312 (field3, field1, field2),
+  KEY i_321 (field3, field2, field1)
+) ENGINE=Aria;
+
+# Create procedures to insert many rows.
+DELIMITER |;
+CREATE PROCEDURE proc_insert_many()
+BEGIN
+	DECLARE iRow INT DEFAULT 0;
+	insertRows: LOOP
+		IF (iRow = 70000) THEN
+			LEAVE insertRows;
+		END IF;
+
+		INSERT INTO t1 VALUES (1000000+iRow,2000000+iRow,3000000+iRow);
+		SET iRow = iRow + 1;
+	END LOOP insertRows;
+END|
+DELIMITER ;|
+
+# Call the procedure to insert rows.
+# Use 'LOCK TABLES' to make things a lot faster.
+# Note that his code doesn't reproduce for some reason:
+#   INSERT INTO t1 SELECT 1000000+seq,2000000+seq,3000000+seq FROM seq_1_to_70000;
+LOCK TABLES t1 WRITE;
+CALL proc_insert_many();
+UNLOCK TABLES;
+
+# Crash and restart the server while it's still flushing index
+--exec echo "restart:--aria-encrypt-tables=1 --plugin-load-add=file_key_management --file-key-management --file-key-management-filename=$MYSQLTEST_VARDIR/key.txt" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+SET debug_dbug="d,crash_shutdown";
+--error 2013
+shutdown;
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+# Access the table to trigger repair; validate repaired data
+SELECT * FROM t1 ORDER BY 1 DESC LIMIT 10;
+
+# --------
+
+# Cleanup
+DROP TABLE IF EXISTS t1;
+DROP PROCEDURE IF EXISTS proc_insert_many;

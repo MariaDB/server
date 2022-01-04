@@ -2,15 +2,10 @@
 # Check errors from mysqld--help when providing different datadir
 #
 
-# We can't run this test on windows as windows doesn't provide file locking
-# which the first exec requires.
-
---source include/not_windows.inc
-
 --let $args=--table-cache=5 --max-connections=10 --log-warnings=1 --silent-startup --lower-case-table-names=1 --help --verbose
 
 --exec $MYSQLD_CMD $args > $MYSQL_TMP_DIR/mysqld--help2.txt 2> $MYSQL_TMP_DIR/mysqld--help2.err
---replace_regex /mysqld/mariadbd/ /\d\d\d\d-\d*-\d* *\d*:\d*:\d* \d* // /control file '.*aria_log_control'/aria_log_control/ /error: \d+/error: #/
+--replace_regex /mysqld/mariadbd/ /\d\d\d\d-\d*-\d* *\d*:\d*:\d* \d* //
 --cat_file $MYSQL_TMP_DIR/mysqld--help2.err
 
 --echo #

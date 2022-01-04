@@ -4388,7 +4388,7 @@ int spider_db_mariadb_util::append_column_value(
   } else if (float_value)
   {
     if (str->reserve(SPIDER_SQL_CAST_LEN + ptr->length() +
-      SPIDER_SQL_AS_FLOAT_LEN, SPIDER_SQL_CLOSE_PAREN_LEN))
+                     SPIDER_SQL_AS_FLOAT_LEN + SPIDER_SQL_CLOSE_PAREN_LEN))
     {
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }

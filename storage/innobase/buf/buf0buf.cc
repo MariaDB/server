@@ -2841,12 +2841,7 @@ re_evict:
 
 		block->fix();
 		mysql_mutex_unlock(&buf_pool.mutex);
-		buf_flush_list();
-		buf_flush_wait_batch_end_acquiring_mutex(false);
-		while (buf_flush_list_space(space));
-		/* Wait for page write completion. */
-		block->page.lock.u_lock();
-		block->page.lock.u_unlock();
+		buf_flush_sync();
 
 		state = block->page.state();
 

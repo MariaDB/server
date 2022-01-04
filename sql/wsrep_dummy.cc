@@ -154,3 +154,7 @@ bool wsrep_thd_set_wsrep_aborter(THD*, THD*)
 void wsrep_report_bf_lock_wait(const THD*,
                                unsigned long long)
 {}
+
+void wsrep_thd_set_PA_unsafe(THD*)
+{}
+

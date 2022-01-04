@@ -13,13 +13,10 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#include "mariadb.h"
-#include "sql_priv.h"
-#include "sql_string.h"
+#include "my_global.h"
 #include "my_json_writer.h"
 
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
-#include <iostream>
 
 bool Json_writer::named_item_expected() const
 {

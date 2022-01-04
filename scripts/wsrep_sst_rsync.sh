@@ -17,7 +17,7 @@
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
 # MA  02110-1335  USA.
 
-# This is a reference script for rsync-based state snapshot tansfer
+# This is a reference script for rsync-based state snapshot transfer
 
 RSYNC_REAL_PID=0   # rsync process id
 STUNNEL_REAL_PID=0 # stunnel process id
@@ -41,7 +41,7 @@ cleanup_joiner()
         if cleanup_pid $STUNNEL_REAL_PID "$STUNNEL_PID" "$STUNNEL_CONF"; then
             if [ $RSYNC_REAL_PID -eq 0 ]; then
                 if [ -r "$RSYNC_PID" ]; then
-                    RSYNC_REAL_PID=$(cat "$RSYNC_PID" 2>/dev/null)
+                    RSYNC_REAL_PID=$(cat "$RSYNC_PID" 2>/dev/null || :)
                     if [ -z "$RSYNC_REAL_PID" ]; then
                         RSYNC_REAL_PID=0
                     fi
@@ -79,7 +79,7 @@ check_pid_and_port()
 
     local utils='rsync|stunnel'
 
-    if ! check_port "$pid" "$port" "$utils"; then
+    if ! check_port $pid "$port" "$utils"; then
         local port_info
         local busy=0
 
@@ -90,7 +90,7 @@ check_pid_and_port()
             grep -q -E "[[:space:]](\\*|\\[?::\\]?):$port[[:space:]]" && busy=1
         else
             local filter='([^[:space:]]+[[:space:]]+){4}[^[:space:]]+'
-            if [ $sockstat_available -eq 1 ]; then
+            if [ $sockstat_available -ne 0 ]; then
                 local opts='-p'
                 if [ "$OS" = 'FreeBSD' ]; then
                     # sockstat on FreeBSD requires the "-s" option
@@ -110,18 +110,20 @@ check_pid_and_port()
         fi
 
         if [ $busy -eq 0 ]; then
-            if echo "$port_info" | grep -qw -F "[$addr]:$port" || \
-               echo "$port_info" | grep -qw -F -- "$addr:$port"
+            if ! echo "$port_info" | grep -qw -F "[$addr]:$port" && \
+               ! echo "$port_info" | grep -qw -F -- "$addr:$port"
             then
-                busy=1
+                if ! ps -p $pid >/dev/null 2>&1; then
+                    wsrep_log_error \
+                        "rsync or stunnel daemon (PID: $pid)" \
+                        "terminated unexpectedly."
+                    exit 16 # EBUSY
+                fi
+                return 1
             fi
         fi
 
-        if [ $busy -eq 0 ]; then
-            return 1
-        fi
-
-        if ! check_port "$pid" "$port" "$utils"; then
+        if ! check_port $pid "$port" "$utils"; then
             wsrep_log_error "rsync or stunnel daemon port '$port'" \
                             "has been taken by another program"
             exit 16 # EBUSY
@@ -197,60 +199,16 @@ INNODB_UNDO_DIR=$(pwd -P)
 
 cd "$OLD_PWD"
 
-# Old filter - include everything except selected
-# FILTER=(--exclude '*.err' --exclude '*.pid' --exclude '*.sock' \
-#         --exclude '*.conf' --exclude core --exclude 'galera.*' \
-#         --exclude grastate.txt --exclude '*.pem' \
-#         --exclude '*.[0-9][0-9][0-9][0-9][0-9][0-9]' --exclude '*.index')
+encgroups='--mysqld|sst'
 
-# New filter - exclude everything except dirs (schemas) and innodb files
-FILTER="-f '- /lost+found'
-        -f '- /.zfs'
-        -f '- /.fseventsd'
-        -f '- /.Trashes'
-        -f '- /.pid'
-        -f '- /.conf'
-        -f '+ /wsrep_sst_binlog.tar'
-        -f '- $INNODB_DATA_HOME_DIR/ib_lru_dump'
-        -f '- $INNODB_DATA_HOME_DIR/ibdata*'
-        -f '+ $INNODB_UNDO_DIR/undo*'
-        -f '+ /*/'
-        -f '- /*'"
+check_server_ssl_config
 
-# old-style SSL config
-SSTKEY=$(parse_cnf 'sst' 'tkey')
-SSTCERT=$(parse_cnf 'sst' 'tcert')
-SSTCA=$(parse_cnf 'sst' 'tca')
-SSTCAP=$(parse_cnf 'sst' 'tcapath')
+SSTKEY="$tkey"
+SSTCERT="$tpem"
+SSTCA="$tcert"
+SSTCAP="$tcap"
 
-SST_SECTIONS="--mysqld|sst"
-
-check_server_ssl_config()
-{
-    SSTKEY=$(parse_cnf "$SST_SECTIONS" 'ssl-key')
-    SSTCERT=$(parse_cnf "$SST_SECTIONS" 'ssl-cert')
-    SSTCA=$(parse_cnf "$SST_SECTIONS" 'ssl-ca')
-    SSTCAP=$(parse_cnf "$SST_SECTIONS" 'ssl-capath')
-}
-
-SSLMODE=$(parse_cnf "$SST_SECTIONS" 'ssl-mode' | tr [:lower:] [:upper:])
-
-# no old-style SSL config in [sst], check for new one:
-if [ -z "$SSTKEY" -a -z "$SSTCERT" -a -z "$SSTCA" -a -z "$SSTCAP" ]; then
-    check_server_ssl_config
-fi
-
-if [ -n "$SSTCA" ]; then
-    SSTCA=$(trim_string "$SSTCA")
-    if [ "${SSTCA%/}" != "$SSTCA" ] || [ -d "$SSTCA" ]; then
-        SSTCAP="$SSTCA"
-        SSTCA=""
-    fi
-fi
-
-if [ -n "$SSTCAP" ]; then
-    SSTCAP=$(trim_string "$SSTCAP")
-fi
+SSLMODE=$(parse_cnf "$encgroups" 'ssl-mode' | tr [:lower:] [:upper:])
 
 if [ -z "$SSLMODE" ]; then
     # Implicit verification if CA is set and the SSL mode
@@ -266,7 +224,7 @@ if [ -z "$SSLMODE" ]; then
     fi
 fi
 
-if [ -n "$SSTCERT" -a -n "$SSTKEY" ]; then
+if [ -n "$SSTKEY" -a -n "$SSTCERT" ]; then
     verify_cert_matches_key "$SSTCERT" "$SSTKEY"
 fi
 
@@ -287,8 +245,7 @@ fi
 VERIFY_OPT=""
 CHECK_OPT=""
 CHECK_OPT_LOCAL=""
-if [ "${SSLMODE#VERIFY}" != "$SSLMODE" ]
-then
+if [ "${SSLMODE#VERIFY}" != "$SSLMODE" ]; then
     case "$SSLMODE" in
     'VERIFY_IDENTITY')
         VERIFY_OPT='verifyPeer = yes'
@@ -364,8 +321,9 @@ EOF
         [ -f "$STUNNEL_CONF" ] && rm -f "$STUNNEL_CONF"
     fi
 
-    if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
-    then
+    RC=0
+
+    if [ $WSREP_SST_OPT_BYPASS -eq 0 ]; then
 
         FLUSHED="$WSREP_SST_OPT_DATA/tables_flushed"
         ERROR="$WSREP_SST_OPT_DATA/sst_error"
@@ -380,11 +338,11 @@ EOF
         # (b) Cluster state ID & wsrep_gtid_domain_id to be written to the file, OR
         # (c) ERROR file, in case flush tables operation failed.
 
-        while [ ! -r "$FLUSHED" ] && ! grep -q -F ':' "$FLUSHED" >/dev/null 2>&1
+        while [ ! -r "$FLUSHED" ] && \
+                ! grep -q -F ':' '--' "$FLUSHED" >/dev/null 2>&1
         do
             # Check whether ERROR file exists.
-            if [ -f "$ERROR" ]
-            then
+            if [ -f "$ERROR" ]; then
                 # Flush tables operation failed.
                 rm -f "$ERROR"
                 exit 255
@@ -397,7 +355,7 @@ EOF
 
         sync
 
-        if [ -n "$WSREP_SST_OPT_BINLOG" ]
+        if [ -n "$WSREP_SST_OPT_BINLOG" -a -d "${BINLOG_DIRNAME:-}" ]
         then
             # Prepare binlog files
             cd "$BINLOG_DIRNAME"
@@ -405,16 +363,14 @@ EOF
             binlog_files_full=$(tail -n $BINLOG_N_FILES \
                                 "$WSREP_SST_OPT_BINLOG_INDEX")
             binlog_files=""
-            for ii in $binlog_files_full
-            do
-                binlog_file=$(basename "$ii")
-                binlog_files="$binlog_files $binlog_file"
+            for file in $binlog_files_full; do
+                binlog_file=$(basename "$file")
+                binlog_files="$binlog_files${binlog_files:+ }'$binlog_file'"
             done
 
-            if [ -n "$binlog_files" ]
-            then
+            if [ -n "$binlog_files" ]; then
                 wsrep_log_info "Preparing binlog files for transfer:"
-                tar -cvf "$BINLOG_TAR_FILE" $binlog_files >&2
+                eval tar -cvf "'$BINLOG_TAR_FILE'" $binlog_files >&2
             fi
 
             cd "$OLD_PWD"
@@ -427,9 +383,28 @@ EOF
             WHOLE_FILE_OPT="--whole-file"
         fi
 
+# Old filter - include everything except selected
+# FILTER=(--exclude '*.err' --exclude '*.pid' --exclude '*.sock' \
+#         --exclude '*.conf' --exclude core --exclude 'galera.*' \
+#         --exclude grastate.txt --exclude '*.pem' \
+#         --exclude '*.[0-9][0-9][0-9][0-9][0-9][0-9]' --exclude '*.index')
+
+# New filter - exclude everything except dirs (schemas) and innodb files
+FILTER="-f '- /lost+found'
+        -f '- /.zfs'
+        -f '- /.fseventsd'
+        -f '- /.Trashes'
+        -f '- /.pid'
+        -f '- /.conf'
+        -f '+ /wsrep_sst_binlog.tar'
+        -f '- $INNODB_DATA_HOME_DIR/ib_lru_dump'
+        -f '- $INNODB_DATA_HOME_DIR/ibdata*'
+        -f '+ $INNODB_UNDO_DIR/undo*'
+        -f '+ /*/'
+        -f '- /*'"
+
         # first, the normal directories, so that we can detect
         # incompatible protocol:
-        RC=0
         eval rsync ${STUNNEL:+"--rsh='$STUNNEL'"} \
               --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
@@ -484,7 +459,7 @@ EOF
 
         cd "$WSREP_SST_OPT_DATA"
 
-        backup_threads=$(parse_cnf "--mysqld|sst" 'backup-threads')
+        backup_threads=$(parse_cnf '--mysqld|sst' 'backup-threads')
         if [ -z "$backup_threads" ]; then
             get_proc
             backup_threads=$nproc
@@ -527,7 +502,12 @@ EOF
 
     rsync ${STUNNEL:+--rsh="$STUNNEL"} \
           --archive --quiet --checksum "$MAGIC_FILE" \
-          "rsync://$WSREP_SST_OPT_ADDR"
+          "rsync://$WSREP_SST_OPT_ADDR" >&2 || RC=$?
+
+    if [ $RC -ne 0 ]; then
+        wsrep_log_error "rsync $MAGIC_FILE returned code $RC:"
+        exit 255 # unknown error
+    fi
 
     echo "done $STATE"
 
@@ -540,12 +520,11 @@ elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]
 then
     check_sockets_utils
 
-    SST_PID="$WSREP_SST_OPT_DATA/wsrep_rsync_sst.pid"
+    SST_PID="$WSREP_SST_OPT_DATA/wsrep_sst.pid"
 
     # give some time for previous SST to complete:
     check_round=0
-    while check_pid "$SST_PID" 0
-    do
+    while check_pid "$SST_PID" 0 'wsrep_sst_'; do
         wsrep_log_info "previous SST is not completed, waiting for it to exit"
         check_round=$(( check_round + 1 ))
         if [ $check_round -eq 10 ]; then
@@ -555,10 +534,11 @@ then
         sleep 1
     done
 
+    echo $$ > "$SST_PID"
+
     # give some time for stunnel from the previous SST to complete:
     check_round=0
-    while check_pid "$STUNNEL_PID" 1
-    do
+    while check_pid "$STUNNEL_PID" 1; do
         wsrep_log_info "Lingering stunnel daemon found at startup," \
                        "waiting for it to exit"
         check_round=$(( check_round + 1 ))
@@ -575,8 +555,7 @@ then
 
     # give some time for rsync from the previous SST to complete:
     check_round=0
-    while check_pid "$RSYNC_PID" 1
-    do
+    while check_pid "$RSYNC_PID" 1; do
         wsrep_log_info "Lingering rsync daemon found at startup," \
                        "waiting for it to exit"
         check_round=$(( check_round + 1 ))
@@ -590,7 +569,7 @@ then
     [ -f "$MAGIC_FILE"      ] && rm -f "$MAGIC_FILE"
     [ -f "$BINLOG_TAR_FILE" ] && rm -f "$BINLOG_TAR_FILE"
 
-    [ -z "$STUNNEL" ] && [ -f "$STUNNEL_CONF" ] && rm -f "$STUNNEL_CONF"
+    [ -z "$STUNNEL" -a -f "$STUNNEL_CONF" ] && rm -f "$STUNNEL_CONF"
 
     ADDR="$WSREP_SST_OPT_ADDR"
     RSYNC_PORT="$WSREP_SST_OPT_PORT"
@@ -636,8 +615,6 @@ EOF
         # Overwrite address with all:
         RSYNC_ADDR="*"
     fi
-
-    echo $$ > "$SST_PID"
 
     if [ -z "$STUNNEL" ]; then
         rsync --daemon --no-detach --port "$RSYNC_PORT" \
