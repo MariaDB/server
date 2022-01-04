@@ -9869,12 +9869,20 @@ wsrep_append_foreign_key(
 	dict_foreign_t*	foreign,	/*!< in: foreign key constraint */
 	const rec_t*	rec,		/*!<in: clustered index record */
 	dict_index_t*	index,		/*!<in: clustered index */
-	ibool		referenced,	/*!<in: is check for referenced table */
+	bool		referenced,	/*!<in: is check for
+					referenced table */
+	upd_node_t*	upd_node,	/*<!in: update node */
+	bool		pa_disable,	/*<!in: disable parallel apply ?*/
 	Wsrep_service_key_type	key_type)	/*!< in: access type of this key
 					(shared, exclusive, reference...) */
 {
-	if (!trx->is_wsrep() || !wsrep_thd_is_local(trx->mysql_thd)) {
+	ut_ad(trx->is_wsrep());
+
+	if (!wsrep_thd_is_local(trx->mysql_thd))
 		return DB_SUCCESS;
+
+	if (upd_node && wsrep_protocol_version < 4) {
+		key_type = WSREP_SERVICE_KEY_SHARED;
 	}
 
 	THD* thd = trx->mysql_thd;
@@ -9940,8 +9948,7 @@ wsrep_append_foreign_key(
 		WSREP_WARN("FK: %s missing in query: %s",
 			   (!foreign->referenced_table) ?
 			   "referenced table" : "foreign table",
-			   (wsrep_thd_query(thd)) ?
-			   wsrep_thd_query(thd) : "void");
+			   wsrep_thd_query(thd));
 		return DB_ERROR;
 	}
 
@@ -10019,18 +10026,22 @@ wsrep_append_foreign_key(
 		wkey_part,
 		(size_t*)&wkey.key_parts_num)) {
 		WSREP_WARN("key prepare failed for cascaded FK: %s",
-			   (wsrep_thd_query(thd)) ?
-			    wsrep_thd_query(thd) : "void");
+			   wsrep_thd_query(thd));
 		return DB_ERROR;
 	}
+
 	rcode = wsrep_thd_append_key(thd, &wkey, 1, key_type);
+
 	if (rcode) {
-		DBUG_PRINT("wsrep", ("row key failed: " ULINTPF, rcode));
 		WSREP_ERROR("Appending cascaded fk row key failed: %s, "
 			    ULINTPF,
-			    (wsrep_thd_query(thd)) ?
-			    wsrep_thd_query(thd) : "void", rcode);
+			    wsrep_thd_query(thd),
+			    rcode);
 		return DB_ERROR;
+	}
+
+	if (pa_disable) {
+		wsrep_thd_set_PA_unsafe(trx->mysql_thd);
 	}
 
 	return DB_SUCCESS;

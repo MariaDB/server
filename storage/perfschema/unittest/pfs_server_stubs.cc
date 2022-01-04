@@ -51,7 +51,7 @@ void sql_print_warning(const char *format, ...)
 }
 
 class sys_var { public: enum where { AUTO }; };
-void set_sys_var_value_origin(void *ptr, enum sys_var::where here)
+void set_sys_var_value_origin(void *, enum sys_var::where, const char *)
 {
 }
 

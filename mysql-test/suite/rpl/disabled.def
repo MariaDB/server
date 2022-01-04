@@ -10,7 +10,6 @@
 #
 ##############################################################################
 
-#rpl_get_master_version_and_clock : Bug#11766137 Jan 05 2011 joro Valgrind warnings 
 rpl_partition_archive     : MDEV-5077 2013-09-27 svoj Cannot exchange partition with archive table
 rpl_row_binlog_max_cache_size : MDEV-11092
 rpl_row_index_choice      : MDEV-11666
@@ -18,4 +17,3 @@ rpl_semi_sync_after_sync  : fails after MDEV-16172
 rpl_semi_sync_slave_compressed_protocol : MDEV-25580 2021-05-05 Sujatha
 rpl_auto_increment_update_failure  : disabled for now
 rpl_current_user          : waits for MDEV-22374 fix
-rpl_parallel2             : waits for MDEV-23089

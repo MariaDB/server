@@ -2,9 +2,6 @@
 # MDEV-25334 FTWRL/Backup blocks DDL on temporary tables with binlog
 #            enabled assertion fails in Diagnostics_area::set_error_status
 #
-select @@binlog_format;
-@@binlog_format
-MIXED
 connect  con1,localhost,root,,;
 connection default;
 #

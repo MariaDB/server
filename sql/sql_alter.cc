@@ -502,7 +502,11 @@ bool Sql_cmd_alter_table::execute(THD *thd)
                                    lex->name.str ? lex->name.str
                                    : first_table->table_name.str,
                                    first_table, &alter_info, &keys,
-                                   used_engine ? &create_info : nullptr);
+                                   used_engine ? &create_info : nullptr)
+    {
+      WSREP_WARN("ALTER TABLE isolation failure");
+      DBUG_RETURN(TRUE);
+    }
 
     thd->variables.auto_increment_offset = 1;
     thd->variables.auto_increment_increment = 1;
@@ -544,11 +548,6 @@ bool Sql_cmd_alter_table::execute(THD *thd)
                             lex->ignore, lex->if_exists());
 
   DBUG_RETURN(result);
-#ifdef WITH_WSREP
-wsrep_error_label:
-  WSREP_WARN("ALTER TABLE isolation failure");
-  DBUG_RETURN(TRUE);
-#endif
 }
 
 bool Sql_cmd_discard_import_tablespace::execute(THD *thd)

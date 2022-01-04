@@ -122,6 +122,8 @@ show tables;
 --error ER_CANT_CREATE_TABLE
 create temporary table t1 (keyc int, c1 char(100), c2 char(100)) engine = innodb;
 
+SET GLOBAL innodb_encrypt_tables=DEFAULT;
+
 --echo # test various bad start-up parameters
 
 let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;

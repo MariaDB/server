@@ -1141,6 +1141,15 @@ explain partitions select * from t1;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	pn	#	NULL	NULL	NULL	NULL	#	#
 drop table t1;
+#
+# MDEV-27244 Table corruption upon adding serial data type
+#
+create table t1 (f int, key(f)) with system versioning
+partition by system_time limit 10 (partition p0 history, partition pn current);
+alter table t1 add x serial;
+alter table t1 add partition (partition p1 history);
+alter table t1 add partition (partition p2 history);
+drop table t1;
 # End of 10.3 tests
 #
 # MDEV-22283 Server crashes in key_copy or unexpected error 156: The table already existed in the storage engine

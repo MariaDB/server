@@ -4,3 +4,4 @@ perl;
         grep /my_favorite_version/, `$ENV{MYSQL} -e status`;
   print "$cnt\n";
 EOF
+query_vertical select * from information_schema.system_variables where variable_name='version';

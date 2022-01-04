@@ -3811,8 +3811,7 @@ static void os_aio_wait_until_no_pending_writes_low()
      tpool::tpool_wait_end();
 }
 
-/** Wait until there are no pending asynchronous writes.
-Only used on FLUSH TABLES...FOR EXPORT. */
+/** Wait until there are no pending asynchronous writes. */
 void os_aio_wait_until_no_pending_writes()
 {
   os_aio_wait_until_no_pending_writes_low();
