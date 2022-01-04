@@ -48,3 +48,12 @@ DROP TABLE schema2.real_table3;
 
 DROP SCHEMA schema1;
 DROP SCHEMA schema2;
+
+#
+# MDEV-25856: SIGSEGV in ha_myisammrg::append_create_info
+#
+use test;
+CREATE TEMPORARY TABLE t (c INT) ENGINE=mrg_myisam UNION=(t,t2) insert_method=FIRST;
+--error 1472
+CREATE TABLE t2 LIKE t;
+DROP TABLE t;

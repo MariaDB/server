@@ -47,3 +47,8 @@ DROP TABLE schema2.real_table2;
 DROP TABLE schema2.real_table3;
 DROP SCHEMA schema1;
 DROP SCHEMA schema2;
+use test;
+CREATE TEMPORARY TABLE t (c INT) ENGINE=mrg_myisam UNION=(t,t2) insert_method=FIRST;
+CREATE TABLE t2 LIKE t;
+ERROR HY000: Table 't' is differently defined or of non-MyISAM type or doesn't exist
+DROP TABLE t;
