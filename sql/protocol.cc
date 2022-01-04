@@ -33,11 +33,6 @@
 
 static const unsigned int PACKET_BUFFER_EXTRA_ALLOC= 1024;
 /* Declared non-static only because of the embedded library. */
-bool net_send_error_packet(THD *, uint, const char *, const char *);
-/* Declared non-static only because of the embedded library. */
-bool net_send_ok(THD *, uint, uint, ulonglong, ulonglong, const char *,
-                 bool, bool);
-/* Declared non-static only because of the embedded library. */
 bool net_send_eof(THD *thd, uint server_status, uint statement_warn_count);
 #ifndef EMBEDDED_LIBRARY
 static bool write_eof_packet(THD *, NET *, uint, uint);
@@ -147,7 +142,7 @@ bool Protocol_binary::net_store_data_cs(const uchar *from, size_t length,
     @retval TRUE An error occurred and the message wasn't sent properly
 */
 
-bool net_send_error(THD *thd, uint sql_errno, const char *err,
+bool Protocol::net_send_error(THD *thd, uint sql_errno, const char *err,
                     const char* sqlstate)
 {
   bool error;
@@ -209,7 +204,7 @@ bool net_send_error(THD *thd, uint sql_errno, const char *err,
 
 #ifndef EMBEDDED_LIBRARY
 bool
-net_send_ok(THD *thd,
+Protocol::net_send_ok(THD *thd,
             uint server_status, uint statement_warn_count,
             ulonglong affected_rows, ulonglong id, const char *message,
             bool is_eof,
@@ -321,7 +316,7 @@ static uchar eof_buff[1]= { (uchar) 254 };      /* Marker for end of fields */
 */    
 
 bool
-net_send_eof(THD *thd, uint server_status, uint statement_warn_count)
+Protocol::net_send_eof(THD *thd, uint server_status, uint statement_warn_count)
 {
   NET *net= &thd->net;
   bool error= FALSE;
@@ -412,7 +407,7 @@ static bool write_eof_packet(THD *thd, NET *net,
    @retval TRUE  An error occurred and the messages wasn't sent properly
 */
 
-bool net_send_error_packet(THD *thd, uint sql_errno, const char *err,
+bool Protocol::net_send_error_packet(THD *thd, uint sql_errno, const char *err,
                            const char* sqlstate)
 
 {

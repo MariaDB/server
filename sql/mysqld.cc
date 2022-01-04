@@ -1508,6 +1508,16 @@ static void end_ssl();
 
 
 #ifndef EMBEDDED_LIBRARY
+extern Atomic_counter<uint32_t> local_connection_thread_count;
+
+uint THD_count::connection_thd_count()
+{
+  return value() -
+    binlog_dump_thread_count -
+    local_connection_thread_count;
+}
+
+
 /****************************************************************************
 ** Code to end mysqld
 ****************************************************************************/
@@ -1752,7 +1762,7 @@ static void close_connections(void)
   */
   DBUG_PRINT("info", ("THD_count: %u", THD_count::value()));
 
-  for (int i= 0; (THD_count::value() - binlog_dump_thread_count) && i < 1000; i++)
+  for (int i= 0; (THD_count::connection_thd_count()) && i < 1000; i++)
     my_sleep(20000);
 
   if (global_system_variables.log_warnings)
@@ -1767,12 +1777,12 @@ static void close_connections(void)
   /* All threads has now been aborted */
   DBUG_PRINT("quit", ("Waiting for threads to die (count=%u)", THD_count::value()));
 
-  while (THD_count::value() - binlog_dump_thread_count)
+  while (THD_count::connection_thd_count())
     my_sleep(1000);
 
   /* Kill phase 2 */
   server_threads.iterate(kill_thread_phase_2);
-  for (uint64 i= 0; THD_count::value(); i++)
+  for (uint64 i= 0; THD_count::connection_thd_count(); i++)
   {
     /*
       This time the warnings are emitted within the loop to provide a
@@ -2535,7 +2545,7 @@ void close_connection(THD *thd, uint sql_errno)
 
   if (sql_errno)
   {
-    net_send_error(thd, sql_errno, ER_DEFAULT(sql_errno), NULL);
+    thd->protocol->net_send_error(thd, sql_errno, ER_DEFAULT(sql_errno), NULL);
     thd->print_aborted_warning(lvl, ER_DEFAULT(sql_errno));
   }
   else
@@ -5181,6 +5191,7 @@ static int init_server_components()
 
   init_global_table_stats();
   init_global_index_stats();
+  init_update_queries();
 
   /* Allow storage engine to give real error messages */
   if (unlikely(ha_init_errors()))
@@ -5424,7 +5435,6 @@ static int init_server_components()
   ft_init_stopwords();
 
   init_max_user_conn();
-  init_update_queries();
   init_global_user_stats();
   init_global_client_stats();
   if (!opt_bootstrap)

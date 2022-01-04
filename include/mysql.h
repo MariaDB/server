@@ -329,7 +329,7 @@ typedef struct st_mysql_res {
 } MYSQL_RES;
 
 
-#if !defined(MYSQL_SERVER) && !defined(MYSQL_CLIENT)
+#if !defined(MYSQL_SERVICE_SQL) && !defined(MYSQL_CLIENT)
 #define MYSQL_CLIENT
 #endif
 
@@ -361,7 +361,7 @@ typedef struct st_mysql_parameters
 */
 #define MYSQL_WAIT_TIMEOUT 8
 
-#if !defined(MYSQL_SERVER) && !defined(EMBEDDED_LIBRARY)
+#if !defined(MYSQL_SERVICE_SQL)
 #define max_allowed_packet (*mysql_get_parameters()->p_max_allowed_packet)
 #define net_buffer_length (*mysql_get_parameters()->p_net_buffer_length)
 #endif
