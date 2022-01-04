@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB
+   Copyright (c) 2010, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11804,21 +11804,28 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
         tables, like mysql replication does. Also check if the requested
         engine is allowed/supported.
       */
-      if (WSREP(thd) &&
-          !check_engine(thd, create_table->db.str, create_table->table_name.str,
-                        &create_info) &&
-          (!thd->is_current_stmt_binlog_format_row() ||
-           !create_info.tmp_table()))
-      {
 #ifdef WITH_WSREP
-        WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str, create_table->table_name.str,
-				       first_table, &alter_info, NULL, &create_info)
-	{
-	  WSREP_WARN("CREATE TABLE isolation failure");
-	  DBUG_RETURN(true);
-	}
-#endif /* WITH_WSREP */
+      if (WSREP(thd))
+      {
+        handlerton *orig_ht= create_info.db_type;
+        if (!check_engine(thd, create_table->db.str, create_table->table_name.str,
+                          &create_info) &&
+            (!thd->is_current_stmt_binlog_format_row() ||
+             !create_info.tmp_table()))
+        {
+          WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str, create_table->table_name.str,
+				         first_table, &alter_info, NULL, &create_info)
+	  {
+	    WSREP_WARN("CREATE TABLE isolation failure");
+	    DBUG_RETURN(true);
+	  }
+        }
+        // check_engine will set db_type to  NULL if e.g. TEMPORARY is
+        // not supported by the storage engine, this case is checked
+        // again in mysql_create_table
+        create_info.db_type= orig_ht;
       }
+#endif /* WITH_WSREP */
       /* Regular CREATE TABLE */
       res= mysql_create_table(thd, create_table, &create_info, &alter_info);
     }
