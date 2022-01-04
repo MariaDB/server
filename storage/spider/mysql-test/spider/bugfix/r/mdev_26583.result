@@ -1,0 +1,34 @@
+#
+# MDEV-26583 SIGSEGV's in spider_get_select_limit_from_select_lex when DELAYED INSERT is used
+#
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection child2_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+CREATE TABLE tbl_a (
+a INT AUTO_INCREMENT KEY,
+b INT,INDEX i (b)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+CREATE TABLE tbl_a (
+a INT AUTO_INCREMENT KEY,
+b INT,INDEX i (b)
+) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='srv "s_2_1", table "tbl_a"';
+INSERT DELAYED INTO tbl_a VALUES (0,0),(0,0),(0,0);
+connection master_1;
+DROP DATABASE auto_test_local;
+connection child2_1;
+DROP DATABASE auto_test_remote;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3

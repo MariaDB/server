@@ -2424,6 +2424,11 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
       di->table_list.alias.length= di->table_list.table_name.length= di->thd.query_length();
       di->table_list.db= di->thd.db;
       /*
+        Nulify select_lex because, if the thread that spawned the current one
+        disconnects, the select_lex will point to freed memory.
+      */
+      di->table_list.select_lex= NULL;
+      /*
         We need the tickets so that they can be cloned in
         handle_delayed_insert
       */
