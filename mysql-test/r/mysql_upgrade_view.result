@@ -205,7 +205,7 @@ v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VI
 show create view v4;
 View	Create View	character_set_client	collation_connection
 v4	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS select `t1`.`a` AS `a` from `t1`	latin1	latin1_swedish_ci
-MySQL upgrade detected
+MariaDB upgrade detected
 Phase 1/7: Checking and upgrading mysql database
 Processing databases
 mysql
@@ -324,7 +324,7 @@ drop view v1,v2,v3,v4;
 rename table mysql.event to mysql.ev_bk;
 flush tables;
 The --upgrade-system-tables option was used, user tables won't be touched.
-MySQL upgrade detected
+MariaDB upgrade detected
 Phase 1/7: Checking and upgrading mysql database
 Processing databases
 mysql

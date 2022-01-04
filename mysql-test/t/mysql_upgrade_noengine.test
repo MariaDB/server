@@ -26,7 +26,8 @@ uninstall plugin blackhole;
 uninstall plugin archive;
 select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test';
 
-# upgrade from 10.1 - engines aren't enabled
+--echo # upgrade from 10.1 - engines aren't enabled
+--replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB /
 exec $MYSQL_UPGRADE 2>&1;
 select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test';
 
@@ -39,14 +40,16 @@ write_file $datadir/mysql_upgrade_info;
 10.1.10-MariaDB
 EOF
 
-# still upgrade from 10.1
+--echo # still upgrade from 10.1
+--replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB /
 exec $MYSQL_UPGRADE 2>&1;
 select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test';
 
 alter table mysql.user drop column default_role, drop column max_statement_time;
 remove_file $datadir/mysql_upgrade_info;
 
-# upgrade from 10.0 - engines are enabled
+--echo # upgrade from 10.0 - engines are enabled
+--replace_regex /\d\d\.\d*\.\d*[^ .\n]*/MariaDB /
 exec $MYSQL_UPGRADE 2>&1;
 select table_catalog, table_schema, table_name, table_type, engine, row_format, table_rows, data_length, table_comment from information_schema.tables where table_schema='test';
 

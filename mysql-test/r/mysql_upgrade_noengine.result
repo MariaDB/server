@@ -50,6 +50,7 @@ Message	Unknown storage engine 'BLACKHOLE'
 Level	Warning
 Code	1286
 Message	Unknown storage engine 'ARCHIVE'
+# upgrade from 10.1 - engines aren't enabled
 Phase 1/7: Checking and upgrading mysql database
 Processing databases
 mysql
@@ -136,6 +137,8 @@ Level	Warning
 Code	1286
 Message	Unknown storage engine 'ARCHIVE'
 alter table mysql.user drop column default_role, drop column max_statement_time;
+# still upgrade from 10.1
+Major version upgrade detected from MariaDB  to MariaDB . Check required!
 Phase 1/7: Checking and upgrading mysql database
 Processing databases
 mysql
@@ -222,6 +225,7 @@ Level	Warning
 Code	1286
 Message	Unknown storage engine 'ARCHIVE'
 alter table mysql.user drop column default_role, drop column max_statement_time;
+# upgrade from 10.0 - engines are enabled
 Phase 1/7: Checking and upgrading mysql database
 Processing databases
 mysql
