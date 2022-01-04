@@ -1976,7 +1976,8 @@ struct recv_buf
   const byte *ptr;
 
   constexpr recv_buf(const byte *ptr) : ptr(ptr) {}
-  constexpr bool operator==(const recv_buf other) { return ptr == other.ptr; }
+  constexpr bool operator==(const recv_buf other) const
+  { return ptr == other.ptr; }
 
   static const byte *end() { return &log_sys.buf[recv_sys.len]; }
 
