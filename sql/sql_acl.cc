@@ -2135,6 +2135,12 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
     goto end;
   }
 
+  if (thd->lex->sql_command == SQLCOM_SET_OPTION && !info->hash_password)
+  {
+    res= ER_SET_PASSWORD_AUTH_PLUGIN;
+    goto end;
+  }
+
   if (info->hash_password &&
       validate_password(thd, user, pwtext, auth->auth_string.length))
   {

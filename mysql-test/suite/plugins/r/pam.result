@@ -91,4 +91,21 @@ select user(), current_user(), database();
 user()	current_user()	database()
 PAM_TEST@localhost	PAM_TEST@%	test
 drop user PAM_TEST;
+#
+# MDEV-27341 Use SET PASSWORD to change PAM service
+#
+create user pam_test identified via pam using 'mariadb_mtr';
+Challenge input first.
+Enter: *************************
+Now, the magic number!
+PIN: 9225
+select user(), current_user(), database();
+user()	current_user()	database()
+pam_test@localhost	pam_test@%	test
+set password='foo';
+ERROR HY000: SET PASSWORD is ignored for users authenticating via pam plugin
+show create user;
+CREATE USER for pam_test@%
+CREATE USER `pam_test`@`%` IDENTIFIED VIA pam USING 'mariadb_mtr'
+drop user pam_test;
 uninstall plugin pam;
