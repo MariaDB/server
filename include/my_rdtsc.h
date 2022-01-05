@@ -110,6 +110,9 @@ C_MODE_START
 
   ARM notes
   ---------
+  Userspace high precision timing on CNTVCT_EL0 requires that CNTKCTL_EL1
+  is set to 1 for each CPU in privileged mode.
+
   During tests on ARMv7 Debian, perf_even_open() based cycle counter provided
   too low frequency with too high overhead:
   MariaDB [performance_schema]> SELECT * FROM performance_timers;
