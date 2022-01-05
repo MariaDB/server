@@ -4377,6 +4377,7 @@ longlong Item_func_uncompressed_length::val_int()
 longlong Item_func_crc32::val_int()
 {
   DBUG_ASSERT(fixed());
+  DBUG_ASSERT(arg_count == 1 || arg_count == 2);
   String *res=args[0]->val_str(&value);
   if (!res)
   {
@@ -4384,7 +4385,17 @@ longlong Item_func_crc32::val_int()
     return 0; /* purecov: inspected */
   }
   null_value=0;
-  return (longlong) my_checksum(0L, (uchar*)res->ptr(), res->length());
+  longlong crc= 0;
+  if (arg_count > 1)
+  {
+    crc= args[1]->val_int();
+    null_value= args[1]->null_value;
+    if (null_value)
+      return 0;
+  }
+
+  return static_cast<longlong>
+    (ulonglong{crc_func(uint32_t(crc), res->ptr(), res->length())});
 }
 
 #ifdef HAVE_COMPRESS

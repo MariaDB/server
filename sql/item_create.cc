@@ -512,16 +512,29 @@ protected:
 };
 
 
-class Create_func_crc32 : public Create_func_arg1
+class Create_func_crc32 : public Create_native_func
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
+  Item *create_native(THD *thd, LEX_CSTRING *, List<Item> *item_list) override;
 
   static Create_func_crc32 s_singleton;
 
 protected:
   Create_func_crc32() {}
   virtual ~Create_func_crc32() {}
+};
+
+
+class Create_func_crc32c : public Create_native_func
+{
+public:
+  Item *create_native(THD *thd, LEX_CSTRING *, List<Item> *item_list) override;
+
+  static Create_func_crc32c s_singleton;
+
+protected:
+  Create_func_crc32c() {}
+  virtual ~Create_func_crc32c() {}
 };
 
 
@@ -3118,10 +3131,60 @@ Create_func_cot::create_1_arg(THD *thd, Item *arg1)
 Create_func_crc32 Create_func_crc32::s_singleton;
 
 Item*
-Create_func_crc32::create_1_arg(THD *thd, Item *arg1)
+Create_func_crc32::create_native(THD *thd, LEX_CSTRING *name,
+                                 List<Item> *item_list)
 {
-  return new (thd->mem_root) Item_func_crc32(thd, arg1);
+  int argc= item_list ? item_list->elements : 0;
+
+  if (unlikely(argc != 1 && argc != 2))
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    return nullptr;
+  }
+
+  Item *arg1= item_list->pop(), *arg2= argc < 2 ? nullptr : item_list->pop();
+
+  if (unlikely(arg1->is_explicit_name() ||
+               (arg2 && arg2->is_explicit_name())))
+  {
+    my_error(ER_WRONG_PARAMETERS_TO_NATIVE_FCT, MYF(0), name->str);
+    return nullptr;
+  }
+
+  return arg2
+    ? new (thd->mem_root) Item_func_crc32(thd, false, arg2, arg1)
+    : new (thd->mem_root) Item_func_crc32(thd, false, arg1);
 }
+
+
+Create_func_crc32c Create_func_crc32c::s_singleton;
+
+Item*
+Create_func_crc32c::create_native(THD *thd, LEX_CSTRING *name,
+                                  List<Item> *item_list)
+{
+  int argc= item_list ? item_list->elements : 0;
+
+  if (unlikely(argc != 1 && argc != 2))
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    return nullptr;
+  }
+
+  Item *arg1= item_list->pop(), *arg2= argc < 2 ? nullptr : item_list->pop();
+
+  if (unlikely(arg1->is_explicit_name() ||
+               (arg2 && arg2->is_explicit_name())))
+  {
+    my_error(ER_WRONG_PARAMETERS_TO_NATIVE_FCT, MYF(0), name->str);
+    return nullptr;
+  }
+
+  return arg2
+    ? new (thd->mem_root) Item_func_crc32(thd, true, arg2, arg1)
+    : new (thd->mem_root) Item_func_crc32(thd, true, arg1);
+}
+
 
 Create_func_datediff Create_func_datediff::s_singleton;
 
@@ -5555,6 +5618,7 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("COS") }, BUILDER(Create_func_cos)},
   { { STRING_WITH_LEN("COT") }, BUILDER(Create_func_cot)},
   { { STRING_WITH_LEN("CRC32") }, BUILDER(Create_func_crc32)},
+  { { STRING_WITH_LEN("CRC32C") }, BUILDER(Create_func_crc32c)},
   { { STRING_WITH_LEN("DATEDIFF") }, BUILDER(Create_func_datediff)},
   { { STRING_WITH_LEN("DAYNAME") }, BUILDER(Create_func_dayname)},
   { { STRING_WITH_LEN("DAYOFMONTH") }, BUILDER(Create_func_dayofmonth)},
