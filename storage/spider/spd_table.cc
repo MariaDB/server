@@ -7295,27 +7295,19 @@ int spider_db_init(
   }
 
   {
-    uint i = 0;
-    THD *thd= spider_create_thd();
-    tmp_disable_binlog(thd);
-    thd->security_ctx->skip_grants();
-    thd->client_capabilities |= CLIENT_MULTI_RESULTS;
+    MYSQL *mysql= mysql_init(NULL);
+    if (mysql_real_connect_local(mysql) == NULL)
+      goto error_init_udf_table_mon_list_hash;
 
-    while (spider_init_queries[i].length && !thd->killed)
+    uint i = 0;
+    while (spider_init_queries[i].length)
     {
-      dispatch_command(COM_QUERY, thd, spider_init_queries[i].str,
-        (uint) spider_init_queries[i].length, FALSE, FALSE);
-      if (unlikely(thd->is_error()))
+      if (mysql_real_query(mysql, spider_init_queries[i].str, spider_init_queries[i].length))
       {
-        fprintf(stderr, "[ERROR] %s\n", spider_stmt_da_message(thd));
-        thd->clear_error();
-        break;
+        goto error_init_udf_table_mon_list_hash;
       }
       ++i;
     }
-    thd->client_capabilities -= CLIENT_MULTI_RESULTS;
-    reenable_binlog(thd);
-    spider_destroy_thd(thd);
   }
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
