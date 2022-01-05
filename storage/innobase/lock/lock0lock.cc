@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3875,11 +3875,12 @@ void lock_release(trx_t *trx)
 {
 #if defined SAFE_MUTEX && defined UNIV_DEBUG
   std::set<table_id_t> to_evict;
-  if (innodb_evict_tables_on_commit_debug && !trx->is_recovered)
-    if (!!trx->dict_operation)
-      for (const auto& p: trx->mod_tables)
-        if (!p.first->is_temporary())
-          to_evict.emplace(p.first->id);
+  if (innodb_evict_tables_on_commit_debug &&
+      !trx->is_recovered && !trx->dict_operation &&
+      !trx->dict_operation_lock_mode)
+    for (const auto& p : trx->mod_tables)
+      if (!p.first->is_temporary())
+        to_evict.emplace(p.first->id);
 #endif
   ulint count;
 
@@ -3942,11 +3943,9 @@ released:
   dict_sys.lock(SRW_LOCK_CALL);
   LockMutexGuard g{SRW_LOCK_CALL};
   for (const table_id_t id : to_evict)
-  {
     if (dict_table_t *table= dict_sys.find_table(id))
       if (!table->get_ref_count() && !UT_LIST_GET_LEN(table->locks))
         dict_sys.remove(table, true);
-  }
   dict_sys.unlock();
 #endif
 }
