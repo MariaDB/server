@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -242,11 +242,10 @@ void log_t::attach(log_file_t file, os_offset_t size)
       return;
     }
   }
-  buf= static_cast<byte*>(ut_malloc_dontdump(buf_size,
-                                                     PSI_INSTRUMENT_ME));
+  buf= static_cast<byte*>(ut_malloc_dontdump(buf_size, PSI_INSTRUMENT_ME));
   TRASH_ALLOC(buf, buf_size);
   flush_buf= static_cast<byte*>(ut_malloc_dontdump(buf_size,
-                                                           PSI_INSTRUMENT_ME));
+                                                   PSI_INSTRUMENT_ME));
   TRASH_ALLOC(flush_buf, buf_size);
 #endif
 
@@ -504,88 +503,132 @@ static size_t log_pad(lsn_t lsn, size_t pad, byte *begin, byte *extra)
 }
 #endif
 
-/** Write the log buffer to the file and release the mutex.
-@param lsn  the current log sequence number */
-inline void log_t::write(lsn_t lsn) noexcept
-{
-  mysql_mutex_assert_owner(&mutex);
-  ut_ad(lsn == get_lsn());
-  ut_ad(!recv_no_log_write);
-
-  const lsn_t write_lsn{flushed_to_disk_lsn.load(std::memory_order_relaxed)};
-
-  if (lsn == write_lsn)
-  {
-    /* Nothing to write */
-    mysql_mutex_unlock(&mutex);
-    return;
-  }
-
 #ifdef HAVE_PMEM
-  if (is_pmem())
-  {
-    mysql_mutex_unlock(&mutex);
+/** Update flushed_to_disk_lsn without holding a mutex.
+@param old    old value of flushed_to_disk_lsn
+@param lsn    desired new value of flushed_to_disk_lsn */
+inline void log_t::update_flushed_lsn(lsn_t old, lsn_t lsn) noexcept
+{
+  ut_ad(old < lsn);
+  ut_ad(old <= get_flushed_lsn());
+  ut_ad(lsn <= get_lsn());
 
-    const size_t old_offset(calc_lsn_offset(write_lsn));
-    const size_t new_offset(calc_lsn_offset(lsn));
-    if (UNIV_UNLIKELY(old_offset > new_offset))
-    {
-      pmem_deep_persist(log_sys.buf + old_offset, file_size - old_offset);
-      pmem_deep_persist(log_sys.buf + START_OFFSET, new_offset - START_OFFSET);
-    }
-    else
-      pmem_deep_persist(log_sys.buf + old_offset, new_offset - old_offset);
-  }
-  else
-#endif
-  {
-    const size_t block_size_1{get_block_size() - 1};
-    const lsn_t offset{calc_lsn_offset(write_lsn) & ~block_size_1};
-    DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF " at " LSN_PF,
-                          write_lsn, lsn, offset));
-    const byte *write_buf{buf};
-    size_t length{buf_free};
-    ut_ad(length >= (calc_lsn_offset(write_lsn) & block_size_1));
-    buf_free&= block_size_1;
-    ut_ad(buf_free == ((lsn - first_lsn) & block_size_1));
-
-    if (buf_free)
-    {
-#if 0 /* TODO: Pad the last log block with dummy records. */
-      buf_free= log_pad(lsn, get_block_size() - buf_free,
-                        buf + buf_free, flush_buf);
-      ... /* TODO: Update the LSN and adjust other code. */
-#else
-      /* The rest of the block will be written as garbage.
-      (We want to avoid memset() while holding log_sys.mutex.)
-      This block will be overwritten later, once records beyond
-      the current LSN are generated. */
-      MEM_MAKE_DEFINED(buf + length, get_block_size() - buf_free);
-      buf[length]= 0; /* allow recovery to catch EOF faster */
-      length&= ~block_size_1;
-      memcpy_aligned<16>(flush_buf, buf + length, (buf_free + 15) & ~15);
-      length+= get_block_size();
-#endif
-    }
-
-    std::swap(buf, flush_buf);
-    mysql_mutex_unlock(&mutex);
-
-    if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED))
-    {
-      service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
-                                     "InnoDB log write: " LSN_PF, write_lsn);
-    }
-
-    /* Do the write to the log file */
-    log_write_buf(write_buf, length, offset);
-  }
-
-  set_flushed_lsn(lsn);
+  while (!flushed_to_disk_lsn.compare_exchange_weak
+         (old, lsn, std::memory_order_release, std::memory_order_relaxed))
+    if (old >= lsn)
+      break;
 
   log_flush_notify(lsn);
   DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
 }
+#endif
+
+/** Durably write buf to ib_logfile0 if needed.
+@return the durably written LSN */
+template<bool has_mutex>
+lsn_t log_t::durable_write() noexcept
+{
+  if (has_mutex)
+    mysql_mutex_assert_owner(&log_sys.mutex);
+  else
+    mysql_mutex_assert_not_owner(&log_sys.mutex);
+
+  ut_ad(!recv_no_log_write);
+  ut_ad(!srv_read_only_mode);
+
+  const lsn_t old_lsn{log_sys.get_flushed_lsn()};
+  lsn_t lsn{log_sys.get_lsn(std::memory_order_relaxed)};
+
+  if (old_lsn >= lsn)
+  {
+    ut_ad(old_lsn == lsn);
+    if (has_mutex)
+      mysql_mutex_unlock(&log_sys.mutex);
+    if (!log_sys.is_pmem())
+    func_exit:
+      return write_lock.release(lsn);
+  }
+
+#ifdef HAVE_PMEM
+  if (has_mutex && log_sys.is_pmem())
+  {
+    mysql_mutex_unlock(&log_sys.mutex);
+    const size_t old_offset(log_sys.calc_lsn_offset(old_lsn));
+    const size_t new_offset(log_sys.calc_lsn_offset(lsn));
+    if (UNIV_UNLIKELY(old_offset > new_offset))
+    {
+      pmem_deep_persist(log_sys.buf + old_offset,
+                        log_sys.file_size - old_offset);
+      pmem_deep_persist(log_sys.buf + START_OFFSET, new_offset - START_OFFSET);
+    }
+    else
+      pmem_deep_persist(log_sys.buf + old_offset, new_offset - old_offset);
+    log_sys.update_flushed_lsn(old_lsn, lsn);
+    return lsn;
+  }
+  else
+    ut_ad(!log_sys.is_pmem());
+#endif
+
+  const size_t block_size_1{log_sys.get_block_size() - 1};
+  const lsn_t offset{log_sys.calc_lsn_offset(old_lsn) & ~block_size_1};
+  if (!has_mutex)
+    mysql_mutex_lock(&log_sys.mutex);
+  lsn= log_sys.get_lsn(std::memory_order_relaxed);
+  if (old_lsn >= lsn)
+  {
+    ut_ad(old_lsn == lsn);
+    mysql_mutex_unlock(&log_sys.mutex);
+    goto func_exit;
+  }
+  DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF " at " LSN_PF,
+                        old_lsn, lsn, offset));
+  write_lock.set_pending(lsn);
+  const byte *write_buf{log_sys.buf};
+  size_t length{log_sys.buf_free};
+  ut_ad(length >= (log_sys.calc_lsn_offset(old_lsn) & block_size_1));
+  log_sys.buf_free&= block_size_1;
+  ut_ad(log_sys.buf_free == ((lsn - log_sys.first_lsn) & block_size_1));
+
+  if (log_sys.buf_free)
+  {
+#if 0 /* TODO: Pad the last log block with dummy records. */
+    log_sys.buf_free= log_pad(lsn, log_sys.get_block_size() - buf_free,
+                                buf + buf_free, flush_buf);
+    ... /* TODO: Update the LSN and adjust other code. */
+#else
+    /* The rest of the block will be written as garbage.
+    (We want to avoid memset() while holding mutex.)
+    This block will be overwritten later, once records beyond
+    the current LSN are generated. */
+    MEM_MAKE_DEFINED(log_sys.buf + length,
+                     log_sys.get_block_size() - buf_free);
+    log_sys.buf[length]= 0; /* allow recovery to catch EOF faster */
+    length&= ~block_size_1;
+    memcpy_aligned<16>(log_sys.flush_buf, log_sys.buf + length,
+                       (log_sys.buf_free + 15) & ~15);
+    length+= log_sys.get_block_size();
+#endif
+  }
+
+  std::swap(log_sys.buf, log_sys.flush_buf);
+  mysql_mutex_unlock(&log_sys.mutex);
+
+  if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED))
+  {
+    service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+                                   "InnoDB log write: " LSN_PF, old_lsn);
+  }
+
+  /* Do the write to the log file */
+  log_write_buf(write_buf, length, offset);
+  log_sys.set_flushed_lsn(lsn);
+  log_flush_notify(lsn);
+  DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
+  goto func_exit;
+}
+
+template ATTRIBUTE_COLD lsn_t log_t::durable_write<true>() noexcept;
 
 /** Ensure that the log has been written to the log file up to a given
 log entry (such as that of a transaction commit). Start a new write, or
@@ -606,34 +649,48 @@ void log_write_up_to(lsn_t lsn, const completion_callback *callback)
   }
 
   ut_ad(lsn <= log_sys.get_lsn());
-  if (lsn < log_sys.get_flushed_lsn(std::memory_order_relaxed))
+  const lsn_t old_lsn{log_sys.get_flushed_lsn(std::memory_order_acquire)};
+
+  if (lsn <= old_lsn)
   {
+#ifdef HAVE_PMEM
+  made_durable:
+#endif
     if (callback)
       callback->m_callback(callback->m_param);
     return;
   }
 
+#ifdef HAVE_PMEM
+  if (log_sys.is_pmem())
+  {
+# ifdef __linux__
+    if (pmem_is_pmem(log_sys.buf, log_sys.file_size))
+# endif
+    {
+      const size_t old_offset(log_sys.calc_lsn_offset(old_lsn));
+      const size_t new_offset(log_sys.calc_lsn_offset(lsn));
+      if (UNIV_UNLIKELY(old_offset > new_offset))
+      {
+        pmem_deep_persist(log_sys.buf + old_offset,
+                          log_sys.file_size - old_offset);
+        pmem_deep_persist(log_sys.buf + log_sys.START_OFFSET,
+                          new_offset - log_sys.START_OFFSET);
+      }
+      else
+        pmem_deep_persist(log_sys.buf + old_offset, new_offset - old_offset);
+    }
+    log_sys.update_flushed_lsn(old_lsn, lsn);
+    goto made_durable;
+  }
+#endif
+
   while (write_lock.acquire(lsn, callback) == group_commit_lock::ACQUIRED)
   {
-    mysql_mutex_lock(&log_sys.mutex);
-    const lsn_t wrote_lsn{log_sys.get_flushed_lsn(std::memory_order_relaxed)};
-    const lsn_t write_lsn{log_sys.get_lsn(std::memory_order_relaxed)};
-
-    if (wrote_lsn >= write_lsn)
-      mysql_mutex_unlock(&log_sys.mutex);
-    else
-    {
-      write_lock.set_pending(write_lsn);
-      log_sys.write(write_lsn);
-    }
-
-    lsn= write_lock.release(write_lsn);
+    lsn= log_sys.durable_write<false>();
     if (!lsn)
       break;
-    /*
-    There is no new group commit lead, some async waiters could stall.
-    Rerun log_write_up_to(), to prevent that.
-    */
+    /* There is no new group commit lead, some async waiters could stall. */
     static const completion_callback dummy{[](void *) {},nullptr};
     callback= &dummy;
   }
@@ -646,24 +703,13 @@ void log_buffer_flush_to_disk()
   log_write_up_to(log_sys.get_lsn(std::memory_order_acquire));
 }
 
-/** Prepare to invoke log_write_and_flush(), before acquiring log_sys.mutex. */
-ATTRIBUTE_COLD void log_write_and_flush_prepare()
+ATTRIBUTE_COLD void log_t::durable_write_prepare() noexcept
 {
   mysql_mutex_assert_not_owner(&log_sys.mutex);
 
-  while (write_lock.acquire(log_sys.get_lsn() + 1, nullptr) !=
-         group_commit_lock::ACQUIRED);
-}
-
-/** Durably write the log */
-ATTRIBUTE_COLD void log_write_and_flush()
-{
-  ut_ad(!srv_read_only_mode);
-  auto lsn= log_sys.get_lsn();
-  write_lock.set_pending(lsn);
-  log_sys.write(lsn);
-  ut_ad(log_sys.get_flushed_lsn() == lsn);
-  write_lock.release(lsn);
+  if (!log_sys.is_pmem())
+    while (write_lock.acquire(log_sys.get_lsn() + 1, nullptr) !=
+           group_commit_lock::ACQUIRED);
 }
 
 /********************************************************************

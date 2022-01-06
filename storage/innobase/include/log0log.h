@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -78,13 +78,6 @@ void log_write_up_to(lsn_t lsn, const completion_callback *callback= nullptr);
 
 /** Write to the log file up to the last log entry. */
 void log_buffer_flush_to_disk();
-
-
-/** Prepare to invoke log_write_and_flush(), before acquiring log_sys.mutex. */
-ATTRIBUTE_COLD void log_write_and_flush_prepare();
-
-/** Durably write the log */
-ATTRIBUTE_COLD void log_write_and_flush();
 
 /** Make a checkpoint */
 ATTRIBUTE_COLD void log_make_checkpoint();
@@ -295,6 +288,13 @@ public:
   void set_flushed_lsn(lsn_t lsn)
   { flushed_to_disk_lsn.store(lsn, std::memory_order_release); }
 
+#ifdef HAVE_PMEM
+  /** Update flushed_to_disk_lsn without holding a mutex.
+  @param old    old value of flushed_to_disk_lsn
+  @param lsn    desired new value of flushed_to_disk_lsn */
+  inline void update_flushed_lsn(lsn_t old, lsn_t lsn) noexcept;
+#endif
+
   bool check_flush_or_checkpoint() const
   {
     return UNIV_UNLIKELY
@@ -373,9 +373,14 @@ public:
   @param end_lsn    start LSN of the FILE_CHECKPOINT mini-transaction */
   inline void write_checkpoint(lsn_t end_lsn) noexcept;
 
-  /** Write the log buffer to the file and release the mutex.
-  @param lsn  the current log sequence number */
-  void write(lsn_t lsn) noexcept;
+  /** Prepare to invoke durable_write(). */
+  ATTRIBUTE_COLD static void durable_write_prepare() noexcept;
+
+  /** Durably write buf to ib_logfile0 if needed.
+  @tparam has_mutex whether log_sys.mutex is being held (to be released here)
+  @return the durably written LSN */
+  template<bool has_mutex>
+  static lsn_t durable_write() noexcept;
 
   /** Create the log. */
   void create(lsn_t lsn) noexcept;
