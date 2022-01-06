@@ -900,7 +900,7 @@ inline bool buf_page_t::flush(bool lru, fil_space_t *space)
                                               (write_frame ? write_frame
                                                : frame)));
       ut_ad(lsn >= oldest_modification());
-      log_write_up_to(lsn);
+      log_write_up_to(lsn, true);
     }
     space->io(IORequest{type, this, slot}, physical_offset(), size,
               write_frame, this);
@@ -1751,7 +1751,7 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
   const lsn_t flush_lsn{fil_names_clear(oldest_lsn)};
   ut_ad(flush_lsn >= end_lsn + SIZE_OF_FILE_CHECKPOINT);
   mysql_mutex_unlock(&log_sys.mutex);
-  log_write_up_to(flush_lsn);
+  log_write_up_to(flush_lsn, true);
   mysql_mutex_lock(&log_sys.mutex);
   if (log_sys.last_checkpoint_lsn >= oldest_lsn)
   {
@@ -1889,7 +1889,7 @@ ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn)
     to happen until now. There could be an outstanding FILE_CHECKPOINT
     record from a previous fil_names_clear() call, which we must
     write out before we can advance the checkpoint. */
-    log_write_up_to(sync_lsn);
+    log_write_up_to(sync_lsn, true);
     log_checkpoint();
   }
 }

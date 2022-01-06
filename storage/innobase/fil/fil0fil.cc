@@ -1477,7 +1477,7 @@ static void fil_name_commit_durable(mtr_t *mtr)
   mysql_mutex_lock(&log_sys.mutex);
   auto lsn= mtr->commit_files();
   mysql_mutex_unlock(&log_sys.mutex);
-  log_write_up_to(lsn);
+  log_write_up_to(lsn, true);
 }
 
 /** Write redo log for renaming a file.

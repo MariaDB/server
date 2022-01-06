@@ -634,8 +634,10 @@ template ATTRIBUTE_COLD lsn_t log_t::durable_write<true>() noexcept;
 log entry (such as that of a transaction commit). Start a new write, or
 wait and check if an already running write is covering the request.
 @param lsn      log sequence number that should be included in the file write
+@param durable  whether the write needs to be durable
 @param callback log write completion callback */
-void log_write_up_to(lsn_t lsn, const completion_callback *callback)
+void log_write_up_to(lsn_t lsn, bool durable,
+                     const completion_callback *callback)
 {
   ut_ad(!srv_read_only_mode);
   ut_ad(lsn != LSN_MAX);
@@ -664,6 +666,8 @@ void log_write_up_to(lsn_t lsn, const completion_callback *callback)
 #ifdef HAVE_PMEM
   if (log_sys.is_pmem())
   {
+    if (!durable && !callback)
+      return;
 # ifdef __linux__
     if (pmem_is_pmem(log_sys.buf, log_sys.file_size))
 # endif
@@ -696,11 +700,12 @@ void log_write_up_to(lsn_t lsn, const completion_callback *callback)
   }
 }
 
-/** Write to the log file up to the last log entry. */
-void log_buffer_flush_to_disk()
+/** Write to the log file up to the last log entry.
+@param durable  whether to wait for a durable write to complete */
+void log_buffer_flush_to_disk(bool durable)
 {
   ut_ad(!srv_read_only_mode);
-  log_write_up_to(log_sys.get_lsn(std::memory_order_acquire));
+  log_write_up_to(log_sys.get_lsn(std::memory_order_acquire), durable);
 }
 
 ATTRIBUTE_COLD void log_t::durable_write_prepare() noexcept
@@ -723,7 +728,7 @@ ATTRIBUTE_COLD static void log_flush_margin()
   mysql_mutex_unlock(&log_sys.mutex);
 
   if (flush)
-    log_buffer_flush_to_disk();
+    log_buffer_flush_to_disk(false);
 }
 
 /****************************************************************//**

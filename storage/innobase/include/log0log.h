@@ -73,11 +73,14 @@ struct completion_callback;
 log entry (such as that of a transaction commit). Start a new write, or
 wait and check if an already running write is covering the request.
 @param lsn      log sequence number that should be included in the file write
+@param durable  whether the write needs to be durable
 @param callback log write completion callback */
-void log_write_up_to(lsn_t lsn, const completion_callback *callback= nullptr);
+void log_write_up_to(lsn_t lsn, bool durable,
+                     const completion_callback *callback= nullptr);
 
-/** Write to the log file up to the last log entry. */
-void log_buffer_flush_to_disk();
+/** Write to the log file up to the last log entry.
+@param durable  whether to wait for a durable write to complete */
+void log_buffer_flush_to_disk(bool durable= true);
 
 /** Make a checkpoint */
 ATTRIBUTE_COLD void log_make_checkpoint();

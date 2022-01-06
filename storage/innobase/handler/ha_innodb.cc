@@ -1592,7 +1592,7 @@ static void innodb_drop_database(handlerton*, char *path)
     for (pfs_os_file_t detached : to_close)
       os_file_close(detached);
     /* Any changes must be persisted before we return. */
-    log_write_up_to(mtr.commit_lsn());
+    log_write_up_to(mtr.commit_lsn(), true);
   }
 
   my_free(namebuf);
@@ -1623,8 +1623,10 @@ innobase_start_trx_and_assign_read_view(
 @return false */
 static bool innobase_flush_logs(handlerton*)
 {
-  if (UNIV_LIKELY(!srv_read_only_mode))
-    log_buffer_flush_to_disk();
+  if (!srv_read_only_mode && srv_flush_log_at_trx_commit)
+    /* Write any outstanding redo log. Durably if
+    innodb_flush_log_at_trx_commit=1. */
+    log_buffer_flush_to_disk(srv_flush_log_at_trx_commit == 1);
   return false;
 }
 
@@ -4665,7 +4667,7 @@ static void innodb_log_flush_request(void *cookie)
     flush about once every srv_flush_log_at_timeout seconds.  But,
     starting with the innodb_force_recovery=2 level, that background
     task will not run. */
-    log_write_up_to(flush_lsn= lsn);
+    log_write_up_to(flush_lsn= lsn, true);
   else if (log_flush_request *req= static_cast<log_flush_request*>
            (my_malloc(PSI_INSTRUMENT_ME, sizeof *req, MYF(MY_WME))))
   {
@@ -13156,7 +13158,7 @@ ha_innobase::create(
 		for (pfs_os_file_t d : deleted) os_file_close(d);
 		error = info.create_table_update_dict();
 		if (!(info.flags2() & DICT_TF2_TEMPORARY)) {
-			log_write_up_to(trx->commit_lsn);
+			log_write_up_to(trx->commit_lsn, true);
 		}
 	}
 
@@ -13576,7 +13578,7 @@ err_exit:
   row_mysql_unlock_data_dictionary(trx);
   for (pfs_os_file_t d : deleted)
     os_file_close(d);
-  log_write_up_to(trx->commit_lsn);
+  log_write_up_to(trx->commit_lsn, true);
   if (trx != parent_trx)
     trx->free();
   if (!fts)
@@ -14044,7 +14046,7 @@ ha_innobase::rename_table(
 	}
 	row_mysql_unlock_data_dictionary(trx);
 	if (error == DB_SUCCESS) {
-		log_write_up_to(trx->commit_lsn);
+		log_write_up_to(trx->commit_lsn, true);
 	}
 	trx->free();
 
@@ -17470,7 +17472,7 @@ func_exit:
 					   [FIL_PAGE_SPACE_ID]);
 	}
 	mtr.commit();
-	log_write_up_to(mtr.commit_lsn());
+	log_write_up_to(mtr.commit_lsn(), true);
 	goto func_exit;
 }
 #endif // UNIV_DEBUG
@@ -18610,7 +18612,7 @@ innobase_wsrep_set_checkpoint(
 	if (wsrep_is_wsrep_xid(xid)) {
 
 		trx_rseg_update_wsrep_checkpoint(xid);
-		innobase_flush_logs(hton);
+		log_buffer_flush_to_disk(srv_flush_log_at_trx_commit == 1);
 		return 0;
 	} else {
 		return 1;
