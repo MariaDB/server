@@ -100,7 +100,7 @@ bool check_column_grant_in_table_ref(THD *thd, TABLE_LIST * table_ref,
                                      const char *name, size_t length, Field *fld);
 bool check_grant_all_columns(THD *thd, privilege_t want_access,
                              Field_iterator_table_ref *fields);
-bool check_grant_db(THD *thd,const char *db);
+bool check_grant_db(Security_context *sctx, const char *db);
 bool check_fk_parent_table_access(THD *thd,
                                   HA_CREATE_INFO *create_info,
                                   Alter_info *alter_info,
