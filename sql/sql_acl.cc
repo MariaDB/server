@@ -3296,7 +3296,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
                      &thd->col_access, NULL, FALSE, FALSE))
       return TRUE;
 
-    if (!thd->col_access && check_grant_db(thd, dst_db_name))
+    if (!thd->col_access && check_grant_db(thd->security_ctx, dst_db_name))
     {
       status_var_increment(thd->status_var.access_denied_errors);
       my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
@@ -9453,10 +9453,8 @@ err:
 }
 
 
-static bool check_grant_db_routine(THD *thd, const char *db, HASH *hash)
+static bool check_grant_db_routine(Security_context *sctx, const char *db, HASH *hash)
 {
-  Security_context *sctx= thd->security_ctx;
-
   for (uint idx= 0; idx < hash->records; ++idx)
   {
     GRANT_NAME *item= (GRANT_NAME*) my_hash_element(hash, idx);
@@ -9485,9 +9483,8 @@ static bool check_grant_db_routine(THD *thd, const char *db, HASH *hash)
   Return 1 if access is denied
 */
 
-bool check_grant_db(THD *thd, const char *db)
+bool check_grant_db(Security_context *sctx, const char *db)
 {
-  Security_context *sctx= thd->security_ctx;
   char helping [SAFE_NAME_LEN + USERNAME_LENGTH+2], *end;
   char helping2 [SAFE_NAME_LEN + USERNAME_LENGTH+2], *tmp_db;
   uint len, UNINIT_VAR(len2);
@@ -9542,10 +9539,10 @@ bool check_grant_db(THD *thd, const char *db)
   }
 
   if (error)
-    error= check_grant_db_routine(thd, db, &proc_priv_hash) &&
-           check_grant_db_routine(thd, db, &func_priv_hash) &&
-           check_grant_db_routine(thd, db, &package_spec_priv_hash) &&
-           check_grant_db_routine(thd, db, &package_body_priv_hash);
+    error= check_grant_db_routine(sctx, db, &proc_priv_hash) &&
+           check_grant_db_routine(sctx, db, &func_priv_hash) &&
+           check_grant_db_routine(sctx, db, &package_spec_priv_hash) &&
+           check_grant_db_routine(sctx, db, &package_body_priv_hash);
 
   mysql_rwlock_unlock(&LOCK_grant);
 
