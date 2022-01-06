@@ -6844,5 +6844,23 @@ drop view v1;
 CREATE VIEW v1 AS select `t1`.`12345678901234567890123456789012345678901234567890123456789012345` AS `Name_exp_1` from (select '12345678901234567890123456789012345678901234567890123456789012345') `t1`;
 drop view v1;
 #
+# MDEV-25631: view with outer reference in select used
+#             as argument of set function
+#
+create table t1 (c int);
+insert into t1 values (1);
+create view v1 as select c from t1 where (select t1.c from t1 t) = 1;
+select * from (select sum((select * from v1)) as r) dt;
+r
+1
+with cte as (select c from t1 where (select t1.c from t1 t) = 1)
+select * from (select sum((select * from cte)) as r) dt1
+union
+select * from (select sum((select * from cte)) as r) dt2;
+r
+1
+drop view v1;
+drop table t1;
+#
 # End of 10.2 tests
 #

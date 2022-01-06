@@ -6575,7 +6575,27 @@ drop view v1;
 
 eval CREATE VIEW v1 AS $definition;
 
+
 drop view v1;
+
+--echo #
+--echo # MDEV-25631: view with outer reference in select used
+--echo #             as argument of set function
+--echo #
+
+create table t1 (c int);
+insert into t1 values (1);
+create view v1 as select c from t1 where (select t1.c from t1 t) = 1;
+
+select * from (select sum((select * from v1)) as r) dt;
+
+with cte as (select c from t1 where (select t1.c from t1 t) = 1)
+select * from (select sum((select * from cte)) as r) dt1
+union
+select * from (select sum((select * from cte)) as r) dt2;
+
+drop view v1;
+drop table t1;
 
 --echo #
 --echo # End of 10.2 tests
