@@ -5617,7 +5617,8 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
         goto mark_non_agg_field;
     }
 
-    if (thd->lex->in_sum_func &&
+    if (!thd->lex->current_select->no_wrap_view_item &&
+        thd->lex->in_sum_func &&
         thd->lex->in_sum_func->nest_level == 
         select->nest_level)
       set_if_bigger(thd->lex->in_sum_func->max_arg_level,
