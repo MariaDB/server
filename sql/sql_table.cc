@@ -53,7 +53,7 @@
 #include "sql_show.h"
 #include "transaction.h"
 #include "sql_audit.h"
-
+#include "rpl_rli.h"
 
 #ifdef __WIN__
 #include <io.h>
@@ -9203,6 +9203,17 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
              alter_ctx.new_db, alter_ctx.new_name);
     DBUG_RETURN(true);
   }
+
+#ifdef HAVE_REPLICATION
+  if (thd->lex && thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
+      table->s->db_type() != create_info->db_type &&
+      is_alter_allowed_by_rpl_state(alter_ctx.db, alter_ctx.table_name))
+  {
+    DBUG_PRINT("info", ("illegal alter"));
+    /* is_alter_allowed_by_rpl_state() sets the error details */
+    DBUG_RETURN(true);
+  }
+#endif
 
   if (table->s->tmp_table == NO_TMP_TABLE)
     mysql_audit_alter_table(thd, table_list);

@@ -1,0 +1,51 @@
+
+# Purpose:
+#   This test ensures that the engine of the mysql.gtid_slave_pos table can
+# only be changed if the SQL thread is off.
+#
+# References:
+#   MDEV-25768: ALTER gtid_slave_pos table storage engine should not be allowed
+#               when slave is running
+
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+# Changing gtid_slave_pos table is format independent so just use one for
+# reduced test time
+--source include/have_binlog_format_row.inc
+
+--connection slave
+--let old_slave_pos_engine= query_get_value(SHOW TABLE STATUS FROM mysql LIKE 'gtid_slave_pos', Engine, 1)
+--echo # Initial gtid_slave_pos table engine is $old_slave_pos_engine
+
+--echo #
+--echo # Trying to alter gtid_slave_pos table while slave SQL thread is alive
+--echo # should result in an error
+--echo #
+--let slave_sql_running= query_get_value(SHOW SLAVE STATUS, Slave_SQL_Running, 1)
+--echo # Slave_SQL_Running: $slave_sql_running
+--error 1198
+ALTER TABLE mysql.gtid_slave_pos ENGINE=innodb;
+
+--echo #
+--echo # Altering gtid_slave_pos table while slave SQL thread is stopped should
+--echo # succeed
+--echo #
+--source include/stop_slave.inc
+--let slave_sql_running= query_get_value(SHOW SLAVE STATUS, Slave_SQL_Running, 1)
+--echo # Slave_SQL_Running: $slave_sql_running
+ALTER TABLE mysql.gtid_slave_pos ENGINE=innodb;
+--source include/start_slave.inc
+--let new_slave_pos_engine= query_get_value(SHOW TABLE STATUS FROM mysql LIKE 'gtid_slave_pos', Engine, 1)
+--echo # New gtid_slave_pos table engine: $new_slave_pos_engine
+
+--echo #
+--echo # Cleanup
+--echo #
+--source include/stop_slave.inc
+--disable_query_log
+--eval ALTER TABLE mysql.gtid_slave_pos ENGINE=$old_slave_pos_engine
+--enable_query_log
+--source include/start_slave.inc
+
+--source include/rpl_end.inc

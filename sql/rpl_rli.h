@@ -997,4 +997,13 @@ int event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev);
 void delete_or_keep_event_post_apply(rpl_group_info *rgi,
                                      Log_event_type typ, Log_event *ev);
 
+/*
+  Returns TRUE if altering a table could interfere with the current state of
+  replication. Returns FALSE otherwise.
+
+  Additionally sets my_error if the alter is disallowed.
+*/
+extern bool is_alter_allowed_by_rpl_state(const char *db_str,
+                                          const char *table_str);
+
 #endif /* RPL_RLI_H */
