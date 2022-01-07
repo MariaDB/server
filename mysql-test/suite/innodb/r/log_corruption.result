@@ -111,7 +111,7 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 InnoDB	YES	Supports transactions, row-level locking, foreign keys and encryption for tables	YES	YES	YES
-FOUND 1 /\[Note\] InnoDB: .* started; log sequence number 0/ in mysqld.1.err
+FOUND 1 /\[Note\] InnoDB: log sequence number 0.*; transaction id 0/ in mysqld.1.err
 # valid header, valid checkpoint 1, all-zero (invalid) checkpoint 2, invalid block number
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
@@ -171,7 +171,7 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 COUNT(*)
 1
-FOUND 1 /InnoDB: .* started; log sequence number 1213964; transaction id 0/ in mysqld.1.err
+FOUND 1 /InnoDB: log sequence number 1213964\b.*; transaction id 0/ in mysqld.1.err
 # Empty 10.2 redo log
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=2m
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES

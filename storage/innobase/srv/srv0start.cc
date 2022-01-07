@@ -684,8 +684,6 @@ srv_open_tmp_tablespace(bool create_new_db)
 	srv_tmp_space.delete_files();
 	srv_tmp_space.set_ignore_read_only(true);
 
-	ib::info() << "Creating shared tablespace for temporary tables";
-
 	bool	create_new_temp_space;
 
 	srv_tmp_space.set_space_id(SRV_TMP_SPACE_ID);
@@ -1563,10 +1561,18 @@ skip_monitors:
 	srv_is_being_started = false;
 
 	if (srv_print_verbose_log) {
-		sql_print_information("InnoDB: " INNODB_VERSION_STR
-				      " started; log sequence number " LSN_PF
+		sql_print_information("InnoDB: "
+				      "log sequence number " LSN_PF
+#ifdef HAVE_PMEM
+				      "%s"
+#endif
 				      "; transaction id " TRX_ID_FMT,
-				      recv_sys.lsn, trx_sys.get_max_trx_id());
+				      recv_sys.lsn,
+#ifdef HAVE_PMEM
+				      log_sys.is_pmem()
+				      ? " (memory-mapped)" : "",
+#endif
+				      trx_sys.get_max_trx_id());
 	}
 
 	if (srv_force_recovery == 0) {

@@ -382,7 +382,7 @@ let SEARCH_PATTERN=InnoDB: Invalid log header checksum;
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
---let SEARCH_PATTERN=\\[Note\\] InnoDB: .* started; log sequence number 0
+--let SEARCH_PATTERN=\\[Note\\] InnoDB: log sequence number 0.*; transaction id 0
 --source include/search_pattern_in_file.inc
 
 --echo # valid header, valid checkpoint 1, all-zero (invalid) checkpoint 2, invalid block number
@@ -539,7 +539,7 @@ SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 --source include/shutdown_mysqld.inc
---let SEARCH_PATTERN= InnoDB: .* started; log sequence number 1213964; transaction id 0
+--let SEARCH_PATTERN= InnoDB: log sequence number 1213964\\b.*; transaction id 0
 --source include/search_pattern_in_file.inc
 
 --echo # Empty 10.2 redo log

@@ -233,8 +233,6 @@ void log_t::attach(log_file_t file, os_offset_t size)
       log.close();
       mprotect(ptr, size_t(size), PROT_READ);
       buf= static_cast<byte*>(ptr);
-      sql_print_information("InnoDB: Memory-mapped log (%zu bytes)",
-                            size_t(size));
 #if defined __linux__ || defined _WIN32
       set_block_size(CPU_LEVEL1_DCACHE_LINESIZE);
 #endif
