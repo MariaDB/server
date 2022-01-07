@@ -4,7 +4,7 @@ Copyright (c) 2000, 2020, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -954,7 +954,7 @@ static SHOW_VAR innodb_status_variables[]= {
    &export_vars.innodb_buffer_pool_write_requests, SHOW_SIZE_T},
   {"checkpoint_age", &export_vars.innodb_checkpoint_age, SHOW_SIZE_T},
   {"checkpoint_max_age", &export_vars.innodb_checkpoint_max_age, SHOW_SIZE_T},
-  {"data_fsyncs", &export_vars.innodb_data_fsyncs, SHOW_SIZE_T},
+  {"data_fsyncs", (size_t*) &os_n_fsyncs, SHOW_SIZE_T},
   {"data_pending_fsyncs",
    (size_t*) &fil_n_pending_tablespace_flushes, SHOW_SIZE_T},
   {"data_pending_reads", &export_vars.innodb_data_pending_reads, SHOW_SIZE_T},

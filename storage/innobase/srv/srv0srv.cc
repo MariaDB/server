@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -1006,8 +1006,6 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_data_pending_writes =
 		ulint(MONITOR_VALUE(MONITOR_OS_PENDING_WRITES));
-
-	export_vars.innodb_data_fsyncs = os_n_fsyncs;
 
 	export_vars.innodb_data_read = srv_stats.data_read;
 

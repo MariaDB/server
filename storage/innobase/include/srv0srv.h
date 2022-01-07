@@ -709,7 +709,6 @@ struct export_var_t{
 	ulint innodb_checkpoint_max_age;
 	ulint innodb_data_pending_reads;	/*!< Pending reads */
 	ulint innodb_data_pending_writes;	/*!< Pending writes */
-	ulint innodb_data_fsyncs;		/*!< Number of fsyncs so far */
 	ulint innodb_data_read;			/*!< Data bytes read */
 	ulint innodb_data_writes;		/*!< I/O write requests */
 	ulint innodb_data_written;		/*!< Data bytes written */
