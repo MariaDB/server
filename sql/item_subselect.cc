@@ -4026,6 +4026,8 @@ int subselect_single_select_engine::exec()
               tab->save_read_record= tab->read_record.read_record_func;
               tab->read_record.read_record_func= rr_sequential;
               tab->read_first_record= read_first_record_seq;
+              if (tab->rowid_filter)
+                tab->table->file->disable_pushed_rowid_filter();
               tab->read_record.thd= join->thd;
               tab->read_record.ref_length= tab->table->file->ref_length;
               tab->read_record.unlock_row= rr_unlock_row;
@@ -4046,6 +4048,8 @@ int subselect_single_select_engine::exec()
       tab->read_record.ref_length= 0;
       tab->read_first_record= tab->save_read_first_record;
       tab->read_record.read_record_func= tab->save_read_record;
+      if (tab->rowid_filter)
+        tab->table->file->enable_pushed_rowid_filter();
     }
     executed= 1;
     if (!(uncacheable() & ~UNCACHEABLE_EXPLAIN) &&
