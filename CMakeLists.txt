@@ -394,6 +394,7 @@ IF(WITH_UNIT_TESTS)
  ENDIF()
 ENDIF()
 
+INCLUDE(cpack_tgz)
 INCLUDE(cpack_rpm)
 INCLUDE(cpack_deb)
 
