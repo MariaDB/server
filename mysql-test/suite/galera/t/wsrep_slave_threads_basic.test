@@ -1,4 +1,4 @@
---source include/have_wsrep.inc
+--source include/galera_cluster.inc
 
 --echo #
 --echo # wsrep_slave_threads
