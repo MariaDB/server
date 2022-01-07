@@ -6121,6 +6121,9 @@ row_search_get_max_rec(
 		const bool comp = index->table->not_redundant();
 		while (btr_pcur_move_to_next_user_rec(&pcur, mtr)) {
 			rec = btr_pcur_get_rec(&pcur);
+			if (rec_is_metadata(rec, *index)) {
+				continue;
+			}
 			if (!rec_get_deleted_flag(rec, comp)) {
 				goto found;
 			}
