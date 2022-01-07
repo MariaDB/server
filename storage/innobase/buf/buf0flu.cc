@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1700,6 +1700,8 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     mysql_mutex_unlock(&mutex);
     /* FIXME: issue an asynchronous write */
     log.write(offset, {c, get_block_size()});
+    if (srv_file_flush_method != SRV_O_DSYNC)
+      ut_a(log.flush());
     mysql_mutex_lock(&mutex);
     n_pending_checkpoint_writes--;
   }

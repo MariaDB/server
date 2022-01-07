@@ -1246,24 +1246,16 @@ os_file_create_func(
 
 	ut_a(purpose == OS_FILE_AIO || purpose == OS_FILE_NORMAL);
 
-	if (!read_only) {
-		switch (srv_file_flush_method) {
-		case SRV_FSYNC:
-		case SRV_LITTLESYNC:
-		case SRV_NOSYNC:
-		case SRV_O_DIRECT_NO_FSYNC:
-			if (type != OS_LOG_FILE) {
-				break;
-			}
-			/* fall through */
-		case SRV_O_DIRECT:
-		case SRV_O_DSYNC:
+	/* We let O_DSYNC only affect log files */
+
+	if (!read_only
+	    && type == OS_LOG_FILE
+	    && srv_file_flush_method == SRV_O_DSYNC) {
 #ifdef O_DSYNC
-			create_flag |= O_DSYNC;
+		create_flag |= O_DSYNC;
 #else
-			create_flag |= O_SYNC;
+		create_flag |= O_SYNC;
 #endif
-		}
 	}
 
 	os_file_t	file;
@@ -1300,6 +1292,7 @@ os_file_create_func(
 #if (defined(UNIV_SOLARIS) && defined(DIRECTIO_ON)) || defined O_DIRECT
 	if (type == OS_DATA_FILE) {
 		switch (srv_file_flush_method) {
+		case SRV_O_DSYNC:
 		case SRV_O_DIRECT:
 		case SRV_O_DIRECT_NO_FSYNC:
 # ifdef __linux__
@@ -2209,20 +2202,21 @@ os_file_create_func(
 		? FILE_FLAG_OVERLAPPED : 0;
 
 	if (type == OS_LOG_FILE) {
-		goto set_direct;
+		attributes |= FILE_FLAG_NO_BUFFERING;
 	}
 
 	switch (srv_file_flush_method) {
+	case SRV_O_DSYNC:
+		if (type == OS_LOG_FILE) {
+			attributes |= FILE_FLAG_WRITE_THROUGH;
+		}
+		/* fall through */
 	case SRV_O_DIRECT_NO_FSYNC:
 	case SRV_O_DIRECT:
 	case SRV_ALL_O_DIRECT_FSYNC:
-	case SRV_O_DSYNC:
-		if (type == OS_DATA_FILE_NO_O_DIRECT) {
-			attributes |= FILE_FLAG_WRITE_THROUGH;
-			break;
+		if (type != OS_DATA_FILE_NO_O_DIRECT) {
+			attributes |= FILE_FLAG_NO_BUFFERING;
 		}
-	set_direct:
-		attributes |= FILE_FLAG_NO_BUFFERING | FILE_FLAG_WRITE_THROUGH;
 		break;
 
 	case SRV_FSYNC:

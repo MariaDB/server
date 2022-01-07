@@ -1130,29 +1130,17 @@ static void trx_flush_log_if_needed_low(lsn_t lsn, const trx_t *trx)
   if (!srv_flush_log_at_trx_commit)
     return;
 
-  if (log_sys.get_flushed_lsn() > lsn)
-    return;
+  completion_callback cb, *callback= nullptr;
 
-  const bool flush= srv_file_flush_method != SRV_NOSYNC &&
-    (srv_flush_log_at_trx_commit & 1);
-
-  if (trx->state == TRX_STATE_PREPARED)
+  if (trx->state == TRX_STATE_PREPARED && !log_sys.is_pmem() &&
+      (cb.m_param= innodb_thd_increment_pending_ops(trx->mysql_thd)))
   {
-    /* XA may be internally used by binlog as well.
-    Be conservative, use synchronous wait. */
-sync:
-    log_write_up_to(lsn, flush);
-    return;
+    cb.m_callback= (void (*)(void *)) thd_decrement_pending_ops;
+    callback= &cb;
   }
 
-  completion_callback cb;
-  if ((cb.m_param = innodb_thd_increment_pending_ops(trx->mysql_thd)))
-  {
-    cb.m_callback = (void (*)(void *)) thd_decrement_pending_ops;
-    log_write_up_to(lsn, flush, &cb);
-  }
-  else
-    goto sync;
+  log_write_up_to(lsn, srv_file_flush_method != SRV_NOSYNC &&
+                  (srv_flush_log_at_trx_commit & 1), callback);
 }
 
 /**********************************************************************//**

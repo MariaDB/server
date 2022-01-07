@@ -338,7 +338,7 @@ FIND_PACKAGE(PMEM)
 IF(PMEM_FOUND)
   INCLUDE_DIRECTORIES(${PMEM_INCLUDES})
   ADD_COMPILE_FLAGS(log/log0log.cc log/log0recv.cc
-    buf/buf0flu.cc mtr/mtr0mtr.cc
+    buf/buf0flu.cc mtr/mtr0mtr.cc trx/trx0trx.cc
     COMPILE_FLAGS "-DHAVE_PMEM")
   SET(PMEM_LIBRARY ${PMEM_LIBRARIES})
 ELSE()

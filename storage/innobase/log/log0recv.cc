@@ -1689,8 +1689,7 @@ dberr_t recv_sys_t::find_checkpoint()
     memset_aligned<512>(const_cast<byte*>(field_ref_zero), 0, 512);
     /* Mark the redo log for upgrading. */
     log_sys.last_checkpoint_lsn= log_sys.next_checkpoint_lsn;
-    log_sys.set_lsn(log_sys.next_checkpoint_lsn);
-    log_sys.set_flushed_lsn(log_sys.next_checkpoint_lsn);
+    log_sys.set_recovered_lsn(log_sys.next_checkpoint_lsn);
     lsn= file_checkpoint= log_sys.next_checkpoint_lsn;
     log_sys.next_checkpoint_no= 0;
     return DB_SUCCESS;
@@ -3562,8 +3561,7 @@ static bool recv_scan_log(bool last_phase)
         else
         {
           ut_ad(store == STORE_IF_EXISTS);
-          log_sys.set_lsn(recv_sys.lsn);
-          log_sys.set_flushed_lsn(recv_sys.lsn);
+          log_sys.set_recovered_lsn(recv_sys.lsn);
           recv_sys.apply(false);
         }
       }
@@ -3597,10 +3595,7 @@ static bool recv_scan_log(bool last_phase)
   const bool corrupt= recv_sys.is_corrupt_log() || recv_sys.is_corrupt_fs();
   recv_sys.maybe_finish_batch();
   if (last_phase)
-  {
-    log_sys.set_lsn(recv_sys.lsn);
-    log_sys.set_flushed_lsn(recv_sys.lsn);
-  }
+    log_sys.set_recovered_lsn(recv_sys.lsn);
   mysql_mutex_unlock(&recv_sys.mutex);
 
   if (corrupt)
@@ -3984,8 +3979,7 @@ read_only_recovery:
 		}
 	}
 
-	log_sys.set_lsn(recv_sys.lsn);
-        log_sys.set_flushed_lsn(recv_sys.lsn);
+	log_sys.set_recovered_lsn(recv_sys.lsn);
 
 	if (recv_needed_recovery) {
 		bool missing_tablespace = false;

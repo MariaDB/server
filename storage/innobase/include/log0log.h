@@ -82,6 +82,13 @@ void log_write_up_to(lsn_t lsn, bool durable,
 @param durable  whether to wait for a durable write to complete */
 void log_buffer_flush_to_disk(bool durable= true);
 
+
+/** Prepare to invoke log_write_and_flush(), before acquiring log_sys.mutex. */
+ATTRIBUTE_COLD void log_write_and_flush_prepare();
+
+/** Durably write the log up to log_sys.lsn() and release log_sys.mutex. */
+ATTRIBUTE_COLD void log_write_and_flush();
+
 /** Make a checkpoint */
 ATTRIBUTE_COLD void log_make_checkpoint();
 
@@ -144,13 +151,15 @@ public:
   dberr_t close() noexcept;
   dberr_t read(os_offset_t offset, span<byte> buf) noexcept;
   dberr_t write(os_offset_t offset, span<const byte> buf) noexcept;
+  bool flush() const noexcept { return os_file_flush(m_file); }
 #ifdef HAVE_PMEM
   byte *mmap(bool read_only, const struct stat &st) noexcept;
 #endif
 };
 
 /** Redo log buffer */
-struct log_t{
+struct log_t
+{
   /** The original (not version-tagged) InnoDB redo log format */
   static constexpr uint32_t FORMAT_3_23= 0;
   /** The MySQL 5.7.9/MariaDB 10.2.2 log format */
@@ -196,6 +205,10 @@ private:
 public:
   /** mutex protecting the log */
   MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t mutex;
+private:
+  /** Last written LSN */
+  lsn_t write_lsn;
+public:
   /** first free offset within the log buffer in use */
   size_t buf_free;
   /** recommended maximum size of buf, after which the buffer is flushed */
@@ -205,10 +218,10 @@ public:
   to release log_sys.mutex during mtr_commit and still ensure that
   insertions in the flush_list happen in the LSN order. */
   MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t flush_order_mutex;
-  /** log_buffer, append data here */
+  /** log record buffer, written to by mtr_t::commit() */
   byte *buf;
-  /** log_buffer, writing data to file from this buffer.
-  Before flushing write_buf is swapped with flush_buf */
+  /** buffer for writing data to ib_logfile0, or nullptr if is_pmem()
+  In write_buf(), buf and flush_buf are swapped */
   byte *flush_buf;
   /** innodb_log_buffer_size (size of buf and flush_buf, in bytes) */
   size_t buf_size;
@@ -286,16 +299,32 @@ public:
   void set_lsn(lsn_t lsn) { this->lsn.store(lsn, std::memory_order_release); }
 
   lsn_t get_flushed_lsn(std::memory_order order= std::memory_order_acquire)
-    const
+    const noexcept
   { return flushed_to_disk_lsn.load(order); }
-  void set_flushed_lsn(lsn_t lsn)
-  { flushed_to_disk_lsn.store(lsn, std::memory_order_release); }
+
+  /** Initialize the LSN on initial log file creation. */
+  lsn_t init_lsn() noexcept
+  {
+    mysql_mutex_lock(&mutex);
+    const lsn_t lsn{get_lsn()};
+    flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
+    write_lsn= lsn;
+    mysql_mutex_unlock(&mutex);
+    return lsn;
+  }
+
+  void set_recovered_lsn(lsn_t lsn) noexcept
+  {
+    mysql_mutex_assert_owner(&mutex);
+    write_lsn= lsn;
+    this->lsn.store(lsn, std::memory_order_relaxed);
+    flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
+  }
 
 #ifdef HAVE_PMEM
-  /** Update flushed_to_disk_lsn without holding a mutex.
-  @param old    old value of flushed_to_disk_lsn
+  /** Persist the log.
   @param lsn    desired new value of flushed_to_disk_lsn */
-  inline void update_flushed_lsn(lsn_t old, lsn_t lsn) noexcept;
+  inline void persist(lsn_t lsn) noexcept;
 #endif
 
   bool check_flush_or_checkpoint() const
@@ -305,6 +334,9 @@ public:
   }
   void set_check_flush_or_checkpoint(bool flag= true)
   { check_flush_or_checkpoint_.store(flag, std::memory_order_relaxed); }
+
+  /** Make previous write_buf() durable and update flushed_to_disk_lsn. */
+  inline bool flush(lsn_t lsn) noexcept;
 
   /** Initialise the redo log subsystem. */
   void create();
@@ -352,7 +384,7 @@ public:
   lsn_t capacity() const noexcept { return file_size - START_OFFSET; }
 
   /** Set the LSN of the log file at file creation. */
-  void set_first_lsn(lsn_t lsn) noexcept { first_lsn= lsn; }
+  void set_first_lsn(lsn_t lsn) noexcept { write_lsn= first_lsn= lsn; }
   /** @return the first LSN of the log file */
   lsn_t get_first_lsn() const noexcept { return first_lsn; }
 
@@ -376,14 +408,10 @@ public:
   @param end_lsn    start LSN of the FILE_CHECKPOINT mini-transaction */
   inline void write_checkpoint(lsn_t end_lsn) noexcept;
 
-  /** Prepare to invoke durable_write(). */
-  ATTRIBUTE_COLD static void durable_write_prepare() noexcept;
-
-  /** Durably write buf to ib_logfile0 if needed.
-  @tparam has_mutex whether log_sys.mutex is being held (to be released here)
-  @return the durably written LSN */
-  template<bool has_mutex>
-  static lsn_t durable_write() noexcept;
+  /** Write buf to ib_logfile0 and release mutex.
+  @return new write target
+  @retval 0 if everything was written */
+  inline lsn_t write_buf() noexcept;
 
   /** Create the log. */
   void create(lsn_t lsn) noexcept;

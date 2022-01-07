@@ -516,13 +516,13 @@ void mtr_t::commit_shrink(fil_space_t &space)
   ut_ad(m_log_mode == MTR_LOG_ALL);
   ut_ad(UT_LIST_GET_LEN(space.chain) == 1);
 
-  log_sys.durable_write_prepare();
+  log_write_and_flush_prepare();
 
   const lsn_t start_lsn= finish_write(prepare_write()).first;
 
   mysql_mutex_lock(&log_sys.flush_order_mutex);
   /* Durably write the reduced FSP_SIZE before truncating the data file. */
-  log_sys.durable_write<true>();
+  log_write_and_flush();
 
   os_file_truncate(space.chain.start->name, space.chain.start->handle,
                    os_offset_t{space.size} << srv_page_size_shift, true);
