@@ -3009,6 +3009,9 @@ static bool xtrabackup_copy_logfile()
         recv_sys.len= size;
       }
 
+      if (log_sys.buf[recv_sys.offset] <= 1)
+        break;
+
       if (recv_sys.parse_mtr(STORE_IF_EXISTS) == recv_sys_t::OK)
       {
         do
