@@ -772,7 +772,7 @@ srv_init_abort_low(
 			" with error " << err << ". You may need"
 			" to delete the ibdata1 file before trying to start"
 			" up again.";
-	} else {
+	} else if (srv_operation == SRV_OPERATION_NORMAL) {
 		ib::error() << "Plugin initialization aborted"
 #ifdef UNIV_DEBUG
 			" at " << innobase_basename(file) << "[" << line << "]"

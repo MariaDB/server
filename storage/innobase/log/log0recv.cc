@@ -1547,18 +1547,21 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
     }
   }
 
+  const char *uag= srv_operation == SRV_OPERATION_NORMAL
+    ? "InnoDB: Upgrade after a crash is not supported."
+    : "mariadb-backup --prepare is not possible.";
+
   if (!log_sys.next_checkpoint_lsn)
   {
-    sql_print_error("InnoDB: Upgrade after a crash is not supported."
+    sql_print_error("%s"
                     " This redo log was created before MariaDB 10.2.2,"
                     " and we did not find a valid checkpoint."
                     " Please follow the instructions at"
-                    " https://mariadb.com/kb/en/library/upgrading/");
+                    " https://mariadb.com/kb/en/library/upgrading/", uag);
     return DB_ERROR;
   }
 
-  static const char NO_UPGRADE_RECOVERY_MSG[]=
-    "Upgrade after a crash is not supported."
+  static const char pre_10_2[]=
     " This redo log was created before MariaDB 10.2.2";
 
   byte *buf= const_cast<byte*>(field_ref_zero);
@@ -1572,8 +1575,7 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
       mach_read_from_4(my_assume_aligned<4>(buf + 508)) &&
       !log_crypt_101_read_block(buf, log_sys.next_checkpoint_lsn))
   {
-    sql_print_error("InnoDB: %s, and it appears corrupted.",
-                    NO_UPGRADE_RECOVERY_MSG);
+    sql_print_error("%s%s, and it appears corrupted.", uag, pre_10_2);
     return DB_CORRUPTION;
   }
 
@@ -1584,7 +1586,7 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
     sql_print_error("InnoDB: Cannot decrypt log for upgrading."
                     " The encrypted log was created before MariaDB 10.2.2.");
   else
-    sql_print_error("InnoDB: %s.", NO_UPGRADE_RECOVERY_MSG);
+    sql_print_error("%s%s.", uag, pre_10_2);
 
   return DB_ERROR;
 }
@@ -1859,8 +1861,10 @@ dberr_t recv_sys_t::find_checkpoint()
 
   if (dberr_t err= recv_log_recover_10_5(lsn_offset))
   {
-    sql_print_error("InnoDB: Upgrade after a crash is not supported."
-                    " The redo log was created with %s%s", creator,
+    sql_print_error("%s The redo log was created with %s%s",
+                    srv_operation == SRV_OPERATION_NORMAL
+                    ? "InnoDB: Upgrade after a crash is not supported."
+                    : "mariadb-backup --prepare is not possible", creator,
                     (err == DB_ERROR ? "." : ", and it appears corrupted."));
     return err;
   }
