@@ -1202,6 +1202,15 @@ SELECT TABLE_ID INTO @table_id FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE N
 SELECT INDEX_ID INTO @index_id FROM INFORMATION_SCHEMA.INNODB_SYS_INDEXES WHERE TABLE_ID = @table_id;
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS WHERE INDEX_ID=@index_id;
 DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-27432 ASC/DESC primary and unique keys cause index
+--echo #	inconsistency between InnoDB and server
+--echo #
+CREATE TABLE t1 (id INT NOT NULL, UNIQUE(id DESC)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD PRIMARY KEY (id), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
 --disable_query_log
 
 call mtr.add_suppression("InnoDB: Tablespace .* was not found at .*t[12].ibd.");

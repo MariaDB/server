@@ -1958,3 +1958,17 @@ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_FIELDS WHERE INDEX_ID=@index_id;
 NAME
 b
 DROP TABLE t1;
+#
+#  MDEV-27432 ASC/DESC primary and unique keys cause index
+#	inconsistency between InnoDB and server
+#
+CREATE TABLE t1 (id INT NOT NULL, UNIQUE(id DESC)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD PRIMARY KEY (id), ALGORITHM=INPLACE;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `id` (`id` DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;

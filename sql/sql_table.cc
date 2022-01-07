@@ -6332,6 +6332,14 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
       return Compare_keys::NotEqual;
     }
 
+    /*
+      Check the descending flag for index field.
+    */
+    if ((new_part->key_part_flag ^ key_part->key_part_flag) & HA_REVERSE_SORT)
+    {
+      return Compare_keys::NotEqual;
+    }
+
     auto compare= table->file->compare_key_parts(
         *table->field[key_part->fieldnr - 1], new_field, *key_part, *new_part);
     result= merge(result, compare);
