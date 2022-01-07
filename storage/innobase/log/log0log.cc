@@ -202,13 +202,13 @@ dberr_t log_file_t::write(os_offset_t offset, span<const byte> buf) noexcept
 void log_t::attach(log_file_t file, os_offset_t size)
 {
   log= file;
-  ut_ad(size >= START_OFFSET + SIZE_OF_FILE_CHECKPOINT);
+  ut_ad(!size || size >= START_OFFSET + SIZE_OF_FILE_CHECKPOINT);
   file_size= size;
 
 #ifdef HAVE_PMEM
   ut_ad(!buf);
   ut_ad(!flush_buf);
-  if (!(size_t(size) & 4095))
+  if (size && !(size_t(size) & 4095))
   {
     void *ptr=
       my_mmap(0, size_t(size),

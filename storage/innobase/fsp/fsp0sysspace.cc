@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -586,6 +586,13 @@ inline dberr_t SysTablespace::read_lsn_and_check_flags()
 		it->close();
 
 		return(err);
+	}
+
+	if (srv_operation == SRV_OPERATION_NORMAL) {
+		/* Prepare for possible upgrade from 0-sized ib_logfile0. */
+		ut_ad(!log_sys.next_checkpoint_lsn);
+		log_sys.next_checkpoint_lsn = mach_read_from_8(
+			it->m_first_page + 26/*FIL_PAGE_FILE_FLUSH_LSN*/);
 	}
 
 	it->close();

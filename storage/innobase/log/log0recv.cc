@@ -1626,6 +1626,7 @@ static dberr_t recv_log_recover_10_5(lsn_t lsn_offset)
 dberr_t recv_sys_t::find_checkpoint()
 {
   bool wrong_size= false;
+  byte *buf;
 
   if (files.empty())
   {
@@ -1639,8 +1640,14 @@ dberr_t recv_sys_t::find_checkpoint()
     if (file == OS_FILE_CLOSED)
       return DB_ERROR;
     const os_offset_t size{os_file_get_size(file)};
-    if (size < log_t::START_OFFSET + SIZE_OF_FILE_CHECKPOINT)
+    if (!size)
     {
+      if (srv_operation != SRV_OPERATION_NORMAL)
+        goto too_small;
+    }
+    else if (size < log_t::START_OFFSET + SIZE_OF_FILE_CHECKPOINT)
+    {
+    too_small:
       os_file_close(file);
       sql_print_error("InnoDB: File %.*s is too small",
                       int(path.size()), path.data());
@@ -1668,12 +1675,35 @@ dberr_t recv_sys_t::find_checkpoint()
       }
       recv_sys.files.emplace_back(file);
     }
+
+    if (!size)
+    {
+      if (wrong_size)
+        return DB_CORRUPTION;
+      if (log_sys.next_checkpoint_lsn < 8204)
+      {
+        /* Before MDEV-14425, InnoDB had a minimum LSN of 8192+12=8204.
+        Likewise, mariadb-backup --prepare would create an empty
+        ib_logfile0 after applying the log. We will allow an upgrade
+        from such an empty log.
+
+        If a user replaces the redo log with an empty file and the
+        FIL_PAGE_FILE_FLUSH_LSN field was zero in the system
+        tablespace (see SysTablespace::read_lsn_and_check_flags()) we
+        must refuse to start up. */
+        sql_print_error("InnoDB: ib_logfile0 is empty, and LSN is unknown.");
+        return DB_CORRUPTION;
+      }
+      lsn= log_sys.next_checkpoint_lsn;
+      log_sys.format= log_t::FORMAT_3_23;
+      goto upgrade;
+    }
   }
   else
     ut_ad(srv_operation == SRV_OPERATION_BACKUP);
   log_sys.next_checkpoint_lsn= 0;
   lsn= 0;
-  byte *buf= my_assume_aligned<4096>(log_sys.buf);
+  buf= my_assume_aligned<4096>(log_sys.buf);
   if (!log_sys.is_pmem())
     log_sys.log.read(0, {buf, 4096});
   /* Check the header page checksum. There was no
