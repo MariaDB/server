@@ -1,4 +1,3 @@
-drop table if exists t1,t2;
 CREATE TABLE t1 (
 line BLOB,
 kind ENUM('po', 'pp', 'rr', 'dr', 'rd', 'ts', 'cl') NOT NULL DEFAULT 'po',
@@ -139,6 +138,27 @@ bar
 
 
 NULL
+drop table t;
+#
+# MDEV-27434 DESC attribute does not work with auto-increment on secondary column of multi-part index
+#
+create table t (a int auto_increment, b int, unique(b,a desc)) engine=aria;
+insert ignore into t (b) values (10),(10),(10);
+select * from t;
+a	b
+3	10
+2	10
+1	10
+drop table t;
+#
+# MDEV-27585 Auto-increment on secondary column increments unexpectedly with DESC key
+#
+create table t (c char(16), i int auto_increment, index (c,i desc)) engine=aria collate latin1_swedish_ci;
+insert into t (c) values ('ä'),('a');
+select hex(c),c,i from t order by c, i;
+hex(c)	c	i
+61	a	1
+C3A4	ä	1
 drop table t;
 #
 # End of 10.8 tests

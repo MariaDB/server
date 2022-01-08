@@ -8,9 +8,6 @@ call mtr.add_suppression("Can't find record in '.*'");
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
 
 # Initialise
---disable_warnings
-drop table if exists t1,t2,t3;
---enable_warnings
 SET SQL_WARNINGS=1;
 
 #
@@ -1880,6 +1877,22 @@ check table t;
 check table t extended;
 select distinct c from t;
 select c from t;
+drop table t;
+
+--echo #
+--echo # MDEV-27434 DESC attribute does not work with auto-increment on secondary column of multi-part index
+--echo #
+create table t (a int auto_increment, b int, unique(b,a desc)) engine=myisam;
+insert ignore into t (b) values (10),(10),(10);
+select * from t;
+drop table t;
+
+--echo #
+--echo # MDEV-27585 Auto-increment on secondary column increments unexpectedly with DESC key
+--echo #
+create table t (c char(16), i int auto_increment, index (c,i desc)) engine=myisam collate latin1_swedish_ci;
+insert into t (c) values ('ä'),('a');
+select hex(c),c,i from t order by c, i;
 drop table t;
 
 --echo #
