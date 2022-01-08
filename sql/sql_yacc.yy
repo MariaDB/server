@@ -1405,7 +1405,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <create_field> field_spec column_def
 
 %type <num>
-        order_dir lock_option
+        order_dir order_dir_ind lock_option
         udf_type opt_local opt_no_write_to_binlog
         opt_temporary all_or_any opt_distinct opt_glimit_clause
         opt_ignore_leaves fulltext_options union_option
@@ -6842,12 +6842,12 @@ ignorability:
         ;
 
 key_list:
-          key_list ',' key_part order_dir
+          key_list ',' key_part order_dir_ind
           {
             $3->asc= $4;
             Lex->last_key->columns.push_back($3, thd->mem_root);
           }
-        | key_part order_dir
+        | key_part order_dir_ind
           {
             $1->asc= $2;
             Lex->last_key->columns.push_back($1, thd->mem_root);
@@ -12219,6 +12219,11 @@ order_dir:
         | DESC { $$= 0; }
         ;
 
+order_dir_ind:
+          /* empty */ { $$= 0; }
+        | ASC  { $$= 1; }
+        | DESC { $$= 0; }
+        ;
 
 opt_limit_clause:
           /* empty */

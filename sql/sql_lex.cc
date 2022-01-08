@@ -512,8 +512,9 @@ void LEX::add_key_to_list(LEX_CSTRING *field_name,
              DDL_options(check_exists ?
                          DDL_options::OPT_IF_NOT_EXISTS :
                          DDL_options::OPT_NONE));
-  key->columns.push_back(new (mem_root) Key_part_spec(field_name, 0),
-                         mem_root);
+  Key_part_spec *kps= new (mem_root) Key_part_spec(field_name, 0);
+  kps->asc= 0;
+  key->columns.push_back(kps, mem_root);
   alter_info.key_list.push_back(key, mem_root);
 }
 
