@@ -910,12 +910,12 @@ double Histogram_json_hb::point_selectivity(Field *field, key_range *endpoint,
 
   // If the value is outside of the histogram's range, this will "clip" it to
   // first or last bucket.
-  bool equal;
-  int idx= find_bucket(field, key, &equal);
+  int endp_cmp;
+  int idx= find_bucket(field, key, &endp_cmp);
 
   double sel;
 
-  if (buckets[idx].ndv == 1 && !equal)
+  if (buckets[idx].ndv == 1 && (endp_cmp!=0))
   {
     /*
       The bucket has a single value and it doesn't match! Return a very
@@ -979,22 +979,27 @@ double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
 
     // Find the leftmost bucket that contains the lookup value.
     // (If the lookup value is to the left of all buckets, find bucket #0)
-    bool equal;
-    int idx= find_bucket(field, min_key, &equal);
-    if (equal && exclusive_endp && buckets[idx].ndv==1 &&
-        idx < (int)buckets.size()-1)
+    int endp_cmp;
+    int idx= find_bucket(field, min_key, &endp_cmp);
+
+    double sel;
+    // Special handling for buckets with ndv=1:
+    if (buckets[idx].ndv == 1)
     {
-      /*
-        The range is "col > $CONST" and we've found a bucket that contains
-        only the value $CONST. Move to the next bucket.
-      */
-      idx++;
+      if (endp_cmp < 0)
+        sel= 0.0;
+      else if (endp_cmp > 0)
+        sel= 1.0;
+      else // endp_cmp == 0.0
+        sel= (exclusive_endp)? 1.0 : 0.0;
+    }
+    else
+    {
+      sel= position_in_interval(field, min_key, min_key_len,
+				buckets[idx].start_value,
+				get_end_value(idx));
     }
     double left_fract= get_left_fract(idx);
-    double sel= position_in_interval(field, min_key, min_key_len,
-                                     buckets[idx].start_value,
-                                     get_end_value(idx));
-
     min= left_fract + sel * (buckets[idx].cum_fract - left_fract);
   }
   else
@@ -1012,28 +1017,35 @@ double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
       max_key++;
       max_key_len--;
     }
-    bool equal;
-    int idx= find_bucket(field, max_key, &equal);
+    int endp_cmp;
+    int idx= find_bucket(field, max_key, &endp_cmp);
 
-    if (equal && !inclusive_endp && idx > 0)
+    if ((endp_cmp == 0) && !inclusive_endp)
     {
       /*
         The range is "col < $CONST" and we've found a bucket starting with
-        $CONST. Move to the previous bucket.
+        $CONST.
       */
-      idx--;
-      equal= false;
-    }
-    double left_fract= get_left_fract(idx);
-
-    double sel;
-    /* Special handling for singleton buckets */
-    if (buckets[idx].ndv == 1 && equal)
-    {
-      if (inclusive_endp)
-        sel= 1.0;
+      if (idx > 0)
+      {
+        // Move to the previous bucket
+        endp_cmp= 1;
+        idx--;
+      }
       else
+        endp_cmp= -1;
+    }
+    double sel;
+
+    // Special handling for buckets with ndv=1:
+    if (buckets[idx].ndv == 1)
+    {
+      if (endp_cmp < 0)
         sel= 0.0;
+      else if (endp_cmp > 0)
+        sel= 1.0;
+      else // endp_cmp == 0.0
+        sel= inclusive_endp? 1.0 : 0.0;
     }
     else
     {
@@ -1041,13 +1053,13 @@ double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
                                 buckets[idx].start_value,
                                 get_end_value(idx));
     }
+    double left_fract= get_left_fract(idx);
     max= left_fract + sel * (buckets[idx].cum_fract - left_fract);
   }
   else
     max= 1.0;
 
-  double sel = max - min;
-  return sel;
+  return max - min;
 }
 
 
@@ -1057,25 +1069,37 @@ void Histogram_json_hb::serialize(Field *field)
 }
 
 
+static int SGN(int x)
+{
+  if (!x)
+    return 0;
+  return (x < 0)? -1 : 1;
+}
+
+
 /*
   @brief
    Find the leftmost histogram bucket such that "lookup_val >= start_value".
 
   @param field        Field object (used to do value comparisons)
   @param lookup_val   The lookup value in KeyTupleFormat.
-  @param equal  OUT   TRUE<=> the found bucket has left_bound=lookup_val
-
+  @param cmp  OUT     How the lookup_val compares to found_bucket.left_bound:
+                      0  - lookup_val == bucket.left_bound
+                      >0 - lookup_val > bucket.left_bound (the most typical)
+                      <0 - lookup_val < bucket.left_bound. This can only happen
+                      for the first bucket, for all other buckets we would just
+                      pick the previous bucket and have cmp>=0.
   @return
      The bucket index
 */
 
 int Histogram_json_hb::find_bucket(const Field *field, const uchar *lookup_val,
-                                   bool *equal)
+                                   int *cmp)
 {
   int res;
   int low= 0;
   int high= (int)buckets.size() - 1;
-  *equal= false;
+  *cmp= 1; // By default, (bucket[retval].start_value < *lookup_val)
 
   while (low + 1 < high)
   {
@@ -1083,7 +1107,7 @@ int Histogram_json_hb::find_bucket(const Field *field, const uchar *lookup_val,
     res= field->key_cmp((uchar*)buckets[middle].start_value.data(), lookup_val);
     if (!res)
     {
-      *equal= true;
+      *cmp= res;
       low= middle;
       goto end;
     }
@@ -1104,31 +1128,44 @@ int Histogram_json_hb::find_bucket(const Field *field, const uchar *lookup_val,
   */
   if (low == 0)
   {
-    res= field->key_cmp((uchar*)buckets[0].start_value.data(), lookup_val);
-    if (!res)
-      *equal= true;
-    else if (res < 0) //  buckets[0] < lookup_val
+    res= field->key_cmp(lookup_val, (uchar*)buckets[0].start_value.data());
+    if (res <= 0)
+      *cmp= res;
+    else // res>0, lookup_val > buckets[0].start_value
     {
-      res= field->key_cmp((uchar*)buckets[high].start_value.data(), lookup_val);
-      if (!res)
-        *equal= true;
-      if (res <= 0) // buckets[high] <= lookup_val
+      res= field->key_cmp(lookup_val, (uchar*)buckets[high].start_value.data());
+      if (res >= 0)  // lookup_val >= buckets[high].start_value
+      {
+        // Move to that bucket
         low= high;
+        *cmp= res;
+      }
+      else
+        *cmp= 1;
     }
   }
   else if (high == (int)buckets.size() - 1)
   {
-    res= field->key_cmp((uchar*)buckets[high].start_value.data(), lookup_val);
-    if (!res)
-      *equal= true;
-    if (res <= 0)
+    res= field->key_cmp(lookup_val, (uchar*)buckets[high].start_value.data());
+    if (res >= 0)
+    {
+      // Ok the value is in the last bucket.
+      *cmp= res;
       low= high;
+    }
+    else
+    {
+      // The value is in the 'low' bucket.
+      res= field->key_cmp(lookup_val, (uchar*)buckets[low].start_value.data());
+      *cmp= res;
+    }
   }
 
 end:
-  // Verification: *equal==TRUE <=> lookup value is equal to the found bucket.
-  DBUG_ASSERT(*equal == !(field->key_cmp((uchar*)buckets[low].start_value.data(),
-                                         lookup_val)));
+  // Verification: *cmp has correct value
+  DBUG_ASSERT(SGN(*cmp) ==
+              SGN(field->key_cmp(lookup_val,
+                                 (uchar*)buckets[low].start_value.data())));
   // buckets[low] <= lookup_val, with one exception of the first bucket.
   DBUG_ASSERT(low == 0 ||
               field->key_cmp((uchar*)buckets[low].start_value.data(), lookup_val)<= 0);

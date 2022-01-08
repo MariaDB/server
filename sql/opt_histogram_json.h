@@ -144,6 +144,6 @@ private:
 
   double get_left_fract(int idx);
   std::string& get_end_value(int idx);
-  int find_bucket(const Field *field, const uchar *lookup_val, bool *equal);
+  int find_bucket(const Field *field, const uchar *lookup_val, int *cmp);
 };
 

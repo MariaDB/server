@@ -390,3 +390,29 @@ analyze table t1 persistent for all;
 analyze select COUNT(*) FROM t1 WHERE a <> 'a';
 analyze select COUNT(*) FROM t1 WHERE a < 'a';
 drop table t1;
+
+--echo #
+--echo # MDEV-27229: Estimation for filtered rows less precise ... #5
+--echo #
+create table t1 (id int, a varchar(8));
+insert into t1 select seq, 'bar' from seq_1_to_100;
+insert into t1 select id, 'qux' from t1;
+
+set histogram_type=JSON_HB;
+analyze table t1 persistent for all;
+analyze select COUNT(*) FROM t1 WHERE a > 'foo';
+
+analyze select COUNT(*) FROM t1 WHERE a > 'aaa';
+analyze select COUNT(*) FROM t1 WHERE a >='aaa';
+
+analyze select COUNT(*) FROM t1 WHERE a > 'bar';
+analyze select COUNT(*) FROM t1 WHERE a >='bar';
+
+# Can enable these after get_avg_frequency issue is resolved:
+# analyze select COUNT(*) FROM t1 WHERE a < 'aaa';
+# analyze select COUNT(*) FROM t1 WHERE a <='aaa';
+# analyze select COUNT(*) FROM t1 WHERE a < 'bar';
+
+analyze select COUNT(*) FROM t1 WHERE a <='bar';
+
+drop table t1;
