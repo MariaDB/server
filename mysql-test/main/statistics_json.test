@@ -416,3 +416,16 @@ analyze select COUNT(*) FROM t1 WHERE a >='bar';
 analyze select COUNT(*) FROM t1 WHERE a <='bar';
 
 drop table t1;
+
+--echo #
+--echo # MDEV-27243: Estimation for filtered rows less precise ... #7
+--echo # (Testcase only)
+
+CREATE TABLE t1 (f TIME);
+INSERT INTO t1 SELECT IF(seq%2,'00:00:00',SEC_TO_TIME(seq+7200)) FROM seq_1_to_1000;
+
+SET histogram_type= JSON_HB;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE SELECT * FROM t1 WHERE f > '00:01:00';
+drop table t1;
+
