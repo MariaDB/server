@@ -200,7 +200,7 @@ static char*	innodb_version_str = (char*) INNODB_VERSION_STR;
 extern uint srv_fil_crypt_rotate_key_age;
 extern uint srv_n_fil_crypt_iops;
 
-#if defined SAFE_MUTEX && defined UNIV_DEBUG
+#ifdef UNIV_DEBUG
 my_bool innodb_evict_tables_on_commit_debug;
 #endif
 
@@ -19615,12 +19615,10 @@ static MYSQL_SYSVAR_BOOL(trx_purge_view_update_only_debug,
   " but the each purges were not done yet.",
   NULL, NULL, FALSE);
 
-# ifdef SAFE_MUTEX
 static MYSQL_SYSVAR_BOOL(evict_tables_on_commit_debug,
   innodb_evict_tables_on_commit_debug, PLUGIN_VAR_OPCMDARG,
   "On transaction commit, try to evict tables from the data dictionary cache.",
   NULL, NULL, FALSE);
-# endif /* SAFE_MUTEX */
 
 static MYSQL_SYSVAR_UINT(data_file_size_debug,
   srv_sys_space_size_debug,
@@ -19895,9 +19893,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(trx_rseg_n_slots_debug),
   MYSQL_SYSVAR(limit_optimistic_insert_debug),
   MYSQL_SYSVAR(trx_purge_view_update_only_debug),
-# ifdef SAFE_MUTEX
   MYSQL_SYSVAR(evict_tables_on_commit_debug),
-# endif /* SAFE_MUTEX */
   MYSQL_SYSVAR(data_file_size_debug),
   MYSQL_SYSVAR(fil_make_page_dirty_debug),
   MYSQL_SYSVAR(saved_page_number_debug),

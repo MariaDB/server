@@ -3873,7 +3873,7 @@ restart:
 and release possible other transactions waiting because of these locks. */
 void lock_release(trx_t *trx)
 {
-#if defined SAFE_MUTEX && defined UNIV_DEBUG
+#ifdef UNIV_DEBUG
   std::set<table_id_t> to_evict;
   if (innodb_evict_tables_on_commit_debug &&
       !trx->is_recovered && !trx->dict_operation &&
@@ -3937,7 +3937,7 @@ released:
   trx->lock.was_chosen_as_deadlock_victim= false;
   trx->lock.n_rec_locks= 0;
 
-#if defined SAFE_MUTEX && defined UNIV_DEBUG
+#ifdef UNIV_DEBUG
   if (to_evict.empty())
     return;
   dict_sys.lock(SRW_LOCK_CALL);
