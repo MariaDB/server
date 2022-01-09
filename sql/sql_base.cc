@@ -4458,6 +4458,7 @@ restart:
         wsrep_thd_is_local(thd) &&
         tbl &&
         tables == *start &&
+        !thd->stmt_arena->is_stmt_prepare()              &&
         !wsrep_check_mode_after_open_table(thd,
                                            tbl->file->ht, tables))
     {
@@ -4474,6 +4475,7 @@ restart:
     {
       enum_sql_command sql_command= thd->lex->sql_command;
       bool is_dml_stmt= thd->get_command() != COM_STMT_PREPARE &&
+                    !thd->stmt_arena->is_stmt_prepare() &&
                     (sql_command == SQLCOM_INSERT ||
                      sql_command == SQLCOM_INSERT_SELECT ||
                      sql_command == SQLCOM_REPLACE ||
