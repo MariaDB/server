@@ -4227,6 +4227,7 @@ restart:
       wsrep_thd_exec_mode(thd) == LOCAL_STATE          &&
       !is_stat_table((*start)->db, (*start)->alias)    &&
       thd->get_command() != COM_STMT_PREPARE           &&
+      !thd->stmt_arena->is_stmt_prepare()              &&
       ((thd->lex->sql_command == SQLCOM_INSERT         ||
         thd->lex->sql_command == SQLCOM_INSERT_SELECT  ||
         thd->lex->sql_command == SQLCOM_REPLACE        ||
