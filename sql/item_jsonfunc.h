@@ -24,7 +24,7 @@
 #include "item_cmpfunc.h"      // Item_bool_func
 #include "item_strfunc.h"      // Item_str_func
 #include "item_sum.h"
-
+#include "sql_type_json.h"
 
 class json_path_with_flags
 {
@@ -123,12 +123,9 @@ public:
    :Item_str_func(thd, a, b) { }
   Item_json_func(THD *thd, List<Item> &list)
    :Item_str_func(thd, list) { }
-  bool is_json_type() override { return true; }
-  void make_send_field(THD *thd, Send_field *tmp_field) override
+  const Type_handler *type_handler() const override
   {
-    Item_str_func::make_send_field(thd, tmp_field);
-    static const Lex_cstring fmt(STRING_WITH_LEN("json"));
-    tmp_field->set_format_name(fmt);
+    return Type_handler_json_common::json_type_handler(max_length);
   }
 };
 
@@ -562,7 +559,10 @@ public:
   }
   Item_func_json_arrayagg(THD *thd, Item_func_json_arrayagg *item) :
     Item_func_group_concat(thd, item) {}
-  bool is_json_type() override { return true; }
+  const Type_handler *type_handler() const override
+  {
+    return Type_handler_json_common::json_type_handler_sum(this);
+  }
 
   const char *func_name() const override { return "json_arrayagg("; }
   enum Sumfunctype sum_func() const override { return JSON_ARRAYAGG_FUNC; }
@@ -587,16 +587,13 @@ public:
   }
 
   Item_func_json_objectagg(THD *thd, Item_func_json_objectagg *item);
-  bool is_json_type() override { return true; }
   void cleanup() override;
 
   enum Sumfunctype sum_func() const override {return JSON_OBJECTAGG_FUNC;}
   const char *func_name() const override { return "json_objectagg"; }
   const Type_handler *type_handler() const override
   {
-    if (too_big_for_varchar())
-      return &type_handler_blob;
-    return &type_handler_varchar;
+    return Type_handler_json_common::json_type_handler_sum(this);
   }
   void clear() override;
   bool add() override;

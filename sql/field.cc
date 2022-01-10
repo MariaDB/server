@@ -7277,6 +7277,19 @@ bool Field_longstr::send(Protocol *protocol)
 }
 
 
+const Type_handler *Field_string::type_handler() const
+{
+  if (is_var_string())
+    return &type_handler_var_string;
+  /*
+    This is a temporary solution and will be fixed soon (in 10.9?).
+    Type_handler_string_json will provide its own Field_string_json.
+  */
+  if (Type_handler_json_common::has_json_valid_constraint(this))
+   return &type_handler_string_json;
+  return &type_handler_string;
+}
+
 	/* Copy a string and fill with space */
 
 int Field_string::store(const char *from, size_t length,CHARSET_INFO *cs)
@@ -7775,6 +7788,20 @@ en_fieldtype Field_string::tmp_engine_column_type(bool use_packed_rows) const
 ****************************************************************************/
 
 const uint Field_varstring::MAX_SIZE= UINT_MAX16;
+
+
+const Type_handler *Field_varstring::type_handler() const
+{
+  /*
+    This is a temporary solution and will be fixed soon (in 10.9?).
+    Type_handler_varchar_json will provide its own Field_varstring_json
+    and Field_varstring_compressed_json
+  */
+  if (Type_handler_json_common::has_json_valid_constraint(this))
+    return &type_handler_varchar_json;
+  return &type_handler_varchar;
+}
+
 
 /**
    Save the field metadata for varstring fields.
@@ -8897,6 +8924,15 @@ void Field_blob::sort_string(uchar *to,uint length)
 */
 const Type_handler *Field_blob::type_handler() const
 {
+  /*
+    This is a temporary solution and will be fixed soon (in 10.9?).
+    Type_handler_*blob_json will provide its own Field_blob_json
+    and Field_blob_compressed_json.
+  */
+  if (Type_handler_json_common::has_json_valid_constraint(this))
+    return Type_handler_json_common::
+             json_blob_type_handler_by_length_bytes(packlength);
+
   switch (packlength) {
   case 1: return &type_handler_tiny_blob;
   case 2: return &type_handler_blob;

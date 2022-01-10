@@ -880,6 +880,14 @@ DROP TABLE t1;
 DROP TABLE t2;
 
 --echo #
+--echo # MDEV-27018 IF and COALESCE lose "json" property
+--echo #
+
+SELECT json_object('a', if(1, json_object('b', 'c'), json_object('e', 'f')));
+SELECT json_object('a', coalesce(json_object('b', 'c')));
+
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
 

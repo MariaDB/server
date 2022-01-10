@@ -6431,7 +6431,7 @@ field_type_lob:
         | JSON_SYM opt_compressed
           {
             Lex->charset= &my_charset_utf8mb4_bin;
-            $$.set(&type_handler_json_longtext);
+            $$.set(&type_handler_long_blob_json);
           }
         ;
 

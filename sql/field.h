@@ -4010,12 +4010,7 @@ public:
                    NONE, field_name_arg, collation),
      can_alter_field_type(1) {};
 
-  const Type_handler *type_handler() const override
-  {
-    if (is_var_string())
-      return &type_handler_var_string;
-    return &type_handler_string;
-  }
+  const Type_handler *type_handler() const override;
   enum ha_base_keytype key_type() const override
     { return binary() ? HA_KEYTYPE_BINARY : HA_KEYTYPE_TEXT; }
   en_fieldtype tmp_engine_column_type(bool use_packed_rows) const override;
@@ -4134,8 +4129,7 @@ public:
     share->varchar_fields++;
   }
 
-  const Type_handler *type_handler() const override
-  { return &type_handler_varchar; }
+  const Type_handler *type_handler() const override;
   en_fieldtype tmp_engine_column_type(bool use_packed_rows) const override
   {
     return FIELD_VARCHAR;

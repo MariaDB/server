@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1454,7 +1454,6 @@ public:
               (cs->mbmaxlen > 1 || !(cs->state & MY_CS_NONASCII))));
     }
   }
-  bool is_json_type() { return args[0]->is_json_type(); }
   String *val_str(String *);
   longlong val_int()
   {

@@ -3091,17 +3091,6 @@ Item_field::Item_field(THD *thd, Item_field *item)
 }
 
 
-bool Item_field::is_json_type()
-{
-  if (!field->check_constraint ||
-      field->check_constraint->expr->type() != FUNC_ITEM)
-    return FALSE;
-
-  Item_func *f= (Item_func *) field->check_constraint->expr;
-  return f->functype() == Item_func::JSON_VALID_FUNC;
-}
-
-
 void Item_field::set_field(Field *field_par)
 {
   field=result_field=field_par;			// for easy coding with fields

@@ -1868,7 +1868,6 @@ public:
     table during query processing (grouping and so on)
   */
   virtual bool is_result_field() { return 0; }
-  virtual bool is_json_type() { return false; }
   virtual bool is_bool_literal() const { return false; }
   /* This is to handle printing of default values */
   virtual bool need_parentheses_in_default() { return false; }
@@ -3427,7 +3426,6 @@ public:
   my_decimal *val_decimal_result(my_decimal *) override;
   bool val_bool_result() override;
   bool is_null_result() override;
-  bool is_json_type() override;
   bool send(Protocol *protocol, st_value *buffer) override;
   Load_data_outvar *get_load_data_outvar() override { return this; }
   bool load_data_set_null(THD *thd, const Load_data_param *param) override
@@ -5463,7 +5461,6 @@ public:
   {
     return ref ? (*ref)->get_typelib() : NULL;
   }
-  bool is_json_type() override { return (*ref)->is_json_type(); }
 
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override
   {

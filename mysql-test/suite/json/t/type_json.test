@@ -1,0 +1,143 @@
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+
+--echo #
+--echo # MDEV-27361 Hybrid functions with JSON arguments do not send format metadata
+--echo #
+
+# Mix all columns in the given table tbl to each other and calculate expr.
+
+DELIMITER $$;
+CREATE PROCEDURE p1(tbl TEXT, expr TEXT)
+BEGIN
+  DECLARE t1cols INT DEFAULT (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                              WHERE TABLE_NAME=tbl AND TABLE_SCHEMA='test');
+  FOR a IN 0..(t1cols-1) DO
+    FOR b IN 0..(t1cols-1) DO
+    BEGIN
+      DECLARE query TEXT DEFAULT CONCAT('SELECT ', expr, ' FROM ', tbl);
+      SET query= REPLACE(query, 'olt1', a);
+      SET query= REPLACE(query, 'olt2', b);
+      EXECUTE IMMEDIATE query;
+    END;
+    END FOR;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+
+
+# Mix all columns in table t1 to all columns in table t2 and calculate expr
+
+DELIMITER $$;
+CREATE PROCEDURE p2(expr TEXT)
+BEGIN
+  DECLARE t1cols INT DEFAULT (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                              WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test');
+  DECLARE t2cols INT DEFAULT (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                              WHERE TABLE_NAME='t2' AND TABLE_SCHEMA='test');
+  FOR a IN 0..(t1cols-1) DO
+    FOR b IN 0..(t2cols-1) DO
+    BEGIN
+      DECLARE query TEXT DEFAULT CONCAT('SELECT ', expr, ' FROM t1, t2');
+      SET query= REPLACE(query, 'olt1', a);
+      SET query= REPLACE(query, 'olt2', b);
+      EXECUTE IMMEDIATE query;
+    END;
+    END FOR;
+  END FOR;
+END;
+$$
+DELIMITER ;$$
+
+
+
+CREATE TABLE t1
+(
+  c0 CHAR(30)    DEFAULT '1'  CHECK(JSON_VALID(c0)),
+  c1 VARCHAR(30) DEFAULT '1'  CHECK(JSON_VALID(c1)),
+  c2 TINYTEXT    DEFAULT '1'  CHECK(JSON_VALID(c2)),
+  c3 TEXT        DEFAULT '1'  CHECK(JSON_VALID(c3)),
+  c4 MEDIUMTEXT  DEFAULT '1'  CHECK(JSON_VALID(c4)),
+  c5 LONGTEXT    DEFAULT '1'  CHECK(JSON_VALID(c5)),
+# The below data types do not have any special JSON properties.
+# Just checking CHECK(JSON_VALID()) does not give any unexpected surprises.
+  c6 INT         DEFAULT '1'  CHECK(JSON_VALID(c6)),
+  c7 ENUM('1')   DEFAULT '1'  CHECK(JSON_VALID(c7))
+);
+INSERT INTO t1 VALUES ();
+
+
+CREATE TABLE t1c
+(
+  c0 CHAR(30)               DEFAULT '1'  CHECK(JSON_VALID(c0)),
+  c1 VARCHAR(30) COMPRESSED DEFAULT '1'  CHECK(JSON_VALID(c1)),
+  c2 TINYTEXT    COMPRESSED DEFAULT '1'  CHECK(JSON_VALID(c2)),
+  c3 TEXT        COMPRESSED DEFAULT '1'  CHECK(JSON_VALID(c3)),
+  c4 MEDIUMTEXT  COMPRESSED DEFAULT '1'  CHECK(JSON_VALID(c4)),
+  c5 LONGTEXT    COMPRESSED DEFAULT '1'  CHECK(JSON_VALID(c5)),
+# The below data types do not have any special JSON properties.
+# Just checking CHECK(JSON_VALID()) does not give any unexpected surprises.
+  c6 INT                    DEFAULT '1'  CHECK(JSON_VALID(c6)),
+  c7 ENUM('1')              DEFAULT '1'  CHECK(JSON_VALID(c7))
+);
+INSERT INTO t1c VALUES ();
+
+
+
+CREATE TABLE t2
+(
+  c0 CHAR(30) DEFAULT '1',
+  c1 VARCHAR(30) DEFAULT '1',
+  c2 TINYTEXT DEFAULT '1',
+  c3 TEXT DEFAULT '1',
+  c4 MEDIUMTEXT DEFAULT '1',
+  c5 LONGTEXT DEFAULT '1',
+  c6 INT DEFAULT 1,
+  c7 DOUBLE DEFAULT 1,
+  c8 DECIMAL(10,2) DEFAULT 1.23,
+  c9 TIME DEFAULT '10:20:30',
+  c10 DATE DEFAULT '2001-01-01',
+  c11 DATETIME DEFAULT '2001-01-01 10:20:30',
+  c12 ENUM('1','2') DEFAULT '1'
+);
+INSERT INTO t2 VALUES ();
+
+
+--disable_ps_protocol
+--enable_metadata
+CALL p1('t1', 'COALESCE(colt1, colt2)');
+CALL p1('t1', 'LEAST(colt1, colt2)');
+CALL p1('t1', 'colt1+colt2');
+--disable_metadata
+--disable_ps_protocol
+
+
+--disable_ps_protocol
+--enable_metadata
+CALL p1('t1c', 'COALESCE(colt1, colt2)');
+CALL p1('t1c', 'LEAST(colt1, colt2)');
+CALL p1('t1c', 'colt1+colt2');
+--disable_metadata
+--disable_ps_protocol
+
+
+--disable_ps_protocol
+--enable_metadata
+CALL p2('COALESCE(t1.colt1, t2.colt2)');
+CALL p2('LEAST(t1.colt1, t2.colt2)');
+CALL p2('t1.colt1+t2.colt2');
+--disable_metadata
+--disable_ps_protocol
+
+
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+
+DROP TABLE t1, t1c, t2;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
