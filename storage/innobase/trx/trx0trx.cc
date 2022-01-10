@@ -1130,9 +1130,12 @@ static void trx_flush_log_if_needed_low(lsn_t lsn, const trx_t *trx)
   if (!srv_flush_log_at_trx_commit)
     return;
 
+  if (log_sys.get_flushed_lsn(std::memory_order_relaxed) >= lsn)
+    return;
+
   completion_callback cb, *callback= nullptr;
 
-  if (trx->state == TRX_STATE_PREPARED && !log_sys.is_pmem() &&
+  if (trx->state != TRX_STATE_PREPARED && !log_sys.is_pmem() &&
       (cb.m_param= innodb_thd_increment_pending_ops(trx->mysql_thd)))
   {
     cb.m_callback= (void (*)(void *)) thd_decrement_pending_ops;
