@@ -6,10 +6,11 @@
 RESET SLAVE ALL;
 
 --echo # Does not work for CHANGE MASTER:
+SET @old_default_master_connection= @@default_master_connection;
+SET default_master_connection = 'm1';
 --replace_result $MASTER_MYPORT MASTER_MYPORT
-eval SET STATEMENT default_master_connection = 'm1' FOR 
-  CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_USER='root';
-
+eval CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_USER='root';
+SET @@default_master_connection= @old_default_master_connection;
 
 --echo #
 --echo # The first field, Connection_name, should say 'm1'...
@@ -23,7 +24,10 @@ RESET SLAVE ALL;
 
 --replace_result $MASTER_MYPORT MASTER_MYPORT
 eval CHANGE MASTER 'm1' TO MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT, MASTER_USER='root';
-SET STATEMENT default_master_connection = 'm1' FOR START SLAVE;
+SET @old_default_master_connection= @@default_master_connection;
+SET default_master_connection = 'm1';
+START SLAVE;
+SET @@default_master_connection= @old_default_master_connection;
 
 set default_master_connection = 'm1';
 stop slave;

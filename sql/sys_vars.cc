@@ -1109,7 +1109,7 @@ static bool check_master_connection(sys_var *self, THD *thd, set_var *var)
 static Sys_var_session_lexstring Sys_default_master_connection(
        "default_master_connection",
        "Master connection to use for all slave variables and slave commands",
-       SESSION_ONLY(default_master_connection),
+       NO_SET_STMT SESSION_ONLY(default_master_connection),
        NO_CMD_LINE, IN_SYSTEM_CHARSET,
        DEFAULT(""), MAX_CONNECTION_NAME, ON_CHECK(check_master_connection));
 #endif
@@ -1319,7 +1319,7 @@ static Sys_var_double Sys_long_query_time(
        "Log all queries that have taken more than long_query_time seconds "
        "to execute to the slow query log file. The argument will be treated "
        "as a decimal value with microsecond precision",
-       SESSION_VAR(long_query_time_double),
+       NO_SET_STMT SESSION_VAR(long_query_time_double),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, LONG_TIMEOUT), DEFAULT(10),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(update_cached_long_query_time));
@@ -1578,7 +1578,7 @@ static Sys_var_uint Sys_gtid_domain_id(
        "parallel paths (for example multiple masters), each independent "
        "source server must use a distinct domain_id. For simple tree-shaped "
        "replication topologies, it can be left at its default, 0.",
-       SESSION_VAR(gtid_domain_id),
+       NO_SET_STMT SESSION_VAR(gtid_domain_id),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, UINT_MAX32), DEFAULT(0),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_gtid_domain_id));
@@ -2274,7 +2274,7 @@ static Sys_var_ulong Sys_min_examined_row_limit(
        "min_examined_row_limit",
        "Don't write queries to slow log that examine fewer rows "
        "than that",
-       SESSION_VAR(min_examined_row_limit), CMD_LINE(REQUIRED_ARG),
+       NO_SET_STMT SESSION_VAR(min_examined_row_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
 
 #ifdef _WIN32
@@ -4030,7 +4030,7 @@ static ulonglong read_last_insert_id(THD *thd)
 }
 static Sys_var_session_special Sys_last_insert_id(
        "last_insert_id", "The value to be returned from LAST_INSERT_ID()",
-       sys_var::ONLY_SESSION, NO_CMD_LINE,
+       NO_SET_STMT sys_var::ONLY_SESSION, NO_CMD_LINE,
        VALID_RANGE(0, ULONGLONG_MAX), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(update_last_insert_id), ON_READ(read_last_insert_id));
@@ -4108,7 +4108,7 @@ static ulonglong read_rand_seed1(THD *thd)
 static Sys_var_session_special Sys_rand_seed1(
        "rand_seed1", "Sets the internal state of the RAND() "
        "generator for replication purposes",
-       sys_var::ONLY_SESSION, NO_CMD_LINE,
+       NO_SET_STMT sys_var::ONLY_SESSION, NO_CMD_LINE,
        VALID_RANGE(0, ULONG_MAX), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(update_rand_seed1), ON_READ(read_rand_seed1));
@@ -4130,7 +4130,7 @@ static ulonglong read_rand_seed2(THD *thd)
 static Sys_var_session_special Sys_rand_seed2(
        "rand_seed2", "Sets the internal state of the RAND() "
        "generator for replication purposes",
-       sys_var::ONLY_SESSION, NO_CMD_LINE,
+       NO_SET_STMT sys_var::ONLY_SESSION, NO_CMD_LINE,
        VALID_RANGE(0, ULONG_MAX), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(update_rand_seed2), ON_READ(read_rand_seed2));
@@ -4416,7 +4416,7 @@ static Sys_var_mybool Sys_slow_query_log(
        "Log slow queries to a table or log file. Defaults logging to a file "
        "'hostname'-slow.log or a table mysql.slow_log if --log-output=TABLE is "
        "used. Must be enabled to activate other slow log options.",
-       SESSION_VAR(sql_log_slow), CMD_LINE(OPT_ARG),
+       NO_SET_STMT SESSION_VAR(sql_log_slow), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(0), ON_UPDATE(fix_log_state));
 
@@ -5423,7 +5423,7 @@ static const char *log_slow_filter_names[]=
 static Sys_var_set Sys_log_slow_filter(
        "log_slow_filter",
        "Log only certain types of queries",
-       SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
+       NO_SET_STMT SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
        log_slow_filter_names,
        DEFAULT(my_set_bits(array_elements(log_slow_filter_names)-1)));
 
@@ -5470,7 +5470,7 @@ static Sys_var_ulong Sys_log_slow_rate_limit(
        "Write to slow log every #th slow query. Set to 1 to log everything. "
        "Increase it to reduce the size of the slow or the performance impact "
        "of slow logging",
-       SESSION_VAR(log_slow_rate_limit), CMD_LINE(REQUIRED_ARG),
+       NO_SET_STMT SESSION_VAR(log_slow_rate_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, UINT_MAX), DEFAULT(1), BLOCK_SIZE(1));
 
 static const char *log_slow_verbosity_names[]= { "innodb", "query_plan", 
@@ -5478,7 +5478,7 @@ static const char *log_slow_verbosity_names[]= { "innodb", "query_plan",
 static Sys_var_set Sys_log_slow_verbosity(
        "log_slow_verbosity",
        "Verbosity level for the slow log",
-       SESSION_VAR(log_slow_verbosity), CMD_LINE(REQUIRED_ARG),
+       NO_SET_STMT SESSION_VAR(log_slow_verbosity), CMD_LINE(REQUIRED_ARG),
        log_slow_verbosity_names, DEFAULT(LOG_SLOW_VERBOSITY_INIT));
 
 static Sys_var_ulong Sys_join_cache_level(

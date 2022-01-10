@@ -15,7 +15,10 @@ reset master;
 create table t1 (i int);
 set gtid_domain_id = 10;
 insert into t1 values (1),(2);
-set statement gtid_domain_id = 20 for insert into t1 values (3),(4);
+set @old_gtid_domain_id= @@gtid_domain_id;
+set @@gtid_domain_id= 20;
+insert into t1 values (3),(4);
+set @@gtid_domain_id= @old_gtid_domain_id;
 
 --replace_column 1 x 2 x 3 x 4 x 5 x
 show binlog events limit 5,5;
@@ -32,8 +35,11 @@ insert into t2 values (1),(2);
 DELIMITER |;
 CREATE function f1() returns int
 BEGIN
-  SET STATEMENT last_insert_id=@a for insert into t1 values (NULL, @a,
-  last_insert_id());
+  declare old_last_insert_id int;
+  set old_last_insert_id= @@last_insert_id;
+  set last_insert_id= @a;
+  insert into t1 values (NULL, @a, last_insert_id());
+  set @@last_insert_id= old_last_insert_id;
   SET @a:=@a*100+13;
   return @a;
 end|
@@ -82,7 +88,10 @@ drop function f1;
 drop table t1,t2;
 
 reset master;
-set statement last_insert_id = 112 for create table t1 as select last_insert_id();
+set @old_last_insert_id= @@last_insert_id;
+set @@last_insert_id= 112;
+create table t1 as select last_insert_id();
+set @@last_insert_id= @old_last_insert_id;
 --replace_column 1 x 2 x 3 x 4 x 5 x
 show binlog events limit 4,1;
 drop table t1;

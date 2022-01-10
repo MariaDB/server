@@ -4,15 +4,20 @@ connection slave;
 include/stop_slave.inc
 RESET SLAVE ALL;
 # Does not work for CHANGE MASTER:
-SET STATEMENT default_master_connection = 'm1' FOR 
+SET @old_default_master_connection= @@default_master_connection;
+SET default_master_connection = 'm1';
 CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_MYPORT, MASTER_USER='root';
+SET @@default_master_connection= @old_default_master_connection;
 #
 # The first field, Connection_name, should say 'm1'...
 #
 Connection_name = 'm1'
 RESET SLAVE ALL;
 CHANGE MASTER 'm1' TO MASTER_HOST='127.0.0.1', MASTER_PORT=MASTER_MYPORT, MASTER_USER='root';
-SET STATEMENT default_master_connection = 'm1' FOR START SLAVE;
+SET @old_default_master_connection= @@default_master_connection;
+SET default_master_connection = 'm1';
+START SLAVE;
+SET @@default_master_connection= @old_default_master_connection;
 set default_master_connection = 'm1';
 stop slave;
 include/wait_for_slave_to_stop.inc

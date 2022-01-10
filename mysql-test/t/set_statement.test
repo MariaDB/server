@@ -992,15 +992,34 @@ set @save_slow_query_log= @@slow_query_log;
 set @save_log_output= @@log_output;
 
 let $long_query_time=`select @@long_query_time`;
+set @old_long_query_time= @@long_query_time;
+set @@long_query_time=default;
 --replace_result $long_query_time DEFAULT
-set statement long_query_time=default for select @@long_query_time;
+select @@long_query_time;
+set @@long_query_time= @old_long_query_time;
 
 # Disable result log as the results depends on the values of the variables
 --disable_result_log
-set statement log_slow_filter=default for select @@log_slow_filter;
-set statement log_slow_verbosity=default for select @@log_slow_verbosity;
-set statement log_slow_rate_limit=default for select @@log_slow_rate_limit;
-set statement slow_query_log=default for select @@slow_query_log;
+set @old_log_slow_filter= @@log_slow_filter;
+set @@log_slow_filter=default;
+select @@log_slow_filter;
+set @@log_slow_filter= @old_log_slow_filter;
+
+set @old_log_slow_verbosity= @@log_slow_verbosity;
+set @@log_slow_verbosity=default;
+select @@log_slow_verbosity;
+set @@log_slow_verbosity= @old_log_slow_verbosity;
+
+set @old_log_slow_rate_limit= @@log_slow_rate_limit;
+set @@log_slow_rate_limit=default;
+select @@log_slow_rate_limit;
+set @@log_slow_rate_limit= @old_log_slow_rate_limit;
+
+set @old_slow_query_log= @@slow_query_log;
+set @@slow_query_log=default;
+select @@slow_query_log;
+set @@slow_query_log= @old_slow_query_log;
+
 --enable_result_log
 
 truncate table mysql.slow_log;
@@ -1015,25 +1034,41 @@ set @@long_query_time=@save_long_query_time;
 select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
 --echo #---
 --echo #should be written
-set statement long_query_time=0.01 for select sleep(0.1);
+set @old_long_query_time= @@long_query_time;
+set @@long_query_time=0.01;
+select sleep(0.1);
+set @@long_query_time=@old_long_query_time;
 select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
 --echo #---
 set @@long_query_time=0.01;
 --echo #should NOT be written
-set statement slow_query_log=0 for select sleep(0.1);
+set @old_slow_query_log= @@slow_query_log;
+set @@slow_query_log=0;
+select sleep(0.1);
+set @@slow_query_log=@old_slow_query_log;
+
 set @@long_query_time=@save_long_query_time;
 select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
 --echo #---
 --echo #should NOT be written
-set statement long_query_time=0.01,log_slow_filter='full_scan' for select sleep(0.1);
+set @old_long_query_time= @@long_query_time, @old_log_slow_filter=@@log_slow_filter;
+set @@long_query_time=0.01, @@log_slow_filter='full_scan';
+select sleep(0.1);
+set @@long_query_time= @old_long_query_time, @@log_slow_filter=@old_log_slow_filter;
 select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
 --echo #---
 --echo #should NOT be written
-set statement long_query_time=0.01,log_slow_rate_limit=9999 for select sleep(0.1);
+set @old_long_query_time= @@long_query_time, @old_log_slow_filter=@@log_slow_filter;
+set @@long_query_time=0.01,@@log_slow_rate_limit=9999;
+select sleep(0.1);
+set @@long_query_time= @old_long_query_time, @@log_slow_filter=@old_log_slow_filter;
 select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
 --echo #---
 --echo #should NOT be written
-set statement long_query_time=0.01,min_examined_row_limit=50 for select sleep(0.1);
+set @old_long_query_time= @@long_query_time, @old_min_examined_row_limit=@@min_examined_row_limit;
+set @@long_query_time=0.01, @@min_examined_row_limit=50;
+select sleep(0.1);
+set @@long_query_time= @old_long_query_time, @@min_examined_row_limit=@old_min_examined_row_limit;
 select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
 --echo #---
 #
@@ -1072,6 +1107,34 @@ set statement query_cache_type=default for select 1;
 set statement wait_timeout=default for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement interactive_timeout=default for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement default_master_connection='' for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement debug_sync='RESET' for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement gtid_domain_id=1 for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement last_insert_id=1 for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement log_slow_filter=2 for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement log_slow_rate_limit=1.1 for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement log_slow_rate_limit=1.1 for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement log_slow_verbosity=2 for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement long_query_time=2 for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement min_examined_row_limit=65535 for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement profiling=ON for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement rand_seed1=1 for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement rand_seed2=1 for select 1;
+--error ER_SET_STATEMENT_NOT_SUPPORTED
+set statement slow_query_log='OFF' for select 1;
 
 # MDEV-6996: SET STATEMENT default_week_format = .. has no effect
 set @save_week_format=@@default_week_format;
@@ -1128,7 +1191,10 @@ let $1=10;
 while ($1)
 {
   --disable_result_log
-  set statement rand_seed1=1, rand_seed2=1 for select 1;
+  set @old_rand_seed1= @@rand_seed1, @old_rand_seed2=@@rand_seed2;
+  set @@rand_seed1=1, @@rand_seed2=1;
+  select 1;
+  set @@rand_seed1=@old_rand_seed1, @@rand_seed2=@old_rand_seed2;
   --enable_result_log
   set @rnd= rand()=0 and @rnd;
   dec $1;

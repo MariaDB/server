@@ -8,14 +8,17 @@ reset master;
 create table t1 (i int);
 set gtid_domain_id = 10;
 insert into t1 values (1),(2);
-set statement gtid_domain_id = 20 for insert into t1 values (3),(4);
+set @old_gtid_domain_id= @@gtid_domain_id;
+set @@gtid_domain_id= 20;
+insert into t1 values (3),(4);
+set @@gtid_domain_id= @old_gtid_domain_id;
 show binlog events limit 5,5;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 x	x	x	x	x	BEGIN GTID 10-1-1
 x	x	x	x	x	use `test`; insert into t1 values (1),(2)
 x	x	x	x	x	COMMIT
 x	x	x	x	x	BEGIN GTID 20-1-1
-x	x	x	x	x	use `test`; set statement gtid_domain_id = 20 for insert into t1 values (3),(4)
+x	x	x	x	x	use `test`; insert into t1 values (3),(4)
 drop table t1;
 reset master;
 SET @a=11;
@@ -24,8 +27,11 @@ create table t2 (b int);
 insert into t2 values (1),(2);
 CREATE function f1() returns int
 BEGIN
-SET STATEMENT last_insert_id=@a for insert into t1 values (NULL, @a,
-last_insert_id());
+declare old_last_insert_id int;
+set old_last_insert_id= @@last_insert_id;
+set last_insert_id= @a;
+insert into t1 values (NULL, @a, last_insert_id());
+set @@last_insert_id= old_last_insert_id;
 SET @a:=@a*100+13;
 return @a;
 end|
@@ -44,11 +50,9 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 x	x	x	x	x	LAST_INSERT_ID=0
 x	x	x	x	x	INSERT_ID=1
 x	x	x	x	x	@`a`=11
-x	x	x	x	x	@`a`=11
 x	x	x	x	x	use `test`; SELECT `test`.`f1`()
 x	x	x	x	x	LAST_INSERT_ID=0
 x	x	x	x	x	INSERT_ID=2
-x	x	x	x	x	@`a`=1113
 x	x	x	x	x	@`a`=1113
 x	x	x	x	x	use `test`; SELECT `test`.`f1`()
 x	x	x	x	x	COMMIT
@@ -101,7 +105,10 @@ a	c	d
 drop function f1;
 drop table t1,t2;
 reset master;
-set statement last_insert_id = 112 for create table t1 as select last_insert_id();
+set @old_last_insert_id= @@last_insert_id;
+set @@last_insert_id= 112;
+create table t1 as select last_insert_id();
+set @@last_insert_id= @old_last_insert_id;
 show binlog events limit 4,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 x	x	x	x	x	LAST_INSERT_ID=112
