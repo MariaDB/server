@@ -86,3 +86,13 @@ from information_schema.optimizer_trace;
 drop table t1;
 
 set optimizer_trace=default;
+
+--echo #
+--echo # MDEV-27426: Wrong result upon query using index_merge with DESC key
+--echo #
+
+CREATE OR REPLACE TABLE t1 (pk INT, a INT, b int, KEY(a), PRIMARY KEY(pk DESC)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,4,5),(2,9,6),(3,NULL,7),(4,NULL,8);
+
+SELECT * FROM t1 WHERE pk > 10 OR a > 0;
+DROP TABLE t1;

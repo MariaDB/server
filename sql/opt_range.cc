@@ -13079,24 +13079,25 @@ int QUICK_RANGE_SELECT::cmp_next(QUICK_RANGE *range_arg)
        key+= store_length, key_part++)
   {
     int cmp;
+    bool reverse= MY_TEST(key_part->flag & HA_REVERSE_SORT);
     store_length= key_part->store_length;
     if (key_part->null_bit)
     {
       if (*key)
       {
         if (!key_part->field->is_null())
-          return 1;
+          return reverse ? 0 : 1;
         continue;
       }
       else if (key_part->field->is_null())
-        return 0;
+        return reverse ? 1 : 0;
       key++;					// Skip null byte
       store_length--;
     }
     if ((cmp=key_part->field->key_cmp(key, key_part->length)) < 0)
-      return 0;
+      return reverse ? 1 : 0;
     if (cmp > 0)
-      return 1;
+      return reverse ? 0 : 1;
   }
   return (range_arg->flag & NEAR_MAX) ? 1 : 0;          // Exact match
 }
