@@ -122,7 +122,6 @@ os_data_fsyncs	disabled
 os_pending_reads	disabled
 os_pending_writes	disabled
 os_log_bytes_written	disabled
-os_log_pending_writes	disabled
 trx_rw_commits	disabled
 trx_ro_commits	disabled
 trx_nl_ro_commits	disabled
@@ -279,7 +278,6 @@ os_data_fsyncs	enabled
 os_pending_reads	enabled
 os_pending_writes	enabled
 os_log_bytes_written	disabled
-os_log_pending_writes	enabled
 set global innodb_monitor_enable="";
 ERROR 42000: Variable 'innodb_monitor_enable' can't be set to the value of ''
 set global innodb_monitor_enable="_";

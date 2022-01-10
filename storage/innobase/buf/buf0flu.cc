@@ -175,7 +175,10 @@ inline void buf_pool_t::delete_from_flush_list_low(buf_page_t *bpage)
 void buf_pool_t::insert_into_flush_list(buf_block_t *block, lsn_t lsn)
 {
   mysql_mutex_assert_not_owner(&mutex);
-  mysql_mutex_assert_owner(&log_sys.flush_order_mutex);
+#ifdef SAFE_MUTEX
+  if (!recv_recovery_is_on())
+    mysql_mutex_assert_owner(&log_sys.flush_order_mutex);
+#endif /* SAFE_MUTEX */
   ut_ad(lsn > 2);
   static_assert(log_t::FIRST_LSN >= 2, "compatibility");
   ut_ad(!fsp_is_system_temporary(block->page.id().space()));
@@ -1735,6 +1738,7 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
   {
     /* Do nothing, because nothing was logged (other than a
     FILE_CHECKPOINT record) since the previous checkpoint. */
+  do_nothing:
     mysql_mutex_unlock(&log_sys.mutex);
     return true;
   }
@@ -1756,10 +1760,7 @@ static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
   log_write_up_to(flush_lsn, true);
   mysql_mutex_lock(&log_sys.mutex);
   if (log_sys.last_checkpoint_lsn >= oldest_lsn)
-  {
-    mysql_mutex_unlock(&log_sys.mutex);
-    return true;
-  }
+    goto do_nothing;
 
   ut_ad(log_sys.get_flushed_lsn() >= flush_lsn);
 
@@ -1801,8 +1802,8 @@ static bool log_checkpoint()
   mysql_mutex_lock(&log_sys.flush_order_mutex);
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   const lsn_t oldest_lsn= buf_pool.get_oldest_modification(end_lsn);
-  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   mysql_mutex_unlock(&log_sys.flush_order_mutex);
+  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   return log_checkpoint_low(oldest_lsn, end_lsn);
 }
 
@@ -1964,8 +1965,8 @@ ATTRIBUTE_COLD static void buf_flush_sync_for_checkpoint(lsn_t lsn)
     const lsn_t newest_lsn= log_sys.get_lsn();
     mysql_mutex_lock(&log_sys.flush_order_mutex);
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
-    lsn_t measure= buf_pool.get_oldest_modification(0);
     mysql_mutex_unlock(&log_sys.flush_order_mutex);
+    lsn_t measure= buf_pool.get_oldest_modification(0);
     const lsn_t checkpoint_lsn= measure ? measure : newest_lsn;
 
     if (!recv_recovery_is_on() &&

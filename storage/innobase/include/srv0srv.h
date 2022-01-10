@@ -86,22 +86,6 @@ struct srv_stats_t
 	/** Count the amount of data written in total (in bytes) */
 	ulint_ctr_1_t		data_written;
 
-	/** Number of the log write requests done */
-	ulint_ctr_1_t		log_write_requests;
-
-	/** Number of physical writes to the log performed */
-	ulint_ctr_1_t		log_writes;
-
-	/** Amount of data written to the log files in bytes */
-	lsn_ctr_1_t		os_log_written;
-
-	/** Number of writes being done to the log files */
-	ulint_ctr_1_t		os_log_pending_writes;
-
-	/** We increase this counter, when we don't have enough
-	space in the log buffer and have to flush it */
-	ulint_ctr_1_t		log_waits;
-
 	/** Store the number of write requests issued */
 	ulint_ctr_1_t		buf_pool_write_requests;
 
@@ -717,9 +701,6 @@ struct export_var_t{
 	ulint innodb_dblwr_writes;		/*!< srv_dblwr_writes */
 	ulint innodb_deadlocks;
 	ulint innodb_history_list_length;
-	ulint innodb_log_waits;			/*!< srv_log_waits */
-	ulint innodb_log_write_requests;	/*!< srv_log_write_requests */
-	ulint innodb_log_writes;		/*!< srv_log_writes */
 	lsn_t innodb_lsn_current;
 	lsn_t innodb_lsn_flushed;
 	lsn_t innodb_lsn_last_checkpoint;
@@ -728,8 +709,8 @@ struct export_var_t{
 	ulint innodb_mem_adaptive_hash;
 #endif
 	ulint innodb_mem_dictionary;
-	lsn_t innodb_os_log_written;		/*!< srv_os_log_written */
-	ulint innodb_os_log_pending_writes;	/*!< srv_os_log_pending_writes */
+	/** log_sys.get_lsn() - recv_sys.lsn */
+	lsn_t innodb_os_log_written;
 	ulint innodb_row_lock_waits;		/*!< srv_n_lock_wait_count */
 	ulint innodb_row_lock_current_waits;	/*!< srv_n_lock_wait_current_count */
 	int64_t innodb_row_lock_time;		/*!< srv_n_lock_wait_time

@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -662,12 +662,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 static_cast<monitor_type_t>(
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_OS_LOG_WRITTEN},
-
-	{"os_log_pending_writes", "os",
-	 "Number of pending log file writes (innodb_os_log_pending_writes)",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_OS_LOG_PENDING_WRITES},
 
 	/* ========== Counters for Transaction Module ========== */
 	{"module_trx", "transaction", "Transaction Manager",
@@ -1538,28 +1532,22 @@ srv_mon_process_existing_counter(
 
 	/* innodb_os_log_written */
 	case MONITOR_OVLD_OS_LOG_WRITTEN:
-		value = (mon_type_t) srv_stats.os_log_written;
-		break;
-
-	/* innodb_os_log_pending_writes */
-	case MONITOR_OVLD_OS_LOG_PENDING_WRITES:
-		value = srv_stats.os_log_pending_writes;
-		update_min = TRUE;
+		value = log_sys.get_lsn() - recv_sys.lsn;
 		break;
 
 	/* innodb_log_waits */
 	case MONITOR_OVLD_LOG_WAITS:
-		value = srv_stats.log_waits;
+		value = log_sys.waits;
 		break;
 
 	/* innodb_log_write_requests */
 	case MONITOR_OVLD_LOG_WRITE_REQUEST:
-		value = srv_stats.log_write_requests;
+		value = log_sys.write_to_buf;
 		break;
 
 	/* innodb_log_writes */
 	case MONITOR_OVLD_LOG_WRITES:
-		value = srv_stats.log_writes;
+		value = log_sys.write_to_log;
 		break;
 
 	/* innodb_dblwr_writes */

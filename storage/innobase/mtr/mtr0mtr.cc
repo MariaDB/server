@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -407,11 +407,14 @@ void mtr_t::commit()
       lsns= { m_commit_lsn, PAGE_FLUSH_NO };
 
     if (m_made_dirty)
+    {
+      ++log_sys.write_to_buf;
       mysql_mutex_lock(&log_sys.flush_order_mutex);
+    }
 
-    /* It is now safe to release the log mutex because the
-    flush_order mutex will ensure that we are the first one
-    to insert into the flush list. */
+    /* It is now safe to release log_sys.mutex because the
+    buf_pool.flush_order_mutex will ensure that we are the first one
+    to insert into buf_pool.flush_list. */
     mysql_mutex_unlock(&log_sys.mutex);
 
     if (m_freed_pages)
@@ -446,9 +449,6 @@ void mtr_t::commit()
 
     if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
       buf_flush_ahead(m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);
-
-    if (m_made_dirty)
-      srv_stats.log_write_requests.inc();
   }
   else
     m_memo.for_each_block_in_reverse(CIterate<ReleaseAll>());
@@ -520,6 +520,7 @@ void mtr_t::commit_shrink(fil_space_t &space)
 
   const lsn_t start_lsn= finish_write(prepare_write()).first;
 
+  log_sys.write_to_buf++;
   mysql_mutex_lock(&log_sys.flush_order_mutex);
   /* Durably write the reduced FSP_SIZE before truncating the data file. */
   log_write_and_flush();
@@ -563,7 +564,6 @@ void mtr_t::commit_shrink(fil_space_t &space)
   mysql_mutex_unlock(&fil_system.mutex);
 
   m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>());
-  srv_stats.log_write_requests.inc();
 
   release_resources();
 }
@@ -776,8 +776,6 @@ inline lsn_t log_t::append_prepare(size_t size) noexcept
 {
   mysql_mutex_assert_owner(&mutex);
 
-  srv_stats.log_write_requests.inc(); // FIXME: use a normal variable
-
   lsn_t lsn= get_lsn();
 
   if (UNIV_UNLIKELY(size > log_capacity))
@@ -804,10 +802,10 @@ inline lsn_t log_t::append_prepare(size_t size) noexcept
     for (ut_d(int count= 50); capacity() - size <
            size_t(lsn - flushed_to_disk_lsn.load(std::memory_order_relaxed)); )
     {
+      waits++;
       mysql_mutex_unlock(&mutex);
       DEBUG_SYNC_C("log_buf_size_exceeded");
       log_write_up_to(lsn, true);
-      srv_stats.log_waits.inc();
       ut_ad(count--);
       mysql_mutex_lock(&mutex);
       lsn= get_lsn();
@@ -820,10 +818,10 @@ inline lsn_t log_t::append_prepare(size_t size) noexcept
 
   for (ut_d(int count= 50); UNIV_UNLIKELY(buf_free > size); )
   {
+    waits++;
     mysql_mutex_unlock(&mutex);
     DEBUG_SYNC_C("log_buf_size_exceeded");
     log_write_up_to(lsn, false);
-    srv_stats.log_waits.inc();
     ut_ad(count--);
     mysql_mutex_lock(&mutex);
     lsn= get_lsn();
@@ -839,10 +837,6 @@ static mtr_t::page_flush_ahead log_close(lsn_t lsn) noexcept
 {
   mysql_mutex_assert_owner(&log_sys.mutex);
   log_sys.set_lsn(lsn);
-
-  const bool set_check= log_sys.buf_free > log_sys.max_buf_free;
-  if (set_check)
-    log_sys.set_check_flush_or_checkpoint();
 
   const lsn_t checkpoint_age= lsn - log_sys.last_checkpoint_lsn;
 
@@ -899,7 +893,6 @@ inline size_t mtr_t::prepare_write()
 @return {start_lsn,flush_ahead} */
 std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::finish_write(size_t len)
 {
-  mysql_mutex_assert_owner(&log_sys.mutex);
   ut_ad(!recv_no_log_write);
   ut_ad(m_log_mode == MTR_LOG_ALL);
 
@@ -949,6 +942,9 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::finish_write(size_t len)
   {
     m_log.for_each_block([](const mtr_buf_t::block_t *b)
     { log_sys.append(b->begin(), b->used()); return true; });
+
+    if (log_sys.buf_free >= log_sys.max_buf_free)
+      log_sys.set_check_flush_or_checkpoint();
 
 #ifdef HAVE_PMEM
   write_trailer:

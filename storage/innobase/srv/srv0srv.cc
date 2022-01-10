@@ -1080,17 +1080,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_max_trx_id = trx_sys.get_max_trx_id();
 	export_vars.innodb_history_list_length = trx_sys.history_size();
 
-	export_vars.innodb_log_waits = srv_stats.log_waits;
-
-	export_vars.innodb_os_log_written = srv_stats.os_log_written;
-
-	export_vars.innodb_os_log_pending_writes =
-		srv_stats.os_log_pending_writes;
-
-	export_vars.innodb_log_write_requests = srv_stats.log_write_requests;
-
-	export_vars.innodb_log_writes = srv_stats.log_writes;
-
 	mysql_mutex_lock(&lock_sys.wait_mutex);
 	export_vars.innodb_row_lock_waits = lock_sys.get_wait_cumulative();
 
@@ -1189,6 +1178,8 @@ srv_export_innodb_status(void)
 	export_vars.innodb_checkpoint_max_age = static_cast<ulint>(
 		log_sys.max_checkpoint_age);
 	mysql_mutex_unlock(&log_sys.mutex);
+	export_vars.innodb_os_log_written = export_vars.innodb_lsn_current
+		- recv_sys.lsn;
 
 	export_vars.innodb_checkpoint_age = static_cast<ulint>(
 		export_vars.innodb_lsn_current

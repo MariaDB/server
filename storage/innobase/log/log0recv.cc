@@ -2971,9 +2971,7 @@ set_start_lsn:
 		}
 
 		buf_block_modify_clock_inc(block);
-		mysql_mutex_lock(&log_sys.flush_order_mutex);
 		buf_flush_note_modification(block, start_lsn, end_lsn);
-		mysql_mutex_unlock(&log_sys.flush_order_mutex);
 	} else if (free_page && init) {
 		/* There have been no operations that modify the page.
 		Any buffered changes must not be merged. A subsequent

@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -271,7 +271,6 @@ enum monitor_id_t {
 	MONITOR_OS_PENDING_READS,
 	MONITOR_OS_PENDING_WRITES,
 	MONITOR_OVLD_OS_LOG_WRITTEN,
-	MONITOR_OVLD_OS_LOG_PENDING_WRITES,
 
 	/* Transaction related counters */
 	MONITOR_MODULE_TRX,

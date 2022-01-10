@@ -213,16 +213,21 @@ public:
   size_t buf_free;
   /** recommended maximum size of buf, after which the buffer is flushed */
   size_t max_buf_free;
-  /** mutex to serialize access to the flush list when we are putting
-  dirty blocks in the list. The idea behind this mutex is to be able
-  to release log_sys.mutex during mtr_commit and still ensure that
-  insertions in the flush_list happen in the LSN order. */
+  /** mutex that ensures that inserts into buf_pool.flush_list are in
+  LSN order; allows mtr_t::commit() to release log_sys.mutex earlier */
   MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t flush_order_mutex;
   /** log record buffer, written to by mtr_t::commit() */
   byte *buf;
   /** buffer for writing data to ib_logfile0, or nullptr if is_pmem()
   In write_buf(), buf and flush_buf are swapped */
   byte *flush_buf;
+  /** number of write requests (to buf); protected by mutex */
+  ulint write_to_buf;
+  /** number of std::swap(buf, flush_buf) and writes from buf to log;
+  protected by mutex */
+  ulint write_to_log;
+  /** number of waits in append_prepare() */
+  ulint waits;
   /** innodb_log_buffer_size (size of buf and flush_buf, in bytes) */
   size_t buf_size;
 

@@ -156,7 +156,6 @@ os_data_fsyncs	os	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status
 os_pending_reads	os	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of reads pending
 os_pending_writes	os	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of writes pending
 os_log_bytes_written	os	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Bytes of log written (innodb_os_log_written)
-os_log_pending_writes	os	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of pending log file writes (innodb_os_log_pending_writes)
 trx_rw_commits	transaction	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of read-write transactions  committed
 trx_ro_commits	transaction	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of read-only transactions committed
 trx_nl_ro_commits	transaction	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of non-locking auto-commit read-only transactions committed

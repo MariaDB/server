@@ -596,6 +596,7 @@ inline lsn_t log_t::write_buf() noexcept
     }
 
     std::swap(buf, flush_buf);
+    write_to_log++;
     mysql_mutex_unlock(&mutex);
 
     if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED))
