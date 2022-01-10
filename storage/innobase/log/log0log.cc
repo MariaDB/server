@@ -267,8 +267,10 @@ void log_t::create(lsn_t lsn) noexcept
   ut_ad(is_latest());
   ut_ad(this == &log_sys);
 
-  set_lsn(lsn);
-  set_first_lsn(lsn);
+  this->lsn.store(lsn, std::memory_order_relaxed);
+  this->flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
+  first_lsn= lsn;
+  write_lsn= lsn;
 
   last_checkpoint_lsn= 0;
 
@@ -518,20 +520,15 @@ inline void log_t::persist(lsn_t lsn) noexcept
   if (old >= lsn)
     return;
 
-# ifdef __linux__
-  if (pmem_is_pmem(buf, file_size))
-# endif
+  const size_t old_offset(calc_lsn_offset(old));
+  const size_t new_offset(calc_lsn_offset(lsn));
+  if (UNIV_UNLIKELY(old_offset > new_offset))
   {
-    const size_t old_offset(calc_lsn_offset(old));
-    const size_t new_offset(calc_lsn_offset(lsn));
-    if (UNIV_UNLIKELY(old_offset > new_offset))
-    {
-      pmem_deep_persist(buf + old_offset, file_size - old_offset);
-      pmem_deep_persist(buf + START_OFFSET, new_offset - START_OFFSET);
-    }
-    else
-      pmem_deep_persist(buf + old_offset, new_offset - old_offset);
+    pmem_deep_persist(buf + old_offset, file_size - old_offset);
+    pmem_deep_persist(buf + START_OFFSET, new_offset - START_OFFSET);
   }
+  else
+    pmem_deep_persist(buf + old_offset, new_offset - old_offset);
 
   while (!flushed_to_disk_lsn.compare_exchange_weak
          (old, lsn, std::memory_order_release, std::memory_order_relaxed))
