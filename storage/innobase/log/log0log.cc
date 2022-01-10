@@ -560,13 +560,13 @@ inline lsn_t log_t::write_buf() noexcept
   }
   else
   {
+    write_lock.set_pending(lsn);
     ut_ad(write_lsn >= get_flushed_lsn());
     const size_t block_size_1{get_block_size() - 1};
     const lsn_t offset{calc_lsn_offset(write_lsn) & ~block_size_1};
 
     DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF " at " LSN_PF,
                           write_lsn, lsn, offset));
-    write_lock.set_pending(lsn);
     const byte *write_buf{buf};
     size_t length{buf_free};
     ut_ad(length >= (calc_lsn_offset(write_lsn) & block_size_1));
@@ -744,8 +744,6 @@ ATTRIBUTE_COLD void log_write_and_flush()
   else
   {
     mysql_mutex_unlock(&log_sys.mutex);
-    ut_ad(!write_lock.is_owner());
-    ut_ad(!flush_lock.is_owner());
     log_sys.persist(log_sys.get_lsn());
   }
 #endif
