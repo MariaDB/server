@@ -1,0 +1,1294 @@
+drop table if exists t0, t1, t2, t3, t4;
+drop view if exists v1;
+SET @old_debug= @@session.debug;
+set debug_sync='RESET';
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int);
+insert into t1 select A.a + 10*B.a + 100*C.a from t0 A, t0 B, t0 C;
+alter table t1 add b int, add c int, add filler char(32);
+update t1 set b=a, c=a, filler='fooo';
+alter table t1 add key(a), add key(b);
+show explain format=JSON for;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+explain format=JSON for connection;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
+show explain FORMAT=json for 123456789;
+ERROR HY000: Unknown thread id: 123456789
+explain FORMAT=json for connection 123456789;
+ERROR HY000: Unknown thread id: 123456789
+show explain FORMAT=json for (select max(a) from t0);
+ERROR HY000: You may only use constant expressions in this statement
+explain FORMAT=json for connection (select max(a) from t0);
+ERROR HY000: You may only use constant expressions in this statement
+connect  con1, localhost, root,,;
+connection con1;
+SET @old_debug= @@session.debug;
+connection default;
+show explain format=JSON for $thr2;
+ERROR HY000: Target is not running an EXPLAINable command
+explain format=json for connection $thr2;
+ERROR HY000: Target is not running an EXPLAINable command
+show explain format=json for $thr1;
+ERROR HY000: Target is not running an EXPLAINable command
+explain FORMAT=JSON for connection $thr1;
+ERROR HY000: Target is not running an EXPLAINable command
+show explain FORMAT=HTML for $thr1;
+ERROR HY000: Unknown EXPLAIN format name: 'HTML'
+explain FORMAT=XML for connection $thr1;
+ERROR HY000: Unknown EXPLAIN format name: 'XML'
+connection con1;
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+select count(*) from t1 where a < 100000;
+connection default;
+show explain FORMAT=JSON for $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "rows": 999,
+          "filtered": 100,
+          "attached_condition": "t1.a < 100000",
+          "using_index": true
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	select count(*) from t1 where a < 100000
+connection con1;
+count(*)
+1000
+select max(c) from t1 where a < 10;
+connection default;
+explain FORMAT=JSON for connection $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "rows": 10,
+          "filtered": 100,
+          "index_condition": "t1.a < 10"
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	select max(c) from t1 where a < 10
+connection con1;
+max(c)
+9
+select max(c) from t1 where a < 10;
+connection default;
+explain format=JSON for connection $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "rows": 10,
+          "filtered": 100,
+          "index_condition": "t1.a < 10"
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	select max(c) from t1 where a < 10
+connection con1;
+max(c)
+9
+# We can catch EXPLAIN, too.
+set @show_expl_tmp= @@optimizer_switch;
+set optimizer_switch='index_condition_pushdown=on,mrr=on,mrr_sort_keys=on';
+explain select max(c) from t1 where a < 10;
+connection default;
+show explain format=json for $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "rows": 10,
+          "filtered": 100,
+          "index_condition": "t1.a < 10",
+          "mrr_type": "Rowid-ordered scan"
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	explain select max(c) from t1 where a < 10
+connection con1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	10	Using index condition; Rowid-ordered scan
+# Same for EXPLAIN FOR CONNECTION
+explain select max(c) from t1 where a < 10;
+connection default;
+explain format=JSON for connection $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "range",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "rows": 10,
+          "filtered": 100,
+          "index_condition": "t1.a < 10",
+          "mrr_type": "Rowid-ordered scan"
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	explain select max(c) from t1 where a < 10
+connection con1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	5	NULL	10	Using index condition; Rowid-ordered scan
+set optimizer_switch= @show_expl_tmp;
+SET debug_dbug=@old_debug;
+# UNION, first branch
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+explain select a from t0 A union select a+1 from t0 B;
+connection default;
+show explain format = JSON for $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "union_result": {
+      "table_name": "<union1,2>",
+      "access_type": "ALL",
+      "query_specifications": [
+        {
+          "query_block": {
+            "select_id": 1,
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "A",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100
+                }
+              }
+            ]
+          }
+        },
+        {
+          "query_block": {
+            "select_id": 2,
+            "operation": "UNION",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "B",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
+Warnings:
+Note	1003	explain select a from t0 A union select a+1 from t0 B
+connection con1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	
+2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+SET debug_dbug=@old_debug;
+# UNION, second branch
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+explain select a from t0 A union select a+1 from t0 B;
+connection default;
+show explain format=JSON for $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "union_result": {
+      "table_name": "<union1,2>",
+      "access_type": "ALL",
+      "query_specifications": [
+        {
+          "query_block": {
+            "select_id": 1,
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "A",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100
+                }
+              }
+            ]
+          }
+        },
+        {
+          "query_block": {
+            "select_id": 2,
+            "operation": "UNION",
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "B",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
+Warnings:
+Note	1003	explain select a from t0 A union select a+1 from t0 B
+connection con1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	
+2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+SET debug_dbug=@old_debug;
+# Uncorrelated  subquery, select
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+select a, (select max(a) from t0 B) from t0 A where a<1;
+connection default;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	
+Warnings:
+Note	1003	select a, (select max(a) from t0 B) from t0 A where a<1
+connection con1;
+a	(select max(a) from t0 B)
+0	9
+SET debug_dbug=@old_debug;
+# Uncorrelated  subquery, explain
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+explain select a, (select max(a) from t0 B) from t0 A where a<1;
+connection default;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	
+Warnings:
+Note	1003	explain select a, (select max(a) from t0 B) from t0 A where a<1
+connection con1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	
+SET debug_dbug=@old_debug;
+# correlated  subquery, select
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
+Warnings:
+Note	1003	select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
+connection con1;
+a	(select max(a) from t0 b where b.a+a.a<10)
+0	9
+SET debug_dbug=@old_debug;
+# correlated  subquery, explain
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+explain select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+show explain for $thr2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
+Warnings:
+Note	1003	explain select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
+connection con1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
+SET debug_dbug=@old_debug;
+# correlated  subquery, select, while inside the subquery
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+show explain format=JSON for $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "a",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "a.a < 1"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "expression_cache": {
+          "query_block": {
+            "select_id": 2,
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "b",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100,
+                  "attached_condition": "b.a + a.a < 10"
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
+connection con1;
+a	(select max(a) from t0 b where b.a+a.a<10)
+0	9
+SET debug_dbug=@old_debug;
+# correlated  subquery, explain, while inside the subquery
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+show explain format=JSON for $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "a",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "a.a < 1"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "expression_cache": {
+          "query_block": {
+            "select_id": 2,
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "b",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100,
+                  "attached_condition": "b.a + a.a < 10"
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
+connection con1;
+a	(select max(a) from t0 b where b.a+a.a<10)
+0	9
+SET debug_dbug=@old_debug;
+# correlated  subquery, explain, while inside the subquery
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
+connection default;
+show explain format=JSON for $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "a",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "a.a < 1"
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "expression_cache": {
+          "query_block": {
+            "select_id": 2,
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "b",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100,
+                  "attached_condition": "b.a + a.a < 10"
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
+connection con1;
+a	(select max(a) from t0 b where b.a+a.a<10)
+0	9
+SET debug_dbug=@old_debug;
+# Try to do SHOW EXPLAIN for a query that runs a  SET command:
+#   I've found experimentally that select_id==2 here...
+#
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+set @foo= (select max(a) from t0 where sin(a) >0);
+connection default;
+show explain format=JSON for $thr2;
+ERROR HY000: Target is not running an EXPLAINable command
+kill query $thr2;
+connection con1;
+ERROR 70100: Query execution was interrupted
+SET debug_dbug=@old_debug;
+#
+# Attempt SHOW EXPLAIN for an UPDATE
+#
+create table t2 as select a as a, a as dummy from t0 limit 2;
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
+connection default;
+show explain format=JSON for $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "update": 1,
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 2,
+      "attached_condition": "(subquery#2) > 3"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t0",
+                "access_type": "ALL",
+                "rows": 10,
+                "filtered": 100,
+                "attached_condition": "t2.a + t0.a < 3"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3
+show explain format=JSON for $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "update": 1,
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 2,
+      "attached_condition": "(subquery#2) > 3"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t0",
+                "access_type": "ALL",
+                "rows": 10,
+                "filtered": 100,
+                "attached_condition": "t2.a + t0.a < 3"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3
+connection con1;
+#
+# EXPLAIN FOR CONNECTION for an UPDATE
+#
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
+connection default;
+explain format=JSON for connection $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "update": 1,
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 2,
+      "attached_condition": "(subquery#2) > 3"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t0",
+                "access_type": "ALL",
+                "rows": 10,
+                "filtered": 100,
+                "attached_condition": "t2.a + t0.a < 3"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3
+explain format=JSON for connection $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "update": 1,
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 2,
+      "attached_condition": "(subquery#2) > 3"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t0",
+                "access_type": "ALL",
+                "rows": 10,
+                "filtered": 100,
+                "attached_condition": "t2.a + t0.a < 3"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3
+connection con1;
+drop table t2;
+SET debug_dbug=@old_debug;
+#
+# Attempt SHOW EXPLAIN for a DELETE
+#
+create table t2 as select a as a, a as dummy from t0 limit 2;
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
+connection default;
+show explain format=JSON for $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "delete": 1,
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 2,
+      "attached_condition": "(subquery#2) > 3"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t0",
+                "access_type": "ALL",
+                "rows": 10,
+                "filtered": 100,
+                "attached_condition": "t2.a + t0.a < 3"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3
+show explain format=JSON for $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "delete": 1,
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 2,
+      "attached_condition": "(subquery#2) > 3"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t0",
+                "access_type": "ALL",
+                "rows": 10,
+                "filtered": 100,
+                "attached_condition": "t2.a + t0.a < 3"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3
+connection con1;
+drop table t2;
+SET debug_dbug=@old_debug;
+#
+# Attempt EXPLAIN FOR CONNECTION for a DELETE
+#
+create table t2 as select a as a, a as dummy from t0 limit 2;
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
+connection default;
+explain format=JSON for connection $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "delete": 1,
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 2,
+      "attached_condition": "(subquery#2) > 3"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t0",
+                "access_type": "ALL",
+                "rows": 10,
+                "filtered": 100,
+                "attached_condition": "t2.a + t0.a < 3"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3
+explain format=JSON for connection $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "delete": 1,
+      "table_name": "t2",
+      "access_type": "ALL",
+      "rows": 2,
+      "attached_condition": "(subquery#2) > 3"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t0",
+                "access_type": "ALL",
+                "rows": 10,
+                "filtered": 100,
+                "attached_condition": "t2.a + t0.a < 3"
+              }
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3
+connection con1;
+drop table t2;
+SET debug_dbug=@old_debug;
+#
+# Multiple SHOW EXPLAIN calls for one select 
+#
+create table t2 as select a as a, a as dummy from t0 limit 3;
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2;
+connection default;
+show explain format=json for $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "expression_cache": {
+          "query_block": {
+            "select_id": 2,
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t0",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100,
+                  "attached_condition": "t2.a + t0.a < 3"
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
+show explain format=json for $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "expression_cache": {
+          "query_block": {
+            "select_id": 2,
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t0",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100,
+                  "attached_condition": "t2.a + t0.a < 3"
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
+show explain format=json for $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "expression_cache": {
+          "query_block": {
+            "select_id": 2,
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t0",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100,
+                  "attached_condition": "t2.a + t0.a < 3"
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
+connection con1;
+a	SUBQ
+0	0
+1	0
+2	0
+drop table t2;
+SET debug_dbug=@old_debug;
+#
+# Multiple EXPLAIN FOR CONNECTION calls for one select
+#
+create table t2 as select a as a, a as dummy from t0 limit 3;
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2;
+connection default;
+explain format=JSON for connection $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "expression_cache": {
+          "query_block": {
+            "select_id": 2,
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t0",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100,
+                  "attached_condition": "t2.a + t0.a < 3"
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
+explain format=JSON for connection $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "expression_cache": {
+          "query_block": {
+            "select_id": 2,
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t0",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100,
+                  "attached_condition": "t2.a + t0.a < 3"
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
+explain format=JSON for connection $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ALL",
+          "rows": 3,
+          "filtered": 100
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "expression_cache": {
+          "query_block": {
+            "select_id": 2,
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t0",
+                  "access_type": "ALL",
+                  "rows": 10,
+                  "filtered": 100,
+                  "attached_condition": "t2.a + t0.a < 3"
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
+connection con1;
+a	SUBQ
+0	0
+1	0
+2	0
+drop table t2;
+SET debug_dbug=@old_debug;
+#
+# SHOW EXPLAIN for SELECT ... ORDER BY with "Using filesort"
+#
+explain select * from t0 order by a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using filesort
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+set @show_explain_probe_select_id=1;
+select * from t0 order by a;
+connection default;
+show explain format=json for $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "t0.a",
+            "table": {
+              "table_name": "t0",
+              "access_type": "ALL",
+              "rows": 10,
+              "filtered": 100
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	select * from t0 order by a
+connection con1;
+a
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+SET debug_dbug=@old_debug;
+#
+# SHOW EXPLAIN for SELECT ... with "Using temporary"
+#
+connection default;
+explain select distinct a from t0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+connection con1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+set @show_explain_probe_select_id=1;
+select distinct a from t0;
+connection default;
+show explain format=json for $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "temporary_table": {
+      "nested_loop": [
+        {
+          "table": {
+            "table_name": "t0",
+            "access_type": "ALL",
+            "rows": 10,
+            "filtered": 100
+          }
+        }
+      ]
+    }
+  }
+}
+Warnings:
+Note	1003	select distinct a from t0
+connection con1;
+a
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+SET debug_dbug=@old_debug;
+#
+# SHOW EXPLAIN for SELECT ... with "Using temporary; Using filesort"
+#
+connection default;
+explain select distinct a from t0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+connection con1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+set @show_explain_probe_select_id=1;
+select distinct a from t0;
+connection default;
+show explain format=json for $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "temporary_table": {
+      "nested_loop": [
+        {
+          "table": {
+            "table_name": "t0",
+            "access_type": "ALL",
+            "rows": 10,
+            "filtered": 100
+          }
+        }
+      ]
+    }
+  }
+}
+Warnings:
+Note	1003	select distinct a from t0
+connection con1;
+a
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+SET debug_dbug=@old_debug;
+#
+# Check if queries in non-default charsets work.
+#
+set names cp1251;
+select charset('ãû');
+charset('ãû')
+cp1251
+select hex('ãû');
+hex('ãû')
+E3FB
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+select * from t0 where length('ãû') = a;
+connection default;
+set names utf8;
+show explain format=JSON for $thr2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t0",
+          "access_type": "ALL",
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "t0.a = <cache>(octet_length('Ð³Ñ‹'))"
+        }
+      }
+    ]
+  }
+}
+Warnings:
+Note	1003	select * from t0 where length('Ð³Ñ‹') = a
+set names default;
+connection con1;
+a
+2
+SET debug_dbug=@old_debug;
+set names default;
+drop table if exists t0,t1,t2;
+Warnings:
+Note	1051	Unknown table 'test.t2'
+# End
+connection default;
+disconnect con1;
+set debug_sync='RESET';

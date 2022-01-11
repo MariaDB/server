@@ -5820,12 +5820,16 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
 */
 
 int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
-                       bool is_analyze, bool *printed_anything)
+                       bool is_analyze, bool is_json_format,
+                       bool *printed_anything)
 {
   int res;
   if (explain && explain->have_query_plan())
   {
-    res= explain->print_explain(output, explain_flags, is_analyze);
+    if (is_json_format)
+      res= explain->print_explain_json(output, is_analyze);
+    else
+      res= explain->print_explain(output, explain_flags, is_analyze);
     *printed_anything= true;
   }
   else

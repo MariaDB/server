@@ -8804,6 +8804,8 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
       continue;
 
     value=v++;
+    /* Ensure the end of the list of values is not reached */
+    DBUG_ASSERT(value);
 
     bool vers_sys_field= table->versioned() && field->vers_sys_field();
 
