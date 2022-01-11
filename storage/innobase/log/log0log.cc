@@ -309,7 +309,7 @@ void log_t::create(lsn_t lsn) noexcept
 
 #ifdef HAVE_PMEM
   if (is_pmem())
-    pmem_deep_persist(buf, 512);
+    pmem_persist(buf, 512);
   else
 #endif
   {
@@ -521,11 +521,11 @@ inline void log_t::persist(lsn_t lsn) noexcept
   const size_t new_offset(calc_lsn_offset(lsn));
   if (UNIV_UNLIKELY(old_offset > new_offset))
   {
-    pmem_deep_persist(buf + old_offset, file_size - old_offset);
-    pmem_deep_persist(buf + START_OFFSET, new_offset - START_OFFSET);
+    pmem_persist(buf + old_offset, file_size - old_offset);
+    pmem_persist(buf + START_OFFSET, new_offset - START_OFFSET);
   }
   else
-    pmem_deep_persist(buf + old_offset, new_offset - old_offset);
+    pmem_persist(buf + old_offset, new_offset - old_offset);
 
   flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
   log_flush_notify(lsn);

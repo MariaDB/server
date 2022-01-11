@@ -1695,7 +1695,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   mach_write_to_4(my_assume_aligned<4>(c + 60), my_crc32c(0, c, 60));
 #ifdef HAVE_PMEM
   if (is_pmem())
-    pmem_deep_persist(c, 64);
+    pmem_persist(c, 64);
   else
 #endif
   {
