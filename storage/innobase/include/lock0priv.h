@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2018, 2022 MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -585,6 +585,9 @@ lock_rec_get_next_const(
 
 /*********************************************************************//**
 Gets the first explicit lock request on a record.
+@param[in] hash hash chain the lock on
+@param[in] page_id page id
+@param[in] heap_no heap number of the record
 @return first lock, NULL if none exists */
 UNIV_INLINE
 lock_t*
@@ -660,14 +663,25 @@ lock_table_has(
 
 /** Set the wait status of a lock.
 @param[in,out]	lock	lock that will be waited for
-@param[in,out]	trx	transaction that will wait for the lock */
-inline void lock_set_lock_and_trx_wait(lock_t* lock, trx_t* trx)
+@param[in,out]	trx	transaction that will wait for the lock
+@param[in]      c_lock   conflicting lock */
+inline void lock_set_lock_and_trx_wait(lock_t* lock, trx_t* trx,
+	const lock_t *c_lock)
 {
 	ut_ad(lock);
 	ut_ad(lock->trx == trx);
-	ut_ad(trx->lock.wait_lock == NULL);
 	ut_ad(lock_mutex_own());
 	ut_ad(trx_mutex_own(trx));
+
+	if (trx->lock.wait_trx) {
+		ut_ad(!c_lock || trx->lock.wait_trx == c_lock->trx);
+		ut_ad(trx->lock.wait_lock);
+		ut_ad((*trx->lock.wait_lock).trx == trx);
+	} else {
+		ut_ad(c_lock);
+		trx->lock.wait_trx = c_lock->trx;
+		ut_ad(!trx->lock.wait_lock);
+	}
 
 	trx->lock.wait_lock = lock;
 	lock->type_mode |= LOCK_WAIT;
@@ -681,6 +695,7 @@ inline void lock_reset_lock_and_trx_wait(lock_t* lock)
 	ut_ad(lock_mutex_own());
 	ut_ad(lock->trx->lock.wait_lock == NULL
 	      || lock->trx->lock.wait_lock == lock);
+	lock->trx->lock.wait_trx= NULL;
 	lock->trx->lock.wait_lock = NULL;
 	lock->type_mode &= ~LOCK_WAIT;
 }
