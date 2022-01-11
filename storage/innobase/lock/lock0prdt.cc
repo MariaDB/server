@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2022 MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -487,9 +487,13 @@ lock_prdt_add_to_queue(
 		}
 	}
 
-	lock = lock_rec_create(
+	/* Note: We will not pass any conflicting lock to lock_rec_create(),
+	because we should be moving an existing waiting lock request. */
+	ut_ad(!(type_mode & LOCK_WAIT) || trx->lock.wait_trx);
+
+	lock = lock_rec_create(NULL,
 #ifdef WITH_WSREP
-		NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
+		NULL, /* FIXME: replicate SPATIAL INDEX locks */
 #endif
 		type_mode, block, PRDT_HEAPNO, index, trx,
 		caller_owns_trx_mutex);
@@ -579,9 +583,7 @@ lock_prdt_insert_check_and_lock(
 		trx_mutex_enter(trx);
 
 		err = lock_rec_enqueue_waiting(
-#ifdef WITH_WSREP
 			NULL, /* FIXME: replicate SPATIAL INDEX locks */
-#endif
 			LOCK_X | LOCK_PREDICATE | LOCK_INSERT_INTENTION,
 			block, PRDT_HEAPNO, index, thr, prdt);
 
@@ -829,9 +831,9 @@ lock_prdt_lock(
 	lock_t*		lock = lock_rec_get_first_on_page(hash, block);
 
 	if (lock == NULL) {
-		lock = lock_rec_create(
+		lock = lock_rec_create(NULL,
 #ifdef WITH_WSREP
-			NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
+			NULL, /* FIXME: replicate SPATIAL INDEX locks */
 #endif
 			ulint(mode) | type_mode, block, PRDT_HEAPNO,
 			index, trx, FALSE);
@@ -861,10 +863,8 @@ lock_prdt_lock(
 				if (wait_for != NULL) {
 
 					err = lock_rec_enqueue_waiting(
-#ifdef WITH_WSREP
 						NULL, /* FIXME: replicate
 						      SPATIAL INDEX locks */
-#endif
 						ulint(mode) | type_mode,
 						block, PRDT_HEAPNO,
 						index, thr, prdt);
@@ -948,9 +948,9 @@ lock_place_prdt_page_lock(
 	}
 
 	if (lock == NULL) {
-		lock = lock_rec_create_low(
+		lock = lock_rec_create_low(NULL,
 #ifdef WITH_WSREP
-			NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
+			NULL, /* FIXME: replicate SPATIAL INDEX locks */
 #endif
 			mode, space, page_no, NULL, PRDT_HEAPNO,
 			index, trx, FALSE);

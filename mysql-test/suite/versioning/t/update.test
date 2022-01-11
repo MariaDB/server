@@ -186,7 +186,9 @@ send update t1 set b = 'foo';
 connection con1;
 let $wait_condition= select count(*) from information_schema.innodb_lock_waits;
 source include/wait_condition.inc;
-error ER_LOCK_DEADLOCK;
+# There must no be DEADLOCK here as con1 transaction already holds locks, and
+# default's transaction lock is waiting, so the locks of the following "UPDATE"
+# must not conflict with waiting lock.
 update t1 set a = 'bar';
 disconnect con1;
 connection default;
