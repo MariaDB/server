@@ -13498,7 +13498,8 @@ update:
               MYSQL_YYABORT;
             }
             if (!(lex->m_sql_cmd=
-                  new (thd->mem_root) Sql_cmd_update(is_multiupdate)))
+                  new (thd->mem_root) Sql_cmd_update(thd->mem_root,
+                                                     is_multiupdate)))
               MYSQL_YYABORT;
             /*
               In case of multi-update setting write lock for all tables may

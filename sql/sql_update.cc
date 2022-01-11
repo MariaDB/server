@@ -372,7 +372,6 @@ bool Sql_cmd_update::update_single_table(THD *thd)
   List<Item> all_fields;
   killed_state killed_status= NOT_KILLED;
   bool has_triggers, binlog_is_row, do_direct_update= FALSE;
-  Update_plan query_plan(thd->mem_root);
   Explain_update *explain;
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
@@ -3119,6 +3118,32 @@ bool Sql_cmd_update::prepare_inner(THD *thd)
   }
 
   free_join= false;
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  /*
+    It's the first round of the prune_partitions.
+    The second to be run in ::execute_inner
+    after the tables are locked.
+  */
+  if (prune_partitions(thd, table_list->table,
+                       select_lex->where_cond_after_prepare))
+  {
+    free_underlaid_joins(thd, select_lex);
+
+    query_plan.set_no_partitions();
+    if (thd->lex->describe || thd->lex->analyze_stmt)
+    {
+      if (unlikely(
+            !query_plan.save_explain_update_data(query_plan.mem_root, thd)))
+        goto err;
+    }
+    if (thd->is_error())
+      DBUG_RETURN(1);
+
+    my_ok(thd);				// No matching records
+    DBUG_RETURN(0);
+  }
+#endif
 
 err:
 

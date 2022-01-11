@@ -47,8 +47,8 @@ bool compare_record(const TABLE *table);
 class Sql_cmd_update final : public Sql_cmd_dml
 {
 public:
-  Sql_cmd_update(bool multitable_arg)
-      : multitable(multitable_arg)
+  Sql_cmd_update(MEM_ROOT *mem_root, bool multitable_arg)
+      : multitable(multitable_arg), query_plan(mem_root)
   { }
 
   enum_sql_command sql_command_code() const override
@@ -75,6 +75,8 @@ private:
 
   DML_prelocking_strategy dml_prelocking_strategy;
   Multiupdate_prelocking_strategy multiupdate_prelocking_strategy;
+  Update_plan query_plan;
+
 
  public:
   List<Item> *update_value_list;
