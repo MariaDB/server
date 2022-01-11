@@ -407,10 +407,7 @@ void mtr_t::commit()
       lsns= { m_commit_lsn, PAGE_FLUSH_NO };
 
     if (m_made_dirty)
-    {
-      ++log_sys.write_to_buf;
       mysql_mutex_lock(&log_sys.flush_order_mutex);
-    }
 
     /* It is now safe to release log_sys.mutex because the
     buf_pool.flush_order_mutex will ensure that we are the first one
@@ -520,7 +517,6 @@ void mtr_t::commit_shrink(fil_space_t &space)
 
   const lsn_t start_lsn= finish_write(prepare_write()).first;
 
-  log_sys.write_to_buf++;
   mysql_mutex_lock(&log_sys.flush_order_mutex);
   /* Durably write the reduced FSP_SIZE before truncating the data file. */
   log_write_and_flush();
@@ -836,6 +832,7 @@ inline lsn_t log_t::append_prepare(size_t size) noexcept
 static mtr_t::page_flush_ahead log_close(lsn_t lsn) noexcept
 {
   mysql_mutex_assert_owner(&log_sys.mutex);
+  log_sys.write_to_buf++;
   log_sys.set_lsn(lsn);
 
   const lsn_t checkpoint_age= lsn - log_sys.last_checkpoint_lsn;
