@@ -1,5 +1,5 @@
 /* Copyright (C) 2008-2019 Kentoku Shiba
-   Copyright (C) 2019 MariaDB corp
+   Copyright (C) 2019-2022 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -92,8 +92,7 @@ public:
   SPIDER_POSITION    *pushed_pos;
   SPIDER_POSITION    pushed_pos_buf;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  bool               pt_handler_share_owner = FALSE;
-  SPIDER_PARTITION_HANDLER_SHARE *partition_handler_share;
+  SPIDER_PARTITION_HANDLER *partition_handler;
 #endif
   bool                wide_handler_owner = FALSE;
   SPIDER_WIDE_HANDLER *wide_handler = NULL;

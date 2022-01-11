@@ -1,5 +1,5 @@
 /* Copyright (C) 2008-2020 Kentoku Shiba
-   Copyright (C) 2019-2020 MariaDB corp
+   Copyright (C) 2019-2022 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -432,7 +432,7 @@ uchar *spider_wide_share_get_key(
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 uchar *spider_pt_handler_share_get_key(
-  SPIDER_PARTITION_HANDLER_SHARE *share,
+  SPIDER_PARTITION_HANDLER *share,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 ) {
@@ -6436,33 +6436,7 @@ SPIDER_WIDE_SHARE *spider_get_wide_share(
       goto error_init_crd_mutex;
     }
 
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_mutex_init(&wide_share->pt_handler_mutex,
-      MY_MUTEX_INIT_FAST))
-#else
-    if (mysql_mutex_init(spd_key_mutex_pt_handler,
-      &wide_share->pt_handler_mutex, MY_MUTEX_INIT_FAST))
-#endif
-    {
-      *error_num = HA_ERR_OUT_OF_MEM;
-      goto error_init_pt_handler_mutex;
-    }
-
-    if(
-      my_hash_init(PSI_INSTRUMENT_ME, &wide_share->pt_handler_hash, spd_charset_utf8mb3_bin,
-        32, 0, 0, (my_hash_get_key) spider_pt_handler_share_get_key, 0, 0)
-    ) {
-      *error_num = HA_ERR_OUT_OF_MEM;
-      goto error_init_pt_handler_hash;
-    }
-
     thr_lock_init(&wide_share->lock);
-
-    spider_alloc_calc_mem_init(wide_share->pt_handler_hash, 142);
-    spider_alloc_calc_mem(spider_current_trx,
-      wide_share->pt_handler_hash,
-      wide_share->pt_handler_hash.array.max_element *
-      wide_share->pt_handler_hash.array.size_of_element);
 
     uint old_elements = spider_open_wide_share.array.max_element;
 #ifdef HASH_UPDATE_WITH_HASH_VALUE
@@ -6491,14 +6465,6 @@ SPIDER_WIDE_SHARE *spider_get_wide_share(
   DBUG_RETURN(wide_share);
 
 error_hash_insert:
-  spider_free_mem_calc(spider_current_trx,
-    wide_share->pt_handler_hash_id,
-    wide_share->pt_handler_hash.array.max_element *
-    wide_share->pt_handler_hash.array.size_of_element);
-  my_hash_free(&wide_share->pt_handler_hash);
-error_init_pt_handler_hash:
-  pthread_mutex_destroy(&wide_share->pt_handler_mutex);
-error_init_pt_handler_mutex:
   pthread_mutex_destroy(&wide_share->crd_mutex);
 error_init_crd_mutex:
   pthread_mutex_destroy(&wide_share->sts_mutex);
@@ -6523,12 +6489,6 @@ int spider_free_wide_share(
 #else
     my_hash_delete(&spider_open_wide_share, (uchar*) wide_share);
 #endif
-    spider_free_mem_calc(spider_current_trx,
-      wide_share->pt_handler_hash_id,
-      wide_share->pt_handler_hash.array.max_element *
-      wide_share->pt_handler_hash.array.size_of_element);
-    my_hash_free(&wide_share->pt_handler_hash);
-    pthread_mutex_destroy(&wide_share->pt_handler_mutex);
     pthread_mutex_destroy(&wide_share->crd_mutex);
     pthread_mutex_destroy(&wide_share->sts_mutex);
     spider_free(spider_current_trx, wide_share, MYF(0));
@@ -8036,15 +7996,15 @@ int spider_get_sts(
   if (error_num)
   {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    SPIDER_PARTITION_HANDLER_SHARE *partition_handler_share =
-      spider->partition_handler_share;
+    SPIDER_PARTITION_HANDLER *partition_handler =
+      spider->partition_handler;
     if (
       !share->wide_share->sts_init &&
       sts_sync >= sts_sync_level &&
       get_type > 1 &&
-      partition_handler_share &&
-      partition_handler_share->handlers &&
-      partition_handler_share->handlers[0] == spider
+      partition_handler &&
+      partition_handler->handlers &&
+      partition_handler->handlers[0] == spider
     ) {
       int roop_count;
       ha_spider *tmp_spider;
@@ -8054,11 +8014,11 @@ int spider_get_sts(
       int tmp_sts_sync;
       THD *thd = spider->wide_handler->trx->thd;
       for (roop_count = 1;
-        roop_count < (int) partition_handler_share->no_parts;
+        roop_count < (int) partition_handler->no_parts;
         roop_count++)
       {
         tmp_spider =
-          (ha_spider *) partition_handler_share->handlers[roop_count];
+          (ha_spider *) partition_handler->handlers[roop_count];
         tmp_share = tmp_spider->share;
         tmp_sts_interval = spider_param_sts_interval(thd, share->sts_interval);
         tmp_sts_mode = spider_param_sts_mode(thd, share->sts_mode);
@@ -8187,15 +8147,15 @@ int spider_get_crd(
   if (error_num)
   {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    SPIDER_PARTITION_HANDLER_SHARE *partition_handler_share =
-      spider->partition_handler_share;
+    SPIDER_PARTITION_HANDLER *partition_handler =
+      spider->partition_handler;
     if (
       !share->wide_share->crd_init &&
       crd_sync >= crd_sync_level &&
       get_type > 1 &&
-      partition_handler_share &&
-      partition_handler_share->handlers &&
-      partition_handler_share->handlers[0] == spider
+      partition_handler &&
+      partition_handler->handlers &&
+      partition_handler->handlers[0] == spider
     ) {
       int roop_count;
       ha_spider *tmp_spider;
@@ -8205,11 +8165,11 @@ int spider_get_crd(
       int tmp_crd_sync;
       THD *thd = spider->wide_handler->trx->thd;
       for (roop_count = 1;
-        roop_count < (int) partition_handler_share->no_parts;
+        roop_count < (int) partition_handler->no_parts;
         roop_count++)
       {
         tmp_spider =
-          (ha_spider *) partition_handler_share->handlers[roop_count];
+          (ha_spider *) partition_handler->handlers[roop_count];
         tmp_share = tmp_spider->share;
         tmp_crd_interval = spider_param_crd_interval(thd, share->crd_interval);
         tmp_crd_mode = spider_param_crd_mode(thd, share->crd_mode);
@@ -9348,10 +9308,10 @@ int spider_set_direct_limit_offset(
     DBUG_RETURN(TRUE);
 
   if (
-    spider->partition_handler_share &&
-    !spider->pt_handler_share_owner
+    spider->partition_handler &&
+    !spider->wide_handler_owner
   ) {
-    if (spider->partition_handler_share->owner->
+    if (spider->partition_handler->owner->
       result_list.direct_limit_offset == TRUE)
     {
       spider->result_list.direct_limit_offset = TRUE;
