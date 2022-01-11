@@ -10869,6 +10869,12 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
   check_constraint= orig_field ? orig_field->check_constraint : 0;
   option_list= old_field->option_list;
 
+  /*
+    geom_type should always have a real value. If the field is of geometric
+    type, it will be overridden later.
+  */
+  geom_type= Field::geometry_type::GEOM_GEOMETRY;
+
   switch (sql_type) {
   case MYSQL_TYPE_BLOB:
     switch (pack_length - portable_sizeof_char_ptr) {
