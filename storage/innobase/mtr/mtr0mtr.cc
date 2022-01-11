@@ -940,6 +940,21 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::finish_write(size_t len)
   else
 #endif
   {
+#if 0 // FIXME: This will actually make things worse.
+    {
+      /* Hope to avoid a read into cache by initializing entire cache lines.
+      (Is there a way to pretend that the address range is
+      already cached while we do not care about its contents?) */
+      const size_t bs_1{CPU_LEVEL1_DCACHE_LINESIZE - 1};
+      const size_t last_block{(log_sys.buf_free + len + bs_1) & ~bs_1};
+      const size_t first_block{log_sys.buf_free & ~bs_1};
+      if (last_block != first_block)
+        memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>
+          (log_sys.buf + first_block + CPU_LEVEL1_DCACHE_LINESIZE,
+           0, last_block - first_block);
+    }
+#endif
+
     m_log.for_each_block([](const mtr_buf_t::block_t *b)
     { log_sys.append(b->begin(), b->used()); return true; });
 
