@@ -1037,5 +1037,56 @@ drop view v1,v2,v3,v4;
 drop table t1,t2,t3;
 
 --echo #
+--echo # MDEV-20325: Assertion `outer_context || !*from_field || *from_field == not_found_field' failed in Item_field::fix_outer_field | `!derived->is_excluded()' failed in TABLE_LIST::set_check_materialized | SIGEGV in st_select_lex::mark_as_dependent (optimized builds)
+--echo #
+CREATE TABLE t1 (a INT);
+
+--echo # Check that re-execution of a stored routine containing
+--echo # a query with subquery in the FROM clause doesn't result in
+--echo # assert failure in case the 'derived_merge' optimizer option
+--echo # has been turned on/off
+CREATE PROCEDURE sp() SELECT * FROM (SELECT a FROM t1) tb;
+CALL sp();
+SET optimizer_switch='derived_merge=off';
+--echo # Without the patch the following statement would result in assert
+--echo # failure
+CALL sp();
+
+--echo # Check the same test case for Prepared Statement
+SET optimizer_switch='derived_merge=on';
+PREPARE stmt FROM "SELECT * FROM (SELECT a FROM t1) tb";
+EXECUTE stmt;
+SET optimizer_switch='derived_merge=off';
+--echo # Without the patch the following statement would result in assert
+--echo # failure
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo # Here check the reverse test case - first turn off the 'derived_merge'
+--echo # optimizer option, run the stored routine containing a query with
+--echo # subquery in the FROM clause, then turn on the 'derived_merge'
+--echo # optimizer option and re-execute the same stored routine to check that
+--echo # the routine is finished successfully.
+CREATE PROCEDURE sp1() SELECT * FROM (SELECT a FROM t1) tb;
+SET optimizer_switch='derived_merge=off';
+CALL sp1();
+SET optimizer_switch='derived_merge=on';
+CALL sp1();
+
+--echo # Check the same test case for Prepared Statement
+SET optimizer_switch='derived_merge=off';
+PREPARE stmt FROM "SELECT * FROM (SELECT a FROM t1) tb";
+EXECUTE stmt;
+SET optimizer_switch='derived_merge=on';
+--echo # Without the patch the following statement would result in assert
+--echo # failure
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+DROP PROCEDURE sp;
+DROP PROCEDURE sp1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

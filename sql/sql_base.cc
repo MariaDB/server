@@ -5980,7 +5980,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
                                  TRUE, &(item->cached_field_index));
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
       /* Check if there are sufficient access rights to the found field. */
-      if (found && check_privileges &&
+      if (found && check_privileges && !is_temporary_table(table_ref) &&
           check_column_grant_in_table_ref(thd, table_ref, name, length))
         found= WRONG_GRANT;
 #endif
