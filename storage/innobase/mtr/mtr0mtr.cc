@@ -406,13 +406,8 @@ void mtr_t::commit()
     else
       lsns= { m_commit_lsn, PAGE_FLUSH_NO };
 
-    if (m_made_dirty)
-      mysql_mutex_lock(&log_sys.flush_order_mutex);
-
-    /* It is now safe to release log_sys.mutex because the
-    buf_pool.flush_order_mutex will ensure that we are the first one
-    to insert into buf_pool.flush_list. */
-    mysql_mutex_unlock(&log_sys.mutex);
+    if (!m_made_dirty)
+      mysql_mutex_unlock(&log_sys.mutex);
 
     if (m_freed_pages)
     {
@@ -440,7 +435,7 @@ void mtr_t::commit()
                                      (ReleaseBlocks(lsns.first, m_commit_lsn,
                                                     m_memo)));
     if (m_made_dirty)
-      mysql_mutex_unlock(&log_sys.flush_order_mutex);
+      mysql_mutex_unlock(&log_sys.mutex);
 
     m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>());
 
@@ -517,9 +512,9 @@ void mtr_t::commit_shrink(fil_space_t &space)
 
   const lsn_t start_lsn= finish_write(prepare_write()).first;
 
-  mysql_mutex_lock(&log_sys.flush_order_mutex);
   /* Durably write the reduced FSP_SIZE before truncating the data file. */
   log_write_and_flush();
+  mysql_mutex_assert_owner(&log_sys.mutex);
 
   os_file_truncate(space.chain.start->name, space.chain.start->handle,
                    os_offset_t{space.size} << srv_page_size_shift, true);
@@ -550,7 +545,7 @@ void mtr_t::commit_shrink(fil_space_t &space)
   m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
                                    (ReleaseBlocks(start_lsn, m_commit_lsn,
                                                   m_memo)));
-  mysql_mutex_unlock(&log_sys.flush_order_mutex);
+  mysql_mutex_unlock(&log_sys.mutex);
 
   mysql_mutex_lock(&fil_system.mutex);
   ut_ad(space.is_being_truncated);

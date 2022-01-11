@@ -125,11 +125,8 @@ void log_t::create()
 
 #if defined(__aarch64__)
   mysql_mutex_init(log_sys_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
-  mysql_mutex_init(
-    log_flush_order_mutex_key, &flush_order_mutex, MY_MUTEX_INIT_FAST);
 #else
   mysql_mutex_init(log_sys_mutex_key, &mutex, nullptr);
-  mysql_mutex_init(log_flush_order_mutex_key, &flush_order_mutex, nullptr);
 #endif
 
   /* LSN 0 and 1 are reserved; @see buf_page_t::oldest_modification_ */
@@ -514,7 +511,6 @@ static size_t log_pad(lsn_t lsn, size_t pad, byte *begin, byte *extra)
 inline void log_t::persist(lsn_t lsn) noexcept
 {
   ut_ad(is_pmem());
-  mysql_mutex_assert_not_owner(&mutex);
   ut_ad(!write_lock.is_owner());
   ut_ad(flush_lock.is_owner());
 
@@ -537,10 +533,11 @@ inline void log_t::persist(lsn_t lsn) noexcept
 }
 #endif
 
-/** Write buf to ib_logfile0 and release mutex.
+/** Write buf to ib_logfile0.
+@tparam release_mutex whether to release the mutex
 @return new write target
 @retval 0 if everything was written */
-inline lsn_t log_t::write_buf() noexcept
+template<bool release_mutex> inline lsn_t log_t::write_buf() noexcept
 {
   mysql_mutex_assert_owner(&mutex);
 
@@ -552,7 +549,8 @@ inline lsn_t log_t::write_buf() noexcept
 
   if (write_lsn >= lsn)
   {
-    mysql_mutex_unlock(&mutex);
+    if (release_mutex)
+      mysql_mutex_unlock(&mutex);
     ut_ad(write_lsn == lsn);
   }
   else
@@ -591,7 +589,8 @@ inline lsn_t log_t::write_buf() noexcept
 
     std::swap(buf, flush_buf);
     write_to_log++;
-    mysql_mutex_unlock(&mutex);
+    if (release_mutex)
+      mysql_mutex_unlock(&mutex);
 
     if (UNIV_UNLIKELY(srv_shutdown_state > SRV_SHUTDOWN_INITIATED))
     {
@@ -685,7 +684,7 @@ repeat:
       group_commit_lock::ACQUIRED)
   {
     mysql_mutex_lock(&log_sys.mutex);
-    write_lsn= log_sys.write_buf();
+    write_lsn= log_sys.write_buf<true>();
   }
   else
     write_lsn= 0;
@@ -734,20 +733,21 @@ ATTRIBUTE_COLD void log_write_and_flush()
 #ifdef HAVE_PMEM
   if (log_sys.is_pmem())
   {
-    mysql_mutex_unlock(&log_sys.mutex);
     lsn_t lsn{log_sys.get_lsn()};
     log_sys.persist(lsn);
     lsn= flush_lock.release(lsn);
     if (lsn)
+    {
+      mysql_mutex_unlock(&log_sys.mutex);
       log_write_up_to(lsn, true, &dummy_callback);
+      mysql_mutex_lock(&log_sys.mutex);
+    }
   }
   else
 #endif
   {
-    const lsn_t write_lsn{log_sys.write_buf()};
-    const lsn_t flush_lsn{log_flush(write_lock.value())};
-    if (write_lsn || flush_lsn)
-      log_write_up_to(std::max(write_lsn, flush_lsn), true, &dummy_callback);
+    log_sys.write_buf<false>();
+    log_flush(write_lock.value());
   }
 }
 
@@ -1112,7 +1112,6 @@ void log_t::close()
 #endif
 
   mysql_mutex_destroy(&mutex);
-  mysql_mutex_destroy(&flush_order_mutex);
 
   recv_sys.close();
 

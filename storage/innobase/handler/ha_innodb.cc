@@ -536,7 +536,6 @@ mysql_pfs_key_t	ibuf_mutex_key;
 mysql_pfs_key_t	ibuf_pessimistic_insert_mutex_key;
 mysql_pfs_key_t	log_sys_mutex_key;
 mysql_pfs_key_t	log_cmdq_mutex_key;
-mysql_pfs_key_t	log_flush_order_mutex_key;
 mysql_pfs_key_t	recalc_pool_mutex_key;
 mysql_pfs_key_t	purge_sys_pq_mutex_key;
 mysql_pfs_key_t	recv_sys_mutex_key;
@@ -572,7 +571,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(fts_cache_init_mutex),
 	PSI_KEY(fts_delete_mutex),
 	PSI_KEY(fts_doc_id_mutex),
-	PSI_KEY(log_flush_order_mutex),
 	PSI_KEY(ibuf_bitmap_mutex),
 	PSI_KEY(ibuf_mutex),
 	PSI_KEY(ibuf_pessimistic_insert_mutex),

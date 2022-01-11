@@ -213,9 +213,6 @@ public:
   size_t buf_free;
   /** recommended maximum size of buf, after which the buffer is flushed */
   size_t max_buf_free;
-  /** mutex that ensures that inserts into buf_pool.flush_list are in
-  LSN order; allows mtr_t::commit() to release log_sys.mutex earlier */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t flush_order_mutex;
   /** log record buffer, written to by mtr_t::commit() */
   byte *buf;
   /** buffer for writing data to ib_logfile0, or nullptr if is_pmem()
@@ -413,10 +410,11 @@ public:
   @param end_lsn    start LSN of the FILE_CHECKPOINT mini-transaction */
   inline void write_checkpoint(lsn_t end_lsn) noexcept;
 
-  /** Write buf to ib_logfile0 and release mutex.
+  /** Write buf to ib_logfile0.
+  @tparam release_mutex whether to release the mutex
   @return new write target
   @retval 0 if everything was written */
-  inline lsn_t write_buf() noexcept;
+  template<bool release_mutex> inline lsn_t write_buf() noexcept;
 
   /** Create the log. */
   void create(lsn_t lsn) noexcept;
