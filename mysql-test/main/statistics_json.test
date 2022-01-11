@@ -409,9 +409,9 @@ analyze select COUNT(*) FROM t1 WHERE a > 'bar';
 analyze select COUNT(*) FROM t1 WHERE a >='bar';
 
 # Can enable these after get_avg_frequency issue is resolved:
-# analyze select COUNT(*) FROM t1 WHERE a < 'aaa';
-# analyze select COUNT(*) FROM t1 WHERE a <='aaa';
-# analyze select COUNT(*) FROM t1 WHERE a < 'bar';
+analyze select COUNT(*) FROM t1 WHERE a < 'aaa';
+analyze select COUNT(*) FROM t1 WHERE a <='aaa';
+analyze select COUNT(*) FROM t1 WHERE a < 'bar';
 
 analyze select COUNT(*) FROM t1 WHERE a <='bar';
 

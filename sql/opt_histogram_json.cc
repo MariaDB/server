@@ -962,7 +962,7 @@ std::string& Histogram_json_hb::get_end_value(int idx)
 */
 
 double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
-                                            key_range *max_endp)
+                                            key_range *max_endp, double avg_sel)
 {
   double min, max;
 

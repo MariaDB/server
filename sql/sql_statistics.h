@@ -191,7 +191,7 @@ public:
                                    double avg_selectivity,
                                    double total_rows)=0;
   virtual double range_selectivity(Field *field, key_range *min_endp,
-                                   key_range *max_endp)=0;
+                                   key_range *max_endp, double avg_sel)=0;
 
   /*
     Legacy: return the size of the histogram on disk.
@@ -353,7 +353,7 @@ public:
   }
 
   double range_selectivity(Field *field, key_range *min_endp,
-                           key_range *max_endp) override;
+                           key_range *max_endp, double avg_sel) override;
 
   /*
     Estimate selectivity of "col=const" using a histogram

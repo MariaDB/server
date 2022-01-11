@@ -3910,10 +3910,13 @@ double get_column_range_cardinality(Field *field,
     if (col_stats->min_max_values_are_provided())
     {
       Histogram_base *hist= col_stats->histogram;
+      double avg_frequency= col_stats->get_avg_frequency();
       double sel;
       if (hist && hist->is_usable(thd))
       {
-        sel= hist->range_selectivity(field, min_endp, max_endp);
+        sel= hist->range_selectivity(field, min_endp, max_endp,
+                                     avg_frequency / col_non_nulls);
+        res= col_non_nulls * sel;
       }
       else
       {
@@ -3938,9 +3941,9 @@ double get_column_range_cardinality(Field *field,
           max_mp_pos= 1.0;
 
         sel = (max_mp_pos - min_mp_pos);
+        res= col_non_nulls * sel;
+        set_if_bigger(res, avg_frequency);
       }
-      res= col_non_nulls * sel;
-      set_if_bigger(res, col_stats->get_avg_frequency());
     }
     else
       res= col_non_nulls;
@@ -4076,7 +4079,8 @@ double Histogram_binary::point_selectivity(Field *field, key_range *endpoint,
 
 double Histogram_binary::range_selectivity(Field *field,
                                            key_range *min_endp,
-                                           key_range *max_endp)
+                                           key_range *max_endp,
+                                           double avg_sel)
 {
   double sel, min_mp_pos, max_mp_pos;
   Column_statistics *col_stats= field->read_stats;
@@ -4105,6 +4109,7 @@ double Histogram_binary::range_selectivity(Field *field,
   uint max= find_bucket(max_mp_pos, FALSE);
   sel= bucket_sel * (max - min + 1);
 
+  set_if_bigger(sel, avg_sel);
   return sel;
 }
 

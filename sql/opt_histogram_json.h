@@ -129,7 +129,7 @@ public:
                            double avg_selection,
                            double total_rows) override;
   double range_selectivity(Field *field, key_range *min_endp,
-                           key_range *max_endp) override;
+                           key_range *max_endp, double avg_sel) override;
 
   void set_json_text(ulonglong sz, const char *json_text_arg,
                      size_t json_text_len)
