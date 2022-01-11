@@ -1201,14 +1201,23 @@ wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* key
     bool fail= false;
     TABLE_LIST *table;
 
+    for (table= tables; table; table= table->next_local)
+    {
+      if (is_temporary_table(table))
+      {
+        WSREP_DEBUG("Temporary table %s.%s already opened query=%s", table->db.str,
+                    table->table_name.str, wsrep_thd_query(thd));
+	return false;
+      }
+    }
+
     thd->release_transactional_locks();
     uint counter;
     MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
-    if (thd->open_temporary_tables(tables) ||
-         open_tables(thd, &tables, &counter, MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL))
+    if (open_tables(thd, &tables, &counter, MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL))
     {
-      WSREP_DEBUG("unable to open table for FK checks for %s", thd->query());
+      WSREP_DEBUG("Unable to open table for FK checks for %s", wsrep_thd_query(thd));
       fail= true;
       goto exit;
     }
