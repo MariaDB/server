@@ -429,3 +429,19 @@ ANALYZE TABLE t1 PERSISTENT FOR ALL;
 ANALYZE SELECT * FROM t1 WHERE f > '00:01:00';
 drop table t1;
 
+--echo #
+--echo # MDEV-26901: Estimation for filtered rows less precise ... #4
+--echo #
+create table t1 (f int);
+insert into t1 values
+  (7),(5),(0),(5),(112),(9),(9),(7),(5),(9),
+  (1),(7),(0),(6),(6),(2),(1),(6),(169),(7);
+
+select f from t1 where f in (77, 1, 144, 73, 14, 12);
+
+set histogram_type= JSON_HB;
+analyze table t1 persistent for all;
+
+analyze select f from t1 where f in (77, 1, 144, 73, 14, 12);
+drop table t1;
+

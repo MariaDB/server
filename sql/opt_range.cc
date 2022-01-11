@@ -3279,7 +3279,7 @@ double records_in_column_ranges(PARAM *param, uint idx,
     total_rows += rows;
   }
   if (total_rows == 0)
-    total_rows= MY_MIN(1, param->table->stat_records());
+    total_rows= MY_MIN(1, rows2double(param->table->stat_records()));
 
   return total_rows;
 } 

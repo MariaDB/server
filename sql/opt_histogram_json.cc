@@ -921,7 +921,7 @@ double Histogram_json_hb::point_selectivity(Field *field, key_range *endpoint,
       The bucket has a single value and it doesn't match! Return a very
       small value.
     */
-    sel= 1.0 / total_rows;
+    sel= 0.0;
   }
   else
   {
