@@ -511,14 +511,11 @@ inline void log_t::persist(lsn_t lsn) noexcept
   ut_ad(is_pmem());
   mysql_mutex_assert_not_owner(&mutex);
   ut_ad(!write_lock.is_owner());
-  ut_ad(!flush_lock.is_owner());
+  ut_ad(flush_lock.is_owner());
 
   lsn_t old{flushed_to_disk_lsn.load(std::memory_order_relaxed)};
   ut_ad(lsn <= get_lsn());
   ut_ad(old <= get_lsn());
-
-  if (old >= lsn)
-    return;
 
   const size_t old_offset(calc_lsn_offset(old));
   const size_t new_offset(calc_lsn_offset(lsn));
@@ -530,13 +527,8 @@ inline void log_t::persist(lsn_t lsn) noexcept
   else
     pmem_deep_persist(buf + old_offset, new_offset - old_offset);
 
-  while (!flushed_to_disk_lsn.compare_exchange_weak
-         (old, lsn, std::memory_order_release, std::memory_order_relaxed))
-    if (old >= lsn)
-      break;
-
+  flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
   log_flush_notify(lsn);
-  DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
 }
 #endif
 
@@ -634,8 +626,11 @@ inline bool log_t::flush(lsn_t lsn) noexcept
 @retval 0   if everything was adequately written */
 static lsn_t log_flush(lsn_t lsn)
 {
-  ut_ad(!log_sys.is_pmem());
-
+#ifdef HAVE_PMEM
+  if (log_sys.is_pmem())
+    log_sys.persist(lsn);
+  else
+#endif
   if (srv_file_flush_method != SRV_O_DSYNC)
     ut_a(log_sys.flush(lsn));
 
@@ -667,15 +662,11 @@ void log_write_up_to(lsn_t lsn, bool durable,
 
   ut_ad(lsn <= log_sys.get_lsn());
 
-#ifdef HAVE_PMEM
-  if (log_sys.is_pmem())
+  if (log_sys.is_pmem() && !durable)
   {
     ut_ad(!callback);
-    if (durable)
-      log_sys.persist(lsn);
     return;
   }
-#endif
 
 repeat:
   if (durable &&
@@ -684,7 +675,8 @@ repeat:
 
   lsn_t write_lsn;
 
-  if (write_lock.acquire(lsn, durable ? nullptr : callback) ==
+  if (!log_sys.is_pmem() &&
+      write_lock.acquire(lsn, durable ? nullptr : callback) ==
       group_commit_lock::ACQUIRED)
   {
     mysql_mutex_lock(&log_sys.mutex);
@@ -695,7 +687,7 @@ repeat:
 
   if (durable)
   {
-    lsn= log_flush(write_lock.value());
+    lsn= log_flush(log_sys.is_pmem() ? log_sys.get_lsn() : write_lock.value());
     if (lsn || write_lsn)
     {
       /* There is no new group commit lead; some async waiters could stall. */
@@ -720,11 +712,12 @@ ATTRIBUTE_COLD void log_write_and_flush_prepare()
 {
   mysql_mutex_assert_not_owner(&log_sys.mutex);
 
+  while (flush_lock.acquire(log_sys.get_lsn() + 1, nullptr) !=
+         group_commit_lock::ACQUIRED);
+
   if (log_sys.is_pmem())
     return;
 
-  while (flush_lock.acquire(log_sys.get_lsn() + 1, nullptr) !=
-         group_commit_lock::ACQUIRED);
   while (write_lock.acquire(log_sys.get_lsn() + 1, nullptr) !=
          group_commit_lock::ACQUIRED);
 }
@@ -733,20 +726,24 @@ ATTRIBUTE_COLD void log_write_and_flush_prepare()
 ATTRIBUTE_COLD void log_write_and_flush()
 {
   ut_ad(!srv_read_only_mode);
-  if (!log_sys.is_pmem())
+#ifdef HAVE_PMEM
+  if (log_sys.is_pmem())
+  {
+    mysql_mutex_unlock(&log_sys.mutex);
+    lsn_t lsn{log_sys.get_lsn()};
+    log_sys.persist(lsn);
+    lsn= flush_lock.release(lsn);
+    if (lsn)
+      log_write_up_to(lsn, true, &dummy_callback);
+  }
+  else
+#endif
   {
     const lsn_t write_lsn{log_sys.write_buf()};
     const lsn_t flush_lsn{log_flush(write_lock.value())};
     if (write_lsn || flush_lsn)
       log_write_up_to(std::max(write_lsn, flush_lsn), true, &dummy_callback);
   }
-#ifdef HAVE_PMEM
-  else
-  {
-    mysql_mutex_unlock(&log_sys.mutex);
-    log_sys.persist(log_sys.get_lsn());
-  }
-#endif
 }
 
 /********************************************************************

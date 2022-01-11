@@ -1130,20 +1130,23 @@ static void trx_flush_log_if_needed_low(lsn_t lsn, const trx_t *trx)
   if (!srv_flush_log_at_trx_commit)
     return;
 
+  const bool durable= (srv_flush_log_at_trx_commit & 1) &&
+    srv_file_flush_method != SRV_NOSYNC;
+  if (log_sys.is_pmem() && !durable)
+    return;
+
   if (log_sys.get_flushed_lsn(std::memory_order_relaxed) >= lsn)
     return;
 
   completion_callback cb, *callback= nullptr;
-
-  if (trx->state != TRX_STATE_PREPARED && !log_sys.is_pmem() &&
+  if (trx->state != TRX_STATE_PREPARED &&
       (cb.m_param= innodb_thd_increment_pending_ops(trx->mysql_thd)))
   {
     cb.m_callback= (void (*)(void *)) thd_decrement_pending_ops;
     callback= &cb;
   }
 
-  log_write_up_to(lsn, srv_file_flush_method != SRV_NOSYNC &&
-                  (srv_flush_log_at_trx_commit & 1), callback);
+  log_write_up_to(lsn, durable, callback);
 }
 
 /**********************************************************************//**
