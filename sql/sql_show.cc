@@ -3001,7 +3001,8 @@ void Show_explain_request::call_in_target_thread()
   DBUG_ASSERT(current_thd == target_thd);
   set_current_thd(request_thd);
   if (target_thd->lex->print_explain(explain_buf, 0 /* explain flags*/,
-                                     false /*TODO: analyze? */, &printed_anything))
+                                     false /*TODO: analyze? */,
+                                     is_json_format, &printed_anything))
   {
     failed_to_produce= TRUE;
   }
@@ -3122,7 +3123,8 @@ void select_result_text_buffer::save_to(String *res)
   Store the SHOW EXPLAIN output in the temporary table.
 */
 
-int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
+int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond,
+                      bool json_format)
 {
   const char *calling_user;
   THD *tmp;
@@ -3167,6 +3169,7 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
     bool timed_out;
     int timeout_sec= 30;
     Show_explain_request explain_req;
+    explain_req.is_json_format= json_format;
     select_result_explain_buffer *explain_buf;
     
     explain_buf= new select_result_explain_buffer(thd, table->table);
@@ -3226,6 +3229,18 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
   }
   my_error(ER_NO_SUCH_THREAD, MYF(0), (ulong) thread_id);
   DBUG_RETURN(1);
+}
+
+
+int fill_show_explain_tabular(THD *thd, TABLE_LIST *table, COND *cond)
+{
+  return fill_show_explain(thd, table, cond, false /*json_format*/);
+}
+
+
+int fill_show_explain_json(THD *thd, TABLE_LIST *table, COND *cond)
+{
+  return fill_show_explain(thd, table, cond, true /*json_format*/);
 }
 
 
@@ -9618,7 +9633,7 @@ ST_FIELD_INFO keycache_fields_info[]=
 };
 
 
-ST_FIELD_INFO show_explain_fields_info[]=
+ST_FIELD_INFO show_explain_tabular_fields_info[]=
 {
   Column("id",            SLonglong(3),                  NULLABLE, "id"),
   Column("select_type",   Varchar(19),                   NOT_NULL, "select_type"),
@@ -9630,6 +9645,13 @@ ST_FIELD_INFO show_explain_fields_info[]=
   Column("ref",     Varchar(NAME_CHAR_LEN*MAX_REF_PARTS),NULLABLE, "ref"),
   Column("rows",          SLonglong(10),                 NULLABLE, "rows"),
   Column("Extra",         Varchar(255),                  NOT_NULL, "Extra"),
+  CEnd()
+};
+
+
+ST_FIELD_INFO show_explain_json_fields_info[]=
+{
+  Column("EXPLAIN", Longtext(MAX_FIELD_VARCHARLENGTH), NOT_NULL, "EXPLAIN"),
   CEnd()
 };
 
@@ -9694,8 +9716,10 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"EVENTS", Show::events_fields_info, 0,
    0, make_old_format, 0, -1, -1, 0, 0},
 #endif
-  {"EXPLAIN", Show::show_explain_fields_info, 0, fill_show_explain,
+  {"EXPLAIN", Show::show_explain_tabular_fields_info, 0, fill_show_explain_tabular,
   make_old_format, 0, -1, -1, TRUE /*hidden*/ , 0},
+  {"EXPLAIN_JSON", Show::show_explain_json_fields_info, 0, fill_show_explain_json,
+   make_old_format, 0, -1, -1, TRUE /*hidden*/, 0},
   {"FILES", Show::files_fields_info, 0,
    hton_fill_schema_table, 0, 0, -1, -1, 0, 0},
   {"GLOBAL_STATUS", Show::variables_fields_info, 0,

@@ -215,7 +215,7 @@ int Explain_query::print_explain(select_result_sink *output,
 }
 
 
-void Explain_query::print_explain_json(select_result_sink *output,
+int Explain_query::print_explain_json(select_result_sink *output,
                                        bool is_analyze)
 {
   Json_writer writer;
@@ -230,7 +230,7 @@ void Explain_query::print_explain_json(select_result_sink *output,
     /* Start printing from node with id=1 */
     Explain_node *node= get_node(1);
     if (!node)
-      return; /* No query plan */
+      return 1; /* No query plan */
     node->print_explain_json(this, &writer, is_analyze);
   }
 
@@ -243,6 +243,7 @@ void Explain_query::print_explain_json(select_result_sink *output,
                       Item_string(thd, buf->ptr(), buf->length(), cs),
                       thd->mem_root);
   output->send_data(item_list);
+  return 0;
 }
 
 
