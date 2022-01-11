@@ -72,32 +72,35 @@ lock_hash_get(
 /*********************************************************************//**
 Creates a new record lock and inserts it to the lock queue. Does NOT check
 for deadlocks or lock compatibility!
+@param[in] c_lock conflicting lock
+@param[in] thr thread owning trx
+@param[in] type_mode lock mode and wait flag, type is ignored and replaced by
+LOCK_REC
+@param[in] block buffer block containing the record
+@param[in] heap_no heap number of the record
+@param[in] index index of record
+@param[in,out] trx transaction
+@param[in] caller_owns_trx_mutex TRUE if caller owns trx mutex
+@param[in] insert_before_waiting if true, inserts new B-tree record lock
+just after the last non-waiting lock of the current transaction which is
+located before the first waiting for the current transaction lock, otherwise
+the lock is inserted at the end of the queue
 @return created lock */
 UNIV_INLINE
-lock_t*
-lock_rec_create(
-/*============*/
+lock_t *lock_rec_create(lock_t *c_lock,
 #ifdef WITH_WSREP
-	lock_t*			c_lock,	/*!< conflicting lock */
-	que_thr_t*		thr,	/*!< thread owning trx */
+                        que_thr_t *thr,
 #endif
-	unsigned		type_mode,/*!< in: lock mode and wait
-					flag, type is ignored and
-					replaced by LOCK_REC */
-	const buf_block_t*	block,	/*!< in: buffer block containing
-					the record */
-	ulint			heap_no,/*!< in: heap number of the record */
-	dict_index_t*		index,	/*!< in: index of record */
-	trx_t*			trx,	/*!< in,out: transaction */
-	bool			caller_owns_trx_mutex)
-					/*!< in: TRUE if caller owns
-					trx mutex */
+                        unsigned type_mode, const buf_block_t *block,
+                        ulint heap_no, dict_index_t *index, trx_t *trx,
+                        bool caller_owns_trx_mutex,
+                        bool insert_before_waiting)
 {
 	btr_assert_not_corrupted(block, index);
-	return lock_rec_create_low(
+	return lock_rec_create_low(c_lock,
 #ifdef WITH_WSREP
-		c_lock, thr,
+		thr,
 #endif
 		type_mode, block->page.id(), block->frame, heap_no,
-		index, trx, caller_owns_trx_mutex);
+		index, trx, caller_owns_trx_mutex, insert_before_waiting);
 }
