@@ -247,11 +247,16 @@ void log_t::attach(log_file_t file, os_offset_t size)
 #endif
 
 #if defined __linux__ || defined _WIN32
-  if (block_size)
+  if (!block_size)
+    set_block_size(512);
+# ifdef __linux__
+  else if (srv_file_flush_method != SRV_O_DSYNC)
+    sql_print_information("InnoDB: Buffered log writes (block size=%u bytes)",
+                          block_size);
+#endif
+  else
     sql_print_information("InnoDB: File system buffers for log"
                           " disabled (block size=%u bytes)", block_size);
-  else
-    set_block_size(512);
 #endif
 
 #ifdef HAVE_PMEM

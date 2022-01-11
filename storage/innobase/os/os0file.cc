@@ -1345,10 +1345,13 @@ use_o_direct:
 				goto skip_o_direct;
 			}
 			log_sys.set_block_size(uint32_t(s));
-			goto use_o_direct;
-		}
+			if (srv_file_flush_method == SRV_O_DSYNC) {
+				goto use_o_direct;
+			}
+		} else {
 skip_o_direct:
-		log_sys.set_block_size(0);
+			log_sys.set_block_size(0);
+		}
 	}
 # endif
 #endif
