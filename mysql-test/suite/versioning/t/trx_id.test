@@ -540,3 +540,38 @@ drop table t;
 uninstall plugin test_versioning;
 --error ER_SP_DOES_NOT_EXIST
 select trt_begin_ts(0);
+
+--echo #
+--echo # MDEV-21650 Non-empty statement transaction on global rollback after TRT update error
+--echo #
+create table t1 (s date, e date, period for app(s,e)) engine=innodb;
+alter table t1
+    add row_start bigint unsigned as row start,
+    add row_end bigint unsigned as row end,
+    add period for system_time(row_start,row_end),
+    with system versioning,
+    add period if not exists for app(x,y);
+
+set transaction isolation level serializable;
+start transaction;
+insert into t1 (s,e) values ('2021-07-04','2024-08-18');
+
+--connect (con1,localhost,root,,test)
+start transaction;
+insert into t1 (s,e) values ('2018-06-01','2021-09-15');
+
+--connection default
+--replace_regex /TRX_ID \d+/TRX_ID .../
+--error ER_VERS_NO_TRX_ID
+select * from t1 for system_time as of now();
+
+--connection con1
+set innodb_lock_wait_timeout= 1, lock_wait_timeout= 1;
+# can be existing or non-existing table, does not matter
+--error ER_LOCK_WAIT_TIMEOUT
+alter table xx;
+
+# cleanup
+--disconnect con1
+--connection default
+drop table t1;

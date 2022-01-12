@@ -1564,14 +1564,13 @@ int ha_commit_trans(THD *thd, bool all)
 #endif
       TR_table trt(thd, true);
       if (trt.update(trx_start_id, trx_end_id))
-#ifdef WITH_WSREP
       {
+#ifdef WITH_WSREP
         thd->variables.wsrep_on= saved_wsrep_on;
 #endif
+        (void) trans_rollback_stmt(thd);
         goto err;
-#ifdef WITH_WSREP
       }
-#endif
       // Here, the call will not commit inside InnoDB. It is only working
       // around closing thd->transaction.stmt open by TR_table::open().
       if (all)

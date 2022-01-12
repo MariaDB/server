@@ -401,7 +401,7 @@ a	check_row(row_start, row_end)
 drop tables t1, t2, t3;
 #
 # MDEV-24522 Assertion `inited==NONE' fails upon UPDATE on versioned table with unique blob
-
+#
 create table t1 (a int, b int, c text, unique(c), key (b)) engine=myisam with system versioning;
 insert into t1 values (1, 1, 'foo'), (2, 11, 'bar');
 update t1 set a = 3 where b <= 9;

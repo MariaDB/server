@@ -328,7 +328,7 @@ drop tables t1, t2, t3;
 
 --echo #
 --echo # MDEV-24522 Assertion `inited==NONE' fails upon UPDATE on versioned table with unique blob
---echo
+--echo #
 create table t1 (a int, b int, c text, unique(c), key (b)) engine=myisam with system versioning;
 insert into t1 values (1, 1, 'foo'), (2, 11, 'bar');
 
