@@ -4548,83 +4548,6 @@ static int fast_end_partition(THD *thd, ulonglong copied,
 }
 
 
-/*
-  We need to check if engine used by all partitions can handle
-  partitioning natively.
-
-  SYNOPSIS
-    check_native_partitioned()
-    create_info            Create info in CREATE TABLE
-    out:ret_val            Return value
-    part_info              Partition info
-    thd                    Thread object
-
-  RETURN VALUES
-  Value returned in bool ret_value
-    TRUE                   Native partitioning supported by engine
-    FALSE                  Need to use partition handler
-
-  Return value from function
-    TRUE                   Error
-    FALSE                  Success
-*/
-
-static bool check_native_partitioned(HA_CREATE_INFO *create_info,bool *ret_val,
-                                     partition_info *part_info, THD *thd)
-{
-  bool table_engine_set;
-  handlerton *engine_type= part_info->default_engine_type;
-  handlerton *old_engine_type= engine_type;
-  DBUG_ENTER("check_native_partitioned");
-
-  if (create_info->used_fields & HA_CREATE_USED_ENGINE)
-  {
-    table_engine_set= TRUE;
-    engine_type= create_info->db_type;
-  }
-  else
-  {
-    table_engine_set= FALSE;
-    if (thd->lex->sql_command != SQLCOM_CREATE_TABLE)
-    {
-      table_engine_set= TRUE;
-      DBUG_ASSERT(engine_type && engine_type != partition_hton);
-    }
-  }
-  DBUG_PRINT("info", ("engine_type = %s, table_engine_set = %u",
-                       ha_resolve_storage_engine_name(engine_type),
-                       table_engine_set));
-  if (part_info->check_engine_mix(engine_type, table_engine_set))
-    goto error;
-
-  /*
-    All engines are of the same type. Check if this engine supports
-    native partitioning.
-  */
-
-  if (!engine_type)
-    engine_type= old_engine_type;
-  DBUG_PRINT("info", ("engine_type = %s",
-              ha_resolve_storage_engine_name(engine_type)));
-  if (engine_type->partition_flags &&
-      (engine_type->partition_flags() & HA_CAN_PARTITION))
-  {
-    create_info->db_type= engine_type;
-    DBUG_PRINT("info", ("Changed to native partitioning"));
-    *ret_val= TRUE;
-  }
-  DBUG_RETURN(FALSE);
-error:
-  /*
-    Mixed engines not yet supported but when supported it will need
-    the partition handler
-  */
-  my_error(ER_MIX_HANDLER_ERROR, MYF(0));
-  *ret_val= FALSE;
-  DBUG_RETURN(TRUE);
-}
-
-
 /**
   Sets which partitions to be used in the command.
 
@@ -5953,7 +5876,6 @@ the generated partition syntax in a correct manner.
     if (thd->work_part_info)
     {
       partition_info *part_info= thd->work_part_info;
-      bool is_native_partitioned= FALSE;
       if (tab_part_info && tab_part_info->part_type == VERSIONING_PARTITION &&
           tab_part_info != part_info && part_info->part_type == VERSIONING_PARTITION &&
           part_info->num_parts == 0)
@@ -5977,11 +5899,6 @@ the generated partition syntax in a correct manner.
         thd->work_part_info= part_info= tab_part_info;
         *partition_changed= true;
       }
-
-      /*
-        Need to cater for engine types that can handle partition without
-        using the partition handler.
-      */
       else if (part_info != tab_part_info)
       {
         if (part_info->fix_parser_data(thd))
@@ -6020,16 +5937,8 @@ the generated partition syntax in a correct manner.
       }
       DBUG_ASSERT(part_info->default_engine_type &&
                   part_info->default_engine_type != partition_hton);
-      if (check_native_partitioned(create_info, &is_native_partitioned,
-                                   part_info, thd))
-      {
-        goto err;
-      }
-      if (!is_native_partitioned)
-      {
-        DBUG_ASSERT(create_info->db_type);
-        create_info->db_type= partition_hton;
-      }
+      DBUG_ASSERT(create_info->db_type);
+      create_info->db_type= partition_hton;
     }
   }
   DBUG_RETURN(FALSE);
