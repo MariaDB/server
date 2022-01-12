@@ -27,7 +27,7 @@ SET(CPACK_COMPONENT_BACKUP_GROUP "backup")
 
 SET(CPACK_COMPONENTS_ALL Server ManPagesServer IniFiles Server_Scripts
                          SupportFiles Development ManPagesDevelopment
-                         ManPagesTest Readme ManPagesClient Test 
+                         ManPagesTest Readme ManPagesClient Test
                          Common Client SharedLibraries ClientPlugins
                          backup
 )
@@ -186,6 +186,8 @@ SETA(CPACK_RPM_devel_PACKAGE_OBSOLETES
   "MySQL-devel")
 SETA(CPACK_RPM_devel_PACKAGE_PROVIDES
   "MySQL-devel")
+SETA(CPACK_RPM_devel_PACKAGE_REQUIRES
+  "MariaDB-shared >= 10.2.42")
 
 SETA(CPACK_RPM_server_PACKAGE_OBSOLETES
   "MariaDB"
