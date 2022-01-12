@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2484,7 +2484,7 @@ dberr_t row_discard_tablespace_for_mysql(dict_table_t *table, trx_t *trx)
   if (fts_exist)
   {
     fts_optimize_remove_table(table);
-    purge_sys.stop_FTS();
+    purge_sys.stop_FTS(*table);
     err= fts_lock_tables(trx, *table);
     if (err != DB_SUCCESS)
     {

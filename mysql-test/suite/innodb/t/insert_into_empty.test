@@ -242,3 +242,11 @@ CREATE TABLE t (c POINT NOT NULL, SPATIAL INDEX(c)) ENGINE=InnoDB;
 INSERT INTO t VALUES (POINT(1, 1));
 SELECT COUNT(*) FROM t WHERE MBRWithin(t.c, POINT(1,1));
 DROP TABLE t;
+
+--echo #
+--echo #  MDEV-27318	Assertion data_size < srv_sort_buf_size failed in row_merge_bulk_buf_add
+--echo #
+CREATE TABLE t1(f1 MEDIUMTEXT)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(REPEAT(1, 8459264));
+SELECT length(f1) FROM t1;
+DROP TABLE t1;

@@ -4,7 +4,7 @@ Copyright (c) 2000, 2020, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -206,7 +206,7 @@ static char*	innodb_version_str = (char*) INNODB_VERSION_STR;
 extern uint srv_fil_crypt_rotate_key_age;
 extern uint srv_n_fil_crypt_iops;
 
-#if defined SAFE_MUTEX && defined UNIV_DEBUG
+#ifdef UNIV_DEBUG
 my_bool innodb_evict_tables_on_commit_debug;
 #endif
 
@@ -533,7 +533,6 @@ mysql_pfs_key_t	ibuf_bitmap_mutex_key;
 mysql_pfs_key_t	ibuf_mutex_key;
 mysql_pfs_key_t	ibuf_pessimistic_insert_mutex_key;
 mysql_pfs_key_t	log_sys_mutex_key;
-mysql_pfs_key_t	log_cmdq_mutex_key;
 mysql_pfs_key_t	log_flush_order_mutex_key;
 mysql_pfs_key_t	recalc_pool_mutex_key;
 mysql_pfs_key_t	purge_sys_pq_mutex_key;
@@ -13441,7 +13440,7 @@ int ha_innobase::delete_table(const char *name)
   if (fts)
   {
     fts_optimize_remove_table(table);
-    purge_sys.stop_FTS();
+    purge_sys.stop_FTS(*table);
     err= fts_lock_tables(trx, *table);
   }
 
@@ -13819,7 +13818,7 @@ int ha_innobase::truncate()
 
 	if (fts) {
 		fts_optimize_remove_table(ib_table);
-		purge_sys.stop_FTS();
+		purge_sys.stop_FTS(*ib_table);
 		error = fts_lock_tables(trx, *ib_table);
 	}
 
@@ -19616,12 +19615,10 @@ static MYSQL_SYSVAR_BOOL(trx_purge_view_update_only_debug,
   " but the each purges were not done yet.",
   NULL, NULL, FALSE);
 
-# ifdef SAFE_MUTEX
 static MYSQL_SYSVAR_BOOL(evict_tables_on_commit_debug,
   innodb_evict_tables_on_commit_debug, PLUGIN_VAR_OPCMDARG,
   "On transaction commit, try to evict tables from the data dictionary cache.",
   NULL, NULL, FALSE);
-# endif /* SAFE_MUTEX */
 
 static MYSQL_SYSVAR_UINT(data_file_size_debug,
   srv_sys_space_size_debug,
@@ -19874,9 +19871,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(trx_rseg_n_slots_debug),
   MYSQL_SYSVAR(limit_optimistic_insert_debug),
   MYSQL_SYSVAR(trx_purge_view_update_only_debug),
-# ifdef SAFE_MUTEX
   MYSQL_SYSVAR(evict_tables_on_commit_debug),
-# endif /* SAFE_MUTEX */
   MYSQL_SYSVAR(data_file_size_debug),
   MYSQL_SYSVAR(fil_make_page_dirty_debug),
   MYSQL_SYSVAR(saved_page_number_debug),

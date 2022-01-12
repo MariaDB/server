@@ -74,7 +74,7 @@ ER_CANT_CREATE_FILE
         rus "Невозможно создать файл '%-.200s' (ошибка: %M)"
         serbian "Ne mogu da kreiram file '%-.200s' (errno: %M)"
         slo "Nemôžem vytvoriť súbor '%-.200s' (chybový kód: %M)"
-        spa "No puedo crear el fichero '%-.200s' (Error: %M)"
+        spa "No puedo crear el fichero/archivo '%-.200s' (Error: %M)"
         swe "Kan inte skapa filen '%-.200s' (Felkod: %M)"
         ukr "Не можу створити файл '%-.200s' (помилка: %M)"
 ER_CANT_CREATE_TABLE  
@@ -350,7 +350,7 @@ ER_CANT_LOCK
         rus "Невозможно поставить блокировку на файле (ошибка: %M)"
         serbian "Ne mogu da zaključam file (errno: %M)"
         slo "Nemôžem zamknúť súbor (chybový kód: %M)"
-        spa "No puedo bloquear fichero: (Error: %M)"
+        spa "No puedo bloquear fichero/archivo: (Error: %M)"
         swe "Kan inte låsa filen. (Felkod: %M)"
         ukr "Не можу заблокувати файл (помилка: %M)"
 ER_CANT_OPEN_FILE  
@@ -375,7 +375,7 @@ ER_CANT_OPEN_FILE
         rus "Невозможно открыть файл: '%-.200s' (ошибка: %M)"
         serbian "Ne mogu da otvorim file: '%-.200s' (errno: %M)"
         slo "Nemôžem otvoriť súbor: '%-.200s' (chybový kód: %M)"
-        spa "No puedo abrir el fichero: '%-.200s' (Error: %M)"
+        spa "No puedo abrir el fichero/archivo: '%-.200s' (Error: %M)"
         swe "Kan inte använda '%-.200s' (Felkod: %M)"
         ukr "Не можу відкрити файл: '%-.200s' (помилка: %M)"
 ER_FILE_NOT_FOUND  
@@ -400,7 +400,7 @@ ER_FILE_NOT_FOUND
         rus "Невозможно найти файл: '%-.200s' (ошибка: %M)"
         serbian "Ne mogu da pronađem file: '%-.200s' (errno: %M)"
         slo "Nemôžem nájsť súbor: '%-.200s' (chybový kód: %M)"
-        spa "No puedo hallar el fichero: '%-.200s' (Error: %M)"
+        spa "No puedo hallar el fichero/archivo: '%-.200s' (Error: %M)"
         swe "Hittar inte filen '%-.200s' (Felkod: %M)"
         ukr "Не можу знайти файл: '%-.200s' (помилка: %M)"
 ER_CANT_READ_DIR  
@@ -575,7 +575,7 @@ ER_ERROR_ON_READ
         rus "Ошибка чтения файла '%-.200s' (ошибка: %M)"
         serbian "Greška pri čitanju file-a '%-.200s' (errno: %M)"
         slo "Chyba pri čítaní súboru '%-.200s' (chybový kód: %M)"
-        spa "Error leyendo el fichero '%-.200s' (Error: %M)"
+        spa "Error leyendo el fichero/archivo '%-.200s' (Error: %M)"
         swe "Fick fel vid läsning av '%-.200s' (Felkod %M)"
         ukr "Не можу прочитати файл '%-.200s' (помилка: %M)"
 ER_ERROR_ON_RENAME  
@@ -625,7 +625,7 @@ ER_ERROR_ON_WRITE
         rus "Ошибка записи в файл '%-.200s' (ошибка: %M)"
         serbian "Greška pri upisu '%-.200s' (errno: %M)"
         slo "Chyba pri zápise do súboru '%-.200s' (chybový kód: %M)"
-        spa "Error escribiendo el fichero '%-.200s' (Error: %M)"
+        spa "Error escribiendo el fichero/archivo '%-.200s' (Error: %M)"
         swe "Fick fel vid skrivning till '%-.200s' (Felkod %M)"
         ukr "Не можу записати файл '%-.200s' (помилка: %M)"
 ER_FILE_USED  
@@ -774,7 +774,7 @@ ER_NOT_FORM_FILE
         rus "Некорректная информация в файле '%-.200s'"
         serbian "Pogrešna informacija u file-u: '%-.200s'"
         slo "Nesprávna informácia v súbore: '%-.200s'"
-        spa "Información incorrecta en el fichero: '%-.200s'"
+        spa "Información incorrecta en el fichero/archivo: '%-.200s'"
         swe "Felaktig fil: '%-.200s'"
         ukr "Хибна інформація у файлі: '%-.200s'"
 ER_NOT_KEYFILE  
@@ -824,7 +824,7 @@ ER_OLD_KEYFILE
         rus "Старый индексный файл для таблицы '%-.192s'; отремонтируйте его!"
         serbian "Zastareo key file za tabelu '%-.192s'; ispravite ga"
         slo "Starý kľúčový súbor pre '%-.192s'; opravte ho!"
-        spa "Clave antigua de fichero para la tabla '%-.192s'; ¡repárela!"
+        spa "Clave antigua de fichero/archivo para la tabla '%-.192s'; ¡repárela!"
         swe "Gammal nyckelfil '%-.192s'; reparera registret"
         ukr "Старий файл ключей для таблиці '%-.192s'; Відновіть його!"
 ER_OPEN_AS_READONLY  
@@ -873,7 +873,7 @@ ER_OUTOFMEMORY HY001 S1001
         rus "Недостаточно памяти. Перезапустите сервер и попробуйте еще раз (нужно %d байт)"
         serbian "Nema memorije. Restartujte MariaDB server i probajte ponovo (potrebno je %d byte-ova)"
         slo "Málo pamäti. Reštartujte daemona a skúste znova (je potrebných %d bytov)"
-        spa "Memoria insuficiente. Reinicie el servicio e inténtelo otra vez (necesita %d bytes)"
+        spa "Memoria insuficiente. Reinicie el servidor e inténtelo otra vez (necesita %d bytes)"
         swe "Oväntat slut på minnet, starta om programmet och försök på nytt (Behövde %d bytes)"
         ukr "Брак пам'яті. Рестартуйте сервер та спробуйте знову (потрібно %d байтів)"
 ER_OUT_OF_SORTMEMORY HY001 S1001
@@ -921,7 +921,7 @@ ER_UNEXPECTED_EOF
         rus "Неожиданный конец файла '%-.192s' (ошибка: %M)"
         serbian "Neočekivani kraj pri čitanju file-a '%-.192s' (errno: %M)"
         slo "Neočakávaný koniec súboru pri čítaní '%-.192s' (chybový kód: %M)"
-        spa "Inesperado fin de fichero mientras leíamos el fichero '%-.192s' (Error: %M)"
+        spa "Inesperado fin de fichero/archivo mientras leíamos el fichero/archivo '%-.192s' (Error: %M)"
         swe "Oväntat filslut vid läsning från '%-.192s' (Felkod: %M)"
         ukr "Хибний кінець файлу '%-.192s' (помилка: %M)"
 ER_CON_COUNT_ERROR 08004 
@@ -995,7 +995,7 @@ ER_BAD_HOST_ERROR 08S01
         rus "Невозможно получить имя хоста для вашего адреса"
         serbian "Ne mogu da dobijem ime host-a za vašu IP adresu"
         slo "Nemôžem zistiť meno hostiteľa pre vašu adresu"
-        spa "No puedo obtener el nombre de equipo de tu dirección"
+        spa "No puedo obtener el nombre de equipo de la dirección de vd."
         swe "Kan inte hitta 'hostname' för din adress"
         ukr "Не можу визначити ім'я хосту для вашої адреси"
 ER_HANDSHAKE_ERROR 08S01 
@@ -1751,6 +1751,7 @@ ER_BLOB_USED_AS_KEY 42000 S1009
         ger "BLOB-Feld %`s kann beim %s Tabellen nicht als Schlüssel verwendet werden"
         hindi "BLOB कॉलम %`s टेबल %s में KEY विनिर्देश में इस्तेमाल नहीं किया जा सकता"
         rus "Столбец типа BLOB %`s не может быть использован как значение ключа в %s таблице"
+        spa "La columna BLOB %`s no se puede usar en la especificación de clave en la tabla %s"
         ukr "BLOB стовбець %`s не може бути використаний у визначенні ключа в %s таблиці"
 ER_TOO_BIG_FIELDLENGTH 42000 S1009
         cze "Příliš velká délka sloupce '%-.192s' (nejvíce %lu). Použijte BLOB"
@@ -1803,8 +1804,8 @@ ER_WRONG_AUTO_KEY 42000 S1009
         swe "Det får finnas endast ett AUTO_INCREMENT-fält och detta måste vara en nyckel"
         ukr "Хибне визначення таблиці; Може бути лише один автоматичний стовбець, що повинен бути визначений як ключ"
 ER_BINLOG_CANT_DELETE_GTID_DOMAIN
-	eng "Could not delete gtid domain. Reason: %s."
-	spa "No pude borrar el dominio gtid. Motivo: %s."
+	 eng "Could not delete gtid domain. Reason: %s."
+	 spa "No pude borrar el dominio gtid. Motivo: %s."
         ukr "Не можу видалити домен gtid. Причина: %s."
 ER_NORMAL_SHUTDOWN  
         cze "%s (%s): normální ukončení"
@@ -1828,7 +1829,7 @@ ER_NORMAL_SHUTDOWN
         rus "%s (инициирована пользователем: %s): Корректная остановка"
         serbian "%s (%s): Normalno gašenje"
         slo "%s (%s): normálne ukončenie"
-        spa "%s (%s): Apagado normal"
+        spa "%s (iniciado por: %s): Apagado normal"
         swe "%s (%s): Normal avslutning"
         ukr "%s (%s): Нормальне завершення"
 ER_GOT_SIGNAL  
@@ -1978,7 +1979,7 @@ ER_WRONG_FIELD_TERMINATORS 42000 S1009
         rus "Аргумент разделителя полей - не тот, который ожидался. Обращайтесь к документации"
         serbian "Argument separatora polja nije ono što se očekivalo. Proverite uputstvo MariaDB server-a"
         slo "Argument oddeľovač polí nezodpovedá požiadavkám. Skontrolujte v manuáli"
-        spa "Los separadores de argumentos del campo no son los especificados. Comprueba el manual"
+        spa "Los separadores de argumentos del campo no son los especificados. Compruebe el manual"
         swe "Fältseparatorerna är vad som förväntades. Kontrollera mot manualen"
         ukr "Хибний розділювач полів. Почитайте документацію"
 ER_BLOBS_AND_NO_TERMINATED 42000 S1009
@@ -2003,7 +2004,7 @@ ER_BLOBS_AND_NO_TERMINATED 42000 S1009
         rus "Фиксированный размер записи с полями типа BLOB использовать нельзя, применяйте 'fields terminated by'"
         serbian "Ne možete koristiti fiksnu veličinu sloga kada imate BLOB polja. Molim koristite 'fields terminated by' opciju"
         slo "Nie je možné použiť fixnú dĺžku s BLOBom. Použite 'fields terminated by'"
-        spa "No puedes usar longitudes fijas de filas con BLOBs. Por favor, usa 'campos terminados por'"
+        spa "No se pueden usar longitudes fijas de filas con BLOBs. Por favor, use 'campos terminados por'"
         swe "Man kan inte använda fast radlängd med blobs. Använd 'fields terminated by'"
         ukr "Не можна використовувати сталу довжину строки з BLOB. Зкористайтеся 'fields terminated by'"
 ER_TEXTFILE_NOT_READABLE  
@@ -2028,7 +2029,7 @@ ER_TEXTFILE_NOT_READABLE
         rus "Файл '%-.128s' должен находиться в том же каталоге, что и база данных, или быть общедоступным для чтения"
         serbian "File '%-.128s' mora biti u direktorijumu gde su file-ovi baze i mora imati odgovarajuća prava pristupa"
         slo "Súbor '%-.128s' musí byť v adresári databázy, alebo čitateľný pre všetkých"
-        spa "El fichero '%-.128s' debe de estar en el directorio de la base de datos o de ser legible por todos"
+        spa "El fichero/archivo '%-.128s' debe de estar en el directorio de la base de datos o debe de ser legible por todos"
         swe "Textfilen '%-.128s' måste finnas i databasbiblioteket eller vara läsbar för alla"
         ukr "Файл '%-.128s' повинен бути у теці бази данних або мати встановлене право на читання для усіх"
 ER_FILE_EXISTS_ERROR  
@@ -2053,7 +2054,7 @@ ER_FILE_EXISTS_ERROR
         rus "Файл '%-.200s' уже существует"
         serbian "File '%-.200s' već postoji"
         slo "Súbor '%-.200s' už existuje"
-        spa "El fichero '%-.200s' ya existe"
+        spa "El fichero/archivo '%-.200s' ya existe"
         swe "Filen '%-.200s' existerar redan"
         ukr "Файл '%-.200s' вже існує"
 ER_LOAD_INFO  
@@ -2152,7 +2153,7 @@ ER_CANT_REMOVE_ALL_FIELDS 42000
         rus "Нельзя удалить все столбцы с помощью ALTER TABLE. Используйте  DROP TABLE"
         serbian "Ne možete da izbrišete sve kolone pomoću komande 'ALTER TABLE'. Upotrebite komandu 'DROP TABLE' ako želite to da uradite"
         slo "One nemôžem zmazať all fields with ALTER TABLE; use DROP TABLE instead"
-        spa "No se pueden borrar todas las columnas con ALTER TABLE. Usa DROP TABLE para hacerlo"
+        spa "No se pueden borrar todas las columnas con ALTER TABLE. Use DROP TABLE para hacerlo"
         swe "Man kan inte radera alla fält med ALTER TABLE. Använd DROP TABLE istället"
         ukr "Не можливо видалити всі стовбці за допомогою ALTER TABLE. Для цього скористайтеся DROP TABLE"
 ER_CANT_DROP_FIELD_OR_KEY 42000 
@@ -2175,7 +2176,7 @@ ER_CANT_DROP_FIELD_OR_KEY 42000
         rus "Невозможно удалить (DROP %s) %`-.192s. Убедитесь что он действительно существует"
         serbian "Ne mogu da izvršim komandu drop 'DROP %s' na %`-.192s. Proverite da li ta kolona (odnosno ključ) postoji"
         slo "Nemôžem zrušiť (DROP %s) %`-.192s. Skontrolujte, či neexistujú záznamy/kľúče"
-        spa "No puedo eliminar %s %`-.192s; compueba que existe"
+        spa "No puedo eliminar %s %`-.192s; compruebe que ya existe"
         swe "Kan inte ta bort (DROP %s) %`-.192s. Kontrollera att begränsningen/fältet/nyckel finns"
         ukr "Не можу DROP %s %`-.192s. Перевірте, чи він існує"
 ER_INSERT_INFO  
@@ -2328,7 +2329,7 @@ ER_NO_UNIQUE_LOGFILE
         rus "Невозможно создать уникальное имя файла журнала %-.200s.(1-999)\n"
         serbian "Ne mogu da generišem jedinstveno ime log-file-a: '%-.200s.(1-999)'\n"
         slo "Nemôžem vytvoriť unikátne meno log-súboru %-.200s.(1-999)\n"
-        spa "No puedo generar un único fichero de historial (log) llamado %-.200s.(1-999)\n"
+        spa "No puedo generar un único fichero/archivo de historial (log) llamado %-.200s.(1-999)\n"
         swe "Kan inte generera ett unikt filnamn %-.200s.(1-999)\n"
         ukr "Не можу згенерувати унікальне ім'я log-файлу %-.200s.(1-999)\n"
 ER_TABLE_NOT_LOCKED_FOR_WRITE  
@@ -2383,7 +2384,7 @@ ER_TABLE_NOT_LOCKED
         ukr "Таблицю '%-.192s' не було блоковано з LOCK TABLES"
 ER_UNUSED_17
         eng "You should never see it"
-        spa "Nunca deberías de ver esto"
+        spa "Nunca debería vd de ver esto"
 ER_WRONG_DB_NAME 42000 
         cze "Nepřípustné jméno databáze '%-.100T'"
         dan "Ugyldigt database navn '%-.100T'"
@@ -2456,7 +2457,7 @@ ER_TOO_BIG_SELECT 42000
         rus "Для такой выборки SELECT должен будет просмотреть слишком много записей и, видимо, это займет очень много времени. Проверьте ваше указание WHERE, и, если в нем все в порядке, укажите SET SQL_BIG_SELECTS=1"
         serbian "Komanda 'SELECT' će ispitati previše slogova i potrošiti previše vremena. Proverite vaš 'WHERE' filter i upotrebite 'SET OPTION SQL_BIG_SELECTS=1' ako želite baš ovakvu komandu"
         slo "Zadaná požiadavka SELECT by prechádzala príliš mnoho záznamov a trvala by príliš dlho. Skontrolujte tvar WHERE a ak je v poriadku, použite SET SQL_BIG_SELECTS=1"
-        spa "El SELECT debería de examinar más de MAX_JOIN_SIZE filas; revisa tu WHERE y utiliza SET SQL_BIG_SELECTS=1 o SET MAX_JOIN_SIZE=# si el SELECT está ok"
+        spa "El SELECT debería de examinar más de MAX_JOIN_SIZE filas; revise su WHERE y utilice SET SQL_BIG_SELECTS=1 o SET MAX_JOIN_SIZE=# si el SELECT está ok"
         swe "Den angivna frågan skulle läsa mer än MAX_JOIN_SIZE rader.  Kontrollera din WHERE och använd SET SQL_BIG_SELECTS=1 eller SET MAX_JOIN_SIZE=# ifall du vill hantera stora joins"
         ukr "Запиту SELECT потрібно обробити багато записів, що, певне, займе дуже багато часу. Перевірте ваше WHERE та використовуйте SET SQL_BIG_SELECTS=1, якщо цей запит SELECT є вірним"
 ER_UNKNOWN_ERROR  
@@ -2555,7 +2556,7 @@ ER_WRONG_PARAMETERS_TO_PROCEDURE
         rus "Некорректные параметры для процедуры '%-.192s'"
         serbian "Pogrešni parametri prosleđeni proceduri '%-.192s'"
         slo "Chybné parametre procedúry '%-.192s'"
-        spa "Parametros incorrectos para procedimiento %-.192s"
+        spa "Parámetros incorrectos para procedimiento %-.192s"
         swe "Felaktiga parametrar till procedur %-.192s"
         ukr "Хибний параметер процедури '%-.192s'"
 ER_UNKNOWN_TABLE 42S02 
@@ -2718,7 +2719,7 @@ ER_UNKNOWN_CHARACTER_SET 42000
         rus "Неизвестная кодировка '%-.64s'"
         serbian "Nepoznati karakter-set: '%-.64s'"
         slo "Neznáma znaková sada: '%-.64s'"
-        spa "Juego de caracteres desconocido: '%-.64s'"
+        spa "Juego desconocido de caracteres: '%-.64s'"
         swe "Okänd teckenuppsättning: '%-.64s'"
         ukr "Невідома кодова таблиця: '%-.64s'"
 ER_TOO_MANY_TABLES  
@@ -2783,7 +2784,7 @@ ER_TOO_BIG_ROWSIZE 42000
         rus "Слишком большой размер записи. Максимальный размер строки, исключая поля BLOB, - %ld. Возможно, вам следует изменить тип некоторых полей на BLOB"
         serbian "Prevelik slog. Maksimalna veličina sloga, ne računajući BLOB polja, je %ld. Trebali bi da promenite tip nekih polja u BLOB"
         slo "Riadok je príliš veľký. Maximálna veľkosť riadku, okrem 'BLOB', je %ld. Musíte zmeniť niektoré položky na BLOB"
-        spa "Tamaño de fila muy grande. El máximo tamaño de fila para el tipo de tabla usada, sin contar BLOBs, es de %ld. Esto incluye sobrecarga de almacenaje, revisa el manual. Tienes que cambiar algunas columnas a TEXT o BLOBs"
+        spa "Tamaño de fila muy grande. El máximo tamaño de fila para el tipo de tabla usada, sin contar BLOBs, es de %ld. Esto incluye sobrecarga de almacenaje, revise el manual. Tiene que cambiar algunas columnas a TEXT o BLOBs"
         swe "För stor total radlängd. Den högst tillåtna radlängden, förutom BLOBs, är %ld. Ändra några av dina fält till BLOB"
         ukr "Задовга строка. Найбільшою довжиною строки, не рахуючи BLOB, є %ld. Вам потрібно привести деякі стовбці до типу BLOB"
 ER_STACK_OVERRUN  
@@ -2803,7 +2804,7 @@ ER_STACK_OVERRUN
         rus "Стек потоков переполнен:  использовано: %ld из %ld стека.  Применяйте 'mariadbd --thread_stack=#' для указания большего размера стека, если необходимо"
         serbian "Prepisivanje thread stack-a:  Upotrebljeno: %ld od %ld stack memorije.  Upotrebite 'mariadbd --thread_stack=#' da navedete veći stack ako je potrebno"
         slo "Pretečenie zásobníku vlákna:  použité: %ld z %ld.  Použite 'mariadbd --thread_stack=#' k zadaniu väčšieho zásobníka"
-        spa "Desbordamiento de la pila de hilos (threads): Usado: %ld de una pila de %ld. Considera el incrementar la variable de sistema thread_stack"
+        spa "Desbordamiento de la pila de hilos (threads): Usado: %ld de una pila de %ld. Considere el incrementar la variable de sistema thread_stack"
         swe "Trådstacken tog slut:  Har använt %ld av %ld bytes.  Använd 'mariadbd --thread_stack=#' ifall du behöver en större stack"
         ukr "Стек гілок переповнено:  Використано: %ld з %ld. Використовуйте 'mariadbd --thread_stack=#' аби зазначити більший стек, якщо необхідно"
 ER_WRONG_OUTER_JOIN 42000 
@@ -2828,7 +2829,7 @@ ER_WRONG_OUTER_JOIN 42000
         ukr "Перехресна залежність у OUTER JOIN. Перевірте умову ON"
 ER_NULL_COLUMN_IN_INDEX 42000 
         eng "Table handler doesn't support NULL in given index. Please change column '%-.192s' to be NOT NULL or use another handler"
-        spa "El manejador de tabla no soporta NULL en índice suministrado. Por favor, cambia la columna '%-.192s' para que sea NOT NULL o utiliza otro manejador"
+        spa "El manejador de tabla no soporta NULL en índice suministrado. Por favor, cambie la columna '%-.192s' para que sea NOT NULL o utilice otro manejador"
         swe "Tabell hanteraren kan inte indexera NULL kolumner för den givna index typen. Ändra '%-.192s' till NOT NULL eller använd en annan hanterare"
         ukr "Вказівник таблиці не підтримує NULL у зазначенному індексі. Будь ласка, зменіть стовпчик '%-.192s' на NOT NULL або використайте інший вказівник таблиці."
 ER_CANT_FIND_UDF  
@@ -3045,7 +3046,7 @@ ER_PASSWORD_ANONYMOUS_USER 42000
         rum "Dumneavoastra folositi MariaDB ca un utilizator anonim si utilizatorii anonimi nu au voie sa schimbe setarile utilizatorilor"
         rus "Вы используете MariaDB от имени анонимного пользователя, а анонимным пользователям не разрешается менять пароли"
         serbian "Vi koristite MariaDB kao anonimni korisnik a anonimnim korisnicima nije dozvoljeno da menjaju lozinke"
-        spa "Estás usando MariaDB como un usuario anónimo y lo usuarios anónimos no tienen permiso para cambiar las propiedades de usuario"
+        spa "Está usando MariaDB como un usuario anónimo y lo usuarios anónimos no tienen permiso para cambiar las propiedades de usuario"
         swe "Du använder MariaDB som en anonym användare och som sådan får du inte ändra ditt lösenord"
         ukr "Ви використовуєте MariaDB як анонімний користувач, тому вам не дозволено змінювати паролі"
 ER_PASSWORD_NOT_ALLOWED 42000 
@@ -3065,7 +3066,7 @@ ER_PASSWORD_NOT_ALLOWED 42000
         rum "Trebuie sa aveti privilegii sa actualizati tabelele in bazele de date mysql ca sa puteti sa schimati parolele altora"
         rus "Для того чтобы изменять пароли других пользователей, у вас должны быть привилегии на изменение таблиц в базе данных mysql"
         serbian "Morate imati privilegije da možete da update-ujete određene tabele ako želite da menjate lozinke za druge korisnike"
-        spa "Debes de tener privilegios para actualizar tablas en la base de datos mysql para poder cambiar las contraseñas de otros"
+        spa "Vd debe de tener privilegios para actualizar tablas en la base de datos mysql para poder cambiar las contraseñas de otros"
         swe "För att ändra lösenord för andra måste du ha rättigheter att uppdatera mysql-databasen"
         ukr "Ви повині мати право на оновлення таблиць у базі данних mysql, аби мати можливість змінювати пароль іншим"
 ER_PASSWORD_NO_MATCH 28000 
@@ -3127,7 +3128,7 @@ ER_CANT_CREATE_THREAD
         rum "Nu pot crea un thread nou (Eroare %M). Daca mai aveti memorie disponibila in sistem, puteti consulta manualul - ar putea exista un potential bug in legatura cu sistemul de operare"
         rus "Невозможно создать новый поток (ошибка %M). Если это не ситуация, связанная с нехваткой памяти, то вам следует изучить документацию на предмет описания возможной ошибки работы в конкретной ОС"
         serbian "Ne mogu da kreiram novi thread (errno %M). Ako imate još slobodne memorije, trebali biste da pogledate u priručniku da li je ovo specifična greška vašeg operativnog sistema"
-        spa "No puedo crear un nuevo hilo (thread) (error %M). Si no estás falto de memoria disponible, puedes consultar el manual para posibles problemas con SO"
+        spa "No puedo crear un nuevo hilo (thread) (error %M). Si no está falto de memoria disponible, vd puede consultar el manual para un posible error dependiente del SO"
         swe "Kan inte skapa en ny tråd (errno %M)"
         ukr "Не можу створити нову гілку (помилка %M). Якщо ви не використали усю пам'ять, то прочитайте документацію до вашої ОС - можливо це помилка ОС"
 ER_WRONG_VALUE_COUNT_ON_ROW 21S01 
@@ -3209,7 +3210,7 @@ ER_REGEXP_ERROR 42000
         rum "Eroarea '%-.64s' obtinuta din expresia regulara (regexp)"
         rus "Ошибка регулярного выражения: %s"
         serbian "Funkcija regexp je vratila grešku: %s"
-        spa "Obtenido error '%-.64s' desde regexp"
+        spa "Error %s desde regexp"
         swe "Fick fel '%-.64s' från REGEXP"
         ukr "Помилка регулярного виразу: %s"
 ER_MIX_OF_GROUP_FUNC_AND_FIELDS 42000 
@@ -3267,7 +3268,7 @@ ER_TABLEACCESS_DENIED_ERROR 42000
         rum "Comanda %-.100T interzisa utilizatorului: '%s'@'%s' pentru tabela '%-.192s'"
         rus "Команда %-.100T запрещена пользователю '%s'@'%s' для таблицы '%-.192s'"
         serbian "%-.100T komanda zabranjena za korisnika '%s'@'%s' za tabelu '%-.192s'"
-        spa "%-.100T comando denegado para usuario: '%s'@'%s' para la tabla '%-.192s'"
+        spa "%-.100T comando denegado a usuario '%s'@'%s' para la tabla '%-.192s'"
         swe "%-.100T ej tillåtet för '%s'@'%s' för tabell '%-.192s'"
         ukr "%-.100T команда заборонена користувачу: '%s'@'%s' у таблиці '%-.192s'"
 ER_COLUMNACCESS_DENIED_ERROR 42000 
@@ -3287,7 +3288,7 @@ ER_COLUMNACCESS_DENIED_ERROR 42000
         rum "Comanda %-.32s interzisa utilizatorului: '%s'@'%s' pentru coloana '%-.192s' in tabela '%-.192s'"
         rus "Команда %-.32s запрещена пользователю '%s'@'%s' для столбца '%-.192s' в таблице '%-.192s'"
         serbian "%-.32s komanda zabranjena za korisnika '%s'@'%s' za kolonu '%-.192s' iz tabele '%-.192s'"
-        spa "%-.32s comando denegado para el usuario: '%s'@'%s' para la columna '%-.192s' en la tabla '%-.192s'"
+        spa "%-.32s comando denegado a el usuario '%s'@'%s' para la columna '%-.192s' en la tabla '%-.192s'"
         swe "%-.32s ej tillåtet för '%s'@'%s' för kolumn '%-.192s' i tabell '%-.192s'"
         ukr "%-.32s команда заборонена користувачу: '%s'@'%s' для стовбця '%-.192s' у таблиці '%-.192s'"
 ER_ILLEGAL_GRANT_FOR_TABLE 42000 
@@ -3311,7 +3312,7 @@ ER_ILLEGAL_GRANT_FOR_TABLE 42000
         rus "Неверная команда GRANT или REVOKE. Обратитесь к документации, чтобы выяснить, какие привилегии можно использовать"
         serbian "Pogrešna 'GRANT' odnosno 'REVOKE' komanda. Molim Vas pogledajte u priručniku koje vrednosti mogu biti upotrebljene"
         slo "Illegal GRANT/REVOKE command; please consult the manual to see which privleges can be used"
-        spa "Comando GRANT/REVOKE ilegal; por favor, consulte el manual ver qué permisos se pueden usar"
+        spa "Comando GRANT/REVOKE ilegal; por favor, consulte el manual para ver los permisos que se pueden usar"
         swe "Felaktigt GRANT-privilegium använt"
         ukr "Хибна GRANT/REVOKE команда; прочитайте документацію стосовно того, які права можна використовувати"
 ER_GRANT_WRONG_HOST_OR_USER 42000 
@@ -3419,7 +3420,7 @@ ER_SYNTAX_ERROR 42000
         rus "У вас ошибка в запросе. Изучите документацию по используемой версии MariaDB на предмет корректного синтаксиса"
         serbian "Imate grešku u vašoj SQL sintaksi"
         slo "Something is wrong in your syntax"
-        spa "Existe un error en tu sintaxis SQL; revisa el manual que se corresponde con tu versión del servidor MariaDB para averiguar la sintaxis correcta a utilizar"
+        spa "Existe un error en su sintaxis SQL; revise el manual que se corresponde con su versión del servidor MariaDB para averiguar la sintaxis correcta a utilizar"
         swe "Du har något fel i din syntax"
         ukr "У вас помилка у синтаксисі SQL"
 ER_DELAYED_CANT_CHANGE_LOCK  
@@ -3700,7 +3701,7 @@ ER_TABLE_CANT_HANDLE_BLOB 42000
         rum "Tipul de tabela folosit (%s) nu suporta coloane de tip BLOB/TEXT"
         rus "%s таблицы не поддерживают типы BLOB/TEXT"
         serbian "Iskorišteni tip tabele (%s) ne podržava kolone tipa 'BLOB' odnosno 'TEXT'"
-        spa "El motor de almacenaje (%s) no soporta columnas de tipo BLOB/TEXT"
+        spa "El motor de almacenaje %s no soporta columnas de tipo BLOB/TEXT"
         swe "Den använda tabelltypen (%s) kan inte hantera BLOB/TEXT-kolumner"
         ukr "%s таблиці не підтримують BLOB/TEXT стовбці"
 ER_TABLE_CANT_HANDLE_AUTO_INCREMENT 42000 
@@ -3719,7 +3720,7 @@ ER_TABLE_CANT_HANDLE_AUTO_INCREMENT 42000
         rum "Tipul de tabela folosit (%s) nu suporta coloane de tip AUTO_INCREMENT"
         rus "%s таблицы не поддерживают автоинкрементные столбцы"
         serbian "Iskorišteni tip tabele (%s) ne podržava kolone tipa 'AUTO_INCREMENT'"
-        spa "El motor de almacenaje (%s) no soporta columnas AUTO_INCREMENT"
+        spa "El motor de almacenaje %s no soporta columnas AUTO_INCREMENT"
         swe "Den använda tabelltypen (%s) kan inte hantera AUTO_INCREMENT-kolumner"
         ukr "%s таблиці не підтримують AUTO_INCREMENT стовбці"
 ER_DELAYED_INSERT_TABLE_LOCKED  
@@ -3853,7 +3854,7 @@ ER_PRIMARY_CANT_HAVE_NULL 42000
         rum "Toate partile unei chei primare (PRIMARY KEY) trebuie sa fie NOT NULL; Daca aveti nevoie de NULL in vreo cheie, folositi UNIQUE in schimb"
         rus "Все части первичного ключа (PRIMARY KEY) должны быть определены как NOT NULL; Если вам нужна поддержка величин NULL в ключе, воспользуйтесь индексом UNIQUE"
         serbian "Svi delovi primarnog ključa moraju biti različiti od NULL;  Ako Vam ipak treba NULL vrednost u ključu, upotrebite 'UNIQUE'"
-        spa "Todas las partes de una PRIMARY KEY deben de ser NOT NULL; si necesitas NULL en una clave, usa UNIQUE en su lugar"
+        spa "Todas las partes de una PRIMARY KEY deben de ser NOT NULL; si necesita NULL en una clave, use UNIQUE en su lugar"
         swe "Alla delar av en PRIMARY KEY måste vara NOT NULL;  Om du vill ha en nyckel med NULL, använd UNIQUE istället"
         ukr "Усі частини PRIMARY KEY повинні бути NOT NULL; Якщо ви потребуєте NULL у ключі, скористайтеся UNIQUE"
 ER_TOO_MANY_ROWS 42000 
@@ -3927,7 +3928,7 @@ ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
         por "Você está usando modo de atualização seguro e tentou atualizar uma tabela sem uma cláusula WHERE que use uma coluna chave"
         rus "Вы работаете в режиме безопасных обновлений (safe update mode) и попробовали изменить таблицу без использования ключевого столбца в части WHERE"
         serbian "Vi koristite safe update mod servera, a probali ste da promenite podatke bez 'WHERE' komande koja koristi kolonu ključa"
-        spa "Estás usando modo de actualización segura y has intentado actualizar una tabla sin un WHERE que use una columna KEY"
+        spa "Está usando modo de actualización segura y ha intentado actualizar una tabla sin un WHERE que use una columna KEY"
         swe "Du använder 'säker uppdateringsmod' och försökte uppdatera en tabell utan en WHERE-sats som använder sig av en nyckel"
         ukr "Ви у режимі безпечного оновлення та намагаєтесь оновити таблицю без оператора WHERE, що використовує KEY стовбець"
 ER_KEY_DOES_NOT_EXISTS 42000 S1009
@@ -4005,7 +4006,7 @@ ER_CANT_DO_THIS_DURING_AN_TRANSACTION 25000
         por "Não lhe é permitido executar este comando em uma transação"
         rus "Вам не разрешено выполнять эту команду в транзакции"
         serbian "Nije Vam dozvoljeno da izvršite ovu komandu u transakciji"
-        spa "No tienes el permiso para ejecutar este comando en una transacción"
+        spa "No tiene el permiso para ejecutar este comando en una transacción"
         swe "Du får inte utföra detta kommando i en transaktion"
         ukr "Вам не дозволено виконувати цю команду в транзакції"
 ER_ERROR_DURING_COMMIT  
@@ -4093,12 +4094,12 @@ ER_NEW_ABORTING_CONNECTION 08S01
         por "Conexão %lld abortada para banco de dados '%-.192s' - usuário '%-.48s' - 'host' '%-.64s' ('%-.64s')"
         rus "Прервано соединение %lld к базе данных '%-.192s' пользователя '%-.48s' с хоста '%-.64s' (%-.64s)"
         serbian "Prekinuta konekcija broj %lld ka bazi: '%-.192s' korisnik je bio: '%-.48s' a host: '%-.64s' (%-.64s)"
-        spa "Abortada conexión %lld a la base de datos: '%-.192s' usuario: '%-.48s'equipo: '%-.64s' (%-.64s)"
+        spa "Abortada conexión %lld a la base de datos: '%-.192s' usuario: '%-.48s' equipo: '%-.64s' (%-.64s)"
         swe "Avbröt länken för tråd %lld till db '%-.192s', användare '%-.48s', host '%-.64s' (%-.64s)"
         ukr "Перервано з'єднання %lld до бази данних: '%-.192s' користувач: '%-.48s' хост: '%-.64s' (%-.64s)"
 ER_UNUSED_10
         eng "You should never see it"
-        spa "Nunca lo deberías de ver"
+        spa "Nunca lo debería vd de ver"
 ER_FLUSH_MASTER_BINLOG_CLOSED  
         eng "Binlog closed, cannot RESET MASTER"
         ger "Binlog geschlossen. Kann RESET MASTER nicht ausführen"
@@ -4198,7 +4199,7 @@ ER_LOCK_OR_ACTIVE_TRANSACTION
         por "Não pode executar o comando dado porque você tem tabelas ativas travadas ou uma transação ativa"
         rus "Невозможно выполнить указанную команду, поскольку у вас присутствуют активно заблокированные таблица или открытая транзакция"
         serbian "Ne mogu da izvršim datu komandu zbog toga što su tabele zaključane ili je transakcija u toku"
-        spa "No puedo ejecutar el comando dado porque tienes tablas activas bloqueadas o una transacción activa"
+        spa "No puedo ejecutar el comando dado porque tiene tablas activas bloqueadas o una transacción activa"
         swe "Kan inte utföra kommandot emedan du har en låst tabell eller an aktiv transaktion"
         ukr "Не можу виконати подану команду тому, що таблиця заблокована або виконується транзакція"
 ER_UNKNOWN_SYSTEM_VARIABLE  
@@ -4262,7 +4263,7 @@ ER_WARNING_NOT_COMPLETE_ROLLBACK
         por "Aviso: Algumas tabelas não-transacionais alteradas não puderam ser reconstituídas (rolled back)"
         rus "Внимание: по некоторым измененным нетранзакционным таблицам невозможно будет произвести откат транзакции"
         serbian "Upozorenje: Neke izmenjene tabele ne podržavaju komandu 'ROLLBACK'"
-        spa "Algunas tablas no transaccionales ya cambiadas no pueden ser retrocedidas (rolled back)"
+        spa "Algunas tablas no transaccionales ya cambiadas no puedieron ser retrocedidas (rolled back)"
         swe "Warning:  Några icke transaktionella tabeller kunde inte återställas vid ROLLBACK"
         ukr "Застереження: Деякі нетранзакційні зміни таблиць не можна буде повернути"
 ER_TRANS_CACHE_FULL  
@@ -4303,7 +4304,7 @@ ER_SLAVE_NOT_RUNNING
         por "Esta operação requer um 'slave' em execução. Configure  o 'slave' e execute START SLAVE"
         rus "Для этой операции требуется работающий подчиненный сервер. Сначала выполните START SLAVE"
         serbian "Ova operacija zahteva da je aktivan podređeni server. Konfigurišite prvo podređeni server i onda izvršite komandu 'START SLAVE'"
-        spa "Esta operación requiere de un esclavo funcionando, configure el esclavo y haga el START SLAVE"
+        spa "Esta operación requiere de un esclavo funcionando; configure el esclavo y haga el START SLAVE"
         swe "Denna operation kan endast göras under replikering; Konfigurera slaven och gör START SLAVE"
         ukr "Операція вимагає запущеного підлеглого, зконфігуруйте підлеглого та виконайте START SLAVE"
 ER_BAD_SLAVE  
@@ -4317,7 +4318,7 @@ ER_BAD_SLAVE
         por "O servidor não está configurado como 'slave'. Acerte o arquivo de configuração ou use CHANGE MASTER TO"
         rus "Этот сервер не настроен как подчиненный. Внесите исправления в конфигурационном файле или с помощью CHANGE MASTER TO"
         serbian "Server nije konfigurisan kao podređeni server, ispravite konfiguracioni file ili na njemu izvršite komandu 'CHANGE MASTER TO'"
-        spa "El servidor no está configurado como esclavo; arréglelo en el fichero de configuración o con CHANGE MASTER TO"
+        spa "El servidor no está configurado como esclavo; arréglelo en el fichero/archivo de configuración o con CHANGE MASTER TO"
         swe "Servern är inte konfigurerade som en replikationsslav. Ändra konfigurationsfilen eller gör CHANGE MASTER TO"
         ukr "Сервер не зконфігуровано як підлеглий, виправте це у файлі конфігурації або з CHANGE MASTER TO"
 ER_MASTER_INFO  
@@ -4340,7 +4341,7 @@ ER_SLAVE_THREAD
         por "Não conseguiu criar 'thread' de 'slave'. Verifique os recursos do sistema"
         rus "Невозможно создать поток подчиненного сервера. Проверьте системные ресурсы"
         serbian "Nisam mogao da startujem thread za podređeni server, proverite sistemske resurse"
-        spa "No puedo crear el hilo (thread) esclavo, verifique recursos del sistema"
+        spa "No puedo crear el hilo (thread) esclavo; verifique recursos del sistema"
         swe "Kunde inte starta en tråd för replikering"
         ukr "Не можу створити підлеглу гілку, перевірте системні ресурси"
 ER_TOO_MANY_USER_CONNECTIONS 42000 
@@ -4372,7 +4373,7 @@ ER_SET_CONSTANTS_ONLY
         por "Você pode usar apenas expressões constantes com SET"
         rus "С этой командой вы можете использовать только константные выражения"
         serbian "Možete upotrebiti samo konstantan iskaz sa komandom 'SET'"
-        spa "Sólo puedes usar expresiones constantes en esta sentencia"
+        spa "Sólo puede usar expresiones constantes en esta sentencia"
         swe "Man kan endast använda konstantuttryck med SET"
         ukr "Можна використовувати лише вирази зі сталими у SET"
 ER_LOCK_WAIT_TIMEOUT  
@@ -4491,7 +4492,7 @@ ER_UNION_TABLES_IN_DIFFERENT_DIR
         por "Definição incorreta da tabela. Todas as tabelas contidas na junção devem estar no mesmo banco de dados"
         rus "Неверное определение таблицы; Все таблицы в MERGE должны принадлежать одной и той же базе данных"
         serbian "Pogrešna definicija tabele; sve 'MERGE' tabele moraju biti u istoj bazi podataka"
-        spa "Definición incorrecta de la tabla; Todas las tablas MERGE deben de estar en la misma base de datos"
+        spa "Definición incorrecta de la tabla; todas las tablas MERGE deben de estar en la misma base de datos"
         swe "Felaktig tabelldefinition; alla tabeller i en MERGE-tabell måste vara i samma databas"
         ukr "Хибне визначення таблиці; всі MERGE-таблиці повинні належити до однієї бази ланних."
 ER_LOCK_DEADLOCK 40001 
@@ -4505,7 +4506,7 @@ ER_LOCK_DEADLOCK 40001
         por "Encontrado um travamento fatal (deadlock) quando tentava obter uma trava. Tente reiniciar a transação"
         rus "Возникла тупиковая ситуация в процессе получения блокировки; Попробуйте перезапустить транзакцию"
         serbian "Unakrsno zaključavanje pronađeno kada sam pokušao da dobijem pravo na zaključavanje; Probajte da restartujete transakciju"
-        spa "Encontrado estancamiento (deadlock) al intentar obtener el bloqueo; intenta volver a comenzar la transacción"
+        spa "Encontrado estancamiento (deadlock) al intentar obtener el bloqueo; intente volver a comenzar la transacción"
         swe "Fick 'DEADLOCK' vid låsförsök av block/rad. Försök att starta om transaktionen"
         ukr "Взаємне блокування знайдено під час спроби отримати блокування; спробуйте перезапустити транзакцію."
 ER_TABLE_CANT_HANDLE_FT  
@@ -4630,7 +4631,7 @@ ER_CANT_UPDATE_WITH_READLOCK
         por "Não posso executar a consulta porque você tem um conflito de travamento de leitura"
         rus "Невозможно исполнить запрос, поскольку у вас установлены конфликтующие блокировки чтения"
         serbian "Ne mogu da izvršim upit zbog toga što imate zaključavanja čitanja podataka u konfliktu"
-        spa "No puedo ejecutar la consulta (query) porque tienes un conflicto de bloqueo de lectura"
+        spa "No puedo ejecutar la consulta (query) porque vd tiene un conflicto de bloqueo de lectura"
         swe "Kan inte utföra kommandot emedan du har ett READ-lås"
 ER_MIXING_NOT_ALLOWED  
         nla "Het combineren van transactionele en niet-transactionele tabellen is uitgeschakeld"
@@ -4772,7 +4773,7 @@ ER_SLAVE_IGNORED_TABLE
         jpn "replicate-*-table ルールに従って、スレーブSQLスレッドはクエリを無視しました。"
         nla "Slave SQL thread negeerde de query vanwege replicate-*-table opties"
         por "Slave SQL thread ignorado a consulta devido às normas de replicação-*-tabela"
-        spa "Hilo (thread) SQL esclavo ha ignorado la consulta (query) debido a las reglas de replicar-*-tabla"
+        spa "El hilo (thread) SQL esclavo ha ignorado la consulta (query) debido a las reglas de replicar-*-tabla"
         swe "Slav SQL tråden ignorerade frågan pga en replicate-*-table regel"
 ER_INCORRECT_GLOBAL_LOCAL_VAR  
         eng "Variable '%-.192s' is a %s variable"
@@ -4896,7 +4897,7 @@ ER_NOT_SUPPORTED_AUTH_MODE 08004
         jpn "クライアントはサーバーが要求する認証プロトコルに対応できません。MariaDBクライアントのアップグレードを検討してください。"
         nla "Client ondersteunt het door de server verwachtte authenticatieprotocol niet. Overweeg een nieuwere MariaDB client te gebruiken"
         por "Cliente não suporta o protocolo de autenticação exigido pelo servidor; considere a atualização do cliente MariaDB"
-        spa "El cliente no soporta protocolo de autenticación requerido por el servidor; considere actualizar el cliente MariaDB"
+        spa "El cliente no soporta protocolo de autenticación requerido por el servidor; considere mejorar el cliente MariaDB"
         swe "Klienten stöder inte autentiseringsprotokollet som begärts av servern; överväg uppgradering av klientprogrammet"
 ER_SPATIAL_CANT_HAVE_NULL 42000 
         eng "All parts of a SPATIAL index must be NOT NULL"
@@ -4936,7 +4937,7 @@ ER_TOO_BIG_FOR_UNCOMPRESS
         jpn "展開後のデータが大きすぎます。最大サイズは %d です。(展開後データの長さ情報が壊れている可能性もあります。)"
         nla "Ongecomprimeerder data is te groot; de maximum lengte is %d (waarschijnlijk, de lengte van de gecomprimeerde data was beschadigd)"
         por "Tamanho muito grande dos dados des comprimidos. O máximo tamanho é %d. (provavelmente, o comprimento dos dados descomprimidos está corrupto)"
-        spa "Tamaño demasiado grande para datos descomprimidos. El máximo tamaño es %d. (probablemente, el tamaño de datos descomprimidos fué corrompido)"
+        spa "Tamaño demasiado grande para datos descomprimidos; el máximo tamaño es %d. (probablemente, el tamaño de datos descomprimidos fué corrompido)"
 ER_ZLIB_Z_MEM_ERROR  
         eng "ZLIB: Not enough memory"
         ger "ZLIB: Nicht genug Speicher"
@@ -5037,7 +5038,7 @@ ER_UNKNOWN_COLLATION
         ger "Unbekannte Sortierreihenfolge: '%-.64s'"
         jpn "不明な照合順序: '%-.64s'"
         por "Collation desconhecida: '%-.64s'"
-        spa "Cotejo (Collations) desconocido: '%-.64s'"
+        spa "Cotejo (Collation) desconocido: '%-.64s'"
 ER_SLAVE_IGNORED_SSL_PARAMS  
         eng "SSL parameters in CHANGE MASTER are ignored because this MariaDB slave was compiled without SSL support; they can be used later if MariaDB slave with SSL is started"
         ger "SSL-Parameter in CHANGE MASTER werden ignoriert, weil dieser MariaDB-Slave ohne SSL-Unterstützung kompiliert wurde. Sie können aber später verwendet werden, wenn ein MariaDB-Slave mit SSL gestartet wird"
@@ -5050,27 +5051,27 @@ ER_SERVER_IS_IN_SECURE_AUTH_MODE
         jpn "サーバーは --secure-auth モードで稼働しています。しかし '%s'@'%s' は古い形式のパスワードを使用しています。新しい形式のパスワードに変更してください。"
         por "Servidor está rodando em --secure-auth modo, porêm '%s'@'%s' tem senha no formato antigo; por favor troque a senha para o novo formato"
         rus "Сервер запущен в режиме --secure-auth (безопасной авторизации), но для пользователя '%s'@'%s' пароль сохранён в старом формате; необходимо обновить формат пароля"
-        spa "El servidor se está ejecutando en modo --secure-auth, pero '%s'@'%s' tiene una contraseña con formato antiguo formato; por favor cambie la contraseña al nuevo formato"
+        spa "El servidor se está ejecutando en modo --secure-auth, pero '%s'@'%s' tiene una contraseña con formato antiguo; por favor cambie la contraseña al nuevo formato"
 ER_WARN_FIELD_RESOLVED  
         eng "Field or reference '%-.192s%s%-.192s%s%-.192s' of SELECT #%d was resolved in SELECT #%d"
         ger "Feld oder Verweis '%-.192s%s%-.192s%s%-.192s' im SELECT-Befehl Nr. %d wurde im SELECT-Befehl Nr. %d aufgelöst"
         jpn "フィールドまたは参照 '%-.192s%s%-.192s%s%-.192s' は SELECT #%d ではなく、SELECT #%d で解決されました。"
         por "Campo ou referência '%-.192s%s%-.192s%s%-.192s' de SELECT #%d foi resolvido em SELECT #%d"
         rus "Поле или ссылка '%-.192s%s%-.192s%s%-.192s' из SELECTа #%d была найдена в SELECTе #%d"
-        spa "El campo o la referencia '%-.192s%s%-.192s%s%-.192s' de SELECT #%d fue resuelto en SELECT #%d"
+        spa "El campo o la referencia '%-.192s%s%-.192s%s%-.192s' de SELECT #%d se resolvió en SELECT #%d"
         ukr "Стовбець або посилання '%-.192s%s%-.192s%s%-.192s' із SELECTу #%d було знайдене у SELECTі #%d"
 ER_BAD_SLAVE_UNTIL_COND  
         eng "Incorrect parameter or combination of parameters for START SLAVE UNTIL"
         ger "Falscher Parameter oder falsche Kombination von Parametern für START SLAVE UNTIL"
         jpn "START SLAVE UNTIL へのパラメータまたはその組み合わせが不正です。"
         por "Parâmetro ou combinação de parâmetros errado para START SLAVE UNTIL"
-        spa "Parámetro incorrecto o combinación de parametros para START SLAVE UNTIL"
+        spa "Parámetro incorrecto o combinación de parámetros para START SLAVE UNTIL"
 ER_MISSING_SKIP_SLAVE  
         eng "It is recommended to use --skip-slave-start when doing step-by-step replication with START SLAVE UNTIL; otherwise, you will get problems if you get an unexpected slave's mariadbd restart"
         ger "Es wird empfohlen, mit --skip-slave-start zu starten, wenn mit START SLAVE UNTIL eine Schritt-für-Schritt-Replikation ausgeführt wird. Ansonsten gibt es Probleme, wenn ein Slave-Server unerwartet neu startet"
         jpn "START SLAVE UNTIL で段階的にレプリケーションを行う際には、--skip-slave-start オプションを使うことを推奨します。使わない場合、スレーブのmariadbdが不慮の再起動をすると問題が発生します。"
         por "É recomendado para rodar com --skip-slave-start quando fazendo replicação passo-por-passo com START SLAVE UNTIL, de outra forma você não está seguro em caso de inesperada reinicialição do mariadbd escravo"
-        spa "Se recomienda usar --skip-slave-start al hacer réplica paso a paso con START SLAVE UNTIL; en caso contrario, obtendrás problemas si tiene lugar un rearranque inesperado del esclavo mariadb"
+        spa "Se recomienda usar --skip-slave-start al hacer réplica paso a paso con START SLAVE UNTIL; en caso contrario, obtendrá problemas si tiene lugar un rearranque inesperado del esclavo mariadb"
 ER_UNTIL_COND_IGNORED  
         eng "SQL thread is not to be started so UNTIL options are ignored"
         ger "SQL-Thread soll nicht gestartet werden. Daher werden UNTIL-Optionen ignoriert"
@@ -5118,7 +5119,7 @@ ER_WARN_HOSTNAME_WONT_WORK
         ger "MariaDB wurde mit --skip-name-resolve gestartet. Diese Option darf nicht verwendet werden, damit diese Rechtevergabe möglich ist"
         jpn "MariaDBは --skip-name-resolve モードで起動しています。このオプションを外して再起動しなければ、この権限操作は機能しません。"
         por "MariaDB foi inicializado em modo --skip-name-resolve. Você necesita reincializá-lo sem esta opção para este grant funcionar"
-        spa "MariaDB ha sido arrancada en modo --skip-name-resolve. Usted necesita reinicializarla sin esta opción para que esta concesión funcione"
+        spa "MariaDB ha sido arrancada en modo --skip-name-resolve; vd necesita reinicializarla sin esta opción para que esta concesión funcione"
 ER_UNKNOWN_STORAGE_ENGINE 42000 
         eng "Unknown storage engine '%s'"
         ger "Unbekannte Speicher-Engine '%s'"
@@ -5153,7 +5154,7 @@ ER_OPTION_PREVENTS_STATEMENT
         ger "Der MariaDB-Server läuft mit der Option %s und kann diese Anweisung deswegen nicht ausführen"
         jpn "MariaDBサーバーが %s オプションで実行されているので、このステートメントは実行できません。"
         por "O servidor MariaDB está rodando com a opção %s razão pela qual não pode executar esse commando"
-        spa "El servidor MariaDB se está ejecutando con la opción %s por lo que no puede ejecutar esta sentencia"
+        spa "El servidor MariaDB se está ejecutando con la opción %s por lo que no se puede ejecutar esta sentencia"
         swe "MariaDB är startad med %s. Pga av detta kan du inte använda detta kommando"
 ER_DUPLICATED_VALUE_IN_TYPE  
         eng "Column '%-.100s' has duplicated value '%-.64s' in %s"
@@ -5172,7 +5173,7 @@ ER_TOO_MUCH_AUTO_TIMESTAMP_COLS
         ger "Fehlerhafte Tabellendefinition. Es kann nur eine einzige TIMESTAMP-Spalte mit CURRENT_TIMESTAMP als DEFAULT oder in einer ON-UPDATE-Klausel geben"
         jpn "不正な表定義です。DEFAULT句またはON UPDATE句に CURRENT_TIMESTAMP をともなうTIMESTAMP型の列は1つまでです。"
         por "Incorreta definição de tabela; Pode ter somente uma coluna TIMESTAMP com CURRENT_TIMESTAMP em DEFAULT ou ON UPDATE cláusula"
-        spa "Definición incorrecta de tabla; Solamente puede haber una columna TIMESTAMP con CURRENT_TIMESTAMP en DEFAULT o en cláusula ON UPDATE"
+        spa "Definición incorrecta de tabla; solamente puede haber una columna TIMESTAMP con CURRENT_TIMESTAMP en DEFAULT o en cláusula ON UPDATE"
 ER_INVALID_ON_UPDATE  
         eng "Invalid ON UPDATE clause for '%-.192s' column"
         ger "Ungültige ON-UPDATE-Klausel für Spalte '%-.192s'"
@@ -5276,7 +5277,7 @@ ER_SP_BADSTATEMENT 0A000
 ER_UPDATE_LOG_DEPRECATED_IGNORED 42000 
         eng "The update log is deprecated and replaced by the binary log; SET SQL_LOG_UPDATE has been ignored. This option will be removed in MariaDB 5.6"
         ger "Das Update-Log ist veraltet und wurde durch das Binär-Log ersetzt. SET SQL_LOG_UPDATE wird ignoriert. Diese Option wird in MariaDB 5.6 entfernt"
-        spa "El historial (log) de actualización se encuentra obsoleto y reemplazado por el historial binario; SET SQL_LOG_UPDATE ha sido ignorado. Esta opción será quitada en MariaDB 5.6"
+        spa "El historial (log) de actualización se encuentra obsoleto y reemplazado por el historial (log) binario; SET SQL_LOG_UPDATE ha sido ignorado. Esta opción será quitada en MariaDB 5.6"
 ER_UPDATE_LOG_DEPRECATED_TRANSLATED 42000 
         eng "The update log is deprecated and replaced by the binary log; SET SQL_LOG_UPDATE has been translated to SET SQL_LOG_BIN. This option will be removed in MariaDB 5.6"
         ger "Das Update-Log ist veraltet und wurde durch das Binär-Log ersetzt. SET SQL_LOG_UPDATE wurde in SET SQL_LOG_BIN übersetzt. Diese Option wird in MariaDB 5.6 entfernt"
@@ -5382,19 +5383,19 @@ ER_FPARSER_TOO_BIG_FILE
         eng "Configuration file '%-.192s' is too big"
         ger "Konfigurationsdatei '%-.192s' ist zu groß"
         rus "Слишком большой конфигурационный файл '%-.192s'"
-        spa "El fichero de configuración '%-.192s' es demasiado grande"
+        spa "El fichero/archivo de configuración '%-.192s' es demasiado grande"
         ukr "Занадто великий конфігураційний файл '%-.192s'"
 ER_FPARSER_BAD_HEADER  
         eng "Malformed file type header in file '%-.192s'"
         ger "Nicht wohlgeformter Dateityp-Header in Datei '%-.192s'"
         rus "Неверный заголовок типа файла '%-.192s'"
-        spa "Cabecera malformada de tipo de fichero en fichero '%-.192s'"
+        spa "Cabecera de tipo de fichero/archivo malformada en fichero/archivo '%-.192s'"
         ukr "Невірний заголовок типу у файлі '%-.192s'"
 ER_FPARSER_EOF_IN_COMMENT  
         eng "Unexpected end of file while parsing comment '%-.200s'"
         ger "Unerwartetes Dateiende beim Parsen des Kommentars '%-.200s'"
         rus "Неожиданный конец файла в коментарии '%-.200s'"
-        spa "Inesperado fin de fichero mientras se analizaba comentario '%-.200s'"
+        spa "Inesperado fin de fichero/archivo mientras se analizaba comentario '%-.200s'"
         ukr "Несподіванний кінець файлу у коментарі '%-.200s'"
 ER_FPARSER_ERROR_IN_PARAMETER  
         eng "Error while parsing parameter '%-.192s' (line: '%-.192s')"
@@ -5406,7 +5407,7 @@ ER_FPARSER_EOF_IN_UNKNOWN_PARAMETER
         eng "Unexpected end of file while skipping unknown parameter '%-.192s'"
         ger "Unerwartetes Dateiende beim Überspringen des unbekannten Parameters '%-.192s'"
         rus "Неожиданный конец файла при пропуске неизвестного параметра '%-.192s'"
-        spa "Inesperado fin de fichero mientras se saltaba parámetro desconocido '%-.192s'"
+        spa "Inesperado fin de fichero/archivo mientras se saltaba parámetro desconocido '%-.192s'"
         ukr "Несподіванний кінець файлу у спробі проминути невідомий параметр '%-.192s'"
 ER_VIEW_NO_EXPLAIN  
         eng "ANALYZE/EXPLAIN/SHOW can not be issued; lacking privileges for underlying table"
@@ -5418,13 +5419,13 @@ ER_FRM_UNKNOWN_TYPE
         eng "File '%-.192s' has unknown type '%-.64s' in its header"
         ger "Datei '%-.192s' hat unbekannten Typ '%-.64s' im Header"
         rus "Файл '%-.192s' содержит неизвестный тип '%-.64s' в заголовке"
-        spa "El fichero '%-.192s' es de un tipo desconocido '%-.64s' en su cabecera"
+        spa "El fichero/archivo '%-.192s' es de un tipo desconocido '%-.64s' en su cabecera"
         ukr "Файл '%-.192s' має невідомий тип '%-.64s' у заголовку"
 ER_WRONG_OBJECT  
         eng "'%-.192s.%-.192s' is not of type '%s'"
         ger "'%-.192s.%-.192s' ist nicht %s"
         rus "'%-.192s.%-.192s' - не %s"
-        spa "'%-.192s.%-.192s' no es %s"
+        spa "'%-.192s.%-.192s' no es del tipo '%s'"
         ukr "'%-.192s.%-.192s' не є %s"
 ER_NONUPDATEABLE_COLUMN  
         eng "Column '%-.192s' is not updatable"
@@ -5478,7 +5479,7 @@ ER_WARN_VIEW_WITHOUT_KEY
         ukr "View, що оновлюеться, не містить повного ключа таблиці(ь), що викорістана в ньюому"
 ER_VIEW_INVALID  
         eng "View '%-.192s.%-.192s' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them"
-        spa "La vista '%-.192s.%-.192s' hace referencia a tabla(s) invalida(s)) o columna(s) o funcion(es) o definidor/invocador de vista le faltan derechos para usarlos"
+        spa "La vista '%-.192s.%-.192s' hace referencia a tabla(s) o columna(s) o función(es) inválida(s) o al definidor/invocador de vista le faltan derechos para usarlos"
 ER_SP_NO_DROP_SP  
         eng "Can't drop or alter a %s from within another stored routine"
         ger "Kann eine %s nicht von innerhalb einer anderen gespeicherten Routine löschen oder ändern"
@@ -5491,7 +5492,7 @@ ER_TRG_ALREADY_EXISTS
         eng "Trigger '%s' already exists"
         ger "Trigger '%s' existiert bereits"
         hindi "TRIGGER '%s' पहले से मौजूद है"
-        spa "Ya existe el disparador '%s'"
+        spa "Ya existe el disparador `%s`"
 ER_TRG_DOES_NOT_EXIST  
         eng "Trigger does not exist"
         ger "Trigger existiert nicht"
@@ -5557,7 +5558,7 @@ ER_UNKNOWN_TARGET_BINLOG
 ER_IO_ERR_LOG_INDEX_READ  
         eng "I/O error reading log index file"
         ger "Fehler beim Lesen der Log-Index-Datei"
-        spa "Error de E/S leyendo fichero índice de historial (log)"
+        spa "Error de E/S leyendo fichero/archivo índice de historial (log)"
 ER_BINLOG_PURGE_PROHIBITED  
         eng "Server configuration does not permit binlog purge"
         ger "Server-Konfiguration erlaubt keine Binlog-Bereinigung"
@@ -5586,7 +5587,7 @@ ER_RELAY_LOG_INIT
 ER_NO_BINARY_LOGGING  
         eng "You are not using binary logging"
         ger "Sie verwenden keine Binärlogs"
-        spa "No estás usando historial (log) binario"
+        spa "No está usando historial (log) binario"
 ER_RESERVED_SYNTAX  
         eng "The '%-.64s' syntax is reserved for purposes internal to the MariaDB server"
         ger "Die Schreibweise '%-.64s' ist für interne Zwecke des MariaDB-Servers reserviert"
@@ -5614,7 +5615,7 @@ ER_LOGGING_PROHIBIT_CHANGING_OF
 ER_NO_FILE_MAPPING  
         eng "Can't map file: %-.200s, errno: %M"
         ger "Kann Datei nicht abbilden: %-.200s, Fehler: %M"
-        spa "No puedo mapear fichero: %-.200s, error: %M"
+        spa "No puedo mapear fichero/archivo: %-.200s, error: %M"
 ER_WRONG_MAGIC  
         eng "Wrong magic in %-.64s"
         ger "Falsche magische Zahlen in %-.64s"
@@ -5676,7 +5677,7 @@ ER_XAER_OUTSIDE XAE09
 ER_XAER_RMERR XAE03
         eng "XAER_RMERR: Fatal error occurred in the transaction branch - check your data for consistency"
         ger "XAER_RMERR: Schwerwiegender Fehler im Transaktionszweig - prüfen Sie Ihre Daten auf Konsistenz"
-        spa "XAER_RMERR: Ha ocurrido un error fatal en la rama de la transacción - revisa la consitencia de tus datos"
+        spa "XAER_RMERR: Ha ocurrido un error fatal en la rama de la transacción - revise la consitencia de sus datos"
 ER_XA_RBROLLBACK XA100
         eng "XA_RBROLLBACK: Transaction branch was rolled back"
         ger "XA_RBROLLBACK: Transaktionszweig wurde zurückgerollt"
@@ -5708,15 +5709,15 @@ ER_STARTUP
 ER_LOAD_FROM_FIXED_SIZE_ROWS_TO_VAR
         eng "Can't load value from file with fixed size rows to variable"
         ger "Kann Wert aus Datei mit Zeilen fester Größe nicht in Variable laden"
-        spa "No puedo cargar valor desde fichero con filas de tamaño en variable"
+        spa "No puedo cargar valor desde fichero/archivo con filas de tamaño fijo en variable"
 ER_CANT_CREATE_USER_WITH_GRANT 42000
         eng "You are not allowed to create a user with GRANT"
         ger "Sie dürfen keinen Benutzer mit GRANT anlegen"
-        spa "No estás autorizado a crear un usuario con GRANT"
+        spa "No está autorizado a crear un usuario con GRANT"
 ER_WRONG_VALUE_FOR_TYPE  
         eng "Incorrect %-.32s value: '%-.128T' for function %-.32s"
         ger "Falscher %-.32s-Wert: '%-.128T' für Funktion %-.32s"
-        spa "Incorrecto %-.32s valor: '%-.128T' para la función %-.32s"
+        spa "Incorrecto valor %-.32s: '%-.128T' para la función %-.32s"
 ER_TABLE_DEF_CHANGED
         eng "Table definition has changed, please retry transaction"
         ger "Tabellendefinition wurde geändert, bitte starten Sie die Transaktion neu"
@@ -5736,23 +5737,23 @@ ER_SP_NO_RETSET 0A000
 ER_CANT_CREATE_GEOMETRY_OBJECT 22003 
         eng "Cannot get geometry object from data you send to the GEOMETRY field"
         ger "Kann kein Geometrieobjekt aus den Daten machen, die Sie dem GEOMETRY-Feld übergeben haben"
-        spa "No puedo obtener objeto de geometría desde los datos que envías al campo GEOMETRY"
+        spa "No puedo obtener objeto de geometría desde los datos que vd envía al campo GEOMETRY"
 ER_FAILED_ROUTINE_BREAK_BINLOG
         eng "A routine failed and has neither NO SQL nor READS SQL DATA in its declaration and binary logging is enabled; if non-transactional tables were updated, the binary log will miss their changes"
         ger "Eine Routine, die weder NO SQL noch READS SQL DATA in der Deklaration hat, schlug fehl und Binärlogging ist aktiv. Wenn Nicht-Transaktions-Tabellen aktualisiert wurden, enthält das Binärlog ihre Änderungen nicht"
-        spa "Ha fallado una rutina y no tiene ni NO SQL ni READS SQL DATA en su declaración y el historial (log) binario se encuentra activado; si han sido actualizadas tablas no transaccionales, el fichero binario de historial (log) perderá sus cambios"
+        spa "Ha fallado una rutina y no tiene ni NO SQL ni READS SQL DATA en su declaración y el historial (log) binario se encuentra activado; si han sido actualizadas tablas no transaccionales, el fichero/archivo binario de historial (log) perderá sus cambios"
 ER_BINLOG_UNSAFE_ROUTINE
         eng "This function has none of DETERMINISTIC, NO SQL, or READS SQL DATA in its declaration and binary logging is enabled (you *might* want to use the less safe log_bin_trust_function_creators variable)"
         ger "Diese Routine hat weder DETERMINISTIC, NO SQL noch READS SQL DATA in der Deklaration und Binärlogging ist aktiv (*vielleicht* sollten Sie die weniger sichere Variable log_bin_trust_function_creators verwenden)"
-        spa "Esta función no tiene nada de DETERMINISTIC, NO SQL, o READS SQL DATA en su declaración y está activado el historial binario (*podrías* querer usar la variable menos segura log_bin_trust_function_creators)"
+        spa "Esta función no tiene ninguno de DETERMINISTIC, NO SQL o READS SQL DATA en su declaración y está activado el historial binario (vd *podría* querer usar la variable menos segura log_bin_trust_function_creators)"
 ER_BINLOG_CREATE_ROUTINE_NEED_SUPER
         eng "You do not have the SUPER privilege and binary logging is enabled (you *might* want to use the less safe log_bin_trust_function_creators variable)"
         ger "Sie haben keine SUPER-Berechtigung und Binärlogging ist aktiv (*vielleicht* sollten Sie die weniger sichere Variable log_bin_trust_function_creators verwenden)"
-        spa "No tienes en privilegio SUPER y está activado el historial binario (*podrías* querer usar la vriable menos segura log_bin_trust_function_creators)"
+        spa "No tiene el privilegio SUPER y está activado el historial binario (*podría* querer usar la variable menos segura log_bin_trust_function_creators)"
 ER_EXEC_STMT_WITH_OPEN_CURSOR
         eng "You can't execute a prepared statement which has an open cursor associated with it. Reset the statement to re-execute it"
         ger "Sie können keine vorbereitete Anweisung ausführen, die mit einem geöffneten Cursor verknüpft ist. Setzen Sie die Anweisung zurück, um sie neu auszuführen"
-        spa "No puedes ejecutar una sentencia preparada que tiene abierto un cursor asociado con ella. Renueva la sentencia para re-ejecutarla"
+        spa "No puede ejecutar una sentencia preparada que tiene abierto un cursor asociado con ella. Renueve la sentencia para re-ejecutarla"
 ER_STMT_HAS_NO_OPEN_CURSOR
         eng "The statement (%lu) has no open cursor"
         ger "Die Anweisung (%lu) hat keinen geöffneten Cursor"
@@ -5772,11 +5773,11 @@ ER_SP_NO_RECURSION
 ER_TOO_BIG_SCALE 42000 S1009
         eng "Too big scale %llu specified for '%-.192s'. Maximum is %u"
         ger "Zu großer Skalierungsfaktor %llu für '%-.192s' angegeben. Maximum ist %u"
-        spa "Escala demasiado grande %llu especificada para '%-.192s'. El máximo es de %u"
+        spa "Escala %llu demasiado grande especificada para '%-.192s'. El máximo es de %u"
 ER_TOO_BIG_PRECISION 42000 S1009
         eng "Too big precision %llu specified for '%-.192s'. Maximum is %u"
         ger "Zu große Genauigkeit %llu für '%-.192s' angegeben. Maximum ist %u"
-        spa "Precisión demasiado grande %llu especificada para '%-.192s'. El máximo es de %u"
+        spa "Precisión %llu demasiado grande especificada para '%-.192s'. El máximo es de %u"
 ER_M_BIGGER_THAN_D 42000 S1009
         eng "For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '%-.192s')"
         ger "Für FLOAT(M,D), DOUBLE(M,D) oder DECIMAL(M,D) muss M >= D sein (Feld '%-.192s')"
@@ -5784,7 +5785,7 @@ ER_M_BIGGER_THAN_D 42000 S1009
 ER_WRONG_LOCK_OF_SYSTEM_TABLE
         eng "You can't combine write-locking of system tables with other tables or lock types"
 	 ger "Sie können Schreibsperren auf der Systemtabelle nicht mit anderen Tabellen kombinieren"
-        spa "No puedes combinar bloqueo de escritura de tablas de sistema con otras tablas o tipos de bloqueo"
+        spa "No puede combinar bloqueo de escritura de tablas de sistema con otras tablas o tipos de bloqueo"
 ER_CONNECT_TO_FOREIGN_DATA_SOURCE
         eng "Unable to connect to foreign data source: %.64s"
         ger "Kann nicht mit Fremddatenquelle verbinden: %.64s"
@@ -5796,7 +5797,7 @@ ER_QUERY_ON_FOREIGN_DATA_SOURCE
 ER_FOREIGN_DATA_SOURCE_DOESNT_EXIST
         eng "The foreign data source you are trying to reference does not exist. Data source error:  %-.64s"
         ger "Die Fremddatenquelle, auf die Sie zugreifen wollen, existiert nicht. Datenquellenfehlermeldung:  %-.64s"
-        spa "La fuente foránea de datos que intentas referenciar no existe. Error en fuente de datos:  %-.64s"
+        spa "La fuente foránea de datos que intenta referenciar no existe. Error en fuente de datos:  %-.64s"
 ER_FOREIGN_DATA_STRING_INVALID_CANT_CREATE
         eng "Can't create federated table. The data source connection string '%-.64s' is not in the correct format"
         ger "Kann föderierte Tabelle nicht erzeugen. Der Datenquellen-Verbindungsstring '%-.64s' hat kein korrektes Format"
@@ -5817,7 +5818,7 @@ ER_STACK_OVERRUN_NEED_MORE
         eng "Thread stack overrun:  %ld bytes used of a %ld byte stack, and %ld bytes needed. Consider increasing the thread_stack system variable."
         ger "Thread-Stack-Überlauf: %ld Bytes eines %ld-Byte-Stacks in Verwendung, und %ld Bytes benötigt. Verwenden Sie 'mariadbd --thread_stack=#', um einen größeren Stack anzugeben"
         jpn "スレッドスタック不足です(使用: %ld ; サイズ: %ld ; 要求: %ld)。より大きい値で 'mariadbd --thread_stack=#' の指定をしてください。"
-        spa "Desbordamiento en pila de hilos (threads): %ld bytes usados de una pila de %ld y son necesarios %ld bytes. Considera el incrementar la variable de sistema --thread_stack=#."
+        spa "Desbordamiento en pila de hilos (threads): %ld bytes usados de una pila de %ld y son necesarios %ld bytes. Considere el incrementar la variable de sistema --thread_stack=#."
 ER_TOO_LONG_BODY 42000 S1009
         eng "Routine body for '%-.100s' is too long"
         ger "Routinen-Body für '%-.100s' ist zu lang"
@@ -5849,7 +5850,7 @@ ER_VIEW_PREVENT_UPDATE
 ER_PS_NO_RECURSION
         eng "The prepared statement contains a stored routine call that refers to that same statement. It's not allowed to execute a prepared statement in such a recursive manner"
         ger "Die vorbereitete Anweisung enthält einen Aufruf einer gespeicherten Routine, die auf eben dieselbe Anweisung verweist. Es ist nicht erlaubt, eine vorbereitete Anweisung in solch rekursiver Weise auszuführen"
-        spa "La sentencia preparada contiene una lamada a rutina almacenada que se refiere a la misma sentencia. No está permitido ejecutar una sentencia preparada de esta manera recursiva"
+        spa "La sentencia preparada contiene una llamada a rutina almacenada que se refiere a esa misma sentencia. No está permitido ejecutar una sentencia preparada de esta manera recursiva"
 ER_SP_CANT_SET_AUTOCOMMIT
         eng "Not allowed to set autocommit from a stored function or trigger"
         ger "Es ist nicht erlaubt, innerhalb einer gespeicherten Funktion oder eines Triggers AUTOCOMMIT zu setzen"
@@ -5864,7 +5865,7 @@ ER_VIEW_FRM_NO_USER
 ER_VIEW_OTHER_USER
         eng "You need the SUPER privilege for creation view with '%-.192s'@'%-.192s' definer"
         ger "Sie brauchen die SUPER-Berechtigung, um einen View mit dem Definierer '%-.192s'@'%-.192s' zu erzeugen"
-        spa "Necesita el privilegio SUPER para la creación de la vista con definidor '%-.192s'@'%-.192s'"
+        spa "Vd necesita el privilegio SUPER para la creación de la vista con definidor '%-.192s'@'%-.192s'"
 ER_NO_SUCH_USER
         eng "The user specified as a definer ('%-.64s'@'%-.64s') does not exist"
         ger "Der als Definierer angegebene Benutzer ('%-.64s'@'%-.64s') existiert nicht"
@@ -5872,7 +5873,7 @@ ER_NO_SUCH_USER
 ER_FORBID_SCHEMA_CHANGE
         eng "Changing schema from '%-.192s' to '%-.192s' is not allowed"
         ger "Wechsel des Schemas von '%-.192s' auf '%-.192s' ist nicht erlaubt"
-        spa "No está autorizado cambiar el esquema de '%-.192s' a '%-.192s'"
+        spa "Vd no está autorizado a cambiar el esquema de '%-.192s' a '%-.192s'"
 ER_ROW_IS_REFERENCED_2 23000
         eng "Cannot delete or update a parent row: a foreign key constraint fails (%.192s)"
         ger "Kann Eltern-Zeile nicht löschen oder aktualisieren: eine Fremdschlüsselbedingung schlägt fehl (%.192s)"
@@ -5888,11 +5889,11 @@ ER_SP_BAD_VAR_SHADOW 42000
 ER_TRG_NO_DEFINER
         eng "No definer attribute for trigger '%-.192s'.'%-.192s'. The trigger will be activated under the authorization of the invoker, which may have insufficient privileges. Please recreate the trigger"
         ger "Kein Definierer-Attribut für Trigger '%-.192s'.'%-.192s'. Der Trigger wird mit der Autorisierung des Aufrufers aktiviert, der möglicherweise keine zureichenden Berechtigungen hat. Bitte legen Sie den Trigger neu an"
-        spa "No hay atributo de definidor para disparador '%-.192s'.'%-.192s'. El disparador será activado bajo la autorización del invocador, el cual puede tener insuficientes privilegios. Por favor, vuelve a crear el disparador"
+        spa "No hay atributo de definidor para disparador '%-.192s'.'%-.192s'. El disparador será activado bajo la autorización del invocador, el cual puede tener insuficientes privilegios. Por favor, vuelva a crear el disparador"
 ER_OLD_FILE_FORMAT
         eng "'%-.192s' has an old format, you should re-create the '%s' object(s)"
         ger "'%-.192s' hat altes Format, Sie sollten die '%s'-Objekt(e) neu erzeugen"
-        spa "'%-.192s' tiene un formato viejo, deberías de volver a crear el/los objeto(s) '%s'"
+        spa "'%-.192s' tiene un formato viejo, debería vd de volver a crear el/los objeto(s) '%s'"
 ER_SP_RECURSION_LIMIT
         eng "Recursive limit %d (as set by the max_sp_recursion_depth variable) was exceeded for routine %.192s"
         ger "Rekursionsgrenze %d (durch Variable max_sp_recursion_depth gegeben) wurde für Routine %.192s überschritten"
@@ -5977,15 +5978,15 @@ ER_NAME_BECOMES_EMPTY
 ER_AMBIGUOUS_FIELD_TERM
   eng "First character of the FIELDS TERMINATED string is ambiguous; please use non-optional and non-empty FIELDS ENCLOSED BY"
   ger "Das erste Zeichen der Zeichenkette FIELDS TERMINATED ist mehrdeutig; bitte benutzen Sie nicht optionale und nicht leere FIELDS ENCLOSED BY"
-  spa "El primer carácter de la cadena de los FIELDS TERMINATED es ambigua; por favor, usa FIELDS ENCLOSED BY no opcionales y no vacíos"
+  spa "El primer carácter de la cadena de los FIELDS TERMINATED es ambiguo; por favor, use FIELDS ENCLOSED BY no opcionales y no vacíos"
 ER_FOREIGN_SERVER_EXISTS
   eng "The foreign server, %s, you are trying to create already exists"
   ger "Der entfernte Server %s, den Sie versuchen zu erzeugen, existiert schon"
-  spa "El servidor foráneo %s que intentas crear ya existe"
+  spa "El servidor foráneo %s que intenta crear ya existe"
 ER_FOREIGN_SERVER_DOESNT_EXIST
         eng "The foreign server name you are trying to reference does not exist. Data source error:  %-.64s"
 	 ger "Die externe Verbindung, auf die Sie zugreifen wollen, existiert nicht. Datenquellenfehlermeldung:  %-.64s"
-        spa "El nombre del servidor foráneo que intentas referenciar no existe. Error en fuentes de datos:  %-.64s"
+        spa "El nombre del servidor foráneo que intenta referenciar no existe. Error en fuentes de datos:  %-.64s"
 ER_ILLEGAL_HA_CREATE_OPTION
         eng "Table storage engine '%-.64s' does not support the create option '%.64s'"
         ger "Speicher-Engine '%-.64s' der Tabelle unterstützt die Option '%.64s' nicht"
@@ -6008,7 +6009,7 @@ ER_PARTITION_MAXVALUE_ERROR
 ER_PARTITION_SUBPARTITION_ERROR
         eng "Subpartitions can only be hash partitions and by key"
         ger "Unterpartitionen dürfen nur HASH- oder KEY-Partitionen sein"
-        spa "Las Subparticiones sólo pueden ser particiones calculadas y mediante clave"
+        spa "Las subparticiones sólo pueden ser particiones dispersas (hash) y mediante clave"
         swe "Subpartitioner kan bara vara hash och key partitioner"
 ER_PARTITION_SUBPART_MIX_ERROR
         eng "Must define subpartitions on all partitions if on one partition"
@@ -6048,7 +6049,7 @@ ER_LIST_OF_FIELDS_ONLY_IN_HASH_ERROR
 ER_INCONSISTENT_PARTITION_INFO_ERROR
         eng "The partition info in the frm file is not consistent with what can be written into the frm file"
         ger "Die Partitionierungsinformationen in der frm-Datei stimmen nicht mit dem überein, was in die frm-Datei geschrieben werden kann"
-        spa "La información de partición en el fichero frm no es consistente con lo que se puede grabar en un fichero frm"
+        spa "La información de partición en el fichero/archivo frm no es consistente con lo que se puede grabar en un fichero/archivo frm"
         swe "Partitioneringsinformationen i frm-filen är inte konsistent med vad som kan skrivas i frm-filen"
 ER_PARTITION_FUNC_NOT_ALLOWED_ERROR
         eng "The %-.192s function returns the wrong type"
@@ -6103,7 +6104,7 @@ ER_SUBPARTITION_ERROR
 ER_CANT_CREATE_HANDLER_FILE
         eng "Failed to create specific handler file"
         ger "Erzeugen einer spezifischen Handler-Datei fehlgeschlagen"
-        spa "No pude crear fichero de manejador específico"
+        spa "No pude crear fichero/archivo de manejador específico"
         swe "Misslyckades med att skapa specifik fil i lagringsmotor"
 ER_BLOB_FIELD_IN_PART_FUNC_ERROR
         eng "A BLOB field is not allowed in partition function"
@@ -6134,7 +6135,7 @@ ER_PARTITION_DOES_NOT_EXIST
 ER_DROP_LAST_PARTITION
         eng "Cannot remove all partitions, use DROP TABLE instead"
         ger "Es lassen sich nicht sämtliche Partitionen löschen, benutzen Sie statt dessen DROP TABLE"
-        spa "No puedo quitar todas las particiones, usa DROP TABLE en su lugar"
+        spa "No puedo quitar todas las particiones, use DROP TABLE en su lugar"
         swe "Det är inte tillåtet att ta bort alla partitioner, använd DROP TABLE istället"
 ER_COALESCE_ONLY_ON_HASH_PARTITION
         eng "COALESCE PARTITION can only be used on HASH/KEY partitions"
@@ -6184,7 +6185,7 @@ ER_SAME_NAME_PARTITION
 ER_NO_BINLOG_ERROR
         eng "It is not allowed to shut off binlog on this command"
         ger "Es es nicht erlaubt, bei diesem Befehl binlog abzuschalten"
-        spa "No se autoriza a apagar binlog en este comando"
+        spa "No se autoriza a apagar binlog con este comando"
         swe "Det är inte tillåtet att stänga av binlog på detta kommando"
 ER_CONSECUTIVE_REORG_PARTITIONS
         eng "When reorganizing a set of partitions they must be in consecutive order"
@@ -6311,10 +6312,10 @@ ER_EVENT_NEITHER_M_EXPR_NOR_M_AT
 
 ER_UNUSED_2
         eng "You should never see it"
-        spa "No lo deberías de ver nunca"
+        spa "No lo debería vd de ver nunca"
 ER_UNUSED_3
         eng "You should never see it"
-        spa "No lo deberías de ver nunca"
+        spa "No lo debería vd  de ver nunca"
 ER_EVENT_CANNOT_DELETE
         eng "Failed to delete the event from mysql.event"
         ger "Löschen des Events aus mysql.event fehlgeschlagen"
@@ -6345,14 +6346,14 @@ ER_WARN_DEPRECATED_SYNTAX_WITH_VER
 ER_CANT_WRITE_LOCK_LOG_TABLE
         eng "You can't write-lock a log table. Only read access is possible"
         ger "Eine Log-Tabelle kann nicht schreibgesperrt werden. Es ist ohnehin nur Lesezugriff möglich"
-        spa "No puedes hacer bloqueo de escritura en una tabla de historial (log). Sólo es posible acceso de lectura"
+        spa "No puede hacer bloqueo de escritura en una tabla de historial (log). Sólo es posible acceso de lectura"
 ER_CANT_LOCK_LOG_TABLE
         eng "You can't use locks with log tables"
         ger "Log-Tabellen können nicht gesperrt werden"
-        spa "No puedes usar bloqueos con tablas de historial (log)"
+        spa "No puede usar bloqueos con tablas de historial (log)"
 ER_UNUSED_4
         eng "You should never see it"
-        spa "Nunca deberías de ver esto"
+        spa "Nunca debería vd de ver esto"
 ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
         eng "Column count of mysql.%s is wrong. Expected %d, found %d. Created with MariaDB %d, now running %d. Please use mariadb-upgrade to fix this error"
         ger "Spaltenanzahl von mysql.%s falsch. %d erwartet, aber %d erhalten. Erzeugt mit MariaDB %d, jetzt unter %d. Bitte benutzen Sie mariadb-upgrade, um den Fehler zu beheben"
@@ -6367,7 +6368,7 @@ ER_STORED_FUNCTION_PREVENTS_SWITCH_BINLOG_FORMAT
         spa "No puedo cambiar el formato de historial (log) binario dentro de funciones almacenadas o disparadores"
 ER_UNUSED_13
         eng "You should never see it"
-        spa "Nunca deberías de ver esto"
+        spa "Nunca debería vd de ver esto"
 ER_PARTITION_NO_TEMPORARY
         eng "Cannot create temporary table with partitions"
         ger "Anlegen temporärer Tabellen mit Partitionen nicht möglich"
@@ -6452,7 +6453,7 @@ ER_UNSUPORTED_LOG_ENGINE
 ER_BAD_LOG_STATEMENT
         eng "You cannot '%s' a log table if logging is enabled"
         ger "Sie können eine Logtabelle nicht '%s', wenn Loggen angeschaltet ist"
-        spa "No puedes '%s' una tabla de historial (log) cuando se encuentra activado el llevar historial (log)"
+        spa "No puede '%s' una tabla de historial (log) cuando se encuentra activado el llevar historial (log)"
 ER_CANT_RENAME_LOG_TABLE
         eng "Cannot rename '%s'. When logging enabled, rename to/from log table must rename two tables: the log table to an archive table and another table back to '%s'"
         ger "Kann '%s' nicht umbenennen. Wenn Loggen angeschaltet ist, müssen zwei Tabellen umbenannt werden: die Logtabelle zu einer Archivtabelle, und eine weitere Tabelle zu '%s'"
@@ -6502,7 +6503,7 @@ ER_DUP_ENTRY_WITH_KEY_NAME 23000 S1009
 ER_BINLOG_PURGE_EMFILE
   eng "Too many files opened, please execute the command again"
   ger "Zu viele offene Dateien, bitte führen Sie den Befehl noch einmal aus"
-  spa "Demasiados ficheros abiertos. Por favor, ejecute el comando otra vez"
+  spa "Demasiados ficheros/archivos abiertos. Por favor, ejecute el comando otra vez"
 ER_EVENT_CANNOT_CREATE_IN_THE_PAST
   eng "Event execution time is in the past and ON COMPLETION NOT PRESERVE is set. The event was dropped immediately after creation"
   ger "Ausführungszeit des Events liegt in der Vergangenheit, und es wurde ON COMPLETION NOT PRESERVE gesetzt. Das Event wurde unmittelbar nach Erzeugung gelöscht"
@@ -6552,42 +6553,42 @@ ER_BINLOG_LOGGING_IMPOSSIBLE
 ER_VIEW_NO_CREATION_CTX
   eng "View %`s.%`s has no creation context"
   ger "View %`s.%`s hat keinen Erzeugungskontext"
-  spa "La vista `%-.64s`.`%-.64s` no tiene contexto de creación"
+  spa "La vista %`s.%`s no tiene contexto de creación"
 ER_VIEW_INVALID_CREATION_CTX
   eng "Creation context of view %`s.%`s is invalid"
   ger "Erzeugungskontext des Views%`s.%`s ist ungültig"
-  spa "El contexto de creación de la vista `%-.64s`.`%-.64s' es inválido"
+  spa "El contexto de creación de la vista %`s.%`s es inválido"
 ER_SR_INVALID_CREATION_CTX
   eng "Creation context of stored routine %`s.%`s is invalid"
   ger "Erzeugungskontext der gespeicherten Routine%`s.%`s ist ungültig"
-  spa "El contexto de creación de la rutina almacenada `%-.64s`.`%-.64s` es inválido"
+  spa "El contexto de creación de la rutina almacenada %`s.%`s es inválido"
 ER_TRG_CORRUPTED_FILE
   eng "Corrupted TRG file for table %`s.%`s"
   ger "Beschädigte TRG-Datei für Tabelle %`s.%`s"
-  spa "Fichero TRG estropeado para la tabla `%-.64s`.`%-.64s`"
+  spa "Fichero/archivo TRG estropeado para la tabla %`s.%`s`"
 ER_TRG_NO_CREATION_CTX
   eng "Triggers for table %`s.%`s have no creation context"
   ger "Trigger für Tabelle %`s.%`s haben keinen Erzeugungskontext"
-  spa "Los disparadores para la tabla `%-.64s`.`%-.64s` no tienen contexto de creación"
+  spa "Los disparadores para la tabla %`s.%`s no tienen contexto de creación"
 ER_TRG_INVALID_CREATION_CTX
   eng "Trigger creation context of table %`s.%`s is invalid"
   ger "Trigger-Erzeugungskontext der Tabelle %`s.%`s ist ungültig"
-  spa "El contexto de creación del disparador de la tabla `%-.64s`.`%-.64s` es inválido"
+  spa "El contexto de creación del disparador de la tabla %`s.%`s es inválido"
 ER_EVENT_INVALID_CREATION_CTX
   eng "Creation context of event %`s.%`s is invalid"
   ger "Erzeugungskontext des Events %`s.%`s ist ungültig"
-  spa "El contexto de creación del evento `%-.64s`.`%-.64s` es inválido"
+  spa "El contexto de creación del evento %`s.%`s es inválido"
 ER_TRG_CANT_OPEN_TABLE
   eng "Cannot open table for trigger %`s.%`s"
   ger "Kann Tabelle für den Trigger %`s.%`s nicht öffnen"
-  spa "No puedo abrir tabla para disparador `%-.64s`.`%-.64s`"
+  spa "No puedo abrir tabla para disparador %`s.%`s"
 ER_CANT_CREATE_SROUTINE
   eng "Cannot create stored routine %`s. Check warnings"
   ger "Kann gespeicherte Routine %`s nicht erzeugen. Beachten Sie die Warnungen"
-  spa "No puedo crear rutina alnacenada `%-.64s`. Evisa los avisos"
+  spa "No puedo crear rutina alnacenada %`s. Revise los avisos"
 ER_UNUSED_11
         eng "You should never see it"
-        spa "Nunca deberías de ver esto"
+        spa "Nunca debería vd de ver esto"
 ER_NO_FORMAT_DESCRIPTION_EVENT_BEFORE_BINLOG_STATEMENT
   eng "The BINLOG statement of type %s was not preceded by a format description BINLOG statement"
   ger "Der BINLOG-Anweisung vom Typ %s ging keine BINLOG-Anweisung zur Formatbeschreibung voran"
@@ -6631,11 +6632,11 @@ WARN_OPTION_IGNORED
 ER_PLUGIN_DELETE_BUILTIN
   eng "Built-in plugins cannot be deleted"
   ger "Eingebaute Plugins können nicht gelöscht werden"
-  spa "No se puede borrar los enchufes internos"
+  spa "No se pueden borrar los enchufes (plugins) internos"
 WARN_PLUGIN_BUSY
   eng "Plugin is busy and will be uninstalled on shutdown"
   ger "Plugin wird verwendet und wird erst beim Herunterfahren deinstalliert"
-  spa "El enchufe está ocupado y será desinstalado o apagado"
+  spa "El enchufe (plugin) está ocupado y será desinstalado cuando se apague"
 ER_VARIABLE_IS_READONLY
   eng "%s variable '%s' is read-only. Use SET %s to assign the value"
   ger "%s Variable '%s' ist nur lesbar. Benutzen Sie SET %s, um einen Wert zuzuweisen"
@@ -6653,7 +6654,7 @@ ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE
   spa "El valor requerido para el período de latido o es negativo o excede al máximo permitido (%u segundos)"
 ER_UNUSED_14
   eng "You should never see it"
-  spa "Nunca deberías de ver esto"
+  spa "Nunca debería vd de ver esto"
 ER_CONFLICT_FN_PARSE_ERROR
   eng "Error in parsing conflict function. Message: %-.64s"
   ger "Fehler beim Parsen einer Konflikt-Funktion. Meldung: %-.64s"
@@ -6675,7 +6676,7 @@ ER_TOO_LONG_FIELD_COMMENT
 ER_FUNC_INEXISTENT_NAME_COLLISION 42000 
   eng "FUNCTION %s does not exist. Check the 'Function Name Parsing and Resolution' section in the Reference Manual"
   ger "FUNCTION %s existiert nicht. Erläuterungen im Abschnitt 'Function Name Parsing and Resolution' im Referenzhandbuch"
-  spa "La FUNCTION %s no existe. Revisa la sección de 'Function Name Parsing and Resolution' en el Manual de Referencia"
+  spa "La FUNCTION %s no existe. Revise la sección de 'Function Name Parsing and Resolution' en el Manual de Referencia"
 # When updating these, please update EXPLAIN_FILENAME_MAX_EXTRA_LENGTH in
 # sql_table.h with the new maximal additional length for explain_filename.
 ER_DATABASE_NAME
@@ -6751,7 +6752,7 @@ ER_SIGNAL_EXCEPTION HY000
 ER_RESIGNAL_WITHOUT_ACTIVE_HANDLER 0K000
   eng "RESIGNAL when handler not active"
   ger "RESIGNAL bei nicht aktivem Handler"
-  spa "RESIGNAL no activa con manejador"
+  spa "RESIGNAL cuando el manejador no activo"
 ER_SIGNAL_BAD_CONDITION_TYPE
   eng "SIGNAL/RESIGNAL can only use a CONDITION defined with SQLSTATE"
   ger "SIGNAL/RESIGNAL kann nur mit einer Bedingung (CONDITION) benutzt werden, die bei SQLSTATE definiert wurde"
@@ -6816,7 +6817,7 @@ ER_BINLOG_ROW_ENGINE_AND_STMT_ENGINE
   spa "No puedo ejecutar sentencia: imposible grabar historial (log) binario ya que ambos motores de fila-incapaz y de sentencia-incapaz están involucrados"
 ER_BINLOG_ROW_MODE_AND_STMT_ENGINE
   eng "Cannot execute statement: impossible to write to binary log since BINLOG_FORMAT = ROW and at least one table uses a storage engine limited to statement-based logging"
-  spa "No puedo ejecutar sentencia: imposible grabar historial (log) binario ya que BINLOG_FORMAT = ROW y al menos una tabla utilizan motor de almacenaje limitado a historiales basados en sentencia"
+  spa "No puedo ejecutar sentencia: imposible grabar historial (log) binario ya que BINLOG_FORMAT = ROW y al menos una tabla utiliza motor de almacenaje limitado a historiales basados en sentencia"
 ER_BINLOG_UNSAFE_AND_STMT_ENGINE
   eng "Cannot execute statement: impossible to write to binary log since statement is unsafe, storage engine is limited to statement-based logging, and BINLOG_FORMAT = MIXED. %s"
   spa "No puedo ejecutar sentencia: imposible grabar historial (log) binario ya que la sentencia no es segura, el motor de almacenaje está limitado a historial basado en sentencia y BINLOG_FORMAT = MIXED. %s"
@@ -6864,7 +6865,7 @@ ER_MESSAGE_AND_STATEMENT
 
 ER_SLAVE_CONVERSION_FAILED
   eng "Column %d of table '%-.192s.%-.192s' cannot be converted from type '%-.50s' to type '%-.50s'"
-  spa "La columna %d de la tabla '%-.192s.%-.192s' no puede ser convertida desde el tipo '%-.32s' al tipo '%-.32s'"
+  spa "La columna %d de la tabla '%-.192s.%-.192s' no puede ser convertida desde el tipo '%-.50s' al tipo '%-.50s'"
 ER_SLAVE_CANT_CREATE_CONVERSION
   eng "Can't create conversion table for table '%-.192s.%-.192s'"
   spa "No puedo crear tabla de conversión para la tabla '%-.192s.%-.192s'"
@@ -6890,7 +6891,7 @@ ER_WRONG_PERFSCHEMA_USAGE
         spa "Uso inválido de performance_schema"
 ER_WARN_I_S_SKIPPED_TABLE
   eng "Table '%s'.'%s' was skipped since its definition is being modified by concurrent DDL statement"
-  spa "La tabla '%s'.'%s' fue saltada ya que su definición está siendo modificada por la sentencia DDL actual"
+  spa "La tabla '%s'.'%s' fue saltada ya que su definición está siendo modificada por la sentencia DDL concurrente"
 
 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_BINLOG_DIRECT
   eng "Cannot modify @@session.binlog_direct_non_transactional_updates inside a transaction"
@@ -6937,7 +6938,7 @@ ER_STORED_FUNCTION_PREVENTS_SWITCH_SQL_LOG_BIN
 ER_FAILED_READ_FROM_PAR_FILE
   eng "Failed to read from the .par file"
   hindi ".par फ़ाइल से पढ़ने में असफल रहे"
-  spa "No pude leer desde fichero .par"
+  spa "No pude leer desde fichero/archivo .par"
   swe "Misslyckades läsa från .par filen"
 
 ER_VALUES_IS_NOT_INT_TYPE_ERROR
@@ -6971,7 +6972,7 @@ ER_ACCESS_DENIED_NO_PASSWORD_ERROR 28000
 
 ER_SET_PASSWORD_AUTH_PLUGIN
         eng "SET PASSWORD is ignored for users authenticating via %s plugin"
-        spa "SET PASSWORD no tiene significado para usuarios que se autentican vía enchufe %s"
+        spa "SET PASSWORD no tiene significado para usuarios que se autentican vía enchufe (plugin)  %s"
 
 ER_GRANT_PLUGIN_USER_EXISTS
         eng "GRANT with IDENTIFIED WITH is illegal because the user %-.*s already exists"
@@ -6983,7 +6984,7 @@ ER_TRUNCATE_ILLEGAL_FK 42000
 
 ER_PLUGIN_IS_PERMANENT
   eng "Plugin '%s' is force_plus_permanent and can not be unloaded"
-  spa "El enchufe '%s' está force_plus_permanent y no puede ser descargado"
+  spa "El enchufe (plugin) '%s' está force_plus_permanent y no puede ser descargado"
 
 ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MIN
   eng "The requested value for the heartbeat period is less than 1 millisecond. The value is reset to 0, meaning that heartbeating will effectively be disabled"
@@ -6995,7 +6996,7 @@ ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX
 
 ER_STMT_CACHE_FULL  
         eng "Multi-row statements required more than 'max_binlog_stmt_cache_size' bytes of storage."
-        spa "Las sentencis Multi-fila requieren de más de 'max_binlog_stmt_cache_size' bytes para almacenaje."
+        spa "Las sentencias Multi-fila requieren de más de 'max_binlog_stmt_cache_size' bytes para almacenaje."
 
 ER_MULTI_UPDATE_KEY_CONFLICT
   eng "Primary key/partition key update is not allowed since the table is updated both as '%-.192s' and '%-.192s'"
@@ -7005,7 +7006,7 @@ ER_MULTI_UPDATE_KEY_CONFLICT
 # message as mariadb-check parses the error message looking for ALTER TABLE.
 ER_TABLE_NEEDS_REBUILD
         eng "Table rebuild required. Please do \"ALTER TABLE %`s FORCE\" or dump/reload to fix it!"
-        spa "Se requiere reconstrucción de la tabla. Por favor, haz un \"ALTER TABLE `%-.32s` FORCE\" o volcado/recarga para ¡solucionarlo!"
+        spa "Se requiere reconstrucción de la tabla. Por favor, ¡haga un \"ALTER TABLE %`s FORCE\" o volcado/recarga para solucionarlo!"
 
 WARN_OPTION_BELOW_LIMIT
   eng "The value of '%s' should be no less than the value of '%s'"
@@ -7053,15 +7054,15 @@ ER_BINLOG_UNSAFE_CREATE_REPLACE_SELECT
 
 ER_BINLOG_UNSAFE_UPDATE_IGNORE
   eng "UPDATE IGNORE is unsafe because the order in which rows are updated determines which (if any) rows are ignored. This order cannot be predicted and may differ on master and the slave"
-  spa "UPDATE IGNORE no es seguro porque el orden en el que las filas se recuperan por el SELECT determina qué filas (si hay alguna) son ignoradas. Este orden no puede ser predicho y puede diferir entre maestro (master) y esclavo"
+  spa "UPDATE IGNORE no es seguro porque el orden en el que las filas son actualizadas determina qué filas (si hay alguna) son ignoradas. Este orden no puede ser predicho y puede diferir entre maestro (master) y esclavo"
 
 ER_UNUSED_15
   eng "You should never see it"
-  spa "Nunca deberías de ver esto"
+  spa "Nunca debería vd de ver esto"
 
 ER_UNUSED_16
   eng "You should never see it"
-  spa "Nunca deberías de ver esto"
+  spa "Nunca debería vd de ver esto"
 
 ER_BINLOG_UNSAFE_WRITE_AUTOINC_SELECT
   eng "Statements writing to a table with an auto-increment column after selecting from another table are unsafe because the order in which rows are retrieved determines what (if any) rows will be written. This order cannot be predicted and may differ on master and the slave"
@@ -7077,11 +7078,11 @@ ER_BINLOG_UNSAFE_INSERT_TWO_KEYS
 
 ER_UNUSED_28
   eng "You should never see it"
-  spa "Nunca deberías de ver esto"
+  spa "Nunca debería vd de ver esto"
 
 ER_UNUSED_1
   eng "You should never see it"
-  spa "Nunca deberías de ver esto"
+  spa "Nunca debería vd de ver esto"
 
 ER_BINLOG_UNSAFE_AUTOINC_NOT_FIRST
   eng "INSERT into autoincrement field which is not the first part in the composed primary key is unsafe"
@@ -7153,7 +7154,7 @@ ER_NETWORK_READ_EVENT_CHECKSUM_FAILURE
   spa "Ha fallado la verificación de la suma de revisión de evento de réplica mientras se leía desde la red"
 ER_BINLOG_READ_EVENT_CHECKSUM_FAILURE
   eng "Replication event checksum verification failed while reading from a log file"
-  spa "Ha fallado la verificación de la suma de revisión de evento de réplica mientras se leía desde fichero de historial (log)"
+  spa "Ha fallado la verificación de la suma de revisión de evento de réplica mientras se leía desde fichero/archivo de historial (log)"
 
 ER_BINLOG_STMT_CACHE_SIZE_GREATER_THAN_MAX
   eng "Option binlog_stmt_cache_size (%lu) is greater than max_binlog_stmt_cache_size (%lu); setting binlog_stmt_cache_size equal to max_binlog_stmt_cache_size"
@@ -7173,7 +7174,7 @@ ER_ROW_DOES_NOT_MATCH_GIVEN_PARTITION_SET
 
 ER_UNUSED_5
   eng "You should never see it"
-  spa "Nunca deberías de ver esto"
+  spa "Nunca debería vd de ver esto"
 
 ER_CHANGE_RPL_INFO_REPOSITORY_FAILURE
   eng "Failure while changing the type of replication repository: %s"
@@ -7278,7 +7279,7 @@ ER_MALFORMED_GTID_SPECIFICATION
 
 ER_GNO_EXHAUSTED
   eng "Impossible to generate Global Transaction Identifier: the integer component reached the maximal value. Restart the server with a new server_uuid"
-  spa "Imposible generar Identificador Global de Transacción: el componente entero alcanzó el máximo valor. Rearranca el servidor con un nuevo server_uuid"
+  spa "Imposible generar Identificador Global de Transacción: el componente entero alcanzó el máximo valor. Rearranque el servidor con un nuevo server_uuid"
 
 ER_BAD_SLAVE_AUTO_POSITION
   eng "Parameters MASTER_LOG_FILE, MASTER_LOG_POS, RELAY_LOG_FILE and RELAY_LOG_POS cannot be set when MASTER_AUTO_POSITION is active"
@@ -7355,7 +7356,7 @@ ER_TOO_LONG_TABLE_PARTITION_COMMENT
 
 ER_SLAVE_CONFIGURATION
   eng "Slave is not configured or failed to initialize properly. You must at least set --server-id to enable either a master or a slave. Additional error messages can be found in the MariaDB error log"
-  spa "El esclavo no está configurado o falló al inicializarse de forma adecuada. Debes de poner al menos --server-id para activar o bien un maestro (master) o un esclavo. Mensajes de error adicionales pueden ser hallados en historial (log) de errores de MariaDB"
+  spa "El esclavo no está configurado o falló al inicializarse de forma adecuada. Vd debe de poner al menos --server-id para activar o bien un maestro (master) o un esclavo. Mensajes de error adicionales pueden ser hallados en historial (log) de errores de MariaDB"
 
 ER_INNODB_FT_LIMIT
   eng "InnoDB presently supports one FULLTEXT index creation at a time"
@@ -7375,7 +7376,7 @@ ER_INNODB_FT_WRONG_DOCID_INDEX
 
 ER_INNODB_ONLINE_LOG_TOO_BIG
   eng "Creating index '%-.192s' required more than 'innodb_online_alter_log_max_size' bytes of modification log. Please try again"
-  spa "La creación de índice '%-.192s' requirió más de 'innodb_online_alter_log_max_size' bytes de historial (log) de modificaciones. Por favor, prueba otra vez"
+  spa "La creación de índice '%-.192s' requirió más de 'innodb_online_alter_log_max_size' bytes de historial (log) de modificaciones. Por favor, pruebe otra vez"
 
 ER_UNKNOWN_ALTER_ALGORITHM
   eng "Unknown ALGORITHM '%s'"
@@ -7387,7 +7388,7 @@ ER_UNKNOWN_ALTER_LOCK
 
 ER_MTS_CHANGE_MASTER_CANT_RUN_WITH_GAPS
   eng "CHANGE MASTER cannot be executed when the slave was stopped with an error or killed in MTS mode. Consider using RESET SLAVE or START SLAVE UNTIL"
-  spa "CHANGE MASTER no se puede ejecutar cuando se ha parado el esclavo con un error o matado en modo MTS. Considera el usar RESET SLAVE o START SLAVE UNTIL"
+  spa "CHANGE MASTER no se puede ejecutar cuando se ha parado el esclavo con un error o matado en modo MTS. Considere el usar RESET SLAVE o START SLAVE UNTIL"
 
 ER_MTS_RECOVERY_FAILURE
   eng "Cannot recover after SLAVE errored out in parallel execution mode. Additional error messages can be found in the MariaDB error log"
@@ -7408,7 +7409,7 @@ ER_SLAVE_SILENT_RETRY_TRANSACTION
 
 ER_UNUSED_22
   eng "You should never see it"
-  spa "Nunca deberías de ver esto"
+  spa "Nunca debería vd de ver esto"
 
 ER_TABLE_SCHEMA_MISMATCH
   eng "Schema mismatch (%s)"
@@ -7432,7 +7433,7 @@ ER_TABLESPACE_MISSING
 
 ER_TABLESPACE_EXISTS
   eng "Tablespace for table '%-.192s' exists. Please DISCARD the tablespace before IMPORT"
-  spa "Existe Espacio de tabla para la tabla '%-.192s'. Por favor, haz DISCARD el espacio de tabla antes de hacer IMPORT"
+  spa "Existe Espacio de tabla para la tabla '%-.192s'. Por favor, haga DISCARD del espacio de tabla antes de hacer IMPORT"
 
 ER_TABLESPACE_DISCARDED
   eng "Tablespace has been discarded for table %`s"
@@ -7457,13 +7458,13 @@ ER_INVALID_YEAR_COLUMN_LENGTH
 
 ER_NOT_VALID_PASSWORD
   eng "Your password does not satisfy the current policy requirements"
-  spa "Tu contraseña no satisface los requerimientos de la política en curso"
+  spa "Su contraseña no satisface los requerimientos de la política en curso"
 
 ER_MUST_CHANGE_PASSWORD
   eng "You must SET PASSWORD before executing this statement"
   bgn "Трябва първо да си смените паролата със SET PASSWORD за да можете да изпълните тази команда"
   rum "Trebuie sa iti schimbi parola folosind SET PASSWORD inainte de a executa aceasta comanda"
-  spa "Debes de poner SET PASSWORD antes de ejecutar esta sentencia"
+  spa "Debe vd de poner SET PASSWORD antes de ejecutar esta sentencia"
 
 ER_FK_NO_INDEX_CHILD
         eng "Failed to add the foreign key constaint. Missing index for constraint '%s' in the foreign table '%s'"
@@ -7491,7 +7492,7 @@ ER_DUP_CONSTRAINT_NAME
 
 ER_PASSWORD_FORMAT
   eng "The password hash doesn't have the expected format. Check if the correct password algorithm is being used with the PASSWORD() function"
-  spa "El cálculo de contraseña no tiene el formato esperado. Revisa si se está usando el algoritmo correcto de contraseña con la función PASSWORD()"
+  spa "El cálculo de contraseña no tiene el formato esperado. Revise si se está usando el algoritmo correcto de contraseña con la función PASSWORD()"
 
 ER_FK_COLUMN_CANNOT_DROP
         eng "Cannot drop column '%-.192s': needed in a foreign key constraint '%-.192s'"
@@ -7534,7 +7535,7 @@ ER_READ_ONLY_MODE
 
 ER_GTID_NEXT_TYPE_UNDEFINED_GROUP
   eng "When GTID_NEXT is set to a GTID, you must explicitly set it again after a COMMIT or ROLLBACK. If you see this error message in the slave SQL thread, it means that a table in the current transaction is transactional on the master and non-transactional on the slave. In a client connection, it means that you executed SET GTID_NEXT before a transaction and forgot to set GTID_NEXT to a different identifier or to 'AUTOMATIC' after COMMIT or ROLLBACK. Current GTID_NEXT is '%s'"
-  spa "Cuando GTID_NEXT se pone a GTID, debes de ponerlo de nuevo de forma explícita tras un COMMIT o ROLLBACK. Si ves este mensaje de error en el hilo (thread) de SQL esclavo, indica que una tabla de la transacción en curso es transaccional en el maestro (master) y no transaccional en el esclavo. En una conexión cliente, indica que has ejecutado SET GTID_NEXT antes de una transacción y has olvidado poner GTID_NEXT a un identificador diferente o a 'AUTOMATIC' tras COMMIT o ROLLBACK. El GTID_NEXT actual es '%s'"
+  spa "Cuando GTID_NEXT se pone a GTID, debe vd de ponerlo de nuevo de forma explícita tras un COMMIT o ROLLBACK. Si vd ve este mensaje de error en el hilo (thread) de SQL esclavo, indica que una tabla de la transacción en curso es transaccional en el maestro (master) y no transaccional en el esclavo. En una conexión cliente, indica que has ejecutado SET GTID_NEXT antes de una transacción y has olvidado poner GTID_NEXT a un identificador diferente o a 'AUTOMATIC' tras COMMIT o ROLLBACK. El GTID_NEXT actual es '%s'"
 
 ER_VARIABLE_NOT_SETTABLE_IN_SP
   eng "The system variable %.200s cannot be set in stored procedures"
@@ -7554,7 +7555,7 @@ ER_CANT_SET_GTID_PURGED_WHEN_OWNED_GTIDS_IS_NOT_EMPTY
 
 ER_GTID_PURGED_WAS_CHANGED
   eng "GTID_PURGED was changed from '%s' to '%s'"
-  spa "GTID_PURGED se cambión de '%s' a '%s'"
+  spa "GTID_PURGED se cambió de '%s' a '%s'"
 
 ER_GTID_EXECUTED_WAS_CHANGED
   eng "GTID_EXECUTED was changed from '%s' to '%s'"
@@ -7566,11 +7567,11 @@ ER_BINLOG_STMT_MODE_AND_NO_REPL_TABLES
 
 ER_ALTER_OPERATION_NOT_SUPPORTED 0A000
   eng "%s is not supported for this operation. Try %s"
-  spa "%s no está soportado para esta operación. Prueba %s"
+  spa "%s no está soportado para esta operación. Pruebe %s"
 
 ER_ALTER_OPERATION_NOT_SUPPORTED_REASON 0A000
   eng "%s is not supported. Reason: %s. Try %s"
-  spa "%s no está soportado. Motivo: %s. Prueba %s"
+  spa "%s no está soportado. Motivo: %s. Pruebe %s"
 
 ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_COPY
   eng "COPY algorithm requires a lock"
@@ -7657,7 +7658,7 @@ ER_MUST_CHANGE_PASSWORD_LOGIN
   eng "Your password has expired. To log in you must change it using a client that supports expired passwords"
   bgn "Паролата ви е изтекла. За да влезете трябва да я смените използвайки клиент който поддрържа такива пароли"
   rum "Parola ta a expirat. Pentru a te loga, trebuie sa o schimbi folosind un client ce suporta parole expirate"
-  spa "Tu contraseña ha expirado. Para ingresar, debes de cambiarla usando un cliente que soporte contraseñas expiradas"
+  spa "Su contraseña ha expirado. Para ingresar, vd debe de cambiarla usando un cliente que soporte contraseñas expiradas"
 
 ER_ROW_IN_WRONG_PARTITION
   eng "Found a row in wrong partition %s"
@@ -7673,15 +7674,15 @@ ER_INNODB_NO_FT_USES_PARSER
   spa "No puedo CREATE FULLTEXT INDEX WITH PARSER en tabla InnoDB"
 ER_BINLOG_LOGICAL_CORRUPTION
   eng "The binary log file '%s' is logically corrupted: %s"
-  spa "El fichero de historial (log) binario '%s' está lógicamente corrupto: %s"
+  spa "El fichero/archivo de historial (log) binario '%s' está lógicamente corrupto: %s"
 
 ER_WARN_PURGE_LOG_IN_USE
   eng "file %s was not purged because it was being read by %d thread(s), purged only %d out of %d files"
-  spa "el fchero %s no se ha purgado porque estaba siendo leído por hilo(s) (thread) %d, purgado sólo %d de %d ficheros"
+  spa "el fchero %s no se ha purgado porque estaba siendo leído por hilo(s) (thread) %d, purgado sólo %d de %d ficheros/archivos"
 
 ER_WARN_PURGE_LOG_IS_ACTIVE
   eng "file %s was not purged because it is the active log file"
-  spa "el fichero %s no fue purgado porque es el fichero activo de historial (log)"
+  spa "el fichero/archivo %s no fue purgado porque es el fichero/archivo activo de historial (log)"
 
 ER_AUTO_INCREMENT_CONFLICT
   eng "Auto-increment value in UPDATE conflicts with internally generated values"
@@ -7723,7 +7724,7 @@ ER_TABLE_CORRUPT
 
 ER_TEMP_FILE_WRITE_FAILURE
   eng "Temporary file write failure"
-  spa "Fallo al escribir fichero temporal"
+  spa "Fallo al escribir fichero/archivo temporal"
 
 ER_INNODB_FT_AUX_NOT_HEX_ID
   eng "Upgrade index name failed, please use create index(alter table) algorithm copy to rebuild index"
@@ -7761,7 +7762,7 @@ ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN
   spa "No puedo definir clave foránea con cláusula %s en una columna generada"
 ER_WARNING_NON_DEFAULT_VALUE_FOR_GENERATED_COLUMN
   eng "The value specified for generated column '%s' in table '%s' has been ignored"
-  spa "El valor especificado para columna generada '%s' en la tabla '%s' ha sido ignorada"
+  spa "El valor especificado para columna generada '%s' en la tabla '%s' ha sido ignorado"
 ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
   eng "This is not yet supported for generated columns"
   spa "Esto no está aún soportado para columnas generadas"
@@ -7783,13 +7784,13 @@ ER_BAD_OPTION_VALUE
   spa "Valor incorrecto '%-.64T' para opción '%-.64s'"
 ER_UNUSED_6
   eng "You should never see it"
-  spa "Nunca deberías de ver esto"
+  spa "Nunca debería vd de ver esto"
 ER_UNUSED_7
   eng "You should never see it"
-  spa "Nunca deberías de ver esto"
+  spa "Nunca debería vd de ver esto"
 ER_UNUSED_8
   eng "You should never see it"
-  spa "Nunca deberías de ver esto"
+  spa "Nunca debería vd de ver esto"
 ER_DATA_OVERFLOW 22003
         eng "Got overflow when converting '%-.128s' to %-.32s. Value truncated"
         spa "Obtenido desbordamiento al convertir '%-.128s' a %-.32s. Valor truncado"
@@ -7821,7 +7822,7 @@ ER_QUERY_CACHE_IS_DISABLED
 ER_QUERY_CACHE_IS_GLOBALY_DISABLED
         eng "Query cache is globally disabled and you can't enable it only for this session"
         hindi "क्वेरी कैश ग्लोबल स्तर पर DISABLED है और आप इसे केवल सत्र के लिए ENABLE नहीं कर सकते"
-        spa "La caché de consulta (query) está desactivada de forma global y no puedes activarla sólo para esta sesión"
+        spa "La caché de consulta (query) está desactivada de forma global y no puede activarla sólo para esta sesión"
 ER_VIEW_ORDERBY_IGNORED
         eng "View '%-.192s'.'%-.192s' ORDER BY clause ignored because there is other ORDER BY clause already"
         spa "Cláusula de vista '%-.192s'.'%-.192s' ORDER BY ignorada porque ya hay otra clásula ORDER BY"
@@ -7831,7 +7832,7 @@ ER_CONNECTION_KILLED 70100
         spa "La conexión fue matada"
 ER_UNUSED_12
         eng "You should never see it"
-        spa "Nunca deberías de ver esto"
+        spa "Nunca debería vd de ver esto"
 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SKIP_REPLICATION
         eng "Cannot modify @@session.skip_replication inside a transaction"
         spa "No puedo modificar @@session.skip_replication dentro de una transacción"
@@ -7851,7 +7852,7 @@ ER_TARGET_NOT_EXPLAINABLE
         spa "El objetivo no está ejecutando un comando EXPLAINable"
 ER_CONNECTION_ALREADY_EXISTS
         eng "Connection '%.*s' conflicts with existing connection '%.*s'"
-        spa "Conflicto de conexión '%.*s' con la conexión existente '%.*s'"
+        spa "La conexión '%.*s' está en conflicto con la conexión existente '%.*s'"
 ER_MASTER_LOG_PREFIX
         eng "Master '%.*s': "
         spa "Maestro (master) '%.*s': "
@@ -7912,7 +7913,7 @@ ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
         spa "No puedo modificar @@session.gtid_domain_id o @@session.gtid_seq_no dentro de una transacción"
 ER_STORED_FUNCTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
         eng "Cannot modify @@session.gtid_domain_id or @@session.gtid_seq_no inside a stored function or trigger"
-        spa "No puedo modificar @@session.gtid_domain_id o @@session.gtid_seq_no dengro de una función almacenada o de un disparador"
+        spa "No puedo modificar @@session.gtid_domain_id o @@session.gtid_seq_no dentro de una función almacenada o de un disparador"
 ER_GTID_POSITION_NOT_FOUND_IN_BINLOG2
 	eng "Connecting slave requested to start from GTID %u-%u-%llu, which is not in the master's binlog. Since the master's binlog contains GTIDs with higher sequence numbers, it probably means that the slave has diverged due to executing extra erroneous transactions"
 	spa "Se ha requerido arrancar la conexión a esclavo desde GTID %u-%u-%llu, el cual no está en el binlog del maestro (master). Ya que el binlog del maestro (master) contiene GTIDs con números mayores de secuencia, es probable que indique que el esclavo diverge debido a ejecutar transacciones extra erróneas"
@@ -7969,7 +7970,7 @@ ER_PLUGIN_INSTALLED
         eng "Plugin '%-.192s' already installed"
         hindi "प्लग-इन '%-.192s' पहले से ही इन्स्टॉल्ड है"
         rus "Плагин '%-.192s' уже установлен"
-        spa "Ya instalado el enchufe '%-.192s'"
+        spa "Ya instalado el enchufe (plugin) '%-.192s'"
 ER_STATEMENT_TIMEOUT 70100
         eng "Query execution was interrupted (max_statement_time exceeded)"
         spa "Se ha interrumpido la ejecución de una consulta (query) (excedido max_statement_time)
@@ -7981,7 +7982,7 @@ ER_SET_STATEMENT_NOT_SUPPORTED 42000
         spa "La variable del sistema %.200s no se puede poner en SET STATEMENT." 
 ER_UNUSED_9
         eng "You should never see it"
-        spa "Nunca deberías de ver esto"
+        spa "Nunca debería vd de ver esto"
 ER_USER_CREATE_EXISTS
         eng "Can't create user '%-.64s'@'%-.64s'; it already exists"
         hindi "यूज़र '%-.64s'@'%-.64s' को नहीं बना सकते; यह पहले से ही मौजूद है"
@@ -8034,11 +8035,11 @@ skip-to-error-number 3000
 
 ER_FILE_CORRUPT
   eng "File %s is corrupted"
-  spa "El fichero %s está corrupto"
+  spa "El fichero/archivo %s está corrupto"
 
 ER_ERROR_ON_MASTER
   eng "Query partially completed on the master (error on master: %d) and was aborted. There is a chance that your master is inconsistent at this point. If you are sure that your master is ok, run this query manually on the slave and then restart the slave with SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1; START SLAVE;. Query:'%s'" 
-  spa "Consulta (query) completada de forma parcial en el maestro (master) (error en maestro (master): %d) y se ha abortado. Existe una posibilidad de que tu maestro (master) esté inconsitente en este punto. Si estás seguro de que tu maestro (master) está ok, ejecuta esta consulta (query) de forma manual en el esclavo y luego rearranca el esclavo mediante SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1; START SLAVE;. Consulta (query):'%s'" 
+  spa "Consulta (query) completada de forma parcial en el maestro (master) (error en maestro (master): %d) y se ha abortado. Existe una posibilidad de que su maestro (master) esté inconsitente en este punto. Si está seguro de que su maestro (master) está ok, ejecute esta consulta (query) de forma manual en el esclavo y luego rearranque el esclavo mediante SET GLOBAL SQL_SLAVE_SKIP_COUNTER=1; START SLAVE;. Consulta (query):'%s'" 
 
 ER_INCONSISTENT_ERROR
   eng "Query caused different errors on master and slave. Error on master: message (format)='%s' error code=%d; Error on slave:actual message='%s', error code=%d. Default database:'%s'. Query:'%s'"
@@ -8058,7 +8059,7 @@ ER_WARN_LEGACY_SYNTAX_CONVERTED
 
 ER_BINLOG_UNSAFE_FULLTEXT_PLUGIN
   eng "Statement is unsafe because it uses a fulltext parser plugin which may not return the same value on the slave."
-  spa "La sentencia no es segura porque usa un enchufe analizador de fulltext que puede que no devuelva el mismo valor en el esclavo."
+  spa "La sentencia no es segura porque usa un enchufe (plugin) analizador de fulltext que puede que no devuelva el mismo valor en el esclavo."
 
 ER_CANNOT_DISCARD_TEMPORARY_TABLE
   eng "Cannot DISCARD/IMPORT tablespace associated with temporary table"
@@ -8071,7 +8072,7 @@ ER_FK_DEPTH_EXCEEDED
 ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE_V2
         eng "Column count of %s.%s is wrong. Expected %d, found %d. Created with MariaDB %d, now running %d. Please use mariadb-upgrade to fix this error."
         ger "Spaltenanzahl von %s.%s falsch. %d erwartet, aber %d erhalten. Erzeugt mit MariaDB %d, jetzt unter %d. Bitte benutzen Sie mariadb-upgrade, um den Fehler zu beheben"
-        spa "El contador de columna de %s.%s está equivocado. Se esperaba %d, hallado %d, Creado con MariaDB %d, ahora ejecutando %d. Por favor, usa mariadb-upgrade para arreglar este error."
+        spa "El contador de columna de %s.%s está equivocado. Se esperaba %d, hallado %d, Creado con MariaDB %d, ahora ejecutando %d. Por favor, use mariadb-upgrade para arreglar este error."
 
 ER_WARN_TRIGGER_DOESNT_HAVE_CREATED
   eng "Trigger %s.%s.%s does not have CREATED attribute."
@@ -8114,7 +8115,7 @@ ER_INNODB_UNDO_LOG_FULL
 
 ER_INVALID_ARGUMENT_FOR_LOGARITHM 2201E
   eng "Invalid argument for logarithm"
-  spa "Argumento inválido para algoritmo"
+  spa "Argumento inválido para logaritmo"
 
 ER_SLAVE_CHANNEL_IO_THREAD_MUST_STOP
   eng "This operation cannot be performed with a running slave io thread; run STOP SLAVE IO_THREAD FOR CHANNEL '%s' first."
@@ -8126,7 +8127,7 @@ ER_WARN_OPEN_TEMP_TABLES_MUST_BE_ZERO
 
 ER_WARN_ONLY_MASTER_LOG_FILE_NO_POS
   eng "CHANGE MASTER TO with a MASTER_LOG_FILE clause but no MASTER_LOG_POS clause may not be safe. The old position value may not be valid for the new binary log file."
-  spa "CHANGE MASTER TO mediante una cláusula MASTER_LOG_FILE pero sin existir cláusula MASTER_LOG_POS puede no ser seguro. El valor viejo de la posición puede no ser válido para el nuevo fichero binario de historial (log)."
+  spa "CHANGE MASTER TO mediante una cláusula MASTER_LOG_FILE pero sin existir cláusula MASTER_LOG_POS puede no ser seguro. El valor viejo de la posición puede no ser válido para el nuevo fichero/archivo binario de historial (log)."
 
 ER_QUERY_TIMEOUT 
   eng "Query execution was interrupted, maximum statement execution time exceeded"
@@ -8154,7 +8155,7 @@ ER_AGGREGATE_ORDER_NON_AGG_QUERY
 
 ER_SLAVE_WORKER_STOPPED_PREVIOUS_THD_ERROR
   eng "Slave worker has stopped after at least one previous worker encountered an error when slave-preserve-commit-order was enabled. To preserve commit order, the last transaction executed by this thread has not been committed. When restarting the slave after fixing any failed threads, you should fix this worker as well."
-  spa "El trabajador esclavo se ha parado tras al menos encontrar un error en trabajador previo cuando slave-preserve-commit-order fue activado. Para preserver el orden de acometida (commit), la última transacción ejecutada por este hilo (thread) no se ha acometido (commit). Al rearrancar el esclavo tras arreglar cualquier hilo (thread) fallido, deberías de arreglar este trabajador también"
+  spa "El trabajador esclavo se ha parado tras al menos encontrar un error en trabajador previo cuando slave-preserve-commit-order fue activado. Para preserver el orden de acometida (commit), la última transacción ejecutada por este hilo (thread) no se ha acometido (commit). Al rearrancar el esclavo tras arreglar cualquier hilo (thread) fallido, vd debería de arreglar este trabajador también"
 
 ER_DONT_SUPPORT_SLAVE_PRESERVE_COMMIT_ORDER
   eng "slave_preserve_commit_order is not supported %s."
@@ -8166,7 +8167,7 @@ ER_SERVER_OFFLINE_MODE
 
 ER_GIS_DIFFERENT_SRIDS
   eng "Binary geometry function %s given two geometries of different srids: %u and %u, which should have been identical."
-  spa "La función binaria de geomertía %s ha dado dos geometrías de diferente gis: %u y %u, que deberían de haber sido idénticas"
+  spa "La función binaria de geomertía %s ha dado dos geometrías de diferente srids: %u y %u, que deberían de haber sido idénticas"
 
 ER_GIS_UNSUPPORTED_ARGUMENT
   eng "Calling geometry function %s with unsupported types of arguments."
@@ -8268,7 +8269,7 @@ ER_USER_LOCK_WRONG_NAME 42000
 # rollback. Should not be mapped to SQLSTATE 40001 for the same reason.
 ER_USER_LOCK_DEADLOCK
   eng "Deadlock found when trying to get user-level lock; try rolling back transaction/releasing locks and restarting lock acquisition."
-  spa "Hallado estancamiento (deadlock) al intentar obtener bloqueo a nivel de usuario; intenta retroceder (roll back) bloqueos de transacción/entrega y rearranca la adquisición de bloqueo."
+  spa "Hallado estancamiento (deadlock) al intentar obtener bloqueo a nivel de usuario; intente retroceder (roll back) bloqueos de transacción/entrega y rearranque la adquisición de bloqueo."
 
 ER_REPLACE_INACCESSIBLE_ROWS
   eng "REPLACE cannot be executed as it requires deleting rows that are not in the view"
@@ -8295,7 +8296,7 @@ ER_TOO_MANY_DEFINITIONS_IN_WITH_CLAUSE
         spa "Demasiados elementos WITH en cláusua WITH"
 ER_DUP_QUERY_NAME
         eng "Duplicate query name %`-.64s in WITH clause"
-        spa "Nombre de consulta (query) duplicada en cláusula WITH '%s'"
+        spa "Nombre de consulta (query) %`-.64s duplicada en cláusula WITH"
 ER_RECURSIVE_WITHOUT_ANCHORS
         eng "No anchors for recursive WITH element '%s'"
         spa "No hay anclajes para elemento WITH recursivo '%s'"
@@ -8306,7 +8307,7 @@ ER_REF_TO_RECURSIVE_WITH_TABLE_IN_DERIVED
         eng "Reference to recursive WITH table '%s' in materialized derived"
         spa "Referencia recursiva con WITH tabla '%s' en derivada materializada"
 ER_NOT_STANDARD_COMPLIANT_RECURSIVE
-        eng "Restrictions imposed on recursive definitions are violated for table '%s'"R_WRONG_WINDOW_SPEC_NAME
+        eng "Restrictions imposed on recursive definitions are violated for table '%s'"
         spa "Las restricciónes impuestas en definiciones recursivas son violadas para la tabla '%s'"
 ER_WRONG_WINDOW_SPEC_NAME
        eng "Window specification with name '%s' is not defined"
@@ -8472,7 +8473,7 @@ ER_ISOLATION_MODE_NOT_SUPPORTED
 
 ER_ON_DUPLICATE_DISABLED
   eng "When unique checking is disabled in MyRocks, INSERT,UPDATE,LOAD statements with clauses that update or replace the key (i.e. INSERT ON DUPLICATE KEY UPDATE, REPLACE) are not allowed. Query: %s"
-  spa "Al desactivar chequeo de único en MyRocks, las sentencias INSERT, UPDATE, LOAD con cláusulas que actualizan o reemplazan la clave (p.ej. INSERT ON DUPLICATE KEY UPDATE, REPLACE) no se permiten. Consulta (query): %s"
+  spa "Al desactivar chequeo de único en MyRocks, las sentencias INSERT, UPDATE, LOAD con cláusulas que actualizan o reemplazan la clave (p.ej. INSERT ON DUPLICATE KEY UPDATE, REPLACE) no se permiten. Consulte (query): %s"
 
 ER_UPDATES_WITH_CONSISTENT_SNAPSHOT
   eng "Can't execute updates when you started a transaction with START TRANSACTION WITH CONSISTENT [ROCKSDB] SNAPSHOT."
@@ -8480,7 +8481,7 @@ ER_UPDATES_WITH_CONSISTENT_SNAPSHOT
 
 ER_ROLLBACK_ONLY
   eng "This transaction was rolled back and cannot be committed. Only supported operation is to roll it back, so all pending changes will be discarded. Please restart another transaction."
-  spa "Esta transacción se ha retrocedido (rolled back) y no puede ser acometida (commit). La única operación soportada es retroceder (roll back), de tal forma que se descartarán todos los cambios pendientes. Por favor, rearranca otra transacción."
+  spa "Esta transacción se ha retrocedido (rolled back) y no puede ser acometida (commit). La única operación soportada es retroceder (roll back), de tal forma que se descartarán todos los cambios pendientes. Por favor, rearranque otra transacción."
 
 ER_ROLLBACK_TO_SAVEPOINT
   eng "MyRocks currently does not support ROLLBACK TO SAVEPOINT if modifying rows."
@@ -8496,11 +8497,11 @@ ER_UNSUPPORTED_COLLATION
 
 ER_METADATA_INCONSISTENCY
   eng "Table '%s' does not exist, but metadata information exists inside MyRocks. This is a sign of data inconsistency. Please check if '%s.frm' exists, and try to restore it if it does not exist."
-  spa "La tabla '%s' no existe, pero existe información de metadatos dentro de MyRocks. Esto es una señal de datos inconsistentes. Por favor, revisa si existe '%s.frm' e intenta restaurarla si no existe."
+  spa "La tabla '%s' no existe, pero existe información de metadatos dentro de MyRocks. Esto es una señal de datos inconsistentes. Por favor, revise si existe '%s.frm' e intente restaurarla si no existe."
 
 ER_CF_DIFFERENT
   eng "Column family ('%s') flag (%d) is different from an existing flag (%d). Assign a new CF flag, or do not change existing CF flag."
-  spa "La familia de columna ('%s') bandera (%d) es diferente de una bandera existente (%d). Asigna una nueva bandera CF o no cambies la bandera CF."
+  spa "La familia de columna ('%s') bandera (%d) es diferente de una bandera existente (%d). Asigne una nueva bandera CF o no cambie la bandera CF."
 
 ER_RDB_TTL_DURATION_FORMAT
   eng "TTL duration (%s) in MyRocks must be an unsigned non-null 64-bit integer."
@@ -8599,7 +8600,7 @@ ER_UNKNOWN_VIEW 42S02
         spa "VISTA desconocida: '%-.300s'"
 ER_WRONG_INSERT_INTO_SEQUENCE
         eng "Wrong INSERT into a SEQUENCE. One can only do single table INSERT into a sequence object (like with mariadb-dump).  If you want to change the SEQUENCE, use ALTER SEQUENCE instead."
-        spa "INSERT equivocado dentro de SEQUENCE. Uno sólo puede hacer INSERT único en tabla dentro de un objeto de secuencia (como con volcado-mariadb). Si deseas cambiar la SECUENCIA, usa ALTER SEQUENCE en su lugar."
+        spa "INSERT equivocado dentro de SEQUENCE. Uno sólo puede hacer INSERT único en tabla dentro de un objeto de secuencia (como con volcado-mariadb). Si desea cambiar la SECUENCIA, use ALTER SEQUENCE en su lugar."
 ER_SP_STACK_TRACE
         eng "At line %u in %s"
         spa "En la línea %u en %s"
@@ -8626,10 +8627,10 @@ ER_WRONG_TYPE_FOR_PERCENTILE_FUNC
         spa "Se requiere de tipo de dato numérico para función %s"
 ER_ARGUMENT_NOT_CONSTANT
         eng "Argument to the %s function is not a constant for a partition"
-        spa "El argumento de la funcón %s no es una constante para una partición"
+        spa "El argumento de la función %s no es una constante para una partición"
 ER_ARGUMENT_OUT_OF_RANGE
         eng "Argument to the %s function does not belong to the range [0,1]"
-        spa "El argumento de la función %s no pertenee al rango [0,1]"
+        spa "El argumento de la función %s no pertenece al rango [0,1]"
 ER_WRONG_TYPE_OF_ARGUMENT
         eng "%s function only accepts arguments that can be converted to numerical types"
         spa "La función %s sólo acepta argumentos que se puedan convertir a tipos numéricos"
@@ -8663,7 +8664,7 @@ ER_VERS_ENGINE_UNSUPPORTED
 
 ER_UNUSED_23
         eng "You should never see it"
-        spa "Nunca deberías de ver esto"
+        spa "Nunca debería vd de ver esto"
 
 ER_PARTITION_WRONG_TYPE
         eng "Wrong partitioning type, expected type: %`s"
@@ -8683,7 +8684,7 @@ ER_VERS_DROP_PARTITION_INTERVAL
 
 ER_UNUSED_25
         eng "You should never see it"
-        spa "Nunca deberías de ver esto"
+        spa "Nunca debería vd de ver esto"
 
 WARN_VERS_PART_NON_HISTORICAL
         eng "Partition %`s contains non-historical data"
@@ -8691,7 +8692,7 @@ WARN_VERS_PART_NON_HISTORICAL
 
 ER_VERS_ALTER_NOT_ALLOWED
         eng "Not allowed for system-versioned %`s.%`s. Change @@system_versioning_alter_history to proceed with ALTER."
-        spa "No permitido para versionado del sistema %`s.%`s. Cambia @@system_versioning_alter_history para proceder con ALTER."
+        spa "No permitido para versionado del sistema %`s.%`s. Cambie @@system_versioning_alter_history para proceder con ALTER."
 
 ER_VERS_ALTER_ENGINE_PROHIBITED
         eng "Not allowed for system-versioned %`s.%`s. Change to/from native system versioning engine is not supported."
@@ -8759,7 +8760,7 @@ ER_VERS_ALREADY_VERSIONED
 
 ER_UNUSED_24
 	eng "You should never see it"
-       spa "Nunca deberías de ver esto"
+       spa "Nunca debería vd de ver esto"
 
 ER_VERS_NOT_SUPPORTED
 	eng "System-versioned tables do not support %s"
@@ -8770,7 +8771,7 @@ ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
         spa "Las tablas versionadas del sistemas de transacción precisa no soportan particionado mediante ROW START o ROW END"
 ER_INDEX_FILE_FULL
         eng "The index file for table '%-.192s' is full"
-        spa "El fichero índice para la tabla '%-.192s' está lleno"
+        spa "El fichero/archivo índice para la tabla '%-.192s' está lleno"
 ER_UPDATED_COLUMN_ONLY_ONCE
         eng "The column %`s.%`s cannot be changed more than once in a single UPDATE statement"
         spa "La columna %`s.%`s no se pude cambiar más de ua vez en una sentencia UPDATE única"
@@ -8788,10 +8789,10 @@ ER_ALTER_OPERATION_TABLE_OPTIONS_NEED_REBUILD
 	spa "Cambiar las opciones de tabla requiere que la tabla sea reconstruida"
 ER_BACKUP_LOCK_IS_ACTIVE
         eng "Can't execute the command as you have a BACKUP STAGE active"
-        spa "No puedo ejecutar el comando cuando tienes activo un BACKUP STAGE"
+        spa "No puedo ejecutar el comando cuando vd tiene activo un BACKUP STAGE"
 ER_BACKUP_NOT_RUNNING
         eng "You must start backup with \"BACKUP STAGE START\""
-        spa "Debes de arracar respaldo mediante \"BACKUP STAGE START\""
+        spa "Vd debe de arracar respaldo mediante \"BACKUP STAGE START\""
 ER_BACKUP_WRONG_STAGE
         eng "Backup stage '%s' is same or before current backup stage '%s'"
         spa "La fase de respaldo '%s' es la misma o anterior a la fase de respaldo actual '%s'"
@@ -8803,7 +8804,7 @@ ER_BACKUP_UNKNOWN_STAGE
         spa "Fase de respaldo desconocida: '%s'. La fase debería de ser una de START, FLUSH, BLOCK_DDL, BLOCK_COMMIT o END"
 ER_USER_IS_BLOCKED
         eng "User is blocked because of too many credential errors; unblock with 'FLUSH PRIVILEGES'"
-        spa "El usuario está bloqueado a causa de demasiados errores de credenciales; desbloquea mediante 'FLUSH PRIVILEGES'"
+        spa "El usuario está bloqueado a causa de demasiados errores de credenciales; desbloquee mediante 'FLUSH PRIVILEGES'"
 ER_ACCOUNT_HAS_BEEN_LOCKED
         eng "Access denied, this account is locked"
         rum "Acces refuzat, acest cont este blocat"
@@ -8828,13 +8829,13 @@ ER_PERIOD_COLUMNS_UPDATED
         spa "La columna %`s usada en período %`s especificado en lista de actualizar SET"
 ER_PERIOD_CONSTRAINT_DROP
         eng "Can't DROP CONSTRAINT `%s`. Use DROP PERIOD `%s` for this"
-        spa "No puedo DROP CONSTRAINT `%s`. Usa DROP PERIOD `%s` para esto"
+        spa "No puedo DROP CONSTRAINT `%s`. Use DROP PERIOD `%s` para esto"
 ER_TOO_LONG_KEYPART 42000 S1009
         eng "Specified key part was too long; max key part length is %u bytes"
         spa "La parte de clave especificada es demasiado larga; el tamaño máximo de la parte de clave es de %u bytes"
 ER_TOO_LONG_DATABASE_COMMENT
   eng "Comment for database '%-.64s' is too long (max = %u)"
-  spa "El comentario pra la base de datos '%-.64s' es demasiado largo (máx = %u)"
+  spa "El comentario para la base de datos '%-.64s' es demasiado largo (máx = %u)"
 ER_UNKNOWN_DATA_TYPE
         eng "Unknown data type: '%-.64s'"
         spa "Tipo de datos desconocido: '%-.64s'"
@@ -8849,11 +8850,11 @@ ER_PART_STARTS_BEYOND_INTERVAL
         spa "%`s: STARTS es posterior al momento de consulta (query), la primera partición de historia puede exceder el valor INTERVAL"
 ER_GALERA_REPLICATION_NOT_SUPPORTED
         eng "Galera replication not supported"
-        spa "La replicación en Galera no estás soportada"
+        spa "La replicación en Galera no está soportada"
 ER_LOAD_INFILE_CAPABILITY_DISABLED
         eng "The used command is not allowed because the MariaDB server or client has disabled the local infile capability"
         rum "Comanda folosită nu este permisă deoarece clientul sau serverul MariaDB a dezactivat această capabilitate"
-        spa "El comando usado no está permitido porque el servidor MariaDB o el cliente han desactivado la capacidad 'infile local'"
+        spa "El comando usado no está permitido porque el servidor MariaDB o el cliente han desactivado la capacidad 'local infile'"
 ER_NO_SECURE_TRANSPORTS_CONFIGURED
         eng "No secure transports are configured, unable to set --require_secure_transport=ON"
         spa "No se han configurado transportes seguros, imposible poner --require_secure_transport=ON"

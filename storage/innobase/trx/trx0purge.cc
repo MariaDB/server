@@ -703,8 +703,8 @@ not_free:
       if (bpage->id().space() == space.id &&
           bpage->oldest_modification() != 1)
       {
+        ut_ad(bpage->frame);
         auto block= reinterpret_cast<buf_block_t*>(bpage);
-        ut_ad(buf_pool.is_uncompressed(block));
         if (!bpage->lock.x_lock_try())
         {
           /* Let buf_pool_t::release_freed_page() proceed. */
