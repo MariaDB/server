@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2021, Oracle and/or its affiliates.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -23,9 +23,7 @@ Full Text Search interface
 ***********************************************************************/
 
 #include "trx0roll.h"
-#ifdef UNIV_DEBUG
-# include "trx0purge.h"
-#endif
+#include "trx0purge.h"
 #include "row0mysql.h"
 #include "row0upd.h"
 #include "dict0types.h"
@@ -1563,6 +1561,60 @@ dberr_t fts_lock_common_tables(trx_t *trx, const dict_table_t &table)
       return err;
   }
   return DB_SUCCESS;
+}
+
+/** This function make sure that table doesn't
+have any other reference count.
+@param	table_name	table name */
+static void fts_table_no_ref_count(const char *table_name)
+{
+  dict_table_t *table= dict_table_open_on_name(
+    table_name, false, DICT_ERR_IGNORE_TABLESPACE);
+  if (!table)
+    return;
+
+  while (table->get_ref_count() > 1)
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  table->release();
+}
+
+/** Stop the purge thread and check n_ref_count of all auxiliary
+and common table associated with the fts table.
+@param	table	parent FTS table */
+void purge_sys_t::stop_FTS(const dict_table_t &table)
+{
+  purge_sys.stop_FTS();
+  fts_table_t fts_table;
+  char table_name[MAX_FULL_NAME_LEN];
+
+  FTS_INIT_FTS_TABLE(&fts_table, nullptr, FTS_COMMON_TABLE, (&table));
+
+  for (const char **suffix= fts_common_tables; *suffix; suffix++)
+  {
+    fts_table.suffix= *suffix;
+    fts_get_table_name(&fts_table, table_name, false);
+    fts_table_no_ref_count(table_name);
+  }
+
+  if (!table.fts)
+    return;
+  auto indexes= table.fts->indexes;
+  if (!indexes)
+    return;
+  for (ulint i= 0;i < ib_vector_size(indexes); ++i)
+  {
+    const dict_index_t *index= static_cast<const dict_index_t*>(
+      ib_vector_getp(indexes, i));
+    FTS_INIT_INDEX_TABLE(&fts_table, nullptr, FTS_INDEX_TABLE, index);
+    for (const fts_index_selector_t *s= fts_index_selector;
+         s->suffix; s++)
+    {
+      fts_table.suffix= s->suffix;
+      fts_get_table_name(&fts_table, table_name, false);
+      fts_table_no_ref_count(table_name);
+    }
+  }
 }
 
 /** Lock the internal FTS_ tables for table, before fts_drop_tables().

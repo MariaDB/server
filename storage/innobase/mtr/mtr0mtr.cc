@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1372,7 +1372,6 @@ void mtr_t::modify(const buf_block_t &block)
   {
     /* This must be PageConverter::update_page() in IMPORT TABLESPACE. */
     ut_ad(!block.page.in_LRU_list);
-    ut_ad(!buf_pool.is_uncompressed(&block));
     return;
   }
 
