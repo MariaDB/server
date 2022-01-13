@@ -3943,8 +3943,9 @@ int ha_partition::external_lock(THD *thd, int lock_type)
          These commands may be excluded because working history partition is needed
          only for versioned DML. */
       thd->lex->sql_command != SQLCOM_SELECT &&
-      thd->lex->sql_command != SQLCOM_INSERT_SELECT)
-      m_part_info->vers_set_hist_part(thd);
+      thd->lex->sql_command != SQLCOM_INSERT_SELECT &&
+      (error= m_part_info->vers_set_hist_part(thd)))
+      goto err_handler;
   }
   DBUG_RETURN(0);
 
@@ -4085,6 +4086,7 @@ int ha_partition::start_stmt(THD *thd, thr_lock_type lock_type)
     /* Add partition to be called in reset(). */
     bitmap_set_bit(&m_partitions_to_reset, i);
   }
+  // FIXME: check error?
   switch (lock_type)
   {
   case TL_WRITE_ALLOW_WRITE:
@@ -4100,7 +4102,7 @@ int ha_partition::start_stmt(THD *thd, thr_lock_type lock_type)
       // TODO: MDEV-20345 (see above)
       thd->lex->sql_command != SQLCOM_SELECT &&
       thd->lex->sql_command != SQLCOM_INSERT_SELECT)
-      m_part_info->vers_set_hist_part(thd);
+      error= m_part_info->vers_set_hist_part(thd);
   default:;
   }
   DBUG_RETURN(error);

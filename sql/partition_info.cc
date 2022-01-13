@@ -832,8 +832,13 @@ bool partition_info::has_unique_name(partition_element *element)
   DBUG_RETURN(TRUE);
 }
 
-void partition_info::vers_set_hist_part(THD *thd)
+int partition_info::vers_set_hist_part(THD *thd)
 {
+  if (table->pos_in_table_list &&
+      table->pos_in_table_list->partition_names)
+  {
+    return HA_ERR_PARTITION_LIST;
+  }
   if (vers_info->limit)
   {
     ha_partition *hp= (ha_partition*)(table->file);
@@ -841,9 +846,11 @@ void partition_info::vers_set_hist_part(THD *thd)
     List_iterator<partition_element> it(partitions);
     while (next != vers_info->hist_part)
       next= it++;
+    DBUG_ASSERT(bitmap_is_set(&read_partitions, next->id));
     ha_rows records= hp->part_records(next);
     while ((next= it++) != vers_info->now_part)
     {
+      DBUG_ASSERT(bitmap_is_set(&read_partitions, next->id));
       ha_rows next_records= hp->part_records(next);
       if (next_records == 0)
         break;
@@ -856,13 +863,13 @@ void partition_info::vers_set_hist_part(THD *thd)
         goto warn;
       vers_info->hist_part= next;
     }
-    return;
+    return 0;
   }
 
   if (vers_info->interval.is_set())
   {
     if (vers_info->hist_part->range_value > thd->query_start())
-      return;
+      return 0;
 
     partition_element *next= NULL;
     List_iterator<partition_element> it(partitions);
@@ -873,14 +880,15 @@ void partition_info::vers_set_hist_part(THD *thd)
     {
       vers_info->hist_part= next;
       if (next->range_value > thd->query_start())
-        return;
+        return 0;
     }
   }
-  return;
+  return 0;
 warn:
   my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
            table->s->db.str, table->s->table_name.str,
            vers_info->hist_part->partition_name);
+  return 0;
 }
 
 
