@@ -1547,7 +1547,10 @@ class User_table_json: public User_table
   {
     privilege_t mask= ALL_KNOWN_ACL_100304;
     ulonglong orig_access= access;
-    if (version_id >= 100509)
+    if (version_id >= 100800) /* TODO(cvicentiu) change this to 100900 when rebasing. */
+    {
+      mask= ALL_KNOWN_ACL_100900;
+    } else if (version_id >= 100509)
     {
       mask= ALL_KNOWN_ACL_100509;
     }
@@ -9834,7 +9837,7 @@ static const char *command_array[]=
   "CREATE USER", "EVENT", "TRIGGER", "CREATE TABLESPACE", "DELETE HISTORY",
   "SET USER", "FEDERATED ADMIN", "CONNECTION ADMIN", "READ_ONLY ADMIN",
   "REPLICATION SLAVE ADMIN", "REPLICATION MASTER ADMIN", "BINLOG ADMIN",
-  "BINLOG REPLAY", "SLAVE MONITOR"
+  "BINLOG REPLAY", "SLAVE MONITOR", "IGNORE DENIES"
 };
 
 static uint command_lengths[]=
@@ -9847,7 +9850,7 @@ static uint command_lengths[]=
   11, 5, 7, 17, 14,
   8, 15, 16, 15,
   23, 24, 12,
-  13, 13
+  13, 13, 13,
 };
 
 
