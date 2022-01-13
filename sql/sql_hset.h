@@ -45,6 +45,8 @@ public:
     my_hash_init(psi_key, &m_hash, charset, default_array_elements, key_offset,
                  key_length, get_key, free_element, flags);
   }
+
+  Hash_set(const Hash_set&) = delete; /* It is not safe to copy hash_sets. */
   /**
     Destroy the hash by freeing the buckets table. Does
     not call destructors for the elements.
