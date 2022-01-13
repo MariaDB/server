@@ -1,0 +1,22 @@
+create user foo;
+create role bar;
+
+--echo #
+--echo # Test deny format for global privileges.
+--echo #
+deny select on *.* to foo;
+deny insert on *.* to bar;
+
+select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'bar';
+
+flush privileges;
+
+#TODO(cvicentiu) Show denies where appropriate.
+show grants for foo;
+show grants for bar;
+
+#TODO(cvicentiu) Update results with further deny types.
+
+drop user foo;
+drop role bar;

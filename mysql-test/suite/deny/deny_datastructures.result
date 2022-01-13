@@ -1,0 +1,22 @@
+create user foo;
+create role bar;
+#
+# Test deny format for global privileges.
+#
+deny select on *.* to foo;
+deny insert on *.* to bar;
+select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+user	host	JSON_EXTRACT(priv, '$.deny')
+foo	%	{"global": 1}
+select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'bar';
+user	host	JSON_EXTRACT(priv, '$.deny')
+bar		{"global": 2}
+flush privileges;
+show grants for foo;
+Grants for foo@%
+GRANT USAGE ON *.* TO `foo`@`%`
+show grants for bar;
+Grants for bar
+GRANT USAGE ON *.* TO `bar`
+drop user foo;
+drop role bar;
