@@ -1,0 +1,330 @@
+connection node_2;
+connection node_1;
+CREATE TABLE parent (pk INTEGER PRIMARY KEY);
+CREATE TABLE child (pk INTEGER PRIMARY KEY, parent_id INTEGER, FOREIGN KEY(parent_id) REFERENCES parent(pk) );
+INSERT INTO parent VALUES (1), (2), (3), (4);
+INSERT INTO child VALUES (1,1), (2,2), (3,3), (4,4);
+connection node_1;
+START TRANSACTION;
+SELECT * FROM parent FOR UPDATE;
+pk
+1
+2
+3
+4
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+OPTIMIZE TABLE child;;
+Table	Op	Msg_type	Msg_text
+test.child	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.child	optimize	status	OK
+connection node_1;
+COMMIT;
+DROP TABLE child, parent;
+disconnect node_1a;
+CREATE TABLE parent (pk INTEGER PRIMARY KEY);
+CREATE TABLE child (pk INTEGER PRIMARY KEY, parent_id INTEGER, FOREIGN KEY(parent_id) REFERENCES parent(pk) ON UPDATE CASCADE);
+INSERT INTO parent VALUES (1), (2), (3), (4);
+INSERT INTO child VALUES (1,1), (2,2), (3,3), (4,4);
+connection node_1;
+START TRANSACTION;
+SELECT * FROM parent FOR UPDATE;
+pk
+1
+2
+3
+4
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+OPTIMIZE TABLE child;;
+Table	Op	Msg_type	Msg_text
+test.child	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.child	optimize	status	OK
+connection node_1;
+COMMIT;
+DROP TABLE child, parent;
+disconnect node_1a;
+CREATE TABLE parent (pk INTEGER PRIMARY KEY);
+CREATE TABLE child (pk INTEGER PRIMARY KEY, parent_id INTEGER, FOREIGN KEY(parent_id) REFERENCES parent(pk) ON DELETE CASCADE);
+INSERT INTO parent VALUES (1), (2), (3), (4);
+INSERT INTO child VALUES (1,1), (2,2), (3,3), (4,4);
+connection node_1;
+START TRANSACTION;
+SELECT * FROM parent FOR UPDATE;
+pk
+1
+2
+3
+4
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+OPTIMIZE TABLE child;;
+Table	Op	Msg_type	Msg_text
+test.child	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.child	optimize	status	OK
+connection node_1;
+COMMIT;
+DROP TABLE child, parent;
+disconnect node_1a;
+CREATE TABLE parent (pk INTEGER PRIMARY KEY);
+CREATE TABLE child (pk INTEGER PRIMARY KEY, parent_id INTEGER, FOREIGN KEY(parent_id) REFERENCES parent(pk) ON UPDATE CASCADE ON DELETE CASCADE);
+INSERT INTO parent VALUES (1), (2), (3), (4);
+INSERT INTO child VALUES (1,1), (2,2), (3,3), (4,4);
+connection node_1;
+START TRANSACTION;
+SELECT * FROM parent FOR UPDATE;
+pk
+1
+2
+3
+4
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+OPTIMIZE TABLE child;;
+Table	Op	Msg_type	Msg_text
+test.child	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.child	optimize	status	OK
+connection node_1;
+COMMIT;
+DROP TABLE child, parent;
+disconnect node_1a;
+CREATE TABLE parent (pk INTEGER PRIMARY KEY);
+CREATE TABLE child (pk INTEGER PRIMARY KEY, parent_id INTEGER, FOREIGN KEY(parent_id) REFERENCES parent(pk) );
+INSERT INTO parent VALUES (1), (2), (3), (4);
+INSERT INTO child VALUES (1,1), (2,2), (3,3), (4,4);
+connection node_1;
+START TRANSACTION;
+SELECT * FROM parent FOR UPDATE;
+pk
+1
+2
+3
+4
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+REPAIR TABLE child;;
+Table	Op	Msg_type	Msg_text
+test.child	repair	note	The storage engine for the table doesn't support repair
+connection node_1;
+COMMIT;
+DROP TABLE child, parent;
+disconnect node_1a;
+CREATE TABLE parent (pk INTEGER PRIMARY KEY);
+CREATE TABLE child (pk INTEGER PRIMARY KEY, parent_id INTEGER, FOREIGN KEY(parent_id) REFERENCES parent(pk) ON UPDATE CASCADE);
+INSERT INTO parent VALUES (1), (2), (3), (4);
+INSERT INTO child VALUES (1,1), (2,2), (3,3), (4,4);
+connection node_1;
+START TRANSACTION;
+SELECT * FROM parent FOR UPDATE;
+pk
+1
+2
+3
+4
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+REPAIR TABLE child;;
+Table	Op	Msg_type	Msg_text
+test.child	repair	note	The storage engine for the table doesn't support repair
+connection node_1;
+COMMIT;
+DROP TABLE child, parent;
+disconnect node_1a;
+CREATE TABLE parent (pk INTEGER PRIMARY KEY);
+CREATE TABLE child (pk INTEGER PRIMARY KEY, parent_id INTEGER, FOREIGN KEY(parent_id) REFERENCES parent(pk) ON DELETE CASCADE);
+INSERT INTO parent VALUES (1), (2), (3), (4);
+INSERT INTO child VALUES (1,1), (2,2), (3,3), (4,4);
+connection node_1;
+START TRANSACTION;
+SELECT * FROM parent FOR UPDATE;
+pk
+1
+2
+3
+4
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+REPAIR TABLE child;;
+Table	Op	Msg_type	Msg_text
+test.child	repair	note	The storage engine for the table doesn't support repair
+connection node_1;
+COMMIT;
+DROP TABLE child, parent;
+disconnect node_1a;
+CREATE TABLE parent (pk INTEGER PRIMARY KEY);
+CREATE TABLE child (pk INTEGER PRIMARY KEY, parent_id INTEGER, FOREIGN KEY(parent_id) REFERENCES parent(pk) ON UPDATE CASCADE ON DELETE CASCADE);
+INSERT INTO parent VALUES (1), (2), (3), (4);
+INSERT INTO child VALUES (1,1), (2,2), (3,3), (4,4);
+connection node_1;
+START TRANSACTION;
+SELECT * FROM parent FOR UPDATE;
+pk
+1
+2
+3
+4
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+REPAIR TABLE child;;
+Table	Op	Msg_type	Msg_text
+test.child	repair	note	The storage engine for the table doesn't support repair
+connection node_1;
+COMMIT;
+DROP TABLE child, parent;
+disconnect node_1a;
+CREATE TABLE parent (pk INTEGER PRIMARY KEY);
+CREATE TABLE child (pk INTEGER PRIMARY KEY, parent_id INTEGER, FOREIGN KEY(parent_id) REFERENCES parent(pk) );
+INSERT INTO parent VALUES (1), (2), (3), (4);
+INSERT INTO child VALUES (1,1), (2,2), (3,3), (4,4);
+connection node_1;
+START TRANSACTION;
+SELECT * FROM parent FOR UPDATE;
+pk
+1
+2
+3
+4
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+CHECK TABLE child;;
+Table	Op	Msg_type	Msg_text
+test.child	check	status	OK
+connection node_1;
+COMMIT;
+DROP TABLE child, parent;
+disconnect node_1a;
+CREATE TABLE parent (pk INTEGER PRIMARY KEY);
+CREATE TABLE child (pk INTEGER PRIMARY KEY, parent_id INTEGER, FOREIGN KEY(parent_id) REFERENCES parent(pk) ON UPDATE CASCADE);
+INSERT INTO parent VALUES (1), (2), (3), (4);
+INSERT INTO child VALUES (1,1), (2,2), (3,3), (4,4);
+connection node_1;
+START TRANSACTION;
+SELECT * FROM parent FOR UPDATE;
+pk
+1
+2
+3
+4
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+CHECK TABLE child;;
+Table	Op	Msg_type	Msg_text
+test.child	check	status	OK
+connection node_1;
+COMMIT;
+DROP TABLE child, parent;
+disconnect node_1a;
+CREATE TABLE parent (pk INTEGER PRIMARY KEY);
+CREATE TABLE child (pk INTEGER PRIMARY KEY, parent_id INTEGER, FOREIGN KEY(parent_id) REFERENCES parent(pk) ON DELETE CASCADE);
+INSERT INTO parent VALUES (1), (2), (3), (4);
+INSERT INTO child VALUES (1,1), (2,2), (3,3), (4,4);
+connection node_1;
+START TRANSACTION;
+SELECT * FROM parent FOR UPDATE;
+pk
+1
+2
+3
+4
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+CHECK TABLE child;;
+Table	Op	Msg_type	Msg_text
+test.child	check	status	OK
+connection node_1;
+COMMIT;
+DROP TABLE child, parent;
+disconnect node_1a;
+CREATE TABLE parent (pk INTEGER PRIMARY KEY);
+CREATE TABLE child (pk INTEGER PRIMARY KEY, parent_id INTEGER, FOREIGN KEY(parent_id) REFERENCES parent(pk) ON UPDATE CASCADE ON DELETE CASCADE);
+INSERT INTO parent VALUES (1), (2), (3), (4);
+INSERT INTO child VALUES (1,1), (2,2), (3,3), (4,4);
+connection node_1;
+START TRANSACTION;
+SELECT * FROM parent FOR UPDATE;
+pk
+1
+2
+3
+4
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+CHECK TABLE child;;
+Table	Op	Msg_type	Msg_text
+test.child	check	status	OK
+connection node_1;
+COMMIT;
+DROP TABLE child, parent;
+disconnect node_1a;
+CREATE TABLE parent (pk INTEGER PRIMARY KEY);
+CREATE TABLE child (pk INTEGER PRIMARY KEY, parent_id INTEGER, FOREIGN KEY(parent_id) REFERENCES parent(pk) );
+INSERT INTO parent VALUES (1), (2), (3), (4);
+INSERT INTO child VALUES (1,1), (2,2), (3,3), (4,4);
+connection node_1;
+START TRANSACTION;
+SELECT * FROM parent FOR UPDATE;
+pk
+1
+2
+3
+4
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+ANALYZE TABLE child;;
+Table	Op	Msg_type	Msg_text
+test.child	analyze	status	Engine-independent statistics collected
+test.child	analyze	status	OK
+connection node_1;
+COMMIT;
+DROP TABLE child, parent;
+disconnect node_1a;
+CREATE TABLE parent (pk INTEGER PRIMARY KEY);
+CREATE TABLE child (pk INTEGER PRIMARY KEY, parent_id INTEGER, FOREIGN KEY(parent_id) REFERENCES parent(pk) ON UPDATE CASCADE);
+INSERT INTO parent VALUES (1), (2), (3), (4);
+INSERT INTO child VALUES (1,1), (2,2), (3,3), (4,4);
+connection node_1;
+START TRANSACTION;
+SELECT * FROM parent FOR UPDATE;
+pk
+1
+2
+3
+4
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+ANALYZE TABLE child;;
+Table	Op	Msg_type	Msg_text
+test.child	analyze	status	Engine-independent statistics collected
+test.child	analyze	status	OK
+connection node_1;
+COMMIT;
+DROP TABLE child, parent;
+disconnect node_1a;
+CREATE TABLE parent (pk INTEGER PRIMARY KEY);
+CREATE TABLE child (pk INTEGER PRIMARY KEY, parent_id INTEGER, FOREIGN KEY(parent_id) REFERENCES parent(pk) ON DELETE CASCADE);
+INSERT INTO parent VALUES (1), (2), (3), (4);
+INSERT INTO child VALUES (1,1), (2,2), (3,3), (4,4);
+connection node_1;
+START TRANSACTION;
+SELECT * FROM parent FOR UPDATE;
+pk
+1
+2
+3
+4
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+ANALYZE TABLE child;;
+Table	Op	Msg_type	Msg_text
+test.child	analyze	status	Engine-independent statistics collected
+test.child	analyze	status	OK
+connection node_1;
+COMMIT;
+DROP TABLE child, parent;
+disconnect node_1a;
+CREATE TABLE parent (pk INTEGER PRIMARY KEY);
+CREATE TABLE child (pk INTEGER PRIMARY KEY, parent_id INTEGER, FOREIGN KEY(parent_id) REFERENCES parent(pk) ON UPDATE CASCADE ON DELETE CASCADE);
+INSERT INTO parent VALUES (1), (2), (3), (4);
+INSERT INTO child VALUES (1,1), (2,2), (3,3), (4,4);
+connection node_1;
+START TRANSACTION;
+SELECT * FROM parent FOR UPDATE;
+pk
+1
+2
+3
+4
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+ANALYZE TABLE child;;
+Table	Op	Msg_type	Msg_text
+test.child	analyze	status	Engine-independent statistics collected
+test.child	analyze	status	OK
+connection node_1;
+COMMIT;
+DROP TABLE child, parent;
+disconnect node_1a;

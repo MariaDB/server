@@ -1,0 +1,17 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1(a int not null primary key) engine=innodb;
+REPAIR TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	note	The storage engine for the table doesn't support repair
+CREATE VIEW v1 AS SELECT a FROM t1;
+REPAIR VIEW v1;
+Table	Op	Msg_type	Msg_text
+test.v1	repair	status	OK
+DROP VIEW v1;
+DROP TABLE t1;
+CREATE VIEW v1 AS SELECT table_name FROM information_schema.tables;
+REPAIR VIEW v1;
+Table	Op	Msg_type	Msg_text
+test.v1	repair	status	OK
+DROP VIEW v1;

@@ -32,7 +32,6 @@ galera_var_ignore_apply_errors : MDEV-26770 galera_var_ignore_apply_errors fails
 galera_var_node_address : MDEV-20485 Galera test failure
 galera_var_notify_cmd : MDEV-21905 Galera test galera_var_notify_cmd causes hang
 galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.galera_var_retry_autocommit
-mysql-wsrep#198 : MDEV-24446: galera.mysql-wsrep#198 MTR failed: query 'reap' failed: 2000: Unknown MySQL error
 partition : MDEV-19958 Galera test failure on galera.partition
 query_cache: MDEV-15805 Test failure on galera.query_cache
 versioning_trx_id: MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
