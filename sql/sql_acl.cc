@@ -141,11 +141,140 @@ class Priv_spec
 {
 public:
   const bool revoke; // Whether the privilege bits are to be cleared.
+  const bool deny;   // Whether the privilege bits need to be applied as deny.
   const privilege_t access; // Privilege bits that need to be applied / removed.
+  PRIV_TYPE spec_type;
+  const LEX_CSTRING db;
+  const LEX_CSTRING table;
+  const LEX_CSTRING column;
+  const LEX_CSTRING routine;
 
-  Priv_spec(privilege_t access, bool revoke):
-    revoke{revoke}, access{access}
-  {}
+  Priv_spec(privilege_t access, bool revoke, bool deny=false):
+    revoke{revoke}, deny{deny}, access{access}, spec_type{PRIV_TYPE::GLOBAL_PRIV},
+    db{nullptr, 0}, table{nullptr, 0}, column{nullptr, 0}, routine{nullptr, 0}
+  { }
+
+};
+
+
+class Deny_spec
+{
+  PRIV_TYPE specified_denies;
+  privilege_t global_denies;
+
+public:
+  Deny_spec() : specified_denies{NO_PRIV}, global_denies{NO_ACL} {}
+
+  ~Deny_spec()
+  {
+  }
+
+  privilege_t get_global() const { return global_denies; }
+  PRIV_TYPE get_specified_denies() const { return specified_denies; }
+
+    /*
+      {
+        "global": int
+        "db": [
+          {
+            "name": str
+            "access": int
+          },
+        ]
+        "table": [
+          {
+            "name": str
+            "access": int
+          },
+        ]
+    */
+  bool get_json_repr(String *s) const
+  {
+    bool append_comma= false;
+    s->length(0);
+    s->append('{');
+    if (specified_denies & GLOBAL_PRIV)
+    {
+      char v[FLOATING_POINT_BUFFER + 1];
+      size_t vlen= longlong10_to_str(global_denies, v, -10) - v;
+      s->append(STRING_WITH_LEN("\"global\":"));
+      s->append(v, vlen);
+      append_comma= true;
+    }
+    (void) append_comma; // TODO(cvicentiu) to be used for other deny types.
+    s->append('}');
+    return false;
+  }
+
+  bool update_deny(const Priv_spec &priv_spec)
+  {
+
+    /* Global */
+    switch (priv_spec.spec_type) {
+    case GLOBAL_PRIV:
+    {
+      if (priv_spec.revoke)
+        global_denies&= ~priv_spec.access;
+      else
+        global_denies|= priv_spec.access;
+      break;
+    }
+    case DATABASE_PRIV:
+      // TODO(cvicentiu)
+      DBUG_ASSERT(0);
+      break;
+    case TABLE_PRIV:
+      // TODO(cvicentiu)
+      DBUG_ASSERT(0);
+      break;
+    case COLUMN_PRIV:
+      // TODO(cvicentiu)
+      DBUG_ASSERT(0);
+      break;
+    case ROUTINE_PRIV:
+      // TODO(cvicentiu)
+      DBUG_ASSERT(0);
+      break;
+    case PROXY_PRIV:
+      // TODO(cvicentiu)
+      DBUG_ASSERT(0);
+      break;
+    case NO_PRIV:
+      /* TODO(cvicentiu) test this. */
+      DBUG_ASSERT(0);
+      return false;
+    }
+    specified_denies|= priv_spec.spec_type;
+    return false;
+  }
+
+  bool load_deny(const char *json_repr, size_t len)
+  {
+    const char* start= json_repr;
+    const char* end= start + len;
+    const char* v;
+    int int_vl, err;
+    enum json_types value_type;
+
+    value_type= json_get_object_key(start, end, "global", &v, &int_vl);
+
+    if (value_type != JSV_NUMBER && value_type != JSV_NOTHING)
+      return true;
+
+    if (value_type != JSV_NOTHING)
+    {
+      const char *v_end= v + int_vl;
+      global_denies= static_cast<privilege_t>(my_strtoll10(v, (char **)&v_end,
+                                                           &err));
+      if (err)
+        return true;
+
+      if (global_denies)
+        specified_denies= GLOBAL_PRIV;
+    }
+    // TODO(cvicentiu) continue loading db denies and other json denies.
+    return false;
+  }
 };
 
 
@@ -172,7 +301,7 @@ class ACL_USER_BASE :public ACL_ACCESS, public Sql_alloc
 
 public:
   ACL_USER_BASE()
-   :flags(0), user(null_clex_str)
+   :flags(0), user(null_clex_str), denies(nullptr)
   {
     bzero(&role_grants, sizeof(role_grants));
   }
@@ -180,8 +309,10 @@ public:
   LEX_CSTRING user;
   /* list to hold references to granted roles (ACL_ROLE instances) */
   DYNAMIC_ARRAY role_grants;
+  const Deny_spec* denies;
   const char *get_username() { return user.str; }
 };
+
 
 class ACL_USER_PARAM
 {
@@ -906,6 +1037,8 @@ class User_table: public Grant_table_base
   virtual bool set_auth(const ACL_USER &u) const = 0;
   virtual privilege_t get_access() const = 0;
   virtual void set_access(const privilege_t rights) const = 0;
+  virtual bool set_deny(const Deny_spec *deny) const = 0;
+  virtual Deny_spec *get_deny() const = 0;
 
   char *get_host(MEM_ROOT *root) const
   { return ::get_field(root, m_table->field[0]); }
@@ -1087,6 +1220,18 @@ class User_table_tabular: public User_table
     ulonglong priv(SELECT_ACL);
     for (uint i= start_priv_columns; i < end_priv_columns; i++, priv <<= 1)
       m_table->field[i]->store(priv & rights ? 2 : 1, 0);
+  }
+
+  /* Does not support denies. TODO(cvicentiu): test*/
+  Deny_spec *get_deny() const
+  {
+    return nullptr;
+  }
+
+  /* Does not support denies. TODO(cvicentiu): test*/
+  bool set_deny(const Deny_spec* spec) const
+  {
+    return true;
   }
 
   SSL_type get_ssl_type () const
@@ -1633,6 +1778,36 @@ class User_table_json: public User_table
     set_int_value("access", (longlong) (rights & GLOBAL_ACLS));
     set_int_value("version_id", (longlong) MYSQL_VERSION_ID);
   }
+
+  bool set_deny(const Deny_spec* spec) const
+  {
+    String s;
+    spec->get_json_repr(&s);
+    set_value("deny", s.c_ptr(), s.length(), false);
+    // TODO(cvicentiu) see if this can be ommited.
+    set_int_value("version_id", (longlong) MYSQL_VERSION_ID);
+    return false;
+  }
+
+  Deny_spec *get_deny() const
+  {
+    const char *value_start;
+    size_t vl;
+
+    // TODO(cvicentiu) figure out a better way to do error reporting.
+    if (get_value("deny", JSV_OBJECT, &value_start, &vl))
+      return nullptr;
+
+    Deny_spec *result= new Deny_spec;
+
+    if (result->load_deny(value_start, vl))
+    {
+      delete result;
+      return nullptr;
+    }
+    return result;
+  }
+
   const char *unsafe_str(const char *s) const
   { return s[0] ? s : NULL; }
 
@@ -2159,16 +2334,22 @@ static bool is_invalid_role_name(const char *str)
   return true;
 }
 
+static void free_acl_user_base(ACL_USER_BASE *base)
+{
+  delete base->denies;
+}
 
 static void free_acl_user(ACL_USER *user)
 {
   delete_dynamic(&(user->role_grants));
+  free_acl_user_base(user);
 }
 
 static void free_acl_role(ACL_ROLE *role)
 {
   delete_dynamic(&(role->role_grants));
   delete_dynamic(&(role->parent_grantee));
+  free_acl_user_base(role);
 }
 
 static my_bool check_if_exists(THD *, plugin_ref, void *)
@@ -2569,6 +2750,7 @@ static bool acl_load(THD *thd, const Grant_tables& tables)
     is_role= user_table.get_is_role();
 
     user.access= user_table.get_access();
+    user.denies= user_table.get_deny();
 
     user.sort= get_magic_sort("hu", user.host.hostname, user.user.str);
     user.hostname_length= safe_strlen(user.host.hostname);
@@ -4146,7 +4328,8 @@ ACL_USER::ACL_USER(THD *thd, const LEX_USER &combo,
 static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
                            const LEX_USER &combo,
                            const Account_options &options,
-                           const privilege_t privileges)
+                           const privilege_t privileges,
+                           const Deny_spec *deny_spec)
 {
   ACL_USER_PARAM::AUTH *work_copy= NULL;
   if (nauth)
@@ -4238,6 +4421,20 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
   case PASSWORD_EXPIRE_INTERVAL:
     acl_user->password_lifetime= options.num_expiration_days;
     break;
+  }
+
+  /* Update denies only if it was modified.
+     TODO(cvicentiu) this current implementation is problematic.
+       We are re-creating the User's DENY specification every time it is
+       changed, even though only a single entry gets modified.
+       To keep changes to a minimum and because we expect the number of denies
+       to be limited per user, we have this implementation. In the future,
+       we can opt to be smarter about this and only add the extra fields.
+  */
+  if (deny_spec)
+  {
+    delete acl_user->denies;
+    acl_user->denies= deny_spec;
   }
 
   return 0;
@@ -5369,6 +5566,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   TABLE *table= user_table.table();
   ACL_USER new_acl_user, *old_acl_user= 0;
   privilege_t access;
+  Deny_spec *deny_spec= nullptr;
   DBUG_ENTER("replace_user_table");
 
   mysql_mutex_assert_owner(&acl_cache->lock);
@@ -5444,14 +5642,36 @@ static int replace_user_table(THD *thd, const User_table &user_table,
       auth->plugin= guess_auth_plugin(thd, auth->auth_str.length);
   }
 
-  /* Update table columns with new privileges */
   access= user_table.get_access();
-  if (priv_spec.revoke)
-    access&= ~priv_spec.access;
+
+  if (priv_spec.deny)
+  {
+    deny_spec= user_table.get_deny();
+    if (!deny_spec)
+      deny_spec= new Deny_spec;
+
+    if (!deny_spec)
+    {
+      error= 1;
+      goto end;
+    }
+    if (deny_spec->update_deny(priv_spec) ||
+        user_table.set_deny(deny_spec))
+    {
+      error= 1;
+      goto end;
+    }
+  }
   else
-    access|= priv_spec.access;
-  user_table.set_access(access);
-  access= user_table.get_access();
+  {
+    /* Update table columns with new privileges */
+    if (priv_spec.revoke)
+      access&= ~priv_spec.access;
+    else
+      access|= priv_spec.access;
+    user_table.set_access(access);
+    access= user_table.get_access();
+  }
 
   if (handle_as_role)
   {
@@ -5479,7 +5699,7 @@ static int replace_user_table(THD *thd, const User_table &user_table,
     new_acl_user= old_row_exists ? *old_acl_user :
                   ACL_USER(thd, *combo, lex->account_options, access);
     if (acl_user_update(thd, &new_acl_user, nauth,
-                        *combo, lex->account_options, access))
+                        *combo, lex->account_options, access, deny_spec))
       goto end;
 
     if (user_table.set_auth(new_acl_user))
@@ -5487,7 +5707,8 @@ static int replace_user_table(THD *thd, const User_table &user_table,
       my_error(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE, MYF(0),
                user_table.name().str, 3, user_table.num_fields(),
                static_cast<int>(table->s->mysql_version), MYSQL_VERSION_ID);
-      DBUG_RETURN(1);
+      error= 1;
+      goto end;
     }
 
     switch (lex->account_options.ssl_type) {
@@ -5611,6 +5832,9 @@ end:
       }
     }
   }
+  else // Cleanup if something went wrong.
+    delete deny_spec;
+
   DBUG_RETURN(error);
 }
 
@@ -13050,12 +13274,128 @@ wsrep_error_label:
 }
 
 
+static bool maria_deny(THD *thd, const User_table &user_table,
+                         List<LEX_USER> &list,
+                         Priv_spec &priv_spec,
+                         bool create_new_users, bool no_auto_create_users)
+{
+  List_iterator<LEX_USER> it(list);
+  bool result;
+  DBUG_ENTER("maria_deny");
+
+  /* go through users in user_list */
+  for (LEX_USER *user= it++; user != NULL; user= it++)
+  {
+    if (check_if_auth_can_be_changed(user, thd) ||
+        replace_user_table(thd, user_table,
+                           user,
+                           priv_spec,
+                           create_new_users,
+                           no_auto_create_users))
+      result= true;
+
+    if (user->is_role())
+    {
+      switch (priv_spec.spec_type) {
+        case GLOBAL_PRIV:
+          propagate_role_grants(find_acl_role(user->user.str),
+                                PRIVS_TO_MERGE::GLOBAL);
+          break;
+        case DATABASE_PRIV:
+          propagate_role_grants(find_acl_role(user->user.str),
+                                PRIVS_TO_MERGE::DB);
+          break;
+        case TABLE_PRIV:
+        case COLUMN_PRIV:
+          propagate_role_grants(find_acl_role(user->user.str),
+                                PRIVS_TO_MERGE::TABLE_COLUMN);
+          break;
+        case PROXY_PRIV:
+          /* TODO(cvicentiu) figure out what needs to happen to roles when
+           * propagating deny proxy */
+          DBUG_ASSERT(0);
+          break;
+        case ROUTINE_PRIV:
+          /* TODO(cvicentiu) figure out if we need to call this twice and why. */
+          propagate_role_grants(find_acl_role(user->user.str),
+                                PRIVS_TO_MERGE::FUNC);
+          propagate_role_grants(find_acl_role(user->user.str),
+                                PRIVS_TO_MERGE::PROC);
+          DBUG_ASSERT(0);
+          break;
+        /* TODO(cvicentiu) what happens to PACKAGE_SPEC and PACKAGE_BODY
+         * and other kinds of grants? */
+        default:
+          /* TODO(cvicentiu) are we going to implement REVOKE DENY ALL? */
+          break;
+      }
+    }
+  }
+  DBUG_RETURN(result);
+}
+
+
+bool Sql_cmd_grant_table::execute_deny(THD *thd)
+{
+  Grant_tables tables;
+  bool result;
+  const bool no_auto_create_users= MY_TEST(thd->variables.sql_mode &
+                                           MODE_NO_AUTO_CREATE_USER);
+
+  Priv_spec priv_spec{m_gp.object_privilege(), is_revoke(), true};
+
+  privilege_t required_access= m_gp.object_privilege() |
+                               m_gp.column_privilege_total() |
+                               GRANT_ACL;
+
+  DBUG_ASSERT(thd->lex->first_select_lex()->table_list.first == NULL);
+
+  if (check_access(thd, required_access, m_gp.db().str, NULL, NULL, 1, 0))
+    return true;
+
+  if (grant_stage0(thd))
+    return true;
+
+
+  WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+
+  if (tables.open_and_lock(thd, Table_user, TL_WRITE))
+    return true;
+
+  mysql_rwlock_wrlock(&LOCK_grant);
+  mysql_mutex_lock(&acl_cache->lock);
+  grant_version++;
+
+  result= maria_deny(thd, tables.user_table(),
+                     m_resolved_users,
+                     priv_spec,
+                     m_create_new_users, no_auto_create_users);
+
+  mysql_mutex_unlock(&acl_cache->lock);
+  /* Write to binlog if statement succeeded. */
+  if (!result)
+    result= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+  mysql_rwlock_unlock(&LOCK_grant);
+
+  if (!result)
+    my_ok(thd);
+
+  return false;
+
+#ifdef WITH_WSREP
+wsrep_error_label:
+  return true;
+#endif // WITH_WSREP
+}
+
 bool Sql_cmd_grant_table::execute_grant_global(THD *thd)
 {
   Grant_tables tables;
   bool result;
   const bool no_auto_create_users= MY_TEST(thd->variables.sql_mode &
                                            MODE_NO_AUTO_CREATE_USER);
+
+  Priv_spec priv_spec{m_gp.object_privilege(), is_revoke(), m_deny};
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
@@ -13067,7 +13407,7 @@ bool Sql_cmd_grant_table::execute_grant_global(THD *thd)
   grant_version++;
   result= mysql_grant_global(thd, tables,
                              m_resolved_users,
-                             {m_gp.object_privilege(), is_revoke()},
+                             priv_spec,
                              m_create_new_users,
                              no_auto_create_users);
   mysql_mutex_unlock(&acl_cache->lock);
@@ -13126,6 +13466,8 @@ bool Sql_cmd_grant_table::execute_grant_database_or_global(THD *thd)
 bool Sql_cmd_grant_table::execute(THD *thd)
 {
   TABLE_LIST *table= thd->lex->first_select_lex()->table_list.first;
+  if (m_deny)
+    return execute_deny(thd);
   if (table)
     return execute_grant_table(thd, table);
   return execute_grant_database_or_global(thd);

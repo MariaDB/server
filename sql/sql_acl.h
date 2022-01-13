@@ -391,6 +391,7 @@ class Sql_cmd_grant_table: public Sql_cmd_grant_object
   bool execute_grant_global(THD *thd);
   bool execute_grant_database(THD *thd);
   bool execute_grant_table(THD *thd, TABLE_LIST *table);
+  bool execute_deny(THD *thd);
 #endif
 public:
   Sql_cmd_grant_table(enum_sql_command command, Grant_privilege &grant)
