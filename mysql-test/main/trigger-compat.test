@@ -289,3 +289,219 @@ DROP TRIGGER tr11;
 
 DROP TABLE t1;
 DROP TABLE t2;
+
+
+--echo #
+--echo # MDEV-25659 trigger name is empty after upgrade to 10.4
+--echo #
+
+--echo # START: Total triggers 1, broken triggers 1, DROP TABLE
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+
+--write_file $MYSQLD_DATADIR/test/tr1.TRN
+TYPE=TRIGGERNAME
+trigger_table=t1
+EOF
+
+--write_file $MYSQLD_DATADIR/test/t1.TRG
+TYPE=TRIGGERS
+triggers='CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER DELETE ON t1 FOR EACH ROW\nBEGIN\n  IF unknown_variable\n  THEN\n    INSERT INTO t2 VALUES (OLD.a);\n  END IF;\nEND'
+sql_modes=1411383296
+definers='root@localhost'
+client_cs_names='utf8'
+connection_cl_names='utf8_general_ci'
+db_cl_names='latin1_swedish_ci'
+created=164206218647
+EOF
+
+FLUSH TABLES;
+--error ER_PARSE_ERROR
+DELETE FROM t1 WHERE a=1;
+--error ER_PARSE_ERROR
+INSERT INTO t1 VALUES (2);
+
+SET time_zone='+00:00';
+--vertical_results
+SHOW TRIGGERS LIKE 't1';
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
+--horizontal_results
+SET time_zone=DEFAULT;
+
+--echo # Listing trigger files
+--list_files $MYSQLD_DATADIR/test *.TR?
+--echo # Listing trigger files done
+
+DROP TABLE t1;
+
+--echo # Listing trigger files
+--list_files $MYSQLD_DATADIR/test *.TR?
+--echo # Listing trigger files done
+
+--echo # END: Total triggers 1, broken triggers 1, DROP TABLE
+
+
+--echo # START: Total triggers 1, broken triggers 1, DROP TRIGGER
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+
+--write_file $MYSQLD_DATADIR/test/tr1.TRN
+TYPE=TRIGGERNAME
+trigger_table=t1
+EOF
+
+--write_file $MYSQLD_DATADIR/test/t1.TRG
+TYPE=TRIGGERS
+triggers='CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER DELETE ON t1 FOR EACH ROW\nBEGIN\n  IF unknown_variable\n  THEN\n    INSERT INTO t2 VALUES (OLD.a);\n  END IF;\nEND'
+sql_modes=1411383296
+definers='root@localhost'
+client_cs_names='utf8'
+connection_cl_names='utf8_general_ci'
+db_cl_names='latin1_swedish_ci'
+created=164206218647
+EOF
+
+FLUSH TABLES;
+--error ER_PARSE_ERROR
+DELETE FROM t1 WHERE a=1;
+--error ER_PARSE_ERROR
+INSERT INTO t1 VALUES (2);
+
+SET time_zone='+00:00';
+--vertical_results
+SHOW TRIGGERS LIKE 't1';
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
+--horizontal_results
+SET time_zone=DEFAULT;
+
+--echo # Listing trigger files
+--list_files $MYSQLD_DATADIR/test *.TR?
+--echo # Listing trigger files done
+
+DROP TRIGGER tr1;
+
+--echo # Listing trigger files
+--list_files $MYSQLD_DATADIR/test *.TR?
+--echo # Listing trigger files done
+
+DROP TABLE t1;
+
+--echo # END: Total triggers 1, broken triggers 1, DROP TRIGGER
+
+
+--echo # START: Total triggers 2, broken triggers 1, DROP TABLE
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+
+--write_file $MYSQLD_DATADIR/test/tr1.TRN
+TYPE=TRIGGERNAME
+trigger_table=t1
+EOF
+
+--write_file $MYSQLD_DATADIR/test/tr2.TRN
+TYPE=TRIGGERNAME
+trigger_table=t1
+EOF
+
+--write_file $MYSQLD_DATADIR/test/t1.TRG
+TYPE=TRIGGERS
+triggers='CREATE DEFINER=`root`@`localhost` TRIGGER tr2 AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NEW.a+100)' 'CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER DELETE ON t1 FOR EACH ROW\nBEGIN\n  IF unknown_variable\n  THEN\n    INSERT INTO t2 VALUES (OLD.a);\n  END IF;\nEND'
+sql_modes=1411383296 1411383296
+definers='root@localhost' 'root@localhost'
+client_cs_names='utf8' 'utf8'
+connection_cl_names='utf8_general_ci' 'utf8_general_ci'
+db_cl_names='latin1_swedish_ci' 'latin1_swedish_ci'
+created=164206810874 164206810873
+EOF
+
+FLUSH TABLES;
+--error ER_PARSE_ERROR
+DELETE FROM t1 WHERE a=1;
+--error ER_PARSE_ERROR
+INSERT INTO t1 VALUES (2);
+
+SET time_zone='+00:00';
+--vertical_results
+SHOW TRIGGERS LIKE 't1';
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
+--horizontal_results
+SET time_zone=DEFAULT;
+
+--echo # Listing trigger files
+--list_files $MYSQLD_DATADIR/test *.TR?
+--echo # Listing trigger files done
+
+DROP TABLE t1;
+
+--echo # Listing trigger files
+--list_files $MYSQLD_DATADIR/test *.TR?
+--echo # Listing trigger files done
+
+--echo # END: Total triggers 2, broken triggers 1, using DROP TABLE
+
+
+--echo # START: Total triggers 2, broken triggers 1, DROP TRIGGER
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+
+--write_file $MYSQLD_DATADIR/test/tr1.TRN
+TYPE=TRIGGERNAME
+trigger_table=t1
+EOF
+
+--write_file $MYSQLD_DATADIR/test/tr2.TRN
+TYPE=TRIGGERNAME
+trigger_table=t1
+EOF
+
+--write_file $MYSQLD_DATADIR/test/t1.TRG
+TYPE=TRIGGERS
+triggers='CREATE DEFINER=`root`@`localhost` TRIGGER tr2 AFTER INSERT ON t1 FOR EACH ROW INSERT INTO t2 VALUES (NEW.a+100)' 'CREATE DEFINER=`root`@`localhost` TRIGGER tr1 AFTER DELETE ON t1 FOR EACH ROW\nBEGIN\n  IF unknown_variable\n  THEN\n    INSERT INTO t2 VALUES (OLD.a);\n  END IF;\nEND'
+sql_modes=1411383296 1411383296
+definers='root@localhost' 'root@localhost'
+client_cs_names='utf8' 'utf8'
+connection_cl_names='utf8_general_ci' 'utf8_general_ci'
+db_cl_names='latin1_swedish_ci' 'latin1_swedish_ci'
+created=164206810874 164206810873
+EOF
+
+FLUSH TABLES;
+--error ER_PARSE_ERROR
+DELETE FROM t1 WHERE a=1;
+--error ER_PARSE_ERROR
+INSERT INTO t1 VALUES (2);
+
+SET time_zone='+00:00';
+--vertical_results
+SHOW TRIGGERS LIKE 't1';
+SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_NAME='tr1';
+--horizontal_results
+SET time_zone=DEFAULT;
+
+--echo # Listing trigger files
+--list_files $MYSQLD_DATADIR/test *.TR?
+--echo # Listing trigger files done
+
+DROP TRIGGER tr1;
+
+--echo # Listing trigger files
+--list_files $MYSQLD_DATADIR/test *.TR?
+--echo # Listing trigger files done
+
+# Now we dropped the broken trigger. Make sure the good one is fired.
+# If everything goes as expected, it will try to insert into t2,
+# which does not exists, hence the (expected) error.
+--error ER_NO_SUCH_TABLE
+INSERT INTO t1 VALUES (100);
+
+DROP TABLE t1;
+
+--echo # Listing trigger files
+--list_files $MYSQLD_DATADIR/test *.TR?
+--echo # Listing trigger files done
+
+--echo # END: Total triggers 2, broken triggers 1, using DROP TRIGGER
