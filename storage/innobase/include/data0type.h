@@ -531,6 +531,6 @@ struct dtype_t{
 					in bytes */
 };
 
-#include "data0type.ic"
+#include "data0type.inl"
 
 #endif

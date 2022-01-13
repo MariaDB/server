@@ -57,6 +57,6 @@ dict_table_open_on_id_low(
 						when loading the table */
 	ibool			open_only_if_in_cache);
 
-#include "dict0priv.ic"
+#include "dict0priv.inl"
 
 #endif /* dict0priv.h */

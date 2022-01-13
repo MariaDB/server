@@ -558,7 +558,7 @@ quite a large overhead. */
 					with the XA XID */
 /* @} */
 
-#include "trx0undo.ic"
+#include "trx0undo.inl"
 #endif /* !UNIV_INNOCHECKSUM */
 
 #endif

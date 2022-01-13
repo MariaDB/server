@@ -861,6 +861,6 @@ xdes_calc_descriptor_page(
 
 #endif /* UNIV_INNOCHECKSUM */
 
-#include "fsp0fsp.ic"
+#include "fsp0fsp.inl"
 
 #endif

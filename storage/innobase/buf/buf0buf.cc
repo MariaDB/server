@@ -38,7 +38,7 @@ Created 11/5/1995 Heikki Tuuri
 #include <string.h>
 
 #ifdef UNIV_NONINL
-#include "buf0buf.ic"
+#include "buf0buf.inl"
 #endif
 
 #ifndef UNIV_INNOCHECKSUM

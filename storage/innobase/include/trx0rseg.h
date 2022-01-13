@@ -246,6 +246,6 @@ struct trx_rseg_t {
 					/* Undo log segment slots */
 /*-------------------------------------------------------------*/
 
-#include "trx0rseg.ic"
+#include "trx0rseg.inl"
 
 #endif

@@ -1208,6 +1208,6 @@ struct commit_node_t{
 	mutex_exit(&t->mutex);			\
 } while (0)
 
-#include "trx0trx.ic"
+#include "trx0trx.inl"
 
 #endif

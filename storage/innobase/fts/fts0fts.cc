@@ -31,7 +31,7 @@ Full Text Search interface
 #include "fts0fts.h"
 #include "fts0priv.h"
 #include "fts0types.h"
-#include "fts0types.ic"
+#include "fts0types.inl"
 #include "fts0vlc.h"
 #include "fts0plugin.h"
 #include "dict0priv.h"

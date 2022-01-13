@@ -504,6 +504,6 @@ private:
 	lsn_t		m_commit_lsn;
 };
 
-#include "mtr0mtr.ic"
+#include "mtr0mtr.inl"
 
 #endif /* mtr0mtr_h */

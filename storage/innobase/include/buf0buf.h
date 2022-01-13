@@ -2408,7 +2408,7 @@ struct	CheckUnzipLRUAndLRUList {
 };
 #endif /* UNIV_DEBUG || defined UNIV_BUF_DEBUG */
 
-#include "buf0buf.ic"
+#include "buf0buf.inl"
 
 #endif /* !UNIV_INNOCHECKSUM */
 

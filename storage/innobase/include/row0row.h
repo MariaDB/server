@@ -409,6 +409,6 @@ row_mtr_start(mtr_t* mtr, dict_index_t* index, bool pessimistic)
 	log_free_check();
 }
 
-#include "row0row.ic"
+#include "row0row.inl"
 
 #endif

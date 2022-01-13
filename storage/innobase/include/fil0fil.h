@@ -1469,7 +1469,7 @@ UNIV_INTERN
 ulint
 fil_space_get_block_size(const fil_space_t* space, unsigned offset);
 
-#include "fil0fil.ic"
+#include "fil0fil.inl"
 #endif /* UNIV_INNOCHECKSUM */
 
 #endif /* fil0fil_h */

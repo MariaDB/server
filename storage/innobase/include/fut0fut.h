@@ -50,6 +50,6 @@ fut_get_ptr(
 	buf_block_t**		ptr_block = NULL)
 	MY_ATTRIBUTE((warn_unused_result));
 
-#include "fut0fut.ic"
+#include "fut0fut.inl"
 
 #endif /* fut0fut_h */

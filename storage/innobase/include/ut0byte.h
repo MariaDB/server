@@ -112,6 +112,6 @@ ut_bit_set_nth(
 	ulint	n,	/*!< in: nth bit requested */
 	ibool	val);	/*!< in: value for the bit to set */
 
-#include "ut0byte.ic"
+#include "ut0byte.inl"
 
 #endif

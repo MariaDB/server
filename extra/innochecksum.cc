@@ -73,9 +73,9 @@ typedef void fil_space_t;
 #include <string.h>
 
 #ifdef UNIV_NONINL
-# include "fsp0fsp.ic"
-# include "mach0data.ic"
-# include "ut0rnd.ic"
+# include "fsp0fsp.inl"
+# include "mach0data.inl"
+# include "ut0rnd.inl"
 #endif
 
 #ifndef PRIuMAX

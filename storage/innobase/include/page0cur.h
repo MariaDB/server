@@ -400,6 +400,6 @@ struct page_cur_t{
 	buf_block_t*	block;	/*!< pointer to the block containing rec */
 };
 
-#include "page0cur.ic"
+#include "page0cur.inl"
 
 #endif

@@ -449,6 +449,6 @@ struct que_fork_t{
 /* Flag which is ORed to control structure statement node types */
 #define QUE_NODE_CONTROL_STAT	1024
 
-#include "que0que.ic"
+#include "que0que.inl"
 
 #endif

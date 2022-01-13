@@ -34,7 +34,7 @@
 #include "sql_plugin.h"                         // Includes my_global.h
 #include "sql_priv.h"
 #include "sql_class.h"                          // set_var.h: THD
-#include "sys_vars.ic"
+#include "sys_vars.inl"
 
 #include "events.h"
 #include <thr_alarm.h>

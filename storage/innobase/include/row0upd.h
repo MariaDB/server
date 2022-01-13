@@ -583,6 +583,6 @@ struct upd_node_t{
 					changed in the update */
 
 
-#include "row0upd.ic"
+#include "row0upd.inl"
 
 #endif

@@ -59,6 +59,6 @@ fsp_flags_get_page_compression_level(
 /*=================================*/
 	ulint	flags);	/*!< in: tablespace flags */
 
-#include "fsp0pagecompress.ic"
+#include "fsp0pagecompress.inl"
 
 #endif
