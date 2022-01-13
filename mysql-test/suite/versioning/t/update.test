@@ -326,4 +326,14 @@ select *, check_row(row_start, row_end) from t2 for system_time all order by row
 # cleanup
 drop tables t1, t2, t3;
 
+--echo #
+--echo # MDEV-26778 row_start is not updated in current row for InnoDB
+--echo #
+create or replace table t1 (x int) with system versioning;
+insert t1 values (1);
+update t1 set x= 1;
+select row_start from t1 into @r;
+select check_row_ts(row_start, row_end) from t1 for system_time all where row_start = @r;
+drop table t1;
+
 source suite/versioning/common_finish.inc;

@@ -1665,7 +1665,9 @@ public:
   bool vers_check_update(List<Item> &items);
 
   int delete_row();
+  /* Used in majority of DML (called from fill_record()) */
   void vers_update_fields();
+  /* Used in DELETE, DUP REPLACE and insert history row */
   void vers_update_end();
 
 /** Number of additional fields used in versioned tables */

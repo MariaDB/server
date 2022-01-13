@@ -399,3 +399,14 @@ a	check_row(row_start, row_end)
 1	HISTORICAL ROW
 1	CURRENT ROW
 drop tables t1, t2, t3;
+#
+# MDEV-26778 row_start is not updated in current row for InnoDB
+#
+create or replace table t1 (x int) with system versioning;
+insert t1 values (1);
+update t1 set x= 1;
+select row_start from t1 into @r;
+select check_row_ts(row_start, row_end) from t1 for system_time all where row_start = @r;
+check_row_ts(row_start, row_end)
+CURRENT ROW
+drop table t1;

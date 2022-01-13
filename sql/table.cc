@@ -8147,14 +8147,18 @@ void TABLE::vers_update_fields()
     return;
   }
 
-  if (versioned(VERS_TIMESTAMP) &&
-      vers_start_field()->store_timestamp(in_use->query_start(),
-                                          in_use->query_start_sec_part()))
+  if (versioned(VERS_TIMESTAMP))
   {
-    DBUG_ASSERT(0);
+    if (vers_start_field()->store_timestamp(in_use->query_start(),
+                                          in_use->query_start_sec_part()))
+    {
+      DBUG_ASSERT(0);
+    }
+    vers_start_field()->set_has_explicit_value();
   }
 
   vers_end_field()->set_max();
+  vers_end_field()->set_has_explicit_value();
   bitmap_set_bit(read_set, vers_end_field()->field_index);
   file->column_bitmaps_signal();
   if (vfield)
@@ -8167,6 +8171,7 @@ void TABLE::vers_update_end()
   if (vers_end_field()->store_timestamp(in_use->query_start(),
                                         in_use->query_start_sec_part()))
     DBUG_ASSERT(0);
+  vers_end_field()->set_has_explicit_value();
 }
 
 /**
