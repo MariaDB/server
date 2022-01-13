@@ -35,6 +35,8 @@ class Select_limit_counters
 
    void set_limit(ha_rows limit, ha_rows offset)
    {
+      if (limit == 0)
+        offset= 0;
       offset_limit_cnt= offset;
       select_limit_cnt= limit;
       if (select_limit_cnt + offset_limit_cnt >=
