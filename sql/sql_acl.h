@@ -78,6 +78,8 @@ bool acl_reload(THD *thd);
 void acl_free(bool end=0);
 privilege_t acl_get_current_auth(Security_context *ctx, const char *db,
                                  bool db_is_pattern);
+privilege_t acl_get_effective_deny_mask(const Security_context *ctx,
+                                        const LEX_CSTRING &db={nullptr, 0});
 bool acl_authenticate(THD *thd, uint com_change_user_pkt_len);
 bool acl_getroot(Security_context *sctx, const char *user, const char *host,
                  const char *ip, const char *db);
@@ -101,7 +103,7 @@ bool check_grant_all_columns(THD *thd, privilege_t want_access,
 bool check_grant_routine(THD *thd, privilege_t want_access,
                          TABLE_LIST *procs, const Sp_handler *sph,
                          bool no_error);
-bool check_grant_db(Security_context *sctx, const char *db);
+bool check_grant_db(Security_context *sctx, const char *db, privilege_t db_deny_mask);
 bool check_global_access(THD *thd, const privilege_t want_access, bool no_errors= false);
 bool check_access(THD *thd, privilege_t want_access,
                   const char *db, privilege_t *save_priv,
