@@ -2149,11 +2149,14 @@ JOIN::optimize_inner()
       if (sel->having != having && having_value == Item::COND_OK)
         thd->change_item_tree(&sel->having, having);
     }
+    bool zero_limit= !unit->lim.get_select_limit() ||
+                     (unit->lim.get_select_limit() ==
+                      unit->lim.get_offset_limit());
+
     if (cond_value == Item::COND_FALSE || having_value == Item::COND_FALSE ||
-        (!unit->lim.get_select_limit() &&
-          !(select_options & OPTION_FOUND_ROWS)))
+        (zero_limit && !(select_options & OPTION_FOUND_ROWS)))
     {                                          /* Impossible cond */
-      if (unit->lim.get_select_limit())
+      if (!zero_limit)
       {
         DBUG_PRINT("info", (having_value == Item::COND_FALSE ?
                               "Impossible HAVING" : "Impossible WHERE"));
@@ -24304,7 +24307,16 @@ JOIN_TAB::remove_duplicates()
       field_count++;
   }
 
-  if (!field_count && !(join->select_options & OPTION_FOUND_ROWS) && !having) 
+  /*
+    If the select list does not have any non-constant items, then all rows
+    are identical. Adjust the LIMIT to just produce the first row.
+    Exceptions to this are:
+    - SQL_CALC_FOUND_ROWS
+    - when HAVING caluse is present (we'll need to check it)
+    - when there's a non-zero OFFSET clause
+  */
+  if (!field_count && !(join->select_options & OPTION_FOUND_ROWS) && !having &&
+      !join->unit->lim.get_offset_limit())
   {                    // only const items with no OPTION_FOUND_ROWS
     join->unit->lim.set_single_row();		// Only send first row
     DBUG_RETURN(false);
