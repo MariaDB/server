@@ -530,6 +530,7 @@ static struct show_privileges_st sys_privileges[]=
   {"Connection admin", "Server", "To bypass connection limits and kill other users' connections"},
   {"Read_only admin", "Server", "To perform write operations even if @@read_only=ON"},
   {"Usage","Server Admin","No privileges - allow connect only"},
+  {"Ignore denies", "Server Admin", "Deny statements have no effect on the user."},
   {NullS, NullS, NullS}
 };
 
