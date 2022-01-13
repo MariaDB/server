@@ -155,23 +155,68 @@ public:
     db{nullptr, 0}, table{nullptr, 0}, column{nullptr, 0}, routine{nullptr, 0}
   { }
 
+  Priv_spec(privilege_t access, bool revoke, LEX_CSTRING db, bool deny=false):
+    revoke{revoke}, deny{deny}, access{access},
+    spec_type{PRIV_TYPE::DATABASE_PRIV}, db{db},
+    table{nullptr, 0}, column{nullptr, 0}, routine{nullptr, 0}
+  { /* TODO(cvicentiu) hack */
+     if (!db.str)
+       spec_type= PRIV_TYPE::GLOBAL_PRIV;
+  }
 };
 
 
 class Deny_spec
 {
+  typedef std::pair<LEX_CSTRING, privilege_t> deny_entry;
   PRIV_TYPE specified_denies;
   privilege_t global_denies;
+  Hash_set<deny_entry> *db_denies;
+  //Dynamic_array<std::pair<LEX_CSTRING, privilege_t>> db_denies_wild;
 
+  static uchar * pair_first_key(const deny_entry *elem,
+                                size_t *elem_size,
+                                my_bool unused __attribute__((unused)))
+  {
+    *elem_size= elem->first.length;
+    return (uchar *)(elem->first.str);
+  }
+
+  static void free_deny_entry(void *ptr)
+  {
+    deny_entry *entry= static_cast<deny_entry *>(ptr);
+    my_free(const_cast<char *>(entry->first.str));
+    delete entry;
+  }
+
+  static deny_entry *get_hash_entry(const Hash_set<deny_entry> &hash,
+                                    const LEX_CSTRING &key)
+  {
+    return hash.find(key.str, key.length);
+  }
+  // TODO(cvicentiu) proxy denies.
 public:
-  Deny_spec() : specified_denies{NO_PRIV}, global_denies{NO_ACL} {}
+  Deny_spec() : specified_denies{NO_PRIV}, global_denies{NO_ACL},
+    db_denies{nullptr} {}
 
   ~Deny_spec()
   {
+    delete db_denies;
   }
 
   privilege_t get_global() const { return global_denies; }
   PRIV_TYPE get_specified_denies() const { return specified_denies; }
+
+  privilege_t get_db_deny(const LEX_CSTRING &db) const
+  {
+    deny_entry *res= nullptr;
+    if (db_denies && db.length)
+      res= db_denies->find(db.str, db.length);
+
+    if (!res)
+      return NO_ACL;
+    return res->second;
+  }
 
     /*
       {
@@ -202,7 +247,36 @@ public:
       s->append(v, vlen);
       append_comma= true;
     }
-    (void) append_comma; // TODO(cvicentiu) to be used for other deny types.
+    if (specified_denies & DATABASE_PRIV)
+    {
+      if (append_comma)
+        s->append(',');
+      s->append(STRING_WITH_LEN("\"db\":["));
+      for (size_t i= 0; i < db_denies->size(); i++)
+      {
+        const deny_entry *entry= db_denies->at(i);
+        char v[FLOATING_POINT_BUFFER + 1];
+        size_t vlen= longlong10_to_str(entry->second, v, -10) - v;
+        s->append(STRING_WITH_LEN("{\"name\":\""));
+
+        char buf[1500]; //TODO(cvicentiu) size...
+        int blen= json_escape(system_charset_info,
+                              (const uchar*)entry->first.str,
+                              (const uchar*)entry->first.str + entry->first.length,
+                              system_charset_info, // TODO(cvicentiu) table charset..
+                              (uchar*)buf, (uchar*)buf+sizeof(buf));
+        if (blen < 0)
+          return true;
+        s->append(buf, blen);
+        s->append(STRING_WITH_LEN("\",\"access\":"));
+        s->append(v, vlen);
+        if (i != db_denies->size() - 1)
+          s->append(STRING_WITH_LEN("},"));
+        else
+          s->append(STRING_WITH_LEN("}"));
+      }
+      s->append(']');
+    }
     s->append('}');
     return false;
   }
@@ -221,9 +295,52 @@ public:
       break;
     }
     case DATABASE_PRIV:
-      // TODO(cvicentiu)
-      DBUG_ASSERT(0);
+    {
+      deny_entry *entry= nullptr;
+      if (!db_denies)
+      {
+        db_denies= new Hash_set<deny_entry>(
+              PSI_INSTRUMENT_MEM, &my_charset_bin, 10, 0, 0,
+              (my_hash_get_key)pair_first_key,
+              free_deny_entry, HASH_UNIQUE);
+        if (!db_denies)
+          return true;
+      }
+      else
+        entry= get_hash_entry(*db_denies, priv_spec.db);
+      bool entry_exists= entry != nullptr;
+      if (!entry) /* No previous entry */
+      {
+
+        entry= new deny_entry();
+        if (!entry)
+          return true;
+        entry->first.str= my_strdup(PSI_INSTRUMENT_MEM, priv_spec.db.str, MYF(0));
+        if (!entry->first.str)
+        {
+          my_free(const_cast<char*>(entry->first.str));
+          delete entry;
+          return true;
+        }
+        entry->first.length= priv_spec.db.length;
+      }
+
+      if (priv_spec.revoke)
+        entry->second&= ~priv_spec.access;
+      else
+        entry->second|= priv_spec.access;
+
+      if (!entry_exists)
+      {
+        if (db_denies->insert(entry))
+        {
+          delete entry;
+          return true;
+        }
+      }
+
       break;
+    }
     case TABLE_PRIV:
       // TODO(cvicentiu)
       DBUG_ASSERT(0);
@@ -272,6 +389,80 @@ public:
 
       if (global_denies)
         specified_denies= GLOBAL_PRIV;
+    }
+
+    value_type= json_get_object_key(start, end, "db", &v, &int_vl);
+    if (value_type != JSV_ARRAY && value_type != JSV_NOTHING)
+      return true;
+
+    if (value_type != JSV_NOTHING)
+    {
+      const char *array_start= v;
+      const char *array_end= v + int_vl;
+      int idx= 0;
+
+      DBUG_ASSERT(!db_denies);
+      db_denies= new Hash_set<deny_entry>(
+            PSI_INSTRUMENT_MEM, &my_charset_bin, 10, 0, 0,
+            (my_hash_get_key)pair_first_key,
+            free_deny_entry, HASH_UNIQUE);
+
+      while (true)
+      {
+        const char *db_deny_obj_start;
+        int db_deny_obj_len;
+
+        const char *name_start;
+        int name_len;
+        const char *access_start;
+        int access_len;
+        const char *access_end;
+        privilege_t db_deny;
+
+        value_type= json_get_array_item(array_start, array_end, idx,
+                                        &db_deny_obj_start,
+                                        &db_deny_obj_len);
+        if (value_type == JSV_NOTHING)
+          break;
+        if (value_type != JSV_OBJECT)
+          return true;
+
+        value_type= json_get_object_key(db_deny_obj_start, end, "name",
+                                        &name_start, &name_len);
+        if (value_type != JSV_STRING)
+          return true;
+
+        value_type= json_get_object_key(db_deny_obj_start, end, "access",
+                                        &access_start, &access_len);
+        if (value_type != JSV_NUMBER)
+          return true;
+
+        access_end= access_start + access_len;
+        db_deny= static_cast<privilege_t>(
+            my_strtoll10(access_start, (char **)&access_end, &err));
+        if (err)
+          return true;
+
+        deny_entry *entry= new deny_entry();
+
+        if (!entry)
+          return true;
+
+        entry->first.str= my_strndup(PSI_INSTRUMENT_MEM, name_start,
+                                     static_cast<size_t>(name_len), MYF(0));
+        if (!entry->first.str)
+        {
+          delete entry;
+          return true;
+        }
+        entry->first.length= static_cast<size_t>(name_len);
+
+        entry->second= db_deny;
+        db_denies->insert(entry);
+        if (global_denies)
+          specified_denies|= DATABASE_PRIV;
+        idx++;
+      }
     }
     // TODO(cvicentiu) continue loading db denies and other json denies.
     return false;
@@ -4673,6 +4864,7 @@ privilege_t acl_get_effective_deny_mask(const Security_context *ctx,
   }
 
   result= acl_user->denies->get_global();
+  result|= acl_user->denies->get_db_deny(db);
 
   //TODO(cvicentiu) roles
   mysql_mutex_unlock(&acl_cache->lock);
