@@ -8230,9 +8230,14 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       def->invisible= INVISIBLE_SYSTEM;
       alter_info->flags|= ALTER_CHANGE_COLUMN;
       if (field->flags & VERS_ROW_START)
-        create_info->vers_info.as_row.start= def->field_name= Vers_parse_info::default_start;
+        create_info->vers_info.system_time.start=
+          create_info->vers_info.as_row.start=
+          def->field_name= Vers_parse_info::default_start;
+
       else
-        create_info->vers_info.as_row.end= def->field_name= Vers_parse_info::default_end;
+        create_info->vers_info.system_time.end=
+          create_info->vers_info.as_row.end=
+          def->field_name= Vers_parse_info::default_end;
       new_create_list.push_back(def, thd->mem_root);
       dropped_sys_vers_fields|= field->flags;
       drop_it.remove();
