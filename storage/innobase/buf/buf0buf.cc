@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -2949,9 +2949,12 @@ buf_page_get_gen(
 {
   if (buf_block_t *block= recv_sys.recover(page_id))
   {
-    ut_ad(!block->page.is_io_fixed());
     /* Recovery is a special case; we fix() before acquiring lock. */
-    const auto s= block->page.fix();
+    auto s= block->page.fix();
+    ut_ad(s >= buf_page_t::FREED);
+    /* The block may be write-fixed at this point because we are not
+    holding a lock, but it must not be read-fixed. */
+    ut_ad(s < buf_page_t::READ_FIX || s >= buf_page_t::WRITE_FIX);
     if (err)
       *err= DB_SUCCESS;
     const bool must_merge= allow_ibuf_merge &&
@@ -2963,7 +2966,10 @@ buf_page_get_gen(
              page_is_leaf(block->page.frame))
     {
       block->page.lock.x_lock();
-      if (block->page.is_freed())
+      s= block->page.state();
+      ut_ad(s > buf_page_t::FREED);
+      ut_ad(s < buf_page_t::READ_FIX);
+      if (s < buf_page_t::UNFIXED)
         ut_ad(mode == BUF_GET_POSSIBLY_FREED || mode == BUF_PEEK_IF_IN_POOL);
       else
       {
