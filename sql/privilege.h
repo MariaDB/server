@@ -757,5 +757,42 @@ static inline privilege_t get_rights_for_procedure(privilege_t access)
             ((A & GRANT_ACL) >> 8));
 }
 
+enum PRIV_TYPE
+{
+  NO_PRIV          = 0,
+  GLOBAL_PRIV      = (1 << 0),
+  DATABASE_PRIV    = (1 << 1),
+  TABLE_PRIV       = (1 << 2),
+  COLUMN_PRIV      = (1 << 3),
+  ROUTINE_PRIV     = (1 << 4),
+  PROXY_PRIV       = (1 << 5)
+};
 
+static inline constexpr PRIV_TYPE operator|(PRIV_TYPE a, PRIV_TYPE b)
+{
+  return static_cast<PRIV_TYPE>(static_cast<ulonglong>(a) |
+                                static_cast<ulonglong>(b));
+}
+
+static inline constexpr PRIV_TYPE operator|(PRIV_TYPE a, ulonglong b)
+{
+  return static_cast<PRIV_TYPE>(static_cast<ulonglong>(a) |
+                                static_cast<ulonglong>(b));
+}
+
+static inline constexpr PRIV_TYPE operator&(PRIV_TYPE a, PRIV_TYPE b)
+{
+  return static_cast<PRIV_TYPE>(static_cast<ulonglong>(a) &
+                                static_cast<ulonglong>(b));
+}
+
+static inline PRIV_TYPE& operator|=(PRIV_TYPE &a, PRIV_TYPE b)
+{
+  return a= a | b;
+}
+
+static inline PRIV_TYPE& operator&=(PRIV_TYPE &a, PRIV_TYPE b)
+{
+  return a= a & b;
+}
 #endif /* PRIVILEGE_H_INCLUDED */
