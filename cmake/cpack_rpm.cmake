@@ -144,6 +144,7 @@ SET(ignored
   "%ignore ${CMAKE_INSTALL_PREFIX}/lib/systemd/system"
   "%ignore ${CMAKE_INSTALL_PREFIX}/lib/tmpfiles.d"
   "%ignore ${CMAKE_INSTALL_PREFIX}/lib64"
+  "%ignore ${CMAKE_INSTALL_PREFIX}/lib64/pkgconfig"
   "%ignore ${CMAKE_INSTALL_PREFIX}/sbin"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/aclocal"
