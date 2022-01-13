@@ -1484,7 +1484,8 @@ class Security_context {
 public:
   Security_context()
    :master_access(NO_ACL),
-    db_access(NO_ACL)
+    db_access(NO_ACL),
+    denies_active(NO_PRIV)
   {}                      /* Remove gcc warning */
   /*
     host - host of the client
@@ -1505,8 +1506,10 @@ public:
   char   *external_user;
   /* points to host if host is available, otherwise points to ip */
   const char *host_or_ip;
-  privilege_t master_access;            /* Global privileges from mysql.user */
+  privilege_t master_access;            /* Global privileges from mysql.global_priv */
   privilege_t db_access;                /* Privileges for current db */
+  PRIV_TYPE denies_active;              /* Bitmap of what type of denies are active. */
+
 
   bool password_expired;
 

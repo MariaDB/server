@@ -1698,6 +1698,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
 
   Security_context *sctx= thd->security_ctx;
   privilege_t db_access(sctx->db_access);
+  privilege_t deny_mask= NO_ACL;
   CHARSET_INFO *db_default_cl;
   DBUG_ENTER("mysql_change_db");
 
@@ -1780,9 +1781,14 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
     db_access= sctx->master_access |
                  acl_get_current_auth(sctx, new_db_file_name.str, false);
 
+  if (sctx->denies_active)
+    deny_mask= acl_get_effective_deny_mask(sctx, new_db_file_name);
+  db_access&= ~deny_mask;
+
+  // TODO(cvicentiu) check how force_switch impacts denies.
   if (!force_switch &&
       !(db_access & DB_ACLS) &&
-      check_grant_db(thd->security_ctx, new_db_file_name.str))
+      check_grant_db(thd->security_ctx, new_db_file_name.str, deny_mask))
   {
     my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
              sctx->priv_user,

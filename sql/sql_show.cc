@@ -1406,7 +1406,8 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
     db_access= sctx->master_access |
                  acl_get_current_auth(sctx, dbname->str, false);
 
-  if (!(db_access & DB_ACLS) && check_grant_db(sctx, dbname->str))
+  // TODO(cvicentiu) Denies...
+  if (!(db_access & DB_ACLS) && check_grant_db(sctx, dbname->str, NO_ACL))
   {
     status_var_increment(thd->status_var.access_denied_errors);
     my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
@@ -5236,9 +5237,10 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     LEX_CSTRING *db_name= db_names.at(i);
     DBUG_ASSERT(db_name->length <= NAME_LEN);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
+    //TODO(cvicentiu) denies...
     if (!(check_access(thd, SELECT_ACL, db_name->str,
                        &thd->col_access, NULL, 0, 1) ||
-          (!thd->col_access && check_grant_db(sctx, db_name->str))) ||
+          (!thd->col_access && check_grant_db(sctx, db_name->str, NO_ACL))) ||
         sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
         acl_get_current_auth(sctx, db_name->str, false))
 #endif
@@ -5430,9 +5432,13 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
       continue;
     }
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    if (sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
-        acl_get_current_auth(sctx, db_name->str, false) ||
-        !check_grant_db(sctx, db_name->str))
+    privilege_t deny_mask= NO_ACL;
+    if (sctx->denies_active)
+      deny_mask= acl_get_effective_deny_mask(sctx, *db_name);
+
+    if ((sctx->master_access & ~deny_mask) & (DB_ACLS | SHOW_DB_ACL) ||
+        (acl_get_current_auth(sctx, db_name->str, false) & ~deny_mask)||
+        !check_grant_db(sctx, db_name->str, deny_mask))
 #endif
     {
       load_db_opt_by_name(thd, db_name->str, &create);
