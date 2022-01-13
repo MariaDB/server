@@ -4082,11 +4082,10 @@ int ha_partition::start_stmt(THD *thd, thr_lock_type lock_type)
        i= bitmap_get_next_set(&m_part_info->lock_partitions, i))
   {
     if (unlikely((error= m_file[i]->start_stmt(thd, lock_type))))
-      break;
+      DBUG_RETURN(error);
     /* Add partition to be called in reset(). */
     bitmap_set_bit(&m_partitions_to_reset, i);
   }
-  // FIXME: check error?
   switch (lock_type)
   {
   case TL_WRITE_ALLOW_WRITE:
