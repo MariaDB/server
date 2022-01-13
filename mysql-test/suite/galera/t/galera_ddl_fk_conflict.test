@@ -17,14 +17,6 @@ SET SESSION wsrep_sync_wait=0;
 --connection node_1b
 SET SESSION wsrep_sync_wait=0;
 
---let $table_admin_command = OPTIMIZE
---source galera_ddl_fk_conflict.inc
---source galera_ddl_fk_conflict_with_tmp.inc
-
---let $table_admin_command = REPAIR
---source galera_ddl_fk_conflict.inc
---source galera_ddl_fk_conflict_with_tmp.inc
-
 --let $table_admin_command = ALTER
 --let $table_admin_command_end = ENGINE=INNODB
 --source galera_ddl_fk_conflict.inc
