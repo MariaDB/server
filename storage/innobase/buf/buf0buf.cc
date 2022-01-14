@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -2499,6 +2499,11 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr,
       mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
       rw_lock_x_lock_inline(&block->lock, 0, file, line);
       buf_block_dbg_add_level(block, SYNC_NO_ORDER_CHECK);
+
+#ifdef BTR_CUR_HASH_ADAPT
+      if (block->index)
+        btr_search_drop_page_hash_index(block);
+#endif /* BTR_CUR_HASH_ADAPT */
 
       block->page.status= buf_page_t::FREED;
       return;
