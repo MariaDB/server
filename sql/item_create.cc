@@ -3152,7 +3152,7 @@ Create_func_crc32::create_native(THD *thd, LEX_CSTRING *name,
   }
 
   return arg2
-    ? new (thd->mem_root) Item_func_crc32(thd, false, arg2, arg1)
+    ? new (thd->mem_root) Item_func_crc32(thd, false, arg1, arg2)
     : new (thd->mem_root) Item_func_crc32(thd, false, arg1);
 }
 
@@ -3181,7 +3181,7 @@ Create_func_crc32c::create_native(THD *thd, LEX_CSTRING *name,
   }
 
   return arg2
-    ? new (thd->mem_root) Item_func_crc32(thd, true, arg2, arg1)
+    ? new (thd->mem_root) Item_func_crc32(thd, true, arg1, arg2)
     : new (thd->mem_root) Item_func_crc32(thd, true, arg1);
 }
 

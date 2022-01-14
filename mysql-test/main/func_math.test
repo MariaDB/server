@@ -859,6 +859,12 @@ SELECT CRC32('MariaDB',NULL),CRC32C('MariaDB',NULL);
 SELECT CRC32(CRC32('MySQL'),''),CRC32(CRC32('My'),'SQL'),CRC32(0,'MySQL');
 SELECT CRC32C(CRC32C('MariaDB'),''),CRC32C(CRC32C('Maria'),'DB'),CRC32C(0,'MariaDB');
 
+CREATE TEMPORARY TABLE t
+(a CHAR(2), i INT UNSIGNED, c INT UNSIGNED AS (CRC32C(i,a)));
+INSERT INTO t (a,i) VALUES ('DB',CRC32C('Maria'));
+SELECT * FROM t;
+DROP TEMPORARY TABLE t;
+
 # Test cases for using the function in aggregate functions, group-by, having
 # and order-by clauses
 DROP TABLE IF EXISTS t;

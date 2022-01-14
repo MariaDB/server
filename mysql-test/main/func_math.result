@@ -1859,6 +1859,7 @@ Warnings:
 Warning	1292	Truncated incorrect INTEGER value: '5c'
 Warning	1292	Truncated incorrect INTEGER value: '5c'
 Warning	1292	Truncated incorrect INTEGER value: '5c'
+Warning	1292	Truncated incorrect INTEGER value: '5c'
 SELECT CRC32C('5c',''),CRC32C('5c',0),CRC32C('5c', '0'),CRC32C('5c',NULL);
 CRC32C('5c','')	CRC32C('5c',0)	CRC32C('5c', '0')	CRC32C('5c',NULL)
 5	1466896124	1466896124	NULL
@@ -1866,15 +1867,26 @@ Warnings:
 Warning	1292	Truncated incorrect INTEGER value: '5c'
 Warning	1292	Truncated incorrect INTEGER value: '5c'
 Warning	1292	Truncated incorrect INTEGER value: '5c'
+Warning	1292	Truncated incorrect INTEGER value: '5c'
 SELECT CRC32('MariaDB',NULL),CRC32C('MariaDB',NULL);
 CRC32('MariaDB',NULL)	CRC32C('MariaDB',NULL)
 NULL	NULL
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: 'MariaDB'
+Warning	1292	Truncated incorrect INTEGER value: 'MariaDB'
 SELECT CRC32(CRC32('MySQL'),''),CRC32(CRC32('My'),'SQL'),CRC32(0,'MySQL');
 CRC32(CRC32('MySQL'),'')	CRC32(CRC32('My'),'SQL')	CRC32(0,'MySQL')
 3259397556	3259397556	3259397556
 SELECT CRC32C(CRC32C('MariaDB'),''),CRC32C(CRC32C('Maria'),'DB'),CRC32C(0,'MariaDB');
 CRC32C(CRC32C('MariaDB'),'')	CRC32C(CRC32C('Maria'),'DB')	CRC32C(0,'MariaDB')
 809606978	809606978	809606978
+CREATE TEMPORARY TABLE t
+(a CHAR(2), i INT UNSIGNED, c INT UNSIGNED AS (CRC32C(i,a)));
+INSERT INTO t (a,i) VALUES ('DB',CRC32C('Maria'));
+SELECT * FROM t;
+a	i	c
+DB	1253907744	809606978
+DROP TEMPORARY TABLE t;
 DROP TABLE IF EXISTS t;
 Warnings:
 Note	1051	Unknown table 'test.t'

@@ -4378,20 +4378,27 @@ longlong Item_func_crc32::val_int()
 {
   DBUG_ASSERT(fixed());
   DBUG_ASSERT(arg_count == 1 || arg_count == 2);
-  String *res=args[0]->val_str(&value);
+  String *res;
+  longlong crc;
+  if (arg_count > 1)
+  {
+    crc= args[0]->val_int();
+    null_value= args[0]->null_value;
+    if (null_value)
+      return 0;
+    res= args[1]->val_str(&value);
+  }
+  else
+  {
+    crc= 0;
+    null_value= 0;
+    res= args[0]->val_str(&value);
+  }
+
   if (!res)
   {
     null_value=1;
     return 0; /* purecov: inspected */
-  }
-  null_value=0;
-  longlong crc= 0;
-  if (arg_count > 1)
-  {
-    crc= args[1]->val_int();
-    null_value= args[1]->null_value;
-    if (null_value)
-      return 0;
   }
 
   return static_cast<longlong>
