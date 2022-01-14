@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -61,6 +61,24 @@ C_MODE_END
 #include "fmt/format-inl.h"
 
 size_t username_char_length= USERNAME_CHAR_LENGTH;
+
+/**
+  Issue a warning for an out-of-bounds INT UNSIGNED value.
+*/
+
+ATTRIBUTE_COLD static void uint32_truncate_warning(longlong val, bool unsigned_flag)
+{
+  char value[21];
+  if (unsigned_flag)
+    snprintf(value, sizeof value, "%llu", static_cast<ulonglong>(val));
+  else
+    snprintf(value, sizeof value, "%lld", val);
+  THD *thd= current_thd;
+  push_warning_printf(thd,
+                      Sql_condition::WARN_LEVEL_WARN,
+                      ER_DATA_TRUNCATED, ER_THD(thd, ER_DATA_TRUNCATED),
+                      value, "INT UNSIGNED");
+}
 
 /*
   Calculate max length of string from length argument to LEFT and RIGHT
@@ -4386,6 +4404,8 @@ longlong Item_func_crc32::val_int()
     null_value= args[0]->null_value;
     if (null_value)
       return 0;
+    if (unlikely(crc != longlong{static_cast<uint32_t>(crc)}))
+      uint32_truncate_warning(crc, args[0]->unsigned_flag);
     res= args[1]->val_str(&value);
   }
   else
