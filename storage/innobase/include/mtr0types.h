@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -115,13 +115,9 @@ If same_page=1 is set in a record that follows a same_page=0 record
 in a mini-transaction, the tablespace identifier and page number
 fields will be omitted.
 
-(For some file-oriented records (if same_page=1 for the first records
-of a mini-transaction), we will write tablespace identifier using the
-same 1-to-5-byte encoding. TBD: describe the exact format of
-file-oriented records. With MDEV-14425, we could write file-level log
-records to a separate file, not interleaved with page-level redo log
-at all. We could reserve the file ib_logfile0 for checkpoint information
-and for file-level redo log records.)
+For FILE_ records (if same_page=1 for the first record
+of a mini-transaction), we will write a tablespace identifier and
+a page number (always 0) using the same 1-to-5-byte encoding.
 
 For FREE_PAGE or INIT_PAGE, if same_page=1, the record will be treated
 as corrupted (or reserved for future extension).  The type code must
@@ -304,18 +300,14 @@ enum mfile_type_t
   FILE_RENAME = 0xa0,
   /** Modify a file. Followed by tablespace ID and the file name. */
   FILE_MODIFY = 0xb0,
-#if 1 /* MDEV-14425 FIXME: Remove this! */
   /** End-of-checkpoint marker. Followed by 2 dummy bytes of page identifier,
   8 bytes of LSN, and padded with a NUL; @see SIZE_OF_FILE_CHECKPOINT. */
   FILE_CHECKPOINT = 0xf0
-#endif
 };
 
-#if 1 /* MDEV-14425 FIXME: Remove this! */
 /** Size of a FILE_CHECKPOINT record, including the trailing byte to
 terminate the mini-transaction. */
 constexpr byte SIZE_OF_FILE_CHECKPOINT= 3/*type,page_id*/ + 8/*LSN*/ + 1;
-#endif
 
 #ifndef UNIV_INNOCHECKSUM
 /** Types for the mlock objects to store in the mtr_t::m_memo */
