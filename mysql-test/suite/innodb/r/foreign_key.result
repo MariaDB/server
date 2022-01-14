@@ -897,6 +897,29 @@ create or replace table t1 (a varchar(4096) unique) engine=innodb;
 create or replace table t2 (pk int primary key, a varchar(4096) unique, foreign key(a) references t1(a) on update cascade) engine=innodb;
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 drop table t1;
+#
+# MDEV-26824 Can't add foreign key with empty referenced columns list
+#
+create table t2(a int primary key) engine=innodb;
+create table t1(a int primary key, b int) engine=innodb;
+alter table t2 add foreign key(a) references t1(a, b);
+ERROR 42000: Incorrect foreign key definition for 'foreign key without name': Key reference and table reference don't match
+create or replace table t1(a tinyint primary key) engine innodb;
+alter table t2 add foreign key(a) references t1;
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+create or replace table t1(b int primary key) engine innodb;
+alter table t2 add foreign key(a) references t1;
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+create or replace table t1(a int primary key, b int) engine innodb;
+alter table t2 add foreign key(a) references t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) NOT NULL,
+  PRIMARY KEY (`a`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t1` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+drop tables t2, t1;
 # End of 10.5 tests
 #
 # MDEV-26554 Table-rebuilding DDL on parent table causes crash
