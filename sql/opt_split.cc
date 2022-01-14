@@ -1091,7 +1091,7 @@ bool JOIN::inject_best_splitting_cond(table_map remaining_tables)
   if (inj_cond)
     inj_cond->fix_fields(thd,0);
 
-  if (inject_cond_into_where(inj_cond))
+  if (inject_cond_into_where(inj_cond->copy_andor_structure(thd)))
     return true;
 
   select_lex->uncacheable|= UNCACHEABLE_DEPENDENT_INJECTED;
