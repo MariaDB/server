@@ -374,23 +374,23 @@ test	t1	f	1	5	0.2000	6.4000	4	JSON_HB	{
   "collected_by": "REPLACED",
   "histogram_hb": [
     {
-      "start": "\u0001",
+      "start_hex": "01",
       "size": 0.28125,
       "ndv": 2
     },
     {
-      "start": "\u0002",
+      "start_hex": "02",
       "size": 0.28125,
       "ndv": 2
     },
     {
-      "start": "\u0004",
+      "start_hex": "04",
       "size": 0.3125,
       "ndv": 1
     },
     {
-      "start": "\u0005",
-      "end": "\u0005",
+      "start_hex": "05",
+      "end_hex": "05",
       "size": 0.125,
       "ndv": 1
     }
@@ -586,28 +586,28 @@ test	t1	f	1	5	0.2000	6.4000	5	JSON_HB	{
   "collected_by": "REPLACED",
   "histogram_hb": [
     {
-      "start": "\u0001",
+      "start_hex": "01",
       "size": 0.125,
       "ndv": 1
     },
     {
-      "start": "\u0002",
+      "start_hex": "02",
       "size": 0.25,
       "ndv": 1
     },
     {
-      "start": "\u0003",
+      "start_hex": "03",
       "size": 0.1875,
       "ndv": 1
     },
     {
-      "start": "\u0004",
+      "start_hex": "04",
       "size": 0.3125,
       "ndv": 1
     },
     {
-      "start": "\u0005",
-      "end": "\u0005",
+      "start_hex": "05",
+      "end_hex": "05",
       "size": 0.125,
       "ndv": 1
     }
@@ -8283,4 +8283,42 @@ test.t1	analyze	status	OK
 analyze select f from t1 where f in (77, 1, 144, 73, 14, 12);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	20	20.00	10.00	10.00	Using where
+drop table t1;
+#
+# Test that histograms over BIT fields use hex
+#
+create table t1 (a BIT(64));
+insert into t1 values 
+(x'01'),(x'10'),(x'BE562B1A99001918');
+set histogram_type= JSON_HB;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select histogram
+from mysql.column_stats where table_name='t1' and db_name=database();
+histogram
+{
+  "target_histogram_size": 254,
+  "collected_at": "REPLACED",
+  "collected_by": "REPLACED",
+  "histogram_hb": [
+    {
+      "start_hex": "0000000000000001",
+      "size": 0.333333333,
+      "ndv": 1
+    },
+    {
+      "start_hex": "0000000000000010",
+      "size": 0.333333333,
+      "ndv": 1
+    },
+    {
+      "start_hex": "BE562B1A99001918",
+      "end_hex": "BE562B1A99001918",
+      "size": 0.333333333,
+      "ndv": 1
+    }
+  ]
+}
 drop table t1;

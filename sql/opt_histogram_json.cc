@@ -122,6 +122,12 @@ class Histogram_json_builder : public Histogram_builder
   /* Number of the buckets already collected */
   uint n_buckets_collected;
 
+  /*
+    TRUE means do not try to represent values as UTF-8 text in histogram
+    storage. Use start_hex/end_hex for all values.
+  */
+  bool force_binary;
+
   /* Data about the bucket we are filling now */
   struct CurBucket
   {
@@ -135,6 +141,7 @@ class Histogram_json_builder : public Histogram_builder
 
   /* Used to create the JSON representation of the histogram. */
   Json_writer writer;
+
 public:
 
   Histogram_json_builder(Histogram_json_hb *hist, Field *col, uint col_len,
@@ -155,6 +162,7 @@ public:
     n_buckets_collected= 0;
     bucket.ndv= 0;
     bucket.size= 0;
+    force_binary= (col->type() == MYSQL_TYPE_BIT);
 
     writer.start_object();
     append_histogram_params();
@@ -244,12 +252,16 @@ private:
 
     // Escape the value for JSON
     StringBuffer<MAX_FIELD_WIDTH> escaped_val;
-    int rc= json_escape_to_string(str, &escaped_val);
-    if (!rc)
+    int rc= JSON_ERROR_ILLEGAL_SYMBOL;
+    if (!force_binary)
     {
-      writer.add_member(is_start? "start": "end");
-      writer.add_str(escaped_val.c_ptr_safe());
-      return false;
+      rc= json_escape_to_string(str, &escaped_val);
+      if (!rc)
+      {
+        writer.add_member(is_start? "start": "end");
+        writer.add_str(escaped_val.c_ptr_safe());
+        return false;
+      }
     }
     if (rc == JSON_ERROR_ILLEGAL_SYMBOL)
     {
