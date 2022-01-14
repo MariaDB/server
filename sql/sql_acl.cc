@@ -3008,34 +3008,6 @@ check_access(THD *thd, privilege_t want_access,
     }
   }
 
-  if ((sctx->master_access & want_access) == want_access)
-  {
-    /*
-      1. If we don't have a global SELECT privilege, we have to get the
-      database specific access rights to be able to handle queries of type
-      UPDATE t1 SET a=1 WHERE b > 0
-      2. Change db access if it isn't current db which is being addressed
-    */
-    if (!(sctx->master_access & SELECT_ACL))
-    {
-      if (db && (!thd->db.str || db_is_pattern || strcmp(db, thd->db.str)))
-        db_access= acl_get_current_auth(sctx, db, db_is_pattern);
-      else
-      {
-        /* get access for current db */
-        db_access= sctx->db_access;
-      }
-      /*
-        The effective privileges are the union of the global privileges
-        and the intersection of db- and host-privileges,
-        plus the internal privileges.
-      */
-      *save_priv|= sctx->master_access | db_access;
-    }
-    else
-      *save_priv|= sctx->master_access;
-    DBUG_RETURN(FALSE);
-  }
   if (unlikely(((want_access & ~sctx->master_access) & ~DB_ACLS) ||
                (! db && dont_check_global_grants)))
   {						// We can never grant this
@@ -3062,10 +3034,31 @@ check_access(THD *thd, privilege_t want_access,
     DBUG_RETURN(FALSE);
   }
 
+  /*
+    Shortcut to not check database specific access rights. One caveat:
+      If we don't have a global SELECT privilege, we have to get the
+      database specific access rights to be able to handle queries of type
+      UPDATE t1 SET a=1 WHERE b > 0
+      In that case the shortcut won't work.
+  */
+  if ((sctx->master_access & want_access) == want_access &&
+      (sctx->master_access & SELECT_ACL))
+  {
+    *save_priv|= sctx->master_access;
+    DBUG_RETURN(FALSE);
+  }
+
+  /*
+     Use sctx->db_access cache if the database we are checking access on
+     matches the current database we are "connected" to.
+
+     Otherwise compute the effective database rights.
+  */
   if (db && (!thd->db.str || db_is_pattern || strcmp(db, thd->db.str)))
     db_access= acl_get_current_auth(sctx, db, db_is_pattern);
   else
     db_access= sctx->db_access;
+
   DBUG_PRINT("info",("db_access: %llx  want_access: %llx",
                      (longlong) db_access, (longlong) want_access));
 
@@ -3073,7 +3066,7 @@ check_access(THD *thd, privilege_t want_access,
     Save the union of User-table and the intersection between Db-table and
     Host-table privileges, with the already saved internal privileges.
   */
-  db_access= (db_access | sctx->master_access);
+  db_access|= sctx->master_access;
   *save_priv|= db_access;
 
   /*
