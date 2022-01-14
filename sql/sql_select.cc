@@ -24407,7 +24407,22 @@ bool JOIN::rollup_make_fields(List<Item> &fields_arg, List<Item> &sel_fields,
             null_item->result_field= item->get_tmp_table_field();
             item= null_item;
 	    break;
-	  }
+          }
+          else
+          {
+             if(group_tmp->item_ptr->type() != Item::FIELD_ITEM &&
+                item->type() == Item::FIELD_ITEM &&
+                item->eq(group_tmp->item_ptr->next,0))
+             {
+                Item_null_result *null_item= new (thd->mem_root) Item_null_result(thd);
+                if (!null_item)
+                  return 1;
+                item->maybe_null= 1;          // Value will be null sometimes
+                null_item->result_field= item->get_tmp_table_field();
+                item= null_item;
+                break;
+             }
+          }
 	}
       }
       ref_array_start[ref_array_ix]= item;
