@@ -865,10 +865,12 @@ INSERT INTO t (a,i) VALUES ('DB',CRC32C('Maria'));
 SELECT * FROM t;
 DROP TEMPORARY TABLE t;
 
-SELECT
-crc32(429496729656755555555555555555555555555555555555555555555555555555555555555555555555555,'') a,
-crc32c(429496729656755555555555555555555555555555555555555555555555555555555555555555555555555,'') b,
-crc32(-1, '') c, crc32c(-1, '') d;
+select crc32(4294967296,''), hex(char(4294967296));
+select crc32(1e100,''), hex(char(1e100));
+select crc32(10.11,''), hex(char(10.11));
+select crc32(-1,''), hex(char(-1));
+select crc32('',''), hex(char(''));
+select crc32(429496729656755555555555555555555555555555555555555555555555555555555555555555555555555,'a') as x;
 
 # Test cases for using the function in aggregate functions, group-by, having
 # and order-by clauses
