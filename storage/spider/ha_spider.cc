@@ -375,6 +375,7 @@ int ha_spider::open(
     uchar *rnd_read_bitmap;
     uchar *rnd_write_bitmap;
     if (!(wide_handler = (SPIDER_WIDE_HANDLER *)
+#ifdef WITH_PARTITION_STORAGE_ENGINE
       spider_bulk_malloc(spider_current_trx, 16, MYF(MY_WME | MY_ZEROFILL),
         &wide_handler, sizeof(SPIDER_WIDE_HANDLER),
         &searched_bitmap,
@@ -391,11 +392,29 @@ int ha_spider::open(
           (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
         &rnd_write_bitmap,
           (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
-#ifdef WITH_PARTITION_STORAGE_ENGINE
         &partition_handler,
           (uint) sizeof(SPIDER_PARTITION_HANDLER),
+        NullS)
+#else
+      spider_bulk_malloc(spider_current_trx, 16, MYF(MY_WME | MY_ZEROFILL),
+        &wide_handler, sizeof(SPIDER_WIDE_HANDLER),
+        &searched_bitmap,
+          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+        &ft_discard_bitmap,
+          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+        &position_bitmap,
+          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+        &idx_read_bitmap,
+          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+        &idx_write_bitmap,
+          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+        &rnd_read_bitmap,
+          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+        &rnd_write_bitmap,
+          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
+        NullS)
 #endif
-        NullS))
+        )
     ) {
       error_num = HA_ERR_OUT_OF_MEM;
       goto error_wide_handler_alloc;
