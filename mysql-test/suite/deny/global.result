@@ -18,6 +18,8 @@ sys
 test
 grant select (secret) on deny_db.t1 to foo;
 connect  con1,localhost,foo,,;
+select * from deny_db2.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
 show databases;
 Database
 deny_db
@@ -70,15 +72,18 @@ use information_schema;
 use deny_db;
 ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
 select * from deny_db.t1;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
 select c from deny_db.t1;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
 select c from deny_db.t2;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
 select c from deny_db.t_not_exists;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't_not_exists'
 select secret from deny_db.t1;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+#
+# Grant table access then test deny.
+#
 connection default;
 grant select on deny_db.t1 to foo;
 connection con1;
@@ -90,15 +95,18 @@ use information_schema;
 use deny_db;
 ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
 select * from deny_db.t1;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
 select c from deny_db.t1;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
 select c from deny_db.t2;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
 select c from deny_db.t_not_exists;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't_not_exists'
 select secret from deny_db.t1;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+#
+# Grant database access then test deny.
+#
 connection default;
 grant select on deny_db.* to foo;
 connection con1;
@@ -110,15 +118,18 @@ use information_schema;
 use deny_db;
 ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
 select * from deny_db.t1;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
 select c from deny_db.t1;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
 select c from deny_db.t2;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
 select c from deny_db.t_not_exists;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't_not_exists'
 select secret from deny_db.t1;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+#
+# Grant global access then test deny.
+#
 connection default;
 grant select on *.* to foo;
 connection con1;
@@ -130,15 +141,15 @@ use information_schema;
 use deny_db;
 ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
 select * from deny_db.t1;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
 select c from deny_db.t1;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
 select c from deny_db.t2;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
 select c from deny_db.t_not_exists;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't_not_exists'
 select secret from deny_db.t1;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
 connection default;
 #
 # Test underlying data loading.
@@ -166,15 +177,15 @@ use information_schema;
 use deny_db;
 ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
 select * from deny_db.t1;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
 select c from deny_db.t1;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
 select c from deny_db.t2;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't2'
 select c from deny_db.t_not_exists;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't_not_exists'
 select secret from deny_db.t1;
-ERROR 42000: Access denied for user 'foo'@'%' to database 'deny_db'
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
 disconnect con1;
 connection default;
 #

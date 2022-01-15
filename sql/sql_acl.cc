@@ -3135,6 +3135,7 @@ check_access(THD *thd, privilege_t want_access,
   bool  db_is_pattern= ((want_access & GRANT_ACL) && dont_check_global_grants);
   privilege_t dummy(NO_ACL);
   privilege_t deny_mask(NO_ACL);
+  privilege_t masked_access(NO_ACL);
   DBUG_ENTER("check_access");
   DBUG_PRINT("enter",("db: %s  want_access: %llx  master_access: %llx",
                       db ? db : "",
@@ -3149,19 +3150,6 @@ check_access(THD *thd, privilege_t want_access,
     dummy= NO_ACL;
   }
 
-  if (sctx->denies_active & (GLOBAL_PRIV | DATABASE_PRIV))
-  {
-    /* TODO(cvicentiu) handle db level denies. */
-    deny_mask= acl_get_effective_deny_mask(sctx, {db, db ? strlen(db) : 0});
-    /* Shortcut, to prevent checking if denies already revoke access. */
-    if ((want_access & deny_mask) )
-    {
-      my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
-               sctx->priv_user, sctx->priv_host, db);
-      DBUG_RETURN(true);
-    }
-  }
-
   /* check access may be called twice in a row. Don't change to same stage */
   if (thd->proc_info != stage_checking_permissions.m_name)
     THD_STAGE_INFO(thd, stage_checking_permissions);
@@ -3169,6 +3157,13 @@ check_access(THD *thd, privilege_t want_access,
   {
     DBUG_RETURN(FALSE); // CTE reference or an error later
   }
+
+  if (sctx->denies_active & (GLOBAL_PRIV | DATABASE_PRIV))
+  {
+    /* TODO(cvicentiu) handle db level denies. */
+    deny_mask= acl_get_effective_deny_mask(sctx, {db, db ? strlen(db) : 0});
+  }
+  masked_access= sctx->master_access & ~deny_mask;
 
   if (likely((db != NULL) && (db != any_db.str)))
   {
@@ -3178,6 +3173,7 @@ check_access(THD *thd, privilege_t want_access,
     */
     const ACL_internal_schema_access *access;
     access= get_cached_schema_access(grant_internal_info, db);
+    /* TODO(cvicentiu) this needs to handle denies. */
     if (access)
     {
       switch (access->check(want_access, save_priv))
@@ -3207,8 +3203,7 @@ check_access(THD *thd, privilege_t want_access,
     }
   }
 
-  if (unlikely(((want_access & ~sctx->master_access) & ~DB_ACLS) ||
-               (! db && dont_check_global_grants)))
+  if (unlikely(((want_access & ~masked_access) & ~DB_ACLS) != NO_ACL))
   {						// We can never grant this
     DBUG_PRINT("error",("No possible access"));
     if (!no_errors)
@@ -3240,10 +3235,10 @@ check_access(THD *thd, privilege_t want_access,
       UPDATE t1 SET a=1 WHERE b > 0
       In that case the shortcut won't work.
   */
-  if ((sctx->master_access & want_access) == want_access &&
-      (sctx->master_access & SELECT_ACL))
+  if ((masked_access & want_access) == want_access &&
+      (masked_access & SELECT_ACL))
   {
-    *save_priv|= sctx->master_access;
+    *save_priv|= masked_access;
     DBUG_RETURN(FALSE);
   }
 
@@ -3263,17 +3258,19 @@ check_access(THD *thd, privilege_t want_access,
 
   /*
     Save the union of User-table and the intersection between Db-table and
-    Host-table privileges, with the already saved internal privileges.
+    Host-table privileges, masked with the deny mask,
+    with the already saved internal privileges.
+    TODO(cvicentiu) denies for internal privileges?
   */
-  db_access|= sctx->master_access;
-  *save_priv|= db_access;
+  masked_access|= db_access & ~deny_mask;
+  *save_priv|= masked_access;
 
   /*
     We need to investigate column- and table access if all requested privileges
     belongs to the bit set of .
   */
   bool need_table_or_column_check=
-    (want_access & (TABLE_ACLS | PROC_ACLS | db_access)) == want_access;
+    (want_access & (TABLE_ACLS | PROC_ACLS | masked_access)) == want_access;
 
   /*
     Grant access if the requested access is in the intersection of
@@ -3281,9 +3278,8 @@ check_access(THD *thd, privilege_t want_access,
     also grant access if all the requested privileges are in the union of
     TABLES_ACLS and PROC_ACLS; see check_grant.
   */
-  if ( (db_access & want_access) == want_access ||
-      (!dont_check_global_grants &&
-       need_table_or_column_check))
+  if ((masked_access & want_access) == want_access ||
+      (!dont_check_global_grants && need_table_or_column_check))
   {
     /*
        Ok; but need to check table- and column privileges.
@@ -9273,6 +9269,7 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
                               t_ref->get_db_name(),
                               t_ref->get_table_name());
 
+    /* TODO(cvicentiu) evaluate internal tables interaction with denies. */
     if (access)
     {
       switch(access->check(orig_want_access, &t_ref->grant.privilege))
@@ -9289,31 +9286,46 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
     }
 
     want_access= orig_want_access;
-    want_access&= ~sctx->master_access;
+
+    /*
+       TODO(cvicentiu)
+       Here we need to stop in case there is a table specific deny that
+       conflicts with want_access. For now, we just check global and database
+       level denies.
+    */
+    //TODO(cvicentiu) database denies need to be accounted for...
+    //TODO(cvicentiu) ugly constructing lex_cstring here.
+    DBUG_ASSERT(t_ref->get_db_name());
+    LEX_CSTRING table_db{t_ref->get_db_name(), strlen(t_ref->get_db_name())};
+    privilege_t deny_mask= acl_get_effective_deny_mask(sctx, table_db);
+
+    want_access&= ~(sctx->master_access & ~deny_mask);
     if (!want_access)
       continue;                                 // ok
 
-    if (!(~t_ref->grant.privilege & want_access) ||
-        t_ref->is_anonymous_derived_table() || t_ref->schema_table ||
+    /*
+      It is subquery in the FROM clause. VIEW set t_ref->derived after
+      table opening, but this function always called before table opening.
+
+      NOTE: is_derived() can't be used here because subquery in this case
+      the FROM clase (derived tables) can be not be marked yet.
+    */
+    if (t_ref->is_anonymous_derived_table() || t_ref->schema_table ||
         t_ref->table_function)
     {
       /*
-        It is subquery in the FROM clause. VIEW set t_ref->derived after
-        table opening, but this function always called before table opening.
-
-        NOTE: is_derived() can't be used here because subquery in this case
-        the FROM clase (derived tables) can be not be marked yet.
+        If it's a temporary table created for a subquery in the FROM
+        clause, or an INFORMATION_SCHEMA table, drop the request for
+        a privilege.
       */
-      if (t_ref->is_anonymous_derived_table() || t_ref->schema_table ||
-          t_ref->table_function)
-      {
-        /*
-          If it's a temporary table created for a subquery in the FROM
-          clause, or an INFORMATION_SCHEMA table, drop the request for
-          a privilege.
-        */
-        t_ref->grant.want_privilege= NO_ACL;
-      }
+      t_ref->grant.want_privilege= NO_ACL;
+      continue;
+    }
+
+    // TODO(cvicentiu) table level denies need to be checked here.
+    // This can be achieved by computing the effective deny_mask for t_ref.
+    if (!(~(t_ref->grant.privilege & ~deny_mask) & want_access))
+    {
       continue;
     }
 
@@ -9329,6 +9341,23 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
       t_ref->grant.want_privilege= NO_ACL;
       continue;
     }
+
+    /*
+      TODO(cvicentiu) check this.
+      We are now past "special" internal tables. Regular privileges apply.
+      If the current db && deny mask show an impossible grant, no reason to keep
+      looking further.
+      TODO(cvicentiu)
+      It seems logical that if this is the case, we abort before reaching *this*
+      function? Maybe interacting with I_S and PERF_SCHEMA needs some thought,
+      those are exceptions that could bypass "want_access".
+    */
+    if (!any_combination_will_do && (deny_mask & want_access))
+    {
+      /* We can never grant access as the current deny mask blocks it. */
+      goto err;
+    }
+
 
     if (!locked)
     {
@@ -9349,7 +9378,7 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
 
     if (!grant_table && !grant_table_role)
     {
-      want_access&= ~t_ref->grant.privilege;
+      want_access&= ~(t_ref->grant.privilege & ~deny_mask);
       goto err;					// No grants
     }
 
@@ -9365,13 +9394,15 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
     t_ref->grant.version= grant_version;
     t_ref->grant.privilege|= grant_table ? grant_table->privs : NO_ACL;
     t_ref->grant.privilege|= grant_table_role ? grant_table_role->privs : NO_ACL;
+    // TODO(cvicentiu) here the deny mask for the role must be created too.
+    t_ref->grant.privilege&= ~deny_mask;
     t_ref->grant.want_privilege= ((want_access & COL_ACLS) & ~t_ref->grant.privilege);
 
     if (!(~t_ref->grant.privilege & want_access))
       continue;
 
-    if ((want_access&= ~((grant_table ? grant_table->cols : NO_ACL) |
-                        (grant_table_role ? grant_table_role->cols : NO_ACL) |
+    if ((want_access&= ~((grant_table ? (grant_table->cols & ~deny_mask) : NO_ACL) |
+                        (grant_table_role ? (grant_table_role->cols & ~deny_mask) : NO_ACL) |
                         t_ref->grant.privilege)))
     {
       goto err;                                 // impossible

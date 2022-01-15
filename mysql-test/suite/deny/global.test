@@ -20,6 +20,9 @@ grant select (secret) on deny_db.t1 to foo;
 
 --connect (con1,localhost,foo,,)
 
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from deny_db2.t1;
+
 show databases;
 use deny_db;
 
@@ -71,23 +74,26 @@ use information_schema; # Information schema should still be accessible.
 --error ER_DBACCESS_DENIED_ERROR
 use deny_db; # Ensure we can't move to a db we don't have access to.
 
-# All selects should return that access to this particular DB was not granted.
---error ER_DBACCESS_DENIED_ERROR
+# All selects should return that access to this particular TABLE was not granted.
+--error ER_TABLEACCESS_DENIED_ERROR
 select * from deny_db.t1;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select c from deny_db.t1;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select c from deny_db.t2;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select c from deny_db.t_not_exists;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select secret from deny_db.t1;
 
 
+--echo #
+--echo # Grant table access then test deny.
+--echo #
 connection default;
 grant select on deny_db.t1 to foo;
 
@@ -97,21 +103,24 @@ use information_schema; # Information schema should still be accessible.
 --error ER_DBACCESS_DENIED_ERROR
 use deny_db; # Ensure we can't move to a db we don't have access to.
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select * from deny_db.t1;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select c from deny_db.t1;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select c from deny_db.t2;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select c from deny_db.t_not_exists;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select secret from deny_db.t1;
 
+--echo #
+--echo # Grant database access then test deny.
+--echo #
 connection default;
 grant select on deny_db.* to foo;
 
@@ -121,21 +130,24 @@ use information_schema; # Information schema should still be accessible.
 --error ER_DBACCESS_DENIED_ERROR
 use deny_db; # Ensure we can't move to a db we don't have access to.
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select * from deny_db.t1;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select c from deny_db.t1;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select c from deny_db.t2;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select c from deny_db.t_not_exists;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select secret from deny_db.t1;
 
+--echo #
+--echo # Grant global access then test deny.
+--echo #
 connection default;
 grant select on *.* to foo;
 
@@ -145,19 +157,19 @@ use information_schema; # Information schema should still be accessible.
 --error ER_DBACCESS_DENIED_ERROR
 use deny_db; # Ensure we can't move to a db we don't have access to.
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select * from deny_db.t1;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select c from deny_db.t1;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select c from deny_db.t2;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select c from deny_db.t_not_exists;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select secret from deny_db.t1;
 
 connection default;
@@ -178,19 +190,19 @@ use information_schema; # Information schema should still be accessible.
 --error ER_DBACCESS_DENIED_ERROR
 use deny_db; # Ensure we can't move to a db we don't have access to.
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select * from deny_db.t1;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select c from deny_db.t1;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select c from deny_db.t2;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select c from deny_db.t_not_exists;
 
---error ER_DBACCESS_DENIED_ERROR
+--error ER_TABLEACCESS_DENIED_ERROR
 select secret from deny_db.t1;
 
 disconnect con1;
@@ -209,9 +221,9 @@ insert into deny_db.t1(secret) values (10000);
 disconnect con1;
 connection default;
 
-
 drop database deny_db;
 drop user foo;
+
 
 --echo #
 --echo # Test denying all rights globally.
