@@ -1410,6 +1410,21 @@ if ($USE_CHILD_GROUP2)
   --connection child2_2
   DROP DATABASE IF EXISTS auto_test_remote2;
 }
+
+
+# MDEV-27039 LOCK_global_system_variables attempted to re-acquire
+# The test proves no assert anymore.
+--connection master_1
+--let $binlog_checksum=`SELECT @@global.binlog_checksum`
+--let $expire_logs_days=`SELECT @@global.expire_logs_days`
+SET @@global.expire_logs_days=11;
+
+--connect (master_purge, localhost, root, , , $MASTER_1_MYPORT, $MASTER_1_MYSOCK)
+SET @@global.binlog_checksum=NONE;
+--evalp SET @@global.binlog_checksum=$binlog_checksum
+--evalp SET @@global.expire_logs_days=$expire_logs_days
+--disconnect master_purge
+
 --disable_query_log
 --disable_result_log
 --source slave_test_deinit.inc

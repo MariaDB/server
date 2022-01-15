@@ -100,8 +100,8 @@ extern "C" {
 #  endif
 # endif
 #define HAVE_READLINE
-#define USE_POPEN
 #endif
+#define USE_POPEN
 }
 
 #ifdef HAVE_VIDATTR
@@ -4269,11 +4269,6 @@ com_nopager(String *buffer __attribute__((unused)),
 }
 #endif
 
-
-/*
-  Sorry, you can't send the result to an editor in Win32
-*/
-
 #ifdef USE_POPEN
 static int
 com_edit(String *buffer,char *line __attribute__((unused)))
@@ -4294,7 +4289,7 @@ com_edit(String *buffer,char *line __attribute__((unused)))
 
   if (!(editor = (char *)getenv("EDITOR")) &&
       !(editor = (char *)getenv("VISUAL")))
-    editor = "vi";
+    editor = IF_WIN("notepad","vi");
   strxmov(buff,editor," ",filename,NullS);
   if ((error= system(buff)))
   {
@@ -4309,7 +4304,7 @@ com_edit(String *buffer,char *line __attribute__((unused)))
   if ((fd = my_open(filename,O_RDONLY, MYF(MY_WME))) < 0)
     goto err;
   (void) buffer->alloc((uint) stat_arg.st_size);
-  if ((tmp=read(fd,(char*) buffer->ptr(),buffer->alloced_length())) >= 0L)
+  if ((tmp=(int)my_read(fd,(uchar*) buffer->ptr(),buffer->alloced_length(),MYF(0))) >= 0)
     buffer->length((uint) tmp);
   else
     buffer->length(0);

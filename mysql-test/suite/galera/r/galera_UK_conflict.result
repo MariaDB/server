@@ -68,6 +68,31 @@ f1	f2	f3
 10	10	0
 INSERT INTO t1 VALUES (7,7,7);
 INSERT INTO t1 VALUES (8,8,8);
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+7
+SELECT * FROM t1;
+f1	f2	f3
+1	1	0
+3	3	1
+4	4	2
+5	5	2
+7	7	7
+8	8	8
+10	10	0
+connection node_1;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+7
+SELECT * FROM t1;
+f1	f2	f3
+1	1	0
+3	3	1
+4	4	2
+5	5	2
+7	7	7
+8	8	8
+10	10	0
 DROP TABLE t1;
 test scenario 2
 connection node_1;
@@ -129,4 +154,29 @@ f1	f2	f3
 10	10	0
 INSERT INTO t1 VALUES (7,7,7);
 INSERT INTO t1 VALUES (8,8,8);
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+7
+SELECT * FROM t1;
+f1	f2	f3
+1	1	0
+3	3	1
+4	4	2
+5	5	2
+7	7	7
+8	8	8
+10	10	0
+connection node_1;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+7
+SELECT * FROM t1;
+f1	f2	f3
+1	1	0
+3	3	1
+4	4	2
+5	5	2
+7	7	7
+8	8	8
+10	10	0
 DROP TABLE t1;

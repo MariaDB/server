@@ -79,13 +79,6 @@ buf_flush_init_for_writing(
 	void*			page_zip_,
 	bool			use_full_checksum);
 
-/** Write out dirty blocks from buf_pool.flush_list.
-@param max_n    wished maximum mumber of blocks flushed
-@param lsn      buf_pool.get_oldest_modification(LSN_MAX) target
-@return the number of processed pages
-@retval 0 if a buf_pool.flush_list batch is already running */
-ulint buf_flush_list(ulint max_n= ULINT_UNDEFINED, lsn_t lsn= LSN_MAX);
-
 /** Try to flush dirty pages that belong to a given tablespace.
 @param space       tablespace
 @param n_flushed   number of pages written
@@ -150,6 +143,10 @@ ATTRIBUTE_COLD void buf_flush_buffer_pool();
 /** Validate the flush list. */
 void buf_flush_validate();
 #endif /* UNIV_DEBUG */
+
+/** Synchronously flush dirty blocks during recv_sys_t::apply().
+NOTE: The calling thread is not allowed to hold any buffer page latches! */
+void buf_flush_sync_batch(lsn_t lsn);
 
 /** Synchronously flush dirty blocks.
 NOTE: The calling thread is not allowed to hold any buffer page latches! */

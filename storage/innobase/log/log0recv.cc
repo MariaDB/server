@@ -1,8 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -56,9 +55,6 @@ Created 9/20/1997 Heikki Tuuri
 #include "srv0start.h"
 #include "fil0pagecompress.h"
 #include "log.h"
-
-/** Read-ahead area in applying log records to file pages */
-#define RECV_READ_AHEAD_AREA	32U
 
 /** The recovery system */
 recv_sys_t	recv_sys;
@@ -838,13 +834,16 @@ processed:
         space->free_len= flst_get_len(FSP_HEADER_OFFSET + FSP_FREE + page);
         fil_node_t *node= UT_LIST_GET_FIRST(space->chain);
         if (!space->acquire())
+	{
+free_space:
+          fil_space_free(it->first, false);
           goto next_item;
+	}
         if (os_file_write(IORequestWrite, node->name, node->handle,
-                          page, 0, fil_space_t::physical_size(flags) !=
-            DB_SUCCESS))
+                          page, 0, fil_space_t::physical_size(flags)) !=            DB_SUCCESS)
         {
           space->release();
-          goto next_item;
+          goto free_space;
         }
         space->release();
         it->second.space= space;
@@ -2949,11 +2948,9 @@ page number.
 TRANSACTIONAL_TARGET
 static void recv_read_in_area(page_id_t page_id)
 {
-	uint32_t page_nos[RECV_READ_AHEAD_AREA];
-	compile_time_assert(ut_is_2pow(RECV_READ_AHEAD_AREA));
-	page_id.set_page_no(ut_2pow_round(page_id.page_no(),
-					  RECV_READ_AHEAD_AREA));
-	const ulint up_limit = page_id.page_no() + RECV_READ_AHEAD_AREA;
+	uint32_t page_nos[32];
+	page_id.set_page_no(ut_2pow_round(page_id.page_no(), 32U));
+	const uint32_t up_limit = page_id.page_no() + 32;
 	uint32_t* p = page_nos;
 
 	for (recv_sys_t::map::iterator i= recv_sys.pages.lower_bound(page_id);
@@ -3082,6 +3079,32 @@ inline fil_space_t *fil_system_t::find(const char *path) const
     if (space.chain.start && !strcmp(space.chain.start->name, path))
       return &space;
   return nullptr;
+}
+
+/** Thread-safe function which sorts flush_list by oldest_modification */
+static void log_sort_flush_list()
+{
+  mysql_mutex_lock(&buf_pool.flush_list_mutex);
+
+  const size_t size= UT_LIST_GET_LEN(buf_pool.flush_list);
+  std::unique_ptr<buf_page_t *[]> list(new buf_page_t *[size]);
+
+  size_t idx= 0;
+  for (buf_page_t *p= UT_LIST_GET_FIRST(buf_pool.flush_list); p;
+       p= UT_LIST_GET_NEXT(list, p))
+    list.get()[idx++]= p;
+
+  std::sort(list.get(), list.get() + size,
+            [](const buf_page_t *lhs, const buf_page_t *rhs) {
+              return rhs->oldest_modification() < lhs->oldest_modification();
+            });
+
+  UT_LIST_INIT(buf_pool.flush_list, &buf_page_t::list);
+
+  for (size_t i= 0; i < size; i++)
+    UT_LIST_ADD_LAST(buf_pool.flush_list, list[i]);
+
+  mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 }
 
 /** Apply buffered log to persistent data pages.
@@ -3280,9 +3303,15 @@ next_page:
   mysql_mutex_assert_not_owner(&log_sys.mutex);
   mysql_mutex_unlock(&mutex);
 
-  /* Instead of flushing, last_batch could sort the buf_pool.flush_list
-  in ascending order of buf_page_t::oldest_modification. */
-  buf_flush_sync();
+  if (last_batch && srv_operation != SRV_OPERATION_RESTORE &&
+      srv_operation != SRV_OPERATION_RESTORE_EXPORT)
+    log_sort_flush_list();
+  else
+  {
+    /* Instead of flushing, last_batch could sort the buf_pool.flush_list
+    in ascending order of buf_page_t::oldest_modification. */
+    buf_flush_sync_batch(recovered_lsn);
+  }
 
   if (!last_batch)
   {

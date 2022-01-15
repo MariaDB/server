@@ -64,9 +64,6 @@ eval $check_no_innodb;
 let SEARCH_PATTERN=File .path.to.non-existent.*ib_logfile101: 'create' returned OS error \d+;
 --source include/search_pattern_in_file.inc
 
---echo # Remove ibdata1 & ibdata2
---remove_file $bugdir/ibdata1
---remove_file $bugdir/ibdata2
 --list_files $bugdir
 
 --echo # Successfully let InnoDB create tablespaces

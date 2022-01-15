@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2021, MariaDB
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1374,12 +1374,13 @@ bool unix_sock_is_online= false;
 static int systemd_sock_activation; /* systemd socket activation */
 
 
+C_MODE_START
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 /**
   Error reporter that buffer log messages.
   @param level          log message level
   @param format         log message format string
 */
-C_MODE_START
 static void buffered_option_error_reporter(enum loglevel level,
                                            const char *format, ...)
 {
@@ -1391,6 +1392,7 @@ static void buffered_option_error_reporter(enum loglevel level,
   va_end(args);
   buffered_logs.buffer(level, buffer);
 }
+#endif
 
 
 /**
@@ -5501,7 +5503,7 @@ int mysqld_main(int argc, char **argv)
     Initialize the array of performance schema instrument configurations.
   */
   init_pfs_instrument_array();
-#endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
+
   /*
     Logs generated while parsing the command line
     options are buffered and printed later.
@@ -5509,7 +5511,7 @@ int mysqld_main(int argc, char **argv)
   buffered_logs.init();
   my_getopt_error_reporter= buffered_option_error_reporter;
   my_charset_error_reporter= buffered_option_error_reporter;
-#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
+
   pfs_param.m_pfs_instrument= const_cast<char*>("");
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
   my_timer_init(&sys_timer_info);
@@ -7923,7 +7925,8 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     if (argument)
     {
       strmake(server_version, argument, sizeof(server_version) - 1);
-      set_sys_var_value_origin(&server_version_ptr, sys_var::CONFIG);
+      set_sys_var_value_origin(&server_version_ptr,
+                *filename ? sys_var::CONFIG : sys_var::COMMAND_LINE, filename);
       using_custom_server_version= true;
     }
 #ifndef EMBEDDED_LIBRARY
@@ -8689,10 +8692,12 @@ void set_server_version(char *buf, size_t size)
 {
   bool is_log= opt_log || global_system_variables.sql_log_slow || opt_bin_log;
   bool is_debug= IF_DBUG(!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"), 0);
+  bool is_valgrind= IF_VALGRIND(!strstr(MYSQL_SERVER_SUFFIX_STR, "-valgrind"), 0);
   strxnmov(buf, size - 1,
            MYSQL_SERVER_VERSION,
            MYSQL_SERVER_SUFFIX_STR,
            IF_EMBEDDED("-embedded", ""),
+           is_valgrind ? "-valgrind" : "",
            is_debug ? "-debug" : "",
            is_log ? "-log" : "",
            NullS);

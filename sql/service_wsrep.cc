@@ -401,3 +401,11 @@ extern "C" void wsrep_report_bf_lock_wait(const THD *thd,
                 wsrep_thd_query(thd));
   }
 }
+
+extern "C" void  wsrep_thd_set_PA_unsafe(THD *thd)
+{
+  if (thd && thd->wsrep_cs().mark_transaction_pa_unsafe())
+  {
+    WSREP_DEBUG("session does not have active transaction, can not mark as PA unsafe");
+  }
+}

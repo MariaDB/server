@@ -8341,8 +8341,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
       {
         List_iterator<Create_field> dup_it(alter_info->create_list);
         for (Create_field *dup= dup_it++; !is_dup && dup != f; dup= dup_it++)
-          is_dup= my_strcasecmp(default_charset_info,
-                                dup->field_name.str, f->field_name.str) == 0;
+          is_dup= Lex_ident(dup->field_name).streq(f->field_name);
       }
 
       if (!(f->flags & VERS_UPDATE_UNVERSIONED_FLAG) && !is_dup)

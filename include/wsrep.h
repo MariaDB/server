@@ -41,8 +41,7 @@
   if (WSREP(thd) &&                                                     \
       wsrep_to_isolation_begin(thd, db_, table_,                        \
                                table_list_, alter_info_,                \
-                               fk_tables_, create_info_))               \
-    goto wsrep_error_label;
+                               fk_tables_, create_info_))
 
 /*
   Checks if lex->no_write_to_binlog is set for statements that use LOCAL or

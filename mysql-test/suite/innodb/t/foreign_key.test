@@ -901,6 +901,24 @@ create or replace table t2 (pk int primary key, a varchar(4096) unique, foreign 
 
 drop table t1;
 
+--echo #
+--echo # MDEV-26824 Can't add foreign key with empty referenced columns list
+--echo #
+create table t2(a int primary key) engine=innodb;
+create table t1(a int primary key, b int) engine=innodb;
+--error ER_WRONG_FK_DEF
+alter table t2 add foreign key(a) references t1(a, b);
+create or replace table t1(a tinyint primary key) engine innodb;
+--error ER_CANT_CREATE_TABLE
+alter table t2 add foreign key(a) references t1;
+create or replace table t1(b int primary key) engine innodb;
+--error ER_CANT_CREATE_TABLE
+alter table t2 add foreign key(a) references t1;
+create or replace table t1(a int primary key, b int) engine innodb;
+alter table t2 add foreign key(a) references t1;
+show create table t2;
+drop tables t2, t1;
+
 --echo # End of 10.5 tests
 
 --echo #

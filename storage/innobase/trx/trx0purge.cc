@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -703,9 +703,18 @@ not_free:
       if (bpage->id().space() == space.id &&
           bpage->oldest_modification() != 1)
       {
+        ut_ad(bpage->frame);
         auto block= reinterpret_cast<buf_block_t*>(bpage);
-        ut_ad(buf_pool.is_uncompressed(block));
-        bpage->lock.x_lock();
+        if (!bpage->lock.x_lock_try())
+        {
+          /* Let buf_pool_t::release_freed_page() proceed. */
+          mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+          std::this_thread::yield();
+          mysql_mutex_lock(&buf_pool.flush_list_mutex);
+        rescan:
+          bpage= UT_LIST_GET_LAST(buf_pool.flush_list);
+          continue;
+        }
         buf_pool.flush_hp.set(prev);
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
@@ -728,11 +737,8 @@ not_free:
         }
 
         if (prev != buf_pool.flush_hp.get())
-        {
           /* Rescan, because we may have lost the position. */
-          bpage= UT_LIST_GET_LAST(buf_pool.flush_list);
-          continue;
-        }
+          goto rescan;
       }
 
       bpage= prev;

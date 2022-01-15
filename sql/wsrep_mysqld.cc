@@ -291,7 +291,7 @@ void WSREP_LOG(void (*fun)(const char* fmt, ...), const char* fmt, ...)
   char msg[128] = {'\0'};
   va_list arglist;
   va_start(arglist, fmt);
-  int n= vsnprintf(msg, sizeof(msg) - 1, fmt, arglist);
+  int n= vsnprintf(msg, sizeof(msg), fmt, arglist);
   va_end(arglist);
   if (n < 0)
   {
@@ -1823,7 +1823,7 @@ static bool wsrep_prepare_keys_for_isolation(THD*              thd,
       goto err;
   }
 
-  if (alter_info && (alter_info->flags & (ALTER_ADD_FOREIGN_KEY)))
+  if (alter_info)
   {
     if (!wsrep_prepare_keys_for_alter_add_fk(table_list->db.str, alter_info, ka))
       goto err;
@@ -1956,7 +1956,7 @@ wsrep::key_array wsrep_prepare_keys_for_toi(const char *db,
     ret.push_back(wsrep_prepare_key_for_toi(table->db.str, table->table_name.str,
                                             wsrep::key::exclusive));
   }
-  if (alter_info && (alter_info->flags & ALTER_ADD_FOREIGN_KEY))
+  if (alter_info)
   {
     wsrep::key_array fk(wsrep_prepare_keys_for_alter_add_fk(table_list->db.str, alter_info));
     if (!fk.empty())
@@ -3218,20 +3218,6 @@ void wsrep_wait_appliers_close(THD *thd)
   /* All wsrep applier threads have now been aborted. However, if this thread
      is also applier, we are still running...
   */
-}
-
-void
-wsrep_last_committed_id(wsrep_gtid_t* gtid)
-{
-  wsrep::gtid ret= Wsrep_server_state::instance().last_committed_gtid();
-  memcpy(gtid->uuid.data, ret.id().data(), sizeof(gtid->uuid.data));
-  gtid->seqno= ret.seqno().get();
-}
-
-void
-wsrep_node_uuid(wsrep_uuid_t& uuid)
-{
-  uuid= node_uuid;
 }
 
 int wsrep_must_ignore_error(THD* thd)

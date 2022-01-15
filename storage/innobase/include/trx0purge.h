@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -283,6 +283,11 @@ public:
     trx_sys.clone_oldest_view(&view);
     latch.wr_unlock();
   }
+
+  /** Stop the purge thread and check n_ref_count of all auxiliary
+  and common table associated with the fts table.
+  @param table	parent FTS table */
+  void stop_FTS(const dict_table_t &table);
 };
 
 /** The global data structure coordinating a purge */

@@ -30,9 +30,9 @@ SET GLOBAL wsrep_slave_threads = 2;
 SET SESSION wsrep_retry_autocommit = 0;
 START TRANSACTION;
 UPDATE t1 SET f2 = 1;
-SET SESSION debug_sync = "wsrep_before_replay SIGNAL reached WAIT_FOR continue";
 
 --connection node_1_ctrl
+# set sync point for incoming applier
 --let $galera_sync_point = apply_monitor_slave_enter_sync
 --source include/galera_set_sync_point.inc
 
@@ -42,8 +42,11 @@ SET SESSION debug_sync = "wsrep_before_replay SIGNAL reached WAIT_FOR continue";
 INSERT INTO t1 VALUES (2, 2);
 
 --connection node_1_ctrl
+# wait to see the INSERT from node_2 reaching applier sync point
 --source include/galera_wait_sync_point.inc
 --source include/galera_clear_sync_point.inc
+
+# set sync point to catch other write set applying from node_2
 --let $galera_sync_point = local_monitor_slave_enter_sync
 --source include/galera_set_sync_point.inc
 
@@ -52,17 +55,38 @@ INSERT INTO t1 VALUES (2, 2);
 UPDATE t1 SET f2 = 2 WHERE f1 = 5;
 
 --connection node_1_ctrl
+# wait until both appliers are stopped in sync points
 --let $galera_sync_point = apply_monitor_slave_enter_sync local_monitor_slave_enter_sync
 --source include/galera_wait_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+# set sync point for catching node_1 transaction just before committing
+--let $galera_sync_point = after_replicate_sync
+--source include/galera_set_sync_point.inc
 
 --connection node_1
+# set sync point, which will stop execution after COMMIT has been BF aborted
+# and send the COMMIT, it should stop in commit_monitor_master_enter_sync point
+SET SESSION debug_sync = "wsrep_before_replay SIGNAL reached WAIT_FOR continue";
 --send COMMIT
 
 --connection node_1_ctrl
+# wait until both appliers and local COMMIT are idle in their sync points
+--let $galera_sync_point = after_replicate_sync apply_monitor_slave_enter_sync local_monitor_slave_enter_sync
+--source include/galera_wait_sync_point.inc
+
+# release local COMMIT processing, it will continue and pause first before certification,
+--let $galera_sync_point = after_replicate_sync
+--source include/galera_signal_sync_point.inc
+
+# release first applier (INSERT), it should BF abort the local COMMIT processing
 --let $galera_sync_point = apply_monitor_slave_enter_sync
 --source include/galera_signal_sync_point.inc
+
+# wait to see that COMMIT was BF aborted and has reached replaying state
 SET SESSION debug_sync = "now WAIT_FOR reached";
 
+# release the latter applier, with real lock conflict
 --let $galera_sync_point = local_monitor_slave_enter_sync
 --source include/galera_signal_sync_point.inc
 --source include/galera_clear_sync_point.inc

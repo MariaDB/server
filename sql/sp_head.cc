@@ -3489,10 +3489,9 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
     thd->lex->safe_to_cache_query= 0;
 #endif
 
-  Opt_trace_start ots(thd,  m_lex->query_tables,
-                        SQLCOM_SELECT, &m_lex->var_list,
-                        NULL, 0,
-                        thd->variables.character_set_client);
+  Opt_trace_start ots(thd);
+  ots.init(thd, m_lex->query_tables, SQLCOM_SELECT, &m_lex->var_list,
+           NULL, 0, thd->variables.character_set_client);
 
   Json_writer_object trace_command(thd);
   Json_writer_array trace_command_steps(thd, "steps");

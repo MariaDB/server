@@ -596,6 +596,13 @@ connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
 connection child2_2;
 DROP DATABASE IF EXISTS auto_test_remote2;
+connection master_1;
+SET @@global.expire_logs_days=11;
+connect  master_purge, localhost, root, , , $MASTER_1_MYPORT, $MASTER_1_MYSOCK;
+SET @@global.binlog_checksum=NONE;
+SET @@global.binlog_checksum=$binlog_checksum;
+SET @@global.expire_logs_days=$expire_logs_days;
+disconnect master_purge;
 for slave1_1
 for master_1
 for child2

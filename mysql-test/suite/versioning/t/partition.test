@@ -1019,6 +1019,16 @@ explain partitions select * from t1 for system_time as of '2000-01-01 02:00:00';
 explain partitions select * from t1;
 drop table t1;
 
+--echo #
+--echo # MDEV-27244 Table corruption upon adding serial data type
+--echo #
+create table t1 (f int, key(f)) with system versioning
+partition by system_time limit 10 (partition p0 history, partition pn current);
+alter table t1 add x serial;
+alter table t1 add partition (partition p1 history);
+alter table t1 add partition (partition p2 history);
+drop table t1;
+
 --echo # End of 10.3 tests
 
 --echo #

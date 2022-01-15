@@ -973,7 +973,9 @@ dberr_t wsrep_append_foreign_key(trx_t *trx,
 			       dict_foreign_t*	foreign,
 			       const rec_t*	clust_rec,
 			       dict_index_t*	clust_index,
-			       ibool		referenced,
+			       bool		referenced,
+			       upd_node_t*	upd_node,
+			       bool		pa_disable,
 			       Wsrep_service_key_type	key_type);
 #endif /* WITH_WSREP */
 
@@ -1326,11 +1328,13 @@ row_ins_foreign_check_on_constraint(
 	}
 
 #ifdef WITH_WSREP
-	err = wsrep_append_foreign_key(trx, foreign, clust_rec, clust_index,
-				       FALSE, WSREP_SERVICE_KEY_EXCLUSIVE);
-	if (err != DB_SUCCESS) {
-		ib::info() << "WSREP: foreign key append failed: " <<  err;
-		goto nonstandard_exit_func;
+	if (trx->is_wsrep()) {
+		err = wsrep_append_foreign_key(trx, foreign, clust_rec, clust_index,
+					       false, NULL, true,
+					       WSREP_SERVICE_KEY_EXCLUSIVE);
+		if (err != DB_SUCCESS) {
+			goto nonstandard_exit_func;
+		}
 	}
 #endif /* WITH_WSREP */
 	mtr_commit(mtr);
@@ -1714,19 +1718,16 @@ row_ins_check_foreign_constraint(
 				if (check_ref) {
 					err = DB_SUCCESS;
 #ifdef WITH_WSREP
-					err = wsrep_append_foreign_key(
-						thr_get_trx(thr),
-						foreign,
-						rec,
-						check_index,
-						check_ref,
-						(upd_node != NULL
-						 && wsrep_protocol_version < 4)
-						? WSREP_SERVICE_KEY_SHARED
-						: WSREP_SERVICE_KEY_REFERENCE);
-					if (err != DB_SUCCESS) {
-						fprintf(stderr,
-							"WSREP: foreign key append failed: %d\n", err);
+					if (trx->is_wsrep()) {
+						err = wsrep_append_foreign_key(
+							thr_get_trx(thr),
+							foreign,
+							rec,
+							check_index,
+							check_ref,
+							upd_node,
+						        false,
+						        WSREP_SERVICE_KEY_REFERENCE);
 					}
 #endif /* WITH_WSREP */
 					goto end_scan;
@@ -3370,10 +3371,13 @@ row_ins_index_entry(
 			DBUG_SET("-d,row_ins_index_entry_timeout");
 			return(DB_LOCK_WAIT);});
 
-	if (auto t= trx->check_bulk_buffer(index->table)) {
-		/* MDEV-25036 FIXME: check also foreign key constraints */
-		ut_ad(!trx->check_foreigns);
-		return t->bulk_insert_buffered(*entry, *index, trx);
+	if (index->is_btree()) {
+		if (auto t= trx->check_bulk_buffer(index->table)) {
+			/* MDEV-25036 FIXME: check also foreign key
+			constraints */
+			ut_ad(!trx->check_foreigns);
+			return t->bulk_insert_buffered(*entry, *index, trx);
+		}
 	}
 
 	if (index->is_primary()) {

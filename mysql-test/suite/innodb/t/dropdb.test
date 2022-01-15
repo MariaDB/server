@@ -14,3 +14,14 @@ use `b`;
 create table `#mysql50#q.q` select 1;
 create table `#mysql50#q·q` select 1;
 drop database `b`;
+
+--echo #
+--echo # MDEV-27336 Crash on DROP DATABASE due to out-of-bounds result
+--echo # from InnoDB SUBSTR() function
+--echo #
+USE test;
+CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2(a INT PRIMARY KEY REFERENCES t1(a)) ENGINE=InnoDB;
+CREATE DATABASE somewhat_longer_name_to_cause_trouble;
+DROP DATABASE somewhat_longer_name_to_cause_trouble;
+DROP TABLE t2,t1;

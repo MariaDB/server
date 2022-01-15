@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -7028,7 +7028,6 @@ void MYSQL_BIN_LOG::purge()
     DBUG_EXECUTE_IF("expire_logs_always", { purge_time = my_time(0); });
     if (purge_time >= 0)
     {
-      ha_flush_logs();
       purge_logs_before_date(purge_time);
     }
     DEBUG_SYNC(current_thd, "after_purge_logs_before_date");
@@ -7979,6 +7978,9 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
     DBUG_ASSERT(entry != NULL);
     cur= entry->thd->wait_for_commit_ptr;
   }
+
+  result= orig_queue == NULL;
+
 #ifdef WITH_WSREP
   if (wsrep_is_active(entry->thd) &&
       wsrep_run_commit_hook(entry->thd, entry->all))
@@ -7991,8 +7993,6 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
     if (orig_queue == NULL)
       result= -3;
   }
-  else
-    DBUG_ASSERT(result == 0);
 #endif /* WITH_WSREP */
 
   if (opt_binlog_commit_wait_count > 0 && orig_queue != NULL)
@@ -8002,7 +8002,6 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
 
   DBUG_PRINT("info", ("Queued for group commit as %s",
                       (orig_queue == NULL) ? "leader" : "participant"));
-  result= orig_queue == NULL;
 
 end:
   if (backup_lock_released)

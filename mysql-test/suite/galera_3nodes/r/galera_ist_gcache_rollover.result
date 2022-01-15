@@ -8,10 +8,10 @@ CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
 INSERT INTO t1 VALUES (01), (02), (03), (04), (05);
 connection node_2;
 Unloading wsrep provider ...
-SET GLOBAL wsrep_provider = 'none';
+SET GLOBAL wsrep_cluster_address = '';
 connection node_3;
 Unloading wsrep provider ...
-SET GLOBAL wsrep_provider = 'none';
+SET GLOBAL wsrep_cluster_address = '';
 connection node_1;
 INSERT INTO t1 VALUES (11), (12), (13), (14), (15);
 INSERT INTO t1 VALUES (21), (22), (23), (24), (25);

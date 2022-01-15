@@ -2616,7 +2616,9 @@ void Locked_tables_list::mark_table_for_reopen(THD *thd, TABLE *table)
 bool
 Locked_tables_list::reopen_tables(THD *thd, bool need_reopen)
 {
-  Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN);
+  bool is_ok= thd->get_stmt_da()->is_ok();
+  Open_table_context ot_ctx(thd, !is_ok ? MYSQL_OPEN_REOPEN:
+                                  MYSQL_OPEN_IGNORE_KILLED | MYSQL_OPEN_REOPEN);
   uint reopen_count= 0;
   MYSQL_LOCK *lock;
   MYSQL_LOCK *merged_lock;

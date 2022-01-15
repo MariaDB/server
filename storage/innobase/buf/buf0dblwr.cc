@@ -214,8 +214,7 @@ too_small:
                TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N);
   mtr.commit();
 
-  /* Flush the modified pages to disk and make a checkpoint */
-  log_make_checkpoint();
+  buf_flush_wait_flushed(mtr.commit_lsn());
 
   /* Remove doublewrite pages from LRU */
   buf_pool_invalidate();

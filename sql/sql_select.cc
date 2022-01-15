@@ -11717,16 +11717,20 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           trace_const_cond.add("condition_on_constant_tables", const_cond);
           if (const_cond->is_expensive())
           {
-            trace_const_cond.add("evalualted", "false")
+            trace_const_cond.add("evaluated", "false")
                             .add("cause", "expensive cond");
           }
           else
           {
-            const bool const_cond_result = const_cond->val_int() != 0;
+            bool const_cond_result;
+            {
+              Json_writer_array a(thd, "computing_condition");
+              const_cond_result= const_cond->val_int() != 0;
+            }
             if (!const_cond_result)
             {
               DBUG_PRINT("info",("Found impossible WHERE condition"));
-              trace_const_cond.add("evalualted", "true")
+              trace_const_cond.add("evaluated", "true")
                               .add("found", "impossible where");
               join->exec_const_cond= NULL;
               DBUG_RETURN(1);
@@ -19534,6 +19538,8 @@ bool Create_tmp_table::finalize(THD *thd,
   MEM_CHECK_DEFINED(table->record[0], table->s->reclength);
   MEM_CHECK_DEFINED(share->default_values, table->s->reclength);
 
+  empty_record(table);
+  table->status= STATUS_NO_RECORD;
   thd->mem_root= mem_root_save;
 
   DBUG_RETURN(false);
@@ -20720,7 +20726,9 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
     if (create_internal_tmp_table(table, keyinfo, start_recinfo, recinfo,
                                   options))
       return TRUE;
-    MEM_CHECK_DEFINED(table->record[0], table->s->reclength);
+    // Make empty record so random data is not written to disk
+    empty_record(table);
+    table->status= STATUS_NO_RECORD;
   }
   if (open_tmp_table(table))
     return TRUE;
@@ -24265,7 +24273,15 @@ check_reverse_order:
       }
     }
     else if (select && select->quick)
+    {
+      /* Cancel "Range checked for each record" */
+      if (tab->use_quick == 2)
+      {
+        tab->use_quick= 1;
+        tab->read_first_record= join_init_read_record;
+      }
       select->quick->need_sorted_output();
+    }
 
     if (tab->type == JT_EQ_REF)
       tab->read_record.unlock_row= join_read_key_unlock_row;

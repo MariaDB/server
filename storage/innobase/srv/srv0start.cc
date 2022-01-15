@@ -238,6 +238,10 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
 		return DB_READ_ONLY;
 	}
 
+	if (!log_set_capacity(srv_log_file_size_requested)) {
+		return(DB_ERROR);
+	}
+
 	/* Crashing after deleting the first file should be
 	recoverable. The buffer pool was clean, and we can simply
 	create log file from the scratch. */
@@ -290,9 +294,6 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
         renamed. */
 
 	log_sys.log.create();
-	if (!log_set_capacity(srv_log_file_size_requested)) {
-		return DB_ERROR;
-	}
 
 	log_sys.log.open_file(logfile0);
 	if (!fil_system.sys_space->open(create_new_db)) {
@@ -325,6 +326,13 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
 
 	log_sys.log.write_header_durable(lsn);
 
+	ut_ad(srv_startup_is_before_trx_rollback_phase);
+	if (create_new_db) {
+		srv_startup_is_before_trx_rollback_phase = false;
+	}
+
+	/* Enable checkpoints in buf_flush_page_cleaner(). */
+	recv_sys.recovery_on = false;
 	mysql_mutex_unlock(&log_sys.mutex);
 
 	log_make_checkpoint();
@@ -879,92 +887,74 @@ buffer pools.  Flush the redo log buffer to the redo log file.
 @return lsn upto which data pages have been flushed. */
 static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 {
-	DBUG_ENTER("srv_prepare_to_delete_redo_log_file");
+  DBUG_ENTER("srv_prepare_to_delete_redo_log_file");
 
-	lsn_t	flushed_lsn;
-	ulint	count = 0;
+  /* Disable checkpoints in the page cleaner. */
+  ut_ad(!recv_sys.recovery_on);
+  recv_sys.recovery_on= true;
 
-	if (log_sys.log.subformat != 2) {
-		srv_log_file_size = 0;
-	}
+  /* Clean the buffer pool. */
+  buf_flush_sync();
 
-	for (;;) {
-		/* Clean the buffer pool. */
-		buf_flush_sync();
+  if (log_sys.log.subformat != 2)
+    srv_log_file_size= 0;
 
-		DBUG_EXECUTE_IF("innodb_log_abort_1", DBUG_RETURN(0););
-		DBUG_PRINT("ib_log", ("After innodb_log_abort_1"));
+  DBUG_EXECUTE_IF("innodb_log_abort_1", DBUG_RETURN(0););
+  DBUG_PRINT("ib_log", ("After innodb_log_abort_1"));
 
-		mysql_mutex_lock(&log_sys.mutex);
+  mysql_mutex_lock(&log_sys.mutex);
+  const bool latest_format= (log_sys.log.format & ~log_t::FORMAT_ENCRYPTED) ==
+    log_t::FORMAT_10_5;
+  lsn_t flushed_lsn= log_sys.get_lsn();
 
-		fil_names_clear(log_sys.get_lsn(), false);
+  if (latest_format)
+  {
+    fil_names_clear(flushed_lsn, false);
+    flushed_lsn= log_sys.get_lsn();
+  }
 
-		flushed_lsn = log_sys.get_lsn();
+  {
+    const char *msg;
+    if (!latest_format || srv_log_file_size == 0)
+    {
+      msg= "Upgrading redo log: ";
+same_size:
+      ib::info() << msg << srv_log_file_size_requested << " bytes; LSN="
+                 << flushed_lsn;
+    }
+    else if (old_exists && srv_log_file_size == srv_log_file_size_requested)
+    {
+      msg= srv_encrypt_log
+        ? "Encrypting redo log: " : "Removing redo log encryption: ";
+      goto same_size;
+    }
+    else
+    {
+      if (srv_encrypt_log == (my_bool)log_sys.is_encrypted())
+        msg= srv_encrypt_log ? "Resizing encrypted" : "Resizing";
+      else
+        msg= srv_encrypt_log
+          ? "Encrypting and resizing"
+          : "Removing encryption and resizing";
 
-		{
-			ib::info	info;
-			if (srv_log_file_size == 0
-			    || (log_sys.log.format & ~log_t::FORMAT_ENCRYPTED)
-			    != log_t::FORMAT_10_5) {
-				info << "Upgrading redo log: ";
-			} else if (!old_exists
-				   || srv_log_file_size
-				   != srv_log_file_size_requested) {
-				if (srv_encrypt_log
-				    == (my_bool)log_sys.is_encrypted()) {
-					info << (srv_encrypt_log
-						 ? "Resizing encrypted"
-						 : "Resizing");
-				} else if (srv_encrypt_log) {
-					info << "Encrypting and resizing";
-				} else {
-					info << "Removing encryption"
-						" and resizing";
-				}
+      ib::info() << msg << " redo log from " << srv_log_file_size << " to "
+                 << srv_log_file_size_requested
+                 << " bytes; LSN=" << flushed_lsn;
+    }
+  }
 
-				info << " redo log from " << srv_log_file_size
-				     << " to ";
-			} else if (srv_encrypt_log) {
-				info << "Encrypting redo log: ";
-			} else {
-				info << "Removing redo log encryption: ";
-			}
+  mysql_mutex_unlock(&log_sys.mutex);
 
-			info << srv_log_file_size_requested
-			     << " bytes; LSN=" << flushed_lsn;
-		}
+  if (flushed_lsn != log_sys.get_flushed_lsn())
+  {
+    log_write_up_to(flushed_lsn, false);
+    log_sys.log.flush();
+  }
 
-		mysql_mutex_unlock(&log_sys.mutex);
+  ut_ad(flushed_lsn == log_sys.get_lsn());
+  ut_ad(!buf_pool.any_io_pending());
 
-		if (flushed_lsn != log_sys.get_flushed_lsn()) {
-			log_write_up_to(flushed_lsn, false);
-			log_sys.log.flush();
-		}
-
-		ut_ad(flushed_lsn == log_sys.get_lsn());
-
-		/* Check if the buffer pools are clean.  If not
-		retry till it is clean. */
-		if (ulint pending_io = buf_pool.io_pending()) {
-			count++;
-			/* Print a message every 60 seconds if we
-			are waiting to clean the buffer pools */
-			if (srv_print_verbose_log && count > 600) {
-				ib::info() << "Waiting for "
-					<< pending_io << " buffer "
-					<< "page I/Os to complete";
-				count = 0;
-			}
-
-			std::this_thread::sleep_for(
-				std::chrono::milliseconds(100));
-			continue;
-		}
-
-		break;
-	}
-
-	DBUG_RETURN(flushed_lsn);
+  DBUG_RETURN(flushed_lsn);
 }
 
 /** Tries to locate LOG_FILE_NAME and check it's size, etc
@@ -1241,7 +1231,7 @@ dberr_t srv_start(bool create_new_db)
 		ut_ad(buf_page_cleaner_is_active);
 	}
 
-	srv_startup_is_before_trx_rollback_phase = !create_new_db;
+	srv_startup_is_before_trx_rollback_phase = true;
 
 	/* Check if undo tablespaces and redo log files exist before creating
 	a new system tablespace */
@@ -1290,11 +1280,16 @@ dberr_t srv_start(bool create_new_db)
 	if (create_new_db) {
 		flushed_lsn = log_sys.get_lsn();
 		log_sys.set_flushed_lsn(flushed_lsn);
-		buf_flush_sync();
 
 		err = create_log_file(true, flushed_lsn, logfile0);
 
 		if (err != DB_SUCCESS) {
+			for (Tablespace::const_iterator
+			       i = srv_sys_space.begin();
+			     i != srv_sys_space.end(); i++) {
+				os_file_delete(innodb_data_file_key,
+					       i->filepath());
+			}
 			return(srv_init_abort(err));
 		}
 	} else {
@@ -1347,6 +1342,9 @@ dberr_t srv_start(bool create_new_db)
 		if (!log_set_capacity(srv_log_file_size_requested)) {
 			return(srv_init_abort(DB_ERROR));
 		}
+
+		/* Enable checkpoints in the page cleaner. */
+		recv_sys.recovery_on = false;
 	}
 
 file_checked:
@@ -1951,11 +1949,8 @@ void innodb_shutdown()
 		break;
 	case SRV_OPERATION_RESTORE:
 	case SRV_OPERATION_RESTORE_EXPORT:
-		srv_shutdown_state = SRV_SHUTDOWN_CLEANUP;
-		if (!buf_page_cleaner_is_active) {
-			break;
-		}
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
+		srv_shutdown_state = SRV_SHUTDOWN_CLEANUP;
 		while (buf_page_cleaner_is_active) {
 			pthread_cond_signal(&buf_pool.do_flush_list);
 			my_cond_wait(&buf_pool.done_flush_list,

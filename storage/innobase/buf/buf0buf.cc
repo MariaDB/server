@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -2232,6 +2232,10 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
   }
 
   block->page.lock.x_lock();
+#ifdef BTR_CUR_HASH_ADAPT
+  if (block->index)
+    btr_search_drop_page_hash_index(block);
+#endif /* BTR_CUR_HASH_ADAPT */
   block->page.set_freed(block->page.state());
   mtr->memo_push(block, MTR_MEMO_PAGE_X_FIX);
 }
@@ -2845,12 +2849,7 @@ re_evict:
 
 		block->fix();
 		mysql_mutex_unlock(&buf_pool.mutex);
-		buf_flush_list();
-		buf_flush_wait_batch_end_acquiring_mutex(false);
-		while (buf_flush_list_space(space));
-		/* Wait for page write completion. */
-		block->page.lock.u_lock();
-		block->page.lock.u_unlock();
+		buf_flush_sync();
 
 		state = block->page.state();
 
@@ -2948,9 +2947,12 @@ buf_page_get_gen(
 {
   if (buf_block_t *block= recv_sys.recover(page_id))
   {
-    ut_ad(!block->page.is_io_fixed());
     /* Recovery is a special case; we fix() before acquiring lock. */
-    const auto s= block->page.fix();
+    auto s= block->page.fix();
+    ut_ad(s >= buf_page_t::FREED);
+    /* The block may be write-fixed at this point because we are not
+    holding a lock, but it must not be read-fixed. */
+    ut_ad(s < buf_page_t::READ_FIX || s >= buf_page_t::WRITE_FIX);
     if (err)
       *err= DB_SUCCESS;
     const bool must_merge= allow_ibuf_merge &&
@@ -2962,7 +2964,10 @@ buf_page_get_gen(
              page_is_leaf(block->page.frame))
     {
       block->page.lock.x_lock();
-      if (block->page.is_freed())
+      s= block->page.state();
+      ut_ad(s > buf_page_t::FREED);
+      ut_ad(s < buf_page_t::READ_FIX);
+      if (s < buf_page_t::UNFIXED)
         ut_ad(mode == BUF_GET_POSSIBLY_FREED || mode == BUF_PEEK_IF_IN_POOL);
       else
       {

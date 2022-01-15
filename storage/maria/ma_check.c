@@ -5031,7 +5031,8 @@ static int sort_get_next_record(MARIA_SORT_PARAM *sort_param)
         DBUG_RETURN(-1);
       }
       /* Retry only if wrong record, not if disk error */
-      if (flag != HA_ERR_WRONG_IN_RECORD && flag != HA_ERR_WRONG_CRC)
+      if (flag != HA_ERR_WRONG_IN_RECORD && flag != HA_ERR_WRONG_CRC &&
+          flag != HA_ERR_DECRYPTION_FAILED)
       {
         retry_if_quick(sort_param, flag);
         DBUG_RETURN(flag);
@@ -6851,7 +6852,8 @@ read_next_page:
                            PAGECACHE_READ_UNKNOWN_PAGE,
                            PAGECACHE_LOCK_LEFT_UNLOCKED, 0)))
       {
-        if (my_errno == HA_ERR_WRONG_CRC)
+        if (my_errno == HA_ERR_WRONG_CRC ||
+            my_errno == HA_ERR_DECRYPTION_FAILED)
         {
           /*
             Don't give errors for zero filled blocks. These can

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1978,7 +1978,7 @@ static bool trx_has_lock_x(const trx_t &trx, dict_table_t& table)
   /* This thread is executing trx. No other thread can modify our table locks
   (only record locks might be created, in an implicit-to-explicit conversion).
   Hence, no mutex is needed here. */
-  if (n == 1)
+  if (n)
     for (const lock_t *lock : trx.lock.table_locks)
       if (lock && lock->type_mode == (LOCK_X | LOCK_TABLE))
         return true;

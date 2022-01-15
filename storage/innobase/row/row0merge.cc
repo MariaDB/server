@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -502,8 +502,6 @@ static ulint row_merge_bulk_buf_add(row_merge_buf_t* buf,
   See row_merge_buf_write() for the variable-length encoding
   of extra_size. */
   data_size += (extra_size + 1) + ((extra_size + 1) >= 0x80);
-
-  ut_ad(data_size < srv_sort_buf_size);
 
   /* Reserve bytes for the end marker of row_merge_block_t. */
   if (buf->total_size + data_size >= srv_sort_buf_size)
@@ -1045,6 +1043,76 @@ row_merge_buf_sort(
 			     buf->tuples, buf->tmp_tuples, 0, buf->n_tuples);
 }
 
+/** Write the blob field data to temporary file and fill the offset,
+length in the field data
+@param	field		tuple field
+@param	blob_file	file to store the blob data
+@param	heap		heap to store the blob offset and length
+@return DB_SUCCESS if successful */
+static dberr_t row_merge_write_blob_to_tmp_file(
+   dfield_t *field, merge_file_t *blob_file,mem_heap_t **heap)
+{
+  if (blob_file->fd == OS_FILE_CLOSED)
+  {
+    blob_file->fd= row_merge_file_create_low(nullptr);
+    if (blob_file->fd == OS_FILE_CLOSED)
+      return DB_OUT_OF_MEMORY;
+  }
+  uint64_t val= blob_file->offset;
+  uint32_t len= field->len;
+  dberr_t err= os_file_write(
+    IORequestWrite, "(bulk insert)", blob_file->fd,
+    field->data, blob_file->offset * srv_page_size, len);
+
+  if (err != DB_SUCCESS)
+    return err;
+
+  byte *data= static_cast<byte*>
+    (mem_heap_alloc(*heap, BTR_EXTERN_FIELD_REF_SIZE));
+
+  /* Write zeroes for first 8 bytes */
+  memset(data, 0, 8);
+  /* Write offset for next 8 bytes */
+  mach_write_to_8(data + 8, val);
+  /* Write length of the blob in 4 bytes */
+  mach_write_to_4(data + 16, len);
+  blob_file->offset+= field->len;
+  blob_file->n_rec++;
+  dfield_set_data(field, data, BTR_EXTERN_FIELD_REF_SIZE);
+  dfield_set_ext(field);
+  return err;
+}
+
+/** This function is invoked when tuple size is greater than
+innodb_sort_buffer_size. Basically it recreates the tuple
+by writing the blob field to the temporary file.
+@param entry     index fields to be encode the blob
+@param blob_file file to store the blob data
+@param heap      heap to store the blob offset and blob length
+@return tuple which fits into sort_buffer_size */
+static dtuple_t* row_merge_buf_large_tuple(const dtuple_t &entry,
+                                           merge_file_t *blob_file,
+                                           mem_heap_t **heap)
+{
+  if (!*heap)
+    *heap= mem_heap_create(DTUPLE_EST_ALLOC(entry.n_fields));
+
+  dtuple_t *tuple= dtuple_copy(&entry, *heap);
+  for (ulint i= 0; i < tuple->n_fields; i++)
+  {
+    dfield_t *field= &tuple->fields[i];
+    if (dfield_is_null(field) || field->len <= 2000)
+      continue;
+
+    dberr_t err= row_merge_write_blob_to_tmp_file(field, blob_file, heap);
+    if (err != DB_SUCCESS)
+      return nullptr;
+  }
+
+  return tuple;
+}
+
+
 /** Write the field data whose length is more than 2000 bytes
 into blob temporary file and write offset, length into the
 tuple field
@@ -1061,35 +1129,13 @@ static dberr_t row_merge_buf_blob(const mtuple_t *entry, ulint n_fields,
 
   for (ulint i= 0; i < n_fields; i++)
   {
-    if (dfield_is_null(&entry->fields[i]) || entry->fields[i].len <= 2000)
+    dfield_t *field= &entry->fields[i];
+    if (dfield_is_null(field) || field->len <= 2000)
       continue;
 
-    if (blob_file->fd == OS_FILE_CLOSED)
-      blob_file->fd= row_merge_file_create_low(nullptr);
-
-    uint64_t val= blob_file->offset;
-    dfield_t *field= &entry->fields[i];
-    uint32_t len= field->len;
-    dberr_t err= os_file_write(
-      IORequestWrite, "(bulk insert)", blob_file->fd,
-      field->data, blob_file->offset * srv_page_size, len);
-
+    dberr_t err= row_merge_write_blob_to_tmp_file(field, blob_file, heap);
     if (err != DB_SUCCESS)
       return err;
-
-    byte *data= static_cast<byte*>
-      (mem_heap_alloc(*heap, BTR_EXTERN_FIELD_REF_SIZE));
-
-    /* Write zeroes for first 8 bytes */
-    memset(data, 0, 8);
-    /* Write offset for next 8 bytes */
-    mach_write_to_8(data + 8, val);
-    /* Write length of the blob in 4 bytes */
-    mach_write_to_4(data + 16, len);
-    blob_file->offset+= field->len;
-    blob_file->n_rec++;
-    dfield_set_data(field, data, BTR_EXTERN_FIELD_REF_SIZE);
-    dfield_set_ext(field);
   }
 
   return DB_SUCCESS;
@@ -4986,7 +5032,7 @@ row_merge_bulk_t::row_merge_bulk_t(dict_table_t *table)
   for (dict_index_t *index= UT_LIST_GET_FIRST(table->indexes);
        index; index= UT_LIST_GET_NEXT(indexes, index))
   {
-    if (index->type & DICT_FTS)
+    if (!index->is_btree())
       continue;
     n_index++;
   }
@@ -4998,7 +5044,7 @@ row_merge_bulk_t::row_merge_bulk_t(dict_table_t *table)
   for (dict_index_t *index= UT_LIST_GET_FIRST(table->indexes);
        index; index= UT_LIST_GET_NEXT(indexes, index))
   {
-    if (index->type & DICT_FTS)
+    if (!index->is_btree())
       continue;
 
     mem_heap_t *heap= mem_heap_create(100);
@@ -5019,7 +5065,7 @@ row_merge_bulk_t::~row_merge_bulk_t()
   for (dict_index_t *index= UT_LIST_GET_FIRST(table->indexes);
        index; index= UT_LIST_GET_NEXT(indexes, index))
   {
-    if (index->type & DICT_FTS)
+    if (!index->is_btree())
       continue;
     row_merge_buf_free(&m_merge_buf[i]);
     if (m_merge_files)
@@ -5049,7 +5095,7 @@ void row_merge_bulk_t::init_tmp_file()
   for (dict_index_t *index= UT_LIST_GET_FIRST(table->indexes);
        index; index= UT_LIST_GET_NEXT(indexes, index))
   {
-    if (index->type & DICT_FTS)
+    if (!index->is_btree())
       continue;
     n_index++;
   }
@@ -5109,10 +5155,11 @@ dberr_t row_merge_bulk_t::bulk_insert_buffered(const dtuple_t &row,
 {
   dberr_t err= DB_SUCCESS;
   ulint i= 0;
+  mem_heap_t *large_tuple_heap= nullptr;
   for (dict_index_t *index= UT_LIST_GET_FIRST(ind.table->indexes);
        index; index= UT_LIST_GET_NEXT(indexes, index))
   {
-    if (index->type & DICT_FTS)
+    if (!index->is_btree())
       continue;
 
     if (index != &ind)
@@ -5125,7 +5172,19 @@ add_to_buf:
     if (row_merge_bulk_buf_add(buf, *ind.table, row))
     {
       i++;
-      return err;
+      goto func_exit;
+    }
+
+    if (buf->n_tuples == 0)
+    {
+      /* Tuple data size is greater than srv_sort_buf_size */
+      dtuple_t *big_tuple= row_merge_buf_large_tuple(
+        row, &m_blob_file, &large_tuple_heap);
+      if (row_merge_bulk_buf_add(buf, *ind.table, *big_tuple))
+      {
+        i++;
+	goto func_exit;
+      }
     }
 
     if (index->is_unique())
@@ -5148,6 +5207,9 @@ add_to_buf:
     goto add_to_buf;
   }
 
+func_exit:
+  if (large_tuple_heap)
+    mem_heap_free(large_tuple_heap);
   return err;
 }
 
@@ -5183,7 +5245,8 @@ dberr_t row_merge_bulk_t::write_to_index(ulint index_no, trx_t *trx)
       /* Data got fit in merge buffer. */
       err= row_merge_insert_index_tuples(
             index, table, OS_FILE_CLOSED, nullptr,
-            &buf, &btr_bulk, 0, 0, 0, nullptr, table->space_id);
+            &buf, &btr_bulk, 0, 0, 0, nullptr, table->space_id, nullptr,
+            m_blob_file.fd == OS_FILE_CLOSED ? nullptr : &m_blob_file);
       goto func_exit;
     }
   }
@@ -5210,7 +5273,7 @@ dberr_t row_merge_bulk_t::write_to_table(dict_table_t *table, trx_t *trx)
   for (dict_index_t *index= UT_LIST_GET_FIRST(table->indexes);
        index; index= UT_LIST_GET_NEXT(indexes, index))
   {
-    if (index->type & DICT_FTS)
+    if (!index->is_btree())
       continue;
 
     dberr_t err= write_to_index(i, trx);

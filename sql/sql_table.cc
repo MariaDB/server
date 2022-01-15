@@ -2926,15 +2926,19 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       Foreign_key *fk_key= (Foreign_key*) key;
       if (fk_key->validate(alter_info->create_list))
         DBUG_RETURN(TRUE);
-      if (fk_key->ref_columns.elements &&
-	  fk_key->ref_columns.elements != fk_key->columns.elements)
+      if (fk_key->ref_columns.elements)
       {
-        my_error(ER_WRONG_FK_DEF, MYF(0),
-                 (fk_key->name.str ? fk_key->name.str :
-                                     "foreign key without name"),
-                 ER_THD(thd, ER_KEY_REF_DO_NOT_MATCH_TABLE_REF));
-	DBUG_RETURN(TRUE);
+        if (fk_key->ref_columns.elements != fk_key->columns.elements)
+        {
+          my_error(ER_WRONG_FK_DEF, MYF(0),
+                  (fk_key->name.str ? fk_key->name.str :
+                                      "foreign key without name"),
+                  ER_THD(thd, ER_KEY_REF_DO_NOT_MATCH_TABLE_REF));
+          DBUG_RETURN(TRUE);
+        }
       }
+      else
+        fk_key->ref_columns.append(&fk_key->columns);
       continue;
     }
     (*key_count)++;
@@ -11903,8 +11907,14 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
           (!thd->is_current_stmt_binlog_format_row() ||
            !create_info.tmp_table()))
       {
-        WSREP_TO_ISOLATION_BEGIN_CREATE(create_table->db.str, create_table->table_name.str,
-                                        create_table, &create_info);
+#ifdef WITH_WSREP
+        WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str, create_table->table_name.str,
+				       first_table, &alter_info, NULL, &create_info)
+	{
+	  WSREP_WARN("CREATE TABLE isolation failure");
+	  DBUG_RETURN(true);
+	}
+#endif /* WITH_WSREP */
       }
       /* Regular CREATE TABLE */
       res= mysql_create_table(thd, create_table, &create_info, &alter_info);
@@ -11926,9 +11936,4 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
 
 end_with_restore_list:
   DBUG_RETURN(res);
-
-#ifdef WITH_WSREP
-wsrep_error_label:
-  DBUG_RETURN(true);
-#endif
 }
