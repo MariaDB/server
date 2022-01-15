@@ -335,7 +335,7 @@ int ha_spider::open(
   SPIDER_WIDE_SHARE *wide_share;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   uint part_num;
-  bool pt_handler_share_alloc = FALSE;
+  bool partition_handler_alloc = FALSE;
   ha_spider **wide_handler_handlers = NULL;
   ha_partition *clone_source;
 #endif
@@ -456,7 +456,7 @@ int ha_spider::open(
     spider->partition_handler = partition_handler;
     owner->partition_handler = partition_handler;
     partition_handler->handlers = wide_handler_handlers;
-    pt_handler_share_alloc = TRUE;
+    partition_handler_alloc = TRUE;
   } else {
     wide_handler = spider->wide_handler;
     partition_handler = wide_handler->partition_handler;
@@ -588,7 +588,7 @@ error_reset:
 error_init_blob_buff:
 error_init_result_list:
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (pt_handler_share_alloc)
+  if (partition_handler_alloc)
   {
     wide_share = share->wide_share;
     spider->partition_handler = NULL;

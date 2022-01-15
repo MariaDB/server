@@ -184,7 +184,6 @@ PSI_mutex_key spd_key_mutex_share_auto_increment;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 PSI_mutex_key spd_key_mutex_wide_share_sts;
 PSI_mutex_key spd_key_mutex_wide_share_crd;
-PSI_mutex_key spd_key_mutex_pt_handler;
 #endif
 PSI_mutex_key spd_key_mutex_udf_table;
 PSI_mutex_key spd_key_mutex_mem_calc;
@@ -244,7 +243,6 @@ static PSI_mutex_info all_spider_mutexes[]=
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   { &spd_key_mutex_wide_share_sts, "wide_share_sts", 0},
   { &spd_key_mutex_wide_share_crd, "wide_share_crd", 0},
-  { &spd_key_mutex_pt_handler, "pt_handler", 0},
 #endif
   { &spd_key_mutex_udf_table, "udf_table", 0},
   { &spd_key_mutex_conn_loop_check, "conn_loop_check", 0},
@@ -429,18 +427,6 @@ uchar *spider_wide_share_get_key(
   *length = share->table_name_length;
   DBUG_RETURN((uchar*) share->table_name);
 }
-
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-uchar *spider_pt_handler_share_get_key(
-  SPIDER_PARTITION_HANDLER *share,
-  size_t *length,
-  my_bool not_used __attribute__ ((unused))
-) {
-  DBUG_ENTER("spider_pt_handler_share_get_key");
-  *length = sizeof(ha_spider *);
-  DBUG_RETURN((uchar*) share->owner);
-}
-#endif
 
 uchar *spider_lgtm_tblhnd_share_hash_get_key(
   SPIDER_LGTM_TBLHND_SHARE *share,

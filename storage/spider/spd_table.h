@@ -319,14 +319,6 @@ uchar *spider_wide_share_get_key(
   my_bool not_used __attribute__ ((unused))
 );
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-uchar *spider_pt_handler_share_get_key(
-  SPIDER_PARTITION_HANDLER *share,
-  size_t *length,
-  my_bool not_used __attribute__ ((unused))
-);
-#endif
-
 uchar *spider_link_get_key(
   SPIDER_LINK_FOR_HASH *link_for_hash,
   size_t *length,
