@@ -3979,6 +3979,7 @@ void handler::print_error(int error, myf errflag)
     break;
   case HA_ERR_PARTITION_LIST:
     my_error(ER_VERS_NOT_ALLOWED, errflag, table->s->db.str, table->s->table_name.str);
+    DBUG_VOID_RETURN;
   default:
     {
       /* The error was "unknown" to this function.
