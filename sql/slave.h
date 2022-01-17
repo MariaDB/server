@@ -146,6 +146,7 @@ extern char *opt_slave_transaction_retry_errors;
 extern my_bool opt_replicate_annotate_row_events;
 extern ulonglong relay_log_space_limit;
 extern ulonglong opt_read_binlog_speed_limit;
+extern ulonglong opt_apply_binlog_speed_limit;
 extern ulonglong slave_skipped_errors;
 extern const char *relay_log_index;
 extern const char *relay_log_basename;
@@ -214,6 +215,11 @@ int start_slave_thread(
                        volatile uint *slave_running,
                        volatile ulong *slave_run_id,
                        Master_info *mi);
+
+struct ev_limit{
+  ulonglong start_tm;
+  ulonglong evs_since_start_tm;
+};
 
 /* If fd is -1, dump to NET */
 int mysql_table_dump(THD* thd, const char* db,

@@ -5582,6 +5582,14 @@ Sys_read_binlog_speed_limit(
        GLOBAL_VAR(opt_read_binlog_speed_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, ULONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
 
+static Sys_var_on_access_global<Sys_var_ulonglong,
+                            PRIV_SET_SYSTEM_GLOBAL_VAR_APPLY_BINLOG_SPEED_LIMIT>
+Sys_apply_binlog_speed_limit(
+    "apply_binlog_speed_limit", "Maximum no. of events/s to apply to the "
+       "slave DB(0 = no limit)",
+       GLOBAL_VAR(opt_apply_binlog_speed_limit), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, ULONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
+
 static Sys_var_charptr Sys_slave_transaction_retry_errors(
        "slave_transaction_retry_errors", "Tells the slave thread to retry "
        "transaction for replication when a query event returns an error from "

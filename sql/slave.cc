@@ -88,6 +88,7 @@ Master_info *active_mi= 0;
 my_bool replicate_same_server_id;
 ulonglong relay_log_space_limit = 0;
 ulonglong opt_read_binlog_speed_limit = 0;
+ulonglong opt_apply_binlog_speed_limit = 0;
 
 const char *relay_log_index= 0;
 const char *relay_log_basename= 0;
@@ -123,6 +124,8 @@ enum enum_slave_reconnect_messages
   SLAVE_RECON_MSG_KILLED_AFTER= 5,
   SLAVE_RECON_MSG_MAX
 };
+
+static ev_limit event_limit_info{0,0};
 
 static const char *reconnect_messages[SLAVE_RECON_ACT_MAX][SLAVE_RECON_MSG_MAX]=
 {
@@ -4141,6 +4144,14 @@ inline void update_state_of_relay_log(Relay_log_info *rli, Log_event *ev)
                       rli->get_flag(Relay_log_info::IN_TRANSACTION)));
 }
 
+inline int apply_event_incr_evs(Log_event* ev, THD* thd,
+                                 struct rpl_group_info *rgi){
+  int exec_res= apply_event_and_update_pos(ev, thd, rgi);
+  if(!unlikely(exec_res)){
+    event_limit_info.evs_since_start_tm++;
+  }
+  return exec_res;
+}
 
 /**
   Top-level function for executing the next event in the relay log.
@@ -4361,7 +4372,32 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
     serial_rgi->future_event_relay_log_pos= rli->future_event_relay_log_pos;
     serial_rgi->event_relay_log_name= rli->event_relay_log_name;
     serial_rgi->event_relay_log_pos= rli->event_relay_log_pos;
-    exec_res= apply_event_and_update_pos(ev, thd, serial_rgi);
+
+    /* limit the speed to <opt_apply_binlog_speed_limit> events per second */
+    if(rli->belongs_to_client() || opt_apply_binlog_speed_limit == 0){
+      exec_res = apply_event_and_update_pos(ev, thd, serial_rgi);
+    } else { //belongs to the slave sql thread
+      if(event_limit_info.start_tm == 0){
+        event_limit_info.start_tm = my_hrtime().val;
+        exec_res = apply_event_incr_evs(ev, thd, serial_rgi);
+      } else {
+        if (my_hrtime().val - event_limit_info.start_tm < 1000) {
+          if (event_limit_info.evs_since_start_tm < opt_apply_binlog_speed_limit) {
+            exec_res = apply_event_incr_evs(ev, thd, serial_rgi);
+          } else {
+            ulong duration = (event_limit_info.evs_since_start_tm+1) - my_hrtime().val;
+            my_sleep(duration);
+            event_limit_info.start_tm += 1000;
+            exec_res = apply_event_incr_evs(ev, thd, serial_rgi);
+          }
+        } else {
+          event_limit_info.start_tm += 1000;
+          event_limit_info.evs_since_start_tm = 0;
+          exec_res = apply_event_incr_evs(ev, thd, serial_rgi);
+        }
+      }
+    }
+
 
 #ifdef WITH_WSREP
     WSREP_DEBUG("apply_event_and_update_pos() result: %d", exec_res);

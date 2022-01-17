@@ -980,6 +980,9 @@ The following specify which files/extra groups are read (specified before remain
  --read-binlog-speed-limit=# 
  Maximum speed(KB/s) to read binlog from master (0 = no
  limit)
+ --apply-binlog-speed-limit=#
+ Maximum no. of events/s to apply to the slave DB(0 = no
+ limit)
  --read-buffer-size=# 
  Each thread that does a sequential scan allocates a
  buffer of this size for each table it scans. If you do
