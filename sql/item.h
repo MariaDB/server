@@ -4564,6 +4564,7 @@ public:
   {
     return ref ? (*ref)->real_item() : this;
   }
+  bool is_json_type() { return (*ref)->is_json_type(); }
   bool walk(Item_processor processor, bool walk_subquery, void *arg)
   { 
     if (ref && *ref)
