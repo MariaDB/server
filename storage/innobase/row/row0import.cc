@@ -3288,7 +3288,10 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
     }
 
     mem_heap_t *heap= NULL;
-    SCOPE_EXIT([&heap]() { mem_heap_free(heap); });
+    SCOPE_EXIT([&heap]() {
+      if (heap)
+        mem_heap_free(heap);
+    });
 
     while (btr_page_get_level(page.get()) != 0)
     {

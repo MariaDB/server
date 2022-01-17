@@ -1321,8 +1321,9 @@ public:
   ulint get_new_n_vcol() const
   { return new_vcol_info ? new_vcol_info->n_v_col : 0; }
 
-  /** Reconstruct the clustered index fields. */
-  inline void reconstruct_fields();
+  /** Reconstruct the clustered index fields.
+  @return whether metadata is incorrect */
+  inline bool reconstruct_fields();
 
   /** Check if the index contains a column or a prefix of that column.
   @param[in]	n		column number
