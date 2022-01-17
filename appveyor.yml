@@ -23,12 +23,12 @@ build_script:
   - set BUILD_TYPE=MinSizeRel
   - set GENERATOR=-GNinja
   - call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
-  - cmake -E time cmake %GENERATOR% .. -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DMYSQL_MAINTAINER_MODE=ERR -DFAST_BUILD=1 -DBISON_EXECUTABLE=C:\ProgramData\chocolatey\lib\winflexbison\tools\win_bison.exe -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_FEEDBACK=NO
+  - cmake -E time cmake %GENERATOR% .. -DWITH_SSL=system -DOPENSSL_ROOT_DIR=C:/OpenSSL-v30-Win64 -DCMAKE_BUILD_TYPE=%BUILD_TYPE% -DMYSQL_MAINTAINER_MODE=ERR -DFAST_BUILD=1 -DBISON_EXECUTABLE=C:\ProgramData\chocolatey\lib\winflexbison\tools\win_bison.exe -DPLUGIN_PERFSCHEMA=NO -DPLUGIN_FEEDBACK=NO
   - set /A jobs=2*%NUMBER_OF_PROCESSORS%
   - cmake -E time cmake --build . -j %jobs% --config %BUILD_TYPE% --target minbuild
 
 test_script:
-  - set PATH=C:\Strawberry\perl\bin;%PATH%;C:\Program Files (x86)\Windows Kits\10\Debuggers\x64
+  - set PATH=C:\Strawberry\perl\bin;%PATH%;C:\Program Files (x86)\Windows Kits\10\Debuggers\x64;C:\OpenSSL-v30-Win64;C:\OpenSSL-v30-Win64\bin
   - cd %APPVEYOR_BUILD_FOLDER%\_build\mysql-test
   - set /A parallel=4*%NUMBER_OF_PROCESSORS%
   - perl mysql-test-run.pl --force --max-test-fail=10 --retry=2 -parallel=%parallel% --testcase-timeout=4 --suite=main  --skip-test-list=%APPVEYOR_BUILD_FOLDER%\win\appveyor_skip_tests.txt --mysqld=--loose-innodb-flush-log-at-trx-commit=2
