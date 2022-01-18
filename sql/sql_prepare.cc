@@ -5348,6 +5348,7 @@ public:
   MEM_ROOT *alloc;
   THD *new_thd;
   Security_context empty_ctx;
+  ulonglong client_capabilities;
 
   Protocol_local(THD *thd_arg, THD *new_thd_arg, ulong prealloc) :
     Protocol_text(thd_arg, prealloc),
@@ -5969,12 +5970,15 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
   {
     Ed_connection con(p->thd);
     Security_context *ctx_orig= p->thd->security_ctx;
+    ulonglong cap_orig= p->thd->client_capabilities;
     MYSQL_LEX_STRING sql_text;
     DBUG_ASSERT(current_thd == p->thd);
     sql_text.str= (char *) arg;
     sql_text.length= arg_length;
     p->thd->security_ctx= &p->empty_ctx;
+    p->thd->client_capabilities= p->client_capabilities;
     result= con.execute_direct(p, sql_text);
+    p->thd->client_capabilities= cap_orig;
     p->thd->security_ctx= ctx_orig;
   }
   if (skip_check)
@@ -6099,6 +6103,7 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
   THD *thd_orig= current_thd;
   THD *new_thd;
   Protocol_local *p;
+  ulonglong client_flag;
   DBUG_ENTER("mysql_real_connect_local");
 
   /* Test whether we're already connected */
@@ -6110,6 +6115,9 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
 
   mysql->methods= &local_methods;
   mysql->user= NULL;
+  client_flag= mysql->options.client_flag;
+  client_flag|= CLIENT_MULTI_RESULTS;;
+  client_flag&= ~(CLIENT_COMPRESS | CLIENT_PLUGIN_AUTH);
 
   mysql->info_buffer= (char *) my_malloc(MYSQL_ERRMSG_SIZE, MYF(0));
   if (!thd_orig || thd_orig->lock)
@@ -6130,6 +6138,7 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
     new_thd->security_ctx->skip_grants();
     new_thd->query_cache_is_applicable= 0;
     new_thd->variables.wsrep_on= 0;
+    new_thd->client_capabilities= client_flag;
     /*
       TOSO: decide if we should turn the auditing off
       for such threads.
@@ -6150,6 +6159,7 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
   {
     p->empty_ctx.init();
     p->empty_ctx.skip_grants();
+    p->client_capabilities= client_flag;
   }
 
   mysql->thd= p;

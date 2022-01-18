@@ -7302,12 +7302,20 @@ int spider_db_init(
     uint i = 0;
     while (spider_init_queries[i].length)
     {
+      MYSQL_RES *res;
+
       if (mysql_real_query(mysql, spider_init_queries[i].str, spider_init_queries[i].length))
       {
+        mysql_close(mysql);
         goto error_init_udf_table_mon_list_hash;
       }
+
+      if ((res= mysql_store_result(mysql)))
+        mysql_free_result(res);
+
       ++i;
     }
+    mysql_close(mysql);
   }
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
