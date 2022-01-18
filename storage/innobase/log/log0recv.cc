@@ -2212,9 +2212,7 @@ eom_found:
 #endif
 
   uint32_t space_id= 0, page_no= 0, last_offset= 0;
-#if 1 /* MDEV-14425 FIXME: remove this */
   bool got_page_op= false;
-#endif
   for (l= log; l < end; l+= rlen)
   {
     const byte *const recs= l;
@@ -2484,11 +2482,9 @@ same_page:
         pages.erase(i);
       }
     }
-#if 1 /* MDEV-14425 FIXME: this must be in the checkpoint file only! */
     else if (rlen)
     {
       switch (b & 0xf0) {
-# if 1 /* MDEV-14425 FIXME: Remove this! */
       case FILE_CHECKPOINT:
         if (space_id == 0 && page_no == 0 && rlen == 8)
         {
@@ -2519,7 +2515,6 @@ same_page:
           }
           continue;
         }
-# endif
         /* fall through */
       default:
         if (!srv_force_recovery)
@@ -2598,7 +2593,6 @@ same_page:
           return true;
       }
     }
-#endif
     else
       goto malformed;
   }
