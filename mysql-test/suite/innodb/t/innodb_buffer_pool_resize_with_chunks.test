@@ -49,7 +49,7 @@ drop table t1;
 drop view view0;
 
 # Try to shrink buffer pool to smaller than chunk size
-set global innodb_buffer_pool_size = 1048576;
+set global innodb_buffer_pool_size = 2*1048576;
 --source include/wait_condition.inc
 select @@innodb_buffer_pool_size;
 

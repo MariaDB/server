@@ -244,9 +244,6 @@ UNIV_INTERN os_event_t	srv_allow_writes_event;
 
 /** copy of innodb_buffer_pool_size */
 ulint	srv_buf_pool_size;
-const ulint	srv_buf_pool_min_size	= 5 * 1024 * 1024;
-/** Default pool size in bytes */
-const ulint	srv_buf_pool_def_size	= 128 * 1024 * 1024;
 /** Requested buffer pool chunk size. Each buffer pool instance consists
 of one or more chunks. */
 ulong	srv_buf_pool_chunk_unit;
