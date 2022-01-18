@@ -1087,6 +1087,9 @@ extern char *get_tty_password(const char *opt_message);
 #define BACKSLASH_MBTAIL
 /* File system character set */
 extern CHARSET_INFO *fs_character_set(void);
+extern int my_set_console_cp(const char *name);
+#else
+#define my_set_console_cp(A) do {} while (0)
 #endif
 extern const char *my_default_csname(void);
 extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
@@ -1097,13 +1100,6 @@ extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
 extern void thd_increment_bytes_sent(void *thd, size_t length);
 extern void thd_increment_bytes_received(void *thd, size_t length);
 extern void thd_increment_net_big_packet_count(void *thd, size_t length);
-
-#ifdef _WIN32
-
-/* implemented in my_conio.c */
-char* my_cgets(char *string, size_t clen, size_t* plen);
-
-#endif
 
 #include <mysql/psi/psi.h>
 

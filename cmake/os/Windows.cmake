@@ -60,8 +60,8 @@ ENDIF()
 
 ADD_DEFINITIONS(-D_CRT_SECURE_NO_DEPRECATE)
 ADD_DEFINITIONS(-D_WIN32_WINNT=0x0A00)
-# We do not want the windows.h macros min/max
-ADD_DEFINITIONS(-DNOMINMAX)
+# We do not want the windows.h , or winsvc.h macros min/max
+ADD_DEFINITIONS(-DNOMINMAX -DNOSERVICE)
 # Speed up build process excluding unused header files
 ADD_DEFINITIONS(-DWIN32_LEAN_AND_MEAN)
   

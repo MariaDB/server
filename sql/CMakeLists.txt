@@ -482,10 +482,11 @@ IF(WIN32)
   MYSQL_ADD_EXECUTABLE(mariadb-install-db
     mysql_install_db.cc
     ${CMAKE_CURRENT_BINARY_DIR}/mysql_bootstrap_sql.c
+    password.c
     COMPONENT Server
   )
   SET_TARGET_PROPERTIES(mariadb-install-db PROPERTIES COMPILE_FLAGS -DINSTALL_PLUGINDIR=${INSTALL_PLUGINDIR})
-  TARGET_LINK_LIBRARIES(mariadb-install-db mysys shlwapi)
+  TARGET_LINK_LIBRARIES(mariadb-install-db mysys mysys_ssl shlwapi)
 
   ADD_LIBRARY(winservice STATIC winservice.c)
   TARGET_LINK_LIBRARIES(winservice shell32)

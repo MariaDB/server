@@ -127,6 +127,7 @@
 #ifdef _WIN32
 #include <handle_connections_win.h>
 #include <sddl.h>
+#include <winservice.h> /* SERVICE_STOPPED, SERVICE_RUNNING etc */
 #endif
 
 #include <my_service_manager.h>

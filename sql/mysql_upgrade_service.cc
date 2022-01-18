@@ -374,13 +374,17 @@ static void change_service_config()
     Write datadir to my.ini, after converting  backslashes to 
     unix style slashes.
   */
-  strcpy_s(buf, MAX_PATH, service_properties.datadir);
-  for(i= 0; buf[i]; i++)
+  if (service_properties.datadir[0])
   {
-    if (buf[i] == '\\')
-      buf[i]= '/';
+    strcpy_s(buf, MAX_PATH, service_properties.datadir);
+    for (i= 0; buf[i]; i++)
+    {
+      if (buf[i] == '\\')
+        buf[i]= '/';
+    }
+    WritePrivateProfileString("mysqld", "datadir", buf,
+                              service_properties.inifile);
   }
-  WritePrivateProfileString("mysqld", "datadir",buf, service_properties.inifile);
 
   /*
     Remove basedir from defaults file, otherwise the service wont come up in 
@@ -465,13 +469,8 @@ int main(int argc, char **argv)
     }
   }
 
-  old_mysqld_exe_exists = (GetFileAttributes(service_properties.mysqld_exe) != INVALID_FILE_ATTRIBUTES);
-  log("Phase %d/%d: Fixing server config file%s", ++phase, max_phases, my_ini_exists ? "" : "(skipped)");
-
-  snprintf(my_ini_bck, sizeof(my_ini_bck), "%s.BCK", service_properties.inifile);
-  CopyFile(service_properties.inifile, my_ini_bck, FALSE);
-  upgrade_config_file(service_properties.inifile);
-
+  old_mysqld_exe_exists= (GetFileAttributes(service_properties.mysqld_exe) !=
+                          INVALID_FILE_ATTRIBUTES);
   bool do_start_stop_server = old_mysqld_exe_exists && initial_service_state != SERVICE_RUNNING;
 
   log("Phase %d/%d: Start and stop server in the old version, to avoid crash recovery %s", ++phase, max_phases,
@@ -526,6 +525,14 @@ int main(int argc, char **argv)
       start_duration_ms += 500;
     }
   }
+
+  log("Phase %d/%d: Fixing server config file%s", ++phase, max_phases,
+      my_ini_exists ? "" : "(skipped)");
+  snprintf(my_ini_bck, sizeof(my_ini_bck), "%s.BCK",
+           service_properties.inifile);
+  CopyFile(service_properties.inifile, my_ini_bck, FALSE);
+  upgrade_config_file(service_properties.inifile);
+
   /* 
     Start mysqld.exe as non-service skipping privileges (so we do not 
     care about the password). But disable networking and enable pipe 

@@ -3258,6 +3258,47 @@ static int replace(DYNAMIC_STRING *ds_str,
   return 0;
 }
 
+#ifdef _WIN32
+/**
+  Check if background execution of command was requested.
+  Like in Unix shell, we assume background execution of the last
+  character in command is a ampersand (we do not tokenize though)
+*/
+static bool is_background_command(const DYNAMIC_STRING *ds)
+{
+  for (size_t i= ds->length - 1; i > 1; i--)
+  {
+    char c= ds->str[i];
+    if (!isspace(c))
+      return (c == '&');
+  }
+  return false;
+}
+
+/**
+  Execute OS command in background. We assume that the last character
+  is ampersand, i.e is_background_command() returned
+*/
+#include <string>
+static int execute_in_background(char *cmd)
+{
+  STARTUPINFO s{};
+  PROCESS_INFORMATION pi{};
+  char *end= strrchr(cmd, '&');
+  DBUG_ASSERT(end);
+  *end =0;
+  std::string scmd("cmd /c ");
+  scmd.append(cmd);
+  BOOL ok=
+   CreateProcess(0, (char *)scmd.c_str(), 0, 0, 0, CREATE_NO_WINDOW, 0, 0, &s, &pi);
+  *end= '&';
+  if (!ok)
+    return (int) GetLastError();
+  CloseHandle(pi.hProcess);
+  CloseHandle(pi.hThread);
+  return 0;
+}
+#endif
 
 /*
   Execute given command.
@@ -3332,6 +3373,14 @@ void do_exec(struct st_command *command)
   DBUG_PRINT("info", ("Executing '%s' as '%s'",
                       command->first_argument, ds_cmd.str));
 
+#ifdef _WIN32
+  if (is_background_command(&ds_cmd))
+  {
+    error= execute_in_background(ds_cmd.str);
+    goto end;
+  }
+#endif
+
   if (!(res_file= my_popen(ds_cmd.str, "r")))
   {
     dynstr_free(&ds_cmd);
@@ -3358,7 +3407,9 @@ void do_exec(struct st_command *command)
     dynstr_append_sorted(&ds_res, &ds_sorted, 0);
     dynstr_free(&ds_sorted);
   }
-
+#ifdef _WIN32
+end:
+#endif
   if (error)
   {
     uint status= WEXITSTATUS(error);

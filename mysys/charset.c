@@ -1209,30 +1209,17 @@ size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
 
 
 #ifdef BACKSLASH_MBTAIL
-static CHARSET_INFO *fs_cset_cache= NULL;
-
 CHARSET_INFO *fs_character_set()
 {
-  if (!fs_cset_cache)
-  {
-    char buf[10]= "cp";
-    GetLocaleInfo(LOCALE_SYSTEM_DEFAULT, LOCALE_IDEFAULTANSICODEPAGE,
-                  buf+2, sizeof(buf)-3);
-    /*
-      We cannot call get_charset_by_name here
-      because fs_character_set() is executed before
-      LOCK_THD_charset mutex initialization, which
-      is used inside get_charset_by_name.
-      As we're now interested in cp932 only,
-      let's just detect it using strcmp().
-    */
-    fs_cset_cache= 
-                #ifdef HAVE_CHARSET_cp932
-                        !strcmp(buf, "cp932") ? &my_charset_cp932_japanese_ci : 
-                #endif
-                        &my_charset_bin;
-  }
-  return fs_cset_cache;
+  static CHARSET_INFO *fs_cset_cache;
+  if (fs_cset_cache)
+    return fs_cset_cache;
+#ifdef HAVE_CHARSET_cp932
+  else if (GetACP() == 932)
+    return fs_cset_cache= &my_charset_cp932_japanese_ci;
+#endif
+  else
+    return fs_cset_cache= &my_charset_bin;
 }
 #endif
 
@@ -1393,8 +1380,8 @@ static const MY_CSET_OS_NAME charsets[] =
 #ifdef UNCOMMENT_THIS_WHEN_WL_WL_4024_IS_DONE
   {"cp54936",        "gb18030",  my_cs_exact},
 #endif
-  {"cp65001",        "utf8",     my_cs_exact},
-
+  {"cp65001",        "utf8mb4",  my_cs_exact},
+  {"cp65001",        "utf8mb3",  my_cs_approx},
 #else /* not Windows */
 
   {"646",            "latin1",   my_cs_approx}, /* Default on Solaris */
@@ -1517,9 +1504,15 @@ const char* my_default_csname()
   const char* csname = NULL;
 #ifdef _WIN32
   char cpbuf[64];
-  int cp = GetConsoleCP();
-  if (cp == 0)
-    cp = GetACP();
+  UINT cp;
+  if (GetACP() == CP_UTF8)
+    cp= CP_UTF8;
+  else
+  {
+    cp= GetConsoleCP();
+    if (cp == 0)
+      cp= GetACP();
+  }
   snprintf(cpbuf, sizeof(cpbuf), "cp%d", (int)cp);
   csname = my_os_charset_to_mysql_charset(cpbuf);
 #elif defined(HAVE_SETLOCALE) && defined(HAVE_NL_LANGINFO)
@@ -1528,3 +1521,90 @@ const char* my_default_csname()
 #endif
   return csname ? csname : MYSQL_DEFAULT_CHARSET_NAME;
 }
+
+
+#ifdef _WIN32
+/**
+  Extract codepage number from "cpNNNN" string,
+  and check that this codepage is supported.
+
+  @return 0 - invalid codepage(or unsupported)
+          > 0 - valid codepage number.
+*/
+static UINT get_codepage(const char *s)
+{
+  UINT cp;
+  if (s[0] != 'c' || s[1] != 'p')
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
+  cp= strtoul(s + 2, NULL, 10);
+  if (!IsValidCodePage(cp))
+  {
+    /*
+     Can happen also with documented CP, i.e 51936
+     Perhaps differs from one machine to another.
+    */
+    return 0;
+  }
+  return cp;
+}
+
+static UINT mysql_charset_to_codepage(const char *my_cs_name)
+{
+  const MY_CSET_OS_NAME *csp;
+  UINT cp=0,tmp;
+  for (csp= charsets; csp->os_name; csp++)
+  {
+    if (!strcasecmp(csp->my_name, my_cs_name))
+    {
+      switch (csp->param)
+      {
+      case my_cs_exact:
+        tmp= get_codepage(csp->os_name);
+        if (tmp)
+          return tmp;
+        break;
+      case my_cs_approx:
+        /*
+          don't return just yet, perhaps there is a better
+          (exact) match later.
+        */
+        if (!cp)
+          cp= get_codepage(csp->os_name);
+        continue;
+
+      default:
+        return 0;
+      }
+    }
+  }
+  return cp;
+}
+
+/** Set console codepage for MariaDB's charset name */
+int my_set_console_cp(const char *csname)
+{
+  UINT cp;
+  if (fileno(stdout) < 0 || !isatty(fileno(stdout)))
+    return 0;
+  cp= mysql_charset_to_codepage(csname);
+  if (!cp)
+  {
+    /* No compatible os charset.*/
+    return -1;
+  }
+
+  if (GetConsoleOutputCP() != cp && !SetConsoleOutputCP(cp))
+  {
+    return -1;
+  }
+
+  if (GetConsoleCP() != cp && !SetConsoleCP(cp))
+  {
+    return -1;
+  }
+  return 0;
+}
+#endif

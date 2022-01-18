@@ -54,7 +54,6 @@ IF (WIN32)
     my_wincond.c
     my_winerr.c
     my_winfile.c
-    my_conio.c
     my_minidump.cc
     my_win_popen.cc)
 ENDIF()

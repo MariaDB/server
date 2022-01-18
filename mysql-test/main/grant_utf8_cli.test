@@ -1,6 +1,5 @@
- # UTF8 parameters to mysql client do not work on Windows
---source include/not_windows.inc
 --source include/not_embedded.inc
+--source include/check_utf8_cli.inc
 
 #
 # Bug#21432 Database/Table name limited to 64 bytes, not chars, problems with multi-byte
