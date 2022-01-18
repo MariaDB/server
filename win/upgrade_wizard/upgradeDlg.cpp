@@ -15,6 +15,7 @@
 #include <vector>
 
 #include <winservice.h>
+#include <locale.h>
 
 using namespace std;
 
@@ -271,6 +272,11 @@ BOOL CUpgradeDlg::OnInitDialog()
 
   m_Progress.ShowWindow(SW_HIDE);
   m_Ok.EnableWindow(FALSE);
+  if (GetACP() == CP_UTF8)
+  {
+    /* Required for mbstowcs, used in some functions.*/
+    setlocale(LC_ALL, "en_US.UTF8");
+  }
   PopulateServicesList();
   return TRUE;  // return TRUE  unless you set the focus to a control
 }

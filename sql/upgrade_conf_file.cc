@@ -288,7 +288,7 @@ static bool is_mariadb_section(const char *name, bool *is_server)
     if (*is_server= !strcmp(section_name, name))
       break;
 
-  return *is_server;
+  return true;
 }
 
 

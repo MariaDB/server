@@ -163,11 +163,6 @@ static void validate_value(const char *key, const char *value,
   }
   else
   {
-    /*
-     Should never happen, non-UTF8 can be read from option's
-     file only.
-    */
-    DBUG_ASSERT(0);
     my_getopt_error_reporter(
     WARNING_LEVEL, "%s: invalid (non-UTF8) characters for option %s",
       my_progname, key);
