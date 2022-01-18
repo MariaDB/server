@@ -3623,6 +3623,8 @@ uint gis_field_options_read(const uchar *buf, uint buf_len,
 
 class Field_enum :public Field_str {
   static void do_field_enum(Copy_field *copy_field);
+  bool can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
+                                         const Item *item) const;
 protected:
   uint packlength;
 public:
@@ -3700,7 +3702,10 @@ public:
                               const uchar *from_end, uint param_data);
 
   bool can_optimize_keypart_ref(const Item_bool_func *cond,
-                                const Item *item) const;
+                                const Item *item) const
+  {
+    return can_optimize_range_or_keypart_ref(cond, item);
+  }
   bool can_optimize_group_min_max(const Item_bool_func *cond,
                                   const Item *const_item) const
   {
@@ -3712,6 +3717,12 @@ public:
      "Bug#45300 MAX() and ENUM type" should be fixed first.
     */
     return false;
+  }
+  bool can_optimize_range(const Item_bool_func *cond,
+                          const Item *item,
+                          bool is_eq_func) const
+  {
+    return can_optimize_range_or_keypart_ref(cond, item);
   }
 private:
   int do_save_field_metadata(uchar *first_byte);

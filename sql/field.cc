@@ -9484,8 +9484,8 @@ uint Field_num::is_equal(Create_field *new_field)
 }
 
 
-bool Field_enum::can_optimize_keypart_ref(const Item_bool_func *cond,
-                                          const Item *item) const
+bool Field_enum::can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
+                                                   const Item *item) const
 {
   DBUG_ASSERT(cmp_type() == INT_RESULT);
   DBUG_ASSERT(result_type() == STRING_RESULT);
