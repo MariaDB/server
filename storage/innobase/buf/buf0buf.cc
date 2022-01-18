@@ -1310,6 +1310,9 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 	new_block = buf_LRU_get_free_only();
 
 	if (new_block == NULL) {
+		mysql_mutex_lock(&buf_pool.flush_list_mutex);
+		page_cleaner_wakeup();
+		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 		return(false); /* free list was not enough */
 	}
 

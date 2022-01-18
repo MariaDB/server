@@ -1,5 +1,5 @@
 /* Copyright (C) 2008-2020 Kentoku Shiba
-   Copyright (C) 2019-2020 MariaDB corp
+   Copyright (C) 2019-2022 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -688,18 +688,15 @@ typedef struct st_spider_lgtm_tblhnd_share
 } SPIDER_LGTM_TBLHND_SHARE;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-typedef struct st_spider_patition_handler_share
+typedef struct st_spider_patition_handler
 {
   bool               clone_bitmap_init;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
-  my_hash_value_type table_hash_value;
-#endif
   query_id_t         parallel_search_query_id;
   uint               no_parts;
   TABLE              *table;
   ha_spider          *owner;
   ha_spider          **handlers;
-} SPIDER_PARTITION_HANDLER_SHARE;
+} SPIDER_PARTITION_HANDLER;
 #endif
 
 typedef struct st_spider_wide_share
@@ -713,12 +710,6 @@ typedef struct st_spider_wide_share
   THR_LOCK           lock;
   pthread_mutex_t    sts_mutex;
   pthread_mutex_t    crd_mutex;
-  pthread_mutex_t    pt_handler_mutex;
-  HASH               pt_handler_hash;
-  uint               pt_handler_hash_id;
-  const char         *pt_handler_hash_func_name;
-  const char         *pt_handler_hash_file_name;
-  ulong              pt_handler_hash_line_no;
 
   volatile bool      sts_init;
   volatile bool      crd_init;
@@ -763,7 +754,7 @@ typedef struct st_spider_wide_handler
 #endif
 #endif
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  SPIDER_PARTITION_HANDLER_SHARE *partition_handler_share;
+  SPIDER_PARTITION_HANDLER *partition_handler;
 #endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   List<Item>         *direct_update_fields;

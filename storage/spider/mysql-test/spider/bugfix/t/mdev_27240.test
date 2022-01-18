@@ -1,0 +1,28 @@
+--disable_warnings
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+--enable_warnings
+
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+CREATE TABLE tbl_a (a INT KEY) ENGINE=SPIDER;
+--error ER_BAD_FIELD_ERROR
+SELECT a.z FROM tbl_a AS a,tbl_a b WHERE a.z=b.z;
+--error ER_BAD_FIELD_ERROR
+ALTER TABLE tbl_a CHANGE c c INT;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+LOCK TABLE tbl_a READ;
+
+DROP DATABASE auto_test_local;
+
+--disable_warnings
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+--enable_warnings
