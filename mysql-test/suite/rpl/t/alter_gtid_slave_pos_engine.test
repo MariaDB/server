@@ -24,7 +24,7 @@
 --echo #
 --let slave_sql_running= query_get_value(SHOW SLAVE STATUS, Slave_SQL_Running, 1)
 --echo # Slave_SQL_Running: $slave_sql_running
---error 1198
+--error 1205
 ALTER TABLE mysql.gtid_slave_pos ENGINE=innodb;
 
 --echo #

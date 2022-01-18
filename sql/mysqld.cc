@@ -949,6 +949,10 @@ PSI_mutex_key key_LOCK_after_binlog_sync;
 PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
 PSI_mutex_key key_TABLE_SHARE_LOCK_share;
 
+#ifdef HAVE_REPLICATION
+PSI_mutex_key key_LOCK_alter_safety;
+#endif
+
 static PSI_mutex_info all_server_mutexes[]=
 {
 #ifdef HAVE_MMAP
@@ -983,6 +987,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_manager, "LOCK_manager", PSI_FLAG_GLOBAL},
   { &key_LOCK_prepared_stmt_count, "LOCK_prepared_stmt_count", PSI_FLAG_GLOBAL},
   { &key_LOCK_rpl_status, "LOCK_rpl_status", PSI_FLAG_GLOBAL},
+  { &key_LOCK_alter_safety, "LOCK_alter_safety", PSI_FLAG_GLOBAL},
   { &key_LOCK_server_started, "LOCK_server_started", PSI_FLAG_GLOBAL},
   { &key_LOCK_status, "LOCK_status", PSI_FLAG_GLOBAL},
   { &key_LOCK_show_status, "LOCK_show_status", PSI_FLAG_GLOBAL},
@@ -4878,8 +4883,12 @@ static int init_thread_environment()
   pthread_attr_setscope(&connection_attrib, PTHREAD_SCOPE_SYSTEM);
 
 #ifdef HAVE_REPLICATION
+/* Or here! */
   rpl_init_gtid_slave_state();
   rpl_init_gtid_waiting();
+  register_alter_safety_check(
+      C_STRING_WITH_LEN("mysql"), rpl_gtid_slave_state_table_name.str,
+      rpl_gtid_slave_state_table_name.length, set_unsafe_gtid_slave_pos_error);
 #endif
 
   DBUG_RETURN(0);
@@ -5099,6 +5108,7 @@ static int init_server_components()
 
   my_uuid_init((ulong) (my_rnd(&sql_rand))*12345,12345);
 #ifdef HAVE_REPLICATION
+  /* Potentially here! */
   init_slave_list();
 #endif
   wt_init();

@@ -1006,4 +1006,6 @@ void delete_or_keep_event_post_apply(rpl_group_info *rgi,
 extern bool is_alter_allowed_by_rpl_state(const char *db_str,
                                           const char *table_str);
 
+extern void set_unsafe_gtid_slave_pos_error();
+
 #endif /* RPL_RLI_H */

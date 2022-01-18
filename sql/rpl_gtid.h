@@ -314,4 +314,7 @@ extern int gtid_check_rpl_slave_state_table(TABLE *table);
 extern rpl_gtid *gtid_parse_string_to_list(const char *p, size_t len,
                                            uint32 *out_len);
 
+extern bool validate_alter_gtid_slave_pos(void);
+extern bool cleanup_alter_gtid_slave_pos(void);
+
 #endif  /* RPL_GTID_H */

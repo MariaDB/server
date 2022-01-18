@@ -8912,6 +8912,181 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
   DBUG_RETURN(error != 0);
 }
 
+//static void alter_runtime_locks
+/*
+void free_domain_lookup_element(void *p)
+{
+  struct Binlog_gtid_state_validator::audit_elem *audit_elem=
+      (struct Binlog_gtid_state_validator::audit_elem *) p;
+  delete_dynamic(&audit_elem->late_gtids_previous);
+  delete_dynamic(&audit_elem->late_gtids_real);
+  my_free(audit_elem);
+}
+
+Binlog_gtid_state_validator::Binlog_gtid_state_validator()
+{
+  my_hash_init(PSI_INSTRUMENT_ME, &m_audit_elem_domain_lookup, &my_charset_bin, 32,
+               offsetof(struct audit_elem, domain_id), sizeof(uint32),
+               NULL, free_domain_lookup_element, HASH_UNIQUE);
+}
+
+Binlog_gtid_state_validator::~Binlog_gtid_state_validator()
+{
+  my_hash_free(&m_audit_elem_domain_lookup);
+}
+*/
+typedef struct _alter_safety_elem
+{
+  uint64 hash_val;
+  char *db;
+  size_t db_len;
+  char *table_name;
+  size_t table_name_len;
+  double mdl_timeout_override;
+  void (*error_func)();
+  mysql_mutex_t alter_tbl_lock;
+} alter_safety_elem;
+
+void free_alter_safety_elem(void *p)
+{
+  alter_safety_elem *e= (alter_safety_elem *) p;
+  my_free(e->db);
+  my_free(e->table_name);
+  my_free(e);
+}
+
+/*
+  Write up why this is needed..
+*/
+static uint64 hash_table_qualifier(const char *db, size_t db_len,
+                                   const char *table_name,
+                                   size_t table_name_len)
+{
+  uint64 hash_val= 47;
+  size_t i;
+
+  for (i= 0; i < db_len; i++)
+  {
+    hash_val ^= (*db++ << 1) | 1;
+  }
+
+  hash_val ^= ('.' << 1);
+
+  for (i= 0; i < table_name_len; i++)
+  {
+    hash_val ^= (*table_name++ << 1) | 1;
+  }
+
+  return hash_val;
+}
+
+static HASH alter_safety_hash;
+
+/*
+  Make an enum for tracking alter state?
+  ALTER_NOT_PROTECTED
+  ALTER_SAFE
+  ALTER UNSAFE
+*/
+
+int validate_alter_safety(const char *db, size_t db_len, const char *table_name, size_t table_name_len)
+{
+  uint64 hash_val= hash_table_qualifier(db, db_len, table_name, table_name_len);
+  alter_safety_elem *elem= (alter_safety_elem *) my_hash_search(
+      &alter_safety_hash, (const uchar *) &hash_val, 0);
+  /*
+    Double check that the hash corresponds to the intended database in case of
+    hash collision
+  */
+  if (elem && !(strncmp(elem->db, db, elem->db_len) ||
+                strncmp(elem->table_name, table_name, elem->table_name_len)))
+  {
+    if (mysql_mutex_trylock(&(elem->alter_tbl_lock)))
+    {
+      elem->error_func();
+      return 1;
+    }
+    mysql_mutex_unlock(&(elem->alter_tbl_lock));
+  }
+
+  return 0;
+}
+
+void set_table_unsafe_for_alter(const char *db, size_t db_len,
+                                const char *table_name, size_t table_name_len)
+{
+  uint64 hash_val= hash_table_qualifier(db, db_len, table_name, table_name_len);
+  alter_safety_elem *elem= (alter_safety_elem *) my_hash_search(
+      &alter_safety_hash, (const uchar *) &hash_val, 0);
+  DBUG_ASSERT(elem);
+  mysql_mutex_lock(&(elem->alter_tbl_lock));
+}
+
+double get_alter_mdl_timeout(THD *thd, const char *db, size_t db_len, const char *table_name,
+                       size_t table_name_len)
+{
+  uint64 hash_val= hash_table_qualifier(db, db_len, table_name, table_name_len);
+  alter_safety_elem *elem= (alter_safety_elem *) my_hash_search(
+      &alter_safety_hash, (const uchar *) &hash_val, 0);
+  if (!elem)
+    return thd->variables.lock_wait_timeout;
+  return elem->mdl_timeout_override;
+}
+
+void set_table_safe_for_alter(const char *db, size_t db_len,
+                                const char *table_name, size_t table_name_len)
+{
+  uint64 hash_val= hash_table_qualifier(db, db_len, table_name, table_name_len);
+  alter_safety_elem *elem= (alter_safety_elem *) my_hash_search(
+      &alter_safety_hash, (const uchar *) &hash_val, 0);
+  DBUG_ASSERT(elem);
+  mysql_mutex_unlock(&(elem->alter_tbl_lock));
+}
+
+void register_alter_safety_check(const char *db, size_t db_len, const char *table_name, size_t table_name_len,
+                                 void (*err_f)())
+{
+  static int32 is_hash_inited= 0;
+  static int32 false_ref= 0;
+
+  fprintf(stderr, "\n\nHash inited is %d\n",is_hash_inited);
+  if (my_atomic_cas32(&is_hash_inited, &false_ref, TRUE))
+  {
+    my_hash_init(&alter_safety_hash, &my_charset_bin, 4,
+                 offsetof(alter_safety_elem, hash_val),
+                 sizeof(decltype(alter_safety_elem::hash_val)), NULL,
+                        free_alter_safety_elem, HASH_UNIQUE);
+    fprintf(stderr, "We have initialized our alter_safety_hash\n");
+  }
+
+  uint64 table_hash=
+      hash_table_qualifier(db, db_len, table_name, table_name_len);
+
+  alter_safety_elem *new_el=
+      (alter_safety_elem *) my_malloc(sizeof(alter_safety_elem), MYF(MY_WME));
+  new_el->hash_val= table_hash;
+  new_el->db= (char *) my_malloc(db_len * sizeof(char) + 1,
+                                 MYF(MY_WME));
+  new_el->table_name=
+      (char *) my_malloc(table_name_len * sizeof(char) + 1, MYF(MY_WME));
+  new_el->db_len= db_len;
+  new_el->table_name_len= table_name_len;
+  strncpy(new_el->db, db, db_len);
+  new_el->db[db_len] = '\0';
+  strncpy(new_el->table_name, table_name, table_name_len);
+  new_el->table_name[table_name_len] = '\0';
+  new_el->mdl_timeout_override= 0;
+  new_el->error_func= err_f;
+  mysql_mutex_init(key_LOCK_alter_safety, &new_el->alter_tbl_lock,
+                   MY_MUTEX_INIT_FAST);
+
+  fprintf(stderr, "db %lu tl %lu\n", db_len, table_name_len);
+  fprintf(stderr, "Added new element for table %s.%s (%llu)\n", new_el->db,
+          new_el->table_name, new_el->hash_val);
+  my_hash_insert(&alter_safety_hash, (const uchar*) new_el);
+}
+
+
 
 /**
   Alter table
@@ -9059,6 +9234,9 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   Alter_table_ctx alter_ctx(thd, table_list, tables_opened, new_db, new_name);
 
   MDL_request target_mdl_request;
+  double mdl_wait_timeout= get_alter_mdl_timeout(
+      thd, alter_ctx.db, strlen(alter_ctx.db), alter_ctx.table_name,
+      strlen(alter_ctx.table_name));
 
   /* Check that we are not trying to rename to an existing table */
   if (alter_ctx.is_table_renamed())
@@ -9107,8 +9285,8 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                                                  "", "",
                                                  MDL_INTENTION_EXCLUSIVE));
 
-      if (thd->mdl_context.acquire_locks(&mdl_requests,
-                                         thd->variables.lock_wait_timeout))
+      if (thd->mdl_context.acquire_locks(&mdl_requests, mdl_wait_timeout))
+                                         //thd->variables.lock_wait_timeout))
         DBUG_RETURN(true);
 
       DEBUG_SYNC(thd, "locked_table_name");
@@ -9205,14 +9383,28 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   }
 
 #ifdef HAVE_REPLICATION
-  if (thd->lex && thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
-      table->s->db_type() != create_info->db_type &&
-      is_alter_allowed_by_rpl_state(alter_ctx.db, alter_ctx.table_name))
+  /*
+    rename to something like `unsafe_alter_locks` hashmap?
+  */
+  if (thd->lex && thd->lex->sql_command == SQLCOM_ALTER_TABLE)
   {
-    DBUG_PRINT("info", ("illegal alter"));
-    /* is_alter_allowed_by_rpl_state() sets the error details */
-    DBUG_RETURN(true);
+    if (validate_alter_safety(alter_ctx.db, strlen(alter_ctx.db),
+                          alter_ctx.table_name, strlen(alter_ctx.table_name)))
+    {
+      DBUG_PRINT("info", ("illegal alter"));
+      /* validate_alter_safety() sets the error details */
+      DBUG_RETURN(true);
+    }
   }
+
+//  if (thd->lex && thd->lex->sql_command == SQLCOM_ALTER_TABLE &&
+//      table->s->db_type() != create_info->db_type &&
+//      is_alter_allowed_by_rpl_state(alter_ctx.db, alter_ctx.table_name))
+//  {
+//    DBUG_PRINT("info", ("illegal alter"));
+//    /* is_alter_allowed_by_rpl_state() sets the error details */
+//    DBUG_RETURN(true);
+//  }
 #endif
 
   if (table->s->tmp_table == NO_TMP_TABLE)
@@ -9744,7 +9936,8 @@ do_continue:;
     */
     if (alter_info->requested_lock != Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE &&
         thd->mdl_context.upgrade_shared_lock(mdl_ticket, MDL_SHARED_NO_WRITE,
-                                             thd->variables.lock_wait_timeout))
+                                             mdl_wait_timeout))
+                                             //thd->variables.lock_wait_timeout))
       goto err_new_table_cleanup;
 
     DEBUG_SYNC(thd, "alter_table_copy_after_lock_upgrade");

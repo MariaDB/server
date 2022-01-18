@@ -4801,6 +4801,8 @@ pthread_handler_t handle_slave_sql(void *arg)
   const char *errmsg;
   rpl_group_info *serial_rgi;
   rpl_sql_thread_info sql_info(mi->rpl_filter);
+  MDL_request gtid_state_mdl_request;
+  MDL_request_list mdl_requests;
 
   // needs to call my_thread_init(), otherwise we get a coredump in DBUG_ stuff
   my_thread_init();
@@ -5060,6 +5062,19 @@ pthread_handler_t handle_slave_sql(void *arg)
   }
   mysql_mutex_unlock(&rli->data_lock);
 
+  gtid_state_mdl_request.init(MDL_key::TABLE, "mysql",
+                              rpl_gtid_slave_state_table_name.str,
+                              MDL_SHARED_WRITE, MDL_EXPLICIT);
+  mdl_requests.push_front(&gtid_state_mdl_request);
+
+  if (thd->mdl_context.acquire_locks(&mdl_requests,
+                                     thd->variables.lock_wait_timeout))
+  {
+    my_error(ER_CANT_LOCK, MYF(0));
+    goto err;
+  }
+  thd->mdl_context.set_needs_thr_lock_abort(TRUE);
+
   /* Read queries from the IO/THREAD until this thread is killed */
 
   thd->set_command(COM_SLAVE_SQL);
@@ -5151,6 +5166,11 @@ pthread_handler_t handle_slave_sql(void *arg)
                           "log '%s' at position %llu%s", RPL_LOG_NAME,
                           rli->group_master_log_pos, tmp.c_ptr_safe());
     sql_print_information("master was %s:%d", mi->host, mi->port);
+  }
+
+  if (gtid_state_mdl_request.ticket)
+  {
+    thd->mdl_context.release_all_locks_for_name(gtid_state_mdl_request.ticket);
   }
 
  err_before_start:

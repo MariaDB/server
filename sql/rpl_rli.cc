@@ -2299,6 +2299,12 @@ bool Relay_log_info::flush()
   DBUG_RETURN(error);
 }
 
+void set_unsafe_gtid_slave_pos_error()
+{
+  my_error(ER_SLAVE_MUST_STOP, MYF(0), (int) active_mi->connection_name.length,
+           active_mi->connection_name.str);
+}
+
 bool is_alter_allowed_by_rpl_state(const char *db_str, const char *table_str)
 {
   if (any_slave_sql_running() && active_mi &&

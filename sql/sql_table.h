@@ -288,4 +288,12 @@ extern mysql_mutex_t LOCK_gdl;
 
 bool check_engine(THD *, const char *, const char *, HA_CREATE_INFO *);
 
+void register_alter_safety_check(const char *db, size_t db_len,
+                                 const char *table_name, size_t table_name_len,
+                                 void (*err_f)());
+void set_table_unsafe_for_alter(const char *db, size_t db_len,
+                                const char *table_name, size_t table_name_len);
+void set_table_safe_for_alter(const char *db, size_t db_len,
+                              const char *table_name, size_t table_name_len);
+
 #endif /* SQL_TABLE_INCLUDED */
