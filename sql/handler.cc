@@ -1957,7 +1957,8 @@ int ha_rollback_trans(THD *thd, bool all)
       Thanks to possibility of MDL deadlock rollback request can come even if
       transaction hasn't been started in any transactional storage engine.
     */
-    if (thd->transaction_rollback_request)
+    if (thd->transaction_rollback_request &&
+        thd->transaction.xid_state.is_explicit_XA())
       thd->transaction.xid_state.set_error(thd->get_stmt_da()->sql_errno());
 
     thd->has_waiter= false;
