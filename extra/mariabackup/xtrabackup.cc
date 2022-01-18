@@ -1503,14 +1503,14 @@ struct my_option xb_server_options[] =
    (G_PTR*)&opt_encrypted_backup,
    0, GET_BOOL, NO_ARG, TRUE, 0, 0, 0, 0, 0},
 
-   {"log", OPT_LOG, "Ignored option for MySQL option compatibility",
+  {"log", OPT_LOG, "Ignored option for MySQL option compatibility",
    (G_PTR*) &log_ignored_opt, (G_PTR*) &log_ignored_opt, 0,
    GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 
-   {"log_bin", OPT_LOG, "Base name for the log sequence",
+  {"log_bin", OPT_LOG, "Base name for the log sequence",
    &opt_log_bin, &opt_log_bin, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 
-   {"innodb", OPT_INNODB, "Ignored option for MySQL option compatibility",
+  {"innodb", OPT_INNODB, "Ignored option for MySQL option compatibility",
    (G_PTR*) &innobase_ignored_opt, (G_PTR*) &innobase_ignored_opt, 0,
    GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #ifdef BTR_CUR_HASH_ADAPT
@@ -1635,10 +1635,10 @@ struct my_option xb_server_options[] =
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
   {"plugin-dir", OPT_PLUGIN_DIR,
-  "Server plugin directory. Used to load encryption plugin during 'prepare' phase."
-  "Has no effect in the 'backup' phase (plugin directory during backup is the same as server's)",
-  &xb_plugin_dir, &xb_plugin_dir,
-  0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
+   "Server plugin directory. Used to load encryption plugin during 'prepare' phase."
+   "Has no effect in the 'backup' phase (plugin directory during backup is the same as server's)",
+   &xb_plugin_dir, &xb_plugin_dir,
+   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
 
   {"innodb-log-checksums", OPT_INNODB_LOG_CHECKSUMS,
    "Whether to require checksums for InnoDB redo log blocks",
@@ -1660,12 +1660,12 @@ struct my_option xb_server_options[] =
   &xb_rocksdb_datadir, &xb_rocksdb_datadir,
   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
 
-  { "rocksdb-backup", OPT_BACKUP_ROCKSDB, "Backup rocksdb data, if rocksdb plugin is installed."
+  {"rocksdb-backup", OPT_BACKUP_ROCKSDB, "Backup rocksdb data, if rocksdb plugin is installed."
    "Used only with --backup option. Can be useful for partial backups, to exclude all rocksdb data",
    &xb_backup_rocksdb, &xb_backup_rocksdb,
    0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0 },
 
-   {"check-privileges", OPT_XTRA_CHECK_PRIVILEGES, "Check database user "
+  {"check-privileges", OPT_XTRA_CHECK_PRIVILEGES, "Check database user "
    "privileges fro the backup user",
    &opt_check_privileges, &opt_check_privileges,
    0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0 },
