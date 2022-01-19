@@ -238,6 +238,8 @@ public:
   Json_writer& add_member(const char *name, size_t len);
   
   /* Add atomic values */
+
+  /* Note: the add_str methods do not do escapes. Should this change? */
   void add_str(const char* val);
   void add_str(const char* val, size_t num_bytes);
   void add_str(const String &str);

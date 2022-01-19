@@ -1305,11 +1305,11 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	HISTOGRAM_TYPE
 VARIABLE_SCOPE	SESSION
 VARIABLE_TYPE	ENUM
-VARIABLE_COMMENT	Specifies type of the histograms created by ANALYZE. Possible values are: SINGLE_PREC_HB - single precision height-balanced, DOUBLE_PREC_HB - double precision height-balanced.
+VARIABLE_COMMENT	Specifies type of the histograms created by ANALYZE. Possible values are: SINGLE_PREC_HB - single precision height-balanced, DOUBLE_PREC_HB - double precision height-balanced, JSON_HB - height-balanced, stored as JSON.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	SINGLE_PREC_HB,DOUBLE_PREC_HB
+ENUM_VALUE_LIST	SINGLE_PREC_HB,DOUBLE_PREC_HB,JSON_HB
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	HOSTNAME

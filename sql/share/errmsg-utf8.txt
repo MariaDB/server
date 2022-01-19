@@ -8913,3 +8913,5 @@ ER_PARTITION_CONVERT_SUBPARTITIONED
         eng "Convert partition is not supported for subpartitioned table."
 ER_PROVIDER_NOT_LOADED
         eng "MariaDB tried to use the %s, but its provider plugin is not loaded"
+ER_JSON_HISTOGRAM_PARSE_FAILED
+        eng "Failed to parse histogram for table %s.%s: %s at offset %d."

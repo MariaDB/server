@@ -138,6 +138,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/opt_trace.cc
            ../sql/xa.cc
            ../sql/json_table.cc
+           ../sql/opt_histogram_json.cc
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )

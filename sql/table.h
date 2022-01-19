@@ -679,16 +679,21 @@ class TABLE_STATISTICS_CB
 public:
   MEM_ROOT  mem_root; /* MEM_ROOT to allocate statistical data for the table */
   Table_statistics *table_stats; /* Structure to access the statistical data */
-  ulong total_hist_size;         /* Total size of all histograms */
+
+  /*
+    Whether the table has histograms.
+    (If the table has none, histograms_are_ready() can finish sooner)
+  */
+  bool have_histograms;
 
   bool histograms_are_ready() const
   {
-    return !total_hist_size || hist_state.is_ready();
+    return !have_histograms || hist_state.is_ready();
   }
 
   bool start_histograms_load()
   {
-    return total_hist_size && hist_state.start_load();
+    return have_histograms && hist_state.start_load();
   }
 
   void end_histograms_load() { hist_state.end_load(); }

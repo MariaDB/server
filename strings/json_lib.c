@@ -1637,7 +1637,7 @@ int json_escape(CHARSET_INFO *str_cs,
         if (c_len < 0)
         {
           /* JSON buffer is depleted. */
-          return -1;
+          return JSON_ERROR_OUT_OF_SPACE;
         }
 
         /* JSON charset cannot convert this character. */
@@ -1649,7 +1649,7 @@ int json_escape(CHARSET_INFO *str_cs,
                                        json+= c_len, json_end)) <= 0)
       {
         /* JSON buffer is depleted. */
-        return -1;
+        return JSON_ERROR_OUT_OF_SPACE;
       }
       json+= c_len;
 
@@ -1682,11 +1682,11 @@ int json_escape(CHARSET_INFO *str_cs,
           continue;
         }
         /* JSON buffer is depleted. */
-        return -1;
+        return JSON_ERROR_OUT_OF_SPACE;
       }
     }
     else /* c_len == 0, an illegal symbol. */
-      return -1;
+      return JSON_ERROR_ILLEGAL_SYMBOL;
   }
 
   return (int)(json - json_start);

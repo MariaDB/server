@@ -835,3 +835,11 @@ IF 1 = (SELECT count(*) FROM information_schema.VIEWS WHERE TABLE_CATALOG = 'def
 END IF//
 
 DELIMITER ;
+
+--
+-- Upgrade mysql.column_stats table
+--
+
+ALTER TABLE column_stats
+  modify hist_type enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON_HB'),
+  modify histogram longblob;

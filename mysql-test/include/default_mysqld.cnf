@@ -118,6 +118,7 @@ binlog-direct-non-transactional-updates
 
 default-storage-engine=myisam
 use_stat_tables=preferably
+histogram_type=json_hb
 
 loose-ssl-ca=@ENV.MYSQL_TEST_DIR/std_data/cacert.pem
 loose-ssl-cert=@ENV.MYSQL_TEST_DIR/std_data/server-cert.pem
