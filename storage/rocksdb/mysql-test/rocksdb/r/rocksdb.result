@@ -942,6 +942,7 @@ rocksdb_keep_log_file_num	1000
 rocksdb_large_prefix	OFF
 rocksdb_lock_scanned_rows	OFF
 rocksdb_lock_wait_timeout	1
+rocksdb_log_dir	
 rocksdb_log_file_time_to_roll	0
 rocksdb_manifest_preallocation_size	4194304
 rocksdb_manual_compaction_threads	0
