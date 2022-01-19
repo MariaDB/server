@@ -3250,6 +3250,25 @@ double records_in_column_ranges(PARAM *param, uint idx,
 
 
 /*
+  Compare quick select ranges according to number of found rows
+  If there is equal amounts of rows, use the long key part.
+  The idea is that if we have keys (a),(a,b) and (a,b,c) and we have
+  a query like WHERE a=1 and b=1 and c=1,
+  it is better to use key (a,b,c) than (a) as it will ensure we don't also
+  use histograms for columns b and c
+*/
+
+static
+int cmp_quick_ranges(TABLE *table, uint *a, uint *b)
+{
+  int tmp= CMP_NUM(table->quick_rows[*a], table->quick_rows[*b]);
+  if (tmp)
+    return tmp;
+  return -CMP_NUM(table->quick_key_parts[*a], table->quick_key_parts[*b]);
+}
+
+
+/*
   Calculate the selectivity of the condition imposed on the rows of a table
 
   SYNOPSIS
@@ -3285,10 +3304,10 @@ double records_in_column_ranges(PARAM *param, uint idx,
 
 bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 {
-  uint keynr;
-  uint max_quick_key_parts= 0;
+  uint keynr, range_index, ranges;
   MY_BITMAP *used_fields= &table->cond_set;
-  double table_records= (double)table->stat_records(); 
+  double table_records= (double)table->stat_records();
+  uint optimal_key_order[MAX_KEY];
   DBUG_ENTER("calculate_cond_selectivity_for_table");
 
   table->cond_selectivity= 1.0;
@@ -3327,23 +3346,21 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
   Json_writer_object trace_wrapper(thd);
   Json_writer_array selectivity_for_indexes(thd, "selectivity_for_indexes");
 
-  for (keynr= 0;  keynr < table->s->keys; keynr++)
-  {
-    if (table->quick_keys.is_set(keynr))
-      set_if_bigger(max_quick_key_parts, table->quick_key_parts[keynr]);
-  }
-
-  /* 
-    Walk through all indexes, indexes where range access uses more keyparts 
-    go first.
+  /*
+    Walk through all quick ranges in the order of least found rows.
   */
-  for (uint quick_key_parts= max_quick_key_parts;
-       quick_key_parts; quick_key_parts--)
+  for (ranges= keynr= 0 ; keynr < table->s->keys; keynr++)
+    if (table->quick_keys.is_set(keynr))
+      optimal_key_order[ranges++]= keynr;
+
+  my_qsort2(optimal_key_order, ranges,
+            sizeof(optimal_key_order[0]),
+            (qsort2_cmp) cmp_quick_ranges, table);
+
+  for (range_index= 0 ; range_index < ranges ; range_index++)
   {
-    for (keynr= 0;  keynr < table->s->keys; keynr++)
+    uint keynr= optimal_key_order[range_index];
     {
-      if (table->quick_keys.is_set(keynr) &&
-          table->quick_key_parts[keynr] == quick_key_parts)
       {
         uint i;
         uint used_key_parts= table->quick_key_parts[keynr];
