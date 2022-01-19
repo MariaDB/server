@@ -2462,6 +2462,10 @@ void buf_flush_sync()
   {
     const lsn_t lsn= log_sys.get_lsn();
     buf_flush_wait(lsn);
+    /* Wait for the page cleaner to be idle (for log resizing at startup) */
+    while (buf_flush_sync_lsn)
+      my_cond_wait(&buf_pool.done_flush_list,
+                   &buf_pool.flush_list_mutex.m_mutex);
     if (lsn == log_sys.get_lsn())
       break;
   }
