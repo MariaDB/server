@@ -209,6 +209,13 @@ REMOTE_SERVER="s_2_2" REMOTE_DATABASE="auto_test_remote2"
 SELECT * FROM tbl_a;
 a	b
 DROP TABLE tbl_a;
+CREATE TABLE tbl_a (
+a INT
+) ENGINE=Spider DEFAULT CHARSET=utf8
+PARTITION BY HASH (a) PARTITIONS 2;
+SELECT * FROM tbl_a;
+ERROR HY000: Unable to connect to foreign data source: localhost
+DROP TABLE tbl_a;
 connection child2_1;
 DROP DATABASE auto_test_remote;
 connection child2_2;

@@ -194,6 +194,14 @@ PARTITION BY RANGE (a) (
 SELECT * FROM tbl_a;
 DROP TABLE tbl_a;
 
+eval CREATE TABLE tbl_a (
+  a INT
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+PARTITION BY HASH (a) PARTITIONS 2;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+SELECT * FROM tbl_a;
+DROP TABLE tbl_a;
+
 --connection child2_1
 DROP DATABASE auto_test_remote;
 

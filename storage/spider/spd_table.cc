@@ -2015,7 +2015,7 @@ int st_spider_param_string_parse::print_param_error()
   corresponding attribute of SPIDER_SHARE.
 */
 #define SPIDER_OPTION_STR_LIST(title_name, option_name, param_name) \
-  if (option_struct->option_name)                                             \
+  if (option_struct && option_struct->option_name)                            \
   {                                                                           \
     DBUG_PRINT("info", ("spider " title_name " start overwrite"));            \
     share->SPIDER_PARAM_STR_CHARLEN(param_name)=                              \
