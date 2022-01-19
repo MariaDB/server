@@ -186,6 +186,29 @@ CREATE OR REPLACE TABLE t1 (pk INT, a INT, b int, KEY(a), PRIMARY KEY(pk DESC)) 
 INSERT INTO t1 VALUES (1,4,5),(2,9,6),(3,NULL,7),(4,NULL,8);
 SELECT * FROM t1 WHERE pk > 10 OR a > 0;
 pk	a	b
-1	4	5
 2	9	6
+1	4	5
 DROP TABLE t1;
+#
+#  MDEV-27529: Wrong result upon query using index_merge with DESC key (#2)
+#
+create table t1 (
+pk int, 
+a int, 
+b int,
+primary key(pk desc),
+key(a),
+key(b)
+) engine=innodb;
+insert into t1 values (0, 111111, 255);
+insert into t1 select seq+50000, NULL, seq+1000 from seq_1_to_260;
+insert into t1 values (10000, NULL, 255);
+insert into t1 select seq+20000, seq+20000, seq+20000 from seq_1_to_1500;
+# Must use ROR-intersect:
+explain select * from t1 where b = 255 AND a IS NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index_merge	a,b	b,a	5,5	NULL	1	Using intersect(b,a); Using where; Using index
+select * from t1 where b = 255 AND a IS NULL;
+pk	a	b
+10000	NULL	255
+drop table t1;

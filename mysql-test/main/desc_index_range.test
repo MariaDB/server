@@ -96,3 +96,30 @@ INSERT INTO t1 VALUES (1,4,5),(2,9,6),(3,NULL,7),(4,NULL,8);
 
 SELECT * FROM t1 WHERE pk > 10 OR a > 0;
 DROP TABLE t1;
+
+
+--echo #
+--echo #  MDEV-27529: Wrong result upon query using index_merge with DESC key (#2)
+--echo #
+
+create table t1 (
+  pk int, 
+  a int, 
+  b int,
+  primary key(pk desc),
+  key(a),
+  key(b)
+) engine=innodb;
+
+insert into t1 values (0, 111111, 255);
+
+insert into t1 select seq+50000, NULL, seq+1000 from seq_1_to_260;
+
+insert into t1 values (10000, NULL, 255);
+insert into t1 select seq+20000, seq+20000, seq+20000 from seq_1_to_1500;
+
+--echo # Must use ROR-intersect:
+explain select * from t1 where b = 255 AND a IS NULL;
+select * from t1 where b = 255 AND a IS NULL;
+
+drop table t1;
