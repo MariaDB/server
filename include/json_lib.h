@@ -282,15 +282,6 @@ int json_key_matches(json_engine_t *je, json_string_t *k);
 */
 int json_read_value(json_engine_t *j);
 
-/*
-  json_smart_read_value() reads a JSON value. Pointer to value is stored in
-  *value and its length in *value_len.
-
-  if the value is non a scalar, it returns pointers to its JSON
-  representation.
-  The function should only be called when je->state==JST_VALUE.
-*/
-enum json_types json_smart_read_value(json_engine_t *je, const char **value, int *value_len);
 
 /*
   json_skip_key() makes parser skip the content of the current

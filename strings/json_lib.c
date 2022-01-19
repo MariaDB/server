@@ -1868,8 +1868,8 @@ int json_path_compare(const json_path_t *a, const json_path_t *b,
 }
 
 
-enum json_types json_smart_read_value(json_engine_t *je,
-                                      const char **value, int *value_len)
+static enum json_types smart_read_value(json_engine_t *je,
+                                        const char **value, int *value_len)
 {
   if (json_read_value(je))
     goto err_return;
@@ -1909,7 +1909,7 @@ enum json_types json_type(const char *js, const char *js_end,
   json_scan_start(&je, &my_charset_utf8mb4_bin,(const uchar *) js,
                   (const uchar *) js_end);
 
-  return json_smart_read_value(&je, value, value_len);
+  return smart_read_value(&je, value, value_len);
 }
 
 
@@ -1933,7 +1933,7 @@ enum json_types json_get_array_item(const char *js, const char *js_end,
     {
     case JST_VALUE:
       if (c_item == n_item)
-        return json_smart_read_value(&je, value, value_len);
+        return smart_read_value(&je, value, value_len);
 
       if (json_skip_key(&je))
         goto err_return;
@@ -1998,7 +1998,7 @@ enum json_types json_get_object_key(const char *js, const char *js_end,
       json_string_set_str(&key_name, (const uchar *) key,
                           (const uchar *) key_end);
       if (json_key_matches(&je, &key_name))
-        return json_smart_read_value(&je, value, value_len);
+        return smart_read_value(&je, value, value_len);
 
       if (json_skip_key(&je))
         goto err_return;

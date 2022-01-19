@@ -914,7 +914,7 @@ double position_in_interval(Field *field, const  uchar *key, uint key_len,
 
 
 double Histogram_json_hb::point_selectivity(Field *field, key_range *endpoint,
-                                            double avg_sel, double total_rows)
+                                            double avg_sel)
 {
   const uchar *key = endpoint->key;
   if (field->real_maybe_null())

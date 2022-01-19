@@ -41,8 +41,8 @@
     ]
   }
 
-  The histogram is an object with single member named Histogram_json_hb::
-  JSON_NAME. The value of that member is an array of buckets.
+  Histogram is a JSON object. It has some global properties and "histogram_hb"
+  member whose value is a JSON array of histogram buckets.
 
   Each bucket is an object with these members:
     "start" - the first value in the bucket.
@@ -126,8 +126,7 @@ public:
                            ulonglong size) override;
 
   double point_selectivity(Field *field, key_range *endpoint,
-                           double avg_selection,
-                           double total_rows) override;
+                           double avg_sel) override;
   double range_selectivity(Field *field, key_range *min_endp,
                            key_range *max_endp, double avg_sel) override;
 
