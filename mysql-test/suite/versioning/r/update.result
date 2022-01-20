@@ -283,7 +283,6 @@ connection default;
 update t1 set b = 'foo';
 connection con1;
 update t1 set a = 'bar';
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 disconnect con1;
 connection default;
 drop table t1;

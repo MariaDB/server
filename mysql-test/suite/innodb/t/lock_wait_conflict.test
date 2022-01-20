@@ -1,0 +1,60 @@
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--echo #
+--echo # MDEV-27025 insert-intention lock conflicts with waiting ORDINARY lock
+--echo #
+
+# The test checks the ability to acquire exclusive record lock if the acquiring
+# transaction already holds a shared lock on the record and another transaction
+# is waiting for a lock.
+
+CREATE TABLE t (a INT PRIMARY KEY, b INT NOT NULL UNIQUE) ENGINE=InnoDB;
+
+--connect(prevent_purge,localhost,root,,)
+start transaction with consistent snapshot;
+
+--connection default
+INSERT INTO t VALUES (20,20);
+DELETE FROM t WHERE b = 20;
+
+--connect(con_ins,localhost,root,,)
+SET DEBUG_SYNC = 'row_ins_sec_index_entry_dup_locks_created SIGNAL ins_set_locks WAIT_FOR ins_cont';
+send
+INSERT INTO t VALUES(10, 20);
+
+--connect(con_del,localhost,root,,)
+SET DEBUG_SYNC = 'now WAIT_FOR ins_set_locks';
+SET DEBUG_SYNC = 'lock_wait_suspend_thread_enter SIGNAL del_locked';
+###############################################################################
+# This DELETE creates waiting ORDINARY X-lock for heap_no 2 as the record is
+# delete-marked, this lock conflicts with ORDINARY S-lock set by the the last
+# INSERT. After the last INSERT creates insert-intention lock on
+# heap_no 2, this lock will conflict with waiting ORDINARY X-lock of this
+# DELETE, what causes DEADLOCK error for this DELETE.
+###############################################################################
+send
+DELETE FROM t WHERE b = 20;
+
+--connection default
+SET DEBUG_SYNC = 'now WAIT_FOR del_locked';
+SET DEBUG_SYNC = 'now SIGNAL ins_cont';
+
+--connection con_ins
+--reap
+--disconnect con_ins
+
+--connection con_del
+# Without the fix, ER_LOCK_DEADLOCK would be reported here.
+--reap
+--disconnect con_del
+
+--disconnect prevent_purge
+
+--connection default
+
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t;
+--source include/wait_until_count_sessions.inc
