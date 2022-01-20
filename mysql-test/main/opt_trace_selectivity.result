@@ -52,6 +52,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                         "rows": 104,
                         "cond_check_cost": 124.96562,
                         "startup_cost": 0,
+                        "rows": 104,
                         "cost": 124.96562,
                         "chosen": true
                     },
@@ -63,6 +64,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                         "rows": 340,
                         "cond_check_cost": 408.2577963,
                         "startup_cost": 0,
+                        "rows": 340,
                         "cost": 408.2577963,
                         "chosen": false,
                         "cause": "cost"
@@ -75,6 +77,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                         "rows": 632,
                         "cond_check_cost": 758.7718449,
                         "startup_cost": 0,
+                        "rows": 632,
                         "cost": 758.7718449,
                         "chosen": false,
                         "cause": "cost"
@@ -147,6 +150,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                         "rows": 6,
                         "cond_check_cost": 7.327343464,
                         "startup_cost": 0,
+                        "rows": 6,
                         "cost": 7.327343464,
                         "chosen": true
                     },
@@ -158,6 +162,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                         "rows": 232,
                         "cond_check_cost": 278.6156139,
                         "startup_cost": 0,
+                        "rows": 232,
                         "cost": 278.6156139,
                         "chosen": false,
                         "cause": "cost"
@@ -170,6 +175,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                         "rows": 293,
                         "cond_check_cost": 351.8394392,
                         "startup_cost": 0,
+                        "rows": 293,
                         "cost": 351.8394392,
                         "chosen": false,
                         "cause": "cost"
