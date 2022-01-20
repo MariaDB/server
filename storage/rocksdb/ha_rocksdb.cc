@@ -6668,6 +6668,17 @@ int ha_rocksdb::open(const char *const name, int mode, uint test_if_locked) {
              "dictionary");
     DBUG_RETURN(HA_ERR_ROCKSDB_INVALID_TABLE);
   }
+  if (m_tbl_def->m_key_count != table->s->keys + has_hidden_pk(table)? 1:0)
+  {
+    sql_print_error("MyRocks: DDL mismatch: .frm file has %u indexes, "
+                    "MyRocks has %u (%s hidden pk)",
+                    table->s->keys, m_tbl_def->m_key_count,
+                    has_hidden_pk(table)? "1" : "no");
+    my_error(ER_INTERNAL_ERROR, MYF(0),
+             "MyRocks: DDL mismatch. Check the error log for details");
+    DBUG_RETURN(HA_ERR_ROCKSDB_INVALID_TABLE);
+  }
+
 
   m_lock_rows = RDB_LOCK_NONE;
   m_key_descr_arr = m_tbl_def->m_key_descr_arr;
