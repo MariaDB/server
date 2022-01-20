@@ -31460,11 +31460,11 @@ my_wmemcmp(my_wc_t *a, my_wc_t *b, size_t len)
 
   @return       Weight array
   @retval       NULL - Input string is not a known contraction
-  @retval       ptr  - contraction weight array
+  @retval       ptr  - the address of the MY_CONTRACTION found
 */
 
-static inline uint16 *
-my_uca_contraction_weight(const MY_CONTRACTIONS *list, my_wc_t *wc, size_t len)
+static inline const MY_CONTRACTION *
+my_uca_contraction_find(const MY_CONTRACTIONS *list, my_wc_t *wc, size_t len)
 {
   MY_CONTRACTION *c, *last;
   DBUG_ASSERT(len <= MY_UCA_MAX_CONTRACTION);
@@ -31474,7 +31474,7 @@ my_uca_contraction_weight(const MY_CONTRACTIONS *list, my_wc_t *wc, size_t len)
     if ((len >= MY_UCA_MAX_CONTRACTION || c->ch[len] == 0) &&
         !c->with_context &&
         !my_wmemcmp(c->ch, wc, len))
-      return c->weight;
+      return c;
   }
   return NULL;
 }
@@ -31492,10 +31492,10 @@ my_uca_contraction_weight(const MY_CONTRACTIONS *list, my_wc_t *wc, size_t len)
 
   @return         Weight array
   @retval         NULL - no contraction found
-  @retval         ptr  - contraction weight array
+  @retval         ptr  - the address of MY_CONTRACTION found
 */
 
-static uint16 *
+static const MY_CONTRACTION *
 my_uca_scanner_contraction_find(my_uca_scanner *scanner, my_wc_t *wc)
 {
   size_t clen= 1;
@@ -31521,15 +31521,15 @@ my_uca_scanner_contraction_find(my_uca_scanner *scanner, my_wc_t *wc)
   /* Find among candidates the longest real contraction */
   for ( ; clen > 1; clen--)
   {
-    uint16 *cweight;
+    const MY_CONTRACTION *cnt;
     if (my_uca_can_be_contraction_tail(&scanner->level->contractions,
                                        wc[clen - 1]) &&
-        (cweight= my_uca_contraction_weight(&scanner->level->contractions,
-                                            wc, clen)))
+        (cnt= my_uca_contraction_find(&scanner->level->contractions,
+                                      wc, clen)))
     {
-      scanner->wbeg= cweight + 1;
+      scanner->wbeg= cnt->weight + 1;
       scanner->sbeg= beg[clen - 1];
-      return cweight;
+      return cnt;
     }
   }
 
@@ -31547,10 +31547,10 @@ my_uca_scanner_contraction_find(my_uca_scanner *scanner, my_wc_t *wc)
 
   @return   Weight array
   @retval   NULL - no contraction with context found
-  @retval   ptr  - contraction weight array
+  @retval   ptr  - the address of MY_CONTRACTION found
 */
 
-static uint16 *
+static const MY_CONTRACTION *
 my_uca_previous_context_find(my_uca_scanner *scanner,
                              my_wc_t wc0, my_wc_t wc1)
 {
@@ -31561,7 +31561,7 @@ my_uca_previous_context_find(my_uca_scanner *scanner,
     if (c->with_context && wc0 == c->ch[0] && wc1 == c->ch[1])
     {
       scanner->wbeg= c->weight + 1;
-      return c->weight;
+      return c;
     }
   }
   return NULL;
@@ -31583,12 +31583,12 @@ my_uca_previous_context_find(my_uca_scanner *scanner,
                    pair, then wc[1] is set to the previous character.
 
   @retval          NULL if could not find any contextual weights for wc[0]
-  @retval          non null pointer to a zero-terminated weight string otherwise
+  @retval          non null pointer - the address of MY_CONTRACTION found
 */
-static inline uint16 *
+static inline const MY_CONTRACTION *
 my_uca_context_weight_find(my_uca_scanner *scanner, my_wc_t *wc)
 {
-  uint16 *cweight;
+  const MY_CONTRACTION *cnt;
   DBUG_ASSERT(scanner->level->contractions.nitems);
   /*
     If we have scanned a character which can have previous context,
@@ -31605,17 +31605,17 @@ my_uca_context_weight_find(my_uca_scanner *scanner, my_wc_t *wc)
       my_uca_can_be_previous_context_head(&scanner->level->contractions,
                                           (wc[1]= ((scanner->page << 8) +
                                                     scanner->code))) &&
-      (cweight= my_uca_previous_context_find(scanner, wc[1], wc[0])))
+      (cnt= my_uca_previous_context_find(scanner, wc[1], wc[0])))
   {
     scanner->page= scanner->code= 0; /* Clear for the next character */
-    return cweight;
+    return cnt;
   }
   else if (my_uca_can_be_contraction_head(&scanner->level->contractions,
                                           wc[0]))
   {
     /* Check if w[0] starts a contraction */
-    if ((cweight= my_uca_scanner_contraction_find(scanner, wc)))
-      return cweight;
+    if ((cnt= my_uca_scanner_contraction_find(scanner, wc)))
+      return cnt;
   }
   return NULL;
 }
@@ -33214,9 +33214,11 @@ my_char_weight_put(MY_UCA_WEIGHT_LEVEL *dst,
 
     for (chlen= len; chlen > 1; chlen--)
     {
+      const MY_CONTRACTION *cnt;
       if (chlen <= MY_UCA_MAX_CONTRACTION &&
-          (from= my_uca_contraction_weight(&dst->contractions, str, chlen)))
+          (cnt= my_uca_contraction_find(&dst->contractions, str, chlen)))
       {
+        from= cnt->weight;
         str+= chlen;
         len-= chlen;
         break;

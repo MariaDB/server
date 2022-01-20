@@ -65,9 +65,9 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
 #if MY_UCA_COMPILE_CONTRACTIONS
       if (my_uca_needs_context_handling(scanner->level, wc[0]))
       {
-        uint16 *cweight= my_uca_context_weight_find(scanner, wc);
-        if (cweight)
-          return *cweight;
+        const MY_CONTRACTION *cnt= my_uca_context_weight_find(scanner, wc);
+        if (cnt)
+          return cnt->weight[0];
       }
 #endif
 
@@ -114,9 +114,9 @@ MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
 #if MY_UCA_COMPILE_CONTRACTIONS
     if (my_uca_needs_context_handling(scanner->level, wc[0]))
     {
-      uint16 *cweight= my_uca_context_weight_find(scanner, wc);
-      if (cweight)
-        return *cweight;
+      const MY_CONTRACTION *cnt= my_uca_context_weight_find(scanner, wc);
+      if (cnt)
+        return cnt->weight[0];
     }
 #endif
 
