@@ -3223,6 +3223,21 @@ static Sys_var_charptr_fscs Sys_secure_file_priv(
        PREALLOCATED READ_ONLY GLOBAL_VAR(opt_secure_file_priv),
        CMD_LINE(REQUIRED_ARG), DEFAULT(0));
 
+static bool check_server_id(sys_var *self, THD *thd, set_var *var)
+{
+#ifdef WITH_WSREP
+  if (WSREP_ON && WSREP_PROVIDER_EXISTS && !wsrep_new_cluster && wsrep_gtid_mode)
+  {
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                 ER_WRONG_VALUE_FOR_VAR,
+                 "Can't change server_id because wsrep and wsrep_gtid_mode is set."
+                 " You can set server_id only with wsrep_new_cluster. ");
+    return true;
+  }
+#endif /* WITH_WSREP */
+  return false;
+}
+
 static bool fix_server_id(sys_var *self, THD *thd, enum_var_type type)
 {
   if (type == OPT_GLOBAL)
@@ -3247,7 +3262,7 @@ Sys_server_id(
        "replication partners",
        SESSION_VAR(server_id), CMD_LINE(REQUIRED_ARG, OPT_SERVER_ID),
        VALID_RANGE(1, UINT_MAX32), DEFAULT(1), BLOCK_SIZE(1), NO_MUTEX_GUARD,
-       NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(fix_server_id));
+       NOT_IN_BINLOG, ON_CHECK(check_server_id), ON_UPDATE(fix_server_id));
 
 static Sys_var_on_access_global<Sys_var_mybool,
                           PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_COMPRESSED_PROTOCOL>
