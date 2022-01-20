@@ -538,9 +538,10 @@ static void trace_table_dependencies(THD *thd,
   {
     TABLE_LIST *table_ref= join_tabs[i].tab_list;
     Json_writer_object trace_one_table(thd);
-    trace_one_table.add_table_name(&join_tabs[i]);
-    trace_one_table.add("row_may_be_null",
-                       (bool)table_ref->table->maybe_null);
+    trace_one_table.
+      add_table_name(&join_tabs[i]).
+      add("row_may_be_null",
+          (bool)table_ref->table->maybe_null);
     const table_map map= table_ref->get_map();
     DBUG_ASSERT(map < (1ULL << table_count));
     for (uint j= 0; j < table_count; j++)
@@ -1734,7 +1735,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
     }
   }
 
-  if (thd->trace_started())
+  if (unlikely(thd->trace_started()))
   {
     Json_writer_object trace_wrapper(thd);
     opt_trace_print_expanded_query(thd, select_lex, &trace_wrapper);
@@ -5477,7 +5478,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     }
   }
 
-  if (thd->trace_started())
+  if (unlikely(thd->trace_started()))
     trace_table_dependencies(thd, stat, join->table_count);
 
   if (join->conds || outer_join)
@@ -5498,7 +5499,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
                                skip_unprefixed_keyparts))
       goto error;
     DBUG_EXECUTE("opt", print_keyuse_array(keyuse_array););
-    if (thd->trace_started())
+    if (unlikely(thd->trace_started()))
       print_keyuse_array_for_trace(thd, keyuse_array);
   }
 
@@ -5947,13 +5948,13 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
           delete select;
         else
         {
-          if (thd->trace_started())
+          if (unlikely(thd->trace_started()))
             add_table_scan_values_to_trace(thd, s);
         }
       }
       else
       {
-        if (thd->trace_started())
+        if (unlikely(thd->trace_started()))
           add_table_scan_values_to_trace(thd, s);
       }
     }
@@ -8072,8 +8073,10 @@ best_access_path(JOIN      *join,
         */
         records= 1.0;
         type= JT_FT;
-        trace_access_idx.add("access_type", join_type_str[type])
-                        .add("full-text index", keyinfo->name);
+        if (unlikely(trace_access_idx.trace_started()))
+          trace_access_idx.
+            add("access_type", join_type_str[type]).
+            add("full-text index", keyinfo->name);
       }
       else
       {
@@ -8098,8 +8101,10 @@ best_access_path(JOIN      *join,
             DBUG_ASSERT(join->eq_ref_tables & table->map);
             /* TODO: Adjust cost for covering and clustering key */
             type= JT_EQ_REF;
-            trace_access_idx.add("access_type", join_type_str[type])
-                            .add("index", keyinfo->name);
+            if (unlikely(trace_access_idx.trace_started()))
+              trace_access_idx.
+                add("access_type", join_type_str[type]).
+                add("index", keyinfo->name);
             if (!found_ref && table->opt_range_keys.is_set(key))
               tmp= adjust_quick_cost(table->opt_range[key].cost, 1);
             else
@@ -8115,8 +8120,10 @@ best_access_path(JOIN      *join,
           else
           {
             type= JT_REF;
-            trace_access_idx.add("access_type", join_type_str[type])
-                            .add("index", keyinfo->name);
+            if (unlikely(trace_access_idx.trace_started()))
+              trace_access_idx.
+                add("access_type", join_type_str[type]).
+                add("index", keyinfo->name);
             if (!found_ref)
             {                                     /* We found a const key */
               /*
@@ -8146,8 +8153,10 @@ best_access_path(JOIN      *join,
               }
               /* quick_range couldn't use key! */
               records= (double) s->records/rec;
-              trace_access_idx.add("used_range_estimates", false)
-                .add("reason", "not available");
+              if (unlikely(trace_access_idx.trace_started()))
+                trace_access_idx.
+                  add("used_range_estimates", false).
+                  add("reason", "not available");
             }
             else
             {
@@ -8182,16 +8191,19 @@ best_access_path(JOIN      *join,
                 records= (double) table->opt_range[key].rows;
                 trace_access_idx.add("used_range_estimates", "clipped down");
               }
-              else
+              else if (unlikely(trace_access_idx.trace_started()))
               {
-                trace_access_idx.add("used_range_estimates", false);
                 if (table->opt_range_keys.is_set(key))
                 {
-                  trace_access_idx.add("reason", "not better than ref estimates");
+                  trace_access_idx.
+                    add("used_range_estimates",false).
+                    add("reason", "not better than ref estimates");
                 }
                 else
                 {
-                  trace_access_idx.add("reason", "not available");
+                  trace_access_idx.
+                    add("used_range_estimates", false).
+                    add("reason", "not available");
                 }
               }
             }
@@ -8203,8 +8215,10 @@ best_access_path(JOIN      *join,
         else
         {
           type = ref_or_null_part ? JT_REF_OR_NULL : JT_REF;
-          trace_access_idx.add("access_type", join_type_str[type])
-                          .add("index", keyinfo->name);
+          if (unlikely(trace_access_idx.trace_started()))
+            trace_access_idx.
+              add("access_type", join_type_str[type]).
+              add("index", keyinfo->name);
           /*
             Use as much key-parts as possible and a uniq key is better
             than a not unique key
@@ -8450,16 +8464,21 @@ best_access_path(JOIN      *join,
         }
       }
       tmp= COST_ADD(tmp, records_after_filter/TIME_FOR_COMPARE);
-      trace_access_idx.
-        add("rows", records).
-        add("cond_check_cost",tmp).
-        add("startup_cost", startup_cost);
+      if (unlikely(trace_access_idx.trace_started()))
+        trace_access_idx.
+          add("rows", records).
+          add("cond_check_cost",tmp).
+          add("startup_cost", startup_cost);
 
       tmp= COST_MULT(tmp, record_count);
       tmp= COST_ADD(tmp, startup_cost);
+
+      if (unlikely(trace_access_idx.trace_started()))
+        trace_access_idx.add("rows_after_filter", records_after_filter).add("cost", tmp);
+
       if (tmp + 0.0001 < best_cost)
       {
-        trace_access_idx.add("cost", tmp).add("chosen", true);
+        trace_access_idx.add("chosen", true);
         best_cost= tmp;
         best_records= records;
         best_key= start_key;
@@ -8468,10 +8487,11 @@ best_access_path(JOIN      *join,
         best_filter= filter;
         best_type= type;
       }
-      else if (thd->trace_started())
+      else if (unlikely(thd->trace_started()))
       {
-        trace_access_idx.add("cost",tmp).add("chosen", false)
-                        .add("cause", cause ? cause : "cost");
+        trace_access_idx.
+          add("chosen", false).
+          add("cause", cause ? cause : "cost");
       }
     } /* for each key */
     records= best_records;
@@ -8571,11 +8591,14 @@ best_access_path(JOIN      *join,
     best_filter= 0;
     best_type= JT_HASH;
     Json_writer_object trace_access_hash(thd);
-    trace_access_hash.add("type", "hash");
-    trace_access_hash.add("index", "hj-key");
-    trace_access_hash.add("rows", rnd_records);
-    trace_access_hash.add("cost", best_cost);
-    trace_access_hash.add("chosen", true);
+    if (unlikely(trace_access_hash.trace_started()))
+      trace_access_hash.
+        add("type", "hash").
+        add("index", "hj-key").
+        add("rows", rnd_records).
+        add("refills", refills).
+        add("cost", best_cost).
+        add("chosen", true);
   }
 
   /*
@@ -8751,8 +8774,10 @@ best_access_path(JOIN      *join,
     best_filter_cmp_gain= (best_filter ?
                            best_filter->get_cmp_gain(record_count * records) :
                            0);
-    trace_access_scan.add("resulting_rows", rnd_records);
-    trace_access_scan.add("cost", tmp);
+    if (unlikely(trace_access_scan.trace_started()))
+      trace_access_scan.
+        add("resulting_rows", rnd_records).
+        add("cost", tmp);
 
     /* TODO: Document the following if */
     if (best_cost == DBL_MAX ||
@@ -8783,9 +8808,11 @@ best_access_path(JOIN      *join,
   }
   else
   {
-    trace_access_scan.add("type", "scan");
-    trace_access_scan.add("chosen", false);
-    trace_access_scan.add("cause", "cost");
+    if (unlikely(trace_access_scan.trace_started()))
+      trace_access_scan.
+        add("type", "scan").
+        add("chosen", false).
+        add("cause", "cost");
   }
 
   /* Update the cost information for the current partial plan */
@@ -10537,10 +10564,11 @@ best_extension_by_limited_search(JOIN      *join,
                                            current_record_count /
                                            TIME_FOR_COMPARE));
 
-      if (unlikely(thd->trace_started()))
+      if (unlikely(trace_one_table.trace_started()))
       {
-        trace_one_table.add("rows_for_plan", current_record_count);
-        trace_one_table.add("cost_for_plan", current_read_time);
+        trace_one_table.
+          add("rows_for_plan", current_record_count).
+          add("cost_for_plan", current_read_time);
       }
       optimize_semi_joins(join, remaining_tables, idx, &current_record_count,
                           &current_read_time, loose_scan_pos);
@@ -12446,8 +12474,10 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           trace_const_cond.add("condition_on_constant_tables", const_cond);
           if (const_cond->is_expensive())
           {
-            trace_const_cond.add("evaluated", "false")
-                            .add("cause", "expensive cond");
+            if (unlikely(trace_const_cond.trace_started()))
+              trace_const_cond.
+                add("evalualted", "false").
+                add("cause", "expensive cond");
           }
           else
           {
@@ -12459,8 +12489,10 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             if (!const_cond_result)
             {
               DBUG_PRINT("info",("Found impossible WHERE condition"));
-              trace_const_cond.add("evaluated", "true")
-                              .add("found", "impossible where");
+              if (unlikely(trace_const_cond.trace_started()))
+                trace_const_cond.
+                  add("evalualted", "true").
+                  add("found", "impossible where");
               join->exec_const_cond= NULL;
               DBUG_RETURN(1);
             }
@@ -12563,9 +12595,13 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             tab->table->intersect_keys.is_set(tab->ref.key))))
       {
         /* Range uses longer key;  Use this instead of ref on key */
-        Json_writer_object ref_to_range(thd);
-        ref_to_range.add("ref_to_range", true);
-        ref_to_range.add("cause", "range uses longer key");
+        if (unlikely(thd->trace_started()))
+        {
+          Json_writer_object ref_to_range(thd);
+          ref_to_range.
+            add("ref_to_range", true).
+            add("cause", "range uses longer key");
+        }
         tab->type=JT_ALL;
         use_quick_range=1;
         tab->use_quick=1;
@@ -13076,8 +13112,9 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           continue;
         Item *const cond = tab->select_cond;
         Json_writer_object trace_one_table(thd);
-        trace_one_table.add_table_name(tab);
-        trace_one_table.add("attached", cond);
+        trace_one_table.
+          add_table_name(tab).
+          add("attached", cond);
       }
     }
   }
@@ -18299,8 +18336,11 @@ optimize_cond(JOIN *join, COND *conds,
 
     Json_writer_object trace_wrapper(thd);
     Json_writer_object trace_cond(thd, "condition_processing");
-    trace_cond.add("condition", join->conds == conds ? "WHERE" : "HAVING")
-              .add("original_condition", conds);
+
+    if (unlikely(trace_cond.trace_started()))
+      trace_cond.
+        add("condition", join->conds == conds ? "WHERE" : "HAVING").
+        add("original_condition", conds);
 
     Json_writer_array trace_steps(thd, "steps");
     DBUG_EXECUTE("where", print_where(conds, "original", QT_ORDINARY););
@@ -18308,10 +18348,13 @@ optimize_cond(JOIN *join, COND *conds,
                              ignore_on_conds, cond_equal,
                              MY_TEST(flags & OPT_LINK_EQUAL_FIELDS));
     DBUG_EXECUTE("where",print_where(conds,"after equal_items", QT_ORDINARY););
+
+    if (unlikely(thd->trace_started()))
     {
       Json_writer_object equal_prop_wrapper(thd);
-      equal_prop_wrapper.add("transformation", "equality_propagation")
-                        .add("resulting_condition", conds);
+      equal_prop_wrapper.
+        add("transformation", "equality_propagation").
+        add("resulting_condition", conds);
     }
 
     /* change field = field to field = const for each found field = const */
@@ -18321,20 +18364,24 @@ optimize_cond(JOIN *join, COND *conds,
       Remove all and-levels where CONST item != CONST item
     */
     DBUG_EXECUTE("where",print_where(conds,"after const change", QT_ORDINARY););
+    if (unlikely(thd->trace_started()))
     {
       Json_writer_object const_prop_wrapper(thd);
-      const_prop_wrapper.add("transformation", "constant_propagation")
-                        .add("resulting_condition", conds);
+      const_prop_wrapper.
+        add("transformation", "constant_propagation").
+        add("resulting_condition", conds);
     }
     conds= conds->remove_eq_conds(thd, cond_value, true);
     if (conds && conds->type() == Item::COND_ITEM &&
         ((Item_cond*) conds)->functype() == Item_func::COND_AND_FUNC)
       *cond_equal= &((Item_cond_and*) conds)->m_cond_equal;
 
+    if (unlikely(thd->trace_started()))
     {
       Json_writer_object cond_removal_wrapper(thd);
-      cond_removal_wrapper.add("transformation", "trivial_condition_removal")
-                          .add("resulting_condition", conds);
+      cond_removal_wrapper.
+        add("transformation", "trivial_condition_removal").
+        add("resulting_condition", conds);
     }
     DBUG_EXECUTE("info",print_where(conds,"after remove", QT_ORDINARY););
   }
@@ -30011,15 +30058,19 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
                                         HA_POS_ERROR;
           if (is_best_covering && !is_covering)
           {
-            possible_key.add("chosen", false);
-            possible_key.add("cause", "covering index already found");
+            if (unlikely(possible_key.trace_started()))
+              possible_key.
+                add("chosen", false).
+                add("cause", "covering index already found");
             continue;
           }
 
           if (is_covering && refkey_select_limit < select_limit)
           {
-            possible_key.add("chosen", false);
-            possible_key.add("cause", "ref estimates better");
+            if (unlikely(possible_key.trace_started()))
+              possible_key.
+                add("chosen", false).
+                add("cause", "ref estimates better");
             continue;
           }
           if (table->opt_range_keys.is_set(nr))
@@ -30059,8 +30110,9 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
         }
         else
         {
-          possible_key.add("usable", false);
-          possible_key.add("cause", "cost");
+          possible_key.
+            add("usable", false).
+            add("cause", "cost");
         }
       }
       else
@@ -30074,13 +30126,15 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
     {
       if (keys.is_set(nr))
       {
-        possible_key.add("can_resolve_order", false);
-        possible_key.add("cause", "order can not be resolved by key");
+        possible_key.
+          add("can_resolve_order", false).
+          add("cause", "order can not be resolved by key");
       }
       else
       {
-        possible_key.add("can_resolve_order", false);
-        possible_key.add("cause", "not usable index for the query");
+        possible_key.
+          add("can_resolve_order", false).
+          add("cause", "not usable index for the query");
       }
     }
   }
