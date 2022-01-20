@@ -12,6 +12,7 @@
 
 MW-328A : MDEV-22666 galera.MW-328A MTR failed: "Semaphore wait has lasted > 600 seconds" and do not release port 16002
 MW-328B : MDEV-22666 galera.MW-328A MTR failed: "Semaphore wait has lasted > 600 seconds" and do not release port 16002
+MW-328D : MDEV-27550 ER_LOCK_DEADLOCK is gone after MDEV-27025
 MW-329 : MDEV-19962 Galera test failure on MW-329
 galera_as_slave_replication_bundle : MDEV-15785 OPTION_GTID_BEGIN is set in Gtid_log_event::do_apply_event()
 galera_concurrent_ctas : MDEV-24842 Galera test failure on galera_concurrent_ctas
