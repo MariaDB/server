@@ -214,6 +214,7 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
                           "rows": 1,
                           "cond_check_cost": 1.325146475,
                           "startup_cost": 0,
+                          "rows_after_filter": 1,
                           "cost": 1.325146475,
                           "chosen": true
                         },
