@@ -12960,6 +12960,12 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
     if (!send_error)
       result->send_eof();				// Should be safe
   }
+  /*
+    JOIN::join_free() must be called after the virtual method
+    select::send_result_set_metadata() returned control since
+    implementation of this method could use data strutcures
+    that are released by the method JOIN::join_free().
+  */
   join->join_free();
 
   DBUG_RETURN(0);

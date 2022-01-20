@@ -19967,6 +19967,9 @@ static void test_mdev24827()
   int rc;
   MYSQL_STMT *stmt;
   unsigned long cursor = CURSOR_TYPE_READ_ONLY;
+  const char* query=
+    "SELECT t2.c1 AS c1 FROM t1 LEFT JOIN t2 ON t1.c1 = t2.c1 "
+    "WHERE EXISTS (SELECT 1 FROM t1 WHERE c2 = -1) ORDER BY c1";
 
   myheader("test_mdev24827");
 
@@ -19990,10 +19993,6 @@ static void test_mdev24827()
   rc= mysql_query(mysql, "INSERT INTO t2 (c1, c2) "
                   "SELECT seq, seq FROM seq_1_to_20000");
   myquery(rc);
-
-  const char* query=
-      "SELECT t2.c1 AS c1 FROM t1 LEFT JOIN t2 ON t1.c1 = t2.c1 "
-      "WHERE EXISTS (SELECT 1 FROM t1 WHERE c2 = -1) ORDER BY c1";
 
   stmt= mysql_stmt_init(mysql);
   check_stmt(stmt);
