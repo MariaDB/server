@@ -17,8 +17,6 @@ set global innodb_stats_persistent_sample_pages=100;
 --disable_result_log
 --disable_warnings
 
-create database if not exists mdev25830;
-use mdev25830;
 DROP TABLE IF EXISTS `sysapproval_approver`;
 CREATE TABLE `sysapproval_approver` (
   `order` int(11) DEFAULT NULL,
@@ -52,6 +50,9 @@ ANALYZE TABLE task PERSISTENT FOR COLUMNS() INDEXES();
 --enable_warnings
 --enable_result_log
 --enable_query_log
+
+# The following explain is left here from the original bug report.
+# Can be useful if one gets this issue again in a future MariaDB version
 
 #explain format= json SELECT sysapproval_approver0.`sys_id` FROM ((sysapproval_approver sysapproval_approver0 INNER JOIN task task1 ON sysapproval_approver0.`sysapproval` = task1.`sys_id` AND ((task1.`sys_domain_path` = '/' OR task1.`sys_domain_path` LIKE '!!!/!!#/!!$/%' OR task1.`sys_domain_path` LIKE '!!!/!!!/%'))) INNER JOIN task task2 ON task1.`parent` = task2.`sys_id` AND ((task2.`sys_domain_path` = '/' OR task2.`sys_domain_path` LIKE '!!!/!!#/!!$/%' OR task2.`sys_domain_path` LIKE '!!!/!!!/%'))) WHERE task2.`sys_id` LIKE '8e7792a7dbfffb00fff8a345ca961934%' AND (sysapproval_approver0.`sys_domain_path` = '/' OR sysapproval_approver0.`sys_domain_path` LIKE '!!!/!!#/!!$/%' OR sysapproval_approver0.`sys_domain_path` LIKE '!!!/!!!/%') ORDER BY sysapproval_approver0.`order` LIMIT 0, 50;
 
@@ -96,15 +97,7 @@ WHERE  task2.`sys_id` LIKE '8e7792a7dbfffb00fff8a345ca961934%'
 ORDER  BY sysapproval_approver0.`order`
 LIMIT  0, 50 ;
 
---disable_query_log
---disable_result_log
---disable_warnings
-
-drop database mdev25830;
-
---enable_warnings
---enable_result_log
---enable_query_log
+drop table sysapproval_approver,task;
 
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
