@@ -423,6 +423,7 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
 
 void TABLE::trace_range_rowid_filters(THD *thd) const
 {
+  DBUG_ASSERT(thd->trace_started());
   if (!range_rowid_filter_cost_info_elems)
     return;
 
@@ -440,10 +441,12 @@ void TABLE::trace_range_rowid_filters(THD *thd) const
 
 void Range_rowid_filter_cost_info::trace_info(THD *thd)
 {
+  DBUG_ASSERT(thd->trace_started());
   Json_writer_object js_obj(thd);
-  js_obj.add("key", table->key_info[key_no].name);
-  js_obj.add("build_cost", cost_of_building_range_filter);
-  js_obj.add("rows", est_elements);
+  js_obj.
+    add("key", table->key_info[key_no].name).
+    add("build_cost", cost_of_building_range_filter).
+    add("rows", est_elements);
 }
 
 /**
