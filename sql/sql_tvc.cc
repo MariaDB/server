@@ -952,8 +952,10 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   if (!length  || length > tmp_table_max_key_length() ||
       args[0]->cols() > tmp_table_max_key_parts())
   {
-    trace_conv.add("done", false);
-    trace_conv.add("reason", "key is too long");
+    if (unlikely(trace_conv.trace_started()))
+      trace_conv.
+        add("done", false).
+        add("reason", "key is too long");
     return this;
   }
 
@@ -961,15 +963,19 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   {
     if (!args[i]->const_item())
     {
-      trace_conv.add("done", false);
-      trace_conv.add("reason", "non-constant element in the IN-list");
+      if (unlikely(trace_conv.trace_started()))
+        trace_conv.
+          add("done", false).
+          add("reason", "non-constant element in the IN-list");
       return this;
     }
 
     if (cmp_row_types(args[i], args[0]))
     {
-      trace_conv.add("done", false);
-      trace_conv.add("reason", "type mismatch");
+      if (unlikely(trace_conv.trace_started()))
+        trace_conv.
+          add("done", false).
+          add("reason", "type mismatch");
       return this;
     }
   }
