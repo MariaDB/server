@@ -1,2 +1,2 @@
 --general-log --general-log-file=$MYSQLTEST_VARDIR/log/master.log --log-output=FILE,TABLE
---max-allowed-packet=32000000
+--max-allowed-packet=32000000 --sequence=on
