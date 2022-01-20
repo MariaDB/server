@@ -629,4 +629,23 @@ drop table t1;
 #
 # MDEV-15538 '-N' Produce html output wrong
 #
-<TABLE BORDER=1><TR><TD>1</TD></TR></TABLE>
+<TABLE BORDER=1><TR><TD>1</TD></TR></TABLE>'\n'
+#
+# MDEV-23818
+#
+Tables_in_test
+t1
+create table t1(a int);
+insert into t1 values(1);
+lock tables t1 write;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+sys
+test
+Tables_in_test
+t1
+unlock tables;
+drop table t1;

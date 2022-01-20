@@ -708,3 +708,55 @@ drop table t1;
 --echo # MDEV-15538 '-N' Produce html output wrong
 --echo #
 --exec $MYSQL -NHe "select 1 as a"
+
+--echo '\n'
+--echo #
+--echo # MDEV-23818
+--echo #
+
+--write_file $MYSQLTEST_VARDIR/tmp/commands.sql
+create table t1(a int);
+insert into t1 values(1);
+source scr.sql;
+drop table t1;
+EOF
+
+--write_file $MYSQLTEST_VARDIR/tmp/script.sql
+show tables;
+EOF
+
+--write_file $MYSQLTEST_VARDIR/tmp/scr.sql
+source script.sql;
+EOF
+
+--exec $MYSQL test -I $MYSQLTEST_VARDIR/tmp  < $MYSQLTEST_VARDIR/tmp/commands.sql
+
+
+create table t1(a int);
+insert into t1 values(1);
+lock tables t1 write;
+
+--write_file $MYSQLTEST_VARDIR/script.sql
+source scr.sql
+EOF
+
+
+--write_file $MYSQLTEST_VARDIR/scr.sql
+SHOW DATABASES;
+USE test;
+SHOW TABLES;
+EOF
+
+
+--exec $MYSQL test -I $MYSQLTEST_VARDIR -I $MYSQLTEST_VARDIR/tmp -e "source script.sql;"
+unlock tables;
+drop table t1;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/script.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/scr.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/commands.sql
+
+--remove_file $MYSQLTEST_VARDIR/script.sql
+--remove_file $MYSQLTEST_VARDIR/scr.sql
+
+

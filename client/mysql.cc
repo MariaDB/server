@@ -204,6 +204,7 @@ unsigned short terminal_width= 80;
 
 static uint opt_protocol=0;
 static const char *opt_protocol_type= "";
+static char* new_path;
 static CHARSET_INFO *charset_info= &my_charset_latin1;
 
 static uint protocol_to_force= MYSQL_PROTOCOL_DEFAULT;
@@ -419,7 +420,7 @@ static COMMANDS commands[] = {
   { "DAY_MICROSECOND", 0, 0, 0, ""},
   { "DAY_MINUTE", 0, 0, 0, ""},
   { "DAY_SECOND", 0, 0, 0, ""},
-  { "DEALLOCATE", 0, 0, 0, ""},     
+  { "DEALLOCATE", 0, 0, 0, ""},
   { "DEC", 0, 0, 0, ""},
   { "DECIMAL", 0, 0, 0, ""},
   { "DECLARE", 0, 0, 0, ""},
@@ -1039,6 +1040,9 @@ static COMMANDS commands[] = {
   { (char *)NULL,       0, 0, 0, ""}
 };
 
+static const int MAX_NUMBER_OF_PATHS= 64;
+static char* paths[MAX_NUMBER_OF_PATHS+1];
+static int number_of_paths= 0;
 static const char *load_default_groups[]=
 { "mysql", "mariadb-client", "client", "client-server", "client-mariadb", 0 };
 
@@ -1287,6 +1291,7 @@ int main(int argc,char *argv[])
   sprintf(buff, "%s",
 	  "Type 'help;' or '\\h' for help. Type '\\c' to clear the current input statement.\n");
   put_info(buff,INFO_INFO);
+  paths[number_of_paths]= (char *)"";
   status.exit_status= read_and_execute(!status.batch);
   if (opt_outfile)
     end_tee();
@@ -1341,6 +1346,8 @@ sig_handler mysql_end(int sig)
   my_free(part_username);
   my_free(default_prompt);
   my_free(current_prompt);
+  for(; number_of_paths>0; number_of_paths--)
+    my_free(paths[number_of_paths-1]);
   while (embedded_server_arg_count > 1)
     my_free(embedded_server_args[--embedded_server_arg_count]);
   mysql_server_end();
@@ -1461,8 +1468,6 @@ sig_handler window_resize(int sig)
 static struct my_option my_long_options[] =
 {
   {"help", '?', "Display this help and exit.", 0, 0, 0, GET_NO_ARG, NO_ARG, 0,
-   0, 0, 0, 0, 0},
-  {"help", 'I', "Synonym for -?", 0, 0, 0, GET_NO_ARG, NO_ARG, 0,
    0, 0, 0, 0, 0},
   {"abort-source-on-error", OPT_ABORT_SOURCE_ON_ERROR,
    "Abort 'source filename' operations in case of errors",
@@ -1619,6 +1624,9 @@ static struct my_option my_long_options[] =
   {"reconnect", OPT_RECONNECT, "Reconnect if the connection is lost. Disable "
    "with --disable-reconnect. This option is enabled by default.",
    &opt_reconnect, &opt_reconnect, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
+  { "script-dir", 'I', "Add new path",
+   &new_path, &new_path, 0, GET_STR,  REQUIRED_ARG,
+   0, 0, 0, 0, 0, 0 },
   {"silent", 's', "Be more silent. Print results with a tab as separator, "
    "each row on new line.", 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"socket", 'S', "The socket file to use for connection.",
@@ -1832,8 +1840,16 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
   case 'A':
     opt_rehash= 0;
     break;
+  case 'I':
+    if (number_of_paths == MAX_NUMBER_OF_PATHS)
+      return put_info("Too much script direction paths", INFO_ERROR, 0);
+    paths[number_of_paths]= (char*)my_malloc(PSI_NOT_INSTRUMENTED,
+        sizeof(char) * (FN_REFLEN+1), MYF(MY_WME));
+    strcpy(paths[number_of_paths], new_path);
+    number_of_paths++;
+    break;
   case 'N':
-    column_names= 0;
+    column_names = 0;
     break;
   case 'e':
     status.batch= 1;
@@ -1946,7 +1962,6 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
       protocol_to_force = SOCKET_PROTOCOL_TO_FORCE;
     }
     break;
-  case 'I':
   case '?':
     usage(0);
     status.exit_status= 0;
@@ -4421,6 +4436,17 @@ com_connect(String *buffer, char *line)
   return error;
 }
 
+static bool is_absolute(char* source)
+{
+#if defined(_WIN32)
+  if (source[1] == ':')
+    return true;
+  return false;
+#endif
+  if (source[0] == FN_LIBCHAR)
+    return true;
+  return false;
+}
 
 static int com_source(String *buffer __attribute__((unused)),
                       char *line)
@@ -4430,6 +4456,7 @@ static int com_source(String *buffer __attribute__((unused)),
   int error;
   STATUS old_status;
   FILE *sql_file;
+  int i= 0;
   my_bool save_ignore_errors;
 
   /* Skip space from file name */
@@ -4445,9 +4472,22 @@ static int com_source(String *buffer __attribute__((unused)),
                                my_iscntrl(charset_info,end[-1])))
     end--;
   end[0]=0;
-  unpack_filename(source_name,source_name);
-  /* open file name */
-  if (!(sql_file = my_fopen(source_name, O_RDONLY | O_BINARY,MYF(0))))
+  if (is_absolute(source_name))
+    i= number_of_paths+1;
+  for(; i <= number_of_paths+1; i++)
+  {
+    char route[2*FN_REFLEN+10];
+    if (i==number_of_paths+1)
+      my_snprintf(route, sizeof(route), "%s", source_name);
+    else
+      my_snprintf(route, sizeof(route),
+          "%s%c%s", paths[i], FN_LIBCHAR, source_name);
+    unpack_filename(route, route);
+    /* open file name */
+    if ((sql_file= my_fopen(route, O_RDONLY | O_BINARY, MYF(0))))
+      break;
+  }
+  if (i==number_of_paths+2)//Path is not found
   {
     char buff[FN_REFLEN+60];
     sprintf(buff,"Failed to open file '%s', error: %d", source_name,errno);
