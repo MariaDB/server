@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2021, MariaDB Corporation.
+   Copyright (c) 2021, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -611,7 +611,7 @@ int Histogram_json_hb::parse_bucket(json_engine_t *je, Field *field,
   bool have_ndv= false;
 
   double size_d;
-  longlong ndv_ll;
+  longlong ndv_ll= 0;
   StringBuffer<128> value_buf;
   int rc;
 
