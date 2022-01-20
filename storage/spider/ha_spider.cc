@@ -1182,75 +1182,83 @@ int ha_spider::external_lock(
   int error_num = 0;
   SPIDER_TRX *trx;
   backup_error_status();
+
   DBUG_ENTER("ha_spider::external_lock");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider lock_type=%x", lock_type));
-#if MYSQL_VERSION_ID < 50500
-  DBUG_PRINT("info",("spider thd->options=%x", (int) thd->options));
-#endif
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (
-    wide_handler->stage == SPD_HND_STAGE_EXTERNAL_LOCK &&
-    wide_handler->stage_executor != this)
+  DBUG_PRINT("info", ("spider sql_command=%d", thd_sql_command(thd)));
+
+  if (wide_handler->stage == SPD_HND_STAGE_EXTERNAL_LOCK)
+  {
+    /* Only the stage executor deals with table locks. */
+    if (wide_handler->stage_executor != this)
+    {
+      DBUG_RETURN(0);
+    }
+  }
+  else
+  {
+    /* Update the stage executor when the stage changes */
+    wide_handler->stage= SPD_HND_STAGE_EXTERNAL_LOCK;
+    wide_handler->stage_executor= this;
+  }
+
+  info_auto_called = FALSE;
+  wide_handler->external_lock_type= lock_type;
+  wide_handler->sql_command = thd_sql_command(thd);
+
+  /* We treat BEGIN as if UNLOCK TABLE. */
+  if (wide_handler->sql_command == SQLCOM_BEGIN)
+  {
+    wide_handler->sql_command = SQLCOM_UNLOCK_TABLES;
+  }
+  if (lock_type == F_UNLCK &&
+      wide_handler->sql_command != SQLCOM_UNLOCK_TABLES)
   {
     DBUG_RETURN(0);
   }
-  wide_handler->stage = SPD_HND_STAGE_EXTERNAL_LOCK;
-  wide_handler->stage_executor = this;
-#endif
-#ifdef HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
-  info_auto_called = FALSE;
-#endif
-
-  wide_handler->sql_command = thd_sql_command(thd);
-  if (wide_handler->sql_command == SQLCOM_BEGIN)
-    wide_handler->sql_command = SQLCOM_UNLOCK_TABLES;
 
   trx = spider_get_trx(thd, TRUE, &error_num);
   if (error_num)
+  {
     DBUG_RETURN(error_num);
+  }
   wide_handler->trx = trx;
 
-  DBUG_PRINT("info",("spider sql_command=%d", wide_handler->sql_command));
-#ifdef HA_CAN_BULK_ACCESS
-  wide_handler->external_lock_cnt++;
-#endif
-  if (
-    lock_type == F_UNLCK &&
-    wide_handler->sql_command != SQLCOM_UNLOCK_TABLES
-  )
-    DBUG_RETURN(0);
+  /* Question: Why the following if block is necessary? Why here? */
   if (store_error_num)
-    DBUG_RETURN(store_error_num);
-  wide_handler->external_lock_type = lock_type;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  if ((conn_kinds & SPIDER_CONN_KIND_MYSQL))
   {
-#endif
-    if (
-      /* SQLCOM_RENAME_TABLE and SQLCOM_DROP_DB don't come here */
-      wide_handler->sql_command == SQLCOM_DROP_TABLE ||
-      wide_handler->sql_command == SQLCOM_ALTER_TABLE
-    ) {
-      if (trx->locked_connections)
-      {
-        my_message(ER_SPIDER_ALTER_BEFORE_UNLOCK_NUM,
-          ER_SPIDER_ALTER_BEFORE_UNLOCK_STR, MYF(0));
-        DBUG_RETURN(ER_SPIDER_ALTER_BEFORE_UNLOCK_NUM);
-      }
-      DBUG_RETURN(0);
+    DBUG_RETURN(store_error_num);
+  }
+
+  DBUG_ASSERT(wide_handler->sql_command != SQLCOM_RENAME_TABLE &&
+              wide_handler->sql_command != SQLCOM_DROP_DB);
+
+  if (wide_handler->sql_command == SQLCOM_DROP_TABLE ||
+      wide_handler->sql_command == SQLCOM_ALTER_TABLE)
+  {
+    if (trx->locked_connections)
+    {
+      my_message(ER_SPIDER_ALTER_BEFORE_UNLOCK_NUM,
+                 ER_SPIDER_ALTER_BEFORE_UNLOCK_STR, MYF(0));
+      DBUG_RETURN(ER_SPIDER_ALTER_BEFORE_UNLOCK_NUM);
     }
-    if (unlikely((error_num = spider_internal_start_trx(this))))
+    DBUG_RETURN(0);
+  }
+
+  if (lock_type != F_UNLCK)
+  {
+    if (unlikely((error_num= spider_internal_start_trx(this))))
     {
       DBUG_RETURN(error_num);
     }
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  } else {
-    trans_register_ha(trx->thd, FALSE, spider_hton_ptr);
-    if (thd_test_options(trx->thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
-      trans_register_ha(trx->thd, TRUE, spider_hton_ptr);
+    if (wide_handler->sql_command != SQLCOM_SELECT &&
+        wide_handler->sql_command != SQLCOM_HA_READ)
+    {
+      trx->updated_in_this_trx= TRUE;
+      DBUG_PRINT("info", ("spider trx->updated_in_this_trx=TRUE"));
+    }
   }
-#endif
 
   if (wide_handler->lock_table_type > 0 ||
     wide_handler->sql_command == SQLCOM_UNLOCK_TABLES)
@@ -1263,12 +1271,10 @@ int ha_spider::external_lock(
     }
 
     /* lock/unlock tables */
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (partition_handler && partition_handler->handlers)
     {
-      uint roop_count;
-      for (roop_count = 0; roop_count < partition_handler->no_parts;
-        ++roop_count)
+      for (uint roop_count= 0; roop_count < partition_handler->no_parts;
+           ++roop_count)
       {
         if (unlikely((error_num =
           partition_handler->handlers[roop_count]->lock_tables())))
@@ -1276,54 +1282,13 @@ int ha_spider::external_lock(
           DBUG_RETURN(error_num);
         }
       }
-    } else {
-#endif
-      if (unlikely((error_num = lock_tables())))
-      {
-        DBUG_RETURN(error_num);
-      }
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     }
-#endif
+    else if (unlikely((error_num= lock_tables())))
+    {
+      DBUG_RETURN(error_num);
+    }
   }
 
-  DBUG_PRINT("info",("spider trx_start=%s",
-    trx->trx_start ? "TRUE" : "FALSE"));
-  /* need to check after spider_internal_start_trx() */
-  if (trx->trx_start)
-  {
-    switch (wide_handler->sql_command)
-    {
-      case SQLCOM_SELECT:
-      case SQLCOM_HA_READ:
-#ifdef HS_HAS_SQLCOM
-      case SQLCOM_HS_READ:
-#endif
-        /* nothing to do */
-        break;
-      case SQLCOM_UPDATE:
-      case SQLCOM_UPDATE_MULTI:
-#ifdef HS_HAS_SQLCOM
-      case SQLCOM_HS_UPDATE:
-#endif
-      case SQLCOM_CREATE_TABLE:
-      case SQLCOM_INSERT:
-      case SQLCOM_INSERT_SELECT:
-      case SQLCOM_DELETE:
-      case SQLCOM_LOAD:
-      case SQLCOM_REPLACE:
-      case SQLCOM_REPLACE_SELECT:
-      case SQLCOM_DELETE_MULTI:
-#ifdef HS_HAS_SQLCOM
-      case SQLCOM_HS_INSERT:
-      case SQLCOM_HS_DELETE:
-#endif
-      default:
-        trx->updated_in_this_trx = TRUE;
-        DBUG_PRINT("info",("spider trx->updated_in_this_trx=TRUE"));
-        break;
-    }
-  }
   DBUG_RETURN(0);
 }
 
