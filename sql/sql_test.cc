@@ -694,14 +694,15 @@ void print_keyuse_array_for_trace(THD *thd, DYNAMIC_ARRAY *keyuse_array)
     KEYUSE *keyuse= (KEYUSE*)dynamic_array_ptr(keyuse_array, i);
     Json_writer_object keyuse_elem(thd);
     keyuse_elem.add_table_name(keyuse->table->reginfo.join_tab);
-    keyuse_elem.add("field", (keyuse->keypart == FT_KEYPART) ? "<fulltext>":
-                                        (keyuse->is_for_hash_join() ?
-                                        keyuse->table->field[keyuse->keypart]
-                                                     ->field_name.str :
-                                        keyuse->table->key_info[keyuse->key]
-                                          .key_part[keyuse->keypart]
-                                          .field->field_name.str));
-    keyuse_elem.add("equals",keyuse->val);
-    keyuse_elem.add("null_rejecting",keyuse->null_rejecting);
+    keyuse_elem.
+      add("field", (keyuse->keypart == FT_KEYPART) ? "<fulltext>":
+          (keyuse->is_for_hash_join() ?
+           keyuse->table->field[keyuse->keypart]
+           ->field_name.str :
+           keyuse->table->key_info[keyuse->key]
+           .key_part[keyuse->keypart]
+           .field->field_name.str)).
+      add("equals",keyuse->val).
+      add("null_rejecting",keyuse->null_rejecting);
   }
 }
