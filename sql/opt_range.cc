@@ -2289,9 +2289,11 @@ void TRP_RANGE::trace_basic_info(PARAM *param,
   const KEY &cur_key= param->table->key_info[keynr_in_table];
   const KEY_PART_INFO *key_part= cur_key.key_part;
 
-  trace_object->add("type", "range_scan")
-               .add("index", cur_key.name)
-               .add("rows", records);
+  if (unlikely(trace_object->trace_started()))
+    trace_object->
+      add("type", "range_scan").
+      add("index", cur_key.name).
+      add("rows", records);
 
   Json_writer_array trace_range(param->thd, "ranges");
 
@@ -2495,11 +2497,13 @@ void TRP_GROUP_MIN_MAX::trace_basic_info(PARAM *param,
   else
     trace_object->add_null("min_max_arg");
 
-  trace_object->add("min_aggregate", have_min)
-               .add("max_aggregate", have_max)
-               .add("distinct_aggregate", have_agg_distinct)
-               .add("rows", records)
-               .add("cost", read_cost);
+  if (unlikely(trace_object->trace_started()))
+    trace_object->
+      add("min_aggregate", have_min).
+      add("max_aggregate", have_max).
+      add("distinct_aggregate", have_agg_distinct).
+      add("rows", records).
+      add("cost", read_cost);
 
   const KEY_PART_INFO *key_part= index_info->key_part;
   {
@@ -2729,6 +2733,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   table_info.add_table_name(head);
 
   Json_writer_object trace_range(thd, "range_analysis");
+  if (unlikely(thd->trace_started()))
   {
     Json_writer_object table_rec(thd, "table_scan");
     table_rec.add("rows", records).add("cost", read_time);
@@ -2802,8 +2807,10 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 
       if (!keys_to_use.is_set(idx))
       {
-        trace_idx_details.add("usable", false)
-                         .add("cause", "not applicable");
+        if (unlikely(trace_idx_details.trace_started()))
+          trace_idx_details.
+            add("usable", false).
+            add("cause", "not applicable");
         continue;
       }
       if (key_info->flags & HA_FULLTEXT)
@@ -2868,10 +2875,14 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         read_time= key_read_time;
         chosen= TRUE;
       }
-      trace_cov.add("index", head->key_info[key_for_use].name)
-               .add("cost", key_read_time).add("chosen", chosen);
-      if (!chosen)
-        trace_cov.add("cause", "cost");
+      if (unlikely(trace_cov.trace_started()))
+      {
+        trace_cov.
+          add("index", head->key_info[key_for_use].name).
+          add("cost", key_read_time).add("chosen", chosen);
+        if (!chosen)
+          trace_cov.add("cause", "cost");
+      }
     }
 
     double best_read_time= read_time;
@@ -3086,9 +3097,10 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         Json_writer_object trace_range_plan(thd, "range_access_plan");
         best_trp->trace_basic_info(&param, &trace_range_plan);
       }
-      trace_range_summary.add("rows_for_plan", quick->records)
-                         .add("cost_for_plan", quick->read_time)
-                         .add("chosen", true);
+      trace_range_summary.
+        add("rows_for_plan", quick->records).
+        add("cost_for_plan", quick->read_time).
+        add("chosen", true);
     }
 
     free_root(&alloc,MYF(0));			// Return memory & allocator
@@ -3499,11 +3511,12 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     */
     table->multiply_cond_selectivity(quick_cond_selectivity);
 
+    if (unlikely(thd->trace_started()))
     {
       Json_writer_object selectivity_for_index(thd);
-      selectivity_for_index.add("index_name", key_info->name)
-        .add("selectivity_from_index",
-             quick_cond_selectivity);
+      selectivity_for_index.
+        add("index_name", key_info->name).
+        add("selectivity_from_index", quick_cond_selectivity);
     }
     /*
       We need to set selectivity for fields supported by indexes.
@@ -3541,10 +3554,13 @@ end_of_range_loop:
                  quick->get_type() == QUICK_SELECT_I::QS_TYPE_ROR_UNION ||
                  quick->get_type() == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE ||
                  quick->get_type() == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT));
-    Json_writer_object selectivity_for_index(thd);
     table->cond_selectivity= original_selectivity;
-    selectivity_for_index.add("use_opt_range_condition_rows_selectivity",
-                              original_selectivity);
+    if (unlikely(thd->trace_started()))
+    {
+      Json_writer_object selectivity_for_index(thd);
+      selectivity_for_index.add("use_opt_range_condition_rows_selectivity",
+                                original_selectivity);
+    }
   }
   selectivity_for_indexes.end();
    
@@ -3617,8 +3633,10 @@ end_of_range_loop:
         {
           rows= 0;
           table->reginfo.impossible_range= 1;
-          selectivity_for_column.add("selectivity_from_histogram", rows);
-          selectivity_for_column.add("cause", "impossible range");
+          if (unlikely(selectivity_for_column.trace_started()))
+            selectivity_for_column.
+              add("selectivity_from_histogram", rows).
+              add("cause", "impossible range");
           goto free_alloc;
         }          
         else
@@ -5259,9 +5277,10 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
     }
     else
       non_cpk_scan_records += (*cur_child)->records;
-    trace_idx.add("index_to_merge",
-                  param->table->key_info[keynr_in_table].name)
-             .add("cumulated_cost", imerge_cost);
+    if (unlikely(trace_idx.trace_started()))
+      trace_idx.
+        add("index_to_merge", param->table->key_info[keynr_in_table].name).
+        add("cumulated_cost", imerge_cost);
   }
 
   to_merge.end();
@@ -5293,9 +5312,10 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
       optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_UNION))
   {
     roru_read_plans= (TABLE_READ_PLAN**)range_scans;
-    trace_best_disjunct.add("use_roworder_union", true)
-                       .add("cause",
-                            "always cheaper than non roworder retrieval");
+    if (unlikely(trace_best_disjunct.trace_started()))
+      trace_best_disjunct.
+        add("use_roworder_union", true).
+        add("cause", "always cheaper than non roworder retrieval");
     goto skip_to_ror_scan;
   }
 
@@ -5316,16 +5336,21 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
   {
     double sweep_cost= get_sweep_read_cost(param, non_cpk_scan_records);
     imerge_cost+= sweep_cost;
-    trace_best_disjunct.add("cost_sort_rowid_and_read_disk", sweep_cost);
+    trace_best_disjunct.
+      add("records", non_cpk_scan_records).
+      add("cost_sort_rowid_and_read_disk", sweep_cost).
+      add("cost", imerge_cost);
   }
   DBUG_PRINT("info",("index_merge cost with rowid-to-row scan: %g",
                      imerge_cost));
   if (imerge_cost > read_time || 
       !optimizer_flag(param->thd, OPTIMIZER_SWITCH_INDEX_MERGE_SORT_UNION))
   {
-    trace_best_disjunct.add("use_roworder_index_merge", true);
-    trace_best_disjunct.add("cause", "cost");
-    goto build_ror_index_merge;
+    if (unlikely(trace_best_disjunct.trace_started()))
+      trace_best_disjunct.
+        add("use_sort_index_merge", false).
+        add("cause", imerge_cost > read_time ? "cost" : "disabled");
+    goto build_ror_index_merge;                 // Try roworder_index_merge
   }
 
   /* Add Unique operations cost */
@@ -5349,8 +5374,10 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
                            TIME_FOR_COMPARE_ROWID,
                            FALSE, NULL);
     imerge_cost+= dup_removal_cost;
-    trace_best_disjunct.add("cost_duplicate_removal", dup_removal_cost)
-                       .add("total_cost", imerge_cost);
+    if (unlikely(trace_best_disjunct.trace_started()))
+      trace_best_disjunct.
+        add("cost_duplicate_removal", dup_removal_cost).
+        add("total_cost", imerge_cost);
   }
 
   DBUG_PRINT("info",("index_merge total cost: %g (wanted: less then %g)",
@@ -5466,8 +5493,10 @@ skip_to_ror_scan:
 
   DBUG_PRINT("info", ("ROR-union: cost %g, %zu members",
                       roru_total_cost, n_child_scans));
-  trace_best_disjunct.add("index_roworder_union_cost", roru_total_cost)
-                     .add("members", n_child_scans);
+  if (unlikely(trace_best_disjunct.trace_started()))
+    trace_best_disjunct.
+      add("index_roworder_union_cost", roru_total_cost).
+      add("members", n_child_scans);
   TRP_ROR_UNION* roru;
   if (roru_total_cost < read_time)
   {
@@ -5870,15 +5899,19 @@ bool prepare_search_best_index_intersect(PARAM *param,
 
     if (*index_scan == cpk_scan)
     {
-      idx_scan.add("chosen", "false")
-              .add("cause", "clustered index used for filtering");
+      if (unlikely(idx_scan.trace_started()))
+        idx_scan.
+          add("chosen", "false").
+          add("cause", "clustered index used for filtering");
       continue;
     }
     if (cpk_scan && cpk_scan->used_key_parts >= used_key_parts &&
         same_index_prefix(cpk_scan->key_info, key_info, used_key_parts))
     {
-      idx_scan.add("chosen", "false")
-              .add("cause", "clustered index used for filtering");
+      if (unlikely(idx_scan.trace_started()))
+        idx_scan.
+          add("chosen", "false").
+          add("cause", "clustered index used for filtering");
       continue;
     }
 
@@ -5888,8 +5921,8 @@ bool prepare_search_best_index_intersect(PARAM *param,
 
     if (cost >= cutoff_cost)
     {
-      idx_scan.add("chosen", false);
-      idx_scan.add("cause", "cost");
+      if (unlikely(idx_scan.trace_started()))
+        idx_scan.add("chosen", false).add("cause", "cost");
       continue;
     }
    
@@ -5908,15 +5941,18 @@ bool prepare_search_best_index_intersect(PARAM *param,
     }
     if (!*scan_ptr || cost < (*scan_ptr)->index_read_cost)
     {
-      idx_scan.add("chosen", true);
-      if (!*scan_ptr)
-        idx_scan.add("cause", "first occurrence of index prefix");
-      else
-        idx_scan.add("cause", "better cost for same idx prefix");
+      if (unlikely(idx_scan.trace_started()))
+      {
+        idx_scan.add("chosen", true);
+        if (!*scan_ptr)
+          idx_scan.add("cause", "first occurrence of index prefix");
+        else
+          idx_scan.add("cause", "better cost for same idx prefix");
+      }
       *scan_ptr= *index_scan;
       (*scan_ptr)->index_read_cost= cost;
     }
-    else
+    else if (unlikely(idx_scan.trace_started()))
     {
       idx_scan.add("chosen", false).add("cause", "cost");
     }
@@ -5979,13 +6015,14 @@ bool prepare_search_best_index_intersect(PARAM *param,
       ha_rows records= records_in_index_intersect_extension(&curr, *scan_ptr);
       (*scan_ptr)->filtered_out= records >= scan_records ?
                                    0 : scan_records-records;
-      if (thd->trace_started())
+      if (unlikely(thd->trace_started()))
       {
         Json_writer_object selected_idx(thd);
         selected_idx.add("index", key_info->name);
         print_keyparts(thd, key_info, (*scan_ptr)->used_key_parts);
-        selected_idx.add("records", (*scan_ptr)->records)
-                    .add("filtered_records", (*scan_ptr)->filtered_out);
+        selected_idx.
+          add("records", (*scan_ptr)->records).
+          add("filtered_records", (*scan_ptr)->filtered_out);
       }
     }
   } 
@@ -5995,13 +6032,14 @@ bool prepare_search_best_index_intersect(PARAM *param,
     {
       KEY *key_info= (*scan_ptr)->key_info;
       (*scan_ptr)->filtered_out= 0;
-      if (thd->trace_started())
+      if (unlikely(thd->trace_started()))
       {
         Json_writer_object selected_idx(thd);
         selected_idx.add("index", key_info->name);
         print_keyparts(thd, key_info, (*scan_ptr)->used_key_parts);
-        selected_idx.add("records", (*scan_ptr)->records)
-                    .add("filtered_records", (*scan_ptr)->filtered_out);
+        selected_idx.
+          add("records", (*scan_ptr)->records).
+          add("filtered_records", (*scan_ptr)->filtered_out);
       }
     }
   }
@@ -6534,9 +6572,11 @@ TRP_INDEX_INTERSECT *get_best_index_intersect(PARAM *param, SEL_TREE *tree,
     intersect_trp->range_scans= range_scans;
     intersect_trp->range_scans_end= cur_range;
     intersect_trp->filtered_scans= common.filtered_scans;
-    trace_idx_interect.add("rows", intersect_trp->records)
-                      .add("cost", intersect_trp->read_cost)
-                      .add("chosen",true);
+    if (unlikely(trace_idx_interect.trace_started()))
+      trace_idx_interect.
+        add("rows", intersect_trp->records).
+        add("cost", intersect_trp->read_cost).
+        add("chosen",true);
   }
   DBUG_RETURN(intersect_trp);
 }
@@ -6552,11 +6592,12 @@ void TRP_ROR_INTERSECT::trace_basic_info(PARAM *param,
   THD *thd= param->thd;
   DBUG_ASSERT(trace_object->trace_started());
 
-  trace_object->add("type", "index_roworder_intersect");
-  trace_object->add("rows", records);
-  trace_object->add("cost", read_cost);
-  trace_object->add("covering", is_covering);
-  trace_object->add("clustered_pk_scan", cpk_scan != NULL);
+  trace_object->
+    add("type", "index_roworder_intersect").
+    add("rows", records).
+    add("cost", read_cost).
+    add("covering", is_covering).
+    add("clustered_pk_scan", cpk_scan != NULL);
 
   Json_writer_array smth_trace(thd, "intersect_of");
   for (ROR_SCAN_INFO **cur_scan= first_scan; cur_scan != last_scan;
@@ -6566,9 +6607,10 @@ void TRP_ROR_INTERSECT::trace_basic_info(PARAM *param,
     const KEY_PART_INFO *key_part= cur_key.key_part;
 
     Json_writer_object trace_isect_idx(thd);
-    trace_isect_idx.add("type", "range_scan");
-    trace_isect_idx.add("index", cur_key.name);
-    trace_isect_idx.add("rows", (*cur_scan)->records);
+    trace_isect_idx.
+      add("type", "range_scan").
+      add("index", cur_key.name).
+      add("rows", (*cur_scan)->records);
 
     Json_writer_array trace_range(thd, "ranges");
 
@@ -7207,16 +7249,18 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     /* S= S + first(R);  R= R - first(R); */
     if (!ror_intersect_add(intersect, *cur_ror_scan, &trace_idx, FALSE))
     {
-      trace_idx.add("usable", false)
-               .add("cause", "does not reduce cost of intersect");
+      trace_idx.
+        add("usable", false).
+        add("cause", "does not reduce cost of intersect");
       cur_ror_scan++;
       continue;
     }
     
-    trace_idx.add("cumulative_total_cost", intersect->total_cost)
-             .add("usable", true)
-             .add("matching_rows_now", intersect->out_rows)
-             .add("intersect_covering_with_this_index", intersect->is_covering);
+    trace_idx.
+      add("cumulative_total_cost", intersect->total_cost).
+      add("usable", true).
+      add("matching_rows_now", intersect->out_rows).
+      add("intersect_covering_with_this_index", intersect->is_covering);
 
     *(intersect_scans_end++)= *(cur_ror_scan++);
 
@@ -7230,8 +7274,9 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     }
     else
     {
-      trace_idx.add("chosen", false)
-               .add("cause", "does not reduce cost");
+      trace_idx.
+        add("chosen", false).
+        add("cause", "does not reduce cost");
     }
   }
   trace_isect_idx.end();
@@ -7239,8 +7284,9 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
   if (intersect_scans_best == intersect_scans)
   {
     DBUG_PRINT("info", ("None of scans increase selectivity"));
-    trace_ror.add("chosen", false)
-             .add("cause","does not increase selectivity");
+    trace_ror.
+      add("chosen", false).
+      add("cause","does not increase selectivity");
     DBUG_RETURN(NULL);
   }
     
@@ -7264,22 +7310,27 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     if (ror_intersect_add(intersect, cpk_scan, &trace_cpk, TRUE) &&
         (intersect->total_cost < min_cost))
     {
-      trace_cpk.add("clustered_pk_scan_added_to_intersect", true)
-               .add("cumulated_cost", intersect->total_cost);
+      if (trace_cpk.trace_started())
+      trace_cpk.
+        add("clustered_pk_scan_added_to_intersect", true).
+        add("cumulated_cost", intersect->total_cost);
       intersect_best= intersect; //just set pointer here
     }
     else
     {
-      trace_cpk.add("clustered_pk_added_to_intersect", false)
-               .add("cause", "cost");
+      if (trace_cpk.trace_started())
+        trace_cpk.
+          add("clustered_pk_added_to_intersect", false).
+          add("cause", "cost");
       cpk_scan= 0; // Don't use cpk_scan
     }
   }
   else
   {
-    trace_cpk.add("clustered_pk_added_to_intersect", false)
-             .add("cause", cpk_scan ? "roworder is covering"
-                                    : "no clustered pk index");
+    trace_cpk.
+      add("clustered_pk_added_to_intersect", false).
+      add("cause", cpk_scan ? "roworder is covering"
+          : "no clustered pk index");
     cpk_scan= 0;                                // Don't use cpk_scan
   }
   trace_cpk.end();
@@ -7309,17 +7360,20 @@ TRP_ROR_INTERSECT *get_best_ror_intersect(const PARAM *param, SEL_TREE *tree,
     DBUG_PRINT("info", ("Returning non-covering ROR-intersect plan:"
                         "cost %g, records %lu",
                         trp->read_cost, (ulong) trp->records));
-    trace_ror.add("rows", trp->records)
-             .add("cost", trp->read_cost)
-             .add("covering", trp->is_covering)
-             .add("chosen", true);
+    if (unlikely(trace_ror.trace_started()))
+      trace_ror.
+        add("rows",      trp->records).
+        add("cost",     trp->read_cost).
+        add("covering", trp->is_covering).
+        add("chosen",   true);
   }
   else
   {
-    trace_ror.add("chosen", false)
-             .add("cause", (read_time > min_cost)
-                            ? "too few indexes to merge"
-                            : "cost");
+    trace_ror.
+      add("chosen", false).
+      add("cause", (read_time >= min_cost)
+          ? "too few indexes to merge"
+          : "cost");
   }
   DBUG_PRINT("enter", ("opt_range_condition_rows: %llu",
                        (ulonglong) param->table->opt_range_condition_rows));
@@ -7587,11 +7641,13 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
           trace_ranges(&trace_range, param, idx, key, key_part);
         trace_range.end();
 
-        trace_idx.add("rowid_ordered", is_ror_scan)
-                 .add("using_mrr", !(mrr_flags & HA_MRR_USE_DEFAULT_IMPL))
-                 .add("index_only", read_index_only)
-                 .add("rows", found_records)
-                 .add("cost", cost.total_cost());
+        if (unlikely(trace_idx.trace_started()))
+          trace_idx.
+            add("rowid_ordered", is_ror_scan).
+            add("using_mrr", !(mrr_flags & HA_MRR_USE_DEFAULT_IMPL)).
+            add("index_only", read_index_only).
+            add("rows", found_records).
+            add("cost", cost.total_cost());
       }
       if ((found_records != HA_POS_ERROR) && is_ror_scan)
       {
@@ -7609,7 +7665,7 @@ static TRP_RANGE *get_key_scans_params(PARAM *param, SEL_TREE *tree,
         best_buf_size=  buf_size;
         trace_idx.add("chosen", true);
       }
-      else
+      else if (unlikely(trace_idx.trace_started()))
       {
         trace_idx.add("chosen", false);
         if (found_records == HA_POS_ERROR)
@@ -11051,7 +11107,7 @@ SEL_ARG *enforce_sel_arg_weight_limit(RANGE_OPT_PARAM *param, uint keyno,
 
   uint weight2= sel_arg? sel_arg->weight : 0;
 
-  if (weight2 != weight1)
+  if (unlikely(weight2 != weight1 && param->thd->trace_started()))
   {
     Json_writer_object wrapper(param->thd);
     Json_writer_object obj(param->thd, "enforce_sel_arg_weight_limit");
@@ -11060,8 +11116,9 @@ SEL_ARG *enforce_sel_arg_weight_limit(RANGE_OPT_PARAM *param, uint keyno,
     else
       obj.add("pseudo_index", field->field_name);
 
-    obj.add("old_weight", (longlong)weight1);
-    obj.add("new_weight", (longlong)weight2);
+    obj.
+      add("old_weight", (longlong)weight1).
+      add("new_weight", (longlong)weight2);
   }
   return sel_arg;
 }
@@ -11085,12 +11142,16 @@ bool sel_arg_and_weight_heuristic(RANGE_OPT_PARAM *param, SEL_ARG *key1,
   ulong max_weight= param->thd->variables.optimizer_max_sel_arg_weight;
   if (max_weight && key1->weight + key1->elements*key2->weight > max_weight)
   {
-    Json_writer_object wrapper(param->thd);
-    Json_writer_object obj(param->thd, "sel_arg_weight_heuristic");
-    obj.add("key1_field", key1->field->field_name);
-    obj.add("key2_field", key2->field->field_name);
-    obj.add("key1_weight", (longlong)key1->weight);
-    obj.add("key2_weight", (longlong)key2->weight);
+    if (unlikely(param->thd->trace_started()))
+    {
+      Json_writer_object wrapper(param->thd);
+      Json_writer_object obj(param->thd, "sel_arg_weight_heuristic");
+      obj.
+        add("key1_field", key1->field->field_name).
+        add("key2_field", key2->field->field_name).
+        add("key1_weight", (longlong)key1->weight).
+        add("key2_weight", (longlong)key2->weight);
+    }
     return true; // Discard key2
   }
   return false;
@@ -13763,7 +13824,8 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       (!join->select_distinct) &&
       !is_agg_distinct)
   {
-    trace_group.add("chosen", false).add("cause","no group by or distinct");
+    if (unlikely(trace_group.trace_started()))
+      trace_group.add("chosen", false).add("cause","no group by or distinct");
     DBUG_RETURN(NULL);
   }
   /* Analyze the query in more detail. */
@@ -13788,8 +13850,10 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
         continue;
       else
       {
-        trace_group.add("chosen", false)
-                   .add("cause", "not applicable aggregate function");
+        if (unlikely(trace_group.trace_started()))
+          trace_group.
+            add("chosen", false).
+            add("cause", "not applicable aggregate function");
         DBUG_RETURN(NULL);
       }
 
@@ -13801,15 +13865,19 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
           min_max_arg_item= (Item_field*) expr;
         else if (! min_max_arg_item->eq(expr, 1))
         {
-          trace_group.add("chosen", false)
-                     .add("cause", "arguments different in min max function");
+          if (unlikely(trace_group.trace_started()))
+            trace_group.
+              add("chosen", false).
+              add("cause", "arguments different in min max function");
           DBUG_RETURN(NULL);
         }
       }
       else
       {
-        trace_group.add("chosen", false)
-                   .add("cause", "no field item in min max function");
+        if (unlikely(trace_group.trace_started()))
+          trace_group.
+            add("chosen", false).
+            add("cause", "no field item in min max function");
         DBUG_RETURN(NULL);
       }
     }
@@ -13818,8 +13886,10 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
   /* Check (SA7). */
   if (is_agg_distinct && (have_max || have_min))
   {
-    trace_group.add("chosen", false)
-               .add("cause", "have both agg distinct and min max");
+    if (unlikely(trace_group.trace_started()))
+      trace_group.
+        add("chosen", false).
+        add("cause", "have both agg distinct and min max");
     DBUG_RETURN(NULL);
   }
 
@@ -13831,8 +13901,10 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     {
       if (item->real_item()->type() != Item::FIELD_ITEM)
       {
-        trace_group.add("chosen", false)
-                   .add("cause", "distinct field is expression");
+        if (unlikely(trace_group.trace_started()))
+          trace_group.
+            add("chosen", false).
+            add("cause", "distinct field is expression");
         DBUG_RETURN(NULL);
       }
     }
@@ -13844,8 +13916,10 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
   {
     if ((*tmp_group->item)->real_item()->type() != Item::FIELD_ITEM)
     {
-      trace_group.add("chosen", false)
-                 .add("cause", "group field is expression");
+      if (unlikely(trace_group.trace_started()))
+      trace_group.
+        add("chosen", false).
+        add("cause", "group field is expression");
       DBUG_RETURN(NULL);
     }
     elements_in_group++;
@@ -14260,8 +14334,10 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
                                       Field::itMBR : Field::itRAW,
                                       &has_min_max_fld, &has_other_fld))
   {
-    trace_group.add("usable", false)
-               .add("cause", "unsupported predicate on agg attribute");
+    if (unlikely(trace_group.trace_started()))
+      trace_group.
+        add("usable", false).
+        add("cause", "unsupported predicate on agg attribute");
     DBUG_RETURN(NULL);
   }
 
@@ -14270,8 +14346,10 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
   */
   if (is_agg_distinct && table->file->is_clustering_key(index))
   {
-    trace_group.add("usable", false)
-               .add("cause", "index is clustered");
+    if (unlikely(trace_group.trace_started()))
+      trace_group.
+        add("usable", false).
+        add("cause", "index is clustered");
     DBUG_RETURN(NULL);
   }
 
