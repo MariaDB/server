@@ -1131,6 +1131,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                               "rows": 1,
                               "found_matching_rows_cost": 2.200585794,
                               "startup_cost": 0,
+                              "rows_after_filter": 1,
                               "cost": 220.0585794,
                               "chosen": true
                             },
@@ -1180,6 +1181,7 @@ explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
                               "rows": 1,
                               "found_matching_rows_cost": 2.200585794,
                               "startup_cost": 0,
+                              "rows_after_filter": 1,
                               "cost": 220.0585794,
                               "chosen": true
                             },
@@ -2289,6 +2291,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                           "rows": 180,
                           "found_matching_rows_cost": 216.2743776,
                           "startup_cost": 0,
+                          "rows_after_filter": 180,
                           "cost": 216.2743776,
                           "chosen": true
                         },
@@ -2299,6 +2302,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                           "rows": 21,
                           "found_matching_rows_cost": 25.34242739,
                           "startup_cost": 0,
+                          "rows_after_filter": 21,
                           "cost": 25.34242739,
                           "chosen": true
                         },
@@ -2752,6 +2756,7 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
                               "rows": 1,
                               "found_matching_rows_cost": 1.2,
                               "startup_cost": 0,
+                              "rows_after_filter": 1,
                               "cost": 4.8,
                               "chosen": true
                             },
@@ -3285,7 +3290,7 @@ explain extended select * from t1 where a in (select pk from t10)	{
                       {
                         "strategy": "SJ-Materialization",
                         "records": 3,
-                        "read_time": 7.878564453
+                        "cost": 7.878564453
                       },
                       {
                         "strategy": "DuplicateWeedout",
@@ -3662,6 +3667,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                           "rows": 1,
                           "found_matching_rows_cost": 1.325585794,
                           "startup_cost": 0,
+                          "rows_after_filter": 1,
                           "cost": 1.325585794,
                           "chosen": true
                         },
@@ -3672,6 +3678,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                           "rows": 1,
                           "found_matching_rows_cost": 1.325829876,
                           "startup_cost": 0,
+                          "rows_after_filter": 1,
                           "cost": 1.325829876,
                           "chosen": false,
                           "cause": "cost"
@@ -3683,6 +3690,7 @@ explain select * from t1 where pk = 2 and a=5 and b=1	{
                           "rows": 1,
                           "found_matching_rows_cost": 0.326073957,
                           "startup_cost": 0,
+                          "rows_after_filter": 1,
                           "cost": 0.326073957,
                           "chosen": true
                         },
@@ -4381,6 +4389,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                               "rows": 1,
                               "found_matching_rows_cost": 1.200585794,
                               "startup_cost": 0,
+                              "rows_after_filter": 1,
                               "cost": 3.601757383,
                               "chosen": true
                             },
@@ -4430,6 +4439,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                               "rows": 2,
                               "found_matching_rows_cost": 1.401171589,
                               "startup_cost": 0,
+                              "rows_after_filter": 2,
                               "cost": 4.203514767,
                               "chosen": true
                             },
@@ -5126,7 +5136,7 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
                           {
                             "strategy": "SJ-Materialization",
                             "records": 3,
-                            "read_time": 10.81538086
+                            "cost": 10.81538086
                           },
                           {
                             "strategy": "DuplicateWeedout",
@@ -8026,7 +8036,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                               {
                                 "strategy": "SJ-Materialization",
                                 "records": 27,
-                                "read_time": 32.34101562
+                                "cost": 32.34101562
                               },
                               {
                                 "strategy": "DuplicateWeedout",
@@ -8148,7 +8158,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                                       {
                                         "strategy": "SJ-Materialization",
                                         "records": 27,
-                                        "read_time": 46.86152344
+                                        "cost": 46.86152344
                                       },
                                       {
                                         "strategy": "DuplicateWeedout",
@@ -8445,7 +8455,7 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
                           {
                             "strategy": "SJ-Materialization",
                             "records": 3,
-                            "read_time": 16.52563477
+                            "cost": 16.52563477
                           },
                           {
                             "strategy": "DuplicateWeedout",
@@ -9689,6 +9699,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                         "rows": 1,
                                         "found_matching_rows_cost": 2.200585794,
                                         "startup_cost": 0,
+                                        "rows_after_filter": 1,
                                         "cost": 22.00585794,
                                         "chosen": true
                                     },
@@ -9949,6 +9960,7 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
                                         "rows": 1,
                                         "found_matching_rows_cost": 2.200585794,
                                         "startup_cost": 0,
+                                        "rows_after_filter": 1,
                                         "cost": 22.00585794,
                                         "chosen": true
                                     },
@@ -10638,6 +10650,7 @@ json_detailed(json_extract(trace, '$**.choose_best_splitting'))
                                         "rows": 1.8367,
                                         "found_matching_rows_cost": 2.367925794,
                                         "startup_cost": 0,
+                                        "rows_after_filter": 1.8367,
                                         "cost": 2.367925794,
                                         "chosen": true
                                     },

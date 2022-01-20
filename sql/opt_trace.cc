@@ -149,7 +149,7 @@ void opt_trace_disable_if_no_security_context_access(THD *thd)
     return;
   }
   Opt_trace_context *const trace= &thd->opt_trace;
-  if (!thd->trace_started())
+  if (unlikely(!thd->trace_started()))
   {
     /*
       @@optimizer_trace has "enabled=on" but trace is not started.
@@ -201,7 +201,7 @@ void opt_trace_disable_if_no_stored_proc_func_access(THD *thd, sp_head *sp)
   if (likely(!(thd->variables.optimizer_trace &
                Opt_trace_context::FLAG_ENABLED)) ||
       thd->system_thread ||
-      !thd->trace_started())
+      likely(!thd->trace_started()))
     return;
 
   Opt_trace_context *const trace= &thd->opt_trace;
@@ -235,7 +235,7 @@ void opt_trace_disable_if_no_tables_access(THD *thd, TABLE_LIST *tbl)
   if (likely(!(thd->variables.optimizer_trace &
               Opt_trace_context::FLAG_ENABLED)) ||
       thd->system_thread ||
-      !thd->trace_started())
+      likely(!thd->trace_started()))
     return;
 
   Opt_trace_context *const trace= &thd->opt_trace;
@@ -296,7 +296,7 @@ void opt_trace_disable_if_no_view_access(THD *thd, TABLE_LIST *view,
   if (likely(!(thd->variables.optimizer_trace &
                Opt_trace_context::FLAG_ENABLED)) ||
       thd->system_thread ||
-      !thd->trace_started())
+      likely(!thd->trace_started()))
     return;
 
   Opt_trace_context *const trace= &thd->opt_trace;
@@ -605,6 +605,7 @@ void Json_writer::add_table_name(const TABLE *table)
 void trace_condition(THD * thd, const char *name, const char *transform_type,
                     Item *item, const char *table_name)
 {
+  DBUG_ASSERT(thd->trace_started());
   Json_writer_object trace_wrapper(thd);
   Json_writer_object trace_cond(thd, transform_type);
   trace_cond.add("condition", name);
@@ -620,8 +621,9 @@ void add_table_scan_values_to_trace(THD *thd, JOIN_TAB *tab)
   Json_writer_object table_records(thd);
   table_records.add_table_name(tab);
   Json_writer_object table_rec(thd, "table_scan");
-  table_rec.add("rows", tab->found_records)
-           .add("cost", tab->read_time);
+  table_rec.
+    add("rows", tab->found_records).
+    add("cost", tab->read_time);
 }
 
 
@@ -691,10 +693,11 @@ void print_best_access_for_table(THD *thd, POSITION *pos,
   DBUG_ASSERT(thd->trace_started());
 
   Json_writer_object obj(thd, "chosen_access_method");
-  obj.add("type", type == JT_ALL ? "scan" : join_type_str[type]);
-  obj.add("records", pos->records_read);
-  obj.add("cost", pos->read_time);
-  obj.add("uses_join_buffering", pos->use_join_buffer);
+  obj.
+    add("type", type == JT_ALL ? "scan" : join_type_str[type]).
+    add("records", pos->records_read).
+    add("cost", pos->read_time).
+    add("uses_join_buffering", pos->use_join_buffer);
   if (pos->range_rowid_filter_info)
   {
     uint key_no= pos->range_rowid_filter_info->get_key_no();

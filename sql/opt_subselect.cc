@@ -895,8 +895,10 @@ bool subquery_types_allow_materialization(THD* thd, Item_in_subselect *in_subs)
                                               outer,
                                               converted_from_in_predicate))
     {
-      trace_transform.add("possible", false);
-      trace_transform.add("cause", "types mismatch");
+      if (unlikely(trace_transform.trace_started()))
+        trace_transform.
+          add("possible", false).
+          add("cause", "types mismatch");
       DBUG_RETURN(FALSE);
     }
   }
@@ -918,8 +920,10 @@ bool subquery_types_allow_materialization(THD* thd, Item_in_subselect *in_subs)
   {
     in_subs->types_allow_materialization= TRUE;
     in_subs->sjm_scan_allowed= all_are_fields;
-    trace_transform.add("sjm_scan_allowed", all_are_fields)
-                   .add("possible", true);
+    if (unlikely(trace_transform.trace_started()))
+      trace_transform.
+        add("sjm_scan_allowed", all_are_fields).
+        add("possible", true);
     DBUG_PRINT("info",("subquery_types_allow_materialization: ok, allowed"));
     DBUG_RETURN(TRUE);
   }
@@ -1279,8 +1283,10 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
       OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
                           in_subq->get_select_lex()->select_number,
                           "IN (SELECT)", "semijoin");
-      trace_transform.add("converted_to_semi_join", false)
-                     .add("cause", "subquery attached to the ON clause");
+      if (unlikely(trace_transform.trace_started()))
+        trace_transform.
+          add("converted_to_semi_join", false).
+          add("cause", "subquery attached to the ON clause");
       break;
     }
 
@@ -1292,9 +1298,10 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
       if (join->table_count + 
           in_subq->unit->first_select()->join->table_count >= MAX_TABLES)
       {
-        trace_transform.add("converted_to_semi_join", false);
-        trace_transform.add("cause",
-                            "table in parent join now exceeds MAX_TABLES");
+        if (unlikely(trace_transform.trace_started()))
+          trace_transform.
+            add("converted_to_semi_join", false).
+            add("cause", "table in parent join now exceeds MAX_TABLES");
         break;
       }
       if (convert_subq_to_sj(join, in_subq))
@@ -3132,8 +3139,9 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
       *strategy= SJ_OPT_MATERIALIZE;
       if (unlikely(trace.trace_started()))
       {
-        trace.add("records", *record_count);
-        trace.add("read_time", *read_time);
+        trace.
+          add("records", *record_count).
+          add("cost", *read_time);
       }
       return TRUE;
     }
@@ -3314,8 +3322,9 @@ bool LooseScan_picker::check_qep(JOIN *join,
     *handled_fanout= first->table->emb_sj_nest->sj_inner_tables;
     if (unlikely(trace.trace_started()))
     {
-      trace.add("records", *record_count);
-      trace.add("read_time", *read_time);
+      trace.
+        add("records", *record_count).
+        add("read_time", *read_time);
     }
     return TRUE;
   }
