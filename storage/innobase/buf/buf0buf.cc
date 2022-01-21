@@ -1176,7 +1176,11 @@ bool buf_pool_t::create()
   while (++chunk < chunks + n_chunks);
 
   ut_ad(is_initialised());
+#if defined(__aarch64__)
   mysql_mutex_init(buf_pool_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
+#else
+  mysql_mutex_init(buf_pool_mutex_key, &mutex, nullptr);
+#endif
 
   UT_LIST_INIT(LRU, &buf_page_t::LRU);
   UT_LIST_INIT(withdraw, &buf_page_t::list);
