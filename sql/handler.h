@@ -4410,6 +4410,13 @@ void print_keydup_error(TABLE *table, KEY *key, myf errflag);
 
 int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info);
 int del_global_table_stat(THD *thd, LEX_STRING *db, LEX_STRING *table);
+
+/*
+  TODO: Starting with next release, make this a part of Plugin API in
+  include/mysql/plugin.h
+*/
+extern "C" int mysql_tmpfile_path(const char *path, const char *prefix);
+
 #ifndef DBUG_OFF
 /** Converts XID to string.
 

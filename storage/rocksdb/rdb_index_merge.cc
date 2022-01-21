@@ -107,16 +107,12 @@ int Rdb_index_merge::merge_file_create() {
   DBUG_ASSERT(m_merge_file.m_fd == -1);
 
   int fd;
-#ifdef MARIAROCKS_NOT_YET // mysql_tmpfile_path use 
   /* If no path set for tmpfile, use mysql_tmpdir by default */
   if (m_tmpfile_path == nullptr) {
     fd = mysql_tmpfile("myrocks");
   } else {
     fd = mysql_tmpfile_path(m_tmpfile_path, "myrocks");
   }
-#else
-  fd = mysql_tmpfile("myrocks");
-#endif
   if (fd < 0) {
     // NO_LINT_DEBUG
     sql_print_error("Failed to create temp file during fast index creation.");
