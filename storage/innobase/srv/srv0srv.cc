@@ -61,7 +61,6 @@ Created 10/8/1995 Heikki Tuuri
 #include "srv0start.h"
 #include "trx0i_s.h"
 #include "trx0purge.h"
-#include "ut0crc32.h"
 #include "btr0defragment.h"
 #include "ut0mem.h"
 #include "fil0fil.h"

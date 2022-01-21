@@ -97,7 +97,6 @@ Created 2/16/1996 Heikki Tuuri
 #include "row0mysql.h"
 #include "btr0pcur.h"
 #include "zlib.h"
-#include "ut0crc32.h"
 #include "log.h"
 
 /** We are prepared for a situation that we have this many threads waiting for
