@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1773,50 +1773,14 @@ void
 fil_names_dirty(
 	fil_space_t*	space);
 
-/** Write FILE_MODIFY records when a non-predefined persistent
-tablespace was modified for the first time since the latest
-fil_names_clear().
-@param[in,out]	space	tablespace */
-void fil_names_dirty_and_write(fil_space_t* space);
-
-/** Write FILE_MODIFY records if a persistent tablespace was modified
-for the first time since the latest fil_names_clear().
-@param[in,out]	space	tablespace
-@param[in,out]	mtr	mini-transaction
-@return whether any FILE_MODIFY record was written */
-inline bool fil_names_write_if_was_clean(fil_space_t* space)
-{
-	mysql_mutex_assert_owner(&log_sys.mutex);
-
-	if (space == NULL) {
-		return(false);
-	}
-
-	const bool	was_clean = space->max_lsn == 0;
-	ut_ad(space->max_lsn <= log_sys.get_lsn());
-	space->max_lsn = log_sys.get_lsn();
-
-	if (was_clean) {
-		fil_names_dirty_and_write(space);
-	}
-
-	return(was_clean);
-}
-
 
 bool fil_comp_algo_loaded(ulint comp_algo);
 
 /** On a log checkpoint, reset fil_names_dirty_and_write() flags
-and write out FILE_MODIFY and FILE_CHECKPOINT if needed.
-@param[in]	lsn		checkpoint LSN
-@param[in]	do_write	whether to always write FILE_CHECKPOINT
-@return whether anything was written to the redo log
-@retval false	if no flags were set and nothing written
-@retval true	if anything was written to the redo log */
-bool
-fil_names_clear(
-	lsn_t	lsn,
-	bool	do_write);
+and write out FILE_MODIFY if needed, and write FILE_CHECKPOINT.
+@param lsn  checkpoint LSN
+@return current LSN */
+lsn_t fil_names_clear(lsn_t lsn);
 
 #ifdef UNIV_ENABLE_UNIT_TEST_MAKE_FILEPATH
 void test_make_filepath();

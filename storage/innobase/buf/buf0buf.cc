@@ -373,8 +373,8 @@ static bool buf_tmp_page_decrypt(byte* tmp_frame, byte* src_frame)
 			  src_frame + srv_page_size - FIL_PAGE_FCRC32_CHECKSUM,
 			  FIL_PAGE_FCRC32_CHECKSUM);
 
-	memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(src_frame, tmp_frame,
-					       srv_page_size);
+	memcpy_aligned<UNIV_PAGE_SIZE_MIN>(src_frame, tmp_frame,
+					   srv_page_size);
 	srv_stats.pages_decrypted.inc();
 	srv_stats.n_temp_blocks_decrypted.inc();
 
@@ -799,17 +799,9 @@ buf_madvise_do_dump()
 
 	/* mirrors allocation in log_t::create() */
 	if (log_sys.buf) {
-		ret += madvise(log_sys.buf,
-			       srv_log_buffer_size,
+		ret += madvise(log_sys.buf, log_sys.buf_size, MADV_DODUMP);
+		ret += madvise(log_sys.flush_buf, log_sys.buf_size,
 			       MADV_DODUMP);
-		ret += madvise(log_sys.flush_buf,
-			       srv_log_buffer_size,
-			       MADV_DODUMP);
-	}
-	/* mirrors recv_sys_t::create() */
-	if (recv_sys.buf)
-	{
-		ret+= madvise(recv_sys.buf, recv_sys.len, MADV_DODUMP);
 	}
 
 	mysql_mutex_lock(&buf_pool.mutex);
@@ -1090,7 +1082,7 @@ inline const buf_block_t *buf_pool_t::chunk_t::not_freed() const
       {
         /* The page cleaner is disabled in read-only mode.  No pages
         can be dirtied, so all of them must be clean. */
-        ut_ad(lsn == 0 || lsn == recv_sys.recovered_lsn ||
+        ut_ad(lsn == 0 || lsn == recv_sys.lsn ||
               srv_force_recovery == SRV_FORCE_NO_LOG_REDO);
         break;
       }
@@ -1326,7 +1318,7 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 	hash_lock.lock();
 
 	if (block->page.can_relocate()) {
-		memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(
+		memcpy_aligned<UNIV_PAGE_SIZE_MIN>(
 			new_block->page.frame, block->page.frame,
 			srv_page_size);
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);

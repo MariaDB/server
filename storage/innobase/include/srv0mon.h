@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2015, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of the GNU General Public License as published by the
@@ -271,9 +271,6 @@ enum monitor_id_t {
 	MONITOR_OS_PENDING_READS,
 	MONITOR_OS_PENDING_WRITES,
 	MONITOR_OVLD_OS_LOG_WRITTEN,
-	MONITOR_OVLD_OS_LOG_FSYNC,
-	MONITOR_OVLD_OS_LOG_PENDING_FSYNC,
-	MONITOR_OVLD_OS_LOG_PENDING_WRITES,
 
 	/* Transaction related counters */
 	MONITOR_MODULE_TRX,
@@ -300,20 +297,17 @@ enum monitor_id_t {
 
 	/* Recovery related counters */
 	MONITOR_MODULE_RECOVERY,
-	MONITOR_NUM_CHECKPOINT,
+	MONITOR_OVLD_CHECKPOINTS,
 	MONITOR_OVLD_LSN_FLUSHDISK,
 	MONITOR_OVLD_LSN_CHECKPOINT,
 	MONITOR_OVLD_LSN_CURRENT,
 	MONITOR_LSN_CHECKPOINT_AGE,
 	MONITOR_OVLD_BUF_OLDEST_LSN,
 	MONITOR_OVLD_MAX_AGE_ASYNC,
-	MONITOR_PENDING_LOG_FLUSH,
-	MONITOR_PENDING_CHECKPOINT_WRITE,
 	MONITOR_LOG_IO,
 	MONITOR_OVLD_LOG_WAITS,
 	MONITOR_OVLD_LOG_WRITE_REQUEST,
 	MONITOR_OVLD_LOG_WRITES,
-	MONITOR_OVLD_LOG_PADDED,
 
 	/* Page Manager related counters */
 	MONITOR_MODULE_PAGE,

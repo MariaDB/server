@@ -9,7 +9,7 @@ CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
 FOUND 1 /InnoDB: Tablespace 4294967280 was not found at .*, but there were no modifications either/ in mysqld.1.err
-# restart: --debug=d,innodb_log_abort_3,ib_log --innodb-log-file-size=4194304
+# restart: --debug=d,innodb_log_abort_5,ib_log --innodb-log-file-size=4194304
 SELECT * FROM t1;
 ERROR 42000: Unknown storage engine 'InnoDB'
 FOUND 1 /ib_log: FILE_CHECKPOINT.* written/ in mysqld.1.err

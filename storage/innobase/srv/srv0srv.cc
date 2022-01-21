@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -153,8 +153,6 @@ char*	srv_log_group_home_dir;
 /** The InnoDB redo log file size, or 0 when changing the redo log format
 at startup (while disallowing writes to the redo log). */
 ulonglong	srv_log_file_size;
-/** innodb_log_buffer_size, in bytes */
-ulong		srv_log_buffer_size;
 /** innodb_flush_log_at_trx_commit */
 ulong		srv_flush_log_at_trx_commit;
 /** innodb_flush_log_at_timeout */
@@ -163,8 +161,6 @@ uint		srv_flush_log_at_timeout;
 ulong		srv_page_size;
 /** log2 of innodb_page_size; @see innodb_init_params() */
 uint32_t	srv_page_size_shift;
-/** innodb_log_write_ahead_size */
-ulong		srv_log_write_ahead_size;
 
 /** innodb_adaptive_flushing; try to flush dirty pages so as to avoid
 IO bursts at the checkpoints. */
@@ -1011,12 +1007,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_data_pending_writes =
 		ulint(MONITOR_VALUE(MONITOR_OS_PENDING_WRITES));
 
-	export_vars.innodb_data_pending_fsyncs =
-		log_sys.get_pending_flushes()
-		+ fil_n_pending_tablespace_flushes;
-
-	export_vars.innodb_data_fsyncs = os_n_fsyncs;
-
 	export_vars.innodb_data_read = srv_stats.data_read;
 
 	export_vars.innodb_data_reads = os_n_file_reads;
@@ -1089,22 +1079,6 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_max_trx_id = trx_sys.get_max_trx_id();
 	export_vars.innodb_history_list_length = trx_sys.history_size();
-
-	export_vars.innodb_log_waits = srv_stats.log_waits;
-
-	export_vars.innodb_os_log_written = srv_stats.os_log_written;
-
-	export_vars.innodb_os_log_fsyncs = log_sys.get_flushes();
-
-	export_vars.innodb_os_log_pending_fsyncs
-		= log_sys.get_pending_flushes();
-
-	export_vars.innodb_os_log_pending_writes =
-		srv_stats.os_log_pending_writes;
-
-	export_vars.innodb_log_write_requests = srv_stats.log_write_requests;
-
-	export_vars.innodb_log_writes = srv_stats.log_writes;
 
 	mysql_mutex_lock(&lock_sys.wait_mutex);
 	export_vars.innodb_row_lock_waits = lock_sys.get_wait_cumulative();
@@ -1204,6 +1178,8 @@ srv_export_innodb_status(void)
 	export_vars.innodb_checkpoint_max_age = static_cast<ulint>(
 		log_sys.max_checkpoint_age);
 	mysql_mutex_unlock(&log_sys.mutex);
+	export_vars.innodb_os_log_written = export_vars.innodb_lsn_current
+		- recv_sys.lsn;
 
 	export_vars.innodb_checkpoint_age = static_cast<ulint>(
 		export_vars.innodb_lsn_current
@@ -1281,7 +1257,7 @@ static void srv_monitor()
 void srv_monitor_task(void*)
 {
 	/* number of successive fatal timeouts observed */
-	static lsn_t		old_lsn = recv_sys.recovered_lsn;
+	static lsn_t		old_lsn = recv_sys.lsn;
 
 	ut_ad(!srv_read_only_mode);
 

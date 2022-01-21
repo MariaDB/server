@@ -1258,7 +1258,7 @@ row_merge_read(
 		IORequestRead, fd, buf, ofs, srv_sort_buf_size, 0);
 
 	/* If encryption is enabled decrypt buffer */
-	if (success && log_tmp_is_encrypted()) {
+	if (success && srv_encrypt_log) {
 		if (!log_tmp_block_decrypt(buf, srv_sort_buf_size,
 					   crypt_buf, ofs)) {
 			return (FALSE);
@@ -1303,7 +1303,7 @@ row_merge_write(
 	DBUG_EXECUTE_IF("row_merge_write_failure", DBUG_RETURN(FALSE););
 
 	/* For encrypted tables, encrypt data before writing */
-	if (log_tmp_is_encrypted()) {
+	if (srv_encrypt_log) {
 		if (!log_tmp_block_encrypt(static_cast<const byte*>(buf),
 					   buf_len,
 					   static_cast<byte*>(crypt_buf),
@@ -4658,7 +4658,7 @@ row_merge_build_indexes(
 	crypt_pfx.m_size = 0; /* silence bogus -Wmaybe-uninitialized */
 	TRASH_ALLOC(&crypt_pfx, sizeof crypt_pfx);
 
-	if (log_tmp_is_encrypted()) {
+	if (srv_encrypt_log) {
 		crypt_block = static_cast<row_merge_block_t*>(
 			alloc.allocate_large(block_size,
 					     &crypt_pfx));

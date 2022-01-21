@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2021, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1496,7 +1496,7 @@ inline void mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
   {
     ut_ad(strchr(new_path, '/'));
     m_log.push(reinterpret_cast<const byte*>(path), uint32_t(len + 1));
-    m_log.push(reinterpret_cast<const byte*>(new_path), uint32_t(new_len));
+    m_log.push(reinterpret_cast<const byte*>(new_path), uint32_t(new_len - 1));
   }
   else
     m_log.push(reinterpret_cast<const byte*>(path), uint32_t(len));
@@ -1514,6 +1514,14 @@ static void fil_name_write_rename_low(uint32_t space_id, const char *old_name,
   mtr->log_file_op(FILE_RENAME, space_id, old_name, new_name);
 }
 
+static void fil_name_commit_durable(mtr_t *mtr)
+{
+  mysql_mutex_lock(&log_sys.mutex);
+  auto lsn= mtr->commit_files();
+  mysql_mutex_unlock(&log_sys.mutex);
+  log_write_up_to(lsn, true);
+}
+
 /** Write redo log for renaming a file.
 @param[in]	space_id	tablespace id
 @param[in]	old_name	tablespace file name
@@ -1524,8 +1532,7 @@ static void fil_name_write_rename(uint32_t space_id,
   mtr_t mtr;
   mtr.start();
   fil_name_write_rename_low(space_id, old_name, new_name, &mtr);
-  mtr.commit();
-  log_write_up_to(mtr.commit_lsn(), true);
+  fil_name_commit_durable(&mtr);
 }
 
 /** Write FILE_MODIFY for a file.
@@ -1655,8 +1662,7 @@ pfs_os_file_t fil_delete_tablespace(uint32_t id)
     mtr_t mtr;
     mtr.start();
     mtr.log_file_op(FILE_DELETE, id, space->chain.start->name);
-    mtr.commit();
-    log_write_up_to(mtr.commit_lsn(), true);
+    fil_name_commit_durable(&mtr);
 
     /* Remove any additional files. */
     if (char *cfg_name= fil_make_filepath(space->chain.start->name,
@@ -1969,8 +1975,7 @@ fil_ibd_create(
 
 	mtr.start();
 	mtr.log_file_op(FILE_CREATE, space_id, path);
-	mtr.commit();
-	log_write_up_to(mtr.commit_lsn(), true);
+	fil_name_commit_durable(&mtr);
 
 	ulint type;
 	static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096,
@@ -2760,8 +2765,8 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
                          void *buf, buf_page_t *bpage)
 {
 	ut_ad(referenced());
-	ut_ad(offset % OS_FILE_LOG_BLOCK_SIZE == 0);
-	ut_ad((len % OS_FILE_LOG_BLOCK_SIZE) == 0);
+	ut_ad(offset % UNIV_ZIP_SIZE_MIN == 0);
+	ut_ad(len % 512 == 0); /* page_compressed */
 	ut_ad(fil_validate_skip());
 	ut_ad(type.is_read() || type.is_write());
 	ut_ad(type.type != IORequest::DBLWR_BATCH);
@@ -3057,19 +3062,6 @@ fil_space_validate_for_mtr_commit(
 }
 #endif /* UNIV_DEBUG */
 
-/** Write a FILE_MODIFY record for a persistent tablespace.
-@param[in]	space	tablespace
-@param[in,out]	mtr	mini-transaction */
-static
-void
-fil_names_write(
-	const fil_space_t*	space,
-	mtr_t*			mtr)
-{
-	ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
-	fil_name_write(space->id, UT_LIST_GET_FIRST(space->chain)->name, mtr);
-}
-
 /** Note that a non-predefined persistent tablespace has been modified
 by redo log.
 @param[in,out]	space	tablespace */
@@ -3087,55 +3079,48 @@ fil_names_dirty(
 	space->max_lsn = log_sys.get_lsn();
 }
 
-/** Write FILE_MODIFY records when a non-predefined persistent
-tablespace was modified for the first time since the latest
-fil_names_clear().
-@param[in,out]	space	tablespace */
-void fil_names_dirty_and_write(fil_space_t* space)
+/** Write a FILE_MODIFY record when a non-predefined persistent
+tablespace was modified for the first time since fil_names_clear(). */
+ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void mtr_t::name_write()
 {
-	mysql_mutex_assert_owner(&log_sys.mutex);
-	ut_d(fil_space_validate_for_mtr_commit(space));
-	ut_ad(space->max_lsn == log_sys.get_lsn());
+  mysql_mutex_assert_owner(&log_sys.mutex);
+  ut_d(fil_space_validate_for_mtr_commit(m_user_space));
+  ut_ad(!m_user_space->max_lsn);
+  m_user_space->max_lsn= log_sys.get_lsn();
 
-	fil_system.named_spaces.push_back(*space);
-	mtr_t mtr;
-	mtr.start();
-	fil_names_write(space, &mtr);
+  fil_system.named_spaces.push_back(*m_user_space);
+  ut_ad(UT_LIST_GET_LEN(m_user_space->chain) == 1);
 
-	DBUG_EXECUTE_IF("fil_names_write_bogus",
-			{
-				char bogus_name[] = "./test/bogus file.ibd";
-				fil_name_write(
-					SRV_SPACE_ID_UPPER_BOUND,
-					bogus_name, &mtr);
-			});
+  mtr_t mtr;
+  mtr.start();
+  fil_name_write(m_user_space->id,
+                 UT_LIST_GET_FIRST(m_user_space->chain)->name,
+                 &mtr);
 
-	mtr.commit_files();
+  DBUG_EXECUTE_IF("fil_names_write_bogus",
+                  {fil_name_write(SRV_SPACE_ID_UPPER_BOUND,
+                                  "./test/bogus file.ibd", &mtr);});
+  mtr.commit_files();
 }
 
 /** On a log checkpoint, reset fil_names_dirty_and_write() flags
-and write out FILE_MODIFY and FILE_CHECKPOINT if needed.
-@param[in]	lsn		checkpoint LSN
-@param[in]	do_write	whether to always write FILE_CHECKPOINT
-@return whether anything was written to the redo log
-@retval false	if no flags were set and nothing written
-@retval true	if anything was written to the redo log */
-bool
-fil_names_clear(
-	lsn_t	lsn,
-	bool	do_write)
+and write out FILE_MODIFY if needed, and write FILE_CHECKPOINT.
+@param lsn  checkpoint LSN
+@return current LSN */
+lsn_t fil_names_clear(lsn_t lsn)
 {
 	mtr_t	mtr;
 
 	mysql_mutex_assert_owner(&log_sys.mutex);
 	ut_ad(lsn);
+	ut_ad(log_sys.is_latest());
 
 	mtr.start();
 
 	for (auto it = fil_system.named_spaces.begin();
 	     it != fil_system.named_spaces.end(); ) {
 		if (mtr.get_log()->size() + strlen(it->chain.start->name)
-		    >= RECV_SCAN_SIZE - (3 + 5)) {
+		    >= recv_sys.MTR_SIZE_MAX - (3 + 5)) {
 			/* Prevent log parse buffer overflow */
 			mtr.commit_files();
 			mtr.start();
@@ -3158,20 +3143,13 @@ fil_names_clear(
 		was called. If we kept track of "min_lsn" (the first LSN
 		where max_lsn turned nonzero), we could avoid the
 		fil_names_write() call if min_lsn > lsn. */
-
-		fil_names_write(&*it, &mtr);
-		do_write = true;
-
+		ut_ad(UT_LIST_GET_LEN((*it).chain) == 1);
+		fil_name_write((*it).id, UT_LIST_GET_FIRST((*it).chain)->name,
+			       &mtr);
 		it = next;
 	}
 
-	if (do_write) {
-		mtr.commit_files(lsn);
-	} else {
-		ut_ad(!mtr.has_modifications());
-	}
-
-	return(do_write);
+	return mtr.commit_files(lsn);
 }
 
 /* Unit Tests */

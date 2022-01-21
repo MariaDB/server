@@ -1,0 +1,9 @@
+@@ -2,7 +2,7 @@
+ # MDEV-13416 mariabackup fails with EFAULT "Bad Address"
+ #
+ # restart
+-FOUND 1 /redo log from 2\.012MiB to [0-9.]*[KMGT]iB; LSN=17596481011216\b/ in mysqld.1.err
++FOUND 1 /redo log: [0-9.]*[KMGT]iB; LSN=17596481010687\b/ in mysqld.1.err
+ CREATE TABLE t(i INT) ENGINE INNODB;
+ INSERT INTO t VALUES(1);
+ # xtrabackup backup
