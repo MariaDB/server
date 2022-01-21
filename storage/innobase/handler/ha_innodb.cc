@@ -18229,9 +18229,6 @@ checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void *save)
          (lsn= log_sys.get_lsn(std::memory_order_acquire)))
     log_make_checkpoint();
 
-  if (dberr_t err= fil_write_flushed_lsn(lsn))
-    sql_print_warning("innodb_checkpoint_now_set failed: %d", err);
-
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
 

@@ -1032,15 +1032,6 @@ wait_suspend_loop:
 
 	srv_shutdown_lsn = lsn;
 
-	if (!srv_read_only_mode) {
-		dberr_t err = fil_write_flushed_lsn(lsn);
-
-		if (err != DB_SUCCESS) {
-			ib::error() << "Writing flushed lsn " << lsn
-				<< " failed; error=" << err;
-		}
-	}
-
 	/* Make some checks that the server really is quiet */
 	ut_ad(!srv_any_background_activity());
 

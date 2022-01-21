@@ -1181,11 +1181,7 @@ dberr_t srv_start(bool create_new_db)
 
 		buf_flush_sync();
 
-		const lsn_t lsn{log_sys.get_lsn()};
-		err = fil_write_flushed_lsn(lsn);
-		if (err == DB_SUCCESS) {
-			err = create_log_file_rename(lsn, logfile0);
-		}
+		err = create_log_file_rename(log_sys.get_lsn(), logfile0);
 
 		if (err != DB_SUCCESS) {
 			return(srv_init_abort(err));
@@ -1381,15 +1377,11 @@ dberr_t srv_start(bool create_new_db)
 			/* Close the redo log file, so that we can replace it */
 			log_sys.close_file();
 
-			err = fil_write_flushed_lsn(lsn);
-
 			DBUG_EXECUTE_IF("innodb_log_abort_5",
 					return(srv_init_abort(DB_ERROR)););
 			DBUG_PRINT("ib_log", ("After innodb_log_abort_5"));
 
-			if (err == DB_SUCCESS) {
-				err = create_log_file(false, lsn, logfile0);
-			}
+			err = create_log_file(false, lsn, logfile0);
 
 			if (err == DB_SUCCESS) {
 				err = create_log_file_rename(lsn, logfile0);
