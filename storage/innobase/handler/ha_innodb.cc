@@ -4,7 +4,7 @@ Copyright (c) 2000, 2020, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -11710,9 +11710,12 @@ create_table_info_t::create_options_are_invalid()
 		break;
 	}
 
-	if (m_create_info->data_file_name
-	    && m_create_info->data_file_name[0] != '\0'
-	    && !create_option_data_directory_is_valid()) {
+	if (!m_create_info->data_file_name
+	    || !m_create_info->data_file_name[0]) {
+	} else if (!my_use_symdir) {
+		my_error(WARN_OPTION_IGNORED, MYF(ME_JUST_WARNING),
+			 "DATA DIRECTORY");
+	} else if (!create_option_data_directory_is_valid()) {
 		ret = "DATA DIRECTORY";
 	}
 
@@ -11986,7 +11989,8 @@ create_table_info_t::parse_table_name(
 	  CREATE TABLE ... DATA DIRECTORY={path} TABLESPACE={name}... ;
 	we ignore the DATA DIRECTORY. */
 	if (m_create_info->data_file_name
-	    && m_create_info->data_file_name[0] != '\0') {
+	    && m_create_info->data_file_name[0]
+	    && my_use_symdir) {
 		if (!create_option_data_directory_is_valid()) {
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
@@ -12457,8 +12461,9 @@ create_table_info_t::set_tablespace_type(
 	used with TEMPORARY tables. */
 	m_use_data_dir =
 		m_use_file_per_table
-		&& (m_create_info->data_file_name != NULL)
-		&& (m_create_info->data_file_name[0] != '\0');
+		&& m_create_info->data_file_name
+		&& m_create_info->data_file_name[0]
+		&& my_use_symdir;
 }
 
 /** Initialize the create_table_info_t object.

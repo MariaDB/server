@@ -1,5 +1,6 @@
 --source include/innodb_page_size.inc
 --source include/not_embedded.inc
+--source include/have_symlink.inc
 
 -- echo #
 -- echo # MDEV-11623 MariaDB 10.1 fails to start datadir created with
