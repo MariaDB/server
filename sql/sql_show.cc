@@ -2683,6 +2683,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
                                     tmp_sctx->host_or_ip :
                                     tmp_sctx->host ? tmp_sctx->host : "");
       thd_info->command=(int) tmp->get_command();
+      /* Lock THD mutex that protects its data when looking at it. */
       mysql_mutex_lock(&tmp->LOCK_thd_data);
       if ((thd_info->db= tmp->db))             // Safe test
         thd_info->db= thd->strdup(thd_info->db);
@@ -2694,7 +2695,6 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
       if (mysys_var)
         mysql_mutex_unlock(&mysys_var->mutex);
 
-      /* Lock THD mutex that protects its data when looking at it. */
       if (tmp->query())
       {
         uint length= MY_MIN(max_query_length, tmp->query_length());
