@@ -24,6 +24,7 @@ typedef uint32 my_thread_os_id_t;
 #elif defined(HAVE_PTHREAD_GETTHREADID_NP)
 typedef int my_thread_os_id_t;
 #elif defined(HAVE_INTEGER_PTHREAD_SELF)
+#include <stdint.h>
 typedef uintptr_t my_thread_os_id_t;
 #else
 typedef unsigned long long my_thread_os_id_t;
