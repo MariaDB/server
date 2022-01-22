@@ -17371,12 +17371,12 @@ innodb_buffer_pool_size_update(THD*,st_mysql_sys_var*,void*, const void* save)
 
 	snprintf(export_vars.innodb_buffer_pool_resize_status,
 	        sizeof(export_vars.innodb_buffer_pool_resize_status),
-		"Requested to resize buffer pool.");
+		"Buffer pool resize requested");
 
 	buf_resize_start();
 
 	ib::info() << export_vars.innodb_buffer_pool_resize_status
-		<< " (new size: " << in_val << " bytes)";
+		<< " (New size: " << in_val << " bytes).";
 }
 
 /** The latest assigned innodb_ft_aux_table name */
