@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20005,6 +20005,7 @@ static void test_mdev24827()
 
   rc= mysql_stmt_execute(stmt);
   check_execute(stmt, rc);
+  mysql_stmt_close(stmt);
 
   rc= mysql_query(mysql, "DROP TABLE t1");
   myquery(rc);
@@ -20018,6 +20019,8 @@ static void test_mdev_20516()
   MYSQL_STMT *stmt;
   int        rc;
   unsigned long cursor= CURSOR_TYPE_READ_ONLY;
+  const char* query=
+    "CREATE VIEW v1 AS SELECT * FROM t1";
 
   myheader("test_mdev_20516");
 
@@ -20026,9 +20029,6 @@ static void test_mdev_20516()
 
   rc= mysql_query(mysql, "CREATE TABLE t1(a INT)");
   myquery(rc);
-
-  const char* query=
-    "CREATE VIEW v1 AS SELECT * FROM t1";
 
   stmt= mysql_stmt_init(mysql);
   check_stmt(stmt);
@@ -20041,6 +20041,7 @@ static void test_mdev_20516()
 
   rc= mysql_stmt_execute(stmt);
   check_execute(stmt, rc);
+  mysql_stmt_close(stmt);
 
   rc= mysql_query(mysql, "DROP TABLE t1");
   myquery(rc);
