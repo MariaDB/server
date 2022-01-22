@@ -1811,3 +1811,82 @@ SELECT @n;
 @n
 4
 DROP TABLE t;
+#
+# MDEV-26843: Inconsistent behavior of ROW_NUMBER upon resignalling from function
+#
+CREATE OR REPLACE FUNCTION f(a INT) RETURNS INT RETURN a;
+CREATE OR REPLACE FUNCTION f2() RETURNS INT
+BEGIN
+DECLARE i INT DEFAULT -1;
+DECLARE EXIT HANDLER FOR 1318
+BEGIN
+GET DIAGNOSTICS CONDITION 1 @row_number_in_f2= ROW_NUMBER, @msg_in_f2= MESSAGE_TEXT;
+RESIGNAL;
+RETURN -2;
+END;
+SELECT f() INTO i;
+RETURN i;
+END |
+SELECT f2();
+ERROR 42000: Incorrect number of arguments for FUNCTION test.f; expected 1, got 0
+GET DIAGNOSTICS CONDITION 1 @row_number_outside= ROW_NUMBER, @msg_outside= MESSAGE_TEXT;
+SELECT @row_number_in_f2, @msg_in_f2;
+@row_number_in_f2	@msg_in_f2
+1	Incorrect number of arguments for FUNCTION test.f; expected 1, got 0
+SELECT @row_number_outside, @msg_outside;
+@row_number_outside	@msg_outside
+1	Incorrect number of arguments for FUNCTION test.f; expected 1, got 0
+DROP FUNCTION f2;
+DROP FUNCTION f;
+CREATE TABLE t1 (a INT);
+CREATE OR REPLACE FUNCTION f(a INT) RETURNS INT RETURN a;
+CREATE OR REPLACE FUNCTION f2() RETURNS INT
+BEGIN
+DECLARE i INT DEFAULT -1;
+DECLARE EXIT HANDLER FOR 1305
+BEGIN
+GET DIAGNOSTICS CONDITION 1 @row_number_in_f2= ROW_NUMBER, @msg_in_f2= MESSAGE_TEXT;
+RESIGNAL;
+RETURN -2;
+END;
+INSERT t1 VALUES (f(1)), (f(2)), (f1());
+RETURN i;
+END |
+SELECT f2();
+ERROR 42000: FUNCTION test.f1 does not exist
+GET DIAGNOSTICS CONDITION 1 @row_number_outside= ROW_NUMBER, @msg_outside= MESSAGE_TEXT;
+SELECT @row_number_in_f2, @msg_in_f2;
+@row_number_in_f2	@msg_in_f2
+3	FUNCTION test.f1 does not exist
+SELECT @row_number_outside, @msg_outside;
+@row_number_outside	@msg_outside
+3	FUNCTION test.f1 does not exist
+DROP FUNCTION f2;
+DROP FUNCTION f;
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+CREATE OR REPLACE FUNCTION f(a INT) RETURNS INT RETURN a;
+CREATE OR REPLACE FUNCTION f2() RETURNS INT
+BEGIN
+DECLARE i INT DEFAULT -1;
+DECLARE EXIT HANDLER FOR 1305
+BEGIN
+GET DIAGNOSTICS CONDITION 1 @row_number_in_f2= ROW_NUMBER, @msg_in_f2= MESSAGE_TEXT;
+RESIGNAL;
+RETURN -2;
+END;
+INSERT t1 VALUES (f1(1)), (f(2)), (f(3));
+RETURN i;
+END |
+SELECT f2();
+ERROR 42000: FUNCTION test.f1 does not exist
+GET DIAGNOSTICS CONDITION 1 @row_number_outside= ROW_NUMBER, @msg_outside= MESSAGE_TEXT;
+SELECT @row_number_in_f2, @msg_in_f2;
+@row_number_in_f2	@msg_in_f2
+1	FUNCTION test.f1 does not exist
+SELECT @row_number_outside, @msg_outside;
+@row_number_outside	@msg_outside
+1	FUNCTION test.f1 does not exist
+DROP FUNCTION f2;
+DROP FUNCTION f;
+DROP TABLE t1;

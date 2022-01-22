@@ -4277,7 +4277,10 @@ public:
   {
     DBUG_ENTER("clear_error");
     if (get_stmt_da()->is_error() || clear_diagnostics)
+    {
       get_stmt_da()->reset_diagnostics_area();
+      get_stmt_da()->reset_current_row_for_warning(0);
+    }
     is_slave_error= 0;
     if (killed == KILL_BAD_DATA)
       reset_killed();

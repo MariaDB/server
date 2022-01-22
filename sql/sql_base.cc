@@ -7645,7 +7645,7 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   List<Item> &fields, enum_column_usage column_usage,
                   List<Item> *sum_func_list, List<Item> *pre_fix,
-                  bool allow_sum_func)
+                  bool allow_sum_func, bool reset_counter)
 {
   Item *item;
   enum_column_usage saved_column_usage= thd->column_usage;
@@ -7669,6 +7669,8 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   DBUG_ASSERT(thd->lex->current_select->master_unit()->first_select()
                 ->nest_level ==
               thd->lex->current_select->nest_level);
+  if (reset_counter)
+    thd->get_stmt_da()->reset_current_row_for_warning(1);
   if (allow_sum_func)
     thd->lex->allow_sum_func.set_bit(thd->lex->current_select->nest_level);
   thd->where= THD::DEFAULT_WHERE;
@@ -7749,6 +7751,8 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
 
   thd->lex->allow_sum_func= save_allow_sum_func;
   thd->column_usage= saved_column_usage;
+  if (reset_counter)
+    thd->get_stmt_da()->reset_current_row_for_warning(0);
   DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
   DBUG_RETURN(MY_TEST(thd->is_error()));
 }
@@ -7770,7 +7774,7 @@ int setup_returning_fields(THD* thd, TABLE_LIST* table_list)
   return setup_wild(thd, table_list, thd->lex->returning()->item_list, NULL,
                     thd->lex->returning(), true)
       || setup_fields(thd, Ref_ptr_array(), thd->lex->returning()->item_list,
-                      MARK_COLUMNS_READ, NULL, NULL, false);
+                      MARK_COLUMNS_READ, NULL, NULL, false, 0);
 }
 
 

@@ -1395,7 +1395,7 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   }
 
   if (setup_fields(thd, ref_ptrs, fields_list, MARK_COLUMNS_READ,
-                   &all_fields, &select_lex->pre_fix, 1))
+                   &all_fields, &select_lex->pre_fix, 1, 0))
     DBUG_RETURN(-1);
   thd->lex->current_select->context_analysis_place= save_place;
   rand_table_in_field_list= select_lex->select_list_tables & RAND_TABLE_BIT;

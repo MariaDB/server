@@ -29,7 +29,7 @@ bool mysql_do(THD *thd, List<Item> &values)
   List_iterator<Item> li(values);
   Item *value;
   DBUG_ENTER("mysql_do");
-  if (setup_fields(thd, Ref_ptr_array(), values, COLUMNS_READ, 0, NULL, 0))
+  if (setup_fields(thd, Ref_ptr_array(), values, COLUMNS_READ, 0, NULL, 0, 0))
     DBUG_RETURN(TRUE);
   while ((value = li++))
     (void) value->is_null();

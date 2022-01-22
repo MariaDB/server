@@ -558,7 +558,6 @@ void Warning_info::clear(ulonglong new_id)
   free_memory();
   memset(m_warn_count, 0, sizeof(m_warn_count));
   m_current_statement_warn_count= 0;
-  m_current_row_for_warning= 0;
   clear_error_condition();
 }
 

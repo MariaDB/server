@@ -1091,7 +1091,7 @@ a
 Warnings:
 Warning	1916	Got overflow when converting '' to DECIMAL. Value truncated
 Warning	1292	Truncated incorrect DECIMAL value: '.00000000000000000000000000000000000001e111111111111111111111'
-Warning	1264	Out of range value for column 'a' at row 0
+Warning	1264	Out of range value for column 'a' at row 1
 CREATE TABLE t1 (str VARCHAR(128), comment VARCHAR(128));
 INSERT INTO t1 VALUES
 ('0e111111111111111111111', 'Zero mantissa and a huge positive exponent'),

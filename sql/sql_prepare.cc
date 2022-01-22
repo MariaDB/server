@@ -1347,7 +1347,7 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
         goto error;
       }
       if (setup_fields(thd, Ref_ptr_array(),
-                       *values, COLUMNS_READ, 0, NULL, 0))
+                       *values, COLUMNS_READ, 0, NULL, 0, 0))
         goto error;
       thd->get_stmt_da()->inc_current_row_for_warning();
     }
@@ -1481,7 +1481,7 @@ static int mysql_test_update(Prepared_statement *stmt,
 #endif
   thd->lex->first_select_lex()->no_wrap_view_item= TRUE;
   res= setup_fields(thd, Ref_ptr_array(),
-                    select->item_list, MARK_COLUMNS_READ, 0, NULL, 0);
+                    select->item_list, MARK_COLUMNS_READ, 0, NULL, 0, 0);
   thd->lex->first_select_lex()->no_wrap_view_item= FALSE;
   if (res)
     goto error;
@@ -1493,7 +1493,7 @@ static int mysql_test_update(Prepared_statement *stmt,
   table_list->register_want_access(SELECT_ACL);
 #endif
   if (setup_fields(thd, Ref_ptr_array(),
-                   stmt->lex->value_list, COLUMNS_READ, 0, NULL, 0) ||
+                   stmt->lex->value_list, COLUMNS_READ, 0, NULL, 0, 0) ||
       check_unique_table(thd, table_list))
     goto error;
   /* TODO: here we should send types of placeholders to the client. */
@@ -1669,7 +1669,7 @@ static bool mysql_test_do_fields(Prepared_statement *stmt,
                                      DT_INIT | DT_PREPARE))
     DBUG_RETURN(TRUE);
   DBUG_RETURN(setup_fields(thd, Ref_ptr_array(),
-                           *values, COLUMNS_READ, 0, NULL, 0));
+                           *values, COLUMNS_READ, 0, NULL, 0, 0));
 }
 
 
