@@ -5547,8 +5547,15 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   /* Partition info is not handled by mysql_prepare_alter_table() call. */
   if (src_table->table->part_info)
-    thd->work_part_info= src_table->table->part_info->get_clone(thd);
-#endif
+  {
+    /*
+      The CREATE TABLE LIKE should not inherit the DATA DIRECTORY
+      and INDEX DIRECTORY from the base table.
+      So that TRUE argument for the get_clone.
+    */
+    thd->work_part_info= src_table->table->part_info->get_clone(thd, TRUE);
+  }
+#endif /*WITH_PARTITION_STORAGE_ENGINE*/
 
   /*
     Adjust description of source table before using it for creation of
