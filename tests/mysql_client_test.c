@@ -20013,6 +20013,39 @@ static void test_mdev24827()
   myquery(rc);
 }
 
+static void test_mdev_20516()
+{
+  MYSQL_STMT *stmt;
+  int        rc;
+  unsigned long cursor= CURSOR_TYPE_READ_ONLY;
+
+  myheader("test_mdev_20516");
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t1(a INT)");
+  myquery(rc);
+
+  const char* query=
+    "CREATE VIEW v1 AS SELECT * FROM t1";
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+
+  rc= mysql_stmt_prepare(stmt, query, strlen(query));
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_attr_set(stmt, STMT_ATTR_CURSOR_TYPE, &cursor);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
+
 #ifndef EMBEDDED_LIBRARY
 #define MDEV19838_MAX_PARAM_COUNT 32
 #define MDEV19838_FIELDS_COUNT 17
@@ -20163,6 +20196,7 @@ static void test_mdev19838()
 #endif // EMBEDDED_LIBRARY
 
 static struct my_tests_st my_tests[]= {
+  { "test_mdev_20516", test_mdev_20516 },
   { "test_mdev24827", test_mdev24827 },
   { "test_mdev_26145", test_mdev_26145 },
   { "disable_query_logs", disable_query_logs },
