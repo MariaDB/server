@@ -78,5 +78,6 @@ usr/share/man/man1/wsrep_sst_mysqldump.1
 usr/share/man/man1/wsrep_sst_rsync.1
 usr/share/man/man1/wsrep_sst_rsync_wan.1
 usr/share/mysql/errmsg-utf8.txt
+usr/share/mysql/mini-benchmark
 usr/share/mysql/wsrep.cnf
 usr/share/mysql/wsrep_notify

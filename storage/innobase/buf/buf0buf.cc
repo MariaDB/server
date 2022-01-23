@@ -36,10 +36,11 @@ Created 11/5/1995 Heikki Tuuri
 #include "mach0data.h"
 #include "buf0buf.h"
 #include "buf0checksum.h"
-#include "ut0crc32.h"
 #include <string.h>
 
-#ifndef UNIV_INNOCHECKSUM
+#ifdef UNIV_INNOCHECKSUM
+#include "my_sys.h"
+#else
 #include "my_cpu.h"
 #include "mem0mem.h"
 #include "btr0btr.h"
@@ -373,8 +374,8 @@ static bool buf_tmp_page_decrypt(byte* tmp_frame, byte* src_frame)
 			  src_frame + srv_page_size - FIL_PAGE_FCRC32_CHECKSUM,
 			  FIL_PAGE_FCRC32_CHECKSUM);
 
-	memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(src_frame, tmp_frame,
-					       srv_page_size);
+	memcpy_aligned<UNIV_PAGE_SIZE_MIN>(src_frame, tmp_frame,
+					   srv_page_size);
 	srv_stats.pages_decrypted.inc();
 	srv_stats.n_temp_blocks_decrypted.inc();
 
@@ -608,8 +609,8 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 			}
 		});
 
-		if (crc32 != ut_crc32(read_buf,
-				      size - FIL_PAGE_FCRC32_CHECKSUM)) {
+		if (crc32 != my_crc32c(0, read_buf,
+				       size - FIL_PAGE_FCRC32_CHECKSUM)) {
 			return true;
 		}
 		static_assert(FIL_PAGE_FCRC32_KEY_VERSION == 0, "alignment");
@@ -799,17 +800,9 @@ buf_madvise_do_dump()
 
 	/* mirrors allocation in log_t::create() */
 	if (log_sys.buf) {
-		ret += madvise(log_sys.buf,
-			       srv_log_buffer_size,
+		ret += madvise(log_sys.buf, log_sys.buf_size, MADV_DODUMP);
+		ret += madvise(log_sys.flush_buf, log_sys.buf_size,
 			       MADV_DODUMP);
-		ret += madvise(log_sys.flush_buf,
-			       srv_log_buffer_size,
-			       MADV_DODUMP);
-	}
-	/* mirrors recv_sys_t::create() */
-	if (recv_sys.buf)
-	{
-		ret+= madvise(recv_sys.buf, recv_sys.len, MADV_DODUMP);
 	}
 
 	mysql_mutex_lock(&buf_pool.mutex);
@@ -1090,7 +1083,7 @@ inline const buf_block_t *buf_pool_t::chunk_t::not_freed() const
       {
         /* The page cleaner is disabled in read-only mode.  No pages
         can be dirtied, so all of them must be clean. */
-        ut_ad(lsn == 0 || lsn == recv_sys.recovered_lsn ||
+        ut_ad(lsn == 0 || lsn == recv_sys.lsn ||
               srv_force_recovery == SRV_FORCE_NO_LOG_REDO);
         break;
       }
@@ -1183,7 +1176,11 @@ bool buf_pool_t::create()
   while (++chunk < chunks + n_chunks);
 
   ut_ad(is_initialised());
+#if defined(__aarch64__)
   mysql_mutex_init(buf_pool_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
+#else
+  mysql_mutex_init(buf_pool_mutex_key, &mutex, nullptr);
+#endif
 
   UT_LIST_INIT(LRU, &buf_page_t::LRU);
   UT_LIST_INIT(withdraw, &buf_page_t::list);
@@ -1326,7 +1323,7 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 	hash_lock.lock();
 
 	if (block->page.can_relocate()) {
-		memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(
+		memcpy_aligned<UNIV_PAGE_SIZE_MIN>(
 			new_block->page.frame, block->page.frame,
 			srv_page_size);
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);

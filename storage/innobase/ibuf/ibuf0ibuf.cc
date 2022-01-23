@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2597,7 +2597,7 @@ static bool ibuf_get_volume_buffered_hash(const rec_t *rec, ulint *hash,
   ut_ad(rec_get_n_fields_old(rec) > IBUF_REC_FIELD_USER);
   const ulint start= rec_get_field_start_offs(rec, IBUF_REC_FIELD_USER);
   const ulint len= rec_get_data_size_old(rec) - start;
-  const uint32_t fold= ut_crc32(rec + start, len);
+  const uint32_t fold= my_crc32c(0, rec + start, len);
   hash+= (fold / (CHAR_BIT * sizeof *hash)) % size;
   ulint bitmask= static_cast<ulint>(1) << (fold % (CHAR_BIT * sizeof(*hash)));
 

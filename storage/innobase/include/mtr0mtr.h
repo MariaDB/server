@@ -109,8 +109,9 @@ struct mtr_t {
   FILE_MODIFY records and an optional FILE_CHECKPOINT marker.
   The caller must hold log_sys.mutex.
   This is to be used at log_checkpoint().
-  @param checkpoint_lsn   the log sequence number of a checkpoint, or 0 */
-  void commit_files(lsn_t checkpoint_lsn= 0);
+  @param checkpoint_lsn   the log sequence number of a checkpoint, or 0
+  @return current LSN */
+  lsn_t commit_files(lsn_t checkpoint_lsn= 0);
 
   /** @return mini-transaction savepoint (current size of m_memo) */
   ulint get_savepoint() const { ut_ad(is_active()); return m_memo.size(); }
@@ -625,12 +626,19 @@ private:
 
   /** Prepare to write the mini-transaction log to the redo log buffer.
   @return number of bytes to write in finish_write() */
-  inline ulint prepare_write();
+  inline size_t prepare_write();
+
+  /** Write a FILE_MODIFY record when a non-predefined persistent
+  tablespace was modified for the first time since fil_names_clear(). */
+  ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void name_write();
+
+  /** Encrypt the log */
+  ATTRIBUTE_NOINLINE void encrypt();
 
   /** Append the redo log records to the redo log buffer.
   @param len   number of bytes to write
   @return {start_lsn,flush_ahead} */
-  inline std::pair<lsn_t,page_flush_ahead> finish_write(ulint len);
+  std::pair<lsn_t,page_flush_ahead> finish_write(size_t len);
 
   /** Release the resources */
   inline void release_resources();
@@ -675,6 +683,9 @@ private:
 
   /** whether the pages has been trimmed */
   uint16_t m_trim_pages:1;
+
+  /** CRC-32C of m_log */
+  uint32_t m_crc;
 
 #ifdef UNIV_DEBUG
   /** Persistent user tablespace associated with the

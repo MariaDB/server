@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4385,14 +4385,32 @@ longlong Item_func_uncompressed_length::val_int()
 longlong Item_func_crc32::val_int()
 {
   DBUG_ASSERT(fixed());
-  String *res=args[0]->val_str(&value);
+  DBUG_ASSERT(arg_count == 1 || arg_count == 2);
+  String *res;
+  longlong crc;
+  if (arg_count > 1)
+  {
+    crc= args[0]->val_int();
+    null_value= args[0]->null_value;
+    if (null_value)
+      return 0;
+    res= args[1]->val_str(&value);
+  }
+  else
+  {
+    crc= 0;
+    null_value= 0;
+    res= args[0]->val_str(&value);
+  }
+
   if (!res)
   {
     null_value=1;
     return 0; /* purecov: inspected */
   }
-  null_value=0;
-  return (longlong) my_checksum(0L, (uchar*)res->ptr(), res->length());
+
+  return static_cast<longlong>
+    (ulonglong{crc_func(uint32_t(crc), res->ptr(), res->length())});
 }
 
 #ifdef HAVE_COMPRESS

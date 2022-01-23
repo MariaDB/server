@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -33,13 +33,14 @@ The interface to the operating system file i/o primitives
 Created 10/21/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef UNIV_INNOCHECKSUM
 #include "os0file.h"
 #include "sql_const.h"
+#include "log.h"
 
-#ifdef UNIV_LINUX
+#ifdef __linux__
 # include <sys/types.h>
 # include <sys/stat.h>
+# include <sys/sysmacros.h>
 #endif
 
 #include "srv0mon.h"
@@ -63,13 +64,6 @@ Created 10/21/1995 Heikki Tuuri
 # include <fcntl.h>
 # include <linux/falloc.h>
 #endif /* HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE */
-
-#if defined(UNIV_LINUX) && defined(HAVE_SYS_IOCTL_H)
-# include <sys/ioctl.h>
-# ifndef DFS_IOCTL_ATOMIC_WRITE_SET
-#  define DFS_IOCTL_ATOMIC_WRITE_SET _IOW(0x95, 2, uint)
-# endif
-#endif
 
 #ifdef _WIN32
 #include <winioctl.h>
@@ -817,18 +811,15 @@ os_file_get_last_error_low(
 	}
 
 	if (report_all_errors
-	    || (err != ENOSPC && err != EEXIST && !on_error_silent)) {
+	    || (err != ENOSPC && err != EEXIST && err != ENOENT
+		&& !on_error_silent)) {
 
 		ib::error()
 			<< "Operating system error number "
 			<< err
 			<< " in a file operation.";
 
-		if (err == ENOENT) {
-			ib::error()
-				<< "The error means the system"
-				" cannot find the path specified.";
-		} else if (err == EACCES) {
+		if (err == EACCES) {
 
 			ib::error()
 				<< "The error means mariadbd does not have"
@@ -1113,7 +1104,14 @@ os_file_create_simple_func(
 	OS caching (O_DIRECT) here as we do in os_file_create_func(), so
 	we open the same file in the same mode, see man page of open(2). */
 	if (!srv_read_only_mode && *success) {
-		os_file_set_nocache(file, name, mode_str);
+		switch (srv_file_flush_method) {
+		case SRV_O_DIRECT:
+		case SRV_O_DIRECT_NO_FSYNC:
+			os_file_set_nocache(file, name, mode_str);
+			break;
+		default:
+			break;
+		}
 	}
 
 #ifdef USE_FILE_LOCK
@@ -1287,22 +1285,81 @@ os_file_create_func(
 
 	} while (retry);
 
-	/* We disable OS caching (O_DIRECT) only on data files */
-	if (!read_only
-	    && *success
-	    && type != OS_LOG_FILE
-	    && type != OS_DATA_FILE_NO_O_DIRECT) {
-		os_file_set_nocache(file, name, mode_str);
+	if (!*success) {
+		return file;
 	}
+
+#if (defined(UNIV_SOLARIS) && defined(DIRECTIO_ON)) || defined O_DIRECT
+	if (type == OS_DATA_FILE) {
+		switch (srv_file_flush_method) {
+		case SRV_O_DSYNC:
+		case SRV_O_DIRECT:
+		case SRV_O_DIRECT_NO_FSYNC:
+# ifdef __linux__
+use_o_direct:
+# endif
+			os_file_set_nocache(file, name, mode_str);
+			break;
+		default:
+			break;
+		}
+# ifdef __linux__
+	} else if (type == OS_LOG_FILE && !log_sys.is_opened()) {
+		struct stat st;
+		char b[20 + sizeof "/sys/dev/block/" ":"
+		       "/../queue/physical_block_size"];
+		int f;
+		if (fstat(file, &st) || st.st_size & 4095) {
+			goto skip_o_direct;
+		}
+		if (snprintf(b, sizeof b,
+			     "/sys/dev/block/%u:%u/queue/physical_block_size",
+			     major(st.st_dev), minor(st.st_dev))
+		    >= static_cast<int>(sizeof b)) {
+			goto skip_o_direct;
+		}
+		if ((f = open(b, O_RDONLY)) == -1) {
+			if (snprintf(b, sizeof b,
+				     "/sys/dev/block/%u:%u/../queue/"
+				     "physical_block_size",
+				     major(st.st_dev), minor(st.st_dev))
+			    >= static_cast<int>(sizeof b)) {
+				goto skip_o_direct;
+			}
+			f = open(b, O_RDONLY);
+		}
+		if (f != -1) {
+			ssize_t l = read(f, b, sizeof b);
+			unsigned long s = 0;
+
+			if (l > 0 && static_cast<size_t>(l) < sizeof b
+			    && b[l - 1] == '\n') {
+				char* end = b;
+				s = strtoul(b, &end, 10);
+				if (b == end || *end != '\n') {
+					s = 0;
+				}
+			}
+			close(f);
+			if (s > 4096 || s < 64 || !ut_is_2pow(s)) {
+				goto skip_o_direct;
+			}
+			log_sys.set_block_size(uint32_t(s));
+			if (srv_file_flush_method == SRV_O_DSYNC) {
+				goto use_o_direct;
+			}
+		} else {
+skip_o_direct:
+			log_sys.set_block_size(0);
+		}
+	}
+# endif
+#endif
 
 #ifdef USE_FILE_LOCK
 	if (!read_only
-	    && *success
-	    && create_mode != OS_FILE_OPEN_RAW
-	    && os_file_lock(file, name)) {
-
+	    && create_mode != OS_FILE_OPEN_RAW && os_file_lock(file, name)) {
 		if (create_mode == OS_FILE_OPEN_RETRY) {
-
 			ib::info()
 				<< "Retrying to lock the first data file";
 
@@ -1823,29 +1880,26 @@ os_file_get_last_error_low(
 	if (report_all_errors
 	    || (!on_error_silent
 		&& err != ERROR_DISK_FULL
+		&& err != ERROR_FILE_NOT_FOUND
 		&& err != ERROR_FILE_EXISTS)) {
 
 		ib::error()
 			<< "Operating system error number " << err
 			<< " in a file operation.";
 
-		if (err == ERROR_PATH_NOT_FOUND) {
-			ib::error()
-				<< "The error means the system"
-				" cannot find the path specified.";
-
-		} else if (err == ERROR_ACCESS_DENIED) {
-
+		switch (err) {
+		case ERROR_PATH_NOT_FOUND:
+			break;
+		case ERROR_ACCESS_DENIED:
 			ib::error()
 				<< "The error means mariadbd does not have"
 				" the access rights to"
 				" the directory. It may also be"
 				" you have created a subdirectory"
 				" of the same name as a data file.";
-
-		} else if (err == ERROR_SHARING_VIOLATION
-			   || err == ERROR_LOCK_VIOLATION) {
-
+			break;
+		case ERROR_SHARING_VIOLATION:
+		case ERROR_LOCK_VIOLATION:
 			ib::error()
 				<< "The error means that another program"
 				" is using InnoDB's files."
@@ -1853,29 +1907,23 @@ os_file_get_last_error_low(
 				" software or another instance"
 				" of MariaDB."
 				" Please close it to get rid of this error.";
-
-		} else if (err == ERROR_WORKING_SET_QUOTA
-			   || err == ERROR_NO_SYSTEM_RESOURCES) {
-
+			break;
+		case ERROR_WORKING_SET_QUOTA:
+		case ERROR_NO_SYSTEM_RESOURCES:
 			ib::error()
 				<< "The error means that there are no"
 				" sufficient system resources or quota to"
 				" complete the operation.";
-
-		} else if (err == ERROR_OPERATION_ABORTED) {
-
+			break;
+		case ERROR_OPERATION_ABORTED:
 			ib::error()
 				<< "The error means that the I/O"
 				" operation has been aborted"
 				" because of either a thread exit"
 				" or an application request."
 				" Retry attempt is made.";
-		} else if (err == ERROR_PATH_NOT_FOUND) {
-			ib::error()
-				<< "This error means that directory did not exist"
-				" during file creation.";
-		} else {
-
+			break;
+		default:
 			ib::info() << OPERATING_SYSTEM_ERROR_MSG;
 		}
 	}
@@ -2059,31 +2107,6 @@ os_file_create_directory(
 	return(true);
 }
 
-/** Check that IO of specific size is possible for the file
-opened with FILE_FLAG_NO_BUFFERING.
-
-The requirement is that IO is multiple of the disk sector size.
-
-@param[in]	file      file handle
-@param[in]	io_size   expected io size
-@return true - unbuffered io of requested size is possible, false otherwise.
-
-@note: this function only works correctly with Windows 8 or later,
-(GetFileInformationByHandleEx with FileStorageInfo is only supported there).
-It will return true on earlier Windows version.
- */
-static bool unbuffered_io_possible(HANDLE file, size_t io_size)
-{
-	FILE_STORAGE_INFO info;
-	if (GetFileInformationByHandleEx(
-		file, FileStorageInfo, &info, sizeof(info))) {
-			ULONG sector_size = info.LogicalBytesPerSector;
-			if (sector_size)
-				return io_size % sector_size == 0;
-	}
-	return true;
-}
-
 
 /** NOTE! Use the corresponding macro os_file_create(), not directly
 this function!
@@ -2178,54 +2201,22 @@ os_file_create_func(
 		return(OS_FILE_CLOSED);
 	}
 
-	DWORD		attributes = 0;
-
-	if (purpose == OS_FILE_AIO) {
-
-#ifdef WIN_ASYNC_IO
-		/* If specified, use asynchronous (overlapped) io and no
-		buffering of writes in the OS */
-
-		if (srv_use_native_aio) {
-			attributes |= FILE_FLAG_OVERLAPPED;
-		}
-#endif /* WIN_ASYNC_IO */
-
-	} else if (purpose == OS_FILE_NORMAL) {
-
-		/* Use default setting. */
-
-	} else {
-
-		ib::error()
-			<< "Unknown purpose flag (" << purpose << ") "
-			<< "while opening file '" << name << "'";
-
-		return(OS_FILE_CLOSED);
-	}
+	DWORD attributes = (purpose == OS_FILE_AIO && srv_use_native_aio)
+		? FILE_FLAG_OVERLAPPED : 0;
 
 	if (type == OS_LOG_FILE) {
-		/* There is not reason to use buffered write to logs.*/
 		attributes |= FILE_FLAG_NO_BUFFERING;
 	}
 
-	switch (srv_file_flush_method)
-	{
+	switch (srv_file_flush_method) {
 	case SRV_O_DSYNC:
 		if (type == OS_LOG_FILE) {
-			/* Map O_DSYNC to FILE_WRITE_THROUGH */
 			attributes |= FILE_FLAG_WRITE_THROUGH;
 		}
-		break;
-
+		/* fall through */
 	case SRV_O_DIRECT_NO_FSYNC:
 	case SRV_O_DIRECT:
-		if (type != OS_DATA_FILE) {
-			break;
-		}
-		/* fall through */
 	case SRV_ALL_O_DIRECT_FSYNC:
-		/*Traditional Windows behavior, no buffering for any files.*/
 		if (type != OS_DATA_FILE_NO_O_DIRECT) {
 			attributes |= FILE_FLAG_NO_BUFFERING;
 		}
@@ -2233,27 +2224,9 @@ os_file_create_func(
 
 	case SRV_FSYNC:
 	case SRV_LITTLESYNC:
-		break;
-
 	case SRV_NOSYNC:
-		/* Let Windows cache manager handle all writes.*/
-		attributes &= ~(FILE_FLAG_WRITE_THROUGH | FILE_FLAG_NO_BUFFERING);
 		break;
-
-	default:
-		ut_a(false); /* unknown flush mode.*/
 	}
-
-
-	// TODO: Create a bug, this looks wrong. The flush log
-	// parameter is dynamic.
-	if (type == OS_LOG_FILE && srv_flush_log_at_trx_commit == 2) {
-		/* Do not use unbuffered i/o for the log files because
-		value 2 denotes that we do not flush the log at every
-		commit, but only once per second */
-		attributes &= ~(FILE_FLAG_WRITE_THROUGH | FILE_FLAG_NO_BUFFERING);
-	}
-
 
 	DWORD	access = GENERIC_READ;
 
@@ -2269,16 +2242,42 @@ os_file_create_func(
 			name, access, share_mode, my_win_file_secattr(),
 			create_flag, attributes, NULL);
 
-		/* If FILE_FLAG_NO_BUFFERING was set, check if this can work at all,
-		for expected IO sizes. Reopen without the unbuffered flag, if it is won't work*/
-		if ((file != INVALID_HANDLE_VALUE)
-			&& (attributes & FILE_FLAG_NO_BUFFERING)
-			&& (type == OS_LOG_FILE)
-			&& !unbuffered_io_possible(file, OS_FILE_LOG_BLOCK_SIZE)) {
+		if (file != INVALID_HANDLE_VALUE && type == OS_LOG_FILE
+		    && (attributes & FILE_FLAG_NO_BUFFERING)) {
+			if (log_sys.is_opened()) {
+				/* If we are upgrading from multiple log files,
+				never disable buffering on other than the
+				first file. We only keep track of the block
+				size of the first file. */
+			no_o_direct:
 				ut_a(CloseHandle(file));
 				attributes &= ~FILE_FLAG_NO_BUFFERING;
 				create_flag = OPEN_ALWAYS;
 				continue;
+			}
+
+			/* If FILE_FLAG_NO_BUFFERING was set on the log file,
+			check if this can work at all, for the expected sizes.
+			Reopen without the flag, if it won't work. */
+			DWORD high, low= GetFileSize(file, &high);
+			if (low & 4095) {
+				/* mariadb-backup creates odd-sized files that
+				will be resized before the log is being
+				written to */
+			skip_o_direct:
+				log_sys.set_block_size(0);
+				goto no_o_direct;
+			}
+			FILE_STORAGE_INFO i;
+			if (!GetFileInformationByHandleEx(file, FileStorageInfo,
+							  &i, sizeof i)) {
+				goto skip_o_direct;
+			}
+			const ULONG s = i.PhysicalBytesPerSectorForPerformance;
+			if (s > 4096 || s < 64 || !ut_is_2pow(s)) {
+				goto skip_o_direct;
+			}
+			log_sys.set_block_size(uint32_t(s));
 		}
 
 		*success = (file != INVALID_HANDLE_VALUE);
@@ -3142,8 +3141,13 @@ os_file_handle_error_cond_exit(
 	case OS_FILE_PATH_ERROR:
 	case OS_FILE_ALREADY_EXISTS:
 	case OS_FILE_ACCESS_VIOLATION:
-
 		return(false);
+
+        case OS_FILE_NOT_FOUND:
+		if (!on_error_silent) {
+			sql_print_error("InnoDB: File %s was not found", name);
+		}
+		return false;
 
 	case OS_FILE_SHARING_VIOLATION:
 
@@ -3191,15 +3195,6 @@ os_file_set_nocache(
 	const char*	file_name	MY_ATTRIBUTE((unused)),
 	const char*	operation_name	MY_ATTRIBUTE((unused)))
 {
-	const auto innodb_flush_method = srv_file_flush_method;
-	switch (innodb_flush_method) {
-	case SRV_O_DIRECT:
-	case SRV_O_DIRECT_NO_FSYNC:
-		break;
-	default:
-		return;
-	}
-
 	/* some versions of Solaris may not have DIRECTIO_ON */
 #if defined(UNIV_SOLARIS) && defined(DIRECTIO_ON)
 	if (directio(fd, DIRECTIO_ON) == -1) {
@@ -3842,8 +3837,9 @@ void os_aio_wait_until_no_pending_reads()
 dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n)
 {
 	ut_ad(n > 0);
-	ut_ad((n % OS_FILE_LOG_BLOCK_SIZE) == 0);
-	ut_ad((offset % OS_FILE_LOG_BLOCK_SIZE) == 0);
+	ut_ad(!(n & 511)); /* payload of page_compressed tables */
+	ut_ad((offset % UNIV_ZIP_SIZE_MIN) == 0);
+	ut_ad((reinterpret_cast<size_t>(buf) % UNIV_ZIP_SIZE_MIN) == 0);
 	ut_ad(type.is_read() || type.is_write());
 	ut_ad(type.node);
 	ut_ad(type.node->is_open());
@@ -3895,11 +3891,6 @@ func_exit:
 	cb->m_opcode = type.is_read() ? tpool::aio_opcode::AIO_PREAD : tpool::aio_opcode::AIO_PWRITE;
 	new (cb->m_userdata) IORequest{type};
 
-	ut_a(reinterpret_cast<size_t>(cb->m_buffer) % OS_FILE_LOG_BLOCK_SIZE
-	     == 0);
-	ut_a(cb->m_len % OS_FILE_LOG_BLOCK_SIZE == 0);
-	ut_a(cb->m_offset % OS_FILE_LOG_BLOCK_SIZE == 0);
-
 	if (srv_thread_pool->submit_io(cb)) {
 		slots->release(cb);
 		os_file_handle_error(type.node->name, type.is_read()
@@ -3922,10 +3913,8 @@ os_aio_print(FILE*	file)
 	time_elapsed = 0.001 + difftime(current_time, os_last_printout);
 
 	fprintf(file,
-		"Pending flushes (fsync) log: " ULINTPF
-		"; buffer pool: " ULINTPF "\n"
+		"Pending flushes (fsync): " ULINTPF "\n"
 		ULINTPF " OS file reads, %zu OS file writes, %zu OS fsyncs\n",
-		log_sys.get_pending_flushes(),
 		ulint{fil_n_pending_tablespace_flushes},
 		ulint{os_n_file_reads},
 		static_cast<size_t>(os_n_file_writes),
@@ -4300,5 +4289,3 @@ invalid:
   space->set_sizes(this->size);
   return true;
 }
-
-#endif /* !UNIV_INNOCHECKSUM */

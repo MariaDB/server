@@ -24,18 +24,15 @@ Mini-transaction buffer
 Created 11/26/1995 Heikki Tuuri
 *******************************************************/
 
-#include "mtr0mtr.h"
-
+#include "mtr0log.h"
 #include "buf0buf.h"
 #include "buf0flu.h"
-#include "fsp0sysspace.h"
 #include "page0types.h"
-#include "mtr0log.h"
-#include "log0recv.h"
-#include "my_cpu.h"
+#include "log0crypt.h"
 #ifdef BTR_CUR_HASH_ADAPT
 # include "btr0sea.h"
 #endif
+#include "log.h"
 
 /** Iterate over a memo block in reverse. */
 template <typename Functor>
@@ -404,7 +401,7 @@ void mtr_t::commit()
 
     std::pair<lsn_t,page_flush_ahead> lsns;
 
-    if (const ulint len= prepare_write())
+    if (const auto len= prepare_write())
       lsns= finish_write(len);
     else
       lsns= { m_commit_lsn, PAGE_FLUSH_NO };
@@ -412,9 +409,9 @@ void mtr_t::commit()
     if (m_made_dirty)
       mysql_mutex_lock(&log_sys.flush_order_mutex);
 
-    /* It is now safe to release the log mutex because the
-    flush_order mutex will ensure that we are the first one
-    to insert into the flush list. */
+    /* It is now safe to release log_sys.mutex because the
+    buf_pool.flush_order_mutex will ensure that we are the first one
+    to insert into buf_pool.flush_list. */
     mysql_mutex_unlock(&log_sys.mutex);
 
     if (m_freed_pages)
@@ -449,9 +446,6 @@ void mtr_t::commit()
 
     if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
       buf_flush_ahead(m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);
-
-    if (m_made_dirty)
-      srv_stats.log_write_requests.inc();
   }
   else
     m_memo.for_each_block_in_reverse(CIterate<ReleaseAll>());
@@ -566,7 +560,6 @@ void mtr_t::commit_shrink(fil_space_t &space)
   mysql_mutex_unlock(&fil_system.mutex);
 
   m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>());
-  srv_stats.log_write_requests.inc();
 
   release_resources();
 }
@@ -576,39 +569,53 @@ but generated some redo log on a higher level, such as
 FILE_MODIFY records and an optional FILE_CHECKPOINT marker.
 The caller must hold log_sys.mutex.
 This is to be used at log_checkpoint().
-@param[in]	checkpoint_lsn		log checkpoint LSN, or 0 */
-void mtr_t::commit_files(lsn_t checkpoint_lsn)
+@param checkpoint_lsn   the log sequence number of a checkpoint, or 0
+@return current LSN */
+lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
 {
-	mysql_mutex_assert_owner(&log_sys.mutex);
-	ut_ad(is_active());
-	ut_ad(!is_inside_ibuf());
-	ut_ad(m_log_mode == MTR_LOG_ALL);
-	ut_ad(!m_made_dirty);
-	ut_ad(m_memo.size() == 0);
-	ut_ad(!srv_read_only_mode);
-	ut_ad(!m_freed_space);
-	ut_ad(!m_freed_pages);
+  mysql_mutex_assert_owner(&log_sys.mutex);
+  ut_ad(is_active());
+  ut_ad(!is_inside_ibuf());
+  ut_ad(m_log_mode == MTR_LOG_ALL);
+  ut_ad(!m_made_dirty);
+  ut_ad(m_memo.size() == 0);
+  ut_ad(!srv_read_only_mode);
+  ut_ad(!m_freed_space);
+  ut_ad(!m_freed_pages);
+  ut_ad(!m_user_space);
 
-	if (checkpoint_lsn) {
-		byte*	ptr = m_log.push<byte*>(SIZE_OF_FILE_CHECKPOINT);
-		compile_time_assert(SIZE_OF_FILE_CHECKPOINT == 3 + 8 + 1);
-		*ptr = FILE_CHECKPOINT | (SIZE_OF_FILE_CHECKPOINT - 2);
-		::memset(ptr + 1, 0, 2);
-		mach_write_to_8(ptr + 3, checkpoint_lsn);
-		ptr[3 + 8] = 0;
-	} else {
-		*m_log.push<byte*>(1) = 0;
-	}
+  if (checkpoint_lsn)
+  {
+    byte *ptr= m_log.push<byte*>(3 + 8);
+    *ptr= FILE_CHECKPOINT | (2 + 8);
+    ::memset(ptr + 1, 0, 2);
+    mach_write_to_8(ptr + 3, checkpoint_lsn);
+  }
 
-	finish_write(m_log.size());
-	srv_stats.log_write_requests.inc();
-	release_resources();
+  size_t size= m_log.size() + 5;
 
-	if (checkpoint_lsn) {
-		DBUG_PRINT("ib_log",
-			   ("FILE_CHECKPOINT(" LSN_PF ") written at " LSN_PF,
-			    checkpoint_lsn, log_sys.get_lsn()));
-	}
+  if (log_sys.is_encrypted())
+  {
+    /* We will not encrypt any FILE_ records, but we will reserve
+    a nonce at the end. */
+    size+= 8;
+    m_commit_lsn= log_sys.get_lsn();
+  }
+  else
+    m_commit_lsn= 0;
+
+  m_crc= 0;
+  m_log.for_each_block([this](const mtr_buf_t::block_t *b)
+  { m_crc= my_crc32c(m_crc, b->begin(), b->used()); return true; });
+  finish_write(size);
+  release_resources();
+
+  if (checkpoint_lsn)
+    DBUG_PRINT("ib_log",
+               ("FILE_CHECKPOINT(" LSN_PF ") written at " LSN_PF,
+                checkpoint_lsn, m_commit_lsn));
+
+  return m_commit_lsn;
 }
 
 #ifdef UNIV_DEBUG
@@ -742,32 +749,32 @@ static time_t log_margin_warn_time;
 static bool log_close_warned;
 static time_t log_close_warn_time;
 
-/** Check margin not to overwrite transaction log from the last checkpoint.
-If would estimate the log write to exceed the log_capacity,
-waits for the checkpoint is done enough.
-@param len   length of the data to be written */
-static void log_margin_checkpoint_age(ulint len)
+/** Display a warning that the log tail is overwriting the head,
+making the server crash-unsafe. */
+ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t age, lsn_t capacity)
 {
-  const ulint framing_size= log_sys.framing_size();
-  /* actual length stored per block */
-  const ulint len_per_blk= OS_FILE_LOG_BLOCK_SIZE - framing_size;
+  time_t t= time(nullptr);
+  if (!log_close_warned || difftime(t, log_close_warn_time) > 15)
+  {
+    log_close_warned= true;
+    log_close_warn_time= t;
 
-  /* actual data length in last block already written */
-  ulint extra_len= log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE;
+    sql_print_error("InnoDB: The age of the last checkpoint is " LSN_PF
+                    ", which exceeds the log capacity " LSN_PF ".",
+                    age, capacity);
+  }
+}
 
-  ut_ad(extra_len >= LOG_BLOCK_HDR_SIZE);
-  extra_len-= LOG_BLOCK_HDR_SIZE;
+/** Reserve space in the log buffer for appending data.
+@param size   upper limit of the length of the data to append(), in bytes
+@return the current LSN */
+inline lsn_t log_t::append_prepare(size_t size) noexcept
+{
+  mysql_mutex_assert_owner(&mutex);
 
-  /* total extra length for block header and trailer */
-  extra_len= ((len + extra_len) / len_per_blk) * framing_size;
+  lsn_t lsn= get_lsn();
 
-  const ulint margin= len + extra_len;
-
-  mysql_mutex_assert_owner(&log_sys.mutex);
-
-  const lsn_t lsn= log_sys.get_lsn();
-
-  if (UNIV_UNLIKELY(margin > log_sys.log_capacity))
+  if (UNIV_UNLIKELY(size > log_capacity))
   {
     time_t t= time(nullptr);
 
@@ -777,143 +784,63 @@ static void log_margin_checkpoint_age(ulint len)
       log_margin_warned= true;
       log_margin_warn_time= t;
 
-      ib::error() << "innodb_log_file_size is too small "
-                     "for mini-transaction size " << len;
+      sql_print_error("InnoDB: innodb_log_file_size is too small "
+                      "for mini-transaction size %zu", size);
     }
+    goto throttle;
   }
-  else if (UNIV_LIKELY(lsn + margin <= log_sys.last_checkpoint_lsn +
-                       log_sys.log_capacity))
-    return;
+  else if (UNIV_UNLIKELY(lsn + size > last_checkpoint_lsn + log_capacity))
+  throttle:
+    set_check_flush_or_checkpoint();
 
-  log_sys.set_check_flush_or_checkpoint();
-}
-
-
-/** Open the log for log_write_low(). The log must be closed with log_close().
-@param len length of the data to be written
-@return start lsn of the log record */
-static lsn_t log_reserve_and_open(size_t len)
-{
-  for (ut_d(ulint count= 0);;)
+  if (is_pmem())
   {
-    mysql_mutex_assert_owner(&log_sys.mutex);
+    for (ut_d(int count= 50); capacity() - size <
+           size_t(lsn - flushed_to_disk_lsn.load(std::memory_order_relaxed)); )
+    {
+      waits++;
+      mysql_mutex_unlock(&mutex);
+      DEBUG_SYNC_C("log_buf_size_exceeded");
+      log_write_up_to(lsn, true);
+      ut_ad(count--);
+      mysql_mutex_lock(&mutex);
+      lsn= get_lsn();
+    }
+    return lsn;
+  }
 
-    /* Calculate an upper limit for the space the string may take in
-    the log buffer */
+  /* Calculate the amount of free space needed. */
+  size= (4 * 4096) - size + log_sys.buf_size;
 
-    size_t len_upper_limit= (4 * OS_FILE_LOG_BLOCK_SIZE) +
-      srv_log_write_ahead_size + (5 * len) / 4;
-
-    if (log_sys.buf_free + len_upper_limit <= srv_log_buffer_size)
-      break;
-
-    mysql_mutex_unlock(&log_sys.mutex);
+  for (ut_d(int count= 50); UNIV_UNLIKELY(buf_free > size); )
+  {
+    waits++;
+    mysql_mutex_unlock(&mutex);
     DEBUG_SYNC_C("log_buf_size_exceeded");
-
-    /* Not enough free space, do a write of the log buffer */
-    log_write_up_to(log_sys.get_lsn(), false);
-
-    srv_stats.log_waits.inc();
-
-    ut_ad(++count < 50);
-
-    mysql_mutex_lock(&log_sys.mutex);
+    log_write_up_to(lsn, false);
+    ut_ad(count--);
+    mysql_mutex_lock(&mutex);
+    lsn= get_lsn();
   }
 
-  return log_sys.get_lsn();
+  return lsn;
 }
 
-/** Append data to the log buffer. */
-static void log_write_low(const void *str, size_t size)
+/** Finish appending data to the log.
+@param lsn  the end LSN of the log record
+@return whether buf_flush_ahead() will have to be invoked */
+static mtr_t::page_flush_ahead log_close(lsn_t lsn) noexcept
 {
   mysql_mutex_assert_owner(&log_sys.mutex);
-  const ulint trailer_offset= log_sys.trailer_offset();
-
-  do
-  {
-    /* Calculate a part length */
-    size_t len= size;
-    size_t data_len= (log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE) + size;
-
-    if (data_len > trailer_offset)
-    {
-      data_len= trailer_offset;
-      len= trailer_offset - log_sys.buf_free % OS_FILE_LOG_BLOCK_SIZE;
-    }
-
-    memcpy(log_sys.buf + log_sys.buf_free, str, len);
-
-    size-= len;
-    str= static_cast<const char*>(str) + len;
-
-    byte *log_block= static_cast<byte*>(ut_align_down(log_sys.buf +
-                                                      log_sys.buf_free,
-                                                      OS_FILE_LOG_BLOCK_SIZE));
-
-    log_block_set_data_len(log_block, data_len);
-    lsn_t lsn= log_sys.get_lsn();
-
-    if (data_len == trailer_offset)
-    {
-      /* This block became full */
-      log_block_set_data_len(log_block, OS_FILE_LOG_BLOCK_SIZE);
-      log_block_set_checkpoint_no(log_block, log_sys.next_checkpoint_no);
-      len+= log_sys.framing_size();
-      lsn+= len;
-      /* Initialize the next block header */
-      log_block_init(log_block + OS_FILE_LOG_BLOCK_SIZE, lsn);
-    }
-    else
-      lsn+= len;
-
-    log_sys.set_lsn(lsn);
-    log_sys.buf_free+= len;
-
-    ut_ad(log_sys.buf_free <= size_t{srv_log_buffer_size});
-  }
-  while (size);
-}
-
-/** Close the log at mini-transaction commit.
-@return whether buffer pool flushing is needed */
-static mtr_t::page_flush_ahead log_close(lsn_t lsn)
-{
-  mysql_mutex_assert_owner(&log_sys.mutex);
-  ut_ad(lsn == log_sys.get_lsn());
-
-  byte *log_block= static_cast<byte*>(ut_align_down(log_sys.buf +
-                                                    log_sys.buf_free,
-                                                    OS_FILE_LOG_BLOCK_SIZE));
-
-  if (!log_block_get_first_rec_group(log_block))
-  {
-    /* We initialized a new log block which was not written
-    full by the current mtr: the next mtr log record group
-    will start within this block at the offset data_len */
-    log_block_set_first_rec_group(log_block,
-                                  log_block_get_data_len(log_block));
-  }
-
-  if (log_sys.buf_free > log_sys.max_buf_free)
-    log_sys.set_check_flush_or_checkpoint();
+  log_sys.write_to_buf++;
+  log_sys.set_lsn(lsn);
 
   const lsn_t checkpoint_age= lsn - log_sys.last_checkpoint_lsn;
 
   if (UNIV_UNLIKELY(checkpoint_age >= log_sys.log_capacity) &&
       /* silence message on create_log_file() after the log had been deleted */
       checkpoint_age != lsn)
-  {
-    time_t t= time(nullptr);
-    if (!log_close_warned || difftime(t, log_close_warn_time) > 15)
-    {
-      log_close_warned= true;
-      log_close_warn_time= t;
-
-      ib::error() << "The age of the last checkpoint is " << checkpoint_age
-                  << ", which exceeds the log capacity "
-                  << log_sys.log_capacity << ".";
-    }
-  }
+    log_overwrite_warning(checkpoint_age, log_sys.log_capacity);
   else if (UNIV_LIKELY(checkpoint_age <= log_sys.max_modified_age_async))
     return mtr_t::PAGE_FLUSH_NO;
   else if (UNIV_LIKELY(checkpoint_age <= log_sys.max_checkpoint_age))
@@ -923,99 +850,132 @@ static mtr_t::page_flush_ahead log_close(lsn_t lsn)
   return mtr_t::PAGE_FLUSH_SYNC;
 }
 
-/** Write the block contents to the REDO log */
-struct mtr_write_log
+inline size_t mtr_t::prepare_write()
 {
-  /** Append a block to the redo log buffer.
-  @return whether the appending should continue */
-  bool operator()(const mtr_buf_t::block_t *block) const
+  ut_ad(!recv_no_log_write);
+  if (UNIV_UNLIKELY(m_log_mode != MTR_LOG_ALL))
   {
-    log_write_low(block->begin(), block->used());
-    return true;
+    ut_ad(m_log_mode == MTR_LOG_NO_REDO);
+    ut_ad(m_log.size() == 0);
+    mysql_mutex_lock(&log_sys.mutex);
+    m_commit_lsn= log_sys.get_lsn();
+    return 0;
   }
-};
 
-/** Prepare to write the mini-transaction log to the redo log buffer.
-@return number of bytes to write in finish_write() */
-inline ulint mtr_t::prepare_write()
-{
-	ut_ad(!recv_no_log_write);
+  size_t len= m_log.size() + 5;
+  ut_ad(len > 5);
+  if (log_sys.is_encrypted())
+  {
+    len+= 8;
+    encrypt();
+  }
+  else
+  {
+    m_crc= 0;
+    m_commit_lsn= 0;
+    m_log.for_each_block([this](const mtr_buf_t::block_t *b)
+    { m_crc= my_crc32c(m_crc, b->begin(), b->used()); return true; });
+  }
 
-	if (UNIV_UNLIKELY(m_log_mode != MTR_LOG_ALL)) {
-		ut_ad(m_log_mode == MTR_LOG_NO_REDO);
-		ut_ad(m_log.size() == 0);
-		mysql_mutex_lock(&log_sys.mutex);
-		m_commit_lsn = log_sys.get_lsn();
-		return 0;
-	}
+  mysql_mutex_lock(&log_sys.mutex);
 
-	ulint	len	= m_log.size();
-	ut_ad(len > 0);
+  if (m_user_space && !is_predefined_tablespace(m_user_space->id) &&
+      !m_user_space->max_lsn)
+    name_write();
 
-	if (len > srv_log_buffer_size / 2) {
-		log_buffer_extend(ulong((len + 1) * 2));
-	}
-
-	fil_space_t*	space = m_user_space;
-
-	if (space != NULL && is_predefined_tablespace(space->id)) {
-		/* Omit FILE_MODIFY for predefined tablespaces. */
-		space = NULL;
-	}
-
-	mysql_mutex_lock(&log_sys.mutex);
-
-	if (fil_names_write_if_was_clean(space)) {
-		len = m_log.size();
-	} else {
-		/* This was not the first time of dirtying a
-		tablespace since the latest checkpoint. */
-		ut_ad(len == m_log.size());
-	}
-
-	*m_log.push<byte*>(1) = 0;
-	len++;
-
-	/* check and attempt a checkpoint if exceeding capacity */
-	log_margin_checkpoint_age(len);
-
-	return(len);
+  return len;
 }
 
-/** Append the redo log records to the redo log buffer.
-@param len   number of bytes to write
+/** Write the mini-transaction log to the redo log buffer.
 @return {start_lsn,flush_ahead} */
-inline std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::finish_write(ulint len)
+std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::finish_write(size_t len)
 {
-	ut_ad(m_log_mode == MTR_LOG_ALL);
-	mysql_mutex_assert_owner(&log_sys.mutex);
-	ut_ad(m_log.size() == len);
-	ut_ad(len > 0);
+  ut_ad(!recv_no_log_write);
+  ut_ad(m_log_mode == MTR_LOG_ALL);
 
-	lsn_t start_lsn;
+  const lsn_t start_lsn= log_sys.append_prepare(len);
+  const size_t size{m_commit_lsn ? 5U + 8U : 5U};
 
-	if (m_log.is_small()) {
-		const mtr_buf_t::block_t* front = m_log.front();
-		ut_ad(len <= front->used());
+  if (!log_sys.is_pmem())
+  {
+    m_log.for_each_block([](const mtr_buf_t::block_t *b)
+    { log_sys.append(b->begin(), b->used()); return true; });
 
-		m_commit_lsn = log_reserve_and_write_fast(front->begin(), len,
-							  &start_lsn);
+    if (log_sys.buf_free >= log_sys.max_buf_free)
+      log_sys.set_check_flush_or_checkpoint();
 
-		if (!m_commit_lsn) {
-			goto piecewise;
-		}
-	} else {
-piecewise:
-		/* Open the database log for log_write_low */
-		start_lsn = log_reserve_and_open(len);
-		mtr_write_log write_log;
-		m_log.for_each_block(write_log);
-		m_commit_lsn = log_sys.get_lsn();
-	}
-	page_flush_ahead flush= log_close(m_commit_lsn);
-	DBUG_EXECUTE_IF("ib_log_flush_ahead", flush = PAGE_FLUSH_SYNC;);
+#ifdef HAVE_PMEM
+  write_trailer:
+#endif
+    log_sys.buf[log_sys.buf_free]=
+      log_sys.get_sequence_bit(start_lsn + len - size);
+    if (m_commit_lsn)
+    {
+      byte *nonce= log_sys.buf + log_sys.buf_free + 1;
+      mach_write_to_8(nonce, m_commit_lsn);
+      m_crc= my_crc32c(m_crc, nonce, 8);
+      mach_write_to_4(&log_sys.buf[log_sys.buf_free + 9], m_crc);
+      log_sys.buf_free+= 8 + 5;
+    }
+    else
+    {
+      mach_write_to_4(&log_sys.buf[log_sys.buf_free + 1], m_crc);
+      log_sys.buf_free+= 5;
+    }
+  }
+#ifdef HAVE_PMEM
+  else if (UNIV_LIKELY(log_sys.buf_free + len < log_sys.file_size))
+  {
+    m_log.for_each_block([](const mtr_buf_t::block_t *b)
+    { log_sys.append(b->begin(), b->used()); return true; });
+    goto write_trailer;
+  }
+  else
+  {
+    m_log.for_each_block([](const mtr_buf_t::block_t *b)
+    {
+      size_t size{b->used()};
+      const size_t size_left{log_sys.file_size - log_sys.buf_free};
+      const byte *src= b->begin();
+      if (size <= size_left)
+      {
+        ::memcpy(log_sys.buf + log_sys.buf_free, src, size);
+        log_sys.buf_free+= size;
+      }
+      else
+      {
+        size-= size_left;
+        ::memcpy(log_sys.buf + log_sys.buf_free, src, size_left);
+        ::memcpy(log_sys.buf + log_sys.START_OFFSET, src + size_left, size);
+        log_sys.buf_free= log_sys.START_OFFSET + size;
+      }
+      return true;
+    });
+    const size_t size_left{log_sys.file_size - log_sys.buf_free};
+    if (size_left > size)
+      goto write_trailer;
 
-	return std::make_pair(start_lsn, flush);
+    byte tail[5 + 8];
+    tail[0]= log_sys.get_sequence_bit(start_lsn + len - size);
+
+    if (m_commit_lsn)
+    {
+      mach_write_to_8(tail + 1, m_commit_lsn);
+      m_crc= my_crc32c(m_crc, tail + 1, 8);
+      mach_write_to_4(tail + 9, m_crc);
+    }
+    else
+      mach_write_to_4(tail + 1, m_crc);
+
+    ::memcpy(log_sys.buf + log_sys.buf_free, tail, size_left);
+    ::memcpy(log_sys.buf + log_sys.START_OFFSET, tail + size_left,
+             size - size_left);
+    log_sys.buf_free= log_sys.START_OFFSET + (size - size_left);
+  }
+#endif
+
+  m_commit_lsn= start_lsn + len;
+  return {start_lsn, log_close(m_commit_lsn)};
 }
 
 /** Find out whether a block was not X-latched by the mini-transaction */
@@ -1376,7 +1336,8 @@ void mtr_t::modify(const buf_block_t &block)
   }
 
   Iterate<FindModified> iteration((FindModified(block)));
-  if (UNIV_UNLIKELY(m_memo.for_each_block(iteration)))
+  m_memo.for_each_block(iteration);
+  if (UNIV_UNLIKELY(!iteration.functor.found))
   {
     ut_ad("modifying an unlatched page" == 0);
     return;

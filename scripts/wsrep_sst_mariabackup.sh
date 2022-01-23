@@ -1,5 +1,5 @@
 #!/bin/bash -ue
-# Copyright (C) 2017-2021 MariaDB
+# Copyright (C) 2017-2022 MariaDB
 # Copyright (C) 2013 Percona Inc
 #
 # This program is free software; you can redistribute it and/or modify
@@ -1146,8 +1146,6 @@ then
     # May need xtrabackup_checkpoints later on
     [ -f "$DATA/xtrabackup_binary"      ] && rm -f "$DATA/xtrabackup_binary"
     [ -f "$DATA/xtrabackup_galera_info" ] && rm -f "$DATA/xtrabackup_galera_info"
-    [ -f "$DATA/ib_logfile0"            ] && rm -f "$DATA/ib_logfile0"
-
     ADDR="$WSREP_SST_OPT_ADDR"
 
     if [ "${tmode#VERIFY}" != "$tmode" ]; then

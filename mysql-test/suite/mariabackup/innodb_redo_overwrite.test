@@ -1,26 +1,10 @@
 --source include/have_innodb.inc
 --source include/have_debug_sync.inc
+--source include/have_debug.inc
+--source include/have_sequence.inc
 
 CREATE TABLE t(i INT) ENGINE=INNODB;
-
-INSERT INTO t VALUES
-  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
-  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
-  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
-  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
-  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
-  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
-  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
-  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
-  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9),
-  (0), (1), (2), (3), (4), (5), (6), (7), (8), (9);
---echo # Generate enough data to overwrite innodb redo log
---echo # on the next "INSERT INTO t SELECT * FROM t" execution.
---let $i = 0
-while ($i < 9) {
-INSERT INTO t SELECT * FROM t;
---inc $i
-}
+INSERT INTO t SELECT seq%10 FROM seq_0_to_51199;
 
 --echo # xtrabackup backup
 --let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
@@ -33,13 +17,13 @@ INSERT INTO t SELECT * FROM t;
 --exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --dbug=+d,mariabackup_events > $backuplog
 --enable_result_log
 
---let SEARCH_PATTERN=failed: redo log block is overwritten
+--let SEARCH_PATTERN=Was only able to copy log from \\d+ to \\d+, not \\d+; try increasing innodb_log_file_size\\b
 --let SEARCH_FILE=$backuplog
 --source include/search_pattern_in_file.inc
 --remove_file $backuplog
 --rmdir $targetdir
 
---let before_innodb_log_copy_thread_started=INSERT INTO test.t VALUES (0), (1), (2), (3), (4), (5), (6), (7), (8), (9)
+--let before_innodb_log_copy_thread_started=INSERT INTO test.t SELECT seq FROM seq_0_to_9
 
 --disable_result_log
 --error 1

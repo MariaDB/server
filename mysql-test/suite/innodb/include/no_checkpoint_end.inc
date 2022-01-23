@@ -10,12 +10,12 @@ my $cp = $ENV{CHECKPOINT_LSN};
 $cp =~ s/^InnoDB\t\t//;
 my $log = "$ENV{MYSQLD_DATADIR}ib_logfile0";
 open(LOG, "<$log") || die "Unable to open $log";
-seek(LOG, 512, 0) || die "Unable to seek $log";
-die unless read(LOG, $_, 16) == 16;
-my ($no1hi,$no1lo,$cp1hi,$cp1lo) = unpack("N*", $_);
-seek(LOG, 3 * 512, 0) || die "Unable to seek $log";
-die unless read(LOG, $_, 16) == 16;
-my ($no2hi,$no2lo,$cp2hi,$cp2lo) = unpack("N*", $_);
+seek(LOG, 4096, 0) || die "Unable to seek $log";
+die unless read(LOG, $_, 8) == 8;
+my ($cp1hi,$cp1lo) = unpack("NN", $_);
+seek(LOG, 8192, 0) || die "Unable to seek $log";
+die unless read(LOG, $_, 8) == 8;
+my ($cp2hi,$cp2lo) = unpack("NN", $_);
 close(LOG);
 
 my $cp1 = $cp1hi << 32 | $cp1lo;
@@ -27,8 +27,7 @@ if ($cp1 > $cp || $cp2 > $cp) {
    print OUT "--source include/start_mysqld.inc\n"
    unless $ENV{no_checkpoint_kill};
    print OUT "$ENV{CLEANUP_IF_CHECKPOINT}\n";
-   print OUT "--skip Extra checkpoint 1 after $cp";
-   print OUT " ($no1hi:$no1lo=$cp1,$no2hi:$no2lo=$cp2)\n";
+   print OUT "--skip Extra checkpoint 1 after $cp ($cp1,$cp2)\n";
 }
 
 close(OUT);

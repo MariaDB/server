@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -353,7 +353,7 @@ dberr_t Datafile::validate_to_dd(uint32_t space_id, uint32_t flags)
 	/* Validate this single-table-tablespace with the data dictionary,
 	but do not compare the DATA_DIR flag, in case the tablespace was
 	remotely located. */
-	err = validate_first_page(0);
+	err = validate_first_page();
 	if (err != DB_SUCCESS) {
 		return(err);
 	}
@@ -396,7 +396,7 @@ Datafile::validate_for_recovery()
 	ut_ad(is_open());
 	ut_ad(!srv_read_only_mode);
 
-	err = validate_first_page(0);
+	err = validate_first_page();
 
 	switch (err) {
 	case DB_TABLESPACE_EXISTS:
@@ -443,7 +443,7 @@ Datafile::validate_for_recovery()
 		/* Free the previously read first page and then re-validate. */
 		free_first_page();
 		m_defer = false;
-		err = validate_first_page(0);
+		err = validate_first_page();
 	}
 
 	return(err);
@@ -453,11 +453,10 @@ Datafile::validate_for_recovery()
 tablespace is opened.  This occurs before the fil_space_t is created
 so the Space ID found here must not already be open.
 m_is_valid is set true on success, else false.
-@param[out]	flush_lsn	contents of FIL_PAGE_FILE_FLUSH_LSN
 @retval DB_SUCCESS on if the datafile is valid
 @retval DB_CORRUPTION if the datafile is not readable
 @retval DB_TABLESPACE_EXISTS if there is a duplicate space_id */
-dberr_t Datafile::validate_first_page(lsn_t *flush_lsn)
+dberr_t Datafile::validate_first_page()
 {
 	const char*	error_txt = NULL;
 
@@ -467,14 +466,6 @@ dberr_t Datafile::validate_first_page(lsn_t *flush_lsn)
 	    && read_first_page(srv_read_only_mode) != DB_SUCCESS) {
 
 		error_txt = "Cannot read first page";
-	} else {
-		ut_ad(m_first_page);
-
-		if (flush_lsn != NULL) {
-
-			*flush_lsn = mach_read_from_8(
-				m_first_page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-		}
 	}
 
 	if (error_txt != NULL) {

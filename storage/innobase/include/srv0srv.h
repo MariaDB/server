@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -85,25 +85,6 @@ struct srv_stats_t
 
 	/** Count the amount of data written in total (in bytes) */
 	ulint_ctr_1_t		data_written;
-
-	/** Number of the log write requests done */
-	ulint_ctr_1_t		log_write_requests;
-
-	/** Number of physical writes to the log performed */
-	ulint_ctr_1_t		log_writes;
-
-	/** Amount of data padded for log write ahead */
-	ulint_ctr_1_t		log_padded;
-
-	/** Amount of data written to the log files in bytes */
-	lsn_ctr_1_t		os_log_written;
-
-	/** Number of writes being done to the log files */
-	ulint_ctr_1_t		os_log_pending_writes;
-
-	/** We increase this counter, when we don't have enough
-	space in the log buffer and have to flush it */
-	ulint_ctr_1_t		log_waits;
 
 	/** Store the number of write requests issued */
 	ulint_ctr_1_t		buf_pool_write_requests;
@@ -293,10 +274,8 @@ extern char*	srv_log_group_home_dir;
 /** The InnoDB redo log file size, or 0 when changing the redo log format
 at startup (while disallowing writes to the redo log). */
 extern ulonglong	srv_log_file_size;
-extern ulong	srv_log_buffer_size;
 extern ulong	srv_flush_log_at_trx_commit;
 extern uint	srv_flush_log_at_timeout;
-extern ulong	srv_log_write_ahead_size;
 extern my_bool	srv_adaptive_flushing;
 extern my_bool	srv_flush_sync;
 
@@ -473,8 +452,12 @@ extern my_bool srv_print_all_deadlocks;
 
 extern my_bool	srv_cmp_per_index_enabled;
 
+/** innodb_encrypt_log */
+extern my_bool	srv_encrypt_log;
+
 /* is encryption enabled */
 extern ulong	srv_encrypt_tables;
+
 
 /** Status variables to be passed to MySQL */
 extern struct export_var_t export_vars;
@@ -710,8 +693,6 @@ struct export_var_t{
 	ulint innodb_checkpoint_max_age;
 	ulint innodb_data_pending_reads;	/*!< Pending reads */
 	ulint innodb_data_pending_writes;	/*!< Pending writes */
-	ulint innodb_data_pending_fsyncs;	/*!< Pending fsyncs */
-	ulint innodb_data_fsyncs;		/*!< Number of fsyncs so far */
 	ulint innodb_data_read;			/*!< Data bytes read */
 	ulint innodb_data_writes;		/*!< I/O write requests */
 	ulint innodb_data_written;		/*!< Data bytes written */
@@ -720,9 +701,6 @@ struct export_var_t{
 	ulint innodb_dblwr_writes;		/*!< srv_dblwr_writes */
 	ulint innodb_deadlocks;
 	ulint innodb_history_list_length;
-	ulint innodb_log_waits;			/*!< srv_log_waits */
-	ulint innodb_log_write_requests;	/*!< srv_log_write_requests */
-	ulint innodb_log_writes;		/*!< srv_log_writes */
 	lsn_t innodb_lsn_current;
 	lsn_t innodb_lsn_flushed;
 	lsn_t innodb_lsn_last_checkpoint;
@@ -731,10 +709,8 @@ struct export_var_t{
 	ulint innodb_mem_adaptive_hash;
 #endif
 	ulint innodb_mem_dictionary;
-	lsn_t innodb_os_log_written;		/*!< srv_os_log_written */
-	ulint innodb_os_log_fsyncs;		/*!< n_log_flushes */
-	ulint innodb_os_log_pending_writes;	/*!< srv_os_log_pending_writes */
-	ulint innodb_os_log_pending_fsyncs;	/*!< n_pending_log_flushes */
+	/** log_sys.get_lsn() - recv_sys.lsn */
+	lsn_t innodb_os_log_written;
 	ulint innodb_row_lock_waits;		/*!< srv_n_lock_wait_count */
 	ulint innodb_row_lock_current_waits;	/*!< srv_n_lock_wait_current_count */
 	int64_t innodb_row_lock_time;		/*!< srv_n_lock_wait_time
