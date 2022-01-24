@@ -1782,7 +1782,7 @@ static void close_connections(void)
 
   /* Kill phase 2 */
   server_threads.iterate(kill_thread_phase_2);
-  for (uint64 i= 0; THD_count::connection_thd_count(); i++)
+  for (uint64 i= 0; THD_count::value() > local_connection_thread_count; i++)
   {
     /*
       This time the warnings are emitted within the loop to provide a
