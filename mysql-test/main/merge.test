@@ -2873,5 +2873,16 @@ select * from tm;
 drop table tm, t;
 
 --echo #
+--echo # MDEV-27586 Auto-increment does not work with DESC on MERGE table
+--echo #
+create table t (a int not null, primary key(a desc)) engine=myisam;
+create table tm (a int not null auto_increment, primary key(a desc)) engine=merge union=(t) insert_method=first;
+insert into tm () values ();
+insert into tm () values ();
+insert into tm () values ();
+select * from tm;
+drop table tm, t;
+
+--echo #
 --echo # End of 10.8 tests
 --echo #

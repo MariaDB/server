@@ -3913,5 +3913,19 @@ select * from tm;
 ERROR HY000: Unable to open underlying table which is differently defined or of non-MyISAM type or doesn't exist
 drop table tm, t;
 #
+# MDEV-27586 Auto-increment does not work with DESC on MERGE table
+#
+create table t (a int not null, primary key(a desc)) engine=myisam;
+create table tm (a int not null auto_increment, primary key(a desc)) engine=merge union=(t) insert_method=first;
+insert into tm () values ();
+insert into tm () values ();
+insert into tm () values ();
+select * from tm;
+a
+3
+2
+1
+drop table tm, t;
+#
 # End of 10.8 tests
 #
