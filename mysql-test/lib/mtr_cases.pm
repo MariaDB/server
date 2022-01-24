@@ -812,6 +812,15 @@ sub collect_one_test_case {
     }
   }
 
+  # ----------------------------------------------------------------------
+  # Additional directories
+  # ----------------------------------------------------------------------
+  my $dirs= find_file_in_dirs($tinfo, tdir => "$tname.dirs");
+  if ($dirs)
+  {
+    $tinfo->{'dirs'}= $dirs;
+  }
+
   my ($master_opts, $slave_opts)= tags_from_test_file($tinfo);
   $tinfo->{in_overlay} = 1 if $file_in_overlay{$filename};
 
