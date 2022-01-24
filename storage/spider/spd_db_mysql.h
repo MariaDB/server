@@ -579,54 +579,6 @@ public:
     uint binlog_pos_length,
     SPIDER_DB_RESULT **res
   );
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  int append_sql(
-    char *sql,
-    ulong sql_length,
-    st_spider_db_request_key *request_key
-  );
-  int append_open_handler(
-    uint handler_id,
-    const char *db_name,
-    const char *table_name,
-    const char *index_name,
-    const char *sql,
-    st_spider_db_request_key *request_key
-  );
-  int append_select(
-    uint handler_id,
-    spider_string *sql,
-    SPIDER_DB_HS_STRING_REF_BUFFER *keys,
-    int limit,
-    int skip,
-    st_spider_db_request_key *request_key
-  );
-  int append_insert(
-    uint handler_id,
-    SPIDER_DB_HS_STRING_REF_BUFFER *upds,
-    st_spider_db_request_key *request_key
-  );
-  int append_update(
-    uint handler_id,
-    spider_string *sql,
-    SPIDER_DB_HS_STRING_REF_BUFFER *keys,
-    SPIDER_DB_HS_STRING_REF_BUFFER *upds,
-    int limit,
-    int skip,
-    bool increment,
-    bool decrement,
-    st_spider_db_request_key *request_key
-  );
-  int append_delete(
-    uint handler_id,
-    spider_string *sql,
-    SPIDER_DB_HS_STRING_REF_BUFFER *keys,
-    int limit,
-    int skip,
-    st_spider_db_request_key *request_key
-  );
-  void reset_request_queue();
-#endif
   size_t escape_string(
     char *to,
     const char *from,
@@ -814,9 +766,6 @@ protected:
   spider_string           *exec_ha_sql;
   bool                    reading_from_bulk_tmp_table;
   bool                    filled_up;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  SPIDER_DB_HS_STRING_REF_BUFFER hs_upds;
-#endif
   SPIDER_INT_HLD          *union_table_name_pos_first;
   SPIDER_INT_HLD          *union_table_name_pos_current;
 public:
@@ -923,14 +872,6 @@ public:
   int append_delete(
     spider_string *str
   );
-  #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-  int append_increment_update_set_part();
-  int append_increment_update_set(
-    spider_string *str
-  );
-  #endif
-  #endif
   int append_update_set_part();
   int append_update_set(
     spider_string *str
@@ -1461,23 +1402,6 @@ public:
   int reset_sql(
     ulong sql_type
   );
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  int reset_keys(
-    ulong sql_type
-  );
-  int reset_upds(
-    ulong sql_type
-  );
-  int reset_strs(
-    ulong sql_type
-  );
-  int reset_strs_pos(
-    ulong sql_type
-  );
-  int push_back_upds(
-    SPIDER_HS_STRING_REF &info
-  );
-#endif
   bool need_lock_before_set_sql_for_exec(
     ulong sql_type
   );

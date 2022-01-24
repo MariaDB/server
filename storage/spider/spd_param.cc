@@ -101,19 +101,6 @@ static int spider_parallel_search(THD *thd, SHOW_VAR *var, char *buff)
   DBUG_RETURN(error_num);
 }
 
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-static int spider_hs_result_free(THD *thd, SHOW_VAR *var, char *buff)
-{
-  int error_num = 0;
-  SPIDER_TRX *trx;
-  DBUG_ENTER("spider_hs_result_free");
-  var->type = SHOW_LONGLONG;
-  if ((trx = spider_get_trx(thd, TRUE, &error_num)))
-    var->value = (char *) &trx->hs_result_free_count;
-  DBUG_RETURN(error_num);
-}
-#endif
-
 struct st_mysql_show_var spider_status_variables[] =
 {
   {"Spider_mon_table_cache_version",
@@ -143,13 +130,6 @@ struct st_mysql_show_var spider_status_variables[] =
     (char *) &spider_direct_aggregate, SHOW_FUNC},
   {"Spider_parallel_search",
     (char *) &spider_parallel_search, SHOW_FUNC},
-#endif
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-#ifdef SPIDER_HAS_SHOW_SIMPLE_FUNC
-  {"Spider_hs_result_free", (char *) &spider_hs_result_free, SHOW_SIMPLE_FUNC},
-#else
-  {"Spider_hs_result_free", (char *) &spider_hs_result_free, SHOW_FUNC},
-#endif
 #endif
   {NullS, NullS, SHOW_LONG}
 };
@@ -626,33 +606,6 @@ int spider_param_reset_sql_alloc(
   DBUG_RETURN(THDVAR(thd, reset_sql_alloc) < 0 ?
     reset_sql_alloc : THDVAR(thd, reset_sql_alloc));
 }
-
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-/*
- -1 :use table parameter
-  0-:result free size for handlersocket
- */
-static MYSQL_THDVAR_LONGLONG(
-  hs_result_free_size, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
-  "Result free size for handlersocket", /* comment */
-  NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
-  -1, /* min */
-  9223372036854775807LL, /* max */
-  0 /* blk */
-);
-
-longlong spider_param_hs_result_free_size(
-  THD *thd,
-  longlong hs_result_free_size
-) {
-  DBUG_ENTER("spider_param_hs_result_free_size");
-  DBUG_RETURN(THDVAR(thd, hs_result_free_size) < 0 ?
-    hs_result_free_size : THDVAR(thd, hs_result_free_size));
-}
-#endif
 
 /*
  -1 :use table parameter
@@ -1901,31 +1854,6 @@ double spider_param_ping_interval_at_trx_start(
   DBUG_RETURN(THDVAR(thd, ping_interval_at_trx_start));
 }
 
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-/*
-  0 :always ping
-  1-:interval
- */
-static MYSQL_THDVAR_INT(
-  hs_ping_interval, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
-  "Ping interval for handlersocket", /* comment */
-  NULL, /* check */
-  NULL, /* update */
-  30, /* def */
-  0, /* min */
-  2147483647, /* max */
-  0 /* blk */
-);
-
-double spider_param_hs_ping_interval(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_hs_ping_interval");
-  DBUG_RETURN(THDVAR(thd, hs_ping_interval));
-}
-#endif
-
 /*
  -1 :use table parameter
   0 :normal mode
@@ -2524,154 +2452,6 @@ longlong spider_param_udf_ct_bulk_insert_rows(
   DBUG_RETURN(spider_udf_ct_bulk_insert_rows <= 0 ?
     udf_ct_bulk_insert_rows : spider_udf_ct_bulk_insert_rows);
 }
-
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-/*
-  0: no recycle
-  1: recycle in instance
-  2: recycle in thread
- */
-static MYSQL_THDVAR_UINT(
-  hs_r_conn_recycle_mode, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
-  "Handlersocket connection recycle mode", /* comment */
-  NULL, /* check */
-  NULL, /* update */
-  2, /* def */
-  0, /* min */
-  2, /* max */
-  0 /* blk */
-);
-
-uint spider_param_hs_r_conn_recycle_mode(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_hs_r_conn_recycle_mode");
-  DBUG_RETURN(THDVAR(thd, hs_r_conn_recycle_mode));
-}
-
-/*
-  0: weak
-  1: strict
- */
-static MYSQL_THDVAR_UINT(
-  hs_r_conn_recycle_strict, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
-  "Strict handlersocket connection recycle", /* comment */
-  NULL, /* check */
-  NULL, /* update */
-  0, /* def */
-  0, /* min */
-  1, /* max */
-  0 /* blk */
-);
-
-uint spider_param_hs_r_conn_recycle_strict(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_hs_r_conn_recycle_strict");
-  DBUG_RETURN(THDVAR(thd, hs_r_conn_recycle_strict));
-}
-
-/*
-  0: no recycle
-  1: recycle in instance
-  2: recycle in thread
- */
-static MYSQL_THDVAR_UINT(
-  hs_w_conn_recycle_mode, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
-  "Handlersocket connection recycle mode", /* comment */
-  NULL, /* check */
-  NULL, /* update */
-  2, /* def */
-  0, /* min */
-  2, /* max */
-  0 /* blk */
-);
-
-uint spider_param_hs_w_conn_recycle_mode(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_hs_w_conn_recycle_mode");
-  DBUG_RETURN(THDVAR(thd, hs_w_conn_recycle_mode));
-}
-
-/*
-  0: weak
-  1: strict
- */
-static MYSQL_THDVAR_UINT(
-  hs_w_conn_recycle_strict, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
-  "Strict handlersocket connection recycle", /* comment */
-  NULL, /* check */
-  NULL, /* update */
-  0, /* def */
-  0, /* min */
-  1, /* max */
-  0 /* blk */
-);
-
-uint spider_param_hs_w_conn_recycle_strict(
-  THD *thd
-) {
-  DBUG_ENTER("spider_param_hs_w_conn_recycle_strict");
-  DBUG_RETURN(THDVAR(thd, hs_w_conn_recycle_strict));
-}
-
-/*
- -1 :use table parameter
-  0 :not use
-  1 :use handlersocket
- */
-static MYSQL_THDVAR_INT(
-  use_hs_read, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
-  "Use handlersocket for reading", /* comment */
-  NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
-  -1, /* min */
-  1, /* max */
-  0 /* blk */
-);
-
-int spider_param_use_hs_read(
-  THD *thd,
-  int use_hs_read
-) {
-  DBUG_ENTER("spider_param_use_hs_read");
-  DBUG_RETURN(THDVAR(thd, use_hs_read) == -1 ?
-    use_hs_read : THDVAR(thd, use_hs_read));
-}
-
-/*
- -1 :use table parameter
-  0 :not use
-  1 :use handlersocket
- */
-static MYSQL_THDVAR_INT(
-  use_hs_write, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
-  "Use handlersocket for writing", /* comment */
-  NULL, /* check */
-  NULL, /* update */
-  -1, /* def */
-  -1, /* min */
-  1, /* max */
-  0 /* blk */
-);
-
-int spider_param_use_hs_write(
-  THD *thd,
-  int use_hs_write
-) {
-  DBUG_ENTER("spider_param_use_hs_write");
-  DBUG_RETURN(THDVAR(thd, use_hs_write) == -1 ?
-    use_hs_write : THDVAR(thd, use_hs_write));
-}
-#endif
 
 /*
  -1 :use table parameter
@@ -3500,9 +3280,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(semi_split_read_limit),
   MYSQL_SYSVAR(init_sql_alloc_size),
   MYSQL_SYSVAR(reset_sql_alloc),
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  MYSQL_SYSVAR(hs_result_free_size),
-#endif
   MYSQL_SYSVAR(multi_split_read),
   MYSQL_SYSVAR(max_order),
   MYSQL_SYSVAR(semi_trx_isolation),
@@ -3563,9 +3340,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(sts_bg_mode),
 #endif
   MYSQL_SYSVAR(ping_interval_at_trx_start),
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  MYSQL_SYSVAR(hs_ping_interval),
-#endif
   MYSQL_SYSVAR(auto_increment_mode),
   MYSQL_SYSVAR(same_server_link),
   MYSQL_SYSVAR(local_lock_table),
@@ -3588,14 +3362,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(bka_mode),
   MYSQL_SYSVAR(udf_ct_bulk_insert_interval),
   MYSQL_SYSVAR(udf_ct_bulk_insert_rows),
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  MYSQL_SYSVAR(hs_r_conn_recycle_mode),
-  MYSQL_SYSVAR(hs_r_conn_recycle_strict),
-  MYSQL_SYSVAR(hs_w_conn_recycle_mode),
-  MYSQL_SYSVAR(hs_w_conn_recycle_strict),
-  MYSQL_SYSVAR(use_hs_read),
-  MYSQL_SYSVAR(use_hs_write),
-#endif
   MYSQL_SYSVAR(use_handler),
   MYSQL_SYSVAR(error_read_mode),
   MYSQL_SYSVAR(error_write_mode),

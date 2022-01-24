@@ -1220,12 +1220,6 @@ int spider_db_close_handler(
   uint tgt_conn_kind
 );
 
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-void spider_db_hs_request_buf_reset(
-  SPIDER_CONN *conn
-);
-#endif
-
 bool spider_db_conn_is_network_error(
   int error_num
 );
