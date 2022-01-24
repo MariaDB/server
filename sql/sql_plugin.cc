@@ -958,7 +958,7 @@ static plugin_ref intern_plugin_lock(LEX *lex, plugin_ref rc,
 
   mysql_mutex_assert_owner(&LOCK_plugin);
 
-  if (pi->state & state_mask)
+  if (pi && (pi->state & state_mask))
   {
     plugin_ref plugin;
 #ifdef DBUG_OFF
