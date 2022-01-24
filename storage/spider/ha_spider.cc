@@ -9288,6 +9288,9 @@ void ha_spider::get_auto_increment(
   THD *thd = ha_thd();
   int auto_increment_mode = spider_param_auto_increment_mode(thd,
     share->auto_increment_mode);
+  bool rev= table->key_info[table->s->next_number_index].
+              key_part[table->s->next_number_keypart].key_part_flag &
+                HA_REVERSE_SORT;
   DBUG_ENTER("ha_spider::get_auto_increment");
   DBUG_PRINT("info",("spider this=%p", this));
   *nb_reserved_values = ULONGLONG_MAX;
@@ -9307,7 +9310,9 @@ void ha_spider::get_auto_increment(
         table_share->next_number_key_offset);
       error_num = index_read_last_map(table->record[1], key,
         make_prev_keypart_map(table_share->next_number_keypart));
-    } else
+    } else if (rev)
+      error_num = index_first(table->record[1]);
+    else
       error_num = index_last(table->record[1]);
 
     if (error_num)
