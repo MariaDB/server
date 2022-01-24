@@ -15288,6 +15288,7 @@ ha_innobase::check(
 			is_ok = false;
 			dict_set_corrupted(index, "CHECK TABLE; Wrong count",
 					   false);
+                        DBUG_ABORT();
 		}
 	}
 
