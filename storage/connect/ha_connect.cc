@@ -1812,6 +1812,12 @@ PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
       pn= (char*)kp.key_part[k].field->field_name.str;
       name= PlugDup(g, pn);
 
+      if (kp.key_part[k].key_part_flag & HA_REVERSE_SORT)
+      {
+        strcpy(g->Message, "Descending indexes are not supported");
+        xdp->Invalid= true;
+      }
+
       // Allocate the key part description block
       kpp= new(g) KPARTDEF(name, k + 1);
       kpp->SetKlen(kp.key_part[k].length);
@@ -6942,6 +6948,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         rc= HA_ERR_UNSUPPORTED;
       } else if (options->compressed) {
         strcpy(g->Message, "Compressed tables are not indexable");
+        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+        rc= HA_ERR_UNSUPPORTED;
+      } else if (xdp->Invalid) {
         my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
         rc= HA_ERR_UNSUPPORTED;
       } else if (GetIndexType(type) == 1) {
