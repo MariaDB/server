@@ -266,6 +266,12 @@ if ($USE_CHILD_GROUP2)
 }
 
 
+--echo # MDEV-27575 SIGSEGV in intern_plugin_lock on SHUTDOWN when setting Spider as default tmp SE
+--connection master_1
+--error ER_ILLEGAL_HA_CREATE_OPTION
+SET GLOBAL default_tmp_storage_engine=spider;
+
+
 --echo
 --echo deinit
 --disable_warnings

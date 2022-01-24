@@ -1,0 +1,3 @@
+INSTALL PLUGIN spider SONAME 'ha_spider.so';
+SET GLOBAL default_tmp_storage_engine=spider;
+ERROR HY000: Table storage engine 'SPIDER' does not support the create option 'TEMPORARY'

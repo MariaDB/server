@@ -200,6 +200,9 @@ id
 5000
 10000
 connection master_1;
+connection master_1;
+SET GLOBAL default_tmp_storage_engine=spider;
+ERROR HY000: Table storage engine 'SPIDER' does not support the create option 'TEMPORARY'
 
 deinit
 connection master_1;
