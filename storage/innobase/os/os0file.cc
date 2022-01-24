@@ -3619,22 +3619,28 @@ extern void fil_aio_callback(const IORequest &request);
 
 static void io_callback(tpool::aiocb* cb)
 {
-  ut_a(cb->m_err == DB_SUCCESS);
-  const IORequest request(*static_cast<const IORequest*>
-                          (static_cast<const void*>(cb->m_userdata)));
-  /* Return cb back to cache*/
-  if (cb->m_opcode == tpool::aio_opcode::AIO_PREAD)
-  {
-    ut_ad(read_slots->contains(cb));
-    read_slots->release(cb);
-  }
+  if (cb->m_err != DB_SUCCESS)
+    ib::fatal() << "IO Error " << strerror(cb->m_err) << " on file descriptor "
+      << cb->m_fh << (cb->m_opcode == tpool::aio_opcode::AIO_PREAD ? " reading "
+        : " writing ") << cb->m_len << " bytes at offset " << cb->m_offset;
   else
   {
-    ut_ad(write_slots->contains(cb));
-    write_slots->release(cb);
-  }
+    const IORequest request(*static_cast<const IORequest*>
+                            (static_cast<const void*>(cb->m_userdata)));
+    /* Return cb back to cache*/
+    if (cb->m_opcode == tpool::aio_opcode::AIO_PREAD)
+    {
+      ut_ad(read_slots->contains(cb));
+      read_slots->release(cb);
+    }
+    else
+    {
+      ut_ad(write_slots->contains(cb));
+      write_slots->release(cb);
+    }
 
-  fil_aio_callback(request);
+    fil_aio_callback(request);
+  }
 }
 
 #ifdef LINUX_NATIVE_AIO
