@@ -61,7 +61,11 @@ select count(*)=1 from t1;
 let $sbm= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1);
 --let $t_now= `SELECT UNIX_TIMESTAMP()`
 
-if(`select $sbm > $t_now - $t_master_events_logged`)
+# Ensure Seconds_Behind_Master does not point beyond when we have proven the
+# events we have proven to have executed. The extra second is needed as a
+# buffer because the recorded times are not exact with when the events were
+# recorded on the master.
+if(`select $sbm > $t_now - $t_master_events_logged + 1`)
 {
     die "A relay log event was incorrectly used to set Seconds_Behind_Master";
 }
@@ -77,8 +81,6 @@ SET DEBUG_SYNC='RESET';
 # Cleanup
 --connection master
 DROP TABLE t1;
---save_master_pos
---sync_slave_with_master
 
 --connection slave
 SET @@global.debug_dbug=$save_dbug;

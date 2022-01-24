@@ -36,6 +36,5 @@ SET DEBUG_SYNC='RESET';
 connection master;
 DROP TABLE t1;
 connection slave;
-connection slave;
 SET @@global.debug_dbug=$save_dbug;
 include/rpl_end.inc
