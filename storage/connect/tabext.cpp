@@ -142,8 +142,14 @@ bool EXTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 	Username = GetStringCatInfo(g, "User", NULL);
 	Password = GetStringCatInfo(g, "Password", NULL);
 
-	if ((Srcdef = GetStringCatInfo(g, "Srcdef", NULL)))
+	// Memory was Boolean, it is now integer
+	if (!(Memory = GetIntCatInfo("Memory", 0)))
+		Memory = GetBoolCatInfo("Memory", false) ? 1 : 0;
+
+	if ((Srcdef = GetStringCatInfo(g, "Srcdef", NULL))) {
 		Read_Only = true;
+		if (Memory == 2) Memory = 1;
+	}	// endif Srcdef
 
 	Qrystr = GetStringCatInfo(g, "Query_String", "?");
 	Sep = GetStringCatInfo(g, "Separator", NULL);
@@ -165,10 +171,6 @@ bool EXTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
 	if (Catfunc == FNC_TABLE)
 		Tabtyp = GetStringCatInfo(g, "Tabtype", NULL);
-
-	// Memory was Boolean, it is now integer
-	if (!(Memory = GetIntCatInfo("Memory", 0)))
-		Memory = GetBoolCatInfo("Memory", false) ? 1 : 0;
 
 	Pseudo = 2;    // FILID is Ok but not ROWID
 	return false;
