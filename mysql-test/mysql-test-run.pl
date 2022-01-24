@@ -2773,8 +2773,8 @@ sub mysql_server_start($) {
     {
       # Some InnoDB options are incompatible with the default bootstrap.
       # If they are used, re-bootstrap
-      if ( $extra_opts and
-           "@$extra_opts" =~ /--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)|data[-_]file[-_]path/ )
+      if ( $tinfo->{dirs} or ($extra_opts and
+           "@$extra_opts" =~ /--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]directory|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir|buffer[-_]pool[-_]filename)|data[-_]file[-_]path/) )
       {
         mysql_install_db($mysqld, undef, $extra_opts);
       }
@@ -3771,6 +3771,107 @@ sub resfile_report_test ($) {
   resfile_test_info("start_time", isotime time);
 }
 
+sub create_dirs ($) {
+  my $tinfo = shift;
+  my $res = 0;
+  if ($tinfo->{dirs}) {
+    open my $file, $tinfo->{dirs} or $res = 1;
+    if ($res == 0) {
+      while (my $line = <$file>) {
+        chomp $line;
+        $line =~ s/\$\{([^}:]+)(:([^}]+))?\}/defined $ENV{$1} ? $ENV{$1} : $3/eg;
+        $line =~ s/^\s+|\s+$//g;
+        my $dir = $line;
+        my $src = "";
+        if (index($dir, '=') != -1) {
+          ($dir, $src) = $dir =~ /^([^=\s]*(?:\s+[^=\s])*)\s*=\s*(.*)$/;
+        }
+        if ($dir eq "") {
+           next;
+        }
+        if (!($dir =~ /^[\/\\][^\/\\]*$/)) {
+          if (-d $dir) {
+            rmtree($dir);
+            if (-d $dir) {
+              $res = 1;
+              last;
+            }
+          }
+          if ($src eq "") {
+            mkpath($dir);
+          }
+          else {
+            copytree($dir, $src);
+          }
+          if (! -d $dir) {
+            $res = 1;
+            last;
+          }
+        }
+        else {
+          mtr_print("Operations with the root of FS are prohibited");
+          $res = 1;
+          last;
+        }
+      }
+      close $file;
+    }
+    # Create temporary directories:
+    if ($res != 0) {
+      my $diag= "Failed to create directories specified in '$tinfo->{dirs}'";
+      $tinfo->{'comment'} = $diag;
+    }
+  }
+  return $res == 0;
+}
+
+sub delete_dirs ($) {
+  my $tinfo = shift;
+  my $res = 0;
+  if ($tinfo->{dirs}) {
+    open my $file, $tinfo->{dirs} or $res = 1;
+    if ($res == 0) {
+      while (my $line = <$file>) {
+        chomp $line;
+        $line =~ s/\$\{([^}:]+)(:([^}]+))?\}/defined $ENV{$1} ? $ENV{$1} : $3/eg;
+        $line =~ s/^\s+|\s+$//g;
+        my $dir = $line;
+        if (index($dir, '=') != -1) {
+          ($dir) = $dir =~ /^([^=\s]*(?:\s+[^=\s])*)\s*=.*$/;
+        }
+        if ($dir eq "") {
+           next;
+        }
+        if (!($dir =~ /^[\/\\][^\/\\]*$/)) {
+          if (-d $dir) {
+            rmtree($dir);
+            if (-d $dir) {
+              $res = 1;
+              last;
+            }
+          }
+        }
+        else {
+          mtr_print("Operations with the root of FS are prohibited");
+          $res = 1;
+          last;
+        }
+      }
+      close $file;
+    }
+    # Delete temporary directories:
+    if ($res != 0) {
+      my $diag= "Failed to delete directories specified in '$tinfo->{dirs}'";
+      if ($tinfo->{'comment'}) {
+        $tinfo->{'comment'} .= "\n".$diag;
+      }
+      else {
+        $tinfo->{'comment'} = $diag;
+      }
+    }
+  }
+  return $res == 0;
+}
 
 #
 # Run a single test case
@@ -3903,7 +4004,7 @@ sub run_testcase ($$) {
       My::SafeProcess->start_exit();
     }
 
-    if (start_servers($tinfo))
+    if (create_dirs($tinfo) && start_servers($tinfo))
     {
       report_failure_and_restart($tinfo);
       unlink $path_current_testlog;
@@ -4064,6 +4165,10 @@ sub run_testcase ($$) {
           }
         }
         mtr_report_test_passed($tinfo);
+        if ($tinfo->{dirs}) {
+          stop_all_servers($opt_shutdown_timeout);
+          delete_dirs($tinfo);
+        }
       }
       elsif ( $res == 62 )
       {
@@ -4074,9 +4179,11 @@ sub run_testcase ($$) {
         mtr_report_test_skipped($tinfo);
         # Restart if skipped due to missing perl, it may have had side effects
 	if ( restart_forced_by_test('force_restart_if_skipped') ||
-             $tinfo->{'comment'} =~ /^perl not found/ )
+             $tinfo->{'comment'} =~ /^perl not found/ ||
+             $tinfo->{'dirs'} )
         {
           stop_all_servers($opt_shutdown_timeout);
+          delete_dirs($tinfo);
         }
       }
       elsif ( $res == 65 )
@@ -4879,7 +4986,6 @@ sub report_failure_and_restart ($) {
   my $test_failures= $tinfo->{'failures'} || 0;
   $tinfo->{'failures'}=  $test_failures + 1;
 
-
   if ( $tinfo->{comment} )
   {
     # The test failure has been detected by mysql-test-run.pl
@@ -4924,6 +5030,8 @@ sub report_failure_and_restart ($) {
   }
 
   after_failure($tinfo);
+
+  delete_dirs($tinfo);
 
   mtr_report_test($tinfo);
 
@@ -5182,9 +5290,15 @@ sub server_need_restart {
     return 1;
   }
 
-  if ( $tinfo->{'master_sh'}  || $tinfo->{'slave_sh'} )
+  if ( $tinfo->{'master_sh'} || $tinfo->{'slave_sh'} )
   {
     mtr_verbose_restart($server, "sh script to run");
+    return 1;
+  }
+
+  if ( $tinfo->{'dirs'} )
+  {
+    mtr_verbose_restart($server, "uses additional directories");
     return 1;
   }
 
