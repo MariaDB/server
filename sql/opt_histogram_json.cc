@@ -1081,12 +1081,14 @@ void Histogram_json_hb::serialize(Field *field)
 }
 
 
+#ifndef DBUG_OFF
 static int SGN(int x)
 {
   if (!x)
     return 0;
   return (x < 0)? -1 : 1;
 }
+#endif
 
 
 /*
