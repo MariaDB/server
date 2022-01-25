@@ -227,7 +227,12 @@ void FileImpl::create_(const char *path, UInt64 size) {
       size > static_cast<UInt64>(std::numeric_limits< ::off_t>::max()));
 
   if ((path != NULL) && (path[0] != '\0')) {
-    fd_ = ::open(path, O_RDWR | O_CREAT | O_TRUNC, GRN_IO_FILE_CREATE_MODE);
+    const int openmode = O_RDWR | O_CREAT | O_TRUNC;
+#ifndef SHM_LARGEPAGE_ALLOC_NOWAIT
+    fd_ = ::open(path, openmode, GRN_IO_FILE_CREATE_MODE);
+#else
+    fd_ = shm_create_largepage(path, openmode, 1, SHM_LARGEPAGE_ALLOC_NOWAIT, GRN_IO_FILE_CREATE_MODE);
+#endif
     GRN_DAT_THROW_IF(IO_ERROR, fd_ == -1);
 
     const ::off_t file_size = static_cast< ::off_t>(size);
@@ -235,10 +240,16 @@ void FileImpl::create_(const char *path, UInt64 size) {
   }
 
 #ifdef MAP_ANONYMOUS
-  const int flags = (fd_ == -1) ? (MAP_PRIVATE | MAP_ANONYMOUS) : MAP_SHARED;
+  int tmp = (fd_ == -1) ? (MAP_PRIVATE | MAP_ANONYMOUS) : MAP_SHARED;
 #else  // MAP_ANONYMOUS
-  const int flags = (fd_ == -1) ? (MAP_PRIVATE | MAP_ANON) : MAP_SHARED;
+  int tmp = (fd_ == -1) ? (MAP_PRIVATE | MAP_ANON) : MAP_SHARED;
 #endif  // MAP_ANONYMOUS
+
+#ifdef MAP_ALIGNED_SUPER
+  tmp |= (fd_ == -1) ? MAP_ALIGNED_SUPER : 0;
+#endif
+
+  const int flags = tmp;
 
   length_ = static_cast< ::size_t>(size);
 #ifdef USE_MAP_HUGETLB
