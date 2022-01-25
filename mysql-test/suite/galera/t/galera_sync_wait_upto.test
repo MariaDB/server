@@ -70,3 +70,6 @@ INSERT INTO t1 VALUES (2);
 
 --connection node_1
 DROP TABLE t1;
+
+--connection node_2
+CALL mtr.add_suppression("Ignoring server id for non bootstrap node");

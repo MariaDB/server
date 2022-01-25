@@ -1149,6 +1149,15 @@ bool wsrep_start_replication(const char *wsrep_cluster_address)
 
   DBUG_ASSERT(wsrep_cluster_address[0]);
 
+  // --wsrep-new-cluster flag is not used, checking wsrep_cluster_address
+  // it should match gcomm:// only to be considered as bootstrap node.
+  // This logic is used in galera.
+  if (!wsrep_new_cluster && (strlen(wsrep_cluster_address) == 8) &&
+      !strncmp(wsrep_cluster_address, "gcomm://", 8)) 
+  {
+    wsrep_new_cluster= true;
+  }
+
   bool const bootstrap(TRUE == wsrep_new_cluster);
 
   WSREP_INFO("Start replication");
