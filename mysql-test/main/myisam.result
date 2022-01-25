@@ -2796,5 +2796,17 @@ hex(c)	c	i
 C3A4	ä	1
 drop table t;
 #
+# MDEV-27617 HANDLER KEY > (x) does not work with DESC keys, Spider is affected and returns wrong results
+#
+create table t (a int, b char(1), primary key(a desc)) engine=myisam;
+insert into t VALUES (1,'f'),(2,'g'),(3,'j'), (4,'i'),(5,'h');
+handler t open;
+# MUST return 2,'g'. '>' always means READ_AFTER_KEY. desc or not.
+handler t read `primary` > (3);
+a	b
+2	g
+handler t close;
+drop table t;
+#
 # End of 10.8 tests
 #

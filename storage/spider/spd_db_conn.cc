@@ -1732,6 +1732,7 @@ int spider_db_append_key_where_internal(
     key_count++
   ) {
     DBUG_PRINT("info", ("spider tgt_key_part_map=%lu", tgt_key_part_map));
+    bool rev = key_part->key_part_flag & HA_REVERSE_SORT;
     store_length = key_part->store_length;
     field = key_part->field;
     key_name_length = dbton_share->get_column_name_length(field->field_index);
@@ -1901,11 +1902,11 @@ int spider_db_append_key_where_internal(
               const char* op_str;
               uint32 op_len;
               if (start_key_part_map == 1) {
-                op_str = SPIDER_SQL_GT_STR;
-                op_len = SPIDER_SQL_GT_LEN;
+                op_str = rev ? SPIDER_SQL_LT_STR : SPIDER_SQL_GT_STR;
+                op_len = rev ? SPIDER_SQL_LT_LEN : SPIDER_SQL_GT_LEN;
               } else {
-                op_str = SPIDER_SQL_GTEQUAL_STR;
-                op_len = SPIDER_SQL_GTEQUAL_LEN;
+                op_str = rev ? SPIDER_SQL_LTEQUAL_STR : SPIDER_SQL_GTEQUAL_STR;
+                op_len = rev ? SPIDER_SQL_LTEQUAL_LEN : SPIDER_SQL_GTEQUAL_LEN;
               }
               if (str->reserve(store_length + key_name_length +
                 /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 + op_len))
@@ -1930,7 +1931,10 @@ int spider_db_append_key_where_internal(
                 SPIDER_SQL_GT_LEN))
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
               dbton_share->append_column_name(str_part2, field->field_index);
-              str_part2->q_append(SPIDER_SQL_GT_STR, SPIDER_SQL_GT_LEN);
+              if (rev)
+                str_part2->q_append(SPIDER_SQL_LT_STR, SPIDER_SQL_LT_LEN);
+              else
+                str_part2->q_append(SPIDER_SQL_GT_STR, SPIDER_SQL_GT_LEN);
               if (spider_dbton[dbton_id].db_util->
                 append_column_value(spider, str_part2, field, ptr,
                   share->access_charset))
@@ -1971,11 +1975,11 @@ int spider_db_append_key_where_internal(
               const char* op_str;
               uint32 op_len;
               if (start_key_part_map == 1) {
-                op_str = SPIDER_SQL_LT_STR;
-                op_len = SPIDER_SQL_LT_LEN;
+                op_str = rev ? SPIDER_SQL_GT_STR : SPIDER_SQL_LT_STR;
+                op_len = rev ? SPIDER_SQL_GT_LEN : SPIDER_SQL_LT_LEN;
               } else {
-                op_str = SPIDER_SQL_LTEQUAL_STR;
-                op_len = SPIDER_SQL_LTEQUAL_LEN;
+                op_str = rev ? SPIDER_SQL_GTEQUAL_STR : SPIDER_SQL_LTEQUAL_STR;
+                op_len = rev ? SPIDER_SQL_GTEQUAL_LEN : SPIDER_SQL_LTEQUAL_LEN;
               }
               if (str->reserve(store_length + key_name_length +
                 /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 + op_len))
@@ -2000,7 +2004,10 @@ int spider_db_append_key_where_internal(
                 SPIDER_SQL_LT_LEN))
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
               dbton_share->append_column_name(str_part2, field->field_index);
-              str_part2->q_append(SPIDER_SQL_LT_STR, SPIDER_SQL_LT_LEN);
+              if (rev)
+                str_part2->q_append(SPIDER_SQL_GT_STR, SPIDER_SQL_GT_LEN);
+              else
+                str_part2->q_append(SPIDER_SQL_LT_STR, SPIDER_SQL_LT_LEN);
               if (spider_dbton[dbton_id].db_util->
                 append_column_value(spider, str_part2, field, ptr,
                   share->access_charset))
@@ -2050,7 +2057,10 @@ int spider_db_append_key_where_internal(
                 SPIDER_SQL_LTEQUAL_LEN))
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
               dbton_share->append_column_name(str, field->field_index);
-              str->q_append(SPIDER_SQL_LTEQUAL_STR, SPIDER_SQL_LTEQUAL_LEN);
+              if (rev)
+                str->q_append(SPIDER_SQL_GTEQUAL_STR, SPIDER_SQL_GTEQUAL_LEN);
+              else
+                str->q_append(SPIDER_SQL_LTEQUAL_STR, SPIDER_SQL_LTEQUAL_LEN);
               if (spider_dbton[dbton_id].db_util->
                 append_column_value(spider, str, field, ptr,
                   share->access_charset))
@@ -2067,8 +2077,10 @@ int spider_db_append_key_where_internal(
                 SPIDER_SQL_LTEQUAL_LEN))
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
               dbton_share->append_column_name(str_part2, field->field_index);
-              str_part2->q_append(SPIDER_SQL_LTEQUAL_STR,
-                SPIDER_SQL_LTEQUAL_LEN);
+              if (rev)
+                str_part2->q_append(SPIDER_SQL_GTEQUAL_STR, SPIDER_SQL_GTEQUAL_LEN);
+              else
+                str_part2->q_append(SPIDER_SQL_LTEQUAL_STR, SPIDER_SQL_LTEQUAL_LEN);
               if (spider_dbton[dbton_id].db_util->
                 append_column_value(spider, str_part2, field, ptr,
                   share->access_charset))
@@ -2081,8 +2093,7 @@ int spider_db_append_key_where_internal(
                 {
                   if (str->reserve(SPIDER_SQL_LTEQUAL_LEN))
                     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-                  str->q_append(SPIDER_SQL_LTEQUAL_STR,
-                    SPIDER_SQL_LTEQUAL_LEN);
+                  str->q_append(SPIDER_SQL_LTEQUAL_STR, SPIDER_SQL_LTEQUAL_LEN);
                 }
                 if (spider_dbton[dbton_id].db_util->
                   append_column_value(spider, str_part, field, ptr,
@@ -2093,8 +2104,7 @@ int spider_db_append_key_where_internal(
                 {
                   if (str->reserve(SPIDER_SQL_LTEQUAL_LEN))
                     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-                  str->q_append(SPIDER_SQL_LTEQUAL_STR,
-                    SPIDER_SQL_LTEQUAL_LEN);
+                  str->q_append(SPIDER_SQL_LTEQUAL_STR, SPIDER_SQL_LTEQUAL_LEN);
                   if (spider_dbton[dbton_id].db_util->
                     append_column_value(spider, str_part, field, ptr,
                       share->access_charset))
@@ -2201,7 +2211,10 @@ int spider_db_append_key_where_internal(
                 SPIDER_SQL_GTEQUAL_LEN))
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
               dbton_share->append_column_name(str, field->field_index);
-              str->q_append(SPIDER_SQL_GTEQUAL_STR, SPIDER_SQL_GTEQUAL_LEN);
+              if (rev)
+                str->q_append(SPIDER_SQL_LTEQUAL_STR, SPIDER_SQL_LTEQUAL_LEN);
+              else
+                str->q_append(SPIDER_SQL_GTEQUAL_STR, SPIDER_SQL_GTEQUAL_LEN);
               if (spider_dbton[dbton_id].db_util->
                 append_column_value(spider, str, field, ptr,
                   share->access_charset))
@@ -2218,8 +2231,10 @@ int spider_db_append_key_where_internal(
                 SPIDER_SQL_GTEQUAL_LEN))
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
               dbton_share->append_column_name(str_part2, field->field_index);
-              str_part2->q_append(SPIDER_SQL_GTEQUAL_STR,
-                SPIDER_SQL_GTEQUAL_LEN);
+              if (rev)
+                str_part2->q_append(SPIDER_SQL_LTEQUAL_STR, SPIDER_SQL_LTEQUAL_LEN);
+              else
+                str_part2->q_append(SPIDER_SQL_GTEQUAL_STR, SPIDER_SQL_GTEQUAL_LEN);
               if (spider_dbton[dbton_id].db_util->
                 append_column_value(spider, str_part2, field, ptr,
                   share->access_charset))
@@ -2232,8 +2247,7 @@ int spider_db_append_key_where_internal(
                 {
                   if (str->reserve(SPIDER_SQL_GTEQUAL_LEN))
                     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-                  str->q_append(SPIDER_SQL_GTEQUAL_STR,
-                    SPIDER_SQL_GTEQUAL_LEN);
+                  str->q_append(SPIDER_SQL_GTEQUAL_STR, SPIDER_SQL_GTEQUAL_LEN);
                 }
                 if (spider_dbton[dbton_id].db_util->
                   append_column_value(spider, str_part, field, ptr,
@@ -2244,8 +2258,7 @@ int spider_db_append_key_where_internal(
                 {
                   if (str->reserve(SPIDER_SQL_GTEQUAL_LEN))
                     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-                  str->q_append(SPIDER_SQL_GTEQUAL_STR,
-                    SPIDER_SQL_GTEQUAL_LEN);
+                  str->q_append(SPIDER_SQL_GTEQUAL_STR, SPIDER_SQL_GTEQUAL_LEN);
                   if (spider_dbton[dbton_id].db_util->
                     append_column_value(spider, str_part, field, ptr,
                       share->access_charset))
@@ -2358,11 +2371,11 @@ int spider_db_append_key_where_internal(
                 const char* op_str;
                 uint32 op_len;
                 if (end_key_part_map == 1) {
-                  op_str = SPIDER_SQL_LT_STR;
-                  op_len = SPIDER_SQL_LT_LEN;
+                  op_str = rev ? SPIDER_SQL_GT_STR : SPIDER_SQL_LT_STR;
+                  op_len = rev ? SPIDER_SQL_GT_LEN : SPIDER_SQL_LT_LEN;
                 } else {
-                  op_str = SPIDER_SQL_LTEQUAL_STR;
-                  op_len = SPIDER_SQL_LTEQUAL_LEN;
+                  op_str = rev ? SPIDER_SQL_GTEQUAL_STR : SPIDER_SQL_LTEQUAL_STR;
+                  op_len = rev ? SPIDER_SQL_GTEQUAL_LEN : SPIDER_SQL_LTEQUAL_LEN;
                 }
                 if (str->reserve(store_length + key_name_length +
                   /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 + op_len))
@@ -2386,7 +2399,10 @@ int spider_db_append_key_where_internal(
                   SPIDER_SQL_LT_LEN))
                   DBUG_RETURN(HA_ERR_OUT_OF_MEM);
                 dbton_share->append_column_name(str_part2, field->field_index);
-                str_part2->q_append(SPIDER_SQL_LT_STR, SPIDER_SQL_LT_LEN);
+                if (rev)
+                  str_part2->q_append(SPIDER_SQL_GT_STR, SPIDER_SQL_GT_LEN);
+                else
+                  str_part2->q_append(SPIDER_SQL_LT_STR, SPIDER_SQL_LT_LEN);
                 if (spider_dbton[dbton_id].db_util->
                   append_column_value(spider, str_part2, field, ptr,
                     share->access_charset))
@@ -2428,7 +2444,10 @@ int spider_db_append_key_where_internal(
                   SPIDER_SQL_LTEQUAL_LEN))
                   DBUG_RETURN(HA_ERR_OUT_OF_MEM);
                 dbton_share->append_column_name(str, field->field_index);
-                str->q_append(SPIDER_SQL_LTEQUAL_STR, SPIDER_SQL_LTEQUAL_LEN);
+                if (rev)
+                  str->q_append(SPIDER_SQL_GTEQUAL_STR, SPIDER_SQL_GTEQUAL_LEN);
+                else
+                  str->q_append(SPIDER_SQL_LTEQUAL_STR, SPIDER_SQL_LTEQUAL_LEN);
                 if (spider_dbton[dbton_id].db_util->
                   append_column_value(spider, str, field, ptr,
                     share->access_charset))
@@ -2444,8 +2463,10 @@ int spider_db_append_key_where_internal(
                   SPIDER_SQL_LTEQUAL_LEN))
                   DBUG_RETURN(HA_ERR_OUT_OF_MEM);
                 dbton_share->append_column_name(str_part2, field->field_index);
-                str_part2->q_append(SPIDER_SQL_LTEQUAL_STR,
-                  SPIDER_SQL_LTEQUAL_LEN);
+                if (rev)
+                  str_part2->q_append(SPIDER_SQL_GTEQUAL_STR, SPIDER_SQL_GTEQUAL_LEN);
+                else
+                  str_part2->q_append(SPIDER_SQL_LTEQUAL_STR, SPIDER_SQL_LTEQUAL_LEN);
                 if (spider_dbton[dbton_id].db_util->
                   append_column_value(spider, str_part2, field, ptr,
                     share->access_charset))
@@ -2458,8 +2479,7 @@ int spider_db_append_key_where_internal(
                   {
                     if (str->reserve(SPIDER_SQL_LTEQUAL_LEN))
                       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-                    str->q_append(SPIDER_SQL_LTEQUAL_STR,
-                      SPIDER_SQL_LTEQUAL_LEN);
+                    str->q_append(SPIDER_SQL_LTEQUAL_STR, SPIDER_SQL_LTEQUAL_LEN);
                   }
                   if (spider_dbton[dbton_id].db_util->
                     append_column_value(spider, str_part, field, ptr,
@@ -2470,8 +2490,7 @@ int spider_db_append_key_where_internal(
                   {
                     if (str->reserve(SPIDER_SQL_LTEQUAL_LEN))
                       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-                    str->q_append(SPIDER_SQL_LTEQUAL_STR,
-                      SPIDER_SQL_LTEQUAL_LEN);
+                    str->q_append(SPIDER_SQL_LTEQUAL_STR, SPIDER_SQL_LTEQUAL_LEN);
                     if (spider_dbton[dbton_id].db_util->
                       append_column_value(spider, str_part, field, ptr,
                         share->access_charset))
