@@ -1764,6 +1764,7 @@ public:
   void add_keyuses_for_splitting();
   bool inject_best_splitting_cond(table_map remaining_tables);
   bool fix_all_splittings_in_plan();
+  bool inject_splitting_cond_for_all_tables_with_split_opt();
 
   bool transform_in_predicates_into_in_subq(THD *thd);
 private:

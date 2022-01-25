@@ -9755,6 +9755,9 @@ bool JOIN::get_best_combination()
   hash_join= FALSE;
 
   fix_semijoin_strategies_for_picked_join_order(this);
+
+  if (inject_splitting_cond_for_all_tables_with_split_opt())
+    DBUG_RETURN(TRUE);
    
   JOIN_TAB_RANGE *root_range;
   if (!(root_range= new (thd->mem_root) JOIN_TAB_RANGE))
@@ -21861,21 +21864,6 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
 	test_if_ref(root_cond, (Item_field*) right_item,left_item))
     {
       cond->marker=3;			// Checked when read
-      return (COND*) 0;
-    }
-    /*
-      If cond is an equality injected for split optimization then
-      a. when retain_ref_cond == false : cond is removed unconditionally
-         (cond that supports ref access is removed by the preceding code)
-      b. when retain_ref_cond == true : cond is removed if it does not
-         support ref access
-    */
-    if (left_item->type() == Item::FIELD_ITEM &&
-        is_eq_cond_injected_for_split_opt((Item_func_eq *) cond) &&
-        (!retain_ref_cond ||
-         !test_if_ref(root_cond, (Item_field*) left_item,right_item)))
-    {
-      cond->marker=3;
       return (COND*) 0;
     }
   }
