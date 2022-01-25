@@ -7905,10 +7905,12 @@ bool Binlog_checkpoint_log_event::write()
 
 Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
                const Format_description_log_event *description_event)
-  : Log_event(buf, description_event), seq_no(0), commit_id(0)
+  : Log_event(buf, description_event), seq_no(0), commit_id(0),
+  flags_extra(0)
 {
   uint8 header_size= description_event->common_header_len;
   uint8 post_header_len= description_event->post_header_len[GTID_EVENT-1];
+  const char *buf_0= buf;
   if (event_len < (uint) header_size + (uint) post_header_len ||
       post_header_len < GTID_HEADER_LEN)
     return;
@@ -7928,6 +7930,25 @@ Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
     }
     ++buf;
     commit_id= uint8korr(buf);
+    buf= buf_0 + (uint)header_size + GTID_HEADER_LEN + 2;
+  }
+  else
+    buf= buf_0 + (uint)header_size + GTID_HEADER_LEN;
+
+  /* the extra flags check and actions */
+  if (static_cast<uint>(buf - buf_0) < event_len)
+  {
+    flags_extra= *buf++;
+
+    if (flags_extra & FL_EXTRA_THREAD_ID)
+    {
+      DBUG_ASSERT(static_cast<uint>(buf - buf_0) <= event_len - 4);
+
+      thread_id= uint4korr(buf);
+      buf+= 4;
+
+      DBUG_ASSERT(thread_id > 0);
+    }
   }
 }
 
@@ -7940,7 +7961,9 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
                                uint64 commit_id_arg)
   : Log_event(thd_arg, flags_arg, is_transactional),
     seq_no(seq_no_arg), commit_id(commit_id_arg), domain_id(domain_id_arg),
-    flags2((standalone ? FL_STANDALONE : 0) | (commit_id_arg ? FL_GROUP_COMMIT_ID : 0))
+    flags2((standalone ? FL_STANDALONE : 0) |
+      (commit_id_arg ? FL_GROUP_COMMIT_ID : 0)),
+    flags_extra(0)
 {
   cache_type= Log_event::EVENT_NO_CACHE;
   bool is_tmp_table= thd_arg->lex->stmt_accessed_temp_table();
@@ -7961,6 +7984,9 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
   /* Preserve any DDL or WAITED flag in the slave's binlog. */
   if (thd_arg->rgi_slave)
     flags2|= (thd_arg->rgi_slave->gtid_ev_flags2 & (FL_DDL|FL_WAITED));
+  flags_extra|= FL_EXTRA_THREAD_ID;
+  thread_id= thd->variables.pseudo_thread_id;
+
 }
 
 
@@ -8003,7 +8029,7 @@ Gtid_log_event::peek(const char *event_start, size_t event_len,
 bool
 Gtid_log_event::write()
 {
-  uchar buf[GTID_HEADER_LEN+2];
+  uchar buf[GTID_HEADER_LEN+2+ /* flags_extra: */ 1+4];
   size_t write_len;
 
   int8store(buf, seq_no);
@@ -8018,6 +8044,17 @@ Gtid_log_event::write()
   {
     bzero(buf+13, GTID_HEADER_LEN-13);
     write_len= GTID_HEADER_LEN;
+  }
+  if (flags_extra > 0)
+  {
+    buf[write_len]= flags_extra;
+    write_len++;
+  }
+
+  if (flags_extra & FL_EXTRA_THREAD_ID)
+  {
+    int4store(buf+write_len, thread_id);
+    write_len+= 4;
   }
   return write_header(write_len) ||
          write_data(buf, write_len) ||
@@ -8211,6 +8248,10 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     if (flags2 & FL_WAITED)
       if (my_b_write_string(&cache, " waited"))
         goto err;
+    if (flags_extra & FL_EXTRA_THREAD_ID)
+      if (my_b_printf(&cache, " thread_id=%u", thread_id))
+        goto err;
+
     if (my_b_printf(&cache, "\n"))
       goto err;
 

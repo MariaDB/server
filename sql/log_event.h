@@ -3365,8 +3365,13 @@ public:
   uint64 commit_id;
   uint32 domain_id;
   uchar flags2;
-
+  uint  flags_extra; // more flags area placed after the regular flags2's one
+  my_thread_id thread_id;
   /* Flags2. */
+
+  /*Storing thread id into gtid*/
+  static const uchar FL_EXTRA_THREAD_ID= 1;
+
 
   /* FL_STANDALONE is set when there is no terminating COMMIT event. */
   static const uchar FL_STANDALONE= 1;

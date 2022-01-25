@@ -1,0 +1,22 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+RESET MASTER;
+RESET SLAVE;
+include/start_slave.inc
+connection master;
+RESET MASTER;
+create table t1(a int);
+insert into t1 values(1);
+insert into t1 values(1);
+set @@pseudo_thread_id=99999;
+drop table t1;
+connection slave;
+#Only 2 matches
+FOUND 2 /GTID [0-9]-[0-9]-[0-9] trans thread_id=master_thread_id \n/ in binlog.sql
+#Only 1 matches
+FOUND 1 /GTID [0-9]-[0-9]-[0-9] ddl thread_id=master_thread_id \n/ in binlog.sql
+#Only 1 matches
+FOUND 1 /GTID [0-9]-[0-9]-[0-9] ddl thread_id=99999\n/ in binlog.sql
+include/rpl_end.inc
