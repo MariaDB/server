@@ -1,0 +1,72 @@
+#
+# MDEV-27615 - Assertion `server_id.is_undefined() == false'
+# failed in wsrep::transaction::certify_fragment()
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+
+--let $node_1=node_1
+--let $node_2=node_2
+--source suite/galera/include/auto_increment_offset_save.inc
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+--connection node_2
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) Engine=InnoDB;
+
+#
+# Set debug sync point right before the assert
+#
+SET DEBUG_SYNC='wsrep_before_fragment_certification SIGNAL before_fragment WAIT_FOR continue';
+
+SET SESSION wsrep_trx_fragment_size=1;
+START TRANSACTION;
+--send INSERT INTO t1 VALUES (1);
+
+
+#
+# Disconnect node_2 from cluster
+#
+--connection node_2a
+SET SESSION wsrep_sync_wait = 0;
+--let $node_2_cluster_address = `SELECT @@wsrep_cluster_address`
+SET DEBUG_SYNC='now WAIT_FOR before_fragment';
+SET GLOBAL wsrep_cluster_address = '';
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Disconnected' FROM information_schema.global_status WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+SET DEBUG_SYNC = 'now SIGNAL continue';
+
+
+#
+# Disconnect causes connection to node_2 to be closed
+#
+--connection node_2
+--error 2013 # CR_SERVER_LOST
+--reap
+
+
+#
+# Reconnect node 2
+#
+--connection node_2a
+--disable_query_log
+--eval SET GLOBAL wsrep_cluster_address = '$node_2_cluster_address';
+--enable_query_log
+--source include/wait_wsrep_ready.inc
+
+#
+# Expect the transaction to be rolled back and cleanup
+#
+SELECT * FROM mysql.wsrep_streaming_log;
+SELECT * FROM t1;
+
+DROP TABLE t1;
+SET DEBUG_SYNC = 'RESET';
+
+--disconnect node_2
+--connect node_2, 127.0.0.1, root, , test, $NODE_MYPORT_2
+
+
+--source suite/galera/include/auto_increment_offset_restore.inc
