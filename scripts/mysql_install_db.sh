@@ -41,6 +41,7 @@ create database if not exists test;
 use mysql;"
 auth_root_authentication_method=normal
 auth_root_socket_user='root'
+upgrade_info=0
 
 dirname0=`dirname $0 2>/dev/null`
 dirname0=`dirname $dirname0 2>/dev/null`
@@ -97,6 +98,7 @@ Usage: $0 [OPTIONS]
                        user.  You must be root to use this option.  By default
                        mysqld runs using your current login name and files and
                        directories that it creates will be owned by you.
+  --upgrade-info       Store mysql_upgrade_info in the installed data directory.
 
 All other options are passed to the mysqld program
 
@@ -152,6 +154,7 @@ parse_arguments()
       --skip-name-resolve) ip_only=1 ;;
       --verbose) verbose=1 ; silent_startup="" ;;
       --rpm) in_rpm=1 ;;
+      --upgrade-info) upgrade_info=1 ;;
       --help) usage ;;
       --no-defaults|--defaults-file=*|--defaults-extra-file=*)
         defaults="$arg" ;;
@@ -509,6 +512,10 @@ SET @auth_root_socket='$auth_root_socket_user';" ;;
 esac
 if { echo "$install_params"; cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp"; } | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then
+  if test "$upgrade_info" -eq 1
+  then
+    printf "@VERSION@-MariaDB" > "$ldata/mysql_upgrade_info"
+  fi
   s_echo "OK"
 else
   echo
