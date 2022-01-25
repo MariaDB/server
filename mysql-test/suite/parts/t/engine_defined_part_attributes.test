@@ -167,3 +167,50 @@ SUBPARTITION BY HASH(id) (
 SHOW CREATE TABLE `t11`;
 
 DROP TABLE `t11`;
+
+--echo #
+--echo # MDEV-27605 ALTER .. ADD PARTITION uses wrong partition-level option values
+--echo #
+
+--let $restart_parameters= --innodb-sys-tablespaces
+--source include/restart_mysqld.inc
+
+CREATE TABLE `t12` (
+  id INT
+) ENGINE=InnoDB PARTITION BY HASH(id)
+(
+  pt1 PAGE_COMPRESSED=0
+);
+SELECT name, flag FROM information_schema.innodb_sys_tablespaces WHERE name like 'test/t12%';
+
+ALTER TABLE `t12` ADD PARTITION (
+  PARTITION pt2 PAGE_COMPRESSED=1
+);
+SELECT name, flag FROM information_schema.innodb_sys_tablespaces WHERE name like 'test/t12%';
+
+ALTER TABLE `t12` ADD PARTITION (
+  PARTITION pt3 PAGE_COMPRESSED=1 PAGE_COMPRESSION_LEVEL=3
+);
+SELECT name, flag FROM information_schema.innodb_sys_tablespaces WHERE name like 'test/t12%';
+
+DROP TABLE `t12`;
+
+CREATE TABLE `t13` (
+  `id` INT
+) ENGINE=InnoDB PAGE_COMPRESSED=1 PARTITION BY RANGE(id) (
+    PARTITION pt1 VALUES LESS THAN (100) PAGE_COMPRESSED=0,
+    PARTITION pt2 VALUES LESS THAN (200) PAGE_COMPRESSED=1 PAGE_COMPRESSION_LEVEL=3,
+    PARTITION pt3 VALUES LESS THAN MAXVALUE
+);
+SHOW CREATE TABLE `t13`;
+SELECT name, flag FROM information_schema.innodb_sys_tablespaces WHERE name like 'test/t13%';
+
+ALTER TABLE `t13` PARTITION BY RANGE(id) (
+    PARTITION pt1 VALUES LESS THAN (100) PAGE_COMPRESSED=1 PAGE_COMPRESSION_LEVEL=3,
+    PARTITION pt2 VALUES LESS THAN (200),
+    PARTITION pt3 VALUES LESS THAN MAXVALUE PAGE_COMPRESSED=0
+);
+SHOW CREATE TABLE `t13`;
+SELECT name, flag FROM information_schema.innodb_sys_tablespaces WHERE name like 'test/t13%';
+
+DROP TABLE `t13`;

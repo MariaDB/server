@@ -10318,6 +10318,8 @@ do_continue:;
     {
       DBUG_RETURN(true);
     }
+    if (parse_engine_part_options(thd, table))
+      DBUG_RETURN(true);
   }
 #endif
 
