@@ -37,7 +37,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("inet_aton") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals= 0;
     max_length= 21;
@@ -65,7 +65,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("inet_ntoa") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals= 0;
     fix_length_and_charset(3 * 8 + 7, default_charset());
@@ -111,7 +111,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("inet6_aton") };
     return name;
   }
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals= 0;
     fix_length_and_charset(16, &my_charset_bin);
@@ -143,7 +143,7 @@ public:
     return name;
   }
 
-  bool fix_length_and_dec() override
+  bool fix_length_and_dec(THD *thd) override
   {
     decimals= 0;
 

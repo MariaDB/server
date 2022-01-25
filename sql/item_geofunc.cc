@@ -42,7 +42,7 @@
 #include "item_create.h"
 
 
-bool Item_geometry_func::fix_length_and_dec()
+bool Item_geometry_func::fix_length_and_dec(THD *thd)
 {
   collation.set(&my_charset_bin);
   decimals=0;
@@ -214,7 +214,7 @@ String *Item_func_as_wkt::val_str_ascii(String *str)
 }
 
 
-bool Item_func_as_wkt::fix_length_and_dec()
+bool Item_func_as_wkt::fix_length_and_dec(THD *thd)
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= (uint32) UINT_MAX32;
@@ -241,7 +241,7 @@ String *Item_func_as_wkb::val_str(String *str)
 }
 
 
-bool Item_func_as_geojson::fix_length_and_dec()
+bool Item_func_as_geojson::fix_length_and_dec(THD *thd)
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length=MAX_BLOB_WIDTH;

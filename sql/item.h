@@ -5458,7 +5458,7 @@ public:
   inline const char *func_name() const
   { return (char*) func_name_cstring().str; }
   virtual LEX_CSTRING func_name_cstring() const= 0;
-  virtual bool fix_length_and_dec()= 0;
+  virtual bool fix_length_and_dec(THD *thd)= 0;
   bool const_item() const override { return const_item_cache; }
   table_map used_tables() const override { return used_tables_cache; }
   Item* build_clone(THD *thd) override;
