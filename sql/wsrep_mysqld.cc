@@ -1,5 +1,5 @@
-/* Copyright 2008-2021 Codership Oy <http://www.codership.com>
-   Copyright (c) 2020, 2021, MariaDB
+/* Copyright (c) 2008, 2022 Codership Oy <http://www.codership.com>
+   Copyright (c) 2020, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -802,7 +802,6 @@ int wsrep_init_server()
 
 void wsrep_init_globals()
 {
-  wsrep_gtid_server.domain_id= wsrep_gtid_domain_id;
   wsrep_init_sidno(Wsrep_server_state::instance().connected_gtid().id());
   /* Recover last written wsrep gtid */
   wsrep_init_gtid();
@@ -816,6 +815,13 @@ void wsrep_init_globals()
     /* Try to search for domain_id and server_id combination in binlog if found continue from last seqno */
     wsrep_get_binlog_gtid_seqno(new_gtid);
     wsrep_gtid_server.gtid(new_gtid);
+  }
+  else
+  {
+    if (wsrep_gtid_mode && wsrep_gtid_server.server_id != global_system_variables.server_id)
+    {
+      WSREP_WARN("Ignoring server id for non bootstrap node.");
+    }
   }
   wsrep_init_schema();
   if (WSREP_ON)
@@ -1142,6 +1148,15 @@ bool wsrep_start_replication(const char *wsrep_cluster_address)
   }
 
   DBUG_ASSERT(wsrep_cluster_address[0]);
+
+  // --wsrep-new-cluster flag is not used, checking wsrep_cluster_address
+  // it should match gcomm:// only to be considered as bootstrap node.
+  // This logic is used in galera.
+  if (!wsrep_new_cluster && (strlen(wsrep_cluster_address) == 8) &&
+      !strncmp(wsrep_cluster_address, "gcomm://", 8))
+  {
+    wsrep_new_cluster= true;
+  }
 
   bool const bootstrap(TRUE == wsrep_new_cluster);
 
