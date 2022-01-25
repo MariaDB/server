@@ -1511,9 +1511,13 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
   if (!mode)
     // Take care of an eventual extra column node a la html
     if (Tdbp->Colname) {
-      sprintf(pbuf, Tdbp->Colname, Rank + ((Tdbp->Usedom) ? 0 : 1));
-      strcat(pbuf, "/");
-      } // endif Colname
+      char *p = strstr(Tdbp->Colname, "%d");
+      if (p)
+        snprintf(pbuf, len + 3, "%.*s%d%s/", (int) (p - Tdbp->Colname), Tdbp->Colname,
+            Rank + (Tdbp->Usedom ? 0 : 1), p + 2);
+      else
+        snprintf(pbuf, len + 3, "%s/", Tdbp->Colname);
+    } // endif Colname
 
   if (Xname) {
     if (Type == 2) {
