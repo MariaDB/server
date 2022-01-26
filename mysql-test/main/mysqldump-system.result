@@ -1,3 +1,4 @@
+install soname 'auth_test_plugin';
 #
 # MDEV-23630: mysqldump to logically dump system tables
 #
@@ -9,13 +10,13 @@ insert into tables_priv select * from mysql.tables_priv;
 delete from mysql.global_priv where host not in ('localhost');
 flush privileges;
 alter user 'mariadb.sys'@'localhost' ACCOUNT UNLOCK;
-create user USER;
+create user foobar IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 CREATE ROLE role_1;
 CREATE ROLE role_2 WITH ADMIN role_1;
 GRANT SHOW DATABASES ON *.* TO role_1;
-GRANT role_1 TO USER;
-GRANT role_2 TO USER;
-SET DEFAULT ROLE role_2 FOR USER;
+GRANT role_1 TO foobar;
+GRANT role_2 TO foobar;
+SET DEFAULT ROLE role_2 FOR foobar;
 ALTER TABLE mysql.roles_mapping ORDER BY Host, User, Role;
 set @save_innodb_stats_persistent= @@innodb_stats_persistent;
 create table mysql.tz like mysql.time_zone_transition;
@@ -49,9 +50,11 @@ CREATE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+INSTALL PLUGIN test_plugin_server  SONAME 'AUTH_TEST_PLUGIN_LIB';
+INSTALL PLUGIN cleartext_plugin_server  SONAME 'AUTH_TEST_PLUGIN_LIB';
 CREATE USER `mariadb.sys`@`localhost` PASSWORD EXPIRE;
 CREATE USER `root`@`localhost`;
-CREATE USER `USER`@`%`;
+CREATE USER `foobar`@`%` IDENTIFIED VIA test_plugin_server USING 'plug_dest';
 SELECT COALESCE(CURRENT_ROLE(),'NONE') into @current_role;
 CREATE ROLE IF NOT EXISTS mariadb_dump_import_role;
 GRANT mariadb_dump_import_role TO CURRENT_USER();
@@ -71,11 +74,11 @@ GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION;
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION;
 /*M!100005 SET DEFAULT ROLE NONE FOR 'root'@'localhost' */;
 /*!80001 ALTER USER 'root'@'localhost' DEFAULT ROLE NONE */;
-GRANT `role_1` TO `USER`@`%`;
-GRANT `role_2` TO `USER`@`%`;
-GRANT USAGE ON *.* TO `USER`@`%`;
-/*M!100005 SET DEFAULT ROLE 'role_2' FOR 'USER'@'%' */;
-/*!80001 ALTER USER 'USER'@'%' DEFAULT ROLE 'role_2' */;
+GRANT `role_1` TO `foobar`@`%`;
+GRANT `role_2` TO `foobar`@`%`;
+GRANT USAGE ON *.* TO `foobar`@`%` IDENTIFIED VIA test_plugin_server USING 'plug_dest';
+/*M!100005 SET DEFAULT ROLE 'role_2' FOR 'foobar'@'%' */;
+/*!80001 ALTER USER 'foobar'@'%' DEFAULT ROLE 'role_2' */;
 GRANT `role_2` TO `role_1` WITH ADMIN OPTION;
 GRANT SHOW DATABASES ON *.* TO `role_1`;
 GRANT USAGE ON *.* TO `role_2`;
@@ -173,6 +176,10 @@ UNLOCK TABLES;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+/*M!100401 UNINSTALL PLUGIN IF EXIST test_plugin_server */;
+INSTALL PLUGIN test_plugin_server  SONAME 'AUTH_TEST_PLUGIN_LIB';
+/*M!100401 UNINSTALL PLUGIN IF EXIST cleartext_plugin_server */;
+INSTALL PLUGIN cleartext_plugin_server  SONAME 'AUTH_TEST_PLUGIN_LIB';
 DELIMITER |
 /*M!100101 IF current_user()="'mariadb.sys'@'localhost'" THEN
   SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT="Don't remove current user 'mariadb.sys'@'localhost''";
@@ -188,12 +195,12 @@ DELIMITER ;
 /*!50701 DROP USER IF EXISTS 'root'@'localhost' */;
 CREATE /*M!100103 OR REPLACE */ USER `root`@`localhost`;
 DELIMITER |
-/*M!100101 IF current_user()="'USER'@'%'" THEN
-  SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT="Don't remove current user 'USER'@'%''";
+/*M!100101 IF current_user()="'foobar'@'%'" THEN
+  SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT="Don't remove current user 'foobar'@'%''";
 END IF */|
 DELIMITER ;
-/*!50701 DROP USER IF EXISTS 'USER'@'%' */;
-CREATE /*M!100103 OR REPLACE */ USER `USER`@`%`;
+/*!50701 DROP USER IF EXISTS 'foobar'@'%' */;
+CREATE /*M!100103 OR REPLACE */ USER `foobar`@`%` IDENTIFIED VIA test_plugin_server USING 'plug_dest';
 SELECT COALESCE(CURRENT_ROLE(),'NONE') into @current_role;
 CREATE ROLE IF NOT EXISTS mariadb_dump_import_role;
 GRANT mariadb_dump_import_role TO CURRENT_USER();
@@ -215,11 +222,11 @@ GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION;
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION;
 /*M!100005 SET DEFAULT ROLE NONE FOR 'root'@'localhost' */;
 /*!80001 ALTER USER 'root'@'localhost' DEFAULT ROLE NONE */;
-GRANT `role_1` TO `USER`@`%`;
-GRANT `role_2` TO `USER`@`%`;
-GRANT USAGE ON *.* TO `USER`@`%`;
-/*M!100005 SET DEFAULT ROLE 'role_2' FOR 'USER'@'%' */;
-/*!80001 ALTER USER 'USER'@'%' DEFAULT ROLE 'role_2' */;
+GRANT `role_1` TO `foobar`@`%`;
+GRANT `role_2` TO `foobar`@`%`;
+GRANT USAGE ON *.* TO `foobar`@`%` IDENTIFIED VIA test_plugin_server USING 'plug_dest';
+/*M!100005 SET DEFAULT ROLE 'role_2' FOR 'foobar'@'%' */;
+/*!80001 ALTER USER 'foobar'@'%' DEFAULT ROLE 'role_2' */;
 GRANT `role_2` TO `role_1` WITH ADMIN OPTION;
 GRANT SHOW DATABASES ON *.* TO `role_1`;
 GRANT USAGE ON *.* TO `role_2`;
@@ -318,9 +325,11 @@ UNLOCK TABLES;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+INSTALL PLUGIN test_plugin_server /*M!100401 IF NOT EXISTS */ SONAME 'AUTH_TEST_PLUGIN_LIB';
+INSTALL PLUGIN cleartext_plugin_server /*M!100401 IF NOT EXISTS */ SONAME 'AUTH_TEST_PLUGIN_LIB';
 CREATE USER IF NOT EXISTS `mariadb.sys`@`localhost` PASSWORD EXPIRE;
 CREATE USER IF NOT EXISTS `root`@`localhost`;
-CREATE USER IF NOT EXISTS `USER`@`%`;
+CREATE USER IF NOT EXISTS `foobar`@`%` IDENTIFIED VIA test_plugin_server USING 'plug_dest';
 SELECT COALESCE(CURRENT_ROLE(),'NONE') into @current_role;
 CREATE ROLE IF NOT EXISTS mariadb_dump_import_role;
 GRANT mariadb_dump_import_role TO CURRENT_USER();
@@ -340,11 +349,11 @@ GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION;
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION;
 /*M!100005 SET DEFAULT ROLE NONE FOR 'root'@'localhost' */;
 /*!80001 ALTER USER 'root'@'localhost' DEFAULT ROLE NONE */;
-GRANT `role_1` TO `USER`@`%`;
-GRANT `role_2` TO `USER`@`%`;
-GRANT USAGE ON *.* TO `USER`@`%`;
-/*M!100005 SET DEFAULT ROLE 'role_2' FOR 'USER'@'%' */;
-/*!80001 ALTER USER 'USER'@'%' DEFAULT ROLE 'role_2' */;
+GRANT `role_1` TO `foobar`@`%`;
+GRANT `role_2` TO `foobar`@`%`;
+GRANT USAGE ON *.* TO `foobar`@`%` IDENTIFIED VIA test_plugin_server USING 'plug_dest';
+/*M!100005 SET DEFAULT ROLE 'role_2' FOR 'foobar'@'%' */;
+/*!80001 ALTER USER 'foobar'@'%' DEFAULT ROLE 'role_2' */;
 GRANT `role_2` TO `role_1` WITH ADMIN OPTION;
 GRANT SHOW DATABASES ON *.* TO `role_1`;
 GRANT USAGE ON *.* TO `role_2`;
@@ -430,7 +439,7 @@ UNLOCK TABLES;
 
 SELECT * FROM mysql.global_priv ORDER BY User,Host;
 Host	User	Priv
-%	USER	{"access":0,"version_id":VERSION,"plugin":"mysql_native_password","authentication_string":"","password_last_changed":NOW,"default_role":"role_2"}
+%	foobar	{"access":0,"version_id":VERSION,"plugin":"test_plugin_server","authentication_string":"plug_dest","password_last_changed":NOW,"default_role":"role_2"}
 localhost	mariadb.sys	{"access":0,"plugin":"mysql_native_password","authentication_string":"","account_locked":false,"password_last_changed":NOW,"version_id":VERSION}
 	role_1	{"access":16384,"version_id":VERSION,"is_role":true}
 	role_2	{"access":0,"version_id":VERSION,"is_role":true}
@@ -438,9 +447,9 @@ localhost	root	{"access":18446744073709551615}
 CHECKSUM TABLE mysql.roles_mapping, mysql.time_zone_transition, mysql.plugin,
 mysql.servers, mysql.func, mysql.innodb_table_stats, mysql.table_stats;
 Table	Checksum
-mysql.roles_mapping	4108206491
+mysql.roles_mapping	2510045525
 mysql.time_zone_transition	3895294076
-mysql.plugin	0
+mysql.plugin	1587119305
 mysql.servers	2079085450
 mysql.func	3241572444
 mysql.innodb_table_stats	347867921
@@ -450,7 +459,7 @@ CREATE USER mariadb_test_restore IDENTIFIED BY 'getitback';
 GRANT ALL ON *.* TO mariadb_test_restore WITH GRANT OPTION;
 GRANT PROXY ON ''@'%' TO mariadb_test_restore WITH GRANT OPTION;
 GRANT SUPER, CREATE USER /*M!100502 ,FEDERATED ADMIN */ ON *.* TO mariadb_test_restore WITH GRANT OPTION;
-drop user USER;
+drop user foobar;
 delete from mysql.table_stats;
 delete from mysql.innodb_table_stats;
 delete from mysql.time_zone_transition;
@@ -465,7 +474,7 @@ set time_zone= @@global.time_zone;
 DROP USER mariadb_test_restore;
 SELECT * FROM mysql.global_priv ORDER BY User,Host;
 Host	User	Priv
-%	USER	{"access":0,"version_id":VERSION,"plugin":"mysql_native_password","authentication_string":"","password_last_changed":NOW,"default_role":"role_2"}
+%	foobar	{"access":0,"version_id":VERSION,"plugin":"test_plugin_server","authentication_string":"plug_dest","password_last_changed":NOW,"default_role":"role_2"}
 localhost	mariadb.sys	{"access":0,"version_id":VERSION,"plugin":"mysql_native_password","authentication_string":"","password_last_changed":NOW,"password_lifetime":-1,"default_role":""}
 	role_1	{"access":16384,"version_id":VERSION,"is_role":true}
 	role_2	{"access":0,"version_id":VERSION,"is_role":true}
@@ -473,9 +482,9 @@ localhost	root	{"access":549755813887,"version_id":VERSION,"plugin":"mysql_nativ
 CHECKSUM TABLE mysql.roles_mapping, mysql.time_zone_transition, mysql.plugin,
 mysql.servers, mysql.func, mysql.innodb_table_stats, mysql.table_stats;
 Table	Checksum
-mysql.roles_mapping	4108206491
+mysql.roles_mapping	2510045525
 mysql.time_zone_transition	3895294076
-mysql.plugin	0
+mysql.plugin	1587119305
 mysql.servers	2079085450
 mysql.func	3241572444
 mysql.innodb_table_stats	347867921
@@ -490,8 +499,9 @@ DELETE FROM mysql.innodb_table_stats WHERE database_name='mysql' and table_name 
 drop table mysql.tz;
 DROP ROLE role_2;
 DROP ROLE role_1;
-drop user USER;
+drop user foobar;
 replace into mysql.global_priv select * from backup_users;
 replace into mysql.tables_priv select * from tables_priv;
 flush privileges;
 drop table backup_users, tables_priv;
+uninstall soname 'auth_test_plugin';
