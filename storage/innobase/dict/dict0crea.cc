@@ -536,15 +536,15 @@ dict_create_sys_fields_tuple(
 	dict_field_t*	field;
 	dfield_t*	dfield;
 	byte*		ptr;
-	ibool		index_contains_column_prefix_field	= FALSE;
-	ulint		j;
+	bool		wide_pos = false;
 
 	ut_ad(index);
 	ut_ad(heap);
 
-	for (j = 0; j < index->n_fields; j++) {
-		if (dict_index_get_nth_field(index, j)->prefix_len > 0) {
-			index_contains_column_prefix_field = TRUE;
+	for (unsigned j = 0; j < index->n_fields; j++) {
+		const dict_field_t* f = dict_index_get_nth_field(index, j);
+		if (f->prefix_len || f->descending) {
+			wide_pos = true;
 			break;
 		}
 	}
@@ -569,12 +569,15 @@ dict_create_sys_fields_tuple(
 
 	ptr = static_cast<byte*>(mem_heap_alloc(heap, 4));
 
-	if (index_contains_column_prefix_field) {
-		/* If there are column prefix fields in the index, then
-		we store the number of the field to the 2 HIGH bytes
-		and the prefix length to the 2 low bytes, */
-
-		mach_write_to_4(ptr, (fld_no << 16) + field->prefix_len);
+	if (wide_pos) {
+		/* If there are column prefixes or columns with
+		descending order in the index, then we write the
+		field number to the 16 most significant bits,
+		the DESC flag to bit 15, and the prefix length
+		in the 15 least significant bits. */
+		mach_write_to_4(ptr, (fld_no << 16)
+				| (!!field->descending) << 15
+				| field->prefix_len);
 	} else {
 		/* Else we store the number of the field to the 2 LOW bytes.
 		This is to keep the storage format compatible with

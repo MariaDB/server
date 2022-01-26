@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2020, MariaDB Corporation.
+Copyright (c) 2020, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -213,37 +213,35 @@ cmp_decimal(const byte*	a, ulint a_length, const byte* b, ulint b_length)
 }
 
 /** Compare two data fields.
-@param[in] mtype main type
-@param[in] prtype precise type
-@param[in] data1 data field
-@param[in] len1 length of data1 in bytes, or UNIV_SQL_NULL
-@param[in] data2 data field
-@param[in] len2 length of data2 in bytes, or UNIV_SQL_NULL
+@param mtype          main type
+@param prtype         precise type
+@param descending     whether to use descending order
+@param data1          data field
+@param len1           length of data1 in bytes, or UNIV_SQL_NULL
+@param data2          data field
+@param len2           length of data2 in bytes, or UNIV_SQL_NULL
 @return the comparison result of data1 and data2
 @retval 0 if data1 is equal to data2
 @retval negative if data1 is less than data2
 @retval positive if data1 is greater than data2 */
-inline
-int
-cmp_data(
-	ulint		mtype,
-	ulint		prtype,
-	const byte*	data1,
-	ulint		len1,
-	const byte*	data2,
-	ulint		len2)
+int cmp_data(ulint mtype, ulint prtype, bool descending,
+             const byte *data1, size_t len1, const byte *data2, size_t len2)
 {
 	ut_ad(len1 != UNIV_SQL_DEFAULT);
 	ut_ad(len2 != UNIV_SQL_DEFAULT);
 
+	int cmp;
+
 	if (len1 == UNIV_SQL_NULL || len2 == UNIV_SQL_NULL) {
 		if (len1 == len2) {
-			return(0);
+			return 0;
+		} else {
+			/* We define the SQL null to be the smallest possible
+			value of a field. */
+			cmp = len1 == UNIV_SQL_NULL ? -1 : 1;
 		}
-
-		/* We define the SQL null to be the smallest possible
-		value of a field. */
-		return(len1 == UNIV_SQL_NULL ? -1 : 1);
+func_exit:
+		return UNIV_UNLIKELY(descending) ? -cmp : cmp;
 	}
 
 	ulint	pad;
@@ -269,7 +267,8 @@ cmp_data(
 		if (prtype & DATA_GIS_MBR) {
 			ut_ad(len1 == DATA_MBR_LEN);
 			ut_ad(len2 == DATA_MBR_LEN);
-			return cmp_geometry_field(data1, data2);
+			cmp = cmp_geometry_field(data1, data2);
+			goto func_exit;
 		}
 		pad = ULINT_UNDEFINED;
 		break;
@@ -286,43 +285,50 @@ cmp_data(
 		/* fall through */
 	case DATA_VARMYSQL:
 	case DATA_MYSQL:
-		return innobase_mysql_cmp(prtype, data1, len1, data2, len2);
+		cmp = innobase_mysql_cmp(prtype, data1, len1, data2, len2);
+		goto func_exit;
 	case DATA_VARCHAR:
 	case DATA_CHAR:
-		return my_charset_latin1.strnncollsp(data1, len1, data2, len2);
+		cmp = my_charset_latin1.strnncollsp(data1, len1, data2, len2);
+		goto func_exit;
 	case DATA_DECIMAL:
-		return cmp_decimal(data1, len1, data2, len2);
+		cmp = cmp_decimal(data1, len1, data2, len2);
+		goto func_exit;
 	case DATA_DOUBLE:
 		{
 			double d_1 = mach_double_read(data1);
 			double d_2 = mach_double_read(data2);
 
 			if (d_1 > d_2) {
-				return 1;
+				cmp = 1;
 			} else if (d_2 > d_1) {
-				return -1;
+				cmp = -1;
+			} else {
+				return 0;
 			}
 		}
-		return 0;
+		goto func_exit;
 
 	case DATA_FLOAT:
 		float f_1 = mach_float_read(data1);
 		float f_2 = mach_float_read(data2);
 
 		if (f_1 > f_2) {
-			return 1;
+			cmp = 1;
 		} else if (f_2 > f_1) {
-			return -1;
+			cmp = -1;
+		} else {
+			return 0;
 		}
 
-		return 0;
+		goto func_exit;
 	}
 
 	ulint len = std::min(len1, len2);
-	int cmp = len ? memcmp(data1, data2, len) : 0;
+	cmp = len ? memcmp(data1, data2, len) : 0;
 
 	if (cmp) {
-		return (cmp);
+		goto func_exit;
 	}
 
 	data1 += len;
@@ -333,7 +339,7 @@ cmp_data(
 	cmp = (int) (len1 - len2);
 
 	if (!cmp || pad == ULINT_UNDEFINED) {
-		return(cmp);
+		goto func_exit;
 	}
 
 	len = 0;
@@ -342,65 +348,46 @@ cmp_data(
 		do {
 			cmp = static_cast<int>(
 				mach_read_from_1(&data1[len++]) - pad);
-		} while (cmp == 0 && len < len1);
+			if (cmp) {
+				goto func_exit;
+			}
+		} while (len < len1);
 	} else {
 		ut_ad(len2 > 0);
 
 		do {
 			cmp = static_cast<int>(
 				pad - mach_read_from_1(&data2[len++]));
-		} while (cmp == 0 && len < len2);
+			if (cmp) {
+				goto func_exit;
+			}
+		} while (len < len2);
 	}
 
-	return(cmp);
-}
-
-/** Compare two data fields.
-@param[in] mtype main type
-@param[in] prtype precise type
-@param[in] data1 data field
-@param[in] len1 length of data1 in bytes, or UNIV_SQL_NULL
-@param[in] data2 data field
-@param[in] len2 length of data2 in bytes, or UNIV_SQL_NULL
-@return the comparison result of data1 and data2
-@retval 0 if data1 is equal to data2
-@retval negative if data1 is less than data2
-@retval positive if data1 is greater than data2 */
-int
-cmp_data_data(
-	ulint		mtype,
-	ulint		prtype,
-	const byte*	data1,
-	ulint		len1,
-	const byte*	data2,
-	ulint		len2)
-{
-	return(cmp_data(mtype, prtype, data1, len1, data2, len2));
+	return 0;
 }
 
 /** Compare a data tuple to a physical record.
-@param[in] dtuple data tuple
-@param[in] rec B-tree record
-@param[in] offsets rec_get_offsets(rec)
-@param[in] n_cmp number of fields to compare
-@param[in,out] matched_fields number of completely matched fields
+@param dtuple          data tuple
+@param rec             B-tree index record
+@param index           B-tree index
+@param offsets         rec_get_offsets(rec,index)
+@param n_cmp           number of fields to compare
+@param matched_fields  number of completely matched fields
 @return the comparison result of dtuple and rec
 @retval 0 if dtuple is equal to rec
 @retval negative if dtuple is less than rec
 @retval positive if dtuple is greater than rec */
-int
-cmp_dtuple_rec_with_match_low(
-	const dtuple_t*	dtuple,
-	const rec_t*	rec,
-	const rec_offs*	offsets,
-	ulint		n_cmp,
-	ulint*		matched_fields)
+int cmp_dtuple_rec_with_match_low(const dtuple_t *dtuple, const rec_t *rec,
+                                  const dict_index_t *index,
+                                  const rec_offs *offsets,
+                                  ulint n_cmp, ulint *matched_fields)
 {
 	ulint		cur_field;	/* current field number */
-	int		ret;		/* return value */
+	int		ret = 0;	/* return value */
 
 	ut_ad(dtuple_check_typed(dtuple));
-	ut_ad(rec_offs_validate(rec, NULL, offsets));
+	ut_ad(rec_offs_validate(rec, index, offsets));
 
 	cur_field = *matched_fields;
 
@@ -414,6 +401,7 @@ cmp_dtuple_rec_with_match_low(
 						     rec_offs_comp(offsets));
 		ulint	tup_info = dtuple_get_info_bits(dtuple);
 
+		/* The "infimum node pointer" is always first. */
 		if (UNIV_UNLIKELY(rec_info & REC_INFO_MIN_REC_FLAG)) {
 			ret = !(tup_info & REC_INFO_MIN_REC_FLAG);
 			goto order_resolved;
@@ -454,7 +442,8 @@ cmp_dtuple_rec_with_match_low(
 
 		ut_ad(!dfield_is_ext(dtuple_field));
 
-		ret = cmp_data(type->mtype, type->prtype,
+		ret = cmp_data(type->mtype, type->prtype, !index->is_ibuf()
+			       && index->fields[cur_field].descending,
 			       dtuple_b_ptr, dtuple_f_len,
 			       rec_b_ptr, rec_f_len);
 		if (ret) {
@@ -462,8 +451,6 @@ cmp_dtuple_rec_with_match_low(
 		}
 	}
 
-	ret = 0;	/* If we ran out of fields, dtuple was equal to rec
-			up to the common fields */
 order_resolved:
 	*matched_fields = cur_field;
 	return(ret);
@@ -534,6 +521,7 @@ cmp_dtuple_rec_with_match_bytes(
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!(REC_INFO_MIN_REC_FLAG
 		& dtuple_get_info_bits(dtuple)));
+	ut_ad(!index->is_ibuf());
 
 	if (UNIV_UNLIKELY(REC_INFO_MIN_REC_FLAG
 			  & rec_get_info_bits(rec, rec_offs_comp(offsets)))) {
@@ -546,7 +534,7 @@ cmp_dtuple_rec_with_match_bytes(
 	ulint cur_field = *matched_fields;
 	ulint cur_bytes = *matched_bytes;
 	ulint n_cmp = dtuple_get_n_fields_cmp(dtuple);
-	int ret;
+	int ret = 0;
 
 	ut_ad(n_cmp <= dtuple_get_n_fields(dtuple));
 	ut_ad(cur_field <= n_cmp);
@@ -607,7 +595,7 @@ cmp_dtuple_rec_with_match_bytes(
 			}
 			/* fall through */
 		default:
-			ret = cmp_data(type->mtype, type->prtype,
+			ret = cmp_data(type->mtype, type->prtype, false,
 				       dtuple_b_ptr, dtuple_f_len,
 				       rec_b_ptr, rec_f_len);
 
@@ -671,62 +659,29 @@ next_field:
 
 	ut_ad(cur_bytes == 0);
 
-	ret = 0;	/* If we ran out of fields, dtuple was equal to rec
-			up to the common fields */
 order_resolved:
 	*matched_fields = cur_field;
 	*matched_bytes = cur_bytes;
 
-	return(ret);
+	return !ret || UNIV_LIKELY(!index->fields[cur_field].descending)
+		? ret : -ret;
 }
 
-/** Compare a data tuple to a physical record.
-@see cmp_dtuple_rec_with_match
-@param[in] dtuple data tuple
-@param[in] rec B-tree record
-@param[in] offsets rec_get_offsets(rec); may be NULL
-for ROW_FORMAT=REDUNDANT
-@return the comparison result of dtuple and rec
-@retval 0 if dtuple is equal to rec
-@retval negative if dtuple is less than rec
-@retval positive if dtuple is greater than rec */
-int
-cmp_dtuple_rec(
-	const dtuple_t*	dtuple,
-	const rec_t*	rec,
-	const rec_offs*	offsets)
+/** Check if a dtuple is a prefix of a record.
+@param dtuple  data tuple
+@param rec     index record
+@param index   index
+@param offsets rec_get_offsets(rec)
+@return whether dtuple is a prefix of rec */
+bool cmp_dtuple_is_prefix_of_rec(const dtuple_t *dtuple, const rec_t *rec,
+                                 const dict_index_t *index,
+                                 const rec_offs *offsets)
 {
-	ulint	matched_fields	= 0;
-
-	ut_ad(rec_offs_validate(rec, NULL, offsets));
-	return(cmp_dtuple_rec_with_match(dtuple, rec, offsets,
-					 &matched_fields));
-}
-
-/**************************************************************//**
-Checks if a dtuple is a prefix of a record. The last field in dtuple
-is allowed to be a prefix of the corresponding field in the record.
-@return TRUE if prefix */
-ibool
-cmp_dtuple_is_prefix_of_rec(
-/*========================*/
-	const dtuple_t*	dtuple,	/*!< in: data tuple */
-	const rec_t*	rec,	/*!< in: physical record */
-	const rec_offs*	offsets)/*!< in: array returned by rec_get_offsets() */
-{
-	ulint	n_fields;
-	ulint	matched_fields	= 0;
-
-	ut_ad(rec_offs_validate(rec, NULL, offsets));
-	n_fields = dtuple_get_n_fields(dtuple);
-
-	if (n_fields > rec_offs_n_fields(offsets)) {
-		ut_ad(0);
-		return(FALSE);
-	}
-
-	cmp_dtuple_rec_with_match(dtuple, rec, offsets, &matched_fields);
-	return(matched_fields == n_fields);
+  ulint	matched_fields= 0;
+  ulint n_fields= dtuple_get_n_fields(dtuple);
+  ut_ad(n_fields <= rec_offs_n_fields(offsets));
+  cmp_dtuple_rec_with_match(dtuple, rec, index, offsets, &matched_fields);
+  return matched_fields == n_fields;
 }
 
 /*************************************************************//**
@@ -749,7 +704,7 @@ cmp_rec_rec_simple_field(
 	const byte*	rec2_b_ptr;
 	ulint		rec1_f_len;
 	ulint		rec2_f_len;
-	const dict_col_t*	col	= dict_index_get_nth_col(index, n);
+	const dict_field_t* field = dict_index_get_nth_field(index, n);
 
 	ut_ad(!rec_offs_nth_extern(offsets1, n));
 	ut_ad(!rec_offs_nth_extern(offsets2, n));
@@ -757,8 +712,9 @@ cmp_rec_rec_simple_field(
 	rec1_b_ptr = rec_get_nth_field(rec1, offsets1, n, &rec1_f_len);
 	rec2_b_ptr = rec_get_nth_field(rec2, offsets2, n, &rec2_f_len);
 
-	return(cmp_data(col->mtype, col->prtype,
-			rec1_b_ptr, rec1_f_len, rec2_b_ptr, rec2_f_len));
+	return cmp_data(field->col->mtype, field->col->prtype,
+			field->descending,
+			rec1_b_ptr, rec1_f_len, rec2_b_ptr, rec2_f_len);
 }
 
 /** Compare two physical records that contain the same number of columns,
@@ -916,16 +872,19 @@ cmp_rec_rec(
 	for (; cur_field < n_fields; cur_field++) {
 		ulint	mtype;
 		ulint	prtype;
+		bool	descending;
 
 		if (UNIV_UNLIKELY(dict_index_is_ibuf(index))) {
 			/* This is for the insert buffer B-tree. */
 			mtype = DATA_BINARY;
 			prtype = 0;
+			descending = false;
 		} else {
-			const dict_col_t* col = dict_index_get_nth_col(
+			const dict_field_t* field = dict_index_get_nth_field(
 				index, cur_field);
-			mtype = col->mtype;
-			prtype = col->prtype;
+			descending = field->descending;
+			mtype = field->col->mtype;
+			prtype = field->col->prtype;
 
 			if (UNIV_LIKELY(!dict_index_is_spatial(index))) {
 			} else if (cur_field == 0) {
@@ -961,9 +920,8 @@ cmp_rec_rec(
 			goto order_resolved;
 		}
 
-		ret = cmp_data(mtype, prtype,
-			       rec1_b_ptr, rec1_f_len,
-			       rec2_b_ptr, rec2_f_len);
+		ret = cmp_data(mtype, prtype, descending,
+			       rec1_b_ptr, rec1_f_len, rec2_b_ptr, rec2_f_len);
 		if (ret) {
 			goto order_resolved;
 		}
@@ -978,28 +936,3 @@ order_resolved:
 	}
 	return ret;
 }
-
-#ifdef UNIV_COMPILE_TEST_FUNCS
-
-#ifdef HAVE_UT_CHRONO_T
-
-void
-test_cmp_data_data(ulint len)
-{
-	int		i;
-	static byte	zeros[64];
-
-	if (len > sizeof zeros) {
-		len = sizeof zeros;
-	}
-
-	ut_chrono_t	ch(__func__);
-
-	for (i = 1000000; i > 0; i--) {
-		i += cmp_data(DATA_INT, 0, zeros, len, zeros, len);
-	}
-}
-
-#endif /* HAVE_UT_CHRONO_T */
-
-#endif /* UNIV_COMPILE_TEST_FUNCS */

@@ -3086,7 +3086,8 @@ func_exit:
 	if (prev_entry != NULL) {
 		matched_fields = 0;
 
-		cmp = cmp_dtuple_rec_with_match(prev_entry, rec, offsets,
+		cmp = cmp_dtuple_rec_with_match(prev_entry,
+						rec, index, offsets,
 						&matched_fields);
 		contains_null = FALSE;
 

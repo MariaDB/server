@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1233,7 +1233,7 @@ static bool dict_table_can_be_evicted(dict_table_t *table)
 dict_index_t *dict_index_t::clone() const
 {
   ut_ad(n_fields);
-  ut_ad(!(type & (DICT_IBUF | DICT_SPATIAL | DICT_FTS)));
+  ut_ad(is_btree());
   ut_ad(online_status == ONLINE_INDEX_COMPLETE);
   ut_ad(is_committed());
   ut_ad(!is_dummy);
@@ -2253,15 +2253,14 @@ found:
 	return(TRUE);
 }
 
-/*******************************************************************//**
-Adds a column to index. */
-void
-dict_index_add_col(
-/*===============*/
-	dict_index_t*		index,		/*!< in/out: index */
-	const dict_table_t*	table,		/*!< in: table */
-	dict_col_t*		col,		/*!< in: column */
-	ulint			prefix_len)	/*!< in: column prefix length */
+/** Add a column to an index.
+@param index          index
+@param table          table
+@param col            column
+@param prefix_len     column prefix length
+@param descending     whether to use descending order */
+void dict_index_add_col(dict_index_t *index, const dict_table_t *table,
+                        dict_col_t *col, ulint prefix_len, bool descending)
 {
 	dict_field_t*	field;
 	const char*	col_name;
@@ -2299,6 +2298,8 @@ dict_index_add_col(
 		field->fixed_len = 0;
 	}
 
+	field->descending = descending;
+
 	/* The comparison limit above must be constant.  If it were
 	changed, the disk format of some fixed-length columns would
 	change, which would be a disaster. */
@@ -2330,7 +2331,7 @@ dict_index_copy(
 		field = dict_index_get_nth_field(index2, i);
 
 		dict_index_add_col(index1, index2->table, field->col,
-				   field->prefix_len);
+				   field->prefix_len, field->descending);
 	}
 }
 
@@ -2644,17 +2645,12 @@ dict_index_build_internal_non_clust(
 	index entry uniquely */
 
 	for (i = 0; i < clust_index->n_uniq; i++) {
-
 		field = dict_index_get_nth_field(clust_index, i);
 
-		if (!indexed[field->col->ind]) {
+		if (!indexed[field->col->ind] || index->is_spatial()) {
 			dict_index_add_col(new_index, table, field->col,
-					   field->prefix_len);
-		} else if (dict_index_is_spatial(index)) {
-			/*For spatial index, we still need to add the
-			field to index. */
-			dict_index_add_col(new_index, table, field->col,
-					   field->prefix_len);
+					   field->prefix_len,
+					   field->descending);
 		}
 	}
 
@@ -4724,7 +4720,7 @@ dict_foreign_qualify_index(
 		return(false);
 	}
 
-	if (index->type & (DICT_SPATIAL | DICT_FTS | DICT_CORRUPT)) {
+	if (!index->is_btree()) {
 		return false;
 	}
 

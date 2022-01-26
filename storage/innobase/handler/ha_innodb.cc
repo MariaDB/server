@@ -5406,6 +5406,11 @@ innobase_match_index_columns(
 			col_type= DATA_FIXBINARY;
 		}
 
+		if (innodb_idx_fld->descending
+		    != !!(key_part->key_part_flag & HA_REVERSE_SORT)) {
+			DBUG_RETURN(FALSE);
+		}
+
 		if (col_type != mtype) {
 			/* If the col_type we get from mysql type is a geometry
 			data type, we should check if mtype is a legacy type
@@ -10830,7 +10835,9 @@ create_index(
 			}
 
 			dict_mem_index_add_field(index, field->field_name.str,
-						 0);
+						 0,
+						 key->key_part->key_part_flag
+						 & HA_REVERSE_SORT);
 		}
 
 		DBUG_RETURN(convert_error_code_to_mysql(
@@ -10924,7 +10931,9 @@ create_index(
 			index->type |= DICT_VIRTUAL;
 		}
 
-		dict_mem_index_add_field(index, field_name, prefix_len);
+		dict_mem_index_add_field(index, field_name, prefix_len,
+					 key_part->key_part_flag
+					 & HA_REVERSE_SORT);
 	}
 
 	ut_ad(key->flags & HA_FULLTEXT || !(index->type & DICT_FTS));
@@ -11484,6 +11493,8 @@ bool create_table_info_t::innobase_table_flags()
 
 		/* Do a pre-check on FTS DOC ID index */
 		if (!(key->flags & HA_NOSAME)
+		    || key->user_defined_key_parts != 1
+		    || (key->key_part[0].key_part_flag & HA_REVERSE_SORT)
 		    || strcmp(key->name.str, FTS_DOC_ID_INDEX_NAME)
 		    || strcmp(key->key_part[0].field->field_name.str,
 			      FTS_DOC_ID_COL_NAME)) {
