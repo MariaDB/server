@@ -2107,6 +2107,21 @@ os_file_create_directory(
 	return(true);
 }
 
+/** Get disk sector size for a file. */
+size_t get_sector_size(HANDLE file)
+{
+  FILE_STORAGE_INFO fsi;
+  ULONG s= 4096;
+  if (GetFileInformationByHandleEx(file, FileStorageInfo, &fsi, sizeof fsi))
+  {
+    s= fsi.PhysicalBytesPerSectorForPerformance;
+    if (s > 4096 || s < 64 || !ut_is_2pow(s))
+    {
+      return 4096;
+    }
+  }
+  return s;
+}
 
 /** NOTE! Use the corresponding macro os_file_create(), not directly
 this function!
@@ -2205,27 +2220,22 @@ os_file_create_func(
 		? FILE_FLAG_OVERLAPPED : 0;
 
 	if (type == OS_LOG_FILE) {
-		attributes |= FILE_FLAG_NO_BUFFERING;
+		if(srv_flush_log_at_trx_commit != 2 && !log_sys.is_opened())
+			attributes|= FILE_FLAG_NO_BUFFERING;
+		if (srv_file_flush_method == SRV_O_DSYNC)
+			attributes|= FILE_FLAG_WRITE_THROUGH;
 	}
-
-	switch (srv_file_flush_method) {
-	case SRV_O_DSYNC:
-		if (type == OS_LOG_FILE) {
-			attributes |= FILE_FLAG_WRITE_THROUGH;
+	else if (type == OS_DATA_FILE)
+	{
+		switch (srv_file_flush_method)
+		{
+		case SRV_FSYNC:
+		case SRV_LITTLESYNC:
+		case SRV_NOSYNC:
+			break;
+		default:
+			attributes|= FILE_FLAG_NO_BUFFERING;
 		}
-		/* fall through */
-	case SRV_O_DIRECT_NO_FSYNC:
-	case SRV_O_DIRECT:
-	case SRV_ALL_O_DIRECT_FSYNC:
-		if (type != OS_DATA_FILE_NO_O_DIRECT) {
-			attributes |= FILE_FLAG_NO_BUFFERING;
-		}
-		break;
-
-	case SRV_FSYNC:
-	case SRV_LITTLESYNC:
-	case SRV_NOSYNC:
-		break;
 	}
 
 	DWORD	access = GENERIC_READ;
@@ -2243,41 +2253,17 @@ os_file_create_func(
 			create_flag, attributes, NULL);
 
 		if (file != INVALID_HANDLE_VALUE && type == OS_LOG_FILE
-		    && (attributes & FILE_FLAG_NO_BUFFERING)) {
-			if (log_sys.is_opened()) {
-				/* If we are upgrading from multiple log files,
-				never disable buffering on other than the
-				first file. We only keep track of the block
-				size of the first file. */
-			no_o_direct:
-				ut_a(CloseHandle(file));
+			&& (attributes & FILE_FLAG_NO_BUFFERING)) {
+			uint32 s= (uint32_t) get_sector_size(file);
+			log_sys.set_block_size(uint32_t(s));
+			/* FIXME! remove it when backup is fixed, so that it
+				does not produce redo with irregular sizes.*/
+			if (os_file_get_size(file) % s) {
 				attributes &= ~FILE_FLAG_NO_BUFFERING;
 				create_flag = OPEN_ALWAYS;
+				CloseHandle(file);
 				continue;
 			}
-
-			/* If FILE_FLAG_NO_BUFFERING was set on the log file,
-			check if this can work at all, for the expected sizes.
-			Reopen without the flag, if it won't work. */
-			DWORD high, low= GetFileSize(file, &high);
-			if (low & 4095) {
-				/* mariadb-backup creates odd-sized files that
-				will be resized before the log is being
-				written to */
-			skip_o_direct:
-				log_sys.set_block_size(0);
-				goto no_o_direct;
-			}
-			FILE_STORAGE_INFO i;
-			if (!GetFileInformationByHandleEx(file, FileStorageInfo,
-							  &i, sizeof i)) {
-				goto skip_o_direct;
-			}
-			const ULONG s = i.PhysicalBytesPerSectorForPerformance;
-			if (s > 4096 || s < 64 || !ut_is_2pow(s)) {
-				goto skip_o_direct;
-			}
-			log_sys.set_block_size(uint32_t(s));
 		}
 
 		*success = (file != INVALID_HANDLE_VALUE);
@@ -2576,18 +2562,12 @@ bool os_file_close_func(os_file_t file)
 /** Gets a file size.
 @param[in]	file		Handle to a file
 @return file size, or (os_offset_t) -1 on failure */
-os_offset_t
-os_file_get_size(
-	os_file_t	file)
+os_offset_t os_file_get_size(os_file_t file)
 {
-	DWORD		high;
-	DWORD		low = GetFileSize(file, &high);
-
-	if (low == 0xFFFFFFFF && GetLastError() != NO_ERROR) {
-		return((os_offset_t) -1);
-	}
-
-	return(os_offset_t(low | (os_offset_t(high) << 32)));
+  LARGE_INTEGER li;
+  if (GetFileSizeEx(file, &li))
+    return li.QuadPart;
+  return ((os_offset_t) -1);
 }
 
 /** Gets a file size.
