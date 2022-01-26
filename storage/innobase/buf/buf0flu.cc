@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 Copyright (c) 2013, 2014, Fusion-io
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1797,11 +1797,6 @@ static void buf_flush_wait(lsn_t lsn)
     my_cond_wait(&buf_pool.done_flush_list,
                  &buf_pool.flush_list_mutex.m_mutex);
   }
-
-  /* Wait for the checkpoint. */
-  while (buf_flush_sync_lsn)
-    my_cond_wait(&buf_pool.done_flush_list,
-                 &buf_pool.flush_list_mutex.m_mutex);
 }
 
 /** Wait until all persistent pages are flushed up to a limit.
@@ -2467,6 +2462,10 @@ void buf_flush_sync()
   {
     const lsn_t lsn= log_sys.get_lsn();
     buf_flush_wait(lsn);
+    /* Wait for the page cleaner to be idle (for log resizing at startup) */
+    while (buf_flush_sync_lsn)
+      my_cond_wait(&buf_pool.done_flush_list,
+                   &buf_pool.flush_list_mutex.m_mutex);
     if (lsn == log_sys.get_lsn())
       break;
   }
