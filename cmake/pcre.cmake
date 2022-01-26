@@ -19,12 +19,21 @@ MACRO(BUNDLE_PCRE2)
       SET(intdir)
     ENDIF()
 
-    SET(file ${dir}/src/pcre2-build/${intdir}${CMAKE_STATIC_LIBRARY_PREFIX}${lib}-static${CMAKE_STATIC_LIBRARY_SUFFIX})
+    # PCRE names static libraries differently depending on platform.
+    # On Windows, but not elsewhere, it adds "-static" to the library name,
+    # or "-staticd".
+    IF(WIN32)
+      SET(PCRE_STATIC "-static")
+    ELSE()
+      SET(PCRE_STATIC "")
+    ENDIF()
+
+    SET(file ${dir}/src/pcre2-build/${intdir}${CMAKE_STATIC_LIBRARY_PREFIX}${lib}${PCRE_STATIC}${CMAKE_STATIC_LIBRARY_SUFFIX})
 
     IF(WIN32)
       # Debug libary name.
       # Same condition as in pcre2 CMakeLists.txt that adds "d"
-      SET(file_d ${dir}/src/pcre2-build/${intdir}${CMAKE_STATIC_LIBRARY_PREFIX}${lib}-staticd${CMAKE_STATIC_LIBRARY_SUFFIX})
+      SET(file_d ${dir}/src/pcre2-build/${intdir}${CMAKE_STATIC_LIBRARY_PREFIX}${lib}${PCRE_STATIC}d${CMAKE_STATIC_LIBRARY_SUFFIX})
       SET_TARGET_PROPERTIES(${lib} PROPERTIES IMPORTED_LOCATION_DEBUG ${file_d})
     ELSE()
       SET(file_d)
