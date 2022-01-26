@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2020, 2021, MariaDB Corporation.
+Copyright (c) 2020, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -49,49 +49,25 @@ At the present, the comparison functions return 0 in the case,
 where two records disagree only in the way that one
 has more fields than the other. */
 
-/** Compare two data fields.
-@param[in] prtype precise type
-@param[in] a data field
-@param[in] a_length length of a, in bytes (not UNIV_SQL_NULL)
-@param[in] b data field
-@param[in] b_length length of b, in bytes (not UNIV_SQL_NULL)
-@return positive, 0, negative, if a is greater, equal, less than b,
-respectively */
-UNIV_INLINE
-int
-innobase_mysql_cmp(
-	ulint		prtype,
-	const byte*	a,
-	unsigned int	a_length,
-	const byte*	b,
-	unsigned int	b_length)
+#ifndef DBUG_OFF
+/** @return whether a data type is compatible with strnncoll() functions */
+static bool is_strnncoll_compatible(ulint type)
 {
-#ifdef UNIV_DEBUG
-	switch (prtype & DATA_MYSQL_TYPE_MASK) {
-	case MYSQL_TYPE_BIT:
-	case MYSQL_TYPE_STRING:
-	case MYSQL_TYPE_VAR_STRING:
-	case MYSQL_TYPE_TINY_BLOB:
-	case MYSQL_TYPE_MEDIUM_BLOB:
-	case MYSQL_TYPE_BLOB:
-	case MYSQL_TYPE_LONG_BLOB:
-	case MYSQL_TYPE_VARCHAR:
-		break;
-	default:
-		ut_error;
-	}
-#endif /* UNIV_DEBUG */
-
-	uint cs_num = (uint) dtype_get_charset_coll(prtype);
-
-	if (CHARSET_INFO* cs = get_charset(cs_num, MYF(MY_WME))) {
-		return(cs->coll->strnncollsp(
-			       cs, a, a_length, b, b_length));
-	}
-
-	ib::fatal() << "Unable to find charset-collation " << cs_num;
-	return(0);
+  switch (type) {
+  case MYSQL_TYPE_BIT:
+  case MYSQL_TYPE_STRING:
+  case MYSQL_TYPE_VAR_STRING:
+  case MYSQL_TYPE_TINY_BLOB:
+  case MYSQL_TYPE_MEDIUM_BLOB:
+  case MYSQL_TYPE_BLOB:
+  case MYSQL_TYPE_LONG_BLOB:
+  case MYSQL_TYPE_VARCHAR:
+    return true;
+  default:
+    return false;
+  }
 }
+#endif /* DBUG_OFF */
 
 /*************************************************************//**
 Returns TRUE if two columns are equal for comparison purposes.
@@ -309,68 +285,52 @@ cmp_gis_field(
 @param[in] b_length length of b, in bytes (not UNIV_SQL_NULL)
 @return positive, 0, negative, if a is greater, equal, less than b,
 respectively */
-static
-int
-cmp_whole_field(
-	ulint		mtype,
-	ulint		prtype,
-	const byte*	a,
-	unsigned int	a_length,
-	const byte*	b,
-	unsigned int	b_length)
+static int cmp_whole_field(ulint mtype, ulint prtype,
+                           const byte *a, unsigned a_length,
+                           const byte *b, unsigned b_length)
 {
-	float		f_1;
-	float		f_2;
-	double		d_1;
-	double		d_2;
+  switch (mtype) {
+  default:
+    ib::fatal() << "Unknown data type number " << mtype;
+    return 0;
+  case DATA_DECIMAL:
+    return cmp_decimal(a, a_length, b, b_length);
+  case DATA_DOUBLE:
+    {
+      const double af= mach_double_read(a), bf= mach_double_read(b);
+      return af > bf ? 1 : bf > af ? -1 : 0;
+    }
+  case DATA_FLOAT:
+    {
+      const float af= mach_float_read(a), bf= mach_float_read(b);
+      return af > bf ? 1 : bf > af ? -1 : 0;
+    }
+  case DATA_VARCHAR:
+  case DATA_CHAR:
+    /* latin1_swedish_ci is treated as a special case in InnoDB.
+    Because it is a fixed-length encoding (mbminlen=mbmaxlen=1),
+    non-NULL CHAR(n) values will always occupy n bytes and we
+    can invoke strnncollsp() instead of strnncollsp_nchars(). */
+    return my_charset_latin1.coll->strnncollsp(&my_charset_latin1,
+                                               a, a_length, b, b_length);
+  case DATA_BLOB:
+    ut_ad(!(prtype & DATA_BINARY_TYPE)); /* our only caller tested this */
+    /* fall through */
+  case DATA_VARMYSQL:
+    DBUG_ASSERT(is_strnncoll_compatible(prtype & DATA_MYSQL_TYPE_MASK));
+    if (CHARSET_INFO *cs= get_charset(dtype_get_charset_coll(prtype),
+                                      MYF(MY_WME)))
+      return cs->coll->strnncollsp(cs, a, a_length, b, b_length);
+    break;
+  case DATA_MYSQL:
+    DBUG_ASSERT(is_strnncoll_compatible(prtype & DATA_MYSQL_TYPE_MASK));
+    if (CHARSET_INFO *cs= get_charset(dtype_get_charset_coll(prtype),
+                                      MYF(MY_WME)))
+      return cs->coll->strnncollsp_nchars(cs, a, a_length, b, b_length,
+                                          std::max(a_length, b_length));
+  }
 
-	switch (mtype) {
-	case DATA_DECIMAL:
-		return(cmp_decimal(a, a_length, b, b_length));
-	case DATA_DOUBLE:
-		d_1 = mach_double_read(a);
-		d_2 = mach_double_read(b);
-
-		if (d_1 > d_2) {
-			return(1);
-		} else if (d_2 > d_1) {
-			return(-1);
-		}
-
-		return(0);
-
-	case DATA_FLOAT:
-		f_1 = mach_float_read(a);
-		f_2 = mach_float_read(b);
-
-		if (f_1 > f_2) {
-			return(1);
-		} else if (f_2 > f_1) {
-			return(-1);
-		}
-
-		return(0);
-	case DATA_VARCHAR:
-	case DATA_CHAR:
-		return(my_charset_latin1.coll->strnncollsp(
-			       &my_charset_latin1,
-			       a, a_length, b, b_length));
-	case DATA_BLOB:
-		if (prtype & DATA_BINARY_TYPE) {
-			ib::error() << "Comparing a binary BLOB"
-				" using a character set collation!";
-			ut_ad(0);
-		}
-		/* fall through */
-	case DATA_VARMYSQL:
-	case DATA_MYSQL:
-		return(innobase_mysql_cmp(prtype,
-					  a, a_length, b, b_length));
-	default:
-		ib::fatal() << "Unknown data type number " << mtype;
-	}
-
-	return(0);
+  ib::fatal() << "Unable to find charset-collation for " << prtype;
 }
 
 /** Compare two data fields.
