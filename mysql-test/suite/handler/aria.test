@@ -80,3 +80,23 @@ HANDLER t1 CLOSE;
 DROP TABLE t1;
 
 --echo End of 5.1 tests
+
+--echo #
+--echo # 10.2 Test
+--echo #
+--echo # MDEV-20207: Assertion `! is_set()' failed in
+--echo # Diagnostics_area::set_eof_status upon HANDLER READ
+--echo #
+
+DROP TABLE IF EXISTS t1;
+
+CREATE TABLE t1 (a POINT, KEY(a));
+HANDLER t1 OPEN h;
+
+--error ER_CANT_CREATE_GEOMETRY_OBJECT
+HANDLER h READ a = (0);
+
+HANDLER h CLOSE;
+DROP TABLE t1;
+
+--echo # End of 10.2 Test
