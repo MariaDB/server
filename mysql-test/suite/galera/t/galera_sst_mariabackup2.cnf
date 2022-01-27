@@ -1,7 +1,9 @@
 !include ../galera_2nodes.cnf
 
 [mysqld]
-wsrep_sst_method=rsync
+wsrep_sst_method=mariabackup
+wsrep_sst_auth="root:"
+wsrep_debug=ON
 
 [mysqld.1]
 wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=1;pc.ignore_sb=true'
@@ -12,3 +14,6 @@ log_bin_index=@ENV.MYSQLTEST_VARDIR/mysqld.1/node1/tmp/server1_binlog_index.inde
 wsrep_provider_options='base_port=@mysqld.2.#galera_port;gcache.size=1;pc.ignore_sb=true'
 log_bin=@ENV.MYSQLTEST_VARDIR/mysqld.2/node2/server2_binlog
 log_bin_index=@ENV.MYSQLTEST_VARDIR/mysqld.2/node2/tmp/server2_binlog_index.index
+
+[sst]
+transferfmt=@ENV.MTR_GALERA_TFMT

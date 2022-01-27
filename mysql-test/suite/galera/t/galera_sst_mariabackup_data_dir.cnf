@@ -1,14 +1,16 @@
 !include ../galera_2nodes.cnf
 
 [mysqld]
-wsrep_sst_method=rsync
+wsrep_sst_method=mariabackup
+wsrep_sst_auth="root:"
+wsrep_debug=ON
 
 [mysqld.1]
 wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=1;pc.ignore_sb=true'
-log_basename=server1
-log_bin
 
 [mysqld.2]
+#!use-slave-opt
 wsrep_provider_options='base_port=@mysqld.2.#galera_port;gcache.size=1;pc.ignore_sb=true'
-log_basename=server2
-log_bin
+
+[sst]
+transferfmt=@ENV.MTR_GALERA_TFMT

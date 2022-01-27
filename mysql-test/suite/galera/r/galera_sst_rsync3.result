@@ -286,5 +286,3 @@ COUNT(*) = 0
 DROP TABLE t1;
 COMMIT;
 SET AUTOCOMMIT=ON;
-disconnect node_2;
-disconnect node_1;
