@@ -1,6 +1,6 @@
 --- galera_sst_rsync.result
-+++ galera_sst_rsync,debug.reject
-@@ -284,3 +284,111 @@
++++ galera_sst_rsync.reject
+@@ -286,3 +286,111 @@
  DROP TABLE t1;
  COMMIT;
  SET AUTOCOMMIT=ON;

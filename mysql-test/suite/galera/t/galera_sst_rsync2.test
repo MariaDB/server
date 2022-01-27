@@ -1,3 +1,4 @@
+--source include/big_test.inc
 --source include/galera_cluster.inc
 
 --let $node_1=node_1
@@ -9,4 +10,5 @@
 
 --source suite/galera/include/galera_st_kill_slave.inc
 --source suite/galera/include/galera_st_kill_slave_ddl.inc
+
 --source include/auto_increment_offset_restore.inc

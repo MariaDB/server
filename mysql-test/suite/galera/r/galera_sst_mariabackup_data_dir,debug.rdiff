@@ -1,5 +1,5 @@
---- galera_sst_xtrabackup-v2_data_dir.result
-+++ galera_sst_xtrabackup-v2_data_dir.reject
+--- r/galera_sst_mariabackup_data_dir.result
++++ r/galera_sst_mariabackup_data_dir.reject
 @@ -286,5 +286,113 @@
  DROP TABLE t1;
  COMMIT;
