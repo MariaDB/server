@@ -32,6 +32,13 @@ copy_file(ds_ctxt_t *datasink,
 	  const char *dst_file_path,
 	  uint thread_n);
 
+/************************************************************************
+Check to see if a file exists.
+Takes name of the file to check.
+@return true if file exists. */
+bool
+file_exists(const char *filename);
+
 /** Start --backup */
 bool backup_start(CorruptedPages &corrupted_pages);
 /** Release resources after backup_start() */

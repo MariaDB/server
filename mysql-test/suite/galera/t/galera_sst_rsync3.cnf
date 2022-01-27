@@ -5,10 +5,8 @@ wsrep_sst_method=rsync
 
 [mysqld.1]
 wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=1;pc.ignore_sb=true'
-log_basename=server1
-log_bin
+log_bin=@ENV.MYSQLTEST_VARDIR/mysqld.1/node1/server1_binlog
 
 [mysqld.2]
 wsrep_provider_options='base_port=@mysqld.2.#galera_port;gcache.size=1;pc.ignore_sb=true'
-log_basename=server2
-log_bin
+log_bin=@ENV.MYSQLTEST_VARDIR/mysqld.2/node2/server2_binlog

@@ -1,6 +1,6 @@
---- galera_sst_xtrabackup-v2_data_dir.result
-+++ galera_sst_xtrabackup-v2_data_dir.reject
-@@ -286,5 +286,113 @@
+--- suite/galera/r/galera_sst_rsync3.result
++++ suite/galera/r/galera_sst_rsync3.reject
+@@ -286,3 +286,111 @@
  DROP TABLE t1;
  COMMIT;
  SET AUTOCOMMIT=ON;
@@ -112,5 +112,3 @@
 +COMMIT;
 +SET AUTOCOMMIT=ON;
 +SET GLOBAL debug_dbug = $debug_orig;
- disconnect node_2;
- disconnect node_1;

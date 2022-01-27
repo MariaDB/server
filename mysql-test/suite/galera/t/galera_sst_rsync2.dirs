@@ -1,0 +1,4 @@
+${MYSQLTEST_VARDIR}/mysqld.1/node1
+${MYSQLTEST_VARDIR}/mysqld.1/node1/tmp
+${MYSQLTEST_VARDIR}/mysqld.2/node2
+${MYSQLTEST_VARDIR}/mysqld.2/node2/tmp

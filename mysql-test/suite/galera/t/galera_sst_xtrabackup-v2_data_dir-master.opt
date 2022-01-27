@@ -1,0 +1,1 @@
+--innodb_data_home_dir=$MYSQLTEST_VARDIR/mysqld.1/innodb_data

@@ -1,5 +1,6 @@
 --source include/big_test.inc
 --source include/galera_cluster.inc
+--source include/have_innodb.inc
 
 --let $node_1=node_1
 --let $node_2=node_2
@@ -8,9 +9,9 @@
 --source suite/galera/include/galera_st_shutdown_slave.inc
 --source suite/galera/include/galera_st_clean_slave.inc
 
+--let $wsrep_recover_additional=--innodb-data-home-dir=$MYSQLTEST_VARDIR/mysqld.2/innodb_data
+
 --source suite/galera/include/galera_st_kill_slave.inc
 --source suite/galera/include/galera_st_kill_slave_ddl.inc
---source include/auto_increment_offset_restore.inc
 
-# cleanup temporary database files:
---remove_files_wildcard $MYSQL_TMP_DIR/rsync_test_2 *
+--source include/auto_increment_offset_restore.inc

@@ -1,5 +1,5 @@
---- suite/galera/r/galera_sst_rsync2.result	2018-09-12 13:09:35.352229478 +0200
-+++ suite/galera/r/galera_sst_rsync2,debug.reject	2018-09-12 17:00:51.601974979 +0200
+--- suite/galera/r/galera_sst_rsync2.result
++++ suite/galera/r/galera_sst_rsync2.reject
 @@ -286,3 +286,111 @@
  DROP TABLE t1;
  COMMIT;
