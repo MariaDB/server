@@ -29,6 +29,7 @@ logging=init
 want_syslog=0
 syslog_tag=
 user='@MYSQLD_USER@'
+group='@MYSQLD_GROUP@'
 pid_file=
 err_log=
 err_log_base=
@@ -318,6 +319,7 @@ parse_arguments() {
       --pid[-_]file=*) pid_file="$val" ;;
       --plugin[-_]dir=*) PLUGIN_DIR="$val" ;;
       --user=*) user="$val"; SET_USER=1 ;;
+      --group=*) group="$val"; SET_USER=1 ;;
       --log[-_]basename=*|--hostname=*|--loose[-_]log[-_]basename=*)
         pid_file="$val.pid";
 	err_log_base="$val";
@@ -720,6 +722,7 @@ then
   if test "$user" != "root" -o $SET_USER = 1
   then
     USER_OPTION="--user=$user"
+    GROUP_OPTION="--group=$group"
   fi
   if test -n "$open_files"
   then
@@ -742,7 +745,12 @@ then
     log_error "Fatal error Can't create database directory '$mysql_unix_port'"
     exit 1
   fi
-  chown $user $mysql_unix_port_dir
+  if [ "$user" -a "$group" ]; then
+    chown $user:$group $mysql_unix_port_dir
+  else
+    [ "$user" ] && chown $user $mysql_unix_port_dir
+    [ "$group" ] && chgrp $group $mysql_unix_port_dir
+  fi
   chmod 755 $mysql_unix_port_dir
 fi
 
