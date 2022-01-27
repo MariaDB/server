@@ -1085,11 +1085,7 @@ long long spider_ping_table_body(
   conv_name.init_calc_mem(135);
   tmp_str.init_calc_mem(247);
   conv_name.length(0);
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100002
   server_id = global_system_variables.server_id;
-#else
-  server_id = thd->server_id;
-#endif
   if (
     thd->open_tables != 0 ||
     thd->handler_tables_hash.records != 0 ||

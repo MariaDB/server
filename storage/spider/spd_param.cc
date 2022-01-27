@@ -2074,7 +2074,6 @@ int spider_param_udf_ds_table_loop_mode(
 static char *spider_remote_access_charset;
 /*
  */
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
 static MYSQL_SYSVAR_STR(
   remote_access_charset,
   spider_remote_access_charset,
@@ -2085,30 +2084,6 @@ static MYSQL_SYSVAR_STR(
   NULL,
   NULL
 );
-#else
-#ifdef PLUGIN_VAR_CAN_MEMALLOC
-static MYSQL_SYSVAR_STR(
-  remote_access_charset,
-  spider_remote_access_charset,
-  PLUGIN_VAR_MEMALLOC |
-  PLUGIN_VAR_RQCMDARG,
-  "Set remote access charset at connecting for improvement performance of connection if you know",
-  NULL,
-  NULL,
-  NULL
-);
-#else
-static MYSQL_SYSVAR_STR(
-  remote_access_charset,
-  spider_remote_access_charset,
-  PLUGIN_VAR_RQCMDARG,
-  "Set remote access charset at connecting for improvement performance of connection if you know",
-  NULL,
-  NULL,
-  NULL
-);
-#endif
-#endif
 
 char *spider_param_remote_access_charset()
 {
@@ -2144,7 +2119,6 @@ int spider_param_remote_autocommit()
 static char *spider_remote_time_zone;
 /*
  */
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
 static MYSQL_SYSVAR_STR(
   remote_time_zone,
   spider_remote_time_zone,
@@ -2155,30 +2129,6 @@ static MYSQL_SYSVAR_STR(
   NULL,
   NULL
 );
-#else
-#ifdef PLUGIN_VAR_CAN_MEMALLOC
-static MYSQL_SYSVAR_STR(
-  remote_time_zone,
-  spider_remote_time_zone,
-  PLUGIN_VAR_MEMALLOC |
-  PLUGIN_VAR_RQCMDARG,
-  "Set remote time_zone at connecting for improvement performance of connection if you know",
-  NULL,
-  NULL,
-  NULL
-);
-#else
-static MYSQL_SYSVAR_STR(
-  remote_time_zone,
-  spider_remote_time_zone,
-  PLUGIN_VAR_RQCMDARG,
-  "Set remote time_zone at connecting for improvement performance of connection if you know",
-  NULL,
-  NULL,
-  NULL
-);
-#endif
-#endif
 
 char *spider_param_remote_time_zone()
 {
@@ -2241,7 +2191,6 @@ int spider_param_remote_trx_isolation()
 static char *spider_remote_default_database;
 /*
  */
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
 static MYSQL_SYSVAR_STR(
   remote_default_database,
   spider_remote_default_database,
@@ -2252,30 +2201,6 @@ static MYSQL_SYSVAR_STR(
   NULL,
   NULL
 );
-#else
-#ifdef PLUGIN_VAR_CAN_MEMALLOC
-static MYSQL_SYSVAR_STR(
-  remote_default_database,
-  spider_remote_default_database,
-  PLUGIN_VAR_MEMALLOC |
-  PLUGIN_VAR_RQCMDARG,
-  "Set remote database at connecting for improvement performance of connection if you know",
-  NULL,
-  NULL,
-  NULL
-);
-#else
-static MYSQL_SYSVAR_STR(
-  remote_default_database,
-  spider_remote_default_database,
-  PLUGIN_VAR_RQCMDARG,
-  "Set remote database at connecting for improvement performance of connection if you know",
-  NULL,
-  NULL,
-  NULL
-);
-#endif
-#endif
 
 char *spider_param_remote_default_database()
 {
@@ -2333,7 +2258,6 @@ int spider_param_connect_retry_count(
 
 /*
  */
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
 static MYSQL_THDVAR_STR(
   bka_engine, /* name */
   PLUGIN_VAR_MEMALLOC |
@@ -2343,28 +2267,6 @@ static MYSQL_THDVAR_STR(
   NULL, /* update */
   NULL /* def */
 );
-#else
-#ifdef PLUGIN_VAR_CAN_MEMALLOC
-static MYSQL_THDVAR_STR(
-  bka_engine, /* name */
-  PLUGIN_VAR_MEMALLOC |
-  PLUGIN_VAR_RQCMDARG,
-  "Temporary table's engine for BKA", /* comment */
-  NULL, /* check */
-  NULL, /* update */
-  NULL /* def */
-);
-#else
-static MYSQL_THDVAR_STR(
-  bka_engine, /* name */
-  PLUGIN_VAR_RQCMDARG,
-  "Temporary table's engine for BKA", /* comment */
-  NULL, /* check */
-  NULL, /* update */
-  NULL /* def */
-);
-#endif
-#endif
 
 char *spider_param_bka_engine(
   THD *thd,

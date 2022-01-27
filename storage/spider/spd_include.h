@@ -72,8 +72,6 @@
 #define my_sprintf(A,B) sprintf B
 #endif
 
-
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100004
 #define spider_stmt_da_message(A) thd_get_error_message(A)
 #define spider_stmt_da_sql_errno(A) thd_get_error_number(A)
 #define spider_user_defined_key_parts(A) (A)->user_defined_key_parts
@@ -97,76 +95,27 @@
 #define SPIDER_WARN_LEVEL_WARN            Sql_condition::WARN_LEVEL_WARN
 #define SPIDER_WARN_LEVEL_NOTE            Sql_condition::WARN_LEVEL_NOTE
 #define SPIDER_THD_KILL_CONNECTION        KILL_CONNECTION
-#else
-#if MYSQL_VERSION_ID < 50500
-#define spider_stmt_da_message(A) (A)->main_da.message()
-#define spider_stmt_da_sql_errno(A) (A)->main_da.sql_errno()
-#else
-#if MYSQL_VERSION_ID < 50600
-#define spider_stmt_da_message(A) (A)->stmt_da->message()
-#define spider_stmt_da_sql_errno(A) (A)->stmt_da->sql_errno()
-#else
-#define spider_stmt_da_message(A) (A)->get_stmt_da()->message()
-#define spider_stmt_da_sql_errno(A) (A)->get_stmt_da()->sql_errno()
-#endif
-#endif
-#define spider_user_defined_key_parts(A) (A)->key_parts
-#define spider_join_table_count(A) (A)->tables
-#define SPIDER_ALTER_PARTITION_ADD         ALTER_ADD_PARTITION
-#define SPIDER_ALTER_PARTITION_DROP        ALTER_DROP_PARTITION
-#define SPIDER_ALTER_PARTITION_COALESCE    ALTER_COALESCE_PARTITION
-#define SPIDER_ALTER_PARTITION_REORGANIZE  ALTER_REORGANIZE_PARTITION
-#define SPIDER_ALTER_PARTITION_TABLE_REORG ALTER_TABLE_REORG
-#define SPIDER_ALTER_PARTITION_REBUILD     ALTER_REBUILD_PARTITION
-#define SPIDER_WARN_LEVEL_WARN            MYSQL_ERROR::WARN_LEVEL_WARN
-#define SPIDER_WARN_LEVEL_NOTE            MYSQL_ERROR::WARN_LEVEL_NOTE
-#define SPIDER_THD_KILL_CONNECTION        THD::KILL_CONNECTION
-#endif
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100005
 #define SPIDER_HAS_EXPLAIN_QUERY
-#endif
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100009
 #define SPIDER_TEST(A) MY_TEST(A)
-#else
-#define SPIDER_TEST(A) test(A)
-#endif
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100100
 #define SPIDER_FIELD_FIELDPTR_REQUIRES_THDPTR
 #define SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
 #define SPIDER_XID_USES_xid_cache_iterate
-#else
-#define SPIDER_XID_STATE_HAS_in_thd
-#endif
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100108
 #define SPIDER_Item_args_arg_count_IS_PROTECTED
-#endif
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100112
 #define SPIDER_Item_func_conv_charset_conv_charset collation.collation
-#else
-#define SPIDER_Item_func_conv_charset_conv_charset conv_charset
-#endif
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100200
 #define SPIDER_WITHOUT_HA_STATISTIC_INCREMENT
 #define SPIDER_init_read_record(A,B,C,D,E,F,G,H) init_read_record(A,B,C,D,E,F,G,H)
 #define SPIDER_HAS_NEXT_THREAD_ID
 #define SPIDER_new_THD(A) (new THD(A))
 #define SPIDER_order_direction_is_asc(A) (A->direction == ORDER::ORDER_ASC)
-#else
-#define SPIDER_init_read_record(A,B,C,D,E,F,G,H) init_read_record(A,B,C,D,F,G,H)
-#define SPIDER_new_THD(A) (new THD())
-#define SPIDER_order_direction_is_asc(A) (A->asc)
-#endif
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100201
 #define SPIDER_HAS_MY_CHARLEN
 #define SPIDER_open_temporary_table
-#endif
 
 #if defined(MARIADB_BASE_VERSION)
 #if MYSQL_VERSION_ID >= 100209
@@ -182,17 +131,10 @@
 #define SPIDER_generate_partition_syntax(A,B,C,D,E,F,G,H)
 #endif
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100209
 #define SPIDER_create_partition_name(A,B,C,D,E,F) create_partition_name(A,B,C,D,E,F)
 #define SPIDER_create_subpartition_name(A,B,C,D,E,F) create_subpartition_name(A,B,C,D,E,F)
 #define SPIDER_free_part_syntax(A,B)
-#else
-#define SPIDER_create_partition_name(A,B,C,D,E,F) create_partition_name(A,C,D,E,F)
-#define SPIDER_create_subpartition_name(A,B,C,D,E,F) create_subpartition_name(A,C,D,E,F)
-#define SPIDER_free_part_syntax(A,B) spider_my_free(A,B)
-#endif
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100306
 #define SPIDER_read_record_read_record(A) read_record()
 #define SPIDER_has_Item_with_subquery
 #define SPIDER_use_LEX_CSTRING_for_KEY_Field_name
@@ -211,46 +153,17 @@
 #define SPIDER_item_name_str(A) (A)->name.str
 #define SPIDER_item_name_length(A) (A)->name.length
 const LEX_CSTRING SPIDER_empty_string = {"", 0};
-#else
-#define SPIDER_read_record_read_record(A) read_record(A)
-#define SPIDER_THD_db_str(A) (A)->db
-#define SPIDER_THD_db_length(A) (A)->db_length
-#define SPIDER_TABLE_LIST_db_str(A) (A)->db
-#define SPIDER_TABLE_LIST_db_length(A) (A)->db_length
-#define SPIDER_TABLE_LIST_table_name_str(A) (A)->table_name
-#define SPIDER_TABLE_LIST_table_name_length(A) (A)->table_name_length
-#define SPIDER_TABLE_LIST_alias_str(A) (A)->alias
-#define SPIDER_TABLE_LIST_alias_length(A) strlen((A)->alias)
-#define SPIDER_field_name_str(A) (A)->field_name
-#define SPIDER_field_name_length(A) strlen((A)->field_name)
-#define SPIDER_item_name_str(A) (A)->name
-#define SPIDER_item_name_length(A) strlen((A)->name)
-const char SPIDER_empty_string = "";
-#endif
 
 #if MYSQL_VERSION_ID >= 50500
 #define SPIDER_HAS_HASH_VALUE_TYPE
 #endif
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100400
 #define SPIDER_date_mode_t(A) date_mode_t(A)
 #define SPIDER_str_to_datetime(A,B,C,D,E) str_to_datetime_or_date(A,B,C,D,E)
 #define SPIDER_get_linkage(A) A->get_linkage()
-#else
-#define SPIDER_date_mode_t(A) A
-#define SPIDER_str_to_datetime(A,B,C,D,E) str_to_datetime(A,B,C,D,E)
-#define SPIDER_get_linkage(A) A->linkage
-#endif
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100500
 typedef start_new_trans *SPIDER_Open_tables_backup;
-#elif MYSQL_VERSION_ID < 50500
-typedef Open_tables_state SPIDER_Open_tables_backup;
-#else
-typedef Open_tables_backup SPIDER_Open_tables_backup;
-#endif
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100500
 #define SPIDER_reset_n_backup_open_tables_state(A,B,C) do { \
   if (!(*(B) = new start_new_trans(A))) \
   { \
@@ -262,12 +175,6 @@ typedef Open_tables_backup SPIDER_Open_tables_backup;
   delete *(B); \
 } while (0)
 #define SPIDER_sys_close_thread_tables(A) (A)->commit_whole_transaction_and_close_tables()
-#else
-#define SPIDER_REQUIRE_DEFINE_FOR_SECONDARY_OPEN_TABLES_BACKUP
-#define SPIDER_reset_n_backup_open_tables_state(A,B,C) (A)->reset_n_backup_open_tables_state(B)
-#define SPIDER_restore_backup_open_tables_state(A,B) (A)->restore_backup_open_tables_state(B)
-#define SPIDER_sys_close_thread_tables(A) close_thread_tables(A)
-#endif
 
 #define spider_bitmap_size(A) ((A + 7) / 8)
 #define spider_set_bit(BITMAP, BIT) \

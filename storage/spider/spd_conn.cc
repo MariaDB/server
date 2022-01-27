@@ -4081,17 +4081,9 @@ int spider_conn_first_link_idx(
     my_afree(link_idxs);
     DBUG_RETURN(-1);
   }
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100002
   DBUG_PRINT("info",("spider server_id=%lu", thd->variables.server_id));
-#else
-  DBUG_PRINT("info",("spider server_id=%u", thd->server_id));
-#endif
   DBUG_PRINT("info",("spider thread_id=%lu", thd_get_thread_id(thd)));
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100002
   rand_val = spider_rand(thd->variables.server_id + thd_get_thread_id(thd));
-#else
-  rand_val = spider_rand(thd->server_id + thd_get_thread_id(thd));
-#endif
   DBUG_PRINT("info",("spider rand_val=%f", rand_val));
   balance_val = (longlong) (rand_val * balance_total);
   DBUG_PRINT("info",("spider balance_val=%lld", balance_val));

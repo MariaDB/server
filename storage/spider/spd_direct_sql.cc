@@ -44,9 +44,7 @@
 #include "spd_udf.h"
 #include "spd_malloc.h"
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100004
 #define SPIDER_NEED_INIT_ONE_TABLE_FOR_FIND_TEMPORARY_TABLE
-#endif
 
 extern const char **spd_defaults_extra_file;
 extern const char **spd_defaults_file;

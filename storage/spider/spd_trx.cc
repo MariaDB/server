@@ -1831,17 +1831,10 @@ int spider_internal_start_trx(
           (trx->xid.data, "%lx%016llx", thd_get_thread_id(thd),
             thd->query_id));
       }
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100002
       trx->xid.bqual_length
         = my_sprintf(trx->xid.data + trx->xid.gtrid_length,
         (trx->xid.data + trx->xid.gtrid_length, "%lx",
         thd->variables.server_id));
-#else
-      trx->xid.bqual_length
-        = my_sprintf(trx->xid.data + trx->xid.gtrid_length,
-        (trx->xid.data + trx->xid.gtrid_length, "%x",
-        thd->server_id));
-#endif
 
 #ifdef SPIDER_XID_STATE_HAS_in_thd
       trx->internal_xid_state.in_thd = 1;
@@ -3852,19 +3845,11 @@ THD *spider_create_tmp_thd()
   DBUG_ENTER("spider_create_tmp_thd");
   if (!(thd = SPIDER_new_THD((my_thread_id) 0)))
     DBUG_RETURN(NULL);
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   thd->killed = NOT_KILLED;
-#else
-  thd->killed = THD::NOT_KILLED;
-#endif
 #if MYSQL_VERSION_ID < 50500
   thd->locked_tables = FALSE;
 #endif
   thd->proc_info = "";
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100200
-#else
-  thd->thread_id = thd->variables.pseudo_thread_id = 0;
-#endif
   thd->thread_stack = (char*) &thd;
   thd->store_globals();
   lex_start(thd);
@@ -3876,11 +3861,7 @@ void spider_free_tmp_thd(
 ) {
   DBUG_ENTER("spider_free_tmp_thd");
   thd->cleanup();
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   thd->reset_globals();
-#else
-  thd->restore_globals();
-#endif
   delete thd;
   DBUG_VOID_RETURN;
 }

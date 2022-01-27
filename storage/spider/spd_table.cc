@@ -3902,11 +3902,7 @@ int spider_set_connect_info_default(
     if (share->monitoring_limit[roop_count] == -1)
       share->monitoring_limit[roop_count] = 1;
     if (share->monitoring_sid[roop_count] == -1)
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100002
       share->monitoring_sid[roop_count] = global_system_variables.server_id;
-#else
-      share->monitoring_sid[roop_count] = current_thd->server_id;
-#endif
 
     if (share->use_handlers[roop_count] == -1)
       share->use_handlers[roop_count] = 0;
@@ -8545,10 +8541,8 @@ bool spider_check_direct_order_limit(
     spider_get_select_limit(spider, &select_lex, &select_limit, &offset_limit);
     bool first_check = TRUE;
     DBUG_PRINT("info",("spider select_lex=%p", select_lex));
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
     DBUG_PRINT("info",("spider leaf_tables.elements=%u",
       select_lex ? select_lex->leaf_tables.elements : 0));
-#endif
 
     if (select_lex && (select_lex->options & SELECT_DISTINCT))
     {
@@ -8574,9 +8568,7 @@ bool spider_check_direct_order_limit(
       !spider->condition ||
 #endif
       !select_lex ||
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
       select_lex->leaf_tables.elements != 1 ||
-#endif
       select_lex->table_list.elements != 1
     ) {
       DBUG_PRINT("info",("spider first_check is FALSE"));
@@ -8997,20 +8989,11 @@ ulong spider_calc_for_sort(
 double spider_rand(
   uint32 rand_source
 ) {
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   struct my_rnd_struct rand;
-#else
-  struct rand_struct rand;
-#endif
   DBUG_ENTER("spider_rand");
   /* generate same as rand function for applications */
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
   my_rnd_init(&rand, (uint32) (rand_source * 65537L + 55555555L),
     (uint32) (rand_source * 268435457L));
-#else
-  randominit(&rand, (uint32) (rand_source * 65537L + 55555555L),
-    (uint32) (rand_source * 268435457L));
-#endif
   DBUG_RETURN(my_rnd(&rand));
 }
 

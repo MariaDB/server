@@ -1837,10 +1837,8 @@ int spider_db_append_key_where_internal(
         DBUG_PRINT("info", ("spider start_key->flag=%d", start_key->flag));
         switch (start_key->flag)
         {
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
           case HA_READ_PREFIX_LAST:
             result_list->desc_flg = TRUE;
-#endif
             /* fall through */
           case HA_READ_KEY_EXACT:
             if (sql_kind == SPIDER_SQL_KIND_SQL)
@@ -2041,12 +2039,6 @@ int spider_db_append_key_where_internal(
               }
             }
             break;
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
-#else
-          case HA_READ_PREFIX_LAST:
-            result_list->limit_num = 1;
-            /* fall through */
-#endif
           case HA_READ_KEY_OR_PREV:
           case HA_READ_PREFIX_LAST_OR_PREV:
             result_list->desc_flg = TRUE;
@@ -2876,13 +2868,8 @@ int spider_db_get_row_from_tmp_tbl(
     current->result_tmp_tbl_inited = 1;
   }
   if (
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50200
     (error_num = current->result_tmp_tbl->file->ha_rnd_next(
       current->result_tmp_tbl->record[0]))
-#else
-    (error_num = current->result_tmp_tbl->file->rnd_next(
-      current->result_tmp_tbl->record[0]))
-#endif
   ) {
     DBUG_RETURN(error_num);
   }
@@ -2910,13 +2897,8 @@ int spider_db_get_row_from_tmp_tbl_pos(
     result->result_tmp_tbl_inited = 2;
   }
   if (
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50200
     (error_num = tmp_tbl->file->ha_rnd_pos(tmp_tbl->record[0],
       (uchar *) &pos->tmp_tbl_pos))
-#else
-    (error_num = tmp_tbl->file->rnd_pos(tmp_tbl->record[0],
-      (uchar *) &pos->tmp_tbl_pos))
-#endif
   ) {
     DBUG_RETURN(error_num);
   }
@@ -6911,9 +6893,7 @@ int spider_db_update(
   ) {
     conn = spider->conns[roop_count];
     spider_db_handler *dbton_hdl = spider->dbton_handler[conn->dbton_id];
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
     conn->ignore_dup_key = spider->wide_handler->ignore_dup_key;
-#endif
     pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
     if (dbton_hdl->need_lock_before_set_sql_for_exec(
       SPIDER_SQL_TYPE_UPDATE_SQL))
