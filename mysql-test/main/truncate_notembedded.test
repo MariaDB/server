@@ -18,8 +18,12 @@ SELECT * FROM t1;
 UNLOCK TABLES;
 
 --connection con1
+--error 0,ER_OPTION_PREVENTS_STATEMENT
 --reap
---error ER_OPTION_PREVENTS_STATEMENT
+# This may work or fail as different servers uses different amount of
+# memory and the statement may work or not. What is important is that we
+# don't get a crash here!
+--error 0,ER_OPTION_PREVENTS_STATEMENT
 TRUNCATE TABLE t1;
 
 --disconnect con1

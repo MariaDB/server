@@ -13,7 +13,6 @@ a
 UNLOCK TABLES;
 connection con1;
 TRUNCATE TABLE t1;
-ERROR HY000: The MariaDB server is running with the --max-thread-mem-used=45500 option so it cannot execute this statement
 disconnect con1;
 connection default;
 DROP TABLE t1;
