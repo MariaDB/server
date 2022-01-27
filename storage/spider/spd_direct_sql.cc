@@ -18,10 +18,6 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -29,7 +25,6 @@
 #include "sql_base.h"
 #include "sql_servers.h"
 #include "tztime.h"
-#endif
 #include "spd_err.h"
 #include "spd_param.h"
 #include "spd_db_include.h"
@@ -113,21 +108,6 @@ int spider_udf_direct_sql_create_table_list(
     } else
       break;
   }
-#if MYSQL_VERSION_ID < 50500
-  if (!(direct_sql->db_names = (char**)
-    spider_bulk_malloc(spider_current_trx, 31, MYF(MY_WME | MY_ZEROFILL),
-      &direct_sql->db_names, (uint) (sizeof(char*) * table_count),
-      &direct_sql->table_names, (uint) (sizeof(char*) * table_count),
-      &direct_sql->tables, (uint) (sizeof(TABLE*) * table_count),
-      &tmp_name_ptr, (uint) (sizeof(char) * (
-        table_name_list_length +
-        thd->db_length * table_count +
-        2 * table_count
-      )),
-      &direct_sql->iop, (uint) (sizeof(int) * table_count),
-      NullS))
-  )
-#else
   if (!(direct_sql->db_names = (char**)
     spider_bulk_malloc(spider_current_trx, 31, MYF(MY_WME | MY_ZEROFILL),
       &direct_sql->db_names, (uint) (sizeof(char*) * table_count),
@@ -144,7 +124,6 @@ int spider_udf_direct_sql_create_table_list(
         (uint) (sizeof(uchar) * ((table_count + 7) / 8)),
       NullS))
   )
-#endif
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
   tmp_ptr = table_name_list;
@@ -576,12 +555,8 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   conn->semi_trx_chk = FALSE;
     conn->conn_kind = SPIDER_CONN_KIND_MYSQL;
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&conn->mta_conn_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_mta_conn, &conn->mta_conn_mutex,
     MY_MUTEX_INIT_FAST))
-#endif
   {
     *error_num = HA_ERR_OUT_OF_MEM;
     goto error_mta_conn_mutex_init;
@@ -1023,10 +998,7 @@ int spider_udf_parse_direct_sql_param(
   direct_sql->net_write_timeout = -1;
   direct_sql->bulk_insert_rows = -1;
   direct_sql->connection_channel = -1;
-#if MYSQL_VERSION_ID < 50500
-#else
   direct_sql->use_real_table = -1;
-#endif
   direct_sql->error_rw_mode = -1;
   for (roop_count = 0; roop_count < direct_sql->table_count; roop_count++)
     direct_sql->iop[roop_count] = -1;
@@ -1100,10 +1072,7 @@ int spider_udf_parse_direct_sql_param(
         SPIDER_PARAM_STR("srv", server_name);
         SPIDER_PARAM_INT_WITH_MAX("svc", tgt_ssl_vsc, 0, 1);
         SPIDER_PARAM_INT_WITH_MAX("tlm", table_loop_mode, 0, 2);
-#if MYSQL_VERSION_ID < 50500
-#else
         SPIDER_PARAM_INT_WITH_MAX("urt", use_real_table, 0, 1);
-#endif
         SPIDER_PARAM_INT("wto", net_write_timeout, 0);
         error_num = param_string_parse.print_param_error();
         goto error;
@@ -1153,10 +1122,7 @@ int spider_udf_parse_direct_sql_param(
         error_num = param_string_parse.print_param_error();
         goto error;
       case 14:
-#if MYSQL_VERSION_ID < 50500
-#else
         SPIDER_PARAM_INT_WITH_MAX("use_real_table", use_real_table, 0, 1);
-#endif
         error_num = param_string_parse.print_param_error();
         goto error;
       case 15:
@@ -1443,11 +1409,8 @@ int spider_udf_set_direct_sql_param_default(
     direct_sql->bulk_insert_rows = 3000;
   if (direct_sql->connection_channel == -1)
     direct_sql->connection_channel = 0;
-#if MYSQL_VERSION_ID < 50500
-#else
   if (direct_sql->use_real_table == -1)
     direct_sql->use_real_table = 0;
-#endif
   if (direct_sql->error_rw_mode == -1)
     direct_sql->error_rw_mode = 0;
   for (roop_count = 0; roop_count < direct_sql->table_count; roop_count++)
@@ -1479,14 +1442,11 @@ void spider_udf_free_direct_sql_alloc(
     pthread_mutex_unlock(direct_sql->bg_mutex);
   }
 #endif
-#if MYSQL_VERSION_ID < 50500
-#else
   if (direct_sql->real_table_used && direct_sql->open_tables_thd)
   {
     spider_sys_close_table(direct_sql->open_tables_thd,
       &direct_sql->open_tables_backup);
   }
-#endif
   if (direct_sql->server_name)
   {
     spider_free(spider_current_trx, direct_sql->server_name, MYF(0));
@@ -1582,11 +1542,8 @@ long long spider_direct_sql_body(
   char *sql;
   TABLE_LIST table_list;
   SPIDER_BG_DIRECT_SQL *bg_direct_sql;
-#if MYSQL_VERSION_ID < 50500
-#else
   TABLE_LIST *real_table_list_last = NULL;
   uint use_real_table = 0;
-#endif
   DBUG_ENTER("spider_direct_sql_body");
   SPIDER_BACKUP_DASTATUS;
   if (!(direct_sql = (SPIDER_DIRECT_SQL *)
@@ -1670,11 +1627,8 @@ long long spider_direct_sql_body(
   }
     trx->updated_in_this_trx = TRUE;
     DBUG_PRINT("info",("spider trx->updated_in_this_trx=TRUE"));
-#if MYSQL_VERSION_ID < 50500
-#else
   use_real_table = spider_param_udf_ds_use_real_table(thd,
     direct_sql->use_real_table);
-#endif
   for (roop_count = 0; roop_count < direct_sql->table_count; roop_count++)
   {
 #ifdef SPIDER_NEED_INIT_ONE_TABLE_FOR_FIND_TEMPORARY_TABLE
@@ -1705,19 +1659,14 @@ long long spider_direct_sql_body(
     if (!(direct_sql->tables[roop_count] =
       spider_find_temporary_table(thd, &table_list)))
     {
-#if MYSQL_VERSION_ID < 50500
-#else
       if (!use_real_table)
       {
-#endif
         error_num = ER_SPIDER_UDF_TMP_TABLE_NOT_FOUND_NUM;
         my_printf_error(ER_SPIDER_UDF_TMP_TABLE_NOT_FOUND_NUM,
           ER_SPIDER_UDF_TMP_TABLE_NOT_FOUND_STR,
           MYF(0), SPIDER_TABLE_LIST_db_str(&table_list),
           SPIDER_TABLE_LIST_table_name_str(&table_list));
         goto error;
-#if MYSQL_VERSION_ID < 50500
-#else
       }
       TABLE_LIST *tables = &direct_sql->table_list[roop_count];
 #ifdef SPIDER_use_LEX_CSTRING_for_database_tablename_alias
@@ -1744,7 +1693,6 @@ long long spider_direct_sql_body(
       real_table_list_last = tables;
       spider_set_bit(direct_sql->real_table_bitmap, roop_count);
       direct_sql->real_table_used = TRUE;
-#endif
     }
   }
   if ((error_num = spider_udf_direct_sql_create_conn_key(direct_sql)))
@@ -1861,22 +1809,14 @@ my_bool spider_direct_sql_init_body(
       strcpy(message, "spider_bg_direct_sql() out of memory");
       goto error;
     }
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_mutex_init(&bg_direct_sql->bg_mutex, MY_MUTEX_INIT_FAST))
-#else
     if (mysql_mutex_init(spd_key_mutex_bg_direct_sql,
       &bg_direct_sql->bg_mutex, MY_MUTEX_INIT_FAST))
-#endif
     {
       strcpy(message, "spider_bg_direct_sql() out of memory");
       goto error_mutex_init;
     }
-#if MYSQL_VERSION_ID < 50500
-    if (pthread_cond_init(&bg_direct_sql->bg_cond, NULL))
-#else
     if (mysql_cond_init(spd_key_cond_bg_direct_sql,
       &bg_direct_sql->bg_cond, NULL))
-#endif
     {
       strcpy(message, "spider_bg_direct_sql() out of memory");
       goto error_cond_init;

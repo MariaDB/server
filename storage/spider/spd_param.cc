@@ -17,15 +17,10 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
 #include "sql_partition.h"
-#endif
 #include <my_getopt.h>
 #include "spd_err.h"
 #include "spd_db_include.h"
@@ -135,13 +130,8 @@ struct st_mysql_show_var spider_status_variables[] =
 };
 
 typedef DECLARE_MYSQL_THDVAR_SIMPLE(thdvar_int_t, int);
-#if MYSQL_VERSION_ID < 50500
-extern bool throw_bounds_warning(THD *thd, bool fixed, bool unsignd,
-  const char *name, long long val);
-#else
 extern bool throw_bounds_warning(THD *thd, const char *name, bool fixed,
   bool is_unsignd, longlong v);
-#endif
 
 static my_bool spider_support_xa;
 static MYSQL_SYSVAR_BOOL(
@@ -714,14 +704,9 @@ static int spider_param_semi_table_lock_check(
     (long) ((MYSQL_SYSVAR_NAME(thdvar_int_t) *) var)->blk_sz;
   options.arg_type = REQUIRED_ARG;
   *((int *) save) = (int) getopt_ll_limit_value(tmp, &options, &fixed);
-#if MYSQL_VERSION_ID < 50500
-  DBUG_RETURN(throw_bounds_warning(thd, fixed, FALSE,
-    ((MYSQL_SYSVAR_NAME(thdvar_int_t) *) var)->name, (long long) tmp));
-#else
   DBUG_RETURN(throw_bounds_warning(thd,
     ((MYSQL_SYSVAR_NAME(thdvar_int_t) *) var)->name, fixed, FALSE,
     (longlong) tmp));
-#endif
 }
 
 /*
@@ -778,14 +763,9 @@ static int spider_param_semi_table_lock_connection_check(
     (long) ((MYSQL_SYSVAR_NAME(thdvar_int_t) *) var)->blk_sz;
   options.arg_type = REQUIRED_ARG;
   *((int *) save) = (int) getopt_ll_limit_value(tmp, &options, &fixed);
-#if MYSQL_VERSION_ID < 50500
-  DBUG_RETURN(throw_bounds_warning(thd, fixed, FALSE,
-    ((MYSQL_SYSVAR_NAME(thdvar_int_t) *) var)->name, (long long) tmp));
-#else
   DBUG_RETURN(throw_bounds_warning(thd,
     ((MYSQL_SYSVAR_NAME(thdvar_int_t) *) var)->name, fixed, FALSE,
     (longlong) tmp));
-#endif
 }
 
 /*
@@ -2568,8 +2548,6 @@ int spider_param_bulk_access_free(
 }
 #endif
 
-#if MYSQL_VERSION_ID < 50500
-#else
 /*
  -1 :use UDF parameter
   0 :can not use
@@ -2595,7 +2573,6 @@ int spider_param_udf_ds_use_real_table(
   DBUG_RETURN(THDVAR(thd, udf_ds_use_real_table) == -1 ?
     udf_ds_use_real_table : THDVAR(thd, udf_ds_use_real_table));
 }
-#endif
 
 static my_bool spider_general_log;
 static MYSQL_SYSVAR_BOOL(
@@ -3274,10 +3251,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
 #ifdef HA_CAN_BULK_ACCESS
   MYSQL_SYSVAR(bulk_access_free),
 #endif
-#if MYSQL_VERSION_ID < 50500
-#else
   MYSQL_SYSVAR(udf_ds_use_real_table),
-#endif
   MYSQL_SYSVAR(general_log),
   MYSQL_SYSVAR(index_hint_pushdown),
   MYSQL_SYSVAR(max_connections),
@@ -3318,9 +3292,7 @@ mysql_declare_plugin(spider)
   spider_status_variables,
   spider_system_variables,
   NULL,
-#if MYSQL_VERSION_ID >= 50600
   0,
-#endif
 },
 spider_i_s_alloc_mem,
 spider_i_s_wrapper_protocols

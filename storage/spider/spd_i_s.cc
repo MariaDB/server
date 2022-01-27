@@ -18,16 +18,11 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
 #include "sql_partition.h"
 #include "sql_show.h"
-#endif
 #include "spd_db_include.h"
 #include "spd_include.h"
 #include "spd_table.h"
@@ -162,9 +157,7 @@ struct st_mysql_plugin spider_i_s_alloc_mem =
   NULL,
   NULL,
   NULL,
-#if MYSQL_VERSION_ID >= 50600
   0,
-#endif
 };
 
 #ifdef MARIADB_BASE_VERSION
@@ -286,9 +279,7 @@ struct st_mysql_plugin spider_i_s_wrapper_protocols =
   NULL,
   NULL,
   NULL,
-#if MYSQL_VERSION_ID >= 50600
   0,
-#endif
 };
 
 #ifdef MARIADB_BASE_VERSION

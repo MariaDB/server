@@ -17,11 +17,6 @@
 #define SPIDER_DETAIL_VERSION "3.3.15"
 #define SPIDER_HEX_VERSION 0x0303
 
-#if MYSQL_VERSION_ID < 50500
-#define spider_my_free(A,B) my_free(A,B)
-#define pthread_mutex_assert_owner(A)
-#define pthread_mutex_assert_not_owner(A)
-#else
 #define spider_my_free(A,B) my_free(A)
 #ifdef pthread_mutex_t
 #undef pthread_mutex_t
@@ -70,28 +65,18 @@
 #endif
 #define pthread_cond_destroy mysql_cond_destroy
 #define my_sprintf(A,B) sprintf B
-#endif
 
 #define spider_stmt_da_message(A) thd_get_error_message(A)
 #define spider_stmt_da_sql_errno(A) thd_get_error_number(A)
 #define spider_user_defined_key_parts(A) (A)->user_defined_key_parts
 #define spider_join_table_count(A) (A)->table_count
 #define SPIDER_CAN_BG_UPDATE (1LL << 39)
-#if MYSQL_VERSION_ID >= 100304
 #define SPIDER_ALTER_PARTITION_ADD         ALTER_PARTITION_ADD
 #define SPIDER_ALTER_PARTITION_DROP        ALTER_PARTITION_DROP
 #define SPIDER_ALTER_PARTITION_COALESCE    ALTER_PARTITION_COALESCE
 #define SPIDER_ALTER_PARTITION_REORGANIZE  ALTER_PARTITION_REORGANIZE
 #define SPIDER_ALTER_PARTITION_TABLE_REORG ALTER_PARTITION_TABLE_REORG
 #define SPIDER_ALTER_PARTITION_REBUILD     ALTER_PARTITION_REBUILD
-#else
-#define SPIDER_ALTER_PARTITION_ADD         Alter_info::ALTER_ADD_PARTITION
-#define SPIDER_ALTER_PARTITION_DROP        Alter_info::ALTER_DROP_PARTITION
-#define SPIDER_ALTER_PARTITION_COALESCE    Alter_info::ALTER_COALESCE_PARTITION
-#define SPIDER_ALTER_PARTITION_REORGANIZE  Alter_info::ALTER_REORGANIZE_PARTITION
-#define SPIDER_ALTER_PARTITION_TABLE_REORG Alter_info::ALTER_TABLE_REORG
-#define SPIDER_ALTER_PARTITION_REBUILD     Alter_info::ALTER_REBUILD_PARTITION
-#endif
 #define SPIDER_WARN_LEVEL_WARN            Sql_condition::WARN_LEVEL_WARN
 #define SPIDER_WARN_LEVEL_NOTE            Sql_condition::WARN_LEVEL_NOTE
 #define SPIDER_THD_KILL_CONNECTION        KILL_CONNECTION
@@ -118,15 +103,7 @@
 #define SPIDER_open_temporary_table
 
 #if defined(MARIADB_BASE_VERSION)
-#if MYSQL_VERSION_ID >= 100209
 #define SPIDER_generate_partition_syntax(A,B,C,D,E,F,G,H) generate_partition_syntax(A,B,C,E,F,G)
-#elif MYSQL_VERSION_ID >= 100200
-#define SPIDER_generate_partition_syntax(A,B,C,D,E,F,G,H) generate_partition_syntax(A,B,C,D,E,F,G,H)
-#elif MYSQL_VERSION_ID >= 100007
-#define SPIDER_generate_partition_syntax(A,B,C,D,E,F,G,H) generate_partition_syntax(B,C,D,E,F,G,H)
-#else
-#define SPIDER_generate_partition_syntax(A,B,C,D,E,F,G,H) generate_partition_syntax(B,C,D,E,F,G)
-#endif
 #else
 #define SPIDER_generate_partition_syntax(A,B,C,D,E,F,G,H)
 #endif
@@ -154,9 +131,7 @@
 #define SPIDER_item_name_length(A) (A)->name.length
 const LEX_CSTRING SPIDER_empty_string = {"", 0};
 
-#if MYSQL_VERSION_ID >= 50500
 #define SPIDER_HAS_HASH_VALUE_TYPE
-#endif
 
 #define SPIDER_date_mode_t(A) date_mode_t(A)
 #define SPIDER_str_to_datetime(A,B,C,D,E) str_to_datetime_or_date(A,B,C,D,E)
@@ -1153,8 +1128,6 @@ typedef struct st_spider_direct_sql
   TABLE                **tables;
   int                  *iop;
 
-#if MYSQL_VERSION_ID < 50500
-#else
   /* for using real table */
   bool                 real_table_used;
   TABLE_LIST           *table_list_first;
@@ -1162,7 +1135,6 @@ typedef struct st_spider_direct_sql
   uchar                *real_table_bitmap;
   SPIDER_Open_tables_backup open_tables_backup;
   THD                  *open_tables_thd;
-#endif
 
   char                 *sql;
   ulong                sql_length;
@@ -1179,10 +1151,7 @@ typedef struct st_spider_direct_sql
   int                  net_write_timeout;
   longlong             bulk_insert_rows;
   int                  connection_channel;
-#if MYSQL_VERSION_ID < 50500
-#else
   int                  use_real_table;
-#endif
   int                  error_rw_mode;
 
   char                 *server_name;

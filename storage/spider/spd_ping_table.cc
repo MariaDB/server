@@ -18,16 +18,11 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
 #include "sql_partition.h"
 #include "sql_acl.h"
-#endif
 #include "spd_err.h"
 #include "spd_param.h"
 #include "spd_db_include.h"
@@ -581,43 +576,26 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_tgt(
   if (tmp_share->link_statuses[0] == SPIDER_LINK_STATUS_NG)
     table_mon_list->mon_status = SPIDER_LINK_MON_NG;
 
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&table_mon_list->caller_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_mon_list_caller,
     &table_mon_list->caller_mutex, MY_MUTEX_INIT_FAST))
-#endif
   {
     *error_num = HA_ERR_OUT_OF_MEM;
     goto error_caller_mutex_init;
   }
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&table_mon_list->receptor_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_mon_list_receptor,
     &table_mon_list->receptor_mutex, MY_MUTEX_INIT_FAST))
-#endif
   {
     *error_num = HA_ERR_OUT_OF_MEM;
     goto error_receptor_mutex_init;
   }
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&table_mon_list->monitor_mutex, MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_mon_list_monitor,
     &table_mon_list->monitor_mutex, MY_MUTEX_INIT_FAST))
-#endif
   {
     *error_num = HA_ERR_OUT_OF_MEM;
     goto error_monitor_mutex_init;
   }
-#if MYSQL_VERSION_ID < 50500
-  if (pthread_mutex_init(&table_mon_list->update_status_mutex,
-    MY_MUTEX_INIT_FAST))
-#else
   if (mysql_mutex_init(spd_key_mutex_mon_list_update_status,
     &table_mon_list->update_status_mutex, MY_MUTEX_INIT_FAST))
-#endif
   {
     *error_num = HA_ERR_OUT_OF_MEM;
     goto error_update_status_mutex_init;
@@ -1091,13 +1069,8 @@ long long spider_ping_table_body(
     thd->handler_tables_hash.records != 0 ||
     thd->derived_tables != 0 ||
     thd->lock != 0 ||
-#if MYSQL_VERSION_ID < 50500
-    thd->locked_tables != 0 ||
-    thd->prelocked_mode != NON_PRELOCKED
-#else
     thd->locked_tables_list.locked_tables() ||
     thd->locked_tables_mode != LTM_NONE
-#endif
   ) {
     if (thd->open_tables != 0)
     {
@@ -1120,18 +1093,6 @@ long long spider_ping_table_body(
       my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
         ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_PTR, MYF(0),
         "thd->lock", thd->lock);
-#if MYSQL_VERSION_ID < 50500
-    } else if (thd->locked_tables != 0)
-    {
-      my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
-        ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_PTR, MYF(0),
-        "thd->locked_tables", thd->locked_tables);
-    } else if (thd->prelocked_mode != NON_PRELOCKED)
-    {
-      my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
-        ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_NUM, MYF(0),
-        "thd->prelocked_mode", (longlong) thd->prelocked_mode);
-#else
     } else if (thd->locked_tables_list.locked_tables())
     {
       my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
@@ -1143,7 +1104,6 @@ long long spider_ping_table_body(
       my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
         ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_NUM, MYF(0),
         "thd->locked_tables_mode", (longlong) thd->locked_tables_mode);
-#endif
     }
     goto error;
   }

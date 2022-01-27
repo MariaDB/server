@@ -18,10 +18,6 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -31,7 +27,6 @@
 #include "tztime.h"
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
 #include "sql_select.h"
-#endif
 #endif
 #include "sql_common.h"
 #include <mysql.h>
@@ -2301,13 +2296,8 @@ int spider_db_mbase::print_warnings(
   if (db_conn->status == MYSQL_STATUS_READY)
   {
     if (
-#if MYSQL_VERSION_ID < 50500
-      !(db_conn->last_used_con->server_status & SERVER_MORE_RESULTS_EXISTS) &&
-      db_conn->last_used_con->warning_count
-#else
       !(db_conn->server_status & SERVER_MORE_RESULTS_EXISTS) &&
       db_conn->warning_count
-#endif
     ) {
       if (
         spider_param_dry_access() ||
@@ -2440,11 +2430,7 @@ int spider_db_mbase::next_result()
   strmov(db_conn->net.sqlstate, "00000");
   db_conn->affected_rows = ~(my_ulonglong) 0;
 
-#if MYSQL_VERSION_ID < 50500
-  if (db_conn->last_used_con->server_status & SERVER_MORE_RESULTS_EXISTS)
-#else
   if (db_conn->server_status & SERVER_MORE_RESULTS_EXISTS)
-#endif
   {
     if ((status = db_conn->methods->read_query_result(db_conn)) > 0)
       DBUG_RETURN(spider_db_errorno(conn));
@@ -2458,11 +2444,7 @@ uint spider_db_mbase::affected_rows()
   MYSQL *last_used_con;
   DBUG_ENTER("spider_db_mbase::affected_rows");
   DBUG_PRINT("info",("spider this=%p", this));
-#if MYSQL_VERSION_ID < 50500
-  last_used_con = db_conn->last_used_con;
-#else
   last_used_con = db_conn;
-#endif
   DBUG_RETURN((uint) last_used_con->affected_rows);
 }
 
@@ -2471,11 +2453,7 @@ uint spider_db_mbase::matched_rows()
   MYSQL *last_used_con;
   DBUG_ENTER("spider_db_mysql::matched_rows");
   DBUG_PRINT("info", ("spider this=%p", this));
-#if MYSQL_VERSION_ID < 50500
-  last_used_con = db_conn->last_used_con;
-#else
   last_used_con = db_conn;
-#endif
   /* Rows matched: 65 Changed: 65 Warnings: 0 */
   const char *info = last_used_con->info;
   if (!info)
@@ -2500,11 +2478,7 @@ bool spider_db_mbase::inserted_info(
   {
     DBUG_RETURN(TRUE);
   }
-#if MYSQL_VERSION_ID < 50500
-  last_used_con = db_conn->last_used_con;
-#else
   last_used_con = db_conn;
-#endif
   /* Records: 10  Duplicates: 4  Warnings: 0 */
   const char *info = last_used_con->info;
   if (!info)
@@ -2546,11 +2520,7 @@ ulonglong spider_db_mbase::last_insert_id()
   MYSQL *last_used_con;
   DBUG_ENTER("spider_db_mbase::last_insert_id");
   DBUG_PRINT("info",("spider this=%p", this));
-#if MYSQL_VERSION_ID < 50500
-  last_used_con = db_conn->last_used_con;
-#else
   last_used_con = db_conn;
-#endif
   DBUG_RETURN((uint) last_used_con->insert_id);
 }
 
@@ -6177,11 +6147,7 @@ int spider_db_mbase_util::open_item_func(
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
               str->q_append(SPIDER_SQL_CAST_STR, SPIDER_SQL_CAST_LEN);
             }
-#if MYSQL_VERSION_ID < 50500
-            item_func->print(tmp_str.get_str(), QT_IS);
-#else
             item_func->print(tmp_str.get_str(), QT_TO_SYSTEM_CHARSET);
-#endif
             tmp_str.mem_calc();
             if (tmp_str.reserve(1))
               DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -6314,11 +6280,7 @@ int spider_db_mbase_util::open_item_func(
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
               str->q_append(SPIDER_SQL_CAST_STR, SPIDER_SQL_CAST_LEN);
             }
-#if MYSQL_VERSION_ID < 50500
-            item_func->print(tmp_str.get_str(), QT_IS);
-#else
             item_func->print(tmp_str.get_str(), QT_TO_SYSTEM_CHARSET);
-#endif
             tmp_str.mem_calc();
             if (tmp_str.reserve(1))
               DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -6470,11 +6432,7 @@ int spider_db_mbase_util::open_item_func(
               DBUG_RETURN(HA_ERR_OUT_OF_MEM);
             str->q_append(SPIDER_SQL_CAST_STR, SPIDER_SQL_CAST_LEN);
           }
-#if MYSQL_VERSION_ID < 50500
-          item_func->print(tmp_str.get_str(), QT_IS);
-#else
           item_func->print(tmp_str.get_str(), QT_TO_SYSTEM_CHARSET);
-#endif
           tmp_str.mem_calc();
           if (tmp_str.reserve(1))
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);

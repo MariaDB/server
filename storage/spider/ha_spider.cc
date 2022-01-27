@@ -22,17 +22,12 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
 #include "key.h"
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
 #include "sql_select.h"
-#endif
 #endif
 #include "ha_partition.h"
 #include "spd_param.h"
@@ -1024,9 +1019,6 @@ int ha_spider::external_lock(
   DBUG_ENTER("ha_spider::external_lock");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider lock_type=%x", lock_type));
-#if MYSQL_VERSION_ID < 50500
-  DBUG_PRINT("info",("spider thd->options=%x", (int) thd->options));
-#endif
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (
     wide_handler->stage == SPD_HND_STAGE_EXTERNAL_LOCK &&
@@ -1433,14 +1425,11 @@ int ha_spider::extra(
       if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
         DBUG_RETURN(error_num);
       break;
-#if MYSQL_VERSION_ID < 50500
-#else
     case HA_EXTRA_ADD_CHILDREN_LIST:
       DBUG_PRINT("info",("spider HA_EXTRA_ADD_CHILDREN_LIST"));
       if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
         DBUG_RETURN(error_num);
       break;
-#endif
 #if defined(HA_EXTRA_HAS_STARTING_ORDERED_INDEX_SCAN) || defined(HA_EXTRA_HAS_HA_EXTRA_USE_CMP_REF)
 #ifdef HA_EXTRA_HAS_STARTING_ORDERED_INDEX_SCAN
     case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
@@ -9914,14 +9903,10 @@ int ha_spider::direct_update_rows_init()
   if (wide_handler->direct_update_fields)
   {
     if (
-#if MYSQL_VERSION_ID < 50500
-      !thd->variables.engine_condition_pushdown ||
-#else
 #ifdef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
 #else
       !(thd->variables.optimizer_switch &
         OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
-#endif
 #endif
       !select_lex ||
       select_lex->table_list.elements != 1 ||
@@ -10449,14 +10434,10 @@ int ha_spider::direct_delete_rows_init()
     wide_handler->cond_check = FALSE;
   spider_get_select_limit(this, &select_lex, &select_limit, &offset_limit);
   if (
-#if MYSQL_VERSION_ID < 50500
-    !thd->variables.engine_condition_pushdown ||
-#else
 #ifdef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
 #else
     !(thd->variables.optimizer_switch &
       OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
-#endif
 #endif
     !select_lex ||
     select_lex->table_list.elements != 1 ||

@@ -103,8 +103,6 @@ void spider_close_sys_table(
   bool need_lock
 );
 
-#if MYSQL_VERSION_ID < 50500
-#else
 bool spider_sys_open_and_lock_tables(
   THD *thd,
   TABLE_LIST **tables,
@@ -121,7 +119,6 @@ void spider_sys_close_table(
   THD *thd,
   SPIDER_Open_tables_backup *open_tables_backup
 );
-#endif
 
 int spider_sys_index_init(
   TABLE *table,

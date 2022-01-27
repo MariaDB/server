@@ -18,17 +18,12 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
 #include "sql_base.h"
 #include "sql_partition.h"
 #include "transaction.h"
-#endif
 #include "spd_err.h"
 #include "spd_param.h"
 #include "spd_db_include.h"
@@ -847,13 +842,8 @@ long long spider_copy_tables_body(
     thd->handler_tables_hash.records != 0 ||
     thd->derived_tables != 0 ||
     thd->lock != 0 ||
-#if MYSQL_VERSION_ID < 50500
-    thd->locked_tables != 0 ||
-    thd->prelocked_mode != NON_PRELOCKED
-#else
     thd->locked_tables_list.locked_tables() ||
     thd->locked_tables_mode != LTM_NONE
-#endif
   ) {
     if (thd->open_tables != 0)
     {
@@ -876,18 +866,6 @@ long long spider_copy_tables_body(
       my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
         ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_PTR, MYF(0),
         "thd->lock", thd->lock);
-#if MYSQL_VERSION_ID < 50500
-    } else if (thd->locked_tables != 0)
-    {
-      my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
-        ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_PTR, MYF(0),
-        "thd->locked_tables", thd->locked_tables);
-    } else if (thd->prelocked_mode != NON_PRELOCKED)
-    {
-      my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
-        ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_NUM, MYF(0),
-        "thd->prelocked_mode", (longlong) thd->prelocked_mode);
-#else
     } else if (thd->locked_tables_list.locked_tables())
     {
       my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
@@ -899,7 +877,6 @@ long long spider_copy_tables_body(
       my_printf_error(ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_NUM,
         ER_SPIDER_UDF_CANT_USE_IF_OPEN_TABLE_STR_WITH_NUM, MYF(0),
         "thd->locked_tables_mode", (longlong) thd->locked_tables_mode);
-#endif
     }
     goto error;
   }
@@ -991,9 +968,7 @@ long long spider_copy_tables_body(
   copy_tables->trx->trx_start = TRUE;
   copy_tables->trx->updated_in_this_trx = FALSE;
   DBUG_PRINT("info",("spider trx->updated_in_this_trx=FALSE"));
-#if MYSQL_VERSION_ID < 50500
-  if (open_and_lock_tables(thd, table_list))
-#else
+
     MDL_REQUEST_INIT(&table_list->mdl_request,
     MDL_key::TABLE,
     SPIDER_TABLE_LIST_db_str(table_list),
@@ -1002,7 +977,6 @@ long long spider_copy_tables_body(
     MDL_TRANSACTION
   );
   if (open_and_lock_tables(thd, table_list, FALSE, 0))
-#endif
   {
     thd->m_reprepare_observer = reprepare_observer_backup;
     copy_tables->trx->trx_start = FALSE;
@@ -1223,11 +1197,7 @@ long long spider_copy_tables_body(
 */
   if (table_list->table)
   {
-#if MYSQL_VERSION_ID < 50500
-    ha_autocommit_or_rollback(thd, 0);
-#else
     (thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd));
-#endif
     close_thread_tables(thd);
   }
   if (spider)
@@ -1285,11 +1255,7 @@ error:
   }
   if (table_list && table_list->table)
   {
-#if MYSQL_VERSION_ID < 50500
-    ha_autocommit_or_rollback(thd, 0);
-#else
     (thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd));
-#endif
     close_thread_tables(thd);
   }
   if (spider)

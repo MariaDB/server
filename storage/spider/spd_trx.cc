@@ -18,16 +18,11 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
 #include "sql_partition.h"
 #include "records.h"
-#endif
 #include "spd_err.h"
 #include "spd_param.h"
 #include "spd_db_include.h"
@@ -1206,13 +1201,8 @@ SPIDER_TRX *spider_get_trx(
       roop_count < (int) spider_param_udf_table_lock_mutex_count();
       roop_count++)
     {
-#if MYSQL_VERSION_ID < 50500
-      if (pthread_mutex_init(&trx->udf_table_mutexes[roop_count],
-        MY_MUTEX_INIT_FAST))
-#else
       if (mysql_mutex_init(spd_key_mutex_udf_table,
         &trx->udf_table_mutexes[roop_count], MY_MUTEX_INIT_FAST))
-#endif
         goto error_init_udf_table_mutex;
     }
 
@@ -3846,9 +3836,6 @@ THD *spider_create_tmp_thd()
   if (!(thd = SPIDER_new_THD((my_thread_id) 0)))
     DBUG_RETURN(NULL);
   thd->killed = NOT_KILLED;
-#if MYSQL_VERSION_ID < 50500
-  thd->locked_tables = FALSE;
-#endif
   thd->proc_info = "";
   thd->thread_stack = (char*) &thd;
   thd->store_globals();

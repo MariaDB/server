@@ -17,17 +17,12 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
 #include "key.h"
 #include "sql_base.h"
 #include "tztime.h"
-#endif
 #include "sql_select.h"
 #include "spd_err.h"
 #include "spd_param.h"
@@ -245,22 +240,9 @@ TABLE *spider_open_sys_table(
 ) {
   TABLE *table;
   TABLE_LIST tables;
-#if MYSQL_VERSION_ID < 50500
-  TABLE_SHARE *table_share;
-  char table_key[MAX_DBKEY_LENGTH];
-  uint table_key_length;
-#endif
   DBUG_ENTER("spider_open_sys_table");
 
-#if MYSQL_VERSION_ID < 50500
-  memset(&tables, 0, sizeof(TABLE_LIST));
-  SPIDER_TABLE_LIST_db_str(&tables) = (char*)"mysql";
-  SPIDER_TABLE_LIST_db_length(&tables) = sizeof("mysql") - 1;
-  SPIDER_TABLE_LIST_alias_str(&tables) =
-    SPIDER_TABLE_LIST_table_name_str(&tables) = (char *) table_name;
-  SPIDER_TABLE_LIST_table_name_length(&tables) = table_name_length;
-  tables.lock_type = (write ? TL_WRITE : TL_READ);
-#else
+
 #ifdef SPIDER_use_LEX_CSTRING_for_database_tablename_alias
   LEX_CSTRING db_name =
   {
@@ -278,18 +260,7 @@ TABLE *spider_open_sys_table(
     "mysql", sizeof("mysql") - 1, table_name, table_name_length, table_name,
     (write ? TL_WRITE : TL_READ));
 #endif
-#endif
-
-#if MYSQL_VERSION_ID < 50500
-  if (need_lock)
-  {
-#endif
-#if MYSQL_VERSION_ID < 50500
-    if (!(table = open_performance_schema_table(thd, &tables,
-      open_tables_backup)))
-#else
     if (!(table = spider_sys_open_table(thd, &tables, open_tables_backup)))
-#endif
     {
       my_printf_error(ER_SPIDER_CANT_OPEN_SYS_TABLE_NUM,
         ER_SPIDER_CANT_OPEN_SYS_TABLE_STR, MYF(0),
@@ -297,38 +268,6 @@ TABLE *spider_open_sys_table(
       *error_num = ER_SPIDER_CANT_OPEN_SYS_TABLE_NUM;
       DBUG_RETURN(NULL);
     }
-#if MYSQL_VERSION_ID < 50500
-  } else {
-    SPIDER_reset_n_backup_open_tables_state(thd, open_tables_backup, NULL);
-
-    if (!(table = (TABLE*) spider_malloc(spider_current_trx, 12,
-      sizeof(*table), MYF(MY_WME))))
-    {
-      *error_num = HA_ERR_OUT_OF_MEM;
-      goto error_malloc;
-    }
-
-    table_key_length =
-      create_table_def_key(thd, table_key, &tables, FALSE);
-
-    if (!(table_share = get_table_share(thd,
-      &tables, table_key, table_key_length, 0, error_num)))
-      goto error;
-    if (open_table_from_share(thd, table_share, tables.alias,
-      (uint) (HA_OPEN_KEYFILE | HA_OPEN_RNDFILE | HA_GET_INDEX),
-      READ_KEYINFO | COMPUTE_TYPES | EXTRA_RECORD,
-      (uint) HA_OPEN_IGNORE_IF_LOCKED | HA_OPEN_FROM_SQL_LAYER,
-      table, FALSE)
-    ) {
-      release_table_share(table_share, RELEASE_NORMAL);
-      my_printf_error(ER_SPIDER_CANT_OPEN_SYS_TABLE_NUM,
-        ER_SPIDER_CANT_OPEN_SYS_TABLE_STR, MYF(0),
-        "mysql", table_name);
-      *error_num = ER_SPIDER_CANT_OPEN_SYS_TABLE_NUM;
-      goto error;
-    }
-  }
-#endif
   switch (table_name_length)
   {
     case 9:
@@ -589,13 +528,6 @@ TABLE *spider_open_sys_table(
       break;
   }
   DBUG_RETURN(table);
-
-#if MYSQL_VERSION_ID < 50500
-error:
-  spider_free(spider_current_trx, table, MYF(0));
-error_malloc:
-  SPIDER_restore_backup_open_tables_state(thd, open_tables_backup);
-#endif
 error_col_num_chk:
   DBUG_RETURN(NULL);
 }
@@ -607,24 +539,10 @@ void spider_close_sys_table(
   bool need_lock
 ) {
   DBUG_ENTER("spider_close_sys_table");
-#if MYSQL_VERSION_ID < 50500
-  if (need_lock)
-  {
-    close_performance_schema_table(thd, open_tables_backup);
-  } else {
-    table->file->ha_reset();
-    closefrm(table, TRUE);
-    spider_free(spider_current_trx, table, MYF(0));
-    SPIDER_restore_backup_open_tables_state(thd, open_tables_backup);
-  }
-#else
   spider_sys_close_table(thd, open_tables_backup);
-#endif
   DBUG_VOID_RETURN;
 }
 
-#if MYSQL_VERSION_ID < 50500
-#else
 bool spider_sys_open_and_lock_tables(
   THD *thd,
   TABLE_LIST **tables,
@@ -692,7 +610,6 @@ void spider_sys_close_table(
   }
   DBUG_VOID_RETURN;
 }
-#endif
 
 int spider_sys_index_init(
   TABLE *table,

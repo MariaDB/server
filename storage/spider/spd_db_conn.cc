@@ -18,10 +18,6 @@
 #include <my_global.h>
 #include "mysql_version.h"
 #include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -32,7 +28,6 @@
 #include "errmsg.h"
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
 #include "sql_select.h"
-#endif
 #endif
 #include "sql_common.h"
 #include <errmsg.h>
@@ -6569,11 +6564,7 @@ int spider_db_update_auto_increment(
       if (
         table->s->next_number_keypart == 0 &&
         mysql_bin_log.is_open() &&
-#if MYSQL_VERSION_ID < 50500
-        !thd->current_stmt_binlog_row_based
-#else
         !thd->is_current_stmt_binlog_format_row()
-#endif
       ) {
         if (
           spider->check_partitioned() &&
@@ -6602,11 +6593,7 @@ int spider_db_update_auto_increment(
       if (
         table->s->next_number_keypart == 0 &&
         mysql_bin_log.is_open() &&
-#if MYSQL_VERSION_ID < 50500
-        !thd->current_stmt_binlog_row_based
-#else
         !thd->is_current_stmt_binlog_format_row()
-#endif
       ) {
         for (roop_count = 0; roop_count < (int) affected_rows; roop_count++)
           push_warning_printf(thd, SPIDER_WARN_LEVEL_NOTE,
@@ -8882,11 +8869,7 @@ int spider_db_print_item_type_default(
   {
     if (spider->share->access_charset->cset == system_charset_info->cset)
     {
-#if MYSQL_VERSION_ID < 50500
-      item->print(str->get_str(), QT_IS);
-#else
       item->print(str->get_str(), QT_TO_SYSTEM_CHARSET);
-#endif
     } else {
       item->print(str->get_str(), QT_ORDINARY);
     }
@@ -10059,13 +10042,8 @@ int spider_db_udf_direct_sql(
     spider_param_ping_interval_at_trx_start(thd);
   time_t tmp_time = (time_t) time((time_t*) 0);
   bool need_trx_end, need_all_commit, insert_start = FALSE;
-#if MYSQL_VERSION_ID < 50500
-#else
   enum_sql_command sql_command_backup;
-#endif
   DBUG_ENTER("spider_db_udf_direct_sql");
-#if MYSQL_VERSION_ID < 50500
-#else
   if (direct_sql->real_table_used)
   {
     if (spider_sys_open_and_lock_tables(c_thd, &direct_sql->table_list_first,
@@ -10084,7 +10062,6 @@ int spider_db_udf_direct_sql(
     direct_sql->open_tables_thd = c_thd;
     roop_count = 0;
   }
-#endif
 
   if (c_thd != thd)
   {
@@ -10092,21 +10069,15 @@ int spider_db_udf_direct_sql(
     need_trx_end = TRUE;
   } else {
     need_all_commit = FALSE;
-#if MYSQL_VERSION_ID < 50500
-#else
     if (direct_sql->real_table_used)
     {
       need_trx_end = TRUE;
     } else {
-#endif
       if (c_thd->transaction->stmt.ha_list)
         need_trx_end = FALSE;
       else
         need_trx_end = TRUE;
-#if MYSQL_VERSION_ID < 50500
-#else
     }
-#endif
   }
 
   if (!conn->disable_reconnect)
@@ -10126,11 +10097,8 @@ int spider_db_udf_direct_sql(
     DBUG_RETURN(ER_SPIDER_REMOTE_SERVER_GONE_AWAY_NUM);
   }
 
-#if MYSQL_VERSION_ID < 50500
-#else
   sql_command_backup = c_thd->lex->sql_command;
   c_thd->lex->sql_command = SQLCOM_INSERT;
-#endif
 
   pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
   pthread_mutex_lock(&conn->mta_conn_mutex);
@@ -10213,9 +10181,6 @@ int spider_db_udf_direct_sql(
               for (; roop_count2 < set_off; roop_count2++)
                 bitmap_clear_bit(table->write_set, (uint) roop_count2);
 
-#if MYSQL_VERSION_ID < 50500
-              if (table->file->has_transactions())
-#endif
               {
                 THR_LOCK_DATA *to[2];
                 table->file->store_lock(table->in_use, to,
@@ -10226,8 +10191,6 @@ int spider_db_udf_direct_sql(
                   table->file->print_error(error_num, MYF(0));
                   break;
                 }
-#if MYSQL_VERSION_ID < 50500
-#else
                 if (
                   table->s->tmp_table == NO_TMP_TABLE &&
                   table->pos_in_table_list
@@ -10249,7 +10212,6 @@ int spider_db_udf_direct_sql(
                     next_tables = next_tables->next_global;
                   }
                 }
-#endif
               }
 
               if (direct_sql->iop)
@@ -10311,13 +10273,8 @@ int spider_db_udf_direct_sql(
                 else if (direct_sql->iop[roop_count] == 2)
                   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
               }
-#if MYSQL_VERSION_ID < 50500
-              if (table->file->has_transactions())
-#endif
               {
                 table->file->ha_external_unlock(table->in_use);
-#if MYSQL_VERSION_ID < 50500
-#else
                 if (
                   table->s->tmp_table == NO_TMP_TABLE &&
                   table->pos_in_table_list
@@ -10333,7 +10290,6 @@ int spider_db_udf_direct_sql(
                     next_tables = next_tables->next_global;
                   }
                 }
-#endif
               }
               table->file->ha_reset();
               table->in_use = thd;
@@ -10396,10 +10352,7 @@ int spider_db_udf_direct_sql(
       }
     }
   }
-#if MYSQL_VERSION_ID < 50500
-#else
   c_thd->lex->sql_command = sql_command_backup;
-#endif
   DBUG_RETURN(error_num);
 }
 
