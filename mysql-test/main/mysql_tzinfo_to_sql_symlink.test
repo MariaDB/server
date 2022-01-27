@@ -1,5 +1,6 @@
 --source include/have_symlink.inc
 --source include/not_windows.inc
+--source include/not_embedded.inc
 
 use mysql;
 RENAME TABLE time_zone TO time_zone_orig,
