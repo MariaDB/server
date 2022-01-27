@@ -4,7 +4,7 @@ MariaBackup: hot backup tool for InnoDB
 Originally Created 3/3/2009 Yasufumi Kinoshita
 Written by Alexey Kopytov, Aleksandr Kuzminsky, Stewart Smith, Vadim Tkachenko,
 Yasufumi Kinoshita, Ignacio Nin and Baron Schwartz.
-(c) 2017, 2021, MariaDB Corporation.
+(c) 2017, 2022, MariaDB Corporation.
 Portions written by Marko Mäkelä.
 
 This program is free software; you can redistribute it and/or modify
@@ -3002,10 +3002,21 @@ static bool xtrabackup_copy_logfile()
                                   recv_sys.offset);
         source_offset&= ~block_size_1;
         size_t size{log_sys.buf_size - recv_sys.len};
-        if (source_offset + size > log_sys.file_size)
-          size= static_cast<size_t>(log_sys.file_size - source_offset);
-        ut_ad(size <= log_sys.buf_size);
-        log_sys.log.read(source_offset, {log_sys.buf, size});
+        if (UNIV_UNLIKELY(source_offset + size > log_sys.file_size))
+        {
+          const size_t first{size_t(log_sys.file_size - source_offset)};
+          ut_ad(first <= log_sys.buf_size);
+          log_sys.log.read(source_offset, {log_sys.buf, first});
+          size-= first;
+          if (log_sys.START_OFFSET + size > source_offset)
+            size= size_t(source_offset - log_sys.START_OFFSET);
+          if (size)
+            log_sys.log.read(log_sys.START_OFFSET,
+                             {log_sys.buf + first, size});
+          size+= first;
+        }
+        else
+          log_sys.log.read(source_offset, {log_sys.buf, size});
         recv_sys.len= size;
       }
 
