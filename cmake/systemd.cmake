@@ -17,7 +17,7 @@ MACRO(CHECK_SYSTEMD)
   IF(UNIX)
     INCLUDE(FindPkgConfig)
     # http://www.cmake.org/cmake/help/v3.0/module/FindPkgConfig.html
-    SET(WITH_SYSTEMD "auto" CACHE STRING "Enable systemd scripts and notification support")
+    SET(WITH_SYSTEMD "auto" CACHE STRING "Enable systemd scripts and notification support. Allowed values yes/no/auto.")
     IF(WITH_SYSTEMD STREQUAL "yes" OR WITH_SYSTEMD STREQUAL "auto")
       IF(PKG_CONFIG_FOUND)
         IF (NOT DEFINED LIBSYSTEMD_FOUND)
