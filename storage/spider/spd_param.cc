@@ -31,10 +31,8 @@
 
 extern struct st_mysql_plugin spider_i_s_alloc_mem;
 extern struct st_mysql_plugin spider_i_s_wrapper_protocols;
-#ifdef MARIADB_BASE_VERSION
 extern struct st_maria_plugin spider_i_s_alloc_mem_maria;
 extern struct st_maria_plugin spider_i_s_wrapper_protocols_maria;
-#endif
 
 extern volatile ulonglong spider_mon_table_cache_version;
 extern volatile ulonglong spider_mon_table_cache_version_req;
@@ -3247,7 +3245,6 @@ spider_i_s_alloc_mem,
 spider_i_s_wrapper_protocols
 mysql_declare_plugin_end;
 
-#ifdef MARIADB_BASE_VERSION
 maria_declare_plugin(spider)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
@@ -3267,4 +3264,3 @@ maria_declare_plugin(spider)
 spider_i_s_alloc_mem_maria,
 spider_i_s_wrapper_protocols_maria
 maria_declare_plugin_end;
-#endif

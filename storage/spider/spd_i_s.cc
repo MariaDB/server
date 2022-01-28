@@ -160,7 +160,6 @@ struct st_mysql_plugin spider_i_s_alloc_mem =
   0,
 };
 
-#ifdef MARIADB_BASE_VERSION
 struct st_maria_plugin spider_i_s_alloc_mem_maria =
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
@@ -177,7 +176,6 @@ struct st_maria_plugin spider_i_s_alloc_mem_maria =
   "1.0",
   MariaDB_PLUGIN_MATURITY_STABLE,
 };
-#endif
 
 extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 
@@ -282,7 +280,6 @@ struct st_mysql_plugin spider_i_s_wrapper_protocols =
   0,
 };
 
-#ifdef MARIADB_BASE_VERSION
 struct st_maria_plugin spider_i_s_wrapper_protocols_maria =
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
@@ -299,4 +296,3 @@ struct st_maria_plugin spider_i_s_wrapper_protocols_maria =
   "1.0",
   MariaDB_PLUGIN_MATURITY_STABLE,
 };
-#endif

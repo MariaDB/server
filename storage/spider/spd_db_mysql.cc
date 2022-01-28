@@ -812,11 +812,7 @@ int spider_db_mbase_result::fetch_table_status(
   int error_num;
   MYSQL_ROW mysql_row;
   MYSQL_TIME mysql_time;
-#ifdef MARIADB_BASE_VERSION
   uint not_used_uint;
-#else
-  my_bool not_used_my_bool;
-#endif
 #ifdef SPIDER_HAS_TIME_STATUS
   MYSQL_TIME_STATUS time_status;
 #else
@@ -894,13 +890,8 @@ int spider_db_mbase_result::fetch_table_status(
 #endif
       SPIDER_str_to_datetime(mysql_row[11], strlen(mysql_row[11]),
         &mysql_time, 0, &time_status);
-#ifdef MARIADB_BASE_VERSION
       stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
-#else
-      stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_my_bool);
-#endif
     } else
       stat.create_time = (time_t) 0;
 #ifndef DBUG_OFF
@@ -919,13 +910,8 @@ int spider_db_mbase_result::fetch_table_status(
 #endif
       SPIDER_str_to_datetime(mysql_row[12], strlen(mysql_row[12]),
         &mysql_time, 0, &time_status);
-#ifdef MARIADB_BASE_VERSION
       stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
-#else
-      stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_my_bool);
-#endif
     } else
       stat.update_time = (time_t) 0;
 #ifndef DBUG_OFF
@@ -944,13 +930,8 @@ int spider_db_mbase_result::fetch_table_status(
 #endif
       SPIDER_str_to_datetime(mysql_row[13], strlen(mysql_row[13]),
         &mysql_time, 0, &time_status);
-#ifdef MARIADB_BASE_VERSION
       stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
-#else
-      stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_my_bool);
-#endif
     } else
       stat.check_time = (time_t) 0;
 #ifndef DBUG_OFF
@@ -1023,13 +1004,8 @@ int spider_db_mbase_result::fetch_table_status(
 #endif
       SPIDER_str_to_datetime(mysql_row[6], strlen(mysql_row[6]),
         &mysql_time, 0, &time_status);
-#ifdef MARIADB_BASE_VERSION
       stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
-#else
-      stat.create_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_my_bool);
-#endif
     } else
       stat.create_time = (time_t) 0;
 #ifndef DBUG_OFF
@@ -1048,13 +1024,8 @@ int spider_db_mbase_result::fetch_table_status(
 #endif
       SPIDER_str_to_datetime(mysql_row[7], strlen(mysql_row[7]),
         &mysql_time, 0, &time_status);
-#ifdef MARIADB_BASE_VERSION
       stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
-#else
-      stat.update_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_my_bool);
-#endif
     } else
       stat.update_time = (time_t) 0;
 #ifndef DBUG_OFF
@@ -1073,13 +1044,8 @@ int spider_db_mbase_result::fetch_table_status(
 #endif
       SPIDER_str_to_datetime(mysql_row[8], strlen(mysql_row[8]),
         &mysql_time, 0, &time_status);
-#ifdef MARIADB_BASE_VERSION
       stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
         &not_used_long, &not_used_uint);
-#else
-      stat.check_time = (time_t) my_system_gmt_sec(&mysql_time,
-        &not_used_long, &not_used_my_bool);
-#endif
     } else
       stat.check_time = (time_t) 0;
 #ifndef DBUG_OFF
@@ -6556,11 +6522,7 @@ int spider_db_mbase_util::open_item_func(
       last_str = SPIDER_SQL_CLOSE_PAREN_STR;
       last_str_length = SPIDER_SQL_CLOSE_PAREN_LEN;
       break;
-#ifdef MARIADB_BASE_VERSION
     case Item_func::XOR_FUNC:
-#else
-    case Item_func::COND_XOR_FUNC:
-#endif
       if (str)
         str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
       DBUG_RETURN(

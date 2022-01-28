@@ -102,11 +102,7 @@
 #define SPIDER_HAS_MY_CHARLEN
 #define SPIDER_open_temporary_table
 
-#if defined(MARIADB_BASE_VERSION)
 #define SPIDER_generate_partition_syntax(A,B,C,D,E,F,G,H) generate_partition_syntax(A,B,C,E,F,G)
-#else
-#define SPIDER_generate_partition_syntax(A,B,C,D,E,F,G,H)
-#endif
 
 #define SPIDER_create_partition_name(A,B,C,D,E,F) create_partition_name(A,B,C,D,E,F)
 #define SPIDER_create_subpartition_name(A,B,C,D,E,F) create_subpartition_name(A,B,C,D,E,F)

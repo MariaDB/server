@@ -4037,11 +4037,7 @@ int spider_db_oracle_util::open_item_func(
       last_str = SPIDER_SQL_CLOSE_PAREN_STR;
       last_str_length = SPIDER_SQL_CLOSE_PAREN_LEN;
       break;
-#ifdef MARIADB_BASE_VERSION
     case Item_func::XOR_FUNC:
-#else
-    case Item_func::COND_XOR_FUNC:
-#endif
       if (str)
         str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
       DBUG_RETURN(

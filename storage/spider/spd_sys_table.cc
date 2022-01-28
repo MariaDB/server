@@ -2733,11 +2733,7 @@ void spider_get_sys_table_sts_info(
   ha_statistics *stat
 ) {
   MYSQL_TIME mysql_time;
-#ifdef MARIADB_BASE_VERSION
   uint not_used_uint;
-#else
-  my_bool not_used_my_bool;
-#endif
   long not_used_long;
   DBUG_ENTER("spider_get_sys_table_sts_info");
   stat->data_file_length = (ulonglong) table->
@@ -2752,31 +2748,16 @@ void spider_get_sys_table_sts_info(
     field[SPIDER_TABLE_STS_MEAN_REC_LENGTH_POS]->val_int();
   table->field[SPIDER_TABLE_STS_CHECK_TIME_POS]->get_date(&mysql_time,
     SPIDER_date_mode_t(0));
-#ifdef MARIADB_BASE_VERSION
   stat->check_time = (time_t) my_system_gmt_sec(&mysql_time,
     &not_used_long, &not_used_uint);
-#else
-  stat->check_time = (time_t) my_system_gmt_sec(&mysql_time,
-    &not_used_long, &not_used_my_bool);
-#endif
   table->field[SPIDER_TABLE_STS_CREATE_TIME_POS]->get_date(&mysql_time,
     SPIDER_date_mode_t(0));
-#ifdef MARIADB_BASE_VERSION
   stat->create_time = (time_t) my_system_gmt_sec(&mysql_time,
     &not_used_long, &not_used_uint);
-#else
-  stat->create_time = (time_t) my_system_gmt_sec(&mysql_time,
-    &not_used_long, &not_used_my_bool);
-#endif
   table->field[SPIDER_TABLE_STS_UPDATE_TIME_POS]->get_date(&mysql_time,
     SPIDER_date_mode_t(0));
-#ifdef MARIADB_BASE_VERSION
   stat->update_time = (time_t) my_system_gmt_sec(&mysql_time,
     &not_used_long, &not_used_uint);
-#else
-  stat->update_time = (time_t) my_system_gmt_sec(&mysql_time,
-    &not_used_long, &not_used_my_bool);
-#endif
   if (table->field[SPIDER_TABLE_STS_CHECKSUM_POS]->is_null())
   {
     stat->checksum_null = TRUE;
