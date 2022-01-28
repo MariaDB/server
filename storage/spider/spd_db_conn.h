@@ -787,23 +787,12 @@ int spider_db_update(
   const uchar *old_data
 );
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-int spider_db_direct_update(
-  ha_spider *spider,
-  TABLE *table,
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  ha_rows *update_rows,
-  ha_rows *found_rows
-);
-#else
 int spider_db_direct_update(
   ha_spider *spider,
   TABLE *table,
   ha_rows *update_rows,
   ha_rows *found_rows
 );
-#endif
 
 
 int spider_db_bulk_delete(
@@ -818,21 +807,11 @@ int spider_db_delete(
   const uchar *buf
 );
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-int spider_db_direct_delete(
-  ha_spider *spider,
-  TABLE *table,
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  ha_rows *delete_rows
-);
-#else
 int spider_db_direct_delete(
   ha_spider *spider,
   TABLE *table,
   ha_rows *delete_rows
 );
-#endif
 
 int spider_db_delete_all_rows(
   ha_spider *spider

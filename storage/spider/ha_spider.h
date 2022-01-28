@@ -439,35 +439,6 @@ public:
     longlong select_limit,
     longlong offset_limit
   );
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-#ifdef SPIDER_MDEV_16246
-  inline int direct_update_rows_init(
-    List<Item> *update_fields
-  ) {
-    return direct_update_rows_init(update_fields, 2, NULL, 0, FALSE, NULL);
-  }
-  int direct_update_rows_init(
-    List<Item> *update_fields,
-    uint mode,
-    KEY_MULTI_RANGE *ranges,
-    uint range_count,
-    bool sorted,
-    uchar *new_data
-  );
-#else
-  inline int direct_update_rows_init()
-  {
-    return direct_update_rows_init(2, NULL, 0, FALSE, NULL);
-  }
-  int direct_update_rows_init(
-    uint mode,
-    KEY_MULTI_RANGE *ranges,
-    uint range_count,
-    bool sorted,
-    uchar *new_data
-  );
-#endif
-#else
 #ifdef SPIDER_MDEV_16246
   int direct_update_rows_init(
     List<Item> *update_fields
@@ -475,26 +446,10 @@ public:
 #else
   int direct_update_rows_init();
 #endif
-#endif
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-  inline int direct_update_rows(ha_rows *update_rows, ha_rows *found_rows)
-  {
-    return direct_update_rows(NULL, 0, FALSE, NULL, update_rows, found_rows);
-  }
-  int direct_update_rows(
-    KEY_MULTI_RANGE *ranges,
-    uint range_count,
-    bool sorted,
-    uchar *new_data,
-    ha_rows *update_rows,
-    ha_rows *found_row
-  );
-#else
   int direct_update_rows(
     ha_rows *update_rows,
     ha_rows *found_row
   );
-#endif
   bool start_bulk_delete();
   int end_bulk_delete();
   int delete_row(
@@ -505,36 +460,10 @@ public:
     longlong select_limit,
     longlong offset_limit
   );
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-  inline int direct_delete_rows_init()
-  {
-    return direct_delete_rows_init(2, NULL, 0, FALSE);
-  }
-  int direct_delete_rows_init(
-    uint mode,
-    KEY_MULTI_RANGE *ranges,
-    uint range_count,
-    bool sorted
-  );
-#else
   int direct_delete_rows_init();
-#endif
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-  inline int direct_delete_rows(ha_rows *delete_rows)
-  {
-    return direct_delete_rows(NULL, 0, FALSE, delete_rows);
-  }
-  int direct_delete_rows(
-    KEY_MULTI_RANGE *ranges,
-    uint range_count,
-    bool sorted,
-    ha_rows *delete_rows
-  );
-#else
   int direct_delete_rows(
     ha_rows *delete_rows
   );
-#endif
   int delete_all_rows();
   int truncate();
   double scan_time();
