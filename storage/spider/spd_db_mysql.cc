@@ -10947,18 +10947,6 @@ int spider_mbase_handler::append_is_null(
           key->flag == HA_READ_KEY_EXACT ||
           key->flag == HA_READ_KEY_OR_NEXT
         ) {
-#ifdef SPIDER_HANDLER_SUPPORT_MULTIPLE_KEY_PARTS
-          if (tgt_final)
-          {
-            if (str->reserve(SPIDER_SQL_EQUAL_LEN))
-              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-            str->q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
-          }
-          str = str_part;
-          if (str->reserve(SPIDER_SQL_NULL_LEN))
-            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          str->q_append(SPIDER_SQL_NULL_STR, SPIDER_SQL_NULL_LEN);
-#else
           if (str_part->length() == SPIDER_SQL_OPEN_PAREN_LEN)
           {
             if (str->reserve(SPIDER_SQL_EQUAL_LEN))
@@ -10969,29 +10957,7 @@ int spider_mbase_handler::append_is_null(
               DBUG_RETURN(HA_ERR_OUT_OF_MEM);
             str->q_append(SPIDER_SQL_NULL_STR, SPIDER_SQL_NULL_LEN);
           }
-#endif
         } else {
-#ifdef SPIDER_HANDLER_SUPPORT_MULTIPLE_KEY_PARTS
-          if (str_part->length() == SPIDER_SQL_OPEN_PAREN_LEN)
-          {
-            str = str_part;
-            str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
-            ha_next_pos = str->length();
-            if (str->reserve(SPIDER_SQL_FIRST_LEN))
-              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-            str->q_append(SPIDER_SQL_FIRST_STR, SPIDER_SQL_FIRST_LEN);
-            spider->result_list.ha_read_kind = 1;
-          } else if (tgt_final)
-          {
-            if (str->reserve(SPIDER_SQL_GT_LEN))
-              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-            str->q_append(SPIDER_SQL_GT_STR, SPIDER_SQL_GT_LEN);
-            str = str_part;
-            if (str->reserve(SPIDER_SQL_NULL_LEN))
-              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-            str->q_append(SPIDER_SQL_NULL_STR, SPIDER_SQL_NULL_LEN);
-          }
-#else
           if (str_part->length() == SPIDER_SQL_OPEN_PAREN_LEN)
           {
             str = str_part;
@@ -11003,7 +10969,6 @@ int spider_mbase_handler::append_is_null(
             str->q_append(SPIDER_SQL_FIRST_STR, SPIDER_SQL_FIRST_LEN);
             spider->result_list.ha_read_kind = 1;
           }
-#endif
         }
         str = str_part2;
       }
@@ -11085,9 +11050,6 @@ int spider_mbase_handler::append_where_terminator(
   } else {
     str_part2->length(str_part2->length() - SPIDER_SQL_AND_LEN);
 
-#ifdef SPIDER_HANDLER_SUPPORT_MULTIPLE_KEY_PARTS
-    str_part->length(str_part->length() - SPIDER_SQL_COMMA_LEN);
-#endif
     if (!result_list->ha_read_kind)
       str_part->q_append(SPIDER_SQL_CLOSE_PAREN_STR,
         SPIDER_SQL_CLOSE_PAREN_LEN);
