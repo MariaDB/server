@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1545,7 +1545,7 @@ inline void fil_space_t::reacquire()
 inline bool fil_space_t::set_stopping_check()
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-#if defined __clang_major__ && __clang_major__ < 10
+#if (defined __clang_major__ && __clang_major__ < 10) || defined __APPLE_CC__
   /* Only clang-10 introduced support for asm goto */
   return n_pending.fetch_or(STOPPING, std::memory_order_relaxed) & STOPPING;
 #elif defined __GNUC__ && (defined __i386__ || defined __x86_64__)
