@@ -2992,16 +2992,12 @@ int spider_db_fetch_table(
         DBUG_RETURN(error_num);
     }
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
     if (!spider->use_fields)
     {
-#endif
       if ((error_num = spider_db_append_match_fetch(spider,
         spider->ft_first, spider->ft_current, row)))
         DBUG_RETURN(error_num);
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
     }
-#endif
 
     for (
       field = table->field;
@@ -4560,10 +4556,8 @@ int spider_db_seek_next(
         (SPIDER_RESULT*) result_list->current);
 
     int roop_start = 0, roop_end = 1, roop_count, lock_mode, link_ok = 0;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
     if (!spider->use_fields)
     {
-#endif
       lock_mode = spider_conn_lock_mode(spider);
       if (lock_mode)
       {
@@ -4580,13 +4574,10 @@ int spider_db_seek_next(
         roop_start = link_idx;
         roop_end = link_idx + 1;
       }
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
     }
-#endif
 
     if (result_list->bgs_phase > 0)
     {
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
       if (spider->use_fields)
       {
         SPIDER_LINK_IDX_CHAIN *link_idx_chain;
@@ -4610,7 +4601,6 @@ int spider_db_seek_next(
           }
         }
       } else {
-#endif
         for (roop_count = roop_start; roop_count < roop_end;
           roop_count = spider_conn_link_idx_next(share->link_statuses,
             spider->conn_link_idx, roop_count, share->link_count,
@@ -4623,9 +4613,7 @@ int spider_db_seek_next(
             DBUG_RETURN(error_num);
           }
         }
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
       }
-#endif
     } else {
       if (result_list->current == result_list->bgs_current)
       {
@@ -4676,7 +4664,6 @@ int spider_db_seek_next(
             }
           }
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
           if (spider->use_fields)
           {
             SPIDER_LINK_IDX_CHAIN *link_idx_chain;
@@ -4801,7 +4788,6 @@ int spider_db_seek_next(
               }
             }
           } else {
-#endif
             for (roop_count = roop_start; roop_count < roop_end;
               roop_count = spider_conn_link_idx_next(share->link_statuses,
                 spider->conn_link_idx, roop_count, share->link_count,
@@ -4972,9 +4958,7 @@ int spider_db_seek_next(
                 }
               }
             }
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
           }
-#endif
         } else {
           spider->connection_ids[link_idx] = conn->connection_id;
           pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);

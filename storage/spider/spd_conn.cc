@@ -1751,7 +1751,6 @@ int spider_set_conn_bg_param(
 
   if (result_list->bgs_phase > 0)
   {
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
     if (spider->use_fields)
     {
       SPIDER_LINK_IDX_CHAIN *link_idx_chain;
@@ -1763,7 +1762,6 @@ int spider_set_conn_bg_param(
           DBUG_RETURN(error_num);
       }
     } else {
-#endif
       for (
         roop_count = spider_conn_link_idx_next(share->link_statuses,
           spider->conn_link_idx, -1, share->link_count,
@@ -1778,9 +1776,7 @@ int spider_set_conn_bg_param(
         if ((error_num = spider_create_conn_thread(spider->conns[roop_count])))
           DBUG_RETURN(error_num);
       }
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
     }
-#endif
   }
   DBUG_RETURN(0);
 }
@@ -2222,9 +2218,7 @@ int spider_bg_conn_search(
         conn->bg_target = spider;
         conn->link_idx = link_idx;
         conn->bg_discard_result = discard_result;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
         conn->link_idx_chain = spider->link_idx_chain;
-#endif
         pthread_mutex_lock(&conn->bg_conn_sync_mutex);
         pthread_cond_signal(&conn->bg_conn_cond);
         pthread_mutex_unlock(&conn->bg_conn_mutex);
@@ -2366,9 +2360,7 @@ int spider_bg_conn_search(
         conn->bg_target = spider;
         conn->link_idx = link_idx;
         conn->bg_discard_result = discard_result;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
         conn->link_idx_chain = spider->link_idx_chain;
-#endif
         result_list->bgs_working = TRUE;
         conn->bg_search = TRUE;
         if (with_lock)

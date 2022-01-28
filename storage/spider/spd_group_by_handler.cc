@@ -1164,7 +1164,6 @@ int spider_fields::ping_table_mon_from_table(
   DBUG_RETURN(error_num);
 }
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
 spider_group_by_handler::spider_group_by_handler(
   THD *thd_arg,
   Query *query_arg,
@@ -2124,4 +2123,3 @@ group_by_handler *spider_create_group_by_handler(
   query->order_by = NULL;
   DBUG_RETURN(group_by_handler);
 }
-#endif

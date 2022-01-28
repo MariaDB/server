@@ -96,13 +96,11 @@ public:
   bool               da_status;
   bool               use_spatial_index;
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   uint                  idx_for_direct_join;
   bool                  use_fields;
   spider_fields         *fields;
   SPIDER_LINK_IDX_CHAIN *link_idx_chain;
   SPIDER_LINK_IDX_CHAIN *result_link_idx_chain;
-#endif
 
   /* for mrr */
   bool               mrr_with_cnt;

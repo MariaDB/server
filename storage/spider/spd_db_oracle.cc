@@ -4378,7 +4378,6 @@ int spider_db_oracle_util::append_escaped_util(
   DBUG_RETURN(0);
 }
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
 int spider_db_oracle_util::append_from_and_tables(
   ha_spider *spider,
   spider_fields *fields,
@@ -4496,7 +4495,6 @@ int spider_db_oracle_util::append_having(
   str->q_append(SPIDER_SQL_HAVING_STR, SPIDER_SQL_HAVING_LEN);
   DBUG_RETURN(0);
 }
-#endif
 
 spider_oracle_share::spider_oracle_share(
   st_spider_share *share
@@ -10502,7 +10500,6 @@ bool spider_oracle_handler::need_lock_before_set_sql_for_exec(
   DBUG_RETURN(FALSE);
 }
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
 int spider_oracle_handler::set_sql_for_exec(
   ulong sql_type,
   int link_idx,
@@ -10547,7 +10544,6 @@ int spider_oracle_handler::set_sql_for_exec(
   }
   DBUG_RETURN(0);
 }
-#endif
 
 int spider_oracle_handler::set_sql_for_exec(
   ulong sql_type,
@@ -12436,7 +12432,6 @@ int spider_oracle_handler::reset_union_table_name(
   DBUG_RETURN(0);
 }
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
 int spider_oracle_handler::append_from_and_tables_part(
   spider_fields *fields,
   ulong sql_type
@@ -12765,7 +12760,6 @@ int spider_oracle_handler::append_order_by(
   }
   DBUG_RETURN(0);
 }
-#endif
 
 spider_oracle_copy_table::spider_oracle_copy_table(
   spider_oracle_share *db_share

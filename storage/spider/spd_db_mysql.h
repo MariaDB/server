@@ -143,7 +143,6 @@ public:
     spider_string *to,
     String *from
   );
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   int append_table(
     ha_spider *spider,
     spider_fields *fields,
@@ -196,7 +195,6 @@ public:
   int append_having(
     spider_string *str
   );
-#endif
   bool tables_on_different_db_are_joinable();
   bool socket_has_default_value();
   bool database_has_default_value();
@@ -1395,13 +1393,11 @@ public:
   bool need_lock_before_set_sql_for_exec(
     ulong sql_type
   );
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   int set_sql_for_exec(
     ulong sql_type,
     int link_idx,
     SPIDER_LINK_IDX_CHAIN *link_idx_chain
   );
-#endif
   int set_sql_for_exec(
     ulong sql_type,
     int link_idx
@@ -1522,7 +1518,6 @@ public:
     int link_idx,
     ulong sql_type
   );
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   int append_from_and_tables_part(
     spider_fields *fields,
     ulong sql_type
@@ -1593,7 +1588,6 @@ public:
     bool use_fields,
     spider_fields *fields
   );
-#endif
   bool check_direct_update(
     st_select_lex *select_lex,
     longlong select_limit,

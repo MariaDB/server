@@ -6652,9 +6652,7 @@ int spider_db_init(
   spider_hton->create = spider_create_handler;
   spider_hton->drop_database = spider_drop_database;
   spider_hton->show_status = spider_show_status;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   spider_hton->create_group_by = spider_create_group_by_handler;
-#endif
   spider_hton->table_options= spider_table_option_list;
 
   if (my_gethwaddr((uchar *) addr))
@@ -7934,13 +7932,11 @@ longlong spider_split_read_param(
     DBUG_PRINT("info",("spider bulk_update_mode=%d", bulk_update_mode));
     DBUG_PRINT("info",("spider support_bulk_update_sql=%s",
       spider->support_bulk_update_sql() ? "TRUE" : "FALSE"));
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
     bool inserting =
       (
         spider->wide_handler->sql_command == SQLCOM_INSERT ||
         spider->wide_handler->sql_command == SQLCOM_INSERT_SELECT
       );
-#endif
     bool updating =
       (
         spider->wide_handler->sql_command == SQLCOM_UPDATE ||
@@ -7961,12 +7957,10 @@ longlong spider_split_read_param(
     DBUG_PRINT("info",("spider replacing=%s", replacing ? "TRUE" : "FALSE"));
     TABLE *table = spider->get_table();
     if (
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
       (
         inserting &&
         spider->use_fields
       ) ||
-#endif
       replacing ||
       (
         (

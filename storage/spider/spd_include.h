@@ -501,10 +501,8 @@ typedef struct st_spider_conn
   query_id_t         connect_error_query_id;
   time_t             connect_error_time;
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   SPIDER_CONN_HOLDER    *conn_holder_for_direct_join;
   SPIDER_LINK_IDX_CHAIN *link_idx_chain;
-#endif
   SPIDER_IP_PORT_CONN *ip_port_conn;
 
   pthread_mutex_t    loop_check_mutex;
