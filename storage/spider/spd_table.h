@@ -730,7 +730,6 @@ double spider_rand(
   uint32 rand_source
 );
 
-#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
 int spider_discover_table_structure_internal(
   SPIDER_TRX *trx,
   SPIDER_SHARE *spider_share,
@@ -743,7 +742,6 @@ int spider_discover_table_structure(
   TABLE_SHARE *share,
   HA_CREATE_INFO *info
 );
-#endif
 
 int spider_create_spider_object_for_share(
   SPIDER_TRX *trx,

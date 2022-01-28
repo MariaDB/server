@@ -1079,7 +1079,6 @@ int spider_db_oracle_result::get_errno()
   DBUG_RETURN(store_error_num);
 }
 
-#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
 int spider_db_oracle_result::fetch_columns_for_discover_table_structure(
   spider_string *str,
   CHARSET_INFO *access_charset
@@ -1107,7 +1106,6 @@ int spider_db_oracle_result::fetch_table_for_discover_table_structure(
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
-#endif
 
 spider_db_oracle::spider_db_oracle(
   SPIDER_CONN *conn
@@ -5404,7 +5402,6 @@ bool spider_oracle_share::need_change_db_table_name()
   DBUG_RETURN(!same_db_table_name);
 }
 
-#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
 int spider_oracle_share::discover_table_structure(
   SPIDER_TRX *trx,
   SPIDER_SHARE *spider_share,
@@ -5414,7 +5411,6 @@ int spider_oracle_share::discover_table_structure(
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
-#endif
 
 spider_oracle_handler::spider_oracle_handler(
   ha_spider *spider,

@@ -6633,9 +6633,7 @@ int spider_db_init(
   spider_hton->flush_logs = spider_flush_logs;
   spider_hton->commit = spider_commit;
   spider_hton->rollback = spider_rollback;
-#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
   spider_hton->discover_table_structure = spider_discover_table_structure;
-#endif
   if (spider_param_support_xa())
   {
     spider_hton->prepare = spider_xa_prepare;
@@ -8582,7 +8580,6 @@ double spider_rand(
   DBUG_RETURN(my_rnd(&rand));
 }
 
-#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
 int spider_discover_table_structure_internal(
   SPIDER_TRX *trx,
   SPIDER_SHARE *spider_share,
@@ -8948,7 +8945,6 @@ int spider_discover_table_structure(
     str.length());
   DBUG_RETURN(error_num);
 }
-#endif
 
 int spider_create_spider_object_for_share(
   SPIDER_TRX *trx,

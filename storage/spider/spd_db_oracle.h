@@ -272,7 +272,6 @@ public:
     longlong pos
   );
   int get_errno();
-#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
   int fetch_columns_for_discover_table_structure(
     spider_string *str,
     CHARSET_INFO *access_charset
@@ -286,7 +285,6 @@ public:
     SPIDER_SHARE *spider_share,
     CHARSET_INFO *access_charset
   );
-#endif
   /* for oracle */
   int set_column_info();
 };
@@ -558,13 +556,11 @@ public:
     int *table_name_pos
   );
   bool need_change_db_table_name();
-#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
   int discover_table_structure(
     SPIDER_TRX *trx,
     SPIDER_SHARE *spider_share,
     spider_string *str
   );
-#endif
 private:
   int create_table_names_str();
   void free_table_names_str();

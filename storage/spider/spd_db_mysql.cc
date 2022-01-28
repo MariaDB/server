@@ -138,7 +138,6 @@ static const char *name_quote_str = SPIDER_SQL_NAME_QUOTE_STR;
 #define SPIDER_SQL_BINLOG_GTID_POS_STR "select binlog_gtid_pos"
 #define SPIDER_SQL_BINLOG_GTID_POS_LEN sizeof(SPIDER_SQL_BINLOG_GTID_POS_STR) - 1
 
-#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
 #define SPIDER_SQL_SHOW_COLUMNS_STR "show columns from "
 #define SPIDER_SQL_SHOW_COLUMNS_LEN sizeof(SPIDER_SQL_SHOW_COLUMNS_STR) - 1
 #define SPIDER_SQL_SELECT_COLUMNS_STR "select `column_name`,`column_default`,`is_nullable`,`character_set_name`,`collation_name`,`column_type`,`extra` from `information_schema`.`columns` where `table_schema` = "
@@ -154,7 +153,6 @@ static const char *name_quote_str = SPIDER_SQL_NAME_QUOTE_STR;
 #define SPIDER_SQL_SPATIAL_LEN sizeof(SPIDER_SQL_SPATIAL_STR) - 1
 #define SPIDER_SQL_USING_HASH_STR " using hash"
 #define SPIDER_SQL_USING_HASH_LEN sizeof(SPIDER_SQL_USING_HASH_STR) - 1
-#endif
 
 #define SPIDER_SQL_SHOW_RECORDS_RECORDS_POS 0
 #define SPIDER_SQL_EXPLAIN_SELECT_RECORDS_POS 8
@@ -1383,7 +1381,6 @@ int spider_db_mbase_result::get_errno()
   DBUG_RETURN(store_error_num);
 }
 
-#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
 int spider_db_mbase_result::fetch_columns_for_discover_table_structure(
   spider_string *str,
   CHARSET_INFO *access_charset
@@ -1756,7 +1753,6 @@ int spider_db_mbase_result::fetch_table_for_discover_table_structure(
   }
   DBUG_RETURN(0);
 }
-#endif
 
 spider_db_mbase::spider_db_mbase(
   SPIDER_CONN *conn,
@@ -8374,7 +8370,6 @@ bool spider_mbase_share::need_change_db_table_name()
   DBUG_RETURN(!same_db_table_name);
 }
 
-#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
 int spider_mbase_share::discover_table_structure(
   SPIDER_TRX *trx,
   SPIDER_SHARE *spider_share,
@@ -8678,7 +8673,6 @@ int spider_mbase_share::discover_table_structure(
   }
   DBUG_RETURN(error_num);
 }
-#endif
 
 bool spider_mbase_share::checksum_support()
 {

@@ -924,7 +924,6 @@ public:
     longlong pos
   ) = 0;
   virtual int get_errno() = 0;
-#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
   virtual int fetch_columns_for_discover_table_structure(
     spider_string *str,
     CHARSET_INFO *access_charset
@@ -938,7 +937,6 @@ public:
     SPIDER_SHARE *spider_share,
     CHARSET_INFO *access_charset
   ) = 0;
-#endif
   virtual uint limit_mode();
 };
 
@@ -1145,13 +1143,11 @@ public:
     uint alias_length
   ) = 0;
   virtual bool need_change_db_table_name() = 0;
-#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
   virtual int discover_table_structure(
     SPIDER_TRX *trx,
     SPIDER_SHARE *spider_share,
     spider_string *str
   ) = 0;
-#endif
   virtual bool checksum_support();
 };
 
