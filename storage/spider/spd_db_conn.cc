@@ -6836,7 +6836,6 @@ int spider_db_update(
   DBUG_RETURN(0);
 }
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
 int spider_db_direct_update(
   ha_spider *spider,
@@ -6884,17 +6883,14 @@ int spider_db_direct_update(
     (spider->direct_update_kinds & SPIDER_SQL_KIND_HS)
 */
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
     if (!spider->do_direct_update)
     {
-#endif
       if (
         (spider->sql_kinds & SPIDER_SQL_KIND_SQL) &&
         (error_num = spider->append_update_set_sql_part())
       ) {
         DBUG_RETURN(error_num);
       }
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
     } else {
       if (
         (spider->direct_update_kinds & SPIDER_SQL_KIND_SQL) &&
@@ -6903,7 +6899,6 @@ int spider_db_direct_update(
         DBUG_RETURN(error_num);
       }
     }
-#endif
 
   result_list->desc_flg = FALSE;
   result_list->sorted = TRUE;
@@ -7102,17 +7097,14 @@ int spider_db_direct_update(
     spider->wide_handler->direct_update_fields
 */
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   if (!spider->do_direct_update)
   {
-#endif
     if (
       (spider->sql_kinds & SPIDER_SQL_KIND_SQL) &&
       (error_num = spider->append_update_set_sql_part())
     ) {
       DBUG_RETURN(error_num);
     }
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   } else {
     if (
       (spider->direct_update_kinds & SPIDER_SQL_KIND_SQL) &&
@@ -7121,7 +7113,6 @@ int spider_db_direct_update(
       DBUG_RETURN(error_num);
     }
   }
-#endif
 
   result_list->desc_flg = FALSE;
   result_list->sorted = TRUE;
@@ -7285,7 +7276,6 @@ int spider_db_direct_update(
   DBUG_RETURN(0);
 }
 #endif
-#endif
 
 
 int spider_db_bulk_delete(
@@ -7389,7 +7379,6 @@ int spider_db_delete(
   DBUG_RETURN(0);
 }
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
 int spider_db_direct_delete(
   ha_spider *spider,
@@ -7761,7 +7750,6 @@ int spider_db_direct_delete(
   }
   DBUG_RETURN(error_num2);
 }
-#endif
 #endif
 
 int spider_db_delete_all_rows(
@@ -9417,7 +9405,6 @@ int spider_db_append_condition(
   DBUG_RETURN(0);
 }
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 int spider_db_append_update_columns(
   ha_spider *spider,
   spider_string *str,
@@ -9472,7 +9459,6 @@ int spider_db_append_update_columns(
     str->length(str->length() - SPIDER_SQL_COMMA_LEN);
   DBUG_RETURN(0);
 }
-#endif
 
 bool spider_db_check_select_colum_in_group(
   st_select_lex *select_lex,

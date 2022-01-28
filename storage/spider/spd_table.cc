@@ -3973,11 +3973,7 @@ int spider_set_connect_info_default(
     share->casual_read = 0;
   if (share->delete_all_rows_type == -1)
   {
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
     share->delete_all_rows_type = 1;
-#else
-    share->delete_all_rows_type = 0;
-#endif
   }
   if (share->bka_mode == -1)
     share->bka_mode = 1;

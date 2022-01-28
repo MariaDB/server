@@ -597,10 +597,8 @@ typedef struct st_spider_wide_handler
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   SPIDER_PARTITION_HANDLER *partition_handler;
 #endif
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   List<Item>         *direct_update_fields;
   List<Item>         *direct_update_values;
-#endif
   TABLE_SHARE        *top_share;
   enum thr_lock_type lock_type;
   uchar              lock_table_type;
@@ -609,10 +607,8 @@ typedef struct st_spider_wide_handler
   int                cond_check_error;
   uint               sql_command;
   uint               top_table_fields;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 #ifdef INFO_KIND_FORCE_LIMIT_BEGIN
   longlong           info_limit;
-#endif
 #endif
   bool               between_flg;
   bool               idx_bitmap_is_set;

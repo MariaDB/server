@@ -9720,11 +9720,7 @@ int spider_mbase_handler::append_insert(
     spider->wide_handler->ignore_dup_key &&
     spider->direct_dup_insert &&
     !spider->wide_handler->write_can_replace &&
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
     (!spider->wide_handler->insert_with_update || !dup_update_sql.length()) &&
-#else
-    !spider->wide_handler->insert_with_update &&
-#endif
     /* for direct_dup_insert without patch for partition */
     spider->wide_handler->sql_command != SQLCOM_REPLACE &&
     spider->wide_handler->sql_command != SQLCOM_REPLACE_SELECT
@@ -9883,7 +9879,6 @@ int spider_mbase_handler::append_update_set(
   DBUG_RETURN(0);
 }
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 int spider_mbase_handler::append_direct_update_set_part()
 {
   int error_num;
@@ -9960,7 +9955,6 @@ int spider_mbase_handler::append_update_columns(
     alias, alias_length, dbton_id, FALSE, NULL);
   DBUG_RETURN(error_num);
 }
-#endif
 
 int spider_mbase_handler::append_select_part(
   ulong sql_type
@@ -16321,7 +16315,6 @@ int spider_mbase_handler::append_order_by(
 }
 #endif
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 bool spider_mbase_handler::check_direct_update(
   st_select_lex *select_lex,
   longlong select_limit,
@@ -16341,7 +16334,6 @@ bool spider_mbase_handler::check_direct_delete(
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(FALSE);
 }
-#endif
 
 spider_mbase_copy_table::spider_mbase_copy_table(
   spider_mbase_share *db_share

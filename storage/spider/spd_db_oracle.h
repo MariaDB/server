@@ -741,7 +741,6 @@ public:
   int append_update_set(
     spider_string *str
   );
-  #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   int append_direct_update_set_part();
   int append_direct_update_set(
     spider_string *str
@@ -760,7 +759,6 @@ public:
     const char *alias,
     uint alias_length
   );
-  #endif
   int append_select_part(
     ulong sql_type
   );
