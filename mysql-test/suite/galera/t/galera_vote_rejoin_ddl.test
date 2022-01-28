@@ -6,19 +6,17 @@
 --source include/galera_cluster.inc
 --source include/big_test.inc
 
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4
+
 # Save original auto_increment_offset values.
 --let $node_1=node_1
 --let $node_2=node_2
---source include/auto_increment_offset_save.inc
-# The following has to be set hard as these connection doesn't yet exists and
-# the auto_increment_offset value changes during the lifetime of the servers.
 --let $node_3=node_3
---let $auto_increment_offset_node_3 = 3;
 --let $node_4=node_4
---let $auto_increment_offset_node_4 = 4;
+--source include/auto_increment_offset_save.inc
 
 # Isolate node #3
---connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 --connection node_3
 SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
 
@@ -28,7 +26,6 @@ SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
 --source include/wait_condition.inc
 
 # Introduce inconsistency on node #4
---connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4
 --connection node_4
 SET SESSION wsrep_on=OFF;
 CREATE TABLE t1 (f1 INTEGER);

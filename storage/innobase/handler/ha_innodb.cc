@@ -1624,6 +1624,7 @@ thd_to_trx_id(
 static void wsrep_abort_transaction(handlerton*, THD *, THD *, my_bool);
 static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
+static int wsrep_force_checkpoint(handlerton*, THD *);
 #endif /* WITH_WSREP */
 /********************************************************************//**
 Converts an InnoDB error code to a MySQL error code and also tells to MySQL
@@ -3206,9 +3207,6 @@ static int innodb_init_abort()
 	}
 	srv_tmp_space.shutdown();
 
-#ifdef WITH_INNODB_DISALLOW_WRITES
-	os_event_destroy(srv_allow_writes_event);
-#endif /* WITH_INNODB_DISALLOW_WRITES */
 	DBUG_RETURN(1);
 }
 
@@ -4011,6 +4009,7 @@ static int innodb_init(void* p)
 	innobase_hton->abort_transaction=wsrep_abort_transaction;
 	innobase_hton->set_checkpoint=innobase_wsrep_set_checkpoint;
 	innobase_hton->get_checkpoint=innobase_wsrep_get_checkpoint;
+	innobase_hton->force_checkpoint=wsrep_force_checkpoint;
 #endif /* WITH_WSREP */
 
 	innobase_hton->tablefile_extensions = ha_innobase_exts;
@@ -19727,39 +19726,6 @@ static MYSQL_SYSVAR_ULONG(buf_dump_status_frequency, srv_buf_dump_status_frequen
   "dumped. Default is 0 (only start and end status is printed).",
   NULL, NULL, 0, 0, 100, 0);
 
-#ifdef WITH_INNODB_DISALLOW_WRITES
-/*******************************************************
- *    innobase_disallow_writes variable definition     *
- *******************************************************/
- 
-/* Must always init to FALSE. */
-static my_bool	innobase_disallow_writes	= FALSE;
-
-/**************************************************************************
-An "update" method for innobase_disallow_writes variable. */
-static
-void
-innobase_disallow_writes_update(THD*, st_mysql_sys_var*,
-				void* var_ptr, const void* save)
-{
-	const my_bool val = *static_cast<const my_bool*>(save);
-	*static_cast<my_bool*>(var_ptr) = val;
-	ut_a(srv_allow_writes_event);
-	mysql_mutex_unlock(&LOCK_global_system_variables);
-	if (val) {
-		os_event_reset(srv_allow_writes_event);
-	} else {
-		os_event_set(srv_allow_writes_event);
-	}
-	mysql_mutex_lock(&LOCK_global_system_variables);
-}
-
-static MYSQL_SYSVAR_BOOL(disallow_writes, innobase_disallow_writes,
-  PLUGIN_VAR_NOCMDOPT,
-  "Tell InnoDB to stop any writes to disk",
-  NULL, innobase_disallow_writes_update, FALSE);
-#endif /* WITH_INNODB_DISALLOW_WRITES */
-
 static MYSQL_SYSVAR_BOOL(random_read_ahead, srv_random_read_ahead,
   PLUGIN_VAR_NOCMDARG,
   "Whether to use read ahead for random access within an extent.",
@@ -20149,9 +20115,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(change_buffer_dump),
   MYSQL_SYSVAR(change_buffering_debug),
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
-#ifdef WITH_INNODB_DISALLOW_WRITES
-  MYSQL_SYSVAR(disallow_writes),
-#endif /* WITH_INNODB_DISALLOW_WRITES */
   MYSQL_SYSVAR(random_read_ahead),
   MYSQL_SYSVAR(read_ahead_threshold),
   MYSQL_SYSVAR(read_only),
@@ -21659,3 +21622,38 @@ buf_pool_size_align(
     return (ulint)((size / m + 1) * m);
   }
 }
+
+#ifdef WITH_WSREP
+/** Helper function for Galera rsync SST to flush all dirty
+pages from buffer pool and force log checkpoint.
+@param[in] handlerton* hton  InnoDB handlerton
+@param[in] THD* thd          Thread handle */
+static int wsrep_force_checkpoint(handlerton *hton, THD * thd)
+{
+  DBUG_ASSERT(hton == innodb_hton_ptr);
+  // Note that wsrep_on = OFF during rsync SST so we can't check that
+  // this is called only with WSREP(thd)
+  // Force a dirty pages flush now
+  ib::info() << "Flushing buffer pool...";
+  buf_flush_sync();
+  ib::info() << "Flushing buffer pool...done";
+  // Force InnoDB to checkpoint
+  lsn_t lsn;
+  ib::info() << "Creating checkpoint...";
+  while (log_sys.last_checkpoint_lsn.load(std::memory_order_acquire)
+	   + SIZE_OF_FILE_CHECKPOINT
+	   < (lsn= log_sys.get_lsn(std::memory_order_acquire)))
+  {
+    log_make_checkpoint();
+    log_sys.log.flush();
+  }
+
+  if (dberr_t err= fil_write_flushed_lsn(lsn))
+    ib::warn() << "Force checkpoint set failed: " << ut_strerr(err);
+
+  ib::info() << "Creating checkpoint...done";
+
+  return (0);
+}
+#endif /* WITH_WSREP */
+

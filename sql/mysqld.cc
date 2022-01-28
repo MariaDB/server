@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2021, MariaDB
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4967,6 +4967,9 @@ static int init_server_components()
       MARIADB_REMOVED_OPTION("skip-bdb"),
       MARIADB_REMOVED_OPTION("thread-concurrency"),
       MARIADB_REMOVED_OPTION("timed-mutexes"),
+
+      /* Removed in 10.5.14 */
+      MARIADB_REMOVED_OPTION("innodb-disallow-writes"),
 
       /* The following options were added after 5.6.10 */
       MYSQL_TO_BE_IMPLEMENTED_OPTION("rpl-stop-slave-timeout"),

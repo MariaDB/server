@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2021, MariaDB Corporation.
+   Copyright (c) 2008, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -8150,4 +8150,26 @@ bool THD::timestamp_to_TIME(MYSQL_TIME *ltime, my_time_t ts,
 THD_list_iterator *THD_list_iterator::iterator()
 {
   return &server_threads;
+}
+
+extern "C"
+int thd_get_backup_lock(THD* thd, MDL_ticket **mdl)
+{
+  MDL_request request;
+
+  MDL_REQUEST_INIT(&request, MDL_key::BACKUP, "", "", MDL_BACKUP_DML,
+                   MDL_EXPLICIT);
+
+  if (thd->mdl_context.try_acquire_lock(&request) ||
+      !request.ticket)
+    return 1;
+
+  *mdl= request.ticket;
+  return 0;
+}
+
+extern "C"
+void thd_release_backup_lock(THD* thd, MDL_ticket *mdl)
+{
+  thd->mdl_context.release_lock(mdl);
 }

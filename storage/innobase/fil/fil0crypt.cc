@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -83,6 +83,12 @@ static uint n_fil_crypt_iops_allocated = 0;
 /** Statistics variables */
 static fil_crypt_stat_t crypt_stat;
 static ib_mutex_t crypt_stat_mutex;
+
+extern "C" int thd_get_backup_lock(THD* thd, MDL_ticket **mdl);
+extern "C" void thd_release_backup_lock(THD* thd, MDL_ticket *mdl);
+#ifdef WITH_WSREP
+extern bool sst_in_progress;
+#endif
 
 /***********************************************************************
 Check if a key needs rotation given a key_state
@@ -998,11 +1004,60 @@ func_exit:
 	mtr.commit();
 }
 
+/** State of a rotation thread */
+struct rotate_thread_t {
+	explicit rotate_thread_t(uint no) {
+		memset(this, 0, sizeof(* this));
+		thread_no = no;
+		first = true;
+		estimated_max_iops = 20;
+		thd = innobase_create_background_thd("InnoDB encryption rotation thread");
+		mdl = NULL;
+	}
+
+	uint thread_no;
+	bool first;		    /*!< is position before first space */
+	fil_space_t* space;	    /*!< current space or NULL */
+	uint32_t offset;	    /*!< current page number */
+	ulint batch;		    /*!< #pages to rotate */
+	uint  min_key_version_found;/*!< min key version found but not rotated */
+	lsn_t end_lsn;		    /*!< max lsn when rotating this space */
+
+	uint estimated_max_iops;   /*!< estimation of max iops */
+	uint allocated_iops;	   /*!< allocated iops */
+	ulint cnt_waited;	   /*!< #times waited during this slot */
+	uintmax_t sum_waited_us;   /*!< wait time during this slot */
+
+	fil_crypt_stat_t crypt_stat; // statistics
+	THD *thd;		     /*!< Thread handle for
+				     MDL-locking */
+	MDL_ticket *mdl;	     /*!< MDL-ticket or NULL */
+
+	/** @return whether this thread should terminate */
+	bool should_shutdown() const {
+		switch (srv_shutdown_state) {
+		case SRV_SHUTDOWN_NONE:
+			return thread_no >= srv_n_fil_crypt_threads;
+		case SRV_SHUTDOWN_EXIT_THREADS:
+			/* srv_init_abort() must have been invoked */
+		case SRV_SHUTDOWN_CLEANUP:
+		case SRV_SHUTDOWN_INITIATED:
+			return true;
+		case SRV_SHUTDOWN_LAST_PHASE:
+			break;
+		}
+		ut_ad(0);
+		return true;
+	}
+};
+
 /** Start encrypting a space
+@param[in,out]		thd		Thread handle
 @param[in,out]		space		Tablespace
 @return true if a recheck of tablespace is needed by encryption thread. */
-static bool fil_crypt_start_encrypting_space(fil_space_t* space)
+static bool fil_crypt_start_encrypting_space(rotate_thread_t* state, fil_space_t* space)
 {
+	bool mdl_locked= false;
 	mutex_enter(&fil_crypt_threads_mutex);
 
 	fil_space_crypt_t *crypt_data = space->crypt_data;
@@ -1021,6 +1076,18 @@ static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 		return recheck;
 	}
 
+	/* Take global backup MDL-lock to restrict other threads
+	doing FTWRL or EXPORT. */
+	if (!state->mdl) {
+		if (thd_get_backup_lock(state->thd, &state->mdl)) {
+			mutex_exit(&fil_crypt_threads_mutex);
+			return recheck;
+		}
+		mdl_locked= true;
+	}
+#ifdef WITH_WSREP
+	ut_ad(!sst_in_progress);
+#endif
 	/* NOTE: we need to write and flush page 0 before publishing
 	* the crypt data. This so that after restart there is no
 	* risk of finding encrypted pages without having
@@ -1089,6 +1156,11 @@ static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 		mutex_exit(&crypt_data->mutex);
 		mutex_exit(&fil_crypt_threads_mutex);
 
+		if (mdl_locked) {
+			ut_ad(state->mdl);
+			thd_release_backup_lock(state->thd, state->mdl);
+			state->mdl= NULL;
+		}
 		return false;
 	}
 
@@ -1100,50 +1172,12 @@ abort:
 
 	crypt_data->~fil_space_crypt_t();
 	ut_free(crypt_data);
+	if (mdl_locked) {
+		thd_release_backup_lock(state->thd, state->mdl);
+		state->mdl = NULL;
+	}
 	return false;
 }
-
-/** State of a rotation thread */
-struct rotate_thread_t {
-	explicit rotate_thread_t(uint no) {
-		memset(this, 0, sizeof(* this));
-		thread_no = no;
-		first = true;
-		estimated_max_iops = 20;
-	}
-
-	uint thread_no;
-	bool first;		    /*!< is position before first space */
-	fil_space_t* space;	    /*!< current space or NULL */
-	uint32_t offset;	    /*!< current page number */
-	ulint batch;		    /*!< #pages to rotate */
-	uint  min_key_version_found;/*!< min key version found but not rotated */
-	lsn_t end_lsn;		    /*!< max lsn when rotating this space */
-
-	uint estimated_max_iops;   /*!< estimation of max iops */
-	uint allocated_iops;	   /*!< allocated iops */
-	ulint cnt_waited;	   /*!< #times waited during this slot */
-	uintmax_t sum_waited_us;   /*!< wait time during this slot */
-
-	fil_crypt_stat_t crypt_stat; // statistics
-
-	/** @return whether this thread should terminate */
-	bool should_shutdown() const {
-		switch (srv_shutdown_state) {
-		case SRV_SHUTDOWN_NONE:
-			return thread_no >= srv_n_fil_crypt_threads;
-		case SRV_SHUTDOWN_EXIT_THREADS:
-			/* srv_init_abort() must have been invoked */
-		case SRV_SHUTDOWN_CLEANUP:
-		case SRV_SHUTDOWN_INITIATED:
-			return true;
-		case SRV_SHUTDOWN_LAST_PHASE:
-			break;
-		}
-		ut_ad(0);
-		return true;
-	}
-};
 
 /** Avoid the removal of the tablespace from
 default_encrypt_list only when
@@ -1201,7 +1235,7 @@ fil_crypt_space_needs_rotation(
 		* space has no crypt data
 		*   start encrypting it...
 		*/
-		*recheck = fil_crypt_start_encrypting_space(space);
+		*recheck = fil_crypt_start_encrypting_space(state, space);
 		crypt_data = space->crypt_data;
 
 		if (crypt_data == NULL) {
@@ -2008,7 +2042,9 @@ fil_crypt_rotate_pages(
 		if (state->space->is_stopping()) {
 			break;
 		}
-
+#ifdef WITH_WSREP
+		ut_ad(!sst_in_progress);
+#endif
 		fil_crypt_rotate_page(key_state, state);
 	}
 }
@@ -2026,6 +2062,10 @@ fil_crypt_flush_space(
 	fil_space_crypt_t *crypt_data = space->crypt_data;
 
 	ut_ad(space->referenced());
+
+#ifdef WITH_WSREP
+	ut_ad(!sst_in_progress);
+#endif
 
 	/* flush tablespace pages so that there are no pages left with old key */
 	lsn_t end_lsn = crypt_data->rotate_state.end_lsn;
@@ -2137,6 +2177,9 @@ static void fil_crypt_complete_rotate_space(rotate_thread_t* state)
 	}
 }
 
+extern "C" int thd_get_backup_lock(THD* thd, MDL_ticket **mdl);
+extern "C" void thd_release_backup_lock(THD* thd, MDL_ticket *mdl);
+
 /*********************************************************************//**
 A thread which monitors global key state and rotates tablespaces accordingly
 @return a dummy parameter */
@@ -2187,6 +2230,14 @@ DECLARE_THREAD(fil_crypt_thread)(void*)
 		       fil_crypt_find_space_to_rotate(&new_state, &thr, &recheck)) {
 
 			/* we found a space to rotate */
+
+			/* Aquire global MDL BACKUP lock. */
+			if (thd_get_backup_lock(thr.thd, &thr.mdl)) {
+				thr.space->release();
+				thr.space = NULL;
+				break;
+			}
+
 			fil_crypt_start_rotate_space(&new_state, &thr);
 
 			/* iterate all pages (cooperativly with other threads) */
@@ -2202,6 +2253,8 @@ DECLARE_THREAD(fil_crypt_thread)(void*)
 				space and stop rotation. */
 				if (thr.space->is_stopping()) {
 					fil_crypt_complete_rotate_space(&thr);
+					thd_release_backup_lock(thr.thd, thr.mdl);
+					thr.mdl = NULL;
 					thr.space->release();
 					thr.space = NULL;
 					break;
@@ -2221,6 +2274,11 @@ DECLARE_THREAD(fil_crypt_thread)(void*)
 
 			/* return iops */
 			fil_crypt_return_iops(&thr);
+
+			if (thr.mdl) {
+				thd_release_backup_lock(thr.thd, thr.mdl);
+				thr.mdl = NULL;
+			}
 		}
 	}
 
@@ -2233,10 +2291,17 @@ DECLARE_THREAD(fil_crypt_thread)(void*)
 		thr.space = NULL;
 	}
 
+	if (thr.mdl) {
+		thd_release_backup_lock(thr.thd, thr.mdl);
+		thr.mdl = NULL;
+	}
+
 	mutex_enter(&fil_crypt_threads_mutex);
 	srv_n_fil_crypt_threads_started--;
 	os_event_set(fil_crypt_event); /* signal that we stopped */
 	mutex_exit(&fil_crypt_threads_mutex);
+
+	innobase_destroy_background_thd(thr.thd);
 
 	/* We count the number of threads in os_thread_exit(). A created
 	thread should always use that to exit and not use return() to exit. */

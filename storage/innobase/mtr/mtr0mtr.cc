@@ -32,6 +32,7 @@ Created 11/26/1995 Heikki Tuuri
 #include "page0types.h"
 #include "mtr0log.h"
 #include "log0recv.h"
+#include "wsrep.h"
 
 /** Iterate over a memo block in reverse. */
 template <typename Functor>
@@ -872,12 +873,15 @@ static void log_write_low(const void *str, size_t size)
   while (size);
 }
 
+extern bool sst_in_progress;
+
 /** Close the log at mini-transaction commit.
 @return whether buffer pool flushing is needed */
 static mtr_t::page_flush_ahead log_close(lsn_t lsn)
 {
   mysql_mutex_assert_owner(&log_sys.mutex);
   ut_ad(lsn == log_sys.get_lsn());
+  DBUG_ASSERT(IF_WSREP(!sst_in_progress,1));
 
   byte *log_block= static_cast<byte*>(ut_align_down(log_sys.buf +
                                                     log_sys.buf_free,

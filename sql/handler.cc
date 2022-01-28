@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -7551,6 +7551,19 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   }
 
   DBUG_RETURN(0);
+}
+
+int ha_force_checkpoint(THD * thd)
+{
+  int res=0;
+
+  handlerton *hton= installed_htons[DB_TYPE_INNODB];
+
+  if (hton && hton->force_checkpoint)
+  {
+    res= hton->force_checkpoint(hton, thd);
+  }
+  return (res);
 }
 #endif /* WITH_WSREP */
 

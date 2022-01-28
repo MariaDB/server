@@ -149,13 +149,6 @@ ELSE()
    ADD_DEFINITIONS(-DMUTEX_SYS)
 ENDIF()
 
-OPTION(WITH_INNODB_DISALLOW_WRITES "InnoDB freeze writes patch from Google" ${WITH_WSREP})
-IF (WITH_INNODB_DISALLOW_WRITES)
-  ADD_DEFINITIONS(-DWITH_INNODB_DISALLOW_WRITES)
-ENDIF()
-ADD_FEATURE_INFO(INNODB_DISALLOW_WRITES WITH_INNODB_DISALLOW_WRITES "Expose innodb_disallow_writes switch to stop innodb from writing to disk")
-
-
 # Include directories under innobase
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
 		    ${CMAKE_SOURCE_DIR}/storage/innobase/handler)

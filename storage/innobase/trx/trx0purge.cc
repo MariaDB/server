@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -42,7 +42,9 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0rseg.h"
 #include "trx0trx.h"
 #include <mysql/service_wsrep.h>
-
+#include <mysqld.h>
+#include "sql_class.h"
+#include <mysql/service_thd_mdl.h>
 #include <unordered_map>
 
 /** Maximum allowable purge history length.  <=0 means 'infinite'. */
@@ -1268,6 +1270,8 @@ static void trx_purge_wait_for_workers_to_complete()
   ut_ad(srv_get_task_queue_length() == 0);
 }
 
+extern "C" int thd_get_backup_lock(THD* thd, MDL_ticket **mdl);
+extern "C" void thd_release_backup_lock(THD* thd, MDL_ticket *mdl);
 /**
 Run a purge batch.
 @param n_tasks   number of purge tasks to submit to the queue
@@ -1277,8 +1281,13 @@ ulint trx_purge(ulint n_tasks, bool truncate)
 {
 	que_thr_t*	thr = NULL;
 	ulint		n_pages_handled;
+	MDL_ticket *mdl= NULL;
 
 	ut_ad(n_tasks > 0);
+
+	/* Acquire global MDL_BACKUP_DML lock */
+	if (thd_get_backup_lock(current_thd, &mdl))
+	  return (0);
 
 	srv_dml_needed_delay = trx_purge_dml_delay();
 
@@ -1286,6 +1295,7 @@ ulint trx_purge(ulint n_tasks, bool truncate)
 
 #ifdef UNIV_DEBUG
 	if (srv_purge_view_update_only_debug) {
+		thd_release_backup_lock(current_thd, mdl);
 		return(0);
 	}
 #endif /* UNIV_DEBUG */
@@ -1310,6 +1320,8 @@ ulint trx_purge(ulint n_tasks, bool truncate)
 	if (truncate) {
 		trx_purge_truncate_history();
 	}
+
+	thd_release_backup_lock(current_thd, mdl);
 
 	MONITOR_INC_VALUE(MONITOR_PURGE_INVOKED, 1);
 	MONITOR_INC_VALUE(MONITOR_PURGE_N_PAGE_HANDLED, n_pages_handled);

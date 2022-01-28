@@ -2112,10 +2112,6 @@ void innodb_shutdown()
 	}
 	srv_tmp_space.shutdown();
 
-#ifdef WITH_INNODB_DISALLOW_WRITES
-	os_event_destroy(srv_allow_writes_event);
-#endif /* WITH_INNODB_DISALLOW_WRITES */
-
 	if (srv_was_started && srv_print_verbose_log) {
 		ib::info() << "Shutdown completed; log sequence number "
 			   << srv_shutdown_lsn

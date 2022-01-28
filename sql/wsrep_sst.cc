@@ -1,4 +1,5 @@
-/* Copyright 2008-2020 Codership Oy <http://www.codership.com>
+/* Copyright (c) 2008-2022, Codership Oy <http://www.codership.com>
+   Copyright (c) 2008-2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -30,7 +31,8 @@
 #include "wsrep_xid.h"
 #include "wsrep_thd.h"
 #include "wsrep_mysqld.h"
-
+#include "sys_vars_shared.h" // intern_find_sys_var
+#include "handler.h" // ha_force_checkpoint
 #include <cstdio>
 #include <cstdlib>
 
@@ -55,6 +57,7 @@ my_bool wsrep_sst_donor_rejects_queries= FALSE;
 
 bool sst_joiner_completed            = false;
 bool sst_donor_completed             = false;
+bool sst_in_progress                 = false;
 
 struct sst_thread_arg
 {
@@ -1495,21 +1498,63 @@ static int run_sql_command(THD *thd, const char *query)
   }
 
   mysql_parse(thd, thd->query(), thd->query_length(), &ps, FALSE, FALSE);
+
   if (thd->is_error())
   {
     int const err= thd->get_stmt_da()->sql_errno();
-    WSREP_WARN ("Error executing '%s': %d (%s)%s",
-                query, err, thd->get_stmt_da()->message(),
-                err == ER_UNKNOWN_SYSTEM_VARIABLE ?
-                ". Was mysqld built with --with-innodb-disallow-writes ?" : "");
+    WSREP_WARN ("Error executing '%s': %d (%s)",
+                query, err, thd->get_stmt_da()->message());
     thd->clear_error();
     return -1;
   }
   return 0;
 }
 
+static void sst_set_charset_and_run(THD *thd, const char *query_str)
+{
+  CHARSET_INFO *current_charset;
+  current_charset= thd->variables.character_set_client;
 
-static int sst_flush_tables(THD* thd)
+  if (!is_supported_parser_charset(current_charset))
+  {
+      /* Do not use non-supported parser character sets */
+      WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->csname);
+      thd->variables.character_set_client= &my_charset_latin1;
+      WSREP_WARN("For SST temporally setting character set to : %s",
+                 my_charset_latin1.csname);
+  }
+
+  if (run_sql_command(thd, query_str))
+    WSREP_ERROR("Failed to execute query: %s", query_str);
+
+  thd->variables.character_set_client= current_charset;
+}
+
+static void sst_set_max_dirty_pages_pct_lwm(THD* thd, double val)
+{
+  char query_str[64]= { 0, };
+  ssize_t const query_max= sizeof(query_str) - 1;
+
+  snprintf (query_str, query_max, "SET GLOBAL innodb_max_dirty_pages_pct_lwm=%f;", val);
+
+  sst_set_charset_and_run(thd, query_str);
+}
+
+static void sst_set_max_dirty_pages_pct(THD* thd, double val)
+{
+  char query_str[64]= { 0, };
+  ssize_t const query_max= sizeof(query_str) - 1;
+
+  snprintf (query_str, query_max, "SET GLOBAL innodb_max_dirty_pages_pct=%f;", val);
+  sst_set_charset_and_run(thd, query_str);
+}
+
+static void sst_set_read_only(THD* thd, bool yes)
+{
+  sst_set_charset_and_run(thd, yes ? "SET GLOBAL read_only=1" : "SET GLOBAL read_only=0");
+}
+
+static int sst_flush_tables(THD* thd, bool* changed_values)
 {
   WSREP_INFO("Flushing tables for SST...");
 
@@ -1569,10 +1614,25 @@ static int sst_flush_tables(THD* thd)
   else
   {
     WSREP_INFO("Tables flushed.");
-    /*
-      Tables have been flushed. Create a file with cluster state ID and
-      wsrep_gtid_domain_id.
-    */
+    // Tables have been flushed.
+
+    /* We have already acquired MDL-locks above with FLUSH TABLES WITH READ
+    LOCK. We do following also here because SST script is waiting
+    flush tables operation to finish. We set max dirty pages to 0 to
+    force writing dirty buffer pool pages and then we force full
+    checkpoint. Then, as safety we set max dirty pages as high as
+    possible to avoid further async writes of buffer pool pages. We
+    also set server read_only to avoid writes. */
+    sst_set_max_dirty_pages_pct_lwm(thd, 0.0);
+    sst_set_max_dirty_pages_pct(thd, 0.0);
+    ha_force_checkpoint(thd);
+    sst_set_max_dirty_pages_pct_lwm(thd, 99.9);
+    sst_set_max_dirty_pages_pct(thd, 99.9);
+    sst_set_read_only(thd, true);
+    *changed_values= true;
+    sst_in_progress= true;
+
+    // Create a file with cluster state ID and wsrep_gtid_domain_id.
     char content[100];
     snprintf(content, sizeof(content), "%s:%lld %d\n", wsrep_cluster_state_uuid,
              (long long)wsrep_locked_seqno, wsrep_gtid_server.domain_id);
@@ -1586,6 +1646,7 @@ static int sst_flush_tables(THD* thd)
     sprintf(tmp_name, "%s.tmp", real_name);
 
     FILE* file= fopen(tmp_name, "w+");
+
     if (0 == file)
     {
       err= errno;
@@ -1617,34 +1678,6 @@ static int sst_flush_tables(THD* thd)
   return err;
 }
 
-
-static void sst_disallow_writes (THD* thd, bool yes)
-{
-  char query_str[64]= { 0, };
-  ssize_t const query_max= sizeof(query_str) - 1;
-  CHARSET_INFO *current_charset;
-
-  current_charset= thd->variables.character_set_client;
-
-  if (!is_supported_parser_charset(current_charset))
-  {
-      /* Do not use non-supported parser character sets */
-      WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->csname);
-      thd->variables.character_set_client= &my_charset_latin1;
-      WSREP_WARN("For SST temporally setting character set to : %s",
-                 my_charset_latin1.csname);
-  }
-
-  snprintf (query_str, query_max, "SET GLOBAL innodb_disallow_writes=%d",
-            yes ? 1 : 0);
-
-  if (run_sql_command(thd, query_str))
-  {
-    WSREP_ERROR("Failed to disallow InnoDB writes");
-  }
-  thd->variables.character_set_client= current_charset;
-}
-
 static void* sst_donor_thread (void* a)
 {
   sst_thread_arg* arg= (sst_thread_arg*)a;
@@ -1653,6 +1686,7 @@ static void* sst_donor_thread (void* a)
 
   int  err= 1;
   bool locked= false;
+  bool changed_values= false;
 
   const char*  out= NULL;
   const size_t out_len= 128;
@@ -1667,6 +1701,21 @@ static void* sst_donor_thread (void* a)
   // We also set this SST thread THD as system thread
   wsp::thd thd(FALSE, true);
   wsp::process proc(arg->cmd, "r", arg->env);
+
+  sys_var *max_dirty_pages_lwm=
+    intern_find_sys_var(STRING_WITH_LEN("innodb_max_dirty_pages_pct_lwm"));
+  sys_var *max_dirty_pages=
+    intern_find_sys_var(STRING_WITH_LEN("innodb_max_dirty_pages_pct"));
+  bool is_null;
+  const LEX_CSTRING dirty_pages_lwm= { STRING_WITH_LEN("innodb_max_dirty_pages_pct_lwm") };
+  const LEX_CSTRING dirty_pages= { STRING_WITH_LEN("innodb_max_dirty_pages_pct") };
+
+  /* QUESTION: what if these change during SST ? */
+  double dirty_lwm_value= max_dirty_pages_lwm->val_real(&is_null, thd.ptr, OPT_GLOBAL,
+	  &dirty_pages_lwm);
+  double dirty_value= max_dirty_pages->val_real(&is_null, thd.ptr, OPT_GLOBAL,
+	  &dirty_pages);
+  WSREP_DEBUG("InnoDB values pct_lwm=%f pct=%f", dirty_lwm_value, dirty_value);
 
   err= -proc.error();
 
@@ -1689,10 +1738,10 @@ wait_signal:
 
       if (!strcasecmp (out, magic_flush))
       {
-        err= sst_flush_tables (thd.ptr);
+        err= sst_flush_tables (thd.ptr, &changed_values);
+
         if (!err)
         {
-          sst_disallow_writes (thd.ptr, true);
           /*
             Lets also keep statements that modify binary logs (like RESET LOGS,
             RESET MASTER) from proceeding until the files have been transferred
@@ -1711,12 +1760,12 @@ wait_signal:
       {
         if (locked)
         {
+          sst_in_progress= false;
           if (mysql_bin_log.is_open())
           {
             mysql_mutex_assert_owner(mysql_bin_log.get_log_lock());
             mysql_mutex_unlock(mysql_bin_log.get_log_lock());
           }
-          sst_disallow_writes (thd.ptr, false);
           thd.ptr->global_read_lock.unlock_global_read_lock(thd.ptr);
           locked= false;
         }
@@ -1749,13 +1798,20 @@ wait_signal:
 
   if (locked) // don't forget to unlock server before return
   {
+    sst_in_progress= false;
     if (mysql_bin_log.is_open())
     {
       mysql_mutex_assert_owner(mysql_bin_log.get_log_lock());
       mysql_mutex_unlock(mysql_bin_log.get_log_lock());
     }
-    sst_disallow_writes (thd.ptr, false);
     thd.ptr->global_read_lock.unlock_global_read_lock(thd.ptr);
+  }
+
+  if (changed_values)
+  {
+    sst_set_read_only(thd.ptr, false);
+    sst_set_max_dirty_pages_pct_lwm(thd.ptr, dirty_lwm_value);
+    sst_set_max_dirty_pages_pct(thd.ptr, dirty_value);
   }
 
   wsrep::gtid gtid(wsrep::id(ret_uuid.data, sizeof(ret_uuid.data)),
