@@ -182,7 +182,6 @@ int spider_param_select_column_mode(
   THD *thd,
   int select_column_mode
 );
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 int spider_param_bgs_mode(
   THD *thd,
   int bgs_mode
@@ -195,7 +194,6 @@ longlong spider_param_bgs_second_read(
   THD *thd,
   longlong bgs_second_read
 );
-#endif
 longlong spider_param_first_read(
   THD *thd,
   longlong first_read
@@ -226,12 +224,10 @@ double spider_param_crd_weight(
   THD *thd,
   double crd_weight
 );
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 int spider_param_crd_bg_mode(
   THD *thd,
   int crd_bg_mode
 );
-#endif
 double spider_param_sts_interval(
   THD *thd,
   double sts_interval
@@ -246,12 +242,10 @@ int spider_param_sts_sync(
   int sts_sync
 );
 #endif
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 int spider_param_sts_bg_mode(
   THD *thd,
   int sts_bg_mode
 );
-#endif
 double spider_param_ping_interval_at_trx_start(
   THD *thd
 );
@@ -386,10 +380,8 @@ int spider_param_load_sts_at_startup(
 int spider_param_load_crd_at_startup(
   int load_crd_at_startup
 );
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 uint spider_param_table_sts_thread_count();
 uint spider_param_table_crd_thread_count();
-#endif
 int spider_param_slave_trx_isolation();
 int spider_param_remote_wait_timeout(
   THD *thd

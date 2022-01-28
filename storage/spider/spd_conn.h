@@ -256,7 +256,6 @@ SPIDER_CONN *spider_tree_delete(
   SPIDER_CONN *top
 );
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 int spider_set_conn_bg_param(
   ha_spider *spider
 );
@@ -353,7 +352,6 @@ void spider_free_mon_threads(
 void *spider_bg_mon_action(
   void *arg
 );
-#endif
 
 int spider_conn_first_link_idx(
   THD *thd,

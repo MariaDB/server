@@ -759,7 +759,6 @@ int spider_discover_table_structure(
 );
 #endif
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 int spider_create_spider_object_for_share(
   SPIDER_TRX *trx,
   SPIDER_SHARE *share,
@@ -809,7 +808,6 @@ void spider_table_remove_share_from_sts_thread(
 void spider_table_remove_share_from_crd_thread(
   SPIDER_SHARE *share
 );
-#endif
 uchar *spider_duplicate_char(
   uchar *dst,
   uchar esc,

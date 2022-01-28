@@ -58,7 +58,6 @@ pthread_mutex_t spider_conn_id_mutex;
 pthread_mutex_t spider_ipport_conn_mutex;
 ulonglong spider_conn_id = 1;
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 extern pthread_attr_t spider_pt_attr;
 
 #ifdef HAVE_PSI_INTERFACE
@@ -66,7 +65,6 @@ extern PSI_mutex_key spd_key_mutex_mta_conn;
 extern PSI_mutex_key spd_key_mutex_conn_i;
 extern PSI_mutex_key spd_key_mutex_conn_loop_check;
 extern PSI_cond_key spd_key_cond_conn_i;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 extern PSI_mutex_key spd_key_mutex_bg_conn_chain;
 extern PSI_mutex_key spd_key_mutex_bg_conn_sync;
 extern PSI_mutex_key spd_key_mutex_bg_conn;
@@ -84,8 +82,6 @@ extern PSI_thread_key spd_key_thd_bg;
 extern PSI_thread_key spd_key_thd_bg_sts;
 extern PSI_thread_key spd_key_thd_bg_crd;
 extern PSI_thread_key spd_key_thd_bg_mon;
-#endif
-#endif
 #endif
 
 /* UTC time zone for timestamp columns */
@@ -268,9 +264,7 @@ int spider_free_conn_alloc(
   SPIDER_CONN *conn
 ) {
   DBUG_ENTER("spider_free_conn_alloc");
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   spider_free_conn_thread(conn);
-#endif
   spider_db_disconnect(conn);
   if (conn->db_conn)
   {
@@ -1823,7 +1817,6 @@ SPIDER_CONN *spider_tree_delete(
   DBUG_RETURN(top);
 }
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 int spider_set_conn_bg_param(
   ha_spider *spider
 ) {
@@ -2070,10 +2063,8 @@ void spider_bg_all_conn_wait(
       SPIDER_LINK_STATUS_RECOVERY)
   ) {
     conn = spider->conns[roop_count];
-#ifndef WITHOUT_SPIDER_BG_SEARCH
     if (conn && result_list->bgs_working)
       spider_bg_conn_wait(conn);
-#endif
   }
   DBUG_VOID_RETURN;
 }
@@ -2082,13 +2073,10 @@ int spider_bg_all_conn_pre_next(
   ha_spider *spider,
   int link_idx
 ) {
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   int roop_start, roop_end, roop_count, lock_mode, link_ok, error_num;
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   SPIDER_SHARE *share = spider->share;
-#endif
   DBUG_ENTER("spider_bg_all_conn_pre_next");
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   if (result_list->bgs_phase > 0)
   {
     lock_mode = spider_conn_lock_mode(spider);
@@ -2118,7 +2106,6 @@ int spider_bg_all_conn_pre_next(
         DBUG_RETURN(error_num);
     }
   }
-#endif
   DBUG_RETURN(0);
 }
 
@@ -2164,10 +2151,8 @@ void spider_bg_all_conn_break(
       SPIDER_LINK_STATUS_RECOVERY)
   ) {
     conn = spider->conns[roop_count];
-#ifndef WITHOUT_SPIDER_BG_SEARCH
     if (conn && result_list->bgs_working)
       spider_bg_conn_break(conn, spider);
-#endif
     if (spider->quick_targets[roop_count])
     {
       spider_db_free_one_quick_result((SPIDER_RESULT *) result_list->current);
@@ -3947,7 +3932,6 @@ void *spider_bg_mon_action(
     }
   }
 }
-#endif
 
 int spider_conn_first_link_idx(
   THD *thd,

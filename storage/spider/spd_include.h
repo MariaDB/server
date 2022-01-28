@@ -198,7 +198,6 @@ typedef struct st_spider_share SPIDER_SHARE;
 typedef struct st_spider_table_mon_list SPIDER_TABLE_MON_LIST;
 typedef struct st_spider_ip_port_conn SPIDER_IP_PORT_CONN;
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 typedef struct st_spider_thread
 {
   uint                  thread_idx;
@@ -215,7 +214,6 @@ typedef struct st_spider_thread
   volatile SPIDER_SHARE *queue_first;
   volatile SPIDER_SHARE *queue_last;
 } SPIDER_THREAD;
-#endif
 
 typedef struct st_spider_file_pos
 {
@@ -434,11 +432,8 @@ typedef struct st_spider_conn
   uint               tgt_driver_length;
   uint               dbton_id;
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile
-#endif
     void             *quick_target;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile bool      bg_init;
   volatile bool      bg_break;
   volatile bool      bg_kill;
@@ -469,10 +464,7 @@ typedef struct st_spider_conn
   const char         *bg_job_stack_file_name;
   ulong              bg_job_stack_line_no;
   uint               bg_job_stack_cur_pos;
-#endif
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile
-#endif
     int              *need_mon;
   int                *conn_need_mon;
 
@@ -781,7 +773,6 @@ typedef struct st_spider_share
   uchar              *table_mon_mutex_bitmap;
   volatile bool      sts_init;
   volatile time_t    sts_get_time;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile time_t    bg_sts_try_time;
   volatile double    bg_sts_interval;
   volatile int       bg_sts_mode;
@@ -796,9 +787,7 @@ typedef struct st_spider_share
   pthread_cond_t     bg_sts_cond;
   pthread_cond_t     bg_sts_sync_cond;
   volatile bool      crd_init;
-#endif
   volatile time_t    crd_get_time;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile time_t    bg_crd_try_time;
   volatile double    bg_crd_interval;
   volatile int       bg_crd_mode;
@@ -812,8 +801,6 @@ typedef struct st_spider_share
   pthread_t          bg_crd_thread;
   pthread_cond_t     bg_crd_cond;
   pthread_cond_t     bg_crd_sync_cond;
-#endif
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile bool      bg_mon_init;
   volatile bool      bg_mon_kill;
   THD                **bg_mon_thds;
@@ -821,8 +808,6 @@ typedef struct st_spider_share
   pthread_mutex_t    *bg_mon_mutexes;
   pthread_cond_t     *bg_mon_conds;
   pthread_cond_t     *bg_mon_sleep_conds;
-#endif
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   /* static bg thread for sts and crd */
   TABLE                 table;
   ha_spider             *sts_spider;
@@ -839,7 +824,6 @@ typedef struct st_spider_share
   volatile SPIDER_SHARE *sts_next;
   volatile SPIDER_SHARE *crd_prev;
   volatile SPIDER_SHARE *crd_next;
-#endif
 
   MEM_ROOT           mem_root;
 
@@ -861,9 +845,7 @@ typedef struct st_spider_share
   longlong           additional_table_flags;
   bool               have_recovery_link;
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   int                sts_bg_mode;
-#endif
   double             sts_interval;
   int                sts_mode;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -871,9 +853,7 @@ typedef struct st_spider_share
 #endif
   int                store_last_sts;
   int                load_sts_at_startup;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   int                crd_bg_mode;
-#endif
   double             crd_interval;
   int                crd_mode;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -913,11 +893,9 @@ typedef struct st_spider_share
   int                low_mem_read;
   int                table_count_mode;
   int                select_column_mode;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   int                bgs_mode;
   longlong           bgs_first_read;
   longlong           bgs_second_read;
-#endif
   longlong           first_read;
   longlong           second_read;
   int                auto_increment_mode;
@@ -975,16 +953,12 @@ typedef struct st_spider_share
   long               *tgt_ports;
   long               *tgt_ssl_vscs;
   long               *link_statuses;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   long               *monitoring_bg_flag;
   long               *monitoring_bg_kind;
-#endif
   long               *monitoring_binlog_pos_at_failing;
   long               *monitoring_flag;
   long               *monitoring_kind;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   longlong           *monitoring_bg_interval;
-#endif
   longlong           *monitoring_limit;
   longlong           *monitoring_sid;
   long               *use_handlers;
@@ -1067,16 +1041,12 @@ typedef struct st_spider_share
   uint               tgt_ports_length;
   uint               tgt_ssl_vscs_length;
   uint               link_statuses_length;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   uint               monitoring_bg_flag_length;
   uint               monitoring_bg_kind_length;
-#endif
   uint               monitoring_binlog_pos_at_failing_length;
   uint               monitoring_flag_length;
   uint               monitoring_kind_length;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   uint               monitoring_bg_interval_length;
-#endif
   uint               monitoring_limit_length;
   uint               monitoring_sid_length;
   uint               use_handlers_length;
@@ -1270,9 +1240,7 @@ typedef struct st_spider_copy_table_conn
   spider_db_copy_table       *copy_table;
   ha_spider                  *spider;
   int                        need_mon;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   int                        bg_error_num;
-#endif
   st_spider_copy_table_conn  *next;
 } SPIDER_COPY_TABLE_CONN;
 
@@ -1297,9 +1265,7 @@ typedef struct st_spider_copy_tables
   longlong                   bulk_insert_rows;
   int                        use_table_charset;
   int                        use_transaction;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   int                        bg_mode;
-#endif
 
   char                       *database;
 

@@ -583,10 +583,8 @@ int spider_db_before_query(
   int error_num;
   DBUG_ENTER("spider_db_before_query");
   DBUG_ASSERT(need_mon);
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   if (conn->bg_search)
     spider_bg_conn_break(conn, NULL);
-#endif
   conn->in_before_query = TRUE;
   pthread_mutex_assert_owner(&conn->mta_conn_mutex);
   DBUG_ASSERT(conn->mta_conn_mutex_file_pos.file_name);
@@ -3607,9 +3605,7 @@ int spider_db_free_result(
   DBUG_PRINT("info",("spider result_list->finish_flg = FALSE"));
   result_list->finish_flg = FALSE;
   result_list->quick_phase = 0;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   result_list->bgs_phase = 0;
-#endif
   DBUG_RETURN(0);
 }
 
@@ -3671,9 +3667,7 @@ int spider_db_store_result(
       current = (SPIDER_RESULT*) result_list->current;
     } else {
       if (
-#ifndef WITHOUT_SPIDER_BG_SEARCH
         result_list->bgs_phase > 0 ||
-#endif
         result_list->quick_phase > 0
       ) {
         if (result_list->bgs_current == result_list->last)
@@ -3701,9 +3695,7 @@ int spider_db_store_result(
           result_list->bgs_current = result_list->bgs_current->next;
         }
         if (
-#ifndef WITHOUT_SPIDER_BG_SEARCH
           result_list->bgs_phase == 1 ||
-#endif
           result_list->quick_phase == 2
         ) {
           if (result_list->low_mem_read &&
@@ -3788,15 +3780,11 @@ int spider_db_store_result(
         DBUG_PRINT("info",("spider result_list->finish_flg = TRUE"));
         current->finish_flg = TRUE;
         result_list->finish_flg = TRUE;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
         if (result_list->bgs_phase <= 1)
         {
-#endif
           result_list->current_row_num = 0;
           table->status = STATUS_NOT_FOUND;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
         }
-#endif
         if (!conn->mta_conn_mutex_unlock_later && !call_db_errorno)
         {
           DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
@@ -3832,14 +3820,10 @@ int spider_db_store_result(
           current->finish_flg = TRUE;
           result_list->finish_flg = TRUE;
         }
-#ifndef WITHOUT_SPIDER_BG_SEARCH
         if (result_list->bgs_phase <= 1)
         {
-#endif
           result_list->current_row_num = 0;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
         }
-#endif
       }
     } else {
       /* has_result() for case of result with result_tmp_tbl */
@@ -3910,9 +3894,7 @@ int spider_db_store_result(
         conn->quick_target = NULL;
         spider->quick_targets[link_idx] = NULL;
         if (
-#ifndef WITHOUT_SPIDER_BG_SEARCH
           result_list->bgs_phase <= 1 &&
-#endif
           result_list->quick_phase == 0
         ) {
           result_list->current_row_num = 0;
@@ -4088,14 +4070,10 @@ int spider_db_store_result(
           spider->quick_targets[link_idx] = NULL;
         }
       }
-#ifndef WITHOUT_SPIDER_BG_SEARCH
       DBUG_PRINT("info", ("spider bgs_phase=%d", result_list->bgs_phase));
-#endif
       DBUG_PRINT("info", ("spider quick_phase=%d", result_list->quick_phase));
       if (
-#ifndef WITHOUT_SPIDER_BG_SEARCH
         result_list->bgs_phase <= 1 &&
-#endif
         result_list->quick_phase == 0
       ) {
         result_list->current_row_num = 0;
@@ -4154,9 +4132,7 @@ int spider_db_store_result_for_reuse_cursor(
     current = (SPIDER_RESULT*) result_list->current;
   } else {
     if (
-#ifndef WITHOUT_SPIDER_BG_SEARCH
       result_list->bgs_phase > 0 ||
-#endif
       result_list->quick_phase > 0
     ) {
       if (result_list->bgs_current == result_list->last)
@@ -4178,9 +4154,7 @@ int spider_db_store_result_for_reuse_cursor(
         result_list->bgs_current = result_list->bgs_current->next;
       }
       if (
-#ifndef WITHOUT_SPIDER_BG_SEARCH
         result_list->bgs_phase == 1 ||
-#endif
         result_list->quick_phase == 2
       ) {
         result_list->current = result_list->bgs_current;
@@ -4240,14 +4214,10 @@ int spider_db_store_result_for_reuse_cursor(
       current->finish_flg = TRUE;
       result_list->finish_flg = TRUE;
     }
-#ifndef WITHOUT_SPIDER_BG_SEARCH
     if (result_list->bgs_phase <= 1)
     {
-#endif
       result_list->current_row_num = 0;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
     }
-#endif
   } else {
     DBUG_ASSERT(current->prev);
     DBUG_ASSERT(current->prev->result);
@@ -4286,9 +4256,7 @@ int spider_db_store_result_for_reuse_cursor(
       conn->quick_target = NULL;
       spider->quick_targets[link_idx] = NULL;
       if (
-#ifndef WITHOUT_SPIDER_BG_SEARCH
         result_list->bgs_phase <= 1 &&
-#endif
         result_list->quick_phase == 0
       ) {
         result_list->current_row_num = 0;
@@ -4461,14 +4429,10 @@ int spider_db_store_result_for_reuse_cursor(
         spider->quick_targets[link_idx] = NULL;
       }
     }
-#ifndef WITHOUT_SPIDER_BG_SEARCH
     DBUG_PRINT("info", ("spider bgs_phase=%d", result_list->bgs_phase));
-#endif
     DBUG_PRINT("info", ("spider quick_phase=%d", result_list->quick_phase));
     if (
-#ifndef WITHOUT_SPIDER_BG_SEARCH
       result_list->bgs_phase <= 1 &&
-#endif
       result_list->quick_phase == 0
     ) {
       result_list->current_row_num = 0;
@@ -4684,7 +4648,6 @@ int spider_db_seek_next(
     }
 #endif
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
     if (result_list->bgs_phase > 0)
     {
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
@@ -4728,7 +4691,6 @@ int spider_db_seek_next(
       }
 #endif
     } else {
-#endif
       if (result_list->current == result_list->bgs_current)
       {
         if (result_list->finish_flg)
@@ -5102,9 +5064,7 @@ int spider_db_seek_next(
           DBUG_RETURN(HA_ERR_END_OF_FILE);
         }
       }
-#ifndef WITHOUT_SPIDER_BG_SEARCH
     }
-#endif
     DBUG_RETURN(spider_db_fetch(buf, spider, table));
   } else
     DBUG_RETURN(spider_db_fetch(buf, spider, table));
@@ -11311,7 +11271,6 @@ int spider_db_udf_copy_tables(
         }
       }
 */
-#ifndef WITHOUT_SPIDER_BG_SEARCH
       if (copy_tables->bg_mode)
       {
         for (dst_tbl_conn = copy_tables->table_conn[1]; dst_tbl_conn;
@@ -11325,7 +11284,6 @@ int spider_db_udf_copy_tables(
           }
         }
       } else {
-#endif
         for (dst_tbl_conn = copy_tables->table_conn[1]; dst_tbl_conn;
           dst_tbl_conn = dst_tbl_conn->next)
         {
@@ -11364,11 +11322,8 @@ int spider_db_udf_copy_tables(
             pthread_mutex_unlock(&tmp_conn->mta_conn_mutex);
           }
         }
-#ifndef WITHOUT_SPIDER_BG_SEARCH
       }
-#endif
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
       if (copy_tables->bg_mode)
       {
         for (dst_tbl_conn = copy_tables->table_conn[1]; dst_tbl_conn;
@@ -11391,7 +11346,6 @@ int spider_db_udf_copy_tables(
           }
         }
       }
-#endif
     }
 
     if (copy_tables->use_transaction)
@@ -11437,7 +11391,6 @@ int spider_db_udf_copy_tables(
   DBUG_RETURN(0);
 
 error_db_query:
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   if (copy_tables->bg_mode)
   {
     for (dst_tbl_conn = copy_tables->table_conn[1]; dst_tbl_conn;
@@ -11452,7 +11405,6 @@ error_db_query:
       }
     }
   }
-#endif
 error_unlock_tables:
 error_commit:
 error_lock_tables:

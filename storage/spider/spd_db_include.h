@@ -1790,13 +1790,9 @@ typedef struct st_spider_result
 {
   uint                 dbton_id;
   SPIDER_DB_RESULT     *result;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile
-#endif
     st_spider_result   *prev;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile
-#endif
     st_spider_result   *next;
   SPIDER_POSITION      *first_position; /* for quick mode */
   int                  pos_page_size; /* for quick mode */
@@ -1815,17 +1811,11 @@ typedef struct st_spider_result
 
 typedef struct st_spider_result_list
 {
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile
-#endif
     SPIDER_RESULT        *first;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile
-#endif
     SPIDER_RESULT        *last;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile
-#endif
     SPIDER_RESULT         *current;
   KEY                     *key_info;
   int                     key_order;
@@ -1889,14 +1879,11 @@ typedef struct st_spider_result_list
   longlong                second_read;
   int                     set_split_read_count;
   int                     *casual_read;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   /* 0:nomal 1:store 2:store end */
   volatile
-#endif
     int                   quick_phase;
   bool                    keyread;
   TABLE                   *table;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile int            bgs_error;
   bool                    bgs_error_with_message;
   char                    bgs_error_msg[MYSQL_ERRMSG_SIZE];
@@ -1907,7 +1894,6 @@ typedef struct st_spider_result_list
   volatile longlong       bgs_second_read;
   volatile longlong       bgs_split_read;
   volatile
-#endif
     SPIDER_RESULT         *bgs_current;
   SPIDER_DB_ROW           *tmp_pos_row_first;
 } SPIDER_RESULT_LIST;

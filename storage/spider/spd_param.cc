@@ -1400,7 +1400,6 @@ int spider_param_select_column_mode(
     select_column_mode : THDVAR(thd, select_column_mode));
 }
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 /*
  -1 :use table parameter
   0 :background search is disabled
@@ -1480,7 +1479,6 @@ longlong spider_param_bgs_second_read(
   DBUG_RETURN(THDVAR(thd, bgs_second_read) < 0 ?
     bgs_second_read : THDVAR(thd, bgs_second_read));
 }
-#endif
 
 /*
  -1 :use table parameter
@@ -1670,7 +1668,6 @@ double spider_param_crd_weight(
     crd_weight : THDVAR(thd, crd_weight));
 }
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 /*
  -1 :use table parameter
   0 :Background confirmation is disabled
@@ -1697,7 +1694,6 @@ int spider_param_crd_bg_mode(
   DBUG_RETURN(THDVAR(thd, crd_bg_mode) == -1 ?
     crd_bg_mode : THDVAR(thd, crd_bg_mode));
 }
-#endif
 
 /*
  -1 :use table parameter
@@ -1782,7 +1778,6 @@ int spider_param_sts_sync(
 }
 #endif
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 /*
  -1 :use table parameter
   0 :Background confirmation is disabled
@@ -1809,7 +1804,6 @@ int spider_param_sts_bg_mode(
   DBUG_RETURN(THDVAR(thd, sts_bg_mode) == -1 ?
     sts_bg_mode : THDVAR(thd, sts_bg_mode));
 }
-#endif
 
 /*
   0 :always ping
@@ -2966,7 +2960,6 @@ int spider_param_load_crd_at_startup(
     load_crd_at_startup : spider_load_crd_at_startup);
 }
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 static uint spider_table_sts_thread_count;
 /*
   1-: thread count
@@ -3012,7 +3005,6 @@ uint spider_param_table_crd_thread_count()
   DBUG_ENTER("spider_param_table_crd_thread_count");
   DBUG_RETURN(spider_table_crd_thread_count);
 }
-#endif
 
 static int spider_slave_trx_isolation;
 /*
@@ -3189,11 +3181,9 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(quick_page_byte),
   MYSQL_SYSVAR(low_mem_read),
   MYSQL_SYSVAR(select_column_mode),
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   MYSQL_SYSVAR(bgs_mode),
   MYSQL_SYSVAR(bgs_first_read),
   MYSQL_SYSVAR(bgs_second_read),
-#endif
   MYSQL_SYSVAR(first_read),
   MYSQL_SYSVAR(second_read),
   MYSQL_SYSVAR(crd_interval),
@@ -3205,9 +3195,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(load_crd_at_startup),
   MYSQL_SYSVAR(crd_type),
   MYSQL_SYSVAR(crd_weight),
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   MYSQL_SYSVAR(crd_bg_mode),
-#endif
   MYSQL_SYSVAR(sts_interval),
   MYSQL_SYSVAR(sts_mode),
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -3215,9 +3203,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
 #endif
   MYSQL_SYSVAR(store_last_sts),
   MYSQL_SYSVAR(load_sts_at_startup),
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   MYSQL_SYSVAR(sts_bg_mode),
-#endif
   MYSQL_SYSVAR(ping_interval_at_trx_start),
   MYSQL_SYSVAR(auto_increment_mode),
   MYSQL_SYSVAR(same_server_link),
@@ -3266,10 +3252,8 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(bka_table_name_type),
   MYSQL_SYSVAR(use_cond_other_than_pk_for_update),
   MYSQL_SYSVAR(connect_error_interval),
-#ifndef WITHOUT_SPIDER_BG_SEARCH
   MYSQL_SYSVAR(table_sts_thread_count),
   MYSQL_SYSVAR(table_crd_thread_count),
-#endif
   MYSQL_SYSVAR(slave_trx_isolation),
   MYSQL_SYSVAR(remote_wait_timeout),
   MYSQL_SYSVAR(wait_timeout),
