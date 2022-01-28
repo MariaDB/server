@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2017, Oracle and/or its affiliates. All rights
+/* Copyright (c) 2008, 2021, Oracle and/or its affiliates. All rights
    reserved.
 
   This program is free software; you can redistribute it and/or modify
@@ -59,8 +59,8 @@ bool pfs_initialized= false;
 */
 void *pfs_malloc(PFS_builtin_memory_class *klass, size_t size, myf flags)
 {
-  DBUG_ASSERT(klass != NULL);
-  DBUG_ASSERT(size > 0);
+  assert(klass != NULL);
+  assert(size > 0);
 
   void *ptr= NULL;
 
@@ -137,9 +137,9 @@ void pfs_free(PFS_builtin_memory_class *klass, size_t size, void *ptr)
 */
 void *pfs_malloc_array(PFS_builtin_memory_class *klass, size_t n, size_t size, myf flags)
 {
-  DBUG_ASSERT(klass != NULL);
-  DBUG_ASSERT(n > 0);
-  DBUG_ASSERT(size > 0);
+  assert(klass != NULL);
+  assert(n > 0);
+  assert(size > 0);
   void *ptr= NULL;
   size_t array_size= n * size;
   /* Check for overflow before allocating. */
@@ -172,7 +172,7 @@ void pfs_free_array(PFS_builtin_memory_class *klass, size_t n, size_t size, void
     return;
   size_t array_size= n * size;
   /* Overflow should have been detected by pfs_malloc_array. */
-  DBUG_ASSERT(!is_overflow(array_size, n, size));
+  assert(!is_overflow(array_size, n, size));
   return pfs_free(klass, array_size, ptr);
 }
 
@@ -215,9 +215,9 @@ uint pfs_get_socket_address(char *host,
                             const struct sockaddr_storage *src_addr,
                             socklen_t src_len)
 {
-  DBUG_ASSERT(host);
-  DBUG_ASSERT(src_addr);
-  DBUG_ASSERT(port);
+  assert(host);
+  assert(src_addr);
+  assert(port);
 
   memset(host, 0, host_len);
   *port= 0;

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2016, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -320,8 +320,8 @@ int ha_perfschema::rnd_init(bool scan)
   int result;
   DBUG_ENTER("ha_perfschema::rnd_init");
 
-  DBUG_ASSERT(m_table_share);
-  DBUG_ASSERT(m_table_share->m_open_table != NULL);
+  assert(m_table_share);
+  assert(m_table_share->m_open_table != NULL);
 
   stats.records= 0;
   if (m_table == NULL)
@@ -339,7 +339,7 @@ int ha_perfschema::rnd_init(bool scan)
 int ha_perfschema::rnd_end(void)
 {
   DBUG_ENTER("ha_perfschema::rnd_end");
-  DBUG_ASSERT(m_table);
+  assert(m_table);
   delete m_table;
   m_table= NULL;
   DBUG_RETURN(0);
@@ -371,7 +371,7 @@ void ha_perfschema::position(const uchar *record)
 {
   DBUG_ENTER("ha_perfschema::position");
 
-  DBUG_ASSERT(m_table);
+  assert(m_table);
   m_table->get_position(ref);
   DBUG_VOID_RETURN;
 }
@@ -396,7 +396,7 @@ int ha_perfschema::rnd_pos(uchar *buf, uchar *pos)
 int ha_perfschema::info(uint flag)
 {
   DBUG_ENTER("ha_perfschema::info");
-  DBUG_ASSERT(m_table_share);
+  assert(m_table_share);
   if (flag & HA_STATUS_VARIABLE)
     stats.records= m_table_share->get_row_count();
   if (flag & HA_STATUS_CONST)
@@ -415,7 +415,7 @@ int ha_perfschema::delete_all_rows(void)
   if (is_executed_by_slave())
     DBUG_RETURN(0);
 
-  DBUG_ASSERT(m_table_share);
+  assert(m_table_share);
   if (m_table_share->m_delete_all_rows)
     result= m_table_share->m_delete_all_rows();
   else

@@ -1,5 +1,5 @@
 /*
-      Copyright (c) 2013, 2018, Oracle and/or its affiliates. All rights reserved.
+      Copyright (c) 2013, 2021, Oracle and/or its affiliates.
 
       This program is free software; you can redistribute it and/or modify
       it under the terms of the GNU General Public License, version 2.0,
@@ -169,7 +169,7 @@ int table_replication_applier_configuration::read_row_values(TABLE *table,
     the table record reserves an extra null byte, see open_binary_frm().
   */
 
-  DBUG_ASSERT(table->s->null_bytes == 1);
+  assert(table->s->null_bytes == 1);
   buf[0]= 0;
 
   for (; (f= *fields) ; fields++)
@@ -185,7 +185,7 @@ int table_replication_applier_configuration::read_row_values(TABLE *table,
         set_field_ulong(f, static_cast<ulong>(m_row.desired_delay));
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }
