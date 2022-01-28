@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2020, MariaDB Corporation.
+Copyright (c) 2020, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -42,7 +42,7 @@ protected:
 #if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
     static_assert(WRITER_WAITING == 1U << 30, "compatibility");
     __asm__ __volatile__("lock btsl $30, %0" : "+m" (lock));
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
     static_assert(WRITER_WAITING == 1U << 30, "compatibility");
     _interlockedbittestandset(reinterpret_cast<volatile long*>(&lock), 30);
 #else
