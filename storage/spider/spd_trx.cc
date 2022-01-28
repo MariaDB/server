@@ -3255,11 +3255,6 @@ int spider_commit(
   if (!(trx = (SPIDER_TRX*) thd_get_ha_data(thd, spider_hton_ptr)))
     DBUG_RETURN(0); /* transaction is not started */
 
-#ifdef HA_CAN_BULK_ACCESS
-  DBUG_PRINT("info",("spider trx->bulk_access_conn_first=%p",
-    trx->bulk_access_conn_first));
-  trx->bulk_access_conn_first = NULL;
-#endif
 
   if (all || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)))
   {
@@ -3347,11 +3342,6 @@ int spider_rollback(
   if (!(trx = (SPIDER_TRX*) thd_get_ha_data(thd, spider_hton_ptr)))
     DBUG_RETURN(0); /* transaction is not started */
 
-#ifdef HA_CAN_BULK_ACCESS
-  DBUG_PRINT("info",("spider trx->bulk_access_conn_first=%p",
-    trx->bulk_access_conn_first));
-  trx->bulk_access_conn_first = NULL;
-#endif
 
   if (all || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)))
   {
@@ -4066,34 +4056,3 @@ int spider_trx_check_link_idx_failed(
   DBUG_RETURN(0);
 }
 
-#ifdef HA_CAN_BULK_ACCESS
-void spider_trx_add_bulk_access_conn(
-  SPIDER_TRX *trx,
-  SPIDER_CONN *conn
-) {
-  DBUG_ENTER("spider_trx_add_bulk_access_conn");
-  DBUG_PRINT("info",("spider trx=%p", trx));
-  DBUG_PRINT("info",("spider conn=%p", conn));
-  DBUG_PRINT("info",("spider conn->bulk_access_requests=%u",
-    conn->bulk_access_requests));
-  DBUG_PRINT("info",("spider conn->bulk_access_sended=%u",
-    conn->bulk_access_sended));
-  DBUG_PRINT("info",("spider trx->bulk_access_conn_first=%p",
-    trx->bulk_access_conn_first));
-  if (!conn->bulk_access_requests && !conn->bulk_access_sended)
-  {
-    if (!trx->bulk_access_conn_first)
-    {
-      trx->bulk_access_conn_first = conn;
-    } else {
-      trx->bulk_access_conn_last->bulk_access_next = conn;
-    }
-    trx->bulk_access_conn_last = conn;
-    conn->bulk_access_next = NULL;
-  }
-  conn->bulk_access_requests++;
-  DBUG_PRINT("info",("spider conn->bulk_access_requests=%u",
-    conn->bulk_access_requests));
-  DBUG_VOID_RETURN;
-}
-#endif

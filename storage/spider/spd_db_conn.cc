@@ -4504,42 +4504,6 @@ void spider_db_discard_multiple_result(
   DBUG_VOID_RETURN;
 }
 
-#ifdef HA_CAN_BULK_ACCESS
-int spider_db_bulk_store_result(
-  ha_spider *spider,
-  SPIDER_CONN *conn,
-  int link_idx,
-  bool discard_result
-) {
-  int error_num, tmp_error_num;
-  DBUG_ENTER("spider_db_bulk_store_result");
-  DBUG_PRINT("info",("spider spider=%p", spider));
-  DBUG_PRINT("info",("spider conn=%p", conn));
-  DBUG_PRINT("info",("spider link_idx=%d", link_idx));
-  if (conn->conn_kind == SPIDER_CONN_KIND_MYSQL)
-  {
-    /* already stored */
-    DBUG_RETURN(0);
-  }
-  error_num = spider_db_bulk_open_handler(spider, conn, link_idx);
-  if (!discard_result)
-  {
-    pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-    DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-    conn->mta_conn_mutex_unlock_later = TRUE;
-    if ((tmp_error_num = spider_db_store_result(spider, link_idx,
-      spider->get_table())))
-    {
-      error_num = tmp_error_num;
-    }
-    conn->mta_conn_mutex_unlock_later = FALSE;
-  } else {
-    if (spider->connection_ids[link_idx] == conn->connection_id)
-      spider_db_discard_result(spider, link_idx, conn);
-  }
-  DBUG_RETURN(error_num);
-}
-#endif
 
 int spider_db_fetch(
   uchar *buf,
@@ -6182,10 +6146,6 @@ int spider_db_bulk_insert(
         spider->set_insert_to_pos_sql(SPIDER_SQL_TYPE_INSERT_SQL);
       DBUG_RETURN(error_num);
     }
-#ifdef HA_CAN_BULK_ACCESS
-    if (!spider->is_bulk_access_clone)
-    {
-#endif
       bool insert_info = FALSE;
       for (
         roop_count2 = spider_conn_link_idx_next(share->link_statuses,
@@ -6387,9 +6347,6 @@ int spider_db_bulk_insert(
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
       pthread_mutex_unlock(&conn->mta_conn_mutex);
       spider->store_last_insert_id = 0;
-#ifdef HA_CAN_BULK_ACCESS
-    }
-#endif
   }
   if (
     (bulk_end || !spider->bulk_insert) &&
@@ -6399,95 +6356,6 @@ int spider_db_bulk_insert(
   DBUG_RETURN(0);
 }
 
-#ifdef HA_CAN_BULK_ACCESS
-int spider_db_bulk_bulk_insert(
-  ha_spider *spider
-) {
-  int error_num = 0, first_insert_link_idx = -1, tmp_error_num;
-  int roop_count2;
-  SPIDER_SHARE *share = spider->share;
-  SPIDER_CONN *conn, *first_insert_conn = NULL;
-  TABLE *table = spider->get_table();
-  THD *thd = spider->wide_handler->trx->thd;
-  DBUG_ENTER("spider_db_bulk_bulk_insert");
-  for (
-    roop_count2 = spider_conn_link_idx_next(share->link_statuses,
-      spider->conn_link_idx, -1, share->link_count,
-      SPIDER_LINK_STATUS_RECOVERY);
-    roop_count2 < (int) share->link_count;
-    roop_count2 = spider_conn_link_idx_next(share->link_statuses,
-      spider->conn_link_idx, roop_count2, share->link_count,
-      SPIDER_LINK_STATUS_RECOVERY)
-  ) {
-      conn = spider->conns[roop_count2];
-    pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-    pthread_mutex_lock(&conn->mta_conn_mutex);
-    SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-    DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-    DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-    conn->mta_conn_mutex_lock_already = TRUE;
-    conn->mta_conn_mutex_unlock_later = TRUE;
-    if ((tmp_error_num = spider_db_bulk_open_handler(spider, conn,
-      roop_count2)))
-    {
-      error_num = tmp_error_num;
-    }
-    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-    conn->mta_conn_mutex_lock_already = FALSE;
-    conn->mta_conn_mutex_unlock_later = FALSE;
-    SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-    pthread_mutex_unlock(&conn->mta_conn_mutex);
-    if (first_insert_link_idx == -1)
-    {
-      first_insert_link_idx = roop_count2;
-      first_insert_conn = conn;
-    }
-  }
-
-  conn = first_insert_conn;
-  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-  pthread_mutex_lock(&conn->mta_conn_mutex);
-  SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-  conn->need_mon = &spider->need_mons[first_insert_link_idx];
-  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-  conn->mta_conn_mutex_lock_already = TRUE;
-  conn->mta_conn_mutex_unlock_later = TRUE;
-  if (table->next_number_field &&
-    (
-      !table->auto_increment_field_not_null ||
-      (
-        !table->next_number_field->val_int() &&
-        !(thd->variables.sql_mode & MODE_NO_AUTO_VALUE_ON_ZERO)
-      )
-    )
-  ) {
-    ulonglong last_insert_id;
-    if (spider->store_last_insert_id)
-      last_insert_id = spider->store_last_insert_id;
-    else
-      last_insert_id = conn->db_conn->last_insert_id();
-    table->next_number_field->set_notnull();
-    if (
-      (tmp_error_num = spider_db_update_auto_increment(spider,
-        first_insert_link_idx)) ||
-      (tmp_error_num = table->next_number_field->store(
-        last_insert_id, TRUE))
-    ) {
-      error_num = tmp_error_num;
-    }
-  }
-  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-  conn->mta_conn_mutex_lock_already = FALSE;
-  conn->mta_conn_mutex_unlock_later = FALSE;
-  SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-  pthread_mutex_unlock(&conn->mta_conn_mutex);
-  spider->store_last_insert_id = 0;
-  DBUG_RETURN(error_num);
-}
-#endif
 
 int spider_db_update_auto_increment(
   ha_spider *spider,
@@ -7144,13 +7012,6 @@ int spider_db_direct_update(
       pthread_mutex_lock(&conn->mta_conn_mutex);
       SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
     }
-#ifdef HA_CAN_BULK_ACCESS
-    if (spider->is_bulk_access_clone)
-    {
-      spider->connection_ids[roop_count] = conn->connection_id;
-      spider_trx_add_bulk_access_conn(spider->wide_handler->trx, conn);
-    } else {
-#endif
       conn->need_mon = &spider->need_mons[roop_count];
       DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
       DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
@@ -7242,9 +7103,6 @@ int spider_db_direct_update(
       DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
-#ifdef HA_CAN_BULK_ACCESS
-    }
-#endif
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
     pthread_mutex_unlock(&conn->mta_conn_mutex);
   }
@@ -7372,13 +7230,6 @@ int spider_db_direct_update(
       pthread_mutex_lock(&conn->mta_conn_mutex);
       SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
     }
-#ifdef HA_CAN_BULK_ACCESS
-    if (spider->is_bulk_access_clone)
-    {
-      spider->connection_ids[roop_count] = conn->connection_id;
-      spider_trx_add_bulk_access_conn(spider->wide_handler->trx, conn);
-    } else {
-#endif
       conn->need_mon = &spider->need_mons[roop_count];
       DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
       DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
@@ -7471,9 +7322,6 @@ int spider_db_direct_update(
       DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
       conn->mta_conn_mutex_lock_already = FALSE;
       conn->mta_conn_mutex_unlock_later = FALSE;
-#ifdef HA_CAN_BULK_ACCESS
-    }
-#endif
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
     pthread_mutex_unlock(&conn->mta_conn_mutex);
   }
@@ -7483,58 +7331,6 @@ int spider_db_direct_update(
 #endif
 #endif
 
-#ifdef HA_CAN_BULK_ACCESS
-int spider_db_bulk_direct_update(
-  ha_spider *spider,
-  ha_rows *update_rows,
-  ha_rows *found_rows
-) {
-  int error_num = 0, roop_count, tmp_error_num;
-  SPIDER_SHARE *share = spider->share;
-  SPIDER_CONN *conn;
-  bool counted = FALSE;
-  DBUG_ENTER("spider_db_bulk_direct_update");
-  for (
-    roop_count = spider_conn_link_idx_next(share->link_statuses,
-      spider->conn_link_idx, -1, share->link_count,
-      SPIDER_LINK_STATUS_RECOVERY);
-    roop_count < (int) share->link_count;
-    roop_count = spider_conn_link_idx_next(share->link_statuses,
-      spider->conn_link_idx, roop_count, share->link_count,
-      SPIDER_LINK_STATUS_RECOVERY)
-  ) {
-      DBUG_PRINT("info", ("spider exec sql"));
-      conn = spider->conns[roop_count];
-    pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-    pthread_mutex_lock(&conn->mta_conn_mutex);
-    SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-    DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-    DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-    conn->mta_conn_mutex_lock_already = TRUE;
-    conn->mta_conn_mutex_unlock_later = TRUE;
-    if ((tmp_error_num = spider_db_bulk_open_handler(spider, conn,
-      roop_count)))
-    {
-      error_num = tmp_error_num;
-    }
-      if (!counted)
-      {
-        *update_rows = spider->conns[roop_count]->db_conn->affected_rows();
-        DBUG_PRINT("info", ("spider update_rows = %llu", *update_rows));
-        *found_rows = spider->conns[roop_count]->db_conn->matched_rows();
-        DBUG_PRINT("info", ("spider found_rows = %llu", *found_rows));
-        counted = TRUE;
-      }
-    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-    conn->mta_conn_mutex_lock_already = FALSE;
-    conn->mta_conn_mutex_unlock_later = FALSE;
-    SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-    pthread_mutex_unlock(&conn->mta_conn_mutex);
-  }
-  DBUG_RETURN(error_num);
-}
-#endif
 
 int spider_db_bulk_delete(
   ha_spider *spider,
@@ -7733,13 +7529,6 @@ int spider_db_direct_delete(
       pthread_mutex_lock(&conn->mta_conn_mutex);
       SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
     }
-#ifdef HA_CAN_BULK_ACCESS
-    if (spider->is_bulk_access_clone)
-    {
-      spider->connection_ids[roop_count] = conn->connection_id;
-      spider_trx_add_bulk_access_conn(spider->wide_handler->trx, conn);
-    } else {
-#endif
       conn->need_mon = &spider->need_mons[roop_count];
       DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
       DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
@@ -7823,9 +7612,6 @@ int spider_db_direct_delete(
           DBUG_PRINT("info", ("spider delete_rows = %llu", *delete_rows));
           counted = TRUE;
         }
-#ifdef HA_CAN_BULK_ACCESS
-    }
-#endif
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
     pthread_mutex_unlock(&conn->mta_conn_mutex);
   }
@@ -7925,13 +7711,6 @@ int spider_db_direct_delete(
       pthread_mutex_lock(&conn->mta_conn_mutex);
       SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
     }
-#ifdef HA_CAN_BULK_ACCESS
-    if (spider->is_bulk_access_clone)
-    {
-      spider->connection_ids[roop_count] = conn->connection_id;
-      spider_trx_add_bulk_access_conn(spider->wide_handler->trx, conn);
-    } else {
-#endif
       conn->need_mon = &spider->need_mons[roop_count];
       DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
       DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
@@ -8015,9 +7794,6 @@ int spider_db_direct_delete(
         DBUG_PRINT("info", ("spider delete_rows = %llu", *delete_rows));
         counted = TRUE;
       }
-#ifdef HA_CAN_BULK_ACCESS
-    }
-#endif
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
     pthread_mutex_unlock(&conn->mta_conn_mutex);
   }
@@ -11519,20 +11295,6 @@ error:
   DBUG_RETURN(error_num);
 }
 
-#ifdef HA_CAN_BULK_ACCESS
-int spider_db_bulk_open_handler(
-  ha_spider *spider,
-  SPIDER_CONN *conn,
-  int link_idx
-) {
-  int error_num = 0;
-  DBUG_ENTER("spider_db_bulk_open_handler");
-  DBUG_PRINT("info",("spider spider=%p", spider));
-  DBUG_PRINT("info",("spider conn=%p", conn));
-  DBUG_PRINT("info",("spider link_idx=%d", link_idx));
-  DBUG_RETURN(error_num);
-}
-#endif
 
 int spider_db_close_handler(
   ha_spider *spider,

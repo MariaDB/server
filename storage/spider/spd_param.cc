@@ -2513,34 +2513,6 @@ int spider_param_read_only_mode(
     read_only_mode : THDVAR(thd, read_only_mode));
 }
 
-#ifdef HA_CAN_BULK_ACCESS
-static int spider_bulk_access_free;
-/*
- -1 :use table parameter
-  0 :in reset
-  1 :in close
- */
-static MYSQL_SYSVAR_INT(
-  bulk_access_free,
-  spider_bulk_access_free,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Free mode of bulk access resources",
-  NULL,
-  NULL,
-  -1,
-  -1,
-  1,
-  0
-);
-
-int spider_param_bulk_access_free(
-  int bulk_access_free
-) {
-  DBUG_ENTER("spider_param_bulk_access_free");
-  DBUG_RETURN(spider_bulk_access_free == -1 ?
-    bulk_access_free : spider_bulk_access_free);
-}
-#endif
 
 /*
  -1 :use UDF parameter
@@ -3234,9 +3206,6 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(skip_parallel_search),
   MYSQL_SYSVAR(direct_order_limit),
   MYSQL_SYSVAR(read_only_mode),
-#ifdef HA_CAN_BULK_ACCESS
-  MYSQL_SYSVAR(bulk_access_free),
-#endif
   MYSQL_SYSVAR(udf_ds_use_real_table),
   MYSQL_SYSVAR(general_log),
   MYSQL_SYSVAR(index_hint_pushdown),

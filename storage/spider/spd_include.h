@@ -496,12 +496,6 @@ typedef struct st_spider_conn
   Time_zone          *queued_time_zone_val;
   XID                *queued_xa_start_xid;
 
-#ifdef HA_CAN_BULK_ACCESS
-  uint               bulk_access_requests;
-  uint               bulk_access_sended;
-  int                bulk_access_error_num;
-  st_spider_conn     *bulk_access_next;
-#endif
 
   bool               disable_connect_retry;  /* TRUE if it is unnecessary to
                                                 retry to connect after a
@@ -630,9 +624,6 @@ typedef struct st_spider_wide_handler
   longlong           info_limit;
 #endif
 #endif
-#ifdef HA_CAN_BULK_ACCESS
-  ulonglong          external_lock_cnt;
-#endif
   bool               between_flg;
   bool               idx_bitmap_is_set;
   bool               rnd_bitmap_is_set;
@@ -708,10 +699,6 @@ typedef struct st_spider_transaction
   ulonglong          direct_aggregate_count;
   ulonglong          parallel_search_count;
 
-#ifdef HA_CAN_BULK_ACCESS
-  SPIDER_CONN        *bulk_access_conn_first;
-  SPIDER_CONN        *bulk_access_conn_last;
-#endif
 
   pthread_mutex_t    *udf_table_mutexes;
   CHARSET_INFO       *udf_access_charset;
@@ -909,9 +896,6 @@ typedef struct st_spider_share
   int                error_read_mode;
   int                error_write_mode;
   int                active_link_count;
-#ifdef HA_CAN_BULK_ACCESS
-  int                bulk_access_free;
-#endif
 #ifdef HA_CAN_FORCE_BULK_UPDATE
   int                force_bulk_update;
 #endif
@@ -1291,17 +1275,6 @@ typedef struct st_spider_trx_ha
   bool                       wait_for_reusing;
 } SPIDER_TRX_HA;
 
-#ifdef HA_CAN_BULK_ACCESS
-typedef struct st_spider_bulk_access_link
-{
-  ha_spider                  *spider;
-  uint                       sequence_num;
-  bool                       used;
-  bool                       called;
-  MEM_ROOT                   mem_root;
-  st_spider_bulk_access_link *next;
-} SPIDER_BULK_ACCESS_LINK;
-#endif
 
 #define SPIDER_INT_HLD_TGT_SIZE 100
 typedef struct st_spider_int_hld
