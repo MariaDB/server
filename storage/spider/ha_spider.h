@@ -108,15 +108,11 @@ public:
   bool               mrr_with_cnt;
   uint               multi_range_cnt;
   uint               multi_range_hit_point;
-#ifdef HA_MRR_USE_DEFAULT_IMPL
   int                multi_range_num;
   bool               have_second_range;
   KEY_MULTI_RANGE    mrr_second_range;
   spider_string      *mrr_key_buff;
   range_id_t         *multi_range_keys;
-#else
-  KEY_MULTI_RANGE    *multi_range_ranges;
-#endif
 
   char               *append_tblnm_alias;
   uint               append_tblnm_alias_length;
@@ -264,7 +260,6 @@ public:
   int read_range_next();
   void reset_no_where_cond();
   bool check_no_where_cond();
-#ifdef HA_MRR_USE_DEFAULT_IMPL
   ha_rows multi_range_read_info_const(
     uint keyno,
     RANGE_SEQ_IF *seq,
@@ -299,18 +294,6 @@ public:
   int multi_range_read_next_next(
     range_id_t *range_info
   );
-#else
-  int read_multi_range_first(
-    KEY_MULTI_RANGE **found_range_p,
-    KEY_MULTI_RANGE *ranges,
-    uint range_count,
-    bool sorted,
-    HANDLER_BUFFER *buffer
-  );
-  int read_multi_range_next(
-    KEY_MULTI_RANGE **found_range_p
-  );
-#endif
   int rnd_init(
     bool scan
   );
@@ -352,20 +335,9 @@ public:
     key_part_map keypart_map,
     bool use_parallel
   );
-#ifdef HA_MRR_USE_DEFAULT_IMPL
   int pre_multi_range_read_next(
     bool use_parallel
   );
-#else
-  int pre_read_multi_range_first(
-    KEY_MULTI_RANGE **found_range_p,
-    KEY_MULTI_RANGE *ranges,
-    uint range_count,
-    bool sorted,
-    HANDLER_BUFFER *buffer,
-    bool use_parallel
-  );
-#endif
   int pre_read_range_first(
     const key_range *start_key,
     const key_range *end_key,
@@ -725,17 +697,6 @@ public:
     bool eq_range,
     bool sorted
   );
-#ifdef HA_MRR_USE_DEFAULT_IMPL
-#else
-  int read_multi_range_first_internal(
-    uchar *buf,
-    KEY_MULTI_RANGE **found_range_p,
-    KEY_MULTI_RANGE *ranges,
-    uint range_count,
-    bool sorted,
-    HANDLER_BUFFER *buffer
-  );
-#endif
   int ft_read_internal(uchar *buf);
   int rnd_next_internal(uchar *buf);
   void check_pre_call(
