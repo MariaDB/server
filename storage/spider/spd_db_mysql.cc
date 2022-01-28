@@ -3401,12 +3401,7 @@ int spider_db_mbase::set_loop_check(
     SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
     pthread_mutex_unlock(&conn->mta_conn_mutex);
 
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    my_hash_delete_with_hash_value(&conn->loop_check_queue,
-      lcptr->hash_value, (uchar *) lcptr);
-#else
     my_hash_delete(&conn->loop_check_queue, (uchar*) lcptr);
-#endif
   }
   DBUG_RETURN(0);
 }
@@ -3804,12 +3799,7 @@ int spider_db_mbase::append_lock_tables(
       my_hash_reset(&lock_table_hash);
       DBUG_RETURN(error_num);
     }
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    my_hash_delete_with_hash_value(&lock_table_hash,
-      tmp_link_for_hash->db_table_str_hash_value, (uchar*) tmp_link_for_hash);
-#else
     my_hash_delete(&lock_table_hash, (uchar*) tmp_link_for_hash);
-#endif
   }
   if ((error_num = spider_db_mbase_utility->append_lock_table_tail(str)))
   {
@@ -13661,15 +13651,8 @@ int spider_mbase_handler::insert_lock_tables_list(
   DBUG_PRINT("info",("spider this=%p", this));
   uint old_elements =
     db_conn->lock_table_hash.array.max_element;
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-  if (my_hash_insert_with_hash_value(
-    &db_conn->lock_table_hash,
-    tmp_link_for_hash2->db_table_str_hash_value,
-    (uchar*) tmp_link_for_hash2))
-#else
   if (my_hash_insert(&db_conn->lock_table_hash,
     (uchar*) tmp_link_for_hash2))
-#endif
   {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
@@ -13716,26 +13699,12 @@ int spider_mbase_handler::append_lock_tables_list(
     if (tmp_link_for_hash->spider->wide_handler->lock_type <
       spider->wide_handler->lock_type)
     {
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-      my_hash_delete_with_hash_value(
-        &db_conn->lock_table_hash,
-        tmp_link_for_hash->db_table_str_hash_value,
-        (uchar*) tmp_link_for_hash);
-#else
       my_hash_delete(&db_conn->lock_table_hash,
         (uchar*) tmp_link_for_hash);
-#endif
       uint old_elements =
         db_conn->lock_table_hash.array.max_element;
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-      if (my_hash_insert_with_hash_value(
-        &db_conn->lock_table_hash,
-        tmp_link_for_hash2->db_table_str_hash_value,
-        (uchar*) tmp_link_for_hash2))
-#else
       if (my_hash_insert(&db_conn->lock_table_hash,
         (uchar*) tmp_link_for_hash2))
-#endif
       {
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       }
