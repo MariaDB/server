@@ -572,7 +572,7 @@ public:
 #if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
     static_assert(NEEDS_FSYNC == 1U << 29, "compatibility");
     __asm__ __volatile__("lock btrl $29, %0" : "+m" (n_pending));
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
     static_assert(NEEDS_FSYNC == 1U << 29, "compatibility");
     _interlockedbittestandreset(reinterpret_cast<volatile long*>
                                 (&n_pending), 29);
@@ -588,7 +588,7 @@ private:
 #if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
     static_assert(CLOSING == 1U << 30, "compatibility");
     __asm__ __volatile__("lock btrl $30, %0" : "+m" (n_pending));
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
     static_assert(CLOSING == 1U << 30, "compatibility");
     _interlockedbittestandreset(reinterpret_cast<volatile long*>
                                 (&n_pending), 30);
@@ -1555,7 +1555,7 @@ inline bool fil_space_t::set_stopping_check()
   return true;
 not_stopped:
   return false;
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
   static_assert(STOPPING == 1U << 31, "compatibility");
   return _interlockedbittestandset(reinterpret_cast<volatile long*>
                                    (&n_pending), 31);
@@ -1572,7 +1572,7 @@ inline void fil_space_t::set_stopping()
 #if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
   static_assert(STOPPING == 1U << 31, "compatibility");
   __asm__ __volatile__("lock btsl $31, %0" : "+m" (n_pending));
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
   static_assert(STOPPING == 1U << 31, "compatibility");
   _interlockedbittestandset(reinterpret_cast<volatile long*>(&n_pending), 31);
 #else

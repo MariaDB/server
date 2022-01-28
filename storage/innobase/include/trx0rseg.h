@@ -116,7 +116,7 @@ private:
       __asm__ __volatile__("lock btsl $1, %0" : "+m" (ref));
     else
       __asm__ __volatile__("lock btsl $0, %0" : "+m" (ref));
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
     _interlockedbittestandset(reinterpret_cast<volatile long*>(&ref),
                               needs_purge);
 #else
@@ -133,7 +133,7 @@ private:
       __asm__ __volatile__("lock btrl $1, %0" : "+m" (ref));
     else
       __asm__ __volatile__("lock btrl $0, %0" : "+m" (ref));
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
     _interlockedbittestandreset(reinterpret_cast<volatile long*>(&ref),
                                 needs_purge);
 #else

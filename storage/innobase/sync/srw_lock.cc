@@ -385,7 +385,7 @@ assembler code or a Microsoft intrinsic function.
 # define IF_NOT_FETCH_OR_GOTO(mem, bit, label)				\
   __asm__ goto("lock btsl $" #bit ", %0\n\t"				\
                "jnc %l1" : : "m" (mem) : "cc", "memory" : label);
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
 # define IF_FETCH_OR_GOTO(mem, bit, label)				\
   if (_interlockedbittestandset(reinterpret_cast<volatile long*>(&mem), bit)) \
     goto label;
