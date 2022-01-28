@@ -5864,14 +5864,12 @@ int spider_db_simple_action(
         link_idx
       );
       break;
-#ifdef HA_HAS_CHECKSUM_EXTENDED
     case SPIDER_SIMPLE_CHECKSUM_TABLE:
       DBUG_PRINT("info",("spider simple checksum_table"));
       error_num = db_handler->checksum_table(
         link_idx
       );
       break;
-#endif
     default:
       DBUG_ASSERT(0);
       error_num = HA_ERR_CRASHED;

@@ -4395,9 +4395,7 @@ SPIDER_SHARE *spider_create_share(
   uchar *tmp_cardinality_upd, *tmp_table_mon_mutex_bitmap;
   char buf[MAX_FIELD_WIDTH], *buf_pos;
   char link_idx_str[SPIDER_SQL_INT_LEN];
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   bool checksum_support = TRUE;
-#endif
   DBUG_ENTER("spider_create_share");
   length = (uint) strlen(table_name);
   bitmap_size = spider_bitmap_size(table_share->fields);
@@ -4532,24 +4530,20 @@ SPIDER_SHARE *spider_create_share(
       {
         goto error_init_dbton;
       }
-#ifdef HA_HAS_CHECKSUM_EXTENDED
       if (
         spider_dbton[roop_count].db_access_type == SPIDER_DB_ACCESS_TYPE_SQL &&
         !share->dbton_share[roop_count]->checksum_support()
       ) {
         checksum_support = FALSE;
       }
-#endif
     }
   }
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   if (checksum_support)
   {
     share->additional_table_flags |=
       HA_HAS_OLD_CHECKSUM |
       HA_HAS_NEW_CHECKSUM;
   }
-#endif
   DBUG_RETURN(share);
 
 /*

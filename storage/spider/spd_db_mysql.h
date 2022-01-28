@@ -326,11 +326,9 @@ public:
     int mode,
     ha_rows &records
   );
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   int fetch_table_checksum(
     ha_spider *spider
   );
-#endif
   int fetch_table_cardinality(
     int mode,
     TABLE *table,
@@ -681,9 +679,7 @@ public:
     spider_string *str
   );
 #endif
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   bool checksum_support();
-#endif
 protected:
   int create_table_names_str();
   void free_table_names_str();
@@ -1435,11 +1431,9 @@ public:
   int show_records(
     int link_idx
   );
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   int checksum_table(
     int link_idx
   );
-#endif
   int show_last_insert_id(
     int link_idx,
     ulonglong &last_insert_id

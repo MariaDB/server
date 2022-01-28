@@ -159,11 +159,9 @@ static const char *name_quote_str = SPIDER_SQL_NAME_QUOTE_STR;
 #define SPIDER_SQL_SHOW_RECORDS_RECORDS_POS 0
 #define SPIDER_SQL_EXPLAIN_SELECT_RECORDS_POS 8
 
-#ifdef HA_HAS_CHECKSUM_EXTENDED
 #define SPIDER_SQL_CHECKSUM_CHECKSUM_POS 1
 #define SPIDER_SQL_CHECKSUM_TABLE_STR "checksum table "
 #define SPIDER_SQL_CHECKSUM_TABLE_LEN (sizeof(SPIDER_SQL_CHECKSUM_TABLE_STR) - 1)
-#endif
 
 #define SPIDER_SQL_LIKE_STR " like "
 #define SPIDER_SQL_LIKE_LEN (sizeof(SPIDER_SQL_LIKE_STR) - 1)
@@ -1148,7 +1146,6 @@ int spider_db_mbase_result::fetch_simple_action(
       DBUG_PRINT("info", ("spider records=%lld", *records));
       break;
     }
-#ifdef HA_HAS_CHECKSUM_EXTENDED
     case SPIDER_SIMPLE_CHECKSUM_TABLE:
     {
       ha_spider *spider = (ha_spider *) param;
@@ -1165,7 +1162,6 @@ int spider_db_mbase_result::fetch_simple_action(
       }
       break;
     }
-#endif
     default:
       DBUG_ASSERT(0);
       break;
@@ -1189,7 +1185,6 @@ int spider_db_mbase_result::fetch_table_records(
   }
 }
 
-#ifdef HA_HAS_CHECKSUM_EXTENDED
 int spider_db_mbase_result::fetch_table_checksum(
   ha_spider *spider
 ) {
@@ -1198,7 +1193,6 @@ int spider_db_mbase_result::fetch_table_checksum(
   DBUG_RETURN(fetch_simple_action(SPIDER_SIMPLE_CHECKSUM_TABLE,
     SPIDER_SQL_CHECKSUM_CHECKSUM_POS, spider));
 }
-#endif
 
 int spider_db_mbase_result::fetch_table_cardinality(
   int mode,
@@ -8724,14 +8718,12 @@ int spider_mbase_share::discover_table_structure(
 }
 #endif
 
-#ifdef HA_HAS_CHECKSUM_EXTENDED
 bool spider_mbase_share::checksum_support()
 {
   DBUG_ENTER("spider_mbase_share::checksum_support");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(TRUE);
 }
-#endif
 
 spider_mbase_handler::spider_mbase_handler(
   ha_spider *spider,
@@ -14791,7 +14783,6 @@ int spider_mbase_handler::simple_action(
       DBUG_PRINT("info",("spider simple records"));
       str = &mysql_share->show_records[pos];
       break;
-#ifdef HA_HAS_CHECKSUM_EXTENDED
     case SPIDER_SIMPLE_CHECKSUM_TABLE:
       DBUG_PRINT("info",("spider simple checksum_table"));
       str = &spider->result_list.sqls[link_idx];
@@ -14821,7 +14812,6 @@ int spider_mbase_handler::simple_action(
           SPIDER_SQL_SQL_EXTENDED_LEN);
       }
       break;
-#endif
     default:
       DBUG_ASSERT(0);
       DBUG_RETURN(0);
@@ -14945,12 +14935,10 @@ int spider_mbase_handler::simple_action(
       DBUG_PRINT("info",("spider simple records"));
       error_num = res->fetch_table_records(1, spider->table_rows);
       break;
-#ifdef HA_HAS_CHECKSUM_EXTENDED
     case SPIDER_SIMPLE_CHECKSUM_TABLE:
       DBUG_PRINT("info",("spider simple checksum_table"));
       error_num = res->fetch_table_checksum(spider);
       break;
-#endif
     default:
       DBUG_ASSERT(0);
       break;
@@ -14980,7 +14968,6 @@ int spider_mbase_handler::show_records(
   DBUG_RETURN(0);
 }
 
-#ifdef HA_HAS_CHECKSUM_EXTENDED
 int spider_mbase_handler::checksum_table(
   int link_idx
 ) {
@@ -14988,7 +14975,6 @@ int spider_mbase_handler::checksum_table(
   DBUG_RETURN(simple_action(SPIDER_SIMPLE_CHECKSUM_TABLE, link_idx));
   DBUG_RETURN(0);
 }
-#endif
 
 int spider_mbase_handler::show_last_insert_id(
   int link_idx,

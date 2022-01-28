@@ -40,7 +40,6 @@ spider_db_result::spider_db_result(
   DBUG_VOID_RETURN;
 }
 
-#ifdef HA_HAS_CHECKSUM_EXTENDED
 int spider_db_result::fetch_table_checksum(
   ha_spider *spider
 ) {
@@ -48,7 +47,6 @@ int spider_db_result::fetch_table_checksum(
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(0);
 }
-#endif
 
 uint spider_db_result::limit_mode()
 {
@@ -188,7 +186,6 @@ uint spider_db_util::limit_mode()
   DBUG_RETURN(0);
 }
 
-#ifdef HA_HAS_CHECKSUM_EXTENDED
 bool spider_db_share::checksum_support()
 {
   DBUG_ENTER("spider_db_share::checksum_support");
@@ -203,7 +200,6 @@ int spider_db_handler::checksum_table(
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(0);
 }
-#endif
 
 bool spider_db_handler::check_direct_update(
   st_select_lex *select_lex,
