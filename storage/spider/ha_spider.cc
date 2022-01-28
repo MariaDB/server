@@ -47,9 +47,7 @@
 
 extern handlerton *spider_hton_ptr;
 extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
 extern HASH spider_open_tables;
-#endif
 extern pthread_mutex_t spider_lgtm_tblhnd_share_mutex;
 
 /* UTC time zone for timestamp columns */
@@ -9372,16 +9370,11 @@ int ha_spider::create(
   memset((void*)&tmp_share, 0, sizeof(SPIDER_SHARE));
   tmp_share.table_name = (char*) name;
   tmp_share.table_name_length = strlen(name);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   tmp_share.table_name_hash_value = my_calc_hash(&trx->trx_alter_table_hash,
     (uchar*) tmp_share.table_name, tmp_share.table_name_length);
   tmp_share.lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
     name, tmp_share.table_name_length, tmp_share.table_name_hash_value,
     FALSE, TRUE, &error_num);
-#else
-  tmp_share.lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
-    name, tmp_share.table_name_length, FALSE, TRUE, &error_num);
-#endif
   if (!tmp_share.lgtm_tblhnd_share)
   {
     goto error;
@@ -9451,16 +9444,10 @@ int ha_spider::create(
       spider_free_trx_alter_table(trx);
       trx->query_id = thd->query_id;
     }
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     if (!(alter_table =
       (SPIDER_ALTER_TABLE*) my_hash_search_using_hash_value(
       &trx->trx_alter_table_hash, tmp_share.table_name_hash_value,
       (uchar*) tmp_share.table_name, tmp_share.table_name_length)))
-#else
-    if (!(alter_table =
-      (SPIDER_ALTER_TABLE*) my_hash_search(&trx->trx_alter_table_hash,
-      (uchar*) tmp_share.table_name, tmp_share.table_name_length)))
-#endif
     {
       if ((error_num = spider_create_trx_alter_table(trx, &tmp_share, TRUE)))
         goto error;
@@ -9584,12 +9571,10 @@ int ha_spider::rename_table(
 ) {
   int error_num, roop_count, old_link_count, from_len = strlen(from),
     to_len = strlen(to), tmp_error_num;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type from_hash_value = my_calc_hash(&spider_open_tables,
     (uchar*) from, from_len);
   my_hash_value_type to_hash_value = my_calc_hash(&spider_open_tables,
     (uchar*) to, to_len);
-#endif
   THD *thd = ha_thd();
   uint sql_command = thd_sql_command(thd);
   SPIDER_TRX *trx;
@@ -9757,22 +9742,12 @@ int ha_spider::rename_table(
   }
 
   pthread_mutex_lock(&spider_lgtm_tblhnd_share_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   from_lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
     from, from_len, from_hash_value, TRUE, FALSE, &error_num);
-#else
-  from_lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
-    from, from_len, TRUE, FALSE, &error_num);
-#endif
   if (from_lgtm_tblhnd_share)
   {
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     to_lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
       to, to_len, to_hash_value, TRUE, TRUE, &error_num);
-#else
-    to_lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
-      to, to_len, TRUE, TRUE, &error_num);
-#endif
     if (!to_lgtm_tblhnd_share)
     {
       pthread_mutex_unlock(&spider_lgtm_tblhnd_share_mutex);
@@ -9798,13 +9773,8 @@ error:
     spider_close_sys_table(current_thd, table_tables,
       &open_tables_backup, need_lock);
   pthread_mutex_lock(&spider_lgtm_tblhnd_share_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   to_lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
     to, to_len, to_hash_value, TRUE, FALSE, &tmp_error_num);
-#else
-  to_lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
-    to, to_len, TRUE, FALSE, &tmp_error_num);
-#endif
   if (to_lgtm_tblhnd_share)
     spider_free_lgtm_tblhnd_share_alloc(to_lgtm_tblhnd_share, TRUE);
   pthread_mutex_unlock(&spider_lgtm_tblhnd_share_mutex);
@@ -9852,22 +9822,14 @@ int ha_spider::delete_table(
   {
     SPIDER_LGTM_TBLHND_SHARE *lgtm_tblhnd_share;
     int roop_count, old_link_count = 0, name_len = strlen(name);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     my_hash_value_type hash_value = my_calc_hash(&spider_open_tables,
       (uchar*) name, name_len);
-#endif
     if (
       sql_command == SQLCOM_ALTER_TABLE &&
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
       (alter_table =
         (SPIDER_ALTER_TABLE*) my_hash_search_using_hash_value(
         &trx->trx_alter_table_hash,
         hash_value, (uchar*) name, name_len)) &&
-#else
-      (alter_table =
-        (SPIDER_ALTER_TABLE*) my_hash_search(&trx->trx_alter_table_hash,
-        (uchar*) name, name_len)) &&
-#endif
       alter_table->now_create
     )
       DBUG_RETURN(0);
@@ -9920,13 +9882,8 @@ int ha_spider::delete_table(
     }
 
     pthread_mutex_lock(&spider_lgtm_tblhnd_share_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
       name, name_len, hash_value, TRUE, FALSE, &error_num);
-#else
-    lgtm_tblhnd_share = spider_get_lgtm_tblhnd_share(
-      name, name_len, TRUE, FALSE, &error_num);
-#endif
     if (lgtm_tblhnd_share)
       spider_free_lgtm_tblhnd_share_alloc(lgtm_tblhnd_share, TRUE);
     pthread_mutex_unlock(&spider_lgtm_tblhnd_share_mutex);

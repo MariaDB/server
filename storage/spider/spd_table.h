@@ -442,7 +442,6 @@ int spider_create_conn_keys(
   SPIDER_SHARE *share
 );
 
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
 SPIDER_LGTM_TBLHND_SHARE *spider_get_lgtm_tblhnd_share(
   const char *table_name,
   uint table_name_length,
@@ -451,15 +450,6 @@ SPIDER_LGTM_TBLHND_SHARE *spider_get_lgtm_tblhnd_share(
   bool need_to_create,
   int *error_num
 );
-#else
-SPIDER_LGTM_TBLHND_SHARE *spider_get_lgtm_tblhnd_share(
-  const char *table_name,
-  uint table_name_length,
-  bool locked,
-  bool need_to_create,
-  int *error_num
-);
-#endif
 
 void spider_free_lgtm_tblhnd_share_alloc(
   SPIDER_LGTM_TBLHND_SHARE *lgtm_tblhnd_share,
@@ -472,9 +462,7 @@ SPIDER_SHARE *spider_create_share(
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *part_info,
 #endif
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value,
-#endif
   int *error_num
 );
 

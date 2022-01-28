@@ -4523,9 +4523,7 @@ spider_oracle_share::spider_oracle_share(
   db_names_str(NULL),
   db_table_str(NULL),
   nextval_str(NULL),
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   db_table_str_hash_value(NULL),
-#endif
   table_nm_max_length(0),
   db_nm_max_length(0),
   nextval_max_length(0),
@@ -4578,10 +4576,8 @@ int spider_oracle_share::init()
       __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
       &key_select_pos,
         sizeof(int) * keys,
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
       &db_table_str_hash_value,
         sizeof(my_hash_value_type) * spider_share->all_link_count,
-#endif
       NullS))
   ) {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -4859,10 +4855,8 @@ int spider_oracle_share::create_table_names_str()
       if ((error_num = append_table_name(str, roop_count)))
         goto error;
     }
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     db_table_str_hash_value[roop_count] = my_calc_hash(
       &spider_open_connections, (uchar*) str->ptr(), str->length());
-#endif
   }
   DBUG_RETURN(0);
 
@@ -5546,10 +5540,8 @@ int spider_oracle_handler::init()
     link_for_hash[roop_count].link_idx = roop_count;
     link_for_hash[roop_count].db_table_str =
       &oracle_share->db_table_str[roop_count];
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     link_for_hash[roop_count].db_table_str_hash_value =
       oracle_share->db_table_str_hash_value[roop_count];
-#endif
   }
   DBUG_RETURN(0);
 }
@@ -10392,7 +10384,6 @@ int spider_oracle_handler::append_lock_tables_list(
   tmp_link_for_hash2 = &link_for_hash[link_idx];
   tmp_link_for_hash2->db_table_str =
     &oracle_share->db_table_str[conn_link_idx];
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   tmp_link_for_hash2->db_table_str_hash_value =
     oracle_share->db_table_str_hash_value[conn_link_idx];
   if (!(tmp_link_for_hash = (SPIDER_LINK_FOR_HASH *)
@@ -10401,12 +10392,6 @@ int spider_oracle_handler::append_lock_tables_list(
       tmp_link_for_hash2->db_table_str_hash_value,
       (uchar*) tmp_link_for_hash2->db_table_str->ptr(),
       tmp_link_for_hash2->db_table_str->length())))
-#else
-  if (!(tmp_link_for_hash = (SPIDER_LINK_FOR_HASH *) my_hash_search(
-    &db_conn->lock_table_hash,
-    (uchar*) tmp_link_for_hash2->db_table_str->ptr(),
-    tmp_link_for_hash2->db_table_str->length())))
-#endif
   {
     if ((error_num = insert_lock_tables_list(conn, link_idx)))
       DBUG_RETURN(error_num);

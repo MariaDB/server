@@ -228,9 +228,7 @@ typedef struct st_spider_link_for_hash
   ha_spider          *spider;
   int                link_idx;
   spider_string      *db_table_str;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type db_table_str_hash_value;
-#endif
 } SPIDER_LINK_FOR_HASH;
 
 /* alter table */
@@ -240,9 +238,7 @@ typedef struct st_spider_alter_table
   char               *table_name;
   uint               table_name_length;
   char               *tmp_char;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type table_name_hash_value;
-#endif
   longlong           tmp_priority;
   uint               link_count;
   uint               all_link_count;
@@ -344,9 +340,7 @@ typedef struct st_spider_conn
   uint               conn_kind;
   char               *conn_key;
   uint               conn_key_length;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type conn_key_hash_value;
-#endif
   int                link_idx;
   spider_db_conn     *db_conn;
   uint               opened_handlers;
@@ -534,9 +528,7 @@ typedef struct st_spider_lgtm_tblhnd_share
 {
   char               *table_name;
   uint               table_name_length;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type table_path_hash_value;
-#endif
   pthread_mutex_t    auto_increment_mutex;
   volatile bool      auto_increment_init;
   volatile ulonglong auto_increment_lclval;
@@ -559,9 +551,7 @@ typedef struct st_spider_wide_share
 {
   char               *table_name;
   uint               table_name_length;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type table_path_hash_value;
-#endif
   uint               use_count;
   THR_LOCK           lock;
   pthread_mutex_t    sts_mutex;
@@ -662,9 +652,7 @@ typedef struct st_spider_transaction
   bool               updated_in_this_trx;
 
   THD                *thd;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type thd_hash_value;
-#endif
   XID                xid;
   HASH               trx_conn_hash;
   uint               trx_conn_hash_id;
@@ -746,11 +734,9 @@ typedef struct st_spider_share
 */
   TABLE_SHARE        *table_share;
   SPIDER_LGTM_TBLHND_SHARE *lgtm_tblhnd_share;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type table_name_hash_value;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   my_hash_value_type table_path_hash_value;
-#endif
 #endif
 
   volatile bool      init;
@@ -909,9 +895,7 @@ typedef struct st_spider_share
   char               *bka_engine;
   int                bka_engine_length;
 
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type *conn_keys_hash_value;
-#endif
   char               **server_names;
   char               **tgt_table_names;
   char               **tgt_dbs;
@@ -1065,9 +1049,7 @@ typedef struct st_spider_init_error_table
 {
   char               *table_name;
   uint               table_name_length;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type table_name_hash_value;
-#endif
   bool               init_error_with_message;
   char               init_error_msg[MYSQL_ERRMSG_SIZE];
   volatile int       init_error;
@@ -1148,9 +1130,7 @@ typedef struct st_spider_direct_sql
   uint                 tgt_driver_length;
   uint                 conn_key_length;
   uint                 dbton_id;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type   conn_key_hash_value;
-#endif
 
   pthread_mutex_t               *bg_mutex;
   pthread_cond_t                *bg_cond;
@@ -1188,9 +1168,7 @@ typedef struct st_spider_table_mon_list
 {
   char                       *key;
   uint                       key_length;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type         key_hash_value;
-#endif
 
   uint                       use_count;
   uint                       mutex_hash;
@@ -1304,9 +1282,7 @@ char *spider_create_string(
 typedef struct st_spider_ip_port_conn {
   char               *key;
   size_t             key_len;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type key_hash_value;
-#endif
   char               *remote_ip_str;
   long               remote_port;
   ulong              ip_port_count;

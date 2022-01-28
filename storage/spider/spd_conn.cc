@@ -470,9 +470,7 @@ SPIDER_CONN *spider_create_conn(
     conn->conn_key = tmp_name;
     memcpy(conn->conn_key, share->conn_keys[link_idx],
       share->conn_keys_lengths[link_idx]);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     conn->conn_key_hash_value = share->conn_keys_hash_value[link_idx];
-#endif
     conn->tgt_host_length = share->tgt_hosts_lengths[link_idx];
     conn->tgt_host = tmp_host;
     memcpy(conn->tgt_host, share->tgt_hosts[link_idx],
@@ -640,14 +638,9 @@ SPIDER_CONN *spider_create_conn(
   pthread_mutex_unlock(&spider_conn_id_mutex);
 
   pthread_mutex_lock(&spider_ipport_conn_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if ((ip_port_conn = (SPIDER_IP_PORT_CONN*) my_hash_search_using_hash_value(
     &spider_ipport_conns, conn->conn_key_hash_value,
     (uchar*)conn->conn_key, conn->conn_key_length)))
-#else
-  if ((ip_port_conn = (SPIDER_IP_PORT_CONN*) my_hash_search(
-    &spider_ipport_conns, (uchar*)conn->conn_key, conn->conn_key_length)))
-#endif
   { /* exists, +1 */
     pthread_mutex_unlock(&spider_ipport_conn_mutex);
     pthread_mutex_lock(&ip_port_conn->mutex);
@@ -720,7 +713,6 @@ SPIDER_CONN *spider_get_conn(
 #ifndef DBUG_OFF
     spider_print_keys(conn_key, share->conn_keys_lengths[link_idx]);
 #endif
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if (
         (another &&
           !(conn = (SPIDER_CONN*) my_hash_search_using_hash_value(
@@ -733,16 +725,6 @@ SPIDER_CONN *spider_get_conn(
             share->conn_keys_hash_value[link_idx],
             (uchar*) conn_key, share->conn_keys_lengths[link_idx])))
   )
-#else
-  if (
-        (another &&
-          !(conn = (SPIDER_CONN*) my_hash_search(&trx->trx_another_conn_hash,
-            (uchar*) conn_key, share->conn_keys_lengths[link_idx]))) ||
-        (!another &&
-          !(conn = (SPIDER_CONN*) my_hash_search(&trx->trx_conn_hash,
-            (uchar*) conn_key, share->conn_keys_lengths[link_idx])))
-  )
-#endif
   {
     if (
       !trx->thd ||
@@ -752,16 +734,10 @@ SPIDER_CONN *spider_get_conn(
         )
     ) {
         pthread_mutex_lock(&spider_conn_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
         if (!(conn = (SPIDER_CONN*) my_hash_search_using_hash_value(
           &spider_open_connections, share->conn_keys_hash_value[link_idx],
           (uchar*) share->conn_keys[link_idx],
           share->conn_keys_lengths[link_idx])))
-#else
-        if (!(conn = (SPIDER_CONN*) my_hash_search(&spider_open_connections,
-          (uchar*) share->conn_keys[link_idx],
-          share->conn_keys_lengths[link_idx])))
-#endif
         {
           pthread_mutex_unlock(&spider_conn_mutex);
           if (spider_param_max_connections())
@@ -1149,16 +1125,10 @@ int spider_conn_queue_and_merge_loop_check(
   SPIDER_CONN_LOOP_CHECK *lcqptr, *lcrptr;
   DBUG_ENTER("spider_conn_queue_and_merge_loop_check");
   DBUG_PRINT("info", ("spider conn=%p", conn));
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if (unlikely(!(lcqptr = (SPIDER_CONN_LOOP_CHECK *)
     my_hash_search_using_hash_value(&conn->loop_check_queue,
     lcptr->hash_value_to,
     (uchar *) lcptr->to_name.str, lcptr->to_name.length))))
-#else
-  if (unlikely(!(lcqptr = (SPIDER_CONN_LOOP_CHECK *) my_hash_search(
-    &conn->loop_check_queue,
-    (uchar *) lcptr->to_name.str, lcptr->to_name.length))))
-#endif
   {
     DBUG_PRINT("info", ("spider create merged_value and insert"));
     lcptr->merged_value.length = spider_unique_id.length +
@@ -1197,10 +1167,8 @@ int spider_conn_queue_and_merge_loop_check(
     )) {
       goto error_alloc_loop_check_replace;
     }
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     lcrptr->hash_value_to = lcqptr->hash_value_to;
     lcrptr->hash_value_full = lcqptr->hash_value_full;
-#endif
     lcrptr->from_name.str = from_name;
     lcrptr->from_name.length = lcqptr->from_name.length;
     memcpy(from_name, lcqptr->from_name.str, lcqptr->from_name.length + 1);
@@ -1438,19 +1406,12 @@ int spider_conn_queue_loop_check(
   memcpy(tmp_name, to_str.str, to_str.length);
   tmp_name += to_str.length;
   *tmp_name = '\0';
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value = my_calc_hash(&conn->loop_checked,
     (uchar *) loop_check_buf, buf_sz - 1);
-#endif
   pthread_mutex_lock(&conn->loop_check_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   lcptr = (SPIDER_CONN_LOOP_CHECK *)
     my_hash_search_using_hash_value(&conn->loop_checked, hash_value,
     (uchar *) loop_check_buf, buf_sz - 1);
-#else
-  lcptr = (SPIDER_CONN_LOOP_CHECK *) my_hash_search(
-    &conn->loop_checked, (uchar *) loop_check_buf, buf_sz - 1);
-#endif
   if (unlikely(
     !lcptr ||
     (
@@ -1505,11 +1466,9 @@ int spider_conn_queue_loop_check(
     lcptr->from_value.length = lex_str.length;
     memcpy(from_value, lex_str.str, lex_str.length + 1);
     lcptr->merged_value.str = merged_value;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     lcptr->hash_value_to = my_calc_hash(&conn->loop_checked,
       (uchar *) to_str.str, to_str.length);
     lcptr->hash_value_full = hash_value;
-#endif
 #ifdef HASH_UPDATE_WITH_HASH_VALUE
     if (unlikely(my_hash_insert_with_hash_value(&conn->loop_checked,
       lcptr->hash_value_full, (uchar *) lcptr)))
@@ -4178,15 +4137,9 @@ SPIDER_CONN* spider_get_conn_from_idle_connection(
   set_timespec(abstime, 0);
 
   pthread_mutex_lock(&spider_ipport_conn_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if ((ip_port_conn = (SPIDER_IP_PORT_CONN*) my_hash_search_using_hash_value(
     &spider_ipport_conns, share->conn_keys_hash_value[link_idx],
     (uchar*) share->conn_keys[link_idx], share->conn_keys_lengths[link_idx])))
-#else
-  if ((ip_port_conn = (SPIDER_IP_PORT_CONN*) my_hash_search(
-    &spider_ipport_conns,
-    (uchar*) share->conn_keys[link_idx], share->conn_keys_lengths[link_idx])))
-#endif
   { /* exists */
     pthread_mutex_unlock(&spider_ipport_conn_mutex);
     pthread_mutex_lock(&ip_port_conn->mutex);
@@ -4225,16 +4178,10 @@ SPIDER_CONN* spider_get_conn_from_idle_connection(
       }
 
       pthread_mutex_lock(&spider_conn_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
       if ((conn = (SPIDER_CONN*) my_hash_search_using_hash_value(
         &spider_open_connections, share->conn_keys_hash_value[link_idx],
         (uchar*) share->conn_keys[link_idx],
         share->conn_keys_lengths[link_idx])))
-#else
-      if ((conn = (SPIDER_CONN*) my_hash_search(&spider_open_connections,
-        (uchar*) share->conn_keys[link_idx],
-        share->conn_keys_lengths[link_idx])))
-#endif
       {
         /* get conn from spider_open_connections, then delete conn in spider_open_connections */
 #ifdef HASH_UPDATE_WITH_HASH_VALUE
@@ -4327,9 +4274,7 @@ SPIDER_IP_PORT_CONN* spider_create_ipport_conn(SPIDER_CONN *conn)
     ret->conn_id = conn->conn_id;
     ret->ip_port_count = 1; // init
 
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     ret->key_hash_value = conn->conn_key_hash_value;
-#endif
     DBUG_RETURN(ret);
 err_malloc_key:
     spider_my_free(ret, MYF(0));

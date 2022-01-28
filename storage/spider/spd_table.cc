@@ -4213,10 +4213,8 @@ int spider_create_conn_keys(
       __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
       &share->conn_keys, sizeof(char *) * share->all_link_count,
       &share->conn_keys_lengths, length_base,
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
       &share->conn_keys_hash_value,
         sizeof(my_hash_value_type) * share->all_link_count,
-#endif
       &tmp_name, sizeof(char) * share->conn_keys_charlen,
       &share->sql_dbton_ids, length_base,
       NullS))
@@ -4364,11 +4362,9 @@ int spider_create_conn_keys(
       tmp_name++;
     tmp_name++;
     tmp_name++;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     share->conn_keys_hash_value[roop_count] = my_calc_hash(
       &spider_open_connections, (uchar*) share->conn_keys[roop_count],
       share->conn_keys_lengths[roop_count]);
-#endif
   }
   for (roop_count2 = 0; roop_count2 < SPIDER_DBTON_SIZE; roop_count2++)
   {
@@ -4391,9 +4387,7 @@ SPIDER_SHARE *spider_create_share(
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *part_info,
 #endif
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value,
-#endif
   int *error_num
 ) {
   int bitmap_size, roop_count;
@@ -4442,12 +4436,10 @@ SPIDER_SHARE *spider_create_share(
   share->table_mon_mutex_bitmap = tmp_table_mon_mutex_bitmap;
   share->bitmap_size = bitmap_size;
   share->table_share = table_share;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   share->table_name_hash_value = hash_value;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   share->table_path_hash_value = my_calc_hash(&spider_open_tables,
     (uchar*) table_share->path.str, table_share->path.length);
-#endif
 #endif
   share->table.s = table_share;
   share->table.field = table_share->field;
@@ -4519,14 +4511,9 @@ SPIDER_SHARE *spider_create_share(
     goto error_init_crd_mutex;
   }
 
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if (!(share->lgtm_tblhnd_share =
     spider_get_lgtm_tblhnd_share(tmp_name, length, hash_value, FALSE, TRUE,
     error_num)))
-#else
-  if (!(share->lgtm_tblhnd_share =
-    spider_get_lgtm_tblhnd_share(tmp_name, length, FALSE, TRUE, error_num)))
-#endif
   {
     goto error_get_lgtm_tblhnd_share;
   }
@@ -4641,10 +4628,8 @@ SPIDER_SHARE *spider_get_share(
   DBUG_ENTER("spider_get_share");
   top_share = spider->wide_handler->top_share;
   length = (uint) strlen(table_name);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value = my_calc_hash(&spider_open_tables,
     (uchar*) table_name, length);
-#endif
   if (top_share)
   {
     lex_str.length = top_share->path.length + SPIDER_SQL_LOP_CHK_PRM_PRF_LEN;
@@ -4689,22 +4674,15 @@ SPIDER_SHARE *spider_get_share(
     my_afree(loop_check_buf);
   }
   pthread_mutex_lock(&spider_tbl_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if (!(share = (SPIDER_SHARE*) my_hash_search_using_hash_value(
     &spider_open_tables, hash_value, (uchar*) table_name, length)))
-#else
-  if (!(share = (SPIDER_SHARE*) my_hash_search(&spider_open_tables,
-    (uchar*) table_name, length)))
-#endif
   {
     if (!(share = spider_create_share(
       table_name, table_share,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
       table->part_info,
 #endif
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
       hash_value,
-#endif
       error_num
     ))) {
       goto error_alloc_share;
@@ -5814,19 +5792,12 @@ void spider_update_link_status_for_share(
   SPIDER_SHARE *share;
   DBUG_ENTER("spider_update_link_status_for_share");
 
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value = my_calc_hash(&spider_open_tables,
     (uchar*) table_name, table_name_length);
-#endif
   pthread_mutex_lock(&spider_tbl_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if ((share = (SPIDER_SHARE*) my_hash_search_using_hash_value(
     &spider_open_tables, hash_value, (uchar*) table_name,
     table_name_length)))
-#else
-  if ((share = (SPIDER_SHARE*) my_hash_search(&spider_open_tables,
-    (uchar*) table_name, table_name_length)))
-#endif
   {
     DBUG_PRINT("info", ("spider share->link_status_init=%s",
       share->link_status_init ? "TRUE" : "FALSE"));
@@ -5841,7 +5812,6 @@ void spider_update_link_status_for_share(
   DBUG_VOID_RETURN;
 }
 
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
 SPIDER_LGTM_TBLHND_SHARE *spider_get_lgtm_tblhnd_share(
   const char *table_name,
   uint table_name_length,
@@ -5850,15 +5820,6 @@ SPIDER_LGTM_TBLHND_SHARE *spider_get_lgtm_tblhnd_share(
   bool need_to_create,
   int *error_num
 )
-#else
-SPIDER_LGTM_TBLHND_SHARE *spider_get_lgtm_tblhnd_share(
-  const char *table_name,
-  uint table_name_length,
-  bool locked,
-  bool need_to_create,
-  int *error_num
-)
-#endif
 {
   SPIDER_LGTM_TBLHND_SHARE *lgtm_tblhnd_share;
   char *tmp_name;
@@ -5866,16 +5827,10 @@ SPIDER_LGTM_TBLHND_SHARE *spider_get_lgtm_tblhnd_share(
 
   if (!locked)
     pthread_mutex_lock(&spider_lgtm_tblhnd_share_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if (!(lgtm_tblhnd_share = (SPIDER_LGTM_TBLHND_SHARE*)
     my_hash_search_using_hash_value(
     &spider_lgtm_tblhnd_share_hash, hash_value,
     (uchar*) table_name, table_name_length)))
-#else
-  if (!(lgtm_tblhnd_share = (SPIDER_LGTM_TBLHND_SHARE*) my_hash_search(
-    &spider_lgtm_tblhnd_share_hash,
-    (uchar*) table_name, table_name_length)))
-#endif
   {
     DBUG_PRINT("info",("spider create new lgtm tblhnd share"));
     if (!(lgtm_tblhnd_share = (SPIDER_LGTM_TBLHND_SHARE *)
@@ -5892,9 +5847,7 @@ SPIDER_LGTM_TBLHND_SHARE *spider_get_lgtm_tblhnd_share(
     lgtm_tblhnd_share->table_name = tmp_name;
     memcpy(lgtm_tblhnd_share->table_name, table_name,
       lgtm_tblhnd_share->table_name_length);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     lgtm_tblhnd_share->table_path_hash_value = hash_value;
-#endif
 
     if (mysql_mutex_init(spd_key_mutex_share_auto_increment,
       &lgtm_tblhnd_share->auto_increment_mutex, MY_MUTEX_INIT_FAST))
@@ -5970,16 +5923,10 @@ SPIDER_WIDE_SHARE *spider_get_wide_share(
   DBUG_ENTER("spider_get_wide_share");
 
   pthread_mutex_lock(&spider_wide_share_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if (!(wide_share = (SPIDER_WIDE_SHARE*)
     my_hash_search_using_hash_value(
     &spider_open_wide_share, share->table_path_hash_value,
     (uchar*) table_share->path.str, table_share->path.length)))
-#else
-  if (!(wide_share = (SPIDER_WIDE_SHARE*) my_hash_search(
-    &spider_open_wide_share,
-    (uchar*) table_share->path.str, table_share->path.length)))
-#endif
   {
     DBUG_PRINT("info",("spider create new wide share"));
     if (!(wide_share = (SPIDER_WIDE_SHARE *)
@@ -5999,9 +5946,7 @@ SPIDER_WIDE_SHARE *spider_get_wide_share(
     wide_share->table_name = tmp_name;
     memcpy(wide_share->table_name, table_share->path.str,
       wide_share->table_name_length);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     wide_share->table_path_hash_value = share->table_path_hash_value;
-#endif
     wide_share->cardinality = tmp_cardinality;
 
     wide_share->crd_get_time = wide_share->sts_get_time =
@@ -7671,16 +7616,10 @@ SPIDER_INIT_ERROR_TABLE *spider_get_init_error_table(
   char *tmp_name;
   DBUG_ENTER("spider_get_init_error_table");
   pthread_mutex_lock(&spider_init_error_tbl_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if (!(spider_init_error_table = (SPIDER_INIT_ERROR_TABLE *)
     my_hash_search_using_hash_value(
     &spider_init_error_tables, share->table_name_hash_value,
     (uchar*) share->table_name, share->table_name_length)))
-#else
-  if (!(spider_init_error_table = (SPIDER_INIT_ERROR_TABLE *) my_hash_search(
-    &spider_init_error_tables,
-    (uchar*) share->table_name, share->table_name_length)))
-#endif
   {
     if (!create)
     {
@@ -7699,10 +7638,8 @@ SPIDER_INIT_ERROR_TABLE *spider_get_init_error_table(
     memcpy(tmp_name, share->table_name, share->table_name_length);
     spider_init_error_table->table_name = tmp_name;
     spider_init_error_table->table_name_length = share->table_name_length;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     spider_init_error_table->table_name_hash_value =
       share->table_name_hash_value;
-#endif
     uint old_elements = spider_init_error_tables.array.max_element;
 #ifdef HASH_UPDATE_WITH_HASH_VALUE
     if (my_hash_insert_with_hash_value(&spider_init_error_tables,
@@ -7733,20 +7670,13 @@ void spider_delete_init_error_table(
 ) {
   SPIDER_INIT_ERROR_TABLE *spider_init_error_table;
   uint length = strlen(name);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value = my_calc_hash(&spider_open_tables,
     (uchar*) name, length);
-#endif
   DBUG_ENTER("spider_delete_init_error_table");
   pthread_mutex_lock(&spider_init_error_tbl_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if ((spider_init_error_table = (SPIDER_INIT_ERROR_TABLE *)
     my_hash_search_using_hash_value(&spider_init_error_tables, hash_value,
       (uchar*) name, length)))
-#else
-  if ((spider_init_error_table = (SPIDER_INIT_ERROR_TABLE *) my_hash_search(
-    &spider_init_error_tables, (uchar*) name, length)))
-#endif
   {
 #ifdef HASH_UPDATE_WITH_HASH_VALUE
     my_hash_delete_with_hash_value(&spider_init_error_tables,
@@ -8813,10 +8743,8 @@ int spider_discover_table_structure(
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   str_len = str.length();
 #endif
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value = my_calc_hash(&spider_open_tables,
     (uchar*) table_name, table_name_length);
-#endif
   if (!(trx = spider_get_trx(thd, TRUE, &error_num)))
   {
     DBUG_PRINT("info",("spider spider_get_trx error"));
@@ -8833,9 +8761,7 @@ int spider_discover_table_structure(
 #ifdef WITH_PARTITION_STORAGE_ENGINE
       NULL,
 #endif
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
       hash_value,
-#endif
       &error_num
     ))) {
       DBUG_RETURN(error_num);
@@ -8894,9 +8820,7 @@ int spider_discover_table_structure(
           DBUG_PRINT("info",("spider tmp_name=%s", tmp_name));
           if (!(spider_share = spider_create_share(tmp_name, share,
             part_info,
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
             hash_value,
-#endif
             &error_num
           ))) {
             DBUG_RETURN(error_num);
@@ -8922,9 +8846,7 @@ int spider_discover_table_structure(
         DBUG_PRINT("info",("spider tmp_name=%s", tmp_name));
         if (!(spider_share = spider_create_share(tmp_name, share,
           part_info,
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
           hash_value,
-#endif
           &error_num
         ))) {
           DBUG_RETURN(error_num);
@@ -8965,9 +8887,7 @@ int spider_discover_table_structure(
             DBUG_PRINT("info",("spider tmp_name=%s", tmp_name));
             if (!(spider_share = spider_create_share(tmp_name, share,
               part_info,
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
               hash_value,
-#endif
               &error_num
             ))) {
               DBUG_RETURN(error_num);
@@ -9003,9 +8923,7 @@ int spider_discover_table_structure(
           DBUG_PRINT("info",("spider tmp_name=%s", tmp_name));
           if (!(spider_share = spider_create_share(tmp_name, share,
             part_info,
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
             hash_value,
-#endif
             &error_num
           ))) {
             DBUG_RETURN(error_num);

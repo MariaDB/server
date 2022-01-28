@@ -573,11 +573,9 @@ int spider_create_trx_alter_table(
   alter_table->table_name = tmp_name;
   memcpy(alter_table->table_name, share->table_name, share->table_name_length);
   alter_table->table_name_length = share->table_name_length;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   DBUG_PRINT("info",("spider table_name_hash_value=%u",
     share->table_name_hash_value));
   alter_table->table_name_hash_value = share->table_name_hash_value;
-#endif
   alter_table->tmp_priority = share->priority;
   alter_table->link_count = share->link_count;
   alter_table->all_link_count = share->all_link_count;
@@ -1259,13 +1257,11 @@ SPIDER_TRX *spider_get_trx(
       trx->trx_ha_hash.array.size_of_element);
 
     trx->thd = (THD*) thd;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     if (thd)
       trx->thd_hash_value = my_calc_hash(&spider_allocated_thds,
         (uchar*) thd, sizeof(THD *));
     else
       trx->thd_hash_value = 0;
-#endif
     pthread_mutex_lock(&spider_thread_id_mutex);
     trx->spider_thread_id = spider_thread_id;
     ++spider_thread_id;
@@ -1625,12 +1621,10 @@ static int spider_xa_lock(
   DBUG_ENTER("spider_xa_lock");
 #ifdef SPIDER_XID_USES_xid_cache_iterate
 #else
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value = my_calc_hash(spd_db_att_xid_cache,
     (uchar*) xid_state->xid.key(), xid_state->xid.key_length());
 #ifdef XID_CACHE_IS_SPLITTED
   uint idx = hash_value % *spd_db_att_xid_cache_split_num;
-#endif
 #endif
 #endif
   old_proc_info = thd_proc_info(thd, "Locking xid by Spider");
@@ -1647,16 +1641,11 @@ static int spider_xa_lock(
 #else
   pthread_mutex_lock(spd_db_att_LOCK_xid_cache);
 #endif
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
 #ifdef XID_CACHE_IS_SPLITTED
   if (my_hash_search_using_hash_value(&spd_db_att_xid_cache[idx], hash_value,
     xid_state->xid.key(), xid_state->xid.key_length()))
 #else
   if (my_hash_search_using_hash_value(spd_db_att_xid_cache, hash_value,
-    xid_state->xid.key(), xid_state->xid.key_length()))
-#endif
-#else
-  if (my_hash_search(spd_db_att_xid_cache,
     xid_state->xid.key(), xid_state->xid.key_length()))
 #endif
   {
@@ -3933,14 +3922,9 @@ SPIDER_TRX_HA *spider_check_trx_ha(
   SPIDER_TRX_HA *trx_ha;
   SPIDER_SHARE *share = spider->share;
   DBUG_ENTER("spider_check_trx_ha");
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if ((trx_ha = (SPIDER_TRX_HA *) my_hash_search_using_hash_value(
     &trx->trx_ha_hash, share->table_name_hash_value,
     (uchar*) share->table_name, share->table_name_length)))
-#else
-  if ((trx_ha = (SPIDER_TRX_HA *) my_hash_search(&trx->trx_ha_hash,
-    (uchar*) share->table_name, share->table_name_length)))
-#endif
   {
     memcpy(spider->conn_link_idx, trx_ha->conn_link_idx,
       sizeof(uint) * share->link_count);

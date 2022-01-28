@@ -64,9 +64,7 @@ extern SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 #define SPIDER_SQL_PING_TABLE_STR "spider_ping_table("
 #define SPIDER_SQL_PING_TABLE_LEN (sizeof(SPIDER_SQL_PING_TABLE_STR) - 1)
 
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
 extern HASH spider_open_connections;
-#endif
 pthread_mutex_t spider_open_conn_mutex;
 const char spider_dig_upper[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
