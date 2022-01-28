@@ -21,7 +21,68 @@ connection slave;
 SHOW TABLES;
 Tables_in_test
 t1
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
 connection master;
 drop temporary table if exists tmp;
 drop table t1;
 include/rpl_end.inc
+#
+# MDEV-25292 Atomic CREATE OR REPLACE TABLE
+#
+set @saved_debug_dbug= @@session.debug_dbug;
+create table t1 (a int);
+insert t1 values (1), (1);
+create table t2 (c int);
+lock tables t2 write, t1 write;
+set session debug_dbug= '+d,atomic_replace_external_lock_fail';
+create or replace table t2 (y int) as select * from t1;
+ERROR HY000: The total number of locks exceeds the lock table size
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+unlock tables;
+drop tables t2, t1;
+set session debug_dbug= @saved_debug_dbug;
+# Test entry_pos in higher position, so drop chain executes before create chain
+# (see commit message: On linking two chains together)
+create table t1 (c int);
+create or replace table t1 (a int, b int, key k (a), key k (b));
+ERROR 42000: Duplicate key name 'k'
+create or replace table t1 (a int, b int, key k (a), key k (b));
+ERROR 42000: Duplicate key name 'k'
+drop table t1;
+# Test multi-byte characters in table name
+set names utf8;
+create table ❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎ (x int);
+ERROR HY000: Can't create table `test`.`❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎` (errno: 36 "File name too long")
+create table tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎ (x int);
+create table ttttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎ (x int);
+ERROR 42000: Incorrect table name 'ttttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎'
+show tables;
+Tables_in_test
+tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎
+create or replace table tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎ (y int);
+show create table tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎;
+Table	Create Table
+tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎	CREATE TABLE `tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎` (
+  `y` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+set @@debug_dbug="+d,ddl_log_create_after_save_backup", @debug_crash_counter=1;
+create or replace table tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎ (z int);
+ERROR HY000: Lost connection to server during query
+#sql-backup-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYD
+#sql-backup-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYI
+#sql-backup-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.frm
+#sql-create-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYD
+#sql-create-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.MYI
+#sql-create-PID-TID-tttttttttttttttttttttttt@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e@274e.frm
+drop table tttttttttttttttttttttttt❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎❎;
+set @@debug_dbug="";

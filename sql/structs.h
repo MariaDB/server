@@ -904,4 +904,14 @@ public:
 };
 
 
+struct Table_name
+{
+  LEX_CSTRING   db;
+  LEX_CSTRING   table_name;
+  LEX_CSTRING   alias;
+  bool is_set() const
+  {
+    return table_name.str;
+  }
+};
 #endif /* STRUCTS_INCLUDED */

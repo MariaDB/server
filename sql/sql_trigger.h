@@ -89,6 +89,7 @@ public:
   TABLE table;
   bool upgrading50to51;
   bool got_error;
+  int rename_flags;
 
   TRIGGER_RENAME_PARAM()
   {
@@ -255,12 +256,14 @@ public:
                         bool old_row_is_record1);
   void empty_lists();
   bool create_lists_needed_for_files(MEM_ROOT *root);
-  bool save_trigger_file(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name);
+  bool save_trigger_file(THD *thd, const LEX_CSTRING *db,
+                         const LEX_CSTRING *table_name, uint flags);
 
   static bool check_n_load(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name,
-                           TABLE *table, bool names_only);
+                           TABLE *table, bool names_only, uint flags);
   static bool drop_all_triggers(THD *thd, const LEX_CSTRING *db,
-                                const LEX_CSTRING *table_name, myf MyFlags);
+                                const LEX_CSTRING *table_name, uint flags,
+                                myf MyFlags);
   static bool prepare_for_rename(THD *thd, TRIGGER_RENAME_PARAM *param,
                                  const LEX_CSTRING *db,
                                  const LEX_CSTRING *old_alias,
@@ -333,7 +336,8 @@ private:
                                      const LEX_CSTRING *old_db_name,
                                      const LEX_CSTRING *new_db_name,
                                      const LEX_CSTRING *old_table_name,
-                                     const LEX_CSTRING *new_table_name);
+                                     const LEX_CSTRING *new_table_name,
+                                     uint flags);
 
   bool check_for_broken_triggers() 
   {

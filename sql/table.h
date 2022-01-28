@@ -35,6 +35,7 @@
 #include "sql_i_s.h"
 #include "sql_type.h"               /* vers_kind_t */
 #include "privilege.h"              /* privilege_t */
+#include "structs.h"
 
 /* Structs that defines the TABLE */
 
@@ -75,6 +76,7 @@ typedef ulonglong nested_join_map;
 
 #define tmp_file_prefix "#sql"			/**< Prefix for tmp tables */
 #define tmp_file_prefix_length 4
+#define backup_file_prefix tmp_file_prefix "-backup-"
 #define TMP_TABLE_KEY_EXTRA 8
 
 /**
@@ -335,6 +337,7 @@ typedef struct st_grant_info
 
 enum tmp_table_type
 {
+  TMP_TABLE_ATOMIC_REPLACE= -1,
   NO_TMP_TABLE= 0, NON_TRANSACTIONAL_TMP_TABLE, TRANSACTIONAL_TMP_TABLE,
   INTERNAL_TMP_TABLE, SYSTEM_TMP_TABLE
 };
@@ -697,14 +700,6 @@ public:
   bool start_stats_load() { return stats_state.start_load(); }
   void end_stats_load() { stats_state.end_load(); }
   void abort_stats_load() { stats_state.abort_load(); }
-};
-
-
-struct Table_name
-{
-  LEX_CSTRING   db;
-  LEX_CSTRING   table_name;
-  LEX_CSTRING   alias;
 };
 
 
@@ -1793,6 +1788,7 @@ public:
   /* Used in DELETE, DUP REPLACE and insert history row */
   void vers_update_end();
   void find_constraint_correlated_indexes();
+  bool referenced_by_foreign_table(THD *thd, FOREIGN_KEY_INFO **fk_info) const;
 
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2

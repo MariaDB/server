@@ -378,8 +378,10 @@ row_rename_table_for_mysql(
 	const char*	old_name,	/*!< in: old table name */
 	const char*	new_name,	/*!< in: new table name */
 	trx_t*		trx,		/*!< in/out: transaction */
-	bool		use_fk)		/*!< in: whether to parse and enforce
+	bool		use_fk,		/*!< in: whether to parse and enforce
 					FOREIGN KEY constraints */
+	bool		cmd_alter)	/*!< in: don't rename foreign keys for
+					new tmp table */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*********************************************************************//**

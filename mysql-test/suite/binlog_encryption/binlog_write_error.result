@@ -8,6 +8,8 @@ CREATE TABLE t1 (a INT);
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 INSERT INTO t1 VALUES (1),(2),(3);
+ERROR 42S02: Table 'test.t1' doesn't exist
+CREATE TABLE t1 (a INT);
 set @saved_dbug = @@global.debug_dbug;
 SET GLOBAL debug_dbug='d,injecting_fault_writing';
 INSERT INTO t1 VALUES (4),(5),(6);

@@ -7004,6 +7004,8 @@ static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
 {
   THD *thd= lpt->thd;
   partition_info *part_info= lpt->part_info->get_clone(thd);
+  /* TABLE is going to be released, we should not access old part_info anymore */
+  lpt->part_info= part_info;
   TABLE *table= lpt->table;
   DBUG_ENTER("handle_alter_part_error");
   DBUG_ASSERT(table->needs_reopen());

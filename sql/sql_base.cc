@@ -2978,7 +2978,7 @@ ret:
 static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry)
 {
   if (Table_triggers_list::check_n_load(thd, &share->db,
-                                        &share->table_name, entry, 0))
+                                        &share->table_name, entry, false, 0))
     return TRUE;
 
   /*

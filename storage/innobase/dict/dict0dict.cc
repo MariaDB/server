@@ -3331,7 +3331,8 @@ dict_get_referenced_table(
 	ulint	       table_name_len,	  /*!< in: table name length */
 	dict_table_t** table,		  /*!< out: table object or NULL */
 	mem_heap_t*    heap,		  /*!< in/out: heap memory */
-	CHARSET_INFO*  from_cs)		  /*!< in: table name charset */
+	CHARSET_INFO*  from_cs,		  /*!< in: table name charset */
+	bool	       tmp_table)
 {
 	char*		ref;
 	char		db_name[MAX_DATABASE_NAME_LEN];
@@ -3352,9 +3353,12 @@ dict_get_referenced_table(
 		to_cs = system_charset_info;
 	}
 
-	table_name_len = strconvert(from_cs, table_name, table_name_len, to_cs,
-				    tbl_name, MAX_TABLE_NAME_LEN, &errors);
-	table_name     = tbl_name;
+	if (!tmp_table)
+	{
+		table_name_len = strconvert(from_cs, table_name, table_name_len, to_cs,
+					tbl_name, MAX_TABLE_NAME_LEN, &errors);
+		table_name     = tbl_name;
+	}
 
 	if (database_name) {
 		to_cs = &my_charset_filename;
