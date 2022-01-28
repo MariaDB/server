@@ -25,9 +25,7 @@
 #include "sql_analyse.h"
 #include "sql_base.h"
 #include "tztime.h"
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 #include "sql_select.h"
-#endif
 #include "sql_common.h"
 #include <mysql.h>
 #include <errmsg.h>
@@ -6900,7 +6898,6 @@ int spider_db_mbase_util::open_item_func(
   DBUG_RETURN(0);
 }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 int spider_db_mbase_util::open_item_sum_func(
   Item_sum *item_sum,
   ha_spider *spider,
@@ -7018,7 +7015,6 @@ int spider_db_mbase_util::open_item_sum_func(
   }
   DBUG_RETURN(0);
 }
-#endif
 
 int spider_db_mbase_util::append_escaped_util(
   spider_string *to,
@@ -9208,14 +9204,12 @@ int spider_mbase_handler::append_tmp_table_and_sql_for_bka(
       SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN)))
       DBUG_RETURN(error_num);
   }
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   else if (spider->result_list.direct_aggregate)
   {
     if ((error_num =
       append_group_by(&sql, SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN)))
       DBUG_RETURN(error_num);
   }
-#endif
 
   DBUG_RETURN(0);
 }
@@ -9454,14 +9448,12 @@ int spider_mbase_handler::append_union_table_and_sql_for_bka(
     )
       DBUG_RETURN(error_num);
   }
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   else if (spider->result_list.direct_aggregate)
   {
     if ((error_num =
       append_group_by(&tmp_sql, SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN)))
       DBUG_RETURN(error_num);
   }
-#endif
 
   DBUG_RETURN(0);
 }
@@ -10101,13 +10093,10 @@ int spider_mbase_handler::append_table_select_part(
 int spider_mbase_handler::append_table_select(
   spider_string *str
 ) {
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   st_select_lex *select_lex = NULL;
   bool sgb = (spider->result_list.direct_aggregate &&
     spider_param_strict_group_by(current_thd, (strict_group_by ? 1 : 0)) == 1);
-#endif
   DBUG_ENTER("spider_mbase_handler::append_table_select");
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (sgb)
   {
     select_lex = spider_get_select_lex(spider);
@@ -10146,13 +10135,10 @@ int spider_mbase_handler::append_table_select(
     }
     str->length(str->length() - SPIDER_SQL_COMMA_LEN);
   } else {
-#endif
     table_name_pos = str->length() + mysql_share->table_select_pos;
     if (str->append(*(mysql_share->table_select)))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   }
-#endif
   DBUG_RETURN(0);
 }
 
@@ -10180,13 +10166,10 @@ int spider_mbase_handler::append_key_select(
   spider_string *str,
   uint idx
 ) {
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   st_select_lex *select_lex = NULL;
   bool sgb = (spider->result_list.direct_aggregate &&
     spider_param_strict_group_by(current_thd, (strict_group_by ? 1 : 0)) == 1);
-#endif
   DBUG_ENTER("spider_mbase_handler::append_key_select");
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (sgb)
   {
     select_lex = spider_get_select_lex(spider);
@@ -10230,13 +10213,10 @@ int spider_mbase_handler::append_key_select(
     }
     str->length(str->length() - SPIDER_SQL_COMMA_LEN);
   } else {
-#endif
     table_name_pos = str->length() + mysql_share->key_select_pos[idx];
     if (str->append(mysql_share->key_select[idx]))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   }
-#endif
   DBUG_RETURN(0);
 }
 
@@ -10267,13 +10247,10 @@ int spider_mbase_handler::append_minimum_select(
   Field **field;
   int field_length;
   bool appended = FALSE;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   st_select_lex *select_lex = NULL;
   bool sgb = (spider->result_list.direct_aggregate &&
     spider_param_strict_group_by(current_thd, (strict_group_by ? 1 : 0)) == 1);
-#endif
   DBUG_ENTER("spider_mbase_handler::append_minimum_select");
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (sgb)
   {
     select_lex = spider_get_select_lex(spider);
@@ -10283,7 +10260,6 @@ int spider_mbase_handler::append_minimum_select(
       select_lex = NULL;
     }
   }
-#endif
   minimum_select_bitmap_create();
   for (field = table->field; *field; field++)
   {
@@ -10294,7 +10270,6 @@ int spider_mbase_handler::append_minimum_select(
 */
       field_length =
         mysql_share->column_name_str[(*field)->field_index].length();
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
       if (select_lex &&
         !spider_db_check_select_colum_in_group(select_lex, *field))
       {
@@ -10307,14 +10282,11 @@ int spider_mbase_handler::append_minimum_select(
         mysql_share->append_column_name(str, (*field)->field_index);
         str->q_append(SPIDER_SQL_CLOSE_PAREN_STR, SPIDER_SQL_CLOSE_PAREN_LEN);
       } else {
-#endif
         if (str->reserve(field_length +
           /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 + SPIDER_SQL_COMMA_LEN))
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         mysql_share->append_column_name(str, (*field)->field_index);
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
       }
-#endif
       str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
       appended = TRUE;
     }
@@ -10337,13 +10309,10 @@ int spider_mbase_handler::append_table_select_with_alias(
   TABLE *table = spider->get_table();
   Field **field;
   int field_length;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   st_select_lex *select_lex = NULL;
   bool sgb = (spider->result_list.direct_aggregate &&
     spider_param_strict_group_by(current_thd, (strict_group_by ? 1 : 0)) == 1);
-#endif
   DBUG_ENTER("spider_mbase_handler::append_table_select_with_alias");
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (sgb)
   {
     select_lex = spider_get_select_lex(spider);
@@ -10353,12 +10322,10 @@ int spider_mbase_handler::append_table_select_with_alias(
       select_lex = NULL;
     }
   }
-#endif
   for (field = table->field; *field; field++)
   {
     field_length =
       mysql_share->column_name_str[(*field)->field_index].length();
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
     if (select_lex &&
       !spider_db_check_select_colum_in_group(select_lex, *field))
     {
@@ -10372,15 +10339,12 @@ int spider_mbase_handler::append_table_select_with_alias(
       mysql_share->append_column_name(str, (*field)->field_index);
       str->q_append(SPIDER_SQL_CLOSE_PAREN_STR, SPIDER_SQL_CLOSE_PAREN_LEN);
     } else {
-#endif
       if (str->reserve(alias_length + field_length +
         /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 + SPIDER_SQL_COMMA_LEN))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       str->q_append(alias, alias_length);
       mysql_share->append_column_name(str, (*field)->field_index);
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
     }
-#endif
     str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
   }
   str->length(str->length() - SPIDER_SQL_COMMA_LEN);
@@ -10397,13 +10361,10 @@ int spider_mbase_handler::append_key_select_with_alias(
   Field *field;
   uint part_num;
   int field_length;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   st_select_lex *select_lex = NULL;
   bool sgb = (spider->result_list.direct_aggregate &&
     spider_param_strict_group_by(current_thd, (strict_group_by ? 1 : 0)) == 1);
-#endif
   DBUG_ENTER("spider_mbase_handler::append_key_select_with_alias");
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (sgb)
   {
     select_lex = spider_get_select_lex(spider);
@@ -10413,13 +10374,11 @@ int spider_mbase_handler::append_key_select_with_alias(
       select_lex = NULL;
     }
   }
-#endif
   for (key_part = key_info->key_part, part_num = 0;
     part_num < spider_user_defined_key_parts(key_info); key_part++, part_num++)
   {
     field = key_part->field;
     field_length = mysql_share->column_name_str[field->field_index].length();
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
     if (select_lex &&
       !spider_db_check_select_colum_in_group(select_lex, field))
     {
@@ -10433,15 +10392,12 @@ int spider_mbase_handler::append_key_select_with_alias(
       mysql_share->append_column_name(str, field->field_index);
       str->q_append(SPIDER_SQL_CLOSE_PAREN_STR, SPIDER_SQL_CLOSE_PAREN_LEN);
     } else {
-#endif
       if (str->reserve(alias_length + field_length +
         /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 + SPIDER_SQL_COMMA_LEN))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       str->q_append(alias, alias_length);
       mysql_share->append_column_name(str, field->field_index);
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
     }
-#endif
     str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
   }
   str->length(str->length() - SPIDER_SQL_COMMA_LEN);
@@ -10457,13 +10413,10 @@ int spider_mbase_handler::append_minimum_select_with_alias(
   Field **field;
   int field_length;
   bool appended = FALSE;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   st_select_lex *select_lex = NULL;
   bool sgb = (spider->result_list.direct_aggregate &&
     spider_param_strict_group_by(current_thd, (strict_group_by ? 1 : 0)) == 1);
-#endif
   DBUG_ENTER("spider_mbase_handler::append_minimum_select_with_alias");
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (sgb)
   {
     select_lex = spider_get_select_lex(spider);
@@ -10473,7 +10426,6 @@ int spider_mbase_handler::append_minimum_select_with_alias(
       select_lex = NULL;
     }
   }
-#endif
   minimum_select_bitmap_create();
   for (field = table->field; *field; field++)
   {
@@ -10484,7 +10436,6 @@ int spider_mbase_handler::append_minimum_select_with_alias(
 */
       field_length =
         mysql_share->column_name_str[(*field)->field_index].length();
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
       if (select_lex &&
         !spider_db_check_select_colum_in_group(select_lex, *field))
       {
@@ -10498,15 +10449,12 @@ int spider_mbase_handler::append_minimum_select_with_alias(
         mysql_share->append_column_name(str, (*field)->field_index);
         str->q_append(SPIDER_SQL_CLOSE_PAREN_STR, SPIDER_SQL_CLOSE_PAREN_LEN);
       } else {
-#endif
         if (str->reserve(alias_length + field_length +
           /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 + SPIDER_SQL_COMMA_LEN))
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         str->q_append(alias, alias_length);
         mysql_share->append_column_name(str, (*field)->field_index);
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
       }
-#endif
       str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
       appended = TRUE;
     }
@@ -10529,13 +10477,11 @@ int spider_mbase_handler::append_select_columns_with_alias(
   int error_num;
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   DBUG_ENTER("spider_mbase_handler::append_select_columns_with_alias");
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (
     result_list->direct_aggregate &&
     (error_num = append_sum_select(str, alias, alias_length))
   )
     DBUG_RETURN(error_num);
-#endif
   if ((error_num = append_match_select(str, alias, alias_length)))
     DBUG_RETURN(error_num);
   if (!spider->select_column_mode)
@@ -11701,7 +11647,6 @@ int spider_mbase_handler::append_match_select(
   DBUG_RETURN(0);
 }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 int spider_mbase_handler::append_sum_select_part(
   ulong sql_type,
   const char *alias,
@@ -11748,7 +11693,6 @@ int spider_mbase_handler::append_sum_select(
   }
   DBUG_RETURN(0);
 }
-#endif
 
 void spider_mbase_handler::set_order_pos(
   ulong sql_type
@@ -11802,7 +11746,6 @@ void spider_mbase_handler::set_order_to_pos(
   DBUG_VOID_RETURN;
 }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 int spider_mbase_handler::append_group_by_part(
   const char *alias,
   uint alias_length,
@@ -11865,7 +11808,6 @@ int spider_mbase_handler::append_group_by(
   }
   DBUG_RETURN(0);
 }
-#endif
 
 int spider_mbase_handler::append_key_order_for_merge_with_alias_part(
   const char *alias,
@@ -11911,14 +11853,12 @@ int spider_mbase_handler::append_key_order_for_merge_with_alias(
   uint key_name_length;
   DBUG_ENTER("spider_mbase_handler::append_key_order_for_merge_with_alias");
   DBUG_PRINT("info",("spider this=%p", this));
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (spider->result_list.direct_aggregate)
   {
     int error_num;
     if ((error_num = append_group_by(str, alias, alias_length)))
       DBUG_RETURN(error_num);
   }
-#endif
   if (table->s->primary_key < MAX_KEY)
   {
     /* sort by primary key */
@@ -12027,13 +11967,11 @@ int spider_mbase_handler::append_key_order_for_direct_order_limit_with_alias(
   longlong offset_limit;
   DBUG_ENTER("spider_mbase_handler::append_key_order_for_direct_order_limit_with_alias");
   DBUG_PRINT("info",("spider this=%p", this));
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (spider->result_list.direct_aggregate)
   {
     if ((error_num = append_group_by(str, alias, alias_length)))
       DBUG_RETURN(error_num);
   }
-#endif
   spider_get_select_limit(spider, &select_lex, &select_limit,
     &offset_limit);
   if (select_lex->order_list.first)
@@ -12129,14 +12067,12 @@ int spider_mbase_handler::append_key_order_with_alias(
   uint key_name_length;
   DBUG_ENTER("spider_mbase_handler::append_key_order_with_alias");
   DBUG_PRINT("info",("spider this=%p", this));
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (spider->result_list.direct_aggregate)
   {
     int error_num;
     if ((error_num = append_group_by(str, alias, alias_length)))
       DBUG_RETURN(error_num);
   }
-#endif
   if (result_list->sorted == TRUE)
   {
     if (result_list->desc_flg == TRUE)

@@ -156,10 +156,8 @@ public:
   uint               direct_update_kinds;
 #endif
   spider_index_rnd_init prev_index_rnd_init;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   SPIDER_ITEM_HLD    *direct_aggregate_item_first;
   SPIDER_ITEM_HLD    *direct_aggregate_item_current;
-#endif
   ha_rows            table_rows;
 #ifdef HA_HAS_CHECKSUM_EXTENDED
   ha_checksum        checksum_val;
@@ -658,9 +656,7 @@ public:
     uint info_type,
     void *info
   );
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   void return_record_by_parent();
-#endif
   TABLE *get_table();
   void set_ft_discard_bitmap();
   void set_searched_bitmap();
@@ -844,13 +840,11 @@ public:
     ulong sql_type,
     bool test_flg
   );
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int append_sum_select_sql_part(
     ulong sql_type,
     const char *alias,
     uint alias_length
   );
-#endif
   int append_match_select_sql_part(
     ulong sql_type,
     const char *alias,
@@ -862,13 +856,11 @@ public:
   void set_order_to_pos_sql(
     ulong sql_type
   );
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int append_group_by_sql_part(
     const char *alias,
     uint alias_length,
     ulong sql_type
   );
-#endif
   int append_key_order_for_merge_with_alias_sql_part(
     const char *alias,
     uint alias_length,

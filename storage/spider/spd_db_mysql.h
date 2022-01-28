@@ -130,7 +130,6 @@ public:
     bool use_fields,
     spider_fields *fields
   );
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int open_item_sum_func(
     Item_sum *item_sum,
     ha_spider *spider,
@@ -140,7 +139,6 @@ public:
     bool use_fields,
     spider_fields *fields
   );
-#endif
   int append_escaped_util(
     spider_string *to,
     String *from
@@ -1092,7 +1090,6 @@ public:
     const char *alias,
     uint alias_length
   );
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int append_sum_select_part(
     ulong sql_type,
     const char *alias,
@@ -1103,14 +1100,12 @@ public:
     const char *alias,
     uint alias_length
   );
-#endif
   void set_order_pos(
     ulong sql_type
   );
   void set_order_to_pos(
     ulong sql_type
   );
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int append_group_by_part(
     const char *alias,
     uint alias_length,
@@ -1121,7 +1116,6 @@ public:
     const char *alias,
     uint alias_length
   );
-#endif
   int append_key_order_for_merge_with_alias_part(
     const char *alias,
     uint alias_length,

@@ -26,9 +26,7 @@
 #include "probes_mysql.h"
 #include "sql_partition.h"
 #include "sql_analyse.h"
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 #include "sql_select.h"
-#endif
 #endif
 
 #ifdef HAVE_ORACLE_OCI
@@ -4279,7 +4277,6 @@ int spider_db_oracle_util::open_item_func(
   DBUG_RETURN(0);
 }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 int spider_db_oracle_util::open_item_sum_func(
   Item_sum *item_sum,
   ha_spider *spider,
@@ -4355,7 +4352,6 @@ int spider_db_oracle_util::open_item_sum_func(
   }
   DBUG_RETURN(0);
 }
-#endif
 
 size_t spider_db_oracle_util::escape_string(
   char *to,
@@ -5799,14 +5795,12 @@ int spider_oracle_handler::append_tmp_table_and_sql_for_bka(
       SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN)))
       DBUG_RETURN(error_num);
   }
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   else if (spider->result_list.direct_aggregate)
   {
     if ((error_num =
       append_group_by(&sql, SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN)))
       DBUG_RETURN(error_num);
   }
-#endif
 
   DBUG_RETURN(0);
 }
@@ -6039,14 +6033,12 @@ int spider_oracle_handler::append_union_table_and_sql_for_bka(
       &tmp_sql, SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN)))
       DBUG_RETURN(error_num);
   }
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   else if (spider->result_list.direct_aggregate)
   {
     if ((error_num =
       append_group_by(&tmp_sql, SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN)))
       DBUG_RETURN(error_num);
   }
-#endif
 
   DBUG_RETURN(0);
 }
@@ -6771,13 +6763,11 @@ int spider_oracle_handler::append_select_columns_with_alias(
   int error_num;
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   DBUG_ENTER("spider_oracle_handler::append_select_columns_with_alias");
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (
     result_list->direct_aggregate &&
     (error_num = append_sum_select(str, alias, alias_length))
   )
     DBUG_RETURN(error_num);
-#endif
   if ((error_num = append_match_select(str, alias, alias_length)))
     DBUG_RETURN(error_num);
   if (!spider->select_column_mode)
@@ -7895,7 +7885,6 @@ int spider_oracle_handler::append_match_select(
   DBUG_RETURN(0);
 }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 int spider_oracle_handler::append_sum_select_part(
   ulong sql_type,
   const char *alias,
@@ -7942,7 +7931,6 @@ int spider_oracle_handler::append_sum_select(
   }
   DBUG_RETURN(0);
 }
-#endif
 
 void spider_oracle_handler::set_order_pos(
   ulong sql_type
@@ -7996,7 +7984,6 @@ void spider_oracle_handler::set_order_to_pos(
   DBUG_VOID_RETURN;
 }
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 int spider_oracle_handler::append_group_by_part(
   const char *alias,
   uint alias_length,
@@ -8059,7 +8046,6 @@ int spider_oracle_handler::append_group_by(
   }
   DBUG_RETURN(0);
 }
-#endif
 
 int spider_oracle_handler::append_key_order_for_merge_with_alias_part(
   const char *alias,
@@ -8105,14 +8091,12 @@ int spider_oracle_handler::append_key_order_for_merge_with_alias(
   uint key_name_length;
   DBUG_ENTER("spider_oracle_handler::append_key_order_for_merge_with_alias");
   DBUG_PRINT("info",("spider this=%p", this));
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (spider->result_list.direct_aggregate)
   {
     int error_num;
     if ((error_num = append_group_by(str, alias, alias_length)))
       DBUG_RETURN(error_num);
   }
-#endif
   if (
     spider->result_list.direct_order_limit ||
     spider->result_list.internal_limit < 9223372036854775807LL ||
@@ -8335,13 +8319,11 @@ int spider_oracle_handler::append_key_order_for_direct_order_limit_with_alias(
   longlong offset_limit;
   DBUG_ENTER("spider_oracle_handler::append_key_order_for_direct_order_limit_with_alias");
   DBUG_PRINT("info",("spider this=%p", this));
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (spider->result_list.direct_aggregate)
   {
     if ((error_num = append_group_by(str, alias, alias_length)))
       DBUG_RETURN(error_num);
   }
-#endif
   spider_get_select_limit(spider, &select_lex, &select_limit,
     &offset_limit);
   if (
@@ -8560,14 +8542,12 @@ int spider_oracle_handler::append_key_order_with_alias(
   uint key_name_length;
   DBUG_ENTER("spider_oracle_handler::append_key_order_with_alias");
   DBUG_PRINT("info",("spider this=%p", this));
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   if (spider->result_list.direct_aggregate)
   {
     int error_num;
     if ((error_num = append_group_by(str, alias, alias_length)))
       DBUG_RETURN(error_num);
   }
-#endif
   if (
     spider->result_list.direct_order_limit ||
     spider->result_list.internal_limit < 9223372036854775807LL ||

@@ -499,7 +499,6 @@ int spider_db_append_charset_name_before_string(
   CHARSET_INFO *cs
 );
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 int spider_db_refetch_for_item_sum_funcs(
   ha_spider *spider
 );
@@ -514,7 +513,6 @@ int spider_db_fetch_for_item_sum_func(
   Item_sum *item_sum,
   ha_spider *spider
 );
-#endif
 
 int spider_db_append_match_fetch(
   ha_spider *spider,
@@ -928,7 +926,6 @@ int spider_db_open_item_func(
   spider_fields *fields
 );
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 int spider_db_open_item_sum_func(
   Item_sum *item_sum,
   ha_spider *spider,
@@ -939,7 +936,6 @@ int spider_db_open_item_sum_func(
   bool use_fields,
   spider_fields *fields
 );
-#endif
 
 int spider_db_open_item_ident(
   Item_ident *item_ident,
@@ -1052,12 +1048,10 @@ int spider_db_append_update_columns(
 );
 #endif
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 bool spider_db_check_select_colum_in_group(
   st_select_lex *select_lex,
   Field *field
 );
-#endif
 
 uint spider_db_check_ft_idx(
   Item_func *item_func,

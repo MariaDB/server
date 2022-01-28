@@ -709,7 +709,6 @@ bool spider_check_direct_order_limit(
   ha_spider *spider
 );
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 bool spider_all_part_in_order(
   ORDER *order,
   TABLE *table
@@ -719,7 +718,6 @@ Field *spider_field_exchange(
   handler *handler,
   Field *field
 );
-#endif
 
 int spider_set_direct_limit_offset(
   ha_spider *spider

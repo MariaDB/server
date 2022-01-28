@@ -973,9 +973,7 @@ int spider_check_and_init_casual_read(
     (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
     (
       result_list->direct_order_limit
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
       || result_list->direct_aggregate
-#endif
     )
   ) {
     if (!result_list->casual_read[link_idx])
