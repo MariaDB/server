@@ -936,8 +936,11 @@ public:
       Mixing of two different non-traditional types is currently prevented.
       This may change in the future. For example, INET4 and INET6
       data types can be made comparable.
+      But we allow mixing INET6 to a data type directly inherited from
+      a traditional type, e.g. INET6=VARCHAR/JSON.
     */
-    DBUG_ASSERT(item->type_handler()->is_traditional_scalar_type() ||
+    DBUG_ASSERT(item->type_handler()->type_handler_base_or_self()->
+                  is_traditional_scalar_type() ||
                 item->type_handler() == type_handler());
     return true;
   }
@@ -951,7 +954,8 @@ public:
                           bool is_eq_func) const override
   {
     // See the DBUG_ASSERT comment in can_optimize_keypart_ref()
-    DBUG_ASSERT(item->type_handler()->is_traditional_scalar_type() ||
+    DBUG_ASSERT(item->type_handler()->type_handler_base_or_self()->
+                  is_traditional_scalar_type() ||
                 item->type_handler() == type_handler());
     return true;
   }

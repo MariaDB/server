@@ -3773,6 +3773,11 @@ public:
   {
     return NULL;
   }
+  const Type_handler *type_handler_base_or_self() const
+  {
+    const Type_handler *res= type_handler_base();
+    return res ? res : this;
+  }
   virtual const Type_handler *type_handler_for_comparison() const= 0;
   virtual const Type_handler *type_handler_for_native_format() const
   {
