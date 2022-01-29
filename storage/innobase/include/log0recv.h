@@ -82,14 +82,18 @@ void recv_sys_justify_left_parsing_buf();
 
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
-@param[in]	create		whether the file is being created
+@param[in]	type		file operation redo log type
 @param[in]	name		file name (not NUL-terminated)
 @param[in]	len		length of name, in bytes
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
-extern void (*log_file_op)(ulint space_id, bool create,
+extern void (*log_file_op)(ulint space_id, int type,
 			   const byte* name, ulint len,
 			   const byte* new_name, ulint new_len);
+
+/** Report an operation which does INIT_PAGE for page0 during backup.
+@param	space_id	tablespace identifier */
+extern void (*first_page_init)(ulint space_id);
 
 /** Stored redo log record */
 struct log_rec_t

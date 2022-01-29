@@ -939,14 +939,16 @@ fail:
 
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
-@param[in]	create		whether the file is being created
+@param[in]	type		redo log type
 @param[in]	name		file name (not NUL-terminated)
 @param[in]	len		length of name, in bytes
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
-void (*log_file_op)(ulint space_id, bool create,
+void (*log_file_op)(ulint space_id, int type,
 		    const byte* name, ulint len,
 		    const byte* new_name, ulint new_len);
+
+void (*first_page_init)(ulint space_id);
 
 /** Information about initializing page contents during redo log processing.
 FIXME: Rely on recv_sys.pages! */
@@ -1151,7 +1153,8 @@ void
 fil_name_process(char* name, ulint len, ulint space_id,
 		 bool deleted, lsn_t lsn, store_t *store)
 {
-	if (srv_operation == SRV_OPERATION_BACKUP) {
+	if (srv_operation == SRV_OPERATION_BACKUP
+	    || srv_operation == SRV_OPERATION_BACKUP_NO_DEFER) {
 		return;
 	}
 
@@ -2100,6 +2103,8 @@ static void store_freed_or_init_rec(page_id_t page_id, bool freed)
 {
   uint32_t space_id= page_id.space();
   uint32_t page_no= page_id.page_no();
+  if (!freed && page_no == 0 && first_page_init)
+    first_page_init(space_id);
   if (is_predefined_tablespace(space_id))
   {
     if (!srv_immediate_scrub_data_uncompressed)
@@ -2575,8 +2580,8 @@ same_page:
         if (fn2)
           fil_name_process(const_cast<char*>(fn2), fn2end - fn2, space_id,
                            false, start_lsn, store);
-        if ((b & 0xf0) < FILE_MODIFY && log_file_op)
-          log_file_op(space_id, (b & 0xf0) == FILE_CREATE,
+        if ((b & 0xf0) < FILE_CHECKPOINT && log_file_op)
+          log_file_op(space_id, b & 0xf0,
                       l, static_cast<ulint>(fnend - fn),
                       reinterpret_cast<const byte*>(fn2),
                       fn2 ? static_cast<ulint>(fn2end - fn2) : 0);

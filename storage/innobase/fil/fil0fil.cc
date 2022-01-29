@@ -2088,6 +2088,9 @@ err_exit:
 		}
 	}
 
+	DBUG_EXECUTE_IF("checkpoint_after_file_create",
+			log_make_checkpoint(););
+
 	if (fil_space_t* space = fil_space_t::create(space_id, flags,
 						     FIL_TYPE_TABLESPACE,
 						     crypt_data, mode)) {
@@ -2432,6 +2435,7 @@ fil_ibd_discover(
 		switch (srv_operation) {
 		case SRV_OPERATION_BACKUP:
 		case SRV_OPERATION_RESTORE_DELTA:
+		case SRV_OPERATION_BACKUP_NO_DEFER:
 			ut_ad(0);
 			break;
 		case SRV_OPERATION_RESTORE_EXPORT:
