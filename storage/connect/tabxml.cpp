@@ -1803,6 +1803,9 @@ void XMLCOL::WriteColumn(PGLOBAL g)
     else if (Tdbp->Clist)
       ColNode = NULL;
 
+    // refresh CList in case its Listp was freed in SelectSingleNode above
+    if (Tdbp->Clist)
+      Tdbp->RowNode->SelectNodes(g, Tdbp->Colname, Tdbp->Clist);
     } // endfor i
 
   /*********************************************************************/
