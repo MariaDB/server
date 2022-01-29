@@ -13,6 +13,7 @@
 
 update mysql.user set password=password("foo") where user='root';
 
+--replace_regex /[^ ]*mysql_upgrade_info/...mysql_upgrade_info/
 --exec $MYSQL_UPGRADE
 
 connect(con1,localhost,root,foo,,,);
@@ -21,3 +22,6 @@ update mysql.user set password='' where user='root';
 flush privileges;
 # Load event table
 set global event_scheduler=OFF;
+
+let MYSQLD_DATADIR= `select @@datadir`;
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info

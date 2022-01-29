@@ -7,6 +7,7 @@ CREATE TABLE t1(i INT) ENGINE=INNODB;
 CREATE TABLE t2(i INT) ENGINE=MYISAM;
 Warnings:
 Note	1266	Using storage engine InnoDB for table 't2'
+Note	1266	Using storage engine InnoDB for table 't2'
 connection node_2;
 SHOW TABLES;
 Tables_in_test

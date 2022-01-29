@@ -8481,6 +8481,24 @@ void TABLE_LIST::wrap_into_nested_join(List<TABLE_LIST> &join_list)
 
 
 /**
+  Check whether optimization has been performed and a derived table either
+  been merged to upper select level or materialized.
+
+  @param table  a TABLE_LIST object containing a derived table
+
+  @return true in case the derived table has been merged to surrounding select,
+          false otherwise
+*/
+
+static inline bool derived_table_optimization_done(TABLE_LIST *table)
+{
+  return table->derived &&
+      (table->derived->is_excluded() ||
+       table->is_materialized_derived());
+}
+
+
+/**
   @brief
   Initialize this derived table/view
 
@@ -8530,13 +8548,15 @@ bool TABLE_LIST::init_derived(THD *thd, bool init_view)
     }
   }
 
-  if (init_view && !view)
+  if (init_view && !view &&
+      !derived_table_optimization_done(this))
   {
     /* This is all what we can do for a derived table for now. */
     set_derived();
   }
 
-  if (!is_view())
+  if (!is_view() &&
+      !derived_table_optimization_done(this))
   {
     /* A subquery might be forced to be materialized due to a side-effect. */
     if (!is_materialized_derived() && first_select->is_mergeable() &&

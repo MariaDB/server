@@ -4,6 +4,7 @@
 --source include/innodb_page_size_small.inc
 --source include/have_partition.inc
 --source include/not_embedded.inc
+--source include/have_symlink.inc
 SET default_storage_engine=InnoDB;
 LET $MYSQLD_DATADIR = `select @@datadir`;
 LET $INNODB_PAGE_SIZE = `select @@innodb_page_size`;

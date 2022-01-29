@@ -142,11 +142,11 @@ sub diff {
 
 sub is_subset {
   my ($set, $subset)= @_;
-  my %cache = map { _split_option($_) } @$set;
+  my %cache = map { join('=', _split_option($_)), 1 } @$set;
 
   for (@$subset){
     my ($name, $value)= _split_option($_);
-    return 0 unless exists $cache{$name} and $cache{$name} eq $value;
+    return 0 unless $cache{"$name=$value"};
   }
 
   return 1;

@@ -2622,22 +2622,31 @@ static struct my_option my_long_options[] =
   {"help", '?', "Display this help and exit.", 0, 0, 0, GET_NO_ARG, NO_ARG,
    0, 0, 0, 0, 0, 0},
 #ifdef DBUG_OFF
-  {"debug", '#', "This is a non-debug version. Catch this and exit",
+  {"debug", '#', "This is a non-debug version. Catch this and exit.",
    0,0, 0, GET_DISABLED, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #else
   {"debug", '#', "Output debug log. Often this is 'd:t:o,filename'.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"leap", 'l', "Print the leap second information from the given time zone file. By convention, when --leap is used the next argument is the timezonefile",
+  {"leap", 'l', "Print the leap second information from the given time zone file. By convention, when --leap is used the next argument is the timezonefile.",
    &opt_leap, &opt_leap, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"verbose", 'v', "Write non critical warnings",
+  {"verbose", 'v', "Write non critical warnings.",
    &opt_verbose, &opt_verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"skip-write-binlog", 'S', "Do not replicate changes to time zone tables to other nodes in a Galera cluster",
+  {"skip-write-binlog", 'S', "Do not replicate changes to time zone tables to other nodes in a Galera cluster.",
    &opt_skip_write_binlog,&opt_skip_write_binlog, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
+
+
+static char **default_argv;
+
+static void free_allocated_data()
+{
+  free_defaults(default_argv);
+  my_end(0);
+}
 
 
 C_MODE_START
@@ -2651,11 +2660,21 @@ static void print_version(void)
 	 MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
 }
 
+static const char *default_timezone_dir= "/usr/share/zoneinfo/";
+
+
 static void print_usage(void)
 {
-  fprintf(stderr, "Usage:\n");
-  fprintf(stderr, " %s [options] timezonedir\n", my_progname);
-  fprintf(stderr, " %s [options] timezonefile timezonename\n", my_progname);
+  fprintf(stdout, "Create SQL commands for loading system timezeone data for "
+          "MariaDB\n\n");
+  fprintf(stdout, "Usage:\n");
+  fprintf(stdout, " %s [options] timezonedir\n", my_progname);
+  fprintf(stdout, "or\n");
+  fprintf(stdout, " %s [options] timezonefile timezonename\n", my_progname);
+
+  fprintf(stdout, "\nA typical place for the system timezone directory is "
+          "\"%s\"\n", default_timezone_dir);
+
   print_defaults("my",load_default_groups);
   puts("");
   my_print_help(my_long_options);
@@ -2676,9 +2695,11 @@ get_one_option(int optid, const struct my_option *opt, char *argument)
     print_version();
     puts("");
     print_usage();
+    free_allocated_data();
     exit(0);
   case 'V':
     print_version();
+    free_allocated_data();
     exit(0);
   }
   return 0;
@@ -2688,7 +2709,6 @@ get_one_option(int optid, const struct my_option *opt, char *argument)
 int
 main(int argc, char **argv)
 {
-  char **default_argv;
   MY_INIT(argv[0]);
 
   load_defaults_or_exit("my", load_default_groups, &argc, &argv);
@@ -2700,7 +2720,7 @@ main(int argc, char **argv)
   if ((argc != 1 && argc != 2) || (opt_leap && argc != 1))
   {
     print_usage();
-    free_defaults(default_argv);
+    free_allocated_data();
     return 1;
   }
 

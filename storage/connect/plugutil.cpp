@@ -259,6 +259,12 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
 	if (trace(2))
 		htrc("prefix=%s fn=%s path=%s\n", prefix, FileName, defpath);
 
+	if (strlen(FileName) >= _MAX_PATH)
+	{
+		*pBuff= 0; /* Hope this is treated as error of some kind*/
+		return FileName;
+	}
+
   if (!strncmp(FileName, "//", 2) || !strncmp(FileName, "\\\\", 2)) {
     strcpy(pBuff, FileName);       // Remote file
     return pBuff;

@@ -40,7 +40,7 @@
 #include "ha_partition.h"
 
 
-partition_info *partition_info::get_clone(THD *thd)
+partition_info *partition_info::get_clone(THD *thd, bool empty_data_and_index_file)
 {
   MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("partition_info::get_clone");
@@ -60,21 +60,22 @@ partition_info *partition_info::get_clone(THD *thd)
   {
     List_iterator<partition_element> subpart_it(part->subpartitions);
     partition_element *subpart;
-    partition_element *part_clone= new (mem_root) partition_element();
+    partition_element *part_clone= new (mem_root) partition_element(*part);
     if (!part_clone)
       DBUG_RETURN(NULL);
-
-    *part_clone= *part;
     part_clone->subpartitions.empty();
     while ((subpart= (subpart_it++)))
     {
-      partition_element *subpart_clone= new (mem_root) partition_element();
+      partition_element *subpart_clone= new (mem_root) partition_element(*subpart);
       if (!subpart_clone)
         DBUG_RETURN(NULL);
-
-      *subpart_clone= *subpart;
+      if (empty_data_and_index_file)
+        subpart_clone->data_file_name= subpart_clone->index_file_name= NULL;
       part_clone->subpartitions.push_back(subpart_clone, mem_root);
     }
+
+    if (empty_data_and_index_file)
+      part_clone->data_file_name= part_clone->index_file_name= NULL;
     clone->partitions.push_back(part_clone, mem_root);
     part_clone->list_val_list.empty();
     List_iterator<part_elem_value> list_val_it(part->list_val_list);

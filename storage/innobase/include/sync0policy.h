@@ -527,6 +527,6 @@ private:
 	latch_id_t		m_id;
 };
 
-#include "sync0policy.ic"
+#include "sync0policy.inl"
 
 #endif /* sync0policy_h */

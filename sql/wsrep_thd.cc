@@ -586,9 +586,8 @@ bool wsrep_create_appliers(long threads, bool thread_count_lock)
     {
       WSREP_ERROR("Trying to launch slave threads before creating "
                   "connection at '%s'", wsrep_cluster_address);
-      assert(0);
     }
-    return false;
+    return true;
   }
 
   long wsrep_threads= 0;

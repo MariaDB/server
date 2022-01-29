@@ -482,6 +482,6 @@ struct trx_purge_rec_t {
 	roll_ptr_t	roll_ptr;	/*!< File pointr to UNDO record */
 };
 
-#include "trx0purge.ic"
+#include "trx0purge.inl"
 
 #endif /* trx0purge_h */

@@ -327,6 +327,6 @@ record */
 /** The search tuple corresponding to TRX_UNDO_INSERT_METADATA */
 extern const dtuple_t trx_undo_metadata;
 
-#include "trx0rec.ic"
+#include "trx0rec.inl"
 
 #endif /* trx0rec_h */

@@ -201,7 +201,7 @@ my_bool BJNX::SetArrayOptions(PGLOBAL g, char* p, int i, PSZ nm)
 			p[--n] = 0;
 		} else if (!IsNum(p)) {
 			// Wrong array specification
-			sprintf(g->Message, "Invalid array specification %s", p);
+			snprintf(g->Message, sizeof(g->Message), "Invalid array specification %s", p);
 			return true;
 		} // endif p
 

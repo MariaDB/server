@@ -477,7 +477,7 @@ fil_space_get_scrub_status(
 	const fil_space_t*		space,
 	fil_space_scrub_status_t*	status);
 
-#include "fil0crypt.ic"
+#include "fil0crypt.inl"
 #endif /* !UNIV_INNOCHECKSUM */
 
 /**

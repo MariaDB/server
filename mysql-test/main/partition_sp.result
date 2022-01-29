@@ -1,0 +1,22 @@
+#
+# MDEV-8652: Partitioned table creation problem when
+# creating from procedure context twice in same session
+#
+CREATE PROCEDURE p1()
+BEGIN
+DROP TABLE IF EXISTS t1 ;
+CREATE TABLE t1 (
+id INT PRIMARY KEY
+)
+PARTITION BY RANGE (id) (
+PARTITION P1 VALUES LESS THAN (2),
+PARTITION P2 VALUES LESS THAN (3)
+); 
+END |
+call p1();
+call p1();
+drop procedure p1;
+drop table t1;
+#
+# End of 10.2 tests
+#

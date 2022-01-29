@@ -149,7 +149,7 @@ flst_validate(
 	const flst_base_node_t*	base,	/*!< in: pointer to base node of list */
 	mtr_t*			mtr1);	/*!< in: mtr */
 
-#include "fut0lst.ic"
+#include "fut0lst.inl"
 
 #endif /* !UNIV_INNOCHECKSUM */
 

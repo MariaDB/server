@@ -163,6 +163,7 @@ ENDIF()
 
 SET(HOSTNAME "hostname")
 SET(MYSQLD_USER "mysql")
+SET(MYSQLD_GROUP "mysql")
 ENDIF(UNIX)
 
 # Really ugly, one script, "mysql_install_db", needs prefix set to ".",

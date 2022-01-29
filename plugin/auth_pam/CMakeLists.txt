@@ -1,3 +1,7 @@
+IF(WIN32)
+  RETURN()
+ENDIF()
+
 INCLUDE (CheckIncludeFiles)
 INCLUDE (CheckFunctionExists)
 

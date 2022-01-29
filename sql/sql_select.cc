@@ -13682,8 +13682,6 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
     DBUG_RETURN(0);
   }
 
-  join->join_free();
-
   if (send_row)
   {
     /*
@@ -13730,6 +13728,14 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
     if (likely(!send_error))
       result->send_eof();				// Should be safe
   }
+  /*
+    JOIN::join_free() must be called after the virtual method
+    select::send_result_set_metadata() returned control since
+    implementation of this method could use data strutcures
+    that are released by the method JOIN::join_free().
+  */
+  join->join_free();
+
   DBUG_RETURN(0);
 }
 
@@ -20119,11 +20125,8 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
       */
       if (shortcut_for_distinct && found_records != join->found_records)
         DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
-    }
-    else
-    {
-      join->thd->get_stmt_da()->inc_current_row_for_warning();
-      join_tab->read_record.unlock_row(join_tab);
+
+      DBUG_RETURN(NESTED_LOOP_OK);
     }
   }
   else
@@ -20133,9 +20136,11 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
       with the beginning coinciding with the current partial join.
     */
     join->join_examined_rows++;
-    join->thd->get_stmt_da()->inc_current_row_for_warning();
-    join_tab->read_record.unlock_row(join_tab);
   }
+
+  join->thd->get_stmt_da()->inc_current_row_for_warning();
+  join_tab->read_record.unlock_row(join_tab);
+
   DBUG_RETURN(NESTED_LOOP_OK);
 }
 
@@ -28020,6 +28025,12 @@ AGGR_OP::end_send()
   table->reginfo.lock_type= TL_UNLOCK;
 
   bool in_first_read= true;
+
+  /*
+     Reset the counter before copying rows from internal temporary table to
+     INSERT table.
+  */
+  join_tab->join->thd->get_stmt_da()->reset_current_row_for_warning();
   while (rc == NESTED_LOOP_OK)
   {
     int error;

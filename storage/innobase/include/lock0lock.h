@@ -1047,6 +1047,6 @@ lock_get_info(
 
 #endif /* WITH_WSREP */
 
-#include "lock0lock.ic"
+#include "lock0lock.inl"
 
 #endif

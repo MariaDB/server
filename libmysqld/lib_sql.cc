@@ -839,7 +839,7 @@ int check_embedded_connection(MYSQL *mysql, const char *db)
   /* acl_authenticate() takes the data from thd->net->read_pos */
   thd->net.read_pos= (uchar*)buf;
 
-  if (acl_authenticate(thd, 0, end - buf))
+  if (acl_authenticate(thd, (uint) (end - buf)))
   {
     my_free(thd->security_ctx->user);
     goto err;

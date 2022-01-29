@@ -152,6 +152,8 @@ public:
     part_state(part_elem->part_state),
     nodegroup_id(part_elem->nodegroup_id),
     has_null_value(FALSE),
+    signed_flag(part_elem->signed_flag),
+    max_value(part_elem->max_value),
     id(part_elem->id),
     empty(part_elem->empty),
     type(CONVENTIONAL)

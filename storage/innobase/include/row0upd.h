@@ -656,6 +656,6 @@ public:
 					changed in the update */
 
 
-#include "row0upd.ic"
+#include "row0upd.inl"
 
 #endif

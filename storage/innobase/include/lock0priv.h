@@ -685,6 +685,6 @@ inline void lock_reset_lock_and_trx_wait(lock_t* lock)
 	lock->type_mode &= ~LOCK_WAIT;
 }
 
-#include "lock0priv.ic"
+#include "lock0priv.inl"
 
 #endif /* lock0priv_h */

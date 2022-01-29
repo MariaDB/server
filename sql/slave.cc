@@ -4351,6 +4351,15 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #endif /* WITH_WSREP */
 
     thread_safe_increment64(&rli->executed_entries);
+    DBUG_EXECUTE_IF(
+        "pause_sql_thread_on_fde",
+        if (ev && typ == FORMAT_DESCRIPTION_EVENT) {
+          DBUG_ASSERT(!debug_sync_set_action(
+              thd,
+              STRING_WITH_LEN(
+                  "now SIGNAL paused_on_fde WAIT_FOR sql_thread_continue")));
+        });
+
     DBUG_RETURN(exec_res);
   }
   mysql_mutex_unlock(&rli->data_lock);

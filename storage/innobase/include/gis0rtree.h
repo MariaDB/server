@@ -506,5 +506,5 @@ rtr_estimate_n_rows_in_range(
 	const dtuple_t*	tuple,
 	page_cur_mode_t	mode);
 
-#include "gis0rtree.ic"
+#include "gis0rtree.inl"
 #endif /*!< gis0rtree.h */

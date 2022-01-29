@@ -158,6 +158,8 @@ SELECT * FROM articles WHERE
 SELECT * FROM articles WHERE
          MATCH(title, body) AGAINST('full text search');
 SELECT COUNT(*) FROM articles;
+
+INSERT INTO articles (title, body) VALUES ('111', '1234 1234 1234');
 DROP TABLE articles;
 
 -- echo # Test Part 5: Test Uninstall Plugin After Index is Built

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB Corporation.
+   Copyright (c) 2010, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -280,7 +280,7 @@ extern int my_umask_dir,
 	   my_recived_signals,	/* Signals we have got */
 	   my_safe_to_handle_signal, /* Set when allowed to SIGTSTP */
 	   my_dont_interrupt;	/* call remember_intr when set */
-extern my_bool my_use_symdir;
+extern MYSQL_PLUGIN_IMPORT my_bool my_use_symdir;
 
 extern ulong	my_default_record_cache_size;
 extern MYSQL_PLUGIN_IMPORT my_bool my_disable_locking;

@@ -1,6 +1,7 @@
 -- source include/have_innodb.inc
 -- source include/have_file_key_management_plugin.inc
 -- source include/not_embedded.inc
+-- source include/have_symlink.inc
 
 FLUSH STATUS;
 

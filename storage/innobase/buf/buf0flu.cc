@@ -192,12 +192,6 @@ static page_cleaner_t	page_cleaner;
 my_bool innodb_page_cleaner_disabled_debug;
 #endif /* UNIV_DEBUG */
 
-/** If LRU list of a buf_pool is less than this size then LRU eviction
-should not happen. This is because when we do LRU flushing we also put
-the blocks on free list. If LRU list is very small then we can end up
-in thrashing. */
-#define BUF_LRU_MIN_LEN		256
-
 /* @} */
 
 /******************************************************************//**
