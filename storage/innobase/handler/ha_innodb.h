@@ -16,6 +16,9 @@ this program; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 *****************************************************************************/
+
+#pragma once
+
 #ifdef WITH_WSREP
 #include "wsrep_api.h"
 #include <mysql/service_wsrep.h>

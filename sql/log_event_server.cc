@@ -52,6 +52,7 @@
 #include "compat56.h"
 #include "wsrep_mysqld.h"
 #include "sql_insert.h"
+#include "lex_state.h"
 
 #include <my_bitmap.h>
 #include "rpl_utility.h"

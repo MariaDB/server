@@ -37,7 +37,7 @@ overhead. Because of that, we measure the time only when running "ANALYZE
 $stmt").
 
 */
-
+#pragma once
 class Gap_time_tracker;
 void attach_gap_time_tracker(THD *thd, Gap_time_tracker *gap_tracker, ulonglong timeval);
 void process_gap_time_tracker(THD *thd, ulonglong timeval);

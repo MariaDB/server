@@ -4753,16 +4753,7 @@ public:
     a parse error is discovered internally by the Bison generated
     parser.
   */
-  void parse_error(const char *err_text, const char *yytext)
-  {
-    Lex_input_stream *lip= &m_parser_state->m_lip;
-    if (!yytext && !(yytext= lip->get_tok_start()))
-        yytext= "";
-    /* Push an error into the error stack */
-    ErrConvString err(yytext, strlen(yytext), variables.character_set_client);
-    my_printf_error(ER_PARSE_ERROR,  ER_THD(this, ER_PARSE_ERROR), MYF(0),
-                    err_text, err.ptr(), lip->yylineno);
-  }
+  void parse_error(const char *err_text, const char *yytext);
   void parse_error(uint err_number, const char *yytext= 0)
   {
     parse_error(ER_THD(this, err_number), yytext);
@@ -5413,13 +5404,7 @@ public:
   /**
     Switch to a sublex, to parse a substatement or an expression.
   */
-  void set_local_lex(sp_lex_local *sublex)
-  {
-    DBUG_ASSERT(lex->sphead);
-    lex= sublex;
-    /* Reset part of parser state which needs this. */
-    m_parser_state->m_yacc.reset_before_substatement();
-  }
+  void set_local_lex(sp_lex_local *sublex);
 
   /**
     Switch back from a sublex (currently pointed by this->lex) to the old lex.

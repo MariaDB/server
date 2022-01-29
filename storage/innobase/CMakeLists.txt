@@ -77,202 +77,6 @@ SET(INNOBASE_SOURCES
 	handler/handler0alter.cc
 	handler/i_s.cc
 	ibuf/ibuf0ibuf.cc
-	include/btr0btr.h
-	include/btr0btr.ic
-	include/btr0bulk.h
-	include/btr0cur.h
-	include/btr0cur.ic
-	include/btr0defragment.h
-	include/btr0pcur.h
-	include/btr0pcur.ic
-	include/btr0sea.h
-	include/btr0sea.ic
-	include/btr0types.h
-	include/buf0buddy.h
-	include/buf0buf.h
-	include/buf0buf.ic
-	include/buf0checksum.h
-	include/buf0dblwr.h
-	include/buf0dump.h
-	include/buf0flu.h
-	include/buf0lru.h
-	include/buf0rea.h
-	include/buf0types.h
-	include/data0data.h
-	include/data0data.ic
-	include/data0type.h
-	include/data0type.ic
-	include/data0types.h
-	include/db0err.h
-	include/dict0boot.h
-	include/dict0crea.h
-	include/dict0crea.ic
-	include/dict0defrag_bg.h
-	include/dict0dict.h
-	include/dict0dict.ic
-	include/dict0load.h
-	include/dict0mem.h
-	include/dict0mem.ic
-	include/dict0pagecompress.h
-	include/dict0pagecompress.ic
-	include/dict0stats.h
-	include/dict0stats.ic
-	include/dict0stats_bg.h
-	include/dict0types.h
-	include/dyn0buf.h
-	include/dyn0types.h
-	include/eval0eval.h
-	include/eval0eval.ic
-	include/eval0proc.h
-	include/eval0proc.ic
-	include/fil0crypt.h
-	include/fil0crypt.ic
-	include/fil0fil.h
-	include/fil0fil.ic
-	include/fil0pagecompress.h
-	include/fsp0file.h
-	include/fsp0fsp.h
-	include/fsp0space.h
-	include/fsp0sysspace.h
-	include/fsp0types.h
-	include/fts0ast.h
-	include/fts0blex.h
-	include/fts0fts.h
-	include/fts0opt.h
-	include/fts0pars.h
-	include/fts0plugin.h
-	include/fts0priv.h
-	include/fts0priv.ic
-	include/fts0tlex.h
-	include/fts0tokenize.h
-	include/fts0types.h
-	include/fts0types.ic
-	include/fts0vlc.h
-	include/fut0fut.h
-	include/fut0lst.h
-	include/gis0geo.h
-	include/gis0rtree.h
-	include/gis0rtree.ic
-	include/gis0type.h
-	include/ha_prototypes.h
-	include/ha0ha.h
-	include/ha0ha.ic
-	include/ha0storage.h
-	include/ha0storage.ic
-	include/handler0alter.h
-	include/hash0hash.h
-	include/ibuf0ibuf.h
-	include/ibuf0ibuf.ic
-	include/ibuf0types.h
-	include/lock0iter.h
-	include/lock0lock.h
-	include/lock0lock.ic
-	include/lock0prdt.h
-	include/lock0priv.h
-	include/lock0priv.ic
-	include/lock0types.h
-	include/log0crypt.h
-	include/log0log.h
-	include/log0log.ic
-	include/log0recv.h
-	include/log0types.h
-	include/mach0data.h
-	include/mach0data.ic
-	include/mem0mem.h
-	include/mem0mem.ic
-	include/mtr0log.h
-	include/mtr0mtr.h
-	include/mtr0mtr.ic
-	include/mtr0types.h
-	include/os0file.h
-	include/os0file.ic
-	include/os0thread.h
-	include/page0cur.h
-	include/page0cur.ic
-	include/page0page.h
-	include/page0page.ic
-	include/page0types.h
-	include/page0zip.h
-	include/page0zip.ic
-	include/pars0grm.h
-	include/pars0opt.h
-	include/pars0pars.h
-	include/pars0sym.h
-	include/pars0types.h
-	include/que0que.h
-	include/que0que.ic
-	include/que0types.h
-	include/read0types.h
-	include/rem0cmp.h
-	include/rem0cmp.ic
-	include/rem0rec.h
-	include/rem0rec.ic
-	include/rem0types.h
-	include/row0ext.h
-	include/row0ext.ic
-	include/row0ftsort.h
-	include/row0import.h
-	include/row0ins.h
-	include/row0log.h
-	include/row0log.ic
-	include/row0merge.h
-	include/row0mysql.h
-	include/row0purge.h
-	include/row0quiesce.h
-	include/row0row.h
-	include/row0row.ic
-	include/row0sel.h
-	include/row0sel.ic
-	include/row0types.h
-	include/row0uins.h
-	include/row0umod.h
-	include/row0undo.h
-	include/row0upd.h
-	include/row0upd.ic
-	include/row0vers.h
-	include/rw_lock.h
-	include/srv0mon.h
-	include/srv0mon.ic
-	include/srv0srv.h
-	include/srv0start.h
-	include/srw_lock.h
-	include/sux_lock.h
-	include/trx0i_s.h
-	include/trx0purge.h
-	include/trx0rec.h
-	include/trx0rec.ic
-	include/trx0roll.h
-	include/trx0rseg.h
-	include/trx0rseg.ic
-	include/trx0sys.h
-	include/trx0trx.h
-	include/trx0trx.ic
-	include/trx0types.h
-	include/trx0undo.h
-	include/trx0undo.ic
-	include/trx0xa.h
-	include/univ.i
-	include/ut0byte.h
-	include/ut0byte.ic
-	include/ut0counter.h
-	include/ut0dbg.h
-	include/ut0list.h
-	include/ut0list.ic
-	include/ut0lst.h
-	include/ut0mem.h
-	include/ut0mem.ic
-	include/ut0new.h
-	include/ut0pool.h
-	include/ut0rbt.h
-	include/ut0rnd.h
-	include/ut0rnd.ic
-	include/ut0sort.h
-	include/ut0stage.h
-	include/ut0ut.h
-	include/ut0ut.ic
-	include/ut0vec.h
-	include/ut0vec.ic
-	include/ut0wqueue.h
 	lock/lock0iter.cc
 	lock/lock0prdt.cc
 	lock/lock0lock.cc
@@ -334,6 +138,207 @@ SET(INNOBASE_SOURCES
 	ut/ut0vec.cc
 	ut/ut0wqueue.cc)
 
+set (INNOBASE_HEADERS
+		#	 fts0blex.h
+		#	 fts0pars.h
+		#	fts0tlex.h
+		#	fts0tokenize.h
+		# pars0grm.h
+		#	 fts0vlc.h # missing pragma once
+		#	 handler0alter.h # missing pragma once
+
+	btr0btr.h
+	btr0bulk.h
+	btr0cur.h
+	buf0block_hint.h
+#	btr0defragment.h
+#	btr0pcur.h
+#	btr0sea.h
+#	btr0types.h
+#	buf0buddy.h
+	buf0buf.h
+#	buf0checksum.h
+#	buf0dblwr.h
+#	buf0dump.h
+#	buf0flu.h
+#	buf0lru.h
+#	buf0rea.h
+#	buf0types.h
+#	data0data.h
+#	data0type.h
+#	data0types.h
+#	db0err.h
+#	dict0boot.h
+#	dict0crea.h
+#	dict0defrag_bg.h
+	dict0dict.h
+#	dict0load.h
+	dict0mem.h
+#	dict0pagecompress.h
+#	dict0stats.h
+#	dict0stats_bg.h
+#	dict0types.h
+	dyn0buf.h
+#	dyn0types.h
+#	eval0eval.h
+#	eval0proc.h
+#	fil0crypt.h
+	fil0fil.h
+#	fil0pagecompress.h
+#	fsp0file.h
+#	fsp0fsp.h
+#	fsp0space.h
+#	fsp0sysspace.h
+#	fsp0types.h
+#	 fts0ast.h
+#	 fts0fts.h
+#	 fts0opt.h
+#	fts0plugin.h
+#	fts0priv.h
+#	fts0types.h
+#	fut0fut.h
+#	fut0lst.h
+#	gis0geo.h
+#	gis0rtree.h
+#	gis0type.h
+#	ha_prototypes.h
+#	ha0ha.h
+#	ha0storage.h
+#	hash0hash.h
+#	ibuf0ibuf.h
+#	ibuf0types.h
+#	lock0iter.h
+	lock0lock.h
+#	lock0prdt.h
+#	lock0types.h
+#	log0crypt.h
+#	log0log.h
+#	log0recv.h
+#	log0types.h
+#	mach0data.h
+#	 mem0mem.h
+	mtr0log.h
+	mtr0mtr.h
+#	mtr0types.h
+#	os0file.h
+#	os0thread.h
+#	page0cur.h
+	page0page.h
+#	page0types.h
+#	page0zip.h
+#	pars0opt.h
+#	pars0pars.h
+#	pars0sym.h
+#	pars0types.h
+#	que0que.h
+#	que0types.h
+#	read0types.h
+#	rem0cmp.h
+	rem0rec.h
+#	rem0types.h
+#	row0ext.h
+#	row0ftsort.h
+#	row0import.h
+#	row0ins.h
+#	row0log.h
+#	row0merge.h
+	row0mysql.h
+#	row0purge.h
+#	row0quiesce.h
+#	row0row.h
+#	row0sel.h
+#	row0types.h
+#	row0uins.h
+#	row0umod.h
+#	row0undo.h
+#	row0upd.h
+#	row0vers.h
+	rw_lock.h
+#	srv0mon.h
+	srv0srv.h
+#	srv0start.h
+	srw_lock.h
+	sux_lock.h
+	transactional_lock_guard.h
+#	trx0i_s.h
+#	trx0purge.h
+#	trx0rec.h
+#	trx0roll.h
+	trx0rseg.h
+	trx0sys.h
+#	trx0trx.h
+#	trx0types.h
+#	trx0undo.h
+#	trx0xa.h
+#	univ.i
+#	ut0byte.h
+	ut0counter.h
+#	ut0dbg.h
+#	ut0list.h
+	ut0lst.h
+#	ut0mem.h
+#	ut0new.h
+#	ut0pool.h
+#	ut0rbt.h
+#	ut0rnd.h
+#	ut0sort.h
+#	ut0stage.h
+#	ut0ut.h
+#	ut0vec.h
+#	ut0wqueue.h
+		)
+	# data0data.ic
+	# btr0btr.ic
+	# btr0cur.ic
+	# btr0pcur.ic
+	# btr0sea.ic
+	# buf0buf.ic
+	# data0type.ic
+	# dict0crea.ic
+	# dict0dict.ic
+	# dict0mem.ic
+	# dict0pagecompress.ic
+	# dict0stats.ic
+	# eval0eval.ic
+	# eval0proc.ic
+	# fil0crypt.ic
+	# fil0fil.ic
+	# fts0priv.ic
+	# fts0types.ic
+	# gis0rtree.ic
+	# ha0ha.ic
+	# ha0storage.ic
+	# ibuf0ibuf.ic
+	# dict0stats.ic
+	# lock0lock.ic
+	# log0log.ic
+	# mach0data.ic
+	# mem0mem.ic
+	# mtr0mtr.ic
+	# os0file.ic
+	# page0cur.ic
+	# page0page.ic
+	# page0zip.ic
+	# que0que.ic
+	# rem0cmp.ic
+	# rem0rec.ic
+	# row0ext.ic
+	# row0log.ic
+	# row0row.ic
+	# row0sel.ic
+	# row0upd.ic
+	# srv0mon.ic
+	# trx0rseg.ic
+	# trx0trx.ic
+	# trx0undo.ic
+	# ut0byte.ic
+	# ut0list.ic
+	# ut0mem.ic
+	# ut0rnd.ic
+	# ut0ut.ic
+	# ut0vec.ic
+	# trx0rec.ic
+
 OPTION(WITH_PMEM "Support redo log in persistent memory" OFF)
 FIND_PACKAGE(PMEM)
 IF(PMEM_FOUND)
@@ -360,6 +365,12 @@ IF(NOT TARGET innobase)
   RETURN()
 ENDIF()
 
+target_precompile_headers(innobase PRIVATE
+  "$<$<COMPILE_LANGUAGE:CXX>:${INNOBASE_HEADERS}>")
+set_property(SOURCE
+  fts/fts0pars.cc fts/fts0blex.cc fts/fts0tlex.cc
+  pars/pars0grm.cc pars/lexyy.cc sync/srw_lock.cc
+  PROPERTY SKIP_PRECOMPILE_HEADERS yes)
 ADD_DEFINITIONS(${SSL_DEFINES} ${TPOOL_DEFINES})
 
 # A GCC bug causes crash when compiling these files on ARM64 with -O1+

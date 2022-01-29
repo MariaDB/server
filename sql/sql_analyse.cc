@@ -34,6 +34,7 @@
 #include "procedure.h"
 #include "sql_analyse.h"
 #include <m_ctype.h>
+#include "lex_state.h"
 
 #define MAX_TREEMEM	  8192
 #define MAX_TREE_ELEMENTS 256

@@ -2324,7 +2324,11 @@ static void check_duplicate_key(THD *thd, const Key *key, const KEY *key_info,
     }
 
     if (std::equal(key->columns.begin(), key->columns.end(), k.columns.begin(),
-                   key_cmp))
+                   [](const Key_part_spec &a, const Key_part_spec &b)
+                   {
+                     return a.length == b.length &&
+                            !lex_string_cmp(system_charset_info, &a.field_name, &b.field_name);
+                   }))
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE, ER_DUP_INDEX,
                           ER_THD(thd, ER_DUP_INDEX), key_info->name.str);

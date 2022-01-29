@@ -35,6 +35,7 @@
 
 #include <my_user.h>
 #include "mysql/psi/mysql_sp.h"
+#include "lex_state.h"
 
 sp_cache **Sp_handler_procedure::get_cache(THD *thd) const
 {

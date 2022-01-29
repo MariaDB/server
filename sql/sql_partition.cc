@@ -69,6 +69,7 @@
 #include "sql_select.h"
 #include "ddl_log.h"
 #include "tztime.h"                     // my_tz_OFFSET0
+#include "lex_state.h"
 
 #include <algorithm>
 using std::max;

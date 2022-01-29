@@ -25,6 +25,7 @@
 #include <sql_acl.h>
 #include <sql_reload.h>
 #include <sql_parse.h>
+#include <lex_state.h>
 #include "wsrep_priv.h"
 #include "wsrep_utils.h"
 #include "wsrep_xid.h"

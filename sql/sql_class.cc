@@ -64,6 +64,7 @@
 #include "lock.h"
 #include "wsrep_mysqld.h"
 #include "sql_connect.h"
+#include "lex_state.h"
 #ifdef WITH_WSREP
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
@@ -1033,6 +1034,25 @@ void THD::raise_note_printf(uint sql_errno, ...)
   (void) raise_condition(sql_errno, "\0\0\0\0\0",
                          Sql_condition::WARN_LEVEL_NOTE, ebuff);
   DBUG_VOID_RETURN;
+}
+
+void THD::parse_error(const char *err_text, const char *yytext)
+{
+  Lex_input_stream *lip= &m_parser_state->m_lip;
+  if (!yytext && !(yytext= lip->get_tok_start()))
+    yytext= "";
+  /* Push an error into the error stack */
+  ErrConvString err(yytext, strlen(yytext), variables.character_set_client);
+  my_printf_error(ER_PARSE_ERROR,  ER_THD(this, ER_PARSE_ERROR), MYF(0),
+                  err_text, err.ptr(), lip->yylineno);
+}
+
+void THD::set_local_lex(sp_lex_local *sublex)
+{
+  DBUG_ASSERT(lex->sphead);
+  lex= sublex;
+  /* Reset part of parser state which needs this. */
+  m_parser_state->m_yacc.reset_before_substatement();
 }
 
 Sql_condition* THD::raise_condition(const Sql_condition *cond)

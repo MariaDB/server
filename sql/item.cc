@@ -1601,52 +1601,6 @@ bool Item_field::check_vcol_func_processor(void *arg)
   return mark_unsupported_function(field_name.str, arg, VCOL_FIELD_REF);
 }
 
-
-Query_fragment::Query_fragment(THD *thd, sp_head *sphead,
-                               const char *start, const char *end)
-{
-  DBUG_ASSERT(start <= end);
-  if (thd->lex->clone_spec_offset)
-  {
-    Lex_input_stream *lip= (& thd->m_parser_state->m_lip);
-    DBUG_ASSERT(lip->get_buf() <= start);
-    DBUG_ASSERT(end <= lip->get_end_of_query());
-    set(start - lip->get_buf(), end - start);
-  }
-  else if (sphead)
-  {
-    if (sphead->m_tmp_query)
-    {
-      // Normal SP statement
-      DBUG_ASSERT(sphead->m_tmp_query <= start);
-      set(start - sphead->m_tmp_query, end - start);
-    }
-    else
-    {
-      /*
-        We're in the "if" expression of a compound query:
-          if (expr)
-            do_something;
-          end if;
-        sphead->m_tmp_query is not set yet at this point, because
-        the "if" part of such statements is never put into the binary log.
-        Values of Rewritable_query_parameter::pos_in_query and
-        Rewritable_query_parameter:len_in_query will not be important,
-        so setting both to 0 should be fine.
-      */
-      set(0, 0);
-    }
-  }
-  else
-  {
-    // Non-SP statement
-    DBUG_ASSERT(thd->query() <= start);
-    DBUG_ASSERT(end <= thd->query_end());
-    set(start - thd->query(), end - start);
-  }
-}
-
-
 /*****************************************************************************
   Item_sp_variable methods
 *****************************************************************************/

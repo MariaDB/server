@@ -18,6 +18,7 @@
   This file contains declarations for implementations
   of block based join algorithms
 */
+#pragma once
 
 #define JOIN_CACHE_INCREMENTAL_BIT           1
 #define JOIN_CACHE_HASHED_BIT                2

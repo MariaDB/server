@@ -134,6 +134,7 @@ static const uint PARAMETER_FLAG_UNSIGNED= 128U << 8;
 #endif /* WITH_WSREP */
 #include "xa.h"           // xa_recover_get_fields
 #include "sql_audit.h"    // mysql_audit_release
+#include "lex_state.h"
 
 /**
   A result class used to send cursor rows using the binary protocol.

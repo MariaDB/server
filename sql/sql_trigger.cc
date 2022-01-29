@@ -37,6 +37,7 @@
 #include "debug_sync.h"                   // DEBUG_SYNC
 #include "debug.h"                        // debug_crash_here
 #include "mysql/psi/mysql_sp.h"
+#include "lex_state.h"
 
 /*************************************************************************/
 

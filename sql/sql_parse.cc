@@ -95,7 +95,8 @@
 #include "opt_trace.h"
 #include "mysql/psi/mysql_sp.h"
 
-#include "my_json_writer.h" 
+#include "my_json_writer.h"
+#include "lex_state.h"
 
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 

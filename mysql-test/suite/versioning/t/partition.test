@@ -1309,4 +1309,36 @@ show create table t1;
 drop tables t1, tp1;
 }
 
+
+--echo #
+--echo # MDEV-27328 Change of SYSTEM_TIME partitioning options is not possible without data copy
+--echo #
+
+create or replace table t1 (x int) with system versioning
+  partition by system_time limit 33;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert t1 values (0);
+set timestamp= unix_timestamp('2000-01-01 00:10:00');
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 01:30:00');
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 1;
+
+# When we switch to INTERVAL we must reorganize partitions.
+# Otherwise pruning won't work correctly.
+alter table t1 partition by system_time interval 1 hour
+  starts '2000-01-01 00:00:00';
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+select * from t1 partition (p0);
+select * from t1 partition (p1);
+select * from t1 partition (p2);
+select * from t1 partition (pn);
+set timestamp= default;
+
 --source suite/versioning/common_finish.inc

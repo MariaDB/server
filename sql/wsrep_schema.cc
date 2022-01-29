@@ -21,6 +21,7 @@
 #include "sql_parse.h"
 #include "sql_update.h"
 #include "transaction.h"
+#include "lex_state.h"
 
 #include "mysql/service_wsrep.h"
 #include "wsrep_schema.h"

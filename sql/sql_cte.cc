@@ -22,6 +22,7 @@
 #include "sql_parse.h"
 #include "sql_select.h"
 #include "sql_show.h"                // append_definer, append_identifier
+#include "lex_state.h"
 
 
 /**

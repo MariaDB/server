@@ -18,6 +18,8 @@
   Semi-join subquery optimization code definitions
 */
 
+#pragma once
+
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface			/* gcc class implementation */
 #endif

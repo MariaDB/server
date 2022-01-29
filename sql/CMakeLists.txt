@@ -179,6 +179,259 @@ SET (SQL_SOURCE
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 )
+set (SQL_HEADERS
+        sql_plugin.h
+        ../mysql/plugin.h
+        sql_type_fixedbin.h
+        sql_lex.h
+        sql_class.h
+
+        # authors.h
+        backup.h
+        bounded_queue.h
+        # client_settings.h
+        compat56.h
+        # contributors.h
+        create_options.h
+        create_tmp_table.h
+        custom_conf.h
+        datadict.h
+        ddl_log.h
+        debug.h
+        debug_sync.h
+        derived_handler.h
+        derror.h
+        des_key_file.h
+        discover.h
+        event_data_objects.h
+        event_db_repository.h
+        event_parse_data.h
+        event_queue.h
+        event_scheduler.h
+        events.h
+        field_comp.h
+        field.h
+        filesort.h
+        filesort_utils.h
+        gcalc_slicescan.h
+        gcalc_tools.h
+        grant.h
+        group_by_handler.h
+        gstream.h
+        handle_connections_win.h
+        handler.h
+        ha_partition.h
+        ha_sequence.h
+        hash_filo.h
+        hostname.h
+        init.h
+        innodb_priv.h
+        item_cmpfunc.h
+        item_create.h
+        item_func.h
+        item_geofunc.h
+        item.h
+        item_jsonfunc.h
+        item_row.h
+        item_strfunc.h
+        item_subselect.h
+        item_sum.h
+        item_timefunc.h
+        item_vers.h
+        item_windowfunc.h
+        item_xmlfunc.h
+        json_table.h
+        keycaches.h
+        key.h
+        #lex.h
+        #lex_string.h
+        #lex_symbol.h
+        lock.h
+        log_event.h
+        log_event_old.h
+        log.h
+        log_slow.h
+        mariadb.h
+        mdl.h
+        mem_root_array.h
+        message.h
+        multi_range_read.h
+        my_apc.h
+        my_decimal.h
+        my_json_writer.h
+        mysqld.h
+        mysqld_suffix.h
+        opt_range.h
+        opt_subselect.h
+        opt_trace_context.h
+        opt_trace.h
+        parse_file.h
+        partition_element.h
+        partition_info.h
+        privilege.h
+        procedure.h
+        protocol.h
+        # proxy_protocol.h
+        records.h
+        repl_failsafe.h
+        replication.h
+        rowid_filter.h
+        rpl_constants.h
+        rpl_filter.h
+        rpl_gtid.h
+        rpl_injector.h
+        rpl_mi.h
+        rpl_parallel.h
+        rpl_record.h
+        rpl_record_old.h
+        rpl_reporting.h
+        rpl_rli.h
+        rpl_tblmap.h
+        rpl_utility.h
+        scheduler.h
+        select_handler.h
+        semisync.h
+        semisync_master_ack_receiver.h
+        semisync_master.h
+        semisync_slave.h
+        session_tracker.h
+        set_var.h
+        slave.h
+        spatial.h
+        sp_cache.h
+        sp.h
+        sp_head.h
+        sp_pcontext.h
+        sp_rcontext.h
+        sql_acl.h
+        sql_admin.h
+        sql_alloc.h
+        sql_alter.h
+        sql_analyse.h
+        sql_analyze_stmt.h
+        sql_array.h
+        sql_audit.h
+        sql_base.h
+        sql_basic_types.h
+        sql_binlog.h
+        sql_bitmap.h
+        sql_bootstrap.h
+        sql_cache.h
+        sql_callback.h
+
+        # sql_class.h
+
+        sql_cmd.h
+        sql_connect.h
+        sql_const.h
+        sql_crypt.h
+        sql_cte.h
+        sql_cursor.h
+        sql_db.h
+        sql_delete.h
+        sql_derived.h
+        sql_digest.h
+        sql_digest_stream.h
+        sql_do.h
+        sql_error.h
+        sql_explain.h
+        sql_expression_cache.h
+        sql_get_diagnostics.h
+        sql_handler.h
+        sql_help.h
+        sql_hset.h
+        sql_insert.h
+        sql_i_s.h
+        sql_join_cache.h
+        # sql_lex.h
+        sql_lifo_buffer.h
+        sql_limit.h
+        sql_list.h
+        sql_load.h
+        sql_locale.h
+        sql_manager.h
+        sql_mode.h
+        sql_parse.h
+        # sql_partition_admin.h
+        sql_partition.h
+        sql_plist.h
+        # sql_plugin_compat.h
+        # sql_plugin.h
+        sql_prepare.h
+        sql_priv.h
+        sql_profile.h
+        sql_reload.h
+        sql_rename.h
+        sql_repl.h
+        sql_schema.h
+        sql_select.h
+        sql_sequence.h
+        sql_servers.h
+        sql_show.h
+        sql_signal.h
+        sql_sort.h
+        sql_statistics.h
+        sql_string.h
+        sql_table.h
+        sql_test.h
+        sql_time.h
+        sql_trigger.h
+        sql_truncate.h
+        sql_tvc.h
+#        sql_type_fixedbin.h
+        sql_type_fixedbin_storage.h
+        sql_type_geom.h
+        sql_type.h
+        sql_type_int.h
+        sql_type_json.h
+        sql_type_real.h
+        sql_type_string.h
+        sql_udf.h
+        sql_union.h
+        sql_update.h
+        sql_view.h
+        sql_window.h
+        strfunc.h
+        structs.h
+        sys_vars_shared.h
+        table_cache.h
+        table.h
+        # thread_cache.h
+        threadpool_generic.h
+        threadpool.h
+        # threadpool_winsockets.h
+        thr_malloc.h
+        transaction.h
+        tzfile.h
+        tztime.h
+        uniques.h
+        unireg.h
+        vers_string.h
+        # winservice.h
+        # win_tzname_data.h
+        wsrep_applier.h
+        wsrep_binlog.h
+        wsrep_client_service.h
+        wsrep_client_state.h
+        wsrep_condition_variable.h
+        wsrep_high_priority_service.h
+        wsrep_mutex.h
+        wsrep_mysqld_c.h
+        wsrep_mysqld.h
+        wsrep_priv.h
+        wsrep_schema.h
+        wsrep_server_service.h
+        wsrep_server_state.h
+        wsrep_sst.h
+        wsrep_storage_service.h
+        wsrep_thd.h
+#        wsrep_trans_observer.h
+        wsrep_types.h
+        wsrep_utils.h
+        wsrep_var.h
+        wsrep_xid.h
+        xa.h)
+
 
 IF ((CMAKE_SYSTEM_NAME MATCHES "Linux" OR
      CMAKE_SYSTEM_NAME MATCHES "SunOS" OR
@@ -212,6 +465,9 @@ TARGET_LINK_LIBRARIES(sql
   ${LIBWRAP} ${LIBCRYPT} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
   ${SSL_LIBRARIES}
   ${LIBSYSTEMD})
+
+target_precompile_headers(sql PRIVATE
+        "$<$<COMPILE_LANGUAGE:CXX>:${SQL_HEADERS}>")
 
 IF(TARGET pcre2)
   ADD_DEPENDENCIES(sql pcre2)

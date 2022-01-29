@@ -69,6 +69,7 @@
 #include "my_base.h"
 #include "sql_type_json.h"
 #include "json_table.h"
+#include "lex_state.h"
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER

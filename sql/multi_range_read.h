@@ -62,6 +62,9 @@
   storage and has better performance when reading data in rowid order.
 */
 
+#ifndef MULTI_RANGE_READ_INCLUDED
+#define MULTI_RANGE_READ_INCLUDED
+
 #include "sql_lifo_buffer.h"
 
 class DsMrr_impl;
@@ -668,3 +671,4 @@ private:
   @} (end of group DS-MRR declarations)
 */
 
+#endif // MULTI_RANGE_READ_INCLUDED

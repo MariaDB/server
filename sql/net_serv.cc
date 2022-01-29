@@ -722,7 +722,7 @@ net_real_write(NET *net,const uchar *packet, size_t len)
     if ((long) (length= vio_write(net->vio,pos,(size_t) (end-pos))) <= 0)
     {
       my_bool interrupted = vio_should_retry(net->vio);
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(NO_ALARM)
       if ((interrupted || length == 0) && !thr_alarm_in_use(&alarmed))
       {
         if (!thr_alarm(&alarmed, net->write_timeout, &alarm_buff))

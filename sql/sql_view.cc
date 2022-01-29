@@ -38,6 +38,7 @@
 #include "ddl_log.h"
 #include "debug.h"              // debug_crash_here
 #include "wsrep_mysqld.h"
+#include "lex_state.h"
 
 #define MD5_BUFF_LENGTH 33
 

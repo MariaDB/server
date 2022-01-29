@@ -30,6 +30,7 @@
 #include "sql_select.h"        // Virtual_tmp_table
 #include "opt_trace.h"
 #include "my_json_writer.h"
+#include "lex_state.h"
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
 #pragma implementation
