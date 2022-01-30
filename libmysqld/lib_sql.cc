@@ -696,7 +696,7 @@ void *create_embedded_thd(ulong client_flag)
   thd->set_command(COM_SLEEP);
   thd->set_time();
   thd->init_for_queries();
-  thd->client_capabilities= client_flag;
+  thd->client_capabilities= client_flag | MARIADB_CLIENT_EXTENDED_METADATA;
   thd->real_id= pthread_self();
 
   thd->db= null_clex_str;
