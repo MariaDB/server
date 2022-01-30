@@ -4,6 +4,7 @@
 --echo #
 
 --source include/have_innodb.inc
+--source include/have_symlink.inc
 
 --disable_query_log
 # These values can change during the test

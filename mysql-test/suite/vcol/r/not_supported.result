@@ -34,3 +34,11 @@ select * from t8;
 a	b	v
 1234567890	2	2009-02-14 00:31:30
 drop table t1, t3_ok, t8;
+#
+# Bug#33141966 - INCONSISTENT BEHAVIOR IF A COLUMN OF TYPE SERIAL IS SET AS GENERATED
+#
+create table t1 (a int, b serial as (a+1));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'as (a+1))' at line 1
+#
+# End of 10.2 tests
+#

@@ -803,6 +803,6 @@ extern os_event_t	log_scrub_event;
 /** Whether log_scrub_thread is active */
 extern bool		log_scrub_thread_active;
 
-#include "log0log.ic"
+#include "log0log.inl"
 
 #endif

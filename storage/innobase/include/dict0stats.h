@@ -234,7 +234,7 @@ dberr_t
 dict_stats_report_error(dict_table_t* table, bool defragment = false)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-#include "dict0stats.ic"
+#include "dict0stats.inl"
 
 #ifdef UNIV_ENABLE_UNIT_TEST_DICT_STATS
 void test_dict_stats_all();

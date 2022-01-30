@@ -1211,27 +1211,27 @@ static inline int my_weight_mb2_utf16mb2_general_ci(uchar b0, uchar b1)
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        my_weight_mb2_utf16mb2_general_ci(b0,b1)
 #define WEIGHT_MB4(b0,b1,b2,b3)  MY_CS_REPLACEMENT_CHARACTER
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf16_bin
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        ((int) MY_UTF16_WC2(b0, b1))
 #define WEIGHT_MB4(b0,b1,b2,b3)  ((int) MY_UTF16_WC4(b0, b1, b2, b3))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 #define DEFINE_STRNNCOLLSP_NOPAD
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf16_general_nopad_ci
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        my_weight_mb2_utf16mb2_general_ci(b0,b1)
 #define WEIGHT_MB4(b0,b1,b2,b3)  MY_CS_REPLACEMENT_CHARACTER
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 #define DEFINE_STRNNCOLLSP_NOPAD
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf16_nopad_bin
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        ((int) MY_UTF16_WC2(b0, b1))
 #define WEIGHT_MB4(b0,b1,b2,b3)  ((int) MY_UTF16_WC4(b0, b1, b2, b3))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 #undef IS_MB2_CHAR
 #undef IS_MB4_CHAR
@@ -1412,7 +1412,7 @@ my_charlen_utf16(CHARSET_INFO *cs, const uchar *str, const uchar *end)
 #define MY_FUNCTION_NAME(x)       my_ ## x ## _utf16
 #define CHARLEN(cs,str,end)       my_charlen_utf16(cs,str,end)
 #define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
-#include "ctype-mb.ic"
+#include "ctype-mb.inl"
 #undef MY_FUNCTION_NAME
 #undef CHARLEN
 #undef DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
@@ -1748,27 +1748,27 @@ struct charset_info_st my_charset_utf16_nopad_bin=
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        my_weight_mb2_utf16mb2_general_ci(b1,b0)
 #define WEIGHT_MB4(b0,b1,b2,b3)  MY_CS_REPLACEMENT_CHARACTER
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf16le_bin
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        ((int) MY_UTF16_WC2(b1, b0))
 #define WEIGHT_MB4(b0,b1,b2,b3)  ((int) MY_UTF16_WC4(b1, b0, b3, b2))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 #define DEFINE_STRNNCOLLSP_NOPAD
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf16le_general_nopad_ci
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        my_weight_mb2_utf16mb2_general_ci(b1,b0)
 #define WEIGHT_MB4(b0,b1,b2,b3)  MY_CS_REPLACEMENT_CHARACTER
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 #define DEFINE_STRNNCOLLSP_NOPAD
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf16le_nopad_bin
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        ((int) MY_UTF16_WC2(b1, b0))
 #define WEIGHT_MB4(b0,b1,b2,b3)  ((int) MY_UTF16_WC4(b1, b0, b3, b2))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 #undef IS_MB2_CHAR
 #undef IS_MB4_CHAR
@@ -2115,24 +2115,24 @@ static inline int my_weight_utf32_general_ci(uchar b0, uchar b1,
 #define UNICASE_PAGES            my_unicase_default_pages
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB4(b0,b1,b2,b3)  my_weight_utf32_general_ci(b0, b1, b2, b3)
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf32_bin
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB4(b0,b1,b2,b3)  ((int) MY_UTF32_WC4(b0, b1, b2, b3))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 #define DEFINE_STRNNCOLLSP_NOPAD
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf32_general_nopad_ci
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB4(b0,b1,b2,b3)  my_weight_utf32_general_ci(b0, b1, b2, b3)
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 #define DEFINE_STRNNCOLLSP_NOPAD
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf32_nopad_bin
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB4(b0,b1,b2,b3)  ((int) MY_UTF32_WC4(b0, b1, b2, b3))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 #undef IS_MB2_CHAR
 #undef IS_MB4_CHAR
@@ -2302,7 +2302,7 @@ my_charlen_utf32(CHARSET_INFO *cs __attribute__((unused)),
 #define MY_FUNCTION_NAME(x)       my_ ## x ## _utf32
 #define CHARLEN(cs,str,end)       my_charlen_utf32(cs,str,end)
 #define DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
-#include "ctype-mb.ic"
+#include "ctype-mb.inl"
 #undef MY_FUNCTION_NAME
 #undef CHARLEN
 #undef DEFINE_WELL_FORMED_CHAR_LENGTH_USING_CHARLEN
@@ -2974,7 +2974,7 @@ static const uchar to_upper_ucs2[] = {
 };
 
 
-/* Definitions for strcoll.ic */
+/* Definitions for strcoll.inl */
 #define IS_MB2_CHAR(x,y)            (1)
 #define UCS2_CODE(b0,b1)            (((uchar) b0) << 8 | ((uchar) b1))
 
@@ -2997,7 +2997,7 @@ static inline int my_weight_mb2_ucs2_general_ci(uchar b0, uchar b1)
 #define UNICASE_PAGES            my_unicase_default_pages
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        my_weight_mb2_ucs2_general_ci(b0,b1)
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _ucs2_bin
@@ -3006,21 +3006,21 @@ static inline int my_weight_mb2_ucs2_general_ci(uchar b0, uchar b1)
 #define OPTIMIZE_ASCII           0
 #define WEIGHT_ILSEQ(x)          (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)        UCS2_CODE(b0,b1)
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
 #define MY_FUNCTION_NAME(x)    my_ ## x ## _ucs2_general_nopad_ci
 #define WEIGHT_ILSEQ(x)        (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)      my_weight_mb2_ucs2_general_ci(b0,b1)
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
 #define MY_FUNCTION_NAME(x)    my_ ## x ## _ucs2_nopad_bin
 #define WEIGHT_ILSEQ(x)        (0xFF0000 + (uchar) (x))
 #define WEIGHT_MB2(b0,b1)      UCS2_CODE(b0,b1)
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 static int

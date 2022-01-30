@@ -2521,6 +2521,6 @@ inline void dict_stats_empty_defrag_stats(dict_index_t* index)
 	index->stat_defrag_n_page_split = 0;
 }
 
-#include "dict0mem.ic"
+#include "dict0mem.inl"
 
 #endif /* dict0mem_h */

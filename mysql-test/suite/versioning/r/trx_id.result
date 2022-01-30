@@ -175,7 +175,78 @@ select x, row_start <  row_end from t1 for system_time all;
 x	row_start <  row_end
 4	1
 2	1
+#
+# MDEV-15951 system versioning by trx id doesn't work with partitioning
+# currently trx_id does not support partitioning by system_time
+#
+create or replace table t1(
+i int,
+row_start bigint unsigned generated always as row start,
+row_end bigint unsigned generated always as row end,
+period for system_time(row_start, row_end)
+) engine=InnoDB with system versioning partition by system_time (
+partition p0 history,
+partition pn current
+);
+ERROR HY000: `row_start` must be of type TIMESTAMP(6) for system-versioned table `t1`
+create or replace table t1(
+i int,
+row_start bigint unsigned generated always as row start,
+row_end bigint unsigned generated always as row end,
+period for system_time(row_start, row_end)
+) engine=InnoDB with system versioning;
+alter table t1  partition by system_time (
+partition p0 history,
+partition pn current
+);
+ERROR HY000: `row_start` must be of type TIMESTAMP(6) for system-versioned table `t1`
+drop table t1;
+create or replace table t (
+a int primary key,
+row_start bigint unsigned as row start invisible,
+row_end bigint unsigned as row end invisible,
+period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by key() (
+partition p1,
+partition p2
+);
+ERROR HY000: Transaction-precise system-versioned tables do not support partitioning by ROW START or ROW END
+create or replace table t (
+a int primary key,
+row_start bigint unsigned as row start invisible,
+row_end bigint unsigned as row end invisible,
+period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by key(a, row_start) (
+partition p1,
+partition p2
+);
+ERROR HY000: Transaction-precise system-versioned tables do not support partitioning by ROW START or ROW END
+create or replace table t (
+a int primary key,
+row_start bigint unsigned as row start invisible,
+row_end bigint unsigned as row end invisible,
+period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by hash(a + row_end * 2) (
+partition p1,
+partition p2
+);
+ERROR HY000: Transaction-precise system-versioned tables do not support partitioning by ROW START or ROW END
+create or replace table t (
+a int primary key,
+row_start bigint unsigned as row start invisible,
+row_end bigint unsigned as row end invisible,
+period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by range columns (a, row_start) (
+partition p1 values less than (100, 100)
+);
+ERROR HY000: Transaction-precise system-versioned tables do not support partitioning by ROW START or ROW END
+#
 # MDEV-16010 Too many rows with AS OF point_in_the_past_or_NULL
+#
 create or replace table t1 (
 x int,
 row_start bigint unsigned as row start invisible,

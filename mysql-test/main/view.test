@@ -6501,56 +6501,6 @@ DROP TABLE t1;
 DROP VIEW v1;
 
 --echo #
---echo # MDEV-24454: Crash at change_item_tree
---echo #
-
-CREATE TABLE t1(f0 INT);
-
-CREATE VIEW v1 AS
-SELECT
-  f0 AS f1
-FROM t1;
-
-CREATE VIEW v2 AS
-SELECT
-  (SELECT GROUP_CONCAT(v1.f1 SEPARATOR ', ')
-   FROM v1 n) AS f2,
-  GROUP_CONCAT('' SEPARATOR ', ') AS f3
-FROM v1;
-
-CREATE VIEW v3 AS
-SELECT 1 as f4 FROM v2;
-
-CREATE PROCEDURE p1()
-  SELECT * FROM v3;
-
-CALL p1();
-CALL p1();
-
-drop procedure p1;
-drop view v1,v2,v3;
-drop table t1;
-
---echo #
---echo # MDEV-25631: Crash in st_select_lex::mark_as_dependent with
---echo # VIEW, aggregate and subquery
---echo #
-
-CREATE TABLE t1 (i1 int);
-insert into t1 values (1),(2),(3); #not important
-CREATE VIEW v1 AS
-	SELECT t1.i1 FROM (t1 a JOIN t1 ON (t1.i1 = (SELECT t1.i1 FROM t1 b)));
-
---error ER_SUBQUERY_NO_1_ROW
-SELECT 1 FROM (SELECT count(((SELECT i1 FROM v1))) FROM v1) dt ;
-delete from t1 where i1 > 1;
-SELECT 1 FROM (SELECT count(((SELECT i1 FROM v1))) FROM v1) dt ;
-
-drop view v1;
-drop table t1;
-
-
---echo #
 --echo # MDEV-26299: Some views force server (and mysqldump) to generate
 --echo # invalid SQL for their definitions
 --echo #
@@ -6566,7 +6516,27 @@ drop view v1;
 
 eval CREATE VIEW v1 AS $definition;
 
+
 drop view v1;
+
+--echo #
+--echo # MDEV-25631: view with outer reference in select used
+--echo #             as argument of set function
+--echo #
+
+create table t1 (c int);
+insert into t1 values (1);
+create view v1 as select c from t1 where (select t1.c from t1 t) = 1;
+
+select * from (select sum((select * from v1)) as r) dt;
+
+with cte as (select c from t1 where (select t1.c from t1 t) = 1)
+select * from (select sum((select * from cte)) as r) dt1
+union
+select * from (select sum((select * from cte)) as r) dt2;
+
+drop view v1;
+drop table t1;
 
 --echo #
 --echo # End of 10.2 tests

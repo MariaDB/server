@@ -467,8 +467,12 @@ bool net_send_error_packet(THD *thd, uint sql_errno, const char *err,
     coming from server to have seq_no > 0, due to missing awareness
     of "out-of-band" operations. Make these clients happy.
   */
-  if (!net->pkt_nr)
-   net->pkt_nr= 1;
+  if (!net->pkt_nr &&
+      (sql_errno == ER_CONNECTION_KILLED || sql_errno == ER_SERVER_SHUTDOWN ||
+       sql_errno == ER_QUERY_INTERRUPTED))
+  {
+    net->pkt_nr= 1;
+  }
 
   ret= net_write_command(net,(uchar) 255, (uchar*) "", 0, (uchar*) buff,
                          length);

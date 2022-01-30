@@ -490,6 +490,17 @@ partition by system_time interval column_get(column_create(7,7), 7 as int) secon
 show create table t1;
 
 --echo #
+--echo # MDEV-18794 Assertion `!m_innodb' failed in ha_partition::cmp_ref upon SELECT from partitioned table
+--echo #
+create or replace table t1 (pk int auto_increment, i int, c char(1), primary key (pk), key(i))
+engine=innodb with system versioning partition by key() partitions 2;
+insert into t1 (i, c) values (1, 'a'), (2, 'b'), (null, 'c'), (null, 'b');
+alter table t1 drop system versioning;
+replace into t1 select * from t1;
+select * from t1 where i > 0 or pk = 1000 limit 1;
+drop table t1;
+
+--echo #
 --echo # MDEV-19175 Server crashes in ha_partition::vers_can_native upon INSERT DELAYED into versioned partitioned table
 --echo #
 create or replace table t1 (f int) with system versioning partition by hash(f);
@@ -728,6 +739,40 @@ alter table t1 add partition (partition p1 history);
 alter table t1 add partition (partition p2 history);
 drop table t1;
 
+--echo #
+--echo # MDEV-27217 DELETE partition selection doesn't work for history partitions
+--echo #
+create table t1 (f char) with system versioning
+partition by system_time limit 10 (
+  partition p0 history,
+  partition p1 history,
+  partition p2 history,
+  partition pn current);
+
+--error ER_VERS_NOT_ALLOWED
+delete from t1 partition (p1);
+--error ER_VERS_NOT_ALLOWED
+delete from t1 partition (p0, pn);
+--error ER_VERS_NOT_ALLOWED
+delete from t1 partition (p0, p1);
+--error ER_VERS_NOT_ALLOWED
+delete from t1 partition (p0, p1, pn);
+drop table t1;
+
+set timestamp=unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (i int) with system versioning
+partition by system_time interval 1 day (
+  partition p0 history,
+  partition p1 history,
+  partition pn current);
+set timestamp=unix_timestamp('2000-01-02 00:00:00');
+insert t1 values (1);
+--error ER_VERS_NOT_ALLOWED
+delete from t1 partition (p0, pn);
+--error ER_VERS_NOT_ALLOWED
+delete from t1 partition (p0, p1, pn);
+drop table t1;
+set timestamp= default;
 --echo # End of 10.3 tests
 
 --echo #

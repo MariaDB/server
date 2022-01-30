@@ -1390,7 +1390,7 @@ int wsrep_rec_get_foreign_key(
 	ibool		new_protocol); /* in: protocol > 1 */
 #endif /* WITH_WSREP */
 
-#include "rem0rec.ic"
+#include "rem0rec.inl"
 
 #endif /* !UNIV_INNOCHECKSUM */
 #endif /* rem0rec_h */

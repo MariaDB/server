@@ -397,6 +397,6 @@ private:
 	bool			m_interrupted;
 };
 
-#include "buf0flu.ic"
+#include "buf0flu.inl"
 
 #endif

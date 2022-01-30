@@ -389,6 +389,6 @@ mach_write_ulonglong(
 
 #endif /* !UNIV_INNOCHECKSUM */
 
-#include "mach0data.ic"
+#include "mach0data.inl"
 
 #endif

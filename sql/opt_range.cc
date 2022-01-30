@@ -10120,7 +10120,7 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
 
   uint max_part_no= MY_MAX(key1->max_part_no, key2->max_part_no);
 
-  for (key2=key2->first(); key2; )
+  for (key2=key2->first(); ; )
   {
     /*
       key1 consists of one or more ranges. tmp is the range currently
@@ -10134,6 +10134,16 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
                   ^
                   tmp
     */
+    if (key1->min_flag & NO_MIN_RANGE &&
+        key1->max_flag & NO_MAX_RANGE)
+    {
+      if (key1->maybe_flag)
+        return new SEL_ARG(SEL_ARG::MAYBE_KEY);
+      return 0;   // Always true OR
+    }
+    if (!key2)
+      break;
+
     SEL_ARG *tmp=key1->find_range(key2);
 
     /*
@@ -10204,6 +10214,13 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
         key2->copy_min(tmp);
         if (!(key1=key1->tree_delete(tmp)))
         {                                       // Only one key in tree
+          if (key2->min_flag & NO_MIN_RANGE &&
+              key2->max_flag & NO_MAX_RANGE)
+          {
+            if (key2->maybe_flag)
+              return new SEL_ARG(SEL_ARG::MAYBE_KEY);
+            return 0;   // Always true OR
+          }
           key1=key2;
           key1->make_root();
           key2=key2_next;

@@ -2075,5 +2075,38 @@ select * from t1 where (name, len) in (select  name, len from information_schema
 drop table t1;
 
 --echo #
+--echo # MDEV-20254 Problems with EMPTY_STRING_IS_NULL and I_S tables
+--echo #
+
+# Test one column with detailed output
+
+SET SQL_MODE= 'EMPTY_STRING_IS_NULL';
+CREATE OR REPLACE TABLE t1 AS SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE 1 = 0;
+--let $myvar= query_get_value(SHOW CREATE TABLE test.t1, Create Table, 1)
+--echo SHOW returned: $myvar
+DROP TABLE t1;
+--eval $myvar
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET SQL_MODE=DEFAULT;
+
+# Test all columns without detailed output.
+# Just make sure the SHOW CREATE TABLE result
+# can be passed back to the server without errors.
+
+SET SQL_MODE= 'EMPTY_STRING_IS_NULL';
+CREATE OR REPLACE TABLE t1 AS SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE 1 = 0;
+--let $myvar= query_get_value(SHOW CREATE TABLE test.t1, Create Table, 1)
+DROP TABLE t1;
+--disable_query_log
+--echo # Executing the statement returned from SHOW CREATE TABLE
+--eval $myvar
+--enable_query_log
+DROP TABLE t1;
+SET SQL_MODE=DEFAULT;
+
+
+
+--echo #
 --echo # End of 10.3 tests
 --echo #

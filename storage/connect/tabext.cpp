@@ -142,8 +142,14 @@ bool EXTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 	Username = GetStringCatInfo(g, "User", NULL);
 	Password = GetStringCatInfo(g, "Password", NULL);
 
-	if ((Srcdef = GetStringCatInfo(g, "Srcdef", NULL)))
+	// Memory was Boolean, it is now integer
+	if (!(Memory = GetIntCatInfo("Memory", 0)))
+		Memory = GetBoolCatInfo("Memory", false) ? 1 : 0;
+
+	if ((Srcdef = GetStringCatInfo(g, "Srcdef", NULL))) {
 		Read_Only = true;
+		if (Memory == 2) Memory = 1;
+	}	// endif Srcdef
 
 	Qrystr = GetStringCatInfo(g, "Query_String", "?");
 	Sep = GetStringCatInfo(g, "Separator", NULL);
@@ -165,10 +171,6 @@ bool EXTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
 	if (Catfunc == FNC_TABLE)
 		Tabtyp = GetStringCatInfo(g, "Tabtype", NULL);
-
-	// Memory was Boolean, it is now integer
-	if (!(Memory = GetIntCatInfo("Memory", 0)))
-		Memory = GetBoolCatInfo("Memory", false) ? 1 : 0;
 
 	Pseudo = 2;    // FILID is Ok but not ROWID
 	return false;
@@ -284,6 +286,37 @@ int TDBEXT::Decode(PCSZ txt, char *buf, size_t n)
 	return 0;
 } // end of Decode
 
+/*
+  Count number of %s placeholders in string.
+  Returns -1 if other sprintf placeholders are found, .g %d
+*/
+static int count_placeholders(const char *fmt)
+{
+  int cnt= 0;
+  for (const char *p=fmt; *p; p++)
+  {
+    if (*p == '%')
+    {
+      switch (p[1])
+      {
+      case 's':
+        /* %s found */
+        cnt++;
+        p++;
+        break;
+      case '%':
+        /* masking char for % found */
+        p++;
+        break;
+      default:
+        /* some other placeholder found */
+        return -1;
+      }
+    }
+  }
+  return cnt;
+}
+
 /***********************************************************************/
 /*  MakeSrcdef: make the SQL statement from SRDEF option.              */
 /***********************************************************************/
@@ -308,16 +341,29 @@ bool TDBEXT::MakeSrcdef(PGLOBAL g)
 				? To_CondFil->Having : PlugDup(g, "1=1");
 		} // endif ph
 
-		if (!stricmp(ph, "W")) {
+		int n_placeholders = count_placeholders(Srcdef);
+		if (n_placeholders < 0)
+		{
+			strcpy(g->Message, "MakeSQL: Wrong place holders specification");
+			return true;
+		}
+
+		if (!stricmp(ph, "W") && n_placeholders <= 1) {
 			Query = new(g)STRING(g, strlen(Srcdef) + strlen(fil1));
 			Query->SetLength(sprintf(Query->GetStr(), Srcdef, fil1));
-		} else if (!stricmp(ph, "WH")) {
+		}
+		else if (!stricmp(ph, "WH") && n_placeholders <= 2)
+		{
 			Query = new(g)STRING(g, strlen(Srcdef) + strlen(fil1) + strlen(fil2));
 			Query->SetLength(sprintf(Query->GetStr(), Srcdef, fil1, fil2));
-		} else if (!stricmp(ph, "H")) {
+		}
+		else if (!stricmp(ph, "H") && n_placeholders <= 1)
+		{
 			Query = new(g)STRING(g, strlen(Srcdef) + strlen(fil2));
 			Query->SetLength(sprintf(Query->GetStr(), Srcdef, fil2));
-		} else if (!stricmp(ph, "HW")) {
+		}
+		else if (!stricmp(ph, "HW") && n_placeholders <= 2)
+		{
 			Query = new(g)STRING(g, strlen(Srcdef) + strlen(fil1) + strlen(fil2));
 			Query->SetLength(sprintf(Query->GetStr(), Srcdef, fil2, fil1));
 		} else {

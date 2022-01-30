@@ -9822,16 +9822,8 @@ bool Field_num::is_equal(const Column_definition &new_field) const
 }
 
 
-bool Field_enum::can_optimize_range(const Item_bool_func *cond,
-                                    const Item *item,
-                                    bool is_eq_func) const
-{
-  return item->cmp_type() != TIME_RESULT;
-}
-
-
-bool Field_enum::can_optimize_keypart_ref(const Item_bool_func *cond,
-                                          const Item *item) const
+bool Field_enum::can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
+                                                   const Item *item) const
 {
   switch (item->cmp_type())
   {

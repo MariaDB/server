@@ -1126,7 +1126,8 @@ THR_LOCK_DATA **ha_spider::store_lock(
     if (
       sql_command == SQLCOM_DROP_TABLE ||
       sql_command == SQLCOM_ALTER_TABLE ||
-      sql_command == SQLCOM_SHOW_CREATE
+      sql_command == SQLCOM_SHOW_CREATE ||
+      sql_command == SQLCOM_SHOW_FIELDS
     ) {
       if (
         lock_type == TL_READ_NO_INSERT &&
@@ -8797,7 +8798,8 @@ int ha_spider::info(
             spider_param_table_init_error_interval())
           {
             pthread_mutex_unlock(&share->sts_mutex);
-            if (sql_command == SQLCOM_SHOW_CREATE)
+            if (sql_command == SQLCOM_SHOW_CREATE ||
+                sql_command == SQLCOM_SHOW_FIELDS)
             {
               if (thd->is_error())
               {
@@ -8871,7 +8873,8 @@ int ha_spider::info(
                 share->init_error = TRUE;
                 share->init = TRUE;
               }
-              if (sql_command == SQLCOM_SHOW_CREATE)
+              if (sql_command == SQLCOM_SHOW_CREATE ||
+                  sql_command == SQLCOM_SHOW_FIELDS)
               {
                 if (thd->is_error())
                 {
@@ -8934,7 +8937,8 @@ int ha_spider::info(
                 share->init_error = TRUE;
                 share->init = TRUE;
               }
-              if (sql_command == SQLCOM_SHOW_CREATE)
+              if (sql_command == SQLCOM_SHOW_CREATE ||
+                  sql_command == SQLCOM_SHOW_FIELDS)
               {
                 if (thd->is_error())
                 {
@@ -8963,7 +8967,8 @@ int ha_spider::info(
               if ((error_num = spider_create_sts_thread(share)))
               {
                 pthread_mutex_unlock(&share->sts_mutex);
-                if (sql_command == SQLCOM_SHOW_CREATE)
+                if (sql_command == SQLCOM_SHOW_CREATE ||
+                    sql_command == SQLCOM_SHOW_FIELDS)
                 {
                   if (thd->is_error())
                   {
@@ -8994,7 +8999,8 @@ int ha_spider::info(
     {
       if ((error_num = check_crd()))
       {
-        if (sql_command == SQLCOM_SHOW_CREATE)
+        if (sql_command == SQLCOM_SHOW_CREATE ||
+            sql_command == SQLCOM_SHOW_FIELDS)
         {
           if (thd->is_error())
           {

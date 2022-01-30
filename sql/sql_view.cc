@@ -407,8 +407,18 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   bool res= FALSE;
   DBUG_ENTER("mysql_create_view");
 
-  /* This is ensured in the parser. */
-  DBUG_ASSERT(!lex->proc_list.first && !lex->result &&
+  /*
+    This is ensured in the parser.
+    NOTE: Originally, the assert below contained the extra condition
+      && !lex->result
+    but in this form the assert is failed in case CREATE VIEW run under
+    cursor (the case when the byte 'flags' in the COM_STMT_EXECUTE packet has
+    the flag CURSOR_TYPE_READ_ONLY set). For the cursor use case
+    thd->lex->result is assigned a pointer to the class Select_materialize
+    inside the function mysql_open_cursor() just before handling of a statement
+    will be started and the function mysql_create_view() called.
+  */
+  DBUG_ASSERT(!lex->proc_list.first &&
               !lex->param_list.elements);
 
   /*

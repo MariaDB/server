@@ -1,6 +1,6 @@
 select @@innodb_buffer_pool_chunk_size;
 @@innodb_buffer_pool_chunk_size
-2097152
+4194304
 create table t1 (id int not null, val int not null default '0', primary key (id)) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
 create or replace view view0 as select 1 union all select 1;
 set @`v_id` := 0;
@@ -18,9 +18,9 @@ count(val)
 262144
 drop table t1;
 drop view view0;
-set global innodb_buffer_pool_size = 1048576;
+set global innodb_buffer_pool_size = 2*1048576;
 Warnings:
-Warning	1292	Truncated incorrect innodb_buffer_pool_size value: '1048576'
+Warning	1292	Truncated incorrect innodb_buffer_pool_size value: '2097152'
 select @@innodb_buffer_pool_size;
 @@innodb_buffer_pool_size
-6291456
+4194304

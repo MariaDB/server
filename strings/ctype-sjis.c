@@ -189,7 +189,7 @@ static const uchar sort_order_sjis[]=
 #define IS_MB1_CHAR(x)        ((uchar) (x) < 0x80 || issjiskata(x))
 #define IS_MB2_CHAR(x,y)      (issjishead(x) && issjistail(y))
 #define DEFINE_ASIAN_ROUTINES
-#include "ctype-mb.ic"
+#include "ctype-mb.inl"
 
 
 #define sjiscode(c,d)	((((uint) (uchar)(c)) << 8) | (uint) (uchar) (d))
@@ -34015,14 +34015,14 @@ size_t my_numcells_sjis(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_PAD_SPACE     (256 * (int) ' ')
 #define WEIGHT_MB1(x)        (256 * (int) sort_order_sjis[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (sjiscode(x, y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _sjis_bin
 #define WEIGHT_PAD_SPACE     (256 * (int) ' ')
 #define WEIGHT_MB1(x)        (256 * (int) (uchar) (x))
 #define WEIGHT_MB2(x,y)      (sjiscode(x, y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -34030,7 +34030,7 @@ size_t my_numcells_sjis(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_PAD_SPACE     (256 * (int) ' ')
 #define WEIGHT_MB1(x)        (256 * (int) sort_order_sjis[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (sjiscode(x, y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -34038,7 +34038,7 @@ size_t my_numcells_sjis(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_PAD_SPACE     (256 * (int) ' ')
 #define WEIGHT_MB1(x)        (256 * (int) (uchar) (x))
 #define WEIGHT_MB2(x,y)      (sjiscode(x, y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 static MY_COLLATION_HANDLER my_collation_handler_sjis_japanese_ci=

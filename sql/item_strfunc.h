@@ -856,7 +856,7 @@ public:
   String *val_str(String *);
   bool fix_length_and_dec()
   {
-    max_length= MAX_FIELD_NAME * system_charset_info->mbmaxlen;
+    max_length= NAME_CHAR_LEN * system_charset_info->mbmaxlen;
     maybe_null=1;
     return FALSE;
   }

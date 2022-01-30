@@ -1,0 +1,141 @@
+
+# Overlong table type
+--error ER_UNKNOWN_ERROR
+execute immediate concat('create table t engine=CONNECT table_type=JSON',REPEAT('1',5000),
+' FILE_NAME=''users.json'' HTTP=''http://localhost:4142'' URI=''/users''');
+
+# Overlong subtype
+--error ER_UNKNOWN_ERROR
+execute immediate concat('create table t  engine=CONNECT table_type=OEM module=''libname''
+Option_list=''Myopt=foo'' subtype=''MYTYPE',REPEAT('1', 10000), '''');
+
+
+# Overlong filename
+--error ER_UNKNOWN_ERROR
+execute immediate concat('create table t engine=CONNECT table_type=DBF file_name=''',
+ REPLACE(@@secure_file_priv,'\\','/'),'cust.dbf', REPEAT('1', 10000), '''');
+
+
+# Format string in SRCDEF
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval create table t engine=connect table_type=mysql
+  CONNECTION='mysql://root@localhost:$MASTER_MYPORT/test/foobar'
+  SRCDEF='SELECT 1,''%n'' FROM DUAL WHERE %s';
+--error ER_GET_ERRMSG
+select *from t;
+drop table t;
+
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+--error ER_UNKNOWN_ERROR
+eval create table t engine=connect table_type=mysql
+  CONNECTION='mysql://root@localhost:$MASTER_MYPORT/test/foobar'
+  SRCDEF='SELECT 1,%n FROM DUAL WHERE %s';
+
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval create table t engine=connect table_type=mysql
+  CONNECTION='mysql://root@localhost:$MASTER_MYPORT/test/foobar'
+  SRCDEF='SELECT 1 FROM DUAL WHERE %s';
+select *from t;
+drop table t;
+
+write_file $MYSQLTEST_VARDIR/tmp/beer.xml;
+<?xml version="1.0"?>
+<Beers>
+  <table>
+    <th><td>Name</td><td>Origin</td><td>Description</td></th>
+    <tr>
+      <td><brandName>Huntsman</brandName></td>
+      <td><origin>Bath, UK</origin></td>
+      <td><details>Wonderful hop, light alcohol</details></td>
+    </tr>
+    <tr>
+      <td><brandName>Tuborg</brandName></td>
+      <td><origin>Danmark</origin></td>
+      <td><details>In small bottles</details></td>
+    </tr>
+  </table>
+</Beers>
+EOF
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+# Format string in colnode
+eval create table beers (
+`Name` char(16) xpath='brandName',
+`Origin` char(16) xpath='origin',
+`Description` char(32) xpath='details')
+engine=CONNECT table_type=XML file_name='$MYSQLTEST_VARDIR/tmp/beer.xml'
+tabname='table' option_list='rownode=tr,colnode=td%n';
+select * from beers;
+drop table beers;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval create table beers (
+`Name` char(16) xpath='brandName',
+`Origin` char(16) xpath='origin',
+`Description` char(32) xpath='details')
+engine=CONNECT table_type=XML file_name='$MYSQLTEST_VARDIR/tmp/beer.xml'
+tabname='table' option_list='rownode=tr,colnode=td';
+insert into beers values('11','22','33');
+drop table beers;
+
+remove_file $MYSQLTEST_VARDIR/tmp/beer.xml;
+
+write_file  $MYSQLTEST_VARDIR/tmp/test.json;
+[
+  {
+    "ISBN": "9782212090819",
+    "LANG": "fr",
+    "SUBJECT": "applications",
+    "AUTHOR": [
+      {
+        "FIRSTNAME": "Jean-Christophe",
+        "LASTNAME": "Bernadac"
+      },
+      {
+        "FIRSTNAME": "François",
+        "LASTNAME": "Knab"
+      }
+    ],
+    "TITLE": "Construire une application XML",
+    "PUBLISHER": {
+      "NAME": "Eyrolles",
+      "PLACE": "Paris"
+    },
+    "DATEPUB": 1999
+  },
+  {
+    "ISBN": "9782840825685",
+    "LANG": "fr",
+    "SUBJECT": "applications",
+    "AUTHOR": [
+      {
+        "FIRSTNAME": "William J.",
+        "LASTNAME": "Pardi"
+      }
+    ],
+    "TITLE": "XML en Action",
+    "TRANSLATED": {
+       "PREFIX": "adapté de l'anglais par",
+       "TRANSLATOR": {
+          "FIRSTNAME": "James",
+        "LASTNAME": "Guerin"
+        }
+    },
+    "PUBLISHER": {
+      "NAME": "Microsoft Press",
+      "PLACE": "Paris"
+    },
+    "DATEPUB": 1999
+  }
+]
+EOF
+
+execute immediate CONCAT('create table jsampall
+(Author char(128) jpath=''$.AUTHOR["', REPEAT('a',10000),'"]'')
+engine=CONNECT table_type=JSON
+file_name=''',REPLACE(@@secure_file_priv,'\\','/'),'tmp/test.json''');
+
+select  author from jsampall;
+drop table jsampall;
+remove_file $MYSQLTEST_VARDIR/tmp/test.json;
+

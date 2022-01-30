@@ -2,4 +2,3 @@
 
 --error 1193
 set global event_scheduler=ON;
-

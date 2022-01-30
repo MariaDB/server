@@ -47,7 +47,8 @@ test
 Phase 7/7: Running 'FLUSH PRIVILEGES'
 OK
 Run it again - should say already completed
-This installation of MariaDB is already upgraded to VERSION, use --force if you still need to run mysql_upgrade
+This installation of MariaDB is already upgraded to VERSION.There is no need to run mysql_upgrade again for VERSION.
+You can use --force if you still want to run mysql_upgrade
 Force should run it regardless of whether it has been run before
 Phase 1/7: Checking and upgrading mysql database
 Processing databases
@@ -145,11 +146,12 @@ test
 Phase 7/7: Running 'FLUSH PRIVILEGES'
 OK
 DROP USER mysqltest1@'%';
-Version check failed. Got the following error when calling the 'mysql' command line client
+Reading datadir from the MariaDB server failed. Got the following error when executing the 'mysql' command line client
 ERROR 1045 (28000): Access denied for user 'mysqltest1'@'localhost' (using password: YES)
 FATAL ERROR: Upgrade failed
 Run mysql_upgrade with a non existing server socket
-mysqlcheck: Got error: 2005: Unknown MySQL server host 'not_existing_host' (errno) when trying to connect
+Reading datadir from the MariaDB server failed. Got the following error when executing the 'mysql' command line client
+ERROR 2005 (HY000): Unknown MySQL server host 'not_existing_host' (errno)
 FATAL ERROR: Upgrade failed
 set GLOBAL sql_mode='STRICT_ALL_TABLES,ANSI_QUOTES,NO_ZERO_DATE';
 Phase 1/7: Checking and upgrading mysql database
@@ -412,8 +414,11 @@ OK
 # Bug #21489398: MYSQL_UPGRADE: FATAL ERROR: UPGRADE FAILED - IMPROVE ERROR
 #
 Run mysql_upgrade with unauthorized access
-Version check failed. Got the following error when calling the 'mysql' command line client
+Reading datadir from the MariaDB server failed. Got the following error when executing the 'mysql' command line client
 ERROR 1045 (28000): Access denied for user 'root'@'localhost' (using password: YES)
+FATAL ERROR: Upgrade failed
+Reading datadir from the MariaDB server failed. Got the following error when executing the 'mysql' command line client
+ERROR 1045 (errno): Access denied for user 'root'@'localhost' (using password: YES)
 FATAL ERROR: Upgrade failed
 #
 # MDEV-4332 Increase username length from 16 characters
@@ -768,6 +773,34 @@ GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 GRANT USAGE ON *.* TO `aRole`
 DROP ROLE `aRole`;
 FLUSH PRIVILEGES;
+#
+# MDEV-27279: mariadb_upgrade add --check-if-upgrade-is-needed
+#
+This installation of MariaDB is already upgraded to MariaDB .
+There is no need to run mysql_upgrade again for MariaDB .
+Looking for 'mysql' as: mysql
+This installation of MariaDB is already upgraded to MariaDB .
+There is no need to run mysql_upgrade again for MariaDB .
+#
+# MDEV-27279: mariadb_upgrade check-if-upgrade absence is do it
+#
+Looking for 'mysql' as: mysql
+Empty or non existent ...mysql_upgrade_info. Assuming mysql_upgrade has to be run!
+#
+# MDEV-27279: mariadb_upgrade check-if-upgrade with minor version change
+#
+Looking for 'mysql' as: mysql
+This installation of MariaDB is already upgraded to MariaDB .
+There is no need to run mysql_upgrade again for MariaDB .
+This installation of MariaDB is already upgraded to MariaDB .
+There is no need to run mysql_upgrade again for MariaDB .
+You can use --force if you still want to run mysql_upgrade
+#
+# MDEV-27279: mariadb_upgrade check-if-upgrade with major version change
+#
+Major version upgrade detected from MariaDB  to MariaDB . Check required!
+Looking for 'mysql' as: mysql
+Major version upgrade detected from MariaDB  to MariaDB . Check required!
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
 # End of 10.2 tests

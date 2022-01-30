@@ -5227,9 +5227,8 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
   tmp_table_ref->init_one_table(&empty_clex_str, &table_name, NULL, TL_READ);
   tmp_table_ref->table= tmp_table;
 
-  context= new (thd->mem_root) Name_resolution_context;
+  context= new Name_resolution_context;
   context->init();
-  context->select_lex= item_in->unit->first_select();
   context->first_name_resolution_table=
     context->last_name_resolution_table= tmp_table_ref;
   semi_join_conds_context= context;

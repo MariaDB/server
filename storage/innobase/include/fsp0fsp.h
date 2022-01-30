@@ -783,6 +783,6 @@ inline ulint xdes_calc_descriptor_page(ulint zip_size, ulint offset)
 
 #endif /* UNIV_INNOCHECKSUM */
 
-#include "fsp0fsp.ic"
+#include "fsp0fsp.inl"
 
 #endif

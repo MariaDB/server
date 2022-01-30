@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2021, Oracle and/or its affiliates.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,7 +31,7 @@ Full Text Search interface
 #include "fts0fts.h"
 #include "fts0priv.h"
 #include "fts0types.h"
-#include "fts0types.ic"
+#include "fts0types.inl"
 #include "fts0vlc.h"
 #include "fts0plugin.h"
 #include "dict0priv.h"
@@ -230,9 +230,7 @@ ulint
 fts_add_doc_by_id(
 /*==============*/
 	fts_trx_table_t*ftt,		/*!< in: FTS trx table */
-	doc_id_t	doc_id,		/*!< in: doc id */
-	ib_vector_t*	fts_indexes MY_ATTRIBUTE((unused)));
-					/*!< in: affected fts indexes */
+	doc_id_t	doc_id);	/*!< in: doc id */
 /******************************************************************//**
 Update the last document id. This function could create a new
 transaction to update the last document id.
@@ -2832,7 +2830,7 @@ fts_add(
 
 	ut_a(row->state == FTS_INSERT || row->state == FTS_MODIFY);
 
-	fts_add_doc_by_id(ftt, doc_id, row->fts_indexes);
+	fts_add_doc_by_id(ftt, doc_id);
 
 	mutex_enter(&table->fts->cache->deleted_lock);
 	++table->fts->cache->added;
@@ -3398,9 +3396,7 @@ ulint
 fts_add_doc_by_id(
 /*==============*/
 	fts_trx_table_t*ftt,		/*!< in: FTS trx table */
-	doc_id_t	doc_id,		/*!< in: doc id */
-	ib_vector_t*	fts_indexes MY_ATTRIBUTE((unused)))
-					/*!< in: affected fts indexes */
+	doc_id_t	doc_id)		/*!< in: doc id */
 {
 	mtr_t		mtr;
 	mem_heap_t*	heap;
@@ -4644,7 +4640,7 @@ fts_tokenize_add_word_for_parser(
 	ut_ad(boolean_info->position >= 0);
 	position = boolean_info->position + fts_param->add_pos;
 	*/
-	position = fts_param->add_pos;
+	position = fts_param->add_pos++;
 
 	fts_add_token(result_doc, str, position);
 

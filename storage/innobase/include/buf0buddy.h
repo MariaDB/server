@@ -82,6 +82,6 @@ void
 buf_buddy_condense_free(
 	buf_pool_t*	buf_pool);
 
-#include "buf0buddy.ic"
+#include "buf0buddy.inl"
 
 #endif /* buf0buddy_h */
