@@ -272,7 +272,7 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000002	#	Gtid_list	1	#	[0-1-1]
 show binlog events in 'master-bin.000003' limit 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000003	#	Gtid_list	1	#	[1-2-1,0-1-2]
+master-bin.000003	#	Gtid_list	1	#	[0-1-2,1-2-1]
 # MYSQL_BINLOG MYSQLD_DATADIR/BINLOG_FILE1 MYSQLD_DATADIR/BINLOG_FILE3 --gtid-strict-mode 2> log_error_ > OUT_FILE
 # We should have two warnings about missing data from domains 0 and 1 if
 # -vvv is specified
@@ -578,7 +578,7 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000002	#	Gtid_list	1	#	[0-1-1]
 show binlog events in 'master-bin.000003' limit 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000003	#	Gtid_list	1	#	[1-2-1,0-1-2]
+master-bin.000003	#	Gtid_list	1	#	[0-1-2,1-2-1]
 # MYSQL_BINLOG MYSQLD_DATADIR/BINLOG_FILE1 MYSQLD_DATADIR/BINLOG_FILE3 --skip-gtid-strict-mode -vvv 2> log_error_ > OUT_FILE
 # We should have two warnings about missing data from domains 0 and 1 if
 # -vvv is specified
@@ -883,7 +883,7 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000002	#	Gtid_list	1	#	[0-1-1]
 show binlog events in 'master-bin.000003' limit 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000003	#	Gtid_list	1	#	[1-2-1,0-1-2]
+master-bin.000003	#	Gtid_list	1	#	[0-1-2,1-2-1]
 # MYSQL_BINLOG MYSQLD_DATADIR/BINLOG_FILE1 MYSQLD_DATADIR/BINLOG_FILE3 --skip-gtid-strict-mode 2> log_error_ > OUT_FILE
 # We should have two warnings about missing data from domains 0 and 1 if
 # -vvv is specified

@@ -2342,6 +2342,8 @@ Gtid_list_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
   char buf[21];
   uint32 i;
 
+  qsort(list, count, sizeof(rpl_gtid), compare_glle_gtids);
+
   if (print_header(&cache, print_event_info, FALSE) ||
       my_b_printf(&cache, "\tGtid list ["))
     goto err;

@@ -3398,9 +3398,8 @@ my_bool Window_gtid_event_filter::exclude(rpl_gtid *gtid)
   /* Assume result should be excluded to start */
   my_bool should_exclude= TRUE;
 
-  DBUG_ASSERT((m_has_start || m_has_stop) &&
-              (gtid->domain_id == m_start.domain_id ||
-               gtid->domain_id == m_stop.domain_id));
+  DBUG_ASSERT((m_has_start && gtid->domain_id == m_start.domain_id) ||
+              (m_has_stop && gtid->domain_id == m_stop.domain_id));
 
   if (!m_is_active && !m_has_passed)
   {

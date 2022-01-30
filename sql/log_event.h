@@ -5902,4 +5902,10 @@ int row_log_event_uncompress(const Format_description_log_event
 
 bool is_parallel_retry_error(rpl_group_info *rgi, int err);
 
+/*
+  Compares two GTIDs to facilitate sorting a GTID list log event by domain id
+  (ascending) and sequence number (ascending)
+*/
+int compare_glle_gtids(const void * _gtid1, const void *_gtid2);
+
 #endif /* _log_event_h */

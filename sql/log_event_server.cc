@@ -4085,6 +4085,12 @@ Gtid_list_log_event::pack_info(Protocol *protocol)
   uint32 i;
   bool first;
 
+  /*
+    For output consistency and ease of reading, we sort the GTID list in
+    ascending order
+  */
+  qsort(list, count, sizeof(rpl_gtid), compare_glle_gtids);
+
   buf.length(0);
   buf.append(STRING_WITH_LEN("["));
   first= true;

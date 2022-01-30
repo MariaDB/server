@@ -2653,6 +2653,20 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
               buf_0[event_len - 1] == 0);
 }
 
+int compare_glle_gtids(const void * _gtid1, const void *_gtid2)
+{
+  rpl_gtid *gtid1= (rpl_gtid *) _gtid1;
+  rpl_gtid *gtid2= (rpl_gtid *) _gtid2;
+
+  int ret;
+  if (*gtid1 < *gtid2)
+    ret= -1;
+  else if (*gtid1 > *gtid2)
+    ret= 1;
+  else
+    ret= 0;
+  return ret;
+}
 
 /* GTID list. */
 
