@@ -1292,6 +1292,19 @@ protected:
 };
 
 
+class Create_func_json_overlaps: public Create_func_arg2
+{
+public:
+  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+
+  static Create_func_json_overlaps s_singleton;
+
+protected:
+  Create_func_json_overlaps() {}
+  virtual ~Create_func_json_overlaps() {}
+};
+
+
 class Create_func_last_day : public Create_func_arg1
 {
 public:
@@ -4249,6 +4262,16 @@ Create_func_json_search::create_native(THD *thd, LEX_CSTRING *name,
 }
 
 
+Create_func_json_overlaps Create_func_json_overlaps::s_singleton;
+
+Item*
+Create_func_json_overlaps::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  status_var_increment(thd->status_var.feature_json);
+  return new (thd->mem_root) Item_func_json_overlaps(thd, arg1, arg2);
+}
+
+
 Create_func_last_insert_id Create_func_last_insert_id::s_singleton;
 
 Item*
@@ -5667,6 +5690,7 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("JSON_QUERY") }, BUILDER(Create_func_json_query)},
   { { STRING_WITH_LEN("JSON_QUOTE") }, BUILDER(Create_func_json_quote)},
   { { STRING_WITH_LEN("JSON_OBJECT") }, BUILDER(Create_func_json_object)},
+  { { STRING_WITH_LEN("JSON_OVERLAPS") }, BUILDER(Create_func_json_overlaps)},
   { { STRING_WITH_LEN("JSON_REMOVE") }, BUILDER(Create_func_json_remove)},
   { { STRING_WITH_LEN("JSON_REPLACE") }, BUILDER(Create_func_json_replace)},
   { { STRING_WITH_LEN("JSON_SET") }, BUILDER(Create_func_json_set)},

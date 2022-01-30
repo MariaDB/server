@@ -917,3 +917,174 @@ DROP TABLE t;
 --echo # End of 10.5 tests
 --echo #
 
+--echo #
+--echo # Beginning of 10.9 tests
+--echo #
+--echo # MDEV-27677: Implement JSON_OVERLAPS()
+--echo #
+
+
+--echo # Testing scalar json datatypes
+
+--echo # Comparing scalar json datatypes with itself
+SELECT JSON_OVERLAPS('true', 'true');
+SELECT JSON_OVERLAPS('false', 'false');
+SELECT JSON_OVERLAPS('1', '1');
+SELECT JSON_OVERLAPS('"string1"', '"string1"');
+SELECT JSON_OVERLAPS('null', 'null');
+
+--echo # Comparing scalar json datatypes with other scalar datatype
+SELECT JSON_OVERLAPS('true', 'false');
+SELECT JSON_OVERLAPS('1', '"1"');
+SELECT JSON_OVERLAPS('1', '0');
+SELECT JSON_OVERLAPS('null', '0');
+SELECT JSON_OVERLAPS('"string1"', '"string2"');
+
+SELECT JSON_OVERLAPS('true','["abc", 1, 2, true, false]');
+SELECT JSON_OVERLAPS('true','["abc", 1, 2, [true]]');
+SELECT JSON_OVERLAPS('true','{"A":true}');
+
+
+--echo # Testing non-scalar json data types
+
+--echo # Comparing object with object (non-nested)
+SELECT JSON_OVERLAPS('{"A":[1, 2, 3]}','{}');
+SELECT JSON_OVERLAPS('{"A": 1}',
+                     '{"A": 1}');
+SELECT JSON_OVERLAPS('{"A": 1}',
+                     '{"B": 1}');
+SELECT JSON_OVERLAPS('{
+                       "A": 1,
+                       "B": "string1"
+                      }',
+                     '{
+                        "A": 2,
+                        "B": "string1"
+                      }');
+SELECT JSON_OVERLAPS('{
+                       "A": 1,
+                       "B": "string1"
+                      }',
+                     '{
+                       "A": 2,
+                       "B": "string2"
+                      }');
+
+--echo # Comparing nested object with other nested object
+SELECT JSON_OVERLAPS('{
+                        "A": 1,
+                        "B": {"C":2}
+                      }',
+                     '{
+                        "A": 2,
+                        "B": {"C":1}
+                      }');
+SELECT JSON_OVERLAPS('{
+                       "A": 1,
+                       "B": {"C":2}
+                      }',
+                     '{
+                        "A": 2,
+                        "B": {"C":2}
+                      }');
+SELECT JSON_OVERLAPS('{
+                       "A": {
+                             "B": true
+                            }
+                      }',
+                     '{
+                       "A": {
+                             "B": true,
+                             "C": false
+                            }
+                      }');
+SELECT JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":5}}',
+                     '{"C":3, "B":{"E":5, "D":4}}');
+SELECT JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":[5, 6, 7]}}',
+                     '{"C":3, "B":{"E":5, "D":4}}');
+SELECT JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":[5, 6, 7]}}',
+                     '{"C":3, "B":{"E":[5, 6, 7], "D":4}}');
+SELECT JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":[5, 6, 7]}}',
+                     '{"C":3, "B":{"E":[7, 6 ,5], "D":4}}');
+SELECT JSON_OVERLAPS('{"A":1, "B":{"D":4, "E":[5, 6, 7]}}',
+                     '{"C":3, "F":{"E":[5, 6, 7], "D":4}}');
+
+
+--echo # Comparing array with array (non-nested)
+SELECT JSON_OVERLAPS('[1, 2, true, false, null]',
+                     '[3, 4, 1]');
+SELECT JSON_OVERLAPS('[1, 2, true, false, null]',
+                     '[3, 4, 5]');
+SELECT JSON_OVERLAPS('[1,2,3]','[]');
+
+--echo # Comparing nested arrays
+SELECT JSON_OVERLAPS('[1, 2, true, false, null]',
+                     '[3, 4, [1]]');
+SELECT JSON_OVERLAPS('[1, 2, [true, false], null]',
+                     '[[1], [true, false]]');
+SELECT JSON_OVERLAPS('[1, 2, 3, [4, 5, 6]]','[7, 8, 9, [6, 5, 4]]');
+
+
+--echo # Comparing one non-scalar json datatypes with another non-scalar
+--echo # json datatype
+
+--echo # Comparing array with object
+SELECT JSON_OVERLAPS('[1, 2, true, false, null]',
+                     '{"A": 1}');
+SELECT JSON_OVERLAPS('[1, 2, true, false, null, {"A":2}]',
+                     '{"A": 1}');
+SELECT JSON_OVERLAPS('[1, {"A": 2}, {"A": 1}]',
+                     '{"A": 1}');
+SELECT JSON_OVERLAPS('[1, 2, true, false, {"A": 1, "B": 2}]',
+                     '{"A": 1, "B": 2}');
+SELECT JSON_OVERLAPS('[1, 2, true, false, {"A": 1, "B": 2}]',
+                     '{"A": 1, "B": 3}');
+
+-- echo # Comparing nested array with object
+SELECT JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": 2}]]',
+                     '{"A": 1, "B": 2}');
+SELECT JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": 2}]]',
+                     '{"A": 1, "B": 3}');
+SELECT JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": 2}]]',
+                     '{"A": 1}');
+
+--echo # Comparing array with nested object
+SELECT JSON_OVERLAPS('[1, 2, true, false, {"A": 1, "B": {"C": 12}}]',
+                     '{"A": 1, "B": {"C": 12}}');
+SELECT JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": {"C": 12}}]]',
+                      '{"A": 1, "B": {"C": 12}}');
+
+--echo # Comparing nested array with nested objects
+SELECT JSON_OVERLAPS('[1, 2, true, false, [{"A": 1, "B": {"C": 12}}]]',
+                     '{"A": 1, "B":{"C": 12}}');
+SELECT JSON_OVERLAPS('[[1, 2, true, false, {"A": 1, "B": {"C": 12}}]]',
+                     '{"A": 1, "B": {"C": 12}}');
+
+--echo # Comparing object with array
+SELECT JSON_OVERLAPS('{"A": 1, "B": 3}',
+                     '[1, 2, true, false, {"A": 1, "B": 2}]');
+SELECT JSON_OVERLAPS('{"A": 1, "B": 3}',
+                     '[1, 2, true, false, {"A": 1, "B": 3}]');
+SELECT JSON_OVERLAPS('{"A": 1, "B": 3}',
+                     '[1, 2, true, false, {"A": 1, "B": 2}, {"A": 1, "B": 3}]');
+SELECT JSON_OVERLAPS('{"A": 1, "B": [1, 2, 3]}',
+                     '[1, 2, true, false, {"A": 1, "B": 2}, {"A": 1, "B": [1, 2, 3]}]');
+SELECT JSON_OVERLAPS('{"A": 1, "B": [1, 2, {"C": 3, "D": 5}]}',
+                     '[1, 2, true, false, {"A": 1, "B": 2}, {"A":1, "B":[1, 2, {"C": 3, "D": 5}]}]');
+SELECT JSON_OVERLAPS('{"A": 1, "B": [1, 2, {"C": 3, "D": 5}]}',
+                     '[1, 2, true, false, {"A": 1, "B": 2},{"A": 1, "B": [1, 2, {"C": 3, "D": 4}]}]');
+
+--echo # Comparing object with nested array
+SELECT JSON_OVERLAPS('{"A": 1, "B": 3}','[1, 2, true, false, [{"A": 1, "B": 2}, {"A": 1, "B": 3}]]');
+
+--echo # Checking errors and warnings
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_OVERLAPS('[1,2,{"A":B}]', '{"A":B}', '{"C":"string1"}');
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+SELECT JSON_OVERLAPS('[1,2,{"A":B}]');
+SELECT JSON_OVERLAPS('','');
+
+--echo #
+--echo # End of 10.9 test
+--echo #

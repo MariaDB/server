@@ -47,6 +47,19 @@ void report_path_error_ex(const char *ps, json_path_t *p,
 void report_json_error_ex(const char *js, json_engine_t *je,
                           const char *fname, int n_param,
                           Sql_condition::enum_warning_level lv);
+int check_overlaps(json_engine_t *js, json_engine_t *value, bool compare_whole);
+int json_find_overlap_with_object(json_engine_t *js,
+                                              json_engine_t *value,
+                                              bool compare_whole);
+void json_skip_current_level(json_engine_t *js, json_engine_t *value);
+bool json_find_overlap_with_scalar(json_engine_t *js, json_engine_t *value);
+bool json_compare_arrays_in_order_in_order(json_engine_t *js, json_engine_t *value);
+bool json_compare_arr_and_obj(json_engine_t *js, json_engine_t* value);
+int json_find_overlap_with_array(json_engine_t *js,
+                                             json_engine_t *value,
+                                             bool compare_whole);
+
+
 
 class Json_engine_scan: public json_engine_t
 {
@@ -758,5 +771,24 @@ public:
 };
 
 extern bool is_json_type(const Item *item);
+
+class Item_func_json_overlaps: public Item_bool_func
+{
+  String tmp_js;
+  bool a2_constant, a2_parsed;
+  String tmp_val, *val;
+public:
+  Item_func_json_overlaps(THD *thd, Item *a, Item *b):
+    Item_bool_func(thd, a, b) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("json_overlaps") };
+    return name;
+  }
+  bool fix_length_and_dec() override;
+  longlong val_int() override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_json_overlaps>(thd, this); }
+};
 
 #endif /* ITEM_JSONFUNC_INCLUDED */
