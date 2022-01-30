@@ -108,6 +108,7 @@ static const char *handler_error_messages[]=
   "Tablespace is missing for a table",
   "Sequence has been run out",
   "Sequence values are conflicting",
+  "Error during commit",
   "Cannot select partitions"
 };
 
