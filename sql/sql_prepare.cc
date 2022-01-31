@@ -4487,7 +4487,13 @@ Prepared_statement::execute_loop(String *expanded_query,
 
   if (set_parameters(expanded_query, packet, packet_end))
     return TRUE;
-
+#ifdef WITH_WSREP
+  if (thd->wsrep_delayed_BF_abort)
+  {
+    WSREP_DEBUG("delayed BF abort, quitting execute_loop, stmt: %d", id);
+    return TRUE;
+  }
+#endif /* WITH_WSREP */
 reexecute:
   // Make sure that reprepare() did not create any new Items.
   DBUG_ASSERT(thd->free_list == NULL);

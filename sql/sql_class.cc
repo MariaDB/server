@@ -701,6 +701,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_current_gtid_seqno(0),
    wsrep_affected_rows(0),
    wsrep_has_ignored_error(false),
+   wsrep_delayed_BF_abort(false),
    wsrep_ignore_table(false),
    wsrep_aborter(0),
 
