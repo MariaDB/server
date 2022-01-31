@@ -346,6 +346,7 @@
 
     <Property Id="CRLF" Value="&#xD;&#xA;" />
     <CustomAction Id="CheckDataDirectory" BinaryKey="wixca.dll" DllEntry="CheckDataDirectory" Execute="immediate" Impersonate="yes"/>
+	<CustomAction Id="CheckInstallDirectory" BinaryKey="wixca.dll" DllEntry="CheckInstallDirectory" Execute="immediate" Impersonate="yes"/>
     <!--  What to do when navigation buttons are clicked -->
     <UI Id="MyWixUI_Mondo">
       <UIRef Id="WixUI_FeatureTree" />
@@ -365,6 +366,12 @@
       <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="NewOrUpgradeInstanceDlg" Order="999">
         NOT Installed AND UpgradableServiceFound
       </Publish>
+	  <Publish Dialog="CustomizeDlg" Control="Next" Event="DoAction" Value="CheckInstallDirectory" Order="1">NOT Installed</Publish>
+      <Publish  Dialog="CustomizeDlg" Control="Next"  Property="WarningText" Order="2"
+        Value="[INSTALLDIRERROR]">
+       INSTALLDIRERROR
+	   </Publish>
+      <Publish Dialog="CustomizeDlg" Control="Next" Event="SpawnDialog" Value="WarningDlg" Order="3">WarningText</Publish>
       <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="ConfirmDataCleanupDlg" Order="4">
         <![CDATA[(&DBInstance=2) AND (!DBInstance=3)]]>
       </Publish>
@@ -645,11 +652,17 @@
 
     <CustomAction Id='ErrorDataDir'
                   Error='Invalid data directory, choose a different one. Error : [DATADIRERROR]'/>
+	<CustomAction Id="ErrorInstallDir"
+	              Error="[INSTALLDIRERROR]" />
     <InstallExecuteSequence>
       <Custom Action="CheckDataDirectory" After="CostFinalize">
         <![CDATA[&DBInstance=3 AND NOT !DBInstance=3 AND OLDERVERSIONBEINGUPGRADED=""]]>
       </Custom>
-      <Custom Action="ErrorDataDir" After="CheckDataDirectory">DATADIRERROR</Custom>
+	  <Custom Action="ErrorDataDir" After="CheckDataDirectory">DATADIRERROR</Custom>
+	  <Custom Action="CheckInstallDirectory" After="CostFinalize">
+        NOT Installed
+      </Custom>
+      <Custom Action="ErrorInstallDir" After="CheckInstallDirectory">INSTALLDIRERROR</Custom>
       <Custom Action="CheckDatabaseProperties" Before="CreateDatabaseCommand">SERVICENAME</Custom>
       <Custom Action="CreateDatabaseCommand" After="CostFinalize" >
         <![CDATA[&DBInstance=3 AND NOT !DBInstance=3 AND OLDERVERSIONBEINGUPGRADED=""]]>
