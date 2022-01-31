@@ -682,8 +682,7 @@ static int set_directory_permissions(const char *dir, const char *os_user,
 
   if (pNewDACL)
   {
-  	  verbose("Adjust permissions for user %s, directory %s", os_user, dir);
-  	  SetSecurityInfo(hDir,SE_FILE_OBJECT,DACL_SECURITY_INFORMATION,NULL, NULL,
+    SetSecurityInfo(hDir,SE_FILE_OBJECT,DACL_SECURITY_INFORMATION,NULL, NULL,
       pNewDACL, NULL);
   }
   if (pSD != NULL) 
