@@ -113,7 +113,7 @@ SET (SQL_SOURCE
                protocol.cc records.cc repl_failsafe.cc rpl_filter.cc
                session_tracker.cc
                set_var.cc
-               slave.cc sp.cc sp_cache.cc sp_head.cc sp_instr.cc sp_pcontext.cc
+               slave.cc sp.cc sp_cache.cc sp_head.cc sp_pcontext.cc
                sp_rcontext.cc spatial.cc sql_acl.cc sql_analyse.cc sql_base.cc
                sql_cache.cc sql_class.cc sql_client.cc sql_crypt.cc
                sql_cursor.cc sql_db.cc sql_delete.cc sql_derived.cc
@@ -159,6 +159,7 @@ SET (SQL_SOURCE
                rpl_gtid.cc rpl_parallel.cc
                semisync.cc semisync_master.cc semisync_slave.cc
                semisync_master_ack_receiver.cc
+               sp_instr.cc
                sql_schema.cc
                sql_type.cc sql_mode.cc sql_type_json.cc
                sql_type_string.cc
