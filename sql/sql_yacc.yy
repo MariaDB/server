@@ -200,17 +200,6 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
        MYSQL_YYABORT;                   \
   } while(0)
 
-#define set_collation(X)           \
-  do {  \
-    if (X)  \
-    {  \
-      if (unlikely(Lex->charset && !my_charset_same(Lex->charset,X)))  \
-        my_yyabort_error((ER_COLLATION_CHARSET_MISMATCH, MYF(0),  \
-                          X->coll_name.str,Lex->charset->cs_name.str));  \
-      Lex->charset= X;  \
-    }  \
-  } while(0)
-
 
 %}
 %union {
@@ -1583,6 +1572,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <charset>
         opt_collate
+        collate
         charset_name
         charset_or_alias
         charset_name_or_default
@@ -6794,10 +6784,7 @@ charset_or_alias:
           }
         ;
 
-collate: COLLATE_SYM collation_name_or_default
-         {
-           Lex->charset= $2;
-         }
+collate: COLLATE_SYM collation_name_or_default { $$= $2; }
        ;
 
 opt_binary:
@@ -6812,11 +6799,12 @@ binary:
         | BINARY charset_or_alias { bincmp_collation($2, true); }
         | charset_or_alias collate
           {
-            if (!my_charset_same(Lex->charset, $1))
+            if (!my_charset_same($2, $1))
               my_yyabort_error((ER_COLLATION_CHARSET_MISMATCH, MYF(0),
-                                Lex->charset->coll_name.str, $1->cs_name.str));
+                                $2->coll_name.str, $1->cs_name.str));
+            Lex->charset= $2;
           }
-        | collate { }
+        | collate { Lex->charset= $1; }
         ;
 
 opt_bin_mod:
@@ -11629,7 +11617,7 @@ json_table_column_type:
             Lex->last_field->set_attributes(thd, $1, Lex->charset,
                                             COLUMN_DEFINITION_TABLE_FIELD);
             if (Lex->json_table->m_cur_json_table_column->
-                  set(thd, Json_table_column::PATH, $3))
+                  set(thd, Json_table_column::PATH, $3, Lex->charset))
             {
               MYSQL_YYABORT;
             }
@@ -11639,23 +11627,15 @@ json_table_column_type:
             Lex->last_field->set_attributes(thd, $1, Lex->charset,
                                             COLUMN_DEFINITION_TABLE_FIELD);
             Lex->json_table->m_cur_json_table_column->
-              set(thd, Json_table_column::EXISTS_PATH, $4);
+              set(thd, Json_table_column::EXISTS_PATH, $4, Lex->charset);
           }
         ;
 
 json_table_field_type:
           field_type_numeric
         | field_type_temporal
-        | field_type_string opt_collate
-          {
-            set_collation($2);
-            Lex->json_table->m_cur_json_table_column->m_explicit_cs= Lex->charset;
-          }
-        | field_type_lob opt_collate
-          {
-            set_collation($2);
-            Lex->json_table->m_cur_json_table_column->m_explicit_cs= Lex->charset;
-          }
+        | field_type_string
+        | field_type_lob
         ;
 
 json_opt_on_empty_or_error:
