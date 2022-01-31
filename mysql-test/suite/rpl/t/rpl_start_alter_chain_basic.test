@@ -1,6 +1,6 @@
 #
 #  MENT-662 Lag Free alter for slave
-#   In this we will see if chain replication works as 
+#   In this we will see if chain replication works as
 #   M->S(Legacy)->S(Parallel)->S(Legacy, without log-slave-upadates)
 #
 --source include/have_innodb.inc
@@ -22,8 +22,8 @@ change master to master_use_gtid=slave_pos;
 
 --connection server_1
 --let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
-set global binlog_alter_two_phase=YES;
-set binlog_alter_two_phase=YES;
+set global binlog_alter_two_phase=ON;
+set binlog_alter_two_phase=ON;
 --let $engine=innodb
 --let $sync_slave= 1
 connect(master_node,127.0.0.1,root,,$db_name, $SERVER_MYPORT_1);
@@ -32,7 +32,7 @@ connect(slave_node,127.0.0.1,root,,test, $SERVER_MYPORT_2);
 --disconnect master_node
 --disconnect slave_node
 --connection server_1
---eval set global binlog_alter_two_phase=$binlog_alter_two_phase;
+--eval set global binlog_alter_two_phase=$binlog_alter_two_phase
 --source include/rpl_sync.inc
 
 

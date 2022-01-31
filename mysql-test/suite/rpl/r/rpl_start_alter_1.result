@@ -1,8 +1,8 @@
 include/master-slave.inc
 [connection master]
 connection master;
-set global binlog_alter_two_phase=YES;
-set binlog_alter_two_phase=YES;
+set global binlog_alter_two_phase = ON;
+set binlog_alter_two_phase = ON;
 connection slave;
 set global gtid_strict_mode=1;
 # Legacy Master Slave
@@ -309,5 +309,5 @@ connection slave;
 include/sync_with_master_gtid.inc
 set global gtid_strict_mode = 0;;
 connection master;
-set global binlog_alter_two_phase=No;;
+set global binlog_alter_two_phase=0;;
 include/rpl_end.inc

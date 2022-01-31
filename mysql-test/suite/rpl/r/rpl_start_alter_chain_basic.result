@@ -7,8 +7,8 @@ set global slave_parallel_mode=optimistic;
 change master to master_use_gtid=slave_pos;
 include/start_slave.inc
 connection server_1;
-set global binlog_alter_two_phase=YES;
-set binlog_alter_two_phase=YES;
+set global binlog_alter_two_phase=ON;
+set binlog_alter_two_phase=ON;
 connect master_node,127.0.0.1,root,,$db_name, $SERVER_MYPORT_1;
 connect slave_node,127.0.0.1,root,,test, $SERVER_MYPORT_2;
 # innodb
@@ -58,7 +58,7 @@ include/sync_with_master_gtid.inc
 disconnect master_node;
 disconnect slave_node;
 connection server_1;
-set global binlog_alter_two_phase=No;;
+set global binlog_alter_two_phase=0;
 include/rpl_sync.inc
 connection server_2;
 select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;

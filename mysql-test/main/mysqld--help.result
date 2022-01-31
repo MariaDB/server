@@ -42,10 +42,9 @@ The following specify which files/extra groups are read (specified before remain
  full' errors. No longer needed, as the server now handles
  this automatically.
  --bind-address=name IP address to bind to.
- --binlog-alter-two-phase=name 
+ --binlog-alter-two-phase 
  When set, split ALTER at binary logging into 2
- statements: START ALTER and COMMIT/ROLLBACK ALTER. One
- of: No, Yes
+ statements: START ALTER and COMMIT/ROLLBACK ALTER
  --binlog-annotate-row-events 
  Tells the master to annotate RBR events with the
  statement that caused these events
@@ -1480,7 +1479,7 @@ automatic-sp-privileges TRUE
 back-log 80
 big-tables FALSE
 bind-address (No default value)
-binlog-alter-two-phase No
+binlog-alter-two-phase FALSE
 binlog-annotate-row-events TRUE
 binlog-cache-size 32768
 binlog-checksum CRC32

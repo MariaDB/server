@@ -73,7 +73,7 @@ t3	CREATE TABLE `t3` (
 connection master;
 SET GLOBAL debug_dbug= @old_debug_master;
 drop table t3;
-set global binlog_alter_two_phase = No;;
+set global binlog_alter_two_phase = 0;
 connection slave;
 SET GLOBAL debug_dbug= @old_debug_slave;
 stop slave;

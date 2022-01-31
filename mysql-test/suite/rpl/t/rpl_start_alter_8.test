@@ -13,8 +13,8 @@
 
 --connection server_1
 --let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
-set global binlog_alter_two_phase=Yes;
-set binlog_alter_two_phase=Yes;
+set global binlog_alter_two_phase = ON;
+set binlog_alter_two_phase = ON;
 
 --connection server_2
 stop slave;

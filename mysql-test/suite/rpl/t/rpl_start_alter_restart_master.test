@@ -60,7 +60,7 @@ show create table t3;
 --connection master
 SET GLOBAL debug_dbug= @old_debug_master;
 drop table t3;
---eval set global binlog_alter_two_phase = $binlog_alter_two_phase;
+--eval set global binlog_alter_two_phase = $binlog_alter_two_phase
 
 --sync_slave_with_master
 SET GLOBAL debug_dbug= @old_debug_slave;

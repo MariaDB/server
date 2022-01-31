@@ -19,8 +19,8 @@
 
 --connection server_1
 SET @save_binlog_alter_two_phase= @@GLOBAL.binlog_alter_two_phase;
-SET GLOBAL binlog_alter_two_phase=Yes;
-SET binlog_alter_two_phase=Yes;
+SET GLOBAL binlog_alter_two_phase = ON;
+SET binlog_alter_two_phase = ON;
 --echo # Create table and perform CA and RA
 CREATE TABLE t1( a INT, b INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1,1);
@@ -54,7 +54,7 @@ remove_file $MYSQLTEST_VARDIR/tmp/master_1.sql;
 
 --connection server_2
 SET @save_binlog_alter_two_phase= @@GLOBAL.binlog_alter_two_phase;
-SET GLOBAL binlog_alter_two_phase=Yes;
+SET GLOBAL binlog_alter_two_phase = ON;
 
 --connection server_3
 SET @save_gtid_strict_mode= @@GLOBAL.gtid_strict_mode;

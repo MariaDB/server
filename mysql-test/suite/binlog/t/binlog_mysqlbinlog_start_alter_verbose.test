@@ -17,8 +17,8 @@
 # Setup
 #---
 --let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
-set global binlog_alter_two_phase=YES;
-set binlog_alter_two_phase=YES;
+set global binlog_alter_two_phase = ON;
+set binlog_alter_two_phase = ON;
 
 RESET MASTER;
 create table myt (a int) engine=InnoDB;

@@ -106,7 +106,7 @@ slave-bin.000001	#	Gtid	1	#	GTID #-#-#
 slave-bin.000001	#	Query	1	#	use `test`; create table t3( a int primary key, b int) engine=innodb
 connection master;
 drop table t1,t2,t3;
-set global binlog_alter_two_phase = No;;
+set global binlog_alter_two_phase = 0;
 SET GLOBAL debug_dbug= @old_debug_master;
 set DEBUG_SYNC= 'RESET';
 connection slave;

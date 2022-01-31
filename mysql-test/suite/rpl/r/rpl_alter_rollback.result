@@ -5,8 +5,8 @@
 include/master-slave.inc
 [connection master]
 connection master;
-set global binlog_alter_two_phase=YES;
-set binlog_alter_two_phase=YES;
+set global binlog_alter_two_phase = ON;
+set binlog_alter_two_phase = ON;
 create table t1 (f1 int primary key) engine=InnoDB;
 create table t2 (f1 int primary key,
 constraint c1 foreign key (f1) references t1(f1),
@@ -50,5 +50,5 @@ connection master;
 drop table t2, t1;
 connection slave;
 connection master;
-set global binlog_alter_two_phase=No;;
+set global binlog_alter_two_phase=0;;
 include/rpl_end.inc

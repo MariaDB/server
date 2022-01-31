@@ -11,8 +11,8 @@
 
 --connection master
 --let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
-set global binlog_alter_two_phase=YES;
-set binlog_alter_two_phase=YES;
+set global binlog_alter_two_phase = ON;
+set binlog_alter_two_phase = ON;
 
 create table t1 (f1 int primary key) engine=InnoDB;
 --error ER_CANT_CREATE_TABLE

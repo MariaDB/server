@@ -15,8 +15,8 @@
 --source include/have_binlog_format_statement.inc
 
 --let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
-set global binlog_alter_two_phase=YES;
-set binlog_alter_two_phase=YES;
+set global binlog_alter_two_phase = ON;
+set binlog_alter_two_phase = ON;
 
 create table t1 (f1 int primary key) engine=InnoDB;
 create table t2 (f1 int primary key, constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
@@ -58,4 +58,4 @@ remove_file $MYSQLTEST_VARDIR/tmp/slave_2.sql;
 remove_file $MYSQLTEST_VARDIR/tmp/slave_3.sql;
 RESET MASTER;
 
---eval set global binlog_alter_two_phase=$binlog_alter_two_phase;
+--eval set global binlog_alter_two_phase=$binlog_alter_two_phase

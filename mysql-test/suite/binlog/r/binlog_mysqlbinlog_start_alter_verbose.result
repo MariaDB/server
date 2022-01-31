@@ -1,5 +1,5 @@
-set global binlog_alter_two_phase=YES;
-set binlog_alter_two_phase=YES;
+set global binlog_alter_two_phase = ON;
+set binlog_alter_two_phase = ON;
 RESET MASTER;
 create table myt (a int) engine=InnoDB;
 alter table myt add column (b int);
@@ -12,4 +12,4 @@ stmt
 ### alter table myt add column (b int)
 drop table raw_binlog_rows;
 drop table myt;
-set global binlog_alter_two_phase=No;
+set global binlog_alter_two_phase=0;

@@ -10,8 +10,8 @@
 --source include/have_debug.inc
 --connection master
 --let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
-set global binlog_alter_two_phase=Yes;
-set binlog_alter_two_phase=Yes;
+set global binlog_alter_two_phase = ON;
+set binlog_alter_two_phase = ON;
 --connection slave
 --let $gtid_strict_mode= `select @@gtid_strict_mode`
 --let $slave_parallel_threads= `select @@slave_parallel_threads`

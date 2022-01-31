@@ -1,7 +1,7 @@
 include/master-slave.inc
 [connection master]
 connection master;
-set binlog_alter_two_phase=YES;
+set binlog_alter_two_phase = ON;
 connection master;
 CREATE TABLE t1 (i int) engine=innodb;
 CREATE TABLE t2 (i int) engine=innodb;

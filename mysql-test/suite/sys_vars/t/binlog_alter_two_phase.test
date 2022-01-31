@@ -6,10 +6,10 @@
 --source include/not_embedded.inc
 
 --let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
-set binlog_alter_two_phase=NO;
+set binlog_alter_two_phase = OFF;
 select @@binlog_alter_two_phase;
 
-set binlog_alter_two_phase=Yes;
+set binlog_alter_two_phase = ON;
 select @@binlog_alter_two_phase;
 
 --echo # wrong value
@@ -37,16 +37,16 @@ select @@binlog_alter_two_phase;
 
 
 --echo #Global value
-set global binlog_alter_two_phase=NO;
+set global binlog_alter_two_phase = OFF;
 connect (con1,localhost,root,,);
 select @@binlog_alter_two_phase;
 disconnect con1;
 
 connection default;
-set global binlog_alter_two_phase=Yes;
+set global binlog_alter_two_phase = ON;
 connect (con1,localhost,root,,);
 select @@binlog_alter_two_phase;
 disconnect con1;
 
 connection default;
---eval set global binlog_alter_two_phase=$binlog_alter_two_phase;
+--eval set global binlog_alter_two_phase=$binlog_alter_two_phase
