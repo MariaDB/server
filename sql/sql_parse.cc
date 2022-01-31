@@ -1313,7 +1313,13 @@ bool do_command(THD *thd)
     DBUG_ASSERT(!thd->mdl_context.has_locks());
     DBUG_ASSERT(!thd->get_stmt_da()->is_set());
     /* We let COM_QUIT and COM_STMT_CLOSE to execute even if wsrep aborted. */
-    if (command != COM_STMT_CLOSE &&
+    if (command == COM_STMT_EXECUTE)
+    {
+      WSREP_DEBUG("PS BF aborted at do_command");
+      thd->wsrep_delayed_BF_abort= true;
+    }
+    if (command != COM_STMT_CLOSE   &&
+	command != COM_STMT_EXECUTE &&
         command != COM_QUIT)
     {
       my_error(ER_LOCK_DEADLOCK, MYF(0));
@@ -1384,6 +1390,17 @@ out:
   {
     /* there was a command to process, and before_command() has been called */
     wsrep_after_command_after_result(thd);
+  }
+
+  if (thd->wsrep_delayed_BF_abort)
+  {
+      my_error(ER_LOCK_DEADLOCK, MYF(0));
+      WSREP_DEBUG("Deadlock error for PS query: %s", thd->query());
+      thd->reset_killed();
+      thd->mysys_var->abort     = 0;
+      thd->wsrep_retry_counter  = 0;
+
+      thd->wsrep_delayed_BF_abort= false;
   }
 #endif /* WITH_WSREP */
   DBUG_RETURN(return_value);

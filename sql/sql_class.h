@@ -4897,6 +4897,10 @@ public:
   /* thread who has started kill for this THD protected by LOCK_thd_data*/
   my_thread_id              wsrep_aborter;
 
+  /* true if BF abort is observed in do_command() right after reading
+  client's packet, and if the client has sent PS execute command. */
+  bool                      wsrep_delayed_BF_abort;
+
   /*
     Transaction id:
     * m_wsrep_next_trx_id is assigned on the first query after
