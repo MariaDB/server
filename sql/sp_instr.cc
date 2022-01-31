@@ -748,15 +748,6 @@ sp_instr_set_trigger_field::print(String *str)
                                     QT_ITEM_ORIGINAL_FUNC_NULLIF));
 }
 
-/*
-  sp_instr_opt_meta
-*/
-
-uint sp_instr_opt_meta::get_cont_dest() const
-{
-  return m_cont_dest;
-}
-
 
 /*
  sp_instr_jump class functions

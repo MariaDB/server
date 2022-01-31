@@ -461,8 +461,6 @@ public:
   virtual void set_destination(uint old_dest, uint new_dest)
     = 0;
 
-  virtual uint get_cont_dest() const;
-
 protected:
 
   sp_instr *m_optdest;          ///< Used during optimization
@@ -471,7 +469,7 @@ protected:
 }; // class sp_instr_opt_meta : public sp_instr
 
 
-class sp_instr_jump : public sp_instr_opt_meta, public sp_instr
+class sp_instr_jump : public sp_instr, public sp_instr_opt_meta
 {
   sp_instr_jump(const sp_instr_jump &); /**< Prevent use of these */
   void operator=(sp_instr_jump &);
@@ -479,11 +477,11 @@ class sp_instr_jump : public sp_instr_opt_meta, public sp_instr
 public:
 
   sp_instr_jump(uint ip, sp_pcontext *ctx)
-    : sp_instr_opt_meta(0), sp_instr(ip, ctx)
+    : sp_instr(ip, ctx), sp_instr_opt_meta(0)
   {}
 
   sp_instr_jump(uint ip, sp_pcontext *ctx, uint dest)
-    : sp_instr_opt_meta(dest), sp_instr(ip, ctx)
+    : sp_instr(ip, ctx), sp_instr_opt_meta(dest)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -501,6 +499,11 @@ public:
     /* Calling backpatch twice is a logic flaw in jump resolution. */
     DBUG_ASSERT(m_dest == 0);
     m_dest= dest;
+  }
+
+  uint get_cont_dest() const override
+  {
+    return m_cont_dest;
   }
 
   /**
@@ -552,6 +555,11 @@ public:
   }
 
   void opt_move(uint dst, List<sp_instr_opt_meta> *ibp) override;
+
+  uint get_cont_dest() const override
+  {
+    return m_cont_dest;
+  }
 
   void set_destination(uint old_dest, uint new_dest) override
   {
@@ -1097,6 +1105,11 @@ public:
   uint opt_mark(sp_head *sp, List<sp_instr> *leads) override;
 
   void opt_move(uint dst, List<sp_instr_opt_meta> *ibp) override;
+
+  uint get_cont_dest() const override
+  {
+    return m_cont_dest;
+  }
 
   void set_destination(uint old_dest, uint new_dest) override
   {
