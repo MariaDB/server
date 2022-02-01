@@ -1,5 +1,5 @@
-/* Copyright (C) 2008-2019 Kentoku Shiba
-   Copyright (C) 2019, 2020, MariaDB Corporation.
+/* Copyright (C) 2008, 2019, Kentoku Shiba
+   Copyright (C) 2019, 2022, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -1814,12 +1814,6 @@ int spider_db_append_key_where_internal(
 
           if (use_key == start_key)
           {
-#ifdef SPIDER_HANDLER_SUPPORT_MULTIPLE_KEY_PARTS
-            if (spider_dbton[dbton_id].db_util->
-              append_column_value(spider, str_part, field, ptr,
-                share->access_charset))
-              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-#else
             if (str_part->length() == SPIDER_SQL_OPEN_PAREN_LEN)
             {
               if (str->reserve(SPIDER_SQL_EQUAL_LEN))
@@ -1830,7 +1824,6 @@ int spider_db_append_key_where_internal(
                   share->access_charset))
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
             }
-#endif
           }
         }
       } else {
@@ -1870,18 +1863,6 @@ int spider_db_append_key_where_internal(
 
               if (use_key == start_key)
               {
-#ifdef SPIDER_HANDLER_SUPPORT_MULTIPLE_KEY_PARTS
-                if (tgt_key_part_map == 1 || !end_key_part_map)
-                {
-                  if (str->reserve(SPIDER_SQL_EQUAL_LEN))
-                    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-                  str->q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
-                }
-                if (spider_dbton[dbton_id].db_util->
-                  append_column_value(spider, str_part, field, ptr,
-                    share->access_charset))
-                  DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-#else
                 if (str_part->length() == SPIDER_SQL_OPEN_PAREN_LEN)
                 {
                   if (str->reserve(SPIDER_SQL_EQUAL_LEN))
@@ -1892,7 +1873,6 @@ int spider_db_append_key_where_internal(
                       share->access_charset))
                     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
                 }
-#endif
               }
             }
             break;
@@ -1942,18 +1922,6 @@ int spider_db_append_key_where_internal(
 
               if (use_key == start_key)
               {
-#ifdef SPIDER_HANDLER_SUPPORT_MULTIPLE_KEY_PARTS
-                if (tgt_key_part_map == 1 || !end_key_part_map)
-                {
-                  if (str->reserve(SPIDER_SQL_GT_LEN))
-                    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-                  str->q_append(SPIDER_SQL_GT_STR, SPIDER_SQL_GT_LEN);
-                }
-                if (spider_dbton[dbton_id].db_util->
-                  append_column_value(spider, str_part, field, ptr,
-                    share->access_charset))
-                  DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-#else
                 if (str_part->length() == SPIDER_SQL_OPEN_PAREN_LEN)
                 {
                   if (str->reserve(SPIDER_SQL_GT_LEN))
@@ -1964,7 +1932,6 @@ int spider_db_append_key_where_internal(
                       share->access_charset))
                     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
                 }
-#endif
               }
             }
             break;
@@ -2015,18 +1982,6 @@ int spider_db_append_key_where_internal(
 
               if (use_key == start_key)
               {
-#ifdef SPIDER_HANDLER_SUPPORT_MULTIPLE_KEY_PARTS
-                if (tgt_key_part_map == 1 || !end_key_part_map)
-                {
-                  if (str->reserve(SPIDER_SQL_LT_LEN))
-                    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-                  str->q_append(SPIDER_SQL_LT_STR, SPIDER_SQL_LT_LEN);
-                }
-                if (spider_dbton[dbton_id].db_util->
-                  append_column_value(spider, str_part, field, ptr,
-                    share->access_charset))
-                  DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-#else
                 if (str_part->length() == SPIDER_SQL_OPEN_PAREN_LEN)
                 {
                   if (str->reserve(SPIDER_SQL_LT_LEN))
@@ -2037,7 +1992,6 @@ int spider_db_append_key_where_internal(
                       share->access_charset))
                     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
                 }
-#endif
               }
             }
             break;
@@ -2088,18 +2042,6 @@ int spider_db_append_key_where_internal(
 
               if (use_key == start_key)
               {
-#ifdef SPIDER_HANDLER_SUPPORT_MULTIPLE_KEY_PARTS
-                if (tgt_key_part_map == 1 || !end_key_part_map)
-                {
-                  if (str->reserve(SPIDER_SQL_LTEQUAL_LEN))
-                    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-                  str->q_append(SPIDER_SQL_LTEQUAL_STR, SPIDER_SQL_LTEQUAL_LEN);
-                }
-                if (spider_dbton[dbton_id].db_util->
-                  append_column_value(spider, str_part, field, ptr,
-                    share->access_charset))
-                  DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-#else
                 if (str_part->length() == SPIDER_SQL_OPEN_PAREN_LEN)
                 {
                   if (str->reserve(SPIDER_SQL_LTEQUAL_LEN))
@@ -2110,7 +2052,6 @@ int spider_db_append_key_where_internal(
                       share->access_charset))
                     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
                 }
-#endif
               }
             }
             break;
@@ -2242,18 +2183,6 @@ int spider_db_append_key_where_internal(
 
               if (use_key == start_key)
               {
-#ifdef SPIDER_HANDLER_SUPPORT_MULTIPLE_KEY_PARTS
-                if (tgt_key_part_map == 1 || !end_key_part_map)
-                {
-                  if (str->reserve(SPIDER_SQL_GTEQUAL_LEN))
-                    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-                  str->q_append(SPIDER_SQL_GTEQUAL_STR, SPIDER_SQL_GTEQUAL_LEN);
-                }
-                if (spider_dbton[dbton_id].db_util->
-                  append_column_value(spider, str_part, field, ptr,
-                    share->access_charset))
-                  DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-#else
                 if (str_part->length() == SPIDER_SQL_OPEN_PAREN_LEN)
                 {
                   if (str->reserve(SPIDER_SQL_GTEQUAL_LEN))
@@ -2264,7 +2193,6 @@ int spider_db_append_key_where_internal(
                       share->access_charset))
                     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
                 }
-#endif
               }
             }
             break;
@@ -2283,14 +2211,6 @@ int spider_db_append_key_where_internal(
         str_part2->q_append(SPIDER_SQL_AND_STR,
           SPIDER_SQL_AND_LEN);
 
-#ifdef SPIDER_HANDLER_SUPPORT_MULTIPLE_KEY_PARTS
-        if (use_key == start_key)
-        {
-          if (str_part->reserve(SPIDER_SQL_COMMA_LEN))
-            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          str_part->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
-        }
-#endif
       }
     }
 
@@ -2342,12 +2262,6 @@ int spider_db_append_key_where_internal(
 
             if (use_key == end_key)
             {
-#ifdef SPIDER_HANDLER_SUPPORT_MULTIPLE_KEY_PARTS
-              if (spider_dbton[dbton_id].db_util->
-                append_column_value(spider, str_part, field, ptr,
-                  share->access_charset))
-                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-#else
               if (str_part->length() == SPIDER_SQL_OPEN_PAREN_LEN)
               {
                 if (str->reserve(SPIDER_SQL_EQUAL_LEN))
@@ -2358,7 +2272,6 @@ int spider_db_append_key_where_internal(
                     share->access_charset))
                   DBUG_RETURN(HA_ERR_OUT_OF_MEM);
               }
-#endif
             }
           }
         } else {
@@ -2410,18 +2323,6 @@ int spider_db_append_key_where_internal(
 
                 if (use_key == end_key)
                 {
-#ifdef SPIDER_HANDLER_SUPPORT_MULTIPLE_KEY_PARTS
-                  if (tgt_key_part_map == 1 || !start_key_part_map)
-                  {
-                    if (str->reserve(SPIDER_SQL_LT_LEN))
-                      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-                    str->q_append(SPIDER_SQL_LT_STR, SPIDER_SQL_LT_LEN);
-                  }
-                  if (spider_dbton[dbton_id].db_util->
-                    append_column_value(spider, str_part, field, ptr,
-                      share->access_charset))
-                    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-#else
                   if (str_part->length() == SPIDER_SQL_OPEN_PAREN_LEN)
                   {
                     if (str->reserve(SPIDER_SQL_LT_LEN))
@@ -2432,7 +2333,6 @@ int spider_db_append_key_where_internal(
                         share->access_charset))
                       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
                   }
-#endif
                 }
               }
               break;
@@ -2474,18 +2374,6 @@ int spider_db_append_key_where_internal(
 
                 if (use_key == end_key)
                 {
-#ifdef SPIDER_HANDLER_SUPPORT_MULTIPLE_KEY_PARTS
-                  if (tgt_key_part_map == 1 || !start_key_part_map)
-                  {
-                    if (str->reserve(SPIDER_SQL_LTEQUAL_LEN))
-                      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-                    str->q_append(SPIDER_SQL_LTEQUAL_STR, SPIDER_SQL_LTEQUAL_LEN);
-                  }
-                  if (spider_dbton[dbton_id].db_util->
-                    append_column_value(spider, str_part, field, ptr,
-                      share->access_charset))
-                    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-#else
                   if (str_part->length() == SPIDER_SQL_OPEN_PAREN_LEN)
                   {
                     if (str->reserve(SPIDER_SQL_LTEQUAL_LEN))
@@ -2496,7 +2384,6 @@ int spider_db_append_key_where_internal(
                         share->access_charset))
                       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
                   }
-#endif
                 }
               }
               break;
@@ -2514,14 +2401,6 @@ int spider_db_append_key_where_internal(
           str_part2->q_append(SPIDER_SQL_AND_STR,
             SPIDER_SQL_AND_LEN);
 
-#ifdef SPIDER_HANDLER_SUPPORT_MULTIPLE_KEY_PARTS
-          if (use_key == end_key)
-          {
-            if (str_part->reserve(SPIDER_SQL_COMMA_LEN))
-              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-            str_part->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
-          }
-#endif
         }
       }
       if (use_both && (!start_key_part_map || !end_key_part_map))
