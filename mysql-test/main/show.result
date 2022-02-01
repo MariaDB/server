@@ -40,5 +40,16 @@ nm	varchar(32)	YES		NULL
 a	int(11)	YES		NULL	
 drop table t1;
 #
+# MDEV-4621 select returns null for information_schema.statistics.collation field
+#
+create table t1 (f varchar(64), key(f));
+select index_name, column_name, collation, cardinality from information_schema.STATISTICS where table_schema='test' and table_name='t1';
+index_name	column_name	collation	cardinality
+f	f	A	NULL
+select index_name, column_name, collation from information_schema.STATISTICS where table_schema='test' and table_name='t1';
+index_name	column_name	collation
+f	f	A
+drop table t1;
+#
 # End of 10.2 tests
 #

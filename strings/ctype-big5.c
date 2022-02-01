@@ -52,7 +52,7 @@ const char charset_name_big5[]= "big5";
 #define IS_MB1_CHAR(x)        ((uchar) (x) < 0x80)
 #define IS_MB2_CHAR(x,y)      (isbig5head(x) && isbig5tail(y))
 #define DEFINE_ASIAN_ROUTINES
-#include "ctype-mb.ic"
+#include "ctype-mb.inl"
 
 
 static const uchar ctype_big5[257] =
@@ -6683,13 +6683,13 @@ my_mb_wc_big5(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_MB2(x,y)      (big5code(x, y))
 #define WEIGHT_MB2_FRM(x,y)  (big5strokexfrm((uint16) WEIGHT_MB2(x, y)))
 #define DEFINE_STRNXFRM
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _big5_bin
 #define WEIGHT_MB1(x)        ((uchar) (x))
 #define WEIGHT_MB2(x,y)      (big5code(x, y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -6698,14 +6698,14 @@ my_mb_wc_big5(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_MB2(x,y)      (big5code(x, y))
 #define WEIGHT_MB2_FRM(x,y)  (big5strokexfrm((uint16) WEIGHT_MB2(x, y)))
 #define DEFINE_STRNXFRM
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _big5_nopad_bin
 #define WEIGHT_MB1(x)        ((uchar) (x))
 #define WEIGHT_MB2(x,y)      (big5code(x, y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 static MY_COLLATION_HANDLER my_collation_handler_big5_chinese_ci=
@@ -6713,6 +6713,7 @@ static MY_COLLATION_HANDLER my_collation_handler_big5_chinese_ci=
   NULL,			/* init */
   my_strnncoll_big5_chinese_ci,
   my_strnncollsp_big5_chinese_ci,
+  my_strnncollsp_nchars_big5_chinese_ci,
   my_strnxfrm_big5_chinese_ci,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -6729,6 +6730,7 @@ static MY_COLLATION_HANDLER my_collation_handler_big5_bin=
   NULL,	                /* init */
   my_strnncoll_big5_bin,
   my_strnncollsp_big5_bin,
+  my_strnncollsp_nchars_big5_bin,
   my_strnxfrm_mb,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -6745,6 +6747,7 @@ static MY_COLLATION_HANDLER my_collation_handler_big5_chinese_nopad_ci=
   NULL,			/* init */
   my_strnncoll_big5_chinese_ci,
   my_strnncollsp_big5_chinese_nopad_ci,
+  my_strnncollsp_nchars_big5_chinese_nopad_ci,
   my_strnxfrm_big5_chinese_nopad_ci,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -6761,6 +6764,7 @@ static MY_COLLATION_HANDLER my_collation_handler_big5_nopad_bin=
   NULL,	                /* init */
   my_strnncoll_big5_bin,
   my_strnncollsp_big5_nopad_bin,
+  my_strnncollsp_nchars_big5_nopad_bin,
   my_strnxfrm_mb_nopad,
   my_strnxfrmlen_simple,
   my_like_range_mb,

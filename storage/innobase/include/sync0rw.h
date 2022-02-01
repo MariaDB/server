@@ -833,6 +833,6 @@ pfs_rw_lock_free_func(
 	rw_lock_t*	lock);	/*!< in: rw-lock */
 #endif  /* UNIV_PFS_RWLOCK */
 
-#include "sync0rw.ic"
+#include "sync0rw.inl"
 
 #endif /* sync0rw.h */

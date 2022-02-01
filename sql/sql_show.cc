@@ -9201,7 +9201,7 @@ ST_FIELD_INFO stat_fields_info[]=
   Column("INDEX_NAME",    Name(),      NOT_NULL, "Key_name",    OPEN_FRM_ONLY),
   Column("SEQ_IN_INDEX",  SLonglong(2),NOT_NULL, "Seq_in_index",OPEN_FRM_ONLY),
   Column("COLUMN_NAME",   Name(),      NOT_NULL, "Column_name", OPEN_FRM_ONLY),
-  Column("COLLATION",     Varchar(1),  NULLABLE, "Collation",   OPEN_FRM_ONLY),
+  Column("COLLATION",     Varchar(1),  NULLABLE, "Collation",   OPEN_FULL_TABLE),
   Column("CARDINALITY",   SLonglong(), NULLABLE, "Cardinality", OPEN_FULL_TABLE),
   Column("SUB_PART",      SLonglong(3),NULLABLE, "Sub_part",    OPEN_FRM_ONLY),
   Column("PACKED",        Varchar(10), NULLABLE, "Packed",      OPEN_FRM_ONLY),

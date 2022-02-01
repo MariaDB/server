@@ -623,9 +623,11 @@ static int init_for_index_scan(TABLE* table, const uchar* key,
  */
 static int end_index_scan(TABLE* table) {
   int error;
-  if ((error= table->file->ha_index_end())) {
-    WSREP_ERROR("Failed to end scan: %d", error);
-    return 1;
+  if (table->file->inited) {
+    if ((error= table->file->ha_index_end())) {
+      WSREP_ERROR("Failed to end scan: %d", error);
+      return 1;
+    }
   }
   return 0;
 }

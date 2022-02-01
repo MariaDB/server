@@ -401,22 +401,3 @@ buf_page_get_frame(
 		return ((buf_block_t*) bpage)->frame;
 	}
 }
-
-/** Calculate aligned buffer pool size based on srv_buf_pool_chunk_unit,
-if needed.
-@param[in]	size	size in bytes
-@return	aligned size */
-UNIV_INLINE
-ulint
-buf_pool_size_align(
-	ulint	size)
-{
-	const ulong	m = srv_buf_pool_chunk_unit;
-	size = ut_max(size, srv_buf_pool_min_size);
-
-	if (size % m == 0) {
-		return(size);
-	} else {
-		return (ulint)((size / m + 1) * m);
-	}
-}

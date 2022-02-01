@@ -88,5 +88,4 @@ bool buf_buddy_realloc(void* buf, ulint size);
 
 /** Combine all pairs of free buddies. */
 void buf_buddy_condense_free();
-
 #endif /* buf0buddy_h */

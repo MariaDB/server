@@ -1,0 +1,28 @@
+###############################################################################
+# Bug#19928622: ASSERTION `! IS_SET()' FAILED. | ABORT IN
+# DIAGNOSTICS_AREA::SET_OK_STATUS
+#
+# MDEV-27536 Invalid BINLOG_BASE64_EVENT and assertion Diagnostics_area:: !is_set()
+#
+# Test:
+# =====
+# Begin an XA transaction and execte a DML statement so that XA state becomes
+# XA_ACTIVE. Execute the BINLOG command it should not cause any assert.
+# Execution should be successful.
+###############################################################################
+--source include/have_log_bin.inc
+--source include/have_innodb.inc
+
+--connection default
+CREATE TABLE t1(f1 int) ENGINE=Innodb;
+
+XA START 'xa';
+INSERT INTO t1 VALUES(10);
+BINLOG '
+SOgWTg8BAAAAbgAAAHIAAAAAAAQANS42LjMtbTUtZGVidWctbG9nAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAAAAAAAAAABI6BZOEzgNAAgAEgAEBAQEEgAAVgAEGggAAAAICAgCAAAAAAVAYI8=';
+XA END 'xa';
+XA PREPARE 'xa';
+XA ROLLBACK 'xa';
+
+DROP TABLE t1;

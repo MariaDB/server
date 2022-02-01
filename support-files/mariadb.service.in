@@ -60,6 +60,8 @@ PrivateDevices=false
 # Prevent writes to /usr, /boot, and /etc
 ProtectSystem=full
 
+@SYSTEMD_READWRITEPATH@
+
 # Doesn't yet work properly with SELinux enabled
 # NoNewPrivileges=true
 

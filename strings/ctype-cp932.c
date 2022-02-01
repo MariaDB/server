@@ -189,7 +189,7 @@ static const uchar sort_order_cp932[]=
 #define IS_MB1_CHAR(x)        ((uchar) (x) < 0x80 || iscp932kata(x))
 #define IS_MB2_CHAR(x,y)      (iscp932head(x) && iscp932tail(y))
 #define DEFINE_ASIAN_ROUTINES
-#include "ctype-mb.ic"
+#include "ctype-mb.inl"
 
 
 #define cp932code(c,d)	((((uint) (uchar)(c)) << 8) | (uint) (uchar) (d))
@@ -34637,14 +34637,14 @@ size_t my_numcells_cp932(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_PAD_SPACE     (256 * (int) ' ')
 #define WEIGHT_MB1(x)        (256 * (int) sort_order_cp932[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (cp932code(x, y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _cp932_bin
 #define WEIGHT_PAD_SPACE     (256 * (int) ' ')
 #define WEIGHT_MB1(x)        (256 * (int) (uchar) (x))
 #define WEIGHT_MB2(x,y)      (cp932code(x, y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -34652,7 +34652,7 @@ size_t my_numcells_cp932(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_PAD_SPACE     (256 * (int) ' ')
 #define WEIGHT_MB1(x)        (256 * (int) sort_order_cp932[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (cp932code(x, y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -34660,7 +34660,7 @@ size_t my_numcells_cp932(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_PAD_SPACE     (256 * (int) ' ')
 #define WEIGHT_MB1(x)        (256 * (int) (uchar) (x))
 #define WEIGHT_MB2(x,y)      (cp932code(x, y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 static MY_COLLATION_HANDLER my_collation_handler_cp932_japanese_ci=
@@ -34668,6 +34668,7 @@ static MY_COLLATION_HANDLER my_collation_handler_cp932_japanese_ci=
   NULL,                  /* init */
   my_strnncoll_cp932_japanese_ci,
   my_strnncollsp_cp932_japanese_ci,
+  my_strnncollsp_nchars_cp932_japanese_ci,
   my_strnxfrm_mb,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -34684,6 +34685,7 @@ static MY_COLLATION_HANDLER my_collation_handler_cp932_bin=
   NULL,	                /* init */
   my_strnncoll_cp932_bin,
   my_strnncollsp_cp932_bin,
+  my_strnncollsp_nchars_cp932_bin,
   my_strnxfrm_mb,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -34700,6 +34702,7 @@ static MY_COLLATION_HANDLER my_collation_handler_cp932_japanese_nopad_ci=
   NULL,                  /* init */
   my_strnncoll_cp932_japanese_ci,
   my_strnncollsp_cp932_japanese_nopad_ci,
+  my_strnncollsp_nchars_cp932_japanese_nopad_ci,
   my_strnxfrm_mb_nopad,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -34716,6 +34719,7 @@ static MY_COLLATION_HANDLER my_collation_handler_cp932_nopad_bin=
   NULL,	                /* init */
   my_strnncoll_cp932_bin,
   my_strnncollsp_cp932_nopad_bin,
+  my_strnncollsp_nchars_cp932_nopad_bin,
   my_strnxfrm_mb_nopad,
   my_strnxfrmlen_simple,
   my_like_range_mb,

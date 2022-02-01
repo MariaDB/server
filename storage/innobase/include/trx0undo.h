@@ -459,7 +459,7 @@ which purge would not result in removing delete-marked records. */
 					with the XA XID */
 /* @} */
 
-#include "trx0undo.ic"
+#include "trx0undo.inl"
 #endif /* !UNIV_INNOCHECKSUM */
 
 #endif

@@ -601,6 +601,6 @@ static const byte REC_INFO_METADATA_ADD
 static const byte REC_INFO_METADATA_ALTER
 	= REC_INFO_METADATA_ADD | REC_INFO_DELETED_FLAG;
 
-#include "data0type.ic"
+#include "data0type.inl"
 
 #endif

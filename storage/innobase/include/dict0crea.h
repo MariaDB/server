@@ -319,6 +319,6 @@ dict_get_v_col_pos(
 #define	INDEX_CREATE_INDEX_TREE	3
 #define	INDEX_ADD_TO_CACHE	4
 
-#include "dict0crea.ic"
+#include "dict0crea.inl"
 
 #endif

@@ -15,4 +15,4 @@
 
 #define NUM 1
 
-#include "my_sha.ic"
+#include "my_sha.inl"

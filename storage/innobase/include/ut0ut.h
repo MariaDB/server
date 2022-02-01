@@ -447,7 +447,7 @@ private:
 
 } // namespace ib
 
-#include "ut0ut.ic"
+#include "ut0ut.inl"
 
 #endif
 

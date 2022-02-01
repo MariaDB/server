@@ -40,7 +40,7 @@
 #include "ha_partition.h"
 
 
-partition_info *partition_info::get_clone(THD *thd)
+partition_info *partition_info::get_clone(THD *thd, bool empty_data_and_index_file)
 {
   MEM_ROOT *mem_root= thd->mem_root;
   DBUG_ENTER("partition_info::get_clone");
@@ -60,21 +60,22 @@ partition_info *partition_info::get_clone(THD *thd)
   {
     List_iterator<partition_element> subpart_it(part->subpartitions);
     partition_element *subpart;
-    partition_element *part_clone= new (mem_root) partition_element();
+    partition_element *part_clone= new (mem_root) partition_element(*part);
     if (!part_clone)
       DBUG_RETURN(NULL);
-
-    *part_clone= *part;
     part_clone->subpartitions.empty();
     while ((subpart= (subpart_it++)))
     {
-      partition_element *subpart_clone= new (mem_root) partition_element();
+      partition_element *subpart_clone= new (mem_root) partition_element(*subpart);
       if (!subpart_clone)
         DBUG_RETURN(NULL);
-
-      *subpart_clone= *subpart;
+      if (empty_data_and_index_file)
+        subpart_clone->data_file_name= subpart_clone->index_file_name= NULL;
       part_clone->subpartitions.push_back(subpart_clone, mem_root);
     }
+
+    if (empty_data_and_index_file)
+      part_clone->data_file_name= part_clone->index_file_name= NULL;
     clone->partitions.push_back(part_clone, mem_root);
     part_clone->list_val_list.empty();
     List_iterator<part_elem_value> list_val_it(part->list_val_list);
@@ -816,8 +817,13 @@ bool partition_info::has_unique_name(partition_element *element)
     vers_info->interval   Limit by fixed time interval
     vers_info->hist_part  (out) Working history partition
 */
-void partition_info::vers_set_hist_part(THD *thd)
+int partition_info::vers_set_hist_part(THD *thd)
 {
+  if (table->pos_in_table_list &&
+      table->pos_in_table_list->partition_names)
+  {
+    return HA_ERR_PARTITION_LIST;
+  }
   if (vers_info->limit)
   {
     ha_partition *hp= (ha_partition*)(table->file);
@@ -825,9 +831,11 @@ void partition_info::vers_set_hist_part(THD *thd)
     List_iterator<partition_element> it(partitions);
     while (next != vers_info->hist_part)
       next= it++;
+    DBUG_ASSERT(bitmap_is_set(&read_partitions, next->id));
     ha_rows records= hp->part_records(next);
     while ((next= it++) != vers_info->now_part)
     {
+      DBUG_ASSERT(bitmap_is_set(&read_partitions, next->id));
       ha_rows next_records= hp->part_records(next);
       if (next_records == 0)
         break;
@@ -845,13 +853,13 @@ void partition_info::vers_set_hist_part(THD *thd)
       else
         vers_info->hist_part= next;
     }
-    return;
+    return 0;
   }
 
   if (vers_info->interval.is_set())
   {
     if (vers_info->hist_part->range_value > thd->query_start())
-      return;
+      return 0;
 
     partition_element *next= NULL;
     List_iterator<partition_element> it(partitions);
@@ -862,9 +870,10 @@ void partition_info::vers_set_hist_part(THD *thd)
     {
       vers_info->hist_part= next;
       if (next->range_value > thd->query_start())
-        return;
+        return 0;
     }
   }
+  return 0;
 }
 
 

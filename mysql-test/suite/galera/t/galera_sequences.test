@@ -1,0 +1,46 @@
+--source include/galera_cluster.inc
+
+#
+# MDEV-19353 : Alter Sequence do not replicate to another nodes with in Galera Cluster
+#
+
+--connection node_1
+CREATE SEQUENCE `seq` start with 1 minvalue 1 maxvalue 1000000 increment by 0 cache 1000 nocycle ENGINE=InnoDB;
+SHOW CREATE SEQUENCE seq;
+
+--connection node_2
+SHOW CREATE SEQUENCE seq;
+
+--connection node_1
+ALTER SEQUENCE seq MAXVALUE = 10000;
+SHOW CREATE SEQUENCE seq;
+
+--connection node_2
+SHOW CREATE SEQUENCE seq;
+
+--connection node_1
+DROP SEQUENCE seq;
+--error ER_NO_SUCH_TABLE
+SHOW CREATE SEQUENCE seq;
+
+--connection node_2
+--error ER_NO_SUCH_TABLE
+SHOW CREATE SEQUENCE seq;
+
+#
+# MDEV-18848 : Galera: 10.4 node crashed with Assertion `client_state.transaction().active()` after altering SEQUENCE table's engine to myisam and back to innodb
+#
+--connection node_1
+CREATE SEQUENCE Seq1_1     START WITH 1     INCREMENT BY 1;
+select NEXT VALUE FOR Seq1_1;
+alter table Seq1_1 engine=myisam;
+select NEXT VALUE FOR Seq1_1;
+alter table Seq1_1 engine=innodb;
+select NEXT VALUE FOR Seq1_1;
+
+--connection node_2
+SHOW CREATE SEQUENCE Seq1_1;
+select NEXT VALUE FOR Seq1_1;
+
+--connection node_1
+DROP SEQUENCE Seq1_1;

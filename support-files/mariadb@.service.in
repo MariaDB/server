@@ -190,6 +190,8 @@ PrivateDevices=false
 # Prevent writes to /usr, /boot, and /etc
 ProtectSystem=full
 
+@SYSTEMD_READWRITEPATH@
+
 # Requires kernel 4.14 or later and SELinux transition rule for mysqld_t
 # (https://github.com/systemd/systemd/issues/3845)
 # NoNewPrivileges=true

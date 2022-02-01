@@ -1,7 +1,7 @@
---- suite/sys_vars/r/sysvars_server_embedded.result	2021-02-02 14:07:21.616784062 +0200
-+++ suite/sys_vars/r/sysvars_server_embedded,32bit.reject	2021-02-02 18:56:53.727764717 +0200
-@@ -35,7 +35,7 @@
- COMMAND_LINE_ARGUMENT	REQUIRED
+--- ../../mysql-test/suite/sys_vars/r/sysvars_server_embedded.result	2022-01-27 20:42:19.039084441 +0200
++++ ../../mysql-test/suite/sys_vars/r/sysvars_server_embedded,32bit.result~	2022-01-28 16:12:40.038627481 +0200
+@@ -14,7 +14,7 @@
+ order by variable_name;
  VARIABLE_NAME	ARIA_BLOCK_SIZE
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
@@ -782,7 +782,6 @@
  VARIABLE_COMMENT	Size of the statement digest. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
  NUMERIC_MAX_VALUE	1048576
-@@ -2345,7 +2345,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	PERFORMANCE_SCHEMA_EVENTS_STAGES_HISTORY_LONG_SIZE
  VARIABLE_SCOPE	GLOBAL

@@ -8863,6 +8863,14 @@ func_exit:
 
 			row_mysql_unlock_data_dictionary(prebuilt->trx);
 		}
+
+		if (ctx->add_vcol) {
+			for (ulint i = 0; i < ctx->num_to_add_vcol; i++) {
+				ctx->add_vcol[i].~dict_v_col_t();
+			}
+			ctx->num_to_add_vcol = 0;
+			ctx->add_vcol = nullptr;
+		}
 	}
 
 	/* Reset dict_col_t::ord_part for those columns fail to be indexed,

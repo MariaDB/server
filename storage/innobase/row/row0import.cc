@@ -1362,15 +1362,7 @@ row_import::match_schema(
 {
 	/* Do some simple checks. */
 
-	if (m_table->n_cols != m_n_cols) {
-		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
-			"Number of columns don't match, table has %u "
-			"columns but the tablespace meta-data file has "
-			ULINTPF " columns",
-			m_table->n_cols, m_n_cols);
-
-		return(DB_ERROR);
-	} else if (UT_LIST_GET_LEN(m_table->indexes) != m_n_indexes) {
+	if (UT_LIST_GET_LEN(m_table->indexes) != m_n_indexes) {
 
 		/* If the number of indexes don't match then it is better
 		to abort the IMPORT. It is easy for the user to create a
@@ -3274,7 +3266,10 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
     }
 
     mem_heap_t *heap= NULL;
-    SCOPE_EXIT([&heap]() { mem_heap_free(heap); });
+    SCOPE_EXIT([&heap]() {
+      if (heap)
+        mem_heap_free(heap);
+    });
 
     while (btr_page_get_level(page.get()) != 0)
     {

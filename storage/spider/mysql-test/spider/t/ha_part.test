@@ -982,6 +982,13 @@ if ($HAVE_PARTITION)
   }
 }
 
+--connection master_1
+ 
+CREATE TABLE t (c INT) PARTITION BY LIST COLUMNS (c) (PARTITION p DEFAULT ENGINE=SPIDER);
+SHOW FIELDS FROM t;
+SHOW FIELDS FROM t;
+DROP TABLE t;
+
 --echo
 --echo deinit
 --disable_warnings

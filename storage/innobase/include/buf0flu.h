@@ -145,6 +145,6 @@ void buf_flush_sync_batch(lsn_t lsn);
 NOTE: The calling thread is not allowed to hold any buffer page latches! */
 void buf_flush_sync();
 
-#include "buf0flu.ic"
+#include "buf0flu.inl"
 
 #endif

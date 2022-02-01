@@ -6792,49 +6792,6 @@ sum(z)
 DROP TABLE t1;
 DROP VIEW v1;
 #
-# MDEV-24454: Crash at change_item_tree
-#
-CREATE TABLE t1(f0 INT);
-CREATE VIEW v1 AS
-SELECT
-f0 AS f1
-FROM t1;
-CREATE VIEW v2 AS
-SELECT
-(SELECT GROUP_CONCAT(v1.f1 SEPARATOR ', ')
-FROM v1 n) AS f2,
-GROUP_CONCAT('' SEPARATOR ', ') AS f3
-FROM v1;
-CREATE VIEW v3 AS
-SELECT 1 as f4 FROM v2;
-CREATE PROCEDURE p1()
-SELECT * FROM v3;
-CALL p1();
-f4
-1
-CALL p1();
-f4
-1
-drop procedure p1;
-drop view v1,v2,v3;
-drop table t1;
-#
-# MDEV-25631: Crash in st_select_lex::mark_as_dependent with
-# VIEW, aggregate and subquery
-#
-CREATE TABLE t1 (i1 int);
-insert into t1 values (1),(2),(3);
-CREATE VIEW v1 AS
-SELECT t1.i1 FROM (t1 a JOIN t1 ON (t1.i1 = (SELECT t1.i1 FROM t1 b)));
-SELECT 1 FROM (SELECT count(((SELECT i1 FROM v1))) FROM v1) dt ;
-ERROR 21000: Subquery returns more than 1 row
-delete from t1 where i1 > 1;
-SELECT 1 FROM (SELECT count(((SELECT i1 FROM v1))) FROM v1) dt ;
-1
-1
-drop view v1;
-drop table t1;
-#
 # MDEV-26299: Some views force server (and mysqldump) to generate
 # invalid SQL for their definitions
 #
@@ -6845,6 +6802,24 @@ select * from
 drop view v1;
 CREATE VIEW v1 AS select `t1`.`12345678901234567890123456789012345678901234567890123456789012345` AS `Name_exp_1` from (select '12345678901234567890123456789012345678901234567890123456789012345') `t1`;
 drop view v1;
+#
+# MDEV-25631: view with outer reference in select used
+#             as argument of set function
+#
+create table t1 (c int);
+insert into t1 values (1);
+create view v1 as select c from t1 where (select t1.c from t1 t) = 1;
+select * from (select sum((select * from v1)) as r) dt;
+r
+1
+with cte as (select c from t1 where (select t1.c from t1 t) = 1)
+select * from (select sum((select * from cte)) as r) dt1
+union
+select * from (select sum((select * from cte)) as r) dt2;
+r
+1
+drop view v1;
+drop table t1;
 #
 # End of 10.2 tests
 #

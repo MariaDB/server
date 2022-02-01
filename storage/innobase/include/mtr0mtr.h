@@ -694,6 +694,6 @@ private:
   range_set *m_freed_pages= nullptr;
 };
 
-#include "mtr0mtr.ic"
+#include "mtr0mtr.inl"
 
 #endif /* mtr0mtr_h */

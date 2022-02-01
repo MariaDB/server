@@ -124,6 +124,6 @@ sync_array_get_nth_cell(
 	sync_array_t*	arr,	/*!< in: sync array */
 	ulint		n);	/*!< in: index */
 
-#include "sync0arr.ic"
+#include "sync0arr.inl"
 
 #endif /* sync0arr_h */

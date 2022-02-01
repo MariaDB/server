@@ -7555,22 +7555,10 @@ Field_string::compatible_field_size(uint field_metadata,
 
 int Field_string::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 {
-  size_t a_len, b_len;
-
-  if (mbmaxlen() != 1)
-  {
-    size_t char_len= Field_string::char_length();
-    a_len= field_charset()->charpos(a_ptr, a_ptr + field_length, char_len);
-    b_len= field_charset()->charpos(b_ptr, b_ptr + field_length, char_len);
-  }
-  else
-    a_len= b_len= field_length;
-  /*
-    We have to remove end space to be able to compare multi-byte-characters
-    like in latin_de 'ae' and 0xe4
-  */
-  return field_charset()->strnncollsp(a_ptr, a_len,
-                                      b_ptr, b_len);
+  return field_charset()->coll->strnncollsp_nchars(field_charset(),
+                                                   a_ptr, field_length,
+                                                   b_ptr, field_length,
+                                                   Field_string::char_length());
 }
 
 
@@ -7936,19 +7924,6 @@ int Field_varstring::cmp(const uchar *a_ptr, const uchar *b_ptr) const
 }
 
 
-static int cmp_str_prefix(const uchar *ua, size_t alen, const uchar *ub,
-                          size_t blen, size_t prefix, CHARSET_INFO *cs)
-{
-  const char *a= (char*)ua, *b= (char*)ub;
-  MY_STRCOPY_STATUS status;
-  prefix/= cs->mbmaxlen;
-  alen= cs->cset->well_formed_char_length(cs, a, a + alen, prefix, &status);
-  blen= cs->cset->well_formed_char_length(cs, b, b + blen, prefix, &status);
-  return cs->coll->strnncollsp(cs, ua, alen, ub, blen);
-}
-
-
-
 int Field_varstring::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
                                 size_t prefix_len) const
 {
@@ -7968,8 +7943,13 @@ int Field_varstring::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
     a_length= uint2korr(a_ptr);
     b_length= uint2korr(b_ptr);
   }
-  return cmp_str_prefix(a_ptr+length_bytes, a_length, b_ptr+length_bytes,
-                        b_length, prefix_len, field_charset());
+  return field_charset()->coll->strnncollsp_nchars(field_charset(),
+                                                   a_ptr + length_bytes,
+                                                   a_length,
+                                                   b_ptr + length_bytes,
+                                                   b_length,
+                                                   prefix_len /
+                                                     field_charset()->mbmaxlen);
 }
 
 
@@ -8756,8 +8736,11 @@ int Field_blob::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
   memcpy(&blob1, a_ptr+packlength, sizeof(char*));
   memcpy(&blob2, b_ptr+packlength, sizeof(char*));
   size_t a_len= get_length(a_ptr), b_len= get_length(b_ptr);
-  return cmp_str_prefix(blob1, a_len, blob2, b_len, prefix_len,
-                        field_charset());
+  return field_charset()->coll->strnncollsp_nchars(field_charset(),
+                                                   blob1, a_len,
+                                                   blob2, b_len,
+                                                   prefix_len /
+                                                   field_charset()->mbmaxlen);
 }
 
 
@@ -9656,16 +9639,8 @@ bool Field_num::is_equal(const Column_definition &new_field) const
 }
 
 
-bool Field_enum::can_optimize_range(const Item_bool_func *cond,
-                                    const Item *item,
-                                    bool is_eq_func) const
-{
-  return item->cmp_type() != TIME_RESULT;
-}
-
-
-bool Field_enum::can_optimize_keypart_ref(const Item_bool_func *cond,
-                                          const Item *item) const
+bool Field_enum::can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
+                                                   const Item *item) const
 {
   switch (item->cmp_type())
   {

@@ -1605,8 +1605,15 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
 {
   SELECT_LEX *parent_lex= parent_join->select_lex;
   TABLE_LIST *emb_tbl_nest= NULL;
+  TABLE_LIST *orig_tl;
   List<TABLE_LIST> *emb_join_list= &parent_lex->top_join_list;
   THD *thd= parent_join->thd;
+  SELECT_LEX *save_lex;
+  Item **left;
+  Item *left_exp;
+  Item *left_exp_orig;
+
+  uint ncols;
   DBUG_ENTER("convert_subq_to_sj");
 
   /*
@@ -1766,17 +1773,17 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
      because view's tables are inserted after the view)
   */
   
-  for (tl= (TABLE_LIST*)(parent_lex->table_list.first); tl->next_local; tl= tl->next_local)
+  for (orig_tl= (TABLE_LIST*)(parent_lex->table_list.first);
+       orig_tl->next_local;
+       orig_tl= orig_tl->next_local)
   {}
 
-  tl->next_local= subq_lex->join->tables_list;
+  orig_tl->next_local= subq_lex->join->tables_list;
 
   /* A theory: no need to re-connect the next_global chain */
 
   /* 3. Remove the original subquery predicate from the WHERE/ON */
 
-  // The subqueries were replaced for Item_int(1) earlier
-  subq_pred->reset_strategy(SUBS_SEMI_JOIN);       // for subsequent executions
   /*TODO: also reset the 'm_with_subquery' there. */
 
   /* n. Adjust the parent_join->table_count counter */
@@ -1808,16 +1815,18 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     Put the subquery's WHERE into semi-join's sj_on_expr
     Add the subquery-induced equalities too.
   */
-  SELECT_LEX *save_lex= thd->lex->current_select;
+  save_lex= thd->lex->current_select;
+  table_map subq_pred_used_tables;
+
   thd->lex->current_select=subq_lex;
-  Item **left= subq_pred->left_exp_ptr();
+  left= subq_pred->left_exp_ptr();
   if ((*left)->fix_fields_if_needed(thd, left))
-    DBUG_RETURN(TRUE);
-  Item *left_exp= *left;
-  Item *left_exp_orig= subq_pred->left_exp_orig();
+    goto restore_tl_and_exit;
+  left_exp= *left;
+  left_exp_orig= subq_pred->left_exp_orig();
   thd->lex->current_select=save_lex;
 
-  table_map subq_pred_used_tables= subq_pred->used_tables();
+  subq_pred_used_tables= subq_pred->used_tables();
   sj_nest->nested_join->sj_corr_tables= subq_pred_used_tables;
   sj_nest->nested_join->sj_depends_on=  subq_pred_used_tables |
                                         left_exp->used_tables();
@@ -1838,7 +1847,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
        Item_direct_view_refs doesn't substitute itself with anything in 
        Item_direct_view_ref::fix_fields.
   */
-  uint ncols= sj_nest->sj_in_exprs= left_exp->cols();
+  ncols= sj_nest->sj_in_exprs= left_exp->cols();
   sj_nest->nested_join->sj_outer_expr_list.empty();
   reset_equality_number_for_subq_conds(sj_nest->sj_on_expr);
 
@@ -1860,7 +1869,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
       new (thd->mem_root) Item_func_eq(thd, left_exp_orig,
                                        subq_lex->ref_pointer_array[0]);
     if (!item_eq)
-      DBUG_RETURN(TRUE);
+      goto restore_tl_and_exit;
     if (left_exp_orig != left_exp)
       thd->change_item_tree(item_eq->arguments(), left_exp);
     item_eq->in_equality_no= 0;
@@ -1881,7 +1890,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
         Item_func_eq(thd, left_exp_orig->element_index(i),
                      subq_lex->ref_pointer_array[i]);
       if (!item_eq)
-        DBUG_RETURN(TRUE);
+        goto restore_tl_and_exit;
       DBUG_ASSERT(left_exp->element_index(i)->is_fixed());
       if (left_exp_orig->element_index(i) !=
           left_exp->element_index(i))
@@ -1900,13 +1909,13 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     Item_row *row= new (thd->mem_root) Item_row(thd, subq_lex->pre_fix);
     /* fix fields on subquery was call so they should be the same */
     if (!row)
-      DBUG_RETURN(TRUE);
+      goto restore_tl_and_exit;
     DBUG_ASSERT(ncols == row->cols());
     nested_join->sj_outer_expr_list.push_back(left);
     Item_func_eq *item_eq=
       new (thd->mem_root) Item_func_eq(thd, left_exp_orig, row);
     if (!item_eq)
-      DBUG_RETURN(TRUE);
+      goto restore_tl_and_exit;
     for (uint i= 0; i < row->cols(); i++)
     {
       if (row->element_index(i) != subq_lex->ref_pointer_array[i])
@@ -1925,9 +1934,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     we have in here).
   */
   if (sj_nest->sj_on_expr->fix_fields_if_needed(thd, &sj_nest->sj_on_expr))
-  {
-    DBUG_RETURN(TRUE);
-  }
+    goto restore_tl_and_exit;
 
   /*
     Walk through sj nest's WHERE and ON expressions and call
@@ -1952,9 +1959,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     emb_tbl_nest->on_expr->top_level_item();
     if (emb_tbl_nest->on_expr->fix_fields_if_needed(thd,
                                                     &emb_tbl_nest->on_expr))
-    {
-      DBUG_RETURN(TRUE);
-    }
+      goto restore_tl_and_exit;
   }
   else
   {
@@ -1968,9 +1973,8 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     save_lex= thd->lex->current_select;
     thd->lex->current_select=parent_join->select_lex;
     if (parent_join->conds->fix_fields_if_needed(thd, &parent_join->conds))
-    {
-      DBUG_RETURN(1);
-    }
+      goto restore_tl_and_exit;
+
     thd->lex->current_select=save_lex;
     parent_join->select_lex->where= parent_join->conds;
   }
@@ -1983,9 +1987,16 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
       parent_lex->ftfunc_list->push_front(ifm, thd->mem_root);
   }
 
+  // The subqueries were replaced for Item_int(1) earlier
+  subq_pred->reset_strategy(SUBS_SEMI_JOIN);       // for subsequent executions
+
   parent_lex->have_merged_subqueries= TRUE;
   /* Fatal error may have been set to by fix_after_pullout() */
   DBUG_RETURN(thd->is_fatal_error);
+
+restore_tl_and_exit:
+  orig_tl->next_local= NULL;
+  DBUG_RETURN(TRUE);
 }
 
 

@@ -729,6 +729,7 @@ static MY_COLLATION_HANDLER my_collation_german2_ci_handler=
   NULL,			/* init */
   my_strnncoll_latin1_de,
   my_strnncollsp_latin1_de,
+  my_strnncollsp_nchars_generic_8bit,
   my_strnxfrm_latin1_de,
   my_strnxfrmlen_simple,
   my_like_range_simple,

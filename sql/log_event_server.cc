@@ -124,6 +124,7 @@ static const char *HA_ERR(int i)
   case HA_ERR_LOGGING_IMPOSSIBLE: return "HA_ERR_LOGGING_IMPOSSIBLE";
   case HA_ERR_CORRUPT_EVENT: return "HA_ERR_CORRUPT_EVENT";
   case HA_ERR_ROWS_EVENT_APPLY : return "HA_ERR_ROWS_EVENT_APPLY";
+  case HA_ERR_PARTITION_LIST : return "HA_ERR_PARTITION_LIST";
   }
   return "No Error!";
 }
@@ -2386,7 +2387,8 @@ int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
     original place when it comes to us; we'll know this by checking
     log_pos ("artificial" events have log_pos == 0).
   */
-  if (!is_artificial_event() && created && thd->transaction->all.ha_list)
+  if (!thd->rli_fake &&
+      !is_artificial_event() && created && thd->transaction->all.ha_list)
   {
     /* This is not an error (XA is safe), just an information */
     rli->report(INFORMATION_LEVEL, 0, NULL,

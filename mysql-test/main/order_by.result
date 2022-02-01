@@ -3562,6 +3562,29 @@ b	a
 40	1
 30	4
 drop table t1,t2;
+#
+# MDEV-22256 Assertion `length == pack_length()' failed in Field_timestamp_with_dec::sort_string
+#
+SET sql_mode='';
+SET @@SESSION.max_sort_length=4;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '4'
+CREATE TABLE t1 (c TIMESTAMP(1));
+INSERT INTO t1 VALUES(0);
+DELETE FROM t1 ORDER BY c;
+DROP TABLE t1;
+SET @@SESSION.max_sort_length=DEFAULT;
+SET sql_mode=DEFAULT;
+SET sql_mode='';
+SET @@SESSION.max_sort_length=1;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '1'
+CREATE TEMPORARY TABLE t1 (c DATETIME);
+INSERT INTO t1 VALUES(0);
+DELETE FROM t1 ORDER BY c;
+DROP TABLE t1;
+SET @@SESSION.max_sort_length=DEFAULT;
+SET sql_mode=DEFAULT;
 # End of 10.2 tests
 #
 # MDEV-16214: Incorrect plan taken by the optimizer , uses INDEX instead of ref access with ORDER BY

@@ -73,7 +73,6 @@ size_t Item_sum::ram_limitation(THD *thd)
 bool Item_sum::init_sum_func_check(THD *thd)
 {
   SELECT_LEX *curr_sel= thd->lex->current_select;
-  LEX *lex_s= (curr_sel ? curr_sel->parent_lex : thd->lex);
   if (curr_sel && curr_sel->name_visibility_map.is_clear_all())
   {
     for (SELECT_LEX *sl= curr_sel; sl; sl= sl->context.outer_select())
@@ -89,9 +88,9 @@ bool Item_sum::init_sum_func_check(THD *thd)
     return TRUE;
   }
   /* Set a reference to the nesting set function if there is  any */
-  in_sum_func= lex_s->in_sum_func;
+  in_sum_func= thd->lex->in_sum_func;
   /* Save a pointer to object to be used in items for nested set functions */
-  lex_s->in_sum_func= this;
+  thd->lex->in_sum_func= this;
   nest_level= thd->lex->current_select->nest_level;
   ref_by= 0;
   aggr_level= -1;
@@ -158,7 +157,6 @@ bool Item_sum::init_sum_func_check(THD *thd)
 bool Item_sum::check_sum_func(THD *thd, Item **ref)
 {
   SELECT_LEX *curr_sel= thd->lex->current_select;
-  LEX *lex_s= curr_sel->parent_lex;
   nesting_map allow_sum_func(thd->lex->allow_sum_func);
   allow_sum_func.intersect(curr_sel->name_visibility_map);
   bool invalid= FALSE;
@@ -321,7 +319,7 @@ bool Item_sum::check_sum_func(THD *thd, Item **ref)
   if (sum_func() == SP_AGGREGATE_FUNC)
     aggr_sel->set_custom_agg_func_used(true);
   update_used_tables();
-  lex_s->in_sum_func= in_sum_func;
+  thd->lex->in_sum_func= in_sum_func;
   return FALSE;
 }
 

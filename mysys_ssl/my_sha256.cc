@@ -15,4 +15,4 @@
 
 #define NUM 256
 
-#include "my_sha.ic"
+#include "my_sha.inl"

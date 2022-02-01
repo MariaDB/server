@@ -184,12 +184,12 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
               {
                 "selectivity_for_indexes": [
                   {
-                    "index_name": "PRIMARY",
-                    "selectivity_from_index": 1
-                  },
-                  {
                     "index_name": "key1",
                     "selectivity_from_index": 0.001
+                  },
+                  {
+                    "index_name": "PRIMARY",
+                    "selectivity_from_index": 1
                   }
                 ],
                 "selectivity_for_columns": [],

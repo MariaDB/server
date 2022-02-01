@@ -1226,6 +1226,6 @@ is_absolute_path(
 	return(false);
 }
 
-#include "os0file.ic"
+#include "os0file.inl"
 
 #endif /* os0file_h */

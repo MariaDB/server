@@ -8,6 +8,7 @@
 --source include/not_embedded.inc
 --source include/have_debug.inc
 --source include/have_innodb.inc
+--source include/have_symlink.inc
 
 # These messages are expected in the log
 call mtr.add_suppression("Cannot find space id [0-9]+ in the tablespace memory cache");

@@ -106,4 +106,15 @@ alter user foo with MAX_QUERIES_PER_HOUR 10
 select * from mysql.user where user = 'foo';
 drop user foo;
 
+--echo #
+--echo # Bug #29882299: ALTER USER ... IDENTIFIED WITH ... BY ... SHOULD BE A PRIVILEGED OPERATION
+--echo #
+create user foo@localhost;
+--connect x,localhost,foo
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+alter user current_user identified with 'something';
+--connection default
+--disconnect x
+drop user foo@localhost;
+
 update mysql.global_priv set priv=@root_priv where user='root' and host='localhost';

@@ -1,5 +1,18 @@
 --source include/have_symlink.inc
 --source include/not_windows.inc
+--source include/not_embedded.inc
+
+use mysql;
+RENAME TABLE time_zone TO time_zone_orig,
+   time_zone_name TO time_zone_name_orig,
+   time_zone_transition TO time_zone_transition_orig,
+   time_zone_transition_type TO time_zone_transition_type_orig,
+   time_zone_leap_second TO time_zone_leap_second_orig;
+CREATE TABLE time_zone LIKE time_zone_orig;
+CREATE TABLE time_zone_name LIKE time_zone_name_orig;
+CREATE TABLE time_zone_transition LIKE time_zone_transition_orig;
+CREATE TABLE time_zone_transition_type LIKE time_zone_transition_type_orig;
+CREATE TABLE time_zone_leap_second LIKE time_zone_leap_second_orig;
 
 --echo #
 --echo # MDEV-5226 mysql_tzinfo_to_sql errors with tzdata 2013f and above
@@ -14,10 +27,41 @@
 --echo # Verbose run
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --exec $MYSQL_TZINFO_TO_SQL --verbose $MYSQLTEST_VARDIR/zoneinfo 2>&1
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
 
---echo # Silent run
+--echo # Run on zoneinfo directory
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --exec $MYSQL_TZINFO_TO_SQL $MYSQLTEST_VARDIR/zoneinfo 2>&1
+--exec $MYSQL_TZINFO_TO_SQL $MYSQLTEST_VARDIR/zoneinfo 2>/dev/null | $MYSQL -S $MASTER_MYSOCK -u root mysql
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+--echo #
+--echo # Run on zoneinfo directory --skip-write-binlog
+--echo #
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog $MYSQLTEST_VARDIR/zoneinfo 2>&1
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog $MYSQLTEST_VARDIR/zoneinfo 2>/dev/null | $MYSQL -S $MASTER_MYSOCK -u root mysql
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+# Below tests don't include TRUNCATE TABLE so clear them.
+TRUNCATE TABLE time_zone;
+TRUNCATE TABLE time_zone_name;
+TRUNCATE TABLE time_zone_transition;
+TRUNCATE TABLE time_zone_transition_type;
+TRUNCATE TABLE time_zone_leap_second;
 
 --echo #
 --echo # Testing with explicit timezonefile
@@ -25,13 +69,68 @@
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --exec $MYSQL_TZINFO_TO_SQL $MYSQLTEST_VARDIR/zoneinfo/GMT XXX 2>&1
+--exec $MYSQL_TZINFO_TO_SQL $MYSQLTEST_VARDIR/zoneinfo/GMT XXX 2>/dev/null | $MYSQL -S $MASTER_MYSOCK -u root mysql
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+TRUNCATE TABLE time_zone;
+TRUNCATE TABLE time_zone_name;
+TRUNCATE TABLE time_zone_transition;
+TRUNCATE TABLE time_zone_transition_type;
+TRUNCATE TABLE time_zone_leap_second;
+
+--echo #
+--echo # Testing with explicit timezonefile --skip-write-binlog
+--echo #
+
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog $MYSQLTEST_VARDIR/zoneinfo/GMT XXX 2>&1
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog $MYSQLTEST_VARDIR/zoneinfo/GMT 2>/dev/null | $MYSQL -S $MASTER_MYSOCK -u root mysql
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+TRUNCATE TABLE time_zone;
+TRUNCATE TABLE time_zone_name;
+TRUNCATE TABLE time_zone_transition;
+TRUNCATE TABLE time_zone_transition_type;
+TRUNCATE TABLE time_zone_leap_second;
 
 --echo #
 --echo # Testing --leap
 --echo #
 
 --exec $MYSQL_TZINFO_TO_SQL --leap $MYSQLTEST_VARDIR/zoneinfo/GMT 2>&1
+--exec $MYSQL_TZINFO_TO_SQL --leap $MYSQLTEST_VARDIR/zoneinfo/GMT 2>/dev/null | $MYSQL -S $MASTER_MYSOCK -u root mysql
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
 
+TRUNCATE TABLE time_zone;
+TRUNCATE TABLE time_zone_name;
+TRUNCATE TABLE time_zone_transition;
+TRUNCATE TABLE time_zone_transition_type;
+TRUNCATE TABLE time_zone_leap_second;
+
+--echo #
+--echo # Testing --skip-write-binlog --leap
+--echo #
+
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog --leap $MYSQLTEST_VARDIR/zoneinfo/GMT 2>&1
+--exec $MYSQL_TZINFO_TO_SQL --skip-write-binlog --leap $MYSQLTEST_VARDIR/zoneinfo/GMT 2>/dev/null | $MYSQL -S $MASTER_MYSOCK -u root mysql
+SELECT COUNT(*) FROM time_zone;
+SELECT COUNT(*) FROM time_zone_name;
+SELECT COUNT(*) FROM time_zone_transition;
+SELECT COUNT(*) FROM time_zone_transition_type;
+SELECT COUNT(*) FROM time_zone_leap_second;
+
+#
 #
 # Cleanup
 #
@@ -48,3 +147,13 @@
 --exec $MYSQL_TZINFO_TO_SQL $MYSQLTEST_VARDIR/zoneinfo 2>&1
 
 --exec rm -rf $MYSQLTEST_VARDIR/zoneinfo
+DROP TABLE time_zone;
+DROP TABLE time_zone_name;
+DROP TABLE time_zone_transition;
+DROP TABLE time_zone_transition_type;
+DROP TABLE time_zone_leap_second;
+RENAME TABLE time_zone_orig TO time_zone,
+  time_zone_name_orig TO time_zone_name,
+  time_zone_transition_orig TO time_zone_transition,
+  time_zone_transition_type_orig TO time_zone_transition_type,
+  time_zone_leap_second_orig TO time_zone_leap_second;

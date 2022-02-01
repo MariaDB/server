@@ -541,6 +541,6 @@ struct btr_pcur_t{
 	dict_index_t*	index() const { return(btr_cur.index); }
 };
 
-#include "btr0pcur.ic"
+#include "btr0pcur.inl"
 
 #endif

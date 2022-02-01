@@ -352,8 +352,17 @@ enum chf_create_flags {
   run ANALYZE TABLE on it
  */
 #define HA_ONLINE_ANALYZE             (1ULL << 59)
+/*
+  Rowid's are not comparable. This is set if the rowid is unique to the
+  current open handler, like it is with federated where the rowid is a
+  pointer to a local result set buffer. The effect of having this set is
+  that the optimizer will not consirer the following optimizations for
+  the table:
+  ror scans or filtering
+*/
+#define HA_NON_COMPARABLE_ROWID (1ULL << 60)
 
-#define HA_LAST_TABLE_FLAG HA_ONLINE_ANALYZE
+#define HA_LAST_TABLE_FLAG HA_NON_COMPARABLE_ROWID
 
 
 /* bits in index_flags(index_number) for what you can do with index */
@@ -3224,6 +3233,9 @@ public:
   Rowid_filter *pushed_rowid_filter;
   /* true when the pushed rowid filter has been already filled */
   bool rowid_filter_is_active;
+  /* Used for disabling/enabling pushed_rowid_filter */
+  Rowid_filter *save_pushed_rowid_filter;
+  bool save_rowid_filter_is_active;
 
   Discrete_interval auto_inc_interval_for_cur_row;
   /**
@@ -3345,6 +3357,8 @@ public:
     pushed_idx_cond_keyno(MAX_KEY),
     pushed_rowid_filter(NULL),
     rowid_filter_is_active(0),
+    save_pushed_rowid_filter(NULL),
+    save_rowid_filter_is_active(false),
     auto_inc_intervals_count(0),
     m_psi(NULL),
     m_psi_batch_mode(PSI_BATCH_MODE_NONE),
@@ -4416,6 +4430,27 @@ public:
  {
    pushed_rowid_filter= NULL;
    rowid_filter_is_active= false;
+ }
+
+ virtual void disable_pushed_rowid_filter()
+ {
+   DBUG_ASSERT(pushed_rowid_filter != NULL &&
+               save_pushed_rowid_filter == NULL);
+   save_pushed_rowid_filter= pushed_rowid_filter;
+   if (rowid_filter_is_active)
+     save_rowid_filter_is_active= rowid_filter_is_active;
+   pushed_rowid_filter= NULL;
+   rowid_filter_is_active= false;
+ }
+
+ virtual void enable_pushed_rowid_filter()
+ {
+   DBUG_ASSERT(save_pushed_rowid_filter != NULL &&
+               pushed_rowid_filter == NULL);
+   pushed_rowid_filter= save_pushed_rowid_filter;
+   if (save_rowid_filter_is_active)
+     rowid_filter_is_active= true;
+   save_pushed_rowid_filter= NULL;
  }
 
  virtual bool rowid_filter_push(Rowid_filter *rowid_filter) { return true; }
