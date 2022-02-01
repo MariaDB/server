@@ -2342,6 +2342,10 @@ static bool check_prepared_statement(Prepared_statement *stmt)
       goto error;
   }
 
+#ifdef WITH_WSREP
+    if (wsrep_sync_wait(thd, sql_command))
+      goto error;
+#endif
   switch (sql_command) {
   case SQLCOM_REPLACE:
   case SQLCOM_INSERT:

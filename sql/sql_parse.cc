@@ -1163,8 +1163,7 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
 
 static bool wsrep_command_no_result(char command)
 {
-  return (command == COM_STMT_PREPARE          ||
-          command == COM_STMT_FETCH            ||
+  return (command == COM_STMT_FETCH            ||
           command == COM_STMT_SEND_LONG_DATA   ||
           command == COM_STMT_CLOSE);
 }
