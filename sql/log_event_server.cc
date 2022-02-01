@@ -2710,7 +2710,6 @@ int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
       rgi->cleanup_context(thd, 1);
     }
   }
-  DBUG_ASSERT(!thd->rgi_fake || !thd->transaction->all.ha_list);
 
   /*
     If this event comes from ourselves, there is no cleaning task to
