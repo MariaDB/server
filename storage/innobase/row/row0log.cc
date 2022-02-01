@@ -3652,6 +3652,26 @@ corrupted:
 	indexes, which never contain off-page columns. */
 	ut_ad(dtuple_get_n_ext(entry) == 0);
 
+	for (unsigned i = 0; i < index->n_fields; i++) {
+	  if (index->fields[i].col->mtype != DATA_VARMYSQL) {
+	    continue;
+	  }
+
+	  auto *field_name = static_cast<const char*>(index->fields[i].name);
+
+	  for (uint j = 0; j < dup->table->s->fields; j++) {
+	    if (!strcmp(field_name, dup->table->field[j]->field_name.str)) {
+	      ut_ad(dup->table->field[j]->type() == MYSQL_TYPE_VARCHAR);
+	      auto *field = static_cast<Field_varstring*>(dup->table->field[j]);
+	      uint cs_number= field->charset()->number;
+	      entry->fields[i].type.prtype &= ~((uint) CHAR_COLL_MASK << 16);
+	      entry->fields[i].type.prtype |= cs_number << 16;
+	      break;
+	    }
+
+	  }
+	}
+
 	row_log_apply_op_low(index, dup, error, offsets_heap,
 			     has_index_lock, op, trx_id, entry);
 	return(mrec);

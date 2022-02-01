@@ -338,7 +338,7 @@ row_merge_buf_create_low(
 	dict_index_t*	index,		/*!< in: secondary index */
 	ulint		max_tuples,	/*!< in: maximum number of
 					data tuples */
-	ulint		buf_size)	/*!< in: size of the buffer,
+	ulint		buf_size, const TABLE* mariadb_table)	/*!< in: size of the buffer,
 					in bytes */
 {
 	row_merge_buf_t*	buf;
@@ -354,6 +354,29 @@ row_merge_buf_create_low(
 	buf->tuples = static_cast<mtuple_t*>(
 		ut_malloc_nokey(2 * max_tuples * sizeof *buf->tuples));
 	buf->tmp_tuples = buf->tuples + max_tuples;
+	buf->prtype_list = static_cast<unsigned*>(mem_heap_zalloc(heap,
+				sizeof(unsigned) * index->n_fields));
+
+	for (unsigned i = 0; i< index->n_fields; i++) {
+		if (index->fields[i].col->mtype != DATA_VARMYSQL) {
+			continue;
+		}
+
+		auto *field_name = static_cast<const char*>(
+					index->fields[i].name);
+
+		for (uint j = 0; j < mariadb_table->s->fields; j++) {
+			Field* field = mariadb_table->field[j];
+			if (!strcmp(field_name,	field->field_name.str)) {
+				ut_ad(field->type() == MYSQL_TYPE_VARCHAR);
+				uint cs_number = field->charset()->number;
+				auto& prtype = buf->prtype_list[i];
+				prtype = index->fields[i].col->prtype;
+				prtype &= ~((uint) CHAR_COLL_MASK << 16);
+				prtype |= cs_number << 16;
+			}
+		}
+	}
 
 	return(buf);
 }
@@ -364,7 +387,7 @@ Allocate a sort buffer.
 row_merge_buf_t*
 row_merge_buf_create(
 /*=================*/
-	dict_index_t*	index)	/*!< in: secondary index */
+		     dict_index_t*	index, const TABLE *mariadb_table)	/*!< in: secondary index */
 {
 	row_merge_buf_t*	buf;
 	ulint			max_tuples;
@@ -379,7 +402,8 @@ row_merge_buf_create(
 
 	heap = mem_heap_create(buf_size);
 
-	buf = row_merge_buf_create_low(heap, index, max_tuples, buf_size);
+	buf = row_merge_buf_create_low(heap, index, max_tuples, buf_size,
+				       mariadb_table);
 
 	return(buf);
 }
@@ -708,6 +732,10 @@ error:
 					format table. */
 					ut_ad(index->table->not_redundant());
 				}
+			}
+
+			if (buf->prtype_list[i]) {
+				field->type.prtype = buf->prtype_list[i];
 			}
 		}
 
@@ -1778,7 +1806,7 @@ row_merge_read_clustered_index(
 
 			fts_index = index[i];
 
-			merge_buf[i] = row_merge_buf_create(fts_sort_idx);
+			merge_buf[i] = row_merge_buf_create(fts_sort_idx, table);
 
 			add_doc_id = DICT_TF2_FLAG_IS_SET(
 				new_table, DICT_TF2_FTS_ADD_DOC_ID);
@@ -1801,7 +1829,7 @@ row_merge_read_clustered_index(
 				num_spatial++;
 			}
 
-			merge_buf[i] = row_merge_buf_create(index[i]);
+			merge_buf[i] = row_merge_buf_create(index[i], table);
 		}
 	}
 

@@ -1,0 +1,48 @@
+--source include/have_innodb.inc
+
+# CREATE TABLE t1 (
+#   id INT PRIMARY KEY,
+#   msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_bin,
+#   UNIQUE(msg)
+# ) ENGINE=INNODB;
+
+# INSERT INTO t1 VALUES (1, 'aaa');
+# INSERT INTO t1 VALUES (2, 'AAA');
+
+# # --error ER_DUP_ENTRY
+# # ALTER TABLE t1 MODIFY msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_unicode_ci, ALGORITHM=COPY;
+# --error ER_DUP_ENTRY
+# ALTER TABLE t1 MODIFY msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_unicode_ci, ALGORITHM=NOCOPY;
+
+# # ALTER TABLE t1 MODIFY msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_unicode_ci, FORCE, ALGORITHM=INPLACE;
+
+# DROP TABLE t1;
+
+
+CREATE TABLE t1 (
+  id INT PRIMARY KEY,
+  msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_bin,
+  UNIQUE(msg)
+) ENGINE=INNODB;
+
+INSERT INTO t1 VALUES (1, 'aaa');
+
+SET DEBUG_SYNC = 'RESET';
+SET DEBUG_SYNC = 'row_log_apply_before SIGNAL before_apply WAIT_FOR go_ahead';
+--send
+ALTER TABLE t1 MODIFY msg VARCHAR(100) CHARACTER SET utf8 COLLATE utf8_unicode_ci, ALGORITHM=NOCOPY;
+
+connect (con1,localhost,root,,);
+connection con1;
+
+SET DEBUG_SYNC = 'now WAIT_FOR before_apply';
+INSERT INTO t1 VALUES (2, 'AAA');
+SET DEBUG_SYNC = 'now SIGNAL go_ahead';
+SET DEBUG_SYNC = 'RESET';
+
+connection default;
+
+--error ER_DUP_ENTRY
+reap;
+
+DROP TABLE t1;

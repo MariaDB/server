@@ -94,6 +94,7 @@ struct row_merge_buf_t {
 	mtuple_t*	tuples;		/*!< array of data tuples */
 	mtuple_t*	tmp_tuples;	/*!< temporary copy of tuples,
 					for sorting */
+  unsigned* prtype_list;
 };
 
 /** Information about temporary files used in merge sort */
@@ -431,7 +432,7 @@ Allocate a sort buffer.
 row_merge_buf_t*
 row_merge_buf_create(
 /*=================*/
-	dict_index_t*	index)	/*!< in: secondary index */
+		     dict_index_t*	index, const TABLE *mariadb_table)	/*!< in: secondary index */
 	MY_ATTRIBUTE((warn_unused_result, nonnull, malloc));
 
 /*********************************************************************//**

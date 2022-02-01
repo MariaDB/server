@@ -1198,9 +1198,9 @@ rec_get_converted_size_comp_prefix_low(
 					      field->col, &dfield->type));
 			}
 		} else {
-			ut_ad(field->col->is_dropped()
-			      || dict_col_type_assert_equal(field->col,
-							    &dfield->type));
+			// ut_ad(field->col->is_dropped()
+			//       || dict_col_type_assert_equal(field->col,
+			// 				    &dfield->type));
 		}
 #endif
 

@@ -245,7 +245,7 @@ row_fts_psort_info_init(
 			}
 
 			psort_info[j].merge_buf[i] = row_merge_buf_create(
-				dup->index);
+				dup->index, dup->table);
 
 			if (row_merge_file_create(psort_info[j].merge_file[i],
 						  path) == OS_FILE_CLOSED) {
