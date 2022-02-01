@@ -1,5 +1,5 @@
 /* Copyright (C) 2008-2019 Kentoku Shiba
-   Copyright (C) 2019-2022 MariaDB corp
+   Copyright (C) 2019-2022 MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -9771,136 +9771,6 @@ bool ha_spider::check_direct_update_sql_part(
   DBUG_RETURN(FALSE);
 }
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-#ifdef SPIDER_MDEV_16246
-int ha_spider::direct_update_rows_init(
-  List<Item> *update_fields,
-  uint mode,
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  bool sorted,
-  uchar *new_data
-)
-#else
-int ha_spider::direct_update_rows_init(
-  uint mode,
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  bool sorted,
-  uchar *new_data
-)
-#endif
-{
-  st_select_lex *select_lex;
-  longlong select_limit;
-  longlong offset_limit;
-  THD *thd = wide_handler->trx->thd;
-  DBUG_ENTER("ha_spider::direct_update_rows_init");
-  DBUG_PRINT("info",("spider this=%p", this));
-#ifdef HA_CAN_BULK_ACCESS
-  if (
-    bulk_access_executing &&
-    (
-      (
-        !is_bulk_access_clone &&
-        bulk_access_link_exec_tgt->called
-      ) ||
-      bulk_access_pre_called
-    )
-  ) {
-    if (is_bulk_access_clone)
-    {
-      DBUG_PRINT("info",("spider return pre_direct_init_result %d",
-        pre_direct_init_result));
-      DBUG_RETURN(pre_direct_init_result);
-    }
-#ifdef SPIDER_MDEV_16246
-    DBUG_RETURN(bulk_access_link_exec_tgt->spider->direct_update_rows_init(
-      update_fields, mode, ranges, range_count, sorted, new_data));
-#else
-    DBUG_RETURN(bulk_access_link_exec_tgt->spider->direct_update_rows_init(
-      mode, ranges, range_count, sorted, new_data));
-#endif
-  }
-#endif
-  if (!dml_inited)
-  {
-    if (unlikely((error_num = dml_init())))
-    {
-      DBUG_RETURN(error_num);
-    }
-  }
-  direct_update_init(
-    thd,
-    FALSE
-  );
-  if (!condition)
-    cond_check = FALSE;
-  spider_get_select_limit(this, &select_lex, &select_limit, &offset_limit);
-  if (
-    !range_count &&
-    direct_update_fields
-  ) {
-    if (
-#if MYSQL_VERSION_ID < 50500
-      !thd->variables.engine_condition_pushdown ||
-#else
-#ifdef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
-#else
-      !(thd->variables.optimizer_switch &
-        OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
-#endif
-#endif
-      !select_lex ||
-      select_lex->table_list.elements != 1 ||
-      check_update_columns_sql_part() ||
-      check_direct_update_sql_part(select_lex, select_limit, offset_limit) ||
-      spider_db_append_condition(this, NULL, 0, TRUE)
-    ) {
-      DBUG_PRINT("info",("spider FALSE by condition"));
-      do_direct_update = FALSE;
-      DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-    }
-    if (select_lex->order_list.elements)
-    {
-      ORDER *order;
-      for (order = (ORDER *) select_lex->order_list.first; order;
-        order = order->next)
-      {
-        if (check_item_type_sql((*order->item)))
-        {
-          DBUG_PRINT("info",("spider FALSE by order"));
-          do_direct_update = FALSE;
-          DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-        }
-      }
-      result_list.direct_order_limit = TRUE;
-    }
-    wide_handler->trx->direct_update_count++;
-    DBUG_PRINT("info",("spider OK"));
-    DBUG_RETURN(0);
-  }
-
-  DBUG_PRINT("info",("spider offset_limit=%lld", offset_limit));
-  DBUG_PRINT("info",("spider mode=%u", mode));
-  DBUG_PRINT("info",("spider sql_command=%u", sql_command));
-  DBUG_PRINT("info",("spider do_direct_update=%s",
-    do_direct_update ? "TRUE" : "FALSE"));
-  if (
-    (
-      !offset_limit
-    ) &&
-    do_direct_update
-  ) {
-    wide_handler->trx->direct_update_count++;
-    DBUG_PRINT("info",("spider OK"));
-    DBUG_RETURN(0);
-  }
-  DBUG_PRINT("info",("spider FALSE by default"));
-  do_direct_update = FALSE;
-  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-}
-#else
 #ifdef SPIDER_MDEV_16246
 /**
   Perform initialization for a direct update request.
@@ -10045,64 +9915,8 @@ int ha_spider::direct_update_rows_init()
   do_direct_update = FALSE;
   DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
-#endif
 
 #ifdef HA_CAN_BULK_ACCESS
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-#ifdef SPIDER_MDEV_16246
-int ha_spider::pre_direct_update_rows_init(
-  List<Item> *update_fields,
-  uint mode,
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  bool sorted,
-  uchar *new_data
-)
-#else
-int ha_spider::pre_direct_update_rows_init(
-  uint mode,
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  bool sorted,
-  uchar *new_data
-)
-#endif
-{
-  int error_num;
-  DBUG_ENTER("ha_spider::pre_direct_update_rows_init");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (bulk_access_started)
-  {
-#ifdef SPIDER_MDEV_16246
-    error_num = bulk_access_link_current->spider->
-      pre_direct_update_rows_init(
-      update_fields, mode, ranges, range_count, sorted, new_data);
-#else
-    error_num = bulk_access_link_current->spider->
-      pre_direct_update_rows_init(
-      mode, ranges, range_count, sorted, new_data);
-#endif
-    bulk_access_link_current->spider->bulk_access_pre_called = TRUE;
-    bulk_access_link_current->called = TRUE;
-    DBUG_RETURN(error_num);
-  }
-  if (!dml_inited)
-  {
-    if (unlikely((error_num = dml_init())))
-    {
-      DBUG_RETURN(error_num);
-    }
-  }
-#ifdef SPIDER_MDEV_16246
-  pre_direct_init_result = direct_update_rows_init(
-    update_fields, mode, ranges, range_count, sorted, new_data);
-#else
-  pre_direct_init_result = direct_update_rows_init(
-    mode, ranges, range_count, sorted, new_data);
-#endif
-  DBUG_RETURN(pre_direct_init_result);
-}
-#else
 #ifdef SPIDER_MDEV_16246
 /**
   Do initialization for performing parallel direct update
@@ -10152,66 +9966,7 @@ int ha_spider::pre_direct_update_rows_init()
   DBUG_RETURN(pre_direct_init_result);
 }
 #endif
-#endif
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-int ha_spider::direct_update_rows(
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  bool sorted,
-  uchar *new_data,
-  ha_rows *update_rows,
-  ha_rows *found_rows
-) {
-  int error_num;
-  THD *thd = ha_thd();
-  backup_error_status();
-  DBUG_ENTER("ha_spider::direct_update_rows");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (spider_param_read_only_mode(thd, share->read_only_mode))
-  {
-    my_printf_error(ER_SPIDER_READ_ONLY_NUM, ER_SPIDER_READ_ONLY_STR, MYF(0),
-      table_share->db.str, table_share->table_name.str);
-    DBUG_RETURN(ER_SPIDER_READ_ONLY_NUM);
-  }
-#ifdef HA_CAN_BULK_ACCESS
-  if (
-    bulk_access_executing &&
-    (
-      (
-        !is_bulk_access_clone &&
-        bulk_access_link_exec_tgt->called
-      ) ||
-      bulk_access_pre_called
-    )
-  ) {
-    if (is_bulk_access_clone)
-    {
-      bulk_access_pre_called = FALSE;
-      DBUG_RETURN(spider_db_bulk_direct_update(this, update_rows, found_rows));
-    }
-    DBUG_RETURN(bulk_access_link_exec_tgt->spider->ha_direct_update_rows(
-      ranges, range_count, sorted, new_data, update_rows, found_rows));
-  }
-#endif
-  if (
-    (active_index != MAX_KEY && (error_num = index_handler_init())) ||
-    (active_index == MAX_KEY && (error_num = rnd_handler_init())) ||
-    (error_num = spider_db_direct_update(this, table, ranges, range_count,
-      update_rows, found_rows))
-  )
-    DBUG_RETURN(check_error_mode(error_num));
-
-#ifdef HA_CAN_BULK_ACCESS
-  if (bulk_access_executing && is_bulk_access_clone)
-  {
-    bulk_req_exec();
-    DBUG_RETURN(spider_db_bulk_direct_update(this, update_rows, found_rows));
-  }
-#endif
-  DBUG_RETURN(0);
-}
-#else
 int ha_spider::direct_update_rows(
   ha_rows *update_rows,
   ha_rows *found_rows
@@ -10263,24 +10018,8 @@ int ha_spider::direct_update_rows(
 #endif
   DBUG_RETURN(0);
 }
-#endif
 
 #ifdef HA_CAN_BULK_ACCESS
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-int ha_spider::pre_direct_update_rows(
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  bool sorted,
-  uchar *new_data,
-  ha_rows *update_rows,
-  ha_rows *found_rows
-) {
-  DBUG_ENTER("ha_spider::pre_direct_update_rows");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(bulk_access_link_current->spider->ha_direct_update_rows(ranges,
-    range_count, sorted, new_data, update_rows, found_rows));
-}
-#else
 int ha_spider::pre_direct_update_rows()
 {
   uint update_rows;
@@ -10290,7 +10029,6 @@ int ha_spider::pre_direct_update_rows()
   DBUG_RETURN(bulk_access_link_current->spider->ha_direct_update_rows(
     &update_rows, &found_rows));
 }
-#endif
 #endif
 #endif
 
@@ -10382,108 +10120,6 @@ bool ha_spider::check_direct_delete_sql_part(
   DBUG_RETURN(FALSE);
 }
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-int ha_spider::direct_delete_rows_init(
-  uint mode,
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  bool sorted
-) {
-  st_select_lex *select_lex;
-  longlong select_limit;
-  longlong offset_limit;
-  THD *thd = wide_handler->trx->thd;
-  DBUG_ENTER("ha_spider::direct_delete_rows_init");
-  DBUG_PRINT("info",("spider this=%p", this));
-#ifdef HA_CAN_BULK_ACCESS
-  if (
-    bulk_access_executing &&
-    (
-      (
-        !is_bulk_access_clone &&
-        bulk_access_link_exec_tgt->called
-      ) ||
-      bulk_access_pre_called
-    )
-  ) {
-    if (is_bulk_access_clone)
-    {
-      DBUG_RETURN(pre_direct_init_result);
-    }
-    DBUG_RETURN(bulk_access_link_exec_tgt->spider->direct_delete_rows_init(
-      mode, ranges, range_count, sorted));
-  }
-#endif
-  if (!dml_inited)
-  {
-    if (unlikely((error_num = dml_init())))
-    {
-      DBUG_RETURN(error_num);
-    }
-  }
-  direct_update_init(
-    thd,
-    FALSE
-  );
-  if (!condition)
-    cond_check = FALSE;
-  spider_get_select_limit(this, &select_lex, &select_limit, &offset_limit);
-  if (!range_count)
-  {
-    if (
-#if MYSQL_VERSION_ID < 50500
-      !thd->variables.engine_condition_pushdown ||
-#else
-#ifdef SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
-#else
-      !(thd->variables.optimizer_switch &
-        OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
-#endif
-#endif
-      !select_lex ||
-      select_lex->table_list.elements != 1 ||
-      check_direct_delete_sql_part(select_lex, select_limit, offset_limit) ||
-      spider_db_append_condition(this, NULL, 0, TRUE)
-    ) {
-      DBUG_PRINT("info",("spider FALSE by condition"));
-      do_direct_update = FALSE;
-      DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-    }
-    if (select_lex->order_list.elements)
-    {
-      ORDER *order;
-      for (order = (ORDER *) select_lex->order_list.first; order;
-        order = order->next)
-      {
-        if (check_item_type_sql((*order->item)))
-        {
-          DBUG_PRINT("info",("spider FALSE by order"));
-          do_direct_update = FALSE;
-          DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-        }
-      }
-      result_list.direct_order_limit = TRUE;
-    }
-    wide_handler->trx->direct_delete_count++;
-    DBUG_PRINT("info",("spider OK"));
-    DBUG_RETURN(0);
-  }
-
-  if (
-    (
-      !offset_limit
-    ) &&
-    do_direct_update
-  ) {
-    wide_handler->trx->direct_delete_count++;
-    DBUG_PRINT("info",("spider OK"));
-    DBUG_RETURN(0);
-  }
-  DBUG_PRINT("info",("spider FALSE by default"));
-  do_direct_update = FALSE;
-  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-}
-#else
 int ha_spider::direct_delete_rows_init()
 {
   st_select_lex *select_lex;
@@ -10562,40 +10198,8 @@ int ha_spider::direct_delete_rows_init()
   DBUG_PRINT("info",("spider OK"));
   DBUG_RETURN(0);
 }
-#endif
 
 #ifdef HA_CAN_BULK_ACCESS
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-int ha_spider::pre_direct_delete_rows_init(
-  uint mode,
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  bool sorted
-) {
-  int error_num;
-  DBUG_ENTER("ha_spider::pre_direct_delete_rows_init");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (bulk_access_started)
-  {
-    error_num = bulk_access_link_current->spider->
-      pre_direct_delete_rows_init(
-      mode, ranges, range_count, sorted);
-    bulk_access_link_current->spider->bulk_access_pre_called = TRUE;
-    bulk_access_link_current->called = TRUE;
-    DBUG_RETURN(error_num);
-  }
-  if (!dml_inited)
-  {
-    if (unlikely((error_num = dml_init())))
-    {
-      DBUG_RETURN(error_num);
-    }
-  }
-  pre_direct_init_result = direct_delete_rows_init(
-    mode, ranges, range_count, sorted);
-  DBUG_RETURN(pre_direct_init_result);
-}
-#else
 int ha_spider::pre_direct_delete_rows_init()
 {
   int error_num;
@@ -10620,64 +10224,7 @@ int ha_spider::pre_direct_delete_rows_init()
   DBUG_RETURN(pre_direct_init_result);
 }
 #endif
-#endif
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-int ha_spider::direct_delete_rows(
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  bool sorted,
-  ha_rows *delete_rows
-) {
-  int error_num;
-  THD *thd = ha_thd();
-  backup_error_status();
-  DBUG_ENTER("ha_spider::direct_delete_rows");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (spider_param_read_only_mode(thd, share->read_only_mode))
-  {
-    my_printf_error(ER_SPIDER_READ_ONLY_NUM, ER_SPIDER_READ_ONLY_STR, MYF(0),
-      table_share->db.str, table_share->table_name.str);
-    DBUG_RETURN(ER_SPIDER_READ_ONLY_NUM);
-  }
-#ifdef HA_CAN_BULK_ACCESS
-  if (
-    bulk_access_executing &&
-    (
-      (
-        !is_bulk_access_clone &&
-        bulk_access_link_exec_tgt->called
-      ) ||
-      bulk_access_pre_called
-    )
-  ) {
-    if (is_bulk_access_clone)
-    {
-      bulk_access_pre_called = FALSE;
-      DBUG_RETURN(spider_db_bulk_direct_update(this, delete_rows));
-    }
-    DBUG_RETURN(bulk_access_link_exec_tgt->spider->ha_direct_delete_rows(
-      ranges, range_count, sorted, delete_rows));
-  }
-#endif
-  if (
-    (active_index != MAX_KEY && (error_num = index_handler_init())) ||
-    (active_index == MAX_KEY && (error_num = rnd_handler_init())) ||
-    (error_num = spider_db_direct_delete(this, table, ranges, range_count,
-      delete_rows))
-  )
-    DBUG_RETURN(check_error_mode(error_num));
-
-#ifdef HA_CAN_BULK_ACCESS
-  if (bulk_access_executing && is_bulk_access_clone)
-  {
-    bulk_req_exec();
-    DBUG_RETURN(spider_db_bulk_direct_update(this, delete_rows));
-  }
-#endif
-  DBUG_RETURN(0);
-}
-#else
 int ha_spider::direct_delete_rows(
   ha_rows *delete_rows
 ) {
@@ -10728,22 +10275,8 @@ int ha_spider::direct_delete_rows(
 #endif
   DBUG_RETURN(0);
 }
-#endif
 
 #ifdef HA_CAN_BULK_ACCESS
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-int ha_spider::pre_direct_delete_rows(
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  bool sorted,
-  ha_rows *delete_rows
-) {
-  DBUG_ENTER("ha_spider::pre_direct_delete_rows");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(bulk_access_link_current->spider->ha_direct_delete_rows(
-    ranges, range_count, sorted, delete_rows));
-}
-#else
 int ha_spider::pre_direct_delete_rows()
 {
   uint delete_rows;
@@ -10752,7 +10285,6 @@ int ha_spider::pre_direct_delete_rows()
   DBUG_RETURN(bulk_access_link_current->spider->ha_direct_delete_rows(
     &delete_rows));
 }
-#endif
 #endif
 #endif
 
