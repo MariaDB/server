@@ -1346,6 +1346,10 @@ check_pid()
             rm -f "$pid_file" || :
         fi
     fi
+    local config="${3:-}"
+    if [ -n "$config" -a -f "$config" ]; then
+        rm -f "$config" || :
+    fi
     CHECK_PID=0
     return 1
 }

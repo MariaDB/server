@@ -307,11 +307,56 @@ fi
 
 readonly SECRET_TAG='secret'
 
-if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
+SST_PID="$WSREP_SST_OPT_DATA/wsrep_sst.pid"
 
-    [ -f "$MAGIC_FILE"      ] && rm -f "$MAGIC_FILE"
-    [ -f "$BINLOG_TAR_FILE" ] && rm -f "$BINLOG_TAR_FILE"
-    [ -f "$STUNNEL_PID"     ] && rm -f "$STUNNEL_PID"
+# give some time for previous SST to complete:
+check_round=0
+while check_pid "$SST_PID" 0; do
+    wsrep_log_info "Previous SST is not completed, waiting for it to exit"
+    check_round=$(( check_round + 1 ))
+    if [ $check_round -eq 20 ]; then
+        wsrep_log_error "previous SST script still running."
+        exit 114 # EALREADY
+    fi
+    sleep 1
+done
+
+echo $$ > "$SST_PID"
+
+# give some time for stunnel from the previous SST to complete:
+check_round=0
+while check_pid "$STUNNEL_PID" 1 "$STUNNEL_CONF"; do
+    wsrep_log_info "Lingering stunnel daemon found at startup," \
+                   "waiting for it to exit"
+    check_round=$(( check_round + 1 ))
+    if [ $check_round -eq 10 ]; then
+        wsrep_log_error "stunnel daemon still running."
+        exit 114 # EALREADY
+    fi
+    sleep 1
+done
+
+MODULE='rsync_sst'
+RSYNC_PID="$WSREP_SST_OPT_DATA/$MODULE.pid"
+RSYNC_CONF="$WSREP_SST_OPT_DATA/$MODULE.conf"
+
+# give some time for rsync from the previous SST to complete:
+check_round=0
+while check_pid "$RSYNC_PID" 1 "$RSYNC_CONF"; do
+    wsrep_log_info "Lingering rsync daemon found at startup," \
+                   "waiting for it to exit"
+    check_round=$(( check_round + 1 ))
+    if [ $check_round -eq 10 ]; then
+        wsrep_log_error "rsync daemon still running."
+        exit 114 # EALREADY
+    fi
+    sleep 1
+done
+
+[ -f "$MAGIC_FILE"      ] && rm -f "$MAGIC_FILE"
+[ -f "$BINLOG_TAR_FILE" ] && rm -f "$BINLOG_TAR_FILE"
+
+if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
     if [ -n "$STUNNEL" ]
     then
@@ -330,8 +375,6 @@ ${VERIFY_OPT}
 ${CHECK_OPT}
 ${CHECK_OPT_LOCAL}
 EOF
-    else
-        [ -f "$STUNNEL_CONF" ] && rm -f "$STUNNEL_CONF"
     fi
 
     RC=0
@@ -575,62 +618,13 @@ FILTER="-f '- /lost+found'
         [ -f "$STUNNEL_PID"  ] && rm -f "$STUNNEL_PID"
     fi
 
+    [ -f "$SST_PID" ] && rm -f "$SST_PID"
+
     wsrep_log_info "rsync SST/IST completed on donor"
 
 elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]
 then
     check_sockets_utils
-
-    SST_PID="$WSREP_SST_OPT_DATA/wsrep_sst.pid"
-
-    # give some time for previous SST to complete:
-    check_round=0
-    while check_pid "$SST_PID" 0 'wsrep_sst_'; do
-        wsrep_log_info "previous SST is not completed, waiting for it to exit"
-        check_round=$(( check_round + 1 ))
-        if [ $check_round -eq 10 ]; then
-            wsrep_log_error "previous SST script still running."
-            exit 114 # EALREADY
-        fi
-        sleep 1
-    done
-
-    echo $$ > "$SST_PID"
-
-    # give some time for stunnel from the previous SST to complete:
-    check_round=0
-    while check_pid "$STUNNEL_PID" 1; do
-        wsrep_log_info "Lingering stunnel daemon found at startup," \
-                       "waiting for it to exit"
-        check_round=$(( check_round + 1 ))
-        if [ $check_round -eq 10 ]; then
-            wsrep_log_error "stunnel daemon already running."
-            exit 114 # EALREADY
-        fi
-        sleep 1
-    done
-
-    MODULE='rsync_sst'
-    RSYNC_PID="$WSREP_SST_OPT_DATA/$MODULE.pid"
-    RSYNC_CONF="$WSREP_SST_OPT_DATA/$MODULE.conf"
-
-    # give some time for rsync from the previous SST to complete:
-    check_round=0
-    while check_pid "$RSYNC_PID" 1; do
-        wsrep_log_info "Lingering rsync daemon found at startup," \
-                       "waiting for it to exit"
-        check_round=$(( check_round + 1 ))
-        if [ $check_round -eq 10 ]; then
-            wsrep_log_error "rsync daemon already running."
-            exit 114 # EALREADY
-        fi
-        sleep 1
-    done
-
-    [ -f "$MAGIC_FILE"      ] && rm -f "$MAGIC_FILE"
-    [ -f "$BINLOG_TAR_FILE" ] && rm -f "$BINLOG_TAR_FILE"
-
-    [ -z "$STUNNEL" -a -f "$STUNNEL_CONF" ] && rm -f "$STUNNEL_CONF"
 
     ADDR="$WSREP_SST_OPT_ADDR"
     RSYNC_PORT="$WSREP_SST_OPT_PORT"
