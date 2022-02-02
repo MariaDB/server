@@ -1102,6 +1102,7 @@ DROP TABLE t1, t2;
 
 
 CREATE TABLE t1 ( id INT NOT NULL, i1 INT, i2 INT, PRIMARY KEY (id)) engine=innodb;
+--remove_file $MYSQLD_DATADIR/test/t2.ibd
 CREATE TABLE t2 ( id INT NOT NULL, i1 INT, i2 INT, i3 INT, PRIMARY KEY (id)) engine=innodb;
 
 ALTER TABLE t2 DISCARD TABLESPACE;
