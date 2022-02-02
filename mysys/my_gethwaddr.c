@@ -23,6 +23,7 @@
 
 #ifndef MAIN
 
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__linux__) || defined(__sun) || defined(_WIN32)
 static my_bool memcpy_and_test(uchar *to, uchar *from, uint len)
 {
   uint i, res= 1;
@@ -32,6 +33,7 @@ static my_bool memcpy_and_test(uchar *to, uchar *from, uint len)
       res= 0;
   return res;
 }
+#endif
 
 #if defined(__APPLE__) || defined(__FreeBSD__)
 #include <net/ethernet.h>
@@ -195,4 +197,3 @@ int main(int argc __attribute__((unused)),char **argv)
   return 0;
 }
 #endif
-
