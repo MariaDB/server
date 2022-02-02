@@ -3242,13 +3242,14 @@ int fill_show_explain_tabular(THD *thd, TABLE_LIST *table, COND *cond)
 int fill_show_explain_json(THD *thd, TABLE_LIST *table, COND *cond)
 {
   return fill_show_explain_or_analyze(
-    thd, table, cond, TRUE /* json_format */, TRUE /* is_analyze */);
+    thd, table, cond, TRUE /* json_format */, FALSE /* is_analyze */);
+}
 
 
 int fill_show_analyze_tabular(THD * thd, TABLE_LIST * table, COND * cond)
 {
   return fill_show_explain_or_analyze(
-      thd, table, cond, FALSE /* json_format */, TRUE /* is_analyze */);
+    thd, table, cond, FALSE /* json_format */, TRUE /* is_analyze */);
 }
 
 
@@ -9676,7 +9677,7 @@ ST_FIELD_INFO show_explain_json_fields_info[]=
 };
 
 
-ST_FIELD_INFO show_analyze_fields_info[]=
+ST_FIELD_INFO show_analyze_tabular_fields_info[]=
 {
   Column("id",            SLonglong(3),                  NULLABLE, "id"),
   Column("select_type",   Varchar(19),                   NOT_NULL, "select_type"),
@@ -9697,6 +9698,11 @@ ST_FIELD_INFO show_analyze_fields_info[]=
   Column("Extra",         Varchar(255),                  NOT_NULL, "Extra"),
   CEnd()
 };
+
+
+ST_FIELD_INFO show_analyze_json_fields_info[]= {
+    Column("EXPLAIN", Longtext(MAX_FIELD_VARCHARLENGTH), NOT_NULL, "ANALYZE"),
+    CEnd()};
 
 
 ST_FIELD_INFO check_constraints_fields_info[]=
@@ -9759,12 +9765,18 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"EVENTS", Show::events_fields_info, 0,
    0, make_old_format, 0, -1, -1, 0, 0},
 #endif
-  {"EXPLAIN", Show::show_explain_tabular_fields_info, 0, fill_show_explain_tabular,
-  make_old_format, 0, -1, -1, TRUE /*hidden*/ , 0},
-  {"EXPLAIN_JSON", Show::show_explain_json_fields_info, 0, fill_show_explain_json,
-  make_old_format, 0, -1, -1, TRUE /*hidden*/, 0},
-  {"ANALYZE", Show::show_analyze_fields_info, 0, fill_show_analyze_tabular,
-   make_old_format, 0, -1, -1, TRUE /*hidden*/, 0},
+  {"EXPLAIN", Show::show_explain_tabular_fields_info, 0,
+    fill_show_explain_tabular, make_old_format, 0, -1, -1,
+    TRUE /*hidden*/ , 0},
+  {"EXPLAIN_JSON", Show::show_explain_json_fields_info, 0,
+    fill_show_explain_json, make_old_format, 0, -1, -1,
+    TRUE /*hidden*/ , 0},
+  {"ANALYZE", Show::show_analyze_tabular_fields_info, 0,
+    fill_show_analyze_tabular, make_old_format, 0, -1, -1,
+    TRUE /*hidden*/, 0},
+  {"ANALYZE_JSON", Show::show_analyze_json_fields_info, 0,
+    fill_show_analyze_json, make_old_format, 0, -1, -1,
+    TRUE /*hidden*/, 0},
   {"FILES", Show::files_fields_info, 0,
    hton_fill_schema_table, 0, 0, -1, -1, 0, 0},
   {"GLOBAL_STATUS", Show::variables_fields_info, 0,

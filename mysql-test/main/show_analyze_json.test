@@ -1,0 +1,368 @@
+#
+# Tests for SHOW ANALYZE FORMAT=JSON FOR functionality
+#
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_innodb.inc
+# Using valgrind can cause 'reap' to fail. See comment below
+--source include/not_valgrind.inc
+
+--disable_warnings
+drop table if exists t0, t1, t2, t3, t4;
+drop view if exists v1;
+--enable_warnings
+SET @old_debug= @@session.debug;
+
+#
+# Testcases in this file do not work with embedded server. The reason for this
+# is that we use the following commands for synchronization:
+#
+#    set @show_explain_probe_select_id=1;
+#    SET debug_dbug='d,show_explain_probe_join_exec_start';
+#    send select count(*) from t1 where a < 100000;
+#
+# When ran with mysqltest_embedded, this translates into:
+#
+#    Thread1> DBUG_PUSH("d,show_explain_probe_join_exec_start");
+#    Thread1> create another thread for doing "send ... reap"
+#    Thread2> mysql_parse("select count(*) from t1 where a < 100000");
+#
+# That is, "select count(*) ..." is ran in a thread for which DBUG_PUSH(...)
+# has not been called. As a result, show_explain_probe_join_exec_start does not fire, and
+# "select count(*) ..." does not wait till its SHOW ANALYZE command, and the
+# test fails.
+#
+-- source include/not_embedded.inc
+
+set debug_sync='RESET';
+
+create table t0 (a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (a int);
+alter table t1 add b int, add c int, add filler char(32);
+insert into t1 select A.a, 10*B.a, 100*C.a, 'foo filler' from t0 A, t0 B, t0 C;
+alter table t1 add key(a), add key(b);
+analyze table t1;
+
+#
+# Try to call SHOW ANALYZE with a missing thread ID
+#
+--error ER_PARSE_ERROR
+show analyze format=JSON for;
+
+#
+# Try SHOW ANALYZE for a non-existent thread
+#
+--error ER_NO_SUCH_THREAD
+show analyze format=json for 1001;
+
+--error ER_SET_CONSTANTS_ONLY
+show analyze format=JSON for (select a from t0 limit 1);
+
+#
+# Setup two threads and their ids
+#
+let $thr1=`select connection_id()`;
+connect (con1, localhost, root,,);
+connection con1;
+let $thr2=`select connection_id()`;
+SET @old_debug= @@session.debug;
+connection default;
+
+# SHOW ANALYZE FOR <idle thread>
+--error ER_TARGET_NOT_EXPLAINABLE
+evalp show analyze format = JSON for $thr2;
+
+# SHOW ANALYZE FOR <ourselves>
+--error ER_TARGET_NOT_EXPLAINABLE
+evalp show analyze format = json for $thr1;
+
+# Not supported format of output
+--error ER_UNKNOWN_EXPLAIN_FORMAT
+evalp show analyze FORMAT=HTML for $thr1;
+
+--error ER_UNKNOWN_EXPLAIN_FORMAT
+evalp analyze FORMAT=XML for connection $thr1;
+
+let $wait_condition= select State='show_explain_trap' from information_schema.processlist where id=$thr2;
+
+#
+# Test SHOW ANALYZE for simple queries
+#
+connection con1;
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+send select count(*) from t1 where c < 500;
+
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze format=JSON for $thr2;
+connection con1;
+reap;
+
+
+send select max(c) from t1 where c < 10;
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze format=json for $thr2;
+connection con1;
+reap;
+
+
+--echo # We can catch ANALYZE too.
+send analyze select max(c) from t1 where a < 10;
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze format=json for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+
+--echo # UNION, select, first branch
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+send select max(a) from t0 A where a<=5 union select max(a+1) from t0 B where a>=9;
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze FORMAT= json for $thr2;
+connection con1;
+reap;
+
+
+--echo # UNION, select, second branch
+set @show_explain_probe_select_id=2; # <--- Second branch
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+send select max(a) from t0 A where a<=5 union select max(a+1) from t0 B where a>=9;
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze format=JSON for $thr2;
+connection con1;
+reap;
+
+
+--echo # UNION, analyze, first branch
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+send analyze select a from t0 A where a<=5 union select a+1 from t0 B where a>=9;
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze format=json for $thr2;
+connection con1;
+reap;
+
+
+--echo # UNION, analyze, second branch
+set @show_explain_probe_select_id=2;
+send analyze select a from t0 A where a<=5 union select a+1 from t0 B where a>=9;
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze FORMAT=JSON for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+
+--echo # Uncorrelated  subquery, select
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+send select a, (select max(a) from t0 B where a>6) from t0 A where a<2;
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze format=json for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+
+--echo # Uncorrelated  subquery, analyze
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+send analyze select a, (select max(a) from t0 B where a>6) from t0 A where a<2;
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze format=json for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+
+--echo # correlated subquery, select, before execution start
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<2;
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze format=json for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+
+--echo # correlated subquery, select, after execution
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+send select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<2;
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze format=json for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+
+--echo # correlated subquery, analyze
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+send analyze select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<2;
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze format=json for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+
+--echo # Try to do SHOW ANALYZE for a query that runs a  SET command:
+--echo #
+set @show_explain_probe_select_id=2; # <---
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send set @foo= (select max(a) from t0 where sin(a) >0);
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+--error ER_TARGET_NOT_EXPLAINABLE
+evalp show analyze format=json for $thr2;
+evalp kill query $thr2;
+connection con1;
+--error ER_QUERY_INTERRUPTED
+reap;
+SET debug_dbug=@old_debug;
+
+
+--echo #
+--echo # Attempt SHOW ANALYZE for an UPDATE
+--echo #
+create table t2 as select a as a, a as dummy from t0 limit 2;
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze FORMAT=JSON for $thr2;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze FORMAT=JSON for $thr2;
+connection con1;
+reap;
+drop table t2;
+SET debug_dbug=@old_debug;
+
+
+--echo #
+--echo # Attempt SHOW ANALYZE for a DELETE
+--echo #
+create table t2 as select a as a, a as dummy from t0 limit 2;
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze FORMAT=JSON for $thr2;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze FORMAT=JSON for $thr2;
+connection con1;
+reap;
+drop table t2;
+SET debug_dbug=@old_debug;
+
+
+--echo #
+--echo # Multiple SHOW ANALYZE calls for one select
+--echo #
+create table t2 as select a as a, a as dummy from t0 limit 3;
+set @show_explain_probe_select_id=2;
+SET debug_dbug='+d,show_explain_probe_join_exec_start';
+send select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2;
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze format=json for $thr2;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze format=json for $thr2;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze format=json for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+drop table t2;
+
+
+--echo #
+--echo # SHOW ANALYZE for SELECT ... ORDER BY with "Using filesort"
+--echo #
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+set @show_explain_probe_select_id=1;
+send select * from t0 order by a;
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze format=JSON for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+
+--echo #
+--echo # SHOW ANALYZE for SELECT ... with "Using temporary"
+--echo #
+connection con1;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+set @show_explain_probe_select_id=1;
+send select distinct a from t0;
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze format=json for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+
+--echo #
+--echo # SHOW ANALYZE for SELECT ... with "Using temporary; Using filesort"
+--echo #
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+set @show_explain_probe_select_id=1;
+send select distinct a from t0;
+connection default;
+--source include/wait_condition.inc
+--source include/analyze-format.inc
+evalp show analyze format=json for $thr2;
+connection con1;
+reap;
+SET debug_dbug=@old_debug;
+
+
+drop table t0,t1;
+--echo # End
+connection default;
+disconnect con1;
+set debug_sync='RESET';

@@ -26,17 +26,17 @@ connection con1;
 SET @old_debug= @@session.debug;
 connection default;
 show explain format=JSON for $thr2;
-ERROR HY000: Target is not running an EXPLAINable command
+ERROR HY000: Target is not executing an operation with a query plan
 explain format=json for connection $thr2;
-ERROR HY000: Target is not running an EXPLAINable command
+ERROR HY000: Target is not executing an operation with a query plan
 show explain format=json for $thr1;
-ERROR HY000: Target is not running an EXPLAINable command
+ERROR HY000: Target is not executing an operation with a query plan
 explain FORMAT=JSON for connection $thr1;
-ERROR HY000: Target is not running an EXPLAINable command
+ERROR HY000: Target is not executing an operation with a query plan
 show explain FORMAT=HTML for $thr1;
-ERROR HY000: Unknown EXPLAIN format name: 'HTML'
+ERROR HY000: Unknown EXPLAIN/ANALYZE format name: 'HTML'
 explain FORMAT=XML for connection $thr1;
-ERROR HY000: Unknown EXPLAIN format name: 'XML'
+ERROR HY000: Unknown EXPLAIN/ANALYZE format name: 'XML'
 connection con1;
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_join_exec_start';
@@ -523,7 +523,7 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 set @foo= (select max(a) from t0 where sin(a) >0);
 connection default;
 show explain format=JSON for $thr2;
-ERROR HY000: Target is not running an EXPLAINable command
+ERROR HY000: Target is not executing an operation with a query plan
 kill query $thr2;
 connection con1;
 ERROR 70100: Query execution was interrupted
