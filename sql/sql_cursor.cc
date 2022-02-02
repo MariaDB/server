@@ -197,7 +197,7 @@ int mysql_open_cursor(THD *thd, select_result *result,
     }
 
     *pcursor= materialized_cursor;
-    rc|= thd->stmt_arena->cleanup_stmt(true);
+    rc|= (thd->stmt_arena->cleanup_stmt(true)? 1 : 0);
   }
 
 end:
