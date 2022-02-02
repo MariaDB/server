@@ -4043,3 +4043,24 @@ b
 101
 102
 DROP TABLE t1;
+#
+# MDEV-26585 Wrong query results when `using index for group-by`
+#
+CREATE TABLE `t1` (
+`id` int(11) NOT NULL AUTO_INCREMENT,
+`owner_id` int(11) DEFAULT NULL,
+`foo` tinyint(1) DEFAULT 0,
+`whatever` varchar(255) DEFAULT NULL,
+PRIMARY KEY (`id`),
+KEY `index_t1_on_owner_id_and_foo` (`owner_id`,`foo`)
+) engine=InnoDB DEFAULT CHARSET=utf8;
+INSERT INTO t1 (owner_id, foo, whatever)
+VALUES (1, TRUE, "yello"), (1, FALSE, "yello"), (2, TRUE, "yello"),
+(2, TRUE, "yello"), (2, FALSE, "yello");
+EXPLAIN SELECT DISTINCT owner_id FROM t1 WHERE foo = true GROUP BY owner_id HAVING (COUNT(*) = 1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	index_t1_on_owner_id_and_foo	7	NULL	5	Using where; Using index
+SELECT DISTINCT owner_id FROM t1 WHERE foo = true GROUP BY owner_id HAVING (COUNT(*) = 1);
+owner_id
+1
+DROP TABLE t1;

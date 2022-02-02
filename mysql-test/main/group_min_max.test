@@ -4,7 +4,7 @@
 #
 
 --source include/default_optimizer_switch.inc
-
+--source include/have_innodb.inc
 #
 # TODO:
 # Add queries with:
@@ -1699,4 +1699,24 @@ INSERT INTO t1 VALUES (0,100),(2,100),(2,101),(3,102);
 --echo # Must not use Using index for group-by
 explain SELECT DISTINCT b FROM t1 WHERE EXISTS ( SELECT 1 FROM DUAL WHERE a > 1 );
 SELECT DISTINCT b FROM t1 WHERE EXISTS ( SELECT 1 FROM DUAL WHERE a > 1 );
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-26585 Wrong query results when `using index for group-by`
+--echo #
+
+CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `owner_id` int(11) DEFAULT NULL,
+  `foo` tinyint(1) DEFAULT 0,
+  `whatever` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `index_t1_on_owner_id_and_foo` (`owner_id`,`foo`)
+) engine=InnoDB DEFAULT CHARSET=utf8;
+
+INSERT INTO t1 (owner_id, foo, whatever)
+VALUES (1, TRUE, "yello"), (1, FALSE, "yello"), (2, TRUE, "yello"),
+       (2, TRUE, "yello"), (2, FALSE, "yello");
+EXPLAIN SELECT DISTINCT owner_id FROM t1 WHERE foo = true GROUP BY owner_id HAVING (COUNT(*) = 1);
+SELECT DISTINCT owner_id FROM t1 WHERE foo = true GROUP BY owner_id HAVING (COUNT(*) = 1);
 DROP TABLE t1;
