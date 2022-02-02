@@ -88,6 +88,34 @@ SELECT js0, JSON_COMPACT(js0), JSON_COMPACT('{}') FROM t1;
 --enable_ps_protocol
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-27361 Hybrid functions with JSON arguments do not send format metadata
+--echo #
+
+CREATE TABLE t1 (a JSON);
+INSERT INTO t1 VALUES ('{"a":"b"}');
+--disable_ps_protocol
+--enable_metadata
+SELECT a, JSON_COMPACT(a), COALESCE(a) FROM t1;
+SELECT JSON_ARRAYAGG(1), JSON_ARRAYAGG(a) FROM t1;
+SELECT JSON_OBJECTAGG('a','b'), JSON_OBJECTAGG('a',a) FROM t1;
+--disable_metadata
+--disable_ps_protocol
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-27018 IF and COALESCE lose "json" property
+--echo #
+
+--disable_ps_protocol
+--enable_metadata
+SELECT json_object('a', (SELECT json_objectagg(b, c) FROM (SELECT 'b','c') d)) AS j FROM DUAL;
+--disable_metadata
+--disable_ps_protocol
+
+
 --echo #
 --echo # End of 10.5 tests
 --echo #

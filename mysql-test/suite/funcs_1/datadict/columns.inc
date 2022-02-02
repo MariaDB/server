@@ -25,6 +25,10 @@
 #
 
 --source suite/funcs_1/datadict/datadict_bug_12777.inc
+
+# The following is needed as embedded server can be compiled with and without
+# privlege tables
+
 eval
 SELECT * FROM information_schema.columns
 $my_where

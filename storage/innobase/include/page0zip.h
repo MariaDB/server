@@ -377,7 +377,7 @@ void
 page_zip_reset_stat_per_index();
 /*===========================*/
 
-#include "page0zip.ic"
+#include "page0zip.inl"
 #endif /* !UNIV_INNOCHECKSUM */
 
 #endif /* page0zip_h */

@@ -25,7 +25,7 @@ static my_bool     ssl_algorithms_added    = FALSE;
 static my_bool     ssl_error_strings_loaded= FALSE;
 
 /* the function below was generated with "openssl dhparam -2 -C 2048" */
-
+#ifndef HAVE_WOLFSSL
 static
 DH *get_dh2048()
 {
@@ -72,6 +72,7 @@ DH *get_dh2048()
     }
     return dh;
 }
+#endif
 
 static const char*
 ssl_error_string[] =
@@ -228,7 +229,6 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
              enum enum_ssl_init_error *error,
              const char *crl_file, const char *crl_path, ulonglong tls_version)
 {
-  DH *dh;
   struct st_VioSSLFd *ssl_fd;
   long ssl_ctx_options;
   DBUG_ENTER("new_VioSSLFd");
@@ -359,18 +359,21 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
     goto err2;
   }
 
+#ifndef HAVE_WOLFSSL
   /* DH stuff */
   if (!is_client_method)
   {
-    dh=get_dh2048();
+    DH *dh= get_dh2048();
     if (!SSL_CTX_set_tmp_dh(ssl_fd->ssl_context, dh))
     {
       *error= SSL_INITERR_DH;
-      goto err3;
+      DH_free(dh);
+      goto err2;
     }
 
     DH_free(dh);
   }
+#endif
 
 #ifdef HAVE_WOLFSSL
   /* set IO functions used by wolfSSL */
@@ -382,8 +385,6 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
 
   DBUG_RETURN(ssl_fd);
 
-err3:
-  DH_free(dh);
 err2:
   SSL_CTX_free(ssl_fd->ssl_context);
 err1:

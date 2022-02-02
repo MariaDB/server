@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB
+   Copyright (c) 2010, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -5148,8 +5148,15 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   /* Partition info is not handled by mysql_prepare_alter_table() call. */
   if (src_table->table->part_info)
-    thd->work_part_info= src_table->table->part_info->get_clone(thd);
-#endif
+  {
+    /*
+      The CREATE TABLE LIKE should not inherit the DATA DIRECTORY
+      and INDEX DIRECTORY from the base table.
+      So that TRUE argument for the get_clone.
+    */
+    thd->work_part_info= src_table->table->part_info->get_clone(thd, TRUE);
+  }
+#endif /*WITH_PARTITION_STORAGE_ENGINE*/
 
   /*
     Adjust description of source table before using it for creation of
@@ -7879,9 +7886,14 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       def->invisible= INVISIBLE_SYSTEM;
       alter_info->flags|= ALTER_CHANGE_COLUMN;
       if (field->flags & VERS_ROW_START)
-        create_info->vers_info.as_row.start= def->field_name= Vers_parse_info::default_start;
+        create_info->vers_info.period.start=
+          create_info->vers_info.as_row.start=
+          def->field_name= Vers_parse_info::default_start;
+
       else
-        create_info->vers_info.as_row.end= def->field_name= Vers_parse_info::default_end;
+        create_info->vers_info.period.end=
+          create_info->vers_info.as_row.end=
+          def->field_name= Vers_parse_info::default_end;
       new_create_list.push_back(def, thd->mem_root);
       dropped_sys_vers_fields|= field->flags;
       drop_it.remove();
@@ -7910,9 +7922,15 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           def->field_name= alter->new_name;
           column_rename_param.fields.push_back(def);
           if (field->flags & VERS_ROW_START)
+          {
             create_info->vers_info.as_row.start= alter->new_name;
+            create_info->vers_info.period.start= alter->new_name;
+          }
           else if (field->flags & VERS_ROW_END)
+          {
             create_info->vers_info.as_row.end= alter->new_name;
+            create_info->vers_info.period.end= alter->new_name;
+          }
           if (table->s->period.name)
           {
             if (field == table->period_start_field())
@@ -11808,20 +11826,30 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
         tables, like mysql replication does. Also check if the requested
         engine is allowed/supported.
       */
-      if (WSREP(thd) &&
-          !check_engine(thd, create_table->db.str, create_table->table_name.str,
-                        &create_info) &&
-          (!thd->is_current_stmt_binlog_format_row() ||
-           !create_info.tmp_table()))
+      if (WSREP(thd))
       {
+        handlerton *orig_ht= create_info.db_type;
+        if (!check_engine(thd, create_table->db.str,
+                          create_table->table_name.str,
+                          &create_info) &&
+            (!thd->is_current_stmt_binlog_format_row() ||
+             !create_info.tmp_table()))
+        {
 #ifdef WITH_WSREP
-        WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str, create_table->table_name.str,
-				       first_table, &alter_info, NULL, &create_info)
-	{
-	  WSREP_WARN("CREATE TABLE isolation failure");
-	  DBUG_RETURN(true);
-	}
+          WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str,
+                                         create_table->table_name.str,
+                                         first_table, &alter_info, NULL,
+                                         &create_info)
+	  {
+	    WSREP_WARN("CREATE TABLE isolation failure");
+	    DBUG_RETURN(true);
+	  }
 #endif /* WITH_WSREP */
+        }
+        // check_engine will set db_type to  NULL if e.g. TEMPORARY is
+        // not supported by the storage engine, this case is checked
+        // again in mysql_create_table
+        create_info.db_type= orig_ht;
       }
       /* Regular CREATE TABLE */
       res= mysql_create_table(thd, create_table, &create_info, &alter_info);

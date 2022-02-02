@@ -471,3 +471,32 @@ create or replace table t1 (
 show create table t1;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-27452 TIMESTAMP(0) system field is allowed for certain creation of system-versioned table
+--echo #
+--error ER_VERS_FIELD_WRONG_TYPE
+create or replace table t (
+  a int,
+  s timestamp as row start,
+  e timestamp as row end,
+  period for system_time (s, e))
+with system versioning;
+
+--error ER_VERS_FIELD_WRONG_TYPE
+create or replace table t (
+  a int with system versioning,
+  s timestamp as row start,
+  e timestamp as row end,
+  period for system_time (s, e));
+
+create or replace table t (
+  a int with system versioning,
+  b int with system versioning,
+  s timestamp(6) as row start,
+  e timestamp(6) as row end,
+  period for system_time (s, e));
+insert into t () values (),();
+ 
+# cleanup
+drop table t;

@@ -3,3 +3,4 @@
 --log-output=FILE,TABLE
 --max-allowed-packet=32000000
 --proxy-protocol-networks=*
+--sequence=on

@@ -1084,6 +1084,43 @@ DROP TABLE t1;
 SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
 --enable_query_log
 
+
+CREATE TABLE t1 ( id INT NOT NULL, i1 INT, i2 INT, i3 INT, PRIMARY KEY (id)) engine=innodb;
+CREATE TABLE t2 ( id INT NOT NULL, i1 INT, i2 INT, PRIMARY KEY (id)) engine=innodb;
+
+ALTER TABLE t2 DISCARD TABLESPACE;
+FLUSH TABLES t1 FOR EXPORT;
+
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
+
+UNLOCK TABLES;
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t2 IMPORT TABLESPACE;
+
+DROP TABLE t1, t2;
+
+
+CREATE TABLE t1 ( id INT NOT NULL, i1 INT, i2 INT, PRIMARY KEY (id)) engine=innodb;
+CREATE TABLE t2 ( id INT NOT NULL, i1 INT, i2 INT, i3 INT, PRIMARY KEY (id)) engine=innodb;
+
+ALTER TABLE t2 DISCARD TABLESPACE;
+FLUSH TABLES t1 FOR EXPORT;
+
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
+
+UNLOCK TABLES;
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t2 IMPORT TABLESPACE;
+
+--remove_file $MYSQLD_DATADIR/test/t2.ibd
+--remove_file $MYSQLD_DATADIR/test/t2.cfg
+
+
+DROP TABLE t1, t2;
+
+
 call mtr.add_suppression("Got error -1 when reading table '.*'");
 call mtr.add_suppression("InnoDB: Error: tablespace id and flags in file '.*'");
 call mtr.add_suppression("InnoDB: The table .* doesn't have a corresponding tablespace, it was discarded");

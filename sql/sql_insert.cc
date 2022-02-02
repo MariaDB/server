@@ -2515,6 +2515,11 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
       di->table_list.alias.length= di->table_list.table_name.length= di->thd.query_length();
       di->table_list.db= di->thd.db;
       /*
+        Nulify select_lex because, if the thread that spawned the current one
+        disconnects, the select_lex will point to freed memory.
+      */
+      di->table_list.select_lex= NULL;
+      /*
         We need the tickets so that they can be cloned in
         handle_delayed_insert
       */
@@ -3173,6 +3178,8 @@ pthread_handler_t handle_delayed_insert(void *arg)
     di->handler_thread_initialized= TRUE;
     di->table_list.mdl_request.ticket= NULL;
 
+    thd->set_query_id(next_query_id());
+
     if (di->open_and_lock_table())
       goto err;
 
@@ -3291,6 +3298,7 @@ pthread_handler_t handle_delayed_insert(void *arg)
       if (di->tables_in_use && ! thd->lock &&
           (!thd->killed || di->stacked_inserts))
       {
+        thd->set_query_id(next_query_id());
         /*
           Request for new delayed insert.
           Lock the table, but avoid to be blocked by a global read lock.

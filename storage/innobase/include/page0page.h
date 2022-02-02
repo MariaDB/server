@@ -1166,6 +1166,6 @@ page_find_rec_max_not_deleted(
 
 #endif /* !UNIV_INNOCHECKSUM */
 
-#include "page0page.ic"
+#include "page0page.inl"
 
 #endif

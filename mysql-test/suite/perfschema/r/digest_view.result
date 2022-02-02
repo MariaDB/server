@@ -142,3 +142,125 @@ test	SHOW WARNINGS 	10
 test	TRUNCATE TABLE `performance_schema` . `events_statements_summary_by_digest` 	1
 DROP VIEW test.v1;
 DROP TABLE test.t1;
+CREATE TABLE test.v1 (a int, b int);
+INSERT INTO test.v1 VALUES (1, 100), (2, 200), (3, 300);
+CREATE TABLE test.t1 (a int, b int);
+INSERT INTO test.t1 VALUES (1, 100), (2, 200), (3, 300);
+TRUNCATE TABLE performance_schema.events_statements_summary_by_digest;
+EXPLAIN SELECT * from test.v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	v1	ALL	NULL	NULL	NULL	NULL	3	
+EXPLAIN SELECT * from test.v1 where a = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	v1	ALL	NULL	NULL	NULL	NULL	3	Using where
+EXPLAIN SELECT * from test.v1 where b > 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	v1	ALL	NULL	NULL	NULL	NULL	3	Using where
+EXPLAIN SELECT a, b from test.v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	v1	ALL	NULL	NULL	NULL	NULL	3	
+EXPLAIN SELECT b, a from test.v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	v1	ALL	NULL	NULL	NULL	NULL	3	
+SELECT * from test.v1;
+a	b
+1	100
+2	200
+3	300
+SELECT * from test.v1 where a = 1;
+a	b
+1	100
+SELECT * from test.v1 where b > 100;
+a	b
+2	200
+3	300
+SELECT a, b from test.v1;
+a	b
+1	100
+2	200
+3	300
+SELECT b, a from test.v1;
+b	a
+100	1
+200	2
+300	3
+#
+# DIGESTS SEEN ON TABLE
+#
+SELECT SCHEMA_NAME, DIGEST, DIGEST_TEXT, COUNT_STAR
+FROM performance_schema.events_statements_summary_by_digest
+ORDER BY DIGEST_TEXT;
+SCHEMA_NAME	DIGEST	DIGEST_TEXT	COUNT_STAR
+test	883995051deb8c246585802cfd321a22	EXPLAIN SELECT * FROM `test` . `v1` 	1
+test	8e06c8f25266966ced26be5907ceb58f	EXPLAIN SELECT * FROM `test` . `v1` WHERE `a` = ? 	1
+test	873c761bb3401ed8bdfe90d303202341	EXPLAIN SELECT * FROM `test` . `v1` WHERE `b` > ? 	1
+test	58454d2c3bad0c990e97757f8affdff1	EXPLAIN SELECT `a` , `b` FROM `test` . `v1` 	1
+test	5759533b433f70d97df585e57aaeba49	EXPLAIN SELECT `b` , `a` FROM `test` . `v1` 	1
+test	d9abdc3309da734b3be65ee473d046ee	SELECT * FROM `test` . `v1` 	1
+test	93fa57d3b0913e9b91896cdc73e2801d	SELECT * FROM `test` . `v1` WHERE `a` = ? 	1
+test	98852870b265c7ff0cbfa3078163fc4d	SELECT * FROM `test` . `v1` WHERE `b` > ? 	1
+test	ef23ecdedb5da8f4e3a768ef4844f879	SELECT `a` , `b` FROM `test` . `v1` 	1
+test	4fb5c76cec0c3c0e9bae106499c582f9	SELECT `b` , `a` FROM `test` . `v1` 	1
+test	42a222de27801114b6d16e24ff22bc16	TRUNCATE TABLE `performance_schema` . `events_statements_summary_by_digest` 	1
+DROP TABLE test.v1;
+CREATE VIEW test.v1 AS SELECT * FROM test.t1;
+EXPLAIN SELECT * from test.v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
+EXPLAIN SELECT * from test.v1 where a = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+EXPLAIN SELECT * from test.v1 where b > 100;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+EXPLAIN SELECT a, b from test.v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
+EXPLAIN SELECT b, a from test.v1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
+SELECT * from test.v1;
+a	b
+1	100
+2	200
+3	300
+SELECT * from test.v1 where a = 1;
+a	b
+1	100
+SELECT * from test.v1 where b > 100;
+a	b
+2	200
+3	300
+SELECT a, b from test.v1;
+a	b
+1	100
+2	200
+3	300
+SELECT b, a from test.v1;
+b	a
+100	1
+200	2
+300	3
+#
+# DIGESTS SEEN ON VIEW
+#
+SELECT SCHEMA_NAME, DIGEST, DIGEST_TEXT, COUNT_STAR
+FROM performance_schema.events_statements_summary_by_digest
+ORDER BY DIGEST_TEXT;
+SCHEMA_NAME	DIGEST	DIGEST_TEXT	COUNT_STAR
+test	bc34bb436bf5034c4263b1ad23d90292	CREATE VIEW `test` . `v1` AS SELECT * FROM `test` . `t1` 	1
+test	869235446268944d0168011efd19fc9e	DROP TABLE `test` . `v1` 	1
+test	883995051deb8c246585802cfd321a22	EXPLAIN SELECT * FROM `test` . `v1` 	2
+test	8e06c8f25266966ced26be5907ceb58f	EXPLAIN SELECT * FROM `test` . `v1` WHERE `a` = ? 	2
+test	873c761bb3401ed8bdfe90d303202341	EXPLAIN SELECT * FROM `test` . `v1` WHERE `b` > ? 	2
+test	58454d2c3bad0c990e97757f8affdff1	EXPLAIN SELECT `a` , `b` FROM `test` . `v1` 	2
+test	5759533b433f70d97df585e57aaeba49	EXPLAIN SELECT `b` , `a` FROM `test` . `v1` 	2
+test	d9abdc3309da734b3be65ee473d046ee	SELECT * FROM `test` . `v1` 	2
+test	93fa57d3b0913e9b91896cdc73e2801d	SELECT * FROM `test` . `v1` WHERE `a` = ? 	2
+test	98852870b265c7ff0cbfa3078163fc4d	SELECT * FROM `test` . `v1` WHERE `b` > ? 	2
+test	f06abe99801692e1a4acf36648376626	SELECT SCHEMA_NAME , `DIGEST` , `DIGEST_TEXT` , `COUNT_STAR` FROM `performance_schema` . `events_statements_summary_by_digest` ORDER BY `DIGEST_TEXT` 	1
+test	ef23ecdedb5da8f4e3a768ef4844f879	SELECT `a` , `b` FROM `test` . `v1` 	2
+test	4fb5c76cec0c3c0e9bae106499c582f9	SELECT `b` , `a` FROM `test` . `v1` 	2
+test	42a222de27801114b6d16e24ff22bc16	TRUNCATE TABLE `performance_schema` . `events_statements_summary_by_digest` 	1
+DROP VIEW test.v1;
+DROP TABLE test.t1;

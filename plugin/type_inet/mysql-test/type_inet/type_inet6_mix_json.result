@@ -1,0 +1,63 @@
+#
+# MDEV-27018 IF and COALESCE lose "json" property
+#
+CREATE TABLE t1 (a INET6, b JSON, c LONGTEXT);
+INSERT INTO t1 VALUES ('::', '{"b": "b"}', '{"c": "c"}');
+SELECT
+COALESCE(a,b), COALESCE(a,c),
+LEAST(a,b), LEAST(a,c)
+FROM t1 LIMIT 0;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					COALESCE(a,b)	254 (type=inet6)	39	0	Y	32	0	8
+def					COALESCE(a,c)	254 (type=inet6)	39	0	Y	32	0	8
+def					LEAST(a,b)	254 (type=inet6)	39	0	Y	32	0	8
+def					LEAST(a,c)	254 (type=inet6)	39	0	Y	32	0	8
+COALESCE(a,b)	COALESCE(a,c)	LEAST(a,b)	LEAST(a,c)
+CREATE TABLE t2 AS
+SELECT
+COALESCE(a,b), COALESCE(a,c), 
+LEAST(a,b), LEAST(a,c)
+FROM t1 LIMIT 0;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `COALESCE(a,b)` inet6 DEFAULT NULL,
+  `COALESCE(a,c)` inet6 DEFAULT NULL,
+  `LEAST(a,b)` inet6 DEFAULT NULL,
+  `LEAST(a,c)` inet6 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+SELECT * FROM t1 WHERE a=b;
+a	b	c
+Warnings:
+Warning	1292	Incorrect inet6 value: '{"b": "b"}'
+SELECT * FROM t1 WHERE a=c;
+a	b	c
+Warnings:
+Warning	1292	Incorrect inet6 value: '{"c": "c"}'
+SELECT a+b FROM t1;
+ERROR HY000: Illegal parameter data types inet6 and longblob/json for operation '+'
+SELECT a+c FROM t1;
+ERROR HY000: Illegal parameter data types inet6 and longblob for operation '+'
+DROP TABLE t1;
+#
+# MDEV-27668 Assertion `item->type_handler()->is_traditional_scalar_type() || item->type_handler() == type_handler()' failed in Field_inet6::can_optimize_keypart_ref
+#
+CREATE TABLE t1 (i INET6 PRIMARY KEY);
+CREATE TABLE t2 (a VARCHAR(40) CHECK (JSON_VALID(a)));
+SELECT * FROM t1 JOIN t2 ON (i = a);
+i	a
+INSERT INTO t1 VALUES ('::'),('ffff::ffff');
+INSERT INTO t2 VALUES ('{}'),('[]');
+SELECT * FROM t1 JOIN t2 ON (i = a);
+i	a
+DROP TABLE t1, t2;
+CREATE TABLE t1 (i INET6 PRIMARY KEY);
+SELECT * FROM t1 WHERE i<JSON_OBJECT('c','b');
+i
+INSERT INTO t1 VALUES ('::'),('ffff::ffff');
+SELECT * FROM t1 WHERE i<JSON_OBJECT('c','b');
+i
+Warnings:
+Warning	1292	Incorrect inet6 value: '{"c": "b"}'
+DROP TABLE t1;

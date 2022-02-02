@@ -1,0 +1,15 @@
+--source include/master-slave.inc
+--source include/have_binlog_format_row.inc
+
+--echo #
+--echo # MDEV-18918 SQL mode EMPTY_STRING_IS_NULL breaks RBR upon CREATE TABLE .. SELECT
+--echo #
+
+SET SQL_MODE= 'EMPTY_STRING_IS_NULL';
+CREATE TABLE t1 AS SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE 1 = 0;
+--sync_slave_with_master
+SHOW CREATE TABLE t1;
+--connection master
+DROP TABLE t1;
+
+--source include/rpl_end.inc
