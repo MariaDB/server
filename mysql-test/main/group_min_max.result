@@ -4027,3 +4027,19 @@ drop table t1;
 #
 # End of 10.1 tests
 #
+#
+# MDEV-27442 Wrong result upon query with DISTINCT and EXISTS subquery
+#
+CREATE TABLE t1 (a int, b int, KEY b (b,a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (0,100),(2,100),(2,101),(3,102);
+# Must not use Using index for group-by
+explain SELECT DISTINCT b FROM t1 WHERE EXISTS ( SELECT 1 FROM DUAL WHERE a > 1 );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	NULL	b	10	NULL	4	Using where; Using index
+2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+SELECT DISTINCT b FROM t1 WHERE EXISTS ( SELECT 1 FROM DUAL WHERE a > 1 );
+b
+100
+101
+102
+DROP TABLE t1;

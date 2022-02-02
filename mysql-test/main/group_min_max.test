@@ -1689,3 +1689,14 @@ drop table t1;
 --echo #
 --echo # End of 10.1 tests
 --echo #
+
+--echo #
+--echo # MDEV-27442 Wrong result upon query with DISTINCT and EXISTS subquery
+--echo #
+
+CREATE TABLE t1 (a int, b int, KEY b (b,a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (0,100),(2,100),(2,101),(3,102);
+--echo # Must not use Using index for group-by
+explain SELECT DISTINCT b FROM t1 WHERE EXISTS ( SELECT 1 FROM DUAL WHERE a > 1 );
+SELECT DISTINCT b FROM t1 WHERE EXISTS ( SELECT 1 FROM DUAL WHERE a > 1 );
+DROP TABLE t1;
