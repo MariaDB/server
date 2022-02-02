@@ -545,6 +545,8 @@ set global innodb_stats_persistent= @stats.save;
 --echo # MDEV-22846: ref access with full scan on keys with NULLs + rowid_filter
 --echo #
 
+set @stats.save= @@innodb_stats_persistent;
+set global innodb_stats_persistent=0;
 
 CREATE TABLE t1 (pk int NOT NULL, c1 varchar(1)) engine=innodb;
 INSERT INTO t1 VALUES
@@ -568,5 +570,7 @@ eval $q;
 eval EXPLAIN EXTENDED $q;
 
 DROP TABLE t1,t2;
+
+set global innodb_stats_persistent= @stats.save;
 
 --echo # End of 10.4 tests

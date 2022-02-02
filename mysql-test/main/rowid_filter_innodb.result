@@ -2974,6 +2974,8 @@ set global innodb_stats_persistent= @stats.save;
 #
 # MDEV-22846: ref access with full scan on keys with NULLs + rowid_filter
 #
+set @stats.save= @@innodb_stats_persistent;
+set global innodb_stats_persistent=0;
 CREATE TABLE t1 (pk int NOT NULL, c1 varchar(1)) engine=innodb;
 INSERT INTO t1 VALUES
 (1,NULL),(15,'o'),(16,'x'),(19,'t'),(35,'k'),(36,'h'),(42,'t'),(43,'h'),
@@ -3012,4 +3014,5 @@ Warnings:
 Note	1276	Field or reference 'test.t1.pk' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t1`.`pk` AS `pk`,`test`.`t1`.`c1` AS `c1` from `test`.`t1` where !<expr_cache><`test`.`t1`.`c1`,`test`.`t1`.`pk`>(<in_optimizer>(`test`.`t1`.`c1`,<exists>(/* select#2 */ select `test`.`t2`.`c1` from `test`.`t2` join `test`.`t1` `a1` where `test`.`t2`.`i1` = `test`.`t1`.`pk` and `test`.`t2`.`i1` is not null and trigcond(<cache>(`test`.`t1`.`c1`) = `test`.`t2`.`c1`))))
 DROP TABLE t1,t2;
+set global innodb_stats_persistent= @stats.save;
 # End of 10.4 tests
