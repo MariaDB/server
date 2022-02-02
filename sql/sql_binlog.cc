@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2005, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -183,51 +184,39 @@ int binlog_defragment(THD *thd)
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 int save_restore_context_apply_event(Log_event *ev, rpl_group_info *rgi)
 {
-  int err= 0;
+  if (ev->get_type_code() != QUERY_EVENT)
+    return ev->apply_event(rgi);
+
   THD *thd= rgi->thd;
   Relay_log_info *rli= thd->rli_fake;
-  sql_digest_state *m_digest;
-  PSI_statement_locker *m_statement_psi;
-  LEX_CSTRING save_db;
-  my_thread_id m_thread_id= 0;
+  DBUG_ASSERT(!rli->mi);
   LEX_CSTRING connection_name= { STRING_WITH_LEN("BINLOG_BASE64_EVENT") };
 
-  DBUG_ASSERT(!rli->mi);
-
-  if (ev->get_type_code() == QUERY_EVENT)
+  if (!(rli->mi= new Master_info(&connection_name, false)))
   {
-    m_digest= thd->m_digest;
-    m_statement_psi= thd->m_statement_psi;
-    m_thread_id= thd->variables.pseudo_thread_id;
-    thd->system_thread_info.rpl_sql_info= NULL;
-
-    if ((rli->mi= new Master_info(&connection_name, false)))
-    {
-      save_db= thd->db;
-      thd->reset_db(&null_clex_str);
-    }
-    else
-    {
-      my_error(ER_OUT_OF_RESOURCES, MYF(0));
-      err= -1;
-      goto end;
-    }
-    thd->m_digest= NULL;
-    thd->m_statement_psi= NULL;
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return -1;
   }
 
-  err= ev->apply_event(rgi);
+  sql_digest_state *m_digest= thd->m_digest;
+  PSI_statement_locker *m_statement_psi= thd->m_statement_psi;;
+  LEX_CSTRING save_db= thd->db;
+  my_thread_id m_thread_id= thd->variables.pseudo_thread_id;
 
-end:
-  if (ev->get_type_code() == QUERY_EVENT)
-  {
-    thd->m_digest= m_digest;
-    thd->m_statement_psi= m_statement_psi;
-    thd->variables.pseudo_thread_id= m_thread_id;
-    thd->reset_db(&save_db);
-    delete rli->mi;
-    rli->mi= NULL;
-  }
+  thd->system_thread_info.rpl_sql_info= NULL;
+  thd->reset_db(&null_clex_str);
+
+  thd->m_digest= NULL;
+  thd->m_statement_psi= NULL;
+
+  int err= ev->apply_event(rgi);
+
+  thd->m_digest= m_digest;
+  thd->m_statement_psi= m_statement_psi;
+  thd->variables.pseudo_thread_id= m_thread_id;
+  thd->reset_db(&save_db);
+  delete rli->mi;
+  rli->mi= NULL;
 
   return err;
 }
