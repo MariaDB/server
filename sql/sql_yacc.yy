@@ -13890,16 +13890,17 @@ show_param:
           {
             Lex->sql_command= SQLCOM_SHOW_EXPLAIN;
             if (unlikely(prepare_schema_table(thd, Lex, 0,
-			      Lex->explain_json ? SCH_EXPLAIN_JSON : SCH_EXPLAIN_TABULAR)))
+                Lex->explain_json ? SCH_EXPLAIN_JSON : SCH_EXPLAIN_TABULAR)))
               MYSQL_YYABORT;
             add_value_to_list(thd, $4);
           }
-        | ANALYZE_SYM FOR_SYM expr
+        | ANALYZE_SYM opt_format_json FOR_SYM expr
           {
             Lex->sql_command= SQLCOM_SHOW_ANALYZE;
-            if (unlikely(prepare_schema_table(thd, Lex, 0, SCH_ANALYZE)))
+            if (unlikely(prepare_schema_table(thd, Lex, 0,
+                Lex->explain_json ? SCH_ANALYZE_JSON : SCH_ANALYZE_TABULAR)))
               MYSQL_YYABORT;
-            add_value_to_list(thd, $3);
+            add_value_to_list(thd, $4);
           }
         | IDENT_sys remember_tok_start wild_and_where
            {
@@ -14053,8 +14054,8 @@ opt_format_json:
             else if (lex_string_eq(&$3, STRING_WITH_LEN("TRADITIONAL")))
               DBUG_ASSERT(Lex->explain_json==false);
             else
-              my_yyabort_error((ER_UNKNOWN_EXPLAIN_FORMAT, MYF(0), "EXPLAIN",
-                               $3.str));
+              my_yyabort_error((ER_UNKNOWN_EXPLAIN_FORMAT, MYF(0),
+                                "EXPLAIN/ANALYZE", $3.str));
           }
         ;
 
