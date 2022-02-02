@@ -166,7 +166,6 @@ static inline BOOL my_ChangeServiceConfig(SC_HANDLE hService, DWORD dwServiceTyp
   wchar_t *w_Dependencies= NULL;
   wchar_t *w_ServiceStartName= NULL;
   wchar_t *w_Password= NULL;
-  SC_HANDLE sch = NULL;
   DWORD last_error=0;
   BOOL ok= TRUE;
 

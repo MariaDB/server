@@ -29,7 +29,7 @@
 #pragma GCC poison __WIN__
 #endif
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__clang__)
 /*
   Following functions have bugs, when used with UTF-8 active codepage.
   #include <winservice.h> will use the non-buggy wrappers
