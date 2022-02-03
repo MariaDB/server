@@ -129,6 +129,17 @@ static int my_strnncollsp_binary(CHARSET_INFO * cs __attribute__((unused)),
 }
 
 
+static int my_strnncollsp_nchars_binary(CHARSET_INFO * cs __attribute__((unused)),
+                                        const uchar *s, size_t slen,
+                                        const uchar *t, size_t tlen,
+                                        size_t nchars)
+{
+  set_if_smaller(slen, nchars);
+  set_if_smaller(tlen, nchars);
+  return my_strnncoll_binary(cs, s, slen, t, tlen, 0);
+}
+
+
 static int my_strnncoll_8bit_bin(CHARSET_INFO * cs __attribute__((unused)),
                                  const uchar *s, size_t slen,
                                  const uchar *t, size_t tlen,
@@ -200,6 +211,17 @@ static int my_strnncollsp_8bit_bin(CHARSET_INFO * cs __attribute__((unused)),
          a_length < b_length  ?
            -my_strnncollsp_padspace_bin(b, b_length - length) :
            my_strnncollsp_padspace_bin(a, a_length - length);
+}
+
+
+static int my_strnncollsp_nchars_8bit_bin(CHARSET_INFO * cs,
+                                          const uchar *a, size_t a_length,
+                                          const uchar *b, size_t b_length,
+                                          size_t nchars)
+{
+  set_if_smaller(a_length, nchars);
+  set_if_smaller(b_length, nchars);
+  return my_strnncollsp_8bit_bin(cs, a, a_length, b, b_length);
 }
 
 
@@ -491,6 +513,7 @@ MY_COLLATION_HANDLER my_collation_8bit_bin_handler =
   my_coll_init_8bit_bin,
   my_strnncoll_8bit_bin,
   my_strnncollsp_8bit_bin,
+  my_strnncollsp_nchars_8bit_bin,
   my_strnxfrm_8bit_bin,
   my_strnxfrmlen_simple,
   my_like_range_simple,
@@ -509,6 +532,7 @@ MY_COLLATION_HANDLER my_collation_8bit_nopad_bin_handler =
   my_coll_init_8bit_bin,
   my_strnncoll_8bit_bin,
   my_strnncollsp_8bit_nopad_bin,
+  my_strnncollsp_nchars_8bit_bin,
   my_strnxfrm_8bit_nopad_bin,
   my_strnxfrmlen_simple,
   my_like_range_simple,
@@ -527,6 +551,7 @@ static MY_COLLATION_HANDLER my_collation_binary_handler =
   NULL,			/* init */
   my_strnncoll_binary,
   my_strnncollsp_binary,
+  my_strnncollsp_nchars_binary,
   my_strnxfrm_8bit_bin,
   my_strnxfrmlen_simple,
   my_like_range_simple,

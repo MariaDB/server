@@ -1,10 +1,10 @@
 SHOW CREATE TABLE INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE;
 Table	Create Table
 INNODB_FT_INDEX_TABLE	CREATE TEMPORARY TABLE `INNODB_FT_INDEX_TABLE` (
-  `WORD` varchar(337) NOT NULL DEFAULT '',
-  `FIRST_DOC_ID` bigint(21) unsigned NOT NULL DEFAULT 0,
-  `LAST_DOC_ID` bigint(21) unsigned NOT NULL DEFAULT 0,
-  `DOC_COUNT` bigint(21) unsigned NOT NULL DEFAULT 0,
-  `DOC_ID` bigint(21) unsigned NOT NULL DEFAULT 0,
-  `POSITION` bigint(21) unsigned NOT NULL DEFAULT 0
+  `WORD` varchar(337) NOT NULL,
+  `FIRST_DOC_ID` bigint(21) unsigned NOT NULL,
+  `LAST_DOC_ID` bigint(21) unsigned NOT NULL,
+  `DOC_COUNT` bigint(21) unsigned NOT NULL,
+  `DOC_ID` bigint(21) unsigned NOT NULL,
+  `POSITION` bigint(21) unsigned NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3

@@ -1,10 +1,10 @@
 SHOW CREATE TABLE INFORMATION_SCHEMA.INNODB_CMPMEM;
 Table	Create Table
 INNODB_CMPMEM	CREATE TEMPORARY TABLE `INNODB_CMPMEM` (
-  `page_size` int(5) NOT NULL DEFAULT 0,
-  `buffer_pool_instance` int(11) NOT NULL DEFAULT 0,
-  `pages_used` int(11) NOT NULL DEFAULT 0,
-  `pages_free` int(11) NOT NULL DEFAULT 0,
-  `relocation_ops` bigint(21) NOT NULL DEFAULT 0,
-  `relocation_time` int(11) NOT NULL DEFAULT 0
+  `page_size` int(5) NOT NULL,
+  `buffer_pool_instance` int(11) NOT NULL,
+  `pages_used` int(11) NOT NULL,
+  `pages_free` int(11) NOT NULL,
+  `relocation_ops` bigint(21) NOT NULL,
+  `relocation_time` int(11) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3

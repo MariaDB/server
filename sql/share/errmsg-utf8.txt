@@ -7080,9 +7080,8 @@ ER_UNUSED_28
   eng "You should never see it"
   spa "Nunca debería vd de ver esto"
 
-ER_UNUSED_1
-  eng "You should never see it"
-  spa "Nunca debería vd de ver esto"
+ER_VERS_NOT_ALLOWED
+  eng "Not allowed for system-versioned table %`s.%`s"
 
 ER_BINLOG_UNSAFE_AUTOINC_NOT_FIRST
   eng "INSERT into autoincrement field which is not the first part in the composed primary key is unsafe"

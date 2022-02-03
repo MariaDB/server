@@ -1230,7 +1230,7 @@ public:
 
   void free_items();
   /* Close the active state associated with execution of this statement */
-  virtual void cleanup_stmt(bool /*restore_set_statement_vars*/);
+  virtual bool cleanup_stmt(bool /*restore_set_statement_vars*/);
 };
 
 
@@ -5401,9 +5401,9 @@ public:
       thr_timer_end(&query_timer);
 #endif
   }
-  void restore_set_statement_var()
+  bool restore_set_statement_var()
   {
-    main_lex.restore_set_statement_var();
+    return main_lex.restore_set_statement_var();
   }
   /* Copy relevant `stmt` transaction flags to `all` transaction. */
   void merge_unsafe_rollback_flags()

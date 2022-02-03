@@ -1,4 +1,4 @@
-/* Copyright (c) 2016, 2020, MariaDB Corporation.
+/* Copyright (c) 2016, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1451,6 +1451,32 @@ null_return:
 }
 
 
+/*
+  This reproduces behavior according to the former
+  Item_func_conv_charset::is_json_type() which returned args[0]->is_json_type().
+  JSON functions with multiple string input with different character sets
+  wrap some arguments into Item_func_conv_charset. So the former
+  Item_func_conv_charset::is_json_type() took the JSON propery from args[0],
+  i.e. from the original argument before the conversion.
+  This is probably not always correct because an *explicit*
+  `CONVERT(arg USING charset)` is actually a general purpose string
+  expression, not a JSON expression.
+*/
+bool is_json_type(const Item *item)
+{
+  for ( ; ; )
+  {
+    if (Type_handler_json_common::is_json_type_handler(item->type_handler()))
+      return true;
+    const Item_func_conv_charset *func;
+    if (!(func= dynamic_cast<const Item_func_conv_charset*>(item)))
+      return false;
+    item= func->arguments()[0];
+  }
+  return false;
+}
+
+
 static int append_json_value(String *str, Item *item, String *tmp_val)
 {
   if (item->type_handler()->is_bool_type())
@@ -1479,7 +1505,7 @@ static int append_json_value(String *str, Item *item, String *tmp_val)
     String *sv= item->val_json(tmp_val);
     if (item->null_value)
       goto append_null;
-    if (item->is_json_type())
+    if (is_json_type(item))
       return str->append(sv->ptr(), sv->length());
 
     if (item->result_type() == STRING_RESULT)
@@ -1525,7 +1551,7 @@ static int append_json_value_from_field(String *str,
     String *sv= f->val_str(tmp_val, key + offset);
     if (f->is_null_in_record(key))
       goto append_null;
-    if (i->is_json_type())
+    if (is_json_type(i))
       return str->append(sv->ptr(), sv->length());
 
     if (i->result_type() == STRING_RESULT)

@@ -5,6 +5,7 @@
 --source include/have_partition.inc
 --source include/not_embedded.inc
 --source include/innodb_checksum_algorithm.inc
+--source include/have_symlink.inc
 
 SET default_storage_engine=InnoDB;
 LET $MYSQLD_DATADIR = `select @@datadir`;

@@ -611,6 +611,7 @@ static MY_COLLATION_HANDLER my_collation_latin2_czech_cs_handler =
   NULL,			/* init */
   my_strnncoll_czech,
   my_strnncollsp_czech,
+  my_strnncollsp_nchars_generic_8bit,
   my_strnxfrm_czech,
   my_strnxfrmlen_czech,
   my_like_range_czech,

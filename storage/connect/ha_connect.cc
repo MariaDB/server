@@ -5721,10 +5721,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 		if (ttp == TAB_UNDEF && !topt->http) {
 			topt->type= (src) ? "MYSQL" : (tab) ? "PROXY" : "DOS";
 			ttp= GetTypeID(topt->type);
-			sprintf(g->Message, "No table_type. Was set to %s", topt->type);
+			snprintf(g->Message, sizeof(g->Message), "No table_type. Was set to %s", topt->type);
 			push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, 0, g->Message);
 		} else if (ttp == TAB_NIY) {
-			sprintf(g->Message, "Unsupported table type %s", topt->type);
+			snprintf(g->Message, sizeof(g->Message), "Unsupported table type %s", topt->type);
 			rc= HA_ERR_INTERNAL_ERROR;
 			goto err;
 #if defined(REST_SUPPORT)

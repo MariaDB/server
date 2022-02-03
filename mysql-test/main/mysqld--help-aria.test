@@ -1,6 +1,7 @@
 #
 # Check errors from mysqld--help when providing different datadir
 #
+flush tables;
 
 --let $args=--table-cache=5 --max-connections=10 --log-warnings=1 --silent-startup --lower-case-table-names=1 --help --verbose
 

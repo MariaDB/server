@@ -736,6 +736,6 @@ inline void log_t::file::set_lsn_offset(lsn_t a_lsn)
   lsn_offset= a_lsn;
 }
 
-#include "log0log.ic"
+#include "log0log.inl"
 
 #endif

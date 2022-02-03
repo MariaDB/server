@@ -68,6 +68,12 @@ struct fil_addr_t;
 #define BUF_EVICT_IF_IN_POOL	20	/*!< evict a clean block if found */
 /* @} */
 
+/** If LRU list of a buf_pool is less than this size then LRU eviction
+should not happen. This is because when we do LRU flushing we also put
+the blocks on free list. If LRU list is very small then we can end up
+in thrashing. */
+#define BUF_LRU_MIN_LEN		256
+
 # ifdef UNIV_DEBUG
 extern my_bool	buf_disable_resize_buffer_pool_debug; /*!< if TRUE, resizing
 					buffer pool is not allowed. */
@@ -491,7 +497,6 @@ ATTRIBUTE_COLD void buf_page_monitor(const buf_page_t &bpage, bool read);
 if needed.
 @param[in]	size	size in bytes
 @return	aligned size */
-UNIV_INLINE
 ulint
 buf_pool_size_align(
 	ulint	size);
@@ -2203,7 +2208,7 @@ struct	CheckUnzipLRUAndLRUList {
 };
 #endif /* UNIV_DEBUG */
 
-#include "buf0buf.ic"
+#include "buf0buf.inl"
 
 #endif /* !UNIV_INNOCHECKSUM */
 

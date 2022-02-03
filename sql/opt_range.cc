@@ -2695,6 +2695,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   notnull_cond= head->notnull_cond;
   if (!records)
     records++;					/* purecov: inspected */
+  if (head->file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
+    only_single_index_range_scan= 1;
 
   if (head->force_index || force_quick_range)
     scan_time= read_time= DBL_MAX;
@@ -3283,6 +3285,25 @@ double records_in_column_ranges(PARAM *param, uint idx,
 
 
 /*
+  Compare quick select ranges according to number of found rows
+  If there is equal amounts of rows, use the long key part.
+  The idea is that if we have keys (a),(a,b) and (a,b,c) and we have
+  a query like WHERE a=1 and b=1 and c=1,
+  it is better to use key (a,b,c) than (a) as it will ensure we don't also
+  use histograms for columns b and c
+*/
+
+static
+int cmp_quick_ranges(TABLE *table, uint *a, uint *b)
+{
+  int tmp= CMP_NUM(table->opt_range[*a].rows, table->opt_range[*b].rows);
+  if (tmp)
+    return tmp;
+  return -CMP_NUM(table->opt_range[*a].key_parts, table->opt_range[*b].key_parts);
+}
+
+
+/*
   Calculate the selectivity of the condition imposed on the rows of a table
 
   SYNOPSIS
@@ -3318,10 +3339,10 @@ double records_in_column_ranges(PARAM *param, uint idx,
 
 bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 {
-  uint keynr;
-  uint max_quick_key_parts= 0;
+  uint keynr, range_index, ranges;
   MY_BITMAP *used_fields= &table->cond_set;
-  double table_records= (double)table->stat_records(); 
+  double table_records= (double)table->stat_records();
+  uint optimal_key_order[MAX_KEY];
   DBUG_ENTER("calculate_cond_selectivity_for_table");
 
   table->cond_selectivity= 1.0;
@@ -3360,23 +3381,21 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
   Json_writer_object trace_wrapper(thd);
   Json_writer_array selectivity_for_indexes(thd, "selectivity_for_indexes");
 
-  for (keynr= 0;  keynr < table->s->keys; keynr++)
-  {
-    if (table->opt_range_keys.is_set(keynr))
-      set_if_bigger(max_quick_key_parts, table->opt_range[keynr].key_parts);
-  }
-
-  /* 
-    Walk through all indexes, indexes where range access uses more keyparts 
-    go first.
+  /*
+    Walk through all quick ranges in the order of least found rows.
   */
-  for (uint quick_key_parts= max_quick_key_parts;
-       quick_key_parts; quick_key_parts--)
+  for (ranges= keynr= 0 ; keynr < table->s->keys; keynr++)
+    if (table->opt_range_keys.is_set(keynr))
+      optimal_key_order[ranges++]= keynr;
+
+  my_qsort2(optimal_key_order, ranges,
+            sizeof(optimal_key_order[0]),
+            (qsort2_cmp) cmp_quick_ranges, table);
+
+  for (range_index= 0 ; range_index < ranges ; range_index++)
   {
-    for (keynr= 0;  keynr < table->s->keys; keynr++)
+    uint keynr= optimal_key_order[range_index];
     {
-      if (table->opt_range_keys.is_set(keynr) &&
-          table->opt_range[keynr].key_parts == quick_key_parts)
       {
         uint i;
         uint used_key_parts= table->opt_range[keynr].key_parts;
@@ -10270,7 +10289,7 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
 
   uint max_part_no= MY_MAX(key1->max_part_no, key2->max_part_no);
 
-  for (key2=key2->first(); key2; )
+  for (key2=key2->first(); ; )
   {
     /*
       key1 consists of one or more ranges. tmp is the range currently
@@ -10284,6 +10303,16 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
                   ^
                   tmp
     */
+    if (key1->min_flag & NO_MIN_RANGE &&
+        key1->max_flag & NO_MAX_RANGE)
+    {
+      if (key1->maybe_flag)
+        return new SEL_ARG(SEL_ARG::MAYBE_KEY);
+      return 0;   // Always true OR
+    }
+    if (!key2)
+      break;
+
     SEL_ARG *tmp=key1->find_range(key2);
 
     /*
@@ -10354,6 +10383,13 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
         key2->copy_min(tmp);
         if (!(key1=key1->tree_delete(tmp)))
         {                                       // Only one key in tree
+          if (key2->min_flag & NO_MIN_RANGE &&
+              key2->max_flag & NO_MAX_RANGE)
+          {
+            if (key2->maybe_flag)
+              return new SEL_ARG(SEL_ARG::MAYBE_KEY);
+            return 0;   // Always true OR
+          }
           key1=key2;
           key1->make_root();
           key2=key2_next;
@@ -11669,6 +11705,9 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
                                 table_key->user_defined_key_parts);
   uint pk_number;
   
+  if (param->table->file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
+    return false;
+
   for (KEY_PART_INFO *kp= table_key->key_part; kp < key_part; kp++)
   {
     field_index_t fieldnr= (param->table->key_info[keynr].

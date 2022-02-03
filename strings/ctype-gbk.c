@@ -50,7 +50,7 @@ const char charset_name_gbk[]= "gbk";
 #define IS_MB1_CHAR(x)        ((uchar) (x) < 0x80)
 #define IS_MB2_CHAR(x,y)      (isgbkhead(x) && isgbktail(y))
 #define DEFINE_ASIAN_ROUTINES
-#include "ctype-mb.ic"
+#include "ctype-mb.inl"
 
 
 static const uchar ctype_gbk[257] =
@@ -10619,13 +10619,13 @@ my_mb_wc_gbk(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_MB1(x)        (sort_order_gbk[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (gbksortorder(gbkcode(x,y)))
 #define DEFINE_STRNXFRM
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _gbk_bin
 #define WEIGHT_MB1(x)        ((uchar) (x))
 #define WEIGHT_MB2(x,y)      (gbkcode(x,y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -10633,14 +10633,14 @@ my_mb_wc_gbk(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_MB1(x)        (sort_order_gbk[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (gbksortorder(gbkcode(x,y)))
 #define DEFINE_STRNXFRM
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _gbk_nopad_bin
 #define WEIGHT_MB1(x)        ((uchar) (x))
 #define WEIGHT_MB2(x,y)      (gbkcode(x,y))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 static MY_COLLATION_HANDLER my_collation_handler_gbk_chinese_ci=
@@ -10648,6 +10648,7 @@ static MY_COLLATION_HANDLER my_collation_handler_gbk_chinese_ci=
   NULL,                 /* init */
   my_strnncoll_gbk_chinese_ci,
   my_strnncollsp_gbk_chinese_ci,
+  my_strnncollsp_nchars_gbk_chinese_ci,
   my_strnxfrm_gbk_chinese_ci,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -10666,6 +10667,7 @@ static MY_COLLATION_HANDLER my_collation_handler_gbk_bin=
   NULL,                 /* init */
   my_strnncoll_gbk_bin,
   my_strnncollsp_gbk_bin,
+  my_strnncollsp_nchars_gbk_bin,
   my_strnxfrm_mb,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -10684,6 +10686,7 @@ static MY_COLLATION_HANDLER my_collation_handler_gbk_chinese_nopad_ci=
   NULL,                 /* init */
   my_strnncoll_gbk_chinese_ci,
   my_strnncollsp_gbk_chinese_nopad_ci,
+  my_strnncollsp_nchars_gbk_chinese_nopad_ci,
   my_strnxfrm_gbk_chinese_nopad_ci,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -10702,6 +10705,7 @@ static MY_COLLATION_HANDLER my_collation_handler_gbk_nopad_bin=
   NULL,                 /* init */
   my_strnncoll_gbk_bin,
   my_strnncollsp_gbk_nopad_bin,
+  my_strnncollsp_nchars_gbk_nopad_bin,
   my_strnxfrm_mb_nopad,
   my_strnxfrmlen_simple,
   my_like_range_mb,

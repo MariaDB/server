@@ -558,6 +558,21 @@ SELECT
 SELECT JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' );
 
 --echo #
+--echo # MDEV-18284 JSON casting using JSON_COMPACT doesn't always work
+--echo #            with values from subqueries
+--echo #
+
+CREATE TABLE json_test(a JSON, b JSON);
+INSERT INTO json_test VALUES ("[1,2,3]", '{"a":"foo"}');
+SELECT * FROM json_test;
+
+SELECT json_object("a", json_compact(a), "b", b)
+  FROM (SELECT * FROM json_test) AS json_test_values;
+SELECT json_object("a", json_compact(a), "b", json_compact(b))
+  FROM (SELECT * FROM json_test) AS json_test_values;
+DROP TABLE json_test;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
@@ -878,6 +893,14 @@ SELECT t1.id, JSON_ARRAYAGG(JSON_OBJECT('id',t2.id) ORDER BY t2.id) as materials
 
 DROP TABLE t1;
 DROP TABLE t2;
+
+--echo #
+--echo # MDEV-27018 IF and COALESCE lose "json" property
+--echo #
+
+SELECT json_object('a', if(1, json_object('b', 'c'), json_object('e', 'f')));
+SELECT json_object('a', coalesce(json_object('b', 'c')));
+
 
 --echo #
 --echo # MDEV-26054 Server crashes in Item_func_json_arrayagg::get_str_from_field

@@ -1,0 +1,44 @@
+--echo #
+--echo # MDEV-26583 SIGSEGV's in spider_get_select_limit_from_select_lex when DELAYED INSERT is used
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--connection child2_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+eval CREATE TABLE tbl_a (
+    a INT AUTO_INCREMENT KEY,
+    b INT,INDEX i (b)
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+eval CREATE TABLE tbl_a (
+    a INT AUTO_INCREMENT KEY,
+    b INT,INDEX i (b)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='srv "s_2_1", table "tbl_a"';
+
+INSERT DELAYED INTO tbl_a VALUES (0,0),(0,0),(0,0);
+
+let $wait_condition=select count(*)=3 from tbl_a
+source include/wait_condition.inc;
+
+--connection master_1
+DROP DATABASE auto_test_local;
+
+--connection child2_1
+DROP DATABASE auto_test_remote;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

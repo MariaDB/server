@@ -14,6 +14,7 @@
 
 update mysql.global_priv set priv=json_set(priv, '$.plugin', 'mysql_native_password', '$.authentication_string', password('foo')) where user='root';
 
+--replace_regex /[^ ]*mysql_upgrade_info/...mysql_upgrade_info/
 --exec $MYSQL_UPGRADE
 
 connect(con1,localhost,root,foo,,,);
@@ -22,3 +23,6 @@ update mysql.global_priv set priv=json_compact(json_remove(priv, '$.plugin', '$.
 flush privileges;
 # Load event table
 set global event_scheduler=OFF;
+
+let MYSQLD_DATADIR= `select @@datadir`;
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info

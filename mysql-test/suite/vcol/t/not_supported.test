@@ -39,3 +39,13 @@ select * from t1;
 select * from t8;
 
 drop table t1, t3_ok, t8;
+
+--echo #
+--echo # Bug#33141966 - INCONSISTENT BEHAVIOR IF A COLUMN OF TYPE SERIAL IS SET AS GENERATED
+--echo #
+--error ER_PARSE_ERROR
+create table t1 (a int, b serial as (a+1));
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

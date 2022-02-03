@@ -1,0 +1,7 @@
+--source include/galera_cluster.inc
+
+SET SESSION binlog_format=STATEMENT;
+CREATE TEMPORARY TABLE t (i INT) UNION=(t);
+ALTER TABLE t ADD extrac CHAR(1);
+SHOW CREATE TABLE t;
+DROP TABLE t;

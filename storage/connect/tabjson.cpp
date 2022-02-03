@@ -1383,7 +1383,7 @@ bool JSONCOL::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
       p[--n] = 0;
     } else if (!IsNum(p)) {
       // Wrong array specification
-      sprintf(g->Message, "Invalid array specification %s for %s", p, Name);
+      snprintf(g->Message, sizeof(g->Message), "Invalid array specification %s for %s", p, Name);
       return true;
     } // endif p
 

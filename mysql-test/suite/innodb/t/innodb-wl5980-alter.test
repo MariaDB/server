@@ -4,6 +4,7 @@
 --echo #
 
 --source include/have_innodb.inc
+--source include/have_symlink.inc
 
 SET @innodb_file_per_table_orig=@@GLOBAL.innodb_file_per_table;
 LET $regexp=/FTS_[0-9a-f_]+([A-Z0-9_]+)\.([islbd]{3})/FTS_AUX_\1.\2/;

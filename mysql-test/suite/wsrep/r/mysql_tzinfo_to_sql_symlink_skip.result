@@ -9,7 +9,11 @@ TRUNCATE TABLE time_zone;
 TRUNCATE TABLE time_zone_name;
 TRUNCATE TABLE time_zone_transition;
 TRUNCATE TABLE time_zone_transition_type;
-START TRANSACTION;
+LOCK TABLES time_zone WRITE,
+  time_zone_leap_second WRITE,
+  time_zone_name WRITE,
+  time_zone_transition WRITE,
+  time_zone_transition_type WRITE;
 INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
 SET @time_zone_id= LAST_INSERT_ID();
 INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('GMT', @time_zone_id);
@@ -27,6 +31,7 @@ INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, `Offset
 Warning: Unable to load 'MYSQLTEST_VARDIR/zoneinfo/posix/garbage' as time zone. Skipping it.
 Warning: Unable to load 'MYSQLTEST_VARDIR/zoneinfo/posix/ignored.tab' as time zone. Skipping it.
 Warning: Skipping directory 'MYSQLTEST_VARDIR/zoneinfo/posix/posix': to avoid infinite symlink recursion.
+UNLOCK TABLES;
 COMMIT;
 ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time;
 ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
@@ -38,7 +43,11 @@ TRUNCATE TABLE time_zone;
 TRUNCATE TABLE time_zone_name;
 TRUNCATE TABLE time_zone_transition;
 TRUNCATE TABLE time_zone_transition_type;
-START TRANSACTION;
+LOCK TABLES time_zone WRITE,
+  time_zone_leap_second WRITE,
+  time_zone_name WRITE,
+  time_zone_transition WRITE,
+  time_zone_transition_type WRITE;
 INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
 SET @time_zone_id= LAST_INSERT_ID();
 INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('GMT', @time_zone_id);
@@ -53,6 +62,7 @@ INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, `Offset
  (@time_zone_id, 0, 0, 0, 'GMT')
 ;
 Warning: Unable to load 'MYSQLTEST_VARDIR/zoneinfo/posix/garbage' as time zone. Skipping it.
+UNLOCK TABLES;
 COMMIT;
 ALTER TABLE time_zone_transition ORDER BY Time_zone_id, Transition_time;
 ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
@@ -62,17 +72,33 @@ ALTER TABLE time_zone_transition_type ORDER BY Time_zone_id, Transition_type_id;
 set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');
 prepare set_wsrep_write_binlog from @prep1;
 set @toggle=0; execute set_wsrep_write_binlog using @toggle;
+SELECT 'skip truncate tables';
+LOCK TABLES time_zone WRITE,
+  time_zone_leap_second WRITE,
+  time_zone_name WRITE,
+  time_zone_transition WRITE,
+  time_zone_transition_type WRITE;
 INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
 SET @time_zone_id= LAST_INSERT_ID();
 INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('XXX', @time_zone_id);
 INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, `Offset`, Is_DST, Abbreviation) VALUES
  (@time_zone_id, 0, 0, 0, 'GMT')
 ;
+UNLOCK TABLES;
+COMMIT;
 #
 # Testing --leap
 #
 set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');
 prepare set_wsrep_write_binlog from @prep1;
 set @toggle=0; execute set_wsrep_write_binlog using @toggle;
+SELECT 'skip truncate tables';
+LOCK TABLES time_zone WRITE,
+  time_zone_leap_second WRITE,
+  time_zone_name WRITE,
+  time_zone_transition WRITE,
+  time_zone_transition_type WRITE;
 TRUNCATE TABLE time_zone_leap_second;
 ALTER TABLE time_zone_leap_second ORDER BY Transition_time;
+UNLOCK TABLES;
+COMMIT;

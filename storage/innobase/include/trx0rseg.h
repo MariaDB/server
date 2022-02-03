@@ -346,4 +346,4 @@ up to which replication has proceeded.
 void trx_rseg_update_binlog_offset(buf_block_t *rseg_header, const trx_t *trx,
                                    mtr_t *mtr);
 
-#include "trx0rseg.ic"
+#include "trx0rseg.inl"

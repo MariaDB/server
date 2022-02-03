@@ -123,6 +123,6 @@ ut_fold_binary(
 	ulint		len)	/*!< in: length */
 	MY_ATTRIBUTE((pure));
 
-#include "ut0rnd.ic"
+#include "ut0rnd.inl"
 
 #endif
