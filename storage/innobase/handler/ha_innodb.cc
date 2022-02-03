@@ -19615,8 +19615,8 @@ static MYSQL_SYSVAR_BOOL(read_only, srv_read_only_mode,
 
 static MYSQL_SYSVAR_BOOL(read_only_compressed, innodb_read_only_compressed,
   PLUGIN_VAR_OPCMDARG,
-  "Make ROW_FORMAT=COMPRESSED tables read-only (ON by default)",
-  NULL, NULL, TRUE);
+  "Make ROW_FORMAT=COMPRESSED tables read-only",
+  NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_BOOL(cmp_per_index_enabled, srv_cmp_per_index_enabled,
   PLUGIN_VAR_OPCMDARG,
