@@ -9,6 +9,8 @@ SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
 SET GLOBAL slave_parallel_mode='optimistic';
+set @sp= @@global.innodb_stats_persistent;
+set global innodb_stats_persistent= off;
 connection server_3;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
@@ -16,6 +18,8 @@ SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
 SET GLOBAL slave_parallel_mode='optimistic';
+set @sp= @@global.innodb_stats_persistent;
+set global innodb_stats_persistent= off;
 connection server_4;
 SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
 include/stop_slave.inc
@@ -23,6 +27,8 @@ SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
 SET GLOBAL slave_parallel_mode='optimistic';
+set @sp= @@global.innodb_stats_persistent;
+set global innodb_stats_persistent= off;
 *** MDEV-6676: Test that @@skip_parallel_replication is preserved in slave binlog ***
 connection server_1;
 INSERT INTO t1 VALUES(1,1);
@@ -192,16 +198,19 @@ connection server_2;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+set global innodb_stats_persistent= @sp;
 include/start_slave.inc
 connection server_3;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+set global innodb_stats_persistent= @sp;
 include/start_slave.inc
 connection server_4;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_mode=@old_parallel_mode;
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+set global innodb_stats_persistent= @sp;
 include/start_slave.inc
 connection server_1;
 DROP TABLE t1;

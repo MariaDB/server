@@ -25,6 +25,9 @@ master_port=$SERVER_MYPORT_2,
 master_host='127.0.0.1',
 master_user='root';
 
+set @sp= @@global.innodb_stats_persistent;
+set global innodb_stats_persistent= off;
+
 
 #start all slaves
 --disable_warnings
@@ -114,6 +117,7 @@ set default_master_connection = 'master2';
 --source include/wait_for_slave_to_stop.inc
 
 --eval set global slave_parallel_threads=$par_thd
+set global innodb_stats_persistent= @sp;
 
 --source include/reset_master_slave.inc
 --disconnect slave

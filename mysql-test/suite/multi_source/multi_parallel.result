@@ -10,6 +10,8 @@ change master 'master2' to
 master_port=MYPORT_2,
 master_host='127.0.0.1',
 master_user='root';
+set @sp= @@global.innodb_stats_persistent;
+set global innodb_stats_persistent= off;
 start all slaves;
 set default_master_connection = 'master1';
 include/wait_for_slave_to_start.inc
@@ -54,6 +56,7 @@ include/wait_for_slave_to_stop.inc
 set default_master_connection = 'master2';
 include/wait_for_slave_to_stop.inc
 set global slave_parallel_threads=0;
+set global innodb_stats_persistent= @sp;
 include/reset_master_slave.inc
 disconnect slave;
 connection master1;
