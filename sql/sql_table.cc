@@ -7147,7 +7147,8 @@ bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
         are equal. Comparing field numbers is sufficient.
       */
       if ((table_part->length != new_part->length) ||
-          (table_part->fieldnr - 1 != new_part->fieldnr))
+          (table_part->fieldnr - 1 != new_part->fieldnr) ||
+          ((table_part->key_part_flag ^ new_part->key_part_flag) & HA_REVERSE_SORT))
         DBUG_RETURN(false);
     }
   }

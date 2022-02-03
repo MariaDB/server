@@ -1239,3 +1239,14 @@ DROP TABLE t1, t2;
 #
 # End of 10.3 tests
 #
+#
+# MDEV-27683 EXCHANGE PARTITION allows different index direction, but causes further errors
+#
+CREATE TABLE t1 (a INT, KEY(a DESC)) PARTITION BY KEY(a) PARTITIONS 4;
+CREATE TABLE t2 (a INT, KEY(a));
+ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
+ERROR HY000: Tables have different definitions
+DROP TABLE t1, t2;
+#
+# End of 10.8 tests
+#

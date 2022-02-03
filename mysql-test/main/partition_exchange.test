@@ -535,3 +535,16 @@ DROP TABLE t1, t2;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # MDEV-27683 EXCHANGE PARTITION allows different index direction, but causes further errors
+--echo #
+CREATE TABLE t1 (a INT, KEY(a DESC)) PARTITION BY KEY(a) PARTITIONS 4;
+CREATE TABLE t2 (a INT, KEY(a));
+--error ER_TABLES_DIFFERENT_METADATA
+ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # End of 10.8 tests
+--echo #
