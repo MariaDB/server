@@ -7019,10 +7019,8 @@ static void update_altered_table(const Alter_inplace_info &ha_alter_info,
   @retval false  success
 */
 
-bool mysql_compare_tables(TABLE *table,
-                          Alter_info *alter_info,
-                          HA_CREATE_INFO *create_info,
-                          bool *metadata_equal)
+bool mysql_compare_tables(TABLE *table, Alter_info *alter_info,
+                          HA_CREATE_INFO *create_info, bool *metadata_equal)
 {
   DBUG_ENTER("mysql_compare_tables");
 
@@ -7047,15 +7045,14 @@ bool mysql_compare_tables(TABLE *table,
   Alter_info tmp_alter_info(*alter_info, thd->mem_root);
   uint db_options= 0; /* not used */
   KEY *key_info_buffer= NULL;
-  LEX_CSTRING db= { table->s->db.str, table->s->db.length };
-  LEX_CSTRING table_name= { table->s->db.str, table->s->table_name.length };
 
   /* Create the prepared information. */
   int create_table_mode= table->s->tmp_table == NO_TMP_TABLE ?
                            C_ORDINARY_CREATE : C_ALTER_TABLE;
   if (mysql_prepare_create_table(thd, create_info, &tmp_alter_info,
                                  &db_options, table->file, &key_info_buffer,
-                                 &key_count, create_table_mode, db, table_name))
+                                 &key_count, create_table_mode,
+                                 table->s->db, table->s->table_name))
     DBUG_RETURN(1);
 
   /* Some very basic checks. */
