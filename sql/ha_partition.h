@@ -616,6 +616,7 @@ public:
     If the object was opened it will also be closed before being deleted.
   */
   int open(const char *name, int mode, uint test_if_locked) override;
+  int open_part2() override;
   int close() override;
 
   /*

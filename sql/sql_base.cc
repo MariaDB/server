@@ -4516,6 +4516,25 @@ error:
 }
 
 
+bool open_tables_part2(THD *thd, TABLE_LIST *tables)
+{
+  int error= 0;
+
+  DBUG_ENTER("open_tables_part2");
+
+  for (; tables; tables= tables->next_global)
+  {
+    if (tables->placeholder())
+      continue;
+
+    if ((error= tables->table->file->open_part2()))
+      break;
+  }
+
+  DBUG_RETURN(error);
+}
+
+
 /**
   Defines how prelocking algorithm for DML statements should handle routines:
   - For CALL statements we do unrolling (i.e. open and lock tables for each
@@ -5252,6 +5271,9 @@ bool open_and_lock_tables(THD *thd, const DDL_options_st &options,
   DBUG_PRINT("enter", ("derived handling: %d", derived));
 
   if (open_tables(thd, options, &tables, &counter, flags, prelocking_strategy))
+    goto err;
+
+  if (open_tables_part2(thd, tables))
     goto err;
 
   DBUG_EXECUTE_IF("sleep_open_and_lock_after_open", {

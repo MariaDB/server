@@ -3801,6 +3801,13 @@ err_alloc:
 }
 
 
+int ha_partition::open_part2()
+{
+  DBUG_ENTER("ha_partition::open_part2");
+  DBUG_RETURN(0);
+}
+
+
 /*
   Disabled since it is not possible to prune yet.
   without pruning, it need to rebind/unbind every partition in every

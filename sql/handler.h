@@ -3491,6 +3491,7 @@ public:
   
   int ha_open(TABLE *table, const char *name, int mode, uint test_if_locked,
               MEM_ROOT *mem_root= 0, List<String> *partitions_to_open=NULL);
+  virtual int open_part2() { return 0; }
   int ha_index_init(uint idx, bool sorted)
   {
     DBUG_EXECUTE_IF("ha_index_init_fail", return HA_ERR_TABLE_DEF_CHANGED;);
