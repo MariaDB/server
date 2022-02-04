@@ -2,7 +2,7 @@
 #define SQL_TYPE_H_INCLUDED
 /*
    Copyright (c) 2015  MariaDB Foundation.
-   Copyright (c) 2015, 2020, MariaDB Corporation.
+   Copyright (c) 2015, 2021, MariaDB Corporation.
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -45,6 +45,7 @@ class Item_param;
 class Item_cache;
 class Item_copy;
 class Item_func_or_sum;
+class Item_sum;
 class Item_sum_hybrid;
 class Item_sum_sum;
 class Item_sum_avg;
@@ -3767,6 +3768,19 @@ public:
     incompatible data type.
   */
   virtual bool is_param_long_data_type() const { return false; }
+  /*
+    The base type handler "this" is derived from.
+    "This" inherits aggregation rules from the base type handler.
+  */
+  virtual const Type_handler *type_handler_base() const
+  {
+    return NULL;
+  }
+  const Type_handler *type_handler_base_or_self() const
+  {
+    const Type_handler *res= type_handler_base();
+    return res ? res : this;
+  }
   virtual const Type_handler *type_handler_for_comparison() const= 0;
   virtual const Type_handler *type_handler_for_native_format() const
   {
@@ -7474,6 +7488,41 @@ public:
   bool aggregate_for_num_op(const class Type_aggregator *aggregator,
                             const Type_handler *h0, const Type_handler *h1);
 };
+
+
+class Type_handler_pair
+{
+  const Type_handler *m_a;
+  const Type_handler *m_b;
+public:
+  Type_handler_pair(const Type_handler *a,
+                    const Type_handler *b)
+   :m_a(a), m_b(b)
+  { }
+  const Type_handler *a() const { return m_a; }
+  const Type_handler *b() const { return m_b; }
+  /*
+    Change both handlers to their parent data type handlers, if available.
+    For example, VARCHAR/JSON -> VARCHAR.
+    @returns The number of handlers changed (0,1 or 2).
+  */
+  bool to_base()
+  {
+    bool rc= false;
+    const Type_handler *na= m_a->type_handler_base();
+    const Type_handler *nb= m_b->type_handler_base();
+    if (na)
+    {
+      m_a= na; rc= true;
+    }
+    if (nb)
+    {
+      m_b= nb; rc= true;
+    }
+    return rc;
+  }
+};
+
 
 /*
   Helper template to simplify creating builtin types with names.

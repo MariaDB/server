@@ -4476,6 +4476,7 @@ restart:
     {
       enum_sql_command sql_command= thd->lex->sql_command;
       bool is_dml_stmt= thd->get_command() != COM_STMT_PREPARE &&
+                    !thd->stmt_arena->is_stmt_prepare()        &&
                     (sql_command == SQLCOM_INSERT ||
                      sql_command == SQLCOM_INSERT_SELECT ||
                      sql_command == SQLCOM_REPLACE ||
@@ -6425,8 +6426,9 @@ find_field_in_tables(THD *thd, Item_ident *item,
                                  TRUE, &(item->cached_field_index));
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
       /* Check if there are sufficient access rights to the found field. */
-      if (found && check_privileges &&
-          check_column_grant_in_table_ref(thd, table_ref, name, length, found))
+      if (found && check_privileges && !is_temporary_table(table_ref) &&
+          check_column_grant_in_table_ref(thd, table_ref, name, length,
+                                          found))
         found= WRONG_GRANT;
 #endif
     }
@@ -6896,7 +6898,6 @@ set_new_item_local_context(THD *thd, Item_ident *item, TABLE_LIST *table_ref)
   if (!(context= new (thd->mem_root) Name_resolution_context))
     return TRUE;
   context->init();
-  context->select_lex= table_ref->select_lex;
   context->first_name_resolution_table=
     context->last_name_resolution_table= table_ref;
   item->context= context;

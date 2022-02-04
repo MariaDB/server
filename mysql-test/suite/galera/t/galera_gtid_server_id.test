@@ -1,0 +1,28 @@
+--source include/galera_cluster.inc
+
+--connection node_1
+select @@gtid_domain_id, @@server_id, @@wsrep_gtid_domain_id,@@wsrep_gtid_mode;
+--connection node_2
+call mtr.add_suppression("WSREP: Ignoring server id for non bootstrap node.");
+select @@gtid_domain_id, @@server_id, @@wsrep_gtid_domain_id,@@wsrep_gtid_mode;
+
+--connection node_1
+CREATE TABLE t1(id int not null primary key) engine=innodb;
+INSERT INTO t1 values (1);
+show global variables  like '%gtid%';
+--connection node_2
+SET SESSION wsrep_sync_wait=15;
+show global variables  like '%gtid%';
+# This should give error
+--error ER_WRONG_VALUE_FOR_VAR
+SET GLOBAL server_id=200;
+SHOW WARNINGS;
+# This should give error
+--error ER_WRONG_VALUE_FOR_VAR
+SET SESSION server_id=200;
+SHOW WARNINGS;
+INSERT INTO t1 values(2);
+show global variables  like '%gtid%';
+--connection node_1
+show global variables  like '%gtid%';
+DROP TABLE t1;

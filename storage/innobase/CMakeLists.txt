@@ -78,19 +78,19 @@ SET(INNOBASE_SOURCES
 	handler/i_s.cc
 	ibuf/ibuf0ibuf.cc
 	include/btr0btr.h
-	include/btr0btr.ic
+	include/btr0btr.inl
 	include/btr0bulk.h
 	include/btr0cur.h
-	include/btr0cur.ic
+	include/btr0cur.inl
 	include/btr0defragment.h
 	include/btr0pcur.h
-	include/btr0pcur.ic
+	include/btr0pcur.inl
 	include/btr0sea.h
-	include/btr0sea.ic
+	include/btr0sea.inl
 	include/btr0types.h
 	include/buf0buddy.h
 	include/buf0buf.h
-	include/buf0buf.ic
+	include/buf0buf.inl
 	include/buf0checksum.h
 	include/buf0dblwr.h
 	include/buf0dump.h
@@ -99,36 +99,36 @@ SET(INNOBASE_SOURCES
 	include/buf0rea.h
 	include/buf0types.h
 	include/data0data.h
-	include/data0data.ic
+	include/data0data.inl
 	include/data0type.h
-	include/data0type.ic
+	include/data0type.inl
 	include/data0types.h
 	include/db0err.h
 	include/dict0boot.h
 	include/dict0crea.h
-	include/dict0crea.ic
+	include/dict0crea.inl
 	include/dict0defrag_bg.h
 	include/dict0dict.h
-	include/dict0dict.ic
+	include/dict0dict.inl
 	include/dict0load.h
 	include/dict0mem.h
-	include/dict0mem.ic
+	include/dict0mem.inl
 	include/dict0pagecompress.h
-	include/dict0pagecompress.ic
+	include/dict0pagecompress.inl
 	include/dict0stats.h
-	include/dict0stats.ic
+	include/dict0stats.inl
 	include/dict0stats_bg.h
 	include/dict0types.h
 	include/dyn0buf.h
 	include/dyn0types.h
 	include/eval0eval.h
-	include/eval0eval.ic
+	include/eval0eval.inl
 	include/eval0proc.h
-	include/eval0proc.ic
+	include/eval0proc.inl
 	include/fil0crypt.h
-	include/fil0crypt.ic
+	include/fil0crypt.inl
 	include/fil0fil.h
-	include/fil0fil.ic
+	include/fil0fil.inl
 	include/fil0pagecompress.h
 	include/fsp0file.h
 	include/fsp0fsp.h
@@ -142,95 +142,95 @@ SET(INNOBASE_SOURCES
 	include/fts0pars.h
 	include/fts0plugin.h
 	include/fts0priv.h
-	include/fts0priv.ic
+	include/fts0priv.inl
 	include/fts0tlex.h
 	include/fts0tokenize.h
 	include/fts0types.h
-	include/fts0types.ic
+	include/fts0types.inl
 	include/fts0vlc.h
 	include/fut0fut.h
 	include/fut0lst.h
 	include/gis0geo.h
 	include/gis0rtree.h
-	include/gis0rtree.ic
+	include/gis0rtree.inl
 	include/gis0type.h
 	include/ha_prototypes.h
 	include/ha0ha.h
-	include/ha0ha.ic
+	include/ha0ha.inl
 	include/ha0storage.h
-	include/ha0storage.ic
+	include/ha0storage.inl
 	include/handler0alter.h
 	include/hash0hash.h
 	include/ibuf0ibuf.h
-	include/ibuf0ibuf.ic
+	include/ibuf0ibuf.inl/
 	include/ibuf0types.h
 	include/lock0iter.h
 	include/lock0lock.h
-	include/lock0lock.ic
+	include/lock0lock.inl
 	include/lock0prdt.h
 	include/lock0priv.h
-	include/lock0priv.ic
+	include/lock0priv.inl
 	include/lock0types.h
 	include/log0crypt.h
 	include/log0log.h
 	include/log0recv.h
 	include/log0types.h
 	include/mach0data.h
-	include/mach0data.ic
+	include/mach0data.inl
 	include/mem0mem.h
-	include/mem0mem.ic
+	include/mem0mem.inl
 	include/mtr0log.h
 	include/mtr0mtr.h
-	include/mtr0mtr.ic
+	include/mtr0mtr.inl
 	include/mtr0types.h
 	include/os0file.h
-	include/os0file.ic
+	include/os0file.inl
 	include/os0thread.h
 	include/page0cur.h
-	include/page0cur.ic
+	include/page0cur.inl
 	include/page0page.h
-	include/page0page.ic
+	include/page0page.inl
 	include/page0types.h
 	include/page0zip.h
-	include/page0zip.ic
+	include/page0zip.inl
 	include/pars0grm.h
 	include/pars0opt.h
 	include/pars0pars.h
 	include/pars0sym.h
 	include/pars0types.h
 	include/que0que.h
-	include/que0que.ic
+	include/que0que.inl
 	include/que0types.h
 	include/read0types.h
 	include/rem0cmp.h
 	include/rem0rec.h
-	include/rem0rec.ic
+	include/rem0rec.inl
 	include/rem0types.h
 	include/row0ext.h
-	include/row0ext.ic
+	include/row0ext.inl
 	include/row0ftsort.h
 	include/row0import.h
 	include/row0ins.h
 	include/row0log.h
-	include/row0log.ic
+	include/row0log.inl
 	include/row0merge.h
 	include/row0mysql.h
 	include/row0purge.h
 	include/row0quiesce.h
 	include/row0row.h
-	include/row0row.ic
+	include/row0row.inl
 	include/row0sel.h
-	include/row0sel.ic
+	include/row0sel.inl
 	include/row0types.h
 	include/row0uins.h
 	include/row0umod.h
 	include/row0undo.h
 	include/row0upd.h
-	include/row0upd.ic
+	include/row0upd.inl
 	include/row0vers.h
 	include/rw_lock.h
 	include/srv0mon.h
-	include/srv0mon.ic
+	include/srv0mon.inl
 	include/srv0srv.h
 	include/srv0start.h
 	include/srw_lock.h
@@ -238,38 +238,38 @@ SET(INNOBASE_SOURCES
 	include/trx0i_s.h
 	include/trx0purge.h
 	include/trx0rec.h
-	include/trx0rec.ic
+	include/trx0rec.inl
 	include/trx0roll.h
 	include/trx0rseg.h
-	include/trx0rseg.ic
+	include/trx0rseg.inl
 	include/trx0sys.h
 	include/trx0trx.h
-	include/trx0trx.ic
+	include/trx0trx.inl
 	include/trx0types.h
 	include/trx0undo.h
-	include/trx0undo.ic
+	include/trx0undo.inl
 	include/trx0xa.h
 	include/univ.i
 	include/ut0byte.h
-	include/ut0byte.ic
+	include/ut0byte.inl
 	include/ut0counter.h
 	include/ut0dbg.h
 	include/ut0list.h
-	include/ut0list.ic
+	include/ut0list.inl
 	include/ut0lst.h
 	include/ut0mem.h
-	include/ut0mem.ic
+	include/ut0mem.inl
 	include/ut0new.h
 	include/ut0pool.h
 	include/ut0rbt.h
 	include/ut0rnd.h
-	include/ut0rnd.ic
+	include/ut0rnd.inl
 	include/ut0sort.h
 	include/ut0stage.h
 	include/ut0ut.h
-	include/ut0ut.ic
+	include/ut0ut.inl
 	include/ut0vec.h
-	include/ut0vec.ic
+	include/ut0vec.inl
 	include/ut0wqueue.h
 	lock/lock0iter.cc
 	lock/lock0prdt.cc

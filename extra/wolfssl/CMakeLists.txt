@@ -104,6 +104,7 @@ ${WOLFCRYPT_SRCDIR}/wc_port.c
 ${WOLFCRYPT_SRCDIR}/wc_encrypt.c
 ${WOLFCRYPT_SRCDIR}/hash.c
 ${WOLFCRYPT_SRCDIR}/wolfmath.c
+${WOLFCRYPT_SRCDIR}/kdf.c
 )
 
 # Use fastmath large number math library.

@@ -1415,6 +1415,8 @@ void Query_cache::store_query(THD *thd, TABLE_LIST *tables_used)
     flags.client_long_flag= MY_TEST(thd->client_capabilities & CLIENT_LONG_FLAG);
     flags.client_protocol_41= MY_TEST(thd->client_capabilities &
                                       CLIENT_PROTOCOL_41);
+    flags.client_extended_metadata= MY_TEST(thd->client_capabilities &
+                                            MARIADB_CLIENT_EXTENDED_METADATA);
     flags.client_depr_eof= MY_TEST(thd->client_capabilities &
                                       CLIENT_DEPRECATE_EOF);
     /*
@@ -1447,12 +1449,13 @@ void Query_cache::store_query(THD *thd, TABLE_LIST *tables_used)
     flags.div_precision_increment= thd->variables.div_precincrement;
     flags.default_week_format= thd->variables.default_week_format;
     DBUG_PRINT("qcache", ("\
-long %d, 4.1: %d, eof: %d, bin_proto: %d, more results %d, pkt_nr: %d, \
+long %d, 4.1: %d, ex metadata: %d, eof: %d, bin_proto: %d, more results %d, pkt_nr: %d, \
 CS client: %u, CS result: %u, CS conn: %u, limit: %llu, TZ: %p, \
 sql mode: 0x%llx, sort len: %llu, concat len: %u, div_precision: %zu, \
 def_week_frmt: %zu, in_trans: %d, autocommit: %d",
                           (int)flags.client_long_flag,
                           (int)flags.client_protocol_41,
+                          (int)flags.client_extended_metadata,
                           (int)flags.client_depr_eof,
                           (int)flags.protocol_type,
                           (int)flags.more_results_exists,
@@ -1924,6 +1927,8 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
   flags.client_long_flag= MY_TEST(thd->client_capabilities & CLIENT_LONG_FLAG);
   flags.client_protocol_41= MY_TEST(thd->client_capabilities &
                                     CLIENT_PROTOCOL_41);
+  flags.client_extended_metadata= MY_TEST(thd->client_capabilities &
+                                          MARIADB_CLIENT_EXTENDED_METADATA);
   flags.client_depr_eof= MY_TEST(thd->client_capabilities &
                                     CLIENT_DEPRECATE_EOF);
   flags.protocol_type= (unsigned int) thd->protocol->type();
@@ -1947,12 +1952,13 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
   flags.default_week_format= thd->variables.default_week_format;
   flags.lc_time_names= thd->variables.lc_time_names;
   DBUG_PRINT("qcache", ("\
-long %d, 4.1: %d, eof: %d, bin_proto: %d, more results %d, pkt_nr: %d, \
+long %d, 4.1: %d, ex metadata: %d, eof: %d, bin_proto: %d, more results %d, pkt_nr: %d, \
 CS client: %u, CS result: %u, CS conn: %u, limit: %llu, TZ: %p, \
 sql mode: 0x%llx, sort len: %llu, concat len: %u, div_precision: %zu, \
 def_week_frmt: %zu, in_trans: %d, autocommit: %d",
                           (int)flags.client_long_flag,
                           (int)flags.client_protocol_41,
+                          (int)flags.client_extended_metadata,
                           (int)flags.client_depr_eof,
                           (int)flags.protocol_type,
                           (int)flags.more_results_exists,

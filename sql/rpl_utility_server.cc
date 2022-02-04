@@ -549,6 +549,8 @@ Field_longstr::rpl_conv_type_from(const Conv_source &source,
       binlog_type() == MYSQL_TYPE_VARCHAR_COMPRESSED ||
       binlog_type() == MYSQL_TYPE_BLOB_COMPRESSED)
     same_type= binlog_type() == source.real_field_type();
+  else if (Type_handler_json_common::is_json_type_handler(type_handler()))
+    same_type= type_handler()->type_handler_base() == source.type_handler();
   else
     same_type= type_handler() == source.type_handler();
 

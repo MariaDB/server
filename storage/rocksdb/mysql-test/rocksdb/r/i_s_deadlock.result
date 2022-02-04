@@ -13,15 +13,15 @@ connection default;
 show create table information_schema.rocksdb_deadlock;
 Table	Create Table
 ROCKSDB_DEADLOCK	CREATE TEMPORARY TABLE `ROCKSDB_DEADLOCK` (
-  `DEADLOCK_ID` bigint(21) NOT NULL DEFAULT 0,
-  `TIMESTAMP` bigint(21) NOT NULL DEFAULT 0,
-  `TRANSACTION_ID` bigint(21) NOT NULL DEFAULT 0,
-  `CF_NAME` varchar(193) NOT NULL DEFAULT '',
-  `WAITING_KEY` varchar(513) NOT NULL DEFAULT '',
-  `LOCK_TYPE` varchar(193) NOT NULL DEFAULT '',
-  `INDEX_NAME` varchar(193) NOT NULL DEFAULT '',
-  `TABLE_NAME` varchar(193) NOT NULL DEFAULT '',
-  `ROLLED_BACK` bigint(21) NOT NULL DEFAULT 0
+  `DEADLOCK_ID` bigint(21) NOT NULL,
+  `TIMESTAMP` bigint(21) NOT NULL,
+  `TRANSACTION_ID` bigint(21) NOT NULL,
+  `CF_NAME` varchar(193) NOT NULL,
+  `WAITING_KEY` varchar(513) NOT NULL,
+  `LOCK_TYPE` varchar(193) NOT NULL,
+  `INDEX_NAME` varchar(193) NOT NULL,
+  `TABLE_NAME` varchar(193) NOT NULL,
+  `ROLLED_BACK` bigint(21) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3
 create table t (i int primary key) engine=rocksdb;
 insert into t values (1), (2), (3);

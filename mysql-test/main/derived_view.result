@@ -2459,8 +2459,6 @@ SELECT * FROM t1;
 a
 1
 1
-1
-1
 drop table t1,t2;
 set optimizer_switch=@save968720_optimizer_switch;
 #
@@ -3576,4 +3574,134 @@ a
 7
 drop view v1;
 drop table t1;
+#
+# MDEV-24454  Second execution of SELECT containing set function
+# MDEV-25086: whose only argument is an outer reference to a column
+#             of mergeable view/derived/table/CTE
+#
+create table t1 (a int);
+create table t2 (b int);
+insert into t1 values (3), (1), (3);
+insert into t2 values (70), (30), (70);
+create view v1 as select * from t2;
+prepare stmt from "
+select (select sum(b) from t1 where a=1) as r from v1;
+";
+execute stmt;
+r
+170
+execute stmt;
+r
+170
+deallocate prepare stmt;
+prepare stmt from "
+select (select sum(b) from t1 where a=1) as r from (select * from t2) dt;
+";
+execute stmt;
+r
+170
+execute stmt;
+r
+170
+deallocate prepare stmt;
+prepare stmt from "
+with cte as (select * from t2)
+select (select sum(b) from t1 where a=1) as r from cte;
+";
+execute stmt;
+r
+170
+execute stmt;
+r
+170
+deallocate prepare stmt;
+prepare stmt from "
+select (select sum(b) from t1 where a=1) as r
+from (select * from v1 where b > 50) dt;
+";
+execute stmt;
+r
+140
+execute stmt;
+r
+140
+deallocate prepare stmt;
+prepare stmt from "
+select (select sum(b) from t1 where a=1) as r
+from (select * from (select * from t2) dt1 where b > 50) dt;
+";
+execute stmt;
+r
+140
+execute stmt;
+r
+140
+deallocate prepare stmt;
+prepare stmt from "
+with cte as (select * from (select * from t2) dt1 where b > 50)
+select (select sum(b) from t1 where a=1) as r from cte;
+";
+execute stmt;
+r
+140
+execute stmt;
+r
+140
+deallocate prepare stmt;
+create procedure sp1()
+begin
+select (select sum(b) from t1 where a=1) as r from v1;
+end |
+call sp1();
+r
+170
+call sp1();
+r
+170
+drop procedure sp1;
+create procedure sp1()
+begin
+select (select sum(b) from t1 where a=1) as r from (select * from t2) dt;
+end |
+call sp1();
+r
+170
+call sp1();
+r
+170
+drop procedure sp1;
+create procedure sp1()
+begin
+with cte as (select * from t2)
+select (select sum(b) from t1 where a=1) as r from cte;
+end |
+call sp1();
+r
+170
+call sp1();
+r
+170
+drop procedure sp1;
+drop view v1;
+drop table t1,t2;
+CREATE TABLE t1(f0 INT);
+INSERT INTO t1 VALUES (3);
+CREATE VIEW v1 AS SELECT f0 AS f1 FROM t1;
+CREATE VIEW v2 AS
+SELECT
+(SELECT GROUP_CONCAT(v1.f1 SEPARATOR ', ') FROM v1 n) AS f2,
+GROUP_CONCAT('aa' SEPARATOR ', ') AS f3
+FROM v1;
+CREATE VIEW v3 AS SELECT * FROM v2;
+CREATE PROCEDURE p1()
+SELECT * FROM v3;
+CALL p1();
+f2	f3
+3	aa
+CALL p1();
+f2	f3
+3	aa
+DROP PROCEDURE p1;
+DROP VIEW v1,v2,v3;
+DROP TABLE t1;
 # End of 10.2 tests

@@ -904,6 +904,11 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
   /*********************************************************************/
   if (Mode == MODE_READ || Mode == MODE_READX) {
     MakeSelect(g, Mode == MODE_READX);
+    if (Mode == MODE_READ && !Query)
+    {
+      Myc.Close();
+      return true;
+    }
     m_Rc = (Mode == MODE_READ)
          ? Myc.ExecSQL(g, Query->GetStr()) : RC_OK;
 

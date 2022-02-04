@@ -435,3 +435,28 @@ show create table t2;
 drop table t1, t2;
 
 --echo End of 5.5 tests
+
+--echo #
+--echo # Beginning of 10.2 test
+--echo #
+--echo # MDEV-26698: Incorrect row number upon INSERT .. SELECT from the same
+--echo #             table: rows are counted twice
+--echo #
+
+CREATE TABLE t1(a TINYINT);
+
+INSERT INTO t1 VALUES (1), (100);
+
+INSERT INTO t1 SELECT a*2 FROM t1;
+
+TRUNCATE TABLE t1;
+
+--echo # using ORDER BY
+
+INSERT INTO t1 VALUES(1), (2), (100), (3);
+
+INSERT INTO t1 SELECT a*2 FROM t1 ORDER BY a;
+
+DROP TABLE t1;
+
+--echo # End of 10.2 test

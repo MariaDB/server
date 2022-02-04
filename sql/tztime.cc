@@ -2642,22 +2642,31 @@ static struct my_option my_long_options[] =
   {"help", '?', "Display this help and exit.", 0, 0, 0, GET_NO_ARG, NO_ARG,
    0, 0, 0, 0, 0, 0},
 #ifdef DBUG_OFF
-  {"debug", '#', "This is a non-debug version. Catch this and exit",
+  {"debug", '#', "This is a non-debug version. Catch this and exit.",
    0,0, 0, GET_DISABLED, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #else
   {"debug", '#', "Output debug log. Often this is 'd:t:o,filename'.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"leap", 'l', "Print the leap second information from the given time zone file. By convention, when --leap is used the next argument is the timezonefile",
+  {"leap", 'l', "Print the leap second information from the given time zone file. By convention, when --leap is used the next argument is the timezonefile.",
    &opt_leap, &opt_leap, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"verbose", 'v', "Write non critical warnings",
+  {"verbose", 'v', "Write non critical warnings.",
    &opt_verbose, &opt_verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"skip-write-binlog", 'S', "Do not replicate changes to time zone tables to other nodes in a Galera cluster",
+  {"skip-write-binlog", 'S', "Do not replicate changes to time zone tables to the binary log, or to other nodes in a Galera cluster (if wsrep_on=ON).",
    &opt_skip_write_binlog,&opt_skip_write_binlog, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
+
+
+static char **default_argv;
+
+static void free_allocated_data()
+{
+  free_defaults(default_argv);
+  my_end(0);
+}
 
 
 C_MODE_START
@@ -2671,11 +2680,21 @@ static void print_version(void)
 	 MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
 }
 
+static const char *default_timezone_dir= "/usr/share/zoneinfo/";
+
+
 static void print_usage(void)
 {
-  fprintf(stderr, "Usage:\n");
-  fprintf(stderr, " %s [options] timezonedir\n", my_progname);
-  fprintf(stderr, " %s [options] timezonefile timezonename\n", my_progname);
+  fprintf(stdout, "Create SQL commands for loading system timezeone data for "
+          "MariaDB\n\n");
+  fprintf(stdout, "Usage:\n");
+  fprintf(stdout, " %s [options] timezonedir\n", my_progname);
+  fprintf(stdout, "or\n");
+  fprintf(stdout, " %s [options] timezonefile timezonename\n", my_progname);
+
+  fprintf(stdout, "\nA typical place for the system timezone directory is "
+          "\"%s\"\n", default_timezone_dir);
+
   print_defaults("my",load_default_groups);
   puts("");
   my_print_help(my_long_options);
@@ -2696,19 +2715,33 @@ get_one_option(const struct my_option *opt, const char *argument, const char *)
     print_version();
     puts("");
     print_usage();
+    free_allocated_data();
     exit(0);
   case 'V':
     print_version();
+    free_allocated_data();
     exit(0);
   }
   return 0;
 }
 
 
+static const char *lock_tables=
+  "LOCK TABLES time_zone WRITE,\n"
+  "  time_zone_leap_second WRITE,\n"
+  "  time_zone_name WRITE,\n"
+  "  time_zone_transition WRITE,\n"
+  "  time_zone_transition_type WRITE;\n";
+static const char *trunc_tables_const=
+  "TRUNCATE TABLE time_zone;\n"
+  "TRUNCATE TABLE time_zone_name;\n"
+  "TRUNCATE TABLE time_zone_transition;\n"
+  "TRUNCATE TABLE time_zone_transition_type;\n";
+
 int
 main(int argc, char **argv)
 {
-  char **default_argv;
+  const char *trunc_tables;
   MY_INIT(argv[0]);
 
   load_defaults_or_exit("my", load_default_groups, &argc, &argv);
@@ -2720,46 +2753,48 @@ main(int argc, char **argv)
   if ((argc != 1 && argc != 2) || (opt_leap && argc != 1))
   {
     print_usage();
-    free_defaults(default_argv);
+    free_allocated_data();
     return 1;
   }
 
+  if (!(argc == 1 && !opt_leap))
+    trunc_tables= "SELECT 'skip truncate tables';\n"; // No-op - needed for ELSE clause
+  else
+    trunc_tables= trunc_tables_const;
+
   if (opt_skip_write_binlog)
-  {
     /* If skip_write_binlog is set and wsrep is compiled in we disable
        sql_log_bin and wsrep_on to avoid Galera replicating below
-       truncate table clauses. This will allow user to set different
+       TRUNCATE TABLE clauses. This will allow user to set different
        time zones to nodes in Galera cluster. */
     printf("set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION SQL_LOG_BIN=?, WSREP_ON=OFF;', 'do ?');\n"
            "prepare set_wsrep_write_binlog from @prep1;\n"
-           "set @toggle=0; execute set_wsrep_write_binlog using @toggle;\n");
-  }
+           "set @toggle=0; execute set_wsrep_write_binlog using @toggle;\n"
+           "%s%s", trunc_tables, lock_tables);
   else
-  {
-      // Alter time zone tables to InnoDB if wsrep_on is enabled
-      // to allow changes to them to replicate with Galera
-      printf("\\d |\n"
-        "IF (select count(*) from information_schema.global_variables where\n"
-        "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n"
-        "ALTER TABLE time_zone ENGINE=InnoDB;\n"
-        "ALTER TABLE time_zone_name ENGINE=InnoDB;\n"
-        "ALTER TABLE time_zone_transition ENGINE=InnoDB;\n"
-        "ALTER TABLE time_zone_transition_type ENGINE=InnoDB;\n"
-        "END IF|\n"
-        "\\d ;\n");
-  }
+    // Alter time zone tables to InnoDB if wsrep_on is enabled
+    // to allow changes to them to replicate with Galera
+    printf("\\d |\n"
+      "IF (select count(*) from information_schema.global_variables where\n"
+      "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n"
+      "ALTER TABLE time_zone ENGINE=InnoDB;\n"
+      "ALTER TABLE time_zone_name ENGINE=InnoDB;\n"
+      "ALTER TABLE time_zone_transition ENGINE=InnoDB;\n"
+      "ALTER TABLE time_zone_transition_type ENGINE=InnoDB;\n"
+      "%s"
+      "START TRANSACTION;\n"
+      "ELSE\n%s"
+      "END IF|\n"
+      "\\d ;\n",
+      trunc_tables, trunc_tables);
+    // Ideally we'd like to put lock_tables in the ELSE branch however
+    // "ERROR 1314 (0A000) at line 2: LOCK is not allowed in stored procedures"
 
   if (argc == 1 && !opt_leap)
   {
     /* Argument is timezonedir */
 
     root_name_end= strmake_buf(fullname, argv[0]);
-
-    printf("TRUNCATE TABLE time_zone;\n");
-    printf("TRUNCATE TABLE time_zone_name;\n");
-    printf("TRUNCATE TABLE time_zone_transition;\n");
-    printf("TRUNCATE TABLE time_zone_transition_type;\n");
-    printf("START TRANSACTION;\n");
 
     if (scan_tz_dir(root_name_end, 0, opt_verbose))
     {
@@ -2771,7 +2806,8 @@ main(int argc, char **argv)
       return 1;
     }
 
-    printf("COMMIT;\n");
+    printf("UNLOCK TABLES;\n"
+           "COMMIT;\n");
     printf("ALTER TABLE time_zone_transition "
            "ORDER BY Time_zone_id, Transition_time;\n");
     printf("ALTER TABLE time_zone_transition_type "
@@ -2795,25 +2831,24 @@ main(int argc, char **argv)
       print_tz_leaps_as_sql(&tz_info);
     else
       print_tz_as_sql(argv[1], &tz_info);
-
+    printf("UNLOCK TABLES;\n"
+           "COMMIT;\n");
     free_root(&tz_storage, MYF(0));
   }
 
   if(!opt_skip_write_binlog)
-  {
-      // Fall back to Aria
-      printf("\\d |\n"
-        "IF (select count(*) from information_schema.global_variables where\n"
-        "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n"
-        "ALTER TABLE time_zone ENGINE=Aria;\n"
-        "ALTER TABLE time_zone_name ENGINE=Aria;\n"
-        "ALTER TABLE time_zone_transition ENGINE=Aria;\n"
-        "ALTER TABLE time_zone_transition_type ENGINE=Aria;\n"
-        "END IF|\n"
-        "\\d ;\n");
-  }
+    // Fall back to Aria
+    printf("\\d |\n"
+      "IF (select count(*) from information_schema.global_variables where\n"
+      "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n"
+      "ALTER TABLE time_zone ENGINE=Aria;\n"
+      "ALTER TABLE time_zone_name ENGINE=Aria;\n"
+      "ALTER TABLE time_zone_transition ENGINE=Aria, ORDER BY Time_zone_id, Transition_time;\n"
+      "ALTER TABLE time_zone_transition_type ENGINE=Aria, ORDER BY Time_zone_id, Transition_type_id;\n"
+      "END IF|\n"
+      "\\d ;\n");
 
-  free_defaults(default_argv);
+  free_allocated_data();
   my_end(0);
   return 0;
 }

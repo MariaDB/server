@@ -3793,7 +3793,7 @@ public:
 
   int print_explain(select_result_sink *output, uint8 explain_flags,
                     bool is_analyze, bool *printed_anything);
-  void restore_set_statement_var();
+  bool restore_set_statement_var();
 
   void init_last_field(Column_definition *field, const LEX_CSTRING *name,
                        const CHARSET_INFO *cs);

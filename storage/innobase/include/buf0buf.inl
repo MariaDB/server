@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -140,23 +140,4 @@ buf_block_get_modify_clock(
 {
 	ut_ad(block->page.lock.have_any());
 	return(block->modify_clock);
-}
-
-/** Calculate aligned buffer pool size based on srv_buf_pool_chunk_unit,
-if needed.
-@param[in]	size	size in bytes
-@return	aligned size */
-UNIV_INLINE
-ulint
-buf_pool_size_align(
-	ulint	size)
-{
-	const size_t m = srv_buf_pool_chunk_unit;
-	size = ut_max(size, srv_buf_pool_min_size);
-
-	if (size % m == 0) {
-		return(size);
-	} else {
-		return (ulint)((size / m + 1) * m);
-	}
 }

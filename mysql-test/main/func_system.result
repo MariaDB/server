@@ -46,7 +46,7 @@ create table t1 (version char(60)) select database(), user(), version() as 'vers
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `database()` varchar(34) CHARACTER SET utf8mb3 DEFAULT NULL,
+  `database()` varchar(64) CHARACTER SET utf8mb3 DEFAULT NULL,
   `user()` varchar(384) CHARACTER SET utf8mb3 DEFAULT NULL,
   `version` char(60) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -95,3 +95,21 @@ select left(concat(a,version()),1) from t1;
 left(concat(a,version()),1)
 a
 drop table t1;
+#
+# Start of 10.2 tests
+#
+
+MDEV-27544 database() function under UNION ALL truncates results to 34 characters
+
+
+SET NAMES utf8;
+create database betäubungsmittelverschreibungsverordnung;
+use betäubungsmittelverschreibungsverordnung;
+select database() as "database" union all select database();
+database
+betäubungsmittelverschreibungsverordnung
+betäubungsmittelverschreibungsverordnung
+drop database betäubungsmittelverschreibungsverordnung;
+#
+# End of 10.2 tests
+#

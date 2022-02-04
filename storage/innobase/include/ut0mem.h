@@ -71,6 +71,6 @@ ut_str_sql_format(
 	ulint		buf_size);	/*!< in: output buffer size
 					in bytes */
 
-#include "ut0mem.ic"
+#include "ut0mem.inl"
 
 #endif

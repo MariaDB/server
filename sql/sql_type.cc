@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2015, 2020, MariaDB
+   Copyright (c) 2015, 2021, MariaDB
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -1761,16 +1761,21 @@ const Type_handler *Type_handler_typelib::cast_to_int_type_handler() const
 bool
 Type_handler_hybrid_field_type::aggregate_for_result(const Type_handler *other)
 {
-  const Type_handler *hres;
-  const Type_collection *c;
-  if (!(c= Type_handler::type_collection_for_aggregation(m_type_handler, other)) ||
-      !(hres= c->aggregate_for_result(m_type_handler, other)))
-    hres= type_handler_data->
-            m_type_aggregator_for_result.find_handler(m_type_handler, other);
-  if (!hres)
-    return true;
-  m_type_handler= hres;
-  return false;
+  Type_handler_pair tp(m_type_handler, other);
+  do
+  {
+    const Type_handler *hres;
+    const Type_collection *c;
+    if (((c= Type_handler::type_collection_for_aggregation(tp.a(), tp.b())) &&
+         (hres= c->aggregate_for_result(tp.a(), tp.b()))) ||
+        (hres= type_handler_data->
+                m_type_aggregator_for_result.find_handler(tp.a(), tp.b())))
+    {
+      m_type_handler= hres;
+      return false;
+    }
+  } while (tp.to_base());
+  return true;
 }
 
 
@@ -1973,26 +1978,29 @@ Type_collection_std::aggregate_for_comparison(const Type_handler *ha,
 bool
 Type_handler_hybrid_field_type::aggregate_for_min_max(const Type_handler *h)
 {
-  const Type_handler *hres;
-  const Type_collection *c;
-  if (!(c= Type_handler::type_collection_for_aggregation(m_type_handler, h))||
-      !(hres= c->aggregate_for_min_max(m_type_handler, h)))
+  Type_handler_pair tp(m_type_handler, h);
+  do
   {
-    /*
-      For now we suppose that these two expressions:
-        - LEAST(type1, type2)
-        - COALESCE(type1, type2)
-      return the same data type (or both expressions return error)
-      if type1 and/or type2 are non-traditional.
-      This may change in the future.
-    */
-    hres= type_handler_data->
-            m_type_aggregator_for_result.find_handler(m_type_handler, h);
-  }
-  if (!hres)
-    return true;
-  m_type_handler= hres;
-  return false;
+    const Type_handler *hres;
+    const Type_collection *c;
+    if (((c= Type_handler::type_collection_for_aggregation(tp.a(), tp.b())) &&
+         (hres= c->aggregate_for_min_max(tp.a(), tp.b()))) ||
+        (hres= type_handler_data->
+                m_type_aggregator_for_result.find_handler(tp.a(), tp.b())))
+    {
+      /*
+        For now we suppose that these two expressions:
+          - LEAST(type1, type2)
+          - COALESCE(type1, type2)
+        return the same data type (or both expressions return error)
+        if type1 and/or type2 are non-traditional.
+        This may change in the future.
+      */
+      m_type_handler= hres;
+      return false;
+    }
+  } while (tp.to_base());
+  return true;
 }
 
 
@@ -2131,15 +2139,20 @@ Type_handler_hybrid_field_type::aggregate_for_num_op(const Type_aggregator *agg,
                                                      const Type_handler *h0,
                                                      const Type_handler *h1)
 {
-  const Type_handler *hres;
-  const Type_collection *c;
-  if (!(c= Type_handler::type_collection_for_aggregation(h0, h1)) ||
-      !(hres= c->aggregate_for_num_op(h0, h1)))
-    hres= agg->find_handler(h0, h1);
-  if (!hres)
-    return true;
-  m_type_handler= hres;
-  return false;
+  Type_handler_pair tp(h0, h1);
+  do
+  {
+    const Type_handler *hres;
+    const Type_collection *c;
+    if (((c= Type_handler::type_collection_for_aggregation(tp.a(), tp.b())) &&
+         (hres= c->aggregate_for_num_op(tp.a(), tp.b()))) ||
+        (hres= agg->find_handler(tp.a(), tp.b())))
+    {
+      m_type_handler= hres;
+      return false;
+    }
+  } while (tp.to_base());
+  return true;
 }
 
 

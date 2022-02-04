@@ -335,7 +335,7 @@ public:
             | HA_REC_NOT_IN_SEQ | HA_AUTO_PART_KEY | HA_CAN_INDEX_BLOBS |
             HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE | HA_CAN_REPAIR |
             HA_PRIMARY_KEY_REQUIRED_FOR_DELETE | HA_CAN_ONLINE_BACKUPS |
-            HA_PARTIAL_COLUMN_READ | HA_NULL_IN_KEY);
+            HA_PARTIAL_COLUMN_READ | HA_NULL_IN_KEY | HA_NON_COMPARABLE_ROWID);
   }
   /*
     This is a bitmap of flags that says how the storage engine
@@ -425,6 +425,19 @@ public:
   int rnd_next(uchar *buf);                                      //required
   int rnd_pos(uchar *buf, uchar *pos);                            //required
   void position(const uchar *record);                            //required
+  /*
+    A ref is a pointer inside a local buffer. It is not comparable to
+    other ref's. This is never called as HA_NON_COMPARABLE_ROWID is set.
+  */
+  int cmp_ref(const uchar *ref1, const uchar *ref2)
+  {
+#ifdef NOT_YET
+    DBUG_ASSERT(0);
+    return 0;
+#else
+    return handler::cmp_ref(ref1,ref2);         /* Works if table scan is used */
+#endif
+  }
   int info(uint);                                              //required
   int extra(ha_extra_function operation);
 

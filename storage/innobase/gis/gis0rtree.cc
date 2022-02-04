@@ -1169,15 +1169,6 @@ after_insert:
 	page_zip = buf_block_get_page_zip(root_block);
 	page_set_ssn_id(root_block, page_zip, next_ssn, mtr);
 
-	/* Insert fit on the page: update the free bits for the
-	left and right pages in the same mtr */
-
-	if (page_is_leaf(page)) {
-		ibuf_update_free_bits_for_two_pages_low(
-			block, new_block, mtr);
-	}
-
-
 	/* If the new res insert fail, we need to do another split
 	 again. */
 	if (!rec) {

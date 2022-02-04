@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 /*
    Copyright (c) 2002, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2020, MariaDB
+   Copyright (c) 2020, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -637,6 +637,23 @@ public:
     DBUG_RETURN(false);
   }
 
+  /**
+    Iterate through the LEX stack from the top (the newest) to the bottom
+    (the oldest) and find the one that contains a non-zero spname.
+    @returns - the address of spname, or NULL of no spname found.
+  */
+  const sp_name *find_spname_recursive()
+  {
+    uint count= m_lex.elements;
+    for (uint i= 0; i < count; i++)
+    {
+      const LEX *tmp= m_lex.elem(count - i - 1);
+      if (tmp->spname)
+        return tmp->spname;
+    }
+    return NULL;
+  }
+
   /// Put the instruction on the backpatch list, associated with the label.
   int
   push_backpatch(THD *thd, sp_instr *, sp_label *);
@@ -1053,8 +1070,9 @@ public:
     Query_arena(thd->lex->sphead->get_main_mem_root(), STMT_INITIALIZED_FOR_SP)
   { }
   ~sp_lex_cursor() { free_items(); }
-  void cleanup_stmt(bool /*restore_set_statement_vars*/) { }
-  Query_arena *query_arena() { return this; }
+  virtual bool cleanup_stmt(bool /*restore_set_statement_vars*/) override
+  { return false; }
+  Query_arena *query_arena() override { return this; }
   bool validate()
   {
     DBUG_ASSERT(sql_command == SQLCOM_SELECT);
@@ -1834,24 +1852,24 @@ public:
   virtual ~sp_instr_cpush()
   {}
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
   /**
     This call is used to cleanup the instruction when a sensitive
     cursor is closed. For now stored procedures always use materialized
     cursors and the call is not used.
   */
-  virtual void cleanup_stmt(bool /*restore_set_statement_vars*/)
-  { /* no op */ }
+  virtual bool cleanup_stmt(bool /*restore_set_statement_vars*/) override
+  { return false; }
 private:
 
   sp_lex_keeper m_lex_keeper;
   uint m_cursor;                /**< Frame offset (for debugging) */
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_cpush : public sp_instr
 

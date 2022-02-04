@@ -264,6 +264,24 @@ let $coll_pad='sjis_bin';
 --echo #
 
 --echo #
+--echo # Start of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-26953 Assertion `!str || str != Ptr || !is_alloced()' failed in String::copy upon SELECT with sjis
+--echo #
+
+SET NAMES sjis;
+CREATE TABLE t (a VARCHAR(3));
+INSERT INTO t VALUES (''),('');
+SELECT GROUP_CONCAT(PASSWORD(a)) AS f FROM t;
+DROP TABLE t;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+
+--echo #
 --echo # Start of 10.5 tests
 --echo #
 
@@ -287,16 +305,6 @@ SET @@CHARACTER_SET_CLIENT='cp1257';
 EXECUTE IMMEDIATE _cp1257 0xD182;
 
 SET NAMES sjis;
-
-
---echo #
---echo # End of 10.5 tests
---echo #
-
-
---echo #
---echo # Start of 10.5 tests
---echo #
 
 --echo #
 --echo # MDEV-22625 SIGSEGV in intern_find_sys_var (optimized builds)

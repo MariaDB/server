@@ -6,6 +6,11 @@ call mtr.add_suppression("Operating system error number .* in a file operation."
 call mtr.add_suppression("The error means the system cannot find the path specified.");
 call mtr.add_suppression("File ./test/t1.ibd was not found");
 
+--disable_query_log
+call mtr.add_suppression("Table `test`.`t2` contains unrecognizable instant ALTER metadata");
+call mtr.add_suppression("Index for table 't2' is corrupt; try to repair it");
+--enable_query_log
+
 set default_storage_engine=innodb;
 
 --echo #
@@ -185,3 +190,21 @@ UNLOCK TABLES;
 ALTER TABLE t2 IMPORT TABLESPACE;
 
 DROP TABLE t2, t1;
+
+
+CREATE TABLE t1 ( id INT NOT NULL, i1 INT, i2 INT, PRIMARY KEY (id)) engine=innodb;
+CREATE TABLE t2 ( id INT NOT NULL, i1 INT, i2 INT, PRIMARY KEY (id)) engine=innodb;
+
+ALTER TABLE test.t1 add COLUMN i3 INT AFTER i1;
+
+ALTER TABLE t2 DISCARD TABLESPACE;
+FLUSH TABLES t1 FOR EXPORT;
+
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
+
+UNLOCK TABLES;
+--error ER_NOT_KEYFILE
+ALTER TABLE t2 IMPORT TABLESPACE;
+
+DROP TABLE t1, t2;

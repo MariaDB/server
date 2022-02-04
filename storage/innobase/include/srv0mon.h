@@ -857,6 +857,6 @@ void
 srv_mon_default_on(void);
 /*====================*/
 
-#include "srv0mon.ic"
+#include "srv0mon.inl"
 
 #endif

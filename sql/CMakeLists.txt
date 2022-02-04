@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2010, 2021, MariaDB Corporation.
+# Copyright (c) 2010, 2022, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -486,7 +486,8 @@ IF(WIN32)
     password.c
     COMPONENT Server
   )
-  SET_TARGET_PROPERTIES(mariadb-install-db PROPERTIES COMPILE_FLAGS -DINSTALL_PLUGINDIR=${INSTALL_PLUGINDIR})
+  SET_TARGET_PROPERTIES(mariadb-install-db PROPERTIES COMPILE_DEFINITIONS
+   "INSTALL_PLUGINDIR=${INSTALL_PLUGINDIR};INSTALL_SHAREDIR=${INSTALL_SHAREDIR}")
   TARGET_LINK_LIBRARIES(mariadb-install-db mysys mysys_ssl shlwapi)
 
   ADD_LIBRARY(winservice STATIC winservice.c)

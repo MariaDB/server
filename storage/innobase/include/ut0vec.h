@@ -280,6 +280,6 @@ struct ib_vector_t {
 	ulint		sizeof_value;
 };
 
-#include "ut0vec.ic"
+#include "ut0vec.inl"
 
 #endif /* IB_VECTOR_H */

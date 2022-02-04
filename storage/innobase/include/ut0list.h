@@ -141,6 +141,6 @@ struct ib_list_helper_t {
 	void*		data;		/*!< user data */
 };
 
-#include "ut0list.ic"
+#include "ut0list.inl"
 
 #endif
