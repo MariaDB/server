@@ -81,7 +81,7 @@ public:
   }
 
   bool Item_append_extended_type_info(Send_field_extended_metadata *to,
-                                      const Item *item) const
+                                      const Item *item) const override
   {
     return set_format_name(to); // Send "format=json" in the protocol
   }
