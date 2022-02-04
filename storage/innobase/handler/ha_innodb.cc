@@ -3731,7 +3731,7 @@ static void innodb_buffer_pool_size_init()
   {
     /* Size unit of buffer pool is larger than srv_buf_pool_size.
     adjust srv_buf_pool_chunk_unit for srv_buf_pool_size. */
-    srv_buf_pool_chunk_unit = ulong(srv_buf_pool_size);
+    srv_buf_pool_chunk_unit = srv_buf_pool_size;
   }
   else if (srv_buf_pool_chunk_unit == 0)
   {
@@ -20817,7 +20817,7 @@ innodb_buffer_pool_size_validate(
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
 				    "innodb_buffer_pool_size must be at least"
-				    " innodb_buffer_pool_chunk_size=%lu",
+				    " innodb_buffer_pool_chunk_size=%zu",
 				    srv_buf_pool_chunk_unit);
 		/* nothing to do */
 		return(0);
@@ -21162,12 +21162,12 @@ ulint
 buf_pool_size_align(
 	ulint	size)
 {
-  const ulong	m = srv_buf_pool_chunk_unit;
-  size = ut_max((size_t) size, (size_t) MYSQL_SYSVAR_NAME(buffer_pool_size).min_val);
+  const size_t m = srv_buf_pool_chunk_unit;
+  size = ut_max(size, (size_t) MYSQL_SYSVAR_NAME(buffer_pool_size).min_val);
 
   if (size % m == 0) {
     return(size);
   } else {
-    return (ulint)((size / m + 1) * m);
+    return (size / m + 1) * m;
   }
 }
