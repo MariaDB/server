@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 /*
    Copyright (c) 2002, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2020, MariaDB
+   Copyright (c) 2020, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1060,7 +1060,7 @@ public:
   ~sp_lex_cursor() { free_items(); }
   virtual bool cleanup_stmt(bool /*restore_set_statement_vars*/) override
   { return false; }
-  Query_arena *query_arena() { return this; }
+  Query_arena *query_arena() override { return this; }
   bool validate()
   {
     DBUG_ASSERT(sql_command == SQLCOM_SELECT);
@@ -1840,9 +1840,9 @@ public:
   virtual ~sp_instr_cpush()
   {}
 
-  virtual int execute(THD *thd, uint *nextp);
+  int execute(THD *thd, uint *nextp) override;
 
-  virtual void print(String *str);
+  void print(String *str) override;
 
   /**
     This call is used to cleanup the instruction when a sensitive
@@ -1857,7 +1857,7 @@ private:
   uint m_cursor;                /**< Frame offset (for debugging) */
 
 public:
-  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
 }; // class sp_instr_cpush : public sp_instr
 
