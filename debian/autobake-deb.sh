@@ -11,6 +11,8 @@
 # Exit immediately on any error
 set -e
 
+source ./VERSION
+
 # This file is invoked from Buildbot and Travis-CI to build deb packages.
 # As both of those CI systems have many parallel jobs that include different
 # parts of the test suite, we don't need to run the mysql-test-run at all when
@@ -32,7 +34,7 @@ then
   # Take the files and part of control from MCS directory
   cp -v storage/columnstore/columnstore/debian/mariadb-plugin-columnstore.* debian/
   echo >> debian/control
-  cat storage/columnstore/columnstore/debian/control >> debian/control
+  sed "s/10.6/${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}/" <storage/columnstore/columnstore/debian/control >> debian/control
 fi
 
 # Don't build or try to put files in a package for selected plugins and components on Travis-CI
@@ -101,7 +103,6 @@ fi
 echo "Incrementing changelog and starting build scripts"
 
 # Find major.minor version
-source ./VERSION
 UPSTREAM="${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}.${MYSQL_VERSION_PATCH}${MYSQL_VERSION_EXTRA}"
 PATCHLEVEL="+maria"
 LOGSTRING="MariaDB build"

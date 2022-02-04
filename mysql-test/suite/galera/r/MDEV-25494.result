@@ -1,0 +1,14 @@
+connection node_2;
+connection node_1;
+SET SESSION binlog_format=STATEMENT;
+Warnings:
+Warning	1105	MariaDB Galera and flashback do not support binlog format: STATEMENT
+CREATE TEMPORARY TABLE t (i INT) UNION=(t);
+ALTER TABLE t ADD extrac CHAR(1);
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TEMPORARY TABLE `t` (
+  `i` int(11) DEFAULT NULL,
+  `extrac` char(1) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t;

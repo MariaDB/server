@@ -54,7 +54,7 @@ struct ha_node_t {
 	const rec_t*	data;	/*!< pointer to the data */
 };
 
-#include "ha0ha.ic"
+#include "ha0ha.inl"
 #endif /* BTR_CUR_HASH_ADAPT */
 
 #endif

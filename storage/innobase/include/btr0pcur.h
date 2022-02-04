@@ -497,6 +497,6 @@ inline rec_t *btr_pcur_get_rec(const btr_pcur_t *cursor)
   return cursor->btr_cur.page_cur.rec;
 }
 
-#include "btr0pcur.ic"
+#include "btr0pcur.inl"
 
 #endif

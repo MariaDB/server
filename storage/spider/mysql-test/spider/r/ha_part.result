@@ -248,6 +248,15 @@ a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 8	g	2011-05-05 21:33:30
 9	h	2011-05-05 22:32:10
 DROP TABLE ta_l2;
+connection master_1;
+CREATE TABLE t (c INT) PARTITION BY LIST COLUMNS (c) (PARTITION p DEFAULT ENGINE=SPIDER);
+SHOW FIELDS FROM t;
+Field	Type	Null	Key	Default	Extra
+c	int(11)	YES		NULL	
+SHOW FIELDS FROM t;
+Field	Type	Null	Key	Default	Extra
+c	int(11)	YES		NULL	
+DROP TABLE t;
 
 deinit
 connection master_1;

@@ -148,6 +148,8 @@ if (!$success)
     -- echo Timeout waiting for rows in INNODB_LOCKS to appear
 }
 
+--replace_column 6 #
+--sorted_result
 SELECT lock_mode, lock_type, lock_table, lock_index, lock_rec, lock_data
 FROM INFORMATION_SCHEMA.INNODB_LOCKS ORDER BY lock_data;
 

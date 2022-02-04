@@ -309,11 +309,8 @@ void innodb_wait_allow_writes();
 
 /** Requested size in bytes */
 extern ulint		srv_buf_pool_size;
-/** Minimum pool size in bytes */
-extern const ulint	srv_buf_pool_min_size;
-/** Default pool size in bytes */
-extern const ulint	srv_buf_pool_def_size;
-/** Requested buffer pool chunk size */
+/** Requested buffer pool chunk size. Each buffer pool instance consists
+of one or more chunks. */
 extern ulong		srv_buf_pool_chunk_unit;
 /** Scan depth for LRU flush batch i.e.: number of blocks scanned*/
 extern ulong	srv_LRU_scan_depth;
@@ -419,7 +416,10 @@ enum srv_operation_mode {
 	/** Mariabackup restoring the incremental part of a backup */
 	SRV_OPERATION_RESTORE_DELTA,
 	/** Mariabackup restoring a backup for subsequent --export */
-	SRV_OPERATION_RESTORE_EXPORT
+	SRV_OPERATION_RESTORE_EXPORT,
+	/** Mariabackup taking a backup and avoid deferring
+	any tablespace */
+	SRV_OPERATION_BACKUP_NO_DEFER
 };
 
 /** Current mode of operation */

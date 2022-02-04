@@ -192,7 +192,7 @@ static const uchar sort_order_sjis[]=
 #define IS_MB1_CHAR(x)        ((uchar) (x) < 0x80 || issjiskata(x))
 #define IS_MB2_CHAR(x,y)      (issjishead(x) && issjistail(y))
 #define DEFINE_ASIAN_ROUTINES
-#include "ctype-mb.ic"
+#include "ctype-mb.inl"
 
 
 #define sjiscode(c,d)	((((uint) (uchar)(c)) << 8) | (uint) (uchar) (d))
@@ -34028,7 +34028,7 @@ my_wc_to_printable_sjis(CHARSET_INFO *cs, my_wc_t wc,
 #define WEIGHT_MB1(x)        (256 * (int) sort_order_sjis[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (sjiscode(x, y))
 #define STRCOLL_MB7_TOUPPER
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _sjis_bin
@@ -34036,7 +34036,7 @@ my_wc_to_printable_sjis(CHARSET_INFO *cs, my_wc_t wc,
 #define WEIGHT_MB1(x)        (256 * (int) (uchar) (x))
 #define WEIGHT_MB2(x,y)      (sjiscode(x, y))
 #define STRCOLL_MB7_BIN
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -34045,7 +34045,7 @@ my_wc_to_printable_sjis(CHARSET_INFO *cs, my_wc_t wc,
 #define WEIGHT_MB1(x)        (256 * (int) sort_order_sjis[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (sjiscode(x, y))
 #define STRCOLL_MB7_TOUPPER
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -34054,7 +34054,7 @@ my_wc_to_printable_sjis(CHARSET_INFO *cs, my_wc_t wc,
 #define WEIGHT_MB1(x)        (256 * (int) (uchar) (x))
 #define WEIGHT_MB2(x,y)      (sjiscode(x, y))
 #define STRCOLL_MB7_BIN
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 static MY_COLLATION_HANDLER my_collation_handler_sjis_japanese_ci=
@@ -34062,6 +34062,7 @@ static MY_COLLATION_HANDLER my_collation_handler_sjis_japanese_ci=
   NULL,                 /* init */
   my_strnncoll_sjis_japanese_ci,
   my_strnncollsp_sjis_japanese_ci,
+  my_strnncollsp_nchars_sjis_japanese_ci,
   my_strnxfrm_mb,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -34080,6 +34081,7 @@ static MY_COLLATION_HANDLER my_collation_handler_sjis_bin=
   NULL,                 /* init */
   my_strnncoll_sjis_bin,
   my_strnncollsp_sjis_bin,
+  my_strnncollsp_nchars_sjis_bin,
   my_strnxfrm_mb,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -34098,6 +34100,7 @@ static MY_COLLATION_HANDLER my_collation_handler_sjis_japanese_nopad_ci=
   NULL,                 /* init */
   my_strnncoll_sjis_japanese_ci,
   my_strnncollsp_sjis_japanese_nopad_ci,
+  my_strnncollsp_nchars_sjis_japanese_nopad_ci,
   my_strnxfrm_mb_nopad,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -34116,6 +34119,7 @@ static MY_COLLATION_HANDLER my_collation_handler_sjis_nopad_bin=
   NULL,                 /* init */
   my_strnncoll_sjis_bin,
   my_strnncollsp_sjis_nopad_bin,
+  my_strnncollsp_nchars_sjis_nopad_bin,
   my_strnxfrm_mb_nopad,
   my_strnxfrmlen_simple,
   my_like_range_mb,

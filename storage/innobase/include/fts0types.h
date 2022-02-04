@@ -350,6 +350,6 @@ fts_select_index(
 	const byte*		str,
 	ulint			len);
 
-#include "fts0types.ic"
+#include "fts0types.inl"
 
 #endif /* INNOBASE_FTS0TYPES_H */

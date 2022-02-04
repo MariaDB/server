@@ -318,7 +318,7 @@ static ST_FIELD_INFO innodb_trx_fields_info[]=
 
 #define IDX_TRX_ISOLATION_LEVEL	16
   Column("trx_isolation_level",
-         Enum(&isolation_level_values_typelib), NOT_NULL, DEFAULT_NONE),
+         Enum(&isolation_level_values_typelib), NOT_NULL),
 
 #define IDX_TRX_UNIQUE_CHECKS	17
   Column("trx_unique_checks", SLong(1), NOT_NULL),
@@ -596,10 +596,10 @@ static ST_FIELD_INFO innodb_locks_fields_info[]=
   Column("lock_trx_id", ULonglong(), NOT_NULL),
 
 #define IDX_LOCK_MODE		2
-  Column("lock_mode",   Enum(&lock_mode_values_typelib), NOT_NULL, DEFAULT_NONE),
+  Column("lock_mode",   Enum(&lock_mode_values_typelib), NOT_NULL),
 
 #define IDX_LOCK_TYPE		3
-  Column("lock_type",   Enum(&lock_type_values_typelib), NOT_NULL, DEFAULT_NONE),
+  Column("lock_type",   Enum(&lock_type_values_typelib), NOT_NULL),
 
 #define IDX_LOCK_TABLE		4
   Column("lock_table",  Varchar(1024), NOT_NULL),
@@ -1882,7 +1882,7 @@ static ST_FIELD_INFO innodb_metrics_fields_info[]=
   Column("ENABLED", SLong(1), NOT_NULL),
 
 #define	METRIC_TYPE		15
-  Column("TYPE",    Enum(&metric_type_values_typelib), NOT_NULL, DEFAULT_NONE),
+  Column("TYPE",    Enum(&metric_type_values_typelib), NOT_NULL),
 
 #define	METRIC_DESC		16
   Column("COMMENT",         Varchar(NAME_LEN + 1),       NOT_NULL),
@@ -3874,10 +3874,10 @@ static ST_FIELD_INFO i_s_innodb_buffer_page_fields_info[]=
   Column("COMPRESSED_SIZE", ULonglong(), NOT_NULL),
 
 #define IDX_BUFFER_PAGE_STATE		15 + I_S_AHI
-  Column("PAGE_STATE", Enum(&page_state_values_typelib), NOT_NULL, DEFAULT_NONE),
+  Column("PAGE_STATE", Enum(&page_state_values_typelib), NOT_NULL),
 
 #define IDX_BUFFER_PAGE_IO_FIX		16 + I_S_AHI
-  Column("IO_FIX", Enum(&io_values_typelib), NOT_NULL, DEFAULT_NONE),
+  Column("IO_FIX", Enum(&io_values_typelib), NOT_NULL),
 
 #define IDX_BUFFER_PAGE_IS_OLD		17 + I_S_AHI
   Column("IS_OLD", SLong(1), NOT_NULL),
@@ -4391,7 +4391,7 @@ static ST_FIELD_INFO i_s_innodb_buf_page_lru_fields_info[] =
   Column("COMPRESSED", SLong(1), NOT_NULL),
 
 #define IDX_BUF_LRU_PAGE_IO_FIX		16 + I_S_AHI
-  Column("IO_FIX", Enum(&io_values_typelib), NOT_NULL, DEFAULT_NONE),
+  Column("IO_FIX", Enum(&io_values_typelib), NOT_NULL),
 
 #define IDX_BUF_LRU_PAGE_IS_OLD		17 + I_S_AHI
   Column("IS_OLD", SLong(1), NULLABLE),

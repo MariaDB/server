@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -193,7 +193,7 @@ int table_threads::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  DBUG_ASSERT(table->s->null_bytes == 2);
+  assert(table->s->null_bytes == 2);
   buf[0]= 0;
   buf[1]= 0;
 
@@ -266,7 +266,7 @@ int table_threads::read_row_values(TABLE *table,
            server is updating this column for those threads. To prevent this
            kind of issue, an assert is added.
          */
-        DBUG_ASSERT(m_row.m_processlist_state_length <= f->char_length());
+        assert(m_row.m_processlist_state_length <= f->char_length());
         if (m_row.m_processlist_state_length > 0)
           set_field_varchar_utf8(f, m_row.m_processlist_state_ptr,
                                  m_row.m_processlist_state_length);
@@ -309,7 +309,7 @@ int table_threads::read_row_values(TABLE *table,
           f->set_null();
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }
@@ -356,7 +356,7 @@ int table_threads::update_row_values(TABLE *table,
       case 16: /* THREAD_OS_ID */
         return HA_ERR_WRONG_COMMAND;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }

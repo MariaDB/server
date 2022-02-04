@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -572,7 +572,7 @@ public:
 #if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
     static_assert(NEEDS_FSYNC == 1U << 29, "compatibility");
     __asm__ __volatile__("lock btrl $29, %0" : "+m" (n_pending));
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
     static_assert(NEEDS_FSYNC == 1U << 29, "compatibility");
     _interlockedbittestandreset(reinterpret_cast<volatile long*>
                                 (&n_pending), 29);
@@ -588,7 +588,7 @@ private:
 #if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
     static_assert(CLOSING == 1U << 30, "compatibility");
     __asm__ __volatile__("lock btrl $30, %0" : "+m" (n_pending));
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
     static_assert(CLOSING == 1U << 30, "compatibility");
     _interlockedbittestandreset(reinterpret_cast<volatile long*>
                                 (&n_pending), 30);
@@ -1489,7 +1489,7 @@ inline void fil_space_t::reacquire()
 inline bool fil_space_t::set_stopping_check()
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-#if defined __clang_major__ && __clang_major__ < 10
+#if (defined __clang_major__ && __clang_major__ < 10) || defined __APPLE_CC__
   /* Only clang-10 introduced support for asm goto */
   return n_pending.fetch_or(STOPPING, std::memory_order_relaxed) & STOPPING;
 #elif defined __GNUC__ && (defined __i386__ || defined __x86_64__)
@@ -1499,7 +1499,7 @@ inline bool fil_space_t::set_stopping_check()
   return true;
 not_stopped:
   return false;
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
   static_assert(STOPPING == 1U << 31, "compatibility");
   return _interlockedbittestandset(reinterpret_cast<volatile long*>
                                    (&n_pending), 31);
@@ -1516,7 +1516,7 @@ inline void fil_space_t::set_stopping()
 #if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
   static_assert(STOPPING == 1U << 31, "compatibility");
   __asm__ __volatile__("lock btsl $31, %0" : "+m" (n_pending));
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
   static_assert(STOPPING == 1U << 31, "compatibility");
   _interlockedbittestandset(reinterpret_cast<volatile long*>(&n_pending), 31);
 #else
@@ -1828,7 +1828,7 @@ void test_make_filepath();
 @return	block size */
 ulint fil_space_get_block_size(const fil_space_t* space, unsigned offset);
 
-#include "fil0fil.ic"
+#include "fil0fil.inl"
 #endif /* UNIV_INNOCHECKSUM */
 
 #endif /* fil0fil_h */

@@ -1,0 +1,104 @@
+#
+# MDEV-25830: optimizer_use_condition_selectivity=4 sometimes produces worse plan than optimizer_use_condition_selectivity=1
+# https://jira.mariadb.org/browse/MDEV-25830
+#
+--source include/innodb_prefix_index_cluster_optimization.inc
+
+SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
+
+set @innodb_stats_persistent_save= @@innodb_stats_persistent;
+set @innodb_stats_persistent_sample_pages_save=
+      @@innodb_stats_persistent_sample_pages;
+
+set global innodb_stats_persistent= 1;
+set global innodb_stats_persistent_sample_pages=100;
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+
+DROP TABLE IF EXISTS `sysapproval_approver`;
+CREATE TABLE `sysapproval_approver` (
+  `order` int(11) DEFAULT NULL,
+  `sysapproval` varchar(32) DEFAULT NULL,
+  `sys_id` char(32) NOT NULL DEFAULT '',
+  `sys_domain_path` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`sys_id`),
+  KEY `sysapproval_approver_ref5` (`sysapproval`),
+  KEY `sys_domain_path` (`sys_domain_path`),
+  KEY `sysapproval_approver_CHG1975376` (`sys_domain_path`,`sysapproval`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+INSERT INTO `sysapproval_approver` VALUES (NULL,'c00004d787a8a5003fff83bdff434dea','000004d787a8a5003fff83bdff434dee','!!!/!!#/!!$/'),(NULL,NULL,'00000741db8bfb480be6a345ca96198e','!!!/!!#/!!$/'),(NULL,NULL,'00001605dbce48d0f7fca851ca961967','!!!/!!#/!!$/'),(NULL,'23b53105db2f324c5a4af85e0f96194e','000016c1db6ffa445d2f7aa31f9619a0','!!!/!!#/!!$/'),(NULL,NULL,'00001730dbe24890f7fca851ca9619aa','!!!/!!#/!!$/'),(NULL,NULL,'000017a01b127b00ada243f6fe4bcb8c','!!!/!!#/!!$/'),(NULL,'7f660139db6088185ed4a851ca961986','00001ab1dbecc8185ed4a851ca961970','!!!/!!#/!!$/'),(NULL,'6226cd801b19dc10a59033f2cd4bcb22','00001d84db9918505ed4a851ca96193f','!!!/!!!/(8]/'),(NULL,NULL,'00002246db83874002f17c541f961999','!!!/!!#/!!$/'),(NULL,NULL,'000026e01b9eb700ada243f6fe4bcbc5','!!!/!!#/!!$/'),(NULL,NULL,'000028e16f064e807b658e4c2c3ee4ae','!!!/!!#/!!$/'),(NULL,NULL,'00002914dba8670c54250b55ca961928','!!!/!!#/!!$/'),(NULL,NULL,'00002914dba8670c54250b55ca961931','!!!/!!#/!!$/'),(NULL,NULL,'00002914dba8670c54250b55ca96193a','!!!/!!#/!!$/'),(NULL,NULL,'00002914dba8670c54250b55ca961943','!!!/!!#/!!$/'),(NULL,NULL,'000030a4dbb90b40002af47e0f9619b1','!!!/!!#/!!$/'),(NULL,NULL,'000033fedb41fb041cd8a345ca9619fa','!!!/!!#/!!$/'),(NULL,NULL,'0000341ddb4ce3804ac3a851ca961916','!!!/!!#/!!$/'),(NULL,NULL,'0000393ddb709b002b6dfb651f961908','!!!/!!#/!!$/'),(NULL,'a81ca740db5cdc9416d2a345ca9619b3','00003b00dbdcdc9416d2a345ca961907','!!!/!!#/!!$/'),(NULL,'04003c88db5e3304d6a102d5ca961913','00003c88db5e3304d6a102d5ca96192a','!!!/!!#/!!$/'),(NULL,'4affb00cdbbf0f800e3dfb651f9619a0','0000450cdbbf0f800e3dfb651f961973','!!!/!!#/!!$/'),(NULL,NULL,'00005634dbd11fc4e9737a9e0f961988','!!!/!!#/!!$/'),(NULL,NULL,'00005634dbd11fc4e9737a9e0f9619ce','!!!/!!#/!!$/'),(NULL,NULL,'00005634dbd11fc4e9737a9e0f9619d7','!!!/!!#/!!$/'),(NULL,NULL,'00005784dbc49b00852c7a9e0f96198a','!!!/!!#/!!$/'),(NULL,NULL,'00005bc1dbcdd7042d1efb651f961978','!!!/!!#/!!$/'),(NULL,NULL,'0000637b6f37c24013568e4c2c3ee4d6','!!!/!!#/!!$/'),(NULL,'080069db0f858240a2c9982be1050eae','000069db0f858240a2c9982be1050eb2','!!!/!!#/!!$/'),(NULL,'f98e3bb21b155c10a59033f2cd4bcbef','00006c47db5d9010d82ffb24399619d8','!!!/!!!/#YZ/'),(NULL,NULL,'00006c50db6a0450d58ea345ca961972','!!!/!!#/!!$/'),(NULL,NULL,'00006e38dbc19304032a7a9e0f9619e4','!!!/!!#/!!$/'),(NULL,NULL,'00006edddbec8c5813b5fb24399619b9','!!!/!!#/!!$/'),(NULL,NULL,'000073fedb41fb041cd8a345ca961934','!!!/!!#/!!$/'),(NULL,NULL,'000073fedb41fb041cd8a345ca96195c','!!!/!!#/!!$/'),(NULL,'d03c6ee61b774410a59033f2cd4bcbf5','000076bfdbb74c981cd8a345ca9619ee','!!!/!!!/!;B/'),(NULL,NULL,'000076ecdbde48502be0a851ca9619dd','!!!/!!#/!!$/'),(NULL,NULL,'000076ecdbde48502be0a851ca9619fe','!!!/!!#/!!$/'),(NULL,NULL,'0000778d6fd01a4000270bae9f3ee4ff','!!!/!!#/!!$/'),(NULL,NULL,'000077c21b3fbb0cada243f6fe4bcba7','!!!/!!#/!!$/'),(NULL,NULL,'000077c21b3fbb0cada243f6fe4bcbcb','!!!/!!#/!!$/'),(NULL,'f6c5f2110f75de401c7e938172050e1b','000077e10f7d5e00e59b982be1050e62','!!!/!!#/!!$/'),(NULL,NULL,'00007fa76ff70a0000270bae9f3ee4b1','!!!/!!#/!!$/'),(NULL,'73ff6fe76f4761007ceff7307f3ee478','00007fe76f4761007ceff7307f3ee47c','!!!/!!#/!!$/'),(NULL,'a4d63f4bdb8fbf00414ed0c5ca96191d','0000881b1b8f7f00fff162c4bd4bcbe7','!!!/!!!/$)(/'),(NULL,'a4d63f4bdb8fbf00414ed0c5ca96191d','0000881b1b8f7f00fff162c4bd4bcbec','!!!/!!!/$)(/'),(NULL,NULL,'000094eb6f781a0099c5409e9f3ee48e','!!!/!!#/!!$/'),(NULL,NULL,'000094eb6f781a0099c5409e9f3ee493','!!!/!!#/!!$/'),(NULL,'401fb78cdb18d8dc1cd8a345ca9619c8','00009c10dbdc98dcfeb1a851ca96192f','!!!/!!!/$$8/'),(NULL,'9dd30a24db5c1cdc23f4a345ca96192b','00009e2cdb1c589c4819fb243996195c','!!!/!!#/!!$/');
+
+DROP TABLE IF EXISTS `task`;
+CREATE TABLE `task` (
+  `parent` varchar(32) DEFAULT NULL,
+  `sys_id` char(32) NOT NULL DEFAULT '',
+  `sys_domain_path` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`sys_id`),
+  KEY `task_parent` (`parent`),
+  KEY `sys_class_name_2` (`sys_domain_path`),
+  KEY `sys_domain_path` (`sys_domain_path`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+INSERT INTO `task` VALUES (NULL,'-1','!!!/!!#/!!$/'),(NULL,'00000195dbe7f30413b5fb2439961936','!!!/!!#/!!$/'),(NULL,'0000032edb160f04d7e37aa31f961964','!!!/!!#/!!$/'),('a6fe0637dbddfb8c1cd8a345ca96196f','000003dcdb31f3c0a39a0b55ca961916','!!!/!!#/!!$/'),('2f1df65d6fca3100e7f68e4c2c3ee4e6','000004466f127d40e7f68e4c2c3ee4ce','!!!/!!#/!!$/'),('50dfb42edbbdd3403eb27a9e0f96199e','0000056edbbdd3403eb27a9e0f961995','!!!/!!!/+0{/'),('5f5af922dbb804d03bf6a851ca961999','000006eedb7c04d03bf6a851ca96190c','!!!/!!!/$9;/'),(NULL,'00000904db1dd45014d6fb24399619b7','!!!/!!#/!!$/'),('33c6e522db2c10104ac3a851ca9619f3','00000a06dbf0181416d2a345ca96197b','!!!/!!#/!!$/'),(NULL,'00000ccd6f9196041501f7307f3ee406','!!!/!!#/!!$/'),(NULL,'00000ee2dbb9bf4014d6fb24399619a7','!!!/!!#/!!$/'),(NULL,'00000f065bba40000a4de1945e425441','!!!/!!#/!!$/'),(NULL,'000013dedbc0bf00bbc40b55ca961959','!!!/!!!/,*7/'),(NULL,'000016bcdb29009cf7fca851ca961927','!!!/!!#/!!$/'),(NULL,'0000171bdbdb770066e0a345ca96195a','!!!/!!!/+N?/'),('8eb9317f1b895450d01143f6fe4bcb26','00001c80db5d509022e0fb24399619ed','!!!/!!!/0RG/'),(NULL,'00001d84dbf6f2405a4af85e0f9619f9','!!!/!!#/!!$/'),(NULL,'00001e31db25d4105ed4a851ca96195c','!!!/!!#/!!$/'),(NULL,'00001ea3db73c89823f4a345ca9619b5','!!!/!!#/!!$/'),('c3baf3fadb234c54d82ffb24399619e0','00001f4fdbab4c542be0a851ca96190c','!!!/!!#/!!$/'),(NULL,'0000221bdbb4b3c466e0a345ca9619f0','!!!/!!!/$^{/'),(NULL,'000022bcdb9c04d022e0fb24399619e1','!!!/!!#/!!$/'),('9b7152434f995a80f347524e0210c7e0','0000234b6f59de00fbd4409e9f3ee446','/'),('c64ed870145461009a1c80cd6740d192','00002434145461009a1c80cd6740d1e5','!!!/!!#/!!$/'),(NULL,'0000247edb84d7040e3dfb651f9619b2','!!!/!!#/!!$/'),(NULL,'000025f8dbb6ba007fc27c541f96195b','!!!/!!#/!!$/'),('9b691033485d95c0c5abf6bd15eef576','0000287348dd95c0c5abf6bd15eef572','!!!/!!#/!!$/'),('3c4f591edb7ce2406015f47e0f96191b','00002952dbbce2406015f47e0f961999','!!!/!!!/#MU/'),(NULL,'000029b0db6d5c104819fb24399619a8','!!!/!!#/!!$/'),(NULL,'00002a3d1b5f0010a59033f2cd4bcb90','!!!/!!!/&<#/'),(NULL,'00002a9fdb5787840e3dfb651f9619a6','!!!/!!#/!!$/'),(NULL,'00002c5adb5a0fc0d7e37aa31f9619ba','!!!/!!#/!!$/'),('fa753886dbd8181014d6fb2439961989','00002d5edbdc949466e0a345ca9619e4','!!!/!!!/$44/'),('56ff56bfdb469c503fa35583ca961987','00002e73db0a9c50364a5583ca961922','!!!/!!#/!!$/'),(NULL,'000031f6dba76b40c9c302d5ca9619c4','!!!/!!#/!!$/'),(NULL,'000036fadb1a0344d7e37aa31f96196d','!!!/!!#/!!$/'),(NULL,'000036ffdb046744d58ea345ca961937','!!!/!!#/!!$/'),(NULL,'000037c2dbaae700fb115583ca961926','!!!/!!#/!!$/'),(NULL,'000038eedbe32380b1b102d5ca9619c9','!!!/!!!/#2J/'),(NULL,'00003925dbb1c300225d7aa31f961993','!!!/!!#/!!$/'),('58c865acdb2944184ac3a851ca961901','0000392cdbe944184ac3a851ca9619ea','!!!/!!!/(*S/'),(NULL,'00003966db307a800e58fb651f9619a7','!!!/!!!/&C[/'),('bdeae17bdbfed3045ed4a851ca961933','0000397bdbb217045ed4a851ca96192e','!!!/!!#/!!$/'),('1b951202dbbe7b8014d6fb2439961926','00003a02db767f80fec4fb243996198f','!!!/!!!/#*L/'),(NULL,'00003e5bdbe33b8416d2a345ca961919','!!!/!!#/!!$/'),(NULL,'00003eef1b0a4410fff162c4bd4bcb0e','!!!/!!#/!!$/'),(NULL,'000040b6dbcfcb000e58fb651f9619d2','!!!/!!#/!!$/'),(NULL,'000040e5db0a185011762183ca9619c5','!!!/!!#/!!$/'),('101abff70ff99200a2c9982be1050ee7','000044c86f4a120000270bae9f3ee475','/'),('15d6f3c8dbb3ab0023f4a345ca9619ee','000045f2db5f2700f2eb02d5ca9619c6','!!!/!!!/#*./');
+
+ANALYZE TABLE sysapproval_approver PERSISTENT FOR COLUMNS() INDEXES();
+ANALYZE TABLE task PERSISTENT FOR COLUMNS() INDEXES();
+
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+# The following explain is left here from the original bug report.
+# Can be useful if one gets this issue again in a future MariaDB version
+
+#explain format= json SELECT sysapproval_approver0.`sys_id` FROM ((sysapproval_approver sysapproval_approver0 INNER JOIN task task1 ON sysapproval_approver0.`sysapproval` = task1.`sys_id` AND ((task1.`sys_domain_path` = '/' OR task1.`sys_domain_path` LIKE '!!!/!!#/!!$/%' OR task1.`sys_domain_path` LIKE '!!!/!!!/%'))) INNER JOIN task task2 ON task1.`parent` = task2.`sys_id` AND ((task2.`sys_domain_path` = '/' OR task2.`sys_domain_path` LIKE '!!!/!!#/!!$/%' OR task2.`sys_domain_path` LIKE '!!!/!!!/%'))) WHERE task2.`sys_id` LIKE '8e7792a7dbfffb00fff8a345ca961934%' AND (sysapproval_approver0.`sys_domain_path` = '/' OR sysapproval_approver0.`sys_domain_path` LIKE '!!!/!!#/!!$/%' OR sysapproval_approver0.`sys_domain_path` LIKE '!!!/!!!/%') ORDER BY sysapproval_approver0.`order` LIMIT 0, 50;
+
+
+set optimizer_use_condition_selectivity=1;
+analyze SELECT sysapproval_approver0.`sys_id`
+FROM   ((sysapproval_approver sysapproval_approver0
+         INNER JOIN task task1
+                 ON sysapproval_approver0.`sysapproval` = task1.`sys_id`
+                    AND (( task1.`sys_domain_path` = '/'
+                            OR task1.`sys_domain_path` LIKE '!!!/!!#/!!$/%'
+                            OR task1.`sys_domain_path` LIKE '!!!/!!!/%' )))
+        INNER JOIN task task2
+                ON task1.`parent` = task2.`sys_id`
+                   AND (( task2.`sys_domain_path` = '/'
+                           OR task2.`sys_domain_path` LIKE '!!!/!!#/!!$/%'
+                           OR task2.`sys_domain_path` LIKE '!!!/!!!/%' )))
+WHERE  task2.`sys_id` LIKE '8e7792a7dbfffb00fff8a345ca961934%'
+       AND ( sysapproval_approver0.`sys_domain_path` = '/'
+              OR sysapproval_approver0.`sys_domain_path` LIKE '!!!/!!#/!!$/%'
+              OR sysapproval_approver0.`sys_domain_path` LIKE '!!!/!!!/%' )
+ORDER  BY sysapproval_approver0.`order`
+LIMIT  0, 50 ;
+
+set optimizer_use_condition_selectivity=4;
+analyze SELECT sysapproval_approver0.`sys_id`
+FROM   ((sysapproval_approver sysapproval_approver0
+         INNER JOIN task task1
+                 ON sysapproval_approver0.`sysapproval` = task1.`sys_id`
+                    AND (( task1.`sys_domain_path` = '/'
+                            OR task1.`sys_domain_path` LIKE '!!!/!!#/!!$/%'
+                            OR task1.`sys_domain_path` LIKE '!!!/!!!/%' )))
+        INNER JOIN task task2
+                ON task1.`parent` = task2.`sys_id`
+                   AND (( task2.`sys_domain_path` = '/'
+                           OR task2.`sys_domain_path` LIKE '!!!/!!#/!!$/%'
+                           OR task2.`sys_domain_path` LIKE '!!!/!!!/%' )))
+WHERE  task2.`sys_id` LIKE '8e7792a7dbfffb00fff8a345ca961934%'
+       AND ( sysapproval_approver0.`sys_domain_path` = '/'
+              OR sysapproval_approver0.`sys_domain_path` LIKE '!!!/!!#/!!$/%'
+              OR sysapproval_approver0.`sys_domain_path` LIKE '!!!/!!!/%' )
+ORDER  BY sysapproval_approver0.`order`
+LIMIT  0, 50 ;
+
+drop table sysapproval_approver,task;
+
+set global innodb_stats_persistent= @innodb_stats_persistent_save;
+set global innodb_stats_persistent_sample_pages=
+             @innodb_stats_persistent_sample_pages_save;

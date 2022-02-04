@@ -349,6 +349,9 @@ char orig_argv1[FN_REFLEN];
 pthread_mutex_t backup_mutex;
 pthread_cond_t  scanned_lsn_cond;
 
+/** Store the deferred tablespace name during --backup */
+static std::set<std::string> defer_space_names;
+
 typedef std::map<space_id_t,std::string> space_id_to_name_t;
 
 struct ddl_tracker_t {
@@ -358,9 +361,53 @@ struct ddl_tracker_t {
 	std::set<space_id_t> drops;
 	/* For DDL operation found in redo log,  */
 	space_id_to_name_t id_to_name;
+	/** Deferred tablespaces with their ID and name which was
+	found in redo log of DDL operations */
+	space_id_to_name_t deferred_tables;
+
+  /** Insert the deferred tablespace id with the name */
+  void insert_defer_id(space_id_t space_id, std::string name)
+  {
+    auto it= defer_space_names.find(name);
+    if (it != defer_space_names.end())
+    {
+      deferred_tables[space_id]= name;
+      defer_space_names.erase(it);
+    }
+  }
+
+  /** Rename the deferred tablespace with new name */
+  void rename_defer(space_id_t space_id, std::string old_name,
+                    std::string new_name)
+  {
+    if (deferred_tables.find(space_id) != deferred_tables.end())
+      deferred_tables[space_id] = new_name;
+    auto defer_end= defer_space_names.end();
+    auto defer= defer_space_names.find(old_name);
+    if (defer == defer_end)
+      defer= defer_space_names.find(new_name);
+
+    if (defer != defer_end)
+    {
+      deferred_tables[space_id]= new_name;
+      defer_space_names.erase(defer);
+    }
+  }
+
+  /** Delete the deferred tablespace */
+  void delete_defer(space_id_t space_id, std::string name)
+  {
+    deferred_tables.erase(space_id);
+    defer_space_names.erase(name);
+  }
 };
 
 static ddl_tracker_t ddl_tracker;
+
+/** Stores the space ids of page0 INIT_PAGE redo records. It is
+used to indicate whether the given deferred tablespace can
+be reconstructed. */
+static std::set<space_id_t> first_page_init_ids;
 
 // Convert non-null terminated filename to space name
 static std::string filename_to_spacename(const void *filename, size_t len);
@@ -769,33 +816,57 @@ static std::string filename_to_spacename(const void *filename, size_t len)
 
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
-@param[in]	create		whether the file is being created
+@param[in]	type		redo log file operation type
 @param[in]	name		file name (not NUL-terminated)
 @param[in]	len		length of name, in bytes
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
-static void backup_file_op(uint32_t space_id, bool create,
+static void backup_file_op(uint32_t space_id, int type,
 	const byte* name, ulint len,
 	const byte* new_name, ulint new_len)
 {
 
-	ut_ad(!create || !new_name);
 	ut_ad(name);
 	ut_ad(len);
 	ut_ad(!new_name == !new_len);
 	pthread_mutex_lock(&backup_mutex);
 
-	if (create) {
-		ddl_tracker.id_to_name[space_id] = filename_to_spacename(name, len);
+	switch(type) {
+	case FILE_CREATE:
+	{
+		std::string space_name = filename_to_spacename(name, len);
+		ddl_tracker.id_to_name[space_id] = space_name;
+		ddl_tracker.delete_defer(space_id, space_name);
 		msg("DDL tracking : create %u \"%.*s\"", space_id, int(len), name);
 	}
-	else if (new_name) {
-		ddl_tracker.id_to_name[space_id] = filename_to_spacename(new_name, new_len);
+	break;
+	case FILE_MODIFY:
+		ddl_tracker.insert_defer_id(
+			space_id, filename_to_spacename(name, len));
+		msg("DDL tracking : modify %u \"%.*s\"", space_id, int(len), name);
+		break;
+	case FILE_RENAME:
+	{
+		std::string new_space_name = filename_to_spacename(
+						new_name, new_len);
+		std::string old_space_name = filename_to_spacename(
+						name, len);
+		ddl_tracker.id_to_name[space_id] = new_space_name;
+		ddl_tracker.rename_defer(space_id, old_space_name,
+					 new_space_name);
 		msg("DDL tracking : rename %u \"%.*s\",\"%.*s\"",
 			space_id, int(len), name, int(new_len), new_name);
-	} else {
+	}
+	break;
+	case FILE_DELETE:
 		ddl_tracker.drops.insert(space_id);
+		ddl_tracker.delete_defer(
+			space_id, filename_to_spacename(name, len));
 		msg("DDL tracking : delete %u \"%.*s\"", space_id, int(len), name);
+		break;
+	default:
+		ut_ad(0);
+		break;
 	}
 	pthread_mutex_unlock(&backup_mutex);
 }
@@ -810,29 +881,38 @@ static void backup_file_op(uint32_t space_id, bool create,
 
  We will abort backup in this case.
 */
-static void backup_file_op_fail(uint32_t space_id, bool create,
+static void backup_file_op_fail(uint32_t space_id, int type,
 	const byte* name, ulint len,
 	const byte* new_name, ulint new_len)
 {
-	bool fail;
-	if (create) {
-		msg("DDL tracking : create %u \"%.*s\"",
-			space_id, int(len), name);
-		std::string  spacename = filename_to_spacename(name, len);
-		fail = !check_if_skip_table(spacename.c_str());
-	}
-	else if (new_name) {
+	bool fail = false;
+	switch(type) {
+	case FILE_CREATE:
+		msg("DDL tracking : create %u \"%.*s\"", space_id, int(len), name);
+		fail = !check_if_skip_table(
+				filename_to_spacename(name, len).c_str());
+		break;
+	case FILE_MODIFY:
+		msg("DDL tracking : modify %u \"%.*s\"", space_id, int(len), name);
+		break;
+	case FILE_RENAME:
 		msg("DDL tracking : rename %u \"%.*s\",\"%.*s\"",
 			space_id, int(len), name, int(new_len), new_name);
-		std::string  spacename = filename_to_spacename(name, len);
-		std::string  new_spacename = filename_to_spacename(new_name, new_len);
-		fail = !check_if_skip_table(spacename.c_str()) || !check_if_skip_table(new_spacename.c_str());
-	}
-	else {
-		std::string  spacename = filename_to_spacename(name, len);
-		fail = !check_if_skip_table(spacename.c_str());
+		fail = !check_if_skip_table(
+				filename_to_spacename(name, len).c_str())
+		       || !check_if_skip_table(
+				filename_to_spacename(new_name, new_len).c_str());
+		break;
+	case FILE_DELETE:
+		fail = !check_if_skip_table(
+				filename_to_spacename(name, len).c_str());
 		msg("DDL tracking : delete %u \"%.*s\"", space_id, int(len), name);
+		break;
+	default:
+		ut_ad(0);
+		break;
 	}
+
 	if (fail) {
 		ut_a(opt_no_lock);
 		die("DDL operation detected in the late phase of backup."
@@ -840,6 +920,12 @@ static void backup_file_op_fail(uint32_t space_id, bool create,
 	}
 }
 
+/* Function to store the space id of page0 INIT_PAGE
+@param	space_id	space id which has page0 init page */
+static void backup_first_page_op(space_id_t space_id)
+{
+  first_page_init_ids.insert(space_id);
+}
 
 /*
   Retrieve default data directory, to be used with --copy-back.
@@ -3235,7 +3321,8 @@ static void xb_load_single_table_tablespace(const char *dirname,
 {
 	ut_ad(srv_operation == SRV_OPERATION_BACKUP
 	      || srv_operation == SRV_OPERATION_RESTORE_DELTA
-	      || srv_operation == SRV_OPERATION_RESTORE);
+	      || srv_operation == SRV_OPERATION_RESTORE
+	      || srv_operation == SRV_OPERATION_BACKUP_NO_DEFER);
 	/* Ignore .isl files on XtraBackup recovery. All tablespaces must be
 	local. */
 	if (is_remote && srv_operation == SRV_OPERATION_RESTORE_DELTA) {
@@ -3304,6 +3391,10 @@ static void xb_load_single_table_tablespace(const char *dirname,
 	}
 
 	if (!defer && file->m_defer) {
+		const char *file_path = file->filepath();
+		defer_space_names.insert(
+			filename_to_spacename(
+				file_path, strlen(file_path)));
 		delete file;
 		ut_free(name);
 		return;
@@ -4419,6 +4510,7 @@ static bool xtrabackup_backup_func()
 
 	srv_operation = SRV_OPERATION_BACKUP;
 	log_file_op = backup_file_op;
+	first_page_init = backup_first_page_op;
 	metadata_to_lsn = 0;
 
 	/* initialize components */
@@ -4433,6 +4525,7 @@ fail:
 		}
 
 		log_file_op = NULL;
+		first_page_init = NULL;
 		if (dst_log_file) {
 			ds_close(dst_log_file);
 			dst_log_file = NULL;
@@ -4735,6 +4828,7 @@ fail_before_log_copying_thread_start:
 
 	innodb_shutdown();
 	log_file_op = NULL;
+	first_page_init = NULL;
 	pthread_mutex_destroy(&backup_mutex);
 	pthread_cond_destroy(&scanned_lsn_cond);
 	if (!corrupted_pages.empty()) {
@@ -4816,7 +4910,9 @@ void backup_fix_ddl(CorruptedPages &corrupted_pages)
 			continue;
 		}
 
-		if (ddl_tracker.drops.find(id) == ddl_tracker.drops.end()) {
+		if (ddl_tracker.drops.find(id) == ddl_tracker.drops.end()
+		    && ddl_tracker.deferred_tables.find(id)
+			== ddl_tracker.deferred_tables.end()) {
 			dropped_tables.erase(name);
 			new_tables[id] = name;
 			if (opt_log_innodb_page_corruption)
@@ -4860,6 +4956,41 @@ void backup_fix_ddl(CorruptedPages &corrupted_pages)
 	}
 
 	DBUG_EXECUTE_IF("check_mdl_lock_works", DBUG_ASSERT(new_tables.size() == 0););
+
+	srv_operation = SRV_OPERATION_BACKUP_NO_DEFER;
+
+	/* Mariabackup detected the FILE_MODIFY or FILE_RENAME
+	for the deferred tablespace. So it needs to read the
+	tablespace again if innodb doesn't have page0 initialization
+	redo log for it */
+	for (space_id_to_name_t::iterator iter =
+			ddl_tracker.deferred_tables.begin();
+	     iter != ddl_tracker.deferred_tables.end();
+	     iter++) {
+		if (check_if_skip_table(iter->second.c_str())) {
+			continue;
+		}
+
+		if (first_page_init_ids.find(iter->first)
+				!= first_page_init_ids.end()) {
+			new_tables[iter->first] = iter->second.c_str();
+			continue;
+		}
+
+		xb_load_single_table_tablespace(iter->second, false);
+	}
+
+	/* Mariabackup doesn't detect any FILE_OP for the deferred
+	tablespace. There is a possiblity that page0 could've
+	been corrupted persistently in the disk */
+	for (auto space_name: defer_space_names) {
+		if (!check_if_skip_table(space_name.c_str())) {
+			xb_load_single_table_tablespace(
+					space_name, false);
+		}
+	}
+
+	srv_operation = SRV_OPERATION_BACKUP;
 
 	for (const auto &t : new_tables) {
 		if (!check_if_skip_table(t.second.c_str())) {

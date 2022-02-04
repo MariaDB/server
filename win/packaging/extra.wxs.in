@@ -346,6 +346,7 @@
 
     <Property Id="CRLF" Value="&#xD;&#xA;" />
     <CustomAction Id="CheckDataDirectory" BinaryKey="wixca.dll" DllEntry="CheckDataDirectory" Execute="immediate" Impersonate="yes"/>
+	<CustomAction Id="CheckInstallDirectory" BinaryKey="wixca.dll" DllEntry="CheckInstallDirectory" Execute="immediate" Impersonate="yes"/>
     <!--  What to do when navigation buttons are clicked -->
     <UI Id="MyWixUI_Mondo">
       <UIRef Id="WixUI_FeatureTree" />
@@ -365,6 +366,12 @@
       <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="NewOrUpgradeInstanceDlg" Order="999">
         NOT Installed AND UpgradableServiceFound
       </Publish>
+	  <Publish Dialog="CustomizeDlg" Control="Next" Event="DoAction" Value="CheckInstallDirectory" Order="1">NOT Installed</Publish>
+      <Publish  Dialog="CustomizeDlg" Control="Next"  Property="WarningText" Order="2"
+        Value="[INSTALLDIRERROR]">
+       INSTALLDIRERROR
+	   </Publish>
+      <Publish Dialog="CustomizeDlg" Control="Next" Event="SpawnDialog" Value="WarningDlg" Order="3">WarningText</Publish>
       <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="ConfirmDataCleanupDlg" Order="4">
         <![CDATA[(&DBInstance=2) AND (!DBInstance=3)]]>
       </Publish>
@@ -409,9 +416,6 @@
         <RegistryValue Root='HKLM'
            Key='SOFTWARE\@CPACK_WIX_PACKAGE_NAME@'
            Name='DATADIR' Value='[DATADIR]' Type='string' KeyPath='yes'/>
-          <CreateFolder>
-            <util:PermissionEx User="NetworkService" GenericAll="yes" />
-          </CreateFolder>
       </Component>
 
       <Component Id="C.datadir.permissions" Directory="DATADIR">
@@ -531,6 +535,29 @@
       AllowAdvertise='no'
       Level='1'
       Display='hidden'>
+
+      <Component Id="C_Permissions.bin" Guid="2ce05496-3273-4866-a5b5-1eff2837b4cb" Directory="D.bin">
+        <!-- in case service is installed now on it the future -->
+        <CreateFolder>
+          <util:PermissionEx User="ALL SERVICES" Domain="NT SERVICE" GenericRead="yes"  GenericExecute="yes" />
+        </CreateFolder>
+        <Condition>SERVICENAME</Condition>
+      </Component>
+
+      <Component Id="C_Permissions.lib.plugin" Guid="ff2e8f47-83fd-4dee-9e22-f103600cfc80" Directory="D.lib.plugin">
+        <CreateFolder>
+          <util:PermissionEx User="ALL SERVICES" Domain="NT SERVICE" GenericRead="yes" GenericExecute="yes" />
+        </CreateFolder>
+        <Condition>SERVICENAME</Condition>
+      </Component>
+
+      <Component Id="C_Permissions.share" Guid="be8ee2fb-a837-4b31-b59a-68a506d97d81" Directory="D.share">
+        <CreateFolder>
+          <util:PermissionEx User="ALL SERVICES" Domain="NT SERVICE" GenericRead="yes" GenericExecute="yes" />
+        </CreateFolder>
+        <Condition>SERVICENAME</Condition>
+      </Component>
+
       <ComponentRef Id='C.bin.mysql.exe'/>
       <ComponentRef Id='C.bin.mysqladmin.exe'/>
       <ComponentRef Id='C.bin.mysql_upgrade.exe'/>
@@ -551,20 +578,6 @@
       </Component>
      <?if $(var.HaveUpgradeWizard) != "0" ?>
      <ComponentRef Id='C.bin.mysql_upgrade_wizard.exe'/>
-     <!--
-     <Component Id="c.shortcuts.upgrade_wizard"  Guid="*"  Directory="ShortcutFolder" Transitive="yes">
-       <RegistryValue
-       Root="HKCU" Key="Software\@CPACK_WIX_PACKAGE_NAME@\Uninstall"
-       Name="shortcuts.upgrade_wizard"
-       Value="1" Type="string" KeyPath="yes" />
-      <Shortcut Id="shortcut.upgrade_wizard"
-        Name="Upgrade Wizard (@CPACK_WIX_PACKAGE_NAME@)"
-       Target="[INSTALLDIR]bin\mysql_upgrade_wizard.exe"
-       Directory="ShortcutFolder"
-       Description="Upgrades older instances of MariaDB/MySQL services to version @MAJOR_VERSION@.@MINOR_VERSION@"  
-       Advertise="no"/>
-     </Component>
-     -->
      <?endif?>
     </Feature>
 
@@ -639,11 +652,17 @@
 
     <CustomAction Id='ErrorDataDir'
                   Error='Invalid data directory, choose a different one. Error : [DATADIRERROR]'/>
+	<CustomAction Id="ErrorInstallDir"
+	              Error="[INSTALLDIRERROR]" />
     <InstallExecuteSequence>
       <Custom Action="CheckDataDirectory" After="CostFinalize">
         <![CDATA[&DBInstance=3 AND NOT !DBInstance=3 AND OLDERVERSIONBEINGUPGRADED=""]]>
       </Custom>
-      <Custom Action="ErrorDataDir" After="CheckDataDirectory">DATADIRERROR</Custom>
+	  <Custom Action="ErrorDataDir" After="CheckDataDirectory">DATADIRERROR</Custom>
+	  <Custom Action="CheckInstallDirectory" After="CostFinalize">
+        NOT Installed
+      </Custom>
+      <Custom Action="ErrorInstallDir" After="CheckInstallDirectory">INSTALLDIRERROR</Custom>
       <Custom Action="CheckDatabaseProperties" Before="CreateDatabaseCommand">SERVICENAME</Custom>
       <Custom Action="CreateDatabaseCommand" After="CostFinalize" >
         <![CDATA[&DBInstance=3 AND NOT !DBInstance=3 AND OLDERVERSIONBEINGUPGRADED=""]]>

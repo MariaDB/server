@@ -8815,6 +8815,14 @@ free_and_exit:
 
     dict_sys.lock(SRW_LOCK_CALL);
 
+    if (ctx->add_vcol)
+    {
+      for (ulint i = 0; i < ctx->num_to_add_vcol; i++)
+        ctx->add_vcol[i].~dict_v_col_t();
+      ctx->num_to_add_vcol= 0;
+      ctx->add_vcol= nullptr;
+    }
+
     for (ulint i= 0; i < ctx->num_to_add_fk; i++)
       dict_foreign_free(ctx->add_fk[i]);
     /* Clear the to_be_dropped flags in the data dictionary cache.

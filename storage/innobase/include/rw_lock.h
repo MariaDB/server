@@ -56,7 +56,7 @@ protected:
 #if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
     static_assert(WRITER_WAITING == 1U << 30, "compatibility");
     __asm__ __volatile__("lock btsl $30, %0" : "+m" (lock));
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
     static_assert(WRITER_WAITING == 1U << 30, "compatibility");
     _interlockedbittestandset(reinterpret_cast<volatile long*>(&lock), 30);
 #else

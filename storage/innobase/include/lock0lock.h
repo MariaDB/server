@@ -1233,6 +1233,6 @@ lock_rtr_move_rec_list(
 						moved */
 	ulint			num_move);	/*!< in: num of rec to move */
 
-#include "lock0lock.ic"
+#include "lock0lock.inl"
 
 #endif

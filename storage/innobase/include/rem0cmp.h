@@ -258,6 +258,6 @@ cmp_dfield_dfield_like_prefix(
 	const dfield_t*	dfield1,
 	const dfield_t*	dfield2);
 
-#include "rem0cmp.ic"
+#include "rem0cmp.inl"
 
 #endif

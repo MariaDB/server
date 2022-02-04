@@ -12,7 +12,6 @@
 
 GCF-1081 : MDEV-18283 Galera test failure on galera.GCF-1081
 GCF-939 : MDEV-21520 galera.GCF-939
-MDEV-20225 : MDEV-20886 galera.MDEV-20225
 MW-328A : MDEV-22666 galera.MW-328A MTR failed: "Semaphore wait has lasted > 600 seconds" and do not release port 16002
 MW-328B : MDEV-22666 galera.MW-328A MTR failed: "Semaphore wait has lasted > 600 seconds" and do not release port 16002
 MW-328D : MDEV-27550 ER_LOCK_DEADLOCK is gone after MDEV-27025
@@ -41,7 +40,6 @@ galera_var_node_address : MDEV-20485 Galera test failure
 galera_var_notify_cmd : MDEV-21905 Galera test galera_var_notify_cmd causes hang
 galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.galera_var_retry_autocommit
 galera_wsrep_provider_unset_set: wsrep_provider is read-only for security reasons
-mysql-wsrep#198 : MDEV-24446: galera.mysql-wsrep#198 MTR failed: query 'reap' failed: 2000: Unknown MySQL error
 partition : MDEV-19958 Galera test failure on galera.partition
 pxc-421: wsrep_provider is read-only for security reasons
 query_cache: MDEV-15805 Test failure on galera.query_cache

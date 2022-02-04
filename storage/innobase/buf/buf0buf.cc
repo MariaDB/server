@@ -2647,7 +2647,6 @@ loop:
 		}
 	} else {
 		buf_read_ahead_random(page_id, zip_size, ibuf_inside(mtr));
-		retries = 0;
 	}
 
 	ut_d(if (!(++buf_dbg_counter % 5771)) buf_pool.validate());
@@ -2666,15 +2665,45 @@ ignore_block:
 			return nullptr;
 		}
 
-		if (UNIV_LIKELY(block->page.frame != nullptr)) {
-			/* A read-fix is released after block->page.lock
-			in buf_page_t::read_complete() or
-			buf_pool_t::corrupted_evict(), or
-			after buf_zip_decompress() in this function. */
-			block->page.lock.s_lock();
-			state = block->page.state();
-			block->page.lock.s_unlock();
-			ut_ad(state < buf_page_t::READ_FIX);
+		/* A read-fix is released after block->page.lock
+		in buf_page_t::read_complete() or
+		buf_pool_t::corrupted_evict(), or
+		after buf_zip_decompress() in this function. */
+		block->page.lock.s_lock();
+		state = block->page.state();
+		ut_ad(state < buf_page_t::READ_FIX);
+		const page_id_t id{block->page.id()};
+		block->page.lock.s_unlock();
+
+		if (UNIV_UNLIKELY(id != page_id)) {
+			ut_ad(id == page_id_t{~0ULL});
+			block->page.unfix();
+			if (++retries < BUF_PAGE_READ_MAX_RETRIES) {
+				goto loop;
+			}
+
+			if (err) {
+				*err = DB_PAGE_CORRUPTED;
+			}
+
+			if (page_id.space() == TRX_SYS_SPACE) {
+			} else if (page_id.space() == SRV_TMP_SPACE_ID) {
+			} else if (fil_space_t* space =
+				   fil_space_t::get(page_id.space())) {
+				bool set = dict_set_corrupted_by_space(space);
+				space->release();
+				if (set) {
+					return nullptr;
+				}
+			}
+
+			ib::fatal() << "Unable to read page " << page_id
+				    << " into the buffer pool after "
+				    << BUF_PAGE_READ_MAX_RETRIES
+				    << ". The most probable cause"
+				" of this error may be that the"
+				" table has been corrupted."
+				" See https://mariadb.com/kb/en/library/innodb-recovery-modes/";
 		}
 	} else if (mode == BUF_PEEK_IF_IN_POOL) {
 		if (UNIV_UNLIKELY(!block->page.frame)) {

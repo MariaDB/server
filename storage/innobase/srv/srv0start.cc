@@ -1473,6 +1473,7 @@ file_checked:
 			break;
 		case SRV_OPERATION_RESTORE_DELTA:
 		case SRV_OPERATION_BACKUP:
+		case SRV_OPERATION_BACKUP_NO_DEFER:
 			ut_ad("wrong mariabackup mode" == 0);
 		}
 
@@ -1946,6 +1947,7 @@ void innodb_shutdown()
 	switch (srv_operation) {
 	case SRV_OPERATION_BACKUP:
 	case SRV_OPERATION_RESTORE_DELTA:
+	case SRV_OPERATION_BACKUP_NO_DEFER:
 		break;
 	case SRV_OPERATION_RESTORE:
 	case SRV_OPERATION_RESTORE_EXPORT:

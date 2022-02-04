@@ -1234,6 +1234,6 @@ inline bool is_absolute_path(const char *path)
   return false;
 }
 
-#include "os0file.ic"
+#include "os0file.inl"
 
 #endif /* os0file_h */

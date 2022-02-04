@@ -233,7 +233,7 @@ static struct
 
 /* support for Services */
 
-#include "sql_plugin_services.ic"
+#include "sql_plugin_services.inl"
 
 /*
   A mutex LOCK_plugin must be acquired before accessing the

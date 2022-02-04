@@ -1,0 +1,69 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/not_embedded.inc
+
+call mtr.add_suppression("InnoDB: Expected tablespace id .*");
+--echo # Mariabackup --backup with page0 INIT_PAGE redo record
+--echo # and there is no FILE_CREATE for the tablespace t1
+SET DEBUG_DBUG="+d,checkpoint_after_file_create";
+CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1);
+
+echo # xtrabackup backup;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+SELECT * FROM t1;
+DROP TABLE t1;
+rmdir $targetdir;
+SET DEBUG_DBUG="-d,checkpoint_after_file_create";
+
+--echo # Mariabackup fails after corrupting the page0 in disk
+--echo # and there is no INIT_PAGE for page0
+
+CREATE TABLE t1(c INT) ENGINE=INNODB;
+let MYSQLD_DATADIR=`select @@datadir`;
+let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+--source include/shutdown_mysqld.inc
+
+--echo # Corrupt the table
+
+perl;
+use strict;
+use warnings;
+use Fcntl qw(:DEFAULT :seek);
+my $page_size = $ENV{INNODB_PAGE_SIZE};
+
+sysopen FILE, "$ENV{MYSQLD_DATADIR}/test/t1.ibd", O_RDWR
+|| die "Cannot open t1.ibd\n";
+sysseek(FILE, 0, SEEK_SET) || die "Cannot seek t1.ibd\n";
+my $page=chr(0) x $page_size;
+syswrite(FILE, $page, $page_size)==$page_size;
+close FILE or die "close";
+EOF
+
+--source include/start_mysqld.inc
+echo # xtrabackup backup;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+let $backuplog=$MYSQLTEST_VARDIR/tmp/backup.log;
+--disable_result_log
+--error 1
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --core-file > $backuplog;
+--enable_result_log
+
+--let SEARCH_PATTERN=Header page consists of zero bytes*
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+UNLOCK TABLES;
+DROP TABLE t1;
+rmdir $targetdir;
+remove_file $backuplog;

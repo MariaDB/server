@@ -5266,6 +5266,12 @@ void Rdb_dict_manager::log_start_drop_index(GL_INDEX_ID gl_index_id,
           "from index id (%u,%u). MyRocks data dictionary may "
           "get corrupted.",
           gl_index_id.cf_id, gl_index_id.index_id);
+      if (rocksdb_ignore_datadic_errors)
+      {
+        sql_print_error("RocksDB: rocksdb_ignore_datadic_errors=1, "
+                        "trying to continue");
+        return;
+      }
       abort();
     }
   }

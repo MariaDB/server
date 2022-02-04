@@ -549,6 +549,7 @@ struct Query_cache_query_flags
 {
   unsigned int client_long_flag:1;
   unsigned int client_protocol_41:1;
+  unsigned int client_extended_metadata:1;
   unsigned int client_depr_eof:1;
   unsigned int protocol_type:2;
   unsigned int more_results_exists:1;

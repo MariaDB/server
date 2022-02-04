@@ -368,7 +368,7 @@ Return crypt statistics
 @param[out]	stat		Crypt statistics */
 void fil_crypt_total_stat(fil_crypt_stat_t *stat);
 
-#include "fil0crypt.ic"
+#include "fil0crypt.inl"
 #endif /* !UNIV_INNOCHECKSUM */
 
 /**

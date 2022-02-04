@@ -4017,12 +4017,7 @@ public:
                    NONE, field_name_arg, collation),
      can_alter_field_type(1) {};
 
-  const Type_handler *type_handler() const override
-  {
-    if (is_var_string())
-      return &type_handler_var_string;
-    return &type_handler_string;
-  }
+  const Type_handler *type_handler() const override;
   enum ha_base_keytype key_type() const override
     { return binary() ? HA_KEYTYPE_BINARY : HA_KEYTYPE_TEXT; }
   en_fieldtype tmp_engine_column_type(bool use_packed_rows) const override;
@@ -4141,8 +4136,7 @@ public:
     share->varchar_fields++;
   }
 
-  const Type_handler *type_handler() const override
-  { return &type_handler_varchar; }
+  const Type_handler *type_handler() const override;
   en_fieldtype tmp_engine_column_type(bool use_packed_rows) const override
   {
     return FIELD_VARCHAR;
@@ -4726,6 +4720,8 @@ private:
 class Field_enum :public Field_str {
   static void do_field_enum(Copy_field *copy_field);
   longlong val_int(const uchar *) const;
+  bool can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
+                                         const Item *item) const;
 protected:
   uint packlength;
 public:
@@ -4818,9 +4814,12 @@ public:
                       uint param_data) override;
 
   bool can_optimize_keypart_ref(const Item_bool_func *cond,
-                                const Item *item) const override;
-  bool can_optimize_group_min_max(const Item_bool_func *, const Item *)
-    const override
+                                const Item *item) const override
+  {
+    return can_optimize_range_or_keypart_ref(cond, item);
+  }
+  bool can_optimize_group_min_max(const Item_bool_func *cond,
+                                  const Item *const_item) const override
   {
     /*
       Can't use GROUP_MIN_MAX optimization for ENUM and SET,
@@ -4833,7 +4832,10 @@ public:
   }
   bool can_optimize_range(const Item_bool_func *cond,
                           const Item *item,
-                          bool is_eq_func) const override;
+                          bool is_eq_func) const override
+  {
+    return can_optimize_range_or_keypart_ref(cond, item);
+  }
   Binlog_type_info binlog_type_info() const override;
 private:
   bool is_equal(const Column_definition &new_field) const override;

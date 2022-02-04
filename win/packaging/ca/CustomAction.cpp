@@ -187,6 +187,27 @@ bool IsDirectoryEmptyOrNonExisting(const wchar_t *dir) {
   return empty;
 }
 
+extern "C" UINT __stdcall CheckInstallDirectory(MSIHANDLE hInstall)
+{
+  HRESULT hr= S_OK;
+  UINT er= ERROR_SUCCESS;
+  wchar_t *path= 0;
+
+  hr= WcaInitialize(hInstall, __FUNCTION__);
+  ExitOnFailure(hr, "Failed to initialize");
+  WcaGetFormattedString(L"[INSTALLDIR]", &path);
+  if (!IsDirectoryEmptyOrNonExisting(path))
+  {
+    wchar_t msg[2*MAX_PATH];
+    swprintf(msg,countof(msg), L"Installation directory '%s' exists and is not empty. Choose a "
+                  "different install directory",path);
+    WcaSetProperty(L"INSTALLDIRERROR", msg);
+  }
+LExit:
+  ReleaseStr(path);
+  return WcaFinalize(er);
+}
+
 /*
   Check for valid data directory is empty during install
   A valid data directory is non-existing, or empty.

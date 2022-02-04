@@ -8,3 +8,4 @@ CheckDatabaseProperties
 CheckDataDirectory
 CheckDBInUse
 CheckServiceUpgrades
+CheckInstallDirectory

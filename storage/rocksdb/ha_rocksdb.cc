@@ -643,6 +643,8 @@ static my_bool rocksdb_large_prefix = 0;
 static my_bool rocksdb_allow_to_start_after_corruption = 0;
 static char* rocksdb_git_hash;
 
+uint32_t rocksdb_ignore_datadic_errors = 0;
+
 char *compression_types_val=
   const_cast<char*>(get_rocksdb_supported_compression_types());
 static unsigned long rocksdb_write_policy =
@@ -1913,6 +1915,15 @@ static MYSQL_SYSVAR_UINT(
     nullptr, nullptr, 1 /* default value */, 0 /* min value */,
     2 /* max value */, 0);
 
+static MYSQL_SYSVAR_UINT(
+    ignore_datadic_errors, rocksdb_ignore_datadic_errors,
+    PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+    "Ignore MyRocks' data directory errors. "
+    "(CAUTION: Use only to start the server and perform repairs. Do NOT use "
+    "for regular operation)",
+    nullptr, nullptr, 0 /* default value */, 0 /* min value */,
+    1 /* max value */, 0);
+
 static MYSQL_SYSVAR_STR(datadir, rocksdb_datadir,
                         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
                         "RocksDB data directory", nullptr, nullptr,
@@ -2148,6 +2159,8 @@ static struct st_mysql_sys_var *rocksdb_system_variables[] = {
     MYSQL_SYSVAR(rollback_on_timeout),
 
     MYSQL_SYSVAR(enable_insert_with_update_caching),
+
+    MYSQL_SYSVAR(ignore_datadic_errors),
     nullptr};
 
 static rocksdb::WriteOptions rdb_get_rocksdb_write_options(
@@ -5223,6 +5236,13 @@ static int rocksdb_init_func(void *const p) {
 
   DBUG_ENTER_FUNC();
 
+  if (rocksdb_ignore_datadic_errors)
+  {
+    sql_print_information(
+        "CAUTION: Running with rocksdb_ignore_datadic_errors=1. "
+        " This should only be used to perform repairs");
+  }
+
   if (rdb_check_rocksdb_corruption()) {
     // NO_LINT_DEBUG
     sql_print_error(
@@ -5654,7 +5674,14 @@ static int rocksdb_init_func(void *const p) {
   if (ddl_manager.init(&dict_manager, &cf_manager, rocksdb_validate_tables)) {
     // NO_LINT_DEBUG
     sql_print_error("RocksDB: Failed to initialize DDL manager.");
-    DBUG_RETURN(HA_EXIT_FAILURE);
+
+    if (rocksdb_ignore_datadic_errors)
+    {
+      sql_print_error("RocksDB: rocksdb_ignore_datadic_errors=1, "
+                      "trying to continue");
+    }
+    else
+      DBUG_RETURN(HA_EXIT_FAILURE);
   }
 
   Rdb_sst_info::init(rdb);
@@ -6719,6 +6746,26 @@ int ha_rocksdb::open(const char *const name, int mode, uint test_if_locked) {
              "dictionary");
     DBUG_RETURN(HA_ERR_ROCKSDB_INVALID_TABLE);
   }
+  if (m_tbl_def->m_key_count != table->s->keys + has_hidden_pk(table)? 1:0)
+  {
+    sql_print_error("MyRocks: DDL mismatch: .frm file has %u indexes, "
+                    "MyRocks has %u (%s hidden pk)",
+                    table->s->keys, m_tbl_def->m_key_count,
+                    has_hidden_pk(table)? "1" : "no");
+
+    if (rocksdb_ignore_datadic_errors)
+    {
+      sql_print_error("MyRocks: rocksdb_ignore_datadic_errors=1, "
+                      "trying to continue");
+    }
+    else
+    {
+      my_error(ER_INTERNAL_ERROR, MYF(0),
+               "MyRocks: DDL mismatch. Check the error log for details");
+      DBUG_RETURN(HA_ERR_ROCKSDB_INVALID_TABLE);
+    }
+  }
+
 
   m_lock_rows = RDB_LOCK_NONE;
   m_key_descr_arr = m_tbl_def->m_key_descr_arr;
@@ -11618,6 +11665,12 @@ void Rdb_drop_index_thread::run() {
               "from cf id %u. MyRocks data dictionary may "
               "get corrupted.",
               d.cf_id);
+          if (rocksdb_ignore_datadic_errors)
+          {
+            sql_print_error("RocksDB: rocksdb_ignore_datadic_errors=1, "
+                            "trying to continue");
+            continue;
+          }
           abort();
         }
         rocksdb::ColumnFamilyHandle *cfh = cf_manager.get_cf(d.cf_id);

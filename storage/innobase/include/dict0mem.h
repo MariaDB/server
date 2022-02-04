@@ -1307,8 +1307,9 @@ public:
   ulint get_new_n_vcol() const
   { return new_vcol_info ? new_vcol_info->n_v_col : 0; }
 
-  /** Reconstruct the clustered index fields. */
-  inline void reconstruct_fields();
+  /** Reconstruct the clustered index fields.
+  @return whether metadata is incorrect */
+  inline bool reconstruct_fields();
 
   /** Check if the index contains a column or a prefix of that column.
   @param[in]	n		column number
@@ -2556,6 +2557,6 @@ inline void dict_stats_empty_defrag_stats(dict_index_t* index)
 	index->stat_defrag_n_page_split = 0;
 }
 
-#include "dict0mem.ic"
+#include "dict0mem.inl"
 
 #endif /* dict0mem_h */
