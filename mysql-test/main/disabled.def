@@ -20,4 +20,3 @@ partition_open_files_limit : open_files_limit check broken by MDEV-18360
 partition_innodb         : Waiting for fix MDEV-20169
 type_enum                : Waiting for fix MDEV-6978
 type_set                 : Waiting for fix MDEV-6978
-mysqldump-system : FIXME nondeterministic
