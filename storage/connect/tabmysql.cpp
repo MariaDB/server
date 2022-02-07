@@ -94,6 +94,7 @@ MYSQLDEF::MYSQLDEF(void)
   Isview = false;
   Bind = false;
   Delayed = false;
+  Ignored = false;
 //Xsrc = false;
   Huge = false;
   } // end of MYSQLDEF constructor
@@ -320,6 +321,9 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
   char *url;
 
   Desc = "MySQL Table";
+  
+  Delayed = !!GetIntCatInfo("Delayed", 0);
+  Ignored = !!GetIntCatInfo("Ignored", 0);
 
   if (stricmp(am, "MYPRX")) {
     // Normal case of specific MYSQL table
@@ -339,7 +343,6 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
       return true;
 
     Bind = !!GetIntCatInfo("Bind", 0);
-    Delayed = !!GetIntCatInfo("Delayed", 0);
   } else {
     // MYSQL access from a PROXY table 
 		TABLE_SHARE* s;
@@ -425,6 +428,7 @@ TDBMYSQL::TDBMYSQL(PMYDEF tdp) : TDBEXT(tdp)
     Isview = tdp->Isview;
     Prep = tdp->Bind;
     Delayed = tdp->Delayed;
+    Ignored = tdp->Ignored;
     Myc.m_Use = tdp->Huge;
   } else {
     Host = NULL;
@@ -440,6 +444,7 @@ TDBMYSQL::TDBMYSQL(PMYDEF tdp) : TDBEXT(tdp)
     Isview = false;
     Prep = false;
     Delayed = false;
+    Ignored = false;
   } // endif tdp
 
   Bind = NULL;
@@ -466,6 +471,7 @@ TDBMYSQL::TDBMYSQL(PTDBMY tdbp) : TDBEXT(tdbp)
   Isview = tdbp->Isview;
   Prep = tdbp->Prep;
   Delayed = tdbp->Delayed;
+  Ignored = tdbp->Ignored;
   Bind = NULL;
 //Query = tdbp->Query;
   Fetched = tdbp->Fetched;
@@ -625,6 +631,8 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
 
   if (Delayed)
     Query->Set("INSERT DELAYED INTO ");
+  else if(Ignored) 
+    Query->Set("INSERT IGNORE INTO ");
   else
     Query->Set("INSERT INTO ");
 
