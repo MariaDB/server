@@ -23,16 +23,17 @@ create table mysql.tz like mysql.time_zone_transition;
 alter table mysql.tz engine=innodb;
 insert into mysql.tz select * from mysql.time_zone_transition;
 set global innodb_stats_persistent=1;
+set time_zone="+03:00";
+SET TIMESTAMP= UNIX_TIMESTAMP('2022-01-07 07:07:00');
 ANALYZE TABLE mysql.tz PERSISTENT FOR ALL;
 Table	Op	Msg_type	Msg_text
 mysql.tz	analyze	status	Engine-independent statistics collected
 mysql.tz	analyze	status	OK
 delete from mysql.index_stats where prefix_arity!=1;
 delete from mysql.column_stats where column_name!='Time_zone_id';
-set time_zone="+03:00";
 update mysql.innodb_index_stats set last_update="2020-01-01" where database_name="mysql" and table_name="tz";
 update mysql.innodb_table_stats set last_update="2020-01-01" where database_name="mysql" and table_name="tz";
-update mysql.column_stats set histogram=json_replace(histogram, '$.collected_at', '2020-01-02 03:04:05 UTC', '$.collected_by', 'this very version');
+update mysql.column_stats set histogram=json_replace(histogram, '$.collected_by', replace(json_value(histogram, '$.collected_by'), @@version, 'version'));
 set global innodb_stats_persistent= @save_innodb_stats_persistent;
 alter table mysql.time_zone_name ORDER BY Name;
 CREATE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS(Host 'localhost');
@@ -95,7 +96,7 @@ USE mysql;
 LOCK TABLES `column_stats` WRITE;
 /*!40000 ALTER TABLE `column_stats` DISABLE KEYS */;
 REPLACE INTO `column_stats` VALUES
-('mysql','tz','Time_zone_id','1','5',0.0000,4.0000,98.2500,4,'JSON_HB','{\"target_histogram_size\": 254, \"collected_at\": \"2020-01-02 03:04:05 UTC\", \"collected_by\": \"this very version\", \"histogram_hb\": [{\"start\": \"1\", \"size\": 0.340966921, \"ndv\": 1}, {\"start\": \"3\", \"size\": 0.328244275, \"ndv\": 1}, {\"start\": \"4\", \"size\": 0.328244275, \"ndv\": 1}, {\"start\": \"5\", \"end\": \"5\", \"size\": 0.002544529, \"ndv\": 1}]}');
+('mysql','tz','Time_zone_id','1','5',0.0000,4.0000,98.2500,4,'JSON_HB','{\"target_histogram_size\": 254, \"collected_at\": \"2022-01-07 07:07:00\", \"collected_by\": \"version\", \"histogram_hb\": [{\"start\": \"1\", \"size\": 0.340966921, \"ndv\": 1}, {\"start\": \"3\", \"size\": 0.328244275, \"ndv\": 1}, {\"start\": \"4\", \"size\": 0.328244275, \"ndv\": 1}, {\"start\": \"5\", \"end\": \"5\", \"size\": 0.002544529, \"ndv\": 1}]}');
 /*!40000 ALTER TABLE `column_stats` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -709,7 +710,7 @@ USE mysql;
 LOCK TABLES `column_stats` WRITE;
 /*!40000 ALTER TABLE `column_stats` DISABLE KEYS */;
 REPLACE INTO `column_stats` VALUES
-('mysql','tz','Time_zone_id','1','5',0.0000,4.0000,98.2500,4,'JSON_HB','{\"target_histogram_size\": 254, \"collected_at\": \"2020-01-02 03:04:05 UTC\", \"collected_by\": \"this very version\", \"histogram_hb\": [{\"start\": \"1\", \"size\": 0.340966921, \"ndv\": 1}, {\"start\": \"3\", \"size\": 0.328244275, \"ndv\": 1}, {\"start\": \"4\", \"size\": 0.328244275, \"ndv\": 1}, {\"start\": \"5\", \"end\": \"5\", \"size\": 0.002544529, \"ndv\": 1}]}');
+('mysql','tz','Time_zone_id','1','5',0.0000,4.0000,98.2500,4,'JSON_HB','{\"target_histogram_size\": 254, \"collected_at\": \"2022-01-07 07:07:00\", \"collected_by\": \"version\", \"histogram_hb\": [{\"start\": \"1\", \"size\": 0.340966921, \"ndv\": 1}, {\"start\": \"3\", \"size\": 0.328244275, \"ndv\": 1}, {\"start\": \"4\", \"size\": 0.328244275, \"ndv\": 1}, {\"start\": \"5\", \"end\": \"5\", \"size\": 0.002544529, \"ndv\": 1}]}');
 /*!40000 ALTER TABLE `column_stats` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -1300,7 +1301,7 @@ USE mysql;
 LOCK TABLES `column_stats` WRITE;
 /*!40000 ALTER TABLE `column_stats` DISABLE KEYS */;
 INSERT  IGNORE INTO `column_stats` VALUES
-('mysql','tz','Time_zone_id','1','5',0.0000,4.0000,98.2500,4,'JSON_HB','{\"target_histogram_size\": 254, \"collected_at\": \"2020-01-02 03:04:05 UTC\", \"collected_by\": \"this very version\", \"histogram_hb\": [{\"start\": \"1\", \"size\": 0.340966921, \"ndv\": 1}, {\"start\": \"3\", \"size\": 0.328244275, \"ndv\": 1}, {\"start\": \"4\", \"size\": 0.328244275, \"ndv\": 1}, {\"start\": \"5\", \"end\": \"5\", \"size\": 0.002544529, \"ndv\": 1}]}');
+('mysql','tz','Time_zone_id','1','5',0.0000,4.0000,98.2500,4,'JSON_HB','{\"target_histogram_size\": 254, \"collected_at\": \"2022-01-07 07:07:00\", \"collected_by\": \"version\", \"histogram_hb\": [{\"start\": \"1\", \"size\": 0.340966921, \"ndv\": 1}, {\"start\": \"3\", \"size\": 0.328244275, \"ndv\": 1}, {\"start\": \"4\", \"size\": 0.328244275, \"ndv\": 1}, {\"start\": \"5\", \"end\": \"5\", \"size\": 0.002544529, \"ndv\": 1}]}');
 /*!40000 ALTER TABLE `column_stats` ENABLE KEYS */;
 UNLOCK TABLES;
 
