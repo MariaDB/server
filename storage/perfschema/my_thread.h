@@ -14,6 +14,10 @@
 #include <pthread_np.h>
 #endif
 
+#if defined(HAVE_INTEGER_PTHREAD_SELF)
+#include <cstdint>
+#endif
+
 typedef pthread_key_t thread_local_key_t;
 typedef pthread_t my_thread_handle;
 typedef pthread_attr_t my_thread_attr_t;
