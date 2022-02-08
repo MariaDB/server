@@ -2314,39 +2314,47 @@ static void activate_tcp_port(uint port,
 
   my_snprintf(port_buf, NI_MAXSERV, "%d", port);
 
-  char *end;
-  char address[FN_REFLEN];
-
-  do
+  if  (real_bind_addr_str && *real_bind_addr_str)
   {
-    end=strcend(my_bind_addr_str, DELIM);
-    strmake(address, my_bind_addr_str, (uint) (end-my_bind_addr_str));
-    error= getaddrinfo(address, port_buf, &hints, &ai);
-    if (!head)
-    {
-      head = ai;
-    }
-    if (b)
-    {
-      b->ai_next= ai;
-    }
-    b = ai;
-    while (b->ai_next)
-    {
-      b = b->ai_next;
-    }
-    if (unlikely(error != 0))
-    {
-      DBUG_PRINT("error", ("Got error: %d from getaddrinfo()", error));
 
-      sql_print_error("%s: %s", ER_DEFAULT(ER_IPSOCK_ERROR),
-                      gai_strerror(error));
-      unireg_abort(1);				/* purecov: tested */
-    }
+    char *end;
+    char address[FN_REFLEN];
 
-    my_bind_addr_str=end+1;
+    do
+    {
+      end= strcend(real_bind_addr_str, DELIM);
+      strmake(address, real_bind_addr_str, (uint) (end - real_bind_addr_str));
+      error= getaddrinfo(address, port_buf, &hints, &ai);
+      if (!head)
+      {
+        head= ai;
+      }
+      if (b)
+      {
+        b->ai_next= ai;
+      }
+      b= ai;
+      while (b->ai_next)
+      {
+        b= b->ai_next;
+      }
+      if (unlikely(error != 0))
+      {
+        DBUG_PRINT("error", ("Got error: %d from getaddrinfo()", error));
+
+        sql_print_error("%s: %s", ER_DEFAULT(ER_IPSOCK_ERROR),
+                        gai_strerror(error));
+        unireg_abort(1); /* purecov: tested */
+      }
+
+      real_bind_addr_str= end + 1;
+    } while (*end);
   }
-  while (*end);
+  else
+  {
+    error= getaddrinfo(real_bind_addr_str, port_buf, &hints, &ai);
+    head= ai;
+  }
 
   for (a= head; a != NULL; a= a->ai_next)
   {
