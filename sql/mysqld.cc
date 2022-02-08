@@ -135,6 +135,7 @@
 
 #define mysqld_charset &my_charset_latin1
 
+#define DELIM ','
 
 extern "C" {					// Because of SCO 3.2V4.2
 #include <sys/stat.h>
@@ -2291,7 +2292,7 @@ static void activate_tcp_port(uint port,
                               Dynamic_array<MYSQL_SOCKET> *sockets,
                               bool is_extra_port= false)
 {
-  struct addrinfo *ai, *a;
+  struct addrinfo *ai, *a, *b = NULL, *head = NULL;
   struct addrinfo hints;
   int error;
   int	arg;
@@ -2312,16 +2313,42 @@ static void activate_tcp_port(uint port,
     real_bind_addr_str= my_bind_addr_str;
 
   my_snprintf(port_buf, NI_MAXSERV, "%d", port);
-  error= getaddrinfo(real_bind_addr_str, port_buf, &hints, &ai);
-  if (unlikely(error != 0))
+
+  char *end;
+  char address[FN_REFLEN];
+
+  do
   {
-    DBUG_PRINT("error",("Got error: %d from getaddrinfo()", error));
+    end=strcend(my_bind_addr_str, DELIM);
+    strmake(address, my_bind_addr_str, (uint) (end-my_bind_addr_str));
+    error= getaddrinfo(address, port_buf, &hints, &ai);
+    if (!head)
+    {
+      head = ai;
+    }
+    if (b)
+    {
+      b->ai_next= ai;
+    }
+    b = ai;
+    while (b->ai_next)
+    {
+      b = b->ai_next;
+    }
+    if (unlikely(error != 0))
+    {
+      DBUG_PRINT("error", ("Got error: %d from getaddrinfo()", error));
 
-    sql_print_error("%s: %s", ER_DEFAULT(ER_IPSOCK_ERROR), gai_strerror(error));
-    unireg_abort(1);				/* purecov: tested */
+      sql_print_error("%s: %s", ER_DEFAULT(ER_IPSOCK_ERROR),
+                      gai_strerror(error));
+      unireg_abort(1);				/* purecov: tested */
+    }
+
+    my_bind_addr_str=end+1;
   }
+  while (*end);
 
-  for (a= ai; a != NULL; a= a->ai_next)
+  for (a= head; a != NULL; a= a->ai_next)
   {
     ip_sock= mysql_socket_socket(key_socket_tcpip, a->ai_family,
                                  a->ai_socktype, a->ai_protocol);
@@ -2433,7 +2460,7 @@ static void activate_tcp_port(uint port,
     }
   }
 
-  freeaddrinfo(ai);
+  freeaddrinfo(head);
   DBUG_VOID_RETURN;
 }
 
