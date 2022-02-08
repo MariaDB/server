@@ -4,7 +4,7 @@
 #
 # This test should be declared in debian/tests/control with a dependency
 # on the package that provides a configured MariaDB server (eg.
-# mariadb-server-10.8).
+# mariadb-server-10.9).
 #
 # This test should be declared in debian/tests/control with the
 # following restrictions:
@@ -88,7 +88,7 @@ if [ "$(dpkg-architecture -qDEB_HOST_ARCH_BITS)" != 32 ] &&
 
   LOG=/var/lib/mysql/#rocksdb/LOG
   # XXX: The server may only be started during the install of
-  #      mariadb-server-10.8, which happens before that of the plugin.
+  #      mariadb-server-10.9, which happens before that of the plugin.
   [ -e $LOG ] || mysql -e "INSTALL PLUGIN RocksDB SONAME 'ha_rocksdb';"
   # XXX: rocksdb_supported_compression_types variable does not report ZSTD.
 

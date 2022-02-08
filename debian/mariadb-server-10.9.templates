@@ -7,7 +7,7 @@
 # Even minor modifications require translation updates and such
 # changes should be coordinated with translators and reviewers.
 
-Template: mariadb-server-10.8/old_data_directory_saved
+Template: mariadb-server-10.9/old_data_directory_saved
 Type: note
 _Description: The old data directory will be saved at new location
  A file named /var/lib/mysql/debian-*.flag exists on this system.
@@ -19,7 +19,7 @@ _Description: The old data directory will be saved at new location
  .
  Please manually export/import your data (e.g. with mysqldump) if needed.
 
-Template: mariadb-server-10.8/nis_warning
+Template: mariadb-server-10.9/nis_warning
 Type: note
 #flag:translate!:3,5
 _Description: Important note for NIS/YP users
@@ -33,7 +33,7 @@ _Description: Important note for NIS/YP users
  .
   /var/lib/mysql: drwxr-xr-x   mysql    mysql
 
-Template: mariadb-server-10.8/postrm_remove_databases
+Template: mariadb-server-10.9/postrm_remove_databases
 Type: boolean
 Default: false
 _Description: Remove all MariaDB databases?

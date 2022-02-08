@@ -134,12 +134,12 @@ override_dh_auto_install:
 
 ifneq (,$(filter linux,$(DEB_HOST_ARCH_OS)))
 	# Copy systemd files to a location available for dh_installinit
-	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.8.mariadb.service
-	cp $(BUILDDIR)/support-files/mariadb.socket debian/mariadb-server-10.8.mariadb.socket
-	cp $(BUILDDIR)/support-files/mariadb-extra.socket debian/mariadb-server-10.8.mariadb-extra.socket
-	cp $(BUILDDIR)/support-files/mariadb@.service debian/mariadb-server-10.8.mariadb@.service
-	cp $(BUILDDIR)/support-files/mariadb@.socket debian/mariadb-server-10.8.mariadb@.socket
-	cp $(BUILDDIR)/support-files/mariadb-extra@.socket debian/mariadb-server-10.8.mariadb-extra@.socket
+	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.9.mariadb.service
+	cp $(BUILDDIR)/support-files/mariadb.socket debian/mariadb-server-10.9.mariadb.socket
+	cp $(BUILDDIR)/support-files/mariadb-extra.socket debian/mariadb-server-10.9.mariadb-extra.socket
+	cp $(BUILDDIR)/support-files/mariadb@.service debian/mariadb-server-10.9.mariadb@.service
+	cp $(BUILDDIR)/support-files/mariadb@.socket debian/mariadb-server-10.9.mariadb@.socket
+	cp $(BUILDDIR)/support-files/mariadb-extra@.socket debian/mariadb-server-10.9.mariadb-extra@.socket
 endif
 
 	# Run 'make install' without output since it is uninteresting and
@@ -158,7 +158,7 @@ endif
 
 	# nm numeric soft is not enough, therefore extra sort in command
 	# to satisfy Debian reproducible build requirements
-	nm --defined-only $(BUILDDIR)/sql/mariadbd | LC_ALL=C sort | gzip -n -9 > $(TMP)/usr/share/doc/mariadb-server-10.8/mariadbd.sym.gz
+	nm --defined-only $(BUILDDIR)/sql/mariadbd | LC_ALL=C sort | gzip -n -9 > $(TMP)/usr/share/doc/mariadb-server-10.9/mariadbd.sym.gz
 
 	# Rename and install AppArmor profile
 	install -D -m 644 debian/apparmor-profile $(TMP)/etc/apparmor.d/usr.sbin.mariadbd
