@@ -6139,6 +6139,8 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
     new_thd->query_cache_is_applicable= 0;
     new_thd->variables.wsrep_on= 0;
     new_thd->client_capabilities= client_flag;
+    new_thd->variables.option_bits&= ~OPTION_BIN_LOG;
+    new_thd->variables.sql_log_bin_off= 1;
     /*
       TOSO: decide if we should turn the auditing off
       for such threads.
