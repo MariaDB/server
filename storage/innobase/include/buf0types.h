@@ -169,7 +169,7 @@ enum rw_lock_type_t
 #include "sux_lock.h"
 
 #ifdef SUX_LOCK_GENERIC
-class page_hash_latch : private rw_lock
+class page_hash_latch : public rw_lock
 {
   /** Wait for a shared lock */
   void read_lock_wait();
