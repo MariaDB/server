@@ -10463,24 +10463,6 @@ merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl)
   return cs;
 }
 
-/** find a collation with binary comparison rules
-*/
-CHARSET_INFO *find_bin_collation(CHARSET_INFO *cs)
-{
-  const char *csname= cs->cs_name.str;
-  THD *thd= current_thd;
-  myf utf8_flag= thd->get_utf8_flag();
-
-  cs= get_charset_by_csname(csname, MY_CS_BINSORT, MYF(utf8_flag));
-  if (!cs)
-  {
-    char tmp[65];
-    strxnmov(tmp, sizeof(tmp)-1, csname, "_bin", NULL);
-    my_error(ER_UNKNOWN_COLLATION, MYF(0), tmp);
-  }
-  return cs;
-}
-
 void LEX::mark_first_table_as_inserting()
 {
   TABLE_LIST *t= first_select_lex()->table_list.first;

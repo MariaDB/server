@@ -28,6 +28,7 @@
 #include "my_base.h"                   /* ha_rows, ha_key_alg */
 #include <mysql_com.h>                  /* USERNAME_LENGTH */
 #include "sql_bitmap.h"
+#include "lex_charset.h"
 
 struct TABLE;
 class Type_handler;
@@ -601,18 +602,24 @@ public:
 
 struct Lex_length_and_dec_st
 {
-private:
+protected:
   uint32 m_length;
   uint8  m_dec;
+  uint8  m_collation_type:LEX_CHARSET_COLLATION_TYPE_BITS;
   bool   m_has_explicit_length:1;
   bool   m_has_explicit_dec:1;
   bool   m_length_overflowed:1;
   bool   m_dec_overflowed:1;
+
+  static_assert(LEX_CHARSET_COLLATION_TYPE_BITS <= 8,
+                "Lex_length_and_dec_st::m_collation_type bits check");
+
 public:
   void reset()
   {
     m_length= 0;
     m_dec= 0;
+    m_collation_type= 0;
     m_has_explicit_length= false;
     m_has_explicit_dec= false;
     m_length_overflowed= false;
@@ -622,6 +629,7 @@ public:
   {
     m_length= length;
     m_dec= 0;
+    m_collation_type= 0;
     m_has_explicit_length= true;
     m_has_explicit_dec= false;
     m_length_overflowed= false;
@@ -631,6 +639,7 @@ public:
   {
     m_length= 0;
     m_dec= dec;
+    m_collation_type= 0;
     m_has_explicit_length= false;
     m_has_explicit_dec= true;
     m_length_overflowed= false;
@@ -640,6 +649,7 @@ public:
   {
     m_length= length;
     m_dec= dec;
+    m_collation_type= 0;
     m_has_explicit_length= true;
     m_has_explicit_dec= true;
     m_length_overflowed= false;
@@ -677,11 +687,37 @@ struct Lex_field_type_st: public Lex_length_and_dec_st
 {
 private:
   const Type_handler *m_handler;
+  CHARSET_INFO *m_ci;
 public:
-  void set(const Type_handler *handler, Lex_length_and_dec_st length_and_dec)
+  void set(const Type_handler *handler,
+           Lex_length_and_dec_st length_and_dec,
+           CHARSET_INFO *cs= NULL)
   {
     m_handler= handler;
+    m_ci= cs;
     Lex_length_and_dec_st::operator=(length_and_dec);
+  }
+  void set(const Type_handler *handler,
+           const Lex_length_and_dec_st &length_and_dec,
+           const Lex_charset_collation_st &coll)
+  {
+    m_handler= handler;
+    m_ci= coll.charset_collation();
+    Lex_length_and_dec_st::operator=(length_and_dec);
+    m_collation_type= ((uint8) coll.type()) & 0x3;
+  }
+  void set(const Type_handler *handler, const Lex_charset_collation_st &coll)
+  {
+    m_handler= handler;
+    m_ci= coll.charset_collation();
+    Lex_length_and_dec_st::reset();
+    m_collation_type= ((uint8) coll.type()) & 0x3;
+  }
+  void set(const Type_handler *handler, CHARSET_INFO *cs= NULL)
+  {
+    m_handler= handler;
+    m_ci= cs;
+    Lex_length_and_dec_st::reset();
   }
   void set_handler_length_flags(const Type_handler *handler,
                                 const Lex_length_and_dec_st &length,
@@ -689,18 +725,21 @@ public:
   void set_handler_length(const Type_handler *handler, uint32 length)
   {
     m_handler= handler;
+    m_ci= NULL;
     Lex_length_and_dec_st::set_length_only(length);
-  }
-  void set(const Type_handler *handler)
-  {
-    m_handler= handler;
-    Lex_length_and_dec_st::reset();
   }
   void set_handler(const Type_handler *handler)
   {
     m_handler= handler;
   }
   const Type_handler *type_handler() const { return m_handler; }
+  CHARSET_INFO *charset_collation() const { return m_ci; }
+  Lex_charset_collation lex_charset_collation() const
+  {
+    return Lex_charset_collation(m_ci,
+                                 (Lex_charset_collation_st::Type)
+                                 m_collation_type);
+  }
 };
 
 
@@ -708,18 +747,38 @@ struct Lex_dyncol_type_st: public Lex_length_and_dec_st
 {
 private:
   int m_type; // enum_dynamic_column_type is not visible here, so use int
+  CHARSET_INFO *m_ci;
 public:
-  void set(int type, Lex_length_and_dec_st length_and_dec)
+  void set(int type, Lex_length_and_dec_st length_and_dec,
+           CHARSET_INFO *cs= NULL)
   {
     m_type= type;
+    m_ci= cs;
     Lex_length_and_dec_st::operator=(length_and_dec);
   }
   void set(int type)
   {
     m_type= type;
+    m_ci= NULL;
     Lex_length_and_dec_st::reset();
   }
+  void set(int type, CHARSET_INFO *cs)
+  {
+    m_type= type;
+    m_ci= cs;
+    Lex_length_and_dec_st::reset();
+  }
+  bool set(int type, const Lex_charset_collation_st &collation,
+           CHARSET_INFO *charset)
+  {
+    CHARSET_INFO *tmp= collation.resolved_to_character_set(charset);
+    if (!tmp)
+      return true;
+    set(type, tmp);
+    return false;
+  }
   int dyncol_type() const { return m_type; }
+  CHARSET_INFO *charset_collation() const { return m_ci; }
 };
 
 

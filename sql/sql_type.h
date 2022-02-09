@@ -3924,7 +3924,6 @@ public:
   virtual bool Column_definition_set_attributes(THD *thd,
                                                 Column_definition *def,
                                                 const Lex_field_type_st &attr,
-                                                CHARSET_INFO *cs,
                                                 column_definition_type_t type)
                                                 const;
   // Fix attributes after the parser
@@ -6659,7 +6658,6 @@ public:
   bool Column_definition_set_attributes(THD *thd,
                                         Column_definition *def,
                                         const Lex_field_type_st &attr,
-                                        CHARSET_INFO *cs,
                                         column_definition_type_t type)
                                         const override;
 };
@@ -6912,7 +6910,6 @@ public:
   bool Column_definition_set_attributes(THD *thd,
                                         Column_definition *def,
                                         const Lex_field_type_st &attr,
-                                        CHARSET_INFO *cs,
                                         column_definition_type_t type)
                                         const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
@@ -7009,7 +7006,6 @@ public:
   bool Column_definition_set_attributes(THD *thd,
                                         Column_definition *def,
                                         const Lex_field_type_st &attr,
-                                        CHARSET_INFO *cs,
                                         column_definition_type_t type)
                                         const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;

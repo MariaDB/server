@@ -3192,8 +3192,6 @@ public:
   /* Query Plan Footprint of a currently running select  */
   Explain_query *explain;
 
-  // type information
-  CHARSET_INFO *charset;
   /*
     LEX which represents current statement (conventional, SP or PS)
 
@@ -3800,14 +3798,12 @@ public:
                     bool is_analyze, bool *printed_anything);
   bool restore_set_statement_var();
 
-  void init_last_field(Column_definition *field, const LEX_CSTRING *name,
-                       const CHARSET_INFO *cs);
+  void init_last_field(Column_definition *field, const LEX_CSTRING *name);
   bool last_field_generated_always_as_row_start_or_end(Lex_ident *p,
                                                        const char *type,
                                                        uint flags);
   bool last_field_generated_always_as_row_start();
   bool last_field_generated_always_as_row_end();
-  bool set_bincmp(CHARSET_INFO *cs, bool bin);
 
   bool new_sp_instr_stmt(THD *, const LEX_CSTRING &prefix,
                          const LEX_CSTRING &suffix);

@@ -3761,26 +3761,41 @@ struct Lex_cast_type_st: public Lex_length_and_dec_st
 {
 private:
   const Type_handler *m_type_handler;
+  CHARSET_INFO *m_charset;
 public:
-  void set(const Type_handler *handler, Lex_length_and_dec_st length_and_dec)
+  void set(const Type_handler *handler,
+           Lex_length_and_dec_st length_and_dec,
+           CHARSET_INFO *cs= NULL)
   {
     m_type_handler= handler;
+    m_charset= cs;
     Lex_length_and_dec_st::operator=(length_and_dec);
+  }
+  bool set(const Type_handler *handler,
+           const Lex_length_and_dec_st & length_and_dec,
+           const Lex_charset_collation_st &cscl,
+           CHARSET_INFO *defcs)
+  {
+    CHARSET_INFO *tmp= cscl.resolved_to_character_set(defcs);
+    if (!tmp)
+      return true;
+    set(handler, length_and_dec, tmp);
+    return false;
   }
   void set(const Type_handler *handler)
   {
     m_type_handler= handler;
+    m_charset= NULL;
     Lex_length_and_dec_st::reset();
   }
   const Type_handler *type_handler() const { return m_type_handler; }
-  Item *create_typecast_item(THD *thd, Item *item,
-                             CHARSET_INFO *cs= NULL) const
+  CHARSET_INFO *charset() const { return m_charset; }
+  Item *create_typecast_item(THD *thd, Item *item) const
   {
     return m_type_handler->
-      create_typecast_item(thd, item, Type_cast_attributes(*this, cs));
+      create_typecast_item(thd, item, Type_cast_attributes(*this, m_charset));
   }
-  Item *create_typecast_item_or_error(THD *thd, Item *item,
-                                      CHARSET_INFO *cs= NULL) const;
+  Item *create_typecast_item_or_error(THD *thd, Item *item) const;
 };
 
 

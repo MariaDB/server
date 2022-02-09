@@ -2190,12 +2190,27 @@ bool check_duplicates_in_interval(const char *set_or_name,
 }
 
 
+/*
+  Resolves the column collation if:
+  - it was not typed at all, or
+  - it was contextually typed
+  according to the table level character set.
+  Generates an error to the diagnostics area in case of a failure.
+*/
 bool Column_definition::
        prepare_charset_for_string(const Column_derived_attributes *dattr)
 {
-  if (!charset)
-    charset= dattr->charset();
-  return (flags & BINCMP_FLAG) && !(charset= find_bin_collation(charset));
+  CHARSET_INFO *tmp= lex_charset_collation().
+                       resolved_to_character_set(dattr->charset());
+  if (!tmp)
+    return true;
+  charset= tmp;
+  /*
+    Remove the "is contextually typed collation" indicator on success,
+    for safety.
+  */
+  flags&= ~CONTEXT_COLLATION_FLAG;
+  return false;
 }
 
 
@@ -3959,8 +3974,7 @@ bool Column_definition::prepare_blob_field(THD *thd)
 
 bool Column_definition::sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root)
 {
-  DBUG_ASSERT(charset);
-  const Column_derived_attributes dattr(&my_charset_bin);
+  const Column_derived_attributes dattr(thd->variables.collation_database);
   return prepare_stage1(thd, mem_root, NULL, HA_CAN_GEOMETRY, &dattr) ||
          prepare_stage2(NULL, HA_CAN_GEOMETRY);
 }

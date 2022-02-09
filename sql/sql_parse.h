@@ -79,7 +79,6 @@ bool check_string_char_length(const LEX_CSTRING *str, uint err_msg,
                               bool no_error);
 bool check_ident_length(const LEX_CSTRING *ident);
 CHARSET_INFO* merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl);
-CHARSET_INFO *find_bin_collation(CHARSET_INFO *cs);
 bool check_host_name(LEX_CSTRING *str);
 bool check_identifier_name(LEX_CSTRING *str, uint max_char_length,
                            uint err_code, const char *param_for_err_msg);

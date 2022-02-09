@@ -543,36 +543,10 @@ bool LEX::add_alter_list(LEX_CSTRING name, LEX_CSTRING new_name, bool exists)
 
 
 void LEX::init_last_field(Column_definition *field,
-                          const LEX_CSTRING *field_name,
-                          const CHARSET_INFO *cs)
+                          const LEX_CSTRING *field_name)
 {
   last_field= field;
-
   field->field_name= *field_name;
-
-  /* reset LEX fields that are used in Create_field::set_and_check() */
-  charset= cs;
-}
-
-
-bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
-{
-  /*
-     if charset is NULL - we're parsing a field declaration.
-     we cannot call find_bin_collation for a field here, because actual
-     field charset is determined in get_sql_field_charset() much later.
-     so we only set a flag.
-  */
-  if (!charset)
-  {
-    charset= cs;
-    last_field->flags|= bin ? BINCMP_FLAG : 0;
-    return false;
-  }
-
-  charset= bin ? find_bin_collation(cs ? cs : charset)
-               :                    cs ? cs : charset;
-  return charset == NULL;
 }
 
 
@@ -6392,8 +6366,7 @@ sp_variable *LEX::sp_param_init(LEX_CSTRING *name)
     return NULL;
   }
   sp_variable *spvar= spcont->add_variable(thd, name);
-  init_last_field(&spvar->field_def, name,
-                  thd->variables.collation_database);
+  init_last_field(&spvar->field_def, name);
   return spvar;
 }
 
@@ -6402,8 +6375,7 @@ bool LEX::sp_param_fill_definition(sp_variable *spvar,
                                    const Lex_field_type_st &def)
 {
   return
-    last_field->set_attributes(thd, def, charset,
-                               COLUMN_DEFINITION_ROUTINE_PARAM) ||
+    last_field->set_attributes(thd, def, COLUMN_DEFINITION_ROUTINE_PARAM) ||
     sphead->fill_spvar_definition(thd, last_field, &spvar->name);
 }
 
@@ -6411,8 +6383,7 @@ bool LEX::sp_param_fill_definition(sp_variable *spvar,
 bool LEX::sf_return_fill_definition(const Lex_field_type_st &def)
 {
   return
-    last_field->set_attributes(thd, def, charset,
-                               COLUMN_DEFINITION_FUNCTION_RETURN) ||
+    last_field->set_attributes(thd, def, COLUMN_DEFINITION_FUNCTION_RETURN) ||
     sphead->fill_field_definition(thd, last_field);
 }
 
@@ -6492,8 +6463,7 @@ void LEX::sp_variable_declarations_init(THD *thd, int nvars)
 
   sphead->reset_lex(thd);
   spcont->declare_var_boundary(nvars);
-  thd->lex->init_last_field(&spvar->field_def, &spvar->name,
-                            thd->variables.collation_database);
+  thd->lex->init_last_field(&spvar->field_def, &spvar->name);
 }
 
 
@@ -11465,16 +11435,15 @@ Spvar_definition *LEX::row_field_name(THD *thd, const Lex_ident_sys_st &name)
   }
   if (unlikely(!(res= new (thd->mem_root) Spvar_definition())))
     return NULL;
-  init_last_field(res, &name, thd->variables.collation_database);
+  init_last_field(res, &name);
   return res;
 }
 
 
 Item *
-Lex_cast_type_st::create_typecast_item_or_error(THD *thd, Item *item,
-                                                CHARSET_INFO *cs) const
+Lex_cast_type_st::create_typecast_item_or_error(THD *thd, Item *item) const
 {
-  Item *tmp= create_typecast_item(thd, item, cs);
+  Item *tmp= create_typecast_item(thd, item);
   if (!tmp)
   {
     Name name= m_type_handler->name();
@@ -11534,8 +11503,7 @@ bool LEX::set_field_type_udt(Lex_field_type_st *type,
   const Type_handler *h;
   if (!(h= Type_handler::handler_by_name_or_error(thd, name)))
     return true;
-  type->set(h, attr);
-  charset= &my_charset_bin;
+  type->set(h, attr, &my_charset_bin);
   return false;
 }
 
@@ -11547,7 +11515,6 @@ bool LEX::set_cast_type_udt(Lex_cast_type_st *type,
   if (!(h= Type_handler::handler_by_name_or_error(thd, name)))
     return true;
   type->set(h);
-  charset= NULL;
   return false;
 }
 
