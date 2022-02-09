@@ -40,6 +40,35 @@ test_pam@localhost	pam_test@%	test
 #
 Now, the magic number!
 PIN: 9212
+#
+# MDEV-26339 Account specifics to be handled before proxying
+#
+alter user pam_test account lock;
+alter user pam_test require subject 'foobar';
+alter user pam_test password expire;
+Now, the magic number!
+PIN: 9212
+select user(), current_user(), database();
+user()	current_user()	database()
+test_pam@localhost	pam_test@%	test
+alter user pam_test account unlock;
+alter user pam_test require none;
+alter user pam_test identified by '';
+show create user pam_test;
+CREATE USER for pam_test@%
+CREATE USER `pam_test`@`%`
+alter user test_pam account lock;
+Now, the magic number!
+PIN: 9212
+alter user test_pam account unlock;
+alter user test_pam require subject 'foobar';
+Now, the magic number!
+PIN: 9212
+alter user test_pam require none;
+alter user test_pam password expire;
+Now, the magic number!
+PIN: 9212
+select user(), current_user(), database();
 drop user test_pam;
 drop user pam_test;
 create user PAM_TEST identified via pam using 'mariadb_mtr';
@@ -62,4 +91,21 @@ select user(), current_user(), database();
 user()	current_user()	database()
 PAM_TEST@localhost	PAM_TEST@%	test
 drop user PAM_TEST;
+#
+# MDEV-27341 Use SET PASSWORD to change PAM service
+#
+create user pam_test identified via pam using 'mariadb_mtr';
+Challenge input first.
+Enter: *************************
+Now, the magic number!
+PIN: 9225
+select user(), current_user(), database();
+user()	current_user()	database()
+pam_test@localhost	pam_test@%	test
+set password='foo';
+ERROR HY000: SET PASSWORD is ignored for users authenticating via pam plugin
+show create user;
+CREATE USER for pam_test@%
+CREATE USER `pam_test`@`%` IDENTIFIED VIA pam USING 'mariadb_mtr'
+drop user pam_test;
 uninstall plugin pam;

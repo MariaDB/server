@@ -336,6 +336,6 @@ inline table_id_t trx_undo_rec_get_table_id(const trx_undo_rec_t *rec)
   return mach_read_next_much_compressed(&rec);
 }
 
-#include "trx0rec.ic"
+#include "trx0rec.inl"
 
 #endif /* trx0rec_h */

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2020, 2021, MariaDB Corporation.
+Copyright (c) 2020, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -49,48 +49,25 @@ At the present, the comparison functions return 0 in the case,
 where two records disagree only in the way that one
 has more fields than the other. */
 
-/** Compare two data fields.
-@param[in] prtype precise type
-@param[in] a data field
-@param[in] a_length length of a, in bytes (not UNIV_SQL_NULL)
-@param[in] b data field
-@param[in] b_length length of b, in bytes (not UNIV_SQL_NULL)
-@return positive, 0, negative, if a is greater, equal, less than b,
-respectively */
-UNIV_INLINE
-int
-innobase_mysql_cmp(
-	ulint		prtype,
-	const byte*	a,
-	ulint		a_length,
-	const byte*	b,
-	ulint		b_length)
+#ifndef DBUG_OFF
+/** @return whether a data type is compatible with strnncoll() functions */
+static bool is_strnncoll_compatible(ulint type)
 {
-#ifdef UNIV_DEBUG
-	switch (prtype & DATA_MYSQL_TYPE_MASK) {
-	case MYSQL_TYPE_BIT:
-	case MYSQL_TYPE_STRING:
-	case MYSQL_TYPE_VAR_STRING:
-	case MYSQL_TYPE_TINY_BLOB:
-	case MYSQL_TYPE_MEDIUM_BLOB:
-	case MYSQL_TYPE_BLOB:
-	case MYSQL_TYPE_LONG_BLOB:
-	case MYSQL_TYPE_VARCHAR:
-		break;
-	default:
-		ut_error;
-	}
-#endif /* UNIV_DEBUG */
-
-	uint cs_num = (uint) dtype_get_charset_coll(prtype);
-
-	if (CHARSET_INFO* cs = get_charset(cs_num, MYF(MY_WME))) {
-		return(cs->strnncollsp(a, a_length, b, b_length));
-	}
-
-	ib::fatal() << "Unable to find charset-collation " << cs_num;
-	return(0);
+  switch (type) {
+  case MYSQL_TYPE_BIT:
+  case MYSQL_TYPE_STRING:
+  case MYSQL_TYPE_VAR_STRING:
+  case MYSQL_TYPE_TINY_BLOB:
+  case MYSQL_TYPE_MEDIUM_BLOB:
+  case MYSQL_TYPE_BLOB:
+  case MYSQL_TYPE_LONG_BLOB:
+  case MYSQL_TYPE_VARCHAR:
+    return true;
+  default:
+    return false;
+  }
 }
+#endif /* DBUG_OFF */
 
 /*************************************************************//**
 Returns TRUE if two columns are equal for comparison purposes.
@@ -227,144 +204,128 @@ cmp_decimal(const byte*	a, ulint a_length, const byte* b, ulint b_length)
 int cmp_data(ulint mtype, ulint prtype, bool descending,
              const byte *data1, size_t len1, const byte *data2, size_t len2)
 {
-	ut_ad(len1 != UNIV_SQL_DEFAULT);
-	ut_ad(len2 != UNIV_SQL_DEFAULT);
+  ut_ad(len1 != UNIV_SQL_DEFAULT);
+  ut_ad(len2 != UNIV_SQL_DEFAULT);
 
-	int cmp;
+  int cmp= 0;
 
-	if (len1 == UNIV_SQL_NULL || len2 == UNIV_SQL_NULL) {
-		if (len1 == len2) {
-			return 0;
-		} else {
-			/* We define the SQL null to be the smallest possible
-			value of a field. */
-			cmp = len1 == UNIV_SQL_NULL ? -1 : 1;
-		}
-func_exit:
-		return UNIV_UNLIKELY(descending) ? -cmp : cmp;
-	}
+  if (len1 == UNIV_SQL_NULL || len2 == UNIV_SQL_NULL)
+  {
+    if (len1 == len2)
+      return 0;
 
-	ulint	pad;
+    /* We define the SQL null to be the smallest possible value of a field. */
+    cmp= len1 == UNIV_SQL_NULL ? -1 : 1;
+  func_exit:
+    return UNIV_UNLIKELY(descending) ? -cmp : cmp;
+  }
 
-	switch (mtype) {
-	default:
-		ib::fatal() << "Unknown data type number " << mtype;
-	case DATA_FIXBINARY:
-	case DATA_BINARY:
-		if (dtype_get_charset_coll(prtype)
-		    != DATA_MYSQL_BINARY_CHARSET_COLL) {
-			pad = 0x20;
-			break;
-		}
-		/* fall through */
-	case DATA_INT:
-	case DATA_SYS_CHILD:
-	case DATA_SYS:
-		pad = ULINT_UNDEFINED;
-		break;
-	case DATA_GEOMETRY:
-		ut_ad(prtype & DATA_BINARY_TYPE);
-		if (prtype & DATA_GIS_MBR) {
-			ut_ad(len1 == DATA_MBR_LEN);
-			ut_ad(len2 == DATA_MBR_LEN);
-			cmp = cmp_geometry_field(data1, data2);
-			goto func_exit;
-		}
-		pad = ULINT_UNDEFINED;
-		break;
-	case DATA_BLOB:
-		if (prtype & DATA_BINARY_TYPE) {
-			pad = ULINT_UNDEFINED;
-			break;
-		}
-		if (prtype & DATA_BINARY_TYPE) {
-			ib::error() << "Comparing a binary BLOB"
-				" using a character set collation!";
-			ut_ad(0);
-		}
-		/* fall through */
-	case DATA_VARMYSQL:
-	case DATA_MYSQL:
-		cmp = innobase_mysql_cmp(prtype, data1, len1, data2, len2);
-		goto func_exit;
-	case DATA_VARCHAR:
-	case DATA_CHAR:
-		cmp = my_charset_latin1.strnncollsp(data1, len1, data2, len2);
-		goto func_exit;
-	case DATA_DECIMAL:
-		cmp = cmp_decimal(data1, len1, data2, len2);
-		goto func_exit;
-	case DATA_DOUBLE:
-		{
-			double d_1 = mach_double_read(data1);
-			double d_2 = mach_double_read(data2);
+  switch (mtype) {
+  default:
+    ib::fatal() << "Unknown data type number " << mtype;
+  case DATA_DECIMAL:
+    cmp= cmp_decimal(data1, len1, data2, len2);
+    goto func_exit;
+  case DATA_DOUBLE:
+    {
+      const double af= mach_double_read(data1), bf= mach_double_read(data2);
+      cmp= af > bf ? 1 : bf > af ? -1 : 0;
+    }
+    goto func_exit;
+  case DATA_FLOAT:
+    {
+      const float af= mach_float_read(data1), bf= mach_float_read(data2);
+      cmp= af > bf ? 1 : bf > af ? -1 : 0;
+    }
+    goto func_exit;
+  case DATA_FIXBINARY:
+  case DATA_BINARY:
+    if (dtype_get_charset_coll(prtype) != DATA_MYSQL_BINARY_CHARSET_COLL)
+    {
+      if (ulint len= std::min(len1, len2))
+      {
+        cmp= memcmp(data1, data2, len);
+        if (cmp)
+          goto func_exit;
+        data1+= len;
+        data2+= len;
+        len1-= len;
+        len2-= len;
+      }
+      if (len1)
+      {
+        const byte *end= &data1[len1];
+        do
+          cmp= static_cast<int>(*data1++ - byte{0x20});
+        while (cmp == 0 && data1 < end);
+      }
+      else if (len2)
+      {
+        const byte *end= &data2[len2];
+        do
+          cmp= static_cast<int>(byte{0x20} - *data2++);
+        while (cmp == 0 && data2 < end);
+      }
+      goto func_exit;
+    }
+    /* fall through */
+  case DATA_INT:
+  case DATA_SYS_CHILD:
+  case DATA_SYS:
+    break;
+  case DATA_GEOMETRY:
+    ut_ad(prtype & DATA_BINARY_TYPE);
+    if (prtype & DATA_GIS_MBR)
+    {
+      ut_ad(len1 == DATA_MBR_LEN);
+      ut_ad(len2 == DATA_MBR_LEN);
+      cmp= cmp_geometry_field(data1, data2);
+      goto func_exit;
+    }
+    break;
+  case DATA_BLOB:
+    if (prtype & DATA_BINARY_TYPE)
+      break;
+    /* fall through */
+  case DATA_VARMYSQL:
+    DBUG_ASSERT(is_strnncoll_compatible(prtype & DATA_MYSQL_TYPE_MASK));
+    if (CHARSET_INFO *cs= get_charset(dtype_get_charset_coll(prtype),
+                                      MYF(MY_WME)))
+    {
+      cmp= cs->coll->strnncollsp(cs, data1, len1, data2, len2);
+      goto func_exit;
+    }
+  no_collation:
+    ib::fatal() << "Unable to find charset-collation for " << prtype;
+  case DATA_MYSQL:
+    DBUG_ASSERT(is_strnncoll_compatible(prtype & DATA_MYSQL_TYPE_MASK));
+    if (CHARSET_INFO *cs= get_charset(dtype_get_charset_coll(prtype),
+                                      MYF(MY_WME)))
+    {
+      cmp= cs->coll->strnncollsp_nchars(cs, data1, len1, data2, len2,
+                                        std::max(len1, len2));
+      goto func_exit;
+    }
+    goto no_collation;
+  case DATA_VARCHAR:
+  case DATA_CHAR:
+    /* latin1_swedish_ci is treated as a special case in InnoDB.
+    Because it is a fixed-length encoding (mbminlen=mbmaxlen=1),
+    non-NULL CHAR(n) values will always occupy n bytes and we
+    can invoke strnncollsp() instead of strnncollsp_nchars(). */
+    cmp= my_charset_latin1.strnncollsp(data1, len1, data2, len2);
+    goto func_exit;
+  }
 
-			if (d_1 > d_2) {
-				cmp = 1;
-			} else if (d_2 > d_1) {
-				cmp = -1;
-			} else {
-				return 0;
-			}
-		}
-		goto func_exit;
+  if (ulint len= std::min(len1, len2))
+  {
+    cmp= memcmp(data1, data2, len);
+    if (cmp)
+      goto func_exit;
+  }
 
-	case DATA_FLOAT:
-		float f_1 = mach_float_read(data1);
-		float f_2 = mach_float_read(data2);
-
-		if (f_1 > f_2) {
-			cmp = 1;
-		} else if (f_2 > f_1) {
-			cmp = -1;
-		} else {
-			return 0;
-		}
-
-		goto func_exit;
-	}
-
-	ulint len = std::min(len1, len2);
-	cmp = len ? memcmp(data1, data2, len) : 0;
-
-	if (cmp) {
-		goto func_exit;
-	}
-
-	data1 += len;
-	data2 += len;
-	len1 -= len;
-	len2 -= len;
-
-	cmp = (int) (len1 - len2);
-
-	if (!cmp || pad == ULINT_UNDEFINED) {
-		goto func_exit;
-	}
-
-	len = 0;
-
-	if (len1) {
-		do {
-			cmp = static_cast<int>(
-				mach_read_from_1(&data1[len++]) - pad);
-			if (cmp) {
-				goto func_exit;
-			}
-		} while (len < len1);
-	} else {
-		ut_ad(len2 > 0);
-
-		do {
-			cmp = static_cast<int>(
-				pad - mach_read_from_1(&data2[len++]));
-			if (cmp) {
-				goto func_exit;
-			}
-		} while (len < len2);
-	}
-
-	return 0;
+  cmp= int(len1 - len2);
+  goto func_exit;
 }
 
 /** Compare a data tuple to a physical record.

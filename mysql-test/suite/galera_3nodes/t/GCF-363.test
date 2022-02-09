@@ -16,7 +16,6 @@
 --connection node_1
 CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1)) ENGINE=InnoDB;
 
---connection node_1
 SET GLOBAL wsrep_on=OFF;
 INSERT INTO t1 VALUES (1, 'a');
 SET GLOBAL wsrep_on=ON;
@@ -71,4 +70,6 @@ CALL mtr.add_suppression("WSREP: Vote 0 \\\(success\\\) on (.*) is inconsistent 
 CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on ");
 CALL mtr.add_suppression("Plugin 'InnoDB' will be forced to shutdown");
 
+--connection node_1
+# Restore original auto_increment_offset values.
 --source ../galera/include/auto_increment_offset_restore.inc

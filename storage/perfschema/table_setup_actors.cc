@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2016, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2021, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -100,7 +100,7 @@ int table_setup_actors::write_row(TABLE *table, const unsigned char *buf,
         history_value= (enum_yes_no) get_field_enum(f);
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }
@@ -221,7 +221,7 @@ int table_setup_actors::read_row_values(TABLE *table,
     return HA_ERR_RECORD_DELETED;
 
   /* Set the null bits */
-  DBUG_ASSERT(table->s->null_bytes == 1);
+  assert(table->s->null_bytes == 1);
 
   for (; (f= *fields) ; fields++)
   {
@@ -245,7 +245,7 @@ int table_setup_actors::read_row_values(TABLE *table,
         set_field_enum(f, (*m_row.m_history_ptr) ? ENUM_YES : ENUM_NO);
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }
@@ -287,7 +287,7 @@ int table_setup_actors::update_row_values(TABLE *table,
         *m_row.m_history_ptr= (value == ENUM_YES) ? true : false;
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }
@@ -300,7 +300,7 @@ int table_setup_actors::delete_row_values(TABLE *table,
                                           const unsigned char *buf,
                                           Field **fields)
 {
-  DBUG_ASSERT(m_row_exists);
+  assert(m_row_exists);
 
   CHARSET_INFO *cs= &my_charset_utf8mb3_bin;
   String user(m_row.m_username, m_row.m_username_length, cs);

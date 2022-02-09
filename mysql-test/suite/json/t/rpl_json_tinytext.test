@@ -1,0 +1,27 @@
+--source include/master-slave.inc
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-27018 IF and COALESCE lose "json" property
+--echo #
+
+CREATE TABLE t1 (a TINYTEXT CHECK(JSON_VALID(a)));
+
+--sync_slave_with_master
+
+--connection master
+INSERT INTO t1 VALUES (JSON_OBJECT('a','b'));
+--sync_slave_with_master
+SELECT * FROM t1 ORDER BY a;
+
+--connection master
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
+
+--source include/rpl_end.inc

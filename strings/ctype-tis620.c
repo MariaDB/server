@@ -856,6 +856,7 @@ static MY_COLLATION_HANDLER my_collation_ci_handler =
     NULL,		/* init */
     my_strnncoll_tis620,
     my_strnncollsp_tis620,
+    my_strnncollsp_nchars_generic_8bit,
     my_strnxfrm_tis620,
     my_strnxfrmlen_simple,
     my_like_range_simple,
@@ -873,6 +874,7 @@ static MY_COLLATION_HANDLER my_collation_nopad_ci_handler =
     NULL,		/* init */
     my_strnncoll_tis620,
     my_strnncollsp_tis620_nopad,
+    my_strnncollsp_nchars_generic_8bit,
     my_strnxfrm_tis620_nopad,
     my_strnxfrmlen_simple,
     my_like_range_simple,

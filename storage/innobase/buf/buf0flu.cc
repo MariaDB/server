@@ -83,12 +83,6 @@ static struct
   ulint flush_pass;
 } page_cleaner;
 
-/** If LRU list of a buf_pool is less than this size then LRU eviction
-should not happen. This is because when we do LRU flushing we also put
-the blocks on free list. If LRU list is very small then we can end up
-in thrashing. */
-#define BUF_LRU_MIN_LEN		256
-
 /* @} */
 
 #ifdef UNIV_DEBUG
@@ -1237,9 +1231,11 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n)
   static_assert(FIL_NULL > SRV_SPACE_ID_UPPER_BOUND, "consistency");
 
   for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.LRU);
-       bpage && n->flushed + n->evicted < max &&
-       UT_LIST_GET_LEN(buf_pool.LRU) > BUF_LRU_MIN_LEN &&
-       UT_LIST_GET_LEN(buf_pool.free) < free_limit; ++scanned)
+       bpage &&
+       ((UT_LIST_GET_LEN(buf_pool.LRU) > BUF_LRU_MIN_LEN &&
+         UT_LIST_GET_LEN(buf_pool.free) < free_limit &&
+         n->flushed + n->evicted < max) ||
+        recv_recovery_is_on()); ++scanned)
   {
     buf_page_t *prev= UT_LIST_GET_PREV(LRU, bpage);
     const lsn_t oldest_modification= bpage->oldest_modification();

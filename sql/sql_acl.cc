@@ -2266,6 +2266,12 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
     goto end;
   }
 
+  if (thd->lex->sql_command == SQLCOM_SET_OPTION && !info->hash_password)
+  {
+    res= ER_SET_PASSWORD_AUTH_PLUGIN;
+    goto end;
+  }
+
   if (info->hash_password &&
       validate_password(thd, user, host, pwtext, auth->auth_string.length))
   {
@@ -14337,61 +14343,6 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
 
   if (initialized) // if not --skip-grant-tables
   {
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-    bool is_proxy_user= FALSE;
-    const char *auth_user = acl_user->user.str;
-    ACL_PROXY_USER *proxy_user;
-    /* check if the user is allowed to proxy as another user */
-    proxy_user= acl_find_proxy_user(auth_user, sctx->host, sctx->ip,
-                                    mpvio.auth_info.authenticated_as,
-                                          &is_proxy_user);
-    if (is_proxy_user)
-    {
-      ACL_USER *acl_proxy_user;
-
-      /* we need to find the proxy user, but there was none */
-      if (!proxy_user)
-      {
-        Host_errors errors;
-        errors.m_proxy_user= 1;
-        inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
-        if (!thd->is_error())
-          login_failed_error(thd);
-        DBUG_RETURN(1);
-      }
-
-      my_snprintf(sctx->proxy_user, sizeof(sctx->proxy_user) - 1,
-                  "'%s'@'%s'", auth_user,
-                  safe_str(acl_user->host.hostname));
-
-      /* we're proxying : find the proxy user definition */
-      mysql_mutex_lock(&acl_cache->lock);
-      acl_proxy_user= find_user_exact(safe_str(proxy_user->get_proxied_host()),
-                                     mpvio.auth_info.authenticated_as);
-      if (!acl_proxy_user)
-      {
-        mysql_mutex_unlock(&acl_cache->lock);
-
-        Host_errors errors;
-        errors.m_proxy_user_acl= 1;
-        inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
-        if (!thd->is_error())
-          login_failed_error(thd);
-        DBUG_RETURN(1);
-      }
-      acl_user= acl_proxy_user->copy(thd->mem_root);
-      mysql_mutex_unlock(&acl_cache->lock);
-    }
-#endif
-
-    sctx->master_access= acl_user->access;
-    strmake_buf(sctx->priv_user, acl_user->user.str);
-
-    if (acl_user->host.hostname)
-      strmake_buf(sctx->priv_host, acl_user->host.hostname);
-    else
-      *sctx->priv_host= 0;
-
     /*
       OK. Let's check the SSL. Historically it was checked after the password,
       as an additional layer, not instead of the password
@@ -14427,6 +14378,65 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     }
 
     sctx->password_expired= password_expired;
+
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+    if (!password_expired)
+    {
+      bool is_proxy_user= FALSE;
+      const char *auth_user = acl_user->user.str;
+      ACL_PROXY_USER *proxy_user;
+      /* check if the user is allowed to proxy as another user */
+      proxy_user= acl_find_proxy_user(auth_user, sctx->host, sctx->ip,
+                                      mpvio.auth_info.authenticated_as,
+                                            &is_proxy_user);
+      if (is_proxy_user)
+      {
+        ACL_USER *acl_proxy_user;
+
+        /* we need to find the proxy user, but there was none */
+        if (!proxy_user)
+        {
+          Host_errors errors;
+          errors.m_proxy_user= 1;
+          inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
+          if (!thd->is_error())
+            login_failed_error(thd);
+          DBUG_RETURN(1);
+        }
+
+        my_snprintf(sctx->proxy_user, sizeof(sctx->proxy_user) - 1,
+                    "'%s'@'%s'", auth_user,
+                    safe_str(acl_user->host.hostname));
+
+        /* we're proxying : find the proxy user definition */
+        mysql_mutex_lock(&acl_cache->lock);
+        acl_proxy_user= find_user_exact(safe_str(proxy_user->get_proxied_host()),
+                                       mpvio.auth_info.authenticated_as);
+        if (!acl_proxy_user)
+        {
+          mysql_mutex_unlock(&acl_cache->lock);
+
+          Host_errors errors;
+          errors.m_proxy_user_acl= 1;
+          inc_host_errors(mpvio.auth_info.thd->security_ctx->ip, &errors);
+          if (!thd->is_error())
+            login_failed_error(thd);
+          DBUG_RETURN(1);
+        }
+        acl_user= acl_proxy_user->copy(thd->mem_root);
+        mysql_mutex_unlock(&acl_cache->lock);
+      }
+    }
+#endif
+
+    sctx->master_access= acl_user->access;
+    strmake_buf(sctx->priv_user, acl_user->user.str);
+
+    if (acl_user->host.hostname)
+      strmake_buf(sctx->priv_host, acl_user->host.hostname);
+    else
+      *sctx->priv_host= 0;
+
 
     /*
       Don't allow the user to connect if he has done too many queries.

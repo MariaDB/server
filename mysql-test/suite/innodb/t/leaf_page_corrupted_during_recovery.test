@@ -47,7 +47,8 @@ EOF
 --error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1 WHERE PK = 1;
 
-let $restart_parameters=--innodb-force-recovery=1;
+# We will disable also purge, to not let it request the corrupted page.
+let $restart_parameters=--innodb-force-recovery=2;
 --source include/restart_mysqld.inc
 SELECT * FROM t1 WHERE PK = 1;
 --error ER_NOT_KEYFILE

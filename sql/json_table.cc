@@ -850,9 +850,11 @@ TABLE *create_table_for_function(THD *thd, TABLE_LIST *sql_table)
 }
 
 
-int Json_table_column::set(THD *thd, enum_type ctype, const LEX_CSTRING &path)
+int Json_table_column::set(THD *thd, enum_type ctype, const LEX_CSTRING &path,
+                           CHARSET_INFO *cs)
 {
   set(ctype);
+  m_explicit_cs= cs;
   if (json_path_setup(&m_path, thd->variables.collation_connection,
         (const uchar *) path.str, (const uchar *)(path.str + path.length)))
   {

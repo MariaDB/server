@@ -30,7 +30,7 @@ pcre/testdata/greppatN4 -text
 *.c     diff=cpp
 *.h     diff=cpp
 *.cc    diff=cpp
-*.ic    diff=cpp
+*.inl   diff=cpp
 *.cpp   diff=cpp
 *.java  diff=cpp
 

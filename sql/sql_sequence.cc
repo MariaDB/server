@@ -365,9 +365,14 @@ bool sequence_insert(THD *thd, LEX *lex, TABLE_LIST *org_table_list)
 
   seq->reserved_until= seq->start;
   error= seq->write_initial_sequence(table);
-
-  if (trans_commit_stmt(thd))
-    error= 1;
+  {
+    uint save_unsafe_rollback_flags=
+      thd->transaction->stmt.m_unsafe_rollback_flags;
+    if (trans_commit_stmt(thd))
+      error= 1;
+    thd->transaction->stmt.m_unsafe_rollback_flags=
+      save_unsafe_rollback_flags;
+  }
   if (trans_commit_implicit(thd))
     error= 1;
 
@@ -905,6 +910,13 @@ bool Sql_cmd_alter_sequence::execute(THD *thd)
   if (check_grant(thd, ALTER_ACL, first_table, FALSE, 1, FALSE))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
 
+#ifdef WITH_WSREP
+  if (WSREP_ON && WSREP(thd) &&
+      wsrep_to_isolation_begin(thd, first_table->db.str,
+	                       first_table->table_name.str,
+		               first_table))
+    DBUG_RETURN(TRUE);
+#endif /* WITH_WSREP */
   if (if_exists())
     thd->push_internal_handler(&no_such_table_handler);
   error= open_and_lock_tables(thd, first_table, FALSE, 0);

@@ -203,7 +203,7 @@ static const uchar sort_order_ujis[]=
 #define IS_MB3_CHAR(x, y, z)  (isujis_ss3(x)    && IS_MB2_JIS(y,z))
 #define IS_MB_PREFIX2(x,y)    (isujis_ss3(x)    && isujis(y))
 #define DEFINE_ASIAN_ROUTINES
-#include "ctype-mb.ic"
+#include "ctype-mb.inl"
 
 #define MY_FUNCTION_NAME(x)  my_ ## x ## _ujis_japanese_ci
 #define WEIGHT_ILSEQ(x)      (0xFF0000 + (uchar) (x))
@@ -212,7 +212,7 @@ static const uchar sort_order_ujis[]=
                              (((uint) (uchar) (y)) <<  8))
 #define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
 #define STRCOLL_MB7_TOUPPER
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define MY_FUNCTION_NAME(x)  my_ ## x ## _ujis_bin
@@ -222,7 +222,7 @@ static const uchar sort_order_ujis[]=
                              (((uint) (uchar) (y)) <<  8))
 #define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
 #define STRCOLL_MB7_BIN
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -233,7 +233,7 @@ static const uchar sort_order_ujis[]=
                              (((uint) (uchar) (y)) <<  8))
 #define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
 #define STRCOLL_MB7_TOUPPER
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -244,7 +244,7 @@ static const uchar sort_order_ujis[]=
                              (((uint) (uchar) (y)) <<  8))
 #define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
 #define STRCOLL_MB7_BIN
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 static
@@ -67246,6 +67246,7 @@ static MY_COLLATION_HANDLER my_collation_ujis_japanese_ci_handler =
     NULL,		/* init */
     my_strnncoll_ujis_japanese_ci,
     my_strnncollsp_ujis_japanese_ci,
+    my_strnncollsp_nchars_ujis_japanese_ci,
     my_strnxfrm_mb,     /* strnxfrm     */
     my_strnxfrmlen_simple,
     my_like_range_mb,   /* like_range   */
@@ -67264,6 +67265,7 @@ static MY_COLLATION_HANDLER my_collation_ujis_bin_handler =
     NULL,                    /* init */
     my_strnncoll_ujis_bin,
     my_strnncollsp_ujis_bin,
+    my_strnncollsp_nchars_ujis_bin,
     my_strnxfrm_mb,
     my_strnxfrmlen_simple,
     my_like_range_mb,
@@ -67282,6 +67284,7 @@ static MY_COLLATION_HANDLER my_collation_ujis_japanese_nopad_ci_handler =
     NULL,                    /* init */
     my_strnncoll_ujis_japanese_ci,
     my_strnncollsp_ujis_japanese_nopad_ci,
+    my_strnncollsp_nchars_ujis_japanese_nopad_ci,
     my_strnxfrm_mb_nopad,
     my_strnxfrmlen_simple,
     my_like_range_mb,
@@ -67300,6 +67303,7 @@ static MY_COLLATION_HANDLER my_collation_ujis_nopad_bin_handler =
     NULL,                    /* init */
     my_strnncoll_ujis_bin,
     my_strnncollsp_ujis_nopad_bin,
+    my_strnncollsp_nchars_ujis_nopad_bin,
     my_strnxfrm_mb_nopad,
     my_strnxfrmlen_simple,
     my_like_range_mb,

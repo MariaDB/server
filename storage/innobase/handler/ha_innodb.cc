@@ -3629,6 +3629,54 @@ static int innodb_init_abort()
 	DBUG_RETURN(1);
 }
 
+/** Return the minimum buffer pool size based on page size */
+static inline ulint min_buffer_pool_size()
+{
+  ulint s= (BUF_LRU_MIN_LEN + BUF_LRU_MIN_LEN / 4) * srv_page_size;
+  /* buf_pool_chunk_size minimum is 1M, so round up to a multiple */
+  ulint alignment= 1U << 20;
+  return UT_CALC_ALIGN(s, alignment);
+}
+
+/** Validate the requested buffer pool size.  Also, reserve the necessary
+memory needed for buffer pool resize.
+@param[in]	thd	thread handle
+@param[in]	var	pointer to system variable
+@param[out]	save	immediate result for update function
+@param[in]	value	incoming string
+@return 0 on success, 1 on failure.
+*/
+static
+int
+innodb_buffer_pool_size_validate(
+	THD*				thd,
+	struct st_mysql_sys_var*	var,
+	void*				save,
+	struct st_mysql_value*		value);
+
+/** Update the system variable innodb_buffer_pool_size using the "saved"
+value. This function is registered as a callback with MySQL.
+@param[in]	thd	thread handle
+@param[in]	var	pointer to system variable
+@param[out]	var_ptr	where the formal string goes
+@param[in]	save	immediate result from check function */
+static
+void
+innodb_buffer_pool_size_update(
+	THD*				thd,
+	struct st_mysql_sys_var*	var,
+	void*				var_ptr,
+	const void*			save);
+
+static MYSQL_SYSVAR_ULONGLONG(buffer_pool_size, innobase_buffer_pool_size,
+  PLUGIN_VAR_RQCMDARG,
+  "The size of the memory buffer InnoDB uses to cache data and indexes of its tables.",
+  innodb_buffer_pool_size_validate,
+  innodb_buffer_pool_size_update,
+  128ULL << 20,
+  2ULL << 20,
+  LLONG_MAX, 1024*1024L);
+
 /****************************************************************//**
 Gives the file extension of an InnoDB single-table tablespace. */
 static const char* ha_innobase_exts[] = {
@@ -3683,7 +3731,7 @@ static void innodb_buffer_pool_size_init()
   {
     /* Size unit of buffer pool is larger than srv_buf_pool_size.
     adjust srv_buf_pool_chunk_unit for srv_buf_pool_size. */
-    srv_buf_pool_chunk_unit = ulong(srv_buf_pool_size);
+    srv_buf_pool_chunk_unit = srv_buf_pool_size;
   }
   else if (srv_buf_pool_chunk_unit == 0)
   {
@@ -3740,12 +3788,15 @@ static int innodb_init_params()
 
 	/* The buffer pool needs to be able to accommodate enough many
 	pages, even for larger pages */
-	if (srv_page_size > UNIV_PAGE_SIZE_DEF
-	    && innobase_buffer_pool_size < (24 * 1024 * 1024)) {
+	MYSQL_SYSVAR_NAME(buffer_pool_size).min_val= min_buffer_pool_size();
+
+	if (innobase_buffer_pool_size < MYSQL_SYSVAR_NAME(buffer_pool_size).min_val) {
 		ib::error() << "innodb_page_size="
 			<< srv_page_size << " requires "
-			<< "innodb_buffer_pool_size > 24M current "
-			<< innobase_buffer_pool_size;
+			<< "innodb_buffer_pool_size >= "
+			<< (MYSQL_SYSVAR_NAME(buffer_pool_size).min_val >> 20)
+			<< "MiB current " << (innobase_buffer_pool_size >> 20)
+			<< "MiB";
 		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
@@ -11139,9 +11190,12 @@ create_table_info_t::create_options_are_invalid()
 		break;
 	}
 
-	if (m_create_info->data_file_name
-	    && m_create_info->data_file_name[0] != '\0'
-	    && !create_option_data_directory_is_valid()) {
+	if (!m_create_info->data_file_name
+	    || !m_create_info->data_file_name[0]) {
+	} else if (!my_use_symdir) {
+		my_error(WARN_OPTION_IGNORED, MYF(ME_WARNING),
+			 "DATA DIRECTORY");
+	} else if (!create_option_data_directory_is_valid()) {
 		ret = "DATA DIRECTORY";
 	}
 
@@ -11413,7 +11467,8 @@ create_table_info_t::parse_table_name(
 	  CREATE TABLE ... DATA DIRECTORY={path} TABLESPACE={name}... ;
 	we ignore the DATA DIRECTORY. */
 	if (m_create_info->data_file_name
-	    && m_create_info->data_file_name[0] != '\0') {
+	    && m_create_info->data_file_name[0]
+	    && my_use_symdir) {
 		if (!create_option_data_directory_is_valid()) {
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
@@ -11875,8 +11930,9 @@ create_table_info_t::set_tablespace_type(
 	used with TEMPORARY tables. */
 	m_use_data_dir =
 		m_use_file_per_table
-		&& (m_create_info->data_file_name != NULL)
-		&& (m_create_info->data_file_name[0] != '\0');
+		&& m_create_info->data_file_name
+		&& m_create_info->data_file_name[0]
+		&& my_use_symdir;
 }
 
 /** Initialize the create_table_info_t object.
@@ -18939,31 +18995,6 @@ static MYSQL_SYSVAR_UINT(autoextend_increment,
   "Data file autoextend increment in megabytes",
   NULL, NULL, 64, 1, 1000, 0);
 
-/** Validate the requested buffer pool size.  Also, reserve the necessary
-memory needed for buffer pool resize.
-@param[in]	thd	thread handle
-@param[in]	var	pointer to system variable
-@param[out]	save	immediate result for update function
-@param[in]	value	incoming string
-@return 0 on success, 1 on failure.
-*/
-static
-int
-innodb_buffer_pool_size_validate(
-	THD*				thd,
-	struct st_mysql_sys_var*	var,
-	void*				save,
-	struct st_mysql_value*		value);
-
-static MYSQL_SYSVAR_ULONGLONG(buffer_pool_size, innobase_buffer_pool_size,
-  PLUGIN_VAR_RQCMDARG,
-  "The size of the memory buffer InnoDB uses to cache data and indexes of its tables.",
-  innodb_buffer_pool_size_validate,
-  innodb_buffer_pool_size_update,
-  srv_buf_pool_def_size,
-  srv_buf_pool_min_size,
-  LLONG_MAX, 1024*1024L);
-
 static MYSQL_SYSVAR_SIZE_T(buffer_pool_chunk_size, srv_buf_pool_chunk_unit,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Size of a single memory chunk"
@@ -19480,8 +19511,8 @@ static MYSQL_SYSVAR_BOOL(read_only, srv_read_only_mode,
 
 static MYSQL_SYSVAR_BOOL(read_only_compressed, innodb_read_only_compressed,
   PLUGIN_VAR_OPCMDARG,
-  "Make ROW_FORMAT=COMPRESSED tables read-only (ON by default)",
-  NULL, NULL, TRUE);
+  "Make ROW_FORMAT=COMPRESSED tables read-only",
+  NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_BOOL(cmp_per_index_enabled, srv_cmp_per_index_enabled,
   PLUGIN_VAR_OPCMDARG,
@@ -20741,7 +20772,18 @@ innodb_buffer_pool_size_validate(
 	struct st_mysql_value*		value)
 {
 	longlong	intbuf;
+
 	value->val_int(value, &intbuf);
+
+	if (static_cast<ulonglong>(intbuf) < MYSQL_SYSVAR_NAME(buffer_pool_size).min_val) {
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    ER_WRONG_ARGUMENTS,
+				    "innodb_buffer_pool_size must be at least"
+				    " %lld for innodb_page_size=%lu",
+				    MYSQL_SYSVAR_NAME(buffer_pool_size).min_val,
+				    srv_page_size);
+		return(1);
+	}
 
 	if (!srv_was_started) {
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -20775,7 +20817,7 @@ innodb_buffer_pool_size_validate(
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
 				    "innodb_buffer_pool_size must be at least"
-				    " innodb_buffer_pool_chunk_size=%lu",
+				    " innodb_buffer_pool_chunk_size=%zu",
 				    srv_buf_pool_chunk_unit);
 		/* nothing to do */
 		return(0);
@@ -21110,4 +21152,22 @@ void ins_node_t::vers_update_end(row_prebuilt_t *prebuilt, bool history_row)
   }
   if (UNIV_LIKELY_NULL(local_heap))
     mem_heap_free(local_heap);
+}
+
+/** Calculate aligned buffer pool size based on srv_buf_pool_chunk_unit,
+if needed.
+@param[in]	size	size in bytes
+@return	aligned size */
+ulint
+buf_pool_size_align(
+	ulint	size)
+{
+  const size_t m = srv_buf_pool_chunk_unit;
+  size = ut_max(size, (size_t) MYSQL_SYSVAR_NAME(buffer_pool_size).min_val);
+
+  if (size % m == 0) {
+    return(size);
+  } else {
+    return (size / m + 1) * m;
+  }
 }

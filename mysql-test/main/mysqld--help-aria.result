@@ -1,3 +1,4 @@
+flush tables;
 #
 # Check that we don't write any data to wrong or not existing datadir
 #

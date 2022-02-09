@@ -1,0 +1,49 @@
+connection node_2;
+connection node_1;
+connection node_1;
+CREATE SEQUENCE `seq` start with 1 minvalue 1 maxvalue 1000000 increment by 0 cache 1000 nocycle ENGINE=InnoDB;
+SHOW CREATE SEQUENCE seq;
+Table	Create Table
+seq	CREATE SEQUENCE `seq` start with 1 minvalue 1 maxvalue 1000000 increment by 0 cache 1000 nocycle ENGINE=InnoDB
+connection node_2;
+SHOW CREATE SEQUENCE seq;
+Table	Create Table
+seq	CREATE SEQUENCE `seq` start with 1 minvalue 1 maxvalue 1000000 increment by 0 cache 1000 nocycle ENGINE=InnoDB
+connection node_1;
+ALTER SEQUENCE seq MAXVALUE = 10000;
+SHOW CREATE SEQUENCE seq;
+Table	Create Table
+seq	CREATE SEQUENCE `seq` start with 1 minvalue 1 maxvalue 10000 increment by 0 cache 1000 nocycle ENGINE=InnoDB
+connection node_2;
+SHOW CREATE SEQUENCE seq;
+Table	Create Table
+seq	CREATE SEQUENCE `seq` start with 1 minvalue 1 maxvalue 10000 increment by 0 cache 1000 nocycle ENGINE=InnoDB
+connection node_1;
+DROP SEQUENCE seq;
+SHOW CREATE SEQUENCE seq;
+ERROR 42S02: Table 'test.seq' doesn't exist
+connection node_2;
+SHOW CREATE SEQUENCE seq;
+ERROR 42S02: Table 'test.seq' doesn't exist
+connection node_1;
+CREATE SEQUENCE Seq1_1     START WITH 1     INCREMENT BY 1;
+select NEXT VALUE FOR Seq1_1;
+NEXT VALUE FOR Seq1_1
+1
+alter table Seq1_1 engine=myisam;
+select NEXT VALUE FOR Seq1_1;
+NEXT VALUE FOR Seq1_1
+1001
+alter table Seq1_1 engine=innodb;
+select NEXT VALUE FOR Seq1_1;
+NEXT VALUE FOR Seq1_1
+2001
+connection node_2;
+SHOW CREATE SEQUENCE Seq1_1;
+Table	Create Table
+Seq1_1	CREATE SEQUENCE `Seq1_1` start with 1 minvalue 1 maxvalue 9223372036854775806 increment by 1 cache 1000 nocycle ENGINE=InnoDB
+select NEXT VALUE FOR Seq1_1;
+NEXT VALUE FOR Seq1_1
+1
+connection node_1;
+DROP SEQUENCE Seq1_1;

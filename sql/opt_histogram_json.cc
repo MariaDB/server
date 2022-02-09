@@ -178,22 +178,13 @@ private:
   void append_histogram_params()
   {
     char buf[128];
+    String str(buf, sizeof(buf), system_charset_info);
+    THD *thd= current_thd;
+    timeval tv= {thd->query_start(), 0}; // we do not need microseconds
 
-    time_t cur_time_t= my_time(0);
-    struct tm curtime;
-    localtime_r(&cur_time_t, &curtime);
-
-    my_snprintf(buf, sizeof(buf), "%d-%02d-%02d %2d:%02d:%02d %s",
-                curtime.tm_year + 1900,
-                curtime.tm_mon+1,
-                curtime.tm_mday,
-                curtime.tm_hour,
-                curtime.tm_min,
-                curtime.tm_sec,
-                system_time_zone);
-
+    Timestamp(tv).to_datetime(thd).to_string(&str, 0);
     writer.add_member("target_histogram_size").add_ull(hist_width);
-    writer.add_member("collected_at").add_str(buf);
+    writer.add_member("collected_at").add_str(str.ptr());
     writer.add_member("collected_by").add_str(server_version);
   }
   /*

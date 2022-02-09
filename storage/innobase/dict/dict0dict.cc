@@ -4265,8 +4265,6 @@ dict_index_set_merge_threshold(
 
 	mtr.start();
 
-	dict_sys.lock(SRW_LOCK_CALL);
-
 	sys_index = UT_LIST_GET_FIRST(dict_sys.sys_indexes->indexes);
 
 	/* Find the index row in SYS_INDEXES */
@@ -4302,8 +4300,6 @@ dict_index_set_merge_threshold(
 
 	mtr_commit(&mtr);
 	mem_heap_free(heap);
-
-	dict_sys.unlock();
 }
 
 #ifdef UNIV_DEBUG

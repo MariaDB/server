@@ -29,15 +29,15 @@ Warning	1265	Data truncated for column 'c20' at row 1
 Warning	1265	Data truncated for column 'c255' at row 1
 INSERT INTO t1 (c,c0,c1,c20,c255) SELECT c255, c255, c255, c255, CONCAT('a',c255,c1) FROM t1;
 Warnings:
-Warning	1265	Data truncated for column 'c' at row 5
-Warning	1265	Data truncated for column 'c0' at row 5
-Warning	1265	Data truncated for column 'c1' at row 5
-Warning	1265	Data truncated for column 'c20' at row 5
-Warning	1265	Data truncated for column 'c' at row 6
-Warning	1265	Data truncated for column 'c0' at row 6
-Warning	1265	Data truncated for column 'c1' at row 6
-Warning	1265	Data truncated for column 'c20' at row 6
-Warning	1265	Data truncated for column 'c255' at row 6
+Warning	1265	Data truncated for column 'c' at row 2
+Warning	1265	Data truncated for column 'c0' at row 2
+Warning	1265	Data truncated for column 'c1' at row 2
+Warning	1265	Data truncated for column 'c20' at row 2
+Warning	1265	Data truncated for column 'c' at row 3
+Warning	1265	Data truncated for column 'c0' at row 3
+Warning	1265	Data truncated for column 'c1' at row 3
+Warning	1265	Data truncated for column 'c20' at row 3
+Warning	1265	Data truncated for column 'c255' at row 3
 SELECT c,c0,c1,c20,c255 FROM t1;
 c	c0	c1	c20	c255
 				

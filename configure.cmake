@@ -863,9 +863,16 @@ MARK_AS_ADVANCED(NO_ALARM)
 CHECK_CXX_SOURCE_COMPILES("
 int main()
 {
-  long long int var= 1;
-  long long int *ptr= &var;
-  return (int)__atomic_load_n(ptr, __ATOMIC_SEQ_CST);
+  char x=1;
+  short y=1;
+  int z=1;
+  long w = 1;
+  long long s = 1;
+  x = __atomic_add_fetch(&x, 1, __ATOMIC_SEQ_CST);
+  y = __atomic_add_fetch(&y, 1, __ATOMIC_SEQ_CST);
+  z = __atomic_add_fetch(&z, 1, __ATOMIC_SEQ_CST);
+  w = __atomic_add_fetch(&w, 1, __ATOMIC_SEQ_CST);
+  return (int)__atomic_load_n(&s, __ATOMIC_SEQ_CST);
 }"
 HAVE_GCC_C11_ATOMICS_WITHOUT_LIBATOMIC)
 IF (HAVE_GCC_C11_ATOMICS_WITHOUT_LIBATOMIC)
@@ -876,9 +883,16 @@ ELSE()
   CHECK_CXX_SOURCE_COMPILES("
   int main()
   {
-    long long int var= 1;
-    long long int *ptr= &var;
-    return (int)__atomic_load_n(ptr, __ATOMIC_SEQ_CST);
+    char x=1;
+    short y=1;
+    int z=1;
+    long w = 1;
+    long long s = 1;
+    x = __atomic_add_fetch(&x, 1, __ATOMIC_SEQ_CST);
+    y = __atomic_add_fetch(&y, 1, __ATOMIC_SEQ_CST);
+    z = __atomic_add_fetch(&z, 1, __ATOMIC_SEQ_CST);
+    w = __atomic_add_fetch(&w, 1, __ATOMIC_SEQ_CST);
+    return (int)__atomic_load_n(&s, __ATOMIC_SEQ_CST);
   }"
   HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)
   IF(HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)

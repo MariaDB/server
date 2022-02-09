@@ -72,12 +72,13 @@ bool schema_table_store_record(THD *thd, TABLE *table);
 
 #define COLUMN_CLIENT_LONG_FLAG 16
 #define COLUMN_CLIENT_PROTOCOL_41 17
-#define COLUMN_PROTOCOL_TYPE 18
-#define COLUMN_MORE_RESULTS_EXISTS 19
-#define COLUMN_IN_TRANS 20
-#define COLUMN_AUTOCOMMIT 21
-#define COLUMN_PKT_NR 22
-#define COLUMN_HITS 23
+#define COLUMN_CLIENT_EXTENDED_METADATA 18
+#define COLUMN_PROTOCOL_TYPE 19
+#define COLUMN_MORE_RESULTS_EXISTS 20
+#define COLUMN_IN_TRANS 21
+#define COLUMN_AUTOCOMMIT 22
+#define COLUMN_PKT_NR 23
+#define COLUMN_HITS 24
 
 
 namespace Show {
@@ -103,6 +104,7 @@ static ST_FIELD_INFO qc_info_fields[]=
   Column("LC_TIME_NAMES",         Varchar(100),                       NOT_NULL),
   Column("CLIENT_LONG_FLAG",      STiny(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
   Column("CLIENT_PROTOCOL_41",    STiny(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
+  Column("CLIENT_EXTENDED_METADATA",STiny(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
   Column("PROTOCOL_TYPE",         STiny(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
   Column("MORE_RESULTS_EXISTS",   STiny(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
   Column("IN_TRANS",              STiny(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
@@ -216,6 +218,8 @@ static int qc_info_fill_table(THD *thd, TABLE_LIST *tables,
 
     table->field[COLUMN_CLIENT_LONG_FLAG]->store(flags.client_long_flag, 0);
     table->field[COLUMN_CLIENT_PROTOCOL_41]->store(flags.client_protocol_41, 0);
+    table->field[COLUMN_CLIENT_EXTENDED_METADATA]->
+      store(flags.client_extended_metadata, 0);
     table->field[COLUMN_PROTOCOL_TYPE]->store(flags.protocol_type, 0);
     table->field[COLUMN_MORE_RESULTS_EXISTS]->store(flags.more_results_exists, 0);
     table->field[COLUMN_IN_TRANS]->store(flags.in_trans, 0);

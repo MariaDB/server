@@ -1,0 +1,16 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-18918 SQL mode EMPTY_STRING_IS_NULL breaks RBR upon CREATE TABLE .. SELECT
+#
+SET SQL_MODE= 'EMPTY_STRING_IS_NULL';
+CREATE TABLE t1 AS SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE 1 = 0;
+connection slave;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `TABLE_NAME` varchar(64) CHARACTER SET utf8mb3 NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

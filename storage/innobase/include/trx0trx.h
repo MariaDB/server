@@ -1207,6 +1207,6 @@ struct commit_node_t{
 };
 
 
-#include "trx0trx.ic"
+#include "trx0trx.inl"
 
 #endif

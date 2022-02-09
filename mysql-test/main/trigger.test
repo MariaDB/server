@@ -2763,6 +2763,14 @@ INSERT INTO t1 () VALUES ();
 DROP TABLE t1;
 
 --echo #
+--echo # Bug#33141958 - THE FIRST ASAN UAF ISSUE OF MYSQL SERVER
+--echo #
+create table t1 (a int);
+--error ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG
+create trigger tr1 after insert on t1 for each row alter table t1 tablespace s2;
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

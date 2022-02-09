@@ -35,6 +35,12 @@
 #include "strings_def.h"
 #include <m_ctype.h>
 
+typedef struct
+{
+  int weight;
+  uint nchars;
+} weight_and_nchars_t;
+
 #define  MY_CS_COMMON_UCA_FLAGS (MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NON1TO1)
 
 #define MY_UCA_CNT_FLAG_SIZE 4096
@@ -31493,6 +31499,21 @@ my_uca_true_contraction_eq(const MY_CONTRACTION *c,
 }
 
 
+/*
+  Return the number of characters in a contraction.
+*/
+static inline uint my_contraction_char_length(const MY_CONTRACTION *cnt)
+{
+  uint i;
+  for (i= 2; i < array_elements(cnt->ch); i++)
+  {
+    if (cnt->ch[i] == 0)
+      return i;
+  }
+  return array_elements(cnt->ch);
+}
+
+
 /**
   Check if a string is a contraction,
   and return its weight array on success.
@@ -31503,11 +31524,11 @@ my_uca_true_contraction_eq(const MY_CONTRACTION *c,
 
   @return       Weight array
   @retval       NULL - Input string is not a known contraction
-  @retval       ptr  - contraction weight array
+  @retval       ptr  - the address of the MY_CONTRACTION found
 */
 
-static inline const uint16 *
-my_uca_contraction_weight(const MY_CONTRACTIONS *list, my_wc_t *wc, size_t len)
+static inline const MY_CONTRACTION *
+my_uca_contraction_find(const MY_CONTRACTIONS *list, my_wc_t *wc, size_t len)
 {
   MY_CONTRACTION *c, *last;
   DBUG_ASSERT(len <= MY_UCA_MAX_CONTRACTION);
@@ -31515,7 +31536,7 @@ my_uca_contraction_weight(const MY_CONTRACTIONS *list, my_wc_t *wc, size_t len)
   for (c= list->item, last= c + list->nitems; c < last; c++)
   {
     if (my_uca_true_contraction_eq(c, wc, len))
-      return c->weight;
+      return c;
   }
   return NULL;
 }
@@ -31528,16 +31549,18 @@ my_uca_contraction_weight(const MY_CONTRACTIONS *list, my_wc_t *wc, size_t len)
   a contraction part. Then try to find real contraction among the
   candidates, starting from the longest.
 
-  @param scanner  Pointer to UCA scanner
-  @param[OUT] *wc Where to store the scanned string
+  @param scanner         Pointer to UCA scanner
+  @param[OUT] *wc        Where to store the scanned string
+  @param max_char_length The longest contraction character length allowed
 
   @return         Weight array
   @retval         NULL - no contraction found
-  @retval         ptr  - contraction weight array
+  @retval         ptr  - the address of MY_CONTRACTION found
 */
 
-static const uint16 *
-my_uca_scanner_contraction_find(my_uca_scanner *scanner, my_wc_t currwc)
+static const MY_CONTRACTION *
+my_uca_scanner_contraction_find(my_uca_scanner *scanner, my_wc_t currwc,
+                                size_t max_char_length)
 {
   size_t clen= 1;
   int flag;
@@ -31549,7 +31572,7 @@ my_uca_scanner_contraction_find(my_uca_scanner *scanner, my_wc_t currwc)
 
   /* Scan all contraction candidates */
   for (s= scanner->sbeg, flag= MY_UCA_CNT_MID1;
-       clen < MY_UCA_MAX_CONTRACTION;
+       clen < max_char_length;
        flag<<= 1)
   {
     int mblen;
@@ -31564,14 +31587,14 @@ my_uca_scanner_contraction_find(my_uca_scanner *scanner, my_wc_t currwc)
   /* Find among candidates the longest real contraction */
   for ( ; clen > 1; clen--)
   {
-    const uint16 *cweight;
+    const MY_CONTRACTION *cnt;
     if (my_uca_can_be_contraction_tail(&scanner->level->contractions,
                                        wc[clen - 1]) &&
-        (cweight= my_uca_contraction_weight(&scanner->level->contractions,
-                                            wc, clen)))
+        (cnt= my_uca_contraction_find(&scanner->level->contractions,
+                                      wc, clen)))
     {
       scanner->sbeg= beg[clen - 1];
-      return cweight;
+      return cnt;
     }
   }
 
@@ -31589,10 +31612,10 @@ my_uca_scanner_contraction_find(my_uca_scanner *scanner, my_wc_t currwc)
 
   @return   Weight array
   @retval   NULL - no contraction with context found
-  @retval   ptr  - contraction weight array
+  @retval   ptr  - the address of MY_CONTRACTION found
 */
 
-static const uint16 *
+static const MY_CONTRACTION *
 my_uca_previous_context_find(const MY_CONTRACTIONS *list,
                              my_wc_t wc0, my_wc_t wc1)
 {
@@ -31600,7 +31623,7 @@ my_uca_previous_context_find(const MY_CONTRACTIONS *list,
   for (c= list->item, last= c + list->nitems; c < last; c++)
   {
     if (c->with_context && wc0 == c->ch[0] && wc1 == c->ch[1])
-      return c->weight;
+      return c;
   }
   return NULL;
 }
@@ -31620,13 +31643,16 @@ my_uca_previous_context_find(const MY_CONTRACTIONS *list,
                    If wc[0] and the previous character make a previous context
                    pair, then wc[1] is set to the previous character.
 
+  @param max_char_length - the longest contraction character length allowed.
+
   @retval          NULL if could not find any contextual weights for wc[0]
-  @retval          non null pointer to a zero-terminated weight string otherwise
+  @retval          non null pointer - the address of MY_CONTRACTION found
 */
-static inline const uint16 *
-my_uca_context_weight_find(my_uca_scanner *scanner, my_wc_t currwc)
+static inline const MY_CONTRACTION *
+my_uca_context_weight_find(my_uca_scanner *scanner, my_wc_t currwc,
+                           size_t max_char_length)
 {
-  const uint16 *cweight;
+  const MY_CONTRACTION *cnt;
   my_wc_t prevwc;
   DBUG_ASSERT(scanner->level->contractions.nitems);
   /*
@@ -31644,18 +31670,18 @@ my_uca_context_weight_find(my_uca_scanner *scanner, my_wc_t currwc)
       my_uca_can_be_previous_context_head(&scanner->level->contractions,
                                           (prevwc= ((scanner->page << 8) +
                                                     scanner->code))) &&
-      (cweight= my_uca_previous_context_find(&scanner->level->contractions,
-                                             prevwc, currwc)))
+      (cnt= my_uca_previous_context_find(&scanner->level->contractions,
+                                         prevwc, currwc)))
   {
     scanner->page= scanner->code= 0; /* Clear for the next character */
-    return cweight;
+    return cnt;
   }
   else if (my_uca_can_be_contraction_head(&scanner->level->contractions,
                                           currwc))
   {
-    /* Check if w[0] starts a contraction */
-    if ((cweight= my_uca_scanner_contraction_find(scanner, currwc)))
-      return cweight;
+    /* Check if currwc starts a contraction */
+    if ((cnt= my_uca_scanner_contraction_find(scanner, currwc, max_char_length)))
+      return cnt;
   }
   return NULL;
 }
@@ -33253,9 +33279,11 @@ my_char_weight_put(MY_UCA_WEIGHT_LEVEL *dst,
 
     for (chlen= len; chlen > 1; chlen--)
     {
+      const MY_CONTRACTION *cnt;
       if (chlen <= MY_UCA_MAX_CONTRACTION &&
-          (from= my_uca_contraction_weight(&dst->contractions, str, chlen)))
+          (cnt= my_uca_contraction_find(&dst->contractions, str, chlen)))
       {
+        from= cnt->weight;
         str+= chlen;
         len-= chlen;
         break;

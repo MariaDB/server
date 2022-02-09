@@ -1785,6 +1785,7 @@ static void close_connections(void)
   {
     wsrep_deinit(true);
   }
+  wsrep_sst_auth_free();
 #endif
   /* All threads has now been aborted */
   DBUG_PRINT("quit", ("Waiting for threads to die (count=%u)", THD_count::value()));
