@@ -19473,7 +19473,7 @@ static MYSQL_SYSVAR_BOOL(numa_interleave, srv_numa_interleave,
 static MYSQL_SYSVAR_ENUM(change_buffering, innodb_change_buffering,
   PLUGIN_VAR_RQCMDARG,
   "Buffer changes to secondary indexes.",
-  NULL, NULL, IBUF_USE_ALL, &innodb_change_buffering_typelib);
+  NULL, NULL, IBUF_USE_NONE, &innodb_change_buffering_typelib);
 
 static MYSQL_SYSVAR_UINT(change_buffer_max_size,
   srv_change_buffer_max_size,
