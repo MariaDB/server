@@ -1589,7 +1589,8 @@ bool JOIN::prepare_stage2()
 #endif
   if (select_lex->olap == ROLLUP_TYPE && rollup_init())
     goto err;
-  if (alloc_func_list())
+  if (alloc_func_list() ||
+      make_sum_func_list(all_fields, fields_list, false))
     goto err;
 
   res= FALSE;
@@ -2204,7 +2205,21 @@ JOIN::optimize_inner()
       If all items were resolved by opt_sum_query, there is no need to
       open any tables.
     */
-    if ((res=opt_sum_query(thd, select_lex->leaf_tables, all_fields, conds)))
+
+    /*
+      The following resetting and restoring of sum_funcs is needed to
+      go around a bug in spider where it assumes that
+      make_sum_func_list() has not been called yet and do logical
+      choices based on this if special handling of min/max functions should
+      be done. We disable this special handling while we are trying to find
+      out if we can replace MIN/MAX values with constants.
+    */
+    Item_sum **save_func_sums= sum_funcs, *tmp_sum_funcs= 0;
+    sum_funcs= &tmp_sum_funcs;
+    res= opt_sum_query(thd, select_lex->leaf_tables, all_fields, conds);
+    sum_funcs= save_func_sums;
+
+    if (res)
     {
       DBUG_ASSERT(res >= 0);
       if (res == HA_ERR_KEY_NOT_FOUND)
@@ -2776,13 +2791,15 @@ int JOIN::optimize_stage2()
     calc_group_buffer(this, group_list);
   }
 
-  if (test_if_subpart(group_list, order) ||
-      (!group_list && tmp_table_param.sum_func_count))
-  {
+  /*
+    We can ignore ORDER BY if it's a prefix of the GROUP BY list
+    (as MariaDB is by default sorting on GROUP BY) or
+    if there is no GROUP BY and aggregate functions are used
+    (as the result will only contain one row).
+  */
+  if (order && (test_if_subpart(group_list, order) ||
+                (!group_list && tmp_table_param.sum_func_count)))
     order=0;
-    if (is_indexed_agg_distinct(this, NULL))
-      sort_and_group= 0;
-  }
 
   // Can't use sort on head table if using join buffering
   if (full_join || hash_join)
@@ -2813,7 +2830,6 @@ int JOIN::optimize_stage2()
   */
   if (select_lex->have_window_funcs())
     simple_order= FALSE;
-
 
   /*
     If the hint FORCE INDEX FOR ORDER BY/GROUP BY is used for the table
@@ -3548,7 +3564,7 @@ bool JOIN::make_aggr_tables_info()
       // for the first table
       if (group_list || tmp_table_param.sum_func_count)
       {
-        if (make_sum_func_list(*curr_all_fields, *curr_fields_list, true, true))
+        if (make_sum_func_list(*curr_all_fields, *curr_fields_list, true))
           DBUG_RETURN(true);
         if (prepare_sum_aggregators(sum_funcs,
                                     !join_tab->is_using_agg_loose_index_scan()))
@@ -3658,7 +3674,7 @@ bool JOIN::make_aggr_tables_info()
       last_tab->all_fields= &tmp_all_fields3;
       last_tab->fields= &tmp_fields_list3;
     }
-    if (make_sum_func_list(*curr_all_fields, *curr_fields_list, true, true))
+    if (make_sum_func_list(*curr_all_fields, *curr_fields_list, true))
       DBUG_RETURN(true);
     if (prepare_sum_aggregators(sum_funcs,
                                 !join_tab ||
@@ -3854,8 +3870,6 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   }
   else
   {
-    if (make_sum_func_list(all_fields, fields_list, false))
-      goto err;
     if (prepare_sum_aggregators(sum_funcs,
                                 !join_tab->is_using_agg_loose_index_scan()))
       goto err;
@@ -7097,8 +7111,7 @@ void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array)
   Check for the presence of AGGFN(DISTINCT a) queries that may be subject
   to loose index scan.
 
-
-  Check if the query is a subject to AGGFN(DISTINCT) using loose index scan 
+  Check if the query is a subject to AGGFN(DISTINCT) using loose index scan
   (QUICK_GROUP_MIN_MAX_SELECT).
   Optionally (if out_args is supplied) will push the arguments of 
   AGGFN(DISTINCT) to the list
@@ -7131,12 +7144,9 @@ is_indexed_agg_distinct(JOIN *join, List<Item_field> *out_args)
   Item_sum **sum_item_ptr;
   bool result= false;
 
-  if (join->table_count != 1 ||                    /* reference more than 1 table */
+  if (join->table_count != 1 ||               /* reference more than 1 table */
       join->select_distinct ||                /* or a DISTINCT */
       join->select_lex->olap == ROLLUP_TYPE)  /* Check (B3) for ROLLUP */
-    return false;
-
-  if (join->make_sum_func_list(join->all_fields, join->fields_list, true))
     return false;
 
   Bitmap<MAX_FIELDS> first_aggdistinct_fields;
@@ -7240,16 +7250,23 @@ add_group_and_distinct_keys(JOIN *join, JOIN_TAB *join_tab)
     while ((item= select_items_it++))
       item->walk(&Item::collect_item_field_processor, 0, &indexed_fields);
   }
-  else if (join->tmp_table_param.sum_func_count &&
-           is_indexed_agg_distinct(join, &indexed_fields))
+  else if (!join->tmp_table_param.sum_func_count ||
+           !is_indexed_agg_distinct(join, &indexed_fields))
   {
-    join->sort_and_group= 1;
-  }
-  else
+    /*
+      There where no GROUP BY fields and also either no aggregate
+      functions or not all aggregate functions where used with the
+      same DISTINCT (or MIN() / MAX() that works similarly).
+      Nothing to do there.
+    */
     return;
+  }
 
   if (indexed_fields.elements == 0)
+  {
+    /* There where no index we could use to satisfy the GROUP BY */
     return;
+  }
 
   /* Intersect the keys of all group fields. */
   cur_item= indexed_fields_it++;
@@ -25693,15 +25710,12 @@ bool JOIN::alloc_func_list()
 
 bool JOIN::make_sum_func_list(List<Item> &field_list,
                               List<Item> &send_result_set_metadata,
-			      bool before_group_by, bool recompute)
+			      bool before_group_by)
 {
   List_iterator_fast<Item> it(field_list);
   Item_sum **func;
   Item *item;
   DBUG_ENTER("make_sum_func_list");
-
-  if (*sum_funcs && !recompute)
-    DBUG_RETURN(FALSE); /* We have already initialized sum_funcs. */
 
   func= sum_funcs;
   while ((item=it++))
@@ -25849,7 +25863,7 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   Change all funcs to be fields in tmp table.
 
   @param thd                   THD pointer
-  @param ref_pointer_array     array of pointers to top elements of filed list
+  @param ref_pointer_array     array of pointers to top elements of field list
   @param res_selected_fields   new list of items of select item list
   @param res_all_fields        new list of all items
   @param elements              number of elements in select item list
