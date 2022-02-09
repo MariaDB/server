@@ -642,8 +642,7 @@ loop:
 	}
 }
 
-/** Flush the recently written changes to the log file.
-and invoke mysql_mutex_lock(&log_sys.mutex). */
+/** Flush the recently written changes to the log file.*/
 static void log_write_flush_to_disk_low(lsn_t lsn)
 {
   if (!log_sys.log.writes_are_durable())
@@ -783,10 +782,6 @@ static void log_write(bool rotate_key)
 		start_offset - area_start);
 	srv_stats.log_padded.add(pad_size);
 	log_sys.write_lsn = write_lsn;
-	if (log_sys.log.writes_are_durable()) {
-		log_sys.set_flushed_lsn(write_lsn);
-		log_flush_notify(write_lsn);
-	}
 	return;
 }
 

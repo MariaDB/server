@@ -14037,7 +14037,7 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
         key_part_range[1]= last_part;
 
         /* Check if cur_part is referenced in the WHERE clause. */
-        if (join->conds->walk(&Item::find_item_in_field_list_processor, 0,
+        if (join->conds->walk(&Item::find_item_in_field_list_processor, true,
                               key_part_range))
         {
           cause= "keypart reference from where clause";
