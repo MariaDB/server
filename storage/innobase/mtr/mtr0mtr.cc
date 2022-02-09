@@ -401,18 +401,27 @@ void mtr_t::commit()
 
     std::pair<lsn_t,page_flush_ahead> lsns;
 
-    if (const auto len= prepare_write())
-      lsns= finish_write(len);
+    if (UNIV_LIKELY(m_log_mode == MTR_LOG_ALL))
+    {
+      lsns= do_write();
+
+      if (m_made_dirty)
+        mysql_mutex_lock(&log_sys.flush_order_mutex);
+
+      /* It is now safe to release log_sys.mutex because the
+      buf_pool.flush_order_mutex will ensure that we are the first one
+      to insert into buf_pool.flush_list. */
+      mysql_mutex_unlock(&log_sys.mutex);
+    }
     else
+    {
+      ut_ad(m_log_mode == MTR_LOG_NO_REDO);
+      ut_ad(m_log.size() == 0);
+      m_commit_lsn= log_sys.get_lsn();
       lsns= { m_commit_lsn, PAGE_FLUSH_NO };
-
-    if (m_made_dirty)
-      mysql_mutex_lock(&log_sys.flush_order_mutex);
-
-    /* It is now safe to release log_sys.mutex because the
-    buf_pool.flush_order_mutex will ensure that we are the first one
-    to insert into buf_pool.flush_list. */
-    mysql_mutex_unlock(&log_sys.mutex);
+      if (UNIV_UNLIKELY(m_made_dirty)) /* This should be IMPORT TABLESPACE */
+        mysql_mutex_lock(&log_sys.flush_order_mutex);
+    }
 
     if (m_freed_pages)
     {
@@ -515,7 +524,7 @@ void mtr_t::commit_shrink(fil_space_t &space)
 
   log_write_and_flush_prepare();
 
-  const lsn_t start_lsn= finish_write(prepare_write()).first;
+  const lsn_t start_lsn= do_write().first;
 
   mysql_mutex_lock(&log_sys.flush_order_mutex);
   /* Durably write the reduced FSP_SIZE before truncating the data file. */
@@ -850,17 +859,10 @@ static mtr_t::page_flush_ahead log_close(lsn_t lsn) noexcept
   return mtr_t::PAGE_FLUSH_SYNC;
 }
 
-inline size_t mtr_t::prepare_write()
+std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
 {
   ut_ad(!recv_no_log_write);
-  if (UNIV_UNLIKELY(m_log_mode != MTR_LOG_ALL))
-  {
-    ut_ad(m_log_mode == MTR_LOG_NO_REDO);
-    ut_ad(m_log.size() == 0);
-    mysql_mutex_lock(&log_sys.mutex);
-    m_commit_lsn= log_sys.get_lsn();
-    return 0;
-  }
+  ut_ad(m_log_mode == MTR_LOG_ALL);
 
   size_t len= m_log.size() + 5;
   ut_ad(len > 5);
@@ -883,7 +885,7 @@ inline size_t mtr_t::prepare_write()
       !m_user_space->max_lsn)
     name_write();
 
-  return len;
+  return finish_write(len);
 }
 
 /** Write the mini-transaction log to the redo log buffer.

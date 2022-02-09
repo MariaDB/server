@@ -624,16 +624,16 @@ private:
   @param type   extended record subtype; @see mrec_ext_t */
   inline void log_write_extended(const buf_block_t &block, byte type);
 
-  /** Prepare to write the mini-transaction log to the redo log buffer.
-  @return number of bytes to write in finish_write() */
-  inline size_t prepare_write();
-
   /** Write a FILE_MODIFY record when a non-predefined persistent
   tablespace was modified for the first time since fil_names_clear(). */
   ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void name_write();
 
   /** Encrypt the log */
   ATTRIBUTE_NOINLINE void encrypt();
+
+  /** Append the redo log records to the redo log buffer.
+  @return {start_lsn,flush_ahead} */
+  std::pair<lsn_t,page_flush_ahead> do_write();
 
   /** Append the redo log records to the redo log buffer.
   @param len   number of bytes to write

@@ -1,28 +1,28 @@
 SET @start_global_value = @@global.innodb_change_buffering;
 SELECT @start_global_value;
 @start_global_value
-all
+none
 Valid values are 'all', 'deletes', 'changes', 'inserts', 'none', 'purges'
 select @@global.innodb_change_buffering in ('all', 'deletes', 'changes', 'inserts', 'none', 'purges');
 @@global.innodb_change_buffering in ('all', 'deletes', 'changes', 'inserts', 'none', 'purges')
 1
 select @@global.innodb_change_buffering;
 @@global.innodb_change_buffering
-all
+none
 select @@session.innodb_change_buffering;
 ERROR HY000: Variable 'innodb_change_buffering' is a GLOBAL variable
 show global variables like 'innodb_change_buffering';
 Variable_name	Value
-innodb_change_buffering	all
+innodb_change_buffering	none
 show session variables like 'innodb_change_buffering';
 Variable_name	Value
-innodb_change_buffering	all
+innodb_change_buffering	none
 select * from information_schema.global_variables where variable_name='innodb_change_buffering';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_CHANGE_BUFFERING	all
+INNODB_CHANGE_BUFFERING	none
 select * from information_schema.session_variables where variable_name='innodb_change_buffering';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_CHANGE_BUFFERING	all
+INNODB_CHANGE_BUFFERING	none
 set global innodb_change_buffering='none';
 select @@global.innodb_change_buffering;
 @@global.innodb_change_buffering
@@ -62,4 +62,4 @@ ERROR 42000: Variable 'innodb_change_buffering' can't be set to the value of 'so
 SET @@global.innodb_change_buffering = @start_global_value;
 SELECT @@global.innodb_change_buffering;
 @@global.innodb_change_buffering
-all
+none

@@ -616,11 +616,6 @@ inline lsn_t log_t::write_buf() noexcept
     /* Do the write to the log file */
     log_write_buf(write_buf, length, offset);
     write_lsn= lsn;
-    if (srv_file_flush_method == SRV_O_DSYNC)
-    {
-      flushed_to_disk_lsn.store(lsn, std::memory_order_release);
-      log_flush_notify(lsn);
-    }
   }
 
   return write_lock.release(lsn);
@@ -630,7 +625,7 @@ inline bool log_t::flush(lsn_t lsn) noexcept
 {
   ut_ad(lsn >= get_flushed_lsn());
   flush_lock.set_pending(lsn);
-  const bool success{log.flush()};
+  const bool success{srv_file_flush_method == SRV_O_DSYNC || log.flush()};
   if (UNIV_LIKELY(success))
   {
     flushed_to_disk_lsn.store(lsn, std::memory_order_release);
@@ -646,10 +641,7 @@ inline bool log_t::flush(lsn_t lsn) noexcept
 static lsn_t log_flush(lsn_t lsn)
 {
   ut_ad(!log_sys.is_pmem());
-
-  if (srv_file_flush_method != SRV_O_DSYNC)
-    ut_a(log_sys.flush(lsn));
-
+  ut_a(log_sys.flush(lsn));
   DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
   return flush_lock.release(lsn);
 }
