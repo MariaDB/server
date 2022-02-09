@@ -313,7 +313,7 @@ Item *create_func_dyncol_add(THD *thd, Item *str,
 Item *create_func_dyncol_delete(THD *thd, Item *str, List<Item> &nums);
 Item *create_func_dyncol_get(THD *thd, Item *num, Item *str,
                              const Type_handler *handler,
-                             const char *c_len, const char *c_dec,
+                             const Lex_length_and_dec_st &length_and_dec,
                              CHARSET_INFO *cs);
 Item *create_func_dyncol_json(THD *thd, Item *str);
 

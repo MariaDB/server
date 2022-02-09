@@ -390,13 +390,13 @@ ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column
 select cast(1 as decimal(5,6));
 ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '')
 select cast(1 as double(66,6));
-ERROR 42000: Too big precision 66 specified for '1'. Maximum is 65
+ERROR 42000: Too big precision specified for '1'. Maximum is 65
 select cast(1 as decimal(66,6));
-ERROR 42000: Too big precision 66 specified for '1'. Maximum is 65
+ERROR 42000: Too big precision specified for '1'. Maximum is 65
 select cast(1 as decimal(64,63));
-ERROR 42000: Too big scale 63 specified for '1'. Maximum is 38
+ERROR 42000: Too big scale specified for '1'. Maximum is 38
 select cast(1 as double(64,63));
-ERROR 42000: Too big scale 63 specified for '1'. Maximum is 38
+ERROR 42000: Too big scale specified for '1'. Maximum is 38
 set names binary;
 select cast(_latin1'test' as char character set latin2);
 cast(_latin1'test' as char character set latin2)

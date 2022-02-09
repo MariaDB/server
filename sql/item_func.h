@@ -3762,31 +3762,22 @@ struct Lex_cast_type_st: public Lex_length_and_dec_st
 private:
   const Type_handler *m_type_handler;
 public:
-  void set(const Type_handler *handler, const char *length, const char *dec)
-  {
-    m_type_handler= handler;
-    Lex_length_and_dec_st::set(length, dec);
-  }
   void set(const Type_handler *handler, Lex_length_and_dec_st length_and_dec)
   {
     m_type_handler= handler;
     Lex_length_and_dec_st::operator=(length_and_dec);
   }
-  void set(const Type_handler *handler, const char *length)
-  {
-    set(handler, length, 0);
-  }
   void set(const Type_handler *handler)
   {
-    set(handler, 0, 0);
+    m_type_handler= handler;
+    Lex_length_and_dec_st::reset();
   }
   const Type_handler *type_handler() const { return m_type_handler; }
   Item *create_typecast_item(THD *thd, Item *item,
                              CHARSET_INFO *cs= NULL) const
   {
     return m_type_handler->
-      create_typecast_item(thd, item,
-                           Type_cast_attributes(length(), dec(), cs));
+      create_typecast_item(thd, item, Type_cast_attributes(*this, cs));
   }
   Item *create_typecast_item_or_error(THD *thd, Item *item,
                                       CHARSET_INFO *cs= NULL) const;

@@ -602,16 +602,74 @@ public:
 struct Lex_length_and_dec_st
 {
 private:
-  const char *m_length;
-  const char *m_dec;
+  uint32 m_length;
+  uint8  m_dec;
+  bool   m_has_explicit_length:1;
+  bool   m_has_explicit_dec:1;
+  bool   m_length_overflowed:1;
+  bool   m_dec_overflowed:1;
 public:
-  void set(const char *length, const char *dec)
+  void reset()
+  {
+    m_length= 0;
+    m_dec= 0;
+    m_has_explicit_length= false;
+    m_has_explicit_dec= false;
+    m_length_overflowed= false;
+    m_dec_overflowed= false;
+  }
+  void set_length_only(uint32 length)
+  {
+    m_length= length;
+    m_dec= 0;
+    m_has_explicit_length= true;
+    m_has_explicit_dec= false;
+    m_length_overflowed= false;
+    m_dec_overflowed= false;
+  }
+  void set_dec_only(uint8 dec)
+  {
+    m_length= 0;
+    m_dec= dec;
+    m_has_explicit_length= false;
+    m_has_explicit_dec= true;
+    m_length_overflowed= false;
+    m_dec_overflowed= false;
+  }
+  void set_length_and_dec(uint32 length, uint8 dec)
   {
     m_length= length;
     m_dec= dec;
+    m_has_explicit_length= true;
+    m_has_explicit_dec= true;
+    m_length_overflowed= false;
+    m_dec_overflowed= false;
   }
-  const char *length() const { return m_length; }
-  const char *dec() const { return m_dec; }
+  void set(const char *length, const char *dec);
+  uint32 length() const
+  {
+    return m_length;
+  }
+  uint8 dec() const
+  {
+    return m_dec;
+  }
+  bool has_explicit_length() const
+  {
+    return m_has_explicit_length;
+  }
+  bool has_explicit_dec() const
+  {
+    return m_has_explicit_dec;
+  }
+  bool length_overflowed()  const
+  {
+    return m_length_overflowed;
+  }
+  bool dec_overflowed()  const
+  {
+    return m_dec_overflowed;
+  }
 };
 
 
@@ -619,26 +677,24 @@ struct Lex_field_type_st: public Lex_length_and_dec_st
 {
 private:
   const Type_handler *m_handler;
-  void set(const Type_handler *handler, const char *length, const char *dec)
-  {
-    m_handler= handler;
-    Lex_length_and_dec_st::set(length, dec);
-  }
 public:
   void set(const Type_handler *handler, Lex_length_and_dec_st length_and_dec)
   {
     m_handler= handler;
     Lex_length_and_dec_st::operator=(length_and_dec);
   }
-  void set_handler_length_flags(const Type_handler *handler, const char *length,
+  void set_handler_length_flags(const Type_handler *handler,
+                                const Lex_length_and_dec_st &length,
                                 uint32 flags);
-  void set(const Type_handler *handler, const char *length)
+  void set_handler_length(const Type_handler *handler, uint32 length)
   {
-    set(handler, length, 0);
+    m_handler= handler;
+    Lex_length_and_dec_st::set_length_only(length);
   }
   void set(const Type_handler *handler)
   {
-    set(handler, 0, 0);
+    m_handler= handler;
+    Lex_length_and_dec_st::reset();
   }
   void set_handler(const Type_handler *handler)
   {
@@ -653,23 +709,15 @@ struct Lex_dyncol_type_st: public Lex_length_and_dec_st
 private:
   int m_type; // enum_dynamic_column_type is not visible here, so use int
 public:
-  void set(int type, const char *length, const char *dec)
-  {
-    m_type= type;
-    Lex_length_and_dec_st::set(length, dec);
-  }
   void set(int type, Lex_length_and_dec_st length_and_dec)
   {
     m_type= type;
     Lex_length_and_dec_st::operator=(length_and_dec);
   }
-  void set(int type, const char *length)
-  {
-    set(type, length, 0);
-  }
   void set(int type)
   {
-    set(type, 0, 0);
+    m_type= type;
+    Lex_length_and_dec_st::reset();
   }
   int dyncol_type() const { return m_type; }
 };

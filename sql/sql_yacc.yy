@@ -1365,7 +1365,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         wild_and_where
 
 %type <const_simple_string>
-        field_length opt_field_length
+        field_length_str
         opt_compression_method
 
 %type <string>
@@ -1565,6 +1565,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <Lex_cast_type> cast_type cast_type_numeric cast_type_temporal
 
 %type <Lex_length_and_dec> precision opt_precision float_options
+                           field_length opt_field_length
+                           field_scale opt_field_scale
 
 %type <lex_user> user grant_user grant_role user_or_role current_role
                  admin_option_for_role user_maybe_role
@@ -5975,14 +5977,12 @@ field_type_numeric:
         | FLOAT_SYM float_options last_field_options
           {
             $$.set(&type_handler_float, $2);
-            if ($2.length() && !$2.dec())
+            if ($2.has_explicit_length() && !$2.has_explicit_dec())
             {
-              int err;
-              ulonglong tmp_length= my_strtoll10($2.length(), NULL, &err);
-              if (unlikely(err || tmp_length > PRECISION_FOR_DOUBLE))
+              if (unlikely($2.length() > PRECISION_FOR_DOUBLE))
                 my_yyabort_error((ER_WRONG_FIELD_SPEC, MYF(0),
                                   Lex->last_field->field_name.str));
-              if (tmp_length > PRECISION_FOR_FLOAT)
+              if ($2.length() > PRECISION_FOR_FLOAT)
                 $$.set(&type_handler_double);
               else
                 $$.set(&type_handler_float);
@@ -5994,17 +5994,17 @@ field_type_numeric:
           }
         | BOOL_SYM
           {
-            $$.set(&type_handler_stiny, "1");
+            $$.set_handler_length(&type_handler_stiny, 1);
           }
         | BOOLEAN_SYM
           {
-            $$.set(&type_handler_stiny, "1");
+            $$.set_handler_length(&type_handler_stiny, 1);
           }
         | DECIMAL_SYM float_options last_field_options
           { $$.set(&type_handler_newdecimal, $2);}
         | NUMBER_ORACLE_SYM float_options last_field_options
           {
-            if ($2.length() != 0)
+            if ($2.has_explicit_length())
               $$.set(&type_handler_newdecimal, $2);
             else
               $$.set(&type_handler_double);
@@ -6066,14 +6066,12 @@ field_type_string:
 field_type_temporal:
           YEAR_SYM opt_field_length last_field_options
           {
-            if ($2)
+            if ($2.has_explicit_length())
             {
-              errno= 0;
-              ulong length= strtoul($2, NULL, 10);
-              if (errno == 0 && length <= MAX_FIELD_BLOBLENGTH && length != 4)
+              if ($2.length() != 4)
               {
                 char buff[sizeof("YEAR()") + MY_INT64_NUM_DECIMAL_DIGITS + 1];
-                my_snprintf(buff, sizeof(buff), "YEAR(%lu)", length);
+                my_snprintf(buff, sizeof(buff), "YEAR(%u)", (uint) $2.length());
                 push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                                     ER_WARN_DEPRECATED_SYNTAX,
                                     ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX),
@@ -6220,9 +6218,9 @@ srid_option:
         ;
 
 float_options:
-          /* empty */  { $$.set(0, 0);  }
-        | field_length { $$.set($1, 0); }
-        | precision    { $$= $1; }
+          /* empty */  { $$.reset();  }
+        | field_length
+        | precision
         ;
 
 precision:
@@ -6242,20 +6240,33 @@ last_field_options:
           field_options { Lex->last_field->flags|= ($$= $1); }
         ;
 
-field_length:
+field_length_str:
           '(' LONG_NUM ')'      { $$= $2.str; }
         | '(' ULONGLONG_NUM ')' { $$= $2.str; }
         | '(' DECIMAL_NUM ')'   { $$= $2.str; }
         | '(' NUM ')'           { $$= $2.str; }
         ;
 
+field_length: field_length_str  { $$.set($1, NULL); }
+        ;
+
+
+field_scale: field_length_str   { $$.set(NULL, $1); }
+        ;
+
+
 opt_field_length:
-          /* empty */  { $$= (char*) 0; /* use default length */ }
-        | field_length { $$= $1; }
+          /* empty */  { $$.reset(); /* use default length */ }
+        | field_length
+        ;
+
+opt_field_scale:
+          /* empty */ { $$.reset(); }
+        | field_scale
         ;
 
 opt_precision:
-          /* empty */    { $$.set(0, 0); }
+          /* empty */    { $$.reset(); }
         | precision      { $$= $1; }
         ;
 
@@ -9418,8 +9429,8 @@ numeric_dyncol_type:
 
 temporal_dyncol_type:
           DATE_SYM                        { $$.set(DYN_COL_DATE); }
-        | TIME_SYM opt_field_length       { $$.set(DYN_COL_TIME, 0, $2); }
-        | DATETIME opt_field_length       { $$.set(DYN_COL_DATETIME, 0, $2); }
+        | TIME_SYM opt_field_scale        { $$.set(DYN_COL_TIME, $2); }
+        | DATETIME opt_field_scale        { $$.set(DYN_COL_DATETIME, $2); }
         ;
 
 string_dyncol_type:
@@ -9448,12 +9459,12 @@ dyncall_create_element:
      $$->value= $3;
      $$->type= (DYNAMIC_COLUMN_TYPE)$4.dyncol_type();
      $$->cs= lex->charset;
-     if ($4.length())
-       $$->len= strtoul($4.length(), NULL, 10);
+     if ($4.has_explicit_length())
+       $$->len= $4.length();
      else
        $$->len= 0;
-     if ($4.dec())
-       $$->frac= strtoul($4.dec(), NULL, 10);
+     if ($4.has_explicit_dec())
+       $$->frac= $4.dec();
      else
        $$->len= 0;
    }
@@ -10142,8 +10153,7 @@ function_call_nonkeyword:
           {
             LEX *lex= Lex;
             $$= create_func_dyncol_get(thd, $3, $5, $7.type_handler(),
-                                        $7.length(), $7.dec(),
-                                        lex->charset);
+                                        $7, lex->charset);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
@@ -11060,7 +11070,7 @@ cast_type:
         | NCHAR_SYM opt_field_length
           {
             Lex->charset= national_charset_info;
-            $$.set(&type_handler_long_blob, $2, 0);
+            $$.set(&type_handler_long_blob, $2);
           }
         | cast_type_numeric  { $$= $1; Lex->charset= NULL; }
         | cast_type_temporal { $$= $1; Lex->charset= NULL; }
@@ -11094,11 +11104,11 @@ cast_type_numeric:
 
 cast_type_temporal:
           DATE_SYM                       { $$.set(&type_handler_newdate); }
-        | TIME_SYM opt_field_length      { $$.set(&type_handler_time2, 0, $2); }
-        | DATETIME opt_field_length      { $$.set(&type_handler_datetime2, 0, $2); }
-        | INTERVAL_SYM DAY_SECOND_SYM field_length
+        | TIME_SYM opt_field_scale       { $$.set(&type_handler_time2, $2); }
+        | DATETIME opt_field_scale       { $$.set(&type_handler_datetime2, $2); }
+        | INTERVAL_SYM DAY_SECOND_SYM field_scale
           {
-            $$.set(&type_handler_interval_DDhhmmssff, 0, $3);
+            $$.set(&type_handler_interval_DDhhmmssff, $3);
           }
         ;
 
@@ -11282,7 +11292,7 @@ json_table_column_type:
           FOR_SYM ORDINALITY_SYM
           {
             Lex_field_type_st type;
-            type.set_handler_length_flags(&type_handler_slong, 0, 0);
+            type.set(&type_handler_slong);
             Lex->last_field->set_attributes(thd, type, Lex->charset,
                                             COLUMN_DEFINITION_TABLE_FIELD);
             Lex->json_table->m_cur_json_table_column->

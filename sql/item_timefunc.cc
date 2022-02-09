@@ -1551,7 +1551,7 @@ bool Item_func_curtime::fix_fields(THD *thd, Item **items)
 {
   if (decimals > TIME_SECOND_PART_DIGITS)
   {
-    my_error(ER_TOO_BIG_PRECISION, MYF(0), static_cast<ulonglong>(decimals),
+    my_error(ER_TOO_BIG_PRECISION, MYF(0),
              func_name(), TIME_SECOND_PART_DIGITS);
     return 1;
   }
@@ -1627,7 +1627,7 @@ bool Item_func_now::fix_fields(THD *thd, Item **items)
 {
   if (decimals > TIME_SECOND_PART_DIGITS)
   {
-    my_error(ER_TOO_BIG_PRECISION, MYF(0), static_cast<ulonglong>(decimals),
+    my_error(ER_TOO_BIG_PRECISION, MYF(0),
              func_name(), TIME_SECOND_PART_DIGITS);
     return 1;
   }

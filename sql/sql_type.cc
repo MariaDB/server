@@ -2751,7 +2751,7 @@ Type_handler_string::Column_definition_set_attributes(
                                                  const
 {
   Type_handler::Column_definition_set_attributes(thd, def, attr, cs, type);
-  if (attr.length())
+  if (attr.has_explicit_length())
     return false;
   switch (type) {
   case COLUMN_DEFINITION_ROUTINE_PARAM:
@@ -2783,7 +2783,7 @@ Type_handler_varchar::Column_definition_set_attributes(
                                                  const
 {
   Type_handler::Column_definition_set_attributes(thd, def, attr, cs, type);
-  if (attr.length())
+  if (attr.has_explicit_length())
     return false;
   switch (type) {
   case COLUMN_DEFINITION_ROUTINE_PARAM:
@@ -7698,11 +7698,10 @@ static const char* item_name(Item *a, String *str)
 }
 
 
-static void wrong_precision_error(uint errcode, Item *a,
-                                  ulonglong number, uint maximum)
+static void wrong_precision_error(uint errcode, Item *a, uint maximum)
 {
   StringBuffer<1024> buf(system_charset_info);
-  my_error(errcode, MYF(0), number, item_name(a, &buf), maximum);
+  my_error(errcode, MYF(0), item_name(a, &buf), maximum);
 }
 
 
@@ -7721,12 +7720,12 @@ bool get_length_and_scale(ulonglong length, ulonglong decimals,
 {
   if (length > (ulonglong) max_precision)
   {
-    wrong_precision_error(ER_TOO_BIG_PRECISION, a, length, max_precision);
+    wrong_precision_error(ER_TOO_BIG_PRECISION, a, max_precision);
     return 1;
   }
   if (decimals > (ulonglong) max_scale)
   {
-    wrong_precision_error(ER_TOO_BIG_SCALE, a, decimals, max_scale);
+    wrong_precision_error(ER_TOO_BIG_SCALE, a, max_scale);
     return 1;
   }
 
@@ -7769,8 +7768,7 @@ Item *Type_handler_time_common::
 {
   if (attr.decimals() > MAX_DATETIME_PRECISION)
   {
-    wrong_precision_error(ER_TOO_BIG_PRECISION, item, attr.decimals(),
-                          MAX_DATETIME_PRECISION);
+    wrong_precision_error(ER_TOO_BIG_PRECISION, item, MAX_DATETIME_PRECISION);
     return 0;
   }
   return new (thd->mem_root)
@@ -7784,8 +7782,7 @@ Item *Type_handler_datetime_common::
 {
   if (attr.decimals() > MAX_DATETIME_PRECISION)
   {
-    wrong_precision_error(ER_TOO_BIG_PRECISION, item, attr.decimals(),
-                          MAX_DATETIME_PRECISION);
+    wrong_precision_error(ER_TOO_BIG_PRECISION, item, MAX_DATETIME_PRECISION);
     return 0;
   }
   return new (thd->mem_root)
@@ -7863,8 +7860,7 @@ Item *Type_handler_interval_DDhhmmssff::
 {
   if (attr.decimals() > MAX_DATETIME_PRECISION)
   {
-    wrong_precision_error(ER_TOO_BIG_PRECISION, item, attr.decimals(),
-                          MAX_DATETIME_PRECISION);
+    wrong_precision_error(ER_TOO_BIG_PRECISION, item, MAX_DATETIME_PRECISION);
     return 0;
   }
   return new (thd->mem_root) Item_interval_DDhhmmssff_typecast(thd, item,

@@ -5995,7 +5995,7 @@ Item *create_func_dyncol_delete(THD *thd, Item *str, List<Item> &nums)
 
 Item *create_func_dyncol_get(THD *thd,  Item *str, Item *num,
                              const Type_handler *handler,
-                             const char *c_len, const char *c_dec,
+                             const Lex_length_and_dec_st &length_dec,
                              CHARSET_INFO *cs)
 {
   Item *res;
@@ -6003,5 +6003,5 @@ Item *create_func_dyncol_get(THD *thd,  Item *str, Item *num,
   if (likely(!(res= new (thd->mem_root) Item_dyncol_get(thd, str, num))))
     return res;                                 // Return NULL
   return handler->create_typecast_item(thd, res,
-                                       Type_cast_attributes(c_len, c_dec, cs));
+                                       Type_cast_attributes(length_dec, cs));
 }

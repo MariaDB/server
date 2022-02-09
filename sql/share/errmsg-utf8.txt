@@ -5771,13 +5771,13 @@ ER_SP_NO_RECURSION
         ger "Rekursive gespeicherte Routinen und Triggers sind nicht erlaubt"
         spa "No autorizadas funciones almacenadas recursivas ni disparadores"
 ER_TOO_BIG_SCALE 42000 S1009
-        eng "Too big scale %llu specified for '%-.192s'. Maximum is %u"
-        ger "Zu großer Skalierungsfaktor %llu für '%-.192s' angegeben. Maximum ist %u"
-        spa "Escala %llu demasiado grande especificada para '%-.192s'. El máximo es de %u"
+        eng "Too big scale specified for '%-.192s'. Maximum is %u"
+        ger "Zu großer Skalierungsfaktor für '%-.192s' angegeben. Maximum ist %u"
+        spa "Escala demasiado grande especificada para '%-.192s'. El máximo es de %u"
 ER_TOO_BIG_PRECISION 42000 S1009
-        eng "Too big precision %llu specified for '%-.192s'. Maximum is %u"
-        ger "Zu große Genauigkeit %llu für '%-.192s' angegeben. Maximum ist %u"
-        spa "Precisión %llu demasiado grande especificada para '%-.192s'. El máximo es de %u"
+        eng "Too big precision specified for '%-.192s'. Maximum is %u"
+        ger "Zu große Genauigkeit für '%-.192s' angegeben. Maximum ist %u"
+        spa "Precisión demasiado grande especificada para '%-.192s'. El máximo es de %u"
 ER_M_BIGGER_THAN_D 42000 S1009
         eng "For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '%-.192s')"
         ger "Für FLOAT(M,D), DOUBLE(M,D) oder DECIMAL(M,D) muss M >= D sein (Feld '%-.192s')"
