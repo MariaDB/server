@@ -1303,8 +1303,9 @@ use_o_direct:
 		default:
 			break;
 		}
+	}
 # ifdef __linux__
-	} else if (type == OS_LOG_FILE && !log_sys.is_opened()) {
+	else if (type == OS_LOG_FILE && !log_sys.is_opened()) {
 		struct stat st;
 		char b[20 + sizeof "/sys/dev/block/" ":"
 		       "/../queue/physical_block_size"];
