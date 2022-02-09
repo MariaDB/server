@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -32,7 +32,8 @@ inline bool mtr_t::is_block_dirtied(const buf_block_t *block)
 {
   ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
   ut_ad(block->page.buf_fix_count());
-  return block->page.oldest_modification() <= 1;
+  return block->page.oldest_modification() <= 1 &&
+    block->page.id().space() < SRV_TMP_SPACE_ID;
 }
 
 /**
@@ -51,8 +52,8 @@ mtr_t::memo_push(void* object, mtr_memo_type_t type)
 	grab log_sys.flush_order_mutex at mtr_t::commit() so that we
 	can insert the dirtied page into the flush list. */
 
-	if ((type == MTR_MEMO_PAGE_X_FIX || type == MTR_MEMO_PAGE_SX_FIX)
-	    && !m_made_dirty) {
+	if (!m_made_dirty
+            && (type == MTR_MEMO_PAGE_X_FIX || type == MTR_MEMO_PAGE_SX_FIX)) {
 
 		m_made_dirty = is_block_dirtied(
 			reinterpret_cast<const buf_block_t*>(object));
