@@ -10764,9 +10764,6 @@ window_func:
           simple_window_func
         |
           sum_expr
-          {
-            ((Item_sum *) $1)->mark_as_window_func_sum_expr();
-          }
         |
           function_call_generic
           {
@@ -10779,8 +10776,6 @@ window_func:
               thd->parse_error();
               MYSQL_YYABORT;
             }
-
-            ((Item_sum *) $1)->mark_as_window_func_sum_expr();
           }
         ;
 
