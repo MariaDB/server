@@ -676,6 +676,7 @@ Depends: galera-4 (>= 26.4),
          psmisc,
          rsync,
          socat,
+         pv,
          ${misc:Depends},
          ${perl:Depends},
          ${shlibs:Depends}

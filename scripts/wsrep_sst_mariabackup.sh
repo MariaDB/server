@@ -438,8 +438,8 @@ get_footprint()
 adjust_progress()
 {
     if [ -z "$(commandex pv)" ]; then
-        wsrep_log_error "pv not found in path: $PATH"
-        wsrep_log_error "Disabling all progress/rate-limiting"
+        wsrep_log_info "Progress reporting tool pv not found in path: $PATH"
+        wsrep_log_info "Disabling all progress/rate-limiting"
         pcmd=""
         rlimit=""
         progress=""
