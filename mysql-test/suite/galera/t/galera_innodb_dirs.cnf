@@ -1,0 +1,15 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=1;pc.ignore_sb=true'
+#!bootstrap-opts innodb-data-home-dir, innodb-log-group-home-dir, innodb-undo-directory
+innodb-data-home-dir = @ENV.MYSQLTEST_VARDIR/mysqld.1/innodb_data_1
+innodb-log-group-home-dir = @ENV.MYSQLTEST_VARDIR/mysqld.1/innodb_logs_1
+innodb-undo-directory = @ENV.MYSQLTEST_VARDIR/mysqld.1/innodb_undo_1
+
+[mysqld.2]
+wsrep_provider_options='base_port=@mysqld.2.#galera_port;gcache.size=1;pc.ignore_sb=true'
+#!bootstrap-opts innodb-data-home-dir, innodb-log-group-home-dir, innodb-undo-directory
+innodb-data-home-dir = @ENV.MYSQLTEST_VARDIR/mysqld.2/innodb_data_2
+innodb-log-group-home-dir = @ENV.MYSQLTEST_VARDIR/mysqld.2/innodb_logs_2
+innodb-undo-directory = @ENV.MYSQLTEST_VARDIR/mysqld.2/innodb_undo_2
