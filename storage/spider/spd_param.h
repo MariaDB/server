@@ -210,12 +210,10 @@ int spider_param_crd_mode(
   THD *thd,
   int crd_mode
 );
-#ifdef WITH_PARTITION_STORAGE_ENGINE
 int spider_param_crd_sync(
   THD *thd,
   int crd_sync
 );
-#endif
 int spider_param_crd_type(
   THD *thd,
   int crd_type
@@ -236,12 +234,10 @@ int spider_param_sts_mode(
   THD *thd,
   int sts_mode
 );
-#ifdef WITH_PARTITION_STORAGE_ENGINE
 int spider_param_sts_sync(
   THD *thd,
   int sts_sync
 );
-#endif
 int spider_param_sts_bg_mode(
   THD *thd,
   int sts_bg_mode

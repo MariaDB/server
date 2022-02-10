@@ -1594,7 +1594,6 @@ int spider_param_crd_mode(
     crd_mode : THDVAR(thd, crd_mode));
 }
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
 /*
  -1 :use table parameter
   0 :No synchronization.
@@ -1622,7 +1621,6 @@ int spider_param_crd_sync(
   DBUG_RETURN(THDVAR(thd, crd_sync) == -1 ?
     crd_sync : THDVAR(thd, crd_sync));
 }
-#endif
 
 /*
  -1 :use table parameter
@@ -1756,7 +1754,6 @@ int spider_param_sts_mode(
     sts_mode : THDVAR(thd, sts_mode));
 }
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
 /*
  -1 :use table parameter
   0 :No synchronization.
@@ -1784,7 +1781,6 @@ int spider_param_sts_sync(
   DBUG_RETURN(THDVAR(thd, sts_sync) == -1 ?
     sts_sync : THDVAR(thd, sts_sync));
 }
-#endif
 
 /*
  -1 :use table parameter
@@ -3168,9 +3164,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(second_read),
   MYSQL_SYSVAR(crd_interval),
   MYSQL_SYSVAR(crd_mode),
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   MYSQL_SYSVAR(crd_sync),
-#endif
   MYSQL_SYSVAR(store_last_crd),
   MYSQL_SYSVAR(load_crd_at_startup),
   MYSQL_SYSVAR(crd_type),
@@ -3178,9 +3172,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(crd_bg_mode),
   MYSQL_SYSVAR(sts_interval),
   MYSQL_SYSVAR(sts_mode),
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   MYSQL_SYSVAR(sts_sync),
-#endif
   MYSQL_SYSVAR(store_last_sts),
   MYSQL_SYSVAR(load_sts_at_startup),
   MYSQL_SYSVAR(sts_bg_mode),

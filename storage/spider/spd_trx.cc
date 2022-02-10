@@ -1265,10 +1265,8 @@ SPIDER_TRX *spider_get_trx(
       if (
         spider_set_connect_info_default(
           trx->tmp_share,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
           NULL,
           NULL,
-#endif
           NULL
         ) ||
         spider_set_connect_info_default_db_table(

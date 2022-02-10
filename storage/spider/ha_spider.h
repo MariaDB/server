@@ -79,9 +79,7 @@ public:
   spider_string      *blob_buff;
   SPIDER_POSITION    *pushed_pos;
   SPIDER_POSITION    pushed_pos_buf;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   SPIDER_PARTITION_HANDLER *partition_handler;
-#endif
   bool                wide_handler_owner = FALSE;
   SPIDER_WIDE_HANDLER *wide_handler = NULL;
 
@@ -544,9 +542,7 @@ public:
   void set_clone_searched_bitmap();
   void set_searched_bitmap_from_item_list();
   void set_select_column_mode();
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   void check_select_column(bool rnd);
-#endif
   bool check_and_start_bulk_update(
     spider_bulk_upd_start bulk_upd_start
   );

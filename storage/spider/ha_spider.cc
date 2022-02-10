@@ -68,9 +68,7 @@ ha_spider::ha_spider(
   spider_thread_id = 0;
   trx_conn_adjustment = 0;
   search_link_query_id = 0;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_handler = NULL;
-#endif
   multi_range_keys = NULL;
   mrr_key_buff = NULL;
   append_tblnm_alias = NULL;
@@ -132,9 +130,7 @@ ha_spider::ha_spider(
   spider_thread_id = 0;
   trx_conn_adjustment = 0;
   search_link_query_id = 0;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_handler = NULL;
-#endif
   multi_range_keys = NULL;
   mrr_key_buff = NULL;
   append_tblnm_alias = NULL;
@@ -184,9 +180,7 @@ ha_spider::~ha_spider()
 {
   DBUG_ENTER("ha_spider::~ha_spider");
   DBUG_PRINT("info",("spider this=%p", this));
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_handler = NULL;
-#endif
   if (wide_handler_owner)
   {
     spider_free(spider_current_trx, wide_handler, MYF(0));
@@ -240,18 +234,15 @@ int ha_spider::open(
   ha_spider *spider, *owner;
   bool wide_handler_alloc = FALSE;
   SPIDER_WIDE_SHARE *wide_share;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   uint part_num;
   bool partition_handler_alloc = FALSE;
   ha_spider **wide_handler_handlers = NULL;
   ha_partition *clone_source;
-#endif
   DBUG_ENTER("ha_spider::open");
   DBUG_PRINT("info",("spider this=%p", this));
 
   dup_key_idx = (uint) -1;
   conn_kinds = SPIDER_CONN_KIND_MYSQL;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   table->file->get_no_parts("", &part_num);
   if (part_num)
   {
@@ -265,13 +256,10 @@ int ha_spider::open(
       is_clone = TRUE;
     }
   } else {
-#endif
     spider = this;
     owner = this;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     clone_source = NULL;
   }
-#endif
   if (!spider->wide_handler)
   {
     uchar *searched_bitmap;
@@ -282,7 +270,6 @@ int ha_spider::open(
     uchar *rnd_read_bitmap;
     uchar *rnd_write_bitmap;
     if (!(wide_handler = (SPIDER_WIDE_HANDLER *)
-#ifdef WITH_PARTITION_STORAGE_ENGINE
       spider_bulk_malloc(spider_current_trx, 16, MYF(MY_WME | MY_ZEROFILL),
         &wide_handler, sizeof(SPIDER_WIDE_HANDLER),
         &searched_bitmap,
@@ -302,25 +289,6 @@ int ha_spider::open(
         &partition_handler,
           (uint) sizeof(SPIDER_PARTITION_HANDLER),
         NullS)
-#else
-      spider_bulk_malloc(spider_current_trx, 16, MYF(MY_WME | MY_ZEROFILL),
-        &wide_handler, sizeof(SPIDER_WIDE_HANDLER),
-        &searched_bitmap,
-          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
-        &ft_discard_bitmap,
-          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
-        &position_bitmap,
-          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
-        &idx_read_bitmap,
-          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
-        &idx_write_bitmap,
-          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
-        &rnd_read_bitmap,
-          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
-        &rnd_write_bitmap,
-          (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
-        NullS)
-#endif
         )
     ) {
       error_num = HA_ERR_OUT_OF_MEM;
@@ -335,9 +303,7 @@ int ha_spider::open(
     wide_handler->idx_write_bitmap = idx_write_bitmap;
     wide_handler->rnd_read_bitmap = rnd_read_bitmap;
     wide_handler->rnd_write_bitmap = rnd_write_bitmap;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     wide_handler->partition_handler = partition_handler;
-#endif
     wide_handler->owner = owner;
     if (table_share->tmp_table == NO_TMP_TABLE)
       wide_handler->top_share = table->s;
@@ -353,7 +319,6 @@ int ha_spider::open(
 
   wide_share = share->wide_share;
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     DBUG_PRINT("info",("spider create partition_handler"));
     DBUG_PRINT("info",("spider table=%p", table));
     partition_handler->table = table;
@@ -378,7 +343,6 @@ int ha_spider::open(
     thr_lock_data_init(&wide_share->lock, &wide_handler->lock, NULL);
   }
 
-#endif
   init_sql_alloc_size =
     spider_param_init_sql_alloc_size(thd, share->init_sql_alloc_size);
 
@@ -439,7 +403,6 @@ int ha_spider::open(
 
   if (is_clone)
   {
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (part_num)
     {
       for (roop_count = 0; roop_count < (int) part_num; roop_count++)
@@ -452,7 +415,6 @@ int ha_spider::open(
         }
       }
     }
-#endif
 
     wide_handler->external_lock_type =
       pt_clone_source_handler->wide_handler->external_lock_type;
@@ -491,7 +453,6 @@ error_reset:
   blob_buff = NULL;
 error_init_blob_buff:
 error_init_result_list:
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (partition_handler_alloc)
   {
     wide_share = share->wide_share;
@@ -499,7 +460,6 @@ error_init_result_list:
     owner->partition_handler = NULL;
   }
   partition_handler = NULL;
-#endif
   spider_free_share(share);
   share = NULL;
   if (conn_keys)
@@ -511,12 +471,10 @@ error_get_share:
   if (wide_handler_alloc)
   {
     spider_free(spider_current_trx, wide_handler, MYF(0));
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (wide_handler_handlers)
     {
       wide_handler_handlers[0]->wide_handler = NULL;
     }
-#endif
     spider->wide_handler = NULL;
     owner->wide_handler = NULL;
     owner->wide_handler_owner = FALSE;
@@ -598,9 +556,7 @@ int ha_spider::close()
     spider_free(spider_current_trx, conn_keys, MYF(0));
     conn_keys = NULL;
   }
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_handler = NULL;
-#endif
   if (wide_handler_owner)
   {
     spider_free(spider_current_trx, wide_handler, MYF(0));
@@ -709,7 +665,6 @@ THR_LOCK_DATA **ha_spider::store_lock(
 ) {
   DBUG_ENTER("ha_spider::store_lock");
   DBUG_PRINT("info",("spider this=%p", this));
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (
     wide_handler->stage == SPD_HND_STAGE_STORE_LOCK &&
     wide_handler->stage_executor != this)
@@ -718,7 +673,6 @@ THR_LOCK_DATA **ha_spider::store_lock(
   }
   wide_handler->stage = SPD_HND_STAGE_STORE_LOCK;
   wide_handler->stage_executor = this;
-#endif
   wide_handler->lock_table_type = 0;
   if (lock_type == TL_IGNORE)
   {
@@ -822,7 +776,6 @@ THR_LOCK_DATA **ha_spider::store_lock(
         !spider_param_local_lock_table(thd)
       ) {
         wide_handler->lock_table_type = 1;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
         if (partition_handler && partition_handler->handlers)
         {
           uint roop_count;
@@ -837,11 +790,8 @@ THR_LOCK_DATA **ha_spider::store_lock(
             }
           }
         } else {
-#endif
           store_error_num = append_lock_tables_list();
-#ifdef WITH_PARTITION_STORAGE_ENGINE
         }
-#endif
       }
     } else {
       DBUG_PRINT("info",("spider default lock route"));
@@ -857,7 +807,6 @@ THR_LOCK_DATA **ha_spider::store_lock(
           spider_param_semi_table_lock(thd, wide_handler->semi_table_lock)
         ) {
           wide_handler->lock_table_type = 2;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
           if (partition_handler && partition_handler->handlers)
           {
             uint roop_count;
@@ -873,11 +822,8 @@ THR_LOCK_DATA **ha_spider::store_lock(
               }
             }
           } else {
-#endif
             store_error_num = append_lock_tables_list();
-#ifdef WITH_PARTITION_STORAGE_ENGINE
           }
-#endif
         }
       }
       if (
@@ -908,7 +854,6 @@ int ha_spider::external_lock(
   DBUG_ENTER("ha_spider::external_lock");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider lock_type=%x", lock_type));
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (
     wide_handler->stage == SPD_HND_STAGE_EXTERNAL_LOCK &&
     wide_handler->stage_executor != this)
@@ -917,7 +862,6 @@ int ha_spider::external_lock(
   }
   wide_handler->stage = SPD_HND_STAGE_EXTERNAL_LOCK;
   wide_handler->stage_executor = this;
-#endif
 #ifdef HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
   info_auto_called = FALSE;
 #endif
@@ -969,7 +913,6 @@ int ha_spider::external_lock(
     }
 
     /* lock/unlock tables */
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (partition_handler && partition_handler->handlers)
     {
       uint roop_count;
@@ -983,14 +926,11 @@ int ha_spider::external_lock(
         }
       }
     } else {
-#endif
       if (unlikely((error_num = lock_tables())))
       {
         DBUG_RETURN(error_num);
       }
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     }
-#endif
   }
 
   DBUG_PRINT("info",("spider trx_start=%s",
@@ -1028,7 +968,6 @@ int ha_spider::start_stmt(
   thr_lock_type lock_type
 ) {
   DBUG_ENTER("ha_spider::start_stmt");
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (
     wide_handler->stage == SPD_HND_STAGE_START_STMT &&
     wide_handler->stage_executor != this)
@@ -1037,7 +976,6 @@ int ha_spider::start_stmt(
   }
   wide_handler->stage = SPD_HND_STAGE_START_STMT;
   wide_handler->stage_executor = this;
-#endif
   DBUG_RETURN(0);
 }
 
@@ -1111,10 +1049,8 @@ int ha_spider::reset()
 #ifdef INFO_KIND_FORCE_LIMIT_BEGIN
     wide_handler->info_limit = 9223372036854775807LL;
 #endif
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     wide_handler->stage = SPD_HND_STAGE_NONE;
     wide_handler->stage_executor = NULL;
-#endif
   }
   if (!(tmp_trx = spider_get_trx(thd, TRUE, &error_num2)))
   {
@@ -1203,7 +1139,6 @@ int ha_spider::extra(
   DBUG_ENTER("ha_spider::extra");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider operation=%d", (int) operation));
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (
     wide_handler->stage == SPD_HND_STAGE_EXTRA &&
     wide_handler->stage_executor != this)
@@ -1212,7 +1147,6 @@ int ha_spider::extra(
   }
   wide_handler->stage = SPD_HND_STAGE_EXTRA;
   wide_handler->stage_executor = this;
-#endif
   switch (operation)
   {
     case HA_EXTRA_QUICK:
@@ -1222,13 +1156,11 @@ int ha_spider::extra(
       if (!is_clone)
       {
         wide_handler->keyread = TRUE;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
         if (wide_handler->update_request)
         {
           if (check_partitioned())
             wide_handler->keyread = FALSE;
         }
-#endif
       }
       break;
     case HA_EXTRA_NO_KEYREAD:
@@ -1426,9 +1358,7 @@ int ha_spider::index_read_map_internal(
     DBUG_RETURN(error_num);
   if ((error_num = spider_set_conn_bg_param(this)))
     DBUG_RETURN(error_num);
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   check_select_column(FALSE);
-#endif
   DBUG_PRINT("info",("spider result_list.finish_flg = FALSE"));
   result_list.finish_flg = FALSE;
   result_list.record_num = 0;
@@ -1808,9 +1738,7 @@ int ha_spider::index_read_last_map_internal(
     DBUG_RETURN(error_num);
   if ((error_num = spider_set_conn_bg_param(this)))
     DBUG_RETURN(error_num);
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   check_select_column(FALSE);
-#endif
   DBUG_PRINT("info",("spider result_list.finish_flg = FALSE"));
   result_list.finish_flg = FALSE;
   result_list.record_num = 0;
@@ -2226,9 +2154,7 @@ int ha_spider::index_first_internal(
     check_direct_order_limit();
     if ((error_num = spider_set_conn_bg_param(this)))
       DBUG_RETURN(error_num);
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     check_select_column(FALSE);
-#endif
     DBUG_PRINT("info",("spider result_list.finish_flg = FALSE"));
     result_list.finish_flg = FALSE;
     result_list.record_num = 0;
@@ -2593,9 +2519,7 @@ int ha_spider::index_last_internal(
     check_direct_order_limit();
     if ((error_num = spider_set_conn_bg_param(this)))
       DBUG_RETURN(error_num);
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     check_select_column(FALSE);
-#endif
     DBUG_PRINT("info",("spider result_list.finish_flg = FALSE"));
     result_list.finish_flg = FALSE;
     result_list.record_num = 0;
@@ -3003,9 +2927,7 @@ int ha_spider::read_range_first_internal(
     DBUG_RETURN(error_num);
   if ((error_num = spider_set_conn_bg_param(this)))
     DBUG_RETURN(error_num);
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   check_select_column(FALSE);
-#endif
   DBUG_PRINT("info",("spider result_list.finish_flg = FALSE"));
   result_list.finish_flg = FALSE;
   result_list.record_num = 0;
@@ -3548,9 +3470,7 @@ int ha_spider::multi_range_read_next_first(
   check_direct_order_limit();
   if ((error_num = spider_set_conn_bg_param(this)))
     DBUG_RETURN(error_num);
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   check_select_column(FALSE);
-#endif
   DBUG_PRINT("info",("spider result_list.finish_flg = FALSE"));
   result_list.finish_flg = FALSE;
   result_list.record_num = 0;
@@ -5947,9 +5867,7 @@ int ha_spider::rnd_next_internal(
     if ((error_num = rnd_handler_init()))
       DBUG_RETURN(check_error_mode_eof(error_num));
     check_direct_order_limit();
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     check_select_column(TRUE);
-#endif
 
     if (this->result_list.direct_limit_offset)
     {
@@ -6596,9 +6514,7 @@ int ha_spider::ft_read_internal(
     check_direct_order_limit();
     if ((error_num = spider_set_conn_bg_param(this)))
       DBUG_RETURN(error_num);
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     check_select_column(FALSE);
-#endif
     DBUG_PRINT("info",("spider result_list.finish_flg = FALSE"));
     result_list.finish_flg = FALSE;
     result_list.record_num = 0;
@@ -6929,9 +6845,7 @@ int ha_spider::info(
   THD *thd = ha_thd();
   double sts_interval = spider_param_sts_interval(thd, share->sts_interval);
   int sts_mode = spider_param_sts_mode(thd, share->sts_mode);
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   int sts_sync = spider_param_sts_sync(thd, share->sts_sync);
-#endif
   int sts_bg_mode = spider_param_sts_bg_mode(thd, share->sts_bg_mode);
   SPIDER_INIT_ERROR_TABLE *spider_init_error_table = NULL;
   set_error_mode();
@@ -7022,10 +6936,8 @@ int ha_spider::info(
         }
         pthread_mutex_unlock(&share->sts_mutex);
         sts_interval = 0;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
         if (tmp_auto_increment_mode == 1)
           sts_sync = 0;
-#endif
       }
     }
     if (flag & HA_STATUS_AUTO)
@@ -7036,9 +6948,7 @@ int ha_spider::info(
         !share->lgtm_tblhnd_share->auto_increment_init
       ) {
         sts_interval = 0;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
         sts_sync = 0;
-#endif
       }
     }
     if (difftime(tmp_time, share->sts_get_time) >= sts_interval)
@@ -7090,9 +7000,7 @@ int ha_spider::info(
             }
             if ((error_num = spider_get_sts(share, search_link_idx, tmp_time,
                 this, sts_interval, sts_mode,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
                 sts_sync,
-#endif
                 share->sts_init ? 2 : 1,
                 flag | (share->sts_init ? 0 : HA_STATUS_AUTO)))
             ) {
@@ -7162,9 +7070,7 @@ int ha_spider::info(
             share->bg_sts_try_time = tmp_time;
             share->bg_sts_interval = sts_interval;
             share->bg_sts_mode = sts_mode;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
             share->bg_sts_sync = sts_sync;
-#endif
             if (!share->bg_sts_init)
             {
               if ((error_num = spider_create_sts_thread(share)))
@@ -7189,9 +7095,7 @@ int ha_spider::info(
           share->bg_sts_try_time = tmp_time;
           share->bg_sts_interval = sts_interval;
           share->bg_sts_mode = sts_mode;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
           share->bg_sts_sync = sts_sync;
-#endif
           spider_table_add_share_to_sts_thread(share);
         }
         pthread_mutex_unlock(&share->sts_mutex);
@@ -7299,9 +7203,7 @@ ha_rows ha_spider::records_in_range(
   double crd_interval = spider_param_crd_interval(thd, share->crd_interval);
   int crd_mode = spider_param_crd_mode(thd, share->crd_mode);
   int crd_type = spider_param_crd_type(thd, share->crd_type);
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   int crd_sync = spider_param_crd_sync(thd, share->crd_sync);
-#endif
   int crd_bg_mode = spider_param_crd_bg_mode(thd, share->crd_bg_mode);
   SPIDER_INIT_ERROR_TABLE *spider_init_error_table = NULL;
   uint dbton_id;
@@ -7376,9 +7278,7 @@ ha_rows ha_spider::records_in_range(
           {
             if ((error_num = spider_get_crd(share, search_link_idx, tmp_time,
               this, table, crd_interval, crd_mode,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
               crd_sync,
-#endif
               share->crd_init ? 2 : 1)))
             {
               pthread_mutex_unlock(&share->crd_mutex);
@@ -7439,9 +7339,7 @@ ha_rows ha_spider::records_in_range(
             share->bg_crd_try_time = tmp_time;
             share->bg_crd_interval = crd_interval;
             share->bg_crd_mode = crd_mode;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
             share->bg_crd_sync = crd_sync;
-#endif
             if (!share->bg_crd_init)
             {
               if ((error_num = spider_create_crd_thread(share)))
@@ -7457,9 +7355,7 @@ ha_rows ha_spider::records_in_range(
           share->bg_crd_try_time = tmp_time;
           share->bg_crd_interval = crd_interval;
           share->bg_crd_mode = crd_mode;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
           share->bg_crd_sync = crd_sync;
-#endif
           spider_table_add_share_to_crd_thread(share);
         }
         pthread_mutex_unlock(&share->crd_mutex);
@@ -7617,9 +7513,7 @@ int ha_spider::check_crd()
   THD *thd = ha_thd();
   double crd_interval = spider_param_crd_interval(thd, share->crd_interval);
   int crd_mode = spider_param_crd_mode(thd, share->crd_mode);
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   int crd_sync = spider_param_crd_sync(thd, share->crd_sync);
-#endif
   int crd_bg_mode = spider_param_crd_bg_mode(thd, share->crd_bg_mode);
   SPIDER_INIT_ERROR_TABLE *spider_init_error_table = NULL;
   uint dbton_id;
@@ -7680,9 +7574,7 @@ int ha_spider::check_crd()
         {
           if ((error_num = spider_get_crd(share, search_link_idx, tmp_time,
             this, table, crd_interval, crd_mode,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
             crd_sync,
-#endif
             share->crd_init ? 2 : 1)))
           {
             pthread_mutex_unlock(&share->crd_mutex);
@@ -7736,9 +7628,7 @@ int ha_spider::check_crd()
           share->bg_crd_try_time = tmp_time;
           share->bg_crd_interval = crd_interval;
           share->bg_crd_mode = crd_mode;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
           share->bg_crd_sync = crd_sync;
-#endif
           if (!share->bg_crd_init)
           {
             if ((error_num = spider_create_crd_thread(share)))
@@ -7753,9 +7643,7 @@ int ha_spider::check_crd()
         share->bg_crd_try_time = tmp_time;
         share->bg_crd_interval = crd_interval;
         share->bg_crd_mode = crd_mode;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
         share->bg_crd_sync = crd_sync;
-#endif
         spider_table_add_share_to_crd_thread(share);
       }
       pthread_mutex_unlock(&share->crd_mutex);
@@ -9078,9 +8966,7 @@ int ha_spider::create(
     tmp_share.key_hint[roop_count].init_calc_mem(85);
   DBUG_PRINT("info",("spider tmp_share.key_hint=%p", tmp_share.key_hint));
   if ((error_num = spider_parse_connect_info(&tmp_share, form->s,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     form->part_info,
-#endif
     1)))
     goto error;
   DBUG_PRINT("info",("spider tmp_table=%d", form->s->tmp_table));
@@ -9721,7 +9607,6 @@ const COND *ha_spider::cond_push(
   const COND *cond
 ) {
   DBUG_ENTER("ha_spider::cond_push");
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (
     wide_handler->stage == SPD_HND_STAGE_COND_PUSH &&
     wide_handler->stage_executor != this)
@@ -9730,7 +9615,6 @@ const COND *ha_spider::cond_push(
   }
   wide_handler->stage = SPD_HND_STAGE_COND_PUSH;
   wide_handler->stage_executor = this;
-#endif
   wide_handler->cond_check = FALSE;
   if (cond)
   {
@@ -9749,7 +9633,6 @@ const COND *ha_spider::cond_push(
 void ha_spider::cond_pop()
 {
   DBUG_ENTER("ha_spider::cond_pop");
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (
     wide_handler->stage == SPD_HND_STAGE_COND_POP &&
     wide_handler->stage_executor != this)
@@ -9758,7 +9641,6 @@ void ha_spider::cond_pop()
   }
   wide_handler->stage = SPD_HND_STAGE_COND_POP;
   wide_handler->stage_executor = this;
-#endif
   if (wide_handler->condition)
   {
     SPIDER_CONDITION *tmp_cond = wide_handler->condition->next;
@@ -9775,7 +9657,6 @@ int ha_spider::info_push(
   int error_num = 0;
   DBUG_ENTER("ha_spider::info_push");
   DBUG_PRINT("info",("spider this=%p", this));
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (
     wide_handler->stage == SPD_HND_STAGE_INFO_PUSH &&
     wide_handler->stage_executor != this)
@@ -9784,7 +9665,6 @@ int ha_spider::info_push(
   }
   wide_handler->stage = SPD_HND_STAGE_INFO_PUSH;
   wide_handler->stage_executor = this;
-#endif
 
   switch (info_type)
   {
@@ -9793,10 +9673,8 @@ int ha_spider::info_push(
       DBUG_PRINT("info",("spider INFO_KIND_UPDATE_FIELDS"));
       wide_handler->direct_update_fields = (List<Item> *) info;
       wide_handler->update_request = TRUE;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
       if (wide_handler->keyread && check_partitioned())
         wide_handler->keyread = FALSE;
-#endif
       break;
 #endif
 #ifdef INFO_KIND_UPDATE_VALUES
@@ -10060,15 +9938,11 @@ void ha_spider::set_select_column_mode()
     if (wide_handler->external_lock_type == F_WRLCK &&
       wide_handler->sql_command != SQLCOM_SELECT)
     {
-#ifdef WITH_PARTITION_STORAGE_ENGINE
       uint part_num = 0;
       if (wide_handler->update_request)
         part_num = check_partitioned();
-#endif
       if (
-#ifdef WITH_PARTITION_STORAGE_ENGINE
         part_num ||
-#endif
         table_share->primary_key == MAX_KEY
       ) {
         /* need all columns */
@@ -10099,7 +9973,6 @@ void ha_spider::set_select_column_mode()
   DBUG_VOID_RETURN;
 }
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
 void ha_spider::check_select_column(bool rnd)
 {
   THD *thd = wide_handler->trx->thd;
@@ -10158,7 +10031,6 @@ void ha_spider::check_select_column(bool rnd)
   }
   DBUG_VOID_RETURN;
 }
-#endif
 
 bool ha_spider::check_and_start_bulk_update(
   spider_bulk_upd_start bulk_upd_start
