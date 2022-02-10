@@ -6396,8 +6396,11 @@ find_field_in_tables(THD *thd, Item_ident *item,
         for (SELECT_LEX *sl= current_sel; sl && sl!=last_select;
              sl=sl->outer_select())
         {
-          Item_in_subselect *in_subs=
-            sl->master_unit()->item->get_IN_subquery();
+          Item *subs= sl->master_unit()->item;
+          if (!subs)
+            continue;
+
+          Item_in_subselect *in_subs= subs->get_IN_subquery();
           if (in_subs &&
               in_subs->substype() == Item_subselect::IN_SUBS &&
               in_subs->test_strategy(SUBS_SEMI_JOIN))
