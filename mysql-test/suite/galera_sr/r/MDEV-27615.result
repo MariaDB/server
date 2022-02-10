@@ -15,7 +15,7 @@ SET DEBUG_SYNC='now WAIT_FOR before_fragment';
 SET GLOBAL wsrep_cluster_address = '';
 SET DEBUG_SYNC = 'now SIGNAL continue';
 connection node_2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 connection node_2a;
 SELECT * FROM mysql.wsrep_streaming_log;
 node_uuid	trx_id	seqno	flags	frag
