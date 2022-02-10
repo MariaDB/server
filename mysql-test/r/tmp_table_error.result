@@ -2630,5 +2630,5 @@ b as c2624,
 b as c2626
 from t1
 ) as tt1;
-ERROR HY000: Index for table 'tmp' is corrupt; try to repair it
+ERROR 0A000: Aria table 'tmp' has too many columns and/or indexes and/or unique constraints.
 drop table t1;

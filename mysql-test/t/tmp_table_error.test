@@ -6,7 +6,7 @@ create table t1 (
 ) engine=innodb;
 
 --replace_regex /'.*'/'tmp'/
---error 126
+--error 140
 create table t2 as
 select
     1
