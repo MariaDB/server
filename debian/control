@@ -658,7 +658,8 @@ Architecture: any
 Suggests: mailx,
           mariadb-test,
           netcat-openbsd
-Recommends: libhtml-template-perl
+Recommends: libhtml-template-perl,
+            pv
 Pre-Depends: adduser (>= 3.40),
              debconf,
              mariadb-common (>= ${source:Version})
