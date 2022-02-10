@@ -115,7 +115,7 @@ EOF
     if [ -f "$mysql_datadir"/auto.cnf ] && [ -f "$mysql_datadir"/mysql/user.MYD ] &&
        [ ! lsof -nt "$mysql_datadir"/mysql/user.MYD > /dev/null ] && [ ! -f "$mysql_datadir"/undo_001 ]; then
          echo "UPDATE mysql.user SET plugin='unix_socket' WHERE plugin='auth_socket';" |
-             /usr/sbin/mariadbd --skip-innodb --key_buffer_size=0  --default-storage-engine=MyISAM --bootstrap 2> /dev/null
+             mariadbd --skip-innodb --key_buffer_size=0  --default-storage-engine=MyISAM --bootstrap 2> /dev/null
     fi
 
     # Ensure the existence and right permissions for the database and
