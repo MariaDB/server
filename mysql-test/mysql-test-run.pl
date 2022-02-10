@@ -307,6 +307,8 @@ my %mysqld_logs;
 my $opt_debug_sync_timeout= 300; # Default timeout for WAIT_FOR actions.
 my $warn_seconds = 60;
 
+my $rebootstrap_re= '--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]directory|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir|buffer[-_]pool[-_]filename)|data[-_]file[-_]path|force_rebootstrap';
+
 sub testcase_timeout ($) { return $opt_testcase_timeout * 60; }
 sub check_timeout ($) { return testcase_timeout($_[0]); }
 
@@ -2728,6 +2730,54 @@ sub vs_config_dirs ($$) {
           "$basedir/$path_part/debug/$exe");
 }
 
+# This function is used to substitute options with parameter values
+# according to the list specified in the #!bootstrap-opts:
+sub add_extra_opts ($$) {
+  my $mysqld = shift;
+  my $opts = shift;
+  if ($mysqld->option('#!bootstrap-opts')) {
+    my $params = $mysqld->value('#!bootstrap-opts');
+    # Remove leading and trailing spaces:
+    $params =~ s/^\s+|\s+$//g;
+    # Convert parameters list into array:
+    my @list = split /\s*[,;]+\s*/, $params;
+    # Convert parameters list into hash:
+    my %names;
+    foreach my $param (@list) {
+      # If such a parameter actually exists in the configuration:
+      if ($mysqld->option($param)) {
+        # Normalize parameter name:
+        my $original = $param;
+        $params =~ s/_/-/g;
+        # We need to keep the original parameter name:
+        $names{$param} = $original;
+      }
+    }
+    # Remove the parameters that are already listed as
+    # the command line options:
+    foreach my $opt (@$opts) {
+      my $option = $opt;
+      # Normalize option name and remove its value:
+      $option =~ s/^\s*--?([\-\w]+).*/$1/;
+      $option =~ s/_/-/g;
+      # Remove the name from the hash if there is such an option:
+      if (exists $names{$option}) {
+        delete $names{$option};
+      }
+    }
+    # Let's add new options:
+    foreach my $name (keys %names) {
+      my $value = $mysqld->value($names{$name});
+      if ($value) {
+        push @$opts, '--'.$name.'='.$value;
+      }
+      else {
+        push @$opts, '--'.$name;
+      }
+    }
+  }
+}
+
 sub mysql_server_start($) {
   my ($mysqld, $tinfo) = @_;
 
@@ -2773,10 +2823,13 @@ sub mysql_server_start($) {
     {
       # Some InnoDB options are incompatible with the default bootstrap.
       # If they are used, re-bootstrap
-      if ( $tinfo->{dirs} or ($extra_opts and
-           "@$extra_opts" =~ /--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]directory|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir|buffer[-_]pool[-_]filename)|data[-_]file[-_]path/) )
+      my @rebootstrap_opts;
+      @rebootstrap_opts = grep {/$rebootstrap_re/o} @$extra_opts if $extra_opts;
+      if ($tinfo->{dirs} or $mysqld->option('#!bootstrap-opts') or @rebootstrap_opts)
       {
-        mysql_install_db($mysqld, undef, $extra_opts);
+        mtr_verbose("Re-bootstrap with @rebootstrap_opts");
+        add_extra_opts($mysqld, \@rebootstrap_opts);
+        mysql_install_db($mysqld, undef, \@rebootstrap_opts);
       }
       else {
         # Copy datadir from installed system db
@@ -3771,6 +3824,18 @@ sub resfile_report_test ($) {
   resfile_test_info("start_time", isotime time);
 }
 
+# Environment variable substitution:
+sub subst_vars ($) {
+  my $line = shift;
+  # Remove leading and trailing spaces:
+  $line =~ s/^\s+|\s+$//g;
+  # Variable substitution:
+  $line =~ s/\$\{([^}:]+)(:([^}]+))?\}/defined $ENV{$1} ? $ENV{$1} : ($2 ? $3 : $1)/eg;
+  $line =~ s/\$(\w+)/defined $ENV{$1} ? $ENV{$1} : $1/eg;
+  return $line
+}
+
+# Create the directories specified in the .dirs file:
 sub create_dirs ($) {
   my $tinfo = shift;
   my $res = 0;
@@ -3778,17 +3843,18 @@ sub create_dirs ($) {
     open my $file, $tinfo->{dirs} or $res = 1;
     if ($res == 0) {
       while (my $line = <$file>) {
-        chomp $line;
-        $line =~ s/\$\{([^}:]+)(:([^}]+))?\}/defined $ENV{$1} ? $ENV{$1} : $3/eg;
-        $line =~ s/^\s+|\s+$//g;
-        my $dir = $line;
+        my $dir = subst_vars($line);
         my $src = "";
+        # Splitting the string into the name of the temporary directory
+        # and the name of the source directory - to copy its content if
+        # it is specified:
         if (index($dir, '=') != -1) {
           ($dir, $src) = $dir =~ /^([^=\s]*(?:\s+[^=\s])*)\s*=\s*(.*)$/;
         }
         if ($dir eq "") {
            next;
         }
+        # Protective check for top-level directories:
         if (!($dir =~ /^[\/\\][^\/\\]*$/)) {
           if (-d $dir) {
             rmtree($dir);
@@ -3825,6 +3891,7 @@ sub create_dirs ($) {
   return $res == 0;
 }
 
+# Delete the directories specified in the .dirs file:
 sub delete_dirs ($) {
   my $tinfo = shift;
   my $res = 0;
@@ -3832,16 +3899,15 @@ sub delete_dirs ($) {
     open my $file, $tinfo->{dirs} or $res = 1;
     if ($res == 0) {
       while (my $line = <$file>) {
-        chomp $line;
-        $line =~ s/\$\{([^}:]+)(:([^}]+))?\}/defined $ENV{$1} ? $ENV{$1} : $3/eg;
-        $line =~ s/^\s+|\s+$//g;
-        my $dir = $line;
+        my $dir = subst_vars($line);
+        # Remove extra spaces and source directory name (if any):
         if (index($dir, '=') != -1) {
           ($dir) = $dir =~ /^([^=\s]*(?:\s+[^=\s])*)\s*=.*$/;
         }
         if ($dir eq "") {
            next;
         }
+        # Protective check for top-level directories:
         if (!($dir =~ /^[\/\\][^\/\\]*$/)) {
           if (-d $dir) {
             rmtree($dir);
