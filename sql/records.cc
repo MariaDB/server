@@ -325,7 +325,7 @@ void end_read_record(READ_RECORD *info)
   free_cache(info);
   if (info->table)
   {
-    if (info->table->is_created())
+    if (info->table->db_stat) // if opened
       (void) info->table->file->extra(HA_EXTRA_NO_CACHE);
     if (info->read_record != rr_quick) // otherwise quick_range does it
       (void) info->table->file->ha_index_or_rnd_end();
