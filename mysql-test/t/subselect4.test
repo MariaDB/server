@@ -1039,6 +1039,8 @@ INSERT IGNORE INTO t3 VALUES (0),(0);
 
 set @@optimizer_switch='semijoin=off';
 
+--echo # NOTE: the following should have 'SUBQUERY', not 'DEPENDENT SUBQUERY'
+--echo # for line with id=2, see MDEV-27794.
 EXPLAIN
 SELECT * FROM t1 WHERE
 (SELECT f2 FROM t2
