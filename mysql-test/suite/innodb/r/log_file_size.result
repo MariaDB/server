@@ -1,5 +1,5 @@
 CREATE TABLE t1(a INT PRIMARY KEY) ENGINE=InnoDB;
-# restart: --innodb-log-file-size=2m
+# restart: --innodb-log-file-size=4m
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK

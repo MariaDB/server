@@ -881,18 +881,21 @@ bool fil_space_free(uint32_t id, bool x_latched)
 		}
 
 		if (!recv_recovery_is_on()) {
-			mysql_mutex_lock(&log_sys.mutex);
-		}
+			log_sys.latch.wr_lock(SRW_LOCK_CALL);
 
-		mysql_mutex_assert_owner(&log_sys.mutex);
+			if (space->max_lsn) {
+				ut_d(space->max_lsn = 0);
+				fil_system.named_spaces.remove(*space);
+			}
 
-		if (space->max_lsn != 0) {
-			ut_d(space->max_lsn = 0);
-			fil_system.named_spaces.remove(*space);
-		}
+			log_sys.latch.wr_unlock();
+		} else {
+			ut_ad(log_sys.latch.is_write_locked());
 
-		if (!recv_recovery_is_on()) {
-			mysql_mutex_unlock(&log_sys.mutex);
+			if (space->max_lsn) {
+				ut_d(space->max_lsn = 0);
+				fil_system.named_spaces.remove(*space);
+			}
 		}
 
 		fil_space_free_low(space);
@@ -1474,9 +1477,9 @@ static void fil_name_write_rename_low(uint32_t space_id, const char *old_name,
 
 static void fil_name_commit_durable(mtr_t *mtr)
 {
-  mysql_mutex_lock(&log_sys.mutex);
+  log_sys.latch.wr_lock(SRW_LOCK_CALL);
   auto lsn= mtr->commit_files();
-  mysql_mutex_unlock(&log_sys.mutex);
+  log_sys.latch.wr_unlock();
   log_write_up_to(lsn, true);
 }
 
@@ -1647,13 +1650,13 @@ pfs_os_file_t fil_delete_tablespace(uint32_t id)
     handle= fil_system.detach(space, true);
     mysql_mutex_unlock(&fil_system.mutex);
 
-    mysql_mutex_lock(&log_sys.mutex);
+    log_sys.latch.wr_lock(SRW_LOCK_CALL);
     if (space->max_lsn)
     {
       ut_d(space->max_lsn = 0);
       fil_system.named_spaces.remove(*space);
     }
-    mysql_mutex_unlock(&log_sys.mutex);
+    log_sys.latch.wr_unlock();
 
     fil_space_free_low(space);
   }
@@ -1853,11 +1856,12 @@ static bool fil_rename_tablespace(uint32_t id, const char *old_path,
 	ut_ad(strchr(new_file_name, '/'));
 
 	if (!recv_recovery_is_on()) {
-		mysql_mutex_lock(&log_sys.mutex);
+		log_sys.latch.wr_lock(SRW_LOCK_CALL);
 	}
 
-	/* log_sys.mutex is above fil_system.mutex in the latching order */
-	mysql_mutex_assert_owner(&log_sys.mutex);
+	/* log_sys.latch is above fil_system.mutex in the latching order */
+	ut_ad(log_sys.latch.is_write_locked() ||
+	      srv_operation == SRV_OPERATION_RESTORE_DELTA);
 	mysql_mutex_lock(&fil_system.mutex);
 	space->release();
 	ut_ad(node->name == old_file_name);
@@ -1880,7 +1884,7 @@ skip_second_rename:
 	}
 
 	if (!recv_recovery_is_on()) {
-		mysql_mutex_unlock(&log_sys.mutex);
+		log_sys.latch.wr_unlock();
 	}
 
 	mysql_mutex_unlock(&fil_system.mutex);
@@ -3031,7 +3035,7 @@ void
 fil_names_dirty(
 	fil_space_t*	space)
 {
-	mysql_mutex_assert_owner(&log_sys.mutex);
+	ut_ad(log_sys.latch.is_write_locked());
 	ut_ad(recv_recovery_is_on());
 	ut_ad(log_sys.get_lsn() != 0);
 	ut_ad(space->max_lsn == 0);
@@ -3045,7 +3049,7 @@ fil_names_dirty(
 tablespace was modified for the first time since fil_names_clear(). */
 ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void mtr_t::name_write()
 {
-  mysql_mutex_assert_owner(&log_sys.mutex);
+  ut_ad(log_sys.latch.is_write_locked());
   ut_d(fil_space_validate_for_mtr_commit(m_user_space));
   ut_ad(!m_user_space->max_lsn);
   m_user_space->max_lsn= log_sys.get_lsn();
@@ -3073,7 +3077,7 @@ lsn_t fil_names_clear(lsn_t lsn)
 {
 	mtr_t	mtr;
 
-	mysql_mutex_assert_owner(&log_sys.mutex);
+	ut_ad(log_sys.latch.is_write_locked());
 	ut_ad(lsn);
 	ut_ad(log_sys.is_latest());
 

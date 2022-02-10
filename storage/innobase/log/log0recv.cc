@@ -62,7 +62,7 @@ recv_sys_t	recv_sys;
 bool	recv_needed_recovery;
 #ifdef UNIV_DEBUG
 /** TRUE if writing to the redo log (mtr_commit) is forbidden.
-Protected by log_sys.mutex. */
+Protected by log_sys.latch. */
 bool	recv_no_log_write = false;
 #endif /* UNIV_DEBUG */
 
@@ -2235,7 +2235,9 @@ template<typename source>
 inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
   noexcept
 {
-  mysql_mutex_assert_owner(&log_sys.mutex);
+  ut_ad(log_sys.latch.is_write_locked() ||
+        srv_operation == SRV_OPERATION_BACKUP ||
+        srv_operation == SRV_OPERATION_BACKUP_NO_DEFER);
   mysql_mutex_assert_owner(&mutex);
   ut_ad(log_sys.next_checkpoint_lsn);
   ut_ad(log_sys.is_latest());
@@ -2970,17 +2972,23 @@ set_start_lsn:
 
 	if (start_lsn) {
 		ut_ad(end_lsn >= start_lsn);
+		ut_ad(!block->page.oldest_modification());
 		mach_write_to_8(FIL_PAGE_LSN + frame, end_lsn);
-		if (UNIV_LIKELY(frame == block->page.frame)) {
+		if (UNIV_LIKELY(!block->page.zip.data)) {
 			mach_write_to_8(srv_page_size
 					- FIL_PAGE_END_LSN_OLD_CHKSUM
 					+ frame, end_lsn);
 		} else {
 			buf_zip_decompress(block, false);
 		}
-
-		buf_block_modify_clock_inc(block);
-		buf_flush_note_modification(block, start_lsn, end_lsn);
+		/* The following is adapted from
+		buf_pool_t::insert_into_flush_list() */
+		mysql_mutex_lock(&buf_pool.flush_list_mutex);
+		buf_pool.stat.flush_list_bytes+= block->physical_size();
+		block->page.set_oldest_modification(start_lsn);
+		UT_LIST_ADD_FIRST(buf_pool.flush_list, &block->page);
+		buf_pool.page_cleaner_wakeup();
+		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 	} else if (free_page && init) {
 		/* There have been no operations that modify the page.
 		Any buffered changes must not be merged. A subsequent
@@ -3271,9 +3279,6 @@ void recv_sys_t::apply(bool last_batch)
         srv_operation == SRV_OPERATION_RESTORE ||
         srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 
-#ifdef SAFE_MUTEX
-  DBUG_ASSERT(!last_batch == mysql_mutex_is_owner(&log_sys.mutex));
-#endif /* SAFE_MUTEX */
   mysql_mutex_assert_owner(&mutex);
 
   timespec abstime;
@@ -3283,15 +3288,15 @@ void recv_sys_t::apply(bool last_batch)
     if (is_corrupt_log())
       return;
     if (last_batch)
-    {
-      mysql_mutex_assert_not_owner(&log_sys.mutex);
       my_cond_wait(&cond, &mutex.m_mutex);
-    }
     else
     {
-      mysql_mutex_unlock(&mutex);
+      ut_ad(log_sys.latch.is_write_locked());
+      log_sys.latch.wr_unlock();
       set_timespec_nsec(abstime, 500000000ULL); /* 0.5s */
-      my_cond_timedwait(&cond, &log_sys.mutex.m_mutex, &abstime);
+      my_cond_timedwait(&cond, &mutex.m_mutex, &abstime);
+      mysql_mutex_unlock(&mutex);
+      log_sys.latch.wr_lock(SRW_LOCK_CALL);
       mysql_mutex_lock(&mutex);
     }
   }
@@ -3398,7 +3403,6 @@ next_free_block:
       {
         if (last_batch)
         {
-          mysql_mutex_assert_not_owner(&log_sys.mutex);
           if (!empty)
             my_cond_wait(&cond, &mutex.m_mutex);
           else
@@ -3412,9 +3416,12 @@ next_free_block:
         }
         else
         {
-          mysql_mutex_unlock(&mutex);
+          ut_ad(log_sys.latch.is_write_locked());
+          log_sys.latch.wr_unlock();
           set_timespec_nsec(abstime, 500000000ULL); /* 0.5s */
-          my_cond_timedwait(&cond, &log_sys.mutex.m_mutex, &abstime);
+          my_cond_timedwait(&cond, &mutex.m_mutex, &abstime);
+          mysql_mutex_unlock(&mutex);
+          log_sys.latch.wr_lock(SRW_LOCK_CALL);
           mysql_mutex_lock(&mutex);
         }
         continue;
@@ -3432,10 +3439,9 @@ next_free_block:
   else
   {
     mlog_init.reset();
-    mysql_mutex_unlock(&log_sys.mutex);
+    log_sys.latch.wr_unlock();
   }
 
-  mysql_mutex_assert_not_owner(&log_sys.mutex);
   mysql_mutex_unlock(&mutex);
 
   if (last_batch && srv_operation != SRV_OPERATION_RESTORE &&
@@ -3451,7 +3457,7 @@ next_free_block:
   if (!last_batch)
   {
     buf_pool_invalidate();
-    mysql_mutex_lock(&log_sys.mutex);
+    log_sys.latch.wr_lock(SRW_LOCK_CALL);
   }
 #ifdef HAVE_PMEM
   else if (log_sys.is_pmem())
@@ -3511,7 +3517,7 @@ static bool recv_scan_log(bool last_phase)
 
   for (ut_d(lsn_t source_offset= 0);;)
   {
-    mysql_mutex_assert_owner(&log_sys.mutex);
+    ut_ad(log_sys.latch.is_write_locked());
 #ifdef UNIV_DEBUG
     const bool wrap{source_offset + recv_sys.len == log_sys.file_size};
 #endif
@@ -3868,7 +3874,7 @@ recv_init_crash_recovery_spaces(bool rescan, bool& missing_tablespace)
 static dberr_t recv_rename_files()
 {
   mysql_mutex_assert_owner(&recv_sys.mutex);
-  mysql_mutex_assert_owner(&log_sys.mutex);
+  ut_ad(log_sys.latch.is_write_locked());
 
   dberr_t err= DB_SUCCESS;
 
@@ -3963,20 +3969,16 @@ dberr_t recv_recovery_from_checkpoint_start()
 
 	recv_sys.recovery_on = true;
 
-	mysql_mutex_lock(&log_sys.mutex);
+	log_sys.latch.wr_lock(SRW_LOCK_CALL);
 
 	dberr_t err = recv_sys.find_checkpoint();
         if (err != DB_SUCCESS) {
 early_exit:
-		mysql_mutex_unlock(&log_sys.mutex);
+		log_sys.latch.wr_unlock();
 		return err;
 	}
 
-	if (!log_set_capacity(srv_log_file_size)) {
-err_exit:
-		err = DB_ERROR;
-		goto early_exit;
-	}
+	log_sys.set_capacity();
 
 	/* Start reading the log from the checkpoint lsn. The variable
 	contiguous_lsn contains an lsn up to which the log is known to
@@ -4103,7 +4105,9 @@ read_only_recovery:
 	}
 
 	if (recv_sys.lsn < log_sys.next_checkpoint_lsn) {
-		goto err_exit;
+err_exit:
+		err = DB_ERROR;
+		goto early_exit;
 	}
 
 	if (!srv_read_only_mode && log_sys.is_latest()) {
@@ -4142,7 +4146,7 @@ read_only_recovery:
 		err = recv_rename_files();
 	}
 	mysql_mutex_unlock(&recv_sys.mutex);
-	mysql_mutex_unlock(&log_sys.mutex);
+	log_sys.latch.wr_unlock();
 
 	recv_lsn_checks_on = true;
 

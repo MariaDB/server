@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2020, 2021, MariaDB Corporation.
+Copyright (c) 2020, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -520,3 +520,12 @@ typedef srw_lock_impl<false> srw_lock;
 typedef srw_lock_impl<true> srw_spin_lock;
 
 #endif
+
+/** Simple spin lock */
+struct sspin_lock
+{
+  std::atomic<uint32_t> word{0};
+  void lock() noexcept;
+  void unlock() noexcept
+  { ut_ad(word); word.store(0, std::memory_order_release); }
+};

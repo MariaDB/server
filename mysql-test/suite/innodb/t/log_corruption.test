@@ -16,7 +16,7 @@ call mtr.add_suppression("InnoDB: Log scan aborted at LSN");
 call mtr.add_suppression("InnoDB: Missing MLOG_FILE_NAME or MLOG_FILE_DELETE before MLOG_CHECKPOINT for tablespace 42\\r?$");
 call mtr.add_suppression("InnoDB: Obtaining redo log encryption key version 1 failed");
 call mtr.add_suppression("InnoDB: Decrypting checkpoint failed");
-call mtr.add_suppression("InnoDB: Log file .*ib_logfile1 is of different size 2097152 bytes than other log files 1048576 bytes!");
+call mtr.add_suppression("InnoDB: Log file .*ib_logfile1 is of different size 2097152 bytes than other log files (1048576|4194304) bytes!");
 --enable_query_log
 
 let bugdir= $MYSQLTEST_VARDIR/tmp/log_corruption;
@@ -161,7 +161,7 @@ die unless seek(OUT, 0x800, 0);
 print OUT pack("NnnNx[496]N", 0x80000944, 12, 12, 0, 0xb2a);
 close OUT or die;
 EOF
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=2m
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=4m
 --source include/start_mysqld.inc
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
@@ -191,7 +191,7 @@ print OUT chr(0) x 2048;
 close OUT or die;
 EOF
 
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=2m
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=4m
 --source include/start_mysqld.inc
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
@@ -210,7 +210,7 @@ print OUT chr(0) x 1536;
 close OUT or die;
 EOF
 
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=2m
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=4m
 --source include/start_mysqld.inc
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
@@ -241,7 +241,7 @@ close OUT or die;
 EOF
 
 --echo # Corrupted multi-file redo log from after MariaDB 10.2.2
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=2m
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=4m
 --source include/start_mysqld.inc
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
@@ -259,13 +259,14 @@ print OUT chr(0);
 close OUT or die;
 EOF
 
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=2m
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=4m
 --source include/start_mysqld.inc
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 --source include/shutdown_mysqld.inc
 --let SEARCH_PATTERN=InnoDB: Log file .*ib_logfile1 is of different size 2097152 bytes than other log files 1048576 bytes!
+--source include/search_pattern_in_file.inc
 --let SEARCH_PATTERN=InnoDB: No valid checkpoint was found; the log was created with BogoDB 1\\.2\\.3\\.4\\.
 --source include/search_pattern_in_file.inc
 
@@ -282,7 +283,7 @@ print OUT $_, pack("N", mycrc32($_, 0, $polynomial));
 close OUT or die;
 EOF
 
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=2m
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=4m
 --source include/start_mysqld.inc
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
@@ -304,6 +305,8 @@ EOF
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
+--let SEARCH_PATTERN=InnoDB: Log file .*ib_logfile1 is of different size 2097152 bytes than other log files 4194304 bytes!
+--source include/search_pattern_in_file.inc
 let SEARCH_PATTERN=InnoDB: Invalid log header checksum;
 --source include/search_pattern_in_file.inc
 
@@ -350,6 +353,9 @@ binmode OUT;
 die unless seek(OUT, 0x210, 0);
 print OUT pack("NNx[264]", 0, 0x80c);
 print OUT pack("NNx[212]N", 0x590dbaac, 0xfe922582, 0xc72d49c4);
+close OUT or die;
+die unless open OUT, ">", "$ENV{bugdir}/ib_logfile1";
+print OUT pack("x[4194304]");
 close OUT or die;
 EOF
 # Anything below innodb_force_recovery=6 must find a valid redo log.
@@ -533,7 +539,7 @@ print OUT pack("NnnNx[496]N", 0x80000944, 12, 12, 1, 0x46c8a2a2);
 close OUT or die;
 EOF
 
---let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=2m
+--let $restart_parameters= $dirs --innodb-force-recovery=5 --innodb-log-file-size=4m
 --source include/start_mysqld.inc
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'

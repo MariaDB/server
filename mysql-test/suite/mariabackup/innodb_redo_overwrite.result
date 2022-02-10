@@ -1,5 +1,4 @@
-CREATE TABLE t(i INT) ENGINE=INNODB;
-INSERT INTO t SELECT seq%10 FROM seq_0_to_51199;
+CREATE TABLE t ENGINE=INNODB SELECT seq%10 i FROM seq_0_to_204796;
 # xtrabackup backup
 FOUND 1 /Was only able to copy log from \d+ to \d+, not \d+; try increasing innodb_log_file_size\b/ in backup.log
 NOT FOUND /failed: redo log block checksum does not match/ in backup.log

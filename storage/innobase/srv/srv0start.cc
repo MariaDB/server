@@ -195,12 +195,8 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
 
 	DBUG_ASSERT(!buf_pool.any_io_pending());
 
-	mysql_mutex_lock(&log_sys.mutex);
-	if (!log_set_capacity(srv_log_file_size)) {
-err_exit:
-		mysql_mutex_unlock(&log_sys.mutex);
-		return DB_ERROR;
-	}
+	log_sys.latch.wr_lock(SRW_LOCK_CALL);
+	log_sys.set_capacity();
 
 	logfile0 = get_log_file_path(LOG_FILE_NAME_PREFIX)
 		.append(INIT_LOG_FILE0);
@@ -213,7 +209,9 @@ err_exit:
 
 	if (!ret) {
 		sql_print_error("InnoDB: Cannot create %s", logfile0.c_str());
-		goto err_exit;
+err_exit:
+		log_sys.latch.wr_unlock();
+		return DB_ERROR;
 	}
 
 	ret = os_file_set_size(logfile0.c_str(), file, srv_log_file_size);
@@ -244,7 +242,7 @@ err_exit:
 
 	/* Enable checkpoints in buf_flush_page_cleaner(). */
 	recv_sys.recovery_on = false;
-	mysql_mutex_unlock(&log_sys.mutex);
+	log_sys.latch.wr_unlock();
 
 	log_make_checkpoint();
 	log_buffer_flush_to_disk();
@@ -801,7 +799,7 @@ static lsn_t srv_prepare_to_delete_redo_log_file()
   DBUG_EXECUTE_IF("innodb_log_abort_1", DBUG_RETURN(0););
   DBUG_PRINT("ib_log", ("After innodb_log_abort_1"));
 
-  mysql_mutex_lock(&log_sys.mutex);
+  log_sys.latch.wr_lock(SRW_LOCK_CALL);
   const bool latest_format{log_sys.is_latest()};
   lsn_t flushed_lsn{log_sys.get_lsn()};
 
@@ -846,7 +844,7 @@ same_size:
     }
   }
 
-  mysql_mutex_unlock(&log_sys.mutex);
+  log_sys.latch.wr_unlock();
 
   log_write_up_to(flushed_lsn, false);
 

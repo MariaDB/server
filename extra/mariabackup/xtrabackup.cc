@@ -1582,9 +1582,8 @@ struct my_option xb_server_options[] =
   {"innodb_log_file_size", OPT_INNODB_LOG_FILE_SIZE,
    "Ignored for mysqld option compatibility",
    (G_PTR*) &srv_log_file_size, (G_PTR*) &srv_log_file_size, 0,
-   GET_ULL, REQUIRED_ARG, 48 << 20, 1 << 20,
-   std::numeric_limits<ulonglong>::max(), 0,
-   UNIV_PAGE_SIZE_MAX, 0},
+   GET_ULL, REQUIRED_ARG, 96 << 20, 4 << 20,
+   std::numeric_limits<ulonglong>::max(), 0, 4096, 0},
   {"innodb_log_group_home_dir", OPT_INNODB_LOG_GROUP_HOME_DIR,
    "Path to InnoDB log files.", &srv_log_group_home_dir,
    &srv_log_group_home_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -2540,10 +2539,10 @@ void xtrabackup_io_throttling()
   if (!xtrabackup_backup)
     return;
 
-  mysql_mutex_lock(&log_sys.mutex);
+  mysql_mutex_lock(&recv_sys.mutex);
   if (xtrabackup_throttle && (io_ticket--) < 0)
-    mysql_cond_wait(&wait_throttle, &log_sys.mutex);
-  mysql_mutex_unlock(&log_sys.mutex);
+    mysql_cond_wait(&wait_throttle, &recv_sys.mutex);
+  mysql_mutex_unlock(&recv_sys.mutex);
 }
 
 static
@@ -2972,7 +2971,7 @@ skip:
 @return	whether the operation failed */
 static bool xtrabackup_copy_logfile()
 {
-  mysql_mutex_assert_owner(&log_sys.mutex);
+  mysql_mutex_assert_owner(&recv_sys.mutex);
   DBUG_EXECUTE_IF("log_checksum_mismatch", return false;);
 
   ut_a(dst_log_file);
@@ -2980,7 +2979,6 @@ static bool xtrabackup_copy_logfile()
   const size_t sequence_offset{log_sys.is_encrypted() ? 8U + 5U : 5U};
   const size_t block_size_1{log_sys.get_block_size() - 1};
 
-  mysql_mutex_lock(&recv_sys.mutex);
 #ifdef HAVE_PMEM
   if (log_sys.is_pmem())
   {
@@ -3127,7 +3125,6 @@ static bool xtrabackup_copy_logfile()
 #ifdef HAVE_PMEM
         write_error:
 #endif
-          mysql_mutex_unlock(&recv_sys.mutex);
           msg("Error: write to ib_logfile0 failed");
           return true;
         }
@@ -3148,12 +3145,11 @@ static bool xtrabackup_copy_logfile()
         if (recv_sys.offset < log_sys.get_block_size())
           break;
 
-        mysql_mutex_unlock(&recv_sys.mutex);
-
         if (xtrabackup_throttle && io_ticket-- < 0)
-          mysql_cond_wait(&wait_throttle, &log_sys.mutex);
+          mysql_cond_wait(&wait_throttle, &recv_sys.mutex);
 
         retry_count= 0;
+        continue;
       }
       else
       {
@@ -3173,7 +3169,6 @@ static bool xtrabackup_copy_logfile()
     mysql_mutex_lock(&recv_sys.mutex);
   }
 
-  mysql_mutex_unlock(&recv_sys.mutex);
   msg(">> log scanned up to (" LSN_PF ")", recv_sys.lsn);
   return false;
 }
@@ -3204,16 +3199,16 @@ extern lsn_t server_lsn_after_lock;
 static void log_copying_thread()
 {
   my_thread_init();
-  mysql_mutex_lock(&log_sys.mutex);
+  mysql_mutex_lock(&recv_sys.mutex);
   while (!xtrabackup_copy_logfile() &&
          (!metadata_to_lsn || metadata_to_lsn > recv_sys.lsn))
   {
     timespec abstime;
     set_timespec_nsec(abstime, 1000ULL * xtrabackup_log_copy_interval);
-    mysql_cond_timedwait(&log_copying_stop, &log_sys.mutex, &abstime);
+    mysql_cond_timedwait(&log_copying_stop, &recv_sys.mutex, &abstime);
   }
   log_copying_running= false;
-  mysql_mutex_unlock(&log_sys.mutex);
+  mysql_mutex_unlock(&recv_sys.mutex);
   my_thread_end();
 }
 
@@ -3226,13 +3221,13 @@ static void *io_watching_thread(void*)
   /* currently, for --backup only */
   ut_a(xtrabackup_backup);
 
-  mysql_mutex_lock(&log_sys.mutex);
+  mysql_mutex_lock(&recv_sys.mutex);
 
   while (log_copying_running && !metadata_to_lsn)
   {
     timespec abstime;
     set_timespec(abstime, 1);
-    mysql_cond_timedwait(&log_copying_stop, &log_sys.mutex, &abstime);
+    mysql_cond_timedwait(&log_copying_stop, &recv_sys.mutex, &abstime);
     io_ticket= xtrabackup_throttle;
     mysql_cond_broadcast(&wait_throttle);
   }
@@ -3240,7 +3235,7 @@ static void *io_watching_thread(void*)
   /* stop io throttle */
   xtrabackup_throttle= 0;
   mysql_cond_broadcast(&wait_throttle);
-  mysql_mutex_unlock(&log_sys.mutex);
+  mysql_mutex_unlock(&recv_sys.mutex);
   return nullptr;
 }
 
@@ -4512,7 +4507,7 @@ static void stop_backup_threads(bool running)
 @return	whether the operation succeeded */
 static bool xtrabackup_backup_low()
 {
-	mysql_mutex_lock(&log_sys.mutex);
+	mysql_mutex_lock(&recv_sys.mutex);
 	ut_ad(!metadata_to_lsn);
 
 	/* read the latest checkpoint lsn */
@@ -4531,19 +4526,19 @@ static bool xtrabackup_backup_low()
 		recv_sys.lsn = lsn;
 		mysql_cond_broadcast(&log_copying_stop);
 		const bool running= log_copying_running;
-		mysql_mutex_unlock(&log_sys.mutex);
+		mysql_mutex_unlock(&recv_sys.mutex);
 		stop_backup_threads(running);
-		mysql_mutex_lock(&log_sys.mutex);
+		mysql_mutex_lock(&recv_sys.mutex);
 	}
 
 	if (metadata_to_lsn && xtrabackup_copy_logfile()) {
-		mysql_mutex_unlock(&log_sys.mutex);
+		mysql_mutex_unlock(&recv_sys.mutex);
 		ds_close(dst_log_file);
 		dst_log_file = NULL;
 		return false;
 	}
 
-	mysql_mutex_unlock(&log_sys.mutex);
+	mysql_mutex_unlock(&recv_sys.mutex);
 
 	if (ds_close(dst_log_file) || !metadata_to_lsn) {
 		dst_log_file = NULL;
@@ -4632,10 +4627,10 @@ static bool xtrabackup_backup_func()
         if(innodb_init_param()) {
 fail:
 		if (log_copying_running) {
-			mysql_mutex_lock(&log_sys.mutex);
+			mysql_mutex_lock(&recv_sys.mutex);
 			metadata_to_lsn = 1;
 			mysql_cond_broadcast(&log_copying_stop);
-			mysql_mutex_unlock(&log_sys.mutex);
+			mysql_mutex_unlock(&recv_sys.mutex);
 			stop_backup_threads(true);
 		}
 
@@ -4692,12 +4687,12 @@ fail:
 	log_sys.create();
 	/* get current checkpoint_lsn */
 
-	mysql_mutex_lock(&log_sys.mutex);
+	mysql_mutex_lock(&recv_sys.mutex);
 
 	if (recv_sys.find_checkpoint() != DB_SUCCESS) {
 		msg("Error: cannot read redo log header");
 unlock_and_fail:
-		mysql_mutex_unlock(&log_sys.mutex);
+		mysql_mutex_unlock(&recv_sys.mutex);
 free_and_fail:
 		aligned_free(const_cast<byte*>(field_ref_zero));
 		field_ref_zero = nullptr;
@@ -4710,7 +4705,7 @@ free_and_fail:
 	}
 
 	recv_needed_recovery = true;
-	mysql_mutex_unlock(&log_sys.mutex);
+	mysql_mutex_unlock(&recv_sys.mutex);
 
 	/* create extra LSN dir if it does not exist. */
 	if (xtrabackup_extra_lsndir
@@ -4772,12 +4767,12 @@ free_and_fail:
 
 	/* copy log file by current position */
 
-	mysql_mutex_lock(&log_sys.mutex);
+	mysql_mutex_lock(&recv_sys.mutex);
 	recv_sys.lsn = log_sys.next_checkpoint_lsn;
 
 	const bool log_copy_failed = xtrabackup_copy_logfile();
 
-	mysql_mutex_unlock(&log_sys.mutex);
+	mysql_mutex_unlock(&recv_sys.mutex);
 
 	if (log_copy_failed) {
 		log_copying_running = false;
@@ -5212,7 +5207,7 @@ xb_delta_open_matching_space(
 		return OS_FILE_CLOSED;
 	}
 
-	mysql_mutex_lock(&log_sys.mutex);
+	mysql_mutex_lock(&recv_sys.mutex);
 	if (!fil_is_user_tablespace_id(info.space_id)) {
 found:
 		/* open the file and return its handle */
@@ -5225,7 +5220,7 @@ found:
 			msg("mariabackup: Cannot open file %s\n", real_name);
 		}
 exit:
-		mysql_mutex_unlock(&log_sys.mutex);
+		mysql_mutex_unlock(&recv_sys.mutex);
 		return file;
 	}
 

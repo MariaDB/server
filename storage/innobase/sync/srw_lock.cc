@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2020, 2021, MariaDB Corporation.
+Copyright (c) 2020, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -100,6 +100,13 @@ static inline void srw_pause(unsigned delay)
   while (delay--)
     MY_RELAX_CPU();
   HMT_medium();
+}
+
+void sspin_lock::lock() noexcept
+{
+  while (word.exchange(true, std::memory_order_acquire))
+    while (word.load(std::memory_order_relaxed))
+      srw_pause(1);
 }
 
 #ifdef SUX_LOCK_GENERIC

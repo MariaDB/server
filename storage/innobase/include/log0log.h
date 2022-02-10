@@ -37,6 +37,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "os0file.h"
 #include "span.h"
 #include "my_atomic_wrapper.h"
+#include "srw_lock.h"
 #include <string>
 
 using st_::span;
@@ -57,16 +58,6 @@ static inline void delete_log_file(const char* suffix)
   os_file_delete_if_exists(innodb_log_file_key, path.c_str(), nullptr);
 }
 
-/** Calculate the recommended highest values for lsn - last_checkpoint_lsn
-and lsn - buf_pool.get_oldest_modification().
-@param[in]	file_size	requested innodb_log_file_size
-@retval true on success
-@retval false if the smallest log is too small to
-accommodate the number of OS threads in the database server */
-bool
-log_set_capacity(ulonglong file_size)
-	MY_ATTRIBUTE((warn_unused_result));
-
 struct completion_callback;
 
 /** Ensure that the log has been written to the log file up to a given
@@ -83,10 +74,10 @@ void log_write_up_to(lsn_t lsn, bool durable,
 void log_buffer_flush_to_disk(bool durable= true);
 
 
-/** Prepare to invoke log_write_and_flush(), before acquiring log_sys.mutex. */
+/** Prepare to invoke log_write_and_flush(), before acquiring log_sys.latch. */
 ATTRIBUTE_COLD void log_write_and_flush_prepare();
 
-/** Durably write the log up to log_sys.lsn() and release log_sys.mutex. */
+/** Durably write the log up to log_sys.get_lsn(). */
 ATTRIBUTE_COLD void log_write_and_flush();
 
 /** Make a checkpoint */
@@ -202,34 +193,37 @@ private:
   preflush buffer pool pages, or initiate a log checkpoint.
   This must hold if lsn - last_checkpoint_lsn > max_checkpoint_age. */
   std::atomic<bool> check_flush_or_checkpoint_;
+
 public:
-  /** mutex protecting the log */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t mutex;
+  /** rw-lock protecting buf */
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) srw_lock latch;
 private:
   /** Last written LSN */
   lsn_t write_lsn;
 public:
-  /** first free offset within the log buffer in use */
-  size_t buf_free;
-  /** recommended maximum size of buf, after which the buffer is flushed */
-  size_t max_buf_free;
-  /** mutex that ensures that inserts into buf_pool.flush_list are in
-  LSN order; allows mtr_t::commit() to release log_sys.mutex earlier */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t flush_order_mutex;
   /** log record buffer, written to by mtr_t::commit() */
   byte *buf;
   /** buffer for writing data to ib_logfile0, or nullptr if is_pmem()
   In write_buf(), buf and flush_buf are swapped */
   byte *flush_buf;
-  /** number of write requests (to buf); protected by mutex */
-  ulint write_to_buf;
   /** number of std::swap(buf, flush_buf) and writes from buf to log;
-  protected by mutex */
+  protected by latch.wr_lock() */
   ulint write_to_log;
-  /** number of waits in append_prepare() */
-  ulint waits;
   /** innodb_log_buffer_size (size of buf and flush_buf, in bytes) */
   size_t buf_size;
+
+private:
+  /** spin lock protecting lsn, buf_free in append_prepare() */
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) sspin_lock lsn_lock;
+public:
+  /** first free offset within buf use; protected by lsn_lock */
+  Atomic_relaxed<size_t> buf_free;
+  /** number of write requests (to buf); protected by exclusive lsn_lock */
+  ulint write_to_buf;
+  /** number of waits in append_prepare(); protected by lsn_lock */
+  ulint waits;
+  /** recommended maximum size of buf, after which the buffer is flushed */
+  size_t max_buf_free;
 
   /** log file size in bytes, including the header */
   lsn_t file_size;
@@ -272,11 +266,11 @@ public:
 					/*!< this is the maximum allowed value
 					for lsn - last_checkpoint_lsn when a
 					new query step is started */
-  /** latest completed checkpoint (protected by log_sys.mutex) */
+  /** latest completed checkpoint (protected by latch.wr_lock()) */
   Atomic_relaxed<lsn_t> last_checkpoint_lsn;
 	lsn_t		next_checkpoint_lsn;
 					/*!< next checkpoint lsn */
-  /** next checkpoint number (protected by mutex) */
+  /** next checkpoint number (protected by latch.wr_lock()) */
   ulint next_checkpoint_no;
   /** number of pending checkpoint writes */
   ulint n_pending_checkpoint_writes;
@@ -299,6 +293,9 @@ public:
 
   void close_file();
 
+  /** Calculate the checkpoint safety margins. */
+  static void set_capacity();
+
   lsn_t get_lsn(std::memory_order order= std::memory_order_relaxed) const
   { return lsn.load(order); }
   void set_lsn(lsn_t lsn) { this->lsn.store(lsn, std::memory_order_release); }
@@ -310,17 +307,17 @@ public:
   /** Initialize the LSN on initial log file creation. */
   lsn_t init_lsn() noexcept
   {
-    mysql_mutex_lock(&mutex);
+    latch.wr_lock(SRW_LOCK_CALL);
     const lsn_t lsn{get_lsn()};
     flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
     write_lsn= lsn;
-    mysql_mutex_unlock(&mutex);
+    latch.wr_unlock();
     return lsn;
   }
 
   void set_recovered_lsn(lsn_t lsn) noexcept
   {
-    mysql_mutex_assert_owner(&mutex);
+    ut_ad(latch.is_write_locked());
     write_lsn= lsn;
     this->lsn.store(lsn, std::memory_order_relaxed);
     flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
@@ -360,20 +357,29 @@ public:
   static size_t get_block_size() { return 512; }
 #endif
 
+private:
+  /** Wait in append_prepare() for buffer to become available
+  @param ex   whether log_sys.latch is exclusively locked */
+  ATTRIBUTE_COLD static void append_prepare_wait(bool ex) noexcept;
+public:
   /** Reserve space in the log buffer for appending data.
-  @param size   upper limit of the length of the data to append(), in bytes
-  @return the current LSN */
-  inline lsn_t append_prepare(size_t size) noexcept;
+  @tparam pmem  log_sys.is_pmem()
+  @param size   total length of the data to append(), in bytes
+  @param ex     whether log_sys.latch is exclusively locked
+  @return the start LSN and the buffer position for append() */
+  template<bool pmem>
+  inline std::pair<lsn_t,byte*> append_prepare(size_t size, bool ex) noexcept;
 
   /** Append a string of bytes to the redo log.
+  @param d     destination
   @param s     string of bytes
   @param size  length of str, in bytes */
-  void append(const void *s, size_t size) noexcept
+  void append(byte *&d, const void *s, size_t size) noexcept
   {
-    mysql_mutex_assert_owner(&mutex);
-    ut_ad(buf_free + size <= (is_pmem() ? file_size : buf_size));
-    memcpy(buf + buf_free, s, size);
-    buf_free+= size;
+    ut_ad(latch.is_locked());
+    ut_ad(d + size <= buf + (is_pmem() ? file_size : buf_size));
+    memcpy(d, s, size);
+    d+= size;
   }
 
   /** Set the log file format. */
@@ -409,14 +415,15 @@ public:
     return START_OFFSET + (lsn - first_lsn) % capacity();
   }
 
-  /** Write checkpoint information to the log header and release mutex.
+  /** Write checkpoint information and invoke latch.wr_unlock().
   @param end_lsn    start LSN of the FILE_CHECKPOINT mini-transaction */
   inline void write_checkpoint(lsn_t end_lsn) noexcept;
 
-  /** Write buf to ib_logfile0 and release mutex.
+  /** Write buf to ib_logfile0.
+  @tparam release_latch whether to invoke latch.wr_unlock()
   @return new write target
   @retval 0 if everything was written */
-  inline lsn_t write_buf() noexcept;
+  template<bool release_latch> inline lsn_t write_buf() noexcept;
 
   /** Create the log. */
   void create(lsn_t lsn) noexcept;

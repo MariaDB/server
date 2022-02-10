@@ -354,13 +354,10 @@ struct fil_space_t final
 
   /** fil_system.spaces chain node */
   fil_space_t *hash;
-	lsn_t		max_lsn;
-				/*!< LSN of the most recent
-				fil_names_write_if_was_clean().
-				Reset to 0 by fil_names_clear().
-				Protected by log_sys.mutex.
-				If and only if this is nonzero, the
-				tablespace will be in named_spaces. */
+  /** LSN of the most recent fil_names_write_if_was_clean().
+  Reset to 0 by fil_names_clear(). Protected by exclusive log_sys.latch.
+  If and only if max_lsn is nonzero, this is in fil_system.named_spaces. */
+  lsn_t max_lsn;
   /** tablespace identifier */
   uint32_t id;
 	/** whether undo tablespace truncation is in progress */
@@ -1043,7 +1040,7 @@ struct fil_node_t final
 {
   /** tablespace containing this file */
   fil_space_t *space;
-  /** file name; protected by fil_system.mutex and log_sys.mutex */
+  /** file name; protected by fil_system.mutex and exclusive log_sys.latch */
   char *name;
   /** file handle */
   pfs_os_file_t handle;
@@ -1434,14 +1431,12 @@ public:
   /** nonzero if fil_node_open_file_low() should avoid moving the tablespace
   to the end of space_list, for FIFO policy of try_to_close() */
   ulint freeze_space_list;
+  /** list of all tablespaces */
   ilist<fil_space_t, space_list_tag_t> space_list;
-					/*!< list of all file spaces */
+  /** list of all tablespaces for which a FILE_MODIFY record has been written
+  since the latest redo log checkpoint.
+  Protected only by exclusive log_sys.latch. */
   ilist<fil_space_t, named_spaces_tag_t> named_spaces;
-					/*!< list of all file spaces
-					for which a FILE_MODIFY
-					record has been written since
-					the latest redo log checkpoint.
-					Protected only by log_sys.mutex. */
 
   /** list of all ENCRYPTED=DEFAULT tablespaces that need
   to be converted to the current value of innodb_encrypt_tables */
