@@ -10190,11 +10190,7 @@ bool ha_spider::check_and_start_bulk_update(
 */
     result_list.bulk_update_size = spider_param_bulk_update_size(thd,
       share->bulk_update_size);
-/*
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-    int bgs_mode = spider_param_bgs_mode(thd, share->bgs_mode);
-#endif
-*/
+
     if (!support_bulk_update_sql())
     {
       result_list.bulk_update_mode = 0;
@@ -10202,9 +10198,6 @@ bool ha_spider::check_and_start_bulk_update(
         result_list.bulk_update_mode));
 /*
     } else if (
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-      bgs_mode ||
-#endif
       split_read != 9223372036854775807LL
     ) {
       result_list.bulk_update_mode = 2;
