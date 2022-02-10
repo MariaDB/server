@@ -30226,6 +30226,9 @@ bool Sql_cmd_dml::execute(THD *thd)
     partitions. As a consequence, in such a case, prepare stage can rely only
     on metadata about tables used and not data from them.
   */
+  if (open_tables_part2(thd, lex->query_tables))
+    goto err;
+
   if (!is_empty_query())
   {
     if (lock_tables(thd, lex->query_tables, table_count, 0))

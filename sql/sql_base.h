@@ -259,6 +259,8 @@ bool open_tables(THD *thd, const DDL_options_st &options,
                  TABLE_LIST **tables, uint *counter,
                  uint flags, Prelocking_strategy *prelocking_strategy);
 
+bool open_tables_part2(THD *thd, TABLE_LIST *tables);
+
 static inline bool
 open_tables(THD *thd, TABLE_LIST **tables, uint *counter, uint flags,
             Prelocking_strategy *prelocking_strategy)
@@ -484,7 +486,8 @@ open_tables(THD *thd, const DDL_options_st &options,
   DML_prelocking_strategy prelocking_strategy;
 
   return open_tables(thd, options, tables, counter, flags,
-                     &prelocking_strategy);
+                     &prelocking_strategy) ||
+         open_tables_part2(thd, *tables);
 }
 inline bool
 open_tables(THD *thd, TABLE_LIST **tables, uint *counter, uint flags)
@@ -492,7 +495,8 @@ open_tables(THD *thd, TABLE_LIST **tables, uint *counter, uint flags)
   DML_prelocking_strategy prelocking_strategy;
 
   return open_tables(thd, thd->lex->create_info, tables, counter, flags,
-                     &prelocking_strategy);
+                     &prelocking_strategy) ||
+         open_tables_part2(thd, *tables);
 }
 
 inline TABLE *open_n_lock_single_table(THD *thd, TABLE_LIST *table_l,

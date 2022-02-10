@@ -2956,17 +2956,23 @@ bool ha_partition::create_handler_file(const char *name)
 }
 
 
+void ha_partition::clear_engines()
+{
+  if (m_engine_array)
+    plugin_unlock_list(NULL, m_engine_array, m_tot_parts);
+  m_engine_array= NULL;
+}
+
+
 /**
   Clear handler variables and free some memory
 */
 
 void ha_partition::clear_handler_file()
 {
-  if (m_engine_array)
-    plugin_unlock_list(NULL, m_engine_array, m_tot_parts);
+  clear_engines();
   free_root(&m_mem_root, MYF(MY_KEEP_PREALLOC));
   m_file_buffer= NULL;
-  m_engine_array= NULL;
   m_connect_string= NULL;
 }
 
@@ -3602,9 +3608,7 @@ SYNOPSIS
 int ha_partition::open(const char *name, int mode, uint test_if_locked)
 {
   int error= HA_ERR_INITIALIZATION;
-  handler **file;
   char name_buff[FN_REFLEN + 1];
-  ulonglong check_table_flags;
   DBUG_ENTER("ha_partition::open");
 
   DBUG_ASSERT(table->s == table_share);
@@ -3666,6 +3670,7 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   {
     uint i, alloc_len;
     char *name_buffer_ptr;
+    handler **file;
     DBUG_ASSERT(m_clone_mem_root);
     /* Allocate an array of handler pointers for the partitions handlers. */
     alloc_len= (m_tot_parts + 1) * sizeof(handler*);
@@ -3706,8 +3711,9 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   else
   {
     check_insert_autoincrement();
-    if (unlikely((error= open_read_partitions(name_buff, sizeof(name_buff)))))
-      goto err_handler;
+//    if (unlikely((error= open_read_partitions(name_buff, sizeof(name_buff)))))
+//      goto err_handler;
+    m_file_sample= m_file[0];
     m_num_locks= m_file_sample->lock_count();
   }
   /*
@@ -3717,6 +3723,69 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
     in get_lock_data().
   */
   m_num_locks*= m_tot_parts;
+  ref_length= get_open_file_sample()->ref_length;
+
+  clear_engines();
+
+  DBUG_ASSERT(part_share);
+  lock_shared_ha_data();
+  /* Protect against cloned file, for which we don't need engine name */
+  if (m_file[0])
+    part_share->partition_engine_name= real_table_type();
+  else
+    part_share->partition_engine_name= 0;       // Checked in ha_table_exists()
+  unlock_shared_ha_data();
+
+  DBUG_RETURN(0);
+
+err_handler:
+  DEBUG_SYNC(ha_thd(), "partition_open_error");
+  DBUG_ASSERT(m_tot_parts > 0);
+  for (uint i= m_tot_parts - 1; ; --i)
+  {
+    if (bitmap_is_set(&m_opened_partitions, i))
+      m_file[i]->ha_close();
+    if (!i)
+      break;
+  }
+err_alloc:
+  free_partition_bitmaps();
+  my_free(m_range_info);
+  m_range_info= 0;
+
+  DBUG_RETURN(error);
+}
+
+
+int ha_partition::open_part2()
+{
+  char name_buff[FN_REFLEN + 1];
+  int error;
+  ulonglong check_table_flags;
+  handler **file;
+
+  DBUG_ENTER("ha_partition::open_part2");
+  DBUG_ASSERT(m_is_clone_of == NULL);
+
+  bitmap_union(&m_part_info->read_partitions, &m_part_info->lock_partitions);
+
+  if ((error= open_read_partitions(name_buff, sizeof(name_buff))))
+    goto err_handler;
+
+  m_num_locks= m_file_sample->lock_count() * m_tot_parts;
+  /*
+    Some handlers update statistics as part of the open call. This will in
+    some cases corrupt the statistics of the partition handler and thus
+    to ensure we have correct statistics we call info from open after
+    calling open on all individual handlers.
+  */
+  m_handler_status= handler_opened;
+  if (m_part_info->part_expr)
+    m_part_func_monotonicity_info=
+                            m_part_info->part_expr->get_monotonicity_info();
+  else if (m_part_info->list_of_part_fields)
+    m_part_func_monotonicity_info= MONOTONIC_STRICT_INCREASING;
+  info(HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_OPEN);
 
   file= m_file;
   ref_length= get_open_file_sample()->ref_length;
@@ -3758,53 +3827,9 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   */
   clear_handler_file();
 
-  DBUG_ASSERT(part_share);
-  lock_shared_ha_data();
-  /* Protect against cloned file, for which we don't need engine name */
-  if (m_file[0])
-    part_share->partition_engine_name= real_table_type();
-  else
-    part_share->partition_engine_name= 0;       // Checked in ha_table_exists()
-  unlock_shared_ha_data();
-
-  /*
-    Some handlers update statistics as part of the open call. This will in
-    some cases corrupt the statistics of the partition handler and thus
-    to ensure we have correct statistics we call info from open after
-    calling open on all individual handlers.
-  */
-  m_handler_status= handler_opened;
-  if (m_part_info->part_expr)
-    m_part_func_monotonicity_info=
-                            m_part_info->part_expr->get_monotonicity_info();
-  else if (m_part_info->list_of_part_fields)
-    m_part_func_monotonicity_info= MONOTONIC_STRICT_INCREASING;
-  info(HA_STATUS_VARIABLE | HA_STATUS_CONST | HA_STATUS_OPEN);
-  DBUG_RETURN(0);
 
 err_handler:
-  DEBUG_SYNC(ha_thd(), "partition_open_error");
-  DBUG_ASSERT(m_tot_parts > 0);
-  for (uint i= m_tot_parts - 1; ; --i)
-  {
-    if (bitmap_is_set(&m_opened_partitions, i))
-      m_file[i]->ha_close();
-    if (!i)
-      break;
-  }
-err_alloc:
-  free_partition_bitmaps();
-  my_free(m_range_info);
-  m_range_info= 0;
-
   DBUG_RETURN(error);
-}
-
-
-int ha_partition::open_part2()
-{
-  DBUG_ENTER("ha_partition::open_part2");
-  DBUG_RETURN(0);
 }
 
 

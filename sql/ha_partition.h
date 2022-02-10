@@ -585,6 +585,7 @@ private:
                              bool is_clone);
   bool new_handlers_from_part_info(MEM_ROOT *mem_root);
   bool create_handlers(MEM_ROOT *mem_root);
+  void clear_engines();
   void clear_handler_file();
   int set_up_table_before_create(TABLE *table_arg,
                                  const char *partition_name_with_path,
