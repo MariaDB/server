@@ -133,9 +133,6 @@ handlerton *spider_hton_ptr;
 SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
 extern SPIDER_DBTON spider_dbton_mysql;
 extern SPIDER_DBTON spider_dbton_mariadb;
-#ifdef HAVE_ORACLE_OCI
-extern SPIDER_DBTON spider_dbton_oracle;
-#endif
 SPIDER_THREAD *spider_table_sts_threads;
 SPIDER_THREAD *spider_table_crd_threads;
 
@@ -6908,12 +6905,6 @@ int spider_db_init(
   spider_dbton_mariadb.db_util->dbton_id = dbton_id;
   spider_dbton[dbton_id] = spider_dbton_mariadb;
   ++dbton_id;
-#ifdef HAVE_ORACLE_OCI
-  spider_dbton_oracle.dbton_id = dbton_id;
-  spider_dbton_oracle.db_util->dbton_id = dbton_id;
-  spider_dbton[dbton_id] = spider_dbton_oracle;
-  ++dbton_id;
-#endif
   for (roop_count = 0; roop_count < SPIDER_DBTON_SIZE; roop_count++)
   {
     if (spider_dbton[roop_count].init)
