@@ -390,16 +390,10 @@ public:
     ulonglong value
   );
   void release_auto_increment();
-#ifdef SPIDER_HANDLER_START_BULK_INSERT_HAS_FLAGS
   void start_bulk_insert(
     ha_rows rows,
     uint flags
   );
-#else
-  void start_bulk_insert(
-    ha_rows rows
-  );
-#endif
   int end_bulk_insert();
   int write_row(
     const uchar *buf

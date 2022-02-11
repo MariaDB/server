@@ -8264,16 +8264,10 @@ void ha_spider::release_auto_increment()
   DBUG_VOID_RETURN;
 }
 
-#ifdef SPIDER_HANDLER_START_BULK_INSERT_HAS_FLAGS
 void ha_spider::start_bulk_insert(
   ha_rows rows,
   uint flags
 )
-#else
-void ha_spider::start_bulk_insert(
-  ha_rows rows
-)
-#endif
 {
   DBUG_ENTER("ha_spider::start_bulk_insert");
   DBUG_PRINT("info",("spider this=%p", this));
