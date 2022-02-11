@@ -435,9 +435,15 @@ EOF
                     tar_type=0
                     if tar --help | grep -qw -F -- '--transform'; then
                         tar_type=1
-                    elif tar --help | grep -qw -E -- '-s[[:space:]]pattern'
-                    then
+                    elif tar --version | grep -q -E '^bsdtar\>'; then
                         tar_type=2
+                    fi
+                    if [ $tar_type -ne 2 ]; then
+                        if [ -n "$BASH_VERSION" ]; then
+                            printf '%s' "$binlog_files" >&2
+                        else
+                            echo "$binlog_files" >&2
+                        fi
                     fi
                     if [ $tar_type -ne 0 ]; then
                         # Preparing list of the binlog file names:
@@ -445,14 +451,22 @@ EOF
                             binlogs=""
                             while read bin_file || [ -n "$bin_file" ]; do
                                 [ ! -f "$bin_file" ] && continue
+                                if [ -n "$BASH_VERSION" ]; then
+                                    first="${bin_file:0:1}"
+                                else
+                                    first=$(echo "$bin_file" | cut -c1)
+                                fi
+                                if [ "$first" = '-' -o "$first" = '@' ]; then
+                                    bin_file="./$bin_file"
+                                fi
                                 binlogs="$binlogs${binlogs:+ }'$bin_file'"
                             done
                             if [ -n "$binlogs" ]; then
-                                tar_options='/^.*\///g'
                                 if [ $tar_type -eq 1 ]; then
-                                    tar_options="--transform='s$tar_options'"
+                                    tar_options="--transform='s/^.*\///g'"
                                 else
-                                    tar_options="-s '$tar_options'"
+                                    # bsdtar handles backslash incorrectly:
+                                    tar_options="-s '?^.*/??g'"
                                 fi
                                 eval tar -P $tar_options \
                                          -cvf "'$BINLOG_TAR_FILE'" $binlogs >&2
@@ -465,6 +479,14 @@ EOF
                             [ ! -f "$bin_file" ] && continue
                             bin_dir=$(dirname "$bin_file")
                             bin_base=$(basename "$bin_file")
+                            if [ -n "$BASH_VERSION" ]; then
+                                first="${bin_base:0:1}"
+                            else
+                                first=$(echo "$bin_base" | cut -c1)
+                            fi
+                            if [ "$first" = '-' -o "$first" = '@' ]; then
+                                bin_base="./$bin_base"
+                            fi
                             if [ -n "$bin_dir" -a "$bin_dir" != '.' ]; then
                                 tar $tar_options "$BINLOG_TAR_FILE" \
                                     -C "$bin_dir" "$bin_base" >&2
@@ -740,7 +762,7 @@ EOF
                 exit 42
             fi
             CN=$("$OPENSSL_BINARY" x509 -noout -subject -in "$SSTCERT" | \
-                 tr ',' '\n' | grep -F 'CN =' | cut -d= -f2 | sed s/^\ // | \
+                 tr ',' '\n' | grep -F 'CN =' | cut -d '=' -f2 | sed s/^\ // | \
                  sed s/\ %//)
         fi
         MY_SECRET="$(wsrep_gen_secret)"
@@ -781,7 +803,7 @@ EOF
         if [ -n "$MY_SECRET" ]; then
             # Check donor supplied secret:
             SECRET=$(grep -F -- "$SECRET_TAG " "$MAGIC_FILE" 2>/dev/null | \
-                     cut -d ' ' -f 2)
+                     cut -d ' ' -f2)
             if [ "$SECRET" != "$MY_SECRET" ]; then
                 wsrep_log_error "Donor does not know my secret!"
                 wsrep_log_info "Donor: '$SECRET', my: '$MY_SECRET'"
@@ -840,12 +862,20 @@ EOF
             binlog_cd=0
             if [ -n "$binlog_dir" -a "$binlog_dir" != '.' ]; then
                 [ ! -d "$binlog_dir" ] && mkdir -p "$binlog_dir"
-                cd "$binlog_dir"
                 binlog_cd=1
+                cd "$binlog_dir"
             fi
             # Extracting binlog files:
             wsrep_log_info "Extracting binlog files:"
-            if ! tar -xvf "$BINLOG_TAR_FILE" > "$tmpfile"; then
+            RC=0
+            if tar --version | grep -q -E '^bsdtar\>'; then
+                tar -tf "$BINLOG_TAR_FILE" > "$tmpfile" && \
+                tar -xvf "$BINLOG_TAR_FILE" > /dev/null || RC=$?
+            else
+                tar -xvf "$BINLOG_TAR_FILE" > "$tmpfile" && \
+                cat "$tmpfile" >&2 || RC=$?
+            fi
+            if [ $RC -ne 0 ]; then
                 rm -f "$tmpfile"
                 wsrep_log_error "Error unpacking tar file with binlog files"
                 exit 32
