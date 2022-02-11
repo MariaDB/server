@@ -323,7 +323,8 @@ get_transfer()
         if [ "${sockopt#*,dhparam=}" != "$sockopt" ]; then
             if [ -z "$ssl_dhparams" ]; then
                 # Determine the socat version
-                SOCAT_VERSION=$(socat -V 2>&1 | grep -m1 -oe '[0-9]\.[0-9][\.0-9]*')
+                SOCAT_VERSION=$(socat -V 2>&1 | \
+                                grep -m1 -owE '[0-9]+(\.[0-9]+)+' | head -n1)
                 if [ -z "$SOCAT_VERSION" ]; then
                     wsrep_log_error "******** FATAL ERROR ******************"
                     wsrep_log_error "* Cannot determine the socat version. *"
@@ -766,7 +767,7 @@ recv_joiner()
 
         # check donor supplied secret
         SECRET=$(grep -F -- "$SECRET_TAG " "$MAGIC_FILE" 2>/dev/null | \
-                 cut -d ' ' -f 2)
+                 cut -d ' ' -f2)
         if [ "$SECRET" != "$MY_SECRET" ]; then
             wsrep_log_error "Donor does not know my secret!"
             wsrep_log_info "Donor: '$SECRET', my: '$MY_SECRET'"
