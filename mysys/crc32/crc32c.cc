@@ -18,7 +18,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <string>
 #include <my_global.h>
 #include <my_byteorder.h>
 static inline uint32_t DecodeFixed32(const char *ptr)
