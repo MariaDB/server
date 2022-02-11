@@ -520,12 +520,3 @@ typedef srw_lock_impl<false> srw_lock;
 typedef srw_lock_impl<true> srw_spin_lock;
 
 #endif
-
-/** Simple spin lock */
-struct sspin_lock
-{
-  std::atomic<uint32_t> word{0};
-  void lock() noexcept;
-  void unlock() noexcept
-  { ut_ad(word); word.store(0, std::memory_order_release); }
-};

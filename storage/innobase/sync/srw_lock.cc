@@ -102,13 +102,6 @@ static inline void srw_pause(unsigned delay)
   HMT_medium();
 }
 
-void sspin_lock::lock() noexcept
-{
-  while (word.exchange(true, std::memory_order_acquire))
-    while (word.load(std::memory_order_relaxed))
-      srw_pause(1);
-}
-
 #ifdef SUX_LOCK_GENERIC
 template<> void srw_mutex_impl<true>::wr_wait()
 {

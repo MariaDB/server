@@ -214,7 +214,7 @@ public:
 
 private:
   /** spin lock protecting lsn, buf_free in append_prepare() */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) sspin_lock lsn_lock;
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) srw_mutex lsn_lock;
 public:
   /** first free offset within buf use; protected by lsn_lock */
   Atomic_relaxed<size_t> buf_free;
