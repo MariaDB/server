@@ -336,7 +336,7 @@ case "$1" in
                        else
                            # If it's not bash, then we need to use slow
                            # external utilities:
-                           option=$(echo "$options" | cut -c1-1)
+                           option=$(echo "$options" | cut -c1)
                        fi
                        # And the subsequent characters consider option value:
                        value=""
