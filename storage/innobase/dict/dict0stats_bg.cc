@@ -108,17 +108,18 @@ static void dict_stats_recalc_pool_add(table_id_t id)
 {
   ut_ad(!srv_read_only_mode);
   ut_ad(id);
+  bool schedule = false;
   mysql_mutex_lock(&recalc_pool_mutex);
 
   const auto begin= recalc_pool.begin(), end= recalc_pool.end();
   if (end == std::find_if(begin, end, [&](const recalc &r){return r.id == id;}))
   {
     recalc_pool.emplace_back(recalc{id, recalc::IDLE});
+    schedule = true;
   }
 
   mysql_mutex_unlock(&recalc_pool_mutex);
-
-  if (begin == end)
+  if (schedule)
     dict_stats_schedule_now();
 }
 
