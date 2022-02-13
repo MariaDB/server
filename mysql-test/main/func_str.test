@@ -1,6 +1,7 @@
 # Description
 # -----------
 # Testing string functions
+--source include/have_sequence.inc
 
 --disable_warnings
 drop table if exists t1,t2;
@@ -2192,4 +2193,60 @@ SELECT GROUP_CONCAT( UpdateXML( '<a>new year</a>', '/a', '2019-01-01 00:00:00' )
 
 --echo #
 --echo # End of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-25704 Function random_bytes
+--echo #
+
+create table t1 as select random_bytes(100);
+show create table t1;
+drop table t1;
+
+--echo # The sequence starts at 17 so that the probability of test failure is small enough (about 2^(-136))
+select count(*) from seq_17_to_1024 where random_bytes(seq) <=> random_bytes(seq);
+
+select (count(*) = 1024) from seq_1_to_1024 where length(random_bytes(seq)) = seq;
+
+--echo #
+--echo # Test NULL output for NULL input
+--echo #
+
+SELECT random_bytes(NULL);
+
+--echo #
+--echo # Test For values outside range from 1 to 1024, an error occurs
+--echo #
+
+--error 1690
+SELECT random_bytes(0);
+--error 1690
+SELECT random_bytes(-1);
+--error 1690
+SELECT random_bytes(-100);
+--error 1690
+SELECT random_bytes(-26);
+--error 1690
+SELECT random_bytes(-132);
+--error 1690
+SELECT random_bytes(1025);
+--error 1690
+SELECT random_bytes(11111);
+--error 1690
+SELECT random_bytes(2056);
+
+--echo #
+--echo # Test For invalid argument, an error occurs
+--echo #
+--error 1690
+SELECT random_bytes('s');
+--error 1690
+SELECT random_bytes('r');
+--error 1690
+SELECT random_bytes('res');
+--error 1690
+SELECT random_bytes('test');
+
+--echo #
+--echo # End of 10.10 tests
 --echo #

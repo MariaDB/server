@@ -1449,6 +1449,72 @@ String *Item_func_sformat::val_str(String *res)
   return null_value ? NULL : res;
 }
 
+#include"my_global.h"
+#include <openssl/rand.h>
+#include <openssl/err.h>
+
+bool Item_func_random_bytes::fix_length_and_dec(THD *thd)
+{
+  used_tables_cache|= RAND_TABLE_BIT;
+  if (args[0]->can_eval_in_optimize())
+  {
+    max_length= MY_MIN((int32) args[0]->val_int(), MAX_BLOB_WIDTH);
+    return false;
+  }
+  max_length= MAX_BLOB_WIDTH;
+  return false;
+}
+
+
+void Item_func_random_bytes::update_used_tables()
+{
+  Item_str_func::update_used_tables();
+  used_tables_cache|= RAND_TABLE_BIT;
+}
+
+
+String *Item_func_random_bytes::val_str(String *str)
+{
+  longlong count= args[0]->val_int();
+
+  if (args[0]->null_value)
+    goto err;
+  null_value= 0;
+
+  if (count < 1 || count > 1024)
+  {
+    char buf[256];
+    String msg(buf, sizeof(buf), system_charset_info);
+    msg.length(0);
+    print(&msg, QT_NO_DATA_EXPANSION);
+    my_error(ER_DATA_OUT_OF_RANGE, MYF(0), "length", msg.c_ptr_safe());
+    return make_empty_result(str);
+  }
+
+  if (str->alloc((uint) count))
+    goto err;
+
+  str->length(count);
+  if (!RAND_bytes((unsigned char *) str->ptr(), (int32) count))
+  {
+    ulong ssl_err;
+    while ((ssl_err= ERR_get_error()))
+    {
+      char buf[256];
+      ERR_error_string_n(ssl_err, buf, sizeof(buf));
+      sql_print_warning("SSL error: %s", buf);
+    }
+    return make_empty_result(str);
+  }
+  
+  return str;
+
+err:
+  null_value= 1;
+  return 0;
+}
+
+
 /*********************************************************************/
 bool Item_func_regexp_replace::fix_length_and_dec(THD *thd)
 {
