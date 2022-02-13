@@ -5265,3 +5265,59 @@ f
 #
 # End of 10.4 tests
 #
+#
+# MDEV-25704 Function random_bytes
+#
+create table t1 as select random_bytes(100);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `random_bytes(100)` varbinary(100) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;
+# The sequence starts at 17 so that the probability of test failure is small enough (about 2^(-136))
+select count(*) from seq_17_to_1024 where random_bytes(seq) <=> random_bytes(seq);
+count(*)
+0
+select (count(*) = 1024) from seq_1_to_1024 where length(random_bytes(seq)) = seq;
+(count(*) = 1024)
+1
+#
+# Test NULL output for NULL input
+#
+SELECT random_bytes(NULL);
+random_bytes(NULL)
+NULL
+#
+# Test For values outside range from 1 to 1024, an error occurs
+#
+SELECT random_bytes(0);
+ERROR 22003: length value is out of range in 'random_bytes(0)'
+SELECT random_bytes(-1);
+ERROR 22003: length value is out of range in 'random_bytes(-1)'
+SELECT random_bytes(-100);
+ERROR 22003: length value is out of range in 'random_bytes(-100)'
+SELECT random_bytes(-26);
+ERROR 22003: length value is out of range in 'random_bytes(-26)'
+SELECT random_bytes(-132);
+ERROR 22003: length value is out of range in 'random_bytes(-132)'
+SELECT random_bytes(1025);
+ERROR 22003: length value is out of range in 'random_bytes(1025)'
+SELECT random_bytes(11111);
+ERROR 22003: length value is out of range in 'random_bytes(11111)'
+SELECT random_bytes(2056);
+ERROR 22003: length value is out of range in 'random_bytes(2056)'
+#
+# Test For invalid argument, an error occurs
+#
+SELECT random_bytes('s');
+ERROR 22003: length value is out of range in 'random_bytes('s')'
+SELECT random_bytes('r');
+ERROR 22003: length value is out of range in 'random_bytes('r')'
+SELECT random_bytes('res');
+ERROR 22003: length value is out of range in 'random_bytes('res')'
+SELECT random_bytes('test');
+ERROR 22003: length value is out of range in 'random_bytes('test')'
+#
+# End of 10.10 tests
+#
