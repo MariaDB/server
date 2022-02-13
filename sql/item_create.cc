@@ -1873,6 +1873,19 @@ protected:
 };
 
 
+class Create_func_random_bytes : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_random_bytes s_singleton;
+
+protected:
+  Create_func_random_bytes() {}
+  virtual ~Create_func_random_bytes() {}
+};
+
+
 class Create_func_release_all_locks : public Create_func_arg0
 {
 public:
@@ -4985,6 +4998,15 @@ Create_func_rand::create_native(THD *thd, const LEX_CSTRING *name,
 }
 
 
+Create_func_random_bytes Create_func_random_bytes::s_singleton;
+
+Item *Create_func_random_bytes::create_1_arg(THD *thd, Item *arg1)
+{
+  thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+  return new (thd->mem_root) Item_func_random_bytes(thd, arg1);
+}
+
+
 Create_func_release_all_locks Create_func_release_all_locks::s_singleton;
 
 Item*
@@ -5804,6 +5826,7 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("POW") }, BUILDER(Create_func_pow)},
   { { STRING_WITH_LEN("POWER") }, BUILDER(Create_func_pow)},
   { { STRING_WITH_LEN("QUOTE") }, BUILDER(Create_func_quote)},
+  { { STRING_WITH_LEN("RANDOM_BYTES")}, BUILDER(Create_func_random_bytes)},
   { { STRING_WITH_LEN("REGEXP_INSTR") }, BUILDER(Create_func_regexp_instr)},
   { { STRING_WITH_LEN("REGEXP_REPLACE") }, BUILDER(Create_func_regexp_replace)},
   { { STRING_WITH_LEN("REGEXP_SUBSTR") }, BUILDER(Create_func_regexp_substr)},

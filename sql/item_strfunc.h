@@ -384,6 +384,26 @@ public:
   { return get_item_copy<Item_func_concat_ws>(thd, this); }
 };
 
+
+class Item_func_random_bytes : public Item_str_func
+{
+public:
+  Item_func_random_bytes(THD *thd, Item *arg1) : Item_str_func(thd, arg1) {}
+  bool fix_length_and_dec(THD *thd) override;
+  void update_used_tables() override;
+  String *val_str(String *) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("random_bytes")};
+    return name;
+  }
+  Item *get_copy(THD *thd) override
+  {
+    return get_item_copy<Item_func_random_bytes>(thd, this);
+  }
+};
+
+
 class Item_func_reverse :public Item_str_func
 {
   String tmp_value;
