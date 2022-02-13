@@ -245,9 +245,9 @@ create_thread_pool_win(int min_threads= DEFAULT_MIN_POOL_THREADS,
   opened with FILE_FLAG_OVERLAPPED, and bound to completion
   port.
 */
-int pwrite(const native_file_handle &h, void *buf, size_t count,
+SSIZE_T pwrite(const native_file_handle &h, void *buf, size_t count,
            unsigned long long offset);
-int pread(const native_file_handle &h, void *buf, size_t count,
+SSIZE_T pread(const native_file_handle &h, void *buf, size_t count,
           unsigned long long offset);
 HANDLE win_get_syncio_event();
 #endif

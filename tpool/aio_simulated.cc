@@ -72,7 +72,7 @@ struct WinIoInit
 static WinIoInit win_io_init;
 
 
-int pread(const native_file_handle &h, void *buf, size_t count,
+SSIZE_T pread(const native_file_handle &h, void *buf, size_t count,
                  unsigned long long offset)
 {
   OVERLAPPED ov{};
@@ -81,6 +81,8 @@ int pread(const native_file_handle &h, void *buf, size_t count,
   ov.Offset= uli.LowPart;
   ov.OffsetHigh= uli.HighPart;
   ov.hEvent= win_get_syncio_event();
+  if (count > 0xFFFFFFFF)
+    count= 0xFFFFFFFF;
 
   if (ReadFile(h, buf, (DWORD) count, 0, &ov) ||
       (GetLastError() == ERROR_IO_PENDING))
@@ -93,7 +95,7 @@ int pread(const native_file_handle &h, void *buf, size_t count,
   return -1;
 }
 
-int pwrite(const native_file_handle &h, void *buf, size_t count,
+SSIZE_T pwrite(const native_file_handle &h, void *buf, size_t count,
                   unsigned long long offset)
 {
   OVERLAPPED ov{};
@@ -102,7 +104,8 @@ int pwrite(const native_file_handle &h, void *buf, size_t count,
   ov.Offset= uli.LowPart;
   ov.OffsetHigh= uli.HighPart;
   ov.hEvent= win_get_syncio_event();
-
+  if (count > 0xFFFFFFFF)
+    count= 0xFFFFFFFF;
   if (WriteFile(h, buf, (DWORD) count, 0, &ov) ||
       (GetLastError() == ERROR_IO_PENDING))
   {
