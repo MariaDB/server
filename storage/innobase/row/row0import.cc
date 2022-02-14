@@ -1575,7 +1575,7 @@ IndexPurge::next() UNIV_NOTHROW
 
 	mtr_set_log_mode(&m_mtr, MTR_LOG_NO_REDO);
 
-	btr_pcur_restore_position(BTR_MODIFY_LEAF, &m_pcur, &m_mtr);
+	m_pcur.restore_position(BTR_MODIFY_LEAF, &m_mtr);
 	/* The following is based on btr_pcur_move_to_next_user_rec(). */
 	m_pcur.old_stored = false;
 	ut_ad(m_pcur.latch_mode == BTR_MODIFY_LEAF);
@@ -1651,8 +1651,7 @@ IndexPurge::purge_pessimistic_delete() UNIV_NOTHROW
 {
 	dberr_t	err;
 
-	btr_pcur_restore_position(BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-				  &m_pcur, &m_mtr);
+	m_pcur.restore_position(BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE, &m_mtr);
 
 	ut_ad(rec_get_deleted_flag(
 			btr_pcur_get_rec(&m_pcur),
@@ -1680,7 +1679,7 @@ IndexPurge::purge() UNIV_NOTHROW
 
 	mtr_set_log_mode(&m_mtr, MTR_LOG_NO_REDO);
 
-	btr_pcur_restore_position(BTR_MODIFY_LEAF, &m_pcur, &m_mtr);
+	m_pcur.restore_position(BTR_MODIFY_LEAF, &m_mtr);
 }
 
 /** Adjust the BLOB reference for a single column that is externally stored

@@ -2553,7 +2553,8 @@ row_upd_clust_rec(
 	the same transaction do not modify the record in the meantime.
 	Therefore we can assert that the restoration of the cursor succeeds. */
 
-	ut_a(btr_pcur_restore_position(BTR_MODIFY_TREE, pcur, mtr));
+	ut_a(pcur->restore_position(BTR_MODIFY_TREE, mtr) ==
+	    btr_pcur_t::SAME_ALL);
 
 	ut_ad(!rec_get_deleted_flag(btr_pcur_get_rec(pcur),
 				    dict_table_is_comp(index->table)));
@@ -2756,7 +2757,7 @@ row_upd_clust_step(
 		mode = BTR_MODIFY_LEAF;
 	}
 
-	if (!btr_pcur_restore_position(mode, pcur, &mtr)) {
+	if (pcur->restore_position(mode, &mtr) != btr_pcur_t::SAME_ALL) {
 		err = DB_RECORD_NOT_FOUND;
 		goto exit_func;
 	}

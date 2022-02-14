@@ -1350,7 +1350,7 @@ row_ins_foreign_check_on_constraint(
 
 	/* Restore pcur position */
 
-	btr_pcur_restore_position(BTR_SEARCH_LEAF, pcur, mtr);
+	pcur->restore_position(BTR_SEARCH_LEAF, mtr);
 
 	if (tmp_heap) {
 		mem_heap_free(tmp_heap);
@@ -1369,7 +1369,7 @@ nonstandard_exit_func:
 	mtr_commit(mtr);
 	mtr_start(mtr);
 
-	btr_pcur_restore_position(BTR_SEARCH_LEAF, pcur, mtr);
+	pcur->restore_position(BTR_SEARCH_LEAF, mtr);
 
 	DBUG_RETURN(err);
 }

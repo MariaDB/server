@@ -227,7 +227,7 @@ dict_getnext_system(
 	const rec_t*	rec;
 
 	/* Restore the position */
-	btr_pcur_restore_position(BTR_SEARCH_LEAF, pcur, mtr);
+	pcur->restore_position(BTR_SEARCH_LEAF, mtr);
 
 	/* Get the next record */
 	rec = dict_getnext_system_low(pcur, mtr);
@@ -3027,7 +3027,7 @@ loop:
 
 	mtr_start(&mtr);
 
-	btr_pcur_restore_position(BTR_SEARCH_LEAF, &pcur, &mtr);
+	pcur.restore_position(BTR_SEARCH_LEAF, &mtr);
 next_rec:
 	btr_pcur_move_to_next_user_rec(&pcur, &mtr);
 
