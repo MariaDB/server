@@ -652,14 +652,14 @@
 
     <CustomAction Id='ErrorDataDir'
                   Error='Invalid data directory, choose a different one. Error : [DATADIRERROR]'/>
-	<CustomAction Id="ErrorInstallDir"
-	              Error="[INSTALLDIRERROR]" />
+    <CustomAction Id="ErrorInstallDir"
+                  Error="[INSTALLDIRERROR]" />
     <InstallExecuteSequence>
       <Custom Action="CheckDataDirectory" After="CostFinalize">
         <![CDATA[&DBInstance=3 AND NOT !DBInstance=3 AND OLDERVERSIONBEINGUPGRADED=""]]>
       </Custom>
-	  <Custom Action="ErrorDataDir" After="CheckDataDirectory">DATADIRERROR</Custom>
-	  <Custom Action="CheckInstallDirectory" After="CostFinalize">
+     <Custom Action="ErrorDataDir" After="CheckDataDirectory">DATADIRERROR</Custom>
+     <Custom Action="CheckInstallDirectory" After="CostFinalize">
         NOT Installed AND OLDERVERSIONBEINGUPGRADED=""
       </Custom>
       <Custom Action="ErrorInstallDir" After="CheckInstallDirectory">INSTALLDIRERROR</Custom>
