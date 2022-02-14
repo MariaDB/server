@@ -357,11 +357,16 @@ row_sel_sec_rec_is_for_clust_rec(
 			}
 
 			len = clust_len;
+			ulint prefix_len = ifield->prefix_len;
 			if (rec_offs_nth_extern(clust_offs, clust_pos)) {
+				/* BLOB can contain prefix. */
 				len -= BTR_EXTERN_FIELD_REF_SIZE;
+				if (!len) {
+					goto compare_blobs;
+				}
 			}
 
-			if (ulint prefix_len = ifield->prefix_len) {
+			if (prefix_len) {
 				len = dtype_get_at_most_n_mbchars(
 					col->prtype, col->mbminlen,
 					col->mbmaxlen, prefix_len, len,
@@ -374,6 +379,7 @@ row_sel_sec_rec_is_for_clust_rec(
 check_for_blob:
 				if (rec_offs_nth_extern(clust_offs,
 							clust_pos)) {
+compare_blobs:
 					if (!row_sel_sec_rec_is_for_blob(
 						    col->mtype, col->prtype,
 						    col->mbminlen,
