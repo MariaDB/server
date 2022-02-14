@@ -56,6 +56,8 @@
 ulong tdc_size; /**< Table definition cache threshold for LRU eviction. */
 ulong tc_size; /**< Table cache threshold for LRU eviction. */
 uint32 tc_instances;
+uint32 tc_threshold;
+uint32 tc_kqps;
 static std::atomic<uint32_t> tc_active_instances(1);
 static std::atomic<bool> tc_contention_warning_reported;
 
@@ -149,14 +151,20 @@ struct Table_cache_instance
   /**
     Lock table cache mutex and check contention.
 
-    Instance is considered contested if more than 20% of mutex acquisiotions
+    Instance is considered contested if more than than the
+    table_cache_contention_threshold (20% by default) of mutex acquisitions
     can't be served immediately. Up to 100 000 probes may be performed to avoid
     instance activation on short sporadic peaks. 100 000 is estimated maximum
     number of queries one instance can serve in one second.
 
-    These numbers work well on a 2 socket / 20 core / 40 threads Intel Broadwell
-    system, that is expected number of instances is activated within reasonable
-    warmup time. It may have to be adjusted for other systems.
+    The default numbers work well on a 2 socket / 20 core / 40 threads Intel
+    Broadwell system, that is expected number of instances is activated within
+    reasonable warmup time. It may have to be adjusted for other systems.
+    Adjustments can be made by setting:
+    table_cache_contention_threshold- expressed as percentage between 10 and 50
+    table_cache_k_queries_per_sec- expected thousands of queries per second
+          expressed as a whole number >= 50, I use Kqueries to avoid weird
+          math issues.
 
     Only TABLE object acquistion is instrumented. We intentionally avoid this
     overhead on TABLE object release. All other table cache mutex acquistions
@@ -164,10 +172,13 @@ struct Table_cache_instance
   */
   void lock_and_check_contention(uint32_t n_instances, uint32_t instance)
   {
+    uint32_t contention_threshold = uint32_t(tc_kqps * 1000 * 0.01 * tc_threshold);
+    uint32_t reset_threshold = tc_kqps - contention_threshold;
+
     if (mysql_mutex_trylock(&LOCK_table_cache))
     {
       mysql_mutex_lock(&LOCK_table_cache);
-      if (++mutex_waits == 20000)
+      if (++mutex_waits == contention_threshold)
       {
         if (n_instances < tc_instances)
         {
@@ -201,7 +212,7 @@ struct Table_cache_instance
         mutex_nowaits= 0;
       }
     }
-    else if (++mutex_nowaits == 80000)
+    else if (++mutex_nowaits == reset_threshold)
     {
       mutex_waits= 0;
       mutex_nowaits= 0;
