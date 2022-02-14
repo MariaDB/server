@@ -907,6 +907,7 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
       node->deferred= true;
       if (!space->acquire())
         goto fail;
+      fil_names_dirty(space);
       const bool is_compressed= fil_space_t::is_compressed(flags);
 #ifdef _WIN32
       const bool is_sparse= is_compressed;
@@ -4146,7 +4147,6 @@ err_exit:
 		err = recv_rename_files();
 	}
 	mysql_mutex_unlock(&recv_sys.mutex);
-	log_sys.latch.wr_unlock();
 
 	recv_lsn_checks_on = true;
 
@@ -4158,6 +4158,7 @@ err_exit:
 		err = DB_CORRUPTION;
 	}
 
+	log_sys.latch.wr_unlock();
 	return err;
 }
 
