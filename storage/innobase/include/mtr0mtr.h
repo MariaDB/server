@@ -107,7 +107,7 @@ struct mtr_t {
   /** Commit a mini-transaction that did not modify any pages,
   but generated some redo log on a higher level, such as
   FILE_MODIFY records and an optional FILE_CHECKPOINT marker.
-  The caller must hold log_sys.mutex.
+  The caller must hold exclusive log_sys.latch.
   This is to be used at log_checkpoint().
   @param checkpoint_lsn   the log sequence number of a checkpoint, or 0
   @return current LSN */
@@ -624,10 +624,6 @@ private:
   @param type   extended record subtype; @see mrec_ext_t */
   inline void log_write_extended(const buf_block_t &block, byte type);
 
-  /** Prepare to write the mini-transaction log to the redo log buffer.
-  @return number of bytes to write in finish_write() */
-  inline size_t prepare_write();
-
   /** Write a FILE_MODIFY record when a non-predefined persistent
   tablespace was modified for the first time since fil_names_clear(). */
   ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void name_write();
@@ -636,9 +632,15 @@ private:
   ATTRIBUTE_NOINLINE void encrypt();
 
   /** Append the redo log records to the redo log buffer.
-  @param len   number of bytes to write
+  @param ex   whether log_sys.latch is already exclusively locked
   @return {start_lsn,flush_ahead} */
-  std::pair<lsn_t,page_flush_ahead> finish_write(size_t len);
+  std::pair<lsn_t,page_flush_ahead> do_write(bool ex);
+
+  /** Append the redo log records to the redo log buffer.
+  @param len   number of bytes to write
+  @param ex    whether log_sys.latch is exclusively locked
+  @return {start_lsn,flush_ahead} */
+  std::pair<lsn_t,page_flush_ahead> finish_write(size_t len, bool ex);
 
   /** Release the resources */
   inline void release_resources();

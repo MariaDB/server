@@ -1024,9 +1024,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_buffer_pool_read_requests
 		= buf_pool.stat.n_page_gets;
 
-	export_vars.innodb_buffer_pool_write_requests =
-		srv_stats.buf_pool_write_requests;
-
 	export_vars.innodb_buffer_pool_reads = srv_stats.buf_pool_reads;
 
 	export_vars.innodb_buffer_pool_read_ahead_rnd =
@@ -1167,13 +1164,13 @@ srv_export_innodb_status(void)
 
 	mysql_mutex_unlock(&srv_innodb_monitor_mutex);
 
-	mysql_mutex_lock(&log_sys.mutex);
+	log_sys.latch.rd_lock(SRW_LOCK_CALL);
 	export_vars.innodb_lsn_current = log_sys.get_lsn();
 	export_vars.innodb_lsn_flushed = log_sys.get_flushed_lsn();
 	export_vars.innodb_lsn_last_checkpoint = log_sys.last_checkpoint_lsn;
 	export_vars.innodb_checkpoint_max_age = static_cast<ulint>(
 		log_sys.max_checkpoint_age);
-	mysql_mutex_unlock(&log_sys.mutex);
+	log_sys.latch.rd_unlock();
 	export_vars.innodb_os_log_written = export_vars.innodb_lsn_current
 		- recv_sys.lsn;
 
@@ -1818,10 +1815,10 @@ void purge_coordinator_state::refresh(bool full)
     lsn_hwm= adaptive_purge_threshold + series[n_threads];
   }
 
-  mysql_mutex_lock(&log_sys.mutex);
+  log_sys.latch.rd_lock(SRW_LOCK_CALL);
   const lsn_t last= log_sys.last_checkpoint_lsn,
     max_age= log_sys.max_checkpoint_age;
-  mysql_mutex_unlock(&log_sys.mutex);
+  log_sys.latch.rd_unlock();
 
   lsn_age_factor= ulint(((log_sys.get_lsn() - last) * 100) / max_age);
 }

@@ -3,8 +3,7 @@
 --source include/have_debug.inc
 --source include/have_sequence.inc
 
-CREATE TABLE t(i INT) ENGINE=INNODB;
-INSERT INTO t SELECT seq%10 FROM seq_0_to_51199;
+CREATE TABLE t ENGINE=INNODB SELECT seq%10 i FROM seq_0_to_204796;
 
 --echo # xtrabackup backup
 --let $targetdir=$MYSQLTEST_VARDIR/tmp/backup

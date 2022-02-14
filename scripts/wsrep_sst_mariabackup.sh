@@ -1,4 +1,7 @@
-#!/bin/bash -ue
+#!/usr/bin/env bash
+
+set -ue
+
 # Copyright (C) 2017-2022 MariaDB
 # Copyright (C) 2013 Percona Inc
 #

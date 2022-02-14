@@ -31,7 +31,7 @@ extern ulong my_time_to_wait_for_lock;
 #include <signal.h>
 #ifdef HAVE_SIGHANDLER_T
 #define sig_return sighandler_t
-#elif defined(SOLARIS) || defined(__sun) || defined(__APPLE__) || defined(__FreeBSD__)
+#elif defined(SOLARIS) || defined(__sun) || defined(__APPLE__) || defined(__FreeBSD__) || defined(_AIX)
 typedef void (*sig_return)(int); /* Returns type from signal */
 #else
 typedef void (*sig_return)(void); /* Returns type from signal */

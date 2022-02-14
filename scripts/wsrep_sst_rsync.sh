@@ -1,4 +1,6 @@
-#!/bin/bash -ue
+#!/usr/bin/env bash
+
+set -ue
 
 # Copyright (C) 2017-2022 MariaDB
 # Copyright (C) 2010-2014 Codership Oy
@@ -738,7 +740,7 @@ EOF
             elif [ "$OS" = 'Linux' ]; then
                tmpfile=$(mktemp "--tmpdir=$tmpdir")
             else
-               tmpfile=$(TMPDIR="$tmpdir"; mktemp '-d')
+               tmpfile=$(TMPDIR="$tmpdir"; mktemp)
             fi
 
             wsrep_log_info "Extracting binlog files:"

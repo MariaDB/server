@@ -1371,6 +1371,7 @@ corresponding monitors are turned on/off/reset, and do appropriate
 mathematics to deduct the actual value. Please also refer to
 srv_export_innodb_status() for related global counters used by
 the existing status variables.*/
+TPOOL_SUPPRESS_TSAN
 void
 srv_mon_process_existing_counter(
 /*=============================*/
@@ -1405,7 +1406,7 @@ srv_mon_process_existing_counter(
 	/* innodb_buffer_pool_write_requests, the number of
 	write request */
 	case MONITOR_OVLD_BUF_POOL_WRITE_REQUEST:
-		value = srv_stats.buf_pool_write_requests;
+		value = buf_pool.flush_list_requests;
 		break;
 
 	/* innodb_buffer_pool_wait_free */
@@ -1714,10 +1715,10 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_LSN_CHECKPOINT_AGE:
-		mysql_mutex_lock(&log_sys.mutex);
+		log_sys.latch.rd_lock(SRW_LOCK_CALL);
 		value = static_cast<mon_type_t>(log_sys.get_lsn()
 						- log_sys.last_checkpoint_lsn);
-		mysql_mutex_unlock(&log_sys.mutex);
+		log_sys.latch.rd_unlock();
 		break;
 
 	case MONITOR_OVLD_BUF_OLDEST_LSN:

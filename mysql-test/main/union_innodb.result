@@ -1,0 +1,34 @@
+#
+# MDEV-25636: Bug report: abortion in sql/sql_parse.cc:6294
+#
+CREATE TABLE t1 (i1 int)engine=innodb;
+INSERT INTO `t1` VALUES (62),(66);
+CREATE TABLE t2 (i1 int) engine=innodb;
+SELECT 1 FROM t1 
+WHERE t1.i1 =( SELECT t1.i1 FROM t2  
+UNION SELECT i1 FROM (t1 AS dt1 natural JOIN t2) 
+window w1 as (partition by t1.i1));
+1
+drop table t1,t2;
+# Another testcase
+CREATE TABLE t1 (i3 int NOT NULL, i1 int , i2 int , i4 int , PRIMARY key(i2));
+INSERT INTO t1 VALUES (6,72,98,98),(46,1,6952,0);
+SELECT i1 FROM t1 
+WHERE t1.i3 =
+(SELECT ref_4.i2 FROM t1 AS ref_4
+WHERE t1.i2 > (SELECT i3 FROM t1 ORDER BY i3 LIMIT 1 OFFSET 4)
+UNION 
+SELECT ref_6.i2
+FROM (t1 AS ref_5 JOIN t1 AS ref_6 ON ((ref_6.i1 > ref_6.i2) OR (ref_5.i4 < ref_5.i4)))
+WHERE (t1.i2 >= t1.i2));
+i1
+drop table t1;
+#
+# MDEV-25761: Assertion `aggr != __null' failed in sub_select_postjoin_aggr
+#
+CREATE TABLE t1 ( a int NOT NULL PRIMARY KEY) engine=innodb;
+INSERT INTO t1 VALUES (0),(4),(31);
+CREATE TABLE t2 (i int) engine=innodb;
+DELETE FROM t1 WHERE t1.a =
+(SELECT t1.a FROM t2 UNION SELECT DISTINCT 52 FROM t2 r WHERE t1.a = t1.a);
+DROP TABLE t1,t2;
