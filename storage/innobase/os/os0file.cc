@@ -2424,16 +2424,15 @@ os_file_delete_if_exists_func(
 			return(true);
 		}
 
-		DWORD	lasterr = GetLastError();
-
-		if (lasterr == ERROR_FILE_NOT_FOUND
-		    || lasterr == ERROR_PATH_NOT_FOUND) {
-
+		switch (GetLastError()) {
+		case ERROR_FILE_NOT_FOUND:
+		case ERROR_PATH_NOT_FOUND:
 			/* the file does not exist, this not an error */
 			if (exist != NULL) {
 				*exist = false;
 			}
-
+			/* fall through */
+		case ERROR_ACCESS_DENIED:
 			return(true);
 		}
 

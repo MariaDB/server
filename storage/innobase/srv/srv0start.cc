@@ -172,35 +172,33 @@ static PSI_stage_info*	srv_stages[] =
 };
 #endif /* HAVE_PSI_STAGE_INTERFACE */
 
-/** Initial number of the redo log file */
-static const char INIT_LOG_FILE0[]= "101";
+/** Delete any garbage log files */
+static void delete_log_files()
+{
+  for (size_t i= 1; i < 102; i++)
+    delete_log_file(std::to_string(i).c_str());
+}
 
 /** Creates log file.
 @param create_new_db   whether the database is being initialized
 @param lsn             log sequence number
 @param logfile0        name of the log file
 @return DB_SUCCESS or error code */
-static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
-			       std::string& logfile0)
+static dberr_t create_log_file(bool create_new_db, lsn_t lsn)
 {
 	ut_ad(!srv_read_only_mode);
 
 	/* We will retain ib_logfile0 until we have written a new logically
 	empty log as ib_logfile101 and atomically renamed it to
-	ib_logfile0 in create_log_file_rename(). */
-
-	for (size_t i = 1; i < 102; i++) {
-		delete_log_file(std::to_string(i).c_str());
-	}
+	ib_logfile0 in log_t::rename_resized(). */
+	delete_log_files();
 
 	DBUG_ASSERT(!buf_pool.any_io_pending());
 
 	log_sys.latch.wr_lock(SRW_LOCK_CALL);
 	log_sys.set_capacity();
 
-	logfile0 = get_log_file_path(LOG_FILE_NAME_PREFIX)
-		.append(INIT_LOG_FILE0);
-
+	std::string logfile0{get_log_file_path("ib_logfile101")};
 	bool ret;
 	pfs_os_file_t file = os_file_create(
 		innodb_log_file_key, logfile0.c_str(),
@@ -208,7 +206,8 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
 		OS_LOG_FILE, srv_read_only_mode, &ret);
 
 	if (!ret) {
-		sql_print_error("InnoDB: Cannot create %s", logfile0.c_str());
+		sql_print_error("InnoDB: Cannot create %.*s",
+				int(logfile0.size()), logfile0.data());
 err_exit:
 		log_sys.latch.wr_unlock();
 		return DB_ERROR;
@@ -250,31 +249,25 @@ err_exit:
 	return DB_SUCCESS;
 }
 
-/** Rename the first redo log file.
-@param lsn             log sequence number
-@param logfile0        name of the log file
-@return error code
-@retval DB_SUCCESS     on successful operation */
-MY_ATTRIBUTE((warn_unused_result))
-static dberr_t create_log_file_rename(lsn_t lsn, std::string &logfile0)
+/** Rename the redo log file after resizing.
+@return whether an error occurred */
+bool log_t::rename_resized() noexcept
 {
   ut_ad(!srv_log_file_created);
   ut_d(srv_log_file_created= true);
 
+  std::string old_name{get_log_file_path("ib_logfile101")};
   std::string new_name{get_log_file_path()};
-  ut_ad(logfile0.size() == 2 + new_name.size());
 
-  if (IF_WIN(!MoveFileEx(logfile0.c_str(), new_name.c_str(),
+  if (IF_WIN(MoveFileEx(old_name.c_str(), new_name.c_str(),
                          MOVEFILE_REPLACE_EXISTING),
-             rename(logfile0.c_str(), new_name.c_str())))
-  {
-    sql_print_error("InnoDB: Failed to rename log from %s to %s",
-                    logfile0.c_str(), new_name.c_str());
-    return DB_ERROR;
-  }
+             !rename(old_name.c_str(), new_name.c_str())))
+    return false;
 
-  logfile0= new_name;
-  return DB_SUCCESS;
+  sql_print_error("InnoDB: Failed to rename log from %.*s to %.*s",
+                  int(old_name.size()), old_name.data(),
+                  int(new_name.size()), new_name.data());
+  return true;
 }
 
 /** Create an undo tablespace file
@@ -1098,11 +1091,10 @@ dberr_t srv_start(bool create_new_db)
 		return srv_init_abort(DB_ERROR);
 	}
 
-	std::string logfile0;
 	if (create_new_db) {
 		lsn_t flushed_lsn = log_sys.init_lsn();
 
-		err = create_log_file(true, flushed_lsn, logfile0);
+		err = create_log_file(true, flushed_lsn);
 
 		if (err != DB_SUCCESS) {
 			for (const Datafile &file: srv_sys_space) {
@@ -1179,10 +1171,8 @@ dberr_t srv_start(bool create_new_db)
 
 		buf_flush_sync();
 
-		err = create_log_file_rename(log_sys.get_lsn(), logfile0);
-
-		if (err != DB_SUCCESS) {
-			return(srv_init_abort(err));
+		if (log_sys.rename_resized()) {
+			return(srv_init_abort(DB_ERROR));
 		}
 	} else {
 		/* Suppress warnings in fil_space_t::create() for files
@@ -1361,6 +1351,7 @@ dberr_t srv_start(bool create_new_db)
 			       : log_t::FORMAT_10_8)) {
 			/* No need to add or remove encryption,
 			upgrade, or resize. */
+			delete_log_files();
 		} else {
 			/* Prepare to delete the old redo log file */
 			const lsn_t lsn{srv_prepare_to_delete_redo_log_file()};
@@ -1380,10 +1371,10 @@ dberr_t srv_start(bool create_new_db)
 					return(srv_init_abort(DB_ERROR)););
 			DBUG_PRINT("ib_log", ("After innodb_log_abort_5"));
 
-			err = create_log_file(false, lsn, logfile0);
+			err = create_log_file(false, lsn);
 
-			if (err == DB_SUCCESS) {
-				err = create_log_file_rename(lsn, logfile0);
+			if (err == DB_SUCCESS && log_sys.rename_resized()) {
+				err = DB_ERROR;
 			}
 
 			if (err != DB_SUCCESS) {

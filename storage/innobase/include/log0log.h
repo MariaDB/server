@@ -289,6 +289,10 @@ public:
 
   bool is_opened() const noexcept { return log.is_opened(); }
 
+  /** Rename a log file after resizing.
+  @return whether an error occurred */
+  static bool rename_resized() noexcept;
+
   void attach(log_file_t file, os_offset_t size);
 
   void close_file();
