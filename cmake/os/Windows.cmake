@@ -177,7 +177,19 @@ IF(MSVC)
    IF((NOT "${${flag}}" MATCHES "/Zi") AND (NOT "${${flag}}" MATCHES "/Z7"))
     STRING(APPEND ${flag} " /Zi")
    ENDIF()
+   # Remove inlining flags, added by CMake, if any.
+   # Compiler default is fine.
+   STRING(REGEX REPLACE "/Ob[0-3]" "" "${flag}"  "${${flag}}" )
   ENDFOREACH()
+
+  # Allow to overwrite the inlining flag
+  SET(MSVC_INLINE "" CACHE STRING
+    "MSVC Inlining option, either empty, or one of /Ob0,/Ob1,/Ob2,/Ob3")
+  IF(MSVC_INLINE MATCHES "/Ob[0-3]")
+    ADD_COMPILE_OPTIONS(${MSVC_INLINE})
+  ELSEIF(NOT(MSVC_INLINE STREQUAL ""))
+    MESSAGE(FATAL_ERROR "Invalid option for MSVC_INLINE")
+  ENDIF()
 
   IF(WITH_ASAN OR WITH_UBSAN)
     # Workaround something Linux specific
