@@ -28,6 +28,8 @@
 #            showed
 #
 
+# MDEV-27721 rpl.rpl_relay_max_extension test is not FreeBSD-compatible
+--source include/linux.inc
 --source include/have_innodb.inc
 --source include/have_binlog_format_row.inc
 --let $rpl_topology=1->2
