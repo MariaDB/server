@@ -29,11 +29,6 @@ INSERT INTO t VALUES
 (NULL,1,1,'private','secret'),(NULL,2,2,'sacred','success'),
 (NULL,3,3,'story','secure'),(NULL,4,4,'security','sacrament');
 
-# Prevent change buffering of key(col_char_key), so that
-# after the restart, the data ('secret','success','secure','sacrament')
-# cannot be emitted to the unencrypted redo log by change buffer merge.
-SET GLOBAL innodb_change_buffering=none;
-
 # Force a redo log flush at the next commit.
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 INSERT INTO t0
