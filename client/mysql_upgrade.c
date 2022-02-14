@@ -121,7 +121,6 @@ static struct my_option my_long_options[]=
    &opt_not_used, &opt_not_used, 0 , GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"host", 'h', "Connect to host.", 0,
    0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#define PASSWORD_OPT 12
   {"password", 'p',
    "Password to use when connecting to server. If password is not given,"
    " it's solicited on the tty.", &opt_password,&opt_password,
@@ -158,7 +157,6 @@ static struct my_option my_long_options[]=
   {"upgrade-system-tables", 's', "Only upgrade the system tables in the mysql database. Tables in other databases are not checked or touched.",
    &opt_systables_only, &opt_systables_only, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-#define USER_OPT (array_elements(my_long_options) - 6)
   {"user", 'u', "User for login.", &opt_user,
    &opt_user, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"verbose", 'v', "Display more output about the process; Using it twice will print connection argument; Using it 3 times will print out all CHECK, RENAME and ALTER TABLE during the check phase.",
@@ -264,11 +262,11 @@ static void print_error(const char *error_msg, DYNAMIC_STRING *output)
 */
 
 static void add_one_option_cmd_line(DYNAMIC_STRING *ds,
-                                    const struct my_option *opt,
-                                    const char* arg)
+                                    const char *name,
+                                    const char *arg)
 {
   dynstr_append(ds, "--");
-  dynstr_append(ds, opt->name);
+  dynstr_append(ds, name);
   if (arg)
   {
     dynstr_append(ds, "=");
@@ -278,10 +276,10 @@ static void add_one_option_cmd_line(DYNAMIC_STRING *ds,
 }
 
 static void add_one_option_cnf_file(DYNAMIC_STRING *ds,
-                                    const struct my_option *opt,
-                                    const char* arg)
+                                    const char *name,
+                                    const char *arg)
 {
-  dynstr_append(ds, opt->name);
+  dynstr_append(ds, name);
   if (arg)
   {
     dynstr_append(ds, "=");
@@ -324,7 +322,7 @@ get_one_option(int optid, const struct my_option *opt,
     if (argument)
     {
       /* Add password to ds_args before overwriting the arg with x's */
-      add_one_option_cnf_file(&ds_args, opt, argument);
+      add_one_option_cnf_file(&ds_args, opt->name, argument);
       while (*argument)
         *argument++= 'x';                       /* Destroy argument */
       tty_password= 0;
@@ -383,7 +381,7 @@ get_one_option(int optid, const struct my_option *opt,
   case OPT_SHARED_MEMORY_BASE_NAME: /* --shared-memory-base-name */
   case OPT_PLUGIN_DIR:                          /* --plugin-dir */
   case OPT_DEFAULT_AUTH:                        /* --default-auth */
-    add_one_option_cmd_line(&conn_args, opt, argument);
+    add_one_option_cmd_line(&conn_args, opt->name, argument);
     break;
   }
 
@@ -394,7 +392,7 @@ get_one_option(int optid, const struct my_option *opt,
       it can be passed on to "mysql" and "mysqlcheck"
       Save it in the ds_args string
     */
-    add_one_option_cnf_file(&ds_args, opt, argument);
+    add_one_option_cnf_file(&ds_args, opt->name, argument);
   }
   return 0;
 }
@@ -1349,12 +1347,10 @@ int main(int argc, char **argv)
   {
     opt_password= get_tty_password(NullS);
     /* add password to defaults file */
-    add_one_option_cnf_file(&ds_args, &my_long_options[PASSWORD_OPT], opt_password);
-    DBUG_ASSERT(strcmp(my_long_options[PASSWORD_OPT].name, "password") == 0);
+    add_one_option_cnf_file(&ds_args, "password", opt_password);
   }
   /* add user to defaults file */
-  add_one_option_cnf_file(&ds_args, &my_long_options[USER_OPT], opt_user);
-  DBUG_ASSERT(strcmp(my_long_options[USER_OPT].name, "user") == 0);
+  add_one_option_cnf_file(&ds_args, "user", opt_user);
 
   cnf_file_path= strmov(defaults_file, "--defaults-file=");
   {

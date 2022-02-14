@@ -109,6 +109,8 @@ Item_window_func::fix_fields(THD *thd, Item **ref)
     return true;
   }
 
+  window_func()->mark_as_window_func_sum_expr();
+
   /*
     TODO: why the last parameter is 'ref' in this call? What if window_func
     decides to substitute itself for something else and does *ref=.... ? 
