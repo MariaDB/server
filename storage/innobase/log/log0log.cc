@@ -519,7 +519,8 @@ inline void log_t::persist(lsn_t lsn) noexcept
 /** Write buf to ib_logfile0.
 @tparam release_latch whether to invoke latch.wr_unlock()
 @return new write target
-@retval 0 if everything was written */
+@retval lsn of a callback pending on write_lock, or 0
+*/
 template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
 {
   ut_ad(latch.is_write_locked());
@@ -605,7 +606,9 @@ inline bool log_t::flush(lsn_t lsn) noexcept
 /** Ensure that previous log writes are durable.
 @param lsn  previously written LSN
 @return new durable lsn target
-@retval 0   if everything was adequately written */
+@retval 0, if there are no pending callbacks on flush_lock
+           or there is another group commit lead.
+*/
 static lsn_t log_flush(lsn_t lsn)
 {
   ut_ad(!log_sys.is_pmem());
@@ -653,28 +656,26 @@ repeat:
       flush_lock.acquire(lsn, callback) != group_commit_lock::ACQUIRED)
     return;
 
-  lsn_t write_lsn;
+  lsn_t pending_write_lsn= 0, pending_flush_lsn= 0;
 
   if (write_lock.acquire(lsn, durable ? nullptr : callback) ==
       group_commit_lock::ACQUIRED)
   {
     log_sys.latch.wr_lock(SRW_LOCK_CALL);
-    write_lsn= log_sys.write_buf<true>();
+    pending_write_lsn= log_sys.write_buf<true>();
   }
-  else
-    write_lsn= 0;
 
   if (durable)
   {
-    lsn= log_flush(write_lock.value());
-    if (lsn || write_lsn)
-    {
-      /* There is no new group commit lead; some async waiters could stall. */
-      callback= &dummy_callback;
-      if (write_lsn > lsn)
-        lsn= write_lsn;
-      goto repeat;
-    }
+    pending_flush_lsn= log_flush(write_lock.value());
+  }
+
+  if (pending_write_lsn || pending_flush_lsn)
+  {
+    /* There is no new group commit lead; some async waiters could stall. */
+    callback= &dummy_callback;
+    lsn= std::max(pending_write_lsn, pending_flush_lsn);
+    goto repeat;
   }
 }
 
@@ -704,8 +705,12 @@ ATTRIBUTE_COLD void log_write_and_flush()
   ut_ad(!srv_read_only_mode);
   if (!log_sys.is_pmem())
   {
-    log_sys.write_buf<false>();
-    log_flush(write_lock.value());
+    while (log_sys.write_buf<false>())
+    {
+    }
+    while (log_flush(write_lock.value()))
+    {
+    }
   }
 #ifdef HAVE_PMEM
   else
