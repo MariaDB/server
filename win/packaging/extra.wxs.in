@@ -660,7 +660,7 @@
       </Custom>
 	  <Custom Action="ErrorDataDir" After="CheckDataDirectory">DATADIRERROR</Custom>
 	  <Custom Action="CheckInstallDirectory" After="CostFinalize">
-        NOT Installed
+        NOT Installed AND OLDERVERSIONBEINGUPGRADED=""
       </Custom>
       <Custom Action="ErrorInstallDir" After="CheckInstallDirectory">INSTALLDIRERROR</Custom>
       <Custom Action="CheckDatabaseProperties" Before="CreateDatabaseCommand">SERVICENAME</Custom>
