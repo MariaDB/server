@@ -705,12 +705,8 @@ ATTRIBUTE_COLD void log_write_and_flush()
   ut_ad(!srv_read_only_mode);
   if (!log_sys.is_pmem())
   {
-    while (log_sys.write_buf<false>())
-    {
-    }
-    while (log_flush(write_lock.value()))
-    {
-    }
+    log_sys.write_buf<false>();
+    log_flush(write_lock.value());
   }
 #ifdef HAVE_PMEM
   else
