@@ -1,0 +1,19 @@
+connect prevent_purge,localhost,root,,;
+start transaction with consistent snapshot;
+connection default;
+SET @fill_amount = (@@innodb_page_size / 2 ) + 1;
+CREATE TABLE t1 (col_text TEXT NOT NULL, KEY (col_text(9))) ENGINE=InnoDB;
+INSERT INTO t1 (col_text) VALUES (REPEAT('x', @fill_amount));
+UPDATE t1 SET col_text='';
+UPDATE t1 SET col_text=REPEAT('y', @fill_amount);
+connect con1,localhost,root,,;
+SET @fill_amount = (@@innodb_page_size / 2 ) + 1;
+BEGIN;
+INSERT INTO t1 (col_text) VALUES (REPEAT('z', @fill_amount));
+connection default;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+disconnect con1;
+disconnect prevent_purge;
+DROP TABLE t1;
