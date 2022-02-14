@@ -518,8 +518,8 @@ inline void log_t::persist(lsn_t lsn) noexcept
 
 /** Write buf to ib_logfile0.
 @tparam release_latch whether to invoke latch.wr_unlock()
-@return new write target
-@retval lsn of a callback pending on write_lock, or 0
+@return lsn of a callback pending on write_lock
+@retval 0 if everything was written
 */
 template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
 {
@@ -606,7 +606,7 @@ inline bool log_t::flush(lsn_t lsn) noexcept
 /** Ensure that previous log writes are durable.
 @param lsn  previously written LSN
 @return new durable lsn target
-@retval 0, if there are no pending callbacks on flush_lock
+@retval 0  if there are no pending callbacks on flush_lock
            or there is another group commit lead.
 */
 static lsn_t log_flush(lsn_t lsn)
