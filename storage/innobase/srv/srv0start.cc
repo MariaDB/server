@@ -216,7 +216,7 @@ err_exit:
 
 	ret = os_file_set_size(logfile0.c_str(), file, srv_log_file_size);
 	if (!ret) {
-		os_file_close(file);
+		os_file_close_func(file);
 		ib::error() << "Cannot set log file " << logfile0
 			    << " size to " << ib::bytes_iec{srv_log_file_size};
 		goto err_exit;

@@ -146,7 +146,7 @@ dberr_t log_file_t::close() noexcept
 {
   ut_a(is_opened());
 
-  if (!os_file_close(m_file))
+  if (!os_file_close_func(m_file))
     return DB_ERROR;
 
   m_file= OS_FILE_CLOSED;
