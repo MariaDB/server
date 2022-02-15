@@ -80,7 +80,10 @@
 #include "sql_acl.h"                       // SUPER_ACL
 #include "sql_handler.h"
 #include <hash.h>
+#ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
+#include "wsrep_server_state.h"
+#endif
 
 /**
   @defgroup Locking Locking

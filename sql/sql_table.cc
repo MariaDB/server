@@ -55,6 +55,9 @@
 #include "sql_sequence.h"
 #include "tztime.h"
 #include <algorithm>
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif
 
 #ifdef __WIN__
 #include <io.h>

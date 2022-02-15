@@ -347,6 +347,9 @@ TODO list:
 #include "probes_mysql.h"
 #include "transaction.h"
 #include "strfunc.h"
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif
 
 const uchar *query_state_map;
 

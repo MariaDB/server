@@ -34,7 +34,9 @@
 #include "sql_insert.h"                         // kill_delayed_threads
 #include "sql_handler.h"                        // mysql_ha_cleanup_no_free
 #include <my_sys.h>
-#include "wsrep_mysqld.h"
+#ifdef WITH_WSREP
+#include "wsrep_server_state.h"
+#endif /* WITH_WSREP */
 
 static const char *stage_names[]=
 {"START", "FLUSH", "BLOCK_DDL", "BLOCK_COMMIT", "END", 0};

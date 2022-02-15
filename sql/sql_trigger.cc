@@ -35,6 +35,9 @@
 #include "sp_cache.h"                     // sp_invalidate_cache
 #include <mysys_err.h>
 #include "debug_sync.h"
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif
 
 /*************************************************************************/
 

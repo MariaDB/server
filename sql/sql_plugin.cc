@@ -39,6 +39,7 @@
 #include <mysql/plugin_password_validation.h>
 #include <mysql/plugin_encryption.h>
 #include "sql_plugin_compat.h"
+#include "wsrep_mysqld.h"
 
 #ifdef HAVE_LINK_H
 #include <link.h>

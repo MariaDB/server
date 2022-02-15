@@ -573,9 +573,6 @@ bool thd_is_strict_mode(const MYSQL_THD thd);
 extern void mysql_bin_log_commit_pos(THD *thd, ulonglong *out_pos, const char **out_file);
 
 struct trx_t;
-#ifdef WITH_WSREP
-#include <mysql/service_wsrep.h>
-#endif /* WITH_WSREP */
 
 extern const struct _ft_vft ft_vft_result;
 

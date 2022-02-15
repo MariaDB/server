@@ -55,6 +55,9 @@
 #include "debug_sync.h"
 #include "sql_base.h"
 #include "sql_cte.h"
+#ifdef WITH_WSREP
+#include "mysql/service_wsrep.h"
+#endif /* WITH_WSREP */
 
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
 #define sp_restore_security_context(A,B) while (0) {}

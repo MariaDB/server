@@ -19,6 +19,7 @@
 #include "wsrep_schema.h"
 #include "wsrep_xid.h"
 #include "wsrep_trans_observer.h"
+#include "wsrep_server_state.h"
 
 #include "sql_class.h" /* THD */
 #include "transaction.h"

@@ -45,7 +45,8 @@ Created 4/20/1996 Heikki Tuuri
 #include "fts0fts.h"
 #include "fts0types.h"
 #ifdef WITH_WSREP
-#include "wsrep_mysqld.h"
+#include <wsrep.h>
+#include <mysql/service_wsrep.h>
 #endif /* WITH_WSREP */
 
 /*************************************************************************

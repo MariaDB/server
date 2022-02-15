@@ -70,12 +70,6 @@ Created 9/17/2000 Heikki Tuuri
 #include <deque>
 #include <vector>
 
-#ifdef WITH_WSREP
-#include "mysql/service_wsrep.h"
-#include "wsrep.h"
-#include "log.h"
-#include "wsrep_mysqld.h"
-#endif
 
 /** Provide optional 4.x backwards compatibility for 5.0 and above */
 ibool	row_rollback_on_timeout	= FALSE;
