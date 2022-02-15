@@ -56,5 +56,12 @@ set global test_sql_service_execute_sql_local= 'select * FROM test.t1 WHERE time
 show status like 'test_sql_query_result';
 drop table t1;
 
+set global test_sql_service_execute_sql_global= 'create table test.t1 select current_user()';
+select * from t1;
+drop table t1;
+set global test_sql_service_execute_sql_local= 'create table test.t1 select current_user()';
+select * from t1;
+drop table t1;
+
 uninstall plugin test_sql_service;
 

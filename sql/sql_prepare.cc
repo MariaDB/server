@@ -6314,9 +6314,11 @@ static void loc_on_close_free(MYSQL *mysql)
 {
   Protocol_local *p= (Protocol_local *) mysql->thd;
   THD *thd= p->new_thd;
+  p->empty_ctx.user= NULL;
   delete p;
   if (thd)
   {
+    thd->security_ctx->user= NULL;
     delete thd;
     local_connection_thread_count--;
   }
@@ -6353,12 +6355,16 @@ static MYSQL_METHODS local_methods=
 
 
 Atomic_counter<uint32_t> local_connection_thread_count;
+static const char *sql_service_user= "SQL_service";
 
-extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
+extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql, const char *user)
 {
   THD *thd_orig= current_thd;
   THD *new_thd;
   Protocol_local *p;
+  char *s_user;
+  size_t s_user_len= 0;
+  Security_context *query_ctx= NULL;
   DBUG_ENTER("mysql_real_connect_local");
 
   /* Test whether we're already connected */
@@ -6371,8 +6377,19 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
   mysql->methods= &local_methods;
   mysql->user= NULL;
 
+  if (user)
+    s_user_len= strlen(user) + 1;
+
   mysql->info_buffer= (char *) my_malloc(PSI_INSTRUMENT_ME,
-                                         MYSQL_ERRMSG_SIZE, MYF(0));
+                                 MYSQL_ERRMSG_SIZE+s_user_len, MYF(0));
+  if (user)
+  {
+    s_user= mysql->info_buffer + MYSQL_ERRMSG_SIZE;
+    strncpy(s_user, user, s_user_len);
+  }
+  else
+    s_user= (char *) sql_service_user;
+
   if (!thd_orig || thd_orig->lock)
   {
     /*
@@ -6388,7 +6405,7 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
     local_connection_thread_count++;
     new_thd->thread_stack= (char*) &thd_orig;
     new_thd->store_globals();
-    new_thd->security_ctx->skip_grants();
+    query_ctx= new_thd->security_ctx;
     new_thd->query_cache_is_applicable= 0;
     new_thd->variables.wsrep_on= 0;
     /*
@@ -6409,9 +6426,14 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
     new_thd->protocol= p;
   else
   {
+    query_ctx= &p->empty_ctx;
     p->empty_ctx.init();
-    p->empty_ctx.skip_grants();
   }
+
+  query_ctx->skip_grants();
+  query_ctx->user= s_user;
+  query_ctx->host= (char*) my_localhost;
+  strmake_buf(query_ctx->priv_user, s_user);
 
   mysql->thd= p;
   mysql->server_status= SERVER_STATUS_AUTOCOMMIT;

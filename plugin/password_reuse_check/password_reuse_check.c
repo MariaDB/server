@@ -172,7 +172,7 @@ static int validate(const MYSQL_CONST_LEX_STRING *username,
   buff[key_len]= 0;
   memset(hash, 0, sizeof(hash));
   my_sha512(hash, buff, key_len);
-  if (mysql_real_connect_local(mysql) == NULL)
+  if (mysql_real_connect_local(mysql, "password_reuse_check") == NULL)
     goto sql_error;
 
   if (interval)
