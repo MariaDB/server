@@ -5755,7 +5755,7 @@ next_rec:
 		btr_pcur_store_position(pcur, &mtr);
 		mtr.commit();
 		mtr_has_extra_clust_latch = FALSE;
-		DEBUG_SYNC_C("row_search_clust_unlatched");
+
 		mtr.start();
 
 		if (sel_restore_position_for_mysql(&same_user_rec,
