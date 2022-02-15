@@ -55,7 +55,7 @@ std::string get_log_file_path(const char *filename= LOG_FILE_NAME);
 static inline void delete_log_file(const char* suffix)
 {
   auto path = get_log_file_path(LOG_FILE_NAME_PREFIX).append(suffix);
-  os_file_delete_if_exists(innodb_log_file_key, path.c_str(), nullptr);
+  os_file_delete_if_exists_func(path.c_str(), nullptr);
 }
 
 struct completion_callback;
@@ -128,10 +128,10 @@ struct log_t;
 class log_file_t
 {
   friend log_t;
-  pfs_os_file_t m_file;
+  os_file_t m_file{OS_FILE_CLOSED};
 public:
   log_file_t()= default;
-  log_file_t(pfs_os_file_t file) noexcept : m_file(file) {}
+  log_file_t(os_file_t file) noexcept : m_file(file) {}
 
   /** Open a file
   @return file size in bytes

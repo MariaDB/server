@@ -2274,10 +2274,10 @@ static bool innodb_init()
 
   bool ret;
   const std::string ib_logfile0{get_log_file_path()};
-  os_file_delete_if_exists(innodb_log_file_key, ib_logfile0.c_str(), nullptr);
-  pfs_os_file_t file= os_file_create(innodb_log_file_key, ib_logfile0.c_str(),
-                                     OS_FILE_CREATE, OS_FILE_NORMAL,
-                                     OS_DATA_FILE_NO_O_DIRECT, false, &ret);
+  os_file_delete_if_exists_func(ib_logfile0.c_str(), nullptr);
+  os_file_t file= os_file_create_func(ib_logfile0.c_str(),
+                                      OS_FILE_CREATE, OS_FILE_NORMAL,
+                                      OS_DATA_FILE_NO_O_DIRECT, false, &ret);
   if (!ret)
   {
   invalid_log:
@@ -2298,13 +2298,12 @@ static bool innodb_init()
 
 #ifdef _WIN32
   DWORD len;
-  ret= WriteFile(os_file_t{file}, log_hdr_buf, sizeof log_hdr_buf,
+  ret= WriteFile(file, log_hdr_buf, sizeof log_hdr_buf,
                  &len, nullptr) && len == sizeof log_hdr_buf;
 #else
-  ret= sizeof log_hdr_buf == write(os_file_t{file}, log_hdr_buf,
-                                   sizeof log_hdr_buf);
+  ret= sizeof log_hdr_buf == write(file, log_hdr_buf, sizeof log_hdr_buf);
 #endif
-  if (!os_file_close(file) || !ret)
+  if (!os_file_close_func(file) || !ret)
     goto invalid_log;
   return false;
 }

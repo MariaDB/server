@@ -1639,10 +1639,10 @@ dberr_t recv_sys_t::find_checkpoint()
     file_checkpoint= 0;
     std::string path{get_log_file_path()};
     bool success;
-    pfs_os_file_t file= os_file_create(innodb_log_file_key, path.c_str(),
+    os_file_t file{os_file_create_func(path.c_str(),
                                        OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
                                        OS_FILE_NORMAL, OS_LOG_FILE,
-                                       srv_read_only_mode, &success);
+                                       srv_read_only_mode, &success)};
     if (file == OS_FILE_CLOSED)
       return DB_ERROR;
     const os_offset_t size{os_file_get_size(file)};
@@ -1665,10 +1665,10 @@ dberr_t recv_sys_t::find_checkpoint()
     for (int i= 1; i < 101; i++)
     {
       path= get_log_file_path(LOG_FILE_NAME_PREFIX).append(std::to_string(i));
-      file= os_file_create(innodb_log_file_key, path.c_str(),
-                           OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT |
-                           OS_FILE_ON_ERROR_SILENT,
-                           OS_FILE_NORMAL, OS_LOG_FILE, true, &success);
+      file= os_file_create_func(path.c_str(),
+                                OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT |
+                                OS_FILE_ON_ERROR_SILENT,
+                                OS_FILE_NORMAL, OS_LOG_FILE, true, &success);
       if (file == OS_FILE_CLOSED)
         break;
       const os_offset_t sz{os_file_get_size(file)};

@@ -200,10 +200,11 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn)
 
 	std::string logfile0{get_log_file_path("ib_logfile101")};
 	bool ret;
-	pfs_os_file_t file = os_file_create(
-		innodb_log_file_key, logfile0.c_str(),
-		OS_FILE_CREATE|OS_FILE_ON_ERROR_NO_EXIT, OS_FILE_NORMAL,
-		OS_LOG_FILE, srv_read_only_mode, &ret);
+	os_file_t file{
+          os_file_create_func(logfile0.c_str(),
+                              OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT,
+                              OS_FILE_NORMAL, OS_LOG_FILE, false, &ret)
+        };
 
 	if (!ret) {
 		sql_print_error("InnoDB: Cannot create %.*s",
@@ -489,7 +490,7 @@ dberr_t
 srv_check_undo_redo_logs_exists()
 {
 	bool		ret;
-	pfs_os_file_t	fh;
+	os_file_t	fh;
 	char	name[OS_FILE_MAX_PATH];
 
 	/* Check if any undo tablespaces exist */
@@ -497,8 +498,8 @@ srv_check_undo_redo_logs_exists()
 
 		snprintf(name, sizeof name, "%s/undo%03zu", srv_undo_dir, i);
 
-		fh = os_file_create(
-			innodb_data_file_key, name,
+		fh = os_file_create_func(
+			name,
 			OS_FILE_OPEN_RETRY
 			| OS_FILE_ON_ERROR_NO_EXIT
 			| OS_FILE_ON_ERROR_SILENT,
@@ -508,7 +509,7 @@ srv_check_undo_redo_logs_exists()
 			&ret);
 
 		if (ret) {
-			os_file_close(fh);
+			os_file_close_func(fh);
 			ib::error()
 				<< "undo tablespace '" << name << "' exists."
 				" Creating system tablespace with existing undo"
@@ -522,14 +523,14 @@ srv_check_undo_redo_logs_exists()
 	/* Check if redo log file exists */
 	auto logfilename = get_log_file_path();
 
-	fh = os_file_create(innodb_log_file_key, logfilename.c_str(),
-			    OS_FILE_OPEN_RETRY | OS_FILE_ON_ERROR_NO_EXIT
-				    | OS_FILE_ON_ERROR_SILENT,
-			    OS_FILE_NORMAL, OS_LOG_FILE, srv_read_only_mode,
-			    &ret);
+	fh = os_file_create_func(logfilename.c_str(),
+				 OS_FILE_OPEN_RETRY | OS_FILE_ON_ERROR_NO_EXIT
+				 | OS_FILE_ON_ERROR_SILENT,
+				 OS_FILE_NORMAL, OS_LOG_FILE,
+				 srv_read_only_mode, &ret);
 
 	if (ret) {
-		os_file_close(fh);
+		os_file_close_func(fh);
 		ib::error() << "redo log file '" << logfilename
 			    << "' exists. Creating system tablespace with"
 			       " existing redo log file is not recommended."
