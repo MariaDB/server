@@ -2866,6 +2866,13 @@ public:
     auto_inc_intervals_forced.empty(); // in case of multiple SET INSERT_ID
     auto_inc_intervals_forced.append(next_id, ULONGLONG_MAX, 0);
   }
+  inline void set_binlog_bit()
+  {
+    if (variables.sql_log_bin)
+      variables.option_bits |= OPTION_BIN_LOG;
+    else
+      variables.option_bits &= ~OPTION_BIN_LOG;
+  }
 
   ulonglong  limit_found_rows;
 
