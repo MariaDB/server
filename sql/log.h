@@ -18,7 +18,6 @@
 #define LOG_H
 
 #include "handler.h"                            /* my_xid */
-#include "wsrep_mysqld.h"
 #include "rpl_constants.h"
 
 class Relay_log_info;

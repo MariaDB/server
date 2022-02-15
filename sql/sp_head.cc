@@ -47,6 +47,7 @@
 #include "sql_audit.h"
 #include "debug_sync.h"
 #ifdef WITH_WSREP
+#include "wsrep.h"
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
 

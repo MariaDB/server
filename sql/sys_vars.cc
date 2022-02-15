@@ -66,6 +66,9 @@
 #include "semisync_master.h"
 #include "semisync_slave.h"
 #include <ssl_compat.h>
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif
 
 /*
   The rule for this file: everything should be 'static'. When a sys_var

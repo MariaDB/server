@@ -5363,8 +5363,8 @@ String *Item_temptable_rowid::val_str(String *str)
   return &str_value;
 }
 #ifdef WITH_WSREP
-
 #include "wsrep_mysqld.h"
+#include "wsrep_server_state.h"
 
 String *Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
 {

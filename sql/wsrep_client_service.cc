@@ -21,6 +21,7 @@
 #include "wsrep_thd.h"
 #include "wsrep_xid.h"
 #include "wsrep_trans_observer.h"
+#include "wsrep_server_state.h"
 
 #include "sql_base.h"    /* close_temporary_table() */
 #include "sql_class.h"   /* THD */
