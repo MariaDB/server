@@ -345,6 +345,11 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   enum Column_definition::enum_column_versioning vers_column_versioning;
   enum plsql_cursor_attr_t plsql_cursor_attr;
   privilege_t privilege;
+  struct
+  {
+    Item *expr;
+    LEX_CSTRING expr_str;
+  } sp_default_stmt;
 }
 
 %{
@@ -1486,7 +1491,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         select_sublist_qualified_asterisk
         expr_or_ignore expr_or_ignore_or_default set_expr_or_default
         signed_literal expr_or_literal
-        sp_opt_default
         simple_ident_nospvar
         field_or_var limit_option
         part_func_expr
@@ -1527,6 +1531,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <expr_lex>
         expr_lex
+
+%type <sp_default_stmt> sp_opt_default
 
 %type <assignment_lex>
         assignment_source_lex
@@ -3185,7 +3191,8 @@ sp_decl_variable_list:
           {
             if (unlikely(Lex->sp_variable_declarations_finalize(thd, $1,
                                                                 &Lex->last_field[0],
-                                                                $4)))
+                                                                $4.expr,
+                                                                $4.expr_str)))
               MYSQL_YYABORT;
             $$.init_using_vars($1);
           }
@@ -3193,7 +3200,9 @@ sp_decl_variable_list:
           ROW_SYM row_type_body
           sp_opt_default
           {
-            if (unlikely(Lex->sp_variable_declarations_row_finalize(thd, $1, $3, $4)))
+            if (unlikely(Lex->sp_variable_declarations_row_finalize(thd, $1, $3,
+                                                                    $4.expr,
+                                                                    $4.expr_str)))
               MYSQL_YYABORT;
             $$.init_using_vars($1);
           }
@@ -3718,11 +3727,21 @@ RETURN_ALLMODES_SYM:
         ;
 
 sp_proc_stmt_return:
-          RETURN_ALLMODES_SYM expr_lex
+          RETURN_ALLMODES_SYM remember_name expr_lex remember_end
           {
-            sp_head *sp= $2->sphead;
-            if (unlikely(sp->m_handler->add_instr_freturn(thd, sp, $2->spcont,
-                                                          $2->get_item(), $2)))
+            sp_head *sp= $3->sphead;
+            LEX_CSTRING expr_str= empty_clex_str;
+
+            if (Lex->is_metadata_used())
+            {
+              expr_str= make_string(thd, $2, $4);
+              if (expr_str.str == nullptr)
+                MYSQL_YYABORT;
+            }
+
+            if (unlikely(sp->m_handler->add_instr_freturn(thd, sp, $3->spcont,
+                                                          $3->get_item(), $3,
+                                                          expr_str)))
               MYSQL_YYABORT;
           }
         | RETURN_ORACLE_SYM
@@ -3738,22 +3757,29 @@ sp_proc_stmt_return:
 sp_proc_stmt_exit_oracle:
           EXIT_ORACLE_SYM
           {
-            if (unlikely(Lex->sp_exit_statement(thd, NULL)))
+            if (unlikely(Lex->sp_exit_statement(thd, NULL, empty_clex_str)))
               MYSQL_YYABORT;
           }
         | EXIT_ORACLE_SYM label_ident
           {
-            if (unlikely(Lex->sp_exit_statement(thd, &$2, NULL)))
+            if (unlikely(Lex->sp_exit_statement(thd, &$2, NULL,
+                                                empty_clex_str)))
               MYSQL_YYABORT;
           }
         | EXIT_ORACLE_SYM WHEN_SYM expr_lex
           {
-            if (unlikely($3->sp_exit_statement(thd, $3->get_item())))
+            if (unlikely($3->sp_exit_statement(thd, $3->get_item(),
+                                               Lex->is_metadata_used() ?
+                                               $3->get_expr_str() :
+                                               empty_clex_str)))
               MYSQL_YYABORT;
           }
         | EXIT_ORACLE_SYM label_ident WHEN_SYM expr_lex
           {
-            if (unlikely($4->sp_exit_statement(thd, &$2, $4->get_item())))
+            if (unlikely($4->sp_exit_statement(thd, &$2, $4->get_item(),
+                                               Lex->is_metadata_used() ?
+                                               $4->get_expr_str() :
+                                               empty_clex_str)))
               MYSQL_YYABORT;
           }
         ;
@@ -3817,11 +3843,21 @@ expr_lex:
             if (Lex->main_select_push(true))
               MYSQL_YYABORT;
           }
-          expr
+          remember_name expr remember_end
           {
+            LEX_CSTRING expr_str= empty_clex_str;
+
             $$= $<expr_lex>1;
             $$->sp_lex_in_use= true;
-            $$->set_item($2);
+
+            if (Lex->is_metadata_used())
+            {
+              expr_str= make_string(thd, $2, $4);
+              if (expr_str.str == nullptr)
+                MYSQL_YYABORT;
+            }
+
+            $$->set_item($3, expr_str);
             Lex->pop_select(); //min select
             if (Lex->check_cte_dependencies_and_resolve_references())
               MYSQL_YYABORT;
@@ -3848,12 +3884,22 @@ assignment_source_expr:
             if (Lex->main_select_push(true))
               MYSQL_YYABORT;
           }
-          expr
+          remember_name expr remember_end
           {
             DBUG_ASSERT($1 == thd->lex);
             $$= $1;
             $$->sp_lex_in_use= true;
-            $$->set_item_and_free_list($3, thd->free_list);
+            $$->set_item_and_free_list($4, thd->free_list);
+
+            if (Lex->is_metadata_used())
+            {
+              LEX_CSTRING expr_str= make_string(thd, $3, $5);
+
+              if (expr_str.str == nullptr)
+                MYSQL_YYABORT;
+              $$->set_expr_str(expr_str);
+            }
+
             thd->free_list= NULL;
             Lex->pop_select(); //min select
             if ($$->sphead->restore_lex(thd))
@@ -3869,12 +3915,21 @@ for_loop_bound_expr:
               MYSQL_YYABORT;
             Lex->current_select->parsing_place= FOR_LOOP_BOUND;
           }
-          expr
+          remember_name expr remember_end
           {
             DBUG_ASSERT($1 == thd->lex);
             $$= $1;
             $$->sp_lex_in_use= true;
-            $$->set_item_and_free_list($3, NULL);
+            $$->set_item_and_free_list($4, nullptr);
+
+            if (Lex->is_metadata_used())
+            {
+              LEX_CSTRING expr_str= make_string(thd, $3, $5);
+              if (expr_str.str == nullptr)
+                MYSQL_YYABORT;
+              $$->set_expr_str(expr_str);
+            }
+
             Lex->pop_select(); //main select
             if (unlikely($$->sphead->restore_lex(thd)))
               MYSQL_YYABORT;
@@ -4189,10 +4244,22 @@ sp_for_loop_bounds:
             $$.m_target_bound= NULL;
             $$.m_implicit_cursor= false;
           }
-        | IN_SYM opt_sp_for_loop_direction '(' sp_cursor_stmt ')'
+        | IN_SYM opt_sp_for_loop_direction '('
+          remember_name sp_cursor_stmt remember_end ')'
           {
+            LEX_CSTRING expr_str= empty_clex_str;
+
+            if (Lex->is_metadata_used())
+            {
+              expr_str= make_string(thd, $4, $6);
+              if (expr_str.str == nullptr)
+                MYSQL_YYABORT;
+            }
+
             if (unlikely(Lex->sp_for_loop_implicit_cursor_statement(thd, &$$,
-                                                                    $4)))
+                                                                    $5,
+                                                                    expr_str
+                                                                    )))
               MYSQL_YYABORT;
           }
         ;
@@ -16421,11 +16488,20 @@ option_value_no_option_type:
             if (sp_create_assignment_lex(thd, $1.pos()))
               MYSQL_YYABORT;
           }
-          set_expr_or_default
+          remember_name set_expr_or_default remember_end
           {
             Lex_ident_sys tmp(thd, &$1);
+            LEX_CSTRING expr_str= empty_clex_str;
+
+            if (Lex->is_metadata_used())
+            {
+              expr_str= make_string(thd, $4, $6);
+              if (expr_str.str == nullptr)
+                MYSQL_YYABORT;
+            }
+
             if (unlikely(!tmp.str) ||
-                unlikely(Lex->set_variable(&tmp, $4)) ||
+                unlikely(Lex->set_variable(&tmp, $5, expr_str)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
@@ -16434,11 +16510,20 @@ option_value_no_option_type:
             if (sp_create_assignment_lex(thd, $1.pos()))
               MYSQL_YYABORT;
           }
-          set_expr_or_default
+          remember_name set_expr_or_default remember_end
           {
             Lex_ident_sys tmp(thd, &$1);
+            LEX_CSTRING expr_str= empty_clex_str;
+
+            if (Lex->is_metadata_used())
+            {
+              expr_str= make_string(thd, $6, $8);
+              if (expr_str.str == nullptr)
+                MYSQL_YYABORT;
+            }
+
             if (unlikely(!tmp.str) ||
-                unlikely(Lex->set_variable(&tmp, &$3, $6)) ||
+                unlikely(Lex->set_variable(&tmp, &$3, $7, expr_str)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
@@ -16609,11 +16694,20 @@ option_value_no_option_type:
             if (sp_create_assignment_lex(thd, $1.pos()))
               MYSQL_YYABORT;
           }
-          set_expr_or_default
+          remember_name set_expr_or_default remember_end
           {
             Lex_ident_sys tmp(thd, &$1);
+            LEX_CSTRING expr_str= empty_clex_str;
+
+            if (Lex->is_metadata_used())
+            {
+              expr_str= make_string(thd, $4, $6);
+              if (expr_str.str == nullptr)
+                MYSQL_YYABORT;
+            }
+
             if (unlikely(!tmp.str) ||
-                unlikely(Lex->set_variable(&tmp, $4)) ||
+                unlikely(Lex->set_variable(&tmp, $5, expr_str)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
@@ -18033,8 +18127,20 @@ sp_block_label:
         ;
 
 sp_opt_default:
-          _empty       { $$ = NULL; }
-        | DEFAULT expr { $$ = $2; }
+          _empty       { $$= { nullptr, empty_clex_str}; }
+        | DEFAULT remember_name expr remember_end
+          {
+            LEX_CSTRING expr_str= empty_clex_str;
+
+            if (Lex->is_metadata_used())
+            {
+              expr_str= make_string(thd, $2, $4);
+              if (expr_str.str == nullptr)
+                MYSQL_YYABORT;
+            }
+
+            $$= { $3, expr_str };
+          }
         ;
 
 sp_pdparam:
@@ -18047,7 +18153,8 @@ sp_decl_variable_list_anchored:
           TYPE_SYM OF_SYM optionally_qualified_column_ident
           sp_opt_default
           {
-            if (unlikely(Lex->sp_variable_declarations_with_ref_finalize(thd, $1, $4, $5)))
+            if (unlikely(Lex->sp_variable_declarations_with_ref_finalize(
+                           thd, $1, $4, $5.expr, $5.expr_str)))
               MYSQL_YYABORT;
             $$.init_using_vars($1);
           }
@@ -18055,7 +18162,8 @@ sp_decl_variable_list_anchored:
           ROW_SYM TYPE_SYM OF_SYM optionally_qualified_column_ident
           sp_opt_default
           {
-            if (unlikely(Lex->sp_variable_declarations_rowtype_finalize(thd, $1, $5, $6)))
+            if (unlikely(Lex->sp_variable_declarations_rowtype_finalize(
+                           thd, $1, $5, $6.expr, $6.expr_str)))
               MYSQL_YYABORT;
             $$.init_using_vars($1);
           }
@@ -18222,12 +18330,23 @@ sp_decl_body:
             Lex->sp_block_init(thd);
           }
           opt_parenthesized_cursor_formal_parameters
-          FOR_SYM sp_cursor_stmt
+          FOR_SYM remember_name sp_cursor_stmt remember_end
           {
             sp_pcontext *param_ctx= Lex->spcont;
+            LEX_CSTRING expr_str= empty_clex_str;
+
             if (unlikely(Lex->sp_block_finalize(thd)))
               MYSQL_YYABORT;
-            if (unlikely(Lex->sp_declare_cursor(thd, &$1, $6, param_ctx, true)))
+
+            if (Lex->is_metadata_used())
+            {
+              expr_str= make_string(thd, $6, $8);
+              if (expr_str.str == nullptr)
+                MYSQL_YYABORT;
+            }
+
+            if (unlikely(Lex->sp_declare_cursor(thd, &$1, $7, param_ctx, true,
+                                                expr_str)))
               MYSQL_YYABORT;
             $$.vars= $$.conds= $$.hndlrs= 0;
             $$.curs= 1;
@@ -18453,9 +18572,33 @@ remember_end_opt:
         ;
 
 sp_opt_default:
-          _empty       { $$ = NULL; }
-        | DEFAULT expr { $$ = $2; }
-        | SET_VAR expr { $$ = $2; }
+          _empty       { $$= { nullptr, empty_clex_str}; }
+        | DEFAULT remember_name expr remember_end
+          {
+            LEX_CSTRING expr_str= empty_clex_str;
+
+            if (Lex->is_metadata_used())
+            {
+              expr_str= make_string(thd, $2, $4);
+              if (expr_str.str == nullptr)
+                MYSQL_YYABORT;
+            }
+
+            $$= { $3, expr_str };
+          }
+        | SET_VAR remember_name expr remember_end
+          {
+            LEX_CSTRING expr_str= empty_clex_str;
+
+            if (Lex->is_metadata_used())
+            {
+              expr_str= make_string(thd, $2, $4 );
+              if (expr_str.str == nullptr)
+                MYSQL_YYABORT;
+            }
+
+            $$= { $3, expr_str };
+          }
         ;
 
 sp_opt_inout:
@@ -18556,11 +18699,20 @@ set_assign:
             if (sp_create_assignment_lex(thd, $1.pos()))
               MYSQL_YYABORT;
           }
-          set_expr_or_default
+          remember_name set_expr_or_default remember_end
           {
             Lex_ident_sys tmp(thd, &$1);
+            LEX_CSTRING expr_str= empty_clex_str;
+
+            if (Lex->is_metadata_used())
+            {
+              expr_str= make_string(thd, $4, $6);
+              if (expr_str.str == nullptr)
+                MYSQL_YYABORT;
+            }
+
             if (unlikely(!tmp.str) ||
-                unlikely(Lex->set_variable(&tmp, $4)) ||
+                unlikely(Lex->set_variable(&tmp, $5, expr_str)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY,
                                                     false)))
               MYSQL_YYABORT;
@@ -18572,13 +18724,22 @@ set_assign:
             if (sp_create_assignment_lex(thd, $1.pos()))
               MYSQL_YYABORT;
           }
-          set_expr_or_default
+          remember_name set_expr_or_default remember_end
           {
             LEX *lex= Lex;
             DBUG_ASSERT(lex->var_list.is_empty());
             Lex_ident_sys tmp(thd, &$1);
+            LEX_CSTRING expr_str= empty_clex_str;
+
+            if (Lex->is_metadata_used())
+            {
+              expr_str= make_string(thd, $6, $8);
+              if (expr_str.str == nullptr)
+                MYSQL_YYABORT;
+            }
+
             if (unlikely(!tmp.str) ||
-                unlikely(lex->set_variable(&tmp, &$3, $6)) ||
+                unlikely(lex->set_variable(&tmp, &$3, $7, expr_str)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY,
                                                     false)))
               MYSQL_YYABORT;
@@ -18595,10 +18756,19 @@ set_assign:
             if (sp_create_assignment_lex(thd, $1.pos()))
               MYSQL_YYABORT;
           }
-          set_expr_or_default
+          remember_name set_expr_or_default remember_end
           {
             LEX_CSTRING tmp= { $2.str, $2.length };
-            if (unlikely(Lex->set_trigger_field(&tmp, &$4, $7)) ||
+            LEX_CSTRING expr_str= empty_clex_str;
+
+            if (Lex->is_metadata_used())
+            {
+              expr_str= make_string(thd, $7, $9);
+              if (expr_str.str == nullptr)
+                MYSQL_YYABORT;
+            }
+
+            if (unlikely(Lex->set_trigger_field(&tmp, &$4, $8, expr_str)) ||
                 unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY,
                                                     false)))
               MYSQL_YYABORT;
@@ -18921,7 +19091,8 @@ sp_decl_variable_list_anchored:
           optionally_qualified_column_ident PERCENT_ORACLE_SYM TYPE_SYM
           sp_opt_default
           {
-            if (unlikely(Lex->sp_variable_declarations_with_ref_finalize(thd, $1, $2, $5)))
+            if (unlikely(Lex->sp_variable_declarations_with_ref_finalize(thd, $1, $2,
+                           $5.expr, $5.expr_str)))
               MYSQL_YYABORT;
             $$.init_using_vars($1);
           }
@@ -18929,7 +19100,8 @@ sp_decl_variable_list_anchored:
           optionally_qualified_column_ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
           sp_opt_default
           {
-            if (unlikely(Lex->sp_variable_declarations_rowtype_finalize(thd, $1, $2, $5)))
+            if (unlikely(Lex->sp_variable_declarations_rowtype_finalize(thd, $1,
+			   $2, $5.expr, $5.expr_str)))
               MYSQL_YYABORT;
             $$.init_using_vars($1);
           }
@@ -19139,14 +19311,24 @@ opt_sp_decl_body_list:
         ;
 
 sp_decl_body_list:
-          sp_decl_non_handler_list
+          remember_name sp_decl_non_handler_list remember_end
           {
-            if (unlikely(Lex->sphead->sp_add_instr_cpush_for_cursors(thd, Lex->spcont)))
+            LEX_CSTRING expr_str= empty_clex_str;
+
+            if (Lex->is_metadata_used())
+            {
+              expr_str= make_string(thd, $1, $3);
+              if (expr_str.str == nullptr)
+                MYSQL_YYABORT;
+            }
+
+            if (unlikely(Lex->sphead->sp_add_instr_cpush_for_cursors(
+                  thd, Lex->spcont, expr_str)))
               MYSQL_YYABORT;
           }
           opt_sp_decl_handler_list
           {
-            $$.join($1, $3);
+            $$.join($2, $5);
           }
         | sp_decl_handler_list
         ;
@@ -19196,12 +19378,23 @@ sp_decl_non_handler:
             Lex->sp_block_init(thd);
           }
           opt_parenthesized_cursor_formal_parameters
-          IS sp_cursor_stmt
+          IS remember_name sp_cursor_stmt remember_end
           {
             sp_pcontext *param_ctx= Lex->spcont;
+            LEX_CSTRING expr_str= empty_clex_str;
+
             if (unlikely(Lex->sp_block_finalize(thd)))
               MYSQL_YYABORT;
-            if (unlikely(Lex->sp_declare_cursor(thd, &$2, $6, param_ctx, false)))
+
+            if (Lex->is_metadata_used())
+            {
+              expr_str= make_string(thd, $6, $8);
+              if (expr_str.str == nullptr)
+                MYSQL_YYABORT;
+            }
+
+            if (unlikely(Lex->sp_declare_cursor(thd, &$2, $7, param_ctx, false,
+                                                expr_str)))
               MYSQL_YYABORT;
             $$.vars= $$.conds= $$.hndlrs= 0;
             $$.curs= 1;

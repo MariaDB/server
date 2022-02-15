@@ -418,6 +418,27 @@ int sp_instr::exec_core(THD *thd, uint *nextp)
   return 0;
 }
 
+
+void sp_lex_instr::get_query(String *sql_query) const
+{
+  LEX_CSTRING expr_query = get_expr_query();
+
+  /*
+    the expression string must me initialized in constructor of a derived class
+  */
+  DBUG_ASSERT(expr_query.str != null_clex_str.str &&
+              expr_query.length != null_clex_str.length);
+
+  /*
+    Leave the method in case of empty query string.
+  */
+  if (!expr_query.length)
+    return;
+
+  sql_query->append(C_STRING_WITH_LEN("SELECT "));
+  sql_query->append(expr_query.str, expr_query.length);
+}
+
 /*
   sp_instr_stmt class functions
 */
@@ -1192,7 +1213,7 @@ sp_instr_cpush::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_cpush::execute");
 
-  sp_cursor::reset(thd, &m_lex_keeper);
+  sp_cursor::reset(thd);
   m_lex_keeper.disable_query_cache();
   thd->spcont->push_cursor(this);
 
@@ -1495,14 +1516,14 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
 
   /*
     Copy structure only once. If the cursor%ROWTYPE variable is declared
-    inside a LOOP block, it gets its structure on the first loop interation
+    inside a LOOP block, it gets its structure on the first loop iteration
     and remembers the structure for all consequent loop iterations.
     It we recreated the structure on every iteration, we would get
     potential memory leaks, and it would be less efficient.
   */
   if (!row->arguments())
   {
-    sp_cursor tmp(thd, &m_lex_keeper, true);
+    sp_cursor tmp(thd, true);
     // Open the cursor without copying data
     if (!(ret= tmp.open(thd)))
     {

@@ -8153,3 +8153,11 @@ THD_list_iterator *THD_list_iterator::iterator()
 {
   return &server_threads;
 }
+
+
+LEX_CSTRING make_string(THD *thd, const char *start_ptr,
+                        const char *end_ptr)
+{
+  size_t length = end_ptr - start_ptr;
+  return {strmake_root(thd->mem_root, start_ptr, length), length};
+}

@@ -185,7 +185,8 @@ public:
   }
   virtual bool add_instr_freturn(THD *thd, sp_head *sp,
                                  sp_pcontext *spcont,
-                                 Item *item, LEX *lex) const;
+                                 Item *item, LEX *lex,
+                                 LEX_CSTRING expr_query) const;
   virtual bool add_instr_preturn(THD *thd, sp_head *sp,
                                  sp_pcontext *spcont) const;
 
@@ -324,7 +325,7 @@ public:
   HASH *get_priv_hash() const;
 #endif
   bool add_instr_freturn(THD *thd, sp_head *sp, sp_pcontext *spcont,
-                         Item *item, LEX *lex) const;
+                         Item *item, LEX *lex, LEX_CSTRING expr_query) const;
 };
 
 
