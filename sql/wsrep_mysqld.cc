@@ -2181,6 +2181,12 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
   if (!wsrep_thd_is_local(thd))
     return 0;
 
+  if (thd->wsrep_parallel_slave_wait_for_prior_commit())
+  {
+    WSREP_WARN("TOI: wait_for_prior_commit() returned error.");
+    return -1;
+  }
+
   int ret= 0;
   mysql_mutex_lock(&thd->LOCK_thd_data);
 
@@ -3001,6 +3007,15 @@ enum wsrep::streaming_context::fragment_unit wsrep_fragment_unit(ulong unit)
     DBUG_ASSERT(0);
     return wsrep::streaming_context::bytes;
   }
+}
+
+bool THD::wsrep_parallel_slave_wait_for_prior_commit() 
+{
+  if (rgi_slave && rgi_slave->is_parallel_exec && wait_for_prior_commit()) 
+  {
+    return 1;
+  }
+  return 0;
 }
 
 /***** callbacks for wsrep service ************/
