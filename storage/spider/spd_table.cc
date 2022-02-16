@@ -2394,7 +2394,8 @@ int spider_parse_connect_info(
           SPIDER_PARAM_LONGLONG("srd", second_read, 0);
           SPIDER_PARAM_DOUBLE("srt", scan_rate, 0);
           SPIDER_PARAM_STR_LIST_CHECK("srv", server_names,
-                                      option_struct->remote_server);
+                                      option_struct &&
+                                          option_struct->remote_server);
           SPIDER_PARAM_DOUBLE("ssr", semi_split_read, 0);
           SPIDER_PARAM_LONGLONG("ssl", semi_split_read_limit, 0);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -2405,7 +2406,8 @@ int spider_parse_connect_info(
           SPIDER_PARAM_LONGLONG("srs", static_records_for_status, 0);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("svc", tgt_ssl_vscs, 0, 1);
           SPIDER_PARAM_STR_LIST_CHECK("tbl", tgt_table_names,
-                                      option_struct->remote_table);
+                                      option_struct &&
+                                          option_struct->remote_table);
           SPIDER_PARAM_INT_WITH_MAX("tcm", table_count_mode, 0, 3);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("uhd", use_handlers, 0, 3);
           SPIDER_PARAM_INT_WITH_MAX("upu", use_pushdown_udf, 0, 1);
@@ -2420,13 +2422,15 @@ int spider_parse_connect_info(
           goto error;
         case 5:
           SPIDER_PARAM_STR_LIST_CHECK("table", tgt_table_names,
-                                      option_struct->remote_table);
+                                      option_struct &&
+                                          option_struct->remote_table);
           error_num = connect_string_parse.print_param_error();
           goto error;
         case 6:
           SPIDER_PARAM_STR_LIST("driver", tgt_drivers);
           SPIDER_PARAM_STR_LIST_CHECK("server", server_names,
-                                      option_struct->remote_server);
+                                      option_struct &&
+                                          option_struct->remote_server);
           SPIDER_PARAM_STR_LIST("socket", tgt_sockets);
           SPIDER_PARAM_HINT("idx", key_hint, 3, (int) table_share->keys,
             spider_db_append_key_hint);
@@ -2444,7 +2448,8 @@ int spider_parse_connect_info(
           goto error;
         case 8:
           SPIDER_PARAM_STR_LIST_CHECK("database", tgt_dbs,
-                                      option_struct->remote_database);
+                                      option_struct &&
+                                          option_struct->remote_database);
           SPIDER_PARAM_STR_LIST("password", tgt_passwords);
           SPIDER_PARAM_INT_WITH_MAX("sts_mode", sts_mode, 1, 2);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
