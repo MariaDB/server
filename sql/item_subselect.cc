@@ -2769,12 +2769,9 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
     {
       /* The argument list of the top-level AND may change after fix fields. */
       and_args= ((Item_cond*) join_arg->conds)->argument_list();
-      List_iterator<Item_equal> li(join_arg->cond_equal->current_level);
-      Item_equal *elem;
-      while ((elem= li++))
-      {
-        and_args->push_back(elem, thd->mem_root);
-      }
+      ((Item_cond_and *) (join_arg->conds))->m_cond_equal=
+                                             *join_arg->cond_equal;
+      and_args->append((List<Item> *)&join_arg->cond_equal->current_level);
     }
   }
 

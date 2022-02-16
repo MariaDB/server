@@ -2351,7 +2351,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
 2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select 3 AS `f` from dual where !<expr_cache><3>(<in_optimizer>(3,<exists>(select `test`.`t1`.`b` from `test`.`t1` where (`test`.`t1`.`c` = 'USA' or `test`.`t1`.`c` <> 'USA') and trigcond(<cache>(3) = `test`.`t1`.`b` or `test`.`t1`.`b` is null) and `test`.`t1`.`b` = `test`.`t1`.`a` having trigcond(`test`.`t1`.`b` is null))))
+Note	1003	select 3 AS `f` from dual where !<expr_cache><3>(<in_optimizer>(3,<exists>(select `test`.`t1`.`b` from `test`.`t1` where `test`.`t1`.`b` = `test`.`t1`.`a` and (`test`.`t1`.`c` = 'USA' or `test`.`t1`.`c` <> 'USA') and trigcond(<cache>(3) = `test`.`t1`.`b` or `test`.`t1`.`b` is null) having trigcond(`test`.`t1`.`b` is null))))
 SELECT * FROM t2 
 WHERE f NOT IN (SELECT b FROM t1
 WHERE 0 OR (c IN ('USA') OR c NOT IN ('USA')) AND a = b);
@@ -2803,4 +2803,42 @@ FROM (t1 JOIN t1 AS ref_t1 ON
 (t1.i1 > (SELECT ref_t1.i1 AS c0 FROM t1 b ORDER BY -c0)));
 ERROR 21000: Subquery returns more than 1 row
 DROP TABLE t1;
+#
+# MDEV-22377: Subquery in an UPDATE query uses full scan instead of range
+#
+CREATE TABLE t1 (
+key1 varchar(30) NOT NULL,
+col1 int(11) NOT NULL,
+filler char(100)
+);
+insert into t1 select seq, seq, seq from seq_1_to_100;
+CREATE TABLE t10 (
+key1 varchar(30) NOT NULL,
+col1 int,
+filler char(100),
+PRIMARY KEY (key1)
+);
+insert into t10 select seq, seq, seq from seq_1_to_1000;
+CREATE TABLE t11 (
+key1 varchar(30) NOT NULL,
+filler char(100),
+PRIMARY KEY (key1)
+);
+insert into t11 select seq, seq from seq_1_to_1000;
+set @tmp_os=@@optimizer_switch;
+set optimizer_switch='semijoin=off,materialization=off';
+# Must use range access (not full scan) for table tms:
+explain select * from t1 hist
+WHERE
+key1 IN ('1','2','3','4','5','6','7','8','9','10') AND
+hist.col1 NOT IN (SELECT tn.col1
+FROM t10 tn JOIN t11 tms ON tms.key1 = tn.key1
+WHERE tn.key1 IN ('1','2','3','4','5','6','7','8','9','10')
+);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	hist	ALL	NULL	NULL	NULL	NULL	100	Using where
+2	DEPENDENT SUBQUERY	tms	range	PRIMARY	PRIMARY	32	NULL	10	Using where; Using index
+2	DEPENDENT SUBQUERY	tn	eq_ref	PRIMARY	PRIMARY	32	test.tms.key1	1	Using where
+set optimizer_switch=@tmp_os;
+drop table t1, t10, t11;
 # End of 10.2 tests
