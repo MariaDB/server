@@ -1,5 +1,3 @@
---- page_size.result
-+++ page_size,4k.result
 @@ -3,7 +3,7 @@
  SELECT variable_value FROM information_schema.global_status
  WHERE LOWER(variable_name) = 'innodb_page_size';
@@ -85,8 +83,8 @@
 -c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
 -c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
 -c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
--c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(157)
-+c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(76)
+-c36 char(200), c37 char(200), c38 char(196)
++c06 char(200), c07 char(200), c08 char(176)
  ) ROW_FORMAT=compressed;
  DROP TABLE t1;
  CREATE TABLE t1 (
@@ -483,5 +481,5 @@
 -Warning	139	Row size too large (> 8126). Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
 +Warning	139	Row size too large (> 1982). Changing some columns to TEXT or BLOB may help. In current row format, BLOB prefix of 0 bytes is stored inline.
  DROP TABLE t1;
- CREATE TABLE t1(c text, PRIMARY KEY (c(438)))
+ CREATE TABLE t1(c text, PRIMARY KEY (c(293)))
  ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;

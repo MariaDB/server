@@ -148,14 +148,14 @@ show warnings;
 -- error ER_TOO_BIG_ROWSIZE
 create index idx3 on worklog5743_1(a2(436));
 show warnings;
-# Bug#13391353 Limit is one byte less on on 32bit-Linux only
-create index idx4 on worklog5743_1(a2(434));
+# MDEV-27634 stricter compressBound() limit for the s390x DFLTCC instruction
+create index idx4 on worklog5743_1(a2(290));
 show warnings;
 -- error ER_TOO_BIG_ROWSIZE
 create index idx5 on worklog5743_1(a1, a2(430));
 show warnings;
-# Bug#13391353 Limit is one byte less on on 32bit-Linux only
-create index idx6 on worklog5743_1(a1, a2(428));
+# MDEV-27634 stricter compressBound() limit for the s390x DFLTCC instruction
+create index idx6 on worklog5743_1(a1, a2(283));
 show warnings;
 
 # Test edge cases for indexes using key_block_size=2
@@ -171,14 +171,14 @@ show warnings;
 -- error ER_TOO_BIG_ROWSIZE
 create index idx3 on worklog5743_2(a2(948));
 show warnings;
-# Bug#13391353 Limit is one byte less on on 32bit-Linux only
-create index idx4 on worklog5743_2(a2(946));
+# MDEV-27634 stricter compressBound() limit for the s390x DFLTCC instruction
+create index idx4 on worklog5743_2(a2(802));
 show warnings;
 -- error ER_TOO_BIG_ROWSIZE
 create index idx5 on worklog5743_2(a1, a2(942));
 show warnings;
-# Bug#13391353 Limit is one byte less on on 32bit-Linux only
-create index idx6 on worklog5743_2(a1, a2(940));
+# MDEV-27634 stricter compressBound() limit for the s390x DFLTCC instruction
+create index idx6 on worklog5743_2(a1, a2(795));
 show warnings;
 
 # Test edge cases for indexes using key_block_size=4
@@ -192,14 +192,14 @@ show warnings;
 -- error ER_TOO_BIG_ROWSIZE
 create index idx3 on worklog5743_4(a2(1972));
 show warnings;
-# Bug#13391353 Limit is one byte less on on 32bit-Linux only
-create index idx4 on worklog5743_4(a2(1970));
+# MDEV-27634 stricter compressBound() limit for the s390x DFLTCC instruction
+create index idx4 on worklog5743_4(a2(1826));
 show warnings;
 -- error ER_TOO_BIG_ROWSIZE
 create index idx5 on worklog5743_4(a1, a2(1966));
 show warnings;
-# Bug#13391353 Limit is one byte less on on 32bit-Linux only
-create index idx6 on worklog5743_4(a1, a2(1964));
+# MDEV-27634 stricter compressBound() limit for the s390x DFLTCC instruction
+create index idx6 on worklog5743_4(a1, a2(1819));
 show warnings;
 
 # Test edge cases for indexes using key_block_size=8

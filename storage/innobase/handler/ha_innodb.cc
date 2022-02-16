@@ -12983,7 +12983,6 @@ bool create_table_info_t::row_size_is_acceptable(
   if (info.row_is_too_big())
   {
     ut_ad(info.get_overrun_size() != 0);
-    ut_ad(info.max_leaf_size != 0);
 
     const size_t idx= info.get_first_overrun_field_index();
     const dict_field_t *field= dict_index_get_nth_field(&index, idx);
