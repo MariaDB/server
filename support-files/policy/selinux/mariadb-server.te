@@ -21,6 +21,7 @@ require {
 	type shell_exec_t;
 	type anon_inodefs_t;
 	type fixed_disk_device_t;
+	type usermodehelper_t;
 	class lnk_file read;
 	class process { getattr signull };
 	class unix_stream_socket connectto;
