@@ -9668,7 +9668,7 @@ ST_FIELD_INFO show_explain_tabular_fields_info[]=
 
 ST_FIELD_INFO show_explain_json_fields_info[]=
 {
-  Column("EXPLAIN", Longtext(MAX_FIELD_VARCHARLENGTH), NOT_NULL, "EXPLAIN"),
+  Column("EXPLAIN", Longtext(MAX_FIELD_VARCHARLENGTH), NOT_NULL, "SHOW EXPLAIN"),
   CEnd()
 };
 
@@ -9697,7 +9697,7 @@ ST_FIELD_INFO show_analyze_tabular_fields_info[]=
 
 
 ST_FIELD_INFO show_analyze_json_fields_info[]= {
-    Column("EXPLAIN", Longtext(MAX_FIELD_VARCHARLENGTH), NOT_NULL, "ANALYZE"),
+    Column("ANALYZE", Longtext(MAX_FIELD_VARCHARLENGTH), NOT_NULL, "SHOW ANALYZE"),
     CEnd()};
 
 

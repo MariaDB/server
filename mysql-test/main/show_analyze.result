@@ -31,7 +31,7 @@ select count(*) from t1 where c < 500;
 connection default;
 show analyze for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1000.00	59.38	50.00	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1000.00	50.00	50.00	Using where
 Warnings:
 Note	1003	select count(*) from t1 where c < 500
 connection con1;
@@ -41,7 +41,7 @@ select max(c) from t1 where c < 10;
 connection default;
 show analyze for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1000.00	10.16	10.00	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1000.00	10.00	10.00	Using where
 Warnings:
 Note	1003	select max(c) from t1 where c < 10
 connection con1;

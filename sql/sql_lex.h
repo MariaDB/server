@@ -3792,14 +3792,9 @@ public:
   bool save_prep_leaf_tables();
 
   int print_explain(select_result_sink *output, uint8 explain_flags,
-<<<<<<< HEAD
-                    bool is_analyze, bool *printed_anything);
-  bool restore_set_statement_var();
-=======
                     bool is_analyze, bool is_json_format,
                     bool *printed_anything);
-  void restore_set_statement_var();
->>>>>>> 54281b6e74e... MDEV-10000 Add EXPLAIN [FORMAT=JSON] FOR CONNECTION syntax support
+  bool restore_set_statement_var();
 
   void init_last_field(Column_definition *field, const LEX_CSTRING *name,
                        const CHARSET_INFO *cs);
