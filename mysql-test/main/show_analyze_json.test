@@ -125,7 +125,7 @@ SET debug_dbug=@old_debug;
 --echo # UNION, select, first branch
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_join_exec_end';
-send select max(a) from t0 A where a<=5 union select max(a+1) from t0 B where a>=9;
+send select max(a) from t0 a where a<=5 union select max(a+1) from t0 b where a>=9;
 connection default;
 --source include/wait_condition.inc
 --source include/analyze-format.inc
@@ -137,7 +137,7 @@ reap;
 --echo # UNION, select, second branch
 set @show_explain_probe_select_id=2; # <--- Second branch
 SET debug_dbug='+d,show_explain_probe_join_exec_end';
-send select max(a) from t0 A where a<=5 union select max(a+1) from t0 B where a>=9;
+send select max(a) from t0 a where a<=5 union select max(a+1) from t0 b where a>=9;
 connection default;
 --source include/wait_condition.inc
 --source include/analyze-format.inc
@@ -149,7 +149,7 @@ reap;
 --echo # UNION, analyze, first branch
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_join_exec_end';
-send analyze select a from t0 A where a<=5 union select a+1 from t0 B where a>=9;
+send analyze select a from t0 a where a<=5 union select a+1 from t0 b where a>=9;
 connection default;
 --source include/wait_condition.inc
 --source include/analyze-format.inc
@@ -160,7 +160,7 @@ reap;
 
 --echo # UNION, analyze, second branch
 set @show_explain_probe_select_id=2;
-send analyze select a from t0 A where a<=5 union select a+1 from t0 B where a>=9;
+send analyze select a from t0 a where a<=5 union select a+1 from t0 b where a>=9;
 connection default;
 --source include/wait_condition.inc
 --source include/analyze-format.inc
@@ -173,7 +173,7 @@ SET debug_dbug=@old_debug;
 --echo # Uncorrelated  subquery, select
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_join_exec_end';
-send select a, (select max(a) from t0 B where a>6) from t0 A where a<2;
+send select a, (select max(a) from t0 b where a>6) from t0 a where a<2;
 connection default;
 --source include/wait_condition.inc
 --source include/analyze-format.inc
@@ -186,7 +186,7 @@ SET debug_dbug=@old_debug;
 --echo # Uncorrelated  subquery, analyze
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_join_exec_end';
-send analyze select a, (select max(a) from t0 B where a>6) from t0 A where a<2;
+send analyze select a, (select max(a) from t0 b where a>6) from t0 a where a<2;
 connection default;
 --source include/wait_condition.inc
 --source include/analyze-format.inc

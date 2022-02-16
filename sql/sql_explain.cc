@@ -216,10 +216,14 @@ int Explain_query::print_explain(select_result_sink *output,
 
 
 int Explain_query::print_explain_json(select_result_sink *output,
-                                       bool is_analyze)
+                                      bool is_analyze,
+                                      ulonglong query_time_in_progress_ms)
 {
   Json_writer writer;
   writer.start_object();
+  if (is_analyze && query_time_in_progress_ms > 0)
+    writer.add_member("r_query_time_in_progress_ms").
+           add_ull(query_time_in_progress_ms);
 
   if (upd_del_plan)
     upd_del_plan->print_explain_json(this, &writer, is_analyze);
@@ -935,7 +939,11 @@ void Explain_select::print_explain_json(Explain_query *query,
     if (is_analyze && time_tracker.get_loops())
     {
       writer->add_member("r_loops").add_ll(time_tracker.get_loops());
-      writer->add_member("r_total_time_ms").add_double(time_tracker.get_time_ms());
+      if (time_tracker.has_timed_statistics())
+      {
+        writer->add_member("r_total_time_ms").
+                add_double(time_tracker.get_time_ms());
+      }
     }
 
     if (exec_const_cond)
@@ -2359,7 +2367,7 @@ void Explain_update::print_explain_json(Explain_query *query,
   writer->add_member("select_id").add_ll(1);
  
   /* This is the total time it took to do the UPDATE/DELETE */
-  if (is_analyze && command_tracker.get_loops())
+  if (is_analyze && command_tracker.has_timed_statistics())
   {
     writer->add_member("r_total_time_ms").
             add_double(command_tracker.get_time_ms());
@@ -2506,7 +2514,7 @@ void Explain_update::print_explain_json(Explain_query *query,
       writer->add_member("r_filtered").add_double(r_filtered);
     }
 
-    if (table_tracker.get_loops())
+    if (table_tracker.has_timed_statistics())
     {
       writer->add_member("r_total_time_ms").
               add_double(table_tracker.get_time_ms());

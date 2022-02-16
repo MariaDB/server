@@ -478,7 +478,8 @@ public:
   /* Return tabular EXPLAIN output as a text string */
   bool print_explain_str(THD *thd, String *out_str, bool is_analyze);
 
-  int print_explain_json(select_result_sink *output, bool is_analyze);
+  int print_explain_json(select_result_sink *output, bool is_analyze,
+                         ulonglong query_time_in_progress_ms= 0);
 
   /* If true, at least part of EXPLAIN can be printed */
   bool have_query_plan() { return insert_plan || upd_del_plan|| get_node(1) != NULL; }

@@ -5827,9 +5827,20 @@ int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
   if (explain && explain->have_query_plan())
   {
     if (is_json_format)
-      res= explain->print_explain_json(output, is_analyze);
+    {
+      auto now= microsecond_interval_timer();
+      auto start_time= thd->start_utime;
+      auto query_time_in_progress_ms= 0ULL;
+      if (likely(now > start_time))
+        query_time_in_progress_ms=
+          (now - start_time) / (HRTIME_RESOLUTION / 1000);
+      res= explain->print_explain_json(output, is_analyze,
+                                       query_time_in_progress_ms);
+    }
     else
+    {
       res= explain->print_explain(output, explain_flags, is_analyze);
+    }
     *printed_anything= true;
   }
   else

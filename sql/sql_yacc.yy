@@ -14134,6 +14134,16 @@ explain_for_connection:
           */
           describe_command opt_format_json FOR_SYM CONNECTION_SYM expr
           {
+            LEX *lex=Lex;
+            lex->wild=0;
+            lex->ident= null_clex_str;
+            if (Lex->main_select_push())
+              MYSQL_YYABORT;
+            mysql_init_select(lex);
+            lex->current_select->parsing_place= SELECT_LIST;
+            lex->create_info.init();
+            Select->parsing_place= NO_MATTER;
+            Lex->pop_select(); //main select
             Lex->sql_command= SQLCOM_SHOW_EXPLAIN;
             if (unlikely(prepare_schema_table(thd, Lex, 0,
                 Lex->explain_json ? SCH_EXPLAIN_JSON : SCH_EXPLAIN_TABULAR)))

@@ -43,7 +43,7 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 select count(*) from t1 where a < 100000;
 connection default;
 show explain FORMAT=JSON for $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -73,7 +73,7 @@ count(*)
 select max(c) from t1 where a < 10;
 connection default;
 explain FORMAT=JSON for connection $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -102,7 +102,7 @@ max(c)
 select max(c) from t1 where a < 10;
 connection default;
 explain format=JSON for connection $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -134,7 +134,7 @@ set optimizer_switch='index_condition_pushdown=on,mrr=on,mrr_sort_keys=on';
 explain select max(c) from t1 where a < 10;
 connection default;
 show explain format=json for $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -165,7 +165,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 explain select max(c) from t1 where a < 10;
 connection default;
 explain format=JSON for connection $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -200,7 +200,7 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 explain select a from t0 A union select a+1 from t0 B;
 connection default;
 show explain format = JSON for $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "union_result": {
@@ -256,7 +256,7 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 explain select a from t0 A union select a+1 from t0 B;
 connection default;
 show explain format=JSON for $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "union_result": {
@@ -374,7 +374,7 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 show explain format=JSON for $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -423,7 +423,7 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 show explain format=JSON for $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -472,7 +472,7 @@ SET debug_dbug='+d,show_explain_probe_join_exec_end';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 show explain format=JSON for $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -537,7 +537,7 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 show explain format=JSON for $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -571,7 +571,7 @@ EXPLAIN
 Warnings:
 Note	1003	update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3
 show explain format=JSON for $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -613,7 +613,7 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 explain format=JSON for connection $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -647,7 +647,7 @@ EXPLAIN
 Warnings:
 Note	1003	update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3
 explain format=JSON for connection $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -692,7 +692,7 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 show explain format=JSON for $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -726,7 +726,7 @@ EXPLAIN
 Warnings:
 Note	1003	delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3
 show explain format=JSON for $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -771,7 +771,7 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 explain format=JSON for connection $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -805,7 +805,7 @@ EXPLAIN
 Warnings:
 Note	1003	delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3
 explain format=JSON for connection $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -850,7 +850,7 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2;
 connection default;
 show explain format=json for $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -889,7 +889,7 @@ EXPLAIN
 Warnings:
 Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
 show explain format=json for $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -928,7 +928,7 @@ EXPLAIN
 Warnings:
 Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
 show explain format=json for $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -982,7 +982,7 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2;
 connection default;
 explain format=JSON for connection $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -1021,7 +1021,7 @@ EXPLAIN
 Warnings:
 Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
 explain format=JSON for connection $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -1060,7 +1060,7 @@ EXPLAIN
 Warnings:
 Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
 explain format=JSON for connection $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -1116,7 +1116,7 @@ set @show_explain_probe_select_id=1;
 select * from t0 order by a;
 connection default;
 show explain format=json for $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -1165,7 +1165,7 @@ set @show_explain_probe_select_id=1;
 select distinct a from t0;
 connection default;
 show explain format=json for $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -1211,7 +1211,7 @@ set @show_explain_probe_select_id=1;
 select distinct a from t0;
 connection default;
 show explain format=json for $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
@@ -1260,7 +1260,7 @@ select * from t0 where length('ãû') = a;
 connection default;
 set names utf8;
 show explain format=JSON for $thr2;
-EXPLAIN
+SHOW EXPLAIN
 {
   "query_block": {
     "select_id": 1,
