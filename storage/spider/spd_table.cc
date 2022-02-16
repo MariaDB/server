@@ -46,6 +46,7 @@
 #include "spd_direct_sql.h"
 #include "spd_malloc.h"
 #include "spd_group_by_handler.h"
+#include "spd_select_handler.h"
 #include "spd_init_query.h"
 
 /* Background thread management */
@@ -6967,6 +6968,7 @@ int spider_db_init(
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
   spider_hton->create_group_by = spider_create_group_by_handler;
 #endif
+  spider_hton->create_select = spider_create_select_handler;
 
   memset(&spider_alloc_func_name, 0, sizeof(spider_alloc_func_name));
   memset(&spider_alloc_file_name, 0, sizeof(spider_alloc_file_name));

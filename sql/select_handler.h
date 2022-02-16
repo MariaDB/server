@@ -20,6 +20,10 @@
 #include "mariadb.h"
 #include "sql_priv.h"
 
+class st_select_lex;
+typedef st_select_lex SELECT_LEX;
+struct TABLE;
+
 /**
   @class select_handler
 

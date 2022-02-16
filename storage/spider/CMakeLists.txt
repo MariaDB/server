@@ -18,7 +18,7 @@ SET(SPIDER_SOURCES
   spd_table.cc spd_direct_sql.cc spd_udf.cc spd_ping_table.cc
   spd_copy_tables.cc spd_i_s.cc spd_malloc.cc ha_spider.cc spd_udf.def
   spd_db_mysql.cc spd_db_handlersocket.cc spd_db_oracle.cc
-  spd_group_by_handler.cc spd_db_include.cc
+  spd_group_by_handler.cc spd_select_handler.cc spd_db_include.cc
   hs_client/config.cpp hs_client/escape.cpp hs_client/fatal.cpp
   hs_client/hstcpcli.cpp hs_client/socket.cpp hs_client/string_util.cpp
 )
