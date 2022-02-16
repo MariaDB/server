@@ -5097,7 +5097,10 @@ public:
   {
     return m_wsrep_next_trx_id;
   }
-
+  /*
+    If node is async slave and have parallel execution, wait for prior commits.
+   */
+  bool wsrep_parallel_slave_wait_for_prior_commit();
 private:
   wsrep_trx_id_t m_wsrep_next_trx_id; /* cast from query_id_t */
   /* wsrep-lib */
