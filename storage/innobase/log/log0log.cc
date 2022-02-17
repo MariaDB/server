@@ -822,9 +822,12 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key,
 repeat:
   lsn_t ret_lsn1= 0, ret_lsn2= 0;
 
-  if (flush_to_disk &&
-      flush_lock.acquire(lsn, callback) != group_commit_lock::ACQUIRED)
-    return;
+  if (flush_to_disk)
+  {
+    if (flush_lock.acquire(lsn, callback) != group_commit_lock::ACQUIRED)
+      return;
+    flush_lock.set_pending(log_sys.get_lsn());
+  }
 
   if (write_lock.acquire(lsn, flush_to_disk ? nullptr : callback) ==
       group_commit_lock::ACQUIRED)
@@ -832,7 +835,8 @@ repeat:
     mysql_mutex_lock(&log_sys.mutex);
     lsn_t write_lsn= log_sys.get_lsn();
     write_lock.set_pending(write_lsn);
-
+    if (flush_to_disk)
+      flush_lock.set_pending(write_lsn);
     log_write(rotate_key);
 
     ut_a(log_sys.write_lsn == write_lsn);

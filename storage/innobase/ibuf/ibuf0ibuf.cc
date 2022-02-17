@@ -4007,7 +4007,8 @@ ibuf_restore_pos(
 	ut_ad(mode == BTR_MODIFY_LEAF
 	      || BTR_LATCH_MODE_WITHOUT_INTENTION(mode) == BTR_MODIFY_TREE);
 
-	if (UNIV_LIKELY(btr_pcur_restore_position(mode, pcur, mtr))) {
+	if (UNIV_LIKELY(pcur->restore_position(mode, mtr) ==
+	      btr_pcur_t::SAME_ALL)) {
 		return true;
 	}
 
