@@ -71,9 +71,23 @@ if(`select $sbm > $t_now - $t_master_events_logged + 1`)
 }
 
 --echo # Safely resume slave SQL thread
-SET @@global.debug_dbug='';
-SET DEBUG_SYNC='pause_sql_thread_on_fde CLEAR';
+
+--let $dbug_wait_state="debug sync point: now"
+--echo # Prove SQL thread is in state $dbug_wait_state
+--let $wait_condition= SELECT STATE=$dbug_wait_state from information_schema.PROCESSLIST where COMMAND="Slave_SQL"
+--source include/wait_condition.inc
+
+SET @@global.debug_dbug="-d,pause_sql_thread_on_fde";
 SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
+
+# We have to wait for the SQL thread to acknowledge the sql_thread_continue
+# signal. Otherwise the below RESET command can overwrite the signal before
+# the SQL thread is notified to proceed, causing it to "permanently" become
+# stuck awaiting the signal (until timeout is reached).
+
+--echo # Wait for SQL thread to continue into normal execution
+--let $wait_condition= SELECT STATE!= $dbug_wait_state from information_schema.PROCESSLIST where COMMAND="Slave_SQL"
+--source include/wait_condition.inc
 
 # Reset last sql_thread_continue signal
 SET DEBUG_SYNC='RESET';
