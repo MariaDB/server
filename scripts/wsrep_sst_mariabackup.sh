@@ -461,6 +461,14 @@ adjust_progress()
         return
     fi
 
+    if [[ "$progress" == "none" ]]; then
+        wsrep_log_info "All progress/rate-limiting disabled by configuration"
+        pcmd=""
+        rlimit=""
+        progress=""
+        return
+    fi
+
     if [ -n "$rlimit" -a "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         wsrep_log_info "Rate-limiting SST to $rlimit"
         rlimitopts=" -L $rlimit"
