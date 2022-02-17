@@ -327,7 +327,6 @@ void WSREP_LOG(void (*fun)(const char* fmt, ...), const char* fmt, ...)
 
 wsrep_uuid_t               local_uuid       = WSREP_UUID_UNDEFINED;
 wsrep_seqno_t              local_seqno      = WSREP_SEQNO_UNDEFINED;
-wsp::node_status           local_status;
 
 /*
  */
