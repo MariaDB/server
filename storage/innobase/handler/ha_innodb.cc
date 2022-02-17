@@ -1953,7 +1953,7 @@ convert_error_code_to_mysql(
 				    "constraints that exceed max "
 				    "depth of %d. Please "
 				    "drop extra constraints and try "
-				    "again", DICT_FK_MAX_RECURSIVE_LOAD);
+				    "again", FK_MAX_CASCADE_DEL);
 		return(HA_ERR_FK_DEPTH_EXCEEDED);
 
 	case DB_CANT_CREATE_GEOMETRY_OBJECT:
