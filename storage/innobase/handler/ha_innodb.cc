@@ -2047,7 +2047,7 @@ fail:
       os_file_close(d);
 
     mtr.start();
-    btr_pcur_restore_position(BTR_SEARCH_LEAF, &pcur, &mtr);
+    pcur.restore_position(BTR_SEARCH_LEAF, &mtr);
   }
 
   btr_pcur_close(&pcur);

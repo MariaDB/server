@@ -652,9 +652,13 @@ void log_write_up_to(lsn_t lsn, bool durable,
 #endif
 
 repeat:
-  if (durable &&
-      flush_lock.acquire(lsn, callback) != group_commit_lock::ACQUIRED)
-    return;
+  if (durable)
+  {
+    if (flush_lock.acquire(lsn, callback) != group_commit_lock::ACQUIRED)
+      return;
+    flush_lock.set_pending(log_sys.get_lsn());
+  }
+ 
 
   lsn_t pending_write_lsn= 0, pending_flush_lsn= 0;
 
