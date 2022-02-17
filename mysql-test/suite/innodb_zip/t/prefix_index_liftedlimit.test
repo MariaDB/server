@@ -292,10 +292,9 @@ DROP TABLE worklog5743;
 # Prefix index with VARCHAR data type , primary/seconday index , DML ops
 # and COMPRESSED row format. KEY_BLOCK_SIZE is varied as 2 , 4 , 8.
 
-# With KEY_BLOCK_SIZE = 2,prefix index limit comes around ~948 for following
 CREATE TABLE worklog5743_key2 (
 col_1_varchar VARCHAR (4000) , col_2_varchar VARCHAR (4000) ,
-PRIMARY KEY (col_1_varchar(948))
+PRIMARY KEY (col_1_varchar(801))
 ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2, engine = innodb;
 INSERT INTO worklog5743_key2 VALUES(REPEAT("a", 4000) , REPEAT("o", 4000));
 #CREATE INDEX prefix_idx ON worklog5743_key2 (col_1_varchar (767));
@@ -311,10 +310,9 @@ DELETE FROM worklog5743_key2 WHERE col_1_varchar = REPEAT("b", 4000);
 SELECT col_1_varchar = REPEAT("c", 4000) FROM worklog5743_key2;
 DROP TABLE worklog5743_key2;
 
-# With KEY_BLOCK_SIZE = 4,prefix index limit comes around ~1964 for following
 CREATE TABLE worklog5743_key4 (
 col_1_varchar VARCHAR (4000) , col_2_varchar VARCHAR (4000) ,
-PRIMARY KEY (col_1_varchar(1964))
+PRIMARY KEY (col_1_varchar(1825))
 ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4, engine = innodb;
 INSERT INTO worklog5743_key4 VALUES(REPEAT("a", 4000) , REPEAT("o", 4000));
 #CREATE INDEX prefix_idx ON worklog5743_key4 (col_1_varchar (767));
@@ -353,10 +351,9 @@ DROP TABLE worklog5743_key8;
 # Prefix index with TEXT data type , primary/seconday index , DML ops
 # and COMPRESSED row format. KEY_BLOCK_SIZE is varied as 2 , 4 , 8.
 
-# With KEY_BLOCK_SIZE = 2,prefix index limit comes around ~948 for following
 CREATE TABLE worklog5743_key2 (
 col_1_text TEXT (4000) , col_2_text TEXT (4000) ,
-PRIMARY KEY (col_1_text(948))
+PRIMARY KEY (col_1_text(801))
 ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2, engine = innodb;
 INSERT INTO worklog5743_key2 VALUES(REPEAT("a", 4000) , REPEAT("o", 4000));
 #CREATE INDEX prefix_idx ON worklog5743_key2 (col_1_text (767));
@@ -372,10 +369,9 @@ DELETE FROM worklog5743_key2 WHERE col_1_text = REPEAT("b", 4000);
 SELECT col_1_text = REPEAT("c", 4000) FROM worklog5743_key2;
 DROP TABLE worklog5743_key2;
 
-# With KEY_BLOCK_SIZE = 4,prefix index limit comes around ~1964 for following
 CREATE TABLE worklog5743_key4 (
 col_1_text TEXT (4000) , col_2_text TEXT (4000) ,
-PRIMARY KEY (col_1_text(1964))
+PRIMARY KEY (col_1_text(1825))
 ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4, engine = innodb;
 INSERT INTO worklog5743_key4 VALUES(REPEAT("a", 4000) , REPEAT("o", 4000));
 #CREATE INDEX prefix_idx ON worklog5743_key4 (col_1_text (767));
@@ -413,10 +409,9 @@ DROP TABLE worklog5743_key8;
 # Prefix index with BLOB data type , primary/seconday index , DML ops
 # and COMPRESSED row format. KEY_BLOCK_SIZE is varied as 2 , 4 , 8.
 
-# With KEY_BLOCK_SIZE = 2,prefix index limit comes around ~948 for following
 CREATE TABLE worklog5743_key2 (
 col_1_blob BLOB (4000) , col_2_blob BLOB (4000) ,
-PRIMARY KEY (col_1_blob(948))
+PRIMARY KEY (col_1_blob(801))
 ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2, engine = innodb;
 INSERT INTO worklog5743_key2 VALUES(REPEAT("a", 4000) , REPEAT("o", 4000));
 #CREATE INDEX prefix_idx ON worklog5743_key2 (col_1_blob (767));
@@ -432,10 +427,9 @@ DELETE FROM worklog5743_key2 WHERE col_1_blob = REPEAT("b", 4000);
 SELECT col_1_blob = REPEAT("c", 4000) FROM worklog5743_key2;
 DROP TABLE worklog5743_key2;
 
-# With KEY_BLOCK_SIZE = 4,prefix index limit comes around ~1964 for following
 CREATE TABLE worklog5743_key4 (
 col_1_blob BLOB (4000) , col_2_blob BLOB (4000) ,
-PRIMARY KEY (col_1_blob(1964))
+PRIMARY KEY (col_1_blob(1825))
 ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4, engine = innodb;
 INSERT INTO worklog5743_key4 VALUES(REPEAT("a", 4000) , REPEAT("o", 4000));
 #CREATE INDEX prefix_idx ON worklog5743_key4 (col_1_blob (767));
@@ -1195,7 +1189,7 @@ DROP TABLE worklog5743;
 # For compressed row type + primary key
 CREATE TABLE worklog5743 (
 col_1_text TEXT (4000) , col_2_text TEXT (4000) ,
-PRIMARY KEY (col_1_text(948))
+PRIMARY KEY (col_1_text(801))
 ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2, engine = innodb;
 INSERT INTO worklog5743 VALUES(REPEAT("a", 4000) , REPEAT("o", 4000));
 # Create index of 767

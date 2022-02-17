@@ -29,9 +29,10 @@ count(*)=1
 # not considered in Seconds_Behind_Master calculation
 connection slave1;
 # Safely resume slave SQL thread
-SET @@global.debug_dbug='';
-SET DEBUG_SYNC='pause_sql_thread_on_fde CLEAR';
+# Prove SQL thread is in state "debug sync point: now"
+SET @@global.debug_dbug="-d,pause_sql_thread_on_fde";
 SET DEBUG_SYNC='now SIGNAL sql_thread_continue';
+# Wait for SQL thread to continue into normal execution
 SET DEBUG_SYNC='RESET';
 connection master;
 DROP TABLE t1;

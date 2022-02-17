@@ -324,7 +324,7 @@ col_1_binary = REPEAT("c", 255)
 DROP TABLE worklog5743;
 CREATE TABLE worklog5743_key2 (
 col_1_varchar VARCHAR (4000) , col_2_varchar VARCHAR (4000) ,
-PRIMARY KEY (col_1_varchar(948))
+PRIMARY KEY (col_1_varchar(801))
 ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2, engine = innodb;
 INSERT INTO worklog5743_key2 VALUES(REPEAT("a", 4000) , REPEAT("o", 4000));
 INSERT INTO worklog5743_key2 VALUES(REPEAT("b", 4000) , REPEAT("p", 4000));
@@ -348,7 +348,7 @@ col_1_varchar = REPEAT("c", 4000)
 DROP TABLE worklog5743_key2;
 CREATE TABLE worklog5743_key4 (
 col_1_varchar VARCHAR (4000) , col_2_varchar VARCHAR (4000) ,
-PRIMARY KEY (col_1_varchar(1964))
+PRIMARY KEY (col_1_varchar(1825))
 ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4, engine = innodb;
 INSERT INTO worklog5743_key4 VALUES(REPEAT("a", 4000) , REPEAT("o", 4000));
 INSERT INTO worklog5743_key4 VALUES(REPEAT("b", 4000) , REPEAT("p", 4000));
@@ -397,7 +397,7 @@ col_1_varchar = REPEAT("c", 4000)
 DROP TABLE worklog5743_key8;
 CREATE TABLE worklog5743_key2 (
 col_1_text TEXT (4000) , col_2_text TEXT (4000) ,
-PRIMARY KEY (col_1_text(948))
+PRIMARY KEY (col_1_text(801))
 ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2, engine = innodb;
 INSERT INTO worklog5743_key2 VALUES(REPEAT("a", 4000) , REPEAT("o", 4000));
 INSERT INTO worklog5743_key2 VALUES(REPEAT("b", 4000) , REPEAT("p", 4000));
@@ -421,7 +421,7 @@ col_1_text = REPEAT("c", 4000)
 DROP TABLE worklog5743_key2;
 CREATE TABLE worklog5743_key4 (
 col_1_text TEXT (4000) , col_2_text TEXT (4000) ,
-PRIMARY KEY (col_1_text(1964))
+PRIMARY KEY (col_1_text(1825))
 ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4, engine = innodb;
 INSERT INTO worklog5743_key4 VALUES(REPEAT("a", 4000) , REPEAT("o", 4000));
 INSERT INTO worklog5743_key4 VALUES(REPEAT("b", 4000) , REPEAT("p", 4000));
@@ -469,7 +469,7 @@ col_1_text = REPEAT("c", 4000)
 DROP TABLE worklog5743_key8;
 CREATE TABLE worklog5743_key2 (
 col_1_blob BLOB (4000) , col_2_blob BLOB (4000) ,
-PRIMARY KEY (col_1_blob(948))
+PRIMARY KEY (col_1_blob(801))
 ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2, engine = innodb;
 INSERT INTO worklog5743_key2 VALUES(REPEAT("a", 4000) , REPEAT("o", 4000));
 INSERT INTO worklog5743_key2 VALUES(REPEAT("b", 4000) , REPEAT("p", 4000));
@@ -493,7 +493,7 @@ col_1_blob = REPEAT("c", 4000)
 DROP TABLE worklog5743_key2;
 CREATE TABLE worklog5743_key4 (
 col_1_blob BLOB (4000) , col_2_blob BLOB (4000) ,
-PRIMARY KEY (col_1_blob(1964))
+PRIMARY KEY (col_1_blob(1825))
 ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4, engine = innodb;
 INSERT INTO worklog5743_key4 VALUES(REPEAT("a", 4000) , REPEAT("o", 4000));
 INSERT INTO worklog5743_key4 VALUES(REPEAT("b", 4000) , REPEAT("p", 4000));
@@ -1305,7 +1305,7 @@ col_1_text = REPEAT("c", 4000)
 DROP TABLE worklog5743;
 CREATE TABLE worklog5743 (
 col_1_text TEXT (4000) , col_2_text TEXT (4000) ,
-PRIMARY KEY (col_1_text(948))
+PRIMARY KEY (col_1_text(801))
 ) ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2, engine = innodb;
 INSERT INTO worklog5743 VALUES(REPEAT("a", 4000) , REPEAT("o", 4000));
 INSERT INTO worklog5743 VALUES(REPEAT("b", 4000) , REPEAT("p", 4000));
