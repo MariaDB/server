@@ -7340,7 +7340,7 @@ static bool is_drive_on_ssd(DWORD nr)
                       sizeof storage_query, &seek_penalty, sizeof seek_penalty,
                       &bytes_written, nullptr))
   {
-    on_ssd= seek_penalty.IncursSeekPenalty;
+    on_ssd= !seek_penalty.IncursSeekPenalty;
   }
   else
   {
