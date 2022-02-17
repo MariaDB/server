@@ -112,6 +112,13 @@ struct TP_connection
 
   /* Read for the next client command (async) with specified timeout */
   virtual int start_io() = 0;
+  /**
+    Cancels async waiting on the next command
+    @return 0,  if waiting was set
+            1,  otherwise
+            -1. if error
+   */
+  virtual int stop_io() = 0;
 
   virtual void wait_begin(int type)= 0;
   virtual void wait_end() = 0;
