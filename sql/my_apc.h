@@ -73,7 +73,8 @@ public:
       process_apc_requests();
   }
 
-  void process_apc_requests();
+  void process_apc_requests(bool lock=true);
+  void process_apc_requests_lock_owned();
   /* 
     A lightweight function, intended to be used in frequent checks like this:
 
@@ -94,15 +95,20 @@ public:
     virtual void call_in_target_thread()= 0;
     virtual ~Apc_call() {}
   };
-  
+
+  class Call_request;
   /* Make a call in the target thread (see function definition for details) */
-  bool make_apc_call(THD *caller_thd, Apc_call *call, int timeout_sec, bool *timed_out);
+  bool make_apc_call(THD *caller_thd, Apc_call *call,
+                     int timeout_sec, bool *timed_out);
+
+  void enqueue_request(Call_request *request_buff, Apc_call *call);
+  int wait_for_completion(THD *caller_thd, Call_request *request,
+                           int timeout_sec);
 
 #ifndef DBUG_OFF
   int n_calls_processed; /* Number of calls served by this target */
 #endif
 private:
-  class Call_request;
 
   /* 
     Non-zero value means we're enabled. It's an int, not bool, because one can
@@ -122,7 +128,8 @@ private:
        operation.
   */
   Call_request *apc_calls;
- 
+
+public:
   class Call_request
   {
   public:
@@ -140,7 +147,7 @@ private:
     
     const char *what; /* (debug) state of the request */
   };
-
+private:
   void enqueue_request(Call_request *qe);
   void dequeue_request(Call_request *qe);
 
