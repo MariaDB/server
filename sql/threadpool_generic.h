@@ -79,6 +79,7 @@ struct TP_connection_generic :public TP_connection
   int init() override { return 0; }
   void set_io_timeout(int sec) override;
   int  start_io() override;
+  int stop_io() final;
   void wait_begin(int type) override;
   void wait_end() override;
 
@@ -88,6 +89,12 @@ struct TP_connection_generic :public TP_connection
   ulonglong abs_wait_timeout;
   ulonglong enqueue_time;
   TP_file_handle fd;
+  /**
+      Designates whether fd is currently connected to the poll denoted by
+      thread_group->pollfd. See also change_group.
+
+      The access is protected by thd->LOCK_thd_kill for APC purposes.
+  */
   bool bound_to_poll_descriptor;
   int waiting;
   bool fix_group;
