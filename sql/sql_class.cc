@@ -4372,6 +4372,12 @@ my_bool thd_net_is_killed(THD *thd)
   return thd && thd->killed ? 1 : 0;
 }
 
+void thd_net_process_apc_requests(THD *thd)
+{
+  if (unlikely(thd->apc_target.have_apc_requests()))
+    thd->apc_target.process_apc_requests();
+}
+
 
 void thd_increment_bytes_received(void *thd, size_t length)
 {

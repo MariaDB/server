@@ -23,7 +23,53 @@
 #include "mariadb.h"
 #include "mysqld.h"
 #include "sql_priv.h"
-#ifndef _WIN32
+#ifdef _WIN32
+#ifdef _WIN32_WINNT
+#undef _WIN32_WINNT
+#endif
+
+#define _WIN32_WINNT 0x0500
+#include "windows.h"      // QueueUserAPC2
+#define WINDOWS_KERNEL32_DLLNAME_W "kernel32"
+
+// https://github.com/dotnet/runtime/pull/55649/files
+
+// These declarations are for a new special user-mode APC feature introduced in Windows. These are not yet available in Windows
+// SDK headers, so some names below are prefixed with "CLONE_" to avoid conflicts in the future. Once the prefixed declarations
+// become available in the Windows SDK headers, the prefixed declarations below can be removed in favor of the SDK ones.
+
+//enum CLONE_QUEUE_USER_APC_FLAGS
+//{
+//    CLONE_QUEUE_USER_APC_FLAGS_NONE = 0x0,
+//    CLONE_QUEUE_USER_APC_FLAGS_SPECIAL_USER_APC = 0x1,
+//
+//    CLONE_QUEUE_USER_APC_CALLBACK_DATA_CONTEXT = 0x10000
+//};
+//typedef BOOL (WINAPI *QueueUserAPC2Proc)(PAPCFUNC ApcRoutine, HANDLE Thread, ULONG_PTR Data, CLONE_QUEUE_USER_APC_FLAGS Flags);
+//void c()
+//{
+//    HMODULE hKernel32 = LoadLibraryExA(WINDOWS_KERNEL32_DLLNAME_W, NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+//
+//    // See if QueueUserAPC2 exists
+//    QueueUserAPC2Proc pfnQueueUserAPC2Proc = (QueueUserAPC2Proc)GetProcAddress(hKernel32, "QueueUserAPC2");
+//    if (pfnQueueUserAPC2Proc == nullptr)
+//    {
+//        abort();
+//    }
+//
+//    // See if QueueUserAPC2 supports the special user-mode APC with a callback that includes the interrupted CONTEXT. A special
+//    // user-mode APC can interrupt a thread that is in user mode and not in a non-alertable wait.
+//    if (!(*pfnQueueUserAPC2Proc)(EmptyApcCallback, GetCurrentThread(), 0, SpecialUserModeApcWithContextFlags))
+//    {
+//        return;
+//    }
+//
+//    return pfnQueueUserAPC2Proc;
+//}
+//
+//static QueueUserAPC2Proc pfnQueueUserAPC2 = InitializeSpecialUserModeApc();
+
+#else
 #include <netdb.h>        // getservbyname, servent
 #endif
 #include "sql_audit.h"
@@ -1348,6 +1394,113 @@ bool thd_is_connection_alive(THD *thd)
   return FALSE;
 }
 
+static void self_pipe_write();
+#ifndef _GNU_SOURCE
+class Thread_apc_context;
+static thread_local Thread_apc_context *_THR_APC_CTX= NULL;
+#endif
+
+class Thread_apc_context
+{
+public:
+#ifndef _GNU_SOURCE
+  int self_pipe[2]{};
+#endif
+
+  bool setup_thread_apc()
+  {
+#if !defined(WIN32) && defined(_GNU_SOURCE)
+    struct sigaction act {};
+    act.sa_handler= [](int) -> void {self_pipe_write();};
+    act.sa_flags= 0;
+    int ret= sigaction(SIG_APC_NOTIFY, &act, NULL);
+    DBUG_ASSERT(ret == 0);
+
+    sigset_t signals;
+    ret|= sigemptyset(&signals);
+    DBUG_ASSERT(ret == 0);
+    ret|= sigaddset(&signals, SIG_APC_NOTIFY);
+    DBUG_ASSERT(ret == 0);
+
+    ret|= pthread_sigmask(SIG_BLOCK, &signals, NULL);
+    DBUG_ASSERT(ret == 0);
+#elif !defined(WIN32)
+    // Self-pipe trick. Create a new pipe and store it thread-locally
+    // It can be accessed from Vio later. See also vio_io_wait()
+    int ret= pipe(self_pipe);
+
+    struct sigaction act {};
+    act.sa_handler= [](int) -> void { self_pipe_write(); };
+    act.sa_flags= 0;
+    ret|= sigaction(SIG_APC_NOTIFY, &act, NULL);
+#else
+    // Self-pipe trick for windows. Create a new pipe and store it thread-locally
+    // One can request APC that writes into this pipe to provoke guaranteed
+    // connection wakeup. It is used in vio_io_wait() on the other end.
+
+    HANDLE pipeIn, pipeOut;
+    int ret= !CreatePipe(&pipeIn, &pipeOut, NULL, 32);
+    self_pipe[0]= _open_osfhandle((intptr_t)pipeIn, O_RDONLY|_O_BINARY);
+    self_pipe[1]= _open_osfhandle((intptr_t)pipeOut, _O_BINARY);
+#endif
+    return ret == 0;
+  }
+  bool inited;
+  Thread_apc_context()
+  {
+    inited = setup_thread_apc();
+#ifndef _GNU_SOURCE
+    if (inited)
+      _THR_APC_CTX= this;
+#endif
+  }
+#ifndef _GNU_SOURCE
+  ~Thread_apc_context()
+  {
+    _THR_APC_CTX= NULL;
+    close(self_pipe[0]);
+    close(self_pipe[1]);
+  }
+#endif
+};
+
+#ifdef _GNU_SOURCE
+static void self_pipe_write()
+{
+  // No self-pipe is actually used. Instead, ppoll is used to wake up on signal.
+  printf("Failed to initialize BCM2835 GPIO library.\n");
+
+}
+#else
+
+int threadlocal_get_self_pipe()
+{
+  return _THR_APC_CTX ? _THR_APC_CTX->self_pipe[0] : 0;
+}
+
+static void self_pipe_write()
+{
+  DBUG_ASSERT(_THR_APC_CTX);
+  int buf = 0;
+  write(_THR_APC_CTX->self_pipe[1], &buf, sizeof buf);
+}
+#endif
+
+bool thread_scheduler_notify_apc(THD *thd)
+{
+#ifdef WIN32
+  HANDLE hthread= OpenThread(THREAD_ALL_ACCESS, FALSE,
+                             thd->mysys_var->pthread_self);
+  if (hthread == NULL)
+    return false;
+  auto status= QueueUserAPC(
+      [](ULONG_PTR param){ self_pipe_write(); },
+      hthread, (ULONG_PTR)thd);
+  return status != 0;
+#else
+  return pthread_kill(thd->mysys_var->pthread_self, SIG_APC_NOTIFY) == 0;
+#endif
+}
 
 void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
 {
@@ -1356,6 +1509,15 @@ void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
   if (!(thd= connect->create_thd(NULL)))
   {
     connect->close_and_delete();
+    return;
+  }
+
+  Thread_apc_context apc_context;
+  if (!apc_context.inited)
+  {
+    sql_print_error("Can't initialize APC context.");
+    connect->close_and_delete();
+    delete thd;
     return;
   }
 

@@ -34,6 +34,7 @@
 #include "pfs_visitor.h"
 #include "sql_audit.h"                      // audit_global_variable_get
 #include "my_apc.h"
+#include "sql_common.h"
 
 static inline SHOW_SCOPE show_scope_from_type(enum enum_mysql_show_type type)
 {
@@ -393,8 +394,23 @@ int PFS_system_variable_cache::make_call(Request_func func, uint param)
   {
     PFS_system_variable_cache_apc apc_call(this, func, param);
     bool timed_out;
-    ret= m_safe_thd->apc_target.make_apc_call(requestor_thd, &apc_call, 30,
-                                              &timed_out);
+    auto *request= new Apc_target::Call_request;
+    m_safe_thd->apc_target.enqueue_request(request, &apc_call);
+    if (!m_safe_thd->apc_target.is_enabled())
+    {
+      bool success= m_safe_thd->scheduler->notify_apc(m_safe_thd);
+      if (!success)
+      {
+        m_safe_thd->apc_target.unenqueue_request();
+        return 1;
+      }
+    }
+    ret= m_safe_thd->apc_target.wait_for_completion(requestor_thd, request,
+                                                    30, &timed_out);
+    if (!timed_out)
+    {
+      delete request;
+    }
   }
   return ret;
 }
