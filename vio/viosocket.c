@@ -176,7 +176,15 @@ size_t vio_read(Vio *vio, uchar *buf, size_t size)
 
     /* The operation would block? */
     if (error != SOCKET_EAGAIN && error != SOCKET_EWOULDBLOCK)
-      break;
+    {
+      DBUG_PRINT("vio", ("recv returned error %d", error));
+#ifdef WIN32
+      // WSA BUG: recv can return WSA_IO_PENDING
+      // if vio_blocking called too frequently. This shouldn't normally happen.
+      DBUG_ASSERT(error != WSA_IO_PENDING);
+#endif
+        break;
+    }
 
     /* Wait for input data to become available. */
     if ((ret= vio_socket_io_wait(vio, VIO_IO_EVENT_READ)))
@@ -909,20 +917,53 @@ static my_bool socket_peek_read(Vio *vio, uint *bytes)
 */
 
 #ifndef _WIN32
+#ifdef _GNU_SOURCE
+#define PFD_SIZE 1
+static inline int vio_poll(struct pollfd pfd[], nfds_t nr, int timeout)
+{
+  struct timespec tm, *tm_arg= NULL;
+  sigset_t signals;
+  /* Convert the timeout, in milliseconds, to seconds and microseconds. */
+  if (timeout >= 0)
+  {
+    tm.tv_sec= timeout / 1000;
+    tm.tv_nsec= (timeout % 1000) * 1000 * 1000;
+    tm_arg= &tm;
+  }
+  sigemptyset(&signals);
+
+  return ppoll(pfd, 1, tm_arg, &signals);
+}
+#else
+#define PFD_SIZE 2
+#define vio_poll poll
+#endif
+
 int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
 {
   int ret;
   short revents __attribute__((unused)) = 0;
-  struct pollfd pfd;
+  const short revents_read = MY_POLL_SET_IN | MY_POLL_SET_ERR | POLLRDHUP;
+  struct pollfd pfd[PFD_SIZE];
   my_socket sd= mysql_socket_getfd(vio->mysql_socket);
+  int pfd_size;
   MYSQL_SOCKET_WAIT_VARIABLES(locker, state) /* no ';' */
   DBUG_ENTER("vio_io_wait");
   DBUG_PRINT("enter", ("timeout: %d", timeout));
 
-  memset(&pfd, 0, sizeof(pfd));
+  memset(pfd, 0, sizeof(pfd));
 
-  pfd.fd= sd;
+  pfd[0].fd= sd;
 
+#ifndef _GNU_SOURCE
+  my_socket self_pipe= threadlocal_get_self_pipe();
+  if (self_pipe)
+  {
+    pfd[1].fd= self_pipe;
+    pfd[1].events= MY_POLL_SET_IN;
+  }
+#endif
+  pfd_size= PFD_SIZE;
   /*
     Set the poll bitmask describing the type of events.
     The error flags are only valid in the revents bitmask.
@@ -930,12 +971,13 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   switch (event)
   {
   case VIO_IO_EVENT_READ:
-    pfd.events= MY_POLL_SET_IN;
-    revents= MY_POLL_SET_IN | MY_POLL_SET_ERR | POLLRDHUP;
+    pfd[0].events= MY_POLL_SET_IN;
+    revents= revents_read;
     break;
   case VIO_IO_EVENT_WRITE:
   case VIO_IO_EVENT_CONNECT:
-    pfd.events= MY_POLL_SET_OUT;
+    pfd_size= 1;
+    pfd[0].events= MY_POLL_SET_OUT;
     revents= MY_POLL_SET_OUT | MY_POLL_SET_ERR;
     break;
   }
@@ -945,7 +987,7 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
     Wait for the I/O event and return early in case of
     error or timeout.
   */
-  switch ((ret= poll(&pfd, 1, timeout)))
+  switch ((ret= vio_poll(pfd, pfd_size, timeout)))
   {
   case -1:
     DBUG_PRINT("error", ("poll returned -1"));
@@ -960,8 +1002,20 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
     errno= SOCKET_ETIMEDOUT;
     break;
   default:
+#ifndef _GNU_SOURCE
+    if (unlikely(pfd[1].revents & revents_read))
+    {
+      int buf[2];
+      // Read out all the data pending
+      while(read(self_pipe, buf, sizeof buf) == sizeof buf){}
+      // Self-pipe trick fakes the received interrupt
+      errno= EINTR;
+      ret= -1;
+      break;
+    }
+#endif
     /* Ensure that the requested I/O event has completed. */
-    DBUG_ASSERT(pfd.revents & revents);
+    DBUG_ASSERT(pfd[0].revents & revents);
     break;
   }
 
@@ -970,7 +1024,6 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
 }
 
 #else
-
 int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
 {
   int ret;
@@ -994,11 +1047,17 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   /* Always receive notification of exceptions. */
   FD_SET(fd, &exceptfds);
 
+  my_socket pipe_fd= threadlocal_get_self_pipe();
+
   switch (event)
   {
   case VIO_IO_EVENT_READ:
     /* Readiness for reading. */
     FD_SET(fd, &readfds);
+
+    // Add self-pipe read end. See also Thread_apc_context::setup_thread_apc.
+    if (likely(pipe_fd))
+      FD_SET(pipe_fd, &readfds);
     break;
   case VIO_IO_EVENT_WRITE:
   case VIO_IO_EVENT_CONNECT:
@@ -1013,14 +1072,28 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   ret= select(0, &readfds, &writefds, &exceptfds, (timeout >= 0) ? &tm : NULL);
 
   END_SOCKET_WAIT(locker, timeout);
-
   /* Set error code to indicate a timeout error. */
   if (ret == 0)
     WSASetLastError(SOCKET_ETIMEDOUT);
 
+  if (pipe_fd && FD_ISSET(pipe_fd, &readfds))
+  {
+    char buf[8];
+    // Read out all the data pending on pipe_fd
+    while (recv(pipe_fd, buf, sizeof buf, 0) == sizeof buf)
+    {
+    }
+    // Self-pipe trick fakes CancelIo
+    ret= -1;
+    WSASetLastError(SOCKET_EINTR);
+  }
+
   /* Error or timeout? */
-  if (ret <= 0)
+  if (ret <= 0){
+    DBUG_PRINT("vio", ("vio_io_wait: error return: %d. Last error: %d",
+                       ret, socket_errno));
     DBUG_RETURN(ret);
+  }
 
   /* The requested I/O event is ready? */
   switch (event)

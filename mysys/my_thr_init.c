@@ -432,9 +432,21 @@ const char *my_thread_name(void)
 extern void **my_thread_var_dbug()
 {
   struct st_my_thread_var *tmp;
+  int last_error;
   if (!my_thread_global_init_done)
     return NULL;
+#ifdef WIN32
+  last_error= GetLastError();
+#else
+  last_error= errno;
+#endif
+
   tmp= my_thread_var;
+#ifdef WIN32
+  SetLastError(last_error);
+#else
+  errno= last_error;
+#endif
   return tmp && tmp->init ? &tmp->dbug : 0;
 }
 #endif /* DBUG_OFF */

@@ -1100,6 +1100,7 @@ extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
 extern void thd_increment_bytes_sent(void *thd, size_t length);
 extern void thd_increment_bytes_received(void *thd, size_t length);
 extern void thd_increment_net_big_packet_count(void *thd, size_t length);
+extern my_socket threadlocal_get_self_pipe();
 
 #include <mysql/psi/psi.h>
 
