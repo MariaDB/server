@@ -1296,6 +1296,8 @@ dispatch_command_return do_command(THD *thd, bool blocking)
     goto out;
   }
 
+  thd->apc_target.process_apc_requests();
+
   packet= (char*) net->read_pos;
   /*
     'packet_length' contains length of data, as it was stored in packet

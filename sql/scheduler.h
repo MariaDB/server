@@ -42,6 +42,7 @@ struct scheduler_functions
   void (*end)(void);
   /** resume previous unfinished command (threadpool only)*/
   void (*thd_resume)(THD* thd);
+  bool (*notify_apc)(THD *thd);
 };
 
 
@@ -95,5 +96,9 @@ void pool_of_threads_scheduler(scheduler_functions* func,
 #define pool_of_threads_scheduler(A,B,C) \
   one_thread_per_connection_scheduler(A, B, C)
 #endif /*HAVE_POOL_OF_THREADS*/
+
+#ifndef WIN32
+constexpr int SIG_APC_NOTIFY= SIGUSR1;
+#endif
 
 #endif /* SCHEDULER_INCLUDED */

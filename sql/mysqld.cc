@@ -6031,7 +6031,6 @@ void create_thread_to_handle_connection(CONNECT *connect)
   DBUG_VOID_RETURN;
 }
 
-
 /**
   Create new thread to handle incoming connection.
 

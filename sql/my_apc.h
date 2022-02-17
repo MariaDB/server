@@ -101,6 +101,7 @@ public:
                      int timeout_sec, bool *timed_out);
 
   void enqueue_request(Call_request *request_buff, Apc_call *call);
+  void unenqueue_request();
   int wait_for_completion(THD *caller_thd, Call_request *request,
                            int timeout_sec);
 

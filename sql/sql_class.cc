@@ -1594,9 +1594,10 @@ void THD::free_connection()
   my_free(const_cast<char*>(db.str));
   db= null_clex_str;
 #ifndef EMBEDDED_LIBRARY
-  if (net.vio)
-    vio_delete(net.vio);
+  Vio *vio= net.vio;
   net.vio= nullptr;
+  if (vio)
+    vio_delete(vio);
   net_end(&net);
 #endif
  if (!cleanup_done)
@@ -4371,6 +4372,22 @@ void thd_increment_bytes_sent(void *thd, size_t length)
 my_bool thd_net_is_killed(THD *thd)
 {
   return thd && thd->killed ? 1 : 0;
+}
+
+void thd_net_process_apc_requests(THD *thd)
+{
+#ifdef WIN32
+  int last_error= GetLastError();
+#else
+  int save_errno= errno;
+#endif
+  if (unlikely(thd->apc_target.have_apc_requests()))
+    thd->apc_target.process_apc_requests();
+#ifdef WIN32
+  SetLastError(last_error);
+#else
+  errno= save_errno;
+#endif
 }
 
 

@@ -123,11 +123,13 @@ extern void query_cache_insert(void *thd, const char *packet, size_t length,
 #endif // HAVE_QUERY_CACHE
 #define update_statistics(A) A
 extern my_bool thd_net_is_killed(THD *thd);
+extern void thd_net_process_apc_requests(THD *thd);
 /* Additional instrumentation hooks for the server */
 #include "mysql_com_server.h"
 #else
 #define update_statistics(A)
 #define thd_net_is_killed(A) 0
+#define thd_net_process_apc_requests(A) do {} while(0)
 #endif
 
 
@@ -1002,6 +1004,10 @@ retry:
 	/* First read is done with non blocking mode */
         if ((long) (length= vio_read(net->vio, pos, remain)) <= 0L)
         {
+          THD *thd = (THD*)net->thd;
+          if (likely(thd))
+            thd_net_process_apc_requests(thd);
+
           my_bool interrupted = vio_should_retry(net->vio);
 
 	  DBUG_PRINT("info",("vio_read returned %ld  errno: %d",
@@ -1017,7 +1023,7 @@ retry:
             goto end;
           }
 
-#if !defined(_WIN32) && defined(MYSQL_SERVER)
+#if defined(MYSQL_SERVER)
 	  /*
 	    We got an error that there was no data on the socket. We now set up
 	    an alarm to not 'read forever', change the socket to the blocking
@@ -1027,6 +1033,7 @@ retry:
 	  {
 	    if (!thr_alarm(&alarmed,net->read_timeout,&alarm_buff)) /* Don't wait too long */
 	    {
+#ifndef WIN32
 	      my_bool old_mode;
 	      while (vio_blocking(net->vio, TRUE, &old_mode) < 0)
 	      {
@@ -1045,6 +1052,7 @@ retry:
 		MYSQL_SERVER_my_error(ER_NET_FCNTL_ERROR, MYF(0));
 		goto end;
 	      }
+#endif
 	      retry_count=0;
 	      continue;
 	    }
