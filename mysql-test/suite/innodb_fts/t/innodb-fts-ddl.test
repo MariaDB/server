@@ -333,6 +333,7 @@ CREATE TABLE t1(a TEXT, FTS_DOC_ID BIGINT UNSIGNED NOT NULL UNIQUE) ENGINE=InnoD
 let $fts_aux_file= `select concat('FTS_',right(concat(repeat('0',16), lower(hex(TABLE_ID))),16),'_BEING_DELETED.ibd') FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES WHERE NAME='test/t1'`;
 write_file $MYSQLD_DATADIR/test/$fts_aux_file;
 EOF
+--replace_regex /".*" from/"Resource temporarily unavailable" from/
 --error ER_GET_ERRNO
 ALTER TABLE t1 ADD FULLTEXT(a), ALGORITHM=INPLACE;
 DROP TABLE t1;
