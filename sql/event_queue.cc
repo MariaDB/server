@@ -639,6 +639,7 @@ Event_queue::get_top_for_execution_if_time(THD *thd,
     if (!(*event_name= new Event_queue_element_for_exec()) ||
         (*event_name)->init(&top->dbname, &top->name))
     {
+      delete *event_name;
       ret= TRUE;
       break;
     }

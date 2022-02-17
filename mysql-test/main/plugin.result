@@ -320,7 +320,7 @@ select plugin_name from information_schema.plugins where plugin_library like 'ha
 plugin_name
 set names utf8;
 select convert('admin𝌆' using utf8);
-convert('admin𝌆' using utf8)
+convert('admin\xF0\x9D\x8C\x86' using utf8)
 admin????
 Warnings:
 Warning	1300	Invalid utf8 character string: '\xF0\x9D\x8C\x86'

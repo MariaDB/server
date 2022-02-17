@@ -1,8 +1,19 @@
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+SET(CPACK_RPM_oqgraph-engine_PACKAGE_SUMMARY "OQGraph storage engine for MariaDB" PARENT_SCOPE)
+SET(CPACK_RPM_oqgraph-engine_PACKAGE_DESCRIPTION "The Open Query GRAPH computation engine, or OQGRAPH as the engine itself is called,
+allows you to handle hierarchies (tree structures) and complex graphs
+(nodes having many connections in several directions).
+It is intended to be used for retrieving hierarchical information, such as those used for graphs,
+routes or social relationships, in plain SQL." PARENT_SCOPE)
+
 MACRO(CHECK_OQGRAPH)
 MESSAGE(STATUS "Configuring OQGraph")
 FIND_PACKAGE(Boost 1.40.0)
+SET_PACKAGE_PROPERTIES(Boost PROPERTIES
+  PURPOSE "Required for the OQGraph storage engine"
+  TYPE OPTIONAL
+)
 IF(NOT Boost_FOUND)
   MESSAGE(STATUS "Boost not found. OQGraph will not be compiled")
   SET(OQGRAPH_OK 0 CACHE INTERNAL "")
@@ -11,6 +22,10 @@ ENDIF()
 INCLUDE_DIRECTORIES(BEFORE ${Boost_INCLUDE_DIRS})
 
 FIND_PACKAGE(Judy)
+SET_PACKAGE_PROPERTIES(Judy PROPERTIES
+  PURPOSE "Required for the OQGraph storage engine"
+  TYPE OPTIONAL
+)
 IF(NOT Judy_FOUND)
   MESSAGE(STATUS "Judy not found. OQGraph will not be compiled")
   SET(OQGRAPH_OK 0 CACHE INTERNAL "")

@@ -26,6 +26,22 @@
 #include "tztime.h"
 #include "item.h"
 
+bool Item_func_history::val_bool()
+{
+  Item_field *f= static_cast<Item_field *>(args[0]);
+  DBUG_ASSERT(f->fixed);
+  DBUG_ASSERT(f->field->flags & VERS_ROW_END);
+  return !f->field->is_max();
+}
+
+void Item_func_history::print(String *str, enum_query_type query_type)
+{
+  str->append(func_name());
+  str->append('(');
+  args[0]->print(str, query_type);
+  str->append(')');
+}
+
 Item_func_trt_ts::Item_func_trt_ts(THD *thd, Item* a, TR_table::field_id_t _trt_field) :
   Item_datetimefunc(thd, a),
   trt_field(_trt_field)

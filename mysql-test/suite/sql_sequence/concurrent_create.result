@@ -31,3 +31,16 @@ connection con1;
 disconnect con1;
 connection default;
 DROP TABLE s1,s2;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connect  con1,localhost,root,,test;
+CREATE SEQUENCE s1 ENGINE=InnoDB;
+FLUSH TABLES;
+disconnect con1;
+connection default;
+SELECT NEXTVAL(s1);
+NEXTVAL(s1)
+1
+COMMIT;
+DROP TABLE t1;
+DROP SEQUENCE s1;

@@ -5,9 +5,8 @@ NOTE: This set of files relates to PCRE releases that use the original API,
 with library names libpcre, libpcre16, and libpcre32. January 2015 saw the
 first release of a new API, known as PCRE2, with release numbers starting at
 10.00 and library names libpcre2-8, libpcre2-16, and libpcre2-32. The old
-libraries (now called PCRE1) are still being maintained for bug fixes, but
-there will be no new development. New projects are advised to use the new PCRE2
-libraries.
+libraries (now called PCRE1) are now at end of life, and 8.45 is the final
+release. New projects are advised to use the new PCRE2 libraries.
 
 
 The latest release of PCRE1 is always available in three alternative formats
@@ -998,6 +997,6 @@ pcre_xxx, one with the name pcre16_xx, and a third with the name pcre32_xxx.
   RunTest.bat            a script for running tests under Windows
 
 Philip Hazel
-Email local part: ph10
-Email domain: cam.ac.uk
-Last updated: 12 February 2020
+Email local part: Philip.Hazel
+Email domain: gmail.com
+Last updated: 15 June 2021

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -40,12 +40,15 @@ Created 2012-02-08 by Sunny Bains.
 #include "row0quiesce.h"
 #include "fil0pagecompress.h"
 #include "trx0undo.h"
+#include "row0row.h"
 #ifdef HAVE_LZO
 #include "lzo/lzo1x.h"
 #endif
 #ifdef HAVE_SNAPPY
 #include "snappy-c.h"
 #endif
+
+#include "scope.h"
 
 #include <vector>
 
@@ -190,6 +193,9 @@ struct row_import {
 	dberr_t match_schema(
 		THD*			thd) UNIV_NOTHROW;
 
+	dberr_t match_flags(THD *thd) const ;
+
+
 	dict_table_t*	m_table;		/*!< Table instance */
 
 	ulint		m_version;		/*!< Version of config file */
@@ -223,6 +229,19 @@ struct row_import {
 
 	bool		m_missing;		/*!< true if a .cfg file was
 						found and was readable */
+};
+
+struct fil_iterator_t {
+	pfs_os_file_t	file;			/*!< File handle */
+	const char*	filepath;		/*!< File path name */
+	os_offset_t	start;			/*!< From where to start */
+	os_offset_t	end;			/*!< Where to stop */
+	os_offset_t	file_size;		/*!< File size in bytes */
+	ulint		n_io_buffers;		/*!< Number of pages to use
+						for IO */
+	byte*		io_buffer;		/*!< Buffer to use for IO */
+	fil_space_crypt_t *crypt_data;		/*!< Crypt data (if encrypted) */
+	byte*           crypt_io_buffer;        /*!< IO buffer when encrypted */
 };
 
 /** Use the page cursor to iterate over records in a block. */
@@ -438,6 +457,10 @@ public:
 			? block->page.zip.data : block->frame;
 	}
 
+	/** Invoke the functionality for the callback */
+	virtual dberr_t run(const fil_iterator_t& iter,
+			    buf_block_t* block) UNIV_NOTHROW = 0;
+
 protected:
 	/** Get the physical offset of the extent descriptor within the page.
 	@param page_no page number of the extent descriptor
@@ -558,8 +581,6 @@ AbstractCallback::init(
 	if (!fil_space_t::is_valid_flags(m_space_flags, true)) {
 		ulint cflags = fsp_flags_convert_from_101(m_space_flags);
 		if (cflags == ULINT_UNDEFINED) {
-			ib::error() << "Invalid FSP_SPACE_FLAGS="
-				<< ib::hex(m_space_flags);
 			return(DB_CORRUPTION);
 		}
 		m_space_flags = cflags;
@@ -598,6 +619,24 @@ AbstractCallback::init(
 }
 
 /**
+TODO: This can be made parallel trivially by chunking up the file
+and creating a callback per thread.. Main benefit will be to use
+multiple CPUs for checksums and compressed tables. We have to do
+compressed tables block by block right now. Secondly we need to
+decompress/compress and copy too much of data. These are
+CPU intensive.
+
+Iterate over all the pages in the tablespace.
+@param iter - Tablespace iterator
+@param block - block to use for IO
+@param callback - Callback to inspect and update page contents
+@retval DB_SUCCESS or error code */
+static dberr_t fil_iterate(
+	const fil_iterator_t&	iter,
+	buf_block_t*		block,
+	AbstractCallback&	callback);
+
+/**
 Try and determine the index root pages by checking if the next/prev
 pointers are both FIL_NULL. We need to ensure that skip deleted pages. */
 struct FetchIndexRootPages : public AbstractCallback {
@@ -614,18 +653,23 @@ struct FetchIndexRootPages : public AbstractCallback {
 		ulint		m_page_no;	/*!< Root page number */
 	};
 
-	typedef std::vector<Index, ut_allocator<Index> >	Indexes;
-
 	/** Constructor
 	@param trx covering (user) transaction
 	@param table table definition in server .*/
 	FetchIndexRootPages(const dict_table_t* table, trx_t* trx)
 		:
 		AbstractCallback(trx, ULINT_UNDEFINED),
-		m_table(table) UNIV_NOTHROW { }
+		m_table(table), m_index(0, 0) UNIV_NOTHROW { }
 
 	/** Destructor */
 	~FetchIndexRootPages() UNIV_NOTHROW override { }
+
+	/** Fetch the clustered index root page in the tablespace
+	@param iter	Tablespace iterator
+	@param block	Block to use for IO
+	@retval DB_SUCCESS or error code */
+	dberr_t run(const fil_iterator_t& iter,
+		    buf_block_t* block) UNIV_NOTHROW override;
 
 	/** Called for each block as it is read from the file.
 	@param block block to convert, it is not from the buffer pool.
@@ -640,7 +684,7 @@ struct FetchIndexRootPages : public AbstractCallback {
 	const dict_table_t*	m_table;
 
 	/** Index information */
-	Indexes			m_indexes;
+	Index			m_index;
 };
 
 /** Called for each block as it is read from the file. Check index pages to
@@ -655,31 +699,27 @@ dberr_t FetchIndexRootPages::operator()(buf_block_t* block) UNIV_NOTHROW
 
 	const page_t*	page = get_frame(block);
 
-	ulint	page_type = fil_page_get_type(page);
+	m_index.m_id = btr_page_get_index_id(page);
+	m_index.m_page_no = block->page.id.page_no();
 
-	if (page_type == FIL_PAGE_TYPE_XDES) {
-		return set_current_xdes(block->page.id.page_no(), page);
-	} else if (fil_page_index_page_check(page)
-		   && !is_free(block->page.id.page_no())
-		   && !page_has_siblings(page)) {
+	/* Check that the tablespace flags match the table flags. */
+	ulint expected = dict_tf_to_fsp_flags(m_table->flags);
+	if (!fsp_flags_match(expected, m_space_flags)) {
+		ib_errf(m_trx->mysql_thd, IB_LOG_LEVEL_ERROR,
+			ER_TABLE_SCHEMA_MISMATCH,
+			"Expected FSP_SPACE_FLAGS=0x%x, .ibd "
+			"file contains 0x%x.",
+			unsigned(expected),
+			unsigned(m_space_flags));
+		return(DB_CORRUPTION);
+	}
 
-		index_id_t	id = btr_page_get_index_id(page);
-
-		m_indexes.push_back(Index(id, block->page.id.page_no()));
-
-		if (m_indexes.size() == 1) {
-			/* Check that the tablespace flags match the table flags. */
-			ulint expected = dict_tf_to_fsp_flags(m_table->flags);
-			if (!fsp_flags_match(expected, m_space_flags)) {
-				ib_errf(m_trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-					ER_TABLE_SCHEMA_MISMATCH,
-					"Expected FSP_SPACE_FLAGS=0x%x, .ibd "
-					"file contains 0x%x.",
-					unsigned(expected),
-					unsigned(m_space_flags));
-				return(DB_CORRUPTION);
-			}
-		}
+	if (!page_is_comp(block->frame) !=
+	    !dict_table_is_comp(m_table)) {
+		ib_errf(m_trx->mysql_thd, IB_LOG_LEVEL_ERROR,
+			ER_TABLE_SCHEMA_MISMATCH,
+			"ROW_FORMAT mismatch");
+		return DB_CORRUPTION;
 	}
 
 	return DB_SUCCESS;
@@ -691,11 +731,9 @@ Update the import configuration that will be used to import the tablespace.
 dberr_t
 FetchIndexRootPages::build_row_import(row_import* cfg) const UNIV_NOTHROW
 {
-	Indexes::const_iterator end = m_indexes.end();
-
 	ut_a(cfg->m_table == m_table);
 	cfg->m_zip_size = m_zip_size;
-	cfg->m_n_indexes = m_indexes.size();
+	cfg->m_n_indexes = 1;
 
 	if (cfg->m_n_indexes == 0) {
 
@@ -721,37 +759,32 @@ FetchIndexRootPages::build_row_import(row_import* cfg) const UNIV_NOTHROW
 
 	row_index_t*	cfg_index = cfg->m_indexes;
 
-	for (Indexes::const_iterator it = m_indexes.begin();
-	     it != end;
-	     ++it, ++cfg_index) {
+	char	name[BUFSIZ];
 
-		char	name[BUFSIZ];
+	snprintf(name, sizeof(name), "index" IB_ID_FMT, m_index.m_id);
 
-		snprintf(name, sizeof(name), "index" IB_ID_FMT, it->m_id);
+	ulint	len = strlen(name) + 1;
 
-		ulint	len = strlen(name) + 1;
+	cfg_index->m_name = UT_NEW_ARRAY_NOKEY(byte, len);
 
-		cfg_index->m_name = UT_NEW_ARRAY_NOKEY(byte, len);
+	/* Trigger OOM */
+	DBUG_EXECUTE_IF(
+		"ib_import_OOM_12",
+		UT_DELETE_ARRAY(cfg_index->m_name);
+		cfg_index->m_name = NULL;
+	);
 
-		/* Trigger OOM */
-		DBUG_EXECUTE_IF(
-			"ib_import_OOM_12",
-			UT_DELETE_ARRAY(cfg_index->m_name);
-			cfg_index->m_name = NULL;
-		);
-
-		if (cfg_index->m_name == NULL) {
-			return(DB_OUT_OF_MEMORY);
-		}
-
-		memcpy(cfg_index->m_name, name, len);
-
-		cfg_index->m_id = it->m_id;
-
-		cfg_index->m_space = m_space;
-
-		cfg_index->m_page_no = it->m_page_no;
+	if (cfg_index->m_name == NULL) {
+		return(DB_OUT_OF_MEMORY);
 	}
+
+	memcpy(cfg_index->m_name, name, len);
+
+	cfg_index->m_id = m_index.m_id;
+
+	cfg_index->m_space = m_space;
+
+	cfg_index->m_page_no = m_index.m_page_no;
 
 	return(DB_SUCCESS);
 }
@@ -808,6 +841,12 @@ public:
 		if (m_heap != 0) {
 			mem_heap_free(m_heap);
 		}
+	}
+
+	dberr_t run(const fil_iterator_t& iter,
+		    buf_block_t* block) UNIV_NOTHROW override
+	{
+		return fil_iterate(iter, block, *this);
 	}
 
 	/** Called for each block as it is read from the file.
@@ -1068,7 +1107,8 @@ row_import::match_index_columns(
 
 	for (ulint i = 0; i < index->n_fields; ++i, ++field, ++cfg_field) {
 
-		if (strcmp(field->name(), cfg_field->name()) != 0) {
+		if (field->name() && cfg_field->name()
+		     && strcmp(field->name(), cfg_field->name()) != 0) {
 			ib_errf(thd, IB_LOG_LEVEL_ERROR,
 				ER_TABLE_SCHEMA_MISMATCH,
 				"Index field name %s doesn't match"
@@ -1237,6 +1277,61 @@ row_import::match_table_columns(
 	return(err);
 }
 
+dberr_t row_import::match_flags(THD *thd) const
+{
+  ulint mismatch= (m_table->flags ^ m_flags) & ~DICT_TF_MASK_DATA_DIR;
+  if (!mismatch)
+    return DB_SUCCESS;
+
+  const char *msg;
+  if (mismatch & DICT_TF_MASK_ZIP_SSIZE)
+  {
+    if ((m_table->flags & DICT_TF_MASK_ZIP_SSIZE) &&
+        (m_flags & DICT_TF_MASK_ZIP_SSIZE))
+    {
+      switch (m_flags & DICT_TF_MASK_ZIP_SSIZE) {
+      case 0U << DICT_TF_POS_ZIP_SSIZE:
+        goto uncompressed;
+      case 1U << DICT_TF_POS_ZIP_SSIZE:
+        msg= "ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1";
+        break;
+      case 2U << DICT_TF_POS_ZIP_SSIZE:
+        msg= "ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2";
+        break;
+      case 3U << DICT_TF_POS_ZIP_SSIZE:
+        msg= "ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4";
+        break;
+      case 4U << DICT_TF_POS_ZIP_SSIZE:
+        msg= "ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8";
+        break;
+      case 5U << DICT_TF_POS_ZIP_SSIZE:
+        msg= "ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16";
+        break;
+      default:
+        msg= "strange KEY_BLOCK_SIZE";
+      }
+    }
+    else if (m_flags & DICT_TF_MASK_ZIP_SSIZE)
+      msg= "ROW_FORMAT=COMPRESSED";
+    else
+      goto uncompressed;
+  }
+  else
+  {
+  uncompressed:
+    msg= (m_flags & DICT_TF_MASK_ATOMIC_BLOBS) ? "ROW_FORMAT=DYNAMIC"
+         : (m_flags & DICT_TF_MASK_COMPACT)    ? "ROW_FORMAT=COMPACT"
+                                               : "ROW_FORMAT=REDUNDANT";
+  }
+
+  ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
+          "Table flags don't match, server table has 0x%x and the meta-data "
+          "file has 0x%zx; .cfg file uses %s",
+          m_table->flags, m_flags, msg);
+
+  return DB_ERROR;
+}
+
 /** Check if the table (and index) schema that was read from the .cfg file
 matches the in memory table definition.
 @param thd MySQL session variable
@@ -1247,68 +1342,7 @@ row_import::match_schema(
 {
 	/* Do some simple checks. */
 
-	if (ulint mismatch = (m_table->flags ^ m_flags)
-	    & ~DICT_TF_MASK_DATA_DIR) {
-		const char* msg;
-		if (mismatch & DICT_TF_MASK_ZIP_SSIZE) {
-			if ((m_table->flags & DICT_TF_MASK_ZIP_SSIZE)
-			    && (m_flags & DICT_TF_MASK_ZIP_SSIZE)) {
-				switch (m_flags & DICT_TF_MASK_ZIP_SSIZE) {
-				case 0U << DICT_TF_POS_ZIP_SSIZE:
-					goto uncompressed;
-				case 1U << DICT_TF_POS_ZIP_SSIZE:
-					msg = "ROW_FORMAT=COMPRESSED"
-						" KEY_BLOCK_SIZE=1";
-					break;
-				case 2U << DICT_TF_POS_ZIP_SSIZE:
-					msg = "ROW_FORMAT=COMPRESSED"
-						" KEY_BLOCK_SIZE=2";
-					break;
-				case 3U << DICT_TF_POS_ZIP_SSIZE:
-					msg = "ROW_FORMAT=COMPRESSED"
-						" KEY_BLOCK_SIZE=4";
-					break;
-				case 4U << DICT_TF_POS_ZIP_SSIZE:
-					msg = "ROW_FORMAT=COMPRESSED"
-						" KEY_BLOCK_SIZE=8";
-					break;
-				case 5U << DICT_TF_POS_ZIP_SSIZE:
-					msg = "ROW_FORMAT=COMPRESSED"
-						" KEY_BLOCK_SIZE=16";
-					break;
-				default:
-					msg = "strange KEY_BLOCK_SIZE";
-				}
-			} else if (m_flags & DICT_TF_MASK_ZIP_SSIZE) {
-				msg = "ROW_FORMAT=COMPRESSED";
-			} else {
-				goto uncompressed;
-			}
-		} else {
-uncompressed:
-			msg = (m_flags & DICT_TF_MASK_ATOMIC_BLOBS)
-				? "ROW_FORMAT=DYNAMIC"
-				: (m_flags & DICT_TF_MASK_COMPACT)
-				? "ROW_FORMAT=COMPACT"
-				: "ROW_FORMAT=REDUNDANT";
-		}
-
-		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
-			"Table flags don't match, server table has 0x%x"
-			" and the meta-data file has 0x" ULINTPFx ";"
-			" .cfg file uses %s",
-			m_table->flags, m_flags, msg);
-
-		return(DB_ERROR);
-	} else if (m_table->n_cols != m_n_cols) {
-		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
-			"Number of columns don't match, table has %u "
-			"columns but the tablespace meta-data file has "
-			ULINTPF " columns",
-			m_table->n_cols, m_n_cols);
-
-		return(DB_ERROR);
-	} else if (UT_LIST_GET_LEN(m_table->indexes) != m_n_indexes) {
+	if (UT_LIST_GET_LEN(m_table->indexes) != m_n_indexes) {
 
 		/* If the number of indexes don't match then it is better
 		to abort the IMPORT. It is easy for the user to create a
@@ -1818,7 +1852,8 @@ PageConverter::update_records(
 
 		if (deleted || clust_index) {
 			m_offsets = rec_get_offsets(
-				rec, m_index->m_srv_index, m_offsets, true,
+				rec, m_index->m_srv_index, m_offsets,
+				m_index->m_srv_index->n_core_fields,
 				ULINT_UNDEFINED, &m_heap);
 		}
 
@@ -1865,10 +1900,13 @@ PageConverter::update_index_page(
 	if (is_free(block->page.id.page_no())) {
 		return(DB_SUCCESS);
 	} else if ((id = btr_page_get_index_id(page)) != m_index->m_id) {
-
 		row_index_t*	index = find_index(id);
 
 		if (UNIV_UNLIKELY(!index)) {
+			if (m_cfg->m_missing) {
+				return DB_SUCCESS;
+			}
+
 			ib::error() << "Page for tablespace " << m_space
 				<< " is index page with id " << id
 				<< " but that index is not found from"
@@ -1918,40 +1956,7 @@ PageConverter::update_index_page(
 	if (dict_index_is_clust(m_index->m_srv_index)) {
 		dict_index_t* index = const_cast<dict_index_t*>(
 			m_index->m_srv_index);
-		if (block->page.id.page_no() == index->page) {
-			/* Preserve the PAGE_ROOT_AUTO_INC. */
-			if (index->table->supports_instant()) {
-				if (btr_cur_instant_root_init(index, page)) {
-					return(DB_CORRUPTION);
-				}
-
-				if (index->n_core_fields > index->n_fields) {
-					/* Some columns have been dropped.
-					Refuse to IMPORT TABLESPACE for now.
-
-					NOTE: This is not an accurate check.
-					Columns could have been both
-					added and dropped instantly.
-					For an accurate check, we must read
-					the metadata BLOB page pointed to
-					by the leftmost leaf page.
-
-					But we would have to read
-					those pages in a special way,
-					bypassing the buffer pool! */
-					return DB_UNSUPPORTED;
-				}
-
-				/* Provisionally set all instantly
-				added columns to be DEFAULT NULL. */
-				for (unsigned i = index->n_core_fields;
-				     i < index->n_fields; i++) {
-					dict_col_t* col = index->fields[i].col;
-					col->def_val.len = UNIV_SQL_NULL;
-					col->def_val.data = NULL;
-				}
-			}
-		} else {
+		if (block->page.id.page_no() != index->page) {
 			/* Clear PAGE_MAX_TRX_ID so that it can be
 			used for other purposes in the future. IMPORT
 			in MySQL 5.6, 5.7 and MariaDB 10.0 and 10.1
@@ -3092,6 +3097,373 @@ row_import_read_meta_data(
 	return(DB_ERROR);
 }
 
+#define BTR_BLOB_HDR_PART_LEN 0 /*!< BLOB part len on this page */
+#define BTR_BLOB_HDR_NEXT_PAGE_NO 4 /*!< next BLOB part page no,
+                                    FIL_NULL if none */
+#define BTR_BLOB_HDR_SIZE 8 /*!< Size of a BLOB part header, in bytes */
+
+/* decrypt and decompress page if needed */
+static dberr_t decrypt_decompress(fil_space_crypt_t *space_crypt,
+                                  size_t space_flags, span<byte> page,
+                                  size_t space_id, byte *page_compress_buf)
+{
+  auto *data= page.data();
+
+  if (space_crypt && space_crypt->should_encrypt())
+  {
+    if (!buf_page_verify_crypt_checksum(data, space_flags))
+      return DB_CORRUPTION;
+
+    if (dberr_t err= fil_space_decrypt(space_id, space_crypt, data,
+                                       page.size(), space_flags, data))
+      return err;
+  }
+  else if (fil_page_is_compressed_encrypted(data))
+    return DB_CORRUPTION;
+
+  const bool is_full_crc32_compressed=
+      fil_space_t::is_full_crc32_compressed(space_flags);
+
+  const bool page_actually_compressed=
+      (is_full_crc32_compressed &&
+       buf_page_is_compressed(data, space_flags)) ||
+      fil_page_is_compressed_encrypted(data) || fil_page_is_compressed(data);
+
+  if (page_actually_compressed)
+  {
+    if (!is_full_crc32_compressed && !fil_space_t::is_compressed(space_flags))
+      return DB_CORRUPTION;
+
+    auto compress_length=
+        fil_page_decompress(page_compress_buf, data, space_flags);
+    ut_ad(compress_length != srv_page_size);
+
+    if (compress_length == 0)
+      return DB_CORRUPTION;
+  }
+
+  return DB_SUCCESS;
+}
+
+static size_t get_buf_size()
+{
+  return srv_page_size
+#ifdef HAVE_LZO
+         + LZO1X_1_15_MEM_COMPRESS
+#elif defined HAVE_SNAPPY
+         + snappy_max_compressed_length(srv_page_size)
+#endif
+      ;
+}
+
+/* find, parse instant metadata, performing variaous checks,
+and apply it to dict_table_t
+@return DB_SUCCESS or some error */
+static dberr_t handle_instant_metadata(dict_table_t *table,
+                                       const row_import &cfg)
+{
+  dict_get_and_save_data_dir_path(table, false);
+
+  char *filepath;
+  if (DICT_TF_HAS_DATA_DIR(table->flags))
+  {
+    ut_a(table->data_dir_path);
+
+    filepath=
+        fil_make_filepath(table->data_dir_path, table->name.m_name, IBD, true);
+  }
+  else
+    filepath= fil_make_filepath(nullptr, table->name.m_name, IBD, false);
+
+  if (!filepath)
+    return DB_OUT_OF_MEMORY;
+
+  SCOPE_EXIT([filepath]() { ut_free(filepath); });
+
+  bool success;
+  auto file= os_file_create_simple_no_error_handling(
+      innodb_data_file_key, filepath, OS_FILE_OPEN, OS_FILE_READ_WRITE, false,
+      &success);
+  if (!success)
+    return DB_IO_ERROR;
+
+  if (os_file_get_size(file) < srv_page_size * 4)
+    return DB_CORRUPTION;
+
+  SCOPE_EXIT([&file]() { os_file_close(file); });
+
+  std::unique_ptr<byte[], decltype(&aligned_free)> first_page(
+      static_cast<byte *>(aligned_malloc(srv_page_size, srv_page_size)),
+      &aligned_free);
+
+  if (dberr_t err= os_file_read_no_error_handling(IORequest(IORequest::READ),
+                                                  file, first_page.get(), 0,
+                                                  srv_page_size, nullptr))
+    return err;
+
+  auto space_flags= fsp_header_get_flags(first_page.get());
+
+  if (!fil_space_t::is_valid_flags(space_flags, true))
+  {
+    auto cflags= fsp_flags_convert_from_101(space_flags);
+    if (cflags == ULINT_UNDEFINED)
+    {
+      ib::error() << "Invalid FSP_SPACE_FLAGS=" << ib::hex(space_flags);
+      return DB_CORRUPTION;
+    }
+    space_flags= cflags;
+  }
+
+  if (!cfg.m_missing)
+  {
+    if (dberr_t err= cfg.match_flags(current_thd))
+      return err;
+  }
+
+  const unsigned zip_size= fil_space_t::zip_size(space_flags);
+  const unsigned physical_size= zip_size ? zip_size : unsigned(srv_page_size);
+  ut_ad(physical_size <= UNIV_PAGE_SIZE_MAX);
+  const uint32_t space_id= page_get_space_id(first_page.get());
+
+  auto *space_crypt= fil_space_read_crypt_data(zip_size, first_page.get());
+  SCOPE_EXIT([&space_crypt]() {
+    if (space_crypt)
+      fil_space_destroy_crypt_data(&space_crypt);
+  });
+
+  std::unique_ptr<byte[], decltype(&aligned_free)> page(
+      static_cast<byte *>(
+          aligned_malloc(UNIV_PAGE_SIZE_MAX, UNIV_PAGE_SIZE_MAX)),
+      &aligned_free);
+
+  if (dberr_t err= os_file_read_no_error_handling(
+          IORequest(IORequest::READ), file, page.get(), 3 * physical_size,
+          physical_size, nullptr))
+    return err;
+
+  std::unique_ptr<byte[]> page_compress_buf(new byte[get_buf_size()]);
+
+  if (dberr_t err=
+          decrypt_decompress(space_crypt, space_flags,
+                             {page.get(), static_cast<size_t>(physical_size)},
+                             space_id, page_compress_buf.get()))
+    return err;
+
+  if (table->supports_instant())
+  {
+    dict_index_t *index= dict_table_get_first_index(table);
+
+    auto tmp1= table->space_id;
+    table->space_id= page_get_space_id(page.get());
+    SCOPE_EXIT([tmp1, table]() { table->space_id= tmp1; });
+
+    auto tmp2= index->page;
+    index->page= page_get_page_no(page.get());
+    SCOPE_EXIT([tmp2, index]() { index->page= tmp2; });
+
+    if (!page_is_comp(page.get()) != !dict_table_is_comp(table))
+    {
+      ib_errf(current_thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
+              "ROW_FORMAT mismatch");
+      return DB_CORRUPTION;
+    }
+
+    if (btr_cur_instant_root_init(index, page.get()))
+      return DB_ERROR;
+
+    ut_ad(index->n_core_null_bytes != dict_index_t::NO_CORE_NULL_BYTES);
+
+    if (fil_page_get_type(page.get()) == FIL_PAGE_INDEX)
+    {
+      ut_ad(!index->is_instant());
+      return DB_SUCCESS;
+    }
+
+    mem_heap_t *heap= NULL;
+    SCOPE_EXIT([&heap]() {
+      if (heap)
+        mem_heap_free(heap);
+    });
+
+    while (btr_page_get_level(page.get()) != 0)
+    {
+      const rec_t *rec= page_rec_get_next(page_get_infimum_rec(page.get()));
+
+      /* Relax the assertion in rec_init_offsets(). */
+      ut_ad(!index->in_instant_init);
+      ut_d(index->in_instant_init= true);
+      rec_offs *offsets=
+          rec_get_offsets(rec, index, nullptr, 0, ULINT_UNDEFINED, &heap);
+      ut_d(index->in_instant_init= false);
+
+      uint64_t child_page_no= btr_node_ptr_get_child_page_no(rec, offsets);
+
+      if (dberr_t err= os_file_read_no_error_handling(
+              IORequest(IORequest::READ), file, page.get(),
+              child_page_no * physical_size, physical_size, nullptr))
+        return err;
+
+      if (dberr_t err= decrypt_decompress(
+              space_crypt, space_flags,
+              {page.get(), static_cast<size_t>(physical_size)}, space_id,
+              page_compress_buf.get()))
+        return err;
+    }
+
+    const auto *rec= page_rec_get_next(page_get_infimum_rec(page.get()));
+    const auto comp= dict_table_is_comp(index->table);
+    const auto info_bits= rec_get_info_bits(rec, comp);
+
+    if (page_rec_is_supremum(rec) || !(info_bits & REC_INFO_MIN_REC_FLAG))
+    {
+      ib::error() << "Table " << index->table->name
+                  << " is missing instant ALTER metadata";
+      index->table->corrupted= true;
+      return DB_CORRUPTION;
+    }
+
+    if ((info_bits & ~REC_INFO_DELETED_FLAG) != REC_INFO_MIN_REC_FLAG ||
+        (comp && rec_get_status(rec) != REC_STATUS_INSTANT))
+    {
+    incompatible:
+      ib::error() << "Table " << index->table->name
+                  << " contains unrecognizable instant ALTER metadata";
+      index->table->corrupted= true;
+      return DB_CORRUPTION;
+    }
+
+    if (info_bits & REC_INFO_DELETED_FLAG)
+    {
+      ulint trx_id_offset= index->trx_id_offset;
+      ut_ad(index->n_uniq);
+
+      if (trx_id_offset)
+      {
+      }
+      else if (index->table->not_redundant())
+      {
+
+        for (uint i= index->n_uniq; i--;)
+          trx_id_offset+= index->fields[i].fixed_len;
+      }
+      else if (rec_get_1byte_offs_flag(rec))
+      {
+        trx_id_offset= rec_1_get_field_end_info(rec, index->n_uniq - 1);
+        ut_ad(!(trx_id_offset & REC_1BYTE_SQL_NULL_MASK));
+        trx_id_offset&= ~REC_1BYTE_SQL_NULL_MASK;
+      }
+      else
+      {
+        trx_id_offset= rec_2_get_field_end_info(rec, index->n_uniq - 1);
+        ut_ad(!(trx_id_offset & REC_2BYTE_SQL_NULL_MASK));
+        trx_id_offset&= ~REC_2BYTE_SQL_NULL_MASK;
+      }
+
+      const byte *ptr=
+          rec + trx_id_offset + (DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN);
+
+      if (mach_read_from_4(ptr + BTR_EXTERN_LEN))
+        goto incompatible;
+
+      uint len= mach_read_from_4(ptr + BTR_EXTERN_LEN + 4);
+      if (!len || mach_read_from_4(ptr + BTR_EXTERN_OFFSET) != FIL_PAGE_DATA)
+        goto incompatible;
+
+      std::unique_ptr<byte[], decltype(&aligned_free)> second_page(
+          static_cast<byte *>(aligned_malloc(physical_size, physical_size)),
+          &aligned_free);
+
+      if (dberr_t err= os_file_read_no_error_handling(
+              IORequest(IORequest::READ), file, second_page.get(),
+              mach_read_from_4(ptr + BTR_EXTERN_PAGE_NO) * physical_size,
+              srv_page_size, nullptr))
+        return err;
+
+      if (dberr_t err= decrypt_decompress(
+              space_crypt, space_flags,
+              {second_page.get(), static_cast<size_t>(physical_size)},
+              space_id, page_compress_buf.get()))
+        return err;
+
+      if (fil_page_get_type(second_page.get()) != FIL_PAGE_TYPE_BLOB ||
+          mach_read_from_4(
+              &second_page[FIL_PAGE_DATA + BTR_BLOB_HDR_NEXT_PAGE_NO]) !=
+              FIL_NULL ||
+          mach_read_from_4(
+              &second_page[FIL_PAGE_DATA + BTR_BLOB_HDR_PART_LEN]) != len)
+        goto incompatible;
+
+      /* The unused part of the BLOB page should be zero-filled. */
+      for (const byte *
+               b= second_page.get() + (FIL_PAGE_DATA + BTR_BLOB_HDR_SIZE) +
+                  len,
+              *const end= second_page.get() + srv_page_size - BTR_EXTERN_LEN;
+           b < end;)
+      {
+        if (*b++)
+          goto incompatible;
+      }
+
+      if (index->table->deserialise_columns(
+              &second_page[FIL_PAGE_DATA + BTR_BLOB_HDR_SIZE], len))
+        goto incompatible;
+    }
+
+    rec_offs *offsets= rec_get_offsets(
+        rec, index, nullptr, index->n_core_fields, ULINT_UNDEFINED, &heap);
+    if (rec_offs_any_default(offsets))
+    {
+    inconsistent:
+      goto incompatible;
+    }
+
+    /* In fact, because we only ever append fields to the metadata
+    record, it is also OK to perform READ UNCOMMITTED and
+    then ignore any extra fields, provided that
+    trx_sys.is_registered(DB_TRX_ID). */
+    if (rec_offs_n_fields(offsets) >
+            ulint(index->n_fields) + !!index->table->instant &&
+        !trx_sys.is_registered(current_trx(),
+                               row_get_rec_trx_id(rec, index, offsets)))
+      goto inconsistent;
+
+    for (unsigned i= index->n_core_fields; i < index->n_fields; i++)
+    {
+      dict_col_t *col= index->fields[i].col;
+      const unsigned o= i + !!index->table->instant;
+      ulint len;
+      const byte *data= rec_get_nth_field(rec, offsets, o, &len);
+      ut_ad(!col->is_added());
+      ut_ad(!col->def_val.data);
+      col->def_val.len= len;
+      switch (len) {
+      case UNIV_SQL_NULL:
+        continue;
+      case 0:
+        col->def_val.data= field_ref_zero;
+        continue;
+      }
+      ut_ad(len != UNIV_SQL_DEFAULT);
+      if (!rec_offs_nth_extern(offsets, o))
+        col->def_val.data= mem_heap_dup(index->table->heap, data, len);
+      else if (len < BTR_EXTERN_FIELD_REF_SIZE ||
+               !memcmp(data + len - BTR_EXTERN_FIELD_REF_SIZE, field_ref_zero,
+                       BTR_EXTERN_FIELD_REF_SIZE))
+      {
+        col->def_val.len= UNIV_SQL_DEFAULT;
+        goto inconsistent;
+      }
+      else
+      {
+        col->def_val.data= btr_copy_externally_stored_field(
+            &col->def_val.len, data, srv_page_size, len, index->table->heap);
+      }
+    }
+  }
+
+  return DB_SUCCESS;
+}
+
 /**
 Read the contents of the <tablename>.cfg file.
 @return DB_SUCCESS or error code. */
@@ -3338,35 +3710,158 @@ dberr_t row_import_update_discarded_flag(trx_t* trx, table_id_t table_id,
 	return(err);
 }
 
-struct fil_iterator_t {
-	pfs_os_file_t	file;			/*!< File handle */
-	const char*	filepath;		/*!< File path name */
-	os_offset_t	start;			/*!< From where to start */
-	os_offset_t	end;			/*!< Where to stop */
-	os_offset_t	file_size;		/*!< File size in bytes */
-	ulint		n_io_buffers;		/*!< Number of pages to use
-						for IO */
-	byte*		io_buffer;		/*!< Buffer to use for IO */
-	fil_space_crypt_t *crypt_data;		/*!< Crypt data (if encrypted) */
-	byte*           crypt_io_buffer;        /*!< IO buffer when encrypted */
-};
-
-/********************************************************************//**
-TODO: This can be made parallel trivially by chunking up the file and creating
-a callback per thread. . Main benefit will be to use multiple CPUs for
-checksums and compressed tables. We have to do compressed tables block by
-block right now. Secondly we need to decompress/compress and copy too much
-of data. These are CPU intensive.
-
-Iterate over all the pages in the tablespace.
-@param iter - Tablespace iterator
-@param block - block to use for IO
-@param callback - Callback to inspect and update page contents
-@retval DB_SUCCESS or error code */
+/** InnoDB writes page by page when there is page compressed
+tablespace involved. It does help to save the disk space when
+punch hole is enabled
+@param iter     Tablespace iterator
+@param full_crc32    whether the file is in the full_crc32 format
+@param write_request Request to write into the file
+@param offset   offset of the file to be written
+@param writeptr buffer to be written
+@param n_bytes  number of bytes to be written
+@param try_punch_only   Try the range punch only because the
+                        current range is full of empty pages
+@return DB_SUCCESS */
 static
-dberr_t
-fil_iterate(
-/*========*/
+dberr_t fil_import_compress_fwrite(const fil_iterator_t &iter,
+                                   bool full_crc32,
+                                   const IORequest &write_request,
+                                   os_offset_t offset,
+                                   const byte *writeptr,
+                                   ulint n_bytes,
+                                   bool try_punch_only= false)
+{
+  if (dberr_t err= os_file_punch_hole(iter.file, offset, n_bytes))
+    return err;
+
+  if (try_punch_only)
+    return DB_SUCCESS;
+
+  for (ulint j= 0; j < n_bytes; j+= srv_page_size)
+  {
+    /* Read the original data length from block and
+    safer to read FIL_PAGE_COMPRESSED_SIZE because it
+    is not encrypted*/
+    ulint n_write_bytes= srv_page_size;
+    if (j || offset)
+    {
+      n_write_bytes= mach_read_from_2(writeptr + j + FIL_PAGE_DATA);
+      const unsigned ptype= mach_read_from_2(writeptr + j + FIL_PAGE_TYPE);
+      /* Ignore the empty page */
+      if (ptype == 0 && n_write_bytes == 0)
+        continue;
+      if (full_crc32)
+        n_write_bytes= buf_page_full_crc32_size(writeptr + j,
+                                                nullptr, nullptr);
+      else
+      {
+        n_write_bytes+= ptype == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
+          ? FIL_PAGE_DATA + FIL_PAGE_ENCRYPT_COMP_METADATA_LEN
+          : FIL_PAGE_DATA + FIL_PAGE_COMP_METADATA_LEN;
+      }
+    }
+
+    if (dberr_t err= os_file_write(write_request, iter.filepath, iter.file,
+                                   writeptr + j, offset + j, n_write_bytes))
+      return err;
+  }
+
+  return DB_SUCCESS;
+}
+
+dberr_t FetchIndexRootPages::run(const fil_iterator_t& iter,
+                                 buf_block_t* block) UNIV_NOTHROW
+{
+  const unsigned zip_size= fil_space_t::zip_size(m_space_flags);
+  const unsigned size= zip_size ? zip_size : unsigned(srv_page_size);
+  byte* page_compress_buf= static_cast<byte*>(malloc(get_buf_size()));
+  const bool full_crc32 = fil_space_t::full_crc32(m_space_flags);
+  bool skip_checksum_check = false;
+  ut_ad(!srv_read_only_mode);
+
+  if (!page_compress_buf)
+    return DB_OUT_OF_MEMORY;
+
+  const bool encrypted= iter.crypt_data != NULL &&
+    iter.crypt_data->should_encrypt();
+  byte* const readptr= iter.io_buffer;
+  block->frame= readptr;
+
+  if (block->page.zip.data)
+    block->page.zip.data= readptr;
+
+  IORequest read_request(IORequest::READ);
+  read_request.disable_partial_io_warnings();
+  ulint page_no= 0;
+  bool page_compressed= false;
+
+  dberr_t err= os_file_read_no_error_handling(
+    read_request, iter.file, readptr, 3 * size, size, 0);
+  if (err != DB_SUCCESS)
+  {
+    ib::error() << iter.filepath << ": os_file_read() failed";
+    goto func_exit;
+  }
+
+  block->page.id.set_page_no(3);
+  page_no= page_get_page_no(readptr);
+
+  if (page_no != 3)
+  {
+page_corrupted:
+    ib::warn() << filename() << ": Page 3 at offset "
+               << 3 * size << " looks corrupted.";
+    err= DB_CORRUPTION;
+    goto func_exit;
+  }
+
+  page_compressed=
+    (full_crc32 && fil_space_t::is_compressed(m_space_flags) &&
+     buf_page_is_compressed(readptr, m_space_flags)) ||
+    (fil_page_is_compressed_encrypted(readptr) ||
+     fil_page_is_compressed(readptr));
+
+  if (page_compressed && block->page.zip.data)
+    goto page_corrupted;
+
+  if (encrypted)
+  {
+    if (!buf_page_verify_crypt_checksum(readptr, m_space_flags))
+      goto page_corrupted;
+
+    if (ENCRYPTION_KEY_NOT_ENCRYPTED ==
+        buf_page_get_key_version(readptr, m_space_flags))
+      goto page_corrupted;
+
+    if ((err= fil_space_decrypt(get_space_id(), iter.crypt_data, readptr, size,
+                                m_space_flags, readptr)))
+      goto func_exit;
+  }
+
+  /* For full_crc32 format, skip checksum check
+  after decryption. */
+  skip_checksum_check= full_crc32 && encrypted;
+
+  if (page_compressed)
+  {
+    ulint compress_length= fil_page_decompress(page_compress_buf,
+                                               readptr,
+                                               m_space_flags);
+    ut_ad(compress_length != srv_page_size);
+    if (compress_length == 0)
+      goto page_corrupted;
+  }
+  else if (!skip_checksum_check
+           && buf_page_is_corrupted(false, readptr, m_space_flags))
+    goto page_corrupted;
+
+  err= this->operator()(block);
+func_exit:
+  free(page_compress_buf);
+  return err;
+}
+
+static dberr_t fil_iterate(
 	const fil_iterator_t&	iter,
 	buf_block_t*		block,
 	AbstractCallback&	callback)
@@ -3375,14 +3870,7 @@ fil_iterate(
 	const ulint		size = callback.physical_size();
 	ulint			n_bytes = iter.n_io_buffers * size;
 
-	const ulint buf_size = srv_page_size
-#ifdef HAVE_LZO
-		+ LZO1X_1_15_MEM_COMPRESS
-#elif defined HAVE_SNAPPY
-		+ snappy_max_compressed_length(srv_page_size)
-#endif
-		;
-	byte* page_compress_buf = static_cast<byte*>(malloc(buf_size));
+	byte* page_compress_buf= static_cast<byte*>(malloc(get_buf_size()));
 	ut_ad(!srv_read_only_mode);
 
 	if (!page_compress_buf) {
@@ -3396,7 +3884,10 @@ fil_iterate(
 	/* TODO: For ROW_FORMAT=COMPRESSED tables we do a lot of useless
 	copying for non-index pages. Unfortunately, it is
 	required by buf_zip_decompress() */
-	dberr_t err = DB_SUCCESS;
+	dberr_t		err = DB_SUCCESS;
+	bool		page_compressed = false;
+	bool		punch_hole = true;
+	const IORequest	write_request(IORequest::WRITE);
 
 	for (offset = iter.start; offset < iter.end; offset += n_bytes) {
 		if (callback.is_interrupted()) {
@@ -3474,7 +3965,7 @@ page_corrupted:
 					src + FIL_PAGE_SPACE_ID);
 			}
 
-			const bool page_compressed =
+			page_compressed =
 				(full_crc32
 				 && fil_space_t::is_compressed(
 					callback.get_space_flags())
@@ -3495,7 +3986,6 @@ page_corrupted:
 
 			if (!encrypted) {
 			} else if (!key_version) {
-not_encrypted:
 				if (block->page.id.page_no() == 0
 				    && block->page.zip.data) {
 					block->page.zip.data = src;
@@ -3514,21 +4004,16 @@ not_encrypted:
 					goto page_corrupted;
 				}
 
-				decrypted = fil_space_decrypt(
+				if ((err = fil_space_decrypt(
 					actual_space_id,
 					iter.crypt_data, dst,
 					callback.physical_size(),
 					callback.get_space_flags(),
-					src, &err);
-
-				if (err != DB_SUCCESS) {
+					src))) {
 					goto func_exit;
 				}
 
-				if (!decrypted) {
-					goto not_encrypted;
-				}
-
+				decrypted = true;
 				updated = true;
 			}
 
@@ -3667,13 +4152,23 @@ not_encrypted:
 			}
 		}
 
-		/* A page was updated in the set, write back to disk. */
-		if (updated) {
-			IORequest       write_request(IORequest::WRITE);
+		if (page_compressed && punch_hole) {
+			err = fil_import_compress_fwrite(
+				iter, full_crc32, write_request, offset,
+				writeptr, n_bytes, !updated);
 
-			err = os_file_write(write_request,
-					    iter.filepath, iter.file,
-					    writeptr, offset, n_bytes);
+			if (err != DB_SUCCESS) {
+				punch_hole = false;
+				if (updated) {
+					goto normal_write;
+				}
+			}
+		} else if (updated) {
+			/* A page was updated in the set, write back to disk. */
+normal_write:
+			err = os_file_write(
+				write_request, iter.filepath, iter.file,
+				writeptr, offset, n_bytes);
 
 			if (err != DB_SUCCESS) {
 				goto func_exit;
@@ -3829,7 +4324,7 @@ fil_tablespace_iterate(
 			block->page.zip.data = block->frame + srv_page_size;
 		}
 
-		err = fil_iterate(iter, block, callback);
+		err = callback.run(iter, block);
 
 		if (iter.crypt_data) {
 			fil_space_destroy_crypt_data(&iter.crypt_data);
@@ -3943,6 +4438,11 @@ row_import_for_mysql(
 
 	if (err == DB_SUCCESS) {
 
+		if (dberr_t err = handle_instant_metadata(table, cfg)) {
+			rw_lock_s_unlock(&dict_sys.latch);
+			return row_import_error(prebuilt, trx, err);
+		}
+
 		/* We have a schema file, try and match it with our
 		data dictionary. */
 
@@ -3974,6 +4474,16 @@ row_import_for_mysql(
 
 		cfg.m_zip_size = 0;
 
+		if (UT_LIST_GET_LEN(table->indexes) > 1) {
+			ib_errf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
+				ER_INTERNAL_ERROR,
+				"Drop all secondary indexes before importing "
+				"table %s when .cfg file is missing.",
+				table->name.m_name);
+			err = DB_ERROR;
+			return row_import_error(prebuilt, trx, err);
+		}
+
 		FetchIndexRootPages	fetchIndexRootPages(table, trx);
 
 		err = fil_tablespace_iterate(
@@ -3990,6 +4500,15 @@ row_import_for_mysql(
 
 			if (err == DB_SUCCESS) {
 				err = cfg.set_root_by_heuristic();
+
+				if (err == DB_SUCCESS) {
+					if (dberr_t err =
+					    handle_instant_metadata(table,
+								    cfg)) {
+						return row_import_error(
+							prebuilt, trx, err);
+					}
+				}
 			}
 		}
 

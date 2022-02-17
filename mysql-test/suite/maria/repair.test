@@ -3,6 +3,7 @@
 # as memory usage is different compared to normal server.
 
 --source include/not_embedded.inc
+--source include/have_sequence.inc
 
 #
 # MDEV-11539 test_if_reopen: Assertion `strcmp(share->unique_file_name,filename) || share->last_version' failed upon select from I_S
@@ -36,6 +37,40 @@ DROP TABLE t1;
 CREATE TABLE t1 (i INT) ENGINE=Aria;
 INSERT INTO t1 VALUES (1);
 SET max_session_mem_used=50000;
+--disable_result_log
 REPAIR LOCAL TABLE t1 USE_FRM;
 REPAIR LOCAL TABLE t1;
+--enable_result_log
 DROP TABLE t1;
+SET max_session_mem_used=default;
+
+--echo
+--echo # MDEV-17223 Assertion `thd->killed != 0' failed in
+--echo # ha_maria::enable_indexes
+--echo #
+
+CREATE OR REPLACE TABLE t1 (c VARCHAR(1024) NOT NULL) ENGINE=Aria ROW_FORMAT FIXED;
+insert into t1 select char(seq) from seq_65_to_256;
+insert into t1 values ("a");
+--error ER_DUP_ENTRY
+ALTER TABLE t1 ADD PRIMARY KEY(c(67));
+select count(*) from t1;
+drop table t1;
+
+--echo
+--echo # MDEV-17223 Assertion `thd->killed != 0' failed in
+--echo # ha_maria::enable_indexes
+--echo #
+
+SET SESSION aria_sort_buffer_size=1023;
+CREATE TABLE t2 (c TEXT,INDEX(c(1000))) ENGINE=Aria;
+--disable_warnings
+INSERT INTO t2 select char(seq) from seq_65_to_255;
+--enable_warnings
+SELECT COUNT(*) FROM t2;
+DROP TABLE t2;
+SET SESSION aria_sort_buffer_size=default;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

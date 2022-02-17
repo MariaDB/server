@@ -22,6 +22,36 @@
 #pragma interface			/* gcc class implementation */
 #endif
 
+class Item_func_history: public Item_bool_func
+{
+public:
+  /*
+     @param    a  Item_field for row_end system field
+  */
+  Item_func_history(THD *thd, Item *a): Item_bool_func(thd, a)
+  {
+    DBUG_ASSERT(a->type() == Item::FIELD_ITEM);
+  }
+
+  virtual bool val_bool();
+  virtual longlong val_int()
+  {
+    return (val_bool() ? 1 : 0);
+  }
+  bool fix_length_and_dec()
+  {
+    maybe_null= 0;
+    null_value= 0;
+    decimals= 0;
+    max_length= 1;
+    return FALSE;
+  }
+  virtual const char* func_name() const { return "is_history"; }
+  virtual void print(String *str, enum_query_type query_type);
+  Item *get_copy(THD *thd)
+  { return get_item_copy<Item_func_history>(thd, this); }
+};
+
 class Item_func_trt_ts: public Item_datetimefunc
 {
   TR_table::field_id_t trt_field;

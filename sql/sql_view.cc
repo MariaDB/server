@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2016, MariaDB Corporation
+   Copyright (c) 2011, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -407,8 +407,18 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   bool res= FALSE;
   DBUG_ENTER("mysql_create_view");
 
-  /* This is ensured in the parser. */
-  DBUG_ASSERT(!lex->proc_list.first && !lex->result &&
+  /*
+    This is ensured in the parser.
+    NOTE: Originally, the assert below contained the extra condition
+      && !lex->result
+    but in this form the assert is failed in case CREATE VIEW run under
+    cursor (the case when the byte 'flags' in the COM_STMT_EXECUTE packet has
+    the flag CURSOR_TYPE_READ_ONLY set). For the cursor use case
+    thd->lex->result is assigned a pointer to the class Select_materialize
+    inside the function mysql_open_cursor() just before handling of a statement
+    will be started and the function mysql_create_view() called.
+  */
+  DBUG_ASSERT(!lex->proc_list.first &&
               !lex->param_list.elements);
 
   /*
@@ -430,12 +440,6 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
   lex->link_first_table_back(view, link_to_local);
   view->open_type= OT_BASE_ONLY;
-
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
-  {
-    res= TRUE;
-    goto err;
-  }
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
@@ -843,7 +847,7 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
        if ((view->md5.str= (char *)thd->alloc(32 + 1)) == NULL)
          DBUG_RETURN(HA_ADMIN_FAILED);
     }
-    view->calc_md5(view->md5.str);
+    view->calc_md5(const_cast<char*>(view->md5.str));
     view->md5.length= 32;
   }
   view->mariadb_version= MYSQL_VERSION_ID;
@@ -889,6 +893,13 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
 			       enum_view_create_mode mode)
 {
   LEX *lex= thd->lex;
+
+  /*
+    Ensure character set number != 17 (character set = filename) and mbminlen=1
+    because these character sets are not parser friendly, which can give weird
+    sequence in .frm file of view and later give parsing error.
+  */
+  DBUG_ASSERT(thd->charset()->mbminlen == 1 && thd->charset()->number != 17);
 
   /*
     View definition query -- a SELECT statement that fully defines view. It
@@ -1412,9 +1423,6 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     TABLE_LIST *view_tables_tail= 0;
     TABLE_LIST *tbl;
     Security_context *security_ctx= 0;
-
-    if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
-      goto err;
 
     /*
       Check rights to run commands which show underlying tables.

@@ -75,7 +75,7 @@ SET DEBUG_SYNC='RESET';
 --echo #
 CREATE TABLE t1 (f VARCHAR(8) CHARACTER SET latin1 COLLATE latin1_swedish_ci)
 ENGINE=InnoDB;
-
+INSERT INTO t1 VALUES('ZERO');
 connection con1;
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL scanned WAIT_FOR insert_done';
 send ALTER TABLE t1 MODIFY f VARCHAR(256) COLLATE latin1_german2_ci NOT NULL;

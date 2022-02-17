@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2005, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,7 +21,17 @@
 #include "sql_partition.h"      /* part_id_range, partition_element */
 #include "queues.h"             /* QUEUE */
 
+struct Ordered_blob_storage
+{
+  String blob;
+  bool set_read_value;
+  Ordered_blob_storage() : set_read_value(false)
+  {}
+};
+
 #define PARTITION_BYTES_IN_POS 2
+#define ORDERED_PART_NUM_OFFSET sizeof(Ordered_blob_storage **)
+#define ORDERED_REC_OFFSET (ORDERED_PART_NUM_OFFSET + PARTITION_BYTES_IN_POS)
 
 
 /** Struct used for partition_name_hash */
@@ -522,10 +532,6 @@ public:
     Meta data routines to CREATE, DROP, RENAME table and often used at
     ALTER TABLE (update_create_info used from ALTER TABLE and SHOW ..).
 
-    update_table_comment is used in SHOW TABLE commands to provide a
-    chance for the handler to add any interesting comments to the table
-    comments not provided by the users comment.
-
     create_partitioning_metadata is called before opening a new handler object
     with openfrm to call create. It is used to create any local handler
     object needed in opening the object in openfrm
@@ -539,7 +545,6 @@ public:
                                    const char *old_name, int action_flag)
     override;
   void update_create_info(HA_CREATE_INFO *create_info) override;
-  char *update_table_comment(const char *comment) override;
   int change_partitions(HA_CREATE_INFO *create_info, const char *path,
                         ulonglong * const copied, ulonglong * const deleted,
                         const uchar *pack_frm_data, size_t pack_frm_len)
@@ -932,6 +937,7 @@ private:
   int handle_ordered_next(uchar * buf, bool next_same);
   int handle_ordered_prev(uchar * buf);
   void return_top_record(uchar * buf);
+  void swap_blobs(uchar* rec_buf, Ordered_blob_storage ** storage, bool restore);
 public:
   /*
     -------------------------------------------------------------------------

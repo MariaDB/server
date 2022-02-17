@@ -176,40 +176,23 @@ IF(CMAKE_GENERATOR MATCHES "Visual Studio")
  SET(CONFIG_PARAM "-DCMAKE_INSTALL_CONFIG_NAME=${CMAKE_CFG_INTDIR}")
 ENDIF()
 
-IF(MSVC_CRT_TYPE MATCHES "/MD")
+IF(MSVC_CRT_TYPE MATCHES "/MD" AND (NOT VCRedist_MSM))
   # Find out CRT merge module path, we're going to use it in installer
-  # The path  and name depends on VS version
-  IF(MSVC_VERSION LESS 1900)
-    # VS2015
-    SET(VCREDIST_MSM_FILENAME Microsoft_VC140_CRT_${WIX_ARCH_SUFFIX}.msm)
-    SET(ProgramFilesX86 "ProgramFiles(x86)")
-    FIND_FILE(${VCREDIST_MSM_FILENAME}
-      NO_DEFAULT_PATH
-      PATHS
-        "$ENV{${ProgramFilesX86}}/Common Files/Merge Modules"
-        "$ENV{ProgramFiles}/Common Files/Merge Modules"
-    )
-  ELSEIF(MSVC_VERSION LESS 1920)
-    # VS2017
-    SET(VCREDIST_MSM_FILENAME Microsoft_VC141_CRT_${WIX_ARCH_SUFFIX}.msm)
-    FILE(GLOB MSM_LIST "C:/Program Files*/Microsoft Visual Studio/2017/*/VC/Redist/MSVC/*/MergeModules/${VCREDIST_MSM_FILENAME}")
-    LIST(LENGTH MSM_LIST LEN)
-    IF(LEN GREATER 0)
-      LIST(GET MSM_LIST 0 VCRedist_MSM)
-    ENDIF()
-  ELSE()
-    # VS2019
-    SET(VCREDIST_MSM_FILENAME Microsoft_VC142_CRT_${WIX_ARCH_SUFFIX}.msm)
-    FILE(GLOB MSM_LIST "C:/Program Files*/Microsoft Visual Studio/2019/*/VC/Redist/MSVC/*/MergeModules/${VCREDIST_MSM_FILENAME}")
-    LIST(LENGTH MSM_LIST LEN)
-    IF(LEN GREATER 0)
-      LIST(GET MSM_LIST 0 VCRedist_MSM)
-    ENDIF()
+
+  # merge module file name depends on MSVC version.
+  MATH(EXPR VC_CRT_VER  "(${MSVC_VERSION} - 1900)/10 + 140")
+  SET(VCREDIST_MSM_FILENAME Microsoft_VC${VC_CRT_VER}_CRT_${WIX_ARCH_SUFFIX}.msm)
+
+  FILE(GLOB MSM_LIST "C:/Program Files*/Microsoft Visual Studio/*/*/VC/Redist/MSVC/*/MergeModules/${VCREDIST_MSM_FILENAME}")
+  LIST(LENGTH MSM_LIST LEN)
+  IF(LEN GREATER 0)
+    LIST(GET MSM_LIST 0 VCRedist_MSM_Location)
   ENDIF()
-  IF (NOT VCRedist_MSM)
+  IF (NOT VCRedist_MSM_Location)
     MESSAGE(WARNING "Can't find merge module ${VCREDIST_MSM_FILENAME}")
   ELSE()
-    FILE(TO_NATIVE_PATH  ${VCRedist_MSM} VCRedist_MSM)
+    FILE(TO_NATIVE_PATH  ${VCRedist_MSM_Location} VCRedist_MSM_Location)
+    SET(VCRedist_MSM "${VCRedist_MSM_Location}" CACHE INTERNAL "Location of redistributable merge module")
     # MESSAGE("VCRedist_MSM=${VCRedist_MSM}")
   ENDIF()
 ENDIF()
@@ -269,6 +252,12 @@ ADD_CUSTOM_TARGET(
 ADD_CUSTOM_TARGET(
   win_package_debuginfo
   COMMAND ${CMAKE_CPACK_COMMAND} ${CPACK_CONFIG_PARAM} --config ${CMAKE_CURRENT_SOURCE_DIR}/CPackZipDebugInfoConfig.cmake
+  WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)
+
+ADD_CUSTOM_TARGET(
+  win_package_test
+  COMMAND ${CMAKE_CPACK_COMMAND} ${CPACK_CONFIG_PARAM} --config ${CMAKE_CURRENT_SOURCE_DIR}/CPackZipTestConfig.cmake
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 

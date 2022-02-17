@@ -1,0 +1,26 @@
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_debug.inc
+--source include/have_stunnel.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+--connection node_1
+--source suite/galera/include/galera_st_shutdown_slave.inc
+--source suite/galera/include/galera_st_clean_slave.inc
+
+--source suite/galera/include/galera_st_kill_slave.inc
+--source suite/galera/include/galera_st_kill_slave_ddl.inc
+
+# Confirm that transfer was SSL-encrypted
+--let $assert_text = Using stunnel for SSL encryption
+--let $assert_select = Using stunnel for SSL encryption
+--let $assert_count = 5
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_only_after = CURRENT_TEST
+--source include/assert_grep.inc
+
+--source include/auto_increment_offset_restore.inc

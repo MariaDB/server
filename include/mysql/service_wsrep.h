@@ -62,7 +62,6 @@ extern struct wsrep_service_st {
   int                         (*wsrep_thd_retry_counter_func)(const MYSQL_THD thd);
   bool                        (*wsrep_thd_ignore_table_func)(MYSQL_THD thd);
   long long                   (*wsrep_thd_trx_seqno_func)(const MYSQL_THD thd);
-  void                        (*wsrep_thd_auto_increment_variables_func)(THD *thd, unsigned long long *offset, unsigned long long *increment);
   my_bool                     (*wsrep_thd_is_aborting_func)(const MYSQL_THD thd);
   void                        (*wsrep_set_data_home_dir_func)(const char *data_dir);
   my_bool                     (*wsrep_thd_is_BF_func)(const MYSQL_THD thd, my_bool sync);
@@ -89,6 +88,7 @@ extern struct wsrep_service_st {
                                                                 unsigned long long trx_id);
   void                        (*wsrep_thd_kill_LOCK_func)(const MYSQL_THD thd);
   void                        (*wsrep_thd_kill_UNLOCK_func)(const MYSQL_THD thd);
+  void                        (*wsrep_thd_set_wsrep_PA_unsafe_func)(MYSQL_THD thd);
 } *wsrep_service;
 
 #define MYSQL_SERVICE_WSREP_INCLUDED
@@ -112,7 +112,6 @@ extern struct wsrep_service_st {
 #define wsrep_thd_retry_counter(T) wsrep_service->wsrep_thd_retry_counter_func(T)
 #define wsrep_thd_ignore_table(T) wsrep_service->wsrep_thd_ignore_table_func(T)
 #define wsrep_thd_trx_seqno(T) wsrep_service->wsrep_thd_trx_seqno_func(T)
-#define wsrep_thd_auto_increment_variables(T,O,I) wsrep_service->wsrep_thd_auto_increment_variables_func(T,O,I)
 #define wsrep_set_data_home_dir(A) wsrep_service->wsrep_set_data_home_dir_func(A)
 #define wsrep_thd_is_BF(T,S) wsrep_service->wsrep_thd_is_BF_func(T,S)
 #define wsrep_thd_is_aborting(T) wsrep_service->wsrep_thd_is_aborting_func(T)
@@ -133,6 +132,7 @@ extern struct wsrep_service_st {
 #define wsrep_thd_is_applying(T) wsrep_service->wsrep_thd_is_applying_func(T)
 #define wsrep_thd_set_wsrep_aborter(T) wsrep_service->wsrep_thd_set_wsrep_aborter_func(T1, T2)
 #define wsrep_report_bf_lock_wait(T,I) wsrep_service->wsrep_report_bf_lock_wait(T,I)
+#define wsrep_thd_set_PA_unsafe(T) wsrep_service->wsrep_thd_set_PA_unsafe_func(T)
 #else
 
 #define MYSQL_SERVICE_WSREP_STATIC_INCLUDED
@@ -152,7 +152,6 @@ extern "C" long long wsrep_xid_seqno(const struct xid_t* xid);
 const unsigned char* wsrep_xid_uuid(const struct xid_t* xid);
 extern "C" long long wsrep_thd_trx_seqno(const MYSQL_THD thd);
 my_bool get_wsrep_recovery();
-void wsrep_thd_auto_increment_variables(THD *thd, unsigned long long *offset, unsigned long long *increment);
 bool wsrep_thd_ignore_table(MYSQL_THD thd);
 void wsrep_set_data_home_dir(const char *data_dir);
 
@@ -232,5 +231,7 @@ extern "C" my_bool wsrep_thd_is_applying(const MYSQL_THD thd);
 extern "C" bool wsrep_thd_set_wsrep_aborter(MYSQL_THD bf_thd, MYSQL_THD victim_thd);
 extern "C" void wsrep_report_bf_lock_wait(const THD *thd,
                                           unsigned long long trx_id);
+/* declare parallel applying unsafety for the THD */
+extern "C" void wsrep_thd_set_PA_unsafe(MYSQL_THD thd);
 #endif
 #endif /* MYSQL_SERVICE_WSREP_INCLUDED */

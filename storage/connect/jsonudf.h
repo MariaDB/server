@@ -44,7 +44,6 @@ typedef struct _jnode {
 	PSZ   Key;                    // The key used for object
 	OPVAL Op;                     // Operator used for this node
 	PVAL  CncVal;                 // To cont value used for OP_CNC
-	PVAL  Valp;                   // The internal array VALUE
 	int   Rank;                   // The rank in array
 	int   Rx;                     // Read row number
 	int   Nx;                     // Next to read row number
@@ -334,8 +333,9 @@ protected:
 	my_bool SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm);
 	PVAL    GetColumnValue(PGLOBAL g, PJSON row, int i);
 	PVAL    ExpandArray(PGLOBAL g, PJAR arp, int n);
+	PVAL    GetCalcValue(PGLOBAL g, PJAR bap, int n);
 	PVAL    CalculateArray(PGLOBAL g, PJAR arp, int n);
-	PVAL    MakeJson(PGLOBAL g, PJSON jsp);
+	PJVAL   MakeJson(PGLOBAL g, PJSON jsp, int i);
 	void    SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val);
 	PJSON   GetRow(PGLOBAL g);
 	my_bool CompareValues(PJVAL v1, PJVAL v2);
@@ -358,7 +358,7 @@ protected:
 	JOUTSTR *Jp;
 	JNODE   *Nodes;               // The intermediate objects
 	PVAL     Value;
-	PVAL     MulVal;              // To value used by multiple column
+	//PVAL     MulVal;              // To value used by multiple column
 	char    *Jpath;               // The json path
 	int      Buf_Type;
 	int      Long;

@@ -86,7 +86,9 @@ set(LIB_DIR "lib")
 set(INCLUDE_DIR "include")
 set(GRN_INCLUDE_DIR "include/groonga")
 set(DATA_DIR "share")
-set(GRN_DATA_DIR "${DATA_DIR}/${GRN_PROJECT_NAME}")
+if(NOT DEFINED GRN_DATA_DIR)
+    set(GRN_DATA_DIR "${DATA_DIR}/${GRN_PROJECT_NAME}")
+endif()
 set(CONFIG_DIR "etc")
 set(GRN_CONFIG_DIR "${CONFIG_DIR}/${GRN_PROJECT_NAME}")
 set(GRN_CONFIG_PATH "${CMAKE_INSTALL_PREFIX}/${GRN_CONFIG_DIR}/groonga.conf")
@@ -588,14 +590,13 @@ else()
   set(GRN_WITH_MESSAGE_PACK FALSE)
 endif()
 
-find_program(RUBY NAMES
-  "ruby2.3" "ruby23"
-  "ruby2.2" "ruby22"
-  "ruby2.1" "ruby21"
-  "ruby")
-
 option(GRN_WITH_MRUBY "use mruby" OFF)
 if(GRN_WITH_MRUBY)
+  find_program(RUBY NAMES
+    "ruby2.3" "ruby23"
+    "ruby2.2" "ruby22"
+    "ruby2.1" "ruby21"
+    "ruby")
   set(MRUBY_INCLUDE_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/vendor/mruby-source/include")
   set(MRUBY_LIBS mruby)

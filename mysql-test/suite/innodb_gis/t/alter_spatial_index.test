@@ -277,8 +277,17 @@ SELECT c1,ST_Astext(c2),ST_Astext(c4) FROM tab;
 
 --disable_query_log
 
+--error ER_INTERNAL_ERROR
 ALTER TABLE tab IMPORT TABLESPACE;
 
+ALTER TABLE tab DROP INDEX idx2;
+ALTER TABLE tab DROP INDEX idx3;
+ALTER TABLE tab DROP INDEX idx4;
+ALTER TABLE tab DROP INDEX idx5;
+ALTER TABLE tab DROP INDEX idx6;
+
+SHOW CREATE TABLE tab;
+ALTER TABLE tab IMPORT TABLESPACE;
 --enable_query_log
 
 CHECK TABLE tab;
@@ -308,7 +317,6 @@ INSERT INTO tab SELECT * FROM tab1;
 --enable_info
 ALTER TABLE tab DROP PRIMARY KEY;
 
-ALTER TABLE tab DROP INDEX idx2;
 --disable_info
 
 # Check spatial index on temp tables

@@ -17,7 +17,7 @@ SET SESSION wsrep_trx_fragment_size=1;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
 INSERT INTO t1 VALUES (11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
---error ER_LOCK_DEADLOCK
+--error ER_DUP_ENTRY
 INSERT INTO t1 VALUES (11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
 INSERT INTO t1 VALUES (31),(32),(33);
 
@@ -26,5 +26,12 @@ SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 --connection node_1
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
 COMMIT;
+
+--connection node_2
+COMMIT;
+SELECT * FROM t1;
+
+--connection node_1
+SELECT * FROM t1;
 
 DROP TABLE t1;

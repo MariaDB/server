@@ -25,6 +25,39 @@ struct st_unit_ctxt_elem;
 
 
 /**
+  @class With_element_head
+  @brief Head of the definition of a CTE table
+
+  It contains the name of the CTE and it contains the position of the subchain
+  of table references used in the definition in the global chain of table
+  references used in the query where this definition is encountered.
+*/
+
+class With_element_head : public Sql_alloc
+{
+  /* The name of the defined CTE */
+  LEX_CSTRING *query_name;
+
+public:
+  /*
+    The structure describing the subchain of the table references used in
+    the specification of the defined CTE in the global chain of table
+    references used in the query. The structure is fully defined only
+    after the CTE definition has been parsed.
+  */
+  TABLE_CHAIN tables_pos;
+
+  With_element_head(LEX_CSTRING *name)
+    : query_name(name)
+  {
+    tables_pos.set_start_pos(0);
+    tables_pos.set_end_pos(0);
+  }
+  friend class With_element;
+};
+
+
+/**
   @class With_element
   @brief Definition of a CTE table
 	
@@ -85,9 +118,22 @@ private:
     subqueries and specifications of other with elements).
   */ 
   uint references;
+
+  /*
+    true <=> this With_element is referred in the query in which the
+    element is defined
+  */
+  bool referenced;
+
+  /*
+    true <=> this With_element is needed for the execution of the query
+    in which the element is defined
+  */
+  bool is_used_in_query;
+
   /* 
     Unparsed specification of the query that specifies this element.
-    It used to build clones of the specification if they are needed.
+    It's used to build clones of the specification if they are needed.
   */
   LEX_CSTRING unparsed_spec;
   /* Offset of the specification in the input string */
@@ -101,10 +147,12 @@ private:
  
 public:
   /*
-    The name of the table introduced by this with elememt. The name
-     can be used in FROM lists of the queries in the scope of the element.
+    Contains the name of the defined With element and the position of
+    the subchain of the tables references used by its definition in the
+    global chain of TABLE_LIST objects created for the whole query.
   */
-  LEX_CSTRING *query_name;
+  With_element_head *head;
+
   /*
     Optional list of column names to name the columns of the table introduced
     by this with element. It is used in the case when the names are not
@@ -162,17 +210,26 @@ public:
   /* List of derived tables containing recursive references to this CTE */
   SQL_I_List<TABLE_LIST> derived_with_rec_ref;
 
-  With_element(LEX_CSTRING *name,
+  With_element(With_element_head *h,
                List <LEX_CSTRING> list,
                st_select_lex_unit *unit)
     : next(NULL), base_dep_map(0), derived_dep_map(0),
       sq_dep_map(0), work_dep_map(0), mutually_recursive(0),
       top_level_dep_map(0), sq_rec_ref(NULL),
       next_mutually_recursive(NULL), references(0), 
-      query_name(name), column_list(list), spec(unit),
+      referenced(false), is_used_in_query(false),
+      head(h), column_list(list), spec(unit),
       is_recursive(false), rec_outer_references(0), with_anchor(false),
       level(0), rec_result(NULL)
   { unit->with_element= this; }
+
+  LEX_CSTRING *get_name() { return head->query_name; }
+  const char *get_name_str() { return get_name()->str; }
+
+  void set_tables_start_pos(TABLE_LIST **pos)
+  { head->tables_pos.set_start_pos(pos); }
+  void set_tables_end_pos(TABLE_LIST **pos)
+  { head->tables_pos.set_end_pos(pos); }
 
   bool check_dependencies_in_spec();
   
@@ -200,9 +257,11 @@ public:
   bool set_unparsed_spec(THD *thd, const char *spec_start, const char *spec_end,
                          my_ptrdiff_t spec_offset);
 
-  st_select_lex_unit *clone_parsed_spec(THD *thd, TABLE_LIST *with_table);
+  st_select_lex_unit *clone_parsed_spec(LEX *old_lex, TABLE_LIST *with_table);
 
-  bool is_referenced() { return references != 0; }
+  bool is_referenced() { return referenced; }
+
+  bool is_hanging_recursive() { return is_recursive && !rec_outer_references; }
 
   void inc_references() { references++; }
 
@@ -260,6 +319,12 @@ public:
   void prepare_for_next_iteration();
 
   friend class With_clause;
+
+  friend
+  bool LEX::resolve_references_to_cte(TABLE_LIST *tables,
+                                      TABLE_LIST **tables_last);
+  friend
+  bool LEX::resolve_references_to_cte_in_hanging_cte();
 };
 
 const uint max_number_of_elements_in_with_clause= sizeof(table_map)*8;
@@ -358,8 +423,10 @@ public:
   friend class With_element;
 
   friend
-  bool
-  check_dependencies_in_with_clauses(With_clause *with_clauses_list);
+  bool LEX::check_dependencies_in_with_clauses();
+
+  friend
+  bool LEX::resolve_references_to_cte_in_hanging_cte();
 };
 
 inline

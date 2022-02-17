@@ -371,7 +371,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
                                                    double read_time);
 static
 TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
-                                         double read_time);
+                                         double read_time, bool named_trace= false);
 static
 TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
                                         TRP_INDEX_MERGE *imerge_trp,
@@ -449,6 +449,7 @@ void print_range_for_non_indexed_field(String *out, Field *field,
 static void print_min_range_operator(String *out, const ha_rkey_function flag);
 static void print_max_range_operator(String *out, const ha_rkey_function flag);
 
+static bool is_field_an_unique_index(RANGE_OPT_PARAM *param, Field *field);
 
 /*
   SEL_IMERGE is a list of possible ways to do index merge, i.e. it is
@@ -2677,6 +2678,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
   records= head->stat_records();
   if (!records)
     records++;					/* purecov: inspected */
+  if (head->file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
+    only_single_index_range_scan= 1;
 
   if (head->force_index || force_quick_range)
     scan_time= read_time= DBL_MAX;
@@ -3247,6 +3250,25 @@ double records_in_column_ranges(PARAM *param, uint idx,
 
 
 /*
+  Compare quick select ranges according to number of found rows
+  If there is equal amounts of rows, use the long key part.
+  The idea is that if we have keys (a),(a,b) and (a,b,c) and we have
+  a query like WHERE a=1 and b=1 and c=1,
+  it is better to use key (a,b,c) than (a) as it will ensure we don't also
+  use histograms for columns b and c
+*/
+
+static
+int cmp_quick_ranges(TABLE *table, uint *a, uint *b)
+{
+  int tmp= CMP_NUM(table->quick_rows[*a], table->quick_rows[*b]);
+  if (tmp)
+    return tmp;
+  return -CMP_NUM(table->quick_key_parts[*a], table->quick_key_parts[*b]);
+}
+
+
+/*
   Calculate the selectivity of the condition imposed on the rows of a table
 
   SYNOPSIS
@@ -3282,10 +3304,10 @@ double records_in_column_ranges(PARAM *param, uint idx,
 
 bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 {
-  uint keynr;
-  uint max_quick_key_parts= 0;
+  uint keynr, range_index, ranges;
   MY_BITMAP *used_fields= &table->cond_set;
-  double table_records= (double)table->stat_records(); 
+  double table_records= (double)table->stat_records();
+  uint optimal_key_order[MAX_KEY];
   DBUG_ENTER("calculate_cond_selectivity_for_table");
 
   table->cond_selectivity= 1.0;
@@ -3324,23 +3346,21 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
   Json_writer_object trace_wrapper(thd);
   Json_writer_array selectivity_for_indexes(thd, "selectivity_for_indexes");
 
-  for (keynr= 0;  keynr < table->s->keys; keynr++)
-  {
-    if (table->quick_keys.is_set(keynr))
-      set_if_bigger(max_quick_key_parts, table->quick_key_parts[keynr]);
-  }
-
-  /* 
-    Walk through all indexes, indexes where range access uses more keyparts 
-    go first.
+  /*
+    Walk through all quick ranges in the order of least found rows.
   */
-  for (uint quick_key_parts= max_quick_key_parts;
-       quick_key_parts; quick_key_parts--)
+  for (ranges= keynr= 0 ; keynr < table->s->keys; keynr++)
+    if (table->quick_keys.is_set(keynr))
+      optimal_key_order[ranges++]= keynr;
+
+  my_qsort2(optimal_key_order, ranges,
+            sizeof(optimal_key_order[0]),
+            (qsort2_cmp) cmp_quick_ranges, table);
+
+  for (range_index= 0 ; range_index < ranges ; range_index++)
   {
-    for (keynr= 0;  keynr < table->s->keys; keynr++)
+    uint keynr= optimal_key_order[range_index];
     {
-      if (table->quick_keys.is_set(keynr) &&
-          table->quick_key_parts[keynr] == quick_key_parts)
       {
         uint i;
         uint used_key_parts= table->quick_key_parts[keynr];
@@ -5051,7 +5071,7 @@ double get_sweep_read_cost(const PARAM *param, ha_rows records)
 
 static
 TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
-                                         double read_time)
+                                         double read_time, bool named_trace)
 {
   SEL_TREE **ptree;
   TRP_INDEX_MERGE *imerge_trp= NULL;
@@ -5100,7 +5120,8 @@ TABLE_READ_PLAN *get_best_disjunct_quick(PARAM *param, SEL_IMERGE *imerge,
                                              n_child_scans)))
     DBUG_RETURN(NULL);
 
-  Json_writer_object trace_best_disjunct(thd);
+  const char* trace_best_disjunct_obj_name= named_trace ? "best_disjunct_quick" : nullptr;
+  Json_writer_object trace_best_disjunct(thd, trace_best_disjunct_obj_name);
   Json_writer_array to_merge(thd, "indexes_to_merge");
   /*
     Collect best 'range' scan for each of disjuncts, and, while doing so,
@@ -5458,7 +5479,7 @@ TABLE_READ_PLAN *merge_same_index_scans(PARAM *param, SEL_IMERGE *imerge,
   DBUG_ASSERT(imerge->trees_next>imerge->trees);
 
   if (imerge->trees_next-imerge->trees > 1)
-    trp= get_best_disjunct_quick(param, imerge, read_time);
+    trp= get_best_disjunct_quick(param, imerge, read_time, true);
   else
   {
     /*
@@ -5646,7 +5667,7 @@ void print_keyparts(THD *thd, KEY *key, uint key_parts)
   DBUG_ASSERT(thd->trace_started());
 
   KEY_PART_INFO *part= key->key_part;
-  Json_writer_array keyparts= Json_writer_array(thd, "keyparts");
+  Json_writer_array keyparts(thd, "keyparts");
   for(uint i= 0; i < key_parts; i++, part++)
     keyparts.add(part->field->field_name);
 }
@@ -6906,7 +6927,7 @@ static bool ror_intersect_add(ROR_INTERSECT_INFO *info,
     DBUG_PRINT("info", ("info->total_cost= %g", info->total_cost));
   }
   else
-    trace_costs->add("disk_sweep_cost", static_cast<longlong>(0));
+    trace_costs->add("disk_sweep_cost", 0);
 
   DBUG_PRINT("info", ("New out_rows: %g", info->out_rows));
   DBUG_PRINT("info", ("New cost: %g, %scovering", info->total_cost,
@@ -7689,6 +7710,21 @@ SEL_TREE *Item_bool_func::get_ne_mm_tree(RANGE_OPT_PARAM *param,
 }
 
 
+SEL_TREE *Item_func_ne::get_func_mm_tree(RANGE_OPT_PARAM *param,
+                                         Field *field, Item *value)
+{
+  DBUG_ENTER("Item_func_ne::get_func_mm_tree");
+  /*
+    If this condition is a "col1<>...", where there is a UNIQUE KEY(col1),
+    do not construct a SEL_TREE from it. A condition that excludes just one
+    row in the table is not selective (unless there are only a few rows)
+  */
+  if (is_field_an_unique_index(param, field))
+    DBUG_RETURN(NULL);
+  DBUG_RETURN(get_ne_mm_tree(param, field, value, value));
+}
+
+
 SEL_TREE *Item_func_between::get_func_mm_tree(RANGE_OPT_PARAM *param,
                                               Field *field, Item *value)
 {
@@ -7787,28 +7823,16 @@ SEL_TREE *Item_func_in::get_func_mm_tree(RANGE_OPT_PARAM *param,
         DBUG_RETURN(0);
 
       /*
-        If this is "unique_key NOT IN (...)", do not consider it sargable (for
-        any index, not just the unique one). The logic is as follows:
+        if this is a "col1 NOT IN (...)", and there is a UNIQUE KEY(col1), do
+        not constuct a SEL_TREE from it. The rationale is as follows:
          - if there are only a few constants, this condition is not selective
            (unless the table is also very small in which case we won't gain
            anything)
-         - If there are a lot of constants, the overhead of building and
+         - if there are a lot of constants, the overhead of building and
            processing enormous range list is not worth it.
       */
-      if (param->using_real_indexes)
-      {
-        key_map::Iterator it(field->key_start);
-        uint key_no;
-        while ((key_no= it++) != key_map::Iterator::BITMAP_END)
-        {
-          KEY *key_info= &field->table->key_info[key_no];
-          if (key_info->user_defined_key_parts == 1 &&
-              (key_info->flags & HA_NOSAME))
-          {
-            DBUG_RETURN(0);
-          }
-        }
-      }
+      if (is_field_an_unique_index(param, field))
+        DBUG_RETURN(0);
 
       /* Get a SEL_TREE for "(-inf|NULL) < X < c_0" interval.  */
       uint i=0;
@@ -8523,6 +8547,38 @@ SEL_TREE *Item_equal::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   }
 
   DBUG_RETURN(ftree);
+}
+
+
+/*
+  @brief
+    Check if there is an one-segment unique key that matches the field exactly
+
+  @detail
+    In the future we could also add "almost unique" indexes where any value is
+    present only in a few rows (but necessarily exactly one row)
+*/
+static bool is_field_an_unique_index(RANGE_OPT_PARAM *param, Field *field)
+{
+  DBUG_ENTER("is_field_an_unique_index");
+
+  // The check for using_real_indexes is there because of the heuristics
+  // this function is used for.
+  if (param->using_real_indexes)
+  {
+    key_map::Iterator it(field->key_start);
+    uint key_no;
+    while ((key_no= it++) != key_map::Iterator::BITMAP_END)
+    {
+      KEY *key_info= &field->table->key_info[key_no];
+      if (key_info->user_defined_key_parts == 1 &&
+          (key_info->flags & HA_NOSAME))
+      {
+        DBUG_RETURN(true);
+      }
+    }
+  }
+  DBUG_RETURN(false);
 }
 
 
@@ -10064,7 +10120,7 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
 
   uint max_part_no= MY_MAX(key1->max_part_no, key2->max_part_no);
 
-  for (key2=key2->first(); key2; )
+  for (key2=key2->first(); ; )
   {
     /*
       key1 consists of one or more ranges. tmp is the range currently
@@ -10078,6 +10134,16 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
                   ^
                   tmp
     */
+    if (key1->min_flag & NO_MIN_RANGE &&
+        key1->max_flag & NO_MAX_RANGE)
+    {
+      if (key1->maybe_flag)
+        return new SEL_ARG(SEL_ARG::MAYBE_KEY);
+      return 0;   // Always true OR
+    }
+    if (!key2)
+      break;
+
     SEL_ARG *tmp=key1->find_range(key2);
 
     /*
@@ -10148,6 +10214,13 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
         key2->copy_min(tmp);
         if (!(key1=key1->tree_delete(tmp)))
         {                                       // Only one key in tree
+          if (key2->min_flag & NO_MIN_RANGE &&
+              key2->max_flag & NO_MAX_RANGE)
+          {
+            if (key2->maybe_flag)
+              return new SEL_ARG(SEL_ARG::MAYBE_KEY);
+            return 0;   // Always true OR
+          }
           key1=key2;
           key1->make_root();
           key2=key2_next;
@@ -11275,6 +11348,9 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
                                 table_key->user_defined_key_parts);
   uint pk_number;
   
+  if (param->table->file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
+    return false;
+
   for (KEY_PART_INFO *kp= table_key->key_part; kp < key_part; kp++)
   {
     uint16 fieldnr= param->table->key_info[keynr].

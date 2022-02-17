@@ -33,6 +33,7 @@
 #include "semisync_slave.h"
 #include "mysys_err.h"
 
+
 enum enum_gtid_until_state {
   GTID_UNTIL_NOT_DONE,
   GTID_UNTIL_STOP_AFTER_STANDALONE,
@@ -817,7 +818,7 @@ get_slave_until_gtid(THD *thd, String *out_str)
   @param event_coordinates  binlog file name and position of the last
                             real event master sent from binlog
 
-  @note 
+  @note
     Among three essential pieces of heartbeat data Log_event::when
     is computed locally.
     The  error to send is serious and should force terminating
@@ -831,6 +832,8 @@ static int send_heartbeat_event(binlog_send_info *info,
   DBUG_ENTER("send_heartbeat_event");
 
   ulong ev_offset;
+  char sub_header_buf[HB_SUB_HEADER_LEN];
+  bool sub_header_in_use=false;
   if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg))
     DBUG_RETURN(1);
 
@@ -851,18 +854,38 @@ static int send_heartbeat_event(binlog_send_info *info,
   size_t event_len = ident_len + LOG_EVENT_HEADER_LEN +
     (do_checksum ? BINLOG_CHECKSUM_LEN : 0);
   int4store(header + SERVER_ID_OFFSET, global_system_variables.server_id);
+  DBUG_EXECUTE_IF("simulate_pos_4G",
+  {
+    const_cast<event_coordinates *>(coord)->pos= (UINT_MAX32 + (ulong)1);
+    DBUG_SET("-d, simulate_pos_4G");
+  };);
+  if (coord->pos <= UINT_MAX32)
+  {
+    int4store(header + LOG_POS_OFFSET, coord->pos);  // log_pos
+  }
+  else
+  {
+    // Set common_header.log_pos=0 to indicate its overflow
+    int4store(header + LOG_POS_OFFSET, 0);
+    sub_header_in_use= true;
+    int8store(sub_header_buf, coord->pos);
+    event_len+= HB_SUB_HEADER_LEN;
+  }
+
   int4store(header + EVENT_LEN_OFFSET, event_len);
   int2store(header + FLAGS_OFFSET, 0);
 
-  int4store(header + LOG_POS_OFFSET, coord->pos);  // log_pos
-
   packet->append(header, sizeof(header));
-  packet->append(p, ident_len);             // log_file_name
+  if (sub_header_in_use)
+    packet->append(sub_header_buf, sizeof(sub_header_buf));
+  packet->append(p, ident_len);                    // log_file_name
 
   if (do_checksum)
   {
     char b[BINLOG_CHECKSUM_LEN];
     ha_checksum crc= my_checksum(0, (uchar*) header, sizeof(header));
+    if (sub_header_in_use)
+      crc= my_checksum(crc, (uchar*) sub_header_buf, sizeof(sub_header_buf));
     crc= my_checksum(crc, (uchar*) p, ident_len);
     int4store(b, crc);
     packet->append(b, sizeof(b));
@@ -3925,6 +3948,16 @@ err:
   mi->unlock_slave_threads();
   if (ret == FALSE)
     my_ok(thd);
+  else
+  {
+    /*
+      Depending on where CHANGE MASTER failed, the logs may be waiting to be
+      reopened. This would break future log updates and CHANGE MASTER calls.
+      `try_fix_log_state()` allows the relay log to fix its state to no longer
+      expect to be reopened.
+    */
+    mi->rli.relay_log.try_fix_log_state();
+  }
   DBUG_RETURN(ret);
 }
 
@@ -4351,6 +4384,7 @@ bool show_binlogs(THD* thd)
   Protocol *protocol= thd->protocol;
   uint retry_count= 0;
   size_t cur_dir_len;
+  uint64 expected_reset_masters;
   DBUG_ENTER("show_binlogs");
 
   if (!mysql_bin_log.is_open())
@@ -4376,6 +4410,7 @@ retry:
   mysql_mutex_lock(mysql_bin_log.get_log_lock());
   mysql_bin_log.lock_index();
   mysql_bin_log.raw_get_current_log(&cur);
+  expected_reset_masters= mysql_bin_log.get_reset_master_count();
   mysql_mutex_unlock(mysql_bin_log.get_log_lock());
   
   /* The following call unlocks lock_index */
@@ -4395,6 +4430,16 @@ retry:
     /* Skip directory name as we shouldn't include this in the result */
     cur_link->name.str+=    dir_len;
     cur_link->name.length-= dir_len;
+
+    if (mysql_bin_log.get_reset_master_count() > expected_reset_masters)
+    {
+      /*
+        Reset master was called after we cached filenames.
+        Reinitialize the cache.
+      */
+      free_root(&mem_root, MYF(MY_MARK_BLOCKS_FREE));
+      goto retry;
+    }
 
     if (!(strncmp(fname+dir_len, cur.log_file_name+cur_dir_len, length)))
       cur_link->size= cur.pos;  /* The active log, use the active position */

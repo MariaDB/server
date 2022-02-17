@@ -1,0 +1,26 @@
+--source include/galera_cluster.inc
+--source include/have_log_bin.inc
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+LOCK TABLE t1 WRITE CONCURRENT;
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+# TOI operations will ignore lock_wait_timeout
+SET lock_wait_timeout= 1;
+--send CREATE VIEW v1 AS SELECT * FROM t1
+
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1b
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'Waiting for table level lock'
+--source include/wait_condition.inc
+
+--connection node_1
+UNLOCK TABLES;
+
+--connection node_1a
+--reap
+
+DROP VIEW v1;
+DROP TABLE t1;

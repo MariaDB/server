@@ -35,16 +35,21 @@ protected:
      character set. No memory is allocated.
      @retval A pointer to the str_value member.
    */
-  virtual String *make_empty_result()
+  virtual String *make_empty_result(String *str)
   {
     /*
       Reset string length to an empty string. We don't use str_value.set() as
       we don't want to free and potentially have to reallocate the buffer
       for each call.
     */
-    str_value.length(0);
-    str_value.set_charset(collation.collation);
-    return &str_value; 
+    if (!str->is_alloced())
+      str->set("", 0, collation.collation); /* Avoid null ptrs */
+    else
+    {
+      str->length(0);                      /* Reuse allocated area */
+      str->set_charset(collation.collation);
+    }
+    return str;
   }
 public:
   Item_str_func(THD *thd): Item_func(thd) { decimals=NOT_FIXED_DEC; }
@@ -498,7 +503,7 @@ class Item_func_substr_oracle :public Item_func_substr
 protected:
   longlong get_position()
   { longlong pos= args[1]->val_int(); return pos == 0 ? 1 : pos; }
-  String *make_empty_result()
+  String *make_empty_result(String *str)
   { null_value= 1; return NULL; }
 public:
   Item_func_substr_oracle(THD *thd, Item *a, Item *b):
@@ -539,7 +544,7 @@ protected:
   String *trimmed_value(String *res, uint32 offset, uint32 length)
   {
     if (length == 0)
-      return make_empty_result();
+      return make_empty_result(&tmp_value);
 
     tmp_value.set(*res, offset, length);
     /*
@@ -572,7 +577,7 @@ public:
 class Item_func_trim_oracle :public Item_func_trim
 {
 protected:
-  String *make_empty_result()
+  String *make_empty_result(String *str)
   { null_value= 1; return NULL; }
   const char *func_name_ext() const { return "_oracle"; }
 public:
@@ -611,7 +616,7 @@ public:
 class Item_func_ltrim_oracle :public Item_func_ltrim
 {
 protected:
-  String *make_empty_result()
+  String *make_empty_result(String *str)
   { null_value= 1; return NULL; }
   const char *func_name_ext() const { return "_oracle"; }
 public:
@@ -646,7 +651,7 @@ public:
 class Item_func_rtrim_oracle :public Item_func_rtrim
 {
 protected:
-  String *make_empty_result()
+  String *make_empty_result(String *str)
   { null_value= 1; return NULL; }
   const char *func_name_ext() const { return "_oracle"; }
 public:
@@ -851,7 +856,7 @@ public:
   String *val_str(String *);
   bool fix_length_and_dec()
   {
-    max_length= MAX_FIELD_NAME * system_charset_info->mbmaxlen;
+    max_length= NAME_CHAR_LEN * system_charset_info->mbmaxlen;
     maybe_null=1;
     return FALSE;
   }
@@ -1141,7 +1146,7 @@ public:
 
 class Item_func_rpad_oracle :public Item_func_rpad
 {
-  String *make_empty_result()
+  String *make_empty_result(String *str)
   { null_value= 1; return NULL; }
 public:
   Item_func_rpad_oracle(THD *thd, Item *arg1, Item *arg2, Item *arg3):
@@ -1176,7 +1181,7 @@ public:
 
 class Item_func_lpad_oracle :public Item_func_lpad
 {
-  String *make_empty_result()
+  String *make_empty_result(String *str)
   { null_value= 1; return NULL; }
 public:
   Item_func_lpad_oracle(THD *thd, Item *arg1, Item *arg2, Item *arg3):

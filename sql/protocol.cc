@@ -218,8 +218,6 @@ net_send_ok(THD *thd,
   NET *net= &thd->net;
   StringBuffer<MYSQL_ERRMSG_SIZE + 10> store;
 
-  bool state_changed= false;
-
   bool error= FALSE;
   DBUG_ENTER("net_send_ok");
 
@@ -246,6 +244,11 @@ net_send_ok(THD *thd,
   /* last insert id */
   store.q_net_store_length(id);
 
+  /* if client has not session tracking capability, don't send state change flag*/
+  if (!(thd->client_capabilities & CLIENT_SESSION_TRACK)) {
+    server_status &= ~SERVER_SESSION_STATE_CHANGED;
+  }
+
   if (thd->client_capabilities & CLIENT_PROTOCOL_41)
   {
     DBUG_PRINT("info",
@@ -266,21 +269,17 @@ net_send_ok(THD *thd,
   }
   thd->get_stmt_da()->set_overwrite_status(true);
 
-  state_changed=
-    (thd->client_capabilities & CLIENT_SESSION_TRACK) &&
-    (server_status & SERVER_SESSION_STATE_CHANGED);
-
-  if (state_changed || (message && message[0]))
+  if ((server_status & SERVER_SESSION_STATE_CHANGED) || (message && message[0]))
   {
     DBUG_ASSERT(safe_strlen(message) <= MYSQL_ERRMSG_SIZE);
     store.q_net_store_data((uchar*) safe_str(message), safe_strlen(message));
   }
 
-  if (unlikely(state_changed))
+  if (unlikely(server_status & SERVER_SESSION_STATE_CHANGED))
   {
     store.set_charset(thd->variables.collation_database);
-
     thd->session_tracker.store(thd, &store);
+    thd->server_status&= ~SERVER_SESSION_STATE_CHANGED;
   }
 
   DBUG_ASSERT(store.length() <= MAX_PACKET_LENGTH);
@@ -288,8 +287,6 @@ net_send_ok(THD *thd,
   error= my_net_write(net, (const unsigned char*)store.ptr(), store.length());
   if (likely(!error) && (!skip_flush || is_eof))
     error= net_flush(net);
-
-  thd->server_status&= ~SERVER_SESSION_STATE_CHANGED;
 
   thd->get_stmt_da()->set_overwrite_status(false);
   DBUG_PRINT("info", ("OK sent, so no more error sending allowed"));
@@ -470,8 +467,12 @@ bool net_send_error_packet(THD *thd, uint sql_errno, const char *err,
     coming from server to have seq_no > 0, due to missing awareness
     of "out-of-band" operations. Make these clients happy.
   */
-  if (!net->pkt_nr)
-   net->pkt_nr= 1;
+  if (!net->pkt_nr &&
+      (sql_errno == ER_CONNECTION_KILLED || sql_errno == ER_SERVER_SHUTDOWN ||
+       sql_errno == ER_QUERY_INTERRUPTED))
+  {
+    net->pkt_nr= 1;
+  }
 
   ret= net_write_command(net,(uchar) 255, (uchar*) "", 0, (uchar*) buff,
                          length);

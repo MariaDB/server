@@ -155,7 +155,7 @@ void mysql_audit_general(THD *thd, uint event_subtype,
   DBUG_ENTER("mysql_audit_general");
   if (mysql_audit_general_enabled())
   {
-    char user_buff[MAX_USER_HOST_SIZE];
+    char user_buff[MAX_USER_HOST_SIZE+1];
     mysql_event_general event;
 
     event.event_subclass= event_subtype;

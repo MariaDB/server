@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -570,7 +570,7 @@ page_get_middle_rec(
 Gets the page number.
 @return page number */
 UNIV_INLINE
-ulint
+uint32_t
 page_get_page_no(
 /*=============*/
 	const page_t*	page);	/*!< in: page */
@@ -579,7 +579,7 @@ page_get_page_no(
 Gets the tablespace identifier.
 @return space id */
 UNIV_INLINE
-ulint
+uint32_t
 page_get_space_id(
 /*==============*/
 	const page_t*	page);	/*!< in: page */
@@ -1307,6 +1307,6 @@ page_find_rec_max_not_deleted(
 
 #endif /* !UNIV_INNOCHECKSUM */
 
-#include "page0page.ic"
+#include "page0page.inl"
 
 #endif

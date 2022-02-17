@@ -78,6 +78,13 @@ SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 SELECT * FROM t;
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SELECT * FROM t;
+
+--echo #
+--echo # MDEV-27332 SIGSEGV in fetch_data_into_cache
+--echo #
+BEGIN;
+SELECT trx_state FROM information_schema.innodb_trx;
+COMMIT;
 --let $restart_parameters=
 --source include/restart_mysqld.inc
 SELECT * FROM t;

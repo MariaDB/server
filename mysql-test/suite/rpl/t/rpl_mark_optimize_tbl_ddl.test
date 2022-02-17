@@ -1,0 +1,142 @@
+# ==== Purpose ====
+#
+# Test verifies that there is no deadlock or assertion in
+# slave_parallel_mode=optimistic configuration while applying admin command
+# like 'OPTIMIZE TABLE', 'REPAIR TABLE' and 'ANALYZE TABLE'.
+#
+# ==== Implementation ====
+#
+# Steps:
+#    0 - Create a table, execute OPTIMIZE TABLE command on the table followed
+#        by some DMLS.
+#    1 - No assert should happen on slave server.
+#    2 - Assert that 'OPTIMIZE TABLE', 'REPAIR TABLE' and 'ANALYZE TABLE' are
+#        marked as 'DDL' in the binary log.
+#
+# ==== References ====
+#
+# MDEV-17515: GTID Replication in optimistic mode deadlock
+#
+--source include/have_partition.inc
+--source include/have_innodb.inc
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--connection server_1
+FLUSH TABLES;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+
+--connection server_2
+SET @save_slave_parallel_threads= @@GLOBAL.slave_parallel_threads;
+SET @save_slave_parallel_mode= @@GLOBAL.slave_parallel_mode;
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=2;
+SET GLOBAL slave_parallel_mode=optimistic;
+--source include/start_slave.inc
+
+--connection server_1
+CREATE TABLE t1(a INT) ENGINE=INNODB;
+OPTIMIZE TABLE t1;
+INSERT INTO t1 VALUES(1);
+INSERT INTO t1  SELECT 1+a FROM t1;
+INSERT INTO t1  SELECT 2+a FROM t1;
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+--echo #
+--echo # Verify that following admin commands are marked as ddl
+--echo # 'OPTIMIZE TABLE', 'REPAIR TABLE' and 'ANALYZE TABLE'
+--echo #
+--connection server_1
+
+OPTIMIZE TABLE t1;
+--let optimize_gtid= `SELECT @@GLOBAL.gtid_binlog_pos`
+
+REPAIR TABLE t1;
+--let repair_gtid= `SELECT @@GLOBAL.gtid_binlog_pos`
+
+ANALYZE TABLE t1;
+--let analyze_gtid= `SELECT @@GLOBAL.gtid_binlog_pos`
+
+let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
+FLUSH LOGS;
+
+--let $MYSQLD_DATADIR= `select @@datadir`
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/$binlog_file > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
+
+--let SEARCH_PATTERN= GTID $optimize_gtid ddl
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= GTID $repair_gtid ddl
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= GTID $analyze_gtid ddl
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
+--source include/search_pattern_in_file.inc
+
+--echo #
+--echo # Clean up
+--echo #
+DROP TABLE t1;
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+FLUSH LOGS;
+
+--echo #
+--echo # Check that ALTER TABLE commands with ANALYZE, OPTIMIZE and REPAIR on
+--echo # partitions will be marked as DDL in binary log.
+--echo #
+--connection server_1
+CREATE TABLE t1(id INT) PARTITION BY RANGE (id) (PARTITION p0 VALUES LESS THAN (100),
+ PARTITION pmax VALUES LESS THAN (MAXVALUE));
+INSERT INTO t1 VALUES (1), (10), (100), (1000);
+
+ALTER TABLE t1 ANALYZE PARTITION p0;
+--let analyze_gtid= `SELECT @@GLOBAL.gtid_binlog_pos`
+
+ALTER TABLE t1 OPTIMIZE PARTITION p0;
+--let optimize_gtid= `SELECT @@GLOBAL.gtid_binlog_pos`
+
+ALTER TABLE t1 REPAIR PARTITION p0;
+--let repair_gtid= `SELECT @@GLOBAL.gtid_binlog_pos`
+
+let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
+FLUSH LOGS;
+
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/$binlog_file > $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
+
+--let SEARCH_PATTERN= GTID $analyze_gtid ddl
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= GTID $optimize_gtid ddl
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
+--source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN= GTID $repair_gtid ddl
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
+--source include/search_pattern_in_file.inc
+
+--echo #
+--echo # Clean up
+--echo #
+DROP TABLE t1;
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.out
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= @save_slave_parallel_threads;
+SET GLOBAL slave_parallel_mode= @save_slave_parallel_mode;
+--source include/start_slave.inc
+
+--source include/rpl_end.inc

@@ -1,7 +1,7 @@
 /*************** tabbson H Declares Source Code File (.H) **************/
-/*  Name: tabbson.h   Version 1.0                                      */
+/*  Name: tabbson.h   Version 1.1                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2020         */
+/*  (C) Copyright to the author Olivier BERTRAND          2020 - 2021  */
 /*                                                                     */
 /*  This file contains the BSON classes declares.                      */
 /***********************************************************************/
@@ -44,10 +44,11 @@ public:
   PBPR    row;
   PBTUT   bp;
   PCSZ    sep;
+  PCSZ    strfy;
   char    colname[65], fmt[129], buf[16];
   uint   *length;
   int     i, n, bf, ncol, lvl, sz, limit;
-  bool    all, strfy;
+  bool    all;
 }; // end of BSONDISC
 
 /***********************************************************************/
@@ -241,7 +242,8 @@ public:
   BSONCOL(BSONCOL* colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
-  virtual int  GetAmType(void) { return Tbp->GetAmType(); }
+  virtual int   GetAmType(void) { return Tbp->GetAmType(); }
+  virtual bool  Stringify(void) { return Sgfy; }
 
   // Methods
   virtual bool  SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
@@ -269,6 +271,7 @@ protected:
   bool    Xpd;                  // True for expandable column
   bool    Parsed;               // True when parsed
   bool    Warned;               // True when warning issued
+  bool    Sgfy;									// True if stringified
 }; // end of class BSONCOL
 
 /* -------------------------- TDBBSON class -------------------------- */
@@ -315,7 +318,9 @@ protected:
 
   // Members
   PBVAL Docp;                      // The document array
+  PBVAL Docrow;                    // Document row
   int   Multiple;                  // 0: No 1: DIR 2: Section 3: filelist
+  int   Docsize;                   // The document size
   bool  Done;                      // True when document parsing is done
   bool  Changed;                   // After Update, Insert or Delete
 }; // end of class TDBBSON

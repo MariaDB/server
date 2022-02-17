@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -615,6 +615,7 @@ typedef struct system_variables
     are based on the cluster size):
   */
   ulong saved_auto_increment_increment, saved_auto_increment_offset;
+  ulong saved_lock_wait_timeout;
 #endif /* WITH_WSREP */
   uint eq_range_index_dive_limit;
   ulong column_compression_zlib_strategy;
@@ -933,11 +934,24 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var);
 void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
                         STATUS_VAR *dec_var);
 
+uint calc_sum_of_all_status(STATUS_VAR *to);
+static inline void calc_sum_of_all_status_if_needed(STATUS_VAR *to)
+{
+  if (to->local_memory_used == 0)
+  {
+    mysql_mutex_lock(&LOCK_status);
+    *to= global_status_var;
+    mysql_mutex_unlock(&LOCK_status);
+    calc_sum_of_all_status(to);
+    DBUG_ASSERT(to->local_memory_used);
+  }
+}
+
 /*
   Update global_memory_used. We have to do this with atomic_add as the
   global value can change outside of LOCK_status.
 */
-inline void update_global_memory_status(int64 size)
+static inline void update_global_memory_status(int64 size)
 {
   DBUG_PRINT("info", ("global memory_used: %lld  size: %lld",
                       (longlong) global_status_var.global_memory_used,
@@ -955,7 +969,7 @@ inline void update_global_memory_status(int64 size)
   @retval         NULL on error
   @retval         Pointter to CHARSET_INFO with the given name on success
 */
-inline CHARSET_INFO *
+static inline CHARSET_INFO *
 mysqld_collation_get_by_name(const char *name,
                              CHARSET_INFO *name_cs= system_charset_info)
 {
@@ -974,10 +988,27 @@ mysqld_collation_get_by_name(const char *name,
   return cs;
 }
 
-inline bool is_supported_parser_charset(CHARSET_INFO *cs)
+static inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 {
-  return MY_TEST(cs->mbminlen == 1);
+  return MY_TEST(cs->mbminlen == 1 && cs->number != 17 /* filename */);
 }
+
+/**
+  A counter of THDs
+
+  It must be specified as a first base class of THD, so that increment is
+  done before any other THD constructors and decrement - after any other THD
+  destructors.
+
+  Destructor unblocks close_conneciton() if there are no more THD's left.
+*/
+struct THD_count
+{
+  static Atomic_counter<uint32_t> count;
+  static uint value() { return static_cast<uint>(count); }
+  THD_count() { count++; }
+  ~THD_count() { count--; }
+};
 
 #ifdef MYSQL_SERVER
 
@@ -2142,22 +2173,6 @@ extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
 
 
 /**
-  A wrapper around thread_count.
-
-  It must be specified as a first base class of THD, so that increment is
-  done before any other THD constructors and decrement - after any other THD
-  destructors.
-
-  Destructor unblocks close_conneciton() if there are no more THD's left.
-*/
-struct THD_count
-{
-  THD_count() { thread_count++; }
-  ~THD_count() { thread_count--; }
-};
-
-
-/**
   @class THD
   For each client connection we create a separate thread with THD serving as
   a thread/connection descriptor
@@ -2996,6 +3011,9 @@ public:
   uint	     server_status,open_options;
   enum enum_thread_type system_thread;
   enum backup_stages current_backup_stage;
+#ifdef WITH_WSREP
+  bool wsrep_desynced_backup_stage;
+#endif /* WITH_WSREP */
   /*
     Current or next transaction isolation level.
     When a connection is established, the value is taken from
@@ -3641,10 +3659,6 @@ public:
     give_protection_error();
     return TRUE;
   }
-  inline bool fill_derived_tables()
-  {
-    return !stmt_arena->is_stmt_prepare() && !lex->only_view_structure();
-  }
   inline bool fill_information_schema_tables()
   {
     return !stmt_arena->is_stmt_prepare();
@@ -4234,15 +4248,9 @@ public:
         to resolve all CTE names as we don't need this message to be thrown
         for any CTE references.
       */
-      if (!lex->with_clauses_list)
-      {
+      if (!lex->with_cte_resolution)
         my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
-        return TRUE;
-      }
-      /* This will allow to throw an error later for non-CTE references */
-      to->str= NULL;
-      to->length= 0;
-      return FALSE;
+      return TRUE;
     }
 
     to->str= strmake(db.str, db.length);
@@ -4981,10 +4989,11 @@ public:
       transaction.all.modified_non_trans_table= TRUE;
     transaction.all.m_unsafe_rollback_flags|=
       (transaction.stmt.m_unsafe_rollback_flags &
-       (THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
-        THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL));
+       (THD_TRANS::MODIFIED_NON_TRANS_TABLE |
+        THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
+        THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL |
+        THD_TRANS::EXECUTED_TABLE_ADMIN_CMD));
   }
-
 
   uint get_net_wait_timeout()
   {
@@ -5035,6 +5044,9 @@ public:
   Item *sp_fix_func_item(Item **it_addr);
   Item *sp_prepare_func_item(Item **it_addr, uint cols= 1);
   bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
+
+  bool sql_parser(LEX *old_lex, LEX *lex,
+                  char *str, uint str_len, bool stmt_prepare_mode);
 
 };
 
@@ -6017,6 +6029,7 @@ public:
   bool cmp_int();
   bool cmp_decimal();
   bool cmp_str();
+  bool cmp_time();
 };
 
 /* EXISTS subselect interface class */
@@ -6035,11 +6048,13 @@ public:
    - The sj-materialization temporary table
    - Members needed to make index lookup or a full scan of the temptable.
 */
+class POSITION;
+
 class SJ_MATERIALIZATION_INFO : public Sql_alloc
 {
 public:
   /* Optimal join sub-order */
-  struct st_position *positions;
+  POSITION *positions;
 
   uint tables; /* Number of tables in the sj-nest */
 
@@ -6252,7 +6267,8 @@ public:
 class multi_update :public select_result_interceptor
 {
   TABLE_LIST *all_tables; /* query/update command tables */
-  List<TABLE_LIST> *leaves;     /* list of leves of join table tree */
+  List<TABLE_LIST> *leaves;     /* list of leaves of join table tree */
+  List<TABLE_LIST> updated_leaves;  /* list of of updated leaves */
   TABLE_LIST *update_tables;
   TABLE **tmp_tables, *main_table, *table_to_update;
   TMP_TABLE_PARAM *tmp_table_param;
@@ -6290,6 +6306,7 @@ public:
 	       List<Item> *fields, List<Item> *values,
 	       enum_duplicates handle_duplicates, bool ignore);
   ~multi_update();
+  bool init(THD *thd);
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   int send_data(List<Item> &items);
   bool initialize_tables (JOIN *join);

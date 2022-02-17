@@ -727,6 +727,10 @@ END
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
 Database Collation	latin1_swedish_ci
+Warnings:
+Level	Note
+Code	1585
+Message	This function 'concat' has the same name as a native function
 SHOW CREATE PACKAGE BODY test2;
 Package body	test2
 sql_mode	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT
@@ -747,6 +751,10 @@ END
 character_set_client	latin1
 collation_connection	latin1_swedish_ci
 Database Collation	latin1_swedish_ci
+Warnings:
+Level	Note
+Code	1585
+Message	This function 'concat' has the same name as a native function
 DROP PACKAGE BODY test2;
 SELECT test2.f1();
 ERROR 42000: FUNCTION test.test2.f1 does not exist

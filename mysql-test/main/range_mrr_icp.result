@@ -3241,6 +3241,17 @@ SELECT * FROM t1 JOIN t2 ON (t2.code = t1.b) WHERE t1.a NOT IN ('baz', 'qux') OR
 id	a	b	code	num
 DROP TABLE t1, t2;
 #
+# MDEV-23634: Select query hanged the server and leads to OOM ...
+# (The fix is to add the same handling for "col!=const" as MDEV-21958 did for NOT IN)
+#
+create table t1 (pk int primary key, a int);
+insert into t1 (pk) values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+# must not use range:
+explain select * from t1 force index (primary) where pk != 1 and pk!=2 ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	10	Using where
+drop table t1;
+#
 # MDEV-22251: get_key_scans_params: Conditional jump or move depends on uninitialised value
 #
 create table t1 (pk int, i int, v int, primary key (pk), key(v));
@@ -3257,6 +3268,30 @@ pk	i	v	a	b
 1	1	2	1	2
 2	2	4	2	4
 drop table t1, t2;
+#
+# MDEV-26553: Always FALSE/NULL disjunct on top level of WHERE is removed
+#
+create table t1 (a int, b int, index idx(a,b));
+insert into t1 values (1,1), (1,2), (2,1), (2,2), (3,3);
+create table t2 (c int);
+insert into t2 values (5), (2), (3), (4);
+select 1 from t1 s1
+where 1 not in (select 1 from t1
+where ((a = 1 or a = 2) and b = 1) or (b > 5 and b < 1));
+1
+select 1 from t1 s1
+where 1 not in (select 1 from t1
+where ((a = 1 or a = 2) and b = 1) or b = NULL);
+1
+select c from t2
+where 2 not in (select 1 from t1
+where ((a=1 or a=2) and b = 1) or (b > 5 and b < 1));
+c
+5
+2
+3
+4
+drop table t1,t2;
 #
 # End of 10.2 tests
 #

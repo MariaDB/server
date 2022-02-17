@@ -50,7 +50,11 @@ class Item_subselect :public Item_result_field,
                       protected Used_tables_and_const_cache,
                       protected With_sum_func_cache
 {
-  bool value_assigned;   /* value already assigned to subselect */
+  /*
+    Set to TRUE if the value is assigned for the subselect
+    FALSE: subquery not executed or the subquery returns an empty result
+  */
+  bool value_assigned;
   bool own_engine;  /* the engine was not taken from other Item_subselect */
 protected:
   /* thread handler, will be assigned in fix_fields only */
@@ -287,7 +291,8 @@ public:
   friend bool Item_ref::fix_fields(THD *, Item **);
   friend void mark_select_range_as_dependent(THD*,
                                              st_select_lex*, st_select_lex*,
-                                             Field*, Item*, Item_ident*);
+                                             Field*, Item*, Item_ident*,
+                                             bool);
   friend bool convert_join_subqueries_to_semijoins(JOIN *join);
 };
 

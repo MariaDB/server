@@ -335,10 +335,12 @@ btr_cur_latch_leaves(
 				zip_size, RW_X_LATCH, cursor->index, mtr);
 			latch_leaves.blocks[2] = get_block;
 #ifdef UNIV_BTR_DEBUG
-			ut_a(page_is_comp(get_block->frame)
-			     == page_is_comp(page));
-			ut_a(btr_page_get_prev(get_block->frame)
-			     == page_get_page_no(page));
+			if (get_block) {
+				ut_a(page_is_comp(get_block->frame)
+				     == page_is_comp(page));
+				ut_a(btr_page_get_prev(get_block->frame)
+				     == page_get_page_no(page));
+			}
 #endif /* UNIV_BTR_DEBUG */
 			if (spatial) {
 				cursor->rtr_info->tree_blocks[
@@ -595,7 +597,8 @@ incompatible:
 	}
 
 	mem_heap_t* heap = NULL;
-	rec_offs* offsets = rec_get_offsets(rec, index, NULL, true,
+	rec_offs* offsets = rec_get_offsets(rec, index, NULL,
+					    index->n_core_fields,
 					    ULINT_UNDEFINED, &heap);
 	if (rec_offs_any_default(offsets)) {
 inconsistent:
@@ -1192,7 +1195,6 @@ static ulint btr_node_ptr_max_size(const dict_index_t* index)
 				       TABLE_STATS_NAME)
 			       || !strcmp(index->table->name.m_name,
 					  INDEX_STATS_NAME))) {
-			ut_ad(!strcmp(field->name, "table_name"));
 			/* Interpret "table_name" as VARCHAR(199) even
 			if it was incorrectly defined as VARCHAR(64).
 			While the caller of ha_innobase enforces the
@@ -2050,7 +2052,7 @@ retry_page_get:
 
 		node_ptr = page_cur_get_rec(page_cursor);
 
-		offsets = rec_get_offsets(node_ptr, index, offsets, false,
+		offsets = rec_get_offsets(node_ptr, index, offsets, 0,
 					  ULINT_UNDEFINED, &heap);
 
 		/* If the rec is the first or last in the page for
@@ -2181,7 +2183,7 @@ need_opposite_intention:
 
 				offsets2 = rec_get_offsets(
 					first_rec, index, offsets2,
-					false, ULINT_UNDEFINED, &heap);
+					0, ULINT_UNDEFINED, &heap);
 				cmp_rec_rec(node_ptr, first_rec,
 					    offsets, offsets2, index, false,
 					    &matched_fields);
@@ -2199,7 +2201,7 @@ need_opposite_intention:
 
 					offsets2 = rec_get_offsets(
 						last_rec, index, offsets2,
-						false, ULINT_UNDEFINED, &heap);
+						0, ULINT_UNDEFINED, &heap);
 					cmp_rec_rec(
 						node_ptr, last_rec,
 						offsets, offsets2, index,
@@ -2368,7 +2370,7 @@ need_opposite_intention:
 
 					offsets = rec_get_offsets(
 						my_node_ptr, index, offsets,
-						false, ULINT_UNDEFINED, &heap);
+						0, ULINT_UNDEFINED, &heap);
 
 					ulint	my_page_no
 					= btr_node_ptr_get_child_page_no(
@@ -2821,7 +2823,7 @@ btr_cur_open_at_index_side_func(
 
 		node_ptr = page_cur_get_rec(page_cursor);
 		offsets = rec_get_offsets(node_ptr, cursor->index, offsets,
-					  false, ULINT_UNDEFINED, &heap);
+					  0, ULINT_UNDEFINED, &heap);
 
 		/* If the rec is the first or last in the page for
 		pessimistic delete intention, it might cause node_ptr insert
@@ -3116,7 +3118,7 @@ btr_cur_open_at_rnd_pos_func(
 
 		node_ptr = page_cur_get_rec(page_cursor);
 		offsets = rec_get_offsets(node_ptr, cursor->index, offsets,
-					  false, ULINT_UNDEFINED, &heap);
+					  0, ULINT_UNDEFINED, &heap);
 
 		/* If the rec is the first or last in the page for
 		pessimistic delete intention, it might cause node_ptr insert
@@ -3598,7 +3600,8 @@ fail_err:
 				ut_ad(thr->graph->trx->id
 				      == trx_read_trx_id(
 					      static_cast<const byte*>(
-						      trx_id->data)));
+							trx_id->data))
+				      || index->table->is_temporary());
 			}
 		}
 #endif
@@ -4118,7 +4121,8 @@ btr_cur_parse_update_in_place(
 				  flags != (BTR_NO_UNDO_LOG_FLAG
 					    | BTR_NO_LOCKING_FLAG
 					    | BTR_KEEP_SYS_FLAG)
-				  || page_is_leaf(page),
+				  || page_is_leaf(page)
+				  ? index->n_core_fields : 0,
 				  ULINT_UNDEFINED, &heap);
 
 	if (!(flags & BTR_KEEP_SYS_FLAG)) {
@@ -4259,7 +4263,8 @@ btr_cur_update_in_place(
 	index = cursor->index;
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(!!page_rec_is_comp(rec) == dict_table_is_comp(index->table));
-	ut_ad(trx_id > 0 || (flags & BTR_KEEP_SYS_FLAG));
+	ut_ad(trx_id > 0 || (flags & BTR_KEEP_SYS_FLAG)
+	      || index->table->is_temporary());
 	/* The insert buffer tree should never be updated in place. */
 	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(dict_index_is_online_ddl(index) == !!(flags & BTR_CREATE_FLAG)
@@ -4560,7 +4565,8 @@ btr_cur_optimistic_update(
 	page = buf_block_get_frame(block);
 	rec = btr_cur_get_rec(cursor);
 	index = cursor->index;
-	ut_ad(trx_id > 0 || (flags & BTR_KEEP_SYS_FLAG));
+	ut_ad(trx_id > 0 || (flags & BTR_KEEP_SYS_FLAG)
+	      || index->table->is_temporary());
 	ut_ad(!!page_rec_is_comp(rec) == dict_table_is_comp(index->table));
 	ut_ad(mtr_memo_contains(mtr, block, MTR_MEMO_PAGE_X_FIX));
 	/* This is intended only for leaf page updates */
@@ -4576,7 +4582,7 @@ btr_cur_optimistic_update(
 	ut_ad(fil_page_index_page_check(page));
 	ut_ad(btr_page_get_index_id(page) == index->id);
 
-	*offsets = rec_get_offsets(rec, index, *offsets, true,
+	*offsets = rec_get_offsets(rec, index, *offsets, index->n_core_fields,
 				   ULINT_UNDEFINED, heap);
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 	ut_a(!rec_offs_any_null_extern(rec, *offsets)
@@ -4917,8 +4923,8 @@ btr_cur_pessimistic_update(
 	ut_ad(!page_zip || !index->table->is_temporary());
 	/* The insert buffer tree should never be updated in place. */
 	ut_ad(!dict_index_is_ibuf(index));
-	ut_ad(trx_id > 0
-	      || (flags & BTR_KEEP_SYS_FLAG));
+	ut_ad(trx_id > 0 || (flags & BTR_KEEP_SYS_FLAG)
+	      || index->table->is_temporary());
 	ut_ad(dict_index_is_online_ddl(index) == !!(flags & BTR_CREATE_FLAG)
 	      || dict_index_is_clust(index));
 	ut_ad(thr_get_trx(thr)->id == trx_id
@@ -5434,7 +5440,8 @@ btr_cur_parse_del_mark_set_clust_rec(
 		if (!(flags & BTR_KEEP_SYS_FLAG)) {
 			row_upd_rec_sys_fields_in_recovery(
 				rec, page_zip,
-				rec_get_offsets(rec, index, offsets, true,
+				rec_get_offsets(rec, index, offsets,
+						index->n_core_fields,
 						pos + 2, &heap),
 				pos, trx_id, roll_ptr);
 		} else {
@@ -5443,7 +5450,8 @@ btr_cur_parse_del_mark_set_clust_rec(
 			ut_ad(memcmp(rec_get_nth_field(
 					     rec,
 					     rec_get_offsets(rec, index,
-							     offsets, true,
+							     offsets, index
+							     ->n_core_fields,
 							     pos, &heap),
 					     pos, &offset),
 				     field_ref_zero, DATA_TRX_ID_LEN));
@@ -5778,7 +5786,8 @@ btr_cur_optimistic_delete_func(
 
 	rec = btr_cur_get_rec(cursor);
 
-	offsets = rec_get_offsets(rec, cursor->index, offsets, true,
+	offsets = rec_get_offsets(rec, cursor->index, offsets,
+				  cursor->index->n_core_fields,
 				  ULINT_UNDEFINED, &heap);
 
 	const ibool no_compress_needed = !rec_offs_any_extern(offsets)
@@ -5986,7 +5995,8 @@ btr_cur_pessimistic_delete(
 	ut_a(!page_zip || page_zip_validate(page_zip, page, index));
 #endif /* UNIV_ZIP_DEBUG */
 
-	offsets = rec_get_offsets(rec, index, NULL, page_is_leaf(page),
+	offsets = rec_get_offsets(rec, index, NULL, page_is_leaf(page)
+				  ? index->n_core_fields : 0,
 				  ULINT_UNDEFINED, &heap);
 
 	if (rec_offs_any_extern(offsets)) {
@@ -6086,7 +6096,7 @@ discard_page:
 			pointer as the predefined minimum record */
 
 			min_mark_next_rec = true;
-		} else if (dict_index_is_spatial(index)) {
+		} else if (index->is_spatial()) {
 			/* For rtree, if delete the leftmost node pointer,
 			we need to update parent page. */
 			rtr_mbr_t	father_mbr;
@@ -6101,7 +6111,7 @@ discard_page:
 						  &father_cursor);
 			offsets = rec_get_offsets(
 				btr_cur_get_rec(&father_cursor), index, NULL,
-				false, ULINT_UNDEFINED, &heap);
+				0, ULINT_UNDEFINED, &heap);
 
 			father_rec = btr_cur_get_rec(&father_cursor);
 			rtr_read_mbr(rec_get_nth_field(
@@ -7023,12 +7033,13 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index)
 		page = btr_cur_get_page(&cursor);
 
 		rec = page_rec_get_next(page_get_infimum_rec(page));
-		const bool is_leaf = page_is_leaf(page);
+		const ulint n_core = page_is_leaf(page)
+			? index->n_core_fields : 0;
 
 		if (!page_rec_is_supremum(rec)) {
 			not_empty_flag = 1;
 			offsets_rec = rec_get_offsets(rec, index, offsets_rec,
-						      is_leaf,
+						      n_core,
 						      ULINT_UNDEFINED, &heap);
 
 			if (n_not_null != NULL) {
@@ -7049,7 +7060,7 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index)
 
 			offsets_next_rec = rec_get_offsets(next_rec, index,
 							   offsets_next_rec,
-							   is_leaf,
+							   n_core,
 							   ULINT_UNDEFINED,
 							   &heap);
 

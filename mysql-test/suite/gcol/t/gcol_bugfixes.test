@@ -634,3 +634,87 @@ REPLACE t2(number) VALUES('1');
 REPLACE t2(number) VALUES('1');
 
 DROP TABLE t2;
+
+--echo # MDEV-24583 SELECT aborts after failed REPLACE into table with vcol
+
+CREATE TABLE t1 (pk INT, a VARCHAR(3), v VARCHAR(3) AS (CONCAT('x-',a)),
+                 PRIMARY KEY(pk)) ENGINE=MyISAM;
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 (pk, a) VALUES (1,'foo');
+SET sql_mode=CONCAT(@@sql_mode,',STRICT_ALL_TABLES');
+--error 0,ER_DATA_TOO_LONG
+REPLACE INTO t1 (pk,a) VALUES (1,'qux');
+SELECT * FROM v1;
+
+# Cleanup
+DROP VIEW v1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (
+  pk INT,
+  a VARCHAR(1),
+  v VARCHAR(1) AS (CONCAT('virt-',a)) VIRTUAL,
+  PRIMARY KEY (pk)
+) ENGINE=InnoDB;
+
+INSERT INTO t1 (pk,a) VALUES
+(1,'a'),(2,'b'),(3,'c'),(4,'d'),(5,'e'),(6,'f');
+
+ --error ER_DATA_TOO_LONG
+REPLACE INTO t1 (pk) VALUES (1);
+SELECT * FROM t1 ORDER BY a;
+
+SET SQL_MODE=DEFAULT;
+DROP TABLE t1;
+
+--echo # (duplicate) MDEV-24656
+--echo # [FATAL] InnoDB: Data field type 0, len 0, ASAN heap-buffer-overflow
+--echo # upon LOAD DATA with virtual columns
+
+CREATE TABLE t1 (id INT PRIMARY KEY, a VARCHAR(2333),
+                 va VARCHAR(171) AS (a)) ENGINE=InnoDB;
+INSERT INTO t1 (id,a) VALUES (1,REPEAT('x',200));
+SELECT id, va INTO OUTFILE 'load_t1' FROM t1;
+--error ER_DATA_TOO_LONG
+LOAD DATA INFILE 'load_t1' REPLACE INTO TABLE t1 (id,va);
+SELECT * FROM t1;
+LOAD DATA INFILE 'load_t1' IGNORE INTO TABLE t1 (id,va);
+
+DROP TABLE t1;
+--let $datadir= `select @@datadir`
+--remove_file $datadir/test/load_t1
+
+CREATE TABLE t1 (id BIGINT PRIMARY KEY, a VARCHAR(2333),
+                 va VARCHAR(171) AS (a)) ENGINE=InnoDB;
+INSERT INTO t1 (id,a) VALUES (1,REPEAT('x',200));
+SELECT id, va INTO OUTFILE 'load_t1' FROM t1;
+--error ER_DATA_TOO_LONG
+LOAD DATA INFILE 'load_t1' REPLACE INTO TABLE t1 (id,va);
+SELECT * FROM t1;
+LOAD DATA INFILE 'load_t1' IGNORE INTO TABLE t1 (id,va);
+
+# Cleanup
+DROP TABLE t1;
+--let $datadir= `select @@datadir`
+--remove_file $datadir/test/load_t1
+
+
+--echo # (duplicate) MDEV-24665
+--echo # ASAN errors, assertion failures, corrupt values after failed
+--echo # LOAD DATA into table with virtual/stored column
+
+CREATE TABLE t1 (id INT PRIMARY KEY,
+                 ts TIMESTAMP DEFAULT '1971-01-01 00:00:00',
+                 c VARBINARY(8) DEFAULT '', vc VARCHAR(3) AS (c) STORED);
+INSERT IGNORE INTO t1 (id,c) VALUES (1,'foobar');
+SELECT id, ts, vc INTO OUTFILE 'load_t1' FROM t1;
+--error 0,ER_DATA_TOO_LONG
+LOAD DATA INFILE 'load_t1' REPLACE INTO TABLE t1 (id, ts, vc);
+INSERT IGNORE INTO t1 (id) VALUES (2);
+
+# Cleanup
+DROP TABLE t1;
+--let $datadir= `select @@datadir`
+--remove_file $datadir/test/load_t1
+
+

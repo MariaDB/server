@@ -171,6 +171,7 @@ connect stop_purge,localhost,root;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connect ddl,localhost,root,,test;
 DELETE FROM t1;
+INSERT INTO t1 VALUES(1, 2);
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
 ALTER TABLE t1 FORCE;
 connection default;
@@ -193,6 +194,12 @@ SET DEBUG_SYNC='RESET';
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 SET a=0;
 ALTER TABLE t1 ADD COLUMN b INT NOT NULL DEFAULT 2, ADD COLUMN c INT;
+BEGIN NOT ATOMIC
+DECLARE c TEXT DEFAULT(SELECT CONCAT('ALTER TABLE t1 ADD (c',
+GROUP_CONCAT(seq SEPARATOR ' INT, c'), ' INT), ALGORITHM=INSTANT;') FROM seq_1_to_130);
+EXECUTE IMMEDIATE c;
+END;
+$$
 connection stop_purge;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
@@ -200,10 +207,11 @@ DELETE FROM t1;
 connection ddl;
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
 ALTER TABLE t1 FORCE;
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR copied';
 connection stop_purge;
 COMMIT;
 connection default;
-SET DEBUG_SYNC = 'now WAIT_FOR copied';
 InnoDB		1 transactions not purged
 INSERT INTO t1 SET a=1;
 INSERT INTO t1 SET a=2,b=3,c=4;
@@ -211,7 +219,7 @@ SET DEBUG_SYNC = 'now SIGNAL logged';
 connection ddl;
 connection default;
 SET DEBUG_SYNC = RESET;
-SELECT * FROM t1;
+SELECT a, b, c FROM t1;
 a	b	c
 1	2	NULL
 2	3	4
@@ -223,9 +231,9 @@ DELETE FROM t1;
 connection ddl;
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL copied WAIT_FOR logged';
 ALTER TABLE t1 ADD COLUMN b INT NOT NULL DEFAULT 2 AFTER a, FORCE;
-disconnect stop_purge;
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR copied';
+disconnect stop_purge;
 InnoDB		1 transactions not purged
 INSERT INTO t1 SET a=1;
 INSERT INTO t1 SET a=2,c=4;
@@ -234,7 +242,7 @@ connection ddl;
 UPDATE t1 SET b = b + 1 WHERE a = 2;
 connection default;
 SET DEBUG_SYNC = RESET;
-SELECT * FROM t1;
+SELECT a, b, c FROM t1;
 a	b	c
 1	2	NULL
 2	3	4
@@ -258,7 +266,7 @@ ERROR 22004: Invalid use of NULL value
 disconnect ddl;
 connection default;
 SET DEBUG_SYNC = RESET;
-SELECT * FROM t1;
+SELECT a, b, c, d FROM t1;
 a	b	c	d
 1	2	NULL	1
 2	3	4	1
@@ -348,6 +356,48 @@ SELECT * FROM t1;
 a	b	c
 DROP TABLE t1;
 SET GLOBAL innodb_limit_optimistic_insert_debug = @saved_limit;
+#
+# MDEV-24796 Assertion page_has_next... failed
+# in btr_pcur_store_position()
+#
+CREATE TABLE t1 (c INT KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1),(2);
+SET GLOBAL innodb_limit_optimistic_insert_debug=2;
+ALTER TABLE t1 ADD COLUMN d INT;
+DELETE FROM t1;
+InnoDB		0 transactions not purged
+SELECT * FROM t1 WHERE c<>1 ORDER BY c DESC;
+c	d
+DROP TABLE t1;
+SET GLOBAL innodb_limit_optimistic_insert_debug = @saved_limit;
+#
+# MDEV-24620 ASAN heap-buffer-overflow in btr_pcur_restore_position()
+#
+CREATE TABLE t1 (a VARCHAR(1) PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connect  stop_purge,localhost,root,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+ALTER TABLE t1 ADD c INT;
+BEGIN;
+DELETE FROM t1;
+connect  dml,localhost,root,,test;
+SET DEBUG_SYNC='row_mysql_handle_errors SIGNAL s1 WAIT_FOR s2';
+UPDATE t1 SET c=1;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR s1';
+COMMIT;
+connection stop_purge;
+COMMIT;
+disconnect stop_purge;
+connection default;
+InnoDB		0 transactions not purged
+SET DEBUG_SYNC='now SIGNAL s2';
+connection dml;
+disconnect dml;
+connection default;
+SET DEBUG_SYNC=RESET;
+DROP TABLE t1;
 # End of 10.3 tests
 #
 # MDEV-17899 Assertion failures on rollback of instant ADD/DROP
@@ -395,10 +445,33 @@ SET GLOBAL innodb_limit_optimistic_insert_debug=@save_limit;
 SELECT * FROM t1;
 c2	c
 DROP TABLE t1;
+#
+# MDEV-25236 Online log apply fails for ROW_FORMAT=REDUNDANT tables
+#
+CREATE TABLE t1
+(a INT NOT NULL, b INT, c INT, d INT, e INT, f INT, g INT, h INT, i TEXT)
+ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 2, 3, 4, 5, 6, 7, 8, "test");
+ALTER TABLE t1 MODIFY a INT NULL;
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL alter WAIT_FOR go';
+ALTER TABLE t1 ADD PRIMARY KEY (a);
+connect con1,localhost,root,,;
+set DEBUG_SYNC='now WAIT_FOR alter';
+BEGIN;
+INSERT INTO t1 SET a=0, i=REPEAT('1', 10000);
+ROLLBACK;
+set DEBUG_SYNC='now SIGNAL go';
+connection default;
+disconnect con1;
+SELECT * FROM t1;
+a	b	c	d	e	f	g	h	i
+1	2	3	4	5	6	7	8	test
+DROP TABLE t1;
+SET DEBUG_SYNC=RESET;
 # End of 10.4 tests
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
 SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-29
+33

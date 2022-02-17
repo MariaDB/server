@@ -34,3 +34,16 @@ SELECT COUNT(*) = 0 FROM t2;
 SELECT COUNT(*) = 0 FROM t2;
 
 DROP TABLE t1, t2, t3;
+
+#
+# MDEV-25201 : Assertion `thd->wsrep_trx_meta.gtid.seqno == (-1)' failed in int wsrep_to_isolation_begin(THD*, const char*, const char*, const TABLE_LIST*, Alter_info*)
+#
+SET SESSION lock_wait_timeout=2;
+SET GLOBAL wsrep_replicate_myisam= ON;
+CREATE TEMPORARY TABLE t1 (i INT, PRIMARY KEY pk (i)) ENGINE=MyISAM;
+PREPARE stmt FROM "INSERT INTO t1 (id) SELECT * FROM (SELECT 4 AS i) AS y";
+INSERT INTO t1 VALUES(4);
+DEALLOCATE PREPARE stmt;
+COMMIT;
+DROP TABLE t1;
+SET GLOBAL wsrep_replicate_myisam=OFF;

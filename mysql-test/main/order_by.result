@@ -3536,6 +3536,54 @@ SET max_length_for_sort_data=@save_max_length_for_sort_data;
 SET max_sort_length= @save_max_sort_length;
 SET sql_select_limit= @save_sql_select_limit;
 DROP TABLE t1;
+#
+# MDEV-25682: EXPLAIN for SELECT with ORDER BY after [ORDER BY] LIMIT
+#
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+explain (select a from t1 limit 2) order by a desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using filesort
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	
+(select a from t1 limit 2) order by a desc;
+a
+7
+3
+create table t2 (a int, b int);
+insert into t2 values (3,70), (7,10), (1,40), (4,30);
+explain (select b,a from t2 order by a limit 3) order by b desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	4	Using filesort
+(select b,a from t2 order by a limit 3) order by b desc;
+b	a
+70	3
+40	1
+30	4
+drop table t1,t2;
+#
+# MDEV-22256 Assertion `length == pack_length()' failed in Field_timestamp_with_dec::sort_string
+#
+SET sql_mode='';
+SET @@SESSION.max_sort_length=4;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '4'
+CREATE TABLE t1 (c TIMESTAMP(1));
+INSERT INTO t1 VALUES(0);
+DELETE FROM t1 ORDER BY c;
+DROP TABLE t1;
+SET @@SESSION.max_sort_length=DEFAULT;
+SET sql_mode=DEFAULT;
+SET sql_mode='';
+SET @@SESSION.max_sort_length=1;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '1'
+CREATE TEMPORARY TABLE t1 (c DATETIME);
+INSERT INTO t1 VALUES(0);
+DELETE FROM t1 ORDER BY c;
+DROP TABLE t1;
+SET @@SESSION.max_sort_length=DEFAULT;
+SET sql_mode=DEFAULT;
 # End of 10.2 tests
 #
 # MDEV-16214: Incorrect plan taken by the optimizer , uses INDEX instead of ref access with ORDER BY

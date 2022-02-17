@@ -18682,7 +18682,7 @@ SELECT @@character_set_client, @@character_set_connection, @@character_set_resul
 @@character_set_client	@@character_set_connection	@@character_set_results
 binary	sjis	binary
 SELECT HEX('à\['), HEX('\à\[');
-HEX('à\[')	HEX('\à\[')
+HEX('\xE0\[')	HEX('\\xE0\[')
 E05B	E05B
 CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
 SHOW CREATE TABLE t1;
@@ -19295,4 +19295,20 @@ DROP TABLE t1;
 SET STORAGE_ENGINE=Default;
 #
 # End of 10.2 tests
+#
+#
+# Start of 10.4 tests
+#
+#
+# MDEV-26953 Assertion `!str || str != Ptr || !is_alloced()' failed in String::copy upon SELECT with sjis
+#
+SET NAMES sjis;
+CREATE TABLE t (a VARCHAR(3));
+INSERT INTO t VALUES (''),('');
+SELECT GROUP_CONCAT(PASSWORD(a)) AS f FROM t;
+f
+,
+DROP TABLE t;
+#
+# End of 10.4 tests
 #

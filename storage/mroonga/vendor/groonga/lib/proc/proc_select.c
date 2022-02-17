@@ -2989,7 +2989,8 @@ grn_select(grn_ctx *ctx, grn_select_data *data)
     char *cp = cache_key;
 
 #define PUT_CACHE_KEY(string)                                   \
-    grn_memcpy(cp, (string).value, (string).length);            \
+    if ((string).value)                                         \
+      grn_memcpy(cp, (string).value, (string).length);          \
     cp += (string).length;                                      \
     *cp++ = '\0'
 

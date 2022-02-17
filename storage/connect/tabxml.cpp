@@ -15,12 +15,12 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <winsock2.h>
 //#include <windows.h>
 #include <comdef.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -28,7 +28,7 @@
 //#include <ctype.h>
 #include "osutil.h"
 #define _O_RDONLY O_RDONLY
-#endif  // !__WIN__
+#endif  // !_WIN32
 #include "resource.h"                        // for IDS_COLUMNS
 
 #define INCLUDE_TDBXML
@@ -53,11 +53,11 @@
 
 extern "C" char version[];
 
-#if defined(__WIN__) && defined(DOMDOC_SUPPORT)
+#if defined(_WIN32) && defined(DOMDOC_SUPPORT)
 #define XMLSUP "MS-DOM"
-#else   // !__WIN__
+#else   // !_WIN32
 #define XMLSUP "libxml2"
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 #define TYPE_UNKNOWN     12        /* Must be greater than other types */
 #define XLEN(M)  sizeof(M) - strlen(M) - 1	       /* To avoid overflow*/
@@ -148,13 +148,20 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
   /*  Open the input file.                                             */
   /*********************************************************************/
   if (!(fn = GetStringTableOption(g, topt, "Filename", NULL))) {
-    strcpy(g->Message, MSG(MISSING_FNAME));
-    return NULL;
-  } else {
-    lvl = GetIntegerTableOption(g, topt, "Level", GetDefaultDepth());
-		lvl = GetIntegerTableOption(g, topt, "Depth", lvl);
-		lvl = (lvl < 0) ? 0 : (lvl > 16) ? 16 : lvl;
+    if (topt->http) // REST table can have default filename
+      fn = GetStringTableOption(g, topt, "Subtype", NULL);
+    
+    if (!fn) {
+      strcpy(g->Message, MSG(MISSING_FNAME));
+      return NULL;
+    } else
+      topt->subtype = NULL;
+
   } // endif fn
+
+  lvl = GetIntegerTableOption(g, topt, "Level", GetDefaultDepth());
+  lvl = GetIntegerTableOption(g, topt, "Depth", lvl);
+  lvl = (lvl < 0) ? 0 : (lvl > 16) ? 16 : lvl;
 
   if (trace(1))
     htrc("File %s lvl=%d\n", topt->filename, lvl);
@@ -173,11 +180,11 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
 	tdp->Skip = GetBooleanTableOption(g, topt, "Skipnull", false);
 
   if (!(op = GetStringTableOption(g, topt, "Xmlsup", NULL)))
-#if defined(__WIN__)
+#if defined(_WIN32)
     tdp->Usedom = true;
-#else   // !__WIN__
+#else   // !_WIN32
     tdp->Usedom = false;
-#endif  // !__WIN__
+#endif  // !_WIN32
   else
     tdp->Usedom = (toupper(*op) == 'M' || toupper(*op) == 'D');
 
@@ -522,7 +529,7 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   XmlDB = GetStringCatInfo(g, "XmlDB", NULL);
   Nslist = GetStringCatInfo(g, "Nslist", NULL);
   DefNs = GetStringCatInfo(g, "DefNs", NULL);
-  Limit = GetIntCatInfo("Limit", 10);
+  Limit = GetIntCatInfo("Limit", 50);
   Xpand = GetBoolCatInfo("Expand", false);
   Header = GetIntCatInfo("Header", 0);
   GetCharCatInfo("Xmlsup", "*", buf, sizeof(buf));
@@ -530,11 +537,11 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   // Note that if no support is specified, the default is MS-DOM
   // on Windows and libxml2 otherwise
   if (*buf == '*')
-#if defined(__WIN__)
+#if defined(_WIN32)
     Usedom = true;
-#else   // !__WIN__
+#else   // !_WIN32
     Usedom = false;
-#endif  // !__WIN__
+#endif  // !_WIN32
   else
     Usedom = (toupper(*buf) == 'M' || toupper(*buf) == 'D');
 
@@ -967,7 +974,7 @@ bool TDBXML::Initialize(PGLOBAL g)
 
 
 		Docp->SetNofree(true);       // For libxml2
-#if defined(__WIN__)
+#if defined(_WIN32)
 	} catch (_com_error e) {
     // We come here if a DOM command threw an error
     char   buf[128];
@@ -981,7 +988,7 @@ bool TDBXML::Initialize(PGLOBAL g)
       sprintf(g->Message, "%s hr=%x", MSG(COM_ERROR), e.Error());
 
     goto error;
-#endif   // __WIN__
+#endif   // _WIN32
 #if !defined(UNIX)
   } catch(...) {
     // Other errors
@@ -1510,9 +1517,13 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
   if (!mode)
     // Take care of an eventual extra column node a la html
     if (Tdbp->Colname) {
-      sprintf(pbuf, Tdbp->Colname, Rank + ((Tdbp->Usedom) ? 0 : 1));
-      strcat(pbuf, "/");
-      } // endif Colname
+      char *p = strstr(Tdbp->Colname, "%d");
+      if (p)
+        snprintf(pbuf, len + 3, "%.*s%d%s/", (int) (p - Tdbp->Colname), Tdbp->Colname,
+            Rank + (Tdbp->Usedom ? 0 : 1), p + 2);
+      else
+        snprintf(pbuf, len + 3, "%s/", Tdbp->Colname);
+    } // endif Colname
 
   if (Xname) {
     if (Type == 2) {
@@ -1802,6 +1813,9 @@ void XMLCOL::WriteColumn(PGLOBAL g)
     else if (Tdbp->Clist)
       ColNode = NULL;
 
+    // refresh CList in case its Listp was freed in SelectSingleNode above
+    if (Tdbp->Clist)
+      Tdbp->RowNode->SelectNodes(g, Tdbp->Colname, Tdbp->Clist);
     } // endfor i
 
   /*********************************************************************/

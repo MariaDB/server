@@ -54,6 +54,7 @@ datasink_t datasink_buffer = {
 	&buffer_open,
 	&buffer_write,
 	&buffer_close,
+	&dummy_remove,
 	&buffer_deinit
 };
 

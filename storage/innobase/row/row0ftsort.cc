@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -771,7 +771,6 @@ DECLARE_THREAD(fts_parallel_tokenization)(
 	row_merge_block_t**	crypt_block;
 	pfs_os_file_t		tmpfd[FTS_NUM_AUX_INDEX];
 	ulint			mycount[FTS_NUM_AUX_INDEX];
-	ib_uint64_t		total_rec = 0;
 	ulint			num_doc_processed = 0;
 	doc_id_t		last_doc_id = 0;
 	mem_heap_t*		blob_heap = NULL;
@@ -925,7 +924,7 @@ loop:
 				<< " records, the sort queue has "
 				<< UT_LIST_GET_LEN(psort_info->fts_doc_list)
 				<< " records. But sort cannot get the next"
-				" records";
+				" records during alter table " << table->name;
 			goto exit;
 		}
 	} else if (psort_info->state == FTS_PARENT_EXITING) {
@@ -1039,7 +1038,6 @@ exit:
 			goto func_exit;
 		}
 
-		total_rec += merge_file[i]->n_rec;
 		os_file_close(tmpfd[i]);
 	}
 
@@ -1221,7 +1219,9 @@ row_merge_write_fts_word(
 
 		if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
 			ib::error() << "Failed to write word to FTS auxiliary"
-				" index table, error " << error;
+				" index table "
+				<< ins_ctx->btr_bulk->table_name()
+				<< ", error " << error;
 			ret = error;
 		}
 
@@ -1665,7 +1665,6 @@ row_fts_merge_insert(
 	aux_table = dict_table_open_on_name(aux_table_name, FALSE, FALSE,
 					    DICT_ERR_IGNORE_NONE);
 	ut_ad(aux_table != NULL);
-	dict_table_close(aux_table, FALSE, FALSE);
 	aux_index = dict_table_get_first_index(aux_table);
 
 	ut_ad(!aux_index->is_instant());
@@ -1800,6 +1799,8 @@ exit:
 
 	error = ins_ctx.btr_bulk->finish(error);
 	UT_DELETE(ins_ctx.btr_bulk);
+
+	dict_table_close(aux_table, FALSE, FALSE);
 
 	trx->free();
 

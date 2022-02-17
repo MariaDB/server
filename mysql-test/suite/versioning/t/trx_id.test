@@ -3,7 +3,12 @@ if (!$TEST_VERSIONING_SO)
   --skip needs test_versioning plugin
 }
 --source include/have_innodb.inc
+--source include/have_partition.inc
 --source include/default_charset.inc
+
+--disable_query_log
+--eval install plugin test_versioning soname '$TEST_VERSIONING_SO'
+--enable_query_log
 
 set default_storage_engine= innodb;
 
@@ -151,7 +156,87 @@ update t1 set x= 4;
 commit;
 select x, row_start <  row_end from t1 for system_time all;
 
+--echo #
+--echo # MDEV-15951 system versioning by trx id doesn't work with partitioning
+--echo # currently trx_id does not support partitioning by system_time
+--echo #
+--error ER_VERS_FIELD_WRONG_TYPE
+create or replace table t1(
+  i int,
+  row_start bigint unsigned generated always as row start,
+  row_end bigint unsigned generated always as row end,
+  period for system_time(row_start, row_end)
+) engine=InnoDB with system versioning partition by system_time (
+  partition p0 history,
+  partition pn current
+);
+
+create or replace table t1(
+  i int,
+  row_start bigint unsigned generated always as row start,
+  row_end bigint unsigned generated always as row end,
+  period for system_time(row_start, row_end)
+) engine=InnoDB with system versioning;
+
+--replace_regex /#sql-[0-9a-f_]*/#sql-temporary/
+--error ER_VERS_FIELD_WRONG_TYPE
+alter table t1  partition by system_time (
+  partition p0 history,
+  partition pn current
+);
+
+drop table t1;
+
+--error ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
+create or replace table t (
+  a int primary key,
+  row_start bigint unsigned as row start invisible,
+  row_end bigint unsigned as row end invisible,
+  period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by key() (
+  partition p1,
+  partition p2
+);
+
+--error ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
+create or replace table t (
+  a int primary key,
+  row_start bigint unsigned as row start invisible,
+  row_end bigint unsigned as row end invisible,
+  period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by key(a, row_start) (
+  partition p1,
+  partition p2
+);
+
+--error ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
+create or replace table t (
+  a int primary key,
+  row_start bigint unsigned as row start invisible,
+  row_end bigint unsigned as row end invisible,
+  period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by hash(a + row_end * 2) (
+  partition p1,
+  partition p2
+);
+
+--error ER_VERS_TRX_PART_HISTORIC_ROW_NOT_SUPPORTED
+create or replace table t (
+  a int primary key,
+  row_start bigint unsigned as row start invisible,
+  row_end bigint unsigned as row end invisible,
+  period for system_time(row_start, row_end)
+) engine=innodb with system versioning
+partition by range columns (a, row_start) (
+  partition p1 values less than (100, 100)
+);
+
+--echo #
 --echo # MDEV-16010 Too many rows with AS OF point_in_the_past_or_NULL
+--echo #
 create or replace table t1 (
   x int,
   row_start bigint unsigned as row start invisible,
@@ -528,6 +613,46 @@ alter table t add `row_start` bigint unsigned as row start,
               add period for system_time(`row_start`,`row_end`),
               modify x int after row_start,
               with system versioning;
+drop table t;
 
+--echo #
+--echo # MDEV-20842 Crash using versioning plugin functions after plugin was removed from server
+--echo #
+uninstall plugin test_versioning;
+--error ER_SP_DOES_NOT_EXIST
+select trt_begin_ts(0);
 
-create or replace database test;
+--echo #
+--echo # MDEV-21650 Non-empty statement transaction on global rollback after TRT update error
+--echo #
+create table t1 (s date, e date, period for app(s,e)) engine=innodb;
+alter table t1
+    add row_start bigint unsigned as row start,
+    add row_end bigint unsigned as row end,
+    add period for system_time(row_start,row_end),
+    with system versioning,
+    add period if not exists for app(x,y);
+
+set transaction isolation level serializable;
+start transaction;
+insert into t1 (s,e) values ('2021-07-04','2024-08-18');
+
+--connect (con1,localhost,root,,test)
+start transaction;
+insert into t1 (s,e) values ('2018-06-01','2021-09-15');
+
+--connection default
+--replace_regex /TRX_ID \d+/TRX_ID .../
+--error ER_VERS_NO_TRX_ID
+select * from t1 for system_time as of now();
+
+--connection con1
+set innodb_lock_wait_timeout= 1, lock_wait_timeout= 1;
+# can be existing or non-existing table, does not matter
+--error ER_LOCK_WAIT_TIMEOUT
+alter table xx;
+
+# cleanup
+--disconnect con1
+--connection default
+drop table t1;

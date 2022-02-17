@@ -109,7 +109,7 @@ public:
           bool use_explicit_name)
     : Database_qualified_name(db, name), m_explicit_name(use_explicit_name)
   {
-    if (lower_case_table_names && m_db.str)
+    if (lower_case_table_names && m_db.length)
       m_db.length= my_casedn_str(files_charset_info, (char*) m_db.str);
   }
 
@@ -610,6 +610,23 @@ public:
       delete sublex;
     }
     DBUG_RETURN(false);
+  }
+
+  /**
+    Iterate through the LEX stack from the top (the newest) to the bottom
+    (the oldest) and find the one that contains a non-zero spname.
+    @returns - the address of spname, or NULL of no spname found.
+  */
+  const sp_name *find_spname_recursive()
+  {
+    uint count= m_lex.elements;
+    for (uint i= 0; i < count; i++)
+    {
+      const LEX *tmp= m_lex.elem(count - i - 1);
+      if (tmp->spname)
+        return tmp->spname;
+    }
+    return NULL;
   }
 
   /// Put the instruction on the backpatch list, associated with the label.

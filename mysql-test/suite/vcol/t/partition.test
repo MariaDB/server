@@ -30,3 +30,51 @@ subpartition by hash(v) subpartitions 3 (
 insert t1 set i= 0;
 set statement sql_mode= '' for update t1 set i= 1, v= 2;
 drop table t1;
+
+--echo #
+--echo # MDEV-18734 ASAN heap-use-after-free in my_strnxfrm_simple_internal upon update on versioned partitioned table
+--echo #
+--echo # Cover queue_fix() in ha_partition::handle_ordered_index_scan()
+create or replace table t1 (
+    x int auto_increment primary key,
+    b text, v mediumtext as (b) virtual,
+    index (v(10))
+) partition by range columns (x) (
+    partition p1 values less than (3),
+    partition p2 values less than (6),
+    partition p3 values less than (9),
+    partition p4 values less than (12),
+    partition p5 values less than (15),
+    partition p6 values less than (17),
+    partition p7 values less than (19),
+    partition p8 values less than (21),
+    partition p9 values less than (23),
+    partition p10 values less than (25),
+    partition p11 values less than (27),
+    partition p12 values less than (29),
+    partition p13 values less than (31),
+    partition p14 values less than (33),
+    partition p15 values less than (35),
+    partition pn values less than (maxvalue));
+insert into t1 (b) values
+(repeat('q', 8192)), (repeat('z', 8192)), (repeat('a', 8192)), (repeat('b', 8192)),
+(repeat('x', 8192)), (repeat('y', 8192));
+
+insert t1 (b) select b from t1;
+insert t1 (b) select b from t1;
+insert t1 (b) select b from t1;
+insert t1 (b) select b from t1;
+
+select x, left(b, 10), left(v, 10) from t1 where x > 30 and x < 60 order by v;
+update t1 set b= 'bar' where v > 'a' limit 20;
+
+drop table t1;
+
+--echo # Cover return_top_record() in ha_partition::handle_ordered_index_scan()
+create table t1 (x int primary key, b tinytext, v text as (b) virtual)
+partition by range columns (x) (
+  partition p1 values less than (4),
+  partition pn values less than (maxvalue));
+insert into t1 (x, b) values (1, ''), (2, ''), (3, 'a'), (4, 'b');
+update t1 set b= 'bar' where x > 0 order by v limit 2;
+drop table t1;

@@ -67,3 +67,34 @@ drop role look, isp, xxx, ppp;
 connection default;
 disconnect con1;
 drop user nnnn@'%';
+
+#
+# MDEV-17964 Assertion `status == 0' failed in add_role_user_mapping_action
+#            upon CREATE USER and DROP ROLE
+#
+CREATE USER u@localhost;
+
+--let $n= 1
+while ($n < 129)
+{
+  eval CREATE ROLE r$n;
+  inc $n;
+}
+
+CREATE ROLE n;
+CREATE ROLE d WITH ADMIN n;
+CREATE ROLE '%' WITH ADMIN u@localhost;
+DROP ROLE n;
+CREATE USER 't';
+
+--let $n= 1
+while ($n < 129)
+{
+  eval DROP ROLE r$n;
+  inc $n;
+}
+
+DROP ROLE d;
+DROP ROLE '%';
+DROP USER 't';
+DROP USER u@localhost;

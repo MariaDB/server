@@ -140,24 +140,16 @@ sub diff {
 }
 
 
-sub is_set {
-  my ($opts, $set_opts)= @_;
+sub is_subset {
+  my ($set, $subset)= @_;
+  my %cache = map { join('=', _split_option($_)), 1 } @$set;
 
-  foreach my $opt (@$opts){
-
-    my ($opt_name1, $value1)= _split_option($opt);
-
-    foreach my $set_opt (@$set_opts){
-      my ($opt_name2, $value2)= _split_option($set_opt);
-
-      if ($opt_name1 eq $opt_name2 and $value1 eq $value2){
-	# Option already set
-	return 1;
-      }
-    }
+  for (@$subset){
+    my ($name, $value)= _split_option($_);
+    return 0 unless $cache{"$name=$value"};
   }
 
-  return 0;
+  return 1;
 }
 
 

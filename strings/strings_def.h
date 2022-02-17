@@ -105,6 +105,16 @@ static inline const uchar *skip_trailing_space(const uchar *ptr,size_t len)
 }
 
 
+int my_strnncollsp_nchars_generic(CHARSET_INFO *cs,
+                                  const uchar *str1, size_t len1,
+                                  const uchar *str2, size_t len2,
+                                  size_t nchars);
+
+int my_strnncollsp_nchars_generic_8bit(CHARSET_INFO *cs,
+                                       const uchar *str1, size_t len1,
+                                       const uchar *str2, size_t len2,
+                                       size_t nchars);
+
 uint my_8bit_charset_flags_from_data(CHARSET_INFO *cs);
 uint my_8bit_collation_flags_from_data(CHARSET_INFO *cs);
 

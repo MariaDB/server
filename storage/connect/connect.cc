@@ -294,9 +294,9 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 		/* its column blocks in mode write (required by XML tables).       */
 		/*******************************************************************/
 		if (mode == MODE_UPDATE) {
-			PTDBASE utp;
+			PTDB utp;
 
-			if (!(utp = (PTDBASE)tdbp->Duplicate(g))) {
+			if (!(utp = tdbp->Duplicate(g))) {
 				sprintf(g->Message, MSG(INV_UPDT_TABLE), tdbp->GetName());
 				throw 4;
 			} // endif tp
@@ -591,7 +591,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
 
 			if (!tdbp->IsRemote()) {
 				// Make all the eventual indexes
-				PTDBDOS tbxp = (PTDBDOS)tdbp;
+				PTDBASE tbxp = (PTDBASE)tdbp;
 				tbxp->ResetKindex(g, NULL);
 				tbxp->SetKey_Col(NULL);
 				rc = tbxp->ResetTableOpt(g, true, tbxp->GetDef()->Indexable() == 1);

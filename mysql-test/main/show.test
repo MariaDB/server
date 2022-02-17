@@ -1,8 +1,8 @@
-#
-# MDEV-9538 Server crashes in check_show_access on SHOW STATISTICS
-# MDEV-9539 Server crashes in make_columns_old_format on SHOW GEOMETRY_COLUMNS
-# MDEV-9540 SHOW SPATIAL_REF_SYS and SHOW SYSTEM_VARIABLES return empty results with numerous warnings
-#
+--echo #
+--echo # MDEV-9538 Server crashes in check_show_access on SHOW STATISTICS
+--echo # MDEV-9539 Server crashes in make_columns_old_format on SHOW GEOMETRY_COLUMNS
+--echo # MDEV-9540 SHOW SPATIAL_REF_SYS and SHOW SYSTEM_VARIABLES return empty results with numerous warnings
+--echo #
 --error ER_PARSE_ERROR
 show statistics;
 --error ER_PARSE_ERROR
@@ -13,3 +13,35 @@ show system_variables;
 show geometry_columns;
 --error ER_PARSE_ERROR
 show nonexistent;
+
+--echo #
+--echo # MDEV-21603 Crashing SHOW TABLES with derived table in WHERE condition
+--echo #
+create table t1 (nm varchar(32), a int);
+insert t1 values ('1',1),('2',2),('3',3);
+
+show tables
+  where tables_in_test in (select *
+                              from (select nm from test.t1 group by nm) dt);
+show fields from test.t1
+   where field in (select * from (select nm from test.t1 group by nm) dt);
+insert t1 values ('nm',0);
+show fields from test.t1
+   where field in (select * from (select nm from test.t1 group by nm) dt);
+
+show fields from test.t1 where field in
+        (select * from (select column_name from information_schema.columns
+                          where table_name='t1' group by column_name) dt);
+drop table t1;
+
+--echo #
+--echo # MDEV-4621 select returns null for information_schema.statistics.collation field
+--echo #
+create table t1 (f varchar(64), key(f));
+select index_name, column_name, collation, cardinality from information_schema.STATISTICS where table_schema='test' and table_name='t1';
+select index_name, column_name, collation from information_schema.STATISTICS where table_schema='test' and table_name='t1';
+drop table t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #

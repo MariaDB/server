@@ -6789,6 +6789,35 @@ sum(z)
 DROP TABLE t1;
 DROP VIEW v1;
 #
+# MDEV-26299: Some views force server (and mysqldump) to generate
+# invalid SQL for their definitions
+#
+create view v1 as
+select * from
+(select
+"12345678901234567890123456789012345678901234567890123456789012345") as t1;
+drop view v1;
+CREATE VIEW v1 AS select `t1`.`12345678901234567890123456789012345678901234567890123456789012345` AS `Name_exp_1` from (select '12345678901234567890123456789012345678901234567890123456789012345') `t1`;
+drop view v1;
+#
+# MDEV-25631: view with outer reference in select used
+#             as argument of set function
+#
+create table t1 (c int);
+insert into t1 values (1);
+create view v1 as select c from t1 where (select t1.c from t1 t) = 1;
+select * from (select sum((select * from v1)) as r) dt;
+r
+1
+with cte as (select c from t1 where (select t1.c from t1 t) = 1)
+select * from (select sum((select * from cte)) as r) dt1
+union
+select * from (select sum((select * from cte)) as r) dt2;
+r
+1
+drop view v1;
+drop table t1;
+#
 # End of 10.2 tests
 #
 #
@@ -6824,3 +6853,19 @@ Drop table t1;
 #
 # End of 10.3 tests
 #
+#
+# MDEV-25206: view specification contains unknown column reference
+#
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b int);
+INSERT INTO t2 VALUES (2),(3);
+CREATE TABLE t3 (c int);
+CREATE VIEW v1 AS SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
+ERROR 42S22: Unknown column 't1.x' in 'on clause'
+INSERT INTO t3 SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
+ERROR 42S22: Unknown column 't1.x' in 'on clause'
+CREATE TABLE t4 AS SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
+ERROR 42S22: Unknown column 't1.x' in 'on clause'
+DROP TABLE t1,t2,t3;
+# End of 10.4 tests

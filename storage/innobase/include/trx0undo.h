@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -237,22 +237,16 @@ trx_undo_set_state_at_finish(
 @param[in,out]	trx		transaction
 @param[in,out]	undo		undo log
 @param[in]	rollback	false=XA PREPARE, true=XA ROLLBACK
-@param[in,out]	mtr		mini-transaction
-@return undo log segment header page, x-latched */
-page_t*
-trx_undo_set_state_at_prepare(
-	trx_t*		trx,
-	trx_undo_t*	undo,
-	bool		rollback,
-	mtr_t*		mtr);
+@param[in,out]	mtr		mini-transaction */
+void trx_undo_set_state_at_prepare(trx_t *trx, trx_undo_t *undo, bool rollback,
+                                   mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull));
 
-/** Free an old insert or temporary undo log after commit or rollback.
+/** Free temporary undo log after commit or rollback.
 The information is not needed after a commit or rollback, therefore
 the data can be discarded.
-@param[in,out]	undo	undo log
-@param[in]	is_temp	whether this is temporary undo log */
-void
-trx_undo_commit_cleanup(trx_undo_t* undo, bool is_temp);
+@param undo     temporary undo log */
+void trx_undo_commit_cleanup(trx_undo_t *undo);
 
 /** At shutdown, frees the undo logs of a transaction. */
 void
@@ -295,26 +289,21 @@ trx_undo_parse_page_header(
 @param[in]	id		rollback segment slot
 @param[in]	page_no		undo log segment page number
 @param[in,out]	max_trx_id	the largest observed transaction ID
-@return	size of the undo log in pages */
-ulint
-trx_undo_mem_create_at_db_start(trx_rseg_t* rseg, ulint id, ulint page_no,
-				trx_id_t& max_trx_id);
+@return	the undo log
+@retval nullptr on error */
+trx_undo_t *
+trx_undo_mem_create_at_db_start(trx_rseg_t *rseg, ulint id, uint32_t page_no,
+                                trx_id_t &max_trx_id);
 
 #endif /* !UNIV_INNOCHECKSUM */
 
-/* Types of an undo log segment */
-#define	TRX_UNDO_INSERT		1	/* contains undo entries for inserts */
-#define	TRX_UNDO_UPDATE		2	/* contains undo entries for updates
-					and delete markings: in short,
-					modifys (the name 'UPDATE' is a
-					historical relic) */
+/** the only rollback segment type since MariaDB 10.3.1 */
+constexpr uint16_t TRX_UNDO_UPDATE= 2;
 /* TRX_UNDO_STATE values of an undo log segment */
 /** contains an undo log of an active transaction */
 constexpr uint16_t TRX_UNDO_ACTIVE = 1;
 /** cached for quick reuse */
 constexpr uint16_t TRX_UNDO_CACHED = 2;
-/** old_insert undo segment that can be freed */
-constexpr uint16_t TRX_UNDO_TO_FREE = 3;
 /** can be freed in purge when all undo data in it is removed */
 constexpr uint16_t TRX_UNDO_TO_PURGE = 4;
 /** contains an undo log of a prepared transaction */
@@ -377,7 +366,8 @@ struct trx_undo_t {
 /** Transaction undo log page header offsets */
 /* @{ */
 #define	TRX_UNDO_PAGE_TYPE	0	/*!< unused; 0 (before MariaDB 10.3.1:
-					TRX_UNDO_INSERT or TRX_UNDO_UPDATE) */
+					1=TRX_UNDO_INSERT or
+					2=TRX_UNDO_UPDATE) */
 #define	TRX_UNDO_PAGE_START	2	/*!< Byte offset where the undo log
 					records for the LATEST transaction
 					start on this page (remember that
@@ -507,7 +497,7 @@ quite a large overhead. */
 					with the XA XID */
 /* @} */
 
-#include "trx0undo.ic"
+#include "trx0undo.inl"
 #endif /* !UNIV_INNOCHECKSUM */
 
 #endif

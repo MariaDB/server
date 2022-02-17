@@ -1519,7 +1519,7 @@ lc-messages-dir MYSQL_SHAREDIR/
 lc-time-names en_US
 local-infile TRUE
 lock-wait-timeout 86400
-log-bin (No default value)
+log-bin foo
 log-bin-compress FALSE
 log-bin-compress-min-len 256
 log-bin-index (No default value)

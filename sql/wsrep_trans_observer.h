@@ -158,7 +158,7 @@ static inline int wsrep_start_trx_if_not_started(THD* thd)
 
   Return zero on succes, non-zero on failure.
  */
-static inline int wsrep_after_row(THD* thd, bool)
+static inline int wsrep_after_row_internal(THD* thd)
 {
   if (thd->wsrep_cs().state() != wsrep::client_state::s_none  &&
       wsrep_thd_is_local(thd))
@@ -345,11 +345,14 @@ static inline int wsrep_before_rollback(THD* thd, bool all)
       }
 
       if (thd->wsrep_trx().is_streaming() &&
-          !wsrep_stmt_rollback_is_safe(thd))
+          (wsrep_fragments_certified_for_stmt(thd) > 0))
       {
         /* Non-safe statement rollback during SR multi statement
-           transasction. Self abort the transaction, the actual rollback
-           and error handling will be done in after statement phase. */
+           transaction. A statement rollback is considered unsafe, if
+           the same statement has already replicated one or more fragments.
+           Self abort the transaction, the actual rollback and error
+           handling will be done in after statement phase. */
+        WSREP_DEBUG("statement rollback is not safe for streaming replication");
         wsrep_thd_self_abort(thd);
         ret= 0;
       }
@@ -393,7 +396,14 @@ static inline
 int wsrep_after_statement(THD* thd)
 {
   DBUG_ENTER("wsrep_after_statement");
-  DBUG_RETURN(thd->wsrep_cs().state() != wsrep::client_state::s_none ?
+  WSREP_DEBUG("wsrep_after_statement for %lu client_state %s "
+	  " client_mode %s trans_state %s",
+	  thd_get_thread_id(thd),
+	  wsrep::to_c_string(thd->wsrep_cs().state()),
+	  wsrep::to_c_string(thd->wsrep_cs().mode()),
+	  wsrep::to_c_string(thd->wsrep_cs().transaction().state()));
+  DBUG_RETURN((thd->wsrep_cs().state() != wsrep::client_state::s_none &&
+	       thd->wsrep_cs().mode() == Wsrep_client_state::m_local) ?
               thd->wsrep_cs().after_statement() : 0);
 }
 
@@ -407,8 +417,10 @@ static inline void wsrep_after_apply(THD* thd)
 static inline void wsrep_open(THD* thd)
 {
   DBUG_ENTER("wsrep_open");
-  if (WSREP(thd))
+  if (WSREP_ON_)
   {
+    /* WSREP_PROVIDER_EXISTS_ cannot be set if WSREP_ON_ is not set */
+    DBUG_ASSERT(WSREP_PROVIDER_EXISTS_);
     thd->wsrep_cs().open(wsrep::client_id(thd->thread_id));
     thd->wsrep_cs().debug_log_level(wsrep_debug);
     if (!thd->wsrep_applier && thd->variables.wsrep_trx_fragment_size)
@@ -427,6 +439,16 @@ static inline void wsrep_close(THD* thd)
   if (thd->wsrep_cs().state() != wsrep::client_state::s_none)
   {
     thd->wsrep_cs().close();
+  }
+  DBUG_VOID_RETURN;
+}
+
+static inline void wsrep_cleanup(THD* thd)
+{
+  DBUG_ENTER("wsrep_cleanup");
+  if (thd->wsrep_cs().state() != wsrep::client_state::s_none)
+  {
+    thd->wsrep_cs().cleanup();
   }
   DBUG_VOID_RETURN;
 }

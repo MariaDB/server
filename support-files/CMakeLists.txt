@@ -29,6 +29,7 @@ ELSE()
   SET(CFLAGS ${CMAKE_C_FLAGS})
   SET(CXXFLAGS ${CMAKE_CXX_FLAGS})
   SET(MYSQLD_USER "mysql")
+  SET(MYSQLD_GROUP "mysql")
   SET(ini_file_extension "cnf")
   SET(HOSTNAME "uname -n")
 ENDIF()
@@ -79,7 +80,7 @@ IF(UNIX)
         INSTALL(FILES ${out} DESTINATION ${inst_location}/policy/selinux COMPONENT SupportFiles)
       ENDFOREACH()
       IF(RPM)
-        EXECUTE_PROCESS(COMMAND rpm -q --qf "%{VERSION}-%{RELEASE}" libsepol
+        EXECUTE_PROCESS(COMMAND rpm -q --qf "%{VERSION}" libsepol."${CMAKE_SYSTEM_PROCESSOR}"
                         OUTPUT_VARIABLE LIBSEPOL_VERSION RESULT_VARIABLE err)
         IF (NOT err)
           SET(CPACK_RPM_server_PACKAGE_REQUIRES

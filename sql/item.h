@@ -1938,6 +1938,15 @@ public:
     return 0;
   }
 
+  /**
+    Check db/table_name if they defined in item and match arg values
+
+    @param arg Pointer to Check_table_name_prm structure
+
+    @retval true Match failed
+    @retval false Match succeeded
+  */
+  virtual bool check_table_name_processor(void *arg) { return false; }
   /* 
     TRUE if the expression depends only on the table indicated by tab_map
     or can be converted to such an exression using equalities.
@@ -2094,6 +2103,15 @@ public:
     uint count;
     int nest_level;
     bool collect;
+  };
+
+  struct Check_table_name_prm
+  {
+    LEX_CSTRING db;
+    LEX_CSTRING table_name;
+    String field;
+    Check_table_name_prm(LEX_CSTRING _db, LEX_CSTRING _table_name) :
+      db(_db), table_name(_table_name) {}
   };
 
   /*
@@ -3500,6 +3518,24 @@ public:
     }
     return 0;
   }
+  bool check_table_name_processor(void *arg)
+  {
+    Check_table_name_prm &p= *(Check_table_name_prm *) arg;
+    if (!field && p.table_name.length && table_name)
+    {
+      DBUG_ASSERT(p.db.length);
+      if ((db_name &&
+          my_strcasecmp(table_alias_charset, p.db.str, db_name)) ||
+          my_strcasecmp(table_alias_charset, p.table_name.str, table_name))
+      {
+        print(&p.field, (enum_query_type) (QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                          QT_NO_DATA_EXPANSION |
+                                          QT_TO_SYSTEM_CHARSET));
+        return true;
+      }
+    }
+    return false;
+  }
   void cleanup();
   Item_equal *get_item_equal() { return item_equal; }
   void set_item_equal(Item_equal *item_eq) { item_equal= item_eq; }
@@ -3855,7 +3891,7 @@ class Item_param :public Item_basic_value,
       m_string.swap(other.m_string);
       m_string_ptr.swap(other.m_string_ptr);
     }
-    double val_real() const;
+    double val_real(const Type_std_attributes *attr) const;
     longlong val_int(const Type_std_attributes *attr) const;
     my_decimal *val_decimal(my_decimal *dec, const Type_std_attributes *attr);
     String *val_str(String *str, const Type_std_attributes *attr);
@@ -3957,7 +3993,7 @@ public:
 
   double val_real()
   {
-    return can_return_value() ? value.val_real() : 0e0;
+    return can_return_value() ? value.val_real(this) : 0e0;
   }
   longlong val_int()
   {
@@ -5415,6 +5451,7 @@ public:
     return ref ? (*ref)->get_typelib() : NULL;
   }
 
+  bool is_json_type() { return (*ref)->is_json_type(); }
   bool walk(Item_processor processor, bool walk_subquery, void *arg)
   { 
     if (ref && *ref)
@@ -5821,7 +5858,10 @@ public:
   table_map used_tables() const;
   void update_used_tables();
   table_map not_null_tables() const;
-  bool const_item() const { return used_tables() == 0; }
+  bool const_item() const
+  {
+    return (*ref)->const_item() && (null_ref_table == NO_NULL_TABLE);
+  }
   TABLE *get_null_ref_table() const { return null_ref_table; }
   bool walk(Item_processor processor, bool walk_subquery, void *arg)
   { 
@@ -6403,13 +6443,15 @@ public:
 
 class Item_default_value : public Item_field
 {
+  bool vcol_assignment_ok;
   void calculate();
 public:
   Item *arg;
   Field *cached_field;
-  Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a)
+  Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a,
+                     bool vcol_assignment_arg)
     :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
-                &null_clex_str),
+                &null_clex_str), vcol_assignment_ok(vcol_assignment_arg),
      arg(a), cached_field(NULL) {}
   enum Type type() const { return DEFAULT_VALUE_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const;
@@ -6448,6 +6490,7 @@ public:
     if (field && field->default_value)
       field->default_value->expr->update_used_tables();
   }
+  bool vcol_assignment_allowed_value() const { return vcol_assignment_ok; }
   Field *get_tmp_table_field() { return 0; }
   Item *get_tmp_table_item(THD *thd) { return this; }
   Item_field *field_for_view_update() { return 0; }
@@ -6751,6 +6794,14 @@ protected:
 
   table_map used_table_map;
 public:
+  /*
+    This is set if at least one of the values of a sub query is NULL
+    Item_cache_row returns this with null_inside().
+    For not row items, it's set to the value of null_value
+    It is set after cache_value() is called.
+  */
+  bool null_value_inside;
+
   Item_cache(THD *thd):
     Item(thd),
     Type_handler_hybrid_field_type(&type_handler_string),
@@ -6760,6 +6811,7 @@ public:
   {
     maybe_null= 1;
     null_value= 1;
+    null_value_inside= true;
   }
 protected:
   Item_cache(THD *thd, const Type_handler *handler):
@@ -6771,6 +6823,7 @@ protected:
   {
     maybe_null= 1;
     null_value= 1;
+    null_value_inside= true;
   }
 
 public:
@@ -7390,7 +7443,8 @@ void mark_select_range_as_dependent(THD *thd,
                                     st_select_lex *last_select,
                                     st_select_lex *current_sel,
                                     Field *found_field, Item *found_item,
-                                    Item_ident *resolved_item);
+                                    Item_ident *resolved_item,
+                                    bool suppress_warning_output);
 
 extern Cached_item *new_Cached_item(THD *thd, Item *item,
                                     bool pass_through_ref);
@@ -7484,6 +7538,19 @@ public:
   void close() {}
 };
 
+
+/*
+  fix_escape_item() sets the out "escape" parameter to:
+  - native code in case of an 8bit character set
+  - Unicode code point in case of a multi-byte character set
+
+  The value meaning a not-initialized ESCAPE character must not be equal to
+  any valid value, so must be outside of these ranges:
+  - -128..+127, not to conflict with a valid 8bit charcter
+  - 0..0x10FFFF, not to conflict with a valid Unicode code point
+  The exact value does not matter.
+*/
+#define ESCAPE_NOT_INITIALIZED -1000
 
 /*
   It's used in ::fix_fields() methods of LIKE and JSON_SEARCH

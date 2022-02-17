@@ -12494,7 +12494,7 @@ grn_db_init_builtin_types(grn_ctx *ctx)
                 GRN_OBJ_KEY_VAR_SIZE, 1 << 16);
   if (!obj || DB_OBJ(obj)->id != GRN_DB_TEXT) { return GRN_FILE_CORRUPT; }
   obj = deftype(ctx, "LongText",
-                GRN_OBJ_KEY_VAR_SIZE, 1 << 31);
+                GRN_OBJ_KEY_VAR_SIZE, 1U << 31);
   if (!obj || DB_OBJ(obj)->id != GRN_DB_LONG_TEXT) { return GRN_FILE_CORRUPT; }
   obj = deftype(ctx, "TokyoGeoPoint",
                 GRN_OBJ_KEY_GEO_POINT, sizeof(grn_geo_point));

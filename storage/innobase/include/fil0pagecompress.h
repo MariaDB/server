@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2019 MariaDB Corporation.
+Copyright (C) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -49,7 +49,7 @@ ulint fil_page_compress(
 /** Decompress a page that may be subject to page_compressed compression.
 @param[in,out]	tmp_buf		temporary buffer (of innodb_page_size)
 @param[in,out]	buf		compressed page buffer
-@param[in]	flags		talespace flags
+@param[in]	flags		tablespace flags
 @return size of the compressed data
 @retval	0		if decompression failed
 @retval	srv_page_size	if the page was not compressed */

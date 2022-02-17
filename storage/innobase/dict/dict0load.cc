@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2576,6 +2576,19 @@ corrupted:
 			    != DB_SUCCESS) {
 				goto func_exit;
 			}
+
+#ifdef UNIV_DEBUG
+			// The following assertion doesn't hold for FTS indexes
+			// as it may have prefix_len=1 with any charset
+			if (index->type != DICT_FTS) {
+				for (uint i = 0; i < index->n_fields; i++) {
+					dict_field_t &f = index->fields[i];
+					ut_ad(f.col->mbmaxlen == 0
+					      || f.prefix_len
+					      % f.col->mbmaxlen == 0);
+				}
+			}
+#endif /* UNIV_DEBUG */
 		}
 next_rec:
 		btr_pcur_move_to_next_user_rec(&pcur, &mtr);

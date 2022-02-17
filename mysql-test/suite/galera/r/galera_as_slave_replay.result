@@ -60,38 +60,13 @@ f1	f2
 2	b
 3	c
 SET DEBUG_SYNC = "RESET";
-#
-# test phase with real abort
-#
-connection node_3;
-set binlog_format=ROW;
-insert into t1 values (4, 'd');
-SET AUTOCOMMIT=ON;
-START TRANSACTION;
-UPDATE t1 SET f2 = 'd' WHERE f1 = 3;
 connection node_2a;
-SET GLOBAL wsrep_provider_options = 'dbug=d,commit_monitor_enter_sync';
-SET GLOBAL debug_dbug = "d,sync.wsrep_apply_cb";
-connection node_1;
-UPDATE test.t1 SET f2 = 'e' WHERE f1 = 3;
-connection node_3;
-COMMIT;
-connection node_2a;
-SET GLOBAL debug_dbug = "";
-SET DEBUG_SYNC = "now SIGNAL signal.wsrep_apply_cb";
-connection node_2a;
-SET GLOBAL wsrep_provider_options = 'dbug=';
-SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_enter_sync';
-SET DEBUG_SYNC = "RESET";
-connection node_2a;
-set session wsrep_sync_wait=15;
-SELECT COUNT(*) = 1 FROM test.t1 WHERE f2 = 'e';
-COUNT(*) = 1
-1
-set session wsrep_sync_wait=0;
 STOP SLAVE;
 RESET SLAVE;
 DROP TABLE t1;
 connection node_3;
 DROP TABLE t1;
 RESET MASTER;
+connection node_1;
+disconnect node_2a;
+disconnect node_3;

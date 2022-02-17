@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 1995, 2021, Oracle and/or its affiliates.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -93,6 +93,12 @@ struct fil_addr_t;
 					buffer pool watches */
 #define MAX_PAGE_HASH_LOCKS	1024	/*!< The maximum number of
 					page_hash locks */
+
+/** If LRU list of a buf_pool is less than this size then LRU eviction
+should not happen. This is because when we do LRU flushing we also put
+the blocks on free list. If LRU list is very small then we can end up
+in thrashing. */
+#define BUF_LRU_MIN_LEN		256
 
 extern	buf_pool_t*	buf_pool_ptr;	/*!< The buffer pools
 					of the database */
@@ -1394,7 +1400,6 @@ buf_get_nth_chunk_block(
 if needed.
 @param[in]	size	size in bytes
 @return	aligned size */
-UNIV_INLINE
 ulint
 buf_pool_size_align(
 	ulint	size);
@@ -2081,8 +2086,6 @@ struct buf_pool_t{
 					page_hash mutex. Lookups can happen
 					while holding the buf_pool->mutex or
 					the relevant page_hash mutex. */
-	hash_table_t*	page_hash_old;	/*!< old pointer to page_hash to be
-					freed after resizing buffer pool */
 	hash_table_t*	zip_hash;	/*!< hash table of buf_block_t blocks
 					whose frames are allocated to the
 					zip buddy system,
@@ -2487,7 +2490,7 @@ struct	CheckUnzipLRUAndLRUList {
 };
 #endif /* UNIV_DEBUG || defined UNIV_BUF_DEBUG */
 
-#include "buf0buf.ic"
+#include "buf0buf.inl"
 
 #endif /* !UNIV_INNOCHECKSUM */
 

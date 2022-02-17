@@ -933,6 +933,7 @@ int json_read_value(json_engine_t *j)
 {
   int t_next, c_len, res;
 
+  j->value_type= JSON_VALUE_UNINITALIZED;
   if (j->state == JST_KEY)
   {
     while (json_read_keyname_chr(j) == 0) {}

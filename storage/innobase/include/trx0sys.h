@@ -89,7 +89,6 @@ void
 trx_write_trx_id(byte* db_trx_id, trx_id_t id)
 {
 	compile_time_assert(DATA_TRX_ID_LEN == 6);
-	ut_ad(id);
 	mach_write_to_6(db_trx_id, id);
 }
 
@@ -507,7 +506,7 @@ class rw_trx_hash_t
   static void validate_element(trx_t *trx)
   {
     ut_ad(!trx->read_only || !trx->rsegs.m_redo.rseg);
-    ut_ad(!trx_is_autocommit_non_locking(trx));
+    ut_ad(!trx->is_autocommit_non_locking());
     /* trx->state can be anything except TRX_STATE_NOT_STARTED */
     mutex_enter(&trx->mutex);
     ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||

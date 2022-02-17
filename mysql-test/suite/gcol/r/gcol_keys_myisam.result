@@ -883,6 +883,11 @@ Warning	1264	Out of range value for column 'vi' at row 1
 LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/load.data' REPLACE INTO TABLE t1 (pk,i,ts);
 ERROR 22003: Out of range value for column 'vi' at row 1
 DROP TABLE t1;
+# MDEV-19011 Assertion `file->s->base.reclength < file->s->vreclength'
+# failed in ha_myisam::setup_vcols_for_repair
+CREATE TABLE t1 (a INT GENERATED ALWAYS AS (1) VIRTUAL);
+ALTER TABLE t1 ADD KEY (a);
+DROP TABLE t1;
 DROP VIEW  IF EXISTS v1,v2;
 DROP TABLE IF EXISTS t1,t2,t3;
 DROP PROCEDURE IF EXISTS p1;

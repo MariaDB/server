@@ -279,9 +279,8 @@ log_online_setup_bitmap_file_range(
 
 	/* 1st pass: size the info array */
 
-	bitmap_dir = os_file_opendir(srv_data_home, FALSE);
-	if (UNIV_UNLIKELY(!bitmap_dir)) {
-
+	bitmap_dir = os_file_opendir(srv_data_home);
+	if (UNIV_UNLIKELY(bitmap_dir == IF_WIN(INVALID_HANDLE_VALUE, NULL))) {
 		msg("InnoDB: Error: failed to open bitmap directory \'%s\'",
 		    srv_data_home);
 		return FALSE;
@@ -329,8 +328,7 @@ log_online_setup_bitmap_file_range(
 		}
 	}
 
-	if (UNIV_UNLIKELY(os_file_closedir(bitmap_dir))) {
-
+	if (UNIV_UNLIKELY(os_file_closedir_failed(bitmap_dir))) {
 		os_file_get_last_error(TRUE);
 		msg("InnoDB: Error: cannot close \'%s\'",srv_data_home);
 		return FALSE;
@@ -346,9 +344,8 @@ log_online_setup_bitmap_file_range(
 
 	/* 2nd pass: get the file names in the file_seq_num order */
 
-	bitmap_dir = os_file_opendir(srv_data_home, FALSE);
-	if (UNIV_UNLIKELY(!bitmap_dir)) {
-
+	bitmap_dir = os_file_opendir(srv_data_home);
+	if (UNIV_UNLIKELY(bitmap_dir == IF_WIN(INVALID_HANDLE_VALUE, NULL))) {
 		msg("InnoDB: Error: failed to open bitmap directory \'%s\'",
 		    srv_data_home);
 		return FALSE;
@@ -398,8 +395,7 @@ log_online_setup_bitmap_file_range(
 		}
 	}
 
-	if (UNIV_UNLIKELY(os_file_closedir(bitmap_dir))) {
-
+	if (UNIV_UNLIKELY(os_file_closedir_failed(bitmap_dir))) {
 		os_file_get_last_error(TRUE);
 		msg("InnoDB: Error: cannot close \'%s\'", srv_data_home);
 		free(bitmap_files->files);

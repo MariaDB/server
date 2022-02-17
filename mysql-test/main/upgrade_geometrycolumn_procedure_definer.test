@@ -1,0 +1,66 @@
+--echo #
+--echo # The definer of Add/DropGeometryColumn procedures should be updated to mariadb.sys during upgrade
+--echo #
+
+--source include/mysql_upgrade_preparation.inc
+
+use mysql;
+
+create table save_proc like proc;
+insert into save_proc select * from proc;
+set @save_sql_mode= @@sql_mode;
+
+--echo #
+--echo # If the definer is root before the upgrade:
+--echo # Drop the procedures if exists and recreate with root definer
+--echo #
+DROP PROCEDURE IF EXISTS AddGeometryColumn;
+DROP PROCEDURE IF EXISTS DropGeometryColumn;
+
+DELIMITER |;
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE AddGeometryColumn(catalog varchar(64), t_schema varchar(64),
+   t_name varchar(64), geometry_column varchar(64), t_srid int) SQL SECURITY INVOKER
+begin
+  set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' ADD ', geometry_column,' GEOMETRY REF_SYSTEM_ID=', t_srid); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end |
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE DropGeometryColumn(catalog varchar(64), t_schema varchar(64),
+   t_name varchar(64), geometry_column varchar(64)) SQL SECURITY INVOKER
+begin
+  set @qwe= concat('ALTER TABLE ', t_schema, '.', t_name, ' DROP ', geometry_column); PREPARE ls from @qwe; execute ls; deallocate prepare ls; end |
+
+DELIMITER ;|
+
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='AddGeometryColumn' and DEFINER = 'root@localhost';
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='DropGeometryColumn' and DEFINER = 'root@localhost';
+
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='AddGeometryColumn' and DEFINER = 'mariadb.sys@localhost';
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='DropGeometryColumn' and DEFINER = 'mariadb.sys@localhost';
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo #
+--echo # Run mysql_upgrade
+--echo #
+--exec $MYSQL_UPGRADE  2>&1
+--file_exists $MYSQLD_DATADIR/mysql_upgrade_info
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+--echo #
+--echo # check new definers of Add/DropGeometryColumn
+--echo #
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='AddGeometryColumn' and DEFINER = 'root@localhost';
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='DropGeometryColumn' and DEFINER = 'root@localhost';
+
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='AddGeometryColumn' and DEFINER = 'mariadb.sys@localhost';
+SELECT count(*) FROM information_schema.ROUTINES WHERE ROUTINE_CATALOG = 'def' and ROUTINE_SCHEMA = 'mysql' and ROUTINE_NAME='DropGeometryColumn' and DEFINER = 'mariadb.sys@localhost';
+
+--echo #
+--echo # restore environment
+--echo #
+delete from proc;
+rename table proc to bad_proc;
+rename table save_proc to proc;
+drop table bad_proc;
+flush privileges;
+

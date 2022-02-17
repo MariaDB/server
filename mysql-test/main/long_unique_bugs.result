@@ -288,3 +288,18 @@ Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_par
 t2	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
 t2	0	a	2	b	A	NULL	NULL	NULL	YES	HASH		
 DROP TABLE t1,t2;
+#
+# MDEV-26453 Assertion `0' failed in row_upd_sec_index_entry & corruption
+#
+CREATE TABLE t (c INT AUTO_INCREMENT KEY, UNIQUE USING HASH(c));
+ERROR HY000: Function or expression 'AUTO_INCREMENT' cannot be used in the USING HASH clause of `c`
+CREATE TABLE t (c INT AUTO_INCREMENT KEY);
+CREATE UNIQUE INDEX i USING HASH ON t (c);
+ERROR HY000: Function or expression 'AUTO_INCREMENT' cannot be used in the USING HASH clause of `c`
+INSERT INTO t VALUES (0);
+SELECT * FROM t;
+c
+1
+DELETE FROM t;
+DROP TABLE t;
+# End of 10.4 tests

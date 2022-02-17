@@ -32,6 +32,7 @@
 #include "sql_class.h" /* system variables */
 #include "transaction.h" /* trans_xxx */
 #include "sql_base.h" /* close_thread_tables */
+#include "debug_sync.h"
 
 static void init_service_thd(THD* thd, char* thread_stack)
 {
@@ -40,7 +41,6 @@ static void init_service_thd(THD* thd, char* thread_stack)
   thd->prior_thr_create_utime= thd->start_utime= microsecond_interval_timer();
   thd->set_command(COM_SLEEP);
   thd->reset_for_next_command(true);
-  server_threads.insert(thd); // as wsrep_innobase_kill_one_trx() uses find_thread_by_id()
 }
 
 Wsrep_storage_service*
@@ -80,7 +80,6 @@ void Wsrep_server_service::release_storage_service(
     static_cast<Wsrep_storage_service*>(storage_service);
   THD* thd= ss->m_thd;
   wsrep_reset_threadvars(thd);
-  server_threads.erase(thd);
   delete ss;
   delete thd;
 }
@@ -94,8 +93,7 @@ wsrep_create_streaming_applier(THD *orig_thd, const char *ctx)
      streaming transaction is BF aborted and streaming applier
      is created from BF aborter context. */
   Wsrep_threadvars saved_threadvars(wsrep_save_threadvars());
-  if (saved_threadvars.cur_thd)
-    wsrep_reset_threadvars(saved_threadvars.cur_thd);
+  wsrep_reset_threadvars(saved_threadvars.cur_thd);
   THD *thd= 0;
   Wsrep_applier_service *ret= 0;
   if (!wsrep_create_threadvars() &&
@@ -112,8 +110,7 @@ wsrep_create_streaming_applier(THD *orig_thd, const char *ctx)
   }
   /* Restore original thread local storage state before returning. */
   wsrep_restore_threadvars(saved_threadvars);
-  if (saved_threadvars.cur_thd)
-    wsrep_store_threadvars(saved_threadvars.cur_thd);
+  wsrep_store_threadvars(saved_threadvars.cur_thd);
   return ret;
 }
 
@@ -142,7 +139,6 @@ void Wsrep_server_service::release_high_priority_service(wsrep::high_priority_se
   THD* thd= hps->m_thd;
   delete hps;
   wsrep_store_threadvars(thd);
-  server_threads.erase(thd);
   delete thd;
   wsrep_delete_threadvars();
 }
@@ -388,6 +384,16 @@ int Wsrep_server_service::wait_committing_transactions(int timeout)
   return wsrep_wait_committing_connections_close(timeout);
 }
 
-void Wsrep_server_service::debug_sync(const char*)
+void Wsrep_server_service::debug_sync(const char* sync_point)
 {
+  DBUG_EXECUTE_IF(sync_point, {
+      std::stringstream dbug_action;
+      dbug_action << "now "
+                  << "SIGNAL " << sync_point << "_reached "
+                  << "WAIT_FOR " << sync_point << "_continue";
+      const std::string& action(dbug_action.str());
+      DBUG_ASSERT(!debug_sync_set_action(current_thd,
+                                         action.c_str(),
+                                         action.length()));
+    };);
 }

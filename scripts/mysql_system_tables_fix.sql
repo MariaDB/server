@@ -510,6 +510,11 @@ ALTER TABLE proc MODIFY comment
 ALTER TABLE proc ADD aggregate enum('NONE', 'GROUP') DEFAULT 'NONE' NOT NULL
                      AFTER body_utf8;
 
+# Update definer of Add/DropGeometryColumn procedures to 'mariadb.sys'
+# To consider the scenarios in MDEV-23102, only update the definer when it's 'root'
+UPDATE proc SET Definer = 'mariadb.sys@localhost' WHERE Definer = 'root@localhost' AND Name = 'AddGeometryColumn';
+UPDATE proc SET Definer = 'mariadb.sys@localhost' WHERE Definer = 'root@localhost' AND Name = 'DropGeometryColumn';
+
 #
 # EVENT privilege
 #
@@ -815,7 +820,7 @@ IF 'BASE TABLE' = (select table_type from information_schema.tables where table_
                     'max_statement_time', max_statement_time,
                     'plugin', if(plugin>'',plugin,if(length(password)=16,'mysql_old_password','mysql_native_password')),
                     'authentication_string', if(plugin>'' and authentication_string>'',authentication_string,password),
-                    'password_last_changed', if(password_expired='Y', 0, UNIX_TIMESTAMP(password_last_changed)),
+                    'password_last_changed', if(password_expired='Y', 0, if(password_last_changed, UNIX_TIMESTAMP(password_last_changed), UNIX_TIMESTAMP())),
                     'password_lifetime', ifnull(password_lifetime, -1),
                     'account_locked', 'Y'=account_locked,
                     'default_role', default_role,

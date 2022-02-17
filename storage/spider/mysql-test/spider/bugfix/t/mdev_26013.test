@@ -1,0 +1,51 @@
+--disable_warnings
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+--enable_warnings
+
+--echo
+--echo MDEV-26013 distinct not work properly in some cases for spider tables
+--echo
+
+--connection child2_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+eval CREATE TABLE tbl_a (
+    `a`int,
+    `b`int,
+    PRIMARY KEY (`a`)
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+
+insert into `tbl_a` VALUES (1,999), (2,999);
+
+--connection master_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+eval CREATE TABLE tbl_a (
+    `a`int,
+    `b`int,
+    PRIMARY KEY (`a`)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a"' PARTITION BY LIST COLUMNS(`a`) (
+    PARTITION `pt1` DEFAULT COMMENT = 'srv "s_2_1"'
+);
+
+--connection master_1
+SELECT distinct b FROM tbl_a WHERE b=999;
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_remote;
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+
+--disable_warnings
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+--enable_warnings

@@ -874,7 +874,7 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 test.t2	check	status	OK
 test.t3	check	status	OK
-call p_verify_status_increment(6, 0, 6, 0);
+call p_verify_status_increment(4, 0, 4, 0);
 SUCCESS
 
 commit;

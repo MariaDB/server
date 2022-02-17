@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -189,7 +189,8 @@ buf_read_page_low(
 
 	if (UNIV_UNLIKELY(*err != DB_SUCCESS)) {
 		if (IORequest::ignore_missing(type)
-		    || *err == DB_TABLESPACE_DELETED) {
+		    || *err == DB_TABLESPACE_DELETED
+		    || *err == DB_IO_ERROR) {
 			buf_read_page_handle_error(bpage);
 			return(0);
 		}
@@ -772,13 +773,18 @@ tablespace_deleted:
 			continue;
 		}
 
-		if (UNIV_UNLIKELY(page_nos[i] >= space->size)) {
+		ulint size = space->size;
+		if (!size) {
+			size = fil_space_get_size(space->id);
+		}
+
+		if (UNIV_UNLIKELY(page_nos[i] >= size)) {
 			do {
 				ibuf_delete_recs(page_id_t(space_ids[i],
 							   page_nos[i]));
 			} while (++i < n_stored
 				 && space_ids[i - 1] == space_ids[i]
-				 && page_nos[i] >= space->size);
+				 && page_nos[i] >= size);
 			i--;
 next:
 			space->release();

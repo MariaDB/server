@@ -12,40 +12,27 @@
 
 GCF-1081 : MDEV-18283 Galera test failure on galera.GCF-1081
 GCF-939 : MDEV-21520 galera.GCF-939
-MDEV-20225 : MDEV-20886 galera.MDEV-20225
-MW-286 : MDEV-18464 Killing thread can cause mutex deadlock if done concurrently with Galera/replication victim kill
 MW-328A : MDEV-22666 galera.MW-328A MTR failed: "Semaphore wait has lasted > 600 seconds" and do not release port 16002
 MW-328B : MDEV-22666 galera.MW-328A MTR failed: "Semaphore wait has lasted > 600 seconds" and do not release port 16002
 MW-329 : MDEV-19962 Galera test failure on MW-329
-galera_FK_duplicate_client_insert : MDEV-24473: galera.galera_FK_duplicate_client_insert MTR failed: SIGABRT. InnoDB: Conflicting lock on table. Assertion failure in lock0lock.cc
 galera_as_slave_replication_bundle : MDEV-15785 OPTION_GTID_BEGIN is set in Gtid_log_event::do_apply_event()
-galera_bf_abort_at_after_statement : MDEV-21557: galera_bf_abort_at_after_statement MTR failed: query 'reap' succeeded - should have failed with errno 1213
 galera_bf_abort_group_commit : MDEV-18282 Galera test failure on galera.galera_bf_abort_group_commit
-galera_binlog_stmt_autoinc : MDEV-19959 Galera test failure on galera_binlog_stmt_autoinc	
+galera_bf_lock_wait : MDEV-21597 wsrep::transaction::start_transaction(): Assertion `active() == false' failed
 galera_encrypt_tmp_files : Get error failed to enable encryption of temporary files
 galera_ftwrl : MDEV-21525 galera.galera_ftwrl
 galera_gcache_recover_manytrx : MDEV-18834 Galera test failure
 galera_kill_largechanges : MDEV-18179 Galera test failure on galera.galera_kill_largechanges
 galera_many_tables_nopk : MDEV-18182 Galera test failure on galera.galera_many_tables_nopk
 galera_mdl_race : MDEV-21524 galera.galera_mdl_race
-galera_parallel_simple : MDEV-20318 galera.galera_parallel_simple fails	
+galera_parallel_simple : MDEV-20318 galera.galera_parallel_simple fails
 galera_pc_ignore_sb : MDEV-20888 galera.galera_pc_ignore_sb
+galera_pc_recovery : MDEV-25199 cluster fails to start up
 galera_shutdown_nonprim : MDEV-21493 galera.galera_shutdown_nonprim
-galera_ssl_upgrade : MDEV-19950 Galera test failure on galera_ssl_upgrade
-galera_sst_mariabackup_encrypt_with_key : MDEV-21484 galera_sst_mariabackup_encrypt_with_key
-galera_toi_ddl_nonconflicting : MDEV-21518 galera.galera_toi_ddl_nonconflicting
-galera_toi_truncate : MDEV-22996 Hang on galera_toi_truncate test case
-galera_var_ignore_apply_errors : MDEV-20451: Lock wait timeout exceeded in galera_var_ignore_apply_errors
+galera_var_ignore_apply_errors : MDEV-26770 galera_var_ignore_apply_errors fails Server did not transition to READY state
 galera_var_node_address : MDEV-20485 Galera test failure
 galera_var_notify_cmd : MDEV-21905 Galera test galera_var_notify_cmd causes hang
-galera_var_reject_queries : assertion in inline_mysql_socket_send
-galera_var_replicate_myisam_on : MDEV-24062 Galera test failure on galera_var_replicate_myisam_on
 galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.galera_var_retry_autocommit
-galera_wan : MDEV-17259 Test failure on galera.galera_wan
-mysql-wsrep#198 : MDEV-24446: galera.mysql-wsrep#198 MTR failed: query 'reap' failed: 2000: Unknown MySQL error
 partition : MDEV-19958 Galera test failure on galera.partition
 query_cache: MDEV-15805 Test failure on galera.query_cache
-sql_log_bin : MDEV-21491 galera.sql_log_bin
 versioning_trx_id: MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
-galera_wsrep_provider_unset_set: wsrep_provider is read-only for security reasons
-pxc-421: wsrep_provider is read-only for security reasons
+galera_bf_abort_at_after_statement : Unstable

@@ -31,6 +31,7 @@ defaults=""
 defaults_group_suffix=""
 mysqld_opt=""
 user=""
+group=""
 silent_startup="--silent-startup"
 
 force=0
@@ -95,6 +96,11 @@ Usage: $0 [OPTIONS]
                        user.  You must be root to use this option.  By default
                        mysqld runs using your current login name and files and
                        directories that it creates will be owned by you.
+  --group=group_name   The login group to use for running mysqld.  Files and
+                       directories created by mysqld will be owned by this
+                       group. You must be root to use this option.  By default
+                       mysqld runs using your current group and files and
+                       directories that it creates will be owned by you.
 
 All other options are passed to the mysqld program
 
@@ -144,11 +150,11 @@ parse_arguments()
       --ldata=*|--datadir=*|--data=*) ldata=`parse_arg "$arg"` ;;
       --log-error=*)
        log_error=`parse_arg "$arg"` ;;
-      --user=*)
         # Note that the user will be passed to mysqld so that it runs
         # as 'user' (crucial e.g. if log-bin=/some_other_path/
         # where a chown of datadir won't help)
-        user=`parse_arg "$arg"` ;;
+      --user=*) user=`parse_arg "$arg"` ;;
+      --group=*) group=`parse_arg "$arg"` ;;
       --skip-name-resolve) ip_only=1 ;;
       --verbose) verbose=1 ; silent_startup="" ;;
       --rpm) in_rpm=1 ;;
@@ -467,7 +473,12 @@ do
   fi
   if test -n "$user"
   then
-    chown $user "$dir"
+    if test -z "$group"
+    then
+      chown $user $dir
+    else
+      chown $user:$group $dir
+    fi
     if test $? -ne 0
     then
       echo "Cannot change ownership of the database directories to the '$user'"
@@ -501,6 +512,11 @@ then
   args="$args --user=$user"
 fi
 
+if test -n "$group"
+then
+  args="$args --group=$group"
+fi
+
 if test -f "$ldata/mysql/user.frm"
 then
     echo "mysql.user table already exists!"
@@ -524,7 +540,7 @@ mysqld_install_cmd_line()
 {
   "$mysqld_bootstrap" $defaults $defaults_group_suffix "$mysqld_opt" --bootstrap $silent_startup\
   "--basedir=$basedir" "--datadir=$ldata" --log-warnings=0 --enforce-storage-engine="" \
-  "--plugin-dir=${plugindir}" \
+  "--plugin-dir=${plugindir}" --loose-disable-plugin-file-key-management \
   $args --max_allowed_packet=8M \
   --net_buffer_length=16K
 }
@@ -559,6 +575,7 @@ cat_sql()
 s_echo "Installing MariaDB/MySQL system tables in '$ldata' ..."
 if cat_sql | eval "$filter_cmd_line" | mysqld_install_cmd_line > /dev/null
 then
+    printf "@VERSION@-MariaDB" > "$ldata/mysql_upgrade_info"
   s_echo "OK"
 else
   log_file_place=$ldata
@@ -611,12 +628,8 @@ then
     echo
     echo
     echo "PLEASE REMEMBER TO SET A PASSWORD FOR THE MariaDB root USER !"
-    echo "To do so, start the server, then issue the following commands:"
+    echo "To do so, start the server, then issue the following command:"
     echo
-    echo "'$bindir/mysqladmin' -u root password 'new-password'"
-    echo "'$bindir/mysqladmin' -u root -h $hostname password 'new-password'"
-    echo
-    echo "Alternatively you can run:"
     echo "'$bindir/mysql_secure_installation'"
     echo
     echo "which will also give you the option of removing the test"
@@ -635,8 +648,7 @@ then
   fi
 
   echo
-  echo "See the MariaDB Knowledgebase at http://mariadb.com/kb or the"
-  echo "MySQL manual for more instructions."
+  echo "See the MariaDB Knowledgebase at http://mariadb.com/kb"
 
   if test "$in_rpm" -eq 0
   then
@@ -652,8 +664,7 @@ then
   echo "Please report any problems at http://mariadb.org/jira"
   echo
   echo "The latest information about MariaDB is available at http://mariadb.org/."
-  echo "You can find additional information about the MySQL part at:"
-  echo "http://dev.mysql.com"
+  echo
   echo "Consider joining MariaDB's strong and vibrant community:"
   echo "https://mariadb.org/get-involved/"
   echo

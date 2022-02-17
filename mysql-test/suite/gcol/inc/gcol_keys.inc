@@ -809,4 +809,12 @@ eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/load.data' REPLACE INTO TABLE t1 (p
 
 --remove_file $MYSQLTEST_VARDIR/tmp/load.data
 DROP TABLE t1;
+
+--echo # MDEV-19011 Assertion `file->s->base.reclength < file->s->vreclength'
+--echo # failed in ha_myisam::setup_vcols_for_repair
+CREATE TABLE t1 (a INT GENERATED ALWAYS AS (1) VIRTUAL);
+ALTER TABLE t1 ADD KEY (a);
+
+DROP TABLE t1;
+
 }

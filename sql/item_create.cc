@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB Corporation.
+   Copyright (c) 2008, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -109,7 +109,6 @@ public:
     @return An item representing the function call
   */
   virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) = 0;
-
 protected:
   /** Constructor. */
   Create_func_arg2() {}
@@ -136,7 +135,6 @@ public:
     @return An item representing the function call
   */
   virtual Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) = 0;
-
 protected:
   /** Constructor. */
   Create_func_arg3() {}
@@ -908,6 +906,19 @@ class Create_func_distance : public Create_func_arg2
     Create_func_distance() {}
     virtual ~Create_func_distance() {}
 };
+
+
+class Create_func_distance_sphere: public Create_native_func
+{
+  public:
+    Item *create_native(THD *thd, LEX_CSTRING *name, List<Item> *item_list);
+    static Create_func_distance_sphere s_singleton;
+
+  protected:
+    Create_func_distance_sphere() {}
+    virtual ~Create_func_distance_sphere() {}
+};
+
 #endif
 
 
@@ -4878,6 +4889,26 @@ Create_func_glength::create_1_arg(THD *thd, Item *arg1)
 {
   return new (thd->mem_root) Item_func_glength(thd, arg1);
 }
+
+
+Create_func_distance_sphere Create_func_distance_sphere::s_singleton;
+
+Item*
+Create_func_distance_sphere::create_native(THD *thd, LEX_CSTRING *name,
+                                           List<Item> *item_list)
+{
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  if (arg_count < 2)
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    return NULL;
+  }
+  return new (thd->mem_root) Item_func_sphere_distance(thd, *item_list);
+}
 #endif
 
 
@@ -7116,7 +7147,6 @@ Create_func_year_week::create_native(THD *thd, LEX_CSTRING *name,
   return func;
 }
 
-
 #define BUILDER(F) & F::s_singleton
 
 #ifdef HAVE_SPATIAL
@@ -7136,7 +7166,7 @@ Create_func_year_week::create_native(THD *thd, LEX_CSTRING *name,
   - keep 1 line per entry, it makes grep | sort easier
 */
 
-static Native_func_registry func_array[] =
+Native_func_registry func_array[] =
 {
   { { STRING_WITH_LEN("ABS") }, BUILDER(Create_func_abs)},
   { { STRING_WITH_LEN("ACOS") }, BUILDER(Create_func_acos)},
@@ -7457,6 +7487,7 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("ST_WITHIN") }, GEOM_BUILDER(Create_func_within)},
   { { STRING_WITH_LEN("ST_X") }, GEOM_BUILDER(Create_func_x)},
   { { STRING_WITH_LEN("ST_Y") }, GEOM_BUILDER(Create_func_y)},
+  { { C_STRING_WITH_LEN("ST_DISTANCE_SPHERE") }, GEOM_BUILDER(Create_func_distance_sphere)},
   { { STRING_WITH_LEN("SUBSTR_ORACLE") },
       BUILDER(Create_func_substr_oracle)},
   { { STRING_WITH_LEN("SUBSTRING_INDEX") }, BUILDER(Create_func_substr_index)},
@@ -7493,6 +7524,8 @@ static Native_func_registry func_array[] =
 
   { {0, 0}, NULL}
 };
+
+size_t func_array_length= sizeof(func_array) / sizeof(Native_func_registry) - 1;
 
 static HASH native_functions_hash;
 
@@ -7548,6 +7581,21 @@ int item_create_append(Native_func_registry array[])
                         func->name.str, (uint) func->name.length));
   }
 #endif
+
+  DBUG_RETURN(0);
+}
+
+int item_create_remove(Native_func_registry array[])
+{
+  Native_func_registry *func;
+
+  DBUG_ENTER("item_create_remove");
+
+  for (func= array; func->builder != NULL; func++)
+  {
+    if (my_hash_delete(& native_functions_hash, (uchar*) func))
+      DBUG_RETURN(1);
+  }
 
   DBUG_RETURN(0);
 }

@@ -1612,7 +1612,7 @@ NULL	binary(0)	YES		NULL
 CREATE TABLE t5 SELECT NULL UNION SELECT NULL;
 DESC t5;
 Field	Type	Null	Key	Default	Extra
-NULL	null	YES		NULL	
+NULL	binary(0)	YES		NULL	
 CREATE TABLE t6 
 SELECT * FROM (SELECT * FROM (SELECT NULL)a) b UNION SELECT a FROM t1;
 DESC t6;
@@ -2649,6 +2649,35 @@ def					CAST(1 AS UNSIGNED)	246	2	1	N	32897	0	63
 CAST(1 AS UNSIGNED)
 1
 1
+#
+# MDEV-24511 null field is created with CREATE..SELECT
+#
+set @save_default_storage_engine=@@default_storage_engine;
+SET @@default_storage_engine=MEMORY;
+CREATE TABLE t1 SELECT NULL UNION SELECT NULL;
+ALTER TABLE t1 ADD INDEX (`PRIMARY`);
+ERROR 42000: Key column 'PRIMARY' doesn't exist in table
+CREATE TABLE t2 SELECT NULL;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULL` binary(0) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+CREATE TABLE t3 SELECT NULL UNION SELECT NULL;
+SHOW CREATE TABLE t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `NULL` binary(0) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+CREATE OR REPLACE TABLE t4 SELECT NULL UNION SELECT NULL;
+SHOW CREATE TABLE t4;
+Table	Create Table
+t4	CREATE TABLE `t4` (
+  `NULL` binary(0) DEFAULT NULL
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+ALTER TABLE t4 ADD INDEX (`NULL`);
+DROP TABLE t1, t2, t3, t4;
+set @@default_storage_engine=@save_default_storage_engine;
 #
 # End of 10.3 tests
 #

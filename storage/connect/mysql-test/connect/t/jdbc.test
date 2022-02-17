@@ -1,6 +1,7 @@
 -- source windows.inc
 -- source jdbconn.inc
-SET GLOBAL time_zone='+1:00';
+SET GLOBAL time_zone='+0:00';
+SET time_zone='+0:00';
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 --copy_file $MTR_SUITE_DIR/std_data/girls.txt $MYSQLD_DATADIR/test/girls.txt
@@ -27,7 +28,7 @@ SELECT * FROM t2;
 --echo #
 USE test;
 --replace_result $PORT PORT
---eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=t2 CONNECTION='jdbc:mysql://localhost:$PORT/connect?user=root'
+--eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=t2 CONNECTION='jdbc:mysql://localhost:$PORT/connect?user=root&useSSL=false'
 SELECT * FROM t1;
 INSERT INTO t1 VALUES(786325481247, 'Hello!', '19:45:03', '1933-08-10', '1985-11-12 09:02:44', '2014-06-17 10:32:01');
 SELECT * FROM t1;
@@ -39,7 +40,7 @@ DROP TABLE t1;
 --echo # Testing JDBC view
 --echo #
 --replace_result $PORT PORT
---eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC SRCDEF='select id, msg, tm, dt from t2' CONNECTION='jdbc:mysql://localhost:$PORT/connect?user=root'
+--eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC SRCDEF='select id, msg, tm, dt from t2' CONNECTION='jdbc:mysql://localhost:$PORT/connect?user=root&useSSL=false'
 SELECT * FROM t1;
 SELECT msg, dt FROM t1;
 DROP TABLE t1, connect.t2;
@@ -67,7 +68,7 @@ INSERT INTO t3 VALUES('Donald','Atlanta','1999-04-01','2016-03-31'),('Mick','New
 SELECT * FROM t3;
 
 --replace_result $PORT PORT
---eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=boys CONNECTION='jdbc:mysql://localhost:$PORT/connect?user=root' OPTION_LIST='scrollable=1'
+--eval CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=boys CONNECTION='jdbc:mysql://localhost:$PORT/connect?user=root&useSSL=false' OPTION_LIST='scrollable=1'
 SELECT * FROM t1;
 UPDATE t1 SET city = 'Phoenix' WHERE name = 'Henry';
 INSERT INTO t1 SELECT * FROM t3;
@@ -145,4 +146,5 @@ DROP TABLE connect.tx1;
 DROP DATABASE connect;
 --remove_file $MYSQLD_DATADIR/test/girls.txt
 SET GLOBAL time_zone=SYSTEM;
+SET time_zone=SYSTEM;
 -- source jdbconn_cleanup.inc

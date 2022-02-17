@@ -1,0 +1,17 @@
+include/master-slave.inc
+[connection master]
+connection master;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+SET @@global.debug_dbug= 'd,simulate_pos_4G';
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_HEARTBEAT_PERIOD=0.001;
+include/start_slave.inc
+connection master;
+SET @@GLOBAL.debug_dbug = @saved_dbug;
+connection slave;
+connection master;
+CREATE TABLE t (f INT) ENGINE=INNODB;
+INSERT INTO t VALUES (10);
+DROP TABLE t;
+include/rpl_end.inc

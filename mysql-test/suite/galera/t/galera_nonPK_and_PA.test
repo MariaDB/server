@@ -1,0 +1,168 @@
+#
+# This test is a modified version of Gabor Orosz (GOro) test in jira tracker:
+# https://jira.mariadb.org/browse/MDEV-25551
+#
+# The underlying problem with MDEV-25551 turned out to be that
+# transactions having changes for tables with no primary key, 
+# were not safe to apply in parallel. This is due to excessive locking
+# in innodb side, and even non related row modifications could end up
+# in lock conflict during applying.
+#
+# The test creates a table with no primary key definition and executes two
+# transactions (in node1) modifying separate rows in the table. In node2
+# first applier is paused before commit phase, and second transaction is
+# then submitted to see if it can interfere with the first transaciton.
+# The fix for MDEV-25551 has disabled parallel applying for tables with no PK,
+# and in the test applying of the send trasnaction should not even start, before
+# the fisrt trkansaction is released from the sync point.
+# The test also verifies that certification depedency status reflects the fact
+# that the two transactions depend on each other.
+#
+# The test has two scenarios where both UPDATE and DELETE statements are verified
+# to disable parallel applying
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+
+# Setup
+
+CREATE TABLE t1 (f1 VARCHAR(32) NOT NULL) ENGINE=InnoDB;
+INSERT INTO t1 (f1) VALUES ('0e66c5227a8a');
+INSERT INTO t1 (f1) VALUES ('c6c112992c9');
+
+CREATE TABLE t2 (i int primary key);
+
+--connection node_2
+SET SESSION wsrep_sync_wait = 0;
+--let $wait_condition = SELECT COUNT(*)=2 FROM t1;
+--source include/wait_condition.inc
+
+# Ensure that we have enough applier threads to process transactions in parallel
+SET GLOBAL wsrep_slave_threads = 2;
+
+--echo ***************************************************************
+--echo scenario 1,  conflicting UPDATE
+--echo ***************************************************************
+
+# Set up a synchronization point to catch the first transaction
+--let $galera_sync_point = commit_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_1
+# Invoke the first transaction
+START TRANSACTION;
+UPDATE t1 SET f1='5ffceebfada' WHERE t1.f1 = 'c6c112992c9';
+COMMIT;
+
+--connection node_2
+# Wait for the first transaction to apply until commit phase
+--let $galera_sync_point = commit_monitor_slave_enter_sync
+--source include/galera_wait_sync_point.inc
+
+# remember status for received replication counter and certification dependency distance
+--let $expected_wsrep_received = `SELECT VARIABLE_VALUE+1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_received'`
+--let $cert_deps_distance = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cert_deps_distance'`
+
+--connection node_1
+# Invoke the second transaction
+START TRANSACTION;
+UPDATE t1 SET f1='4ffceebfcdc' WHERE t1.f1 = '0e66c5227a8a';
+COMMIT;
+
+# sleep is probably obsolete here, but it is good to give the latter update time to
+# proceed in applying in node 2. In buggy version the update will start applying
+# and cause conflict there.
+--sleep 5
+
+--connection node_2
+# Wait for the second transaction to appear in repliaction queue
+--let $wait_condition = SELECT VARIABLE_VALUE= $expected_wsrep_received FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_received';
+--source include/wait_condition.inc
+
+# verify that certification dependency distance has dropped
+--disable_query_log
+--eval  SELECT  VARIABLE_VALUE < $cert_deps_distance as 'distance' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cert_deps_distance'
+--enable_query_log
+
+# if deps distance dropped, it is indirect evidence that parallel applying was not approved
+
+# Let the first transaction to proceed
+--let $galera_sync_point = commit_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+
+# second applier should now hit sync point
+--let $galera_sync_point = commit_monitor_slave_enter_sync
+--source include/galera_wait_sync_point.inc
+--source include/galera_signal_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+
+--echo ***************************************************************
+--echo scenario 2,  conflicting DELETE
+--echo ***************************************************************
+
+# Set up a synchronization point to catch the first transaction
+--let $galera_sync_point = commit_monitor_slave_enter_sync
+--source include/galera_set_sync_point.inc
+
+--connection node_1
+# Invoke the first transaction, mix this with insert to table having PK
+START TRANSACTION;
+INSERT INTO t2 VALUES (1);
+DELETE FROM t1 WHERE f1='5ffceebfada';
+COMMIT;
+
+--connection node_2
+# Wait for the first transaction to apply until commit phase
+--let $galera_sync_point = commit_monitor_slave_enter_sync
+--source include/galera_wait_sync_point.inc
+
+# remember status for received replication counter and certification dependency distance
+--let $expected_wsrep_received = `SELECT VARIABLE_VALUE+1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_received'`
+--let $cert_deps_distance = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cert_deps_distance'`
+
+--connection node_1
+# Invoke the second transaction, again mix this with insert to table having PK
+START TRANSACTION;
+INSERT INTO t2 VALUES (2);
+DELETE FROM t1 WHERE f1='4ffceebfcdc';
+COMMIT;
+
+# sleep is probably obsolete here, but it is good to give the latter update time to
+# proceed in applying in node 2. In buggy version the update will start applying
+# and cause conflict there.
+--sleep 5
+
+--connection node_2
+# Wait for the second transaction to appear in repliaction queue
+--let $wait_condition = SELECT VARIABLE_VALUE= $expected_wsrep_received FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_received';
+--source include/wait_condition.inc
+
+# verify that certification dependency distance has dropped
+--disable_query_log
+--eval  SELECT  VARIABLE_VALUE < $cert_deps_distance as 'distance' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cert_deps_distance'
+--enable_query_log
+
+# if deps distance dropped, it is indirect evidence that parallel applying was not approved
+
+# Let the first transaction to proceed
+--let $galera_sync_point = commit_monitor_slave_enter_sync
+--source include/galera_signal_sync_point.inc
+
+# second applier should now hit sync point
+--let $galera_sync_point = commit_monitor_slave_enter_sync
+--source include/galera_wait_sync_point.inc
+--source include/galera_signal_sync_point.inc
+--source include/galera_clear_sync_point.inc
+
+# Teardown
+--connection node_1
+SET GLOBAL wsrep_slave_threads = DEFAULT;
+
+DROP TABLE t1;
+DROP TABLE t2;
+--connection node_2
+SET GLOBAL wsrep_slave_threads = DEFAULT;

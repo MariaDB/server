@@ -93,7 +93,6 @@ SET SESSION DEBUG_SYNC = "now WAIT_FOR sync.wsrep_apply_cb_reached";
 
 --connection node_1
 # issue conflicting write to child table, it should fail in certification
---error ER_LOCK_DEADLOCK
 --send update child set j=2;
 
 --connection node_1a
@@ -103,6 +102,7 @@ SET GLOBAL debug_dbug = "";
 SET DEBUG_SYNC = "RESET";
 
 --connection node_1
+--error 0,ER_LOCK_DEADLOCK, ER_LOCK_WAIT_TIMEOUT
 --reap
 --let $wait_condition = SELECT COUNT(*) = 0 FROM parent;
 --source include/wait_condition.inc

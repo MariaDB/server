@@ -733,7 +733,10 @@ static bool make_date_time(const LEX_CSTRING &format, MYSQL_TIME *l_time,
                          For example, '1.1' -> '1.100000'
 */
 
-static bool get_interval_info(const char *str, size_t length,CHARSET_INFO *cs, size_t count, ulonglong *values,
+#define MAX_DIGITS_IN_TIME_SPEC 20
+
+static bool get_interval_info(const char *str, size_t length,CHARSET_INFO *cs,
+                              size_t count, ulonglong *values,
                               bool transform_msec)
 {
   const char *end=str+length;
@@ -745,11 +748,21 @@ static bool get_interval_info(const char *str, size_t length,CHARSET_INFO *cs, s
 
   for (i=0 ; i < count ; i++)
   {
-    longlong value;
+    ulonglong value;
     const char *start= str;
-    for (value= 0; str != end && my_isdigit(cs, *str); str++)
+    const char *local_end= end;
+
+    /*
+      We limit things to 19 digits to not get an overflow. This is ok as
+      this function is meant to read up to microseconds
+    */
+    if ((local_end-str) > MAX_DIGITS_IN_TIME_SPEC)
+      local_end= str+ MAX_DIGITS_IN_TIME_SPEC;
+
+    for (value= 0; str != local_end && my_isdigit(cs, *str) ; str++)
       value= value*10 + *str - '0';
-    if ((field_length= (size_t)(str - start)) >= 20)
+
+    if ((field_length= (size_t)(str - start)) >= MAX_DIGITS_IN_TIME_SPEC)
       return true;
     values[i]= value;
     while (str != end && !my_isdigit(cs,*str))
@@ -2070,9 +2083,9 @@ bool Func_handler_date_add_interval_datetime_arg0_time::
 
 bool Item_date_add_interval::eq(const Item *item, bool binary_cmp) const
 {
-  Item_date_add_interval *other= (Item_date_add_interval*) item;
   if (!Item_func::eq(item, binary_cmp))
     return 0;
+  Item_date_add_interval *other= (Item_date_add_interval*) item;
   return ((int_type == other->int_type) &&
           (date_sub_interval == other->date_sub_interval));
 }
@@ -2579,7 +2592,6 @@ bool Item_func_timediff::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
   DBUG_ASSERT(fixed == 1);
   int l_sign= 1;
   MYSQL_TIME l_time1,l_time2,l_time3;
-  ErrConvTime str(&l_time3);
 
   /* the following may be true in, for example, date_add(timediff(...), ... */
   if (fuzzydate & TIME_NO_ZERO_IN_DATE)

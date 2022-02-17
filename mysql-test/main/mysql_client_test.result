@@ -127,6 +127,11 @@ Data:
 EOF
 mysql_stmt_next_result(): 0; field_count: 0
 # ------------------------------------
+# cat MYSQL_TMP_DIR/test_mdev26145.out.log
+# ------------------------------------
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def				MAX(a)	MAX(a)	3	11	0	Y	32768	0	63
+# ------------------------------------
 
 
 # cat MYSQL_TMP_DIR/test_explain_meta.out.log

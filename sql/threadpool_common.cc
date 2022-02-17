@@ -222,6 +222,14 @@ static THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
 {
   THD *thd= NULL;
 
+  DBUG_EXECUTE_IF("CONNECT_wait",
+  {
+    extern MYSQL_SOCKET unix_sock;
+    DBUG_ASSERT(unix_sock.fd >= 0);
+    while (unix_sock.fd >= 0)
+      my_sleep(1000);
+  });
+
   /*
     Create a new connection context: mysys_thread_var and PSI thread
     Store them in THD.
@@ -247,8 +255,8 @@ static THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
     }
     return NULL;
   }
-  delete connect;
-  server_threads.insert(thd);
+  server_threads.insert(thd); // Make THD visible in show processlist
+  delete connect; // must be after server_threads.insert, see close_connections()
   thd->set_mysys_var(mysys_var);
   thd->event_scheduler.data= scheduler_data;
 

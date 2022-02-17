@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\FBMYSQLBINLOG\FR" "1" "28 March 2019" "MariaDB 10\&.4" "MariaDB Database System"
+.TH "\FBMYSQLBINLOG\FR" "1" "14 April 2021" "MariaDB 10\&.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -1091,6 +1091,23 @@ This option is useful for point\-in\-time recovery\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysqlbinlog: table option
+.\" table option: mysqlbinlog
+\fB\-\-table\fR,
+\fB\-T\fR
+.sp
+List entries for just this table (local log only)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+
 .\" mysqlbinlog: to-last-log option
 .\" to-last-log option: mysqlbinlog
 \fB\-\-to\-last\-log\fR,
@@ -2107,7 +2124,7 @@ option can be used to prevent this header from being written\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2015 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2021 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

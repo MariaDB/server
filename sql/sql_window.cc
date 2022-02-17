@@ -592,9 +592,15 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
       Let's use only one of the lists.
     */
     if (!win_spec1->name() && win_spec2->name())
+    {
+      win_spec1->save_partition_list= win_spec1->partition_list;
       win_spec1->partition_list= win_spec2->partition_list;
+    }
     else
+    {
+      win_spec2->save_partition_list= win_spec2->partition_list;
       win_spec2->partition_list= win_spec1->partition_list;
+    }
 
     cmp= compare_order_lists(win_spec1->order_list,
                              win_spec2->order_list);
@@ -607,9 +613,15 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
        Let's use only one of the lists.
     */
     if (!win_spec1->name() && win_spec2->name())
+    {
+      win_spec1->save_order_list= win_spec2->order_list;
       win_spec1->order_list= win_spec2->order_list;
+    }
     else
+    {
+      win_spec1->save_order_list= win_spec2->order_list;
       win_spec2->order_list= win_spec1->order_list;
+    }
 
     cmp= compare_window_frames(win_spec1->window_frame,
                                win_spec2->window_frame);

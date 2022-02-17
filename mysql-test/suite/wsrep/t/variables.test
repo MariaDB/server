@@ -1,148 +1,26 @@
 --source include/have_wsrep.inc
 --source include/force_restart.inc
 --source include/have_innodb.inc
+--source include/galera_no_debug_sync.inc
 
-call mtr.add_suppression("WSREP: Initial position was provided by configuration or SST, avoiding override");
+--let $galera_version=26.4.9
+source include/check_galera_version.inc;
 
-SET @wsrep_provider_options_saved= @@global.wsrep_provider_options;
-SET @wsrep_cluster_address_saved= @@global.wsrep_cluster_address;
-
---echo
---echo # MDEV#5534: mysql_tzinfo_to_sql generates wrong query
---echo #
---echo # Testing wsrep_replicate_myisam variable.
-
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
-SELECT @@session.wsrep_replicate_myisam;
-SELECT @@global.wsrep_replicate_myisam;
-
---error ER_GLOBAL_VARIABLE
-SET SESSION wsrep_replicate_myisam= ON;
-SET GLOBAL wsrep_replicate_myisam= ON;
-
-# Reset it back.
-SET GLOBAL wsrep_replicate_myisam= OFF;
-#SET GLOBAL wsrep_provider=none;
-
---echo #
---echo # MDEV#5790: SHOW GLOBAL STATUS LIKE does not show the correct list of
---echo # variables when using "_"
---echo #
-
-CALL mtr.add_suppression("WSREP: Could not open saved state file for reading.*");
-
-#evalp SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
+source include/galera_variables_ok.inc;
 
 --replace_column 2 #
-SHOW GLOBAL STATUS LIKE 'wsrep_local_state_comment';
+SHOW GLOBAL STATUS LIKE 'wsrep%';
 
 --echo # Should show nothing.
 SHOW STATUS LIKE 'x';
 
-# Reset it back.
-#SET GLOBAL wsrep_provider=none;
-
-#evalp SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
-
-# The following 2 variables are used by mariabackup
-# SST.
---echo
---replace_column 2 #
-SHOW STATUS LIKE 'wsrep_local_state_uuid';
---echo
---replace_column 2 #
-SHOW STATUS LIKE 'wsrep_last_committed';
-
-# Reset it back.
-#SET GLOBAL wsrep_provider=none;
-
---echo
---echo #
---echo # MDEV#6206: wsrep_slave_threads subtracts from max_connections
---echo #
-call mtr.add_suppression("WSREP: Failed to get provider options");
-
-#evalp SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
-
---replace_regex /.*libgalera.*smm.*/libgalera_smm.so/
-SELECT @@global.wsrep_provider;
-SELECT @@global.wsrep_slave_threads;
 SELECT @@global.wsrep_cluster_address;
 SELECT @@global.wsrep_on;
+
 SHOW STATUS LIKE 'threads_connected';
 SHOW STATUS LIKE 'wsrep_thread_count';
---echo
 
-#evalp SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
+--echo # variables
 
---replace_regex /.*libgalera.*smm.*/libgalera_smm.so/
-SELECT @@global.wsrep_provider;
-SELECT @@global.wsrep_cluster_address;
-SELECT @@global.wsrep_on;
-SHOW STATUS LIKE 'threads_connected';
-SHOW STATUS LIKE 'wsrep_thread_count';
---echo
+SELECT VARIABLE_NAME FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE VARIABLE_NAME LIKE "wsrep%" ORDER BY VARIABLE_NAME;
 
---echo # Setting wsrep_cluster_address triggers the creation of
---echo # applier/rollbacker threads.
-#SET GLOBAL wsrep_cluster_address= 'gcomm://';
-
---echo # Wait for applier thread to get created 1.
---let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
---source include/wait_condition.inc
---echo # Wait for applier thread to get created 2.
---let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
---source include/wait_condition.inc
-
-SELECT VARIABLE_VALUE AS EXPECT_1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
-SELECT VARIABLE_VALUE AS EXPECT_1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
-SELECT VARIABLE_VALUE AS EXPECT_2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
-
---replace_regex /.*libgalera.*smm.*/libgalera_smm.so/
-SELECT @@global.wsrep_provider;
-SELECT @@global.wsrep_cluster_address;
-SELECT @@global.wsrep_on;
-SHOW STATUS LIKE 'threads_connected';
-SHOW STATUS LIKE 'wsrep_thread_count';
---echo
-
-SET @wsrep_slave_threads_saved= @@global.wsrep_slave_threads;
-SET GLOBAL wsrep_slave_threads= 10;
-
---echo # Wait for 9 applier threads to get created.
---let $wait_condition = SELECT VARIABLE_VALUE = 10 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
---source include/wait_condition.inc
-
-SELECT VARIABLE_VALUE AS EXPECT_10 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
-SELECT VARIABLE_VALUE AS EXPECT_1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
-SELECT VARIABLE_VALUE AS EXPECT_11 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
-
-SHOW STATUS LIKE 'threads_connected';
-
-#
-# privileges for wsrep_on
-#
-set wsrep_on=0;
-set wsrep_on=1;
---source include/wait_until_connected_again.inc
-create user test@localhost;
-connect con1,localhost,test;
-set auto_increment_increment=10;
---error ER_SPECIFIC_ACCESS_DENIED_ERROR
-set wsrep_on=0;
-disconnect con1;
-connection default;
-drop user test@localhost;
-
---echo #
---echo # MDEV#6411: Setting set @@global.wsrep_sst_auth=NULL causes crash
---echo #
-SET @wsrep_sst_auth_saved= @@global.wsrep_sst_auth;
-SET @@global.wsrep_sst_auth= 'user:pass';
-SET @@global.wsrep_sst_auth= '';
-SET @@global.wsrep_sst_auth= NULL;
-SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
-
---source include/galera_wait_ready.inc
-
---echo # End of test.

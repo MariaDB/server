@@ -93,6 +93,11 @@ foreach my $option (@ARGV)
   {
     $option = substr($option, 2);
   }
+  elsif (substr ($option, 0, 2) eq "-D")
+  {
+    # Must be cmake config option
+    $option = substr($option, 1);
+  }
   else
   {
     # This must be environment variable
@@ -118,6 +123,11 @@ foreach my $option (@ARGV)
   {
     $just_print=1;
     next;
+  }
+  if ($option =~ /D.*=/)
+  {
+    $cmakeargs = $cmakeargs." -".$option;
+     next;
   }
   if($option =~ /with-plugins=/)
   {

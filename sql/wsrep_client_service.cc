@@ -1,4 +1,4 @@
-/* Copyright 2018 Codership Oy <info@codership.com>
+/* Copyright 2018-2021 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -69,6 +69,8 @@ bool Wsrep_client_service::interrupted(
   wsrep::unique_lock<wsrep::mutex>& lock WSREP_UNUSED) const
 {
   DBUG_ASSERT(m_thd == current_thd);
+  /* Underlying mutex in lock object points to THD::LOCK_thd_data, which
+  protects m_thd->wsrep_trx() and protects us from thd delete. */
   mysql_mutex_assert_owner(static_cast<mysql_mutex_t*>(lock.mutex()->native()));
   bool ret= (m_thd->killed != NOT_KILLED);
   if (ret)
@@ -109,14 +111,14 @@ int Wsrep_client_service::prepare_data_for_replication()
                   "affected rows: %llu, "
                   "changed tables: %d, "
                   "sql_log_bin: %d",
-                  WSREP_QUERY(m_thd),
+                  wsrep_thd_query(m_thd),
                   m_thd->get_stmt_da()->affected_rows(),
                   stmt_has_updated_trans_table(m_thd),
                   m_thd->variables.sql_log_bin);
     }
     else
     {
-      WSREP_DEBUG("empty rbr buffer, query: %s", WSREP_QUERY(m_thd));
+      WSREP_DEBUG("empty rbr buffer, query: %s", wsrep_thd_query(m_thd));
     }
   }
   DBUG_RETURN(0);
@@ -193,6 +195,7 @@ cleanup:
 int Wsrep_client_service::remove_fragments()
 {
   DBUG_ENTER("Wsrep_client_service::remove_fragments");
+  DEBUG_SYNC(m_thd, "wsrep_before_fragment_removal");
   if (wsrep_schema->remove_fragments(m_thd,
                                      Wsrep_server_state::instance().id(),
                                      m_thd->wsrep_trx().id(),

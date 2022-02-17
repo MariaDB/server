@@ -1891,8 +1891,6 @@ bool
 Sp_handler::sp_show_create_routine(THD *thd,
                                    const Database_qualified_name *name) const
 {
-  sp_head *sp;
-
   DBUG_ENTER("sp_show_create_routine");
   DBUG_PRINT("enter", ("type: %s name: %.*s",
                        type_str(),
@@ -1905,20 +1903,28 @@ Sp_handler::sp_show_create_routine(THD *thd,
     It is "safe" to do as long as it doesn't affect the results
     of the binary log or the query cache, which currently it does not.
   */
-  if (sp_cache_routine(thd, name, false, &sp))
-    DBUG_RETURN(TRUE);
+  sp_head *sp= 0;
 
-  if (sp == NULL || sp->show_create_routine(thd, this))
+  DBUG_EXECUTE_IF("cache_sp_in_show_create",
+    /* Some tests need just need a way to cache SP without other side-effects.*/
+    sp_cache_routine(thd, name, false, &sp);
+    sp->show_create_routine(thd, this);
+    DBUG_RETURN(false);
+  );
+
+  bool free_sp= db_find_routine(thd, name, &sp) == SP_OK;
+  bool ret= !sp || sp->show_create_routine(thd, this);
+  if (ret)
   {
     /*
       If we have insufficient privileges, pretend the routine
       does not exist.
     */
     my_error(ER_SP_DOES_NOT_EXIST, MYF(0), type_str(), name->m_name.str);
-    DBUG_RETURN(TRUE);
   }
-
-  DBUG_RETURN(FALSE);
+  if (free_sp)
+    sp_head::destroy(sp);
+  DBUG_RETURN(ret);
 }
 
 

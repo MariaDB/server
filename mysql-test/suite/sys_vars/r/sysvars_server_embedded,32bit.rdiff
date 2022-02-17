@@ -1,7 +1,7 @@
---- sysvars_server_embedded.result
-+++ sysvars_server_embedded.result
-@@ -34,7 +34,7 @@ READ_ONLY	NO
- COMMAND_LINE_ARGUMENT	REQUIRED
+--- ../../mysql-test/suite/sys_vars/r/sysvars_server_embedded.result	2022-01-27 20:42:19.039084441 +0200
++++ ../../mysql-test/suite/sys_vars/r/sysvars_server_embedded,32bit.result~	2022-01-28 16:12:40.038627481 +0200
+@@ -14,7 +14,7 @@
+ order by variable_name;
  VARIABLE_NAME	ARIA_BLOCK_SIZE
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT UNSIGNED
@@ -563,7 +563,7 @@
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
  VARIABLE_COMMENT	The number of bytes to use when sorting BLOB or TEXT values (only the first max_sort_length bytes of each value are used; the rest are ignored)
- NUMERIC_MIN_VALUE	4
+ NUMERIC_MIN_VALUE	64
  NUMERIC_MAX_VALUE	8388608
 @@ -1954,7 +1954,7 @@ READ_ONLY	NO
  COMMAND_LINE_ARGUMENT	REQUIRED
@@ -799,8 +799,8 @@
 +VARIABLE_TYPE	INT
  VARIABLE_COMMENT	Size of the statement digest. Use 0 to disable, -1 for automated sizing.
  NUMERIC_MIN_VALUE	-1
- NUMERIC_MAX_VALUE	200
-@@ -2344,7 +2344,7 @@ READ_ONLY	YES
+ NUMERIC_MAX_VALUE	1048576
+@@ -2144,7 +2144,7 @@
  COMMAND_LINE_ARGUMENT	REQUIRED
  VARIABLE_NAME	PERFORMANCE_SCHEMA_EVENTS_STAGES_HISTORY_LONG_SIZE
  VARIABLE_SCOPE	GLOBAL

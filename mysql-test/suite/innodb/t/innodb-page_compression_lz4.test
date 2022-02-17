@@ -1,6 +1,8 @@
 -- source include/have_innodb.inc
 -- source include/have_innodb_lz4.inc
 -- source include/not_embedded.inc
+# The test can take very long time with valgrind
+--source include/not_valgrind.inc
 
 # lz4
 set global innodb_compression_algorithm = 2;

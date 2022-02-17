@@ -16,7 +16,7 @@
 
 
 #define PLUGIN_VERSION 0x104
-#define PLUGIN_STR_VERSION "1.4.11"
+#define PLUGIN_STR_VERSION "1.4.13"
 
 #define _my_thread_var loc_thread_var
 
@@ -301,8 +301,6 @@ static char logging;
 static volatile int internal_stop_logging= 0;
 static char incl_user_buffer[1024];
 static char excl_user_buffer[1024];
-static char *big_buffer= NULL;
-static size_t big_buffer_alloced= 0;
 static unsigned int query_log_limit= 0;
 
 static char servhost[256];
@@ -561,18 +559,10 @@ static PSI_mutex_info mutex_key_list[]=
 {
   { &key_LOCK_operations, "SERVER_AUDIT_plugin::lock_operations",
     PSI_FLAG_GLOBAL}
-#ifndef FLOGGER_NO_PSI
-  ,
-  { &key_LOCK_atomic, "SERVER_AUDIT_plugin::lock_atomic",
-    PSI_FLAG_GLOBAL},
-  { &key_LOCK_bigbuffer, "SERVER_AUDIT_plugin::lock_bigbuffer",
-    PSI_FLAG_GLOBAL}
-#endif /*FLOGGER_NO_PSI*/
 };
 #endif /*HAVE_PSI_INTERFACE*/
 static mysql_prlock_t lock_operations;
 static mysql_mutex_t lock_atomic;
-static mysql_mutex_t lock_bigbuffer;
 
 /* The Percona server and partly MySQL don't support         */
 /* launching client errors in the 'update_variable' methods. */
@@ -859,12 +849,8 @@ struct sa_keyword keywords_to_skip[]=
 
 struct sa_keyword not_ddl_keywords[]=
 {
-  {4, "DROP", &function_word, SQLCOM_QUERY_ADMIN},
-  {4, "DROP", &procedure_word, SQLCOM_QUERY_ADMIN},
   {4, "DROP", &user_word, SQLCOM_DCL},
   {6, "CREATE", &user_word, SQLCOM_DCL},
-  {6, "CREATE", &function_word, SQLCOM_QUERY_ADMIN},
-  {6, "CREATE", &procedure_word, SQLCOM_QUERY_ADMIN},
   {6, "RENAME", &user_word, SQLCOM_DCL},
   {0, NULL, 0, SQLCOM_DDL}
 };
@@ -1731,7 +1717,7 @@ static int log_statement_ex(const struct connection_info *cn,
                             int error_code, const char *type, int take_lock)
 {
   size_t csize;
-  char message_loc[1024];
+  char message_loc[2048];
   char *message= message_loc;
   size_t message_size= sizeof(message_loc);
   char *uh_buffer;
@@ -1740,6 +1726,7 @@ static int log_statement_ex(const struct connection_info *cn,
   unsigned int db_length;
   long long query_id;
   int result;
+  char *big_buffer= NULL;
 
   if ((db= cn->db))
     db_length= cn->db_length;
@@ -1822,17 +1809,9 @@ do_log_query:
 
   if (query_len > (message_size - csize)/2)
   {
-    flogger_mutex_lock(&lock_bigbuffer);
-    if (big_buffer_alloced < (query_len * 2 + csize))
-    {
-      big_buffer_alloced= (query_len * 2 + csize + 4095) & ~4095L;
-      big_buffer= realloc(big_buffer, big_buffer_alloced);
-      if (big_buffer == NULL)
-      {
-        big_buffer_alloced= 0;
-        return 0;
-      }
-    }
+    size_t big_buffer_alloced= (query_len * 2 + csize + 4095) & ~4095L;
+    if(!(big_buffer= malloc(big_buffer_alloced)))
+      return 0;
 
     memcpy(big_buffer, message, csize);
     message= big_buffer;
@@ -1878,8 +1857,8 @@ do_log_query:
                       "\',%d", error_code);
   message[csize]= '\n';
   result= write_log(message, csize + 1, take_lock);
-  if (message == big_buffer)
-    flogger_mutex_unlock(&lock_bigbuffer);
+  if (big_buffer)
+    free(big_buffer);
 
   return result;
 }
@@ -2528,7 +2507,6 @@ static int server_audit_init(void *p __attribute__((unused)))
 #endif
   mysql_prlock_init(key_LOCK_operations, &lock_operations);
   flogger_mutex_init(key_LOCK_operations, &lock_atomic, MY_MUTEX_INIT_FAST);
-  flogger_mutex_init(key_LOCK_operations, &lock_bigbuffer, MY_MUTEX_INIT_FAST);
 
   coll_init(&incl_user_coll);
   coll_init(&excl_user_coll);
@@ -2613,10 +2591,8 @@ static int server_audit_deinit(void *p __attribute__((unused)))
   else if (output_type == OUTPUT_SYSLOG)
     closelog();
 
-  (void) free(big_buffer);
   mysql_prlock_destroy(&lock_operations);
   flogger_mutex_destroy(&lock_atomic);
-  flogger_mutex_destroy(&lock_bigbuffer);
 
   error_header();
   fprintf(stderr, "STOPPED\n");

@@ -1,8 +1,8 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2021, Oracle and/or its affiliates.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -775,8 +775,8 @@ buf_page_is_checksum_valid_crc32(
 #ifdef UNIV_INNOCHECKSUM
 	if (log_file
 	    && srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32) {
-		fprintf(log_file, "page::%llu;"
-			" crc32 calculated = %u;"
+		fprintf(log_file, "page::" UINT32PF ";"
+			" crc32 calculated = " UINT32PF ";"
 			" recorded checksum field1 = " ULINTPF " recorded"
 			" checksum field2 =" ULINTPF "\n", cur_page_num,
 			crc32, checksum_field1, checksum_field2);
@@ -817,26 +817,26 @@ buf_page_is_checksum_valid_innodb(
 #ifdef UNIV_INNOCHECKSUM
 	if (log_file
 	    && srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_INNODB) {
-		fprintf(log_file, "page::%llu;"
+		fprintf(log_file, "page::" UINT32PF ";"
 			" old style: calculated ="
 			" " ULINTPF "; recorded = " ULINTPF "\n",
 			cur_page_num, old_checksum,
 			checksum_field2);
-		fprintf(log_file, "page::%llu;"
+		fprintf(log_file, "page::" UINT32PF ";"
 			" new style: calculated ="
-			" " ULINTPF "; crc32 = %u; recorded = " ULINTPF "\n",
+			" " ULINTPF "; crc32 = " UINT32PF "; recorded = " ULINTPF "\n",
 			cur_page_num, new_checksum,
 			buf_calc_page_crc32(read_buf), checksum_field1);
 	}
 
 	if (log_file
 	    && srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB) {
-		fprintf(log_file, "page::%llu;"
+		fprintf(log_file, "page::" UINT32PF ";"
 			" old style: calculated ="
 			" " ULINTPF "; recorded checksum = " ULINTPF "\n",
 			cur_page_num, old_checksum,
 			checksum_field2);
-		fprintf(log_file, "page::%llu;"
+		fprintf(log_file, "page::" UINT32PF ";"
 			" new style: calculated ="
 			" " ULINTPF "; recorded checksum  = " ULINTPF "\n",
 			cur_page_num, new_checksum,
@@ -904,7 +904,7 @@ buf_page_is_checksum_valid_none(
 	if (log_file
 	    && srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_NONE) {
 		fprintf(log_file,
-			"page::%llu; none checksum: calculated"
+			"page::" UINT32PF "; none checksum: calculated"
 			" = %lu; recorded checksum_field1 = " ULINTPF
 			" recorded checksum_field2 = " ULINTPF "\n",
 			cur_page_num, BUF_NO_CHECKSUM_MAGIC,
@@ -968,8 +968,7 @@ bool buf_is_zeroes(span<const byte> buf)
 /** Check if a page is corrupt.
 @param[in]	check_lsn	whether the LSN should be checked
 @param[in]	read_buf	database page
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	space		tablespace
+@param[in]	fsp_flags	tablespace flags
 @return whether the page is corrupted */
 bool
 buf_page_is_corrupted(
@@ -1127,15 +1126,15 @@ buf_page_is_corrupted(
 			checksum_field1, checksum_field2)) {
 #ifdef UNIV_INNOCHECKSUM
 			if (log_file) {
-				fprintf(log_file, "page::%llu;"
+				fprintf(log_file, "page::" UINT32PF ";"
 					" old style: calculated = %u;"
 					" recorded = " ULINTPF ";\n",
 					cur_page_num,
 					buf_calc_page_old_checksum(read_buf),
 					checksum_field2);
-				fprintf(log_file, "page::%llu;"
-					" new style: calculated = %u;"
-					" crc32 = %u; recorded = " ULINTPF ";\n",
+				fprintf(log_file, "page::" UINT32PF ";"
+					" new style: calculated = " UINT32PF ";"
+					" crc32 = " UINT32PF "; recorded = " ULINTPF ";\n",
 					cur_page_num,
 					buf_calc_page_new_checksum(read_buf),
 					buf_calc_page_crc32(read_buf),
@@ -1911,6 +1910,10 @@ buf_pool_init_instance(
 				ut_free(buf_pool->chunks);
 				buf_pool_mutex_exit(buf_pool);
 
+				/* InnoDB should free the mutex which was
+				created so far before freeing the instance */
+				mutex_free(&buf_pool->mutex);
+				mutex_free(&buf_pool->zip_mutex);
 				return(DB_ERROR);
 			}
 
@@ -1938,8 +1941,6 @@ buf_pool_init_instance(
 			2 * buf_pool->curr_size,
 			LATCH_ID_HASH_TABLE_RW_LOCK,
 			srv_n_page_hash_locks, MEM_HEAP_FOR_PAGE_HASH);
-
-		buf_pool->page_hash_old = NULL;
 
 		buf_pool->zip_hash = hash_create(2 * buf_pool->curr_size);
 
@@ -2574,8 +2575,6 @@ buf_pool_resize_hash(
 {
 	hash_table_t*	new_hash_table;
 
-	ut_ad(buf_pool->page_hash_old == NULL);
-
 	/* recreate page_hash */
 	new_hash_table = ib_recreate(
 		buf_pool->page_hash, 2 * buf_pool->curr_size);
@@ -2607,8 +2606,14 @@ buf_pool_resize_hash(
 		}
 	}
 
-	buf_pool->page_hash_old = buf_pool->page_hash;
-	buf_pool->page_hash = new_hash_table;
+	/* Concurrent threads may be accessing
+	buf_pool->page_hash->n_cells, n_sync_obj and try to latch
+	sync_obj[i] while we are resizing. Therefore we never
+	deallocate page_hash, instead we overwrite n_cells (and other
+	fields) with the new values. The n_sync_obj and sync_obj are
+	actually same in both. */
+	std::swap(*buf_pool->page_hash, *new_hash_table);
+	hash_table_free(new_hash_table);
 
 	/* recreate zip_hash */
 	new_hash_table = hash_create(2 * buf_pool->curr_size);
@@ -3062,11 +3067,6 @@ calc_buf_pool_size:
 
 		hash_unlock_x_all(buf_pool->page_hash);
 		buf_pool_mutex_exit(buf_pool);
-
-		if (buf_pool->page_hash_old != NULL) {
-			hash_table_free(buf_pool->page_hash_old);
-			buf_pool->page_hash_old = NULL;
-		}
 	}
 
 	UT_DELETE(chunk_map_old);
@@ -4393,6 +4393,10 @@ loop:
 				if (set) {
 					return NULL;
 				}
+			}
+
+			if (local_err == DB_IO_ERROR) {
+				return NULL;
 			}
 
 			ib::fatal() << "Unable to read page " << page_id

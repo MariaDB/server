@@ -1,3 +1,5 @@
+--source include/not_ubsan.inc
+--source include/platform.inc
 #
 # MDEV-11340 Allow multiple alternative authentication methods for the same user
 #
@@ -21,13 +23,13 @@ install soname 'auth_ed25519';
 select user(), current_user(), database();
 EOF
 
---let $creplace=create user $USER
---let $dreplace=drop user $USER
+--let $creplace=create user '$USER'
+--let $dreplace=drop user '$USER'
 
 #
 # socket,password
 #
---replace_result $creplace "create user USER"
+--replace_result $creplace "create user 'USER'"
 eval $creplace         identified via unix_socket OR mysql_native_password as password("GOOD");
 create user mysqltest1 identified via unix_socket OR mysql_native_password as password("good");
 show create user mysqltest1;
@@ -38,13 +40,13 @@ show create user mysqltest1;
 --echo # name does not match, password bad = failure
 --error 1
 --exec $try_auth -u mysqltest1 -pbad
---replace_result $dreplace "drop user USER"
+--replace_result $dreplace "drop user 'USER'"
 eval $dreplace, mysqltest1;
 
 #
 # password,socket
 #
---replace_result $creplace "create user USER"
+--replace_result $creplace "create user 'USER'"
 eval $creplace         identified via mysql_native_password as password("GOOD") OR unix_socket;
 create user mysqltest1 identified via mysql_native_password as password("good") OR unix_socket;
 show create user mysqltest1;
@@ -55,13 +57,13 @@ show create user mysqltest1;
 --echo # name does not match, password bad = failure
 --error 1
 --exec $try_auth -u mysqltest1 -pbad
---replace_result $dreplace "drop user USER"
+--replace_result $dreplace "drop user 'USER'"
 eval $dreplace, mysqltest1;
 
 #
 # socket,ed25519
 #
---replace_result $creplace "create user USER"
+--replace_result $creplace "create user 'USER'"
 eval $creplace         identified via unix_socket OR ed25519 as password("GOOD");
 create user mysqltest1 identified via unix_socket OR ed25519 as password("good");
 show create user mysqltest1;
@@ -72,13 +74,13 @@ show create user mysqltest1;
 --echo # name does not match, password bad = failure
 --error 1
 --exec $try_auth -u mysqltest1 -pbad
---replace_result $dreplace "drop user USER"
+--replace_result $dreplace "drop user 'USER'"
 eval $dreplace, mysqltest1;
 
 #
 # ed25519,socket
 #
---replace_result $creplace "create user USER"
+--replace_result $creplace "create user 'USER'"
 eval $creplace         identified via ed25519 as password("GOOD") OR unix_socket;
 create user mysqltest1 identified via ed25519 as password("good") OR unix_socket;
 show create user mysqltest1;
@@ -89,13 +91,13 @@ show create user mysqltest1;
 --echo # name does not match, password bad = failure
 --error 1
 --exec $try_auth -u mysqltest1 -pbad
---replace_result $dreplace "drop user USER"
+--replace_result $dreplace "drop user 'USER'"
 eval $dreplace, mysqltest1;
 
 #
 # ed25519,socket,password
 #
---replace_result $creplace "create user USER"
+--replace_result $creplace "create user 'USER'"
 eval $creplace         identified via ed25519 as password("GOOD") OR unix_socket OR mysql_native_password as password("works");
 create user mysqltest1 identified via ed25519 as password("good") OR unix_socket OR mysql_native_password as password("works");
 show create user mysqltest1;
@@ -108,7 +110,7 @@ show create user mysqltest1;
 --echo # name does not match, password bad = failure
 --error 1
 --exec $try_auth -u mysqltest1 -pbad
---replace_result $dreplace "drop user USER"
+--replace_result $dreplace "drop user 'USER'"
 eval $dreplace, mysqltest1;
 
 #
@@ -157,7 +159,7 @@ create user mysqltest1 identified via ed25519 as password("good") OR unix_socket
 #
 # invalid password,socket
 #
---replace_result $creplace "create user USER"
+--replace_result $creplace "create user 'USER'"
 eval $creplace         identified via mysql_native_password as '1234567890123456789012345678901234567890a' OR unix_socket;
 create user mysqltest1 identified via mysql_native_password as '1234567890123456789012345678901234567890a' OR unix_socket;
 update mysql.global_priv set priv=replace(priv, '1234567890123456789012345678901234567890a', 'invalid password');
@@ -171,7 +173,7 @@ show create user mysqltest1;
 --echo # SET PASSWORD helps
 set password for mysqltest1 = password('bla');
 --exec $try_auth -u mysqltest1 -pbla
---replace_result $dreplace "drop user USER"
+--replace_result $dreplace "drop user 'USER'"
 eval $dreplace, mysqltest1;
 
 #

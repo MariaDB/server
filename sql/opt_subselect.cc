@@ -714,6 +714,15 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
         if (arena)
           thd->restore_active_arena(arena, &backup);
         in_subs->is_registered_semijoin= TRUE;
+      }
+
+      /*
+        Print the transformation into trace. Do it when we've just set
+        is_registered_semijoin=TRUE above, and also do it when we've already
+        had it set.
+      */
+      if (in_subs->is_registered_semijoin)
+      {
         OPT_TRACE_TRANSFORM(thd, trace_wrapper, trace_transform,
                             select_lex->select_number,
                             "IN (SELECT)", "semijoin");
@@ -1591,6 +1600,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
 {
   SELECT_LEX *parent_lex= parent_join->select_lex;
   TABLE_LIST *emb_tbl_nest= NULL;
+  TABLE_LIST *orig_tl;
   List<TABLE_LIST> *emb_join_list= &parent_lex->top_join_list;
   THD *thd= parent_join->thd;
   DBUG_ENTER("convert_subq_to_sj");
@@ -1752,17 +1762,17 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
      because view's tables are inserted after the view)
   */
   
-  for (tl= (TABLE_LIST*)(parent_lex->table_list.first); tl->next_local; tl= tl->next_local)
+  for (orig_tl= (TABLE_LIST*)(parent_lex->table_list.first);
+       orig_tl->next_local;
+       orig_tl= orig_tl->next_local)
   {}
 
-  tl->next_local= subq_lex->join->tables_list;
+  orig_tl->next_local= subq_lex->join->tables_list;
 
   /* A theory: no need to re-connect the next_global chain */
 
   /* 3. Remove the original subquery predicate from the WHERE/ON */
 
-  // The subqueries were replaced for Item_int(1) earlier
-  subq_pred->reset_strategy(SUBS_SEMI_JOIN);       // for subsequent executions
   /*TODO: also reset the 'm_with_subquery' there. */
 
   /* n. Adjust the parent_join->table_count counter */
@@ -1795,12 +1805,14 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     Add the subquery-induced equalities too.
   */
   SELECT_LEX *save_lex= thd->lex->current_select;
+  table_map subq_pred_used_tables;
+
   thd->lex->current_select=subq_lex;
   if (subq_pred->left_expr->fix_fields_if_needed(thd, &subq_pred->left_expr))
-    DBUG_RETURN(TRUE);
+    goto restore_tl_and_exit;
   thd->lex->current_select=save_lex;
 
-  table_map subq_pred_used_tables= subq_pred->used_tables();
+  subq_pred_used_tables= subq_pred->used_tables();
   sj_nest->nested_join->sj_corr_tables= subq_pred_used_tables;
   sj_nest->nested_join->sj_depends_on=  subq_pred_used_tables |
                                         subq_pred->left_expr->used_tables();
@@ -1843,7 +1855,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
       new (thd->mem_root) Item_func_eq(thd, subq_pred->left_expr_orig,
                                        subq_lex->ref_pointer_array[0]);
     if (!item_eq)
-      DBUG_RETURN(TRUE);
+      goto restore_tl_and_exit;
     if (subq_pred->left_expr_orig != subq_pred->left_expr)
       thd->change_item_tree(item_eq->arguments(), subq_pred->left_expr);
     item_eq->in_equality_no= 0;
@@ -1864,7 +1876,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
         Item_func_eq(thd, subq_pred->left_expr_orig->element_index(i),
                      subq_lex->ref_pointer_array[i]);
       if (!item_eq)
-        DBUG_RETURN(TRUE);
+        goto restore_tl_and_exit;
       DBUG_ASSERT(subq_pred->left_expr->element_index(i)->is_fixed());
       if (subq_pred->left_expr_orig->element_index(i) !=
           subq_pred->left_expr->element_index(i))
@@ -1883,13 +1895,13 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     Item_row *row= new (thd->mem_root) Item_row(thd, subq_lex->pre_fix);
     /* fix fields on subquery was call so they should be the same */
     if (!row)
-      DBUG_RETURN(TRUE);
+      goto restore_tl_and_exit;
     DBUG_ASSERT(subq_pred->left_expr->cols() == row->cols());
     nested_join->sj_outer_expr_list.push_back(&subq_pred->left_expr);
     Item_func_eq *item_eq=
       new (thd->mem_root) Item_func_eq(thd, subq_pred->left_expr_orig, row);
     if (!item_eq)
-      DBUG_RETURN(TRUE);
+      goto restore_tl_and_exit;
     for (uint i= 0; i < row->cols(); i++)
     {
       if (row->element_index(i) != subq_lex->ref_pointer_array[i])
@@ -1908,9 +1920,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     we have in here).
   */
   if (sj_nest->sj_on_expr->fix_fields_if_needed(thd, &sj_nest->sj_on_expr))
-  {
-    DBUG_RETURN(TRUE);
-  }
+    goto restore_tl_and_exit;
 
   /*
     Walk through sj nest's WHERE and ON expressions and call
@@ -1935,9 +1945,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     emb_tbl_nest->on_expr->top_level_item();
     if (emb_tbl_nest->on_expr->fix_fields_if_needed(thd,
                                                     &emb_tbl_nest->on_expr))
-    {
-      DBUG_RETURN(TRUE);
-    }
+      goto restore_tl_and_exit;
   }
   else
   {
@@ -1951,9 +1959,8 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     save_lex= thd->lex->current_select;
     thd->lex->current_select=parent_join->select_lex;
     if (parent_join->conds->fix_fields_if_needed(thd, &parent_join->conds))
-    {
-      DBUG_RETURN(1);
-    }
+      goto restore_tl_and_exit;
+
     thd->lex->current_select=save_lex;
     parent_join->select_lex->where= parent_join->conds;
   }
@@ -1966,9 +1973,16 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
       parent_lex->ftfunc_list->push_front(ifm, thd->mem_root);
   }
 
+  // The subqueries were replaced for Item_int(1) earlier
+  subq_pred->reset_strategy(SUBS_SEMI_JOIN);       // for subsequent executions
+
   parent_lex->have_merged_subqueries= TRUE;
   /* Fatal error may have been set to by fix_after_pullout() */
   DBUG_RETURN(thd->is_fatal_error);
+
+restore_tl_and_exit:
+  orig_tl->next_local= NULL;
+  DBUG_RETURN(TRUE);
 }
 
 
@@ -2990,7 +3004,7 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
 }
 
 
-void Sj_materialization_picker::set_from_prev(struct st_position *prev)
+void Sj_materialization_picker::set_from_prev(POSITION *prev)
 {
   if (prev->sjmat_picker.is_used)
     set_empty();
@@ -3176,7 +3190,7 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
 }
 
 
-void LooseScan_picker::set_from_prev(struct st_position *prev)
+void LooseScan_picker::set_from_prev(POSITION *prev)
 {
   if (prev->loosescan_picker.is_used)
     set_empty();
@@ -3197,7 +3211,7 @@ bool LooseScan_picker::check_qep(JOIN *join,
                                  double *read_time,
                                  table_map *handled_fanout,
                                  sj_strategy_enum *strategy,
-                                 struct st_position *loose_scan_pos)
+                                 POSITION *loose_scan_pos)
 {
   POSITION *first= join->positions + first_loosescan_table; 
   /* 
@@ -3275,7 +3289,7 @@ bool LooseScan_picker::check_qep(JOIN *join,
   return FALSE;
 }
 
-void Firstmatch_picker::set_from_prev(struct st_position *prev)
+void Firstmatch_picker::set_from_prev(POSITION *prev)
 {
   if (prev->firstmatch_picker.is_used)
     invalidate_firstmatch_prefix();
@@ -3819,9 +3833,9 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       Json_writer_array semijoin_plan(thd, "join_order");
       for (i= first + sjm->tables; i <= tablenr; i++)
       {
+        Json_writer_object trace_one_table(thd);
         if (unlikely(thd->trace_started()))
         {
-          Json_writer_object trace_one_table(thd);
           trace_one_table.add_table_name(join->best_positions[i].table);
         }
         best_access_path(join, join->best_positions[i].table, rem_tables,
@@ -3858,9 +3872,9 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       Json_writer_array semijoin_plan(thd, "join_order");
       for (idx= first; idx <= tablenr; idx++)
       {
+        Json_writer_object trace_one_table(thd);
         if (unlikely(thd->trace_started()))
         {
-          Json_writer_object trace_one_table(thd);
           trace_one_table.add_table_name(join->best_positions[idx].table);
         }
         if (join->best_positions[idx].use_join_buffer)
@@ -3897,9 +3911,9 @@ void fix_semijoin_strategies_for_picked_join_order(JOIN *join)
       Json_writer_array semijoin_plan(thd, "join_order");
       for (idx= first; idx <= tablenr; idx++)
       {
+        Json_writer_object trace_one_table(thd);
         if (unlikely(thd->trace_started()))
         {
-          Json_writer_object trace_one_table(thd);
           trace_one_table.add_table_name(join->best_positions[idx].table);
         }
         if (join->best_positions[idx].use_join_buffer || (idx == first))
@@ -5789,8 +5803,8 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
         ((Item_func *) item)->functype() == Item_func::EQ_FUNC &&
         check_simple_equality(thd,
                              Item::Context(Item::ANY_SUBST,
-                             ((Item_func_equal *)item)->compare_type_handler(),
-                             ((Item_func_equal *)item)->compare_collation()),
+                             ((Item_func_eq *)item)->compare_type_handler(),
+                             ((Item_func_eq *)item)->compare_collation()),
                              ((Item_func *)item)->arguments()[0],
                              ((Item_func *)item)->arguments()[1],
                              &new_cond_equal))

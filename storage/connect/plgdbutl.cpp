@@ -39,12 +39,12 @@
 /***********************************************************************/
 #include "my_global.h"
 #include "my_pthread.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <fcntl.h>
 #include <errno.h>
 #define BIGMEM         1048576            // 1 Megabyte
-#else     // !__WIN__
+#else     // !_WIN32
 #include <unistd.h>
 #include <fcntl.h>
 //#if defined(THREAD)
@@ -52,7 +52,7 @@
 //#endif   // THREAD
 #include <stdarg.h>
 #define BIGMEM      2147483647            // Max int value
-#endif    // !__WIN__
+#endif    // !_WIN32
 #include <locale.h>
 
 /***********************************************************************/
@@ -89,11 +89,11 @@ extern "C" {
 extern char version[];
 } // extern "C"
 
-//#if defined(__WIN__)
+//#if defined(_WIN32)
 //extern CRITICAL_SECTION parsec;      // Used calling the Flex parser
-//#else   // !__WIN__
+//#else   // !_WIN32
 extern pthread_mutex_t parmut;
-//#endif  // !__WIN__
+//#endif  // !_WIN32
 
 // The debug trace used by the main thread
 FILE *pfile = NULL;
@@ -386,11 +386,11 @@ char *SetPath(PGLOBAL g, const char *path)
 		} // endif path
 
 		if (*path != '.') {
-#if defined(__WIN__)
+#if defined(_WIN32)
 			const char *s = "\\";
-#else   // !__WIN__
+#else   // !_WIN32
 			const char *s = "/";
-#endif  // !__WIN__
+#endif  // !_WIN32
 			strcat(strcat(strcat(strcpy(buf, "."), s), path), s);
 		} else
 			strcpy(buf, path);
@@ -409,7 +409,7 @@ char *ExtractFromPath(PGLOBAL g, char *pBuff, char *FileName, OPVAL op)
   char *drive = NULL, *direc = NULL, *fname = NULL, *ftype = NULL;
 
   switch (op) {           // Determine which part to extract
-#if defined(__WIN__)
+#if defined(_WIN32)
     case OP_FDISK: drive = pBuff; break;
 #endif   // !UNIX
     case OP_FPATH: direc = pBuff; break;
@@ -1251,7 +1251,7 @@ void *PlgDBalloc(PGLOBAL g, void *area, MBLOCK& mp)
     // For allocations greater than one fourth of remaining storage
     // in the area, do allocate from virtual storage.
 		const char*v = "malloc";
-#if defined(__WIN__)
+#if defined(_WIN32)
 		if (mp.Size >= BIGMEM) {
 			v = "VirtualAlloc";
 			mp.Memp = VirtualAlloc(NULL, mp.Size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -1354,7 +1354,7 @@ void PlgDBfree(MBLOCK& mp)
   {
 	if (!mp.Sub && mp.Memp) {
 		const char*v = "free";
-#if defined(__WIN__)
+#if defined(_WIN32)
 		if (mp.Size >= BIGMEM) {
 			v = "VirtualFree";
 			VirtualFree(mp.Memp, 0, MEM_RELEASE);
@@ -1556,11 +1556,11 @@ int FileComp(PGLOBAL g, char *file1, char *file2)
   bp[0] = buff1; bp[1] = buff2;
 
   for (i = 0; i < 2; i++) {
-#if defined(__WIN__)
+#if defined(_WIN32)
     h[i]= global_open(g, MSGID_NONE, fn[i], _O_RDONLY | _O_BINARY);
-#else   // !__WIN__
+#else   // !_WIN32
     h[i]= global_open(g, MSGOD_NONE, fn[i], O_RDONLY);
-#endif  // !__WIN__
+#endif  // !_WIN32
 
     if (h[i] == -1) {
 //      if (errno != ENOENT) {

@@ -334,7 +334,7 @@ SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Schema mismatch (Number of columns don't match, table has 6 columns but the tablespace meta-data file has 5 columns)
+ERROR HY000: Schema mismatch (Column c3 not found in tablespace.)
 unlink: t1.ibd
 unlink: t1.cfg
 DROP TABLE t1;
@@ -919,6 +919,22 @@ c1	c2
 15	1
 16	1
 DROP TABLE t1;
+CREATE TABLE t1 ( id INT NOT NULL, i1 INT, i2 INT, i3 INT, PRIMARY KEY (id)) engine=innodb;
+CREATE TABLE t2 ( id INT NOT NULL, i1 INT, i2 INT, PRIMARY KEY (id)) engine=innodb;
+ALTER TABLE t2 DISCARD TABLESPACE;
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+ALTER TABLE t2 IMPORT TABLESPACE;
+ERROR HY000: Schema mismatch (Column DB_ROW_ID ordinal value mismatch, it's at 3 in the table and 4 in the tablespace meta-data file)
+DROP TABLE t1, t2;
+CREATE TABLE t1 ( id INT NOT NULL, i1 INT, i2 INT, PRIMARY KEY (id)) engine=innodb;
+CREATE TABLE t2 ( id INT NOT NULL, i1 INT, i2 INT, i3 INT, PRIMARY KEY (id)) engine=innodb;
+ALTER TABLE t2 DISCARD TABLESPACE;
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+ALTER TABLE t2 IMPORT TABLESPACE;
+ERROR HY000: Schema mismatch (Column i3 not found in tablespace.)
+DROP TABLE t1, t2;
 call mtr.add_suppression("Got error -1 when reading table '.*'");
 call mtr.add_suppression("InnoDB: Error: tablespace id and flags in file '.*'");
 call mtr.add_suppression("InnoDB: The table .* doesn't have a corresponding tablespace, it was discarded");

@@ -184,7 +184,11 @@ class Gcalc_result_receiver
   double first_x, first_y, prev_x, prev_y;
   double shape_area;
 public:
-  Gcalc_result_receiver() : collection_result(FALSE), n_shapes(0), n_holes(0)
+Gcalc_result_receiver() :
+    n_points(0),
+    common_shapetype(Gcalc_function::shape_point),
+    collection_result(FALSE), n_shapes(0), n_holes(0),
+    cur_shape(Gcalc_function::shape_point), shape_pos(0)
     {}
   int start_shape(Gcalc_function::shape_type shape);
   int add_point(double x, double y);

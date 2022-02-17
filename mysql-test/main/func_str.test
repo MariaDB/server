@@ -1988,6 +1988,58 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # Start of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-24742 Server crashes in Charset::numchars / String::numchars
+--echo #
+
+SELECT NULL IN (RIGHT(AES_ENCRYPT('foo','bar'), LAST_INSERT_ID()), 'qux');
+
+--echo #
+--echo # Bug#31374305 - FORMAT() NOT DISPLAYING WHOLE NUMBER SIDE CORRECTLY
+--echo #                FOR ES_MX AND ES_ES LOCALES
+--echo #
+
+DELIMITER |;
+CREATE PROCEDURE load_locale_format_table()
+BEGIN
+  DECLARE locale_list VARCHAR(1000) DEFAULT '
+  es_AR,es_BO,es_CL,es_CO,es_CR,es_DO,es_EC,es_ES,es_GT,es_HN,
+  es_MX,es_NI,es_PA,es_PE,es_PR,es_PY,es_SV,es_US,es_UY,es_VE';
+  SET @fmt_stmt = 'INSERT INTO locale_format VALUES
+                   (?, FORMAT(12131254123412541,2,?));';
+  PREPARE stmt FROM @fmt_stmt;
+  WHILE locale_list != '' DO
+    /* get the first locale from the list */
+    SET @locale =
+          TRIM(REPLACE((SUBSTRING_INDEX(locale_list, ',', 1)), '\n',''));
+    EXECUTE stmt USING @locale, @locale;
+    /* remove the first locale from the list */
+    IF LOCATE(',', locale_list) > 0 THEN
+      SET locale_list =
+      SUBSTRING(locale_list, LOCATE(',', locale_list) + 1);
+    ELSE
+      SET locale_list = '';
+    END IF;
+  END WHILE;
+  DEALLOCATE PREPARE stmt;
+END|
+DELIMITER ;|
+
+CREATE TABLE locale_format(locale VARCHAR(10), formatted_string VARCHAR(100));
+CALL load_locale_format_table();
+SELECT * FROM locale_format;
+DROP PROCEDURE load_locale_format_table;
+DROP TABLE locale_format;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+
+--echo #
 --echo # Start of 10.3 tests
 --echo #
 
@@ -2088,6 +2140,24 @@ FROM t1;
 SHOW CREATE TABLE t2;
 SELECT c1 FROM t2;
 DROP TABLE t1, t2;
+
+
+--echo #
+--echo # MDEV-25560 Creating table with certain generated column crashes server
+--echo #
+
+CREATE TABLE t1 (i int, b int AS (RPAD(123,1)) stored);
+
+--echo # Original case from the reporter
+CREATE TABLE crash_test_2 (
+  DATA_VALUE CHAR(10) NULL,
+  HAS_DATA BIT NOT NULL,
+  TEST_COLUMN CHAR(10) AS (RPAD(CASE WHEN HAS_DATA = 1
+                                THEN DATA_VALUE ELSE NULL END, 10)) STORED);
+
+--echo # Cleanup
+DROP TABLE t1;
+DROP TABLE crash_test_2;
 
 
 --echo #

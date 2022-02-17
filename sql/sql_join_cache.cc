@@ -1200,7 +1200,7 @@ bool JOIN_CACHE::check_emb_key_usage()
     Item *item= ref->items[i]->real_item();
     Field *fld= ((Item_field *) item)->field;
     CACHE_FIELD *init_copy= field_descr+flag_fields+i; 
-    for (j= i, copy= init_copy; i < local_key_arg_fields;  i++, copy++)
+    for (j= i, copy= init_copy; j < local_key_arg_fields;  j++, copy++)
     {
       if (fld->eq(copy->field))
       {
@@ -1650,7 +1650,7 @@ void JOIN_CACHE::get_record_by_pos(uchar *rec_ptr)
 }
 
 
-/* 
+/*
   Get the match flag from the referenced record: the default implementation
 
   SYNOPSIS
@@ -1662,6 +1662,7 @@ void JOIN_CACHE::get_record_by_pos(uchar *rec_ptr)
     get the match flag for the record pointed by the reference at the position
     rec_ptr. If the match flag is placed in one of the previous buffers the
     function first reaches the linked record fields in this buffer.
+    The function returns the value of the first encountered match flag.
 
   RETURN VALUE
     match flag for the record at the position rec_ptr
@@ -1686,6 +1687,39 @@ enum JOIN_CACHE::Match_flag JOIN_CACHE::get_match_flag_by_pos(uchar *rec_ptr)
 
 
 /* 
+  Get the match flag for the referenced record from specified join buffer
+
+  SYNOPSIS
+    get_match_flag_by_pos_from_join_buffer()
+      rec_ptr  position of the first field of the record in the join buffer
+      tab      join table with join buffer where to look for the match flag
+
+  DESCRIPTION
+    This default implementation of the get_match_flag_by_pos_from_join_buffer
+    method gets the match flag for the record pointed by the reference at the
+    position rec_ptr from the join buffer attached to the join table tab.
+
+  RETURN VALUE
+    match flag for the record at the position rec_ptr from the join
+    buffer attached to the table tab.
+*/
+
+enum JOIN_CACHE::Match_flag
+JOIN_CACHE::get_match_flag_by_pos_from_join_buffer(uchar *rec_ptr,
+                                                   JOIN_TAB *tab)
+{
+  DBUG_ASSERT(tab->cache && tab->cache->with_match_flag);
+  for (JOIN_CACHE *cache= this; ; )
+  {
+    if (cache->join_tab == tab)
+      return (enum Match_flag) rec_ptr[0];
+    cache= cache->prev_cache;
+    rec_ptr= cache->get_rec_ref(rec_ptr);
+  }
+}
+
+
+/*
   Calculate the increment of the auxiliary buffer for a record write
 
   SYNOPSIS
@@ -1955,6 +1989,10 @@ bool JOIN_CACHE::read_referenced_field(CACHE_FIELD *copy,
     If the record is skipped the value of 'pos' is set to point to the position
     right after the record.
 
+  NOTE
+    Currently this function is called only when generating null complemented
+    records for outer joins (=> only when join_tab->first_unmatched != NULL).
+
   RETURN VALUE
     TRUE   the match flag is set to MATCH_FOUND and the record has been skipped
     FALSE  otherwise
@@ -1967,7 +2005,9 @@ bool JOIN_CACHE::skip_if_matched()
   if (prev_cache)
     offset+= prev_cache->get_size_of_rec_offset();
   /* Check whether the match flag is MATCH_FOUND */
-  if (get_match_flag_by_pos(pos+offset) == MATCH_FOUND)
+  if (get_match_flag_by_pos_from_join_buffer(pos+offset,
+                                             join_tab->first_unmatched) ==
+      MATCH_FOUND)
   {
     pos+= size_of_rec_len + get_rec_length(pos);
     return TRUE;
@@ -1984,12 +2024,22 @@ bool JOIN_CACHE::skip_if_matched()
 
   DESCRIPTION
     This default implementation of the virtual function skip_if_not_needed_match
-    skips the next record from the join buffer if its match flag is not 
-    MATCH_NOT_FOUND, and, either its value is MATCH_FOUND and join_tab is the
-    first inner table of an inner join, or, its value is MATCH_IMPOSSIBLE
-    and join_tab is the first inner table of an outer join.
+    skips the next record from the join when generating join extensions
+    for the records in the join buffer depending on the value of the match flag.
+      - In the case of a semi-nest the match flag may be in two states
+        {MATCH_NOT_FOUND, MATCH_FOUND}. The record is skipped if the flag is set
+        to MATCH_FOUND.
+      - In the case of a outer join nest when not_exists optimization is applied
+        the match may be in three states {MATCH_NOT_FOUND, MATCH_IMPOSSIBLE,
+        MATCH_FOUND. The record is skipped if the flag is set to MATCH_FOUND or
+        to MATCH_IMPOSSIBLE.
+
     If the record is skipped the value of 'pos' is set to point to the position
     right after the record.
+
+  NOTE
+    Currently the function is called only when generating non-null complemented
+    extensions for records in the join buffer.
 
   RETURN VALUE
     TRUE    the record has to be skipped
@@ -2001,11 +2051,19 @@ bool JOIN_CACHE::skip_if_not_needed_match()
   DBUG_ASSERT(with_length);
   enum Match_flag match_fl;
   uint offset= size_of_rec_len;
+  bool skip= FALSE;
   if (prev_cache)
     offset+= prev_cache->get_size_of_rec_offset();
 
-  if ((match_fl= get_match_flag_by_pos(pos+offset)) != MATCH_NOT_FOUND &&
-      (join_tab->check_only_first_match() == (match_fl == MATCH_FOUND)) )
+  if (!join_tab->check_only_first_match())
+    return FALSE;
+
+  match_fl= get_match_flag_by_pos(pos+offset);
+  skip= join_tab->first_sj_inner_tab ?
+        match_fl == MATCH_FOUND :           // the case of semi-join
+        match_fl != MATCH_NOT_FOUND;        // the case of outer-join
+
+  if (skip)
   {
     pos+= size_of_rec_len + get_rec_length(pos);
     return TRUE;
@@ -2105,7 +2163,14 @@ enum_nested_loop_state JOIN_CACHE::join_records(bool skip_last)
           goto finish;
       }
       join_tab->not_null_compl= FALSE;
-      /* Prepare for generation of null complementing extensions */
+      /*
+        Prepare for generation of null complementing extensions.
+        For all inner tables of the outer join operation for which
+        regular matches have been just found the field 'first_unmatched'
+        is set to point the the first inner table. After all null
+        complement rows are generated for this outer join this field
+        is set back to NULL.
+      */
       for (tab= join_tab->first_inner; tab <= join_tab->last_inner; tab++)
         tab->first_unmatched= join_tab->first_inner;
     }
@@ -2222,7 +2287,10 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
   int error;
   enum_nested_loop_state rc= NESTED_LOOP_OK;
   join_tab->table->null_row= 0;
-  bool check_only_first_match= join_tab->check_only_first_match();
+  bool check_only_first_match=
+    join_tab->check_only_first_match() &&
+    (!join_tab->first_inner ||                            // semi-join case
+     join_tab->first_inner == join_tab->first_unmatched); // outer join case
   bool outer_join_first_inner= join_tab->is_first_inner_for_outer_join();
   DBUG_ENTER("JOIN_CACHE::join_matching_records");
 

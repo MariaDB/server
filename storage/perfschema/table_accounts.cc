@@ -43,10 +43,10 @@ table_accounts::m_share=
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE accounts("
-                      "USER CHAR(" STRINGIFY_ARG(USERNAME_CHAR_LENGTH) ") collate utf8_bin default null,"
-                      "HOST CHAR(" STRINGIFY_ARG(HOSTNAME_LENGTH) ") collate utf8_bin default null,"
-                      "CURRENT_CONNECTIONS bigint not null,"
-                      "TOTAL_CONNECTIONS bigint not null)") }
+                      "USER CHAR(" STRINGIFY_ARG(USERNAME_CHAR_LENGTH) ") collate utf8_bin default null comment 'The connection''s client user name for the connection, or NULL if an internal thread.',"
+                      "HOST CHAR(" STRINGIFY_ARG(HOSTNAME_LENGTH) ") collate utf8_bin default null comment 'The connection client''s host name, or NULL if an internal thread.',"
+                      "CURRENT_CONNECTIONS bigint not null comment 'Current connections for the account.',"
+                      "TOTAL_CONNECTIONS bigint not null comment 'Total connections for the account.')") }
 };
 
 PFS_engine_table* table_accounts::create()

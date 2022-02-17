@@ -208,14 +208,15 @@ enum innobackupex_options
 	OPT_STREAM,
 	OPT_TABLES_FILE,
 	OPT_THROTTLE,
-	OPT_USE_MEMORY
+	OPT_USE_MEMORY,
+	OPT_INNODB_FORCE_RECOVERY,
 };
 
 ibx_mode_t ibx_mode = IBX_MODE_BACKUP;
 
 static struct my_option ibx_long_options[] =
 {
-	{"version", 'v', "print xtrabackup version information",
+	{"version", 'v', "print version information",
 	 (uchar *) &opt_ibx_version, (uchar *) &opt_ibx_version, 0,
 	 GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
@@ -258,12 +259,11 @@ static struct my_option ibx_long_options[] =
 	 (uchar *) &opt_ibx_slave_info, (uchar *) &opt_ibx_slave_info, 0,
 	 GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
-	{"incremental", OPT_INCREMENTAL, "This option tells xtrabackup to "
-	 "create an incremental backup, rather than a full one. It is passed "
-	 "to the xtrabackup child process. When this option is specified, "
+	{"incremental", OPT_INCREMENTAL,
+	 "Create an incremental backup, rather than a full one. When this option is specified, "
 	 "either --incremental-lsn or --incremental-basedir can also be given. "
-	 "If neither option is given, option --incremental-basedir is passed "
-	 "to xtrabackup by default, set to the first timestamped backup "
+	 "If neither option is given, option --incremental-basedir is used "
+	 "by default, set to the first timestamped backup "
 	 "directory in the backup base directory.",
 	 (uchar *) &opt_ibx_incremental, (uchar *) &opt_ibx_incremental, 0,
 	 GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -309,7 +309,7 @@ static struct my_option ibx_long_options[] =
 	{"force-non-empty-directories", OPT_FORCE_NON_EMPTY_DIRS, "This "
 	 "option, when specified, makes --copy-back or --move-back transfer "
 	 "files to non-empty directories. Note that no existing files will be "
-	 "overwritten. If --copy-back or --nove-back has to copy a file from "
+	 "overwritten. If --copy-back or --move-back has to copy a file from "
 	 "the backup directory which already exists in the destination "
 	 "directory, it will still fail with an error.",
 	 (uchar *) &opt_ibx_force_non_empty_dirs,
@@ -378,14 +378,14 @@ static struct my_option ibx_long_options[] =
 	{"incremental-history-name", OPT_INCREMENTAL_HISTORY_NAME,
 	 "This option specifies the name of the backup series stored in the "
 	 "PERCONA_SCHEMA.xtrabackup_history history record to base an "
-	 "incremental backup on. Xtrabackup will search the history table "
+	 "incremental backup on. Backup will search the history table "
 	 "looking for the most recent (highest innodb_to_lsn), successful "
 	 "backup in the series and take the to_lsn value to use as the "
 	 "starting lsn for the incremental backup. This will be mutually "
 	 "exclusive with --incremental-history-uuid, --incremental-basedir "
 	 "and --incremental-lsn. If no valid lsn can be found (no series by "
-	 "that name, no successful backups by that name) xtrabackup will "
-	 "return with an error. It is used with the --incremental option.",
+	 "that name, no successful backups by that name), "
+	 "an error will be returned. It is used with the --incremental option.",
 	 (uchar*) &opt_ibx_incremental_history_name,
 	 (uchar*) &opt_ibx_incremental_history_name, 0, GET_STR,
 	 REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -395,8 +395,8 @@ static struct my_option ibx_long_options[] =
 	 "stored in the PERCONA_SCHEMA.xtrabackup_history to base an "
 	 "incremental backup on. --incremental-history-name, "
 	 "--incremental-basedir and --incremental-lsn. If no valid lsn can be "
-	 "found (no success record with that uuid) xtrabackup will return "
-	 "with an error. It is used with the --incremental option.",
+	 "found (no success record with that uuid), an error will be returned."
+	 " It is used with the --incremental option.",
 	 (uchar*) &opt_ibx_incremental_history_uuid,
 	 (uchar*) &opt_ibx_incremental_history_uuid, 0, GET_STR,
 	 REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -425,7 +425,7 @@ static struct my_option ibx_long_options[] =
 	{"include", OPT_INCLUDE,
 	 "This option is a regular expression to be matched against table "
 	 "names in databasename.tablename format. It is passed directly to "
-	 "xtrabackup's --tables option. See the xtrabackup documentation for "
+	 "--tables option. See the documentation for "
 	 "details.",
 	 (uchar*) &opt_ibx_include,
 	 (uchar*) &opt_ibx_include, 0, GET_STR,
@@ -475,12 +475,6 @@ static struct my_option ibx_long_options[] =
 	 (uchar*) &opt_ibx_lock_wait_threshold, 0, GET_UINT,
 	 REQUIRED_ARG, 60, 0, 0, 0, 0, 0},
 
-	{"debug-sleep-before-unlock", OPT_DEBUG_SLEEP_BEFORE_UNLOCK,
-	 "This is a debug-only option used by the XtraBackup test suite.",
-	 (uchar*) &opt_ibx_debug_sleep_before_unlock,
-	 (uchar*) &opt_ibx_debug_sleep_before_unlock, 0, GET_UINT,
-	 REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-
 	{"safe-slave-backup-timeout", OPT_SAFE_SLAVE_BACKUP_TIMEOUT,
 	 "How many seconds --safe-slave-backup should wait for "
 	 "Slave_open_temp_tables to become zero. (default 300)",
@@ -493,22 +487,20 @@ static struct my_option ibx_long_options[] =
 	We put them here with only purpose for them to showup in
 	innobackupex --help output */
 
-	{"close_files", OPT_CLOSE_FILES, "Do not keep files opened. This "
-	 "option is passed directly to xtrabackup. Use at your own risk.",
+	{"close_files", OPT_CLOSE_FILES, "Do not keep files opened."
+	" Use at your own risk.",
 	 (uchar*) &ibx_xb_close_files, (uchar*) &ibx_xb_close_files, 0,
 	 GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
-	{"compress", OPT_COMPRESS, "This option instructs xtrabackup to "
-	 "compress backup copies of InnoDB data files. It is passed directly "
-	 "to the xtrabackup child process. Try 'xtrabackup --help' for more "
-	 "details.", (uchar*) &ibx_xtrabackup_compress_alg,
+	{"compress", OPT_COMPRESS, "This option instructs backup to "
+	 "compress backup copies of InnoDB data files."
+	 , (uchar*) &ibx_xtrabackup_compress_alg,
 	 (uchar*) &ibx_xtrabackup_compress_alg, 0,
 	 GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"compress-threads", OPT_COMPRESS_THREADS,
 	 "This option specifies the number of worker threads that will be used "
-	 "for parallel compression. It is passed directly to the xtrabackup "
-	 "child process. Try 'xtrabackup --help' for more details.",
+	 "for parallel compression.",
 	 (uchar*) &ibx_xtrabackup_compress_threads,
 	 (uchar*) &ibx_xtrabackup_compress_threads,
 	 0, GET_UINT, REQUIRED_ARG, 1, 1, UINT_MAX, 0, 0, 0},
@@ -519,17 +511,15 @@ static struct my_option ibx_long_options[] =
 	 (uchar*) &ibx_xtrabackup_compress_chunk_size,
 	 0, GET_ULL, REQUIRED_ARG, (1 << 16), 1024, ULONGLONG_MAX, 0, 0, 0},
 
-	{"export", OPT_EXPORT, "This option is passed directly to xtrabackup's "
-	 "--export option. It enables exporting individual tables for import "
-	 "into another server. See the xtrabackup documentation for details.",
+	{"export", OPT_EXPORT, " enables exporting individual tables for import "
+	 "into another server.",
 	 (uchar*) &ibx_xtrabackup_export, (uchar*) &ibx_xtrabackup_export,
 	 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"extra-lsndir", OPT_EXTRA_LSNDIR, "This option specifies the "
 	 "directory in which to save an extra copy of the "
 	 "\"xtrabackup_checkpoints\" file. The option accepts a string "
-	 "argument. It is passed directly to xtrabackup's --extra-lsndir "
-	 "option. See the xtrabackup documentation for details.",
+	 "argument.",
 	 (uchar*) &ibx_xtrabackup_extra_lsndir,
 	 (uchar*) &ibx_xtrabackup_extra_lsndir,
 	 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -551,7 +541,7 @@ static struct my_option ibx_long_options[] =
 	 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"incremental-force-scan", OPT_INCREMENTAL_FORCE_SCAN,
-	 "This options tells xtrabackup to perform full scan of data files "
+	 "Perform full scan of data files "
 	 "for taking an incremental backup even if full changed page bitmap "
 	 "data is available to enable the backup without the full scan.",
 	 (uchar*)&ibx_xtrabackup_incremental_force_scan,
@@ -577,10 +567,8 @@ static struct my_option ibx_long_options[] =
 	 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"parallel", OPT_PARALLEL, "On backup, this option specifies the "
-	 "number of threads the xtrabackup child process should use to back "
-	 "up files concurrently.  The option accepts an integer argument. It "
-	 "is passed directly to xtrabackup's --parallel option. See the "
-	 "xtrabackup documentation for details.",
+	 "number of threads to use to back "
+	 "up files concurrently.  The option accepts an integer argument.",
 	 (uchar*) &ibx_xtrabackup_parallel, (uchar*) &ibx_xtrabackup_parallel,
 	 0, GET_INT, REQUIRED_ARG, 1, 1, INT_MAX, 0, 0, 0},
 
@@ -588,23 +576,21 @@ static struct my_option ibx_long_options[] =
 	{"stream", OPT_STREAM, "This option specifies the format in which to "
 	 "do the streamed backup.  The option accepts a string argument. The "
 	 "backup will be done to STDOUT in the specified format. Currently, "
-	 "the only supported formats are tar and mbstream/xbstream. This "
-	 "option is passed directly to xtrabackup's --stream option.",
+	 "the only supported formats are tar and mbstream/xbstream.",
 	 (uchar*) &ibx_xtrabackup_stream_str,
 	 (uchar*) &ibx_xtrabackup_stream_str, 0, GET_STR,
 	 REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"tables-file", OPT_TABLES_FILE, "This option specifies the file in "
 	 "which there are a list of names of the form database.  The option "
-	 "accepts a string argument.table, one per line. The option is passed "
-	 "directly to xtrabackup's --tables-file option.",
+	 "accepts a string argument.table, one per line.",
 	 (uchar*) &ibx_xtrabackup_tables_file,
 	 (uchar*) &ibx_xtrabackup_tables_file,
 	 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"throttle", OPT_THROTTLE, "This option specifies a number of I/O "
 	 "operations (pairs of read+write) per second.  It accepts an integer "
-	 "argument.  It is passed directly to xtrabackup's --throttle option.",
+	 "argument.",
 	 (uchar*) &ibx_xtrabackup_throttle, (uchar*) &ibx_xtrabackup_throttle,
 	 0, GET_LONG, REQUIRED_ARG, 0, 0, LONG_MAX, 0, 1, 0},
 
@@ -616,15 +602,24 @@ static struct my_option ibx_long_options[] =
 	 0, 0, 0, 0, 0, 0},
 
 	{"use-memory", OPT_USE_MEMORY, "This option accepts a string argument "
-	 "that specifies the amount of memory in bytes for xtrabackup to use "
+	 "that specifies the amount of memory in bytes to use "
 	 "for crash recovery while preparing a backup. Multiples are supported "
 	 "providing the unit (e.g. 1MB, 1GB). It is used only with the option "
-	 "--apply-log. It is passed directly to xtrabackup's --use-memory "
-	 "option. See the xtrabackup documentation for details.",
+	 "--apply-log.",
 	 (uchar*) &ibx_xtrabackup_use_memory,
 	 (uchar*) &ibx_xtrabackup_use_memory,
 	 0, GET_LL, REQUIRED_ARG, 100*1024*1024L, 1024*1024L, LONGLONG_MAX, 0,
 	 1024*1024L, 0},
+
+	{"innodb-force-recovery", OPT_INNODB_FORCE_RECOVERY,
+	 "This option starts up the embedded InnoDB instance in crash "
+	 "recovery mode to ignore page corruption; should be used "
+	 "with the \"--apply-log\" option, in emergencies only. The "
+	 "default value is 0. Refer to \"innodb_force_recovery\" server "
+	 "system variable documentation for more details.",
+	 (uchar*)&xtrabackup_innodb_force_recovery,
+	 (uchar*)&xtrabackup_innodb_force_recovery,
+	 0, GET_ULONG, OPT_ARG, 0, 0, SRV_FORCE_IGNORE_CORRUPT, 0, 0, 0},
 
 	{ 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
@@ -632,7 +627,7 @@ static struct my_option ibx_long_options[] =
 
 static void usage(void)
 {
-	puts("Open source backup tool for InnoDB and XtraDB\n\
+	puts("Open source backup tool\n\
 \n\
 Copyright (C) 2009-2015 Percona LLC and/or its affiliates.\n\
 Portions Copyright (C) 2000, 2011, MySQL AB & Innobase Oy. All Rights Reserved.\n\
@@ -671,6 +666,7 @@ innobackupex [--compress] [--compress-threads=NUMBER-OF-THREADS] [--compress-chu
 innobackupex --apply-log [--use-memory=B]\n\
              [--defaults-file=MY.CNF]\n\
              [--export] [--ibbackup=IBBACKUP-BINARY]\n\
+             [--innodb-force-recovery=1]\n\
              BACKUP-DIR\n\
 \n\
 innobackupex --copy-back [--defaults-file=MY.CNF] [--defaults-group=GROUP-NAME] BACKUP-DIR\n\
@@ -682,7 +678,7 @@ innobackupex [--decompress]\n\
 \n\
 DESCRIPTION\n\
 \n\
-The first command line above makes a hot backup of a MySQL database.\n\
+The first command line above makes a hot backup of a database.\n\
 By default it creates a backup directory (named by the current date\n\
 	and time) in the given backup root directory.  With the --no-timestamp\n\
 option it does not create a time-stamped backup directory, but it puts\n\
@@ -692,22 +688,18 @@ indexes in all databases or in all of the databases specified with the\n\
 --databases option.  The created backup contains .frm, .MRG, .MYD,\n\
 .MYI, .MAD, .MAI, .TRG, .TRN, .ARM, .ARZ, .CSM, CSV, .opt, .par, and\n\
 InnoDB data and log files.  The MY.CNF options file defines the\n\
-location of the database.  This command connects to the MySQL server\n\
-using the mysql client program, and runs xtrabackup as a child\n\
-process.\n\
+location of the database.\n\
 \n\
 The --apply-log command prepares a backup for starting a MySQL\n\
 server on the backup. This command recovers InnoDB data files as specified\n\
 in BACKUP-DIR/backup-my.cnf using BACKUP-DIR/ib_logfile0,\n\
 and creates new InnoDB log files as specified in BACKUP-DIR/backup-my.cnf.\n\
-The BACKUP-DIR should be the path to a backup directory created by\n\
-xtrabackup. This command runs xtrabackup as a child process, but it does not \n\
-connect to the database server.\n\
+The BACKUP-DIR should be the path to a backup directory\n\
 \n\
 The --copy-back command copies data, index, and log files\n\
 from the backup directory back to their original locations.\n\
 The MY.CNF options file defines the original location of the database.\n\
-The BACKUP-DIR is the path to a backup directory created by xtrabackup.\n\
+The BACKUP-DIR is the path to a backup directory.\n\
 \n\
 The --move-back command is similar to --copy-back with the only difference that\n\
 it moves files to their original locations rather than copies them. As this\n\

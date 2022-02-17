@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB
+   Copyright (c) 2008, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2394,7 +2394,7 @@ Field *Field::make_new_field(MEM_ROOT *root, TABLE *new_table,
   tmp->unireg_check= Field::NONE;
   tmp->flags&= (NOT_NULL_FLAG | BLOB_FLAG | UNSIGNED_FLAG |
                 ZEROFILL_FLAG | BINARY_FLAG | ENUM_FLAG | SET_FLAG |
-                VERS_SYS_START_FLAG | VERS_SYS_END_FLAG |
+                VERS_ROW_START | VERS_ROW_END |
                 VERS_UPDATE_UNVERSIONED_FLAG);
   tmp->reset_fields();
   tmp->invisible= VISIBLE;
@@ -6327,6 +6327,7 @@ bool Field_timef::val_native(Native *to)
 int Field_year::store(const char *from, size_t len,CHARSET_INFO *cs)
 {
   DBUG_ASSERT(marked_for_write_or_computed());
+  THD *thd= get_thd();
   char *end;
   int error;
   longlong nr= cs->cset->strntoull10rnd(cs, from, len, 0, &end, &error);
@@ -6338,7 +6339,14 @@ int Field_year::store(const char *from, size_t len,CHARSET_INFO *cs)
     set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
     return 1;
   }
-  if (get_thd()->count_cuted_fields > CHECK_FIELD_EXPRESSION &&
+
+  if (thd->count_cuted_fields <= CHECK_FIELD_EXPRESSION && error == MY_ERRNO_EDOM)
+  {
+    *ptr= 0;
+    return 1;
+  }
+
+  if (thd->count_cuted_fields > CHECK_FIELD_EXPRESSION && 
       (error= check_int(cs, from, len, end, error)))
   {
     if (unlikely(error == 1)  /* empty or incorrect string */)
@@ -7425,23 +7433,10 @@ Field_string::compatible_field_size(uint field_metadata,
 
 int Field_string::cmp(const uchar *a_ptr, const uchar *b_ptr)
 {
-  size_t a_len, b_len;
-
-  if (field_charset->mbmaxlen != 1)
-  {
-    size_t char_len= field_length/field_charset->mbmaxlen;
-    a_len= my_charpos(field_charset, a_ptr, a_ptr + field_length, char_len);
-    b_len= my_charpos(field_charset, b_ptr, b_ptr + field_length, char_len);
-  }
-  else
-    a_len= b_len= field_length;
-  /*
-    We have to remove end space to be able to compare multi-byte-characters
-    like in latin_de 'ae' and 0xe4
-  */
-  return field_charset->coll->strnncollsp(field_charset,
-                                          a_ptr, a_len,
-                                          b_ptr, b_len);
+  return field_charset->coll->strnncollsp_nchars(field_charset,
+                                                 a_ptr, field_length,
+                                                 b_ptr, field_length,
+                                                 Field_string::char_length());
 }
 
 
@@ -7806,7 +7801,7 @@ my_decimal *Field_varstring::val_decimal(my_decimal *decimal_value)
 #ifdef HAVE_valgrind
 void Field_varstring::mark_unused_memory_as_defined()
 {
-  uint used_length= get_length();
+  uint used_length __attribute__((unused)) = get_length();
   MEM_MAKE_DEFINED(get_data() + used_length, field_length - used_length);
 }
 #endif
@@ -7840,19 +7835,6 @@ int Field_varstring::cmp(const uchar *a_ptr, const uchar *b_ptr)
 }
 
 
-static int cmp_str_prefix(const uchar *ua, size_t alen, const uchar *ub,
-                          size_t blen, size_t prefix, CHARSET_INFO *cs)
-{
-  const char *a= (char*)ua, *b= (char*)ub;
-  MY_STRCOPY_STATUS status;
-  prefix/= cs->mbmaxlen;
-  alen= cs->cset->well_formed_char_length(cs, a, a + alen, prefix, &status);
-  blen= cs->cset->well_formed_char_length(cs, b, b + blen, prefix, &status);
-  return cs->coll->strnncollsp(cs, ua, alen, ub, blen);
-}
-
-
-
 int Field_varstring::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
                                 size_t prefix_len)
 {
@@ -7872,8 +7854,12 @@ int Field_varstring::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
     a_length= uint2korr(a_ptr);
     b_length= uint2korr(b_ptr);
   }
-  return cmp_str_prefix(a_ptr+length_bytes, a_length, b_ptr+length_bytes,
-                        b_length, prefix_len, field_charset);
+  return field_charset->coll->strnncollsp_nchars(field_charset,
+                                                 a_ptr + length_bytes,
+                                                 a_length,
+                                                 b_ptr + length_bytes,
+                                                 b_length,
+                                                 prefix_len / field_charset->mbmaxlen);
 }
 
 
@@ -8548,6 +8534,7 @@ int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
   rc= well_formed_copy_with_check((char*) value.ptr(), (uint) new_length,
                                   cs, from, length,
                                   length, true, &copy_len);
+  value.length(copy_len);
   Field_blob::store_length(copy_len);
   bmove(ptr+packlength,(uchar*) &tmp,sizeof(char*));
 
@@ -8650,7 +8637,10 @@ int Field_blob::cmp_prefix(const uchar *a_ptr, const uchar *b_ptr,
   memcpy(&blob1, a_ptr+packlength, sizeof(char*));
   memcpy(&blob2, b_ptr+packlength, sizeof(char*));
   size_t a_len= get_length(a_ptr), b_len= get_length(b_ptr);
-  return cmp_str_prefix(blob1, a_len, blob2, b_len, prefix_len, field_charset);
+  return field_charset->coll->strnncollsp_nchars(field_charset,
+                                                 blob1, a_len,
+                                                 blob2, b_len,
+                                                 prefix_len / field_charset->mbmaxlen);
 }
 
 
@@ -9832,16 +9822,8 @@ bool Field_num::is_equal(const Column_definition &new_field) const
 }
 
 
-bool Field_enum::can_optimize_range(const Item_bool_func *cond,
-                                    const Item *item,
-                                    bool is_eq_func) const
-{
-  return item->cmp_type() != TIME_RESULT;
-}
-
-
-bool Field_enum::can_optimize_keypart_ref(const Item_bool_func *cond,
-                                          const Item *item) const
+bool Field_enum::can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
+                                                   const Item *item) const
 {
   switch (item->cmp_type())
   {
@@ -11076,16 +11058,26 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
     CREATE TABLE t1 (a INT) AS SELECT a FROM t2;
   See Type_handler::Column_definition_redefine_stage1()
   for data type specific code.
+
+  @param this         - The field definition corresponding to the expression
+                        in the "AS SELECT.." part.
+
+  @param dup_field    - The field definition from the "CREATE TABLE (...)" part.
+                        It has already underwent prepare_stage1(), so
+                        must be fully initialized:
+                        -- dup_field->charset is set and BINARY
+                           sorting style is applied, see find_bin_collation().
+
+  @param file         - The table handler
 */
 void
 Column_definition::redefine_stage1_common(const Column_definition *dup_field,
-                                          const handler *file,
-                                          const Schema_specification_st *schema)
+                                          const handler *file)
 {
   set_handler(dup_field->type_handler());
   default_value= dup_field->default_value;
-  charset=       dup_field->charset ? dup_field->charset :
-                                      schema->default_table_charset;
+  DBUG_ASSERT(dup_field->charset); // Set by prepare_stage1()
+  charset=      dup_field->charset;
   length=       dup_field->char_length;
   pack_length=  dup_field->pack_length;
   key_length=   dup_field->key_length;

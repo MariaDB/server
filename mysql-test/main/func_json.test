@@ -552,6 +552,27 @@ SELECT
 
 
 --echo #
+--echo # MDEV-24585 Assertion `je->s.cs == nice_js->charset()' failed in json_nice.
+--echo #
+
+SELECT JSON_REPLACE( JSON_DETAILED('["x"]'), '$.a', 'xx' );
+
+--echo #
+--echo # MDEV-18284 JSON casting using JSON_COMPACT doesn't always work
+--echo #            with values from subqueries
+--echo #
+
+CREATE TABLE json_test(a JSON, b JSON);
+INSERT INTO json_test VALUES ("[1,2,3]", '{"a":"foo"}');
+SELECT * FROM json_test;
+
+SELECT json_object("a", json_compact(a), "b", b)
+  FROM (SELECT * FROM json_test) AS json_test_values;
+SELECT json_object("a", json_compact(a), "b", json_compact(b))
+  FROM (SELECT * FROM json_test) AS json_test_values;
+DROP TABLE json_test;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

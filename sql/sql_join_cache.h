@@ -206,7 +206,9 @@ protected:
 
   /* 
     This flag indicates that records written into the join buffer contain
-    a match flag field. The flag must be set by the init method. 
+    a match flag field. The flag must be set by the init method.
+    Currently any implementation of the virtial init method calls
+    the function JOIN_CACHE::calc_record_fields() to set this flag.
   */
   bool with_match_flag; 
   /*
@@ -645,6 +647,13 @@ public:
 
   /* Shall return the value of the match flag for the positioned record */
   virtual enum Match_flag get_match_flag_by_pos(uchar *rec_ptr);
+
+  /*
+    Shall return the value of the match flag for the positioned record
+    from the join buffer attached to the specified table
+  */
+  virtual enum Match_flag
+    get_match_flag_by_pos_from_join_buffer(uchar *rec_ptr, JOIN_TAB *tab);
 
   /* Shall return the position of the current record */
   virtual uchar *get_curr_rec() { return curr_rec_pos; }

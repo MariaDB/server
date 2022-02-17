@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -861,7 +861,6 @@ row_ins_invalidate_query_cache(
 	innobase_invalidate_query_cache(thr_get_trx(thr), name);
 }
 
-
 /** Fill virtual column information in cascade node for the child table.
 @param[out]	cascade		child update node
 @param[in]	rec		clustered rec of child table
@@ -883,7 +882,7 @@ row_ins_foreign_fill_virtual(
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs_init(offsets_);
 	const rec_offs*	offsets =
-		rec_get_offsets(rec, index, offsets_, true,
+		rec_get_offsets(rec, index, offsets_, index->n_core_fields,
 				ULINT_UNDEFINED, &cascade->heap);
 	TABLE*		mysql_table= NULL;
 	upd_t*		update = cascade->update;
@@ -908,6 +907,11 @@ row_ins_foreign_fill_virtual(
 	if (!record) {
 		return DB_OUT_OF_MEMORY;
 	}
+	ut_ad(!node->is_delete
+	      || (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL));
+	ut_ad(foreign->type & (DICT_FOREIGN_ON_DELETE_SET_NULL
+			       | DICT_FOREIGN_ON_UPDATE_SET_NULL
+			       | DICT_FOREIGN_ON_UPDATE_CASCADE));
 
 	for (ulint i = 0; i < n_v_fld; i++) {
 
@@ -923,7 +927,7 @@ row_ins_foreign_fill_virtual(
 		dfield_t*	vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
 				&vc.heap, update->heap, NULL, thd, mysql_table,
-                                record, NULL, NULL, NULL);
+				record, NULL, NULL);
 
 		if (vfield == NULL) {
 			return DB_COMPUTE_VALUE_FAILED;
@@ -932,23 +936,18 @@ row_ins_foreign_fill_virtual(
 		upd_field = update->fields + n_diff;
 
 		upd_field->old_v_val = static_cast<dfield_t*>(
-				mem_heap_alloc(cascade->heap,
-					sizeof *upd_field->old_v_val));
+			mem_heap_alloc(update->heap,
+				       sizeof *upd_field->old_v_val));
 
 		dfield_copy(upd_field->old_v_val, vfield);
 
 		upd_field_set_v_field_no(upd_field, i, index);
 
-		bool set_null =
-			node->is_delete
-			? (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL)
-			: (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL);
-
 		dfield_t* new_vfield = innobase_get_computed_value(
 				update->old_vrow, col, index,
 				&vc.heap, update->heap, NULL, thd,
 				mysql_table, record, NULL,
-				set_null ? update : node->update, foreign);
+				update);
 
 		if (new_vfield == NULL) {
 			return DB_COMPUTE_VALUE_FAILED;
@@ -971,7 +970,9 @@ dberr_t wsrep_append_foreign_key(trx_t *trx,
 			       dict_foreign_t*	foreign,
 			       const rec_t*	clust_rec,
 			       dict_index_t*	clust_index,
-			       ibool		referenced,
+			       bool		referenced,
+			       upd_node_t*	upd_node,
+			       bool		pa_disable,
 			       Wsrep_service_key_type	key_type);
 #endif /* WITH_WSREP */
 
@@ -1197,7 +1198,8 @@ row_ins_foreign_check_on_constraint(
 	if (table->fts) {
 		doc_id = fts_get_doc_id_from_rec(
 			clust_rec, clust_index,
-			rec_get_offsets(clust_rec, clust_index, NULL, true,
+			rec_get_offsets(clust_rec, clust_index, NULL,
+					clust_index->n_core_fields,
 					ULINT_UNDEFINED, &tmp_heap));
 	}
 
@@ -1322,11 +1324,13 @@ row_ins_foreign_check_on_constraint(
 	}
 
 #ifdef WITH_WSREP
-	err = wsrep_append_foreign_key(trx, foreign, clust_rec, clust_index,
-				       FALSE, WSREP_SERVICE_KEY_EXCLUSIVE);
-	if (err != DB_SUCCESS) {
-		ib::info() << "WSREP: foreign key append failed: " <<  err;
-		goto nonstandard_exit_func;
+	if (trx->is_wsrep()) {
+		err = wsrep_append_foreign_key(trx, foreign, clust_rec, clust_index,
+					       false, NULL, true,
+					       WSREP_SERVICE_KEY_EXCLUSIVE);
+		if (err != DB_SUCCESS) {
+			goto nonstandard_exit_func;
+		}
 	}
 #endif /* WITH_WSREP */
 	mtr_commit(mtr);
@@ -1639,7 +1643,8 @@ row_ins_check_foreign_constraint(
 			continue;
 		}
 
-		offsets = rec_get_offsets(rec, check_index, offsets, true,
+		offsets = rec_get_offsets(rec, check_index, offsets,
+					  check_index->n_core_fields,
 					  ULINT_UNDEFINED, &heap);
 
 		if (page_rec_is_supremum(rec)) {
@@ -1664,23 +1669,6 @@ row_ins_check_foreign_constraint(
 		cmp = cmp_dtuple_rec(entry, rec, offsets);
 
 		if (cmp == 0) {
-			if (check_table->versioned()) {
-				bool history_row = false;
-
-				if (check_index->is_primary()) {
-					history_row = check_index->
-						vers_history_row(rec, offsets);
-				} else if (check_index->
-					vers_history_row(rec, history_row))
-				{
-					break;
-				}
-
-				if (history_row) {
-					continue;
-				}
-			}
-
 			if (rec_get_deleted_flag(rec,
 						 rec_offs_comp(offsets))) {
 				/* In delete-marked records, DB_TRX_ID must
@@ -1702,6 +1690,23 @@ row_ins_check_foreign_constraint(
 					goto end_scan;
 				}
 			} else {
+				if (check_table->versioned()) {
+					bool history_row = false;
+
+					if (check_index->is_primary()) {
+						history_row = check_index->
+							vers_history_row(rec,
+									 offsets);
+					} else if (check_index->
+						vers_history_row(rec,
+								 history_row)) {
+						break;
+					}
+
+					if (history_row) {
+						continue;
+					}
+				}
 				/* Found a matching record. Lock only
 				a record because we can allow inserts
 				into gaps */
@@ -1721,19 +1726,16 @@ row_ins_check_foreign_constraint(
 				if (check_ref) {
 					err = DB_SUCCESS;
 #ifdef WITH_WSREP
-					err = wsrep_append_foreign_key(
-						thr_get_trx(thr),
-						foreign,
-						rec,
-						check_index,
-						check_ref,
-						(upd_node != NULL
-						 && wsrep_protocol_version < 4)
-						? WSREP_SERVICE_KEY_SHARED
-						: WSREP_SERVICE_KEY_REFERENCE);
-					if (err != DB_SUCCESS) {
-						fprintf(stderr,
-							"WSREP: foreign key append failed: %d\n", err);
+					if (trx->is_wsrep()) {
+						err = wsrep_append_foreign_key(
+							thr_get_trx(thr),
+							foreign,
+							rec,
+							check_index,
+							check_ref,
+							upd_node,
+						        false,
+						        WSREP_SERVICE_KEY_REFERENCE);
 					}
 #endif /* WITH_WSREP */
 					goto end_scan;
@@ -2127,7 +2129,8 @@ row_ins_scan_sec_index_for_duplicate(
 			continue;
 		}
 
-		offsets = rec_get_offsets(rec, index, offsets, true,
+		offsets = rec_get_offsets(rec, index, offsets,
+					  index->n_core_fields,
 					  ULINT_UNDEFINED, &offsets_heap);
 
 		if (flags & BTR_NO_LOCKING_FLAG) {
@@ -2264,7 +2267,8 @@ row_ins_duplicate_error_in_clust_online(
 	ut_ad(!cursor->index->is_instant());
 
 	if (cursor->low_match >= n_uniq && !page_rec_is_infimum(rec)) {
-		*offsets = rec_get_offsets(rec, cursor->index, *offsets, true,
+		*offsets = rec_get_offsets(rec, cursor->index, *offsets,
+					   cursor->index->n_fields,
 					   ULINT_UNDEFINED, heap);
 		err = row_ins_duplicate_online(n_uniq, entry, rec, *offsets);
 		if (err != DB_SUCCESS) {
@@ -2275,7 +2279,8 @@ row_ins_duplicate_error_in_clust_online(
 	rec = page_rec_get_next_const(btr_cur_get_rec(cursor));
 
 	if (cursor->up_match >= n_uniq && !page_rec_is_supremum(rec)) {
-		*offsets = rec_get_offsets(rec, cursor->index, *offsets, true,
+		*offsets = rec_get_offsets(rec, cursor->index, *offsets,
+					   cursor->index->n_fields,
 					   ULINT_UNDEFINED, heap);
 		err = row_ins_duplicate_online(n_uniq, entry, rec, *offsets);
 	}
@@ -2331,7 +2336,7 @@ row_ins_duplicate_error_in_clust(
 
 		if (!page_rec_is_infimum(rec)) {
 			offsets = rec_get_offsets(rec, cursor->index, offsets,
-						  true,
+						  cursor->index->n_core_fields,
 						  ULINT_UNDEFINED, &heap);
 
 			/* We set a lock on the possible duplicate: this
@@ -2397,7 +2402,7 @@ duplicate:
 
 		if (!page_rec_is_supremum(rec)) {
 			offsets = rec_get_offsets(rec, cursor->index, offsets,
-						  true,
+						  cursor->index->n_core_fields,
 						  ULINT_UNDEFINED, &heap);
 
 			if (trx->duplicates) {
@@ -2514,7 +2519,7 @@ row_ins_index_entry_big_rec(
 	btr_pcur_open(index, entry, PAGE_CUR_LE, BTR_MODIFY_TREE,
 		      &pcur, &mtr);
 	rec = btr_pcur_get_rec(&pcur);
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
 				  ULINT_UNDEFINED, heap);
 
 	DEBUG_SYNC_C_IF_THD(thd, "before_row_ins_extern");
@@ -3070,7 +3075,8 @@ row_ins_sec_index_entry_low(
 		prefix, we must convert the insert into a modify of an
 		existing record */
 		offsets = rec_get_offsets(
-			btr_cur_get_rec(&cursor), index, offsets, true,
+			btr_cur_get_rec(&cursor), index, offsets,
+			index->n_core_fields,
 			ULINT_UNDEFINED, &offsets_heap);
 
 		err = row_ins_sec_index_entry_by_modify(
@@ -3326,7 +3332,8 @@ row_ins_index_entry(
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	ut_ad(thr_get_trx(thr)->id || index->table->no_rollback());
+	ut_ad(thr_get_trx(thr)->id || index->table->no_rollback()
+	      || index->table->is_temporary());
 
 	DBUG_EXECUTE_IF("row_ins_index_entry_timeout", {
 			DBUG_SET("-d,row_ins_index_entry_timeout");
@@ -3754,12 +3761,16 @@ row_ins_step(
 	}
 
 	if (UNIV_LIKELY(!node->table->skip_alter_undo)) {
-		trx_write_trx_id(&node->sys_buf[DATA_ROW_ID_LEN], trx->id);
+		trx_write_trx_id(&node->sys_buf[DATA_TRX_ID_LEN], trx->id);
 	}
 
 	if (node->state == INS_NODE_SET_IX_LOCK) {
 
 		node->state = INS_NODE_ALLOC_ROW_ID;
+
+		if (node->table->is_temporary()) {
+			node->trx_id = trx->id;
+		}
 
 		/* It may be that the current session has not yet started
 		its transaction, or it has been committed: */

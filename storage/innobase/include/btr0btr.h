@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -754,13 +754,14 @@ btr_validate_index(
 @param[in,out]	page		page to remove
 @param[in]	index		index tree
 @param[in,out]	mtr		mini-transaction */
-void
+dberr_t
 btr_level_list_remove_func(
 	ulint			space,
 	ulint			zip_size,
 	page_t*			page,
 	dict_index_t*		index,
-	mtr_t*			mtr);
+	mtr_t*			mtr)
+	MY_ATTRIBUTE((warn_unused_result));
 
 /*************************************************************//**
 Removes a page from the level list of pages.
@@ -791,7 +792,7 @@ btr_lift_page_up(
 #define BTR_N_LEAF_PAGES	1
 #define BTR_TOTAL_SIZE		2
 
-#include "btr0btr.ic"
+#include "btr0btr.inl"
 
 /****************************************************************
 Global variable controlling if scrubbing should be performed */

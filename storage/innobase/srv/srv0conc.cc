@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -44,6 +44,8 @@ Created 2011/04/18 Sunny Bains
 #include "dict0dict.h"
 #include <mysql/service_thd_wait.h>
 #include <mysql/service_wsrep.h>
+#include "wsrep.h"
+#include "log.h"
 
 /** Number of times a thread is allowed to enter InnoDB within the same
 SQL query after it has once got the ticket. */
@@ -118,11 +120,15 @@ srv_conc_enter_innodb_with_atomics(
 	for (;;) {
 		ulint	sleep_in_us;
 #ifdef WITH_WSREP
-		if (trx->is_wsrep() && wsrep_thd_is_aborting(trx->mysql_thd)) {
-			if (UNIV_UNLIKELY(wsrep_debug)) {
-				ib::info() <<
-					"srv_conc_enter due to MUST_ABORT";
+		/* We need to take `thd->LOCK_thd_data` to check WSREP thread state */
+		if (trx->is_wsrep()) {
+			wsrep_thd_LOCK(trx->mysql_thd);
+
+			if (wsrep_thd_is_aborting(trx->mysql_thd)) {
+				WSREP_DEBUG("srv_conc_enter due to MUST_ABORT for"
+					    TRX_ID_FMT, trx->id);
 			}
+			wsrep_thd_UNLOCK(trx->mysql_thd);
 			srv_conc_force_enter_innodb(trx);
 			return;
 		}

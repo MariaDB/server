@@ -1,0 +1,53 @@
+DROP TABLE IF EXISTS t1;
+DROP PROCEDURE IF EXISTS proc_insert_many;
+CREATE TABLE t1 (
+field1 INTEGER NOT NULL,
+field2 INTEGER NOT NULL,
+field3 INTEGER NOT NULL,
+KEY i_1   (field1),
+KEY i_2   (field2),
+KEY i_3   (field3),
+KEY i_12  (field1, field2),
+KEY i_13  (field1, field3),
+KEY i_21  (field2, field1),
+KEY i_23  (field2, field3),
+KEY i_31  (field3, field1),
+KEY i_32  (field3, field2),
+KEY i_123 (field1, field2, field3),
+KEY i_132 (field1, field3, field2),
+KEY i_213 (field2, field1, field3),
+KEY i_231 (field2, field3, field1),
+KEY i_312 (field3, field1, field2),
+KEY i_321 (field3, field2, field1)
+) ENGINE=Aria;
+CREATE PROCEDURE proc_insert_many()
+BEGIN
+DECLARE iRow INT DEFAULT 0;
+insertRows: LOOP
+IF (iRow = 70000) THEN
+LEAVE insertRows;
+END IF;
+INSERT INTO t1 VALUES (1000000+iRow,2000000+iRow,3000000+iRow);
+SET iRow = iRow + 1;
+END LOOP insertRows;
+END|
+LOCK TABLES t1 WRITE;
+CALL proc_insert_many();
+UNLOCK TABLES;
+SET debug_dbug="d,crash_shutdown";
+shutdown;
+ERROR HY000: Lost connection to MySQL server during query
+SELECT * FROM t1 ORDER BY 1 DESC LIMIT 10;
+field1	field2	field3
+1069999	2069999	3069999
+1069998	2069998	3069998
+1069997	2069997	3069997
+1069996	2069996	3069996
+1069995	2069995	3069995
+1069994	2069994	3069994
+1069993	2069993	3069993
+1069992	2069992	3069992
+1069991	2069991	3069991
+1069990	2069990	3069990
+DROP TABLE IF EXISTS t1;
+DROP PROCEDURE IF EXISTS proc_insert_many;

@@ -42,11 +42,14 @@ public:
   bool thread_count_incremented;
   ulonglong    prior_thr_create_utime;
 
+  static Atomic_counter<uint32_t> count;
+
   CONNECT()
     :vio(0), host(0), scheduler(thread_scheduler), thread_id(0), real_id(0),
     extra_port(0),
     thread_count_incremented(0), prior_thr_create_utime(0)
   {
+    count++;
   };
   ~CONNECT();
   void close_and_delete();

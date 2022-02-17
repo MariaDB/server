@@ -11,7 +11,6 @@
 # Includes
 -- source include/have_binlog_format_row.inc
 -- source include/master-slave.inc
-set global sql_mode="";
 set local sql_mode="";
 
 # Begin clean up test section
@@ -43,23 +42,18 @@ delimiter ;|
 CALL mysqltest1.p1();
 connection master;
 SELECT * FROM mysqltest1.t1 ORDER BY a;
-sync_slave_with_master;
+--sync_slave_with_master
 SELECT * FROM mysqltest1.t1 ORDER BY a;
 
 connection master;
 # Lets cleanup
-#show binlog events;
 
 DROP DATABASE mysqltest1;
 REVOKE ALL ON mysqltest1.* FROM 'tester'@'%';
 REVOKE ALL ON mysqltest1.* FROM ''@'localhost%';
 DROP USER tester@'%';
 DROP USER ''@'localhost%';
-
-sync_slave_with_master;
-
+FLUSH PRIVILEGES;
+--sync_slave_with_master
 # End of 5.0 test case
 --source include/rpl_end.inc
-
-set global sql_mode=default;
-set local sql_mode=default;

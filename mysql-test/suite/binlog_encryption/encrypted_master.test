@@ -18,6 +18,9 @@
 # - with annotated events, default checksums and minimal binlog row image
 #
 
+# The test can take very long time with valgrind
+--source include/not_valgrind.inc
+
 --source include/have_partition.inc
 --source encryption_algorithms.inc
 --source include/have_innodb.inc

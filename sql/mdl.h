@@ -909,7 +909,8 @@ public:
 
   /** @pre Only valid if we started waiting for lock. */
   inline uint get_deadlock_weight() const
-  { return m_waiting_for->get_deadlock_weight(); }
+  { return m_waiting_for->get_deadlock_weight() + m_deadlock_overweight; }
+  void inc_deadlock_overweight() { m_deadlock_overweight++; }
   /**
     Post signal to the context (and wake it up if necessary).
 
@@ -1027,6 +1028,7 @@ private:
    */
   MDL_wait_for_subgraph *m_waiting_for;
   LF_PINS *m_pins;
+  uint m_deadlock_overweight= 0;
 private:
   MDL_ticket *find_ticket(MDL_request *mdl_req,
                           enum_mdl_duration *duration);
@@ -1104,9 +1106,4 @@ typedef int (*mdl_iterator_callback)(MDL_ticket *ticket, void *arg,
                                      bool granted);
 extern MYSQL_PLUGIN_IMPORT
 int mdl_iterate(mdl_iterator_callback callback, void *arg);
-#ifndef DBUG_OFF
-void mdl_dbug_print_locks();
-#else
-  static inline void mdl_dbug_print_locks() {}
-#endif /* DBUG_OFF */
 #endif /* MDL_H */

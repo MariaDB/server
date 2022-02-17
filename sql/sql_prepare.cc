@@ -1608,7 +1608,7 @@ static int mysql_test_select(Prepared_statement *stmt,
   }
 
   if (open_normal_and_derived_tables(thd, tables,  MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_INIT | DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE))
     goto error;
 
   thd->lex->used_tables= 0;                        // Updated by setup_fields
@@ -1623,7 +1623,12 @@ static int mysql_test_select(Prepared_statement *stmt,
   if (!lex->describe && !thd->lex->analyze_stmt && !stmt->is_sql_prepare())
   {
     /* Make copy of item list, as change_columns may change it */
-    List<Item> fields(lex->first_select_lex()->item_list);
+    SELECT_LEX_UNIT* master_unit= unit->first_select()->master_unit();
+    bool is_union_op=
+      master_unit->is_unit_op() || master_unit->fake_select_lex;
+
+    List<Item> fields(is_union_op ? unit->item_list :
+                                    lex->first_select_lex()->item_list);
 
     /* Change columns if a procedure like analyse() */
     if (unit->last_procedure && unit->last_procedure->change_columns(thd, fields))
@@ -1670,7 +1675,7 @@ static bool mysql_test_do_fields(Prepared_statement *stmt,
     DBUG_RETURN(TRUE);
 
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_INIT | DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE))
     DBUG_RETURN(TRUE);
   DBUG_RETURN(setup_fields(thd, Ref_ptr_array(),
                            *values, COLUMNS_READ, 0, NULL, 0));
@@ -1702,7 +1707,7 @@ static bool mysql_test_set_fields(Prepared_statement *stmt,
   if ((tables &&
        check_table_access(thd, SELECT_ACL, tables, FALSE, UINT_MAX, FALSE)) ||
       open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_INIT | DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE))
     goto error;
 
   while ((var= it++))
@@ -1745,7 +1750,7 @@ static bool mysql_test_call_fields(Prepared_statement *stmt,
 
   while ((item= it++))
   {
-    if (item->fix_fields_if_needed_for_scalar(thd, it.ref()))
+    if (item->fix_fields_if_needed(thd, it.ref()))
       goto err;
   }
   DBUG_RETURN(FALSE);
@@ -1866,7 +1871,7 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
 
     if (open_normal_and_derived_tables(stmt->thd, lex->query_tables,
                                        MYSQL_OPEN_FORCE_SHARED_MDL,
-                                       DT_INIT | DT_PREPARE | DT_CREATE))
+                                       DT_INIT | DT_PREPARE))
       DBUG_RETURN(TRUE);
 
     select_lex->context.resolve_in_select_list= TRUE;
@@ -2375,9 +2380,6 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   /* Reset warning count for each query that uses tables */
   if (tables)
     thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
-
-  if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
-    goto error;
 
   if (sql_command_flags[sql_command] & CF_HA_CLOSE)
     mysql_ha_rm_tables(thd, tables);
@@ -3440,6 +3442,11 @@ static void mysql_stmt_execute_common(THD *thd,
                                        stmt_id == LAST_STMT_ID, read_types))
   {
     my_error(ER_MALFORMED_PACKET, MYF(0));
+    /*
+      Let's set the thd->query_string so the audit plugin
+      can report the executed query that failed.
+    */
+    thd->set_query_inner(stmt->query_string);
     DBUG_VOID_RETURN;
   }
 
@@ -4217,6 +4224,15 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
           thd->is_error() ||
           init_param_array(this));
 
+  if (thd->security_ctx->password_expired &&
+      lex->sql_command != SQLCOM_SET_OPTION)
+  {
+    thd->restore_backup_statement(this, &stmt_backup);
+    thd->restore_active_arena(this, &stmt_backup);
+    thd->stmt_arena= old_stmt_arena;
+    my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
+    DBUG_RETURN(true);
+  }
   lex->set_trg_event_type_for_tables();
 
   /*
@@ -4273,7 +4289,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     Restore original values of variables modified on handling
     SET STATEMENT clause.
   */
-  thd->lex->restore_set_statement_var();
+  error|= thd->lex->restore_set_statement_var();
 
   /* The order is important */
   lex->unit.cleanup();
@@ -4299,8 +4315,10 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     thd->release_transactional_locks();
   }
 
-  /* Preserve CHANGE MASTER attributes */
-  lex_end_stage1(lex);
+  /* Preserve locked plugins for SET */
+  if (lex->sql_command != SQLCOM_SET_OPTION)
+    lex_unlock_plugins(lex);
+
   cleanup_stmt();
   thd->restore_backup_statement(this, &stmt_backup);
   thd->stmt_arena= old_stmt_arena;
@@ -5132,7 +5150,7 @@ void Prepared_statement::deallocate_immediate()
   status_var_increment(thd->status_var.com_stmt_close);
 
   /* It should now be safe to reset CHANGE MASTER parameters */
-  lex_end_stage2(lex);
+  lex_end(lex);
 }
 
 

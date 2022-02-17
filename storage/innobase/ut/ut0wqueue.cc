@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -45,6 +45,7 @@ ib_wqueue_create(void)
 
 	wq->items = ib_list_create();
 	wq->event = os_event_create(0);
+	wq->length = 0;
 
 	return(wq);
 }
@@ -76,6 +77,8 @@ ib_wqueue_add(ib_wqueue_t* wq, void* item, mem_heap_t* heap, bool wq_locked)
 	}
 
 	ib_list_add_last(wq->items, item, heap);
+	wq->length++;
+	ut_ad(wq->length == ib_list_len(wq->items));
 	os_event_set(wq->event);
 
 	if (!wq_locked) {
@@ -102,12 +105,12 @@ ib_wqueue_wait(
 
 		if (node) {
 			ib_list_remove(wq->items, node);
-
-			if (!ib_list_get_first(wq->items)) {
+			if (!--wq->length) {
 				/* We must reset the event when the list
 				gets emptied. */
 				os_event_reset(wq->event);
 			}
+			ut_ad(wq->length == ib_list_len(wq->items));
 
 			break;
 		}
@@ -142,7 +145,8 @@ ib_wqueue_timedwait(
 
 		if (node) {
 			ib_list_remove(wq->items, node);
-
+			wq->length--;
+			ut_ad(wq->length == ib_list_len(wq->items));
 			mutex_exit(&wq->mutex);
 			break;
 		}
@@ -203,21 +207,4 @@ bool ib_wqueue_is_empty(ib_wqueue_t* wq)
 	bool is_empty = ib_list_is_empty(wq->items);
 	mutex_exit(&wq->mutex);
 	return is_empty;
-}
-
-/********************************************************************
-Get number of items on queue.
-@return number of items on queue */
-ulint
-ib_wqueue_len(
-/*==========*/
-	ib_wqueue_t*	wq)		/*<! in: work queue */
-{
-	ulint len = 0;
-
-	mutex_enter(&wq->mutex);
-	len = ib_list_len(wq->items);
-	mutex_exit(&wq->mutex);
-
-        return(len);
 }

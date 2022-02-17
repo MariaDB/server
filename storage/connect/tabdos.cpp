@@ -17,7 +17,7 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <sys\timeb.h>                   // For testing only
 #include <fcntl.h>
@@ -26,7 +26,7 @@
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #if defined(UNIX)
 #include <errno.h>
 #include <unistd.h>
@@ -34,7 +34,7 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -233,11 +233,11 @@ void DOSDEF::RemoveOptValues(PGLOBAL g)
 
   // Delete any eventually ill formed non matching optimization file
   if (!GetOptFileName(g, filename))
-#if defined(__WIN__)
+#if defined(_WIN32)
     DeleteFile(filename);
 #else    // UNIX
     remove(filename);
-#endif   // __WIN__
+#endif   // _WIN32
 
   Optimized = 0;
   } // end of RemoveOptValues
@@ -279,7 +279,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
   /*********************************************************************/
   if (sep) {
     // Indexes are save in separate files
-#if defined(__WIN__)
+#if defined(_WIN32)
     char drive[_MAX_DRIVE];
 #else
     char *drive = NULL;
@@ -296,7 +296,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
       strcat(strcat(fname, "_"), pxdf->GetName());
       _makepath(filename, drive, direc, fname, ftype);
       PlugSetPath(filename, filename, GetPath());
-#if defined(__WIN__)
+#if defined(_WIN32)
       if (!DeleteFile(filename))
         rc |= (GetLastError() != ERROR_FILE_NOT_FOUND);
 #else    // UNIX
@@ -313,7 +313,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
     // Drop all indexes, delete the common file
     PlugSetPath(filename, Ofn, GetPath());
     strcat(PlugRemoveType(filename, filename), ftype);
-#if defined(__WIN__)
+#if defined(_WIN32)
     if (!DeleteFile(filename))
       rc = (GetLastError() != ERROR_FILE_NOT_FOUND);
 #else    // UNIX
@@ -1024,7 +1024,7 @@ bool TDBDOS::GetBlockValues(PGLOBAL g)
 #if 0
   if (Mode == MODE_INSERT && Txfp->GetAmType() == TYPE_AM_DOS)
     return false;
-#endif   // __WIN__
+#endif   // _WIN32
 
 	if (defp->Optimized || !(dup->Check & CHK_OPT))
     return false;                   // Already done or to be redone
@@ -2532,6 +2532,7 @@ void DOSCOL::ReadColumn(PGLOBAL g)
   char   *p = NULL;
   int     i, rc;
   int     field;
+  bool    err = false;
   double  dval;
   PTDBDOS tdbp = (PTDBDOS)To_Tdb;
 
@@ -2575,39 +2576,51 @@ void DOSCOL::ReadColumn(PGLOBAL g)
         case TYPE_SHORT:
         case TYPE_TINY:
         case TYPE_BIGINT:
-          if (Value->SetValue_char(p, field - Dcm)) {
-            sprintf(g->Message, "Out of range value for column %s at row %d",
-                    Name, tdbp->RowNumber(g));
-            PushWarning(g, tdbp);
-            } // endif SetValue_char
-
+          err = Value->SetValue_char(p, field - Dcm);
           break;
         case TYPE_DOUBLE:
-          Value->SetValue_char(p, field);
-          dval = Value->GetFloatValue();
+          if (!(err = Value->SetValue_char(p, field))) {
+            dval = Value->GetFloatValue();
 
-          for (i = 0; i < Dcm; i++)
-            dval /= 10.0;
+            for (i = 0; i < Dcm; i++)
+              dval /= 10.0;
 
-          Value->SetValue(dval);
+            Value->SetValue(dval);
+          } // endif err
+
           break;
         default:
-          Value->SetValue_char(p, field);
+          err = Value->SetValue_char(p, field);
+
+          if (!err && Buf_Type == TYPE_DECIM) {
+            char* s = Value->GetCharValue();
+
+            if (!(err = ((i = strlen(s)) >= Value->GetClen()))) {
+              for (int d = Dcm + 1; d; i--, d--)
+                s[i + 1] = s[i];
+
+              s[i + 1] = '.';
+            } // endif err
+
+          } // endif DECIM
+
           break;
-        } // endswitch Buf_Type
+      } // endswitch Buf_Type
 
       else
-        if (Value->SetValue_char(p, field)) {
-          sprintf(g->Message, "Out of range value for column %s at row %d",
-                  Name, tdbp->RowNumber(g));
-          PushWarning(g, tdbp);
-          } // endif SetValue_char
+        err = Value->SetValue_char(p, field);
 
       break;
     default:
       sprintf(g->Message, MSG(BAD_RECFM), tdbp->Ftype);
 			throw 34;
 	} // endswitch Ftype
+
+  if (err) {
+    sprintf(g->Message, "Out of range value for column %s at row %d",
+      Name, tdbp->RowNumber(g));
+    PushWarning(g, tdbp);
+  } // endif err
 
   // Set null when applicable
   if (Nullable)
@@ -2699,7 +2712,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
         case TYPE_DECIM:
           strcpy(fmt, (Ldz) ? "%0*.*lf" : "%*.*lf");
 					len = field + ((Nod && Dcm) ? 1 : 0);
-          snprintf(Buf, len, fmt, len, Dcm, Value->GetFloatValue());
+          snprintf(Buf, len + 1, fmt, len, Dcm, Value->GetFloatValue());
           len = strlen(Buf);
 
           if (Nod && Dcm)

@@ -71,10 +71,6 @@ static my_bool non_blocking_api_enabled= 0;
 #include "../tests/nonblock-wrappers.h"
 #endif
 
-/* Use cygwin for --exec and --system before 5.0 */
-#if MYSQL_VERSION_ID < 50000
-#define USE_CYGWIN
-#endif
 
 #define MAX_VAR_NAME_LENGTH    256
 #define MAX_COLUMNS            256
@@ -89,6 +85,8 @@ static my_bool non_blocking_api_enabled= 0;
 #define QUERY_REAP_FLAG  2
 
 #define QUERY_PRINT_ORIGINAL_FLAG 4
+
+#define CLOSED_CONNECTION "-closed_connection-"
 
 #ifndef HAVE_SETENV
 static int setenv(const char *name, const char *value, int overwrite);
@@ -134,6 +132,7 @@ static my_bool disable_info= 1;
 static my_bool abort_on_error= 1, opt_continue_on_error= 0;
 static my_bool server_initialized= 0;
 static my_bool is_windows= 0;
+static my_bool optimizer_trace_active= 0;
 static char **default_argv;
 static const char *load_default_groups[]=
 { "mysqltest", "mariadb-test", "client", "client-server", "client-mariadb",
@@ -157,6 +156,7 @@ static struct property prop_list[] = {
   { &display_session_track_info, 0, 1, 1, "$ENABLED_STATE_CHANGE_INFO" },
   { &display_metadata, 0, 0, 0, "$ENABLED_METADATA" },
   { &ps_protocol_enabled, 0, 0, 0, "$ENABLED_PS_PROTOCOL" },
+  { &view_protocol_enabled, 0, 0, 0, "$ENABLED_VIEW_PROTOCOL"},
   { &disable_query_log, 0, 0, 1, "$ENABLED_QUERY_LOG" },
   { &disable_result_log, 0, 0, 1, "$ENABLED_RESULT_LOG" },
   { &disable_warnings, 0, 0, 1, "$ENABLED_WARNINGS" }
@@ -171,6 +171,7 @@ enum enum_prop {
   P_SESSION_TRACK,
   P_META,
   P_PS,
+  P_VIEW,
   P_QUERY,
   P_RESULT,
   P_WARN,
@@ -376,6 +377,7 @@ enum enum_commands {
   Q_LOWERCASE,
   Q_START_TIMER, Q_END_TIMER,
   Q_CHARACTER_SET, Q_DISABLE_PS_PROTOCOL, Q_ENABLE_PS_PROTOCOL,
+  Q_DISABLE_VIEW_PROTOCOL, Q_ENABLE_VIEW_PROTOCOL,
   Q_ENABLE_NON_BLOCKING_API, Q_DISABLE_NON_BLOCKING_API,
   Q_DISABLE_RECONNECT, Q_ENABLE_RECONNECT,
   Q_IF,
@@ -390,6 +392,7 @@ enum enum_commands {
   Q_MOVE_FILE, Q_REMOVE_FILES_WILDCARD, Q_SEND_EVAL,
   Q_ENABLE_PREPARE_WARNINGS, Q_DISABLE_PREPARE_WARNINGS,
   Q_RESET_CONNECTION,
+  Q_OPTIMIZER_TRACE,
   Q_UNKNOWN,			       /* Unknown command.   */
   Q_COMMENT,			       /* Comments, ignored. */
   Q_COMMENT_WITH_COMMAND,
@@ -462,6 +465,8 @@ const char *command_names[]=
   "character_set",
   "disable_ps_protocol",
   "enable_ps_protocol",
+  "disable_view_protocol",
+  "enable_view_protocol",
   "enable_non_blocking_api",
   "disable_non_blocking_api",
   "disable_reconnect",
@@ -500,7 +505,7 @@ const char *command_names[]=
   "enable_prepare_warnings",
   "disable_prepare_warnings",
   "reset_connection",
-
+  "optimizer_trace",
   0
 };
 
@@ -617,7 +622,6 @@ const char *get_errname_from_code (uint error_code);
 int multi_reg_replace(struct st_replace_regex* r,char* val);
 
 #ifdef _WIN32
-void free_tmp_sh_file();
 void free_win_path_patterns();
 #endif
 
@@ -646,6 +650,9 @@ void free_all_replace(){
 }
 
 void var_set_int(const char* name, int value);
+void enable_optimizer_trace(struct st_connection *con);
+void display_optimizer_trace(struct st_connection *con,
+                             DYNAMIC_STRING *ds);
 
 
 class LogFile {
@@ -1385,6 +1392,16 @@ void close_connections()
   DBUG_VOID_RETURN;
 }
 
+void close_util_connections()
+{
+  DBUG_ENTER("close_util_connections");
+  if (cur_con->util_mysql)
+  {
+    mysql_close(cur_con->util_mysql);
+    cur_con->util_mysql = 0;
+  }
+  DBUG_VOID_RETURN;
+}
 
 void close_statements()
 {
@@ -1455,7 +1472,6 @@ void free_used_memory()
   free_re();
   my_free(read_command_buf);
 #ifdef _WIN32
-  free_tmp_sh_file();
   free_win_path_patterns();
 #endif
   DBUG_VOID_RETURN;
@@ -1545,6 +1561,8 @@ static void die(const char *fmt, ...)
 {
   char buff[DIE_BUFF_SIZE];
   va_list args;
+  DBUG_ENTER("die");
+
   va_start(args, fmt);
   make_error_message(buff, sizeof(buff), fmt, args);
   really_die(buff);
@@ -3187,33 +3205,6 @@ void do_source(struct st_command *command)
 }
 
 
-#if defined _WIN32
-
-#ifdef USE_CYGWIN
-/* Variables used for temporary sh files used for emulating Unix on Windows */
-char tmp_sh_name[64], tmp_sh_cmd[70];
-#endif
-
-void init_tmp_sh_file()
-{
-#ifdef USE_CYGWIN
-  /* Format a name for the tmp sh file that is unique for this process */
-  my_snprintf(tmp_sh_name, sizeof(tmp_sh_name), "tmp_%d.sh", getpid());
-  /* Format the command to execute in order to run the script */
-  my_snprintf(tmp_sh_cmd, sizeof(tmp_sh_cmd), "sh %s", tmp_sh_name);
-#endif
-}
-
-
-void free_tmp_sh_file()
-{
-#ifdef USE_CYGWIN
-  my_delete(tmp_sh_name, MYF(0));
-#endif
-}
-#endif
-
-
 static void init_builtin_echo(void)
 {
 #ifdef _WIN32
@@ -3329,14 +3320,12 @@ void do_exec(struct st_command *command)
   }
 
 #ifdef _WIN32
-#ifndef USE_CYGWIN
   /* Replace /dev/null with NUL */
   while(replace(&ds_cmd, "/dev/null", 9, "NUL", 3) == 0)
     ;
   /* Replace "closed stdout" with non existing output fd */
   while(replace(&ds_cmd, ">&-", 3, ">&4", 3) == 0)
     ;
-#endif
 #endif
 
   if (disable_result_log)
@@ -3495,13 +3484,7 @@ int do_modify_var(struct st_command *command,
 
 int my_system(DYNAMIC_STRING* ds_cmd)
 {
-#if defined _WIN32 && defined USE_CYGWIN
-  /* Dump the command into a sh script file and execute with system */
-  str_to_file(tmp_sh_name, ds_cmd->str, ds_cmd->length);
-  return system(tmp_sh_cmd);
-#else
   return system(ds_cmd->str);
-#endif
 }
 
 
@@ -3535,11 +3518,9 @@ void do_system(struct st_command *command)
   do_eval(&ds_cmd, command->first_argument, command->end, !is_windows);
 
 #ifdef _WIN32
-#ifndef USE_CYGWIN
    /* Replace /dev/null with NUL */
    while(replace(&ds_cmd, "/dev/null", 9, "NUL", 3) == 0)
      ;
-#endif
 #endif
 
 
@@ -5009,13 +4990,34 @@ int query_get_string(MYSQL* mysql, const char* query,
 }
 
 
+#ifdef _WIN32
+#define SIGKILL 9
+#include <my_minidump.h>
 static int my_kill(int pid, int sig)
 {
-  DBUG_PRINT("info", ("Killing server, pid: %d", pid));
-#ifdef _WIN32
-#define SIGKILL 9 /* ignored anyway, see below */
   HANDLE proc;
-  if ((proc= OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE, FALSE, pid)) == NULL)
+  if (sig == SIGABRT)
+  {
+    /*
+     Create a minidump. If process is being debugged, debug break
+     Otherwise, terminate.
+    */
+    verbose_msg("Aborting %d",pid);
+    my_create_minidump(pid,TRUE);
+    proc= OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+    if(!proc)
+      return -1;
+    BOOL debugger_present;
+    if (CheckRemoteDebuggerPresent(proc,&debugger_present) && debugger_present)
+    {
+      if (DebugBreakProcess(proc))
+      {
+        CloseHandle(proc);
+        return 0;
+      }
+    }
+  }
+  else if ((proc= OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE, FALSE, pid)) == NULL)
     return -1;
   if (sig == 0)
   {
@@ -5026,12 +5028,30 @@ static int my_kill(int pid, int sig)
   (void)TerminateProcess(proc, 201);
   CloseHandle(proc);
   return 1;
-#else
-  return kill(pid, sig);
-#endif
 }
 
 
+/* Wait until process is gone, with timeout */
+static int wait_until_dead(int pid, int timeout)
+{
+  HANDLE proc= OpenProcess(SYNCHRONIZE, FALSE, pid);
+  if (!proc)
+    return 0; /* already dead */
+  DBUG_ASSERT(timeout >= 0);
+  DBUG_ASSERT(timeout <= UINT_MAX/1000);
+  DWORD wait_result= WaitForSingleObject(proc, (DWORD)timeout*1000);
+  CloseHandle(proc);
+  return (int)wait_result;
+}
+
+#else /* !_WIN32 */
+
+
+static int my_kill(int pid, int sig)
+{
+  DBUG_PRINT("info", ("Killing server, pid: %d", pid));
+  return kill(pid, sig);
+}
 
 /*
   Shutdown the server of current connection and
@@ -5066,6 +5086,7 @@ static int wait_until_dead(int pid, int timeout)
   }
   DBUG_RETURN(1);                               // Did not die
 }
+#endif /* _WIN32 */
 
 
 void do_shutdown_server(struct st_command *command)
@@ -5582,11 +5603,12 @@ void do_close_connection(struct st_command *command)
   my_free(con->name);
 
   /*
-    When the connection is closed set name to "-closed_connection-"
+    When the connection is closed set name to CLOSED_CONNECTION
     to make it possible to reuse the connection name.
   */
-  if (!(con->name = my_strdup("-closed_connection-", MYF(MY_WME))))
+  if (!(con->name = my_strdup(CLOSED_CONNECTION, MYF(MY_WME))))
     die("Out of memory");
+  con->name_len= sizeof(CLOSED_CONNECTION)-1;
 
   if (con == cur_con)
   {
@@ -5959,7 +5981,7 @@ void do_connect(struct st_command *command)
     con_slot= next_con;
   else
   {
-    if (!(con_slot= find_connection_by_name("-closed_connection-")))
+    if (!(con_slot= find_connection_by_name(CLOSED_CONNECTION)))
       die("Connection limit exhausted, you can have max %d connections",
           opt_max_connections);
     my_free(con_slot->name);
@@ -7841,7 +7863,7 @@ static void handle_no_active_connection(struct st_command *command,
 */
 
 void run_query_normal(struct st_connection *cn, struct st_command *command,
-                      int flags, char *query, size_t query_len,
+                      int flags, const char *query, size_t query_len,
                       DYNAMIC_STRING *ds, DYNAMIC_STRING *ds_warnings)
 {
   MYSQL_RES *res= 0;
@@ -7960,6 +7982,7 @@ void run_query_normal(struct st_connection *cn, struct st_command *command,
 
   /* If we come here the query is both executed and read successfully */
   handle_no_error(command);
+  display_optimizer_trace(cn, ds);
   revert_properties();
 
 end:
@@ -8552,7 +8575,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   log_file.flush();
   dynstr_set(&ds_res, 0);
 
-  if (view_protocol_enabled &&
+  if (view_protocol_enabled && mysql &&
       complete_query &&
       match_re(&view_re, query))
   {
@@ -8598,7 +8621,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
     dynstr_free(&query_str);
   }
 
-  if (sp_protocol_enabled &&
+  if (sp_protocol_enabled && mysql &&
       complete_query &&
       match_re(&sp_re, query))
   {
@@ -8961,7 +8984,7 @@ static void dump_backtrace(void)
   struct st_connection *conn= cur_con;
 
   fprintf(stderr, "read_command_buf (%p): ", read_command_buf);
-  my_safe_print_str(read_command_buf, sizeof(read_command_buf));
+  fprintf(stderr, "%.*s\n", (int)read_command_buflen, read_command_buf);
   fputc('\n', stderr);
 
   if (conn)
@@ -9130,10 +9153,7 @@ int main(int argc, char **argv)
 
   init_builtin_echo();
 #ifdef _WIN32
-#ifndef USE_CYGWIN
   is_windows= 1;
-#endif
-  init_tmp_sh_file();
   init_win_path_patterns();
 #endif
 
@@ -9583,6 +9603,9 @@ int main(int argc, char **argv)
       case Q_RESET_CONNECTION:
         do_reset_connection();
         break;
+      case Q_OPTIMIZER_TRACE:
+        enable_optimizer_trace(cur_con);
+        break;
       case Q_SEND_SHUTDOWN:
         handle_command_error(command,
                              mysql_shutdown(cur_con->mysql,
@@ -9613,6 +9636,14 @@ int main(int argc, char **argv)
         break;
       case Q_ENABLE_PS_PROTOCOL:
         set_property(command, P_PS, ps_protocol);
+        break;
+      case Q_DISABLE_VIEW_PROTOCOL:
+        set_property(command, P_VIEW, 0);
+        /* Close only util connections */
+        close_util_connections();
+        break;
+      case Q_ENABLE_VIEW_PROTOCOL:
+        set_property(command, P_VIEW, view_protocol);
         break;
       case Q_DISABLE_NON_BLOCKING_API:
         non_blocking_api_enabled= 0;
@@ -10905,7 +10936,7 @@ int get_next_bit(REP_SET *set,uint lastpos)
 
   start=set->bits+ ((lastpos+1) / WORD_BIT);
   end=set->bits + set->size_of_bits;
-  bits=start[0] & ~((1 << ((lastpos+1) % WORD_BIT)) -1);
+  bits=start[0] & ~((1U << ((lastpos+1) % WORD_BIT)) -1);
 
   while (! bits && ++start < end)
     bits=start[0];
@@ -11240,4 +11271,91 @@ char *mysql_authentication_dialog_ask(MYSQL *mysql, int type,
   fputc('\n', stdout);
 
   return buf;
+}
+
+/*
+  Enable optimizer trace for the next command
+*/
+
+LEX_CSTRING enable_optimizer_trace_query=
+{
+  STRING_WITH_LEN("set @mysqltest_save_optimzer_trace=@@optimizer_trace,@@optimizer_trace=\"enabled=on\"")
+};
+
+LEX_CSTRING restore_optimizer_trace_query=
+{
+  STRING_WITH_LEN("set @@optimizer_trace=@mysqltest_save_optimzer_trace")
+};
+
+
+LEX_CSTRING display_optimizer_trace_query
+{
+  STRING_WITH_LEN("SELECT * from information_schema.optimizer_trace")
+};
+
+
+void enable_optimizer_trace(struct st_connection *con)
+{
+  MYSQL *mysql= con->mysql;
+  my_bool save_ps_protocol_enabled= ps_protocol_enabled;
+  my_bool save_view_protocol_enabled= view_protocol_enabled;
+  DYNAMIC_STRING ds_result;
+  DYNAMIC_STRING ds_warnings;
+  struct st_command command;
+  DBUG_ENTER("enable_optimizer_trace");
+
+  if (!mysql)
+    DBUG_VOID_RETURN;
+  ps_protocol_enabled= view_protocol_enabled= 0;
+
+  init_dynamic_string(&ds_result, NULL, 0, 256);
+  init_dynamic_string(&ds_warnings, NULL, 0, 256);
+  bzero(&command, sizeof(command));
+
+  run_query_normal(con, &command, QUERY_SEND_FLAG | QUERY_REAP_FLAG,
+                   enable_optimizer_trace_query.str,
+                   enable_optimizer_trace_query.length,
+                   &ds_result, &ds_warnings);
+  dynstr_free(&ds_result);
+  dynstr_free(&ds_warnings);
+  ps_protocol_enabled= save_ps_protocol_enabled;
+  view_protocol_enabled= save_view_protocol_enabled;
+  optimizer_trace_active= 1;
+  DBUG_VOID_RETURN;
+}
+
+
+void display_optimizer_trace(struct st_connection *con,
+                             DYNAMIC_STRING *ds)
+{
+  my_bool save_ps_protocol_enabled= ps_protocol_enabled;
+  my_bool save_view_protocol_enabled= view_protocol_enabled;
+  DYNAMIC_STRING ds_result;
+  DYNAMIC_STRING ds_warnings;
+  struct st_command command;
+  DBUG_ENTER("display_optimizer_trace");
+
+  if (!optimizer_trace_active)
+    DBUG_VOID_RETURN;
+
+  optimizer_trace_active= 0;
+  ps_protocol_enabled= view_protocol_enabled= 0;
+
+  init_dynamic_string(&ds_result, NULL, 0, 256);
+  init_dynamic_string(&ds_warnings, NULL, 0, 256);
+  bzero(&command, sizeof(command));
+
+  run_query_normal(con, &command, QUERY_SEND_FLAG | QUERY_REAP_FLAG,
+                   display_optimizer_trace_query.str,
+                   display_optimizer_trace_query.length,
+                   ds, &ds_warnings);
+  run_query_normal(con, &command, QUERY_SEND_FLAG | QUERY_REAP_FLAG,
+                   restore_optimizer_trace_query.str,
+                   restore_optimizer_trace_query.length,
+                   ds, &ds_warnings);
+  dynstr_free(&ds_result);
+  dynstr_free(&ds_warnings);
+  ps_protocol_enabled= save_ps_protocol_enabled;
+  view_protocol_enabled= save_view_protocol_enabled;
+  DBUG_VOID_RETURN;
 }

@@ -31,6 +31,11 @@
 #define SIGNAL_FMT "signal %d"
 #endif
 
+
+#if defined(__APPLE__) || defined(__FreeBSD__)
+#include <sys/sysctl.h>
+#endif
+
 #ifndef PATH_MAX
 #define PATH_MAX 4096
 #endif
@@ -52,7 +57,7 @@ extern const char *optimizer_switch_names[];
 static inline void output_core_info()
 {
   /* proc is optional on some BSDs so it can't hurt to look */
-#ifdef HAVE_READLINK
+#if defined(HAVE_READLINK) && !defined(__APPLE__) && !defined(__FreeBSD__)
   char buff[PATH_MAX];
   ssize_t len;
   int fd;
@@ -78,6 +83,13 @@ static inline void output_core_info()
     my_close(fd, MYF(0));
   }
 #endif
+#elif defined(__APPLE__) || defined(__FreeBSD__)
+  char buff[PATH_MAX];
+  size_t len = sizeof(buff);
+  if (sysctlbyname("kern.corefile", buff, &len, NULL, 0) == 0)
+  {
+    my_safe_printf_stderr("Core pattern: %.*s\n", (int) len, buff);
+  }
 #else
   char buff[80];
   my_getwd(buff, sizeof(buff), 0);
@@ -173,7 +185,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
                           (uint) thread_scheduler->max_threads +
                           (uint) extra_max_connections);
 
-  my_safe_printf_stderr("thread_count=%u\n", (uint) thread_count);
+  my_safe_printf_stderr("thread_count=%u\n", THD_count::value());
 
   if (dflt_key_cache && thread_scheduler)
   {

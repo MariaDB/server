@@ -1,9 +1,12 @@
-stop slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-reset master;
-reset slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-start slave;
-use mysql;
+include/master-slave.inc
+[connection master]
+==== Verify that alter database does not stop replication ====
+create database temp_db;
+use temp_db;
 alter database collate latin1_bin;
-alter database collate latin1_swedish_ci;
+connection slave;
+==== Clean up ====
+connection master;
+drop database temp_db;
+connection slave;
+include/rpl_end.inc

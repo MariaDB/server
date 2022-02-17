@@ -1,0 +1,5 @@
+!include ../galera_3nodes.cnf
+
+[mysqld]
+sql-safe-updates=1
+wsrep-debug=1

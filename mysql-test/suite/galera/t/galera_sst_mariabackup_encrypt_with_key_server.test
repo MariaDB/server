@@ -1,0 +1,25 @@
+#
+# This test checks that if SST SSL is not explicitly donfigured mariabackup SST
+# uses server SSL configuration if present.
+# Initial SST happens via mariabackup, so there is not much to do in the body
+# of the test
+#
+
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_mariabackup.inc
+--source include/have_ssl_communication.inc
+
+SELECT 1;
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+# Confirm that transfer was SSL-encrypted
+--let $assert_text = Using openssl based encryption with socat
+--let $assert_select = Using openssl based encryption with socat: with key and crt
+--let $assert_count = 1
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_only_after = CURRENT_TEST
+--source include/assert_grep.inc

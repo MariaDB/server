@@ -6,14 +6,14 @@
 /*                                                                     */
 /*  This file contains the TDBMUL and TDBDIR classes declares.         */
 /***********************************************************************/
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <dirent.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 //#include "osutil.h"
 #include "block.h"
 
@@ -160,18 +160,18 @@ public:
   // Members
   PSZ  To_File;                 // Points to file search pathname
   int  iFile;                   // Index of currently retrieved file
-#if defined(__WIN__)
+#if defined(_WIN32)
 	PVAL Dvalp;							      // Used to retrieve file date values
 	WIN32_FIND_DATA FileData;			// Find data structure
 	HANDLE hSearch;               // Search handle
   char Drive[_MAX_DRIVE];       // Drive name
-#else   // !__WIN__
+#else   // !_WIN32
   struct stat    Fileinfo;      // File info structure
   struct dirent *Entry;         // Point to directory entry structure
   DIR *Dir;                     // To searched directory structure
   bool Done;                    // true when _splipath is done
   char Pattern[_MAX_FNAME+_MAX_EXT];
-#endif  // !__WIN__
+#endif  // !_WIN32
   char Fpath[_MAX_PATH];        // Absolute file search pattern
   char Direc[_MAX_DIR];         // Search path
   char Fname[_MAX_FNAME];       // File name
@@ -207,11 +207,11 @@ class TDBSDR : public TDBDIR {
   typedef struct _Sub_Dir {
     struct _Sub_Dir *Next;
     struct _Sub_Dir *Prev;
-#if defined(__WIN__)
+#if defined(_WIN32)
     HANDLE H;               // Search handle
-#else   // !__WIN__
+#else   // !_WIN32
     DIR *D;
-#endif  // !__WIN__
+#endif  // !_WIN32
     size_t Len;           // Initial directory name length
     } SUBDIR, *PSUBDIR;
 
@@ -238,9 +238,9 @@ class DIRCOL : public COLBLK {
  protected:
   // Default constructor not to be used
   DIRCOL(void) {}
-#if defined(__WIN__)
+#if defined(_WIN32)
 	void SetTimeValue(PGLOBAL g, FILETIME& ftime);
-#endif   // __WIN__
+#endif   // _WIN32
 
   // Members
 	PTDBDIR	Tdbp;								// To DIR table

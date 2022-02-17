@@ -28,3 +28,76 @@ set statement sql_mode= '' for update t1 set i= 1, v= 2;
 Warnings:
 Warning	1906	The value specified for generated column 'v' in table 't1' has been ignored
 drop table t1;
+#
+# MDEV-18734 ASAN heap-use-after-free in my_strnxfrm_simple_internal upon update on versioned partitioned table
+#
+# Cover queue_fix() in ha_partition::handle_ordered_index_scan()
+create or replace table t1 (
+x int auto_increment primary key,
+b text, v mediumtext as (b) virtual,
+index (v(10))
+) partition by range columns (x) (
+partition p1 values less than (3),
+partition p2 values less than (6),
+partition p3 values less than (9),
+partition p4 values less than (12),
+partition p5 values less than (15),
+partition p6 values less than (17),
+partition p7 values less than (19),
+partition p8 values less than (21),
+partition p9 values less than (23),
+partition p10 values less than (25),
+partition p11 values less than (27),
+partition p12 values less than (29),
+partition p13 values less than (31),
+partition p14 values less than (33),
+partition p15 values less than (35),
+partition pn values less than (maxvalue));
+insert into t1 (b) values
+(repeat('q', 8192)), (repeat('z', 8192)), (repeat('a', 8192)), (repeat('b', 8192)),
+(repeat('x', 8192)), (repeat('y', 8192));
+insert t1 (b) select b from t1;
+insert t1 (b) select b from t1;
+insert t1 (b) select b from t1;
+insert t1 (b) select b from t1;
+select x, left(b, 10), left(v, 10) from t1 where x > 30 and x < 60 order by v;
+x	left(b, 10)	left(v, 10)
+33	aaaaaaaaaa	aaaaaaaaaa
+39	aaaaaaaaaa	aaaaaaaaaa
+45	aaaaaaaaaa	aaaaaaaaaa
+51	aaaaaaaaaa	aaaaaaaaaa
+57	aaaaaaaaaa	aaaaaaaaaa
+34	bbbbbbbbbb	bbbbbbbbbb
+40	bbbbbbbbbb	bbbbbbbbbb
+46	bbbbbbbbbb	bbbbbbbbbb
+52	bbbbbbbbbb	bbbbbbbbbb
+58	bbbbbbbbbb	bbbbbbbbbb
+31	qqqqqqqqqq	qqqqqqqqqq
+37	qqqqqqqqqq	qqqqqqqqqq
+43	qqqqqqqqqq	qqqqqqqqqq
+49	qqqqqqqqqq	qqqqqqqqqq
+55	qqqqqqqqqq	qqqqqqqqqq
+35	xxxxxxxxxx	xxxxxxxxxx
+41	xxxxxxxxxx	xxxxxxxxxx
+47	xxxxxxxxxx	xxxxxxxxxx
+53	xxxxxxxxxx	xxxxxxxxxx
+59	xxxxxxxxxx	xxxxxxxxxx
+36	yyyyyyyyyy	yyyyyyyyyy
+42	yyyyyyyyyy	yyyyyyyyyy
+48	yyyyyyyyyy	yyyyyyyyyy
+54	yyyyyyyyyy	yyyyyyyyyy
+32	zzzzzzzzzz	zzzzzzzzzz
+38	zzzzzzzzzz	zzzzzzzzzz
+44	zzzzzzzzzz	zzzzzzzzzz
+50	zzzzzzzzzz	zzzzzzzzzz
+56	zzzzzzzzzz	zzzzzzzzzz
+update t1 set b= 'bar' where v > 'a' limit 20;
+drop table t1;
+# Cover return_top_record() in ha_partition::handle_ordered_index_scan()
+create table t1 (x int primary key, b tinytext, v text as (b) virtual)
+partition by range columns (x) (
+partition p1 values less than (4),
+partition pn values less than (maxvalue));
+insert into t1 (x, b) values (1, ''), (2, ''), (3, 'a'), (4, 'b');
+update t1 set b= 'bar' where x > 0 order by v limit 2;
+drop table t1;

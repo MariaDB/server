@@ -7,8 +7,6 @@ source include/have_binlog_format_mixed.inc;
 source include/master-slave.inc;
 
 set local sql_mode='';
-set global sql_mode='';
-
 # we need a db != test, where we don't have automatic grants
 --disable_warnings
 drop database if exists mysqltest1;
@@ -199,9 +197,11 @@ delimiter ;|
 delete t1,t2 from t1,t2;
 select fn1(20);
 insert into t2 values(fn1(21));
+--sorted_result
 select * from t1;
 select * from t2;
 sync_slave_with_master;
+--sorted_result
 select * from t1;
 select * from t2;
 
@@ -728,4 +728,3 @@ drop procedure p1;
 # Cleanup
 sync_slave_with_master;
 --source include/rpl_end.inc
-set global sql_mode=default;

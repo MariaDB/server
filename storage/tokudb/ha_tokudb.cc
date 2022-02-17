@@ -7266,7 +7266,7 @@ int ha_tokudb::create(
     // in the database directory, so automatic filename-based
     // discover_table_names() doesn't work either. So, it must force .frm
     // file to disk.
-    form->s->write_frm_image();
+    error= form->s->write_frm_image();
 #endif
 
 #if defined(TOKU_INCLUDE_OPTION_STRUCTS) && TOKU_INCLUDE_OPTION_STRUCTS
@@ -7298,8 +7298,8 @@ int ha_tokudb::create(
 #endif  // defined(TOKU_INCLUDE_OPTION_STRUCTS) && TOKU_INCLUDE_OPTION_STRUCTS
     const toku_compression_method compression_method =
         row_format_to_toku_compression_method(row_format);
-
     bool create_from_engine = (create_info->table_options & HA_OPTION_CREATE_FROM_ENGINE);
+    if (error) { goto cleanup; }
     if (create_from_engine) {
         // table already exists, nothing to do
         error = 0;

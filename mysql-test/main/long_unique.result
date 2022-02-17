@@ -3,7 +3,6 @@
 #table containing single unique column
 #table containing keys like unique(a,b,c,d) etc
 #then table containing 2 blob unique etc
-set @allowed_packet= @@max_allowed_packet;
 #table with single long blob column;
 create table t1(a blob  unique );
 insert into t1 values(1),(2),(3),(56),('sachin'),('maria'),(123456789034567891),(null),(null),(123456789034567890);
@@ -596,17 +595,17 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   UNIQUE KEY `db_row_hash_1` (`db_row_hash_1`),
   UNIQUE KEY `db_row_hash_2` (`db_row_hash_2`),
+  UNIQUE KEY `d` (`d`) USING HASH,
   UNIQUE KEY `e` (`e`),
-  UNIQUE KEY `a` (`a`),
-  UNIQUE KEY `d` (`d`) USING HASH
+  UNIQUE KEY `a` (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 show keys from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	db_row_hash_1	1	db_row_hash_1	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	db_row_hash_2	1	db_row_hash_2	A	NULL	NULL	NULL	YES	BTREE		
+t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
 t1	0	e	1	e	A	NULL	NULL	NULL	YES	BTREE		
 t1	0	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
-t1	0	d	1	d	A	NULL	NULL	NULL	YES	HASH		
 alter table t1 add column clm1 blob unique,add column clm2 blob unique;
 #try changing the name; 
 alter table t1 change column clm1 clm_changed1 blob, change column clm2 clm_changed2 blob;
@@ -1225,44 +1224,6 @@ DB_ROW_HASH_1
 33
 44
 drop table t1,t2;
-#very long blob entry;
-SET @@GLOBAL.max_allowed_packet=67108864;
-connect  'newcon', localhost, root,,;
-connection newcon;
-show variables like 'max_allowed_packet';
-Variable_name	Value
-max_allowed_packet	67108864
-create table t1(a longblob unique, b longblob , c longblob , unique(b,c));
-desc t1;
-Field	Type	Null	Key	Default	Extra
-a	longblob	YES	UNI	NULL	
-b	longblob	YES	MUL	NULL	
-c	longblob	YES		NULL	
-show create table t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` longblob DEFAULT NULL,
-  `b` longblob DEFAULT NULL,
-  `c` longblob DEFAULT NULL,
-  UNIQUE KEY `a` (`a`) USING HASH,
-  UNIQUE KEY `b` (`b`,`c`) USING HASH
-) ENGINE=MyISAM DEFAULT CHARSET=latin1
-show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	1	b	A	NULL	NULL	NULL	YES	HASH		
-t1	0	b	2	c	A	NULL	NULL	NULL	YES	HASH		
-insert into t1 values(concat(repeat('sachin',10000000),'1'),concat(repeat('sachin',10000000),'1'),
-concat(repeat('sachin',10000000),'1'));
-insert into t1 values(concat(repeat('sachin',10000000),'2'),concat(repeat('sachin',10000000),'2'),
-concat(repeat('sachin',10000000),'1'));
-insert into t1 values(concat(repeat('sachin',10000000),'2'),concat(repeat('sachin',10000000),'2'),
-concat(repeat('sachin',10000000),'4'));
-ERROR 23000: Duplicate entry 'sachinsachinsachinsachinsachinsachinsachinsachinsachinsachins...' for key 'a'
-insert into t1 values(concat(repeat('sachin',10000000),'3'),concat(repeat('sachin',10000000),'1'),
-concat(repeat('sachin',10000000),'1'));
-ERROR 23000: Duplicate entry 'sachinsachinsachinsachinsachinsachinsachinsachinsachinsachins...' for key 'b'
-drop table t1;
 #long key unique with different key length
 create table t1(a blob, unique(a(3000)));
 desc t1;
@@ -1307,9 +1268,6 @@ t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH
 t1	0	c	1	c	A	NULL	4500	NULL	YES	HASH		
 t1	0	c	2	d	A	NULL	NULL	NULL	YES	HASH		
 drop table t1;
-disconnect newcon;
-connection default;
-SET @@GLOBAL.max_allowed_packet=4194304;
 #ext bug
 create table t1(a int primary key, b blob unique, c int, d blob , index(c));
 show create table t1;
@@ -1477,4 +1435,4 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SELECT t2.b FROM t1 JOIN t2 ON t1.d = t2.f WHERE t2.pk >= 20;
 b
 drop table t1,t2;
-set @@GLOBAL.max_allowed_packet= @allowed_packet;
+# End of 10.4 tests

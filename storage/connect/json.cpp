@@ -1,7 +1,7 @@
 /*************** json CPP Declares Source Code File (.H) ***************/
-/*  Name: json.cpp   Version 1.5                                       */
+/*  Name: json.cpp   Version 1.6                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2020  */
+/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2021  */
 /*                                                                     */
 /*  This file contains the JSON classes functions.                     */
 /***********************************************************************/
@@ -23,7 +23,7 @@
 
 #define ARGS       MY_MIN(24,(int)len-i),s+MY_MAX(i-3,0)
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 #define EL  "\r\n"
 #else
 #define EL  "\n"
@@ -54,19 +54,47 @@ char *GetExceptionDesc(PGLOBAL g, unsigned int e);
 #endif   // SE_CATCH
 
 char *GetJsonNull(void);
+int   GetDefaultPrec(void);
+int   PrepareColist(char*);
 
 /***********************************************************************/
 /* IsNum: check whether this string is all digits.                     */
 /***********************************************************************/
-bool IsNum(PSZ s) {
-  for (char* p = s; *p; p++)
+bool IsNum(PSZ s)
+{
+  char* p = s;
+
+  if (*p == '-')
+    p++;
+
+  if (*p == ']')
+    return false;
+  else for (; *p; p++)
     if (*p == ']')
       break;
-    else if (!isdigit(*p) || *p == '-')
+    else if (!isdigit(*p))
       return false;
 
   return true;
 } // end of IsNum
+
+/***********************************************************************/
+/* IsArray: check whether this is a Mongo array path.                  */
+/***********************************************************************/
+bool IsArray(PSZ s)
+{
+  char* p = s;
+
+  if (!p || !*p)
+    return false;
+  else for (; *p; p++)
+    if (*p == '.')
+      break;
+    else if (!isdigit(*p))
+      return false;
+
+  return true;
+} // end of IsArray
 
 /***********************************************************************/
 /* NextChr: return the first found '[' or Sep pointer.                 */
@@ -83,6 +111,27 @@ char* NextChr(PSZ s, char sep)
 
   return p2;
 } // end of NextChr
+
+/***********************************************************************/
+/* Stringified: check that this column is in the stringified list.     */
+/***********************************************************************/
+bool Stringified(PCSZ strfy, char *colname)
+{
+  if (strfy) {
+    char *p, colist[512];
+    int   n;
+
+    strncpy(colist, strfy, sizeof(colist) - 1);
+    n = PrepareColist(colist); 
+
+    for (p = colist; n && p; p += (strlen(p) + 1), n--)
+      if (!stricmp(p, colname))
+        return true;
+
+  } // endif strfy
+
+  return false;
+} // end of Stringified
 
 #if 0
 /***********************************************************************/
@@ -218,6 +267,7 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char* fn, int pretty) {
 
   try {
     jdp = new(g) JDOC; // MUST BE ALLOCATED BEFORE jp !!!!!
+    jdp->dfp = GetDefaultPrec();
 
     if (!jsp) {
       strcpy(g->Message, "Null json tree");
@@ -978,8 +1028,8 @@ bool JDOC::SerializeValue(PJVAL jvp)
     case TYPE_BINT:
       sprintf(buf, "%lld", jvp->LLn);
       return js->WriteStr(buf);
-    case TYPE_DBL:
-      sprintf(buf, "%.*lf", jvp->Nd, jvp->F);
+    case TYPE_DBL:  // dfp to limit to the default number of decimals
+      sprintf(buf, "%.*f", MY_MIN(jvp->Nd, dfp), jvp->F);
       return js->WriteStr(buf);
     case TYPE_NULL:
       return js->WriteStr("null");
@@ -1257,6 +1307,8 @@ PJVAL JARRAY::GetArrayValue(int i)
 {
   if (Mvals && i >= 0 && i < Size)
     return Mvals[i];
+  else if (Mvals && i < 0 && i >= -Size)
+    return Mvals[Size + i];
   else
     return NULL;
 } // end of GetValue
@@ -1315,9 +1367,9 @@ bool JARRAY::Merge(PGLOBAL g, PJSON jsp)
 } // end of Merge
 
 /***********************************************************************/
-/* Set the nth Value of the Array Value list.                          */
+/* Set the nth Value of the Array Value list or add it.                */
 /***********************************************************************/
-bool JARRAY::SetArrayValue(PGLOBAL g, PJVAL jvp, int n)
+void JARRAY::SetArrayValue(PGLOBAL g, PJVAL jvp, int n)
 {
   int   i = 0;
   PJVAL jp, *jpp = &First;
@@ -1328,7 +1380,6 @@ bool JARRAY::SetArrayValue(PGLOBAL g, PJVAL jvp, int n)
 
   *jpp = jvp;
   jvp->Next = (jp ? jp->Next : NULL);
-  return false;
 } // end of SetValue
 
 /***********************************************************************/
@@ -1406,7 +1457,7 @@ bool JARRAY::IsNull(void)
 /***********************************************************************/
 JVALUE::JVALUE(PJSON jsp) : JSON()
 {
-  if (jsp->GetType() == TYPE_JVAL) {
+  if (jsp && jsp->GetType() == TYPE_JVAL) {
     PJVAL jvp = (PJVAL)jsp;
 
 //  Val = ((PJVAL)jsp)->GetVal();
@@ -1423,7 +1474,7 @@ JVALUE::JVALUE(PJSON jsp) : JSON()
   } else {
     Jsp = jsp;
 //  Val = NULL;
-    DataType = TYPE_JSON;
+    DataType = Jsp ? TYPE_JSON : TYPE_NULL;
     Nd = 0;
   } // endif Type
 
@@ -1752,7 +1803,7 @@ void JVALUE::SetBigint(PGLOBAL g, long long ll)
 void JVALUE::SetFloat(PGLOBAL g, double f)
 {
   F = f;
-  Nd = 6;
+  Nd = GetDefaultPrec();
   DataType = TYPE_DBL;
 } // end of SetFloat
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -497,8 +497,10 @@ struct btr_pcur_t{
 	/** if cursor position is stored, contains an initial segment of the
 	latest record cursor was positioned either on, before or after */
 	rec_t*		old_rec;
+	/** btr_cur.index->n_core_fields when old_rec was copied */
+	uint16		old_n_core_fields;
 	/** number of fields in old_rec */
-	ulint		old_n_fields;
+	uint16		old_n_fields;
 	/** BTR_PCUR_ON, BTR_PCUR_BEFORE, or BTR_PCUR_AFTER, depending on
 	whether cursor was on, before, or after the old_rec record */
 	enum btr_pcur_pos_t	rel_pos;
@@ -538,6 +540,6 @@ struct btr_pcur_t{
 	dict_index_t*	index() const { return(btr_cur.index); }
 };
 
-#include "btr0pcur.ic"
+#include "btr0pcur.inl"
 
 #endif

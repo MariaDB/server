@@ -170,4 +170,26 @@ insert into t1 values (1);
 select * from t1;
 drop table t1;
 
+--echo #
+--echo # MDEV-25468 DELETE HISTORY may delete current data on system-versioned table
+--echo #
+create or replace table t1 (x int) with system versioning;
+insert into t1 values (1);
+delete history from t1 before system_time '2039-01-01 23:00';
+select * from t1;
+explain extended delete history from t1 before system_time '2039-01-01 23:00';
+create or replace procedure p() delete history from t1 before system_time '2039-01-01 23:00';
+call p;
+select * from t1;
+call p;
+select * from t1;
+drop procedure p;
+prepare stmt from "delete history from t1 before system_time '2039-01-01 23:00'";
+execute stmt;
+select * from t1;
+execute stmt;
+select * from t1;
+drop prepare stmt;
+drop table t1;
+
 --source suite/versioning/common_finish.inc

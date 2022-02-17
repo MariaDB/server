@@ -72,7 +72,7 @@ JSNX::JSNX(PGLOBAL g, PJSON row, int type, int len, int prec, my_bool wr)
 	Jp = NULL;
 	Nodes = NULL;
 	Value = AllocateValue(g, type, len, prec);
-	MulVal = NULL;
+	//MulVal = NULL;
 	Jpath = NULL;
 	Buf_Type = type;
 	Long = len;
@@ -123,7 +123,7 @@ my_bool JSNX::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
 			p[--n] = 0;
 		} else if (!IsNum(p)) {
 			// Wrong array specification
-			sprintf(g->Message, "Invalid array specification %s", p);
+			snprintf(g->Message, sizeof(g->Message), "Invalid array specification %s", p);
 			return true;
 		} // endif p
 
@@ -197,38 +197,6 @@ my_bool JSNX::SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm)
 		strcpy(g->Message, "Wrong array specification");
 		return true;
 	} // endif's
-
-	// For calculated arrays, a local Value must be used
-	switch (jnp->Op) {
-	case OP_NUM:
-		jnp->Valp = AllocateValue(g, TYPE_INT);
-		break;
-	case OP_ADD:
-	case OP_MULT:
-	case OP_SEP:
-		if (!IsTypeChar(Buf_Type))
-			jnp->Valp = AllocateValue(g, Buf_Type, 0, GetPrecision());
-		else
-			jnp->Valp = AllocateValue(g, TYPE_DOUBLE, 0, 2);
-
-		break;
-	case OP_MIN:
-	case OP_MAX:
-		jnp->Valp = AllocateValue(g, Buf_Type, Long, GetPrecision());
-		break;
-	case OP_CNC:
-		if (IsTypeChar(Buf_Type))
-			jnp->Valp = AllocateValue(g, TYPE_STRING, Long, GetPrecision());
-		else
-			jnp->Valp = AllocateValue(g, TYPE_STRING, 512);
-
-		break;
-	default:
-		break;
-	} // endswitch Op
-
-	if (jnp->Valp)
-		MulVal = AllocateValue(g, jnp->Valp);
 
 	return false;
 } // end of SetArrayOptions
@@ -312,7 +280,7 @@ my_bool JSNX::ParseJpath(PGLOBAL g)
 	} // endfor i, p
 
 	Nod = i;
-	MulVal = AllocateValue(g, Value);
+	//MulVal = AllocateValue(g, Value);
 
 	if (trace(1))
 		for (i = 0; i < Nod; i++)
@@ -324,23 +292,6 @@ my_bool JSNX::ParseJpath(PGLOBAL g)
 } // end of ParseJpath
 
 /*********************************************************************************/
-/*  MakeJson: Serialize the json item and set value to it.                       */
-/*********************************************************************************/
-PVAL JSNX::MakeJson(PGLOBAL g, PJSON jsp)
-{
-	if (Value->IsTypeNum()) {
-		strcpy(g->Message, "Cannot make Json for a numeric value");
-		Value->Reset();
-	} else if (jsp->GetType() != TYPE_JAR && jsp->GetType() != TYPE_JOB) {
-		strcpy(g->Message, "Target is not an array or object");
-		Value->Reset();
-	}	else
-		Value->SetValue_psz(Serialize(g, jsp, NULL, 0));
-
-	return Value;
-} // end of MakeJson
-
-/*********************************************************************************/
 /*  SetValue: Set a value from a JVALUE contains.                                */
 /*********************************************************************************/
 void JSNX::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val)
@@ -350,6 +301,7 @@ void JSNX::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val)
 
 		if (Jb) {
 			vp->SetValue_psz(Serialize(g, val->GetJsp(), NULL, 0));
+			Jb = false;
 		} else switch (val->GetValType()) {
 			case TYPE_DTM:
 			case TYPE_STRG:
@@ -396,6 +348,52 @@ void JSNX::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val)
 } // end of SetJsonValue
 
 /*********************************************************************************/
+/*  MakeJson: Serialize the json item and set value to it.                       */
+/*********************************************************************************/
+PJVAL JSNX::MakeJson(PGLOBAL g, PJSON jsp, int n)
+{
+	Jb = false;
+
+	if (Value->IsTypeNum()) {
+		strcpy(g->Message, "Cannot make Json for a numeric value");
+		return NULL;
+	} else if (jsp->GetType() != TYPE_JAR && jsp->GetType() != TYPE_JOB) {
+		strcpy(g->Message, "Target is not an array or object");
+		return NULL;
+	}	else 	if (n < Nod -1) {
+		if (jsp->GetType() == TYPE_JAR) {
+			int    ars = jsp->GetSize(false);
+			PJNODE jnp = &Nodes[n];
+			PJAR jarp = new(g) JARRAY;
+
+			jnp->Op = OP_EQ;
+
+			for (jnp->Rank = 0; jnp->Rank < ars; jnp->Rank++)
+				jarp->AddArrayValue(g, GetRowValue(g, jsp, n));
+
+			jarp->InitArray(g);
+			jnp->Op = OP_XX;
+			jnp->Rank = 0;
+			jsp = jarp;
+		} else if(jsp->GetType() == TYPE_JOB) {
+			PJSON jp;
+			PJOB  jobp = new(g) JOBJECT;
+
+			for (PJPR prp = ((PJOB)jsp)->GetFirst(); prp; prp = prp->Next) {
+				jp = (prp->Val->DataType == TYPE_JSON) ? prp->Val->Jsp : prp->Val;
+				jobp->SetKeyValue(g, GetRowValue(g, jp, n + 1), prp->Key);
+			}	// endfor prp
+
+			jsp = jobp;
+		} // endif Type
+
+	} // endif
+
+	Jb = true;
+	return new(g) JVALUE(jsp);
+} // end of MakeJson
+
+/*********************************************************************************/
 /*  GetJson:                                                                     */
 /*********************************************************************************/
 PJVAL JSNX::GetJson(PGLOBAL g)
@@ -437,8 +435,7 @@ PJVAL JSNX::GetRowValue(PGLOBAL g, PJSON row, int i, my_bool b)
 			val = new(g) JVALUE(g, Value);
 			return val;
 		} else if (Nodes[i].Op == OP_XX) {
-			Jb = b;
-			return new(g)JVALUE(row);
+			return MakeJson(g, row, i);
 		} else switch (row->GetType()) {
 			case TYPE_JOB:
 				if (!Nodes[i].Key) {
@@ -505,6 +502,88 @@ PVAL JSNX::ExpandArray(PGLOBAL g, PJAR arp, int n)
 } // end of ExpandArray
 
 /*********************************************************************************/
+/*  Get the value used for calculating the array.                                */
+/*********************************************************************************/
+PVAL JSNX::GetCalcValue(PGLOBAL g, PJAR jap, int n)
+{
+	// For calculated arrays, a local Value must be used
+	int     lng = 0;
+	short   type= 0, prec= 0;
+	bool    b = n < Nod - 1;
+	PVAL    valp;
+	PJVAL   vlp, vp;
+	OPVAL   op = Nodes[n].Op;
+
+	switch (op) {
+		case OP_NUM:
+			type = TYPE_INT;
+			break;
+		case OP_ADD:
+		case OP_MULT:
+			if (!IsTypeNum(Buf_Type)) {
+				type = TYPE_INT;
+				prec = 0;
+
+				for (vlp = jap->GetArrayValue(0); vlp; vlp = vlp->Next) {
+					vp = (b && vlp->GetJsp()) ? GetRowValue(g, vlp, n + 1) : vlp;
+
+					switch (vp->DataType) {
+						case TYPE_BINT:
+							if (type == TYPE_INT)
+								type = TYPE_BIGINT;
+
+							break;
+						case TYPE_DBL:
+						case TYPE_FLOAT:
+							type = TYPE_DOUBLE;
+							prec = MY_MAX(prec, vp->Nd);
+							break;
+						default:
+							break;
+					}	// endswitch Type
+
+				} // endfor vlp
+
+			} else {
+				type = Buf_Type;
+				prec = GetPrecision();
+			} // endif Buf_Type
+
+			break;
+		case OP_SEP:
+			if (IsTypeChar(Buf_Type)) {
+				type = TYPE_DOUBLE;
+				prec = 2;
+			} else {
+				type = Buf_Type;
+				prec = GetPrecision();
+			} // endif Buf_Type
+
+			break;
+		case OP_MIN:
+		case OP_MAX:
+			type = Buf_Type;
+			lng = Long;
+			prec = GetPrecision();
+			break;
+		case OP_CNC:
+			type = TYPE_STRING;
+
+			if (IsTypeChar(Buf_Type)) {
+				lng = (Long) ? Long : 512;
+				prec = GetPrecision();
+			} else
+				lng = 512;
+
+			break;
+		default:
+			break;
+	} // endswitch Op
+
+	return valp = AllocateValue(g, type, lng, prec);
+} // end of GetCalcValue
+
+/*********************************************************************************/
 /*  CalculateArray:                                                              */
 /*********************************************************************************/
 PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
@@ -512,7 +591,8 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 	int     i, ars = arp->size(), nv = 0;
 	bool    err;
 	OPVAL   op = Nodes[n].Op;
-	PVAL    val[2], vp = Nodes[n].Valp;
+	PVAL    val[2], vp = GetCalcValue(g, arp, n);
+	PVAL    mulval = AllocateValue(g, vp);
 	PJVAL   jvrp, jvp;
 	JVALUE  jval;
 
@@ -545,9 +625,9 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 				SetJsonValue(g, vp, jvp);
 				continue;
 			} else
-				SetJsonValue(g, MulVal, jvp);
+				SetJsonValue(g, mulval, jvp);
 
-			if (!MulVal->IsNull()) {
+			if (!mulval->IsNull()) {
 				switch (op) {
 					case OP_CNC:
 						if (Nodes[n].CncVal) {
@@ -555,18 +635,18 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 							err = vp->Compute(g, val, 1, op);
 						} // endif CncVal
 
-						val[0] = MulVal;
+						val[0] = mulval;
 						err = vp->Compute(g, val, 1, op);
 						break;
 //        case OP_NUM:
 					case OP_SEP:
-						val[0] = Nodes[n].Valp;
-						val[1] = MulVal;
+						val[0] = vp;
+						val[1] = mulval;
 						err = vp->Compute(g, val, 2, OP_ADD);
 						break;
 					default:
-						val[0] = Nodes[n].Valp;
-						val[1] = MulVal;
+						val[0] = vp;
+						val[1] = mulval;
 						err = vp->Compute(g, val, 2, op);
 				} // endswitch Op
 
@@ -588,9 +668,9 @@ PVAL JSNX::CalculateArray(PGLOBAL g, PJAR arp, int n)
 
 	if (op == OP_SEP) {
 		// Calculate average
-		MulVal->SetValue(nv);
+		mulval->SetValue(nv);
 		val[0] = vp;
-		val[1] = MulVal;
+		val[1] = mulval;
 
 		if (vp->Compute(g, val, 2, OP_DIV))
 			vp->Reset();
@@ -1444,22 +1524,31 @@ static int *GetIntArgPtr(PGLOBAL g, UDF_ARGS *args, uint& n)
 /*********************************************************************************/
 int IsJson(UDF_ARGS *args, uint i, bool b)
 {
-	int n = 0;
+	const char *pat = args->attributes[i];
+	int   n = 0;
+
+	if (*pat == '@') {
+		pat++;
+
+		if (*pat == '\'' || *pat == '"')
+			pat++;
+
+	} // endif pat
 
 	if (i >= args->arg_count || args->arg_type[i] != STRING_RESULT) {
-	} else if (!strnicmp(args->attributes[i], "Json_", 5)) {
+	} else if (!strnicmp(pat, "Json_", 5)) {
 		if (!args->args[i] || strchr("[{ \t\r\n", *args->args[i]))
 			n = 1;					 // arg should be is a json item
 		else
 			n = 2;           // A file name may have been returned
 
-	} else if (!strnicmp(args->attributes[i], "Jbin_", 5)) {
+	} else if (!strnicmp(pat, "Jbin_", 5)) {
 		if (args->lengths[i] == sizeof(BSON))
 			n = 3;					 //	arg is a binary json item
 		else
 			n = 2;           // A file name may have been returned
 
-	} else if (!strnicmp(args->attributes[i], "Jfile_", 6)) {
+	} else if (!strnicmp(pat, "Jfile_", 6)) {
 		n = 2;					   //	arg is a json file name
 	} else if (b) {
 		char   *sap;
@@ -5865,7 +5954,7 @@ char *jfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		PUSH_WARNING(g->Message ? g->Message : "Unexpected error");
+		PUSH_WARNING(*g->Message ? g->Message : "Unexpected error");
 		*is_null = 1;
 		*error = 1;
 		*res_length = 0;
@@ -5926,7 +6015,7 @@ char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	if (!g->Xchk) {
 		int 	msgid = MSGID_OPEN_MODE_STRERROR;
-		FILE *fout;
+		FILE *fout = NULL;
 		FILE *fin;
 
 		if (!(fin = global_fopen(g, msgid, fn, "rt")))
@@ -5993,7 +6082,7 @@ char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		if (g->Message)
+		if (*g->Message)
 			str = strcpy(result, g->Message);
 		else
 			str = strcpy(result, "Unexpected error");

@@ -18,3 +18,13 @@ UNLOCK TABLES;
 LOCK TABLES performance_schema.file_instances WRITE;
 ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'file_instances'
 UNLOCK TABLES;
+#
+# MDEV-25325 column_comment for performance_schema tables
+#
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='file_instances';
+column_name	column_comment
+FILE_NAME	File name.
+EVENT_NAME	Instrument name associated with the file.
+OPEN_COUNT	Open handles on the file. A value of greater than zero means that the file is currently open.

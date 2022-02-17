@@ -1,3 +1,4 @@
 --loose-enable-performance-schema
 --max-allowed-packet=32000000
 --proxy-protocol-networks=::1/32,127.0.0.0/8,localhost
+--sequence=on

@@ -37,7 +37,6 @@ main.backup_stages                    : MDEV-23401 - Bad file descriptor
 main.binary_to_hex                    : MDEV-20211 - Wrong result
 main.check_constraint                 : Modified in 10.4.18
 main.connect                          : MDEV-17282 - Wrong result
-main.connect-abstract                 : MDEV-20162 - Could not execute 'check-testcase'
 main.connect2                         : MDEV-13885 - Server crash
 main.create                           : Modified in 10.4.18
 main.create_delayed                   : MDEV-10605 - failed with timeout

@@ -1102,21 +1102,22 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
   thd->mdl_context.release_lock(m_mdl_global_read_lock);
 
 #ifdef WITH_WSREP
-  if (m_state == GRL_ACQUIRED_AND_BLOCKS_COMMIT)
+  if (m_state == GRL_ACQUIRED_AND_BLOCKS_COMMIT &&
+      wsrep_locked_seqno != WSREP_SEQNO_UNDEFINED)
   {
     Wsrep_server_state& server_state= Wsrep_server_state::instance();
     if (server_state.state() == Wsrep_server_state::s_donor ||
         (WSREP_NNULL(thd) &&
          server_state.state() != Wsrep_server_state::s_synced))
     {
-      /* TODO: maybe redundant here?: */
-      wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
       server_state.resume();
+      wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
     }
     else if (WSREP_NNULL(thd) &&
              server_state.state() == Wsrep_server_state::s_synced)
     {
       server_state.resume_and_resync();
+      wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
     }
   }
 #endif /* WITH_WSREP */

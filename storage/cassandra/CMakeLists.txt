@@ -1,3 +1,12 @@
+
+SET(CPACK_RPM_cassandra-engine_PACKAGE_SUMMARY "Cassandra storage engine for MariaDB" PARENT_SCOPE)
+SET(CPACK_RPM_cassandra-engine_PACKAGE_DESCRIPTION "The Cassandra Storage Engine allows access to data in a Cassandra cluster from
+MariaDB, combining the best of SQL and no-SQL worlds. Cassandra SE (storage
+engine) makes Cassandra's column family appear as a table in MariaDB that you
+can insert to, update, and select from. You can write joins against this table,
+it is possible to join data that's stored in MariaDB with data that's stored in
+Cassandra." PARENT_SCOPE)
+
 # use the first path that has Thrift.h included, if found
 
 FIND_PATH(Thrift_INCLUDE_DIRS Thrift.h PATHS

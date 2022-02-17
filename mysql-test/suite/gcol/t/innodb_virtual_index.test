@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_sequence.inc
 
 # Ensure that the history list length will actually be decremented by purge.
 SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
@@ -281,3 +282,55 @@ ROLLBACK;
 SELECT * FROM t1;
 CHECK TABLE t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25872 InnoDB: Assertion failure in row_merge_read_clustered_index
+--echo #	upon ALTER on table with indexed virtual columns
+--echo #
+
+CREATE TABLE t1 (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  a INT,
+  va INT ZEROFILL AS (a) VIRTUAL,
+  b TIMESTAMP,
+  c CHAR(204),
+  vc CHAR(8),
+  KEY(vc,c(64),b,va)
+) ENGINE=InnoDB CHARACTER SET utf32;
+INSERT INTO t1 (id) SELECT NULL FROM seq_1_to_75;
+INSERT IGNORE INTO t1 (id, a) VALUES (NULL, -1);
+--error ER_WARN_DATA_OUT_OF_RANGE
+ALTER TABLE t1 FORCE;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-24713 Assertion `dict_table_is_comp(index->table)' failed
+--echo #		in row_merge_buf_add()
+--echo #
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(3),
+		 b CHAR(8) AS (a) VIRTUAL, KEY(b))
+		 ROW_FORMAT=REDUNDANT ENGINE=InnoDB
+		 CHARACTER SET utf8;
+INSERT INTO t1 (id,a) VALUES (1,'foo');
+OPTIMIZE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-20154 Assertion `len <= col->len || ((col->mtype) == 5
+--echo # || (col->mtype) == 14)' failed in row_merge_buf_add
+--echo #
+
+CREATE TABLE t1 (
+    a VARCHAR(2500),
+    b VARCHAR(2499) AS (a) VIRTUAL
+) ENGINE=InnoDB;
+INSERT INTO t1 (a) VALUES ('foo');
+
+ALTER TABLE t1 MODIFY a VARCHAR(2600), ALGORITHM=INPLACE;
+ALTER TABLE t1 ADD KEY (b), ALGORITHM=INPLACE;
+
+--echo # Cleanup
+DROP TABLE t1;
+
+--echo # End of 10.2 tests
+

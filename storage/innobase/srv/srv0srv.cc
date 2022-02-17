@@ -216,9 +216,6 @@ UNIV_INTERN os_event_t	srv_allow_writes_event;
 
 /** copy of innodb_buffer_pool_size */
 ulint	srv_buf_pool_size;
-const ulint	srv_buf_pool_min_size	= 5 * 1024 * 1024;
-/** Default pool size in bytes */
-const ulint	srv_buf_pool_def_size	= 128 * 1024 * 1024;
 /** Requested buffer pool chunk size. Each buffer pool instance consists
 of one or more chunks. */
 ulong	srv_buf_pool_chunk_unit;
@@ -480,9 +477,6 @@ current_time % 5 != 0. */
 # define	SRV_MASTER_MEM_VALIDATE_INTERVAL	(13)
 #endif /* MEM_PERIODIC_CHECK */
 # define	SRV_MASTER_DICT_LRU_INTERVAL		(47)
-
-/** Simulate compression failures. */
-UNIV_INTERN uint srv_simulate_comp_failures;
 
 /** Buffer pool dump status frequence in percentages */
 UNIV_INTERN ulong srv_buf_dump_status_frequency;
@@ -2501,6 +2495,13 @@ DECLARE_THREAD(srv_worker_thread)(
 
 	slot = srv_reserve_slot(SRV_WORKER);
 
+#ifdef UNIV_DEBUG
+	UT_LIST_INIT(slot->debug_sync,
+		     &srv_slot_t::debug_sync_t::debug_sync_list);
+	rw_lock_create(PFS_NOT_INSTRUMENTED, &slot->debug_sync_lock,
+		       SYNC_NO_ORDER_CHECK);
+#endif
+
 	ut_a(srv_n_purge_threads > 1);
 	ut_a(ulong(srv_sys.n_threads_active[SRV_WORKER])
 	     < srv_n_purge_threads);
@@ -2521,6 +2522,8 @@ DECLARE_THREAD(srv_worker_thread)(
 			srv_wake_purge_thread_if_not_active();
 		}
 	} while (purge_sys.enabled());
+
+	ut_d(rw_lock_free(&slot->debug_sync_lock));
 
 	srv_free_slot(slot);
 
@@ -2608,6 +2611,8 @@ static uint32_t srv_do_purge(ulint* n_total_purged
 			n_use_threads,
 			!(++count % srv_purge_rseg_truncate_frequency)
 			|| purge_sys.truncate.current
+			|| (srv_shutdown_state != SRV_SHUTDOWN_NONE
+			    && srv_fast_shutdown == 0)
 #ifdef UNIV_DEBUG
 			, slot
 #endif
@@ -2716,6 +2721,12 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 
 	slot = srv_reserve_slot(SRV_PURGE);
 
+#ifdef UNIV_DEBUG
+	UT_LIST_INIT(slot->debug_sync,
+		     &srv_slot_t::debug_sync_t::debug_sync_list);
+	rw_lock_create(PFS_NOT_INSTRUMENTED, &slot->debug_sync_lock,
+		       SYNC_NO_ORDER_CHECK);
+#endif
 	uint32_t rseg_history_len = trx_sys.rseg_history_len;
 
 	do {
@@ -2743,6 +2754,8 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 	/* The task queue should always be empty, independent of fast
 	shutdown state. */
 	ut_a(srv_get_task_queue_length() == 0);
+
+	ut_d(rw_lock_free(&slot->debug_sync_lock));
 
 	srv_free_slot(slot);
 

@@ -4212,7 +4212,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
 			const char * name, my_bool rep_quick)
 {
   int got_error;
-  uint i,key, total_key_length, istep;
+  uint i,key, istep;
   ha_rows start_records;
   my_off_t new_header_length,del;
   File new_file;
@@ -4374,7 +4374,9 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
     _ma_check_print_error(param,"Not enough memory for key!");
     goto err;
   }
-  total_key_length=0;
+#ifdef USING_SECOND_APPROACH
+  uint total_key_length=0;
+#endif
   rec_per_key_part= param->new_rec_per_key_part;
   share->state.state.records=share->state.state.del=share->state.split=0;
   share->state.state.empty=0;
@@ -4443,7 +4445,9 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
       if (keyseg->flag & HA_NULL_PART)
         sort_param[i].key_length++;
     }
+#ifdef USING_SECOND_APPROACH
     total_key_length+=sort_param[i].key_length;
+#endif
 
     if (sort_param[i].keyinfo->flag & HA_FULLTEXT)
     {
@@ -4927,7 +4931,8 @@ static int sort_get_next_record(MARIA_SORT_PARAM *sort_param)
         DBUG_RETURN(-1);
       }
       /* Retry only if wrong record, not if disk error */
-      if (flag != HA_ERR_WRONG_IN_RECORD && flag != HA_ERR_WRONG_CRC)
+      if (flag != HA_ERR_WRONG_IN_RECORD && flag != HA_ERR_WRONG_CRC &&
+          flag != HA_ERR_DECRYPTION_FAILED)
       {
         retry_if_quick(sort_param, flag);
         DBUG_RETURN(flag);
@@ -6737,7 +6742,8 @@ read_next_page:
                            PAGECACHE_READ_UNKNOWN_PAGE,
                            PAGECACHE_LOCK_LEFT_UNLOCKED, 0)))
       {
-        if (my_errno == HA_ERR_WRONG_CRC)
+        if (my_errno == HA_ERR_WRONG_CRC ||
+            my_errno == HA_ERR_DECRYPTION_FAILED)
         {
           /*
             Don't give errors for zero filled blocks. These can

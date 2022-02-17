@@ -1,0 +1,12 @@
+#
+# Tables with system versioning should not append keys to wsrep.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+SET @@local.sql_mode='no_field_options';
+CREATE TABLE t1 (f1 INT, ROW_START BIGINT UNSIGNED AS ROW START INVISIBLE, ROW_END BIGINT UNSIGNED AS ROW END INVISIBLE, PERIOD FOR SYSTEM_TIME(ROW_START, ROW_END)) WITH SYSTEM VERSIONING ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+UPDATE t1 SET f1 = 1 WHERE f1 = 1;
+DROP TABLE t1;

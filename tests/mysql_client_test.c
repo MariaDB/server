@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -5256,10 +5256,10 @@ static void test_manual_sample()
 {
   unsigned int param_count;
   MYSQL_STMT   *stmt;
-  short        small_data;
-  int          int_data;
+  short        small_data= 1;
+  int          int_data= 2;
   int          rc;
-  char         str_data[50];
+  char         str_data[50]= "std_data";
   ulonglong    affected_rows;
   MYSQL_BIND   my_bind[3];
   my_bool      is_null;
@@ -18209,9 +18209,9 @@ static void test_bug40365(void)
     if (!opt_silent)
       fprintf(stdout, "\ntime[%d]: %02d-%02d-%02d ",
               i, tm[i].year, tm[i].month, tm[i].day);
-      DIE_UNLESS(tm[i].year == 0);
-      DIE_UNLESS(tm[i].month == 0);
-      DIE_UNLESS(tm[i].day == 0);
+    DIE_UNLESS(tm[i].year == 0);
+    DIE_UNLESS(tm[i].month == 0);
+    DIE_UNLESS(tm[i].day == 0);
   }
   mysql_stmt_close(stmt);
   rc= mysql_commit(mysql);
@@ -20601,6 +20601,156 @@ static void test_ps_params_in_ctes()
   myquery(rc);
 }
 
+void display_result_metadata(MYSQL_FIELD *field,
+                             uint num_fields)
+{
+  MYSQL_FIELD* field_end;
+
+  mct_log("Catalog\tDatabase\tTable\tTable_alias\tColumn\t"
+          "Column_alias\tType\tLength\tMax length\tIs_null\t"
+          "Flags\tDecimals\tCharsetnr\n");
+  for (field_end= field+num_fields; field < field_end; field++)
+  {
+    mct_log("%s\t", field->catalog);
+    mct_log("%s\t", field->db);
+    mct_log("%s\t", field->org_table);
+    mct_log("%s\t", field->table);
+    mct_log("%s\t", field->org_name);
+    mct_log("%s\t", field->name);
+    mct_log("%u\t", field->type);
+    mct_log("%lu\t", field->length);
+    mct_log("%lu\t", field->max_length);
+    mct_log("%s\t", (IS_NOT_NULL(field->flags) ?  "N" : "Y"));
+    mct_log("%u\t", field->flags);
+    mct_log("%u\t", field->decimals);
+    mct_log("%u\n", field->charsetnr);
+  }
+}
+
+static void test_mdev_26145()
+{
+  MYSQL_STMT *stmt;
+  MYSQL_RES *result;
+  MYSQL_FIELD *fields;
+  int        rc, num_fields;
+
+  myheader("test_mdev_26145");
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t1(a INT)");
+  myquery(rc);
+
+  stmt= mysql_simple_prepare(
+    mysql, "(SELECT MAX(a) FROM t1) UNION (SELECT MAX(a) FROM t1)");
+  check_stmt(stmt);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  result= mysql_stmt_result_metadata(stmt);
+  DIE_UNLESS(result);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  fields= mysql_fetch_fields(result);
+
+  mct_start_logging("test_mdev26145");
+  display_result_metadata(fields, num_fields);
+  mct_close_log();
+
+  mysql_free_result(result);
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+
+  myquery(rc);
+}
+
+static void test_mdev24827()
+{
+  int rc;
+  MYSQL_STMT *stmt;
+  unsigned long cursor = CURSOR_TYPE_READ_ONLY;
+  const char* query=
+    "SELECT t2.c1 AS c1 FROM t1 LEFT JOIN t2 ON t1.c1 = t2.c1 "
+    "WHERE EXISTS (SELECT 1 FROM t1 WHERE c2 = -1) ORDER BY c1";
+
+  myheader("test_mdev24827");
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t2");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t2 (c1 INT PRIMARY KEY, c2 INT, "
+                  "KEY idx_c2(c2))");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "INSERT INTO t1 (c1, c2) "
+                  "SELECT seq, seq FROM seq_1_to_10000");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "INSERT INTO t2 (c1, c2) "
+                  "SELECT seq, seq FROM seq_1_to_20000");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+
+  rc= mysql_stmt_prepare(stmt, query, strlen(query));
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_attr_set(stmt, STMT_ATTR_CURSOR_TYPE, &cursor);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "DROP TABLE t2");
+  myquery(rc);
+}
+
+static void test_mdev_20516()
+{
+  MYSQL_STMT *stmt;
+  int        rc;
+  unsigned long cursor= CURSOR_TYPE_READ_ONLY;
+  const char* query=
+    "CREATE VIEW v1 AS SELECT * FROM t1";
+
+  myheader("test_mdev_20516");
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t1(a INT)");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+
+  rc= mysql_stmt_prepare(stmt, query, strlen(query));
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_attr_set(stmt, STMT_ATTR_CURSOR_TYPE, &cursor);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
 
 static void print_metadata(MYSQL_RES *rs_metadata, int num_fields)
 {
@@ -21138,6 +21288,9 @@ static void test_mdev20261()
 
 
 static struct my_tests_st my_tests[]= {
+  { "test_mdev_20516", test_mdev_20516 },
+  { "test_mdev24827", test_mdev24827 },
+  { "test_mdev_26145", test_mdev_26145 },
   { "disable_query_logs", disable_query_logs },
   { "test_view_sp_list_fields", test_view_sp_list_fields },
   { "client_query", client_query },

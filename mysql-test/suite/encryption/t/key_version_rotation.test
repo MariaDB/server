@@ -1,0 +1,41 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_sequence.inc
+
+create table t1(f1 int not null)engine=innodb;
+create table t2(f1 int not null)engine=innodb;
+insert into t1 select * from seq_1_to_100;
+insert into t2 select * from seq_1_to_100;
+
+let $restart_parameters=--innodb_encrypt_tables=0 --innodb_encryption_threads=1 --innodb_encryption_rotate_key_age=9;
+--source include/restart_mysqld.inc
+
+--echo # Enable encryption
+
+set global innodb_encrypt_tables=ON;
+--let $tables_count= `select count(*) from information_schema.tables where engine = 'InnoDB'`
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+--echo # Create a new table and it is added to rotation list
+create table t3(f1 int not null)engine=innodb;
+insert into t3 select * from seq_1_to_100;
+
+--echo # Increase the version and it should set rotation
+--echo # variable for the encryption plugin
+
+set global debug_key_management_version=10;
+select  @@debug_key_management_version;
+--let $tables_count= `select count(*) from information_schema.tables where engine = 'InnoDB'`
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+
+--echo # Decrease the key version and Disable the encryption
+set global debug_key_management_version=1;
+set global innodb_encrypt_tables=off;
+
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+--source include/wait_condition.inc
+DROP TABLE t1, t2, t3;

@@ -1,7 +1,7 @@
 /**************** tabjmg H Declares Source Code File (.H) **************/
-/*  Name: tabjmg.h   Version 1.1                                       */
+/*  Name: tabjmg.h   Version 1.3                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2017         */
+/*  (C) Copyright to the author Olivier BERTRAND          2017 - 2021  */
 /*                                                                     */
 /*  This file contains the MongoDB classes using the Java Driver.      */
 /***********************************************************************/
@@ -83,6 +83,7 @@ protected:
 	PCSZ       Coll_name;
 	PCSZ       Options;		         // The MongoDB options
 	PCSZ       Filter;			       // The filtering query
+	PCSZ			 Strfy;			         // The stringified columns
 	PSZ        Wrapname;           // Java wrapper name
 	int        Fpos;               // The current row index
 	int        N;                  // The current Rownum
@@ -106,6 +107,7 @@ public:
 
 	// Implementation
 	virtual int   GetAmType(void) {return Tmgp->GetAmType();}
+	virtual bool  Stringify(void) { return Sgfy; }
 
 	// Methods
 	//virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
@@ -123,7 +125,7 @@ protected:
 	// Members
 	TDBJMG *Tmgp;                 // To the MGO table block
 	char   *Jpath;                // The json path
-//char   *Mbuf;									// The Mini buffer
+	bool    Sgfy;									// True if stringified
 }; // end of class JMGCOL
 
 /***********************************************************************/

@@ -81,6 +81,7 @@ COUNT(k1)	k2	k3
 drop table t1;
 create table t1(k1 int auto_increment primary key,
 k2 char(200),k3 char(200))engine=innodb;
+INSERT INTO t1 VALUES(1, "test", "test");
 SET DEBUG_SYNC= 'row_merge_after_scan
 SIGNAL opened WAIT_FOR flushed';
 ALTER TABLE t1 FORCE, ADD COLUMN k4 int;
@@ -100,6 +101,7 @@ SELECT COUNT(k1),k2,k3 FROM t1 GROUP BY k2,k3;
 COUNT(k1)	k2	k3
 480	aaa	bbb
 480	aaaa	bbbb
+1	test	test
 disconnect con1;
 connection default;
 show create table t1;
@@ -109,7 +111,7 @@ t1	CREATE TABLE `t1` (
   `k2` char(200) DEFAULT NULL,
   `k3` char(200) DEFAULT NULL,
   PRIMARY KEY (`k1`)
-) ENGINE=InnoDB AUTO_INCREMENT=1023 DEFAULT CHARSET=latin1
+) ENGINE=InnoDB AUTO_INCREMENT=1024 DEFAULT CHARSET=latin1
 drop table t1;
 drop table t480;
 #
@@ -117,6 +119,7 @@ drop table t480;
 # in online table rebuild
 #
 CREATE TABLE t1 (j INT UNIQUE, i INT UNIQUE) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(2, 2);
 connect  con1,localhost,root,,test;
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL built WAIT_FOR log';
 ALTER TABLE t1 DROP j, FORCE;

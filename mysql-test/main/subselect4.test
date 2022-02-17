@@ -1039,6 +1039,8 @@ INSERT IGNORE INTO t3 VALUES (0),(0);
 
 set @@optimizer_switch='semijoin=off';
 
+--echo # NOTE: the following should have 'SUBQUERY', not 'DEPENDENT SUBQUERY'
+--echo # for line with id=2, see MDEV-27794.
 EXPLAIN
 SELECT * FROM t1 WHERE
 (SELECT f2 FROM t2
@@ -2212,7 +2214,41 @@ INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4), (5,5);
 SELECT a, b FROM t1 WHERE a IN (SELECT A.a FROM t1 A GROUP BY s.id);
 DROP TABLE t1;
 
---echo # End of 10.2 tests
+--echo #
+--echo # MDEV-24519: Server crashes in Charset::set_charset upon SELECT
+--echo #
+
+CREATE TABLE t1 (a VARBINARY(8));
+INSERT INTO t1 VALUES ('foo'),('bar');
+CREATE TABLE t2 (b VARBINARY(8));
+
+EXPLAIN
+SELECT a FROM t1 WHERE (a, a) IN (SELECT 'qux', 'qux') AND a = (SELECT MIN(b) FROM t2);
+SELECT a FROM t1 WHERE (a, a) IN (SELECT 'qux', 'qux') AND a = (SELECT MIN(b) FROM t2);
+
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b VARBINARY(8));
+
+EXPLAIN
+SELECT a FROM t1 WHERE (a, a) IN (SELECT 1, 2) AND a = (SELECT MIN(b) FROM t2);
+SELECT a FROM t1 WHERE (a, a) IN (SELECT 1, 2) AND a = (SELECT MIN(b) FROM t2);
+
+DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-22462: Item_in_subselect::create_single_in_to_exists_cond(JOIN *, Item **, Item **): Assertion `false' failed.
+--echo #
+
+select 1 from dual where 1 in (select 5 from dual where 1);
+
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+
+update t1 set a = 2 where a in (select a from dual where a = a);
+drop table t1;
 
 --echo #
 --echo # MDEV-18335: Assertion `!error || error == 137' failed in subselect_rowid_merge_engine::init
@@ -2283,6 +2319,66 @@ SELECT * FROM t2 WHERE (t2.a,t2.b) IN (('abx',1),('def',2), ('abc', 3));
 set names default;
 set @@in_predicate_conversion_threshold= @save_in_predicate_conversion_threshold;
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-24925: Server crashes in Item_subselect::init_expr_cache_tracker
+--echo #
+CREATE TABLE t1 (id INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+
+SELECT
+  1 IN (
+    SELECT
+      (SELECT COUNT(id)
+       FROM t1
+       WHERE t1_outer.id <> id
+       ) AS f
+    FROM
+      t1 AS t1_outer
+    GROUP BY f
+  );
+
+SELECT
+  1 IN (
+    SELECT
+      (SELECT COUNT(id)
+       FROM t1
+       WHERE t1_outer.id <> id
+       ) AS f
+    FROM
+      t1 AS t1_outer
+    GROUP BY 1
+  );
+
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-24898: Server crashes in st_select_lex::next_select / Item_subselect::is_expensive
+--echo #  (Testcase)
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2); # Optional, fails either way
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4); # Optional, fails either way
+
+--error ER_SUBQUERY_NO_1_ROW
+SELECT 1 IN (SELECT (SELECT a FROM t1) AS x FROM t2 GROUP BY x);
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-25629: Crash in get_sort_by_table() in subquery with order by having outer ref
+--echo #
+CREATE TABLE t1 (i1 int);
+insert into t1 values (1),(2);
+
+--error ER_SUBQUERY_NO_1_ROW
+SELECT 1
+FROM (t1 JOIN t1 AS ref_t1 ON
+	(t1.i1 > (SELECT ref_t1.i1 AS c0 FROM t1 b ORDER BY -c0)));
+
+DROP TABLE t1;
+
+--echo # End of 10.2 tests
 
 --echo # End of 10.3 tests
 

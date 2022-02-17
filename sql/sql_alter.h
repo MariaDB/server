@@ -324,6 +324,7 @@ public:
   const char   *fk_error_id;
   /** Name of table for the above error. */
   const char   *fk_error_table;
+  bool         modified_primary_key;
 
 private:
   char new_filename[FN_REFLEN + 1];

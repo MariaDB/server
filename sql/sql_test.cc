@@ -294,7 +294,6 @@ print_plan(JOIN* join, uint idx, double record_count, double read_time,
            double current_read_time, const char *info)
 {
   uint i;
-  POSITION pos;
   JOIN_TAB *join_table;
   JOIN_TAB **plan_nodes;
   TABLE*   table;
@@ -321,8 +320,8 @@ print_plan(JOIN* join, uint idx, double record_count, double read_time,
   fputs("     POSITIONS: ", DBUG_FILE);
   for (i= 0; i < idx ; i++)
   {
-    pos = join->positions[i];
-    table= pos.table->table;
+    POSITION *pos= join->positions + i;
+    table= pos->table->table;
     if (table)
       fputs(table->s->table_name.str, DBUG_FILE);
     fputc(' ', DBUG_FILE);
@@ -338,8 +337,8 @@ print_plan(JOIN* join, uint idx, double record_count, double read_time,
     fputs("BEST_POSITIONS: ", DBUG_FILE);
     for (i= 0; i < idx ; i++)
     {
-      pos= join->best_positions[i];
-      table= pos.table->table;
+      POSITION *pos= join->best_positions + i;
+      table= pos->table->table;
       if (table)
         fputs(table->s->table_name.str, DBUG_FILE);
       fputc(' ', DBUG_FILE);
@@ -617,8 +616,12 @@ Next alarm time: %lu\n",
 	(ulong)alarm_info.next_alarm_time);
 #endif
   display_table_locks();
-#ifdef HAVE_MALLINFO
+#if defined(HAVE_MALLINFO2)
+  struct mallinfo2 info = mallinfo2();
+#elif defined(HAVE_MALLINFO)
   struct mallinfo info= mallinfo();
+#endif
+#if defined(HAVE_MALLINFO) || defined(HAVE_MALLINFO2)
   char llbuff[10][22];
   printf("\nMemory status:\n\
 Non-mmapped space allocated from system: %s\n\

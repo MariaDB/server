@@ -271,7 +271,7 @@ void stop_mysqld_service()
     }
 
     /*
-      Remeber initial state of the service, we will restore it on
+      Remember initial state of the service, we will restore it on
       exit.
     */
     if(initial_service_state == UINT_MAX)
@@ -368,8 +368,6 @@ static void get_service_config()
 */
 static void change_service_config()
 {
-  char defaults_file[MAX_PATH];
-  char default_character_set[64];
   char buf[MAX_PATH];
   char commandline[3 * MAX_PATH + 19];
   int i;
@@ -391,22 +389,6 @@ static void change_service_config()
     the new version, and will complain about mismatched message file.
   */
   WritePrivateProfileString("mysqld", "basedir",NULL, service_properties.inifile);
-
-  /* 
-    Replace default-character-set  with character-set-server, to avoid 
-    "default-character-set is deprecated and will be replaced ..."
-    message.
-  */
-  default_character_set[0]= 0;
-  GetPrivateProfileString("mysqld", "default-character-set", NULL,
-    default_character_set, sizeof(default_character_set), defaults_file);
-  if (default_character_set[0])
-  {
-    WritePrivateProfileString("mysqld", "default-character-set", NULL, 
-      defaults_file);
-    WritePrivateProfileString("mysqld", "character-set-server",
-      default_character_set, defaults_file);
-  }
 
   sprintf(defaults_file_param,"--defaults-file=%s", service_properties.inifile);
   sprintf_s(commandline, "\"%s\" \"%s\" \"%s\"", mysqld_path, 
@@ -492,8 +474,10 @@ int main(int argc, char **argv)
   CopyFile(service_properties.inifile, my_ini_bck, FALSE);
   upgrade_config_file(service_properties.inifile);
 
-  log("Phase %d/%d: Ensuring innodb slow shutdown%s", ++phase, max_phases,
-    old_mysqld_exe_exists?",this can take some time":"(skipped)");
+  bool do_start_stop_server = old_mysqld_exe_exists && initial_service_state != SERVICE_RUNNING;
+
+  log("Phase %d/%d: Start and stop server in the old version, to avoid crash recovery %s", ++phase, max_phases,
+    do_start_stop_server?",this can take some time":"(skipped)");
 
   char socket_param[FN_REFLEN];
   sprintf_s(socket_param, "--socket=mysql_upgrade_service_%u",
@@ -501,11 +485,11 @@ int main(int argc, char **argv)
 
   DWORD start_duration_ms = 0;
 
-  if (old_mysqld_exe_exists)
+  if (do_start_stop_server)
   {
-    /* Start/stop server with  --loose-innodb-fast-shutdown=0 */
+    /* Start/stop server with  --loose-innodb-fast-shutdown=1 */
     mysqld_process = (HANDLE)run_tool(P_NOWAIT, service_properties.mysqld_exe,
-      defaults_file_param, "--loose-innodb-fast-shutdown=0", "--skip-networking",
+      defaults_file_param, "--loose-innodb-fast-shutdown=1", "--skip-networking",
       "--enable-named-pipe", socket_param, "--skip-slave-start", NULL);
 
     if (mysqld_process == INVALID_HANDLE_VALUE)
@@ -567,8 +551,8 @@ int main(int argc, char **argv)
     if (WaitForSingleObject(mysqld_process, 0) != WAIT_TIMEOUT)
       die("mysqld.exe did not start");
 
-    if (run_tool(P_WAIT, mysqladmin_path, "--protocol=pipe",
-      socket_param, "ping",  NULL) == 0)
+    if (run_tool(P_WAIT, mysqladmin_path, "--protocol=pipe", socket_param,
+                 "ping", "--no-beep", NULL) == 0)
     {
       break;
     }

@@ -618,8 +618,6 @@ String *Item_func_json_unquote::read_json(json_engine_t *je)
   json_scan_start(je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
 
-  je->value_type= (enum json_value_types) -1; /* To report errors right. */
-
   if (json_read_value(je))
     goto error;
 
@@ -982,7 +980,8 @@ my_decimal *Item_func_json_extract::val_decimal(my_decimal *to)
       case JSON_VALUE_ARRAY:
       case JSON_VALUE_FALSE:
       case JSON_VALUE_NULL:
-        break;
+      case JSON_VALUE_UNINITALIZED:
+      break;
     };
   }
   int2my_decimal(E_DEC_FATAL_ERROR, 0, false/*unsigned_flag*/, to);
@@ -3531,6 +3530,7 @@ const char *Item_func_json_format::func_name() const
 bool Item_func_json_format::fix_length_and_dec()
 {
   decimals= 0;
+  collation.set(args[0]->collation);
   max_length= args[0]->max_length;
   maybe_null= 1;
   return FALSE;

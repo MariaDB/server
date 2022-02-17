@@ -358,18 +358,16 @@ fil_space_encrypt(
 @param[in]	physical_size		page size
 @param[in]	fsp_flags		Tablespace flags
 @param[in,out]	src_frame		Page to decrypt
-@param[out]	err			DB_SUCCESS or DB_DECRYPTION_FAILED
-@return true if page decrypted, false if not.*/
+@return DB_SUCCESS or error */
 UNIV_INTERN
-bool
+dberr_t
 fil_space_decrypt(
 	ulint			space_id,
 	fil_space_crypt_t*	crypt_data,
 	byte*			tmp_frame,
 	ulint			physical_size,
 	ulint			fsp_flags,
-	byte*			src_frame,
-	dberr_t*		err);
+	byte*			src_frame);
 
 /******************************************************************
 Decrypt a page
@@ -479,7 +477,7 @@ fil_space_get_scrub_status(
 	const fil_space_t*		space,
 	fil_space_scrub_status_t*	status);
 
-#include "fil0crypt.ic"
+#include "fil0crypt.inl"
 #endif /* !UNIV_INNOCHECKSUM */
 
 /**
@@ -495,5 +493,11 @@ encrypted, or corrupted.
 @return true if page is encrypted AND OK, false otherwise */
 bool fil_space_verify_crypt_checksum(const byte* page, ulint zip_size)
 	MY_ATTRIBUTE((warn_unused_result));
+
+/** Add the tablespace to the rotation list if
+innodb_encrypt_rotate_key_age is 0 or encryption plugin does
+not do key version rotation
+@return whether the tablespace should be added to rotation list */
+bool fil_crypt_must_default_encrypt();
 
 #endif /* fil0crypt_h */

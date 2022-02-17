@@ -34,19 +34,23 @@ db.opt
 t1.frm
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Internal error: Drop all secondary indexes before importing table test/t1 when .cfg file is missing.
+ALTER TABLE t1 DROP INDEX b;
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t1`
+ALTER TABLE t1 IMPORT TABLESPACE;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL AUTO_INCREMENT,
   `b` blob DEFAULT NULL,
   `c` blob DEFAULT NULL,
-  PRIMARY KEY (`a`),
-  KEY `b` (`b`(200))
-) ENGINE=InnoDB AUTO_INCREMENT=46 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB AUTO_INCREMENT=57 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 UPDATE t1 set b = repeat("de", 100) where b = repeat("cd", 200);
 explain SELECT a FROM t1 where b = repeat("de", 100);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	b	b	203	const	#	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
 SELECT a FROM t1 where b = repeat("de", 100);
 a
 3
@@ -108,15 +112,21 @@ ALTER TABLE t1 ROW_FORMAT=DYNAMIC;
 ALTER TABLE t1 DISCARD TABLESPACE;
 restore: t1 .ibd and .cfg files
 ALTER TABLE t1 IMPORT TABLESPACE;
+ERROR HY000: Internal error: Drop all secondary indexes before importing table test/t1 when .cfg file is missing.
+ALTER TABLE t1 DROP INDEX idx1;
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t1`
+ALTER TABLE t1 IMPORT TABLESPACE;
+Warnings:
+Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t1.cfg', will attempt to import without schema verification
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL AUTO_INCREMENT,
   `c2` point NOT NULL,
   `c3` linestring NOT NULL,
-  PRIMARY KEY (`c1`),
-  SPATIAL KEY `idx1` (`c2`)
-) ENGINE=InnoDB AUTO_INCREMENT=14325 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+  PRIMARY KEY (`c1`)
+) ENGINE=InnoDB AUTO_INCREMENT=16372 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 UPDATE t1 SET C2 = ST_GeomFromText('POINT(0 0)');
 SELECT COUNT(*) FROM t1;
 COUNT(*)

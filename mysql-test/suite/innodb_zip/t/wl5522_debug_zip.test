@@ -624,7 +624,7 @@ EOF
 
 SET SESSION debug_dbug="+d,fsp_flags_is_valid_failure";
 
---error ER_INTERNAL_ERROR
+--error ER_NOT_KEYFILE
 ALTER TABLE t1 IMPORT TABLESPACE;
 
 SET SESSION debug_dbug=@saved_debug_dbug;

@@ -1,5 +1,5 @@
 
-!include include/default_mysqld_autosize.cnf
+!include suite/perfschema/include/default_mysqld_autosize.cnf
 
 [mysqld.1]
 
@@ -13,6 +13,8 @@
 # max_connections = 151
 
 # Automated sizing for everything
+
+loose-enable-performance-schema
 
 loose-performance-schema-accounts-size=-1
 loose-performance-schema-digests-size=-1

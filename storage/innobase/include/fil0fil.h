@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -171,7 +171,7 @@ public:
 	bool is_in_unflushed_spaces;
 
 	/** Checks that this tablespace needs key rotation. */
-	bool is_in_rotation_list;
+	bool is_in_default_encrypt;
 
 	/** True if the device this filespace is on supports atomic writes */
 	bool		atomic_write_supported;
@@ -316,6 +316,18 @@ public:
 	static bool full_crc32(ulint flags) {
 		return flags & FSP_FLAGS_FCRC32_MASK_MARKER;
 	}
+  /** Determine if full_crc32 is used along with compression */
+  static bool is_full_crc32_compressed(ulint flags)
+  {
+    if (full_crc32(flags))
+    {
+      ulint algo= FSP_FLAGS_FCRC32_GET_COMPRESSED_ALGO(flags);
+      DBUG_ASSERT(algo <= PAGE_ALGORITHM_LAST);
+      return algo > 0;
+    }
+
+    return false;
+  }
 	/** @return whether innodb_checksum_algorithm=full_crc32 is active */
 	bool full_crc32() const { return full_crc32(flags); }
 	/** Determine the logical page size.
@@ -377,19 +389,13 @@ public:
 	unsigned zip_size() const { return zip_size(flags); }
 	/** @return the physical page size */
 	unsigned physical_size() const { return physical_size(flags); }
-	/** Check whether the compression enabled in tablespace.
-	@param[in]	flags	tablespace flags */
-	static bool is_compressed(ulint flags) {
-
-		if (full_crc32(flags)) {
-			ulint algo = FSP_FLAGS_FCRC32_GET_COMPRESSED_ALGO(
-				flags);
-			DBUG_ASSERT(algo <= PAGE_ALGORITHM_LAST);
-			return algo > 0;
-		}
-
-		return FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
-	}
+  /** Check whether the compression enabled in tablespace.
+  @param[in]	flags	tablespace flags */
+  static bool is_compressed(ulint flags)
+  {
+    return is_full_crc32_compressed(flags)
+        || FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
+  }
 	/** @return whether the compression enabled for the tablespace. */
 	bool is_compressed() const { return is_compressed(flags); }
 
@@ -637,7 +643,7 @@ struct fil_node_t {
 	/** Determine some file metadata when creating or reading the file.
 	@param	file	the file that is being created, or OS_FILE_CLOSED */
 	void find_metadata(os_file_t file = OS_FILE_CLOSED
-#ifdef UNIV_LINUX
+#ifndef _WIN32
 			   , struct stat* statbuf = NULL
 #endif
 			   );
@@ -987,9 +993,9 @@ public:
 					record has been written since
 					the latest redo log checkpoint.
 					Protected only by log_sys.mutex. */
-	ilist<fil_space_t, rotation_list_tag_t> rotation_list;
-					/*!< list of all file spaces needing
-					key rotation.*/
+
+	/** List of all file spaces need key rotation */
+	ilist<fil_space_t, rotation_list_tag_t> default_encrypt_tables;
 
 	bool		space_id_reuse_warned;
 					/*!< whether fil_space_create()
@@ -1002,15 +1008,15 @@ public:
 	@retval	NULL	if the tablespace does not exist or cannot be read */
 	fil_space_t* read_page0(ulint id);
 
-  /** Return the next tablespace from rotation_list.
+  /** Return the next tablespace from default_encrypt_tables list.
   @param space   previous tablespace (NULL to start from the start)
   @param recheck whether the removal condition needs to be rechecked after
   the encryption parameters were changed
   @param encrypt expected state of innodb_encrypt_tables
   @return the next tablespace to process (n_pending_ops incremented)
   @retval NULL if this was the last */
-  inline fil_space_t* keyrotate_next(fil_space_t *space, bool recheck,
-                                     bool encrypt);
+  inline fil_space_t* default_encrypt_next(
+    fil_space_t *space, bool recheck, bool encrypt);
 };
 
 /** The tablespace memory cache. */
@@ -1330,21 +1336,6 @@ fil_ibd_load(
 	MY_ATTRIBUTE((warn_unused_result));
 
 
-/***********************************************************************//**
-A fault-tolerant function that tries to read the next file name in the
-directory. We retry 100 times if os_file_readdir_next_file() returns -1. The
-idea is to read as much good data as we can and jump over bad data.
-@return 0 if ok, -1 if error even after the retries, 1 if at the end
-of the directory */
-int
-fil_file_readdir_next_file(
-/*=======================*/
-	dberr_t*	err,	/*!< out: this is set to DB_ERROR if an error
-				was encountered, otherwise not changed */
-	const char*	dirname,/*!< in: directory name or path */
-	os_file_dir_t	dir,	/*!< in: directory stream */
-	os_file_stat_t*	info);	/*!< in/out: buffer where the
-				info is returned */
 /** Determine if a matching tablespace exists in the InnoDB tablespace
 memory cache. Note that if we have not done a crash recovery at the database
 startup, there may be many tablespaces which are not yet in the memory cache.
@@ -1604,7 +1595,7 @@ UNIV_INTERN
 ulint
 fil_space_get_block_size(const fil_space_t* space, unsigned offset);
 
-#include "fil0fil.ic"
+#include "fil0fil.inl"
 #endif /* UNIV_INNOCHECKSUM */
 
 #endif /* fil0fil_h */

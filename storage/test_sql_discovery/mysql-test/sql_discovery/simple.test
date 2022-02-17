@@ -29,6 +29,7 @@ show warnings;
 set @@test_sql_discovery_statement='t1:create table t1 (a int primary key) partition by hash(id) partitions 2';
 --error ER_SQL_DISCOVER_ERROR
 select * from t1;
+--replace_result 1289 1290 "The 'partitioning' feature is disabled; you need MariaDB built with '--with-plugin-partition' to have it working" "The MariaDB server is running with the --skip-partition option so it cannot execute this statement"
 show warnings;
 
 set @@test_sql_discovery_statement='t1:create table t1 (a int) union=(t3,t4)';

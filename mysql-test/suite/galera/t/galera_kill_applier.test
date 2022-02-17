@@ -7,9 +7,10 @@
 --source include/force_restart.inc
 
 --connection node_2
+SELECT @@wsrep_slave_threads;
 SET GLOBAL wsrep_slave_threads=2;
 
---let $wait_condition = SELECT COUNT(*) >= 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep applier idle';
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep applier idle';
 --let $wait_condition_on_error_output = SELECT COUNT(*), 2 as EXPECTED_VALUE FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep applier idle'; show processlist
 --source include/wait_condition_with_debug.inc
 
@@ -31,7 +32,7 @@ SET GLOBAL wsrep_slave_threads=2;
 --eval KILL QUERY $aborter_thread
 --enable_query_log
 
-SET GLOBAL wsrep_slave_threads=1;
+SET GLOBAL wsrep_slave_threads=DEFAULT;
 
 --connection node_1
 create table t1(a int not null primary key) engine=innodb;
@@ -39,8 +40,13 @@ insert into t1 values (1);
 insert into t1 values (2);
 
 --connection node_2
-set global wsrep_sync_wait=15;
+--echo # Wait until one of the appliers has exited
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
+--let $wait_condition_on_error_output = SELECT COUNT(*), 1 as EXPECTED_VALUE FROM INFORMATION_SCHEMA.PROCESSLIST WHERE USER = 'system user' AND STATE = 'wsrep applier idle'; show processlist
+--source include/wait_condition_with_debug.inc
+
 select count(*) from t1;
+SELECT @@wsrep_slave_threads;
 
 --connection node_1
 drop table t1;

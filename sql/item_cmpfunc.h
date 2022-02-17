@@ -832,11 +832,7 @@ class Item_func_ne :public Item_bool_rowready_func2
 {
 protected:
   SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param,
-                             Field *field, Item *value)
-  {
-    DBUG_ENTER("Item_func_ne::get_func_mm_tree");
-    DBUG_RETURN(get_ne_mm_tree(param, field, value, value));
-  }
+                             Field *field, Item *value);
 public:
   Item_func_ne(THD *thd, Item *a, Item *b):
     Item_bool_rowready_func2(thd, a, b) {}

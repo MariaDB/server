@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -88,7 +88,7 @@ inline bool TrxUndoRsegsIterator::set_next()
 		number shouldn't increase. Undo the increment of
 		expected commit done by caller assuming rollback
 		segments from given transaction are done. */
-		purge_sys.tail.commit = (*m_iter)->last_commit;
+		purge_sys.tail.trx_no = (*m_iter)->last_trx_no();
 	} else if (!purge_sys.purge_queue.empty()) {
 		m_rsegs = purge_sys.purge_queue.top();
 		purge_sys.purge_queue.pop();
@@ -109,17 +109,17 @@ inline bool TrxUndoRsegsIterator::set_next()
 	mutex_enter(&purge_sys.rseg->mutex);
 
 	ut_a(purge_sys.rseg->last_page_no != FIL_NULL);
-	ut_ad(purge_sys.rseg->last_trx_no() == m_rsegs.trx_no());
+	ut_ad(purge_sys.rseg->last_trx_no() == m_rsegs.trx_no);
 
 	/* We assume in purge of externally stored fields that space id is
 	in the range of UNDO tablespace space ids */
 	ut_ad(purge_sys.rseg->space->id == TRX_SYS_SPACE
 	      || srv_is_undo_tablespace(purge_sys.rseg->space->id));
 
-	ut_a(purge_sys.tail.commit <= purge_sys.rseg->last_commit);
+	ut_a(purge_sys.tail.trx_no <= purge_sys.rseg->last_trx_no());
 
-	purge_sys.tail.commit = purge_sys.rseg->last_commit;
-	purge_sys.hdr_offset = purge_sys.rseg->last_offset;
+	purge_sys.tail.trx_no = purge_sys.rseg->last_trx_no();
+	purge_sys.hdr_offset = purge_sys.rseg->last_offset();
 	purge_sys.hdr_page_no = purge_sys.rseg->last_page_no;
 
 	mutex_exit(&purge_sys.rseg->mutex);
@@ -210,8 +210,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 {
 	DBUG_PRINT("trx", ("commit(" TRX_ID_FMT "," TRX_ID_FMT ")",
 			   trx->id, trx->no));
-	ut_ad(undo == trx->rsegs.m_redo.undo
-	      || undo == trx->rsegs.m_redo.old_insert);
+	ut_ad(undo == trx->rsegs.m_redo.undo);
 	trx_rseg_t*	rseg		= trx->rsegs.m_redo.rseg;
 	ut_ad(undo->rseg == rseg);
 	trx_rsegf_t*	rseg_header	= trx_rsegf_get(
@@ -303,9 +302,8 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	}
 
 	if (rseg->last_page_no == FIL_NULL) {
-		rseg->last_page_no = undo->hdr_page_no;
-		rseg->last_offset = undo->hdr_offset;
-		rseg->set_last_trx_no(trx->no, undo == trx->rsegs.m_redo.undo);
+		rseg->last_page_no = static_cast<uint32_t>(undo->hdr_page_no);
+		rseg->set_last_commit(undo->hdr_offset, trx->no);
 		rseg->needs_purge = true;
 	}
 
@@ -464,8 +462,8 @@ func_exit:
 
 	undo_trx_no = mach_read_from_8(log_hdr + TRX_UNDO_TRX_NO);
 
-	if (undo_trx_no >= limit.trx_no()) {
-		if (undo_trx_no == limit.trx_no()) {
+	if (undo_trx_no >= limit.trx_no) {
+		if (undo_trx_no == limit.trx_no) {
 			trx_undo_truncate_start(
 				&rseg, hdr_addr.page,
 				hdr_addr.boffset, limit.undo_no);
@@ -553,12 +551,12 @@ function is called, the caller must not have any latches on undo log pages!
 static void trx_purge_truncate_history()
 {
 	ut_ad(purge_sys.head <= purge_sys.tail);
-	purge_sys_t::iterator& head = purge_sys.head.commit
+	purge_sys_t::iterator& head = purge_sys.head.trx_no
 		? purge_sys.head : purge_sys.tail;
 
-	if (head.trx_no() >= purge_sys.view.low_limit_no()) {
+	if (head.trx_no >= purge_sys.view.low_limit_no()) {
 		/* This is sometimes necessary. TODO: find out why. */
-		head.reset_trx_no(purge_sys.view.low_limit_no());
+		head.trx_no = purge_sys.view.low_limit_no();
 		head.undo_no = 0;
 	}
 
@@ -603,7 +601,7 @@ static void trx_purge_truncate_history()
 			return;
 		}
 
-		const fil_space_t& space = *purge_sys.truncate.current;
+		fil_space_t& space = *purge_sys.truncate.current;
 		/* Undo tablespace always are a single file. */
 		ut_a(UT_LIST_GET_LEN(space.chain) == 1);
 		fil_node_t* file = UT_LIST_GET_FIRST(space.chain);
@@ -649,7 +647,7 @@ not_free:
 				     undo;
 				     undo = UT_LIST_GET_NEXT(undo_list,
 							     undo)) {
-					if (head.trx_no() < undo->trx_id) {
+					if (head.trx_no < undo->trx_id) {
 						goto not_free;
 					} else {
 						cached += undo->size;
@@ -721,7 +719,8 @@ not_free:
 
 			buf_block_t* rblock = trx_rseg_header_create(
 				purge_sys.truncate.current,
-				rseg->id, sys_header, &mtr);
+				rseg->id, trx_sys.get_max_trx_id(),
+				sys_header, &mtr);
 			ut_ad(rblock);
 			rseg->page_no = rblock
 				? rblock->page.id.page_no() : FIL_NULL;
@@ -731,7 +730,6 @@ not_free:
 			free the existing structure. There can't be
 			any active transactions. */
 			ut_a(UT_LIST_GET_LEN(rseg->undo_list) == 0);
-			ut_a(UT_LIST_GET_LEN(rseg->old_insert_list) == 0);
 
 			trx_undo_t*	next_undo;
 
@@ -749,8 +747,6 @@ not_free:
 				     &trx_undo_t::undo_list);
 			UT_LIST_INIT(rseg->undo_cached,
 				     &trx_undo_t::undo_list);
-			UT_LIST_INIT(rseg->old_insert_list,
-				     &trx_undo_t::undo_list);
 
 			/* These were written by trx_rseg_header_create(). */
 			ut_ad(!mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT
@@ -763,33 +759,15 @@ not_free:
 			rseg->curr_size = 1;
 			rseg->trx_ref_count = 0;
 			rseg->last_page_no = FIL_NULL;
-			rseg->last_offset = 0;
-			rseg->last_commit = 0;
+			rseg->last_commit_and_offset = 0;
 			rseg->needs_purge = false;
 		}
 
-		mtr.commit();
-		/* Write-ahead the redo log record. */
-		log_write_up_to(mtr.commit_lsn(), true);
-
-		/* Trim the file size. */
-		os_file_truncate(file->name, file->handle,
-				 os_offset_t(size) << srv_page_size_shift,
-				 true);
-
-		/* This is only executed by srv_purge_coordinator_thread. */
+		mtr.commit_shrink(space);
+		/* No mutex; this is only updated by the purge coordinator. */
 		export_vars.innodb_undo_truncations++;
 
-		/* In MDEV-8319 (10.5) we will PUNCH_HOLE the garbage
-		(with write-ahead logging). */
-		mutex_enter(&fil_system.mutex);
-		ut_ad(&space == purge_sys.truncate.current);
-		ut_ad(space.is_being_truncated);
-		purge_sys.truncate.current->set_stopping(false);
-		purge_sys.truncate.current->is_being_truncated = false;
-		mutex_exit(&fil_system.mutex);
-
-		if (purge_sys.rseg != NULL
+		if (purge_sys.rseg
 		    && purge_sys.rseg->last_page_no == FIL_NULL) {
 			/* If purge_sys.rseg is pointing to rseg that
 			was recently truncated then move to next rseg
@@ -832,7 +810,6 @@ static void trx_purge_rseg_get_next_history_log(
 					handled */
 {
 	page_t*		undo_page;
-	trx_ulogf_t*	log_hdr;
 	fil_addr_t	prev_log_addr;
 	trx_id_t	trx_no;
 	mtr_t		mtr;
@@ -841,7 +818,7 @@ static void trx_purge_rseg_get_next_history_log(
 
 	ut_a(purge_sys.rseg->last_page_no != FIL_NULL);
 
-	purge_sys.tail.commit = purge_sys.rseg->last_commit + 1;
+	purge_sys.tail.trx_no = purge_sys.rseg->last_trx_no() + 1;
 	purge_sys.tail.undo_no = 0;
 	purge_sys.next_stored = false;
 
@@ -851,7 +828,7 @@ static void trx_purge_rseg_get_next_history_log(
 		page_id_t(purge_sys.rseg->space->id,
 			  purge_sys.rseg->last_page_no), &mtr);
 
-	log_hdr = undo_page + purge_sys.rseg->last_offset;
+	const trx_ulogf_t* log_hdr = undo_page + purge_sys.rseg->last_offset();
 
 	/* Increase the purge page count by one for every handled log */
 
@@ -883,17 +860,17 @@ static void trx_purge_rseg_get_next_history_log(
 		+ prev_log_addr.boffset;
 
 	trx_no = mach_read_from_8(log_hdr + TRX_UNDO_TRX_NO);
-	unsigned purge = mach_read_from_2(log_hdr + TRX_UNDO_NEEDS_PURGE);
-	ut_ad(purge <= 1);
+	ut_ad(mach_read_from_2(log_hdr + TRX_UNDO_NEEDS_PURGE) <= 1);
+	const byte needs_purge = log_hdr[TRX_UNDO_NEEDS_PURGE + 1];
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	mutex_enter(&purge_sys.rseg->mutex);
 
-	purge_sys.rseg->last_page_no = prev_log_addr.page;
-	purge_sys.rseg->last_offset = prev_log_addr.boffset;
-	purge_sys.rseg->set_last_trx_no(trx_no, purge != 0);
-	purge_sys.rseg->needs_purge = purge != 0;
+	purge_sys.rseg->last_page_no = static_cast<uint32_t>(
+		prev_log_addr.page);
+	purge_sys.rseg->set_last_commit(prev_log_addr.boffset, trx_no);
+	purge_sys.rseg->needs_purge = needs_purge != 0;
 
 	/* Purge can also produce events, however these are already ordered
 	in the rollback segment and any user generated event will be greater
@@ -910,15 +887,13 @@ static void trx_purge_rseg_get_next_history_log(
 }
 
 /** Position the purge sys "iterator" on the undo record to use for purging. */
-static
-void
-trx_purge_read_undo_rec()
+static void trx_purge_read_undo_rec()
 {
 	ulint		offset;
 	ulint		page_no;
 	ib_uint64_t	undo_no;
 
-	purge_sys.hdr_offset = purge_sys.rseg->last_offset;
+	purge_sys.hdr_offset = purge_sys.rseg->last_offset();
 	page_no = purge_sys.hdr_page_no = purge_sys.rseg->last_page_no;
 
 	if (purge_sys.rseg->needs_purge) {
@@ -991,7 +966,7 @@ trx_purge_get_next_rec(
 	mtr_t		mtr;
 
 	ut_ad(purge_sys.next_stored);
-	ut_ad(purge_sys.tail.trx_no() < purge_sys.view.low_limit_no());
+	ut_ad(purge_sys.tail.trx_no < purge_sys.view.low_limit_no());
 
 	space = purge_sys.rseg->space->id;
 	page_no = purge_sys.page_no;
@@ -1084,7 +1059,7 @@ trx_purge_fetch_next_rec(
 		}
 	}
 
-	if (purge_sys.tail.trx_no() >= purge_sys.view.low_limit_no()) {
+	if (purge_sys.tail.trx_no >= purge_sys.view.low_limit_no()) {
 
 		return(NULL);
 	}

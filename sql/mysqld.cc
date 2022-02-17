@@ -456,7 +456,7 @@ ulong delay_key_write_options;
 uint protocol_version;
 uint lower_case_table_names;
 ulong tc_heuristic_recover= 0;
-Atomic_counter<uint32_t> thread_count;
+Atomic_counter<uint32_t> THD_count::count, CONNECT::count;
 bool shutdown_wait_for_slaves;
 Atomic_counter<uint32_t> slave_open_temp_tables;
 ulong thread_created;
@@ -1131,14 +1131,6 @@ PSI_file_key key_file_binlog_state;
 PSI_statement_info stmt_info_new_packet;
 #endif
 
-#ifdef WITH_WSREP
-/** Whether the Galera write-set replication is enabled. A cached copy of
-global_system_variables.wsrep_on && wsrep_provider &&
-  strcmp(wsrep_provider, WSREP_NONE)
-*/
-bool WSREP_ON_;
-#endif /* WITH_WSREP */
-
 #ifndef EMBEDDED_LIBRARY
 void net_before_header_psi(struct st_net *net, void *thd, size_t /* unused: count */)
 {
@@ -1351,12 +1343,13 @@ struct my_rnd_struct sql_rand; ///< used by sql_class.cc:THD::THD()
 
 #ifndef EMBEDDED_LIBRARY
 MYSQL_SOCKET unix_sock, base_ip_sock, extra_ip_sock;
+C_MODE_START
+#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 /**
   Error reporter that buffer log messages.
   @param level          log message level
   @param format         log message format string
 */
-C_MODE_START
 static void buffered_option_error_reporter(enum loglevel level,
                                            const char *format, ...)
 {
@@ -1368,6 +1361,7 @@ static void buffered_option_error_reporter(enum loglevel level,
   va_end(args);
   buffered_logs.buffer(level, buffer);
 }
+#endif
 
 
 /**
@@ -1727,6 +1721,9 @@ static void close_connections(void)
 #endif
   end_thr_alarm(0);			 // Abort old alarms.
 
+  while (CONNECT::count)
+    my_sleep(100);
+
   /*
     First signal all threads that it's time to die
     This will give the threads some time to gracefully abort their
@@ -1753,9 +1750,9 @@ static void close_connections(void)
     much smaller than even 2 seconds, this is only a safety fallback against
     stuck threads so server shutdown is not held up forever.
   */
-  DBUG_PRINT("info", ("thread_count: %u", uint32_t(thread_count)));
+  DBUG_PRINT("info", ("THD_count: %u", THD_count::value()));
 
-  for (int i= 0; (thread_count - binlog_dump_thread_count) && i < 1000; i++)
+  for (int i= 0; (THD_count::value() - binlog_dump_thread_count) && i < 1000; i++)
     my_sleep(20000);
 
   if (global_system_variables.log_warnings)
@@ -1766,17 +1763,17 @@ static void close_connections(void)
   {
     wsrep_deinit(true);
   }
+  wsrep_sst_auth_free();
 #endif
   /* All threads has now been aborted */
-  DBUG_PRINT("quit", ("Waiting for threads to die (count=%u)",
-                      uint32_t(thread_count)));
+  DBUG_PRINT("quit", ("Waiting for threads to die (count=%u)", THD_count::value()));
 
-  while (thread_count - binlog_dump_thread_count)
+  while (THD_count::value() - binlog_dump_thread_count)
     my_sleep(1000);
 
   /* Kill phase 2 */
   server_threads.iterate(kill_thread_phase_2);
-  for (uint64 i= 0; thread_count; i++)
+  for (uint64 i= 0; THD_count::value(); i++)
   {
     /*
       This time the warnings are emitted within the loop to provide a
@@ -1908,6 +1905,7 @@ static void mysqld_exit(int exit_code)
   wait_for_signal_thread_to_end();
 #ifdef WITH_WSREP
   wsrep_deinit_server();
+  wsrep_sst_auth_free();
 #endif /* WITH_WSREP */
   mysql_audit_finalize();
   clean_up_mutexes();
@@ -3261,7 +3259,13 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       }
       break;
     case SIGHUP:
+#if defined(SI_KERNEL)
       if (!abort_loop && origin != SI_KERNEL)
+#elif defined(SI_USER)
+      if (!abort_loop && origin <= SI_USER)
+#else
+      if (!abort_loop)
+#endif
       {
         int not_used;
 	mysql_print_status();		// Print some debug info
@@ -5128,7 +5132,7 @@ static int init_server_components()
   }
 #endif /* WITH_WSREP */
 
-  if (opt_bin_log)
+  if (!opt_help && opt_bin_log)
   {
     if (mysql_bin_log.open_index_file(opt_binlog_index_name, opt_bin_logname,
                                       TRUE))
@@ -5538,7 +5542,7 @@ int mysqld_main(int argc, char **argv)
     Initialize the array of performance schema instrument configurations.
   */
   init_pfs_instrument_array();
-#endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
+
   /*
     Logs generated while parsing the command line
     options are buffered and printed later.
@@ -5546,7 +5550,7 @@ int mysqld_main(int argc, char **argv)
   buffered_logs.init();
   my_getopt_error_reporter= buffered_option_error_reporter;
   my_charset_error_reporter= buffered_option_error_reporter;
-#ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
+
   pfs_param.m_pfs_instrument= const_cast<char*>("");
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
   my_timer_init(&sys_timer_info);
@@ -5710,10 +5714,7 @@ int mysqld_main(int argc, char **argv)
   }
 
 #ifdef WITH_WSREP
-  WSREP_ON_= (global_system_variables.wsrep_on &&
-          wsrep_provider &&
-          strcmp(wsrep_provider, WSREP_NONE));
-
+  wsrep_set_wsrep_on();
   if (WSREP_ON && wsrep_check_opts()) unireg_abort(1);
 #endif
 
@@ -7558,8 +7559,11 @@ static int show_memory_used(THD *thd, SHOW_VAR *var, char *buff,
   var->type= SHOW_LONGLONG;
   var->value= buff;
   if (scope == OPT_GLOBAL)
+  {
+    calc_sum_of_all_status_if_needed(status_var);
     *(longlong*) buff= (status_var->global_memory_used +
                         status_var->local_memory_used);
+  }
   else
     *(longlong*) buff= status_var->local_memory_used;
   return 0;
@@ -8038,7 +8042,7 @@ static int mysql_init_variables(void)
   mqh_used= 0;
   cleanup_done= 0;
   select_errors= dropping_tables= ha_open_options=0;
-  thread_count= kill_cached_threads= wake_thread= 0;
+  THD_count::count= CONNECT::count= kill_cached_threads= wake_thread= 0;
   slave_open_temp_tables= 0;
   cached_thread_count= 0;
   opt_endinfo= using_udf_functions= 0;
@@ -8831,7 +8835,9 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   if (global_system_variables.low_priority_updates)
     thr_upgraded_concurrent_insert_lock= TL_WRITE_LOW_PRIORITY;
 
-  if (ft_boolean_check_syntax_string((uchar*) ft_boolean_syntax))
+  if (ft_boolean_check_syntax_string((uchar*) ft_boolean_syntax,
+                                     strlen(ft_boolean_syntax),
+                                     system_charset_info))
   {
     sql_print_error("Invalid ft-boolean-syntax string: %s",
                     ft_boolean_syntax);
@@ -8905,7 +8911,6 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   {
     /* Allow break with SIGINT, no core or stack trace */
     test_flags|= TEST_SIGINT;
-    opt_stack_trace= 1;
     test_flags&= ~TEST_CORE_ON_SIGNAL;
   }
   /* Set global MyISAM variables from delay_key_write_options */
@@ -9034,10 +9039,12 @@ void set_server_version(char *buf, size_t size)
 {
   bool is_log= opt_log || global_system_variables.sql_log_slow || opt_bin_log;
   bool is_debug= IF_DBUG(!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"), 0);
+  bool is_valgrind= IF_VALGRIND(!strstr(MYSQL_SERVER_SUFFIX_STR, "-valgrind"), 0);
   strxnmov(buf, size - 1,
            MYSQL_SERVER_VERSION,
            MYSQL_SERVER_SUFFIX_STR,
            IF_EMBEDDED("-embedded", ""),
+           is_valgrind ? "-valgrind" : "",
            is_debug ? "-debug" : "",
            is_log ? "-log" : "",
            NullS);

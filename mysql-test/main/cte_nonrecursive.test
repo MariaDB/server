@@ -1205,7 +1205,9 @@ DROP TABLE test.t;
 --echo # MDEV-22781: create view with CTE without default database
 --echo #
 
-drop database test;
+create database db;
+use db;
+drop database db;
 create database db1;
 create table db1.t1 (a int);
 insert into db1.t1 values (3),(7),(1);
@@ -1227,8 +1229,437 @@ drop view db1.v1;
 drop table db1.t1;
 drop database db1;
 
-create database test;
 use test;
+
+--echo #
+--echo # MDEV-24597: CTE with union used multiple times in query
+--echo #
+
+with cte(a) as
+(select 1 as d union select 2 as d)
+select a from cte as r1
+union
+select a from cte as r2;
+
+create table t1 (a int, b int) engine=myisam;
+insert into t1 values
+(3,30), (7,70), (1,10), (7,71), (2,20), (7,72), (3,33), (4,44),
+(5,50), (4,40), (3,33), (4,42), (4,43), (5,51);
+
+with cte(c) as
+(select a from t1 where b < 30 union select a from t1 where b > 40)
+select * from cte as r1, cte as r2 where r1.c = r2.c;
+
+with cte(a,c) as
+(
+  select a, count(*) from t1 group by a having count(*) = 1
+  union
+  select a, count(*) from t1 group by a having count(*) = 3
+)
+select a, c from cte as r1 where a < 3
+union
+select a, c from cte as r2 where a > 4;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-23886: Stored Function returning the result of a query
+--echo #             that uses CTE over a table twice
+--echo #
+
+create table t1 (c1 int);
+insert into t1 values (1),(2),(6);
+
+create function f1() returns int return
+( with cte1 as (select c1 from t1)
+  select sum(c1) from
+  (select * from cte1 union all select * from cte1) dt
+);
+select f1();
+
+create function f2() returns int return
+( with cte1 as (select c1 from t1)
+  select sum(s.c1) from cte1 as s, cte1 as t where s.c1=t.c1
+);
+select f2();
+
+create function f3() returns int return
+( with cte1 as (select c1 from t1)
+  select
+  case
+    when exists(select 1 from cte1 where c1 between 1 and 2) then 1
+    when exists(select 1 from cte1 where c1 between 5 and 6) then 2
+    else 0
+  end
+);
+select f3();
+
+create view v1 as (select c1 from t1);
+
+create function f4() returns int return
+( select sum(c1) from
+  (select * from v1 union all select * from v1) dt
+);
+select f4();
+
+create function f5() returns int return
+( select sum(s.c1) from v1 as s, v1 as t where s.c1=t.c1
+);
+select f5();
+
+create view v2(s) as
+with cte1 as (select c1 from t1)
+select sum(c1) from (select * from cte1 union all select * from cte1) dt;
+
+create function f6() returns int return
+(select s from v2);
+select f6();
+
+create function f7() returns int return
+( select r.s from v2 as r, v2 as t where r.s=t.s
+);
+select f7();
+
+select f5() + f6();
+
+prepare stmt from "select f5() + f6();";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop function f1;
+drop function f2;
+drop function f3;
+drop function f4;
+drop function f5;
+drop function f6;
+drop function f7;
+
+drop view v1;
+drop view v2;
+
+create table t2 (a int, b int);
+
+insert into t2
+with cte1 as (select c1 from t1)
+select * from cte1 as s, cte1 as t where s.c1=t.c1 and s.c1 > 5;
+
+select * from t2;
+
+delimiter |;
+
+create procedure p1()
+begin
+insert into t2
+with cte1 as (select c1 from t1)
+select * from cte1 as s, cte1 as t where s.c1=t.c1 and s.c1 <= 2 and t.c1 >= 2;
+end |
+
+delimiter ;|
+
+call p1();
+select * from t2;
+
+drop procedure p1;
+
+--echo # checking CTE resolution for queries with hanging CTEs
+
+with
+cte1(a) as (select * from t1 where c1 <= 2),
+cte2(b) as (select * from cte1 where a >= 2),
+cte3 as (select * from cte1,cte2 where cte1.a < cte2.b)
+select * from cte3;
+
+select * from t2;
+
+with
+cte1(a) as (select * from t1 where c1 <= 2),
+cte2(b) as (select * from cte1 where a >= 2),
+cte3 as (select * from cte1,cte2 where cte1.a < cte2.b)
+select * from t2;
+
+--error ER_BAD_FIELD_ERROR
+with
+cte1(a) as (select * from t1 where c1 <= 2),
+cte2(b) as (select * from cte1 where c1 >= 2),
+cte3 as (select * from cte1,cte2 where cte1.a < cte2.b)
+select * from t2;
+
+--error ER_BAD_FIELD_ERROR
+with
+cte1(a) as (select * from t1 where c1 <= 2),
+cte2(b) as (select * from cte1 where a >= 2),
+cte3 as (select * from cte1,cte2 where cte1.a < cte2.c1)
+select * from t2;
+
+with
+cte1 as (select * from t1 where c1 <= 2),
+cte2(a,b) as (select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+select * from cte2;
+
+with
+cte1 as (select * from t1 where c1 <= 2),
+cte2(a,b) as (select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+select * from t2;
+
+--error ER_NON_UNIQ_ERROR
+with
+cte1 as (select * from t1 where c1 <= 2),
+cte2(a,b) as (select * from cte1 as s1, cte1 as s2 where s1.c1=c1)
+select * from t2;
+
+with cte3 as
+( with cte2(a,b) as
+  ( with cte1 as (select * from t1 where c1 <= 2)
+    select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+  select r1.a,r2.b from cte2 as r1, cte2 as r2)
+select * from cte3;
+
+with cte3 as
+( with cte2(a,b) as
+  ( with cte1 as (select * from t1 where c1 <= 2)
+    select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+  select r1.a,r2.b from cte2 as r1, cte2 as r2)
+select * from t2;
+
+--error ER_BAD_FIELD_ERROR
+with cte3 as
+( with cte2(a,b) as
+  ( with cte1 as (select * from t1 where c1 <= 2)
+    select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+  select r1.c1,r2.c1 from cte2 as r1, cte2 as r2)
+select * from t2;
+
+delimiter |;
+
+create procedure p1()
+begin
+insert into t2
+with cte1 as (select c1 from t1)
+select * from t1 as s, t1 as t where s.c1=t.c1 and s.c1 <= 2 and t.c1 >= 2;
+end |
+
+delimiter ;|
+
+call p1();
+select * from t2;
+
+drop procedure p1;
+
+delimiter |;
+
+create procedure p1()
+begin
+insert into t2
+with cte1 as (select a from t1)
+select * from t1 as s, t1 as t where s.c1=t.c1 and s.c1 <= 2 and t.c1 >= 2;
+end |
+
+delimiter ;|
+
+--error ER_BAD_FIELD_ERROR
+call p1();
+
+drop procedure p1;
+
+drop table t1,t2;
+
+
+--echo #
+--echo # MDEV-20411: SP containing only one SELECT with WITH clause
+--echo #
+
+create procedure sp1 ()
+with cte as (select 1 as a) select * from cte;
+call sp1();
+call sp1();
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1), (7), (1), (1), (3), (1), (5);
+
+create procedure sp2 ()
+with cte as (select * from t1) select * from cte;
+call sp2();
+call sp2();
+
+create procedure sp3 ()
+with cte as (select * from t1 group by a) select * from cte;
+call sp3();
+call sp3();
+
+drop procedure sp1;
+drop procedure sp2;
+drop procedure sp3;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-26095: missing RECURSIVE for the recursive definition of CTE
+--echo #             embedded into another CTE definition
+--echo #
+
+create table t1 (a int);
+insert into t1 values (5), (7);
+
+with cte_e as (
+  with recursive cte_r as (
+    select a from t1 union select a+1 as a from cte_r r where a < 10
+  ) select * from cte_r
+) select * from cte_e;
+
+--ERROR ER_NO_SUCH_TABLE
+with cte_e as (
+  with cte_r as (
+    select a from t1 union select a+1 as a from cte_r r where a < 10
+  ) select * from cte_r
+) select * from cte_e;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-26025: query with two usage of a CTE executing via PS /SP
+--echo #
+
+create table t1 (a int, b int);
+insert into t1 value (1,3), (3,2), (1,3), (4,1);
+
+let $q=
+with
+  cte1 as ( select a,b from t1 where a = 1 AND b = 3 ),
+  cte2 as ( select a,b from cte1 ),
+  cte3 as ( select a,b from cte2 )
+select * from cte3, cte2;
+
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+eval create procedure sp() $q;
+
+call sp();
+call sp();
+
+drop procedure sp;
+drop table t1;
+
+--echo #
+--echo # MDEV-26825: query with two usage of CTE that refers to another CTE
+--echo #             with stored function using a base table.
+--echo #
+
+create table t1 (id int primary key);
+insert into t1 values
+(1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+
+create  function f(in_id int) returns integer
+return (select id from t1 where t1.id = in_id);
+
+with c1 as (select id from t1 where f(id)=id group by id),
+     c2 as (select id from c1 as pt group by id)
+select id from c2 as s1 union select id from c2 as s2;
+
+with c1 as (select id from t1 as r where f(id)=id group by id),
+     c2 as (select id from c1 as pt group by id)
+select id from c2 as s1 union select id from c2 as s2;
+
+create function g() returns int return (select count(*) from t1);
+create  procedure sp1()
+
+with c1 as (select id from t1 a where g() > 10),
+     c2 as (select id from c1)
+select id from c2 as s1 union select id from c2 as s2;
+
+call sp1();
+call sp1();
+
+drop procedure sp1;
+drop function g;
+
+drop function f;
+drop table t1;
+
+--echo #
+--echo # MDEV-27086: union using CTEs in CREATE TABLE
+--echo #
+
+create or replace temporary table tmp as
+with cte1 as (select 1 as a), cte2 as (select 2 as a)
+select * from cte1 union select * from cte2;
+select * from tmp;
+
+create table t1 as
+with cte1 as (select 1 as a), cte2 as (select 2 as a)
+select * from cte1 union select * from cte2;
+select * from t1;
+
+insert into t1 values (3);
+
+create table t2 as
+with cte1 as (select * from t1 where a <2), cte2 as (select * from t1 where a > 2)
+select * from cte1 union select * from cte2;
+select * from t2;
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-26470: CTE in WITH clause of subquery used in DELETE
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1), (5);
+
+create table t2 (b int);
+insert into t2 values (4), (1), (3), (2);
+
+delete from t1
+  where a in (with cte(a) as (select * from t2 where b <=2) select a from cte);
+select * from t1;
+
+insert into t1 values (1), (3);
+
+delete t1 from t1, t2
+  where t1.a=t2.b or
+        t1.a in (with cte(a) as (select b+1 from t2) select * from cte);
+select * from t1;
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-25766: Unused CTE lead to a crash in
+--echo # find_field_in_tables/find_order_in_list
+--echo #
+
+create table t1 (f1 INTEGER);
+
+create view v1 as
+select
+    subq_0.c4 as c2,
+    subq_0.c4 as c4
+  from
+    (select
+          ref_0.f1 as c4
+        from
+          t1 as ref_0
+        where (select 1)
+        ) as subq_0
+  order by c2, c4 desc;
+
+WITH
+unused_with AS (select
+    subq_0.c4 as c6
+  from
+    (select
+            11 as c4
+          from
+            v1 as ref_0
+     ) as subq_0,
+     v1 as ref_2
+)
+select 1 ;
+
+drop view v1;
+drop table t1;
 
 --echo # End of 10.2 tests
 

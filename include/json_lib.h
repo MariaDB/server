@@ -172,6 +172,7 @@ enum json_states {
 
 enum json_value_types
 {
+  JSON_VALUE_UNINITALIZED=0,
   JSON_VALUE_OBJECT=1,
   JSON_VALUE_ARRAY=2,
   JSON_VALUE_STRING=3,

@@ -1,11 +1,10 @@
-stop slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-reset master;
-reset slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-start slave;
+include/master-slave.inc
+[connection master]
+connection master;
 create table t1 (a int not null auto_increment primary key, b int, key(b));
-stop slave;
+connection slave;
+include/stop_slave.inc
+connection master;
 INSERT INTO t1 (a) VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 INSERT INTO t1 (a) SELECT null FROM t1;
 INSERT INTO t1 (a) SELECT null FROM t1;
@@ -20,7 +19,9 @@ INSERT INTO t1 (a) SELECT null FROM t1;
 INSERT INTO t1 (a) SELECT null FROM t1;
 INSERT INTO t1 (a) SELECT null FROM t1;
 INSERT INTO t1 (a) SELECT null FROM t1;
-start slave;
-stop slave;
+connection slave;
+include/start_slave.inc
+include/stop_slave.inc
 drop table t1;
+connection master;
 drop table t1;

@@ -782,6 +782,68 @@ ALTER TABLE t1 ADD UNIQUE INDEX ind9 (b), LOCK=SHARED;
 SET FOREIGN_KEY_CHECKS= 0;
 ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (pk);
 DROP TABLE t1;
+SET FOREIGN_KEY_CHECKS= 1;
+
+--echo #
+--echo # MDEV-23455 Hangs + Sig11 in unknown location(s) due to single complex FK query
+--echo #
+let $constr_prefix= aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa;
+let $fk_ref=        xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx;
+let $fk_field=      yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy;
+let $constr_count= 200; # each 100 constrs is 1 sec of test execution
+let $i= 0;
+
+while ($i < $constr_count)
+{
+  let $p= $constr_prefix$i;
+  let $constr= CONSTRAINT $p FOREIGN KEY ($fk_field) REFERENCES t1($fk_ref) ON UPDATE SET NULL;
+  if ($i)
+  {
+    let $constrs= $constrs, $constr;
+  }
+  if (!$i)
+  {
+    let $constrs= $constr;
+  }
+  inc $i;
+}
+--disable_query_log
+--echo Parsing foreign keys 1...
+--error ER_CANT_CREATE_TABLE
+eval create table t0($fk_field int, $constrs) engine innodb;
+--echo Parsing foreign keys 2...
+--error ER_CANT_CREATE_TABLE
+eval create table t1($fk_field int, $constrs) engine innodb;
+--echo Parsing foreign keys 3...
+--error ER_CANT_CREATE_TABLE
+eval create table t1($fk_ref int, $fk_field int, $constrs) engine innodb;
+--echo Parsing foreign keys 4...
+eval create table t1($fk_ref int primary key, $fk_field int, $constrs) engine innodb;
+drop table t1;
+--enable_query_log
+
+--echo #
+--echo # MDEV-27583 InnoDB uses different constants for FK cascade
+--echo #            error message in SQL vs error log
+--echo #
+
+CREATE TABLE t1
+(a INT, b INT, KEY(b),
+CONSTRAINT FOREIGN KEY (a) REFERENCES t1 (b) ON DELETE CASCADE)
+ENGINE=InnoDB;
+
+INSERT INTO t1 (a,b) VALUES
+(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),
+(0,0),(0,0),(0,0),(0,0),(0,0),(0,0),(0,1),(1,0);
+
+--error ER_GET_ERRMSG
+DELETE FROM t1 WHERE b = 1;
+SHOW WARNINGS;
+DROP TABLE t1;
+
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN= InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15.*;
+-- source include/search_pattern_in_file.inc
 
 --echo # End of 10.2 tests
 

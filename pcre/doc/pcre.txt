@@ -21,9 +21,9 @@ PLEASE TAKE NOTE
        library names libpcre, libpcre16, and libpcre32. January 2015  saw  the
        first release of a new API, known as PCRE2, with release numbers start-
        ing  at  10.00  and  library   names   libpcre2-8,   libpcre2-16,   and
-       libpcre2-32. The old libraries (now called PCRE1) are still being main-
-       tained for bug fixes,  but  there  will  be  no  new  development.  New
-       projects are advised to use the new PCRE2 libraries.
+       libpcre2-32.  The  old  libraries  (now called PCRE1) are now at end of
+       life, and 8.45 is the final release. New projects are  advised  to  use
+       the new PCRE2 libraries.
 
 
 INTRODUCTION
@@ -190,8 +190,8 @@ AUTHOR
 
 REVISION
 
-       Last updated: 10 February 2015
-       Copyright (c) 1997-2015 University of Cambridge.
+       Last updated: 14 June 2021
+       Copyright (c) 1997-2021 University of Cambridge.
 ------------------------------------------------------------------------------
 
 
@@ -3155,7 +3155,7 @@ MATCHING A PATTERN: THE TRADITIONAL FUNCTION
 
        The default value for the limit can be set when PCRE is built; the  de-
        fault  default  is  10  million, which handles all but the most extreme
-       cases. You can override the default  by  suppling  pcre_exec()  with  a
+       cases. You can override the default by  supplying  pcre_exec()  with  a
        pcre_extra   block   in   which   match_limit   is  set,  and  PCRE_EX-
        TRA_MATCH_LIMIT is set in the flags field. If the  limit  is  exceeded,
        pcre_exec() returns PCRE_ERROR_MATCHLIMIT.
@@ -3183,7 +3183,7 @@ MATCHING A PATTERN: THE TRADITIONAL FUNCTION
 
        The default value for match_limit_recursion can be  set  when  PCRE  is
        built;  the  default  default  is  the  same  value  as the default for
-       match_limit. You can override the default by suppling pcre_exec()  with
+       match_limit. You can override the default by supplying pcre_exec() with
        a  pcre_extra block in which match_limit_recursion is set, and PCRE_EX-
        TRA_MATCH_LIMIT_RECURSION is set in the flags field. If  the  limit  is
        exceeded, pcre_exec() returns PCRE_ERROR_RECURSIONLIMIT.
@@ -3475,9 +3475,9 @@ MATCHING A PATTERN: THE TRADITIONAL FUNCTION
 
        which finds occurrences of "iss" in the middle of  words.  (\B  matches
        only  if  the  current position in the subject is not a word boundary.)
-       When applied to the string "Mississipi" the first call  to  pcre_exec()
+       When applied to the string "Mississippi" the first call to  pcre_exec()
        finds  the  first  occurrence. If pcre_exec() is called again with just
-       the remainder of the subject, namely "issipi", it does not  match,  be-
+       the remainder of the subject, namely "issippi", it does not match,  be-
        cause  \B  is always false at the start of the subject, which is deemed
        to be a word boundary. However, if pcre_exec()  is  passed  the  entire
        string again, but with startoffset set to 4, it finds the second occur-
@@ -5292,11 +5292,11 @@ BACKSLASH
        It is possible to restrict \R to match only CR, LF, or CRLF (instead of
        the  complete  set  of  Unicode  line  endings)  by  setting the option
        PCRE_BSR_ANYCRLF either at compile time or when the pattern is matched.
-       (BSR is an abbrevation for "backslash R".) This can be made the default
-       when PCRE is built; if this is the case, the other behaviour can be re-
-       quested  via the PCRE_BSR_UNICODE option.  It is also possible to spec-
-       ify these settings by starting a pattern string with one of the follow-
-       ing sequences:
+       (BSR  is  an  abbreviation for "backslash R".) This can be made the de-
+       fault when PCRE is built; if this is the case, the other behaviour  can
+       be  requested  via the PCRE_BSR_UNICODE option.  It is also possible to
+       specify these settings by starting a pattern string  with  one  of  the
+       following sequences:
 
          (*BSR_ANYCRLF)   CR, LF, or CRLF only
          (*BSR_UNICODE)   any Unicode newline sequence
@@ -5488,8 +5488,8 @@ BACKSLASH
        3.  Do  not  break  Hangul (a Korean script) syllable sequences. Hangul
        characters are of five types: L, V, T, LV, and LVT. An L character  may
        be  followed by an L, V, LV, or LVT character; an LV or V character may
-       be followed by a V or T character; an LVT or T character may be follwed
-       only by a T character.
+       be followed by a V or T character; an LVT or T character  may  be  fol-
+       lowed only by a T character.
 
        4.  Do not end before extending characters or spacing marks. Characters
        with the "mark" property always have  the  "extend"  grapheme  breaking
@@ -7494,7 +7494,7 @@ BACKTRACKING CONTROL
        If  the  subject  is  "aaaac...",  after  the first match attempt fails
        (starting at the first character in the  string),  the  starting  point
        skips on to start the next attempt at "c". Note that a possessive quan-
-       tifer does not have the same effect as this example; although it  would
+       tifier does not have the same effect as this example; although it would
        suppress  backtracking  during  the first match attempt, the second at-
        tempt would start at the second character instead  of  skipping  on  to
        "c".
@@ -7793,7 +7793,7 @@ PCRE SPECIAL CATEGORY PROPERTIES FOR \p and \P
          Xan        Alphanumeric: union of properties L and N
          Xps        POSIX space: property Z or tab, NL, VT, FF, CR
          Xsp        Perl space: property Z or tab, NL, VT, FF, CR
-         Xuc        Univerally-named character: one that can be
+         Xuc        Universally-named character: one that can be
                       represented by a Universal Character Name
          Xwd        Perl word: property Xan or underscore
 

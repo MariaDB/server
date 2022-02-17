@@ -368,3 +368,21 @@ show index from t2;
 
 # Cleanup
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-26453 Assertion `0' failed in row_upd_sec_index_entry & corruption
+--echo #
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t (c INT AUTO_INCREMENT KEY, UNIQUE USING HASH(c));
+
+CREATE TABLE t (c INT AUTO_INCREMENT KEY);
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE UNIQUE INDEX i USING HASH ON t (c);
+INSERT INTO t VALUES (0);
+SELECT * FROM t;
+DELETE FROM t;
+
+DROP TABLE t;
+
+--echo # End of 10.4 tests

@@ -1,0 +1,36 @@
+#
+# MDEV-21613 - galera_sr.GCF-1018B MTR failed:
+# Failed to open table mysql.wsrep_streaming_log for writing
+#
+# A BF abort right before fragment removal caused this error to
+# be logged to the error log.
+#
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+
+--connection node_1
+SET SESSION wsrep_trx_fragment_size = 1;
+SET DEBUG_SYNC = "wsrep_before_fragment_removal SIGNAL fragment_removal_reached WAIT_FOR fragment_removal_continue";
+START TRANSACTION;
+INSERT INTO t1 VALUES(1), (2);
+--send COMMIT
+
+--connect node_ctrl, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_ctrl
+SET DEBUG_SYNC = "now WAIT_FOR fragment_removal_reached";
+
+
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+TRUNCATE TABLE t1;
+
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+--connection node_ctrl
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;

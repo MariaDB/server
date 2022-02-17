@@ -1,7 +1,12 @@
 # TODO: Copyrights
 
+SET(CPACK_RPM_rocksdb-engine_PACKAGE_SUMMARY "RocksDB storage engine for MariaDB" PARENT_SCOPE)
+SET(CPACK_RPM_rocksdb-engine_PACKAGE_DESCRIPTION "The RocksDB storage engine is a high performance storage engine, aimed
+at maximising storage efficiency while maintaining InnoDB-like performance." PARENT_SCOPE)
+
 MACRO(SKIP_ROCKSDB_PLUGIN msg)
   MESSAGE_ONCE(SKIP_ROCKSDB_PLUGIN "Can't build rocksdb engine - ${msg}")
+  ADD_FEATURE_INFO(ROCKSDB "OFF" "Storage Engine")
   RETURN()
 ENDMACRO()
 
@@ -41,6 +46,15 @@ endif()
 #
 IF (WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 4)
   SKIP_ROCKSDB_PLUGIN("32-Bit Windows are temporarily disabled")
+ENDIF()
+
+#
+# Also, disable on ARM64 when not Linux
+# Requires submodule update to v6.16.3
+# containing commit https://github.com/facebook/rocksdb/commit/ee4bd4780b321ddb5f92a0f4eb956f2a2ebd60dc
+#
+IF(CMAKE_SYSTEM_PROCESSOR MATCHES "(arm64|aarch64)" AND NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  SKIP_ROCKSDB_PLUGIN("ARM64 disabled on all except Linux")
 ENDIF()
 
 # This plugin needs recent C++ compilers (it is using C++11 features)
@@ -115,7 +129,8 @@ SET(ROCKSDB_SE_SOURCES
 # This is a strong requirement coming from RocksDB. No conditional checks here.
 #ADD_DEFINITIONS(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX
 #)
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "riscv64")
+
+if (HAVE_GCC_C11_ATOMICS_WITH_LIBATOMIC)
   SET(ATOMIC_EXTRA_LIBS -latomic)
 else()
   SET(ATOMIC_EXTRA_LIBS)

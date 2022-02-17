@@ -1,5 +1,8 @@
 --source include/have_innodb.inc
 
+call mtr.add_suppression("Index for table 'tab' is corrupt; try to repair it");
+
+
 SET @row_format = @@GLOBAL.innodb_default_row_format;
 
 # set the variables
@@ -79,7 +82,7 @@ ALTER TABLE tab DISCARD TABLESPACE;
 
 call mtr.add_suppression("InnoDB: Tried to read .* bytes at offset 0");
 
---error ER_INTERNAL_ERROR
+--error ER_NOT_KEYFILE
 ALTER TABLE tab IMPORT TABLESPACE;
 --remove_file $MYSQLD_DATADIR/test/tab.ibd
 --move_file $MYSQLD_DATADIR/tab.ibd $MYSQLD_DATADIR/test/tab.ibd

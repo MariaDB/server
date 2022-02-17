@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -193,7 +193,8 @@ PageBulk::insert(
 	if (!page_rec_is_infimum_low(page_offset(m_cur_rec))) {
 		rec_t*	old_rec = m_cur_rec;
 		rec_offs* old_offsets = rec_get_offsets(
-			old_rec, m_index, NULL,	is_leaf,
+			old_rec, m_index, NULL,	is_leaf
+			? m_index->n_core_fields : 0,
 			ULINT_UNDEFINED, &m_heap);
 
 		ut_ad(cmp_rec_rec(rec, old_rec, offsets, old_offsets, m_index)
@@ -447,6 +448,7 @@ PageBulk::getSplitRec()
 
 	ut_ad(m_page_zip != NULL);
 	ut_ad(m_rec_no >= 2);
+	ut_ad(!m_index->is_instant());
 
 	ut_ad(page_get_free_space_of_empty(m_is_comp) > m_free_space);
 	total_used_size = page_get_free_space_of_empty(m_is_comp)
@@ -456,13 +458,13 @@ PageBulk::getSplitRec()
 	n_recs = 0;
 	offsets = NULL;
 	rec = page_get_infimum_rec(m_page);
+	const ulint n_core = page_is_leaf(m_page) ? m_index->n_core_fields : 0;
 
 	do {
 		rec = page_rec_get_next(rec);
 		ut_ad(page_rec_is_user_rec(rec));
 
-		offsets = rec_get_offsets(rec, m_index, offsets,
-					  page_is_leaf(m_page),
+		offsets = rec_get_offsets(rec, m_index, offsets, n_core,
 					  ULINT_UNDEFINED, &m_heap);
 		total_recs_size += rec_offs_size(offsets);
 		n_recs++;
@@ -491,9 +493,11 @@ PageBulk::copyIn(
 	ut_ad(m_rec_no == 0);
 	ut_ad(page_rec_is_user_rec(rec));
 
+	const ulint n_core = page_rec_is_leaf(rec)
+		? m_index->n_core_fields : 0;
+
 	do {
-		offsets = rec_get_offsets(rec, m_index, offsets,
-					  page_rec_is_leaf(split_rec),
+		offsets = rec_get_offsets(rec, m_index, offsets, n_core,
 					  ULINT_UNDEFINED, &m_heap);
 
 		insert(rec, offsets);
@@ -534,8 +538,10 @@ PageBulk::copyOut(
 	/* Set last record's next in page */
 	rec_offs*	offsets = NULL;
 	rec = page_rec_get_prev(split_rec);
-	offsets = rec_get_offsets(rec, m_index, offsets,
-				  page_rec_is_leaf(split_rec),
+	const ulint n_core = page_rec_is_leaf(split_rec)
+		? m_index->n_core_fields : 0;
+
+	offsets = rec_get_offsets(rec, m_index, offsets, n_core,
 				  ULINT_UNDEFINED, &m_heap);
 	page_rec_set_next(rec, page_get_supremum_rec(m_page));
 
@@ -543,8 +549,7 @@ PageBulk::copyOut(
 	m_cur_rec = rec;
 	m_heap_top = rec_get_end(rec, offsets);
 
-	offsets = rec_get_offsets(last_rec, m_index, offsets,
-				  page_rec_is_leaf(split_rec),
+	offsets = rec_get_offsets(last_rec, m_index, offsets, n_core,
 				  ULINT_UNDEFINED, &m_heap);
 
 	m_free_space += ulint(rec_get_end(last_rec, offsets) - m_heap_top)
@@ -976,7 +981,8 @@ BtrBulk::insert(
 	/* Convert tuple to rec. */
         rec = rec_convert_dtuple_to_rec(static_cast<byte*>(mem_heap_alloc(
 		page_bulk->m_heap, rec_size)), m_index, tuple, n_ext);
-        offsets = rec_get_offsets(rec, m_index, offsets, !level,
+        offsets = rec_get_offsets(rec, m_index, offsets, level
+				  ? 0 : m_index->n_core_fields,
 				  ULINT_UNDEFINED, &page_bulk->m_heap);
 
 	page_bulk->insert(rec, offsets);

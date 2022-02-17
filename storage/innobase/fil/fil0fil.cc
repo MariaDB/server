@@ -1,7 +1,7 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 1995, 2021, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -488,12 +488,16 @@ static bool fil_node_open_file(fil_node_t* node)
 
 	const bool first_time_open = node->size == 0;
 
-	bool o_direct_possible = !FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags);
-	if (const ulint ssize = FSP_FLAGS_GET_ZIP_SSIZE(space->flags)) {
-		compile_time_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096);
-		if (ssize < 3) {
-			o_direct_possible = false;
-		}
+	ulint type;
+	static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096,
+		      "compatibility");
+	switch (FSP_FLAGS_GET_ZIP_SSIZE(space->flags)) {
+	case 1:
+	case 2:
+		type = OS_DATA_FILE_NO_O_DIRECT;
+		break;
+	default:
+		type = OS_DATA_FILE;
 	}
 
 	if (first_time_open
@@ -514,9 +518,7 @@ retry:
 			? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
 			: OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
 			OS_FILE_AIO,
-			o_direct_possible
-			? OS_DATA_FILE
-			: OS_DATA_FILE_NO_O_DIRECT,
+			type,
 			read_only_mode,
 			&success);
 
@@ -556,9 +558,7 @@ fail:
 			? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
 			: OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
 			OS_FILE_AIO,
-			o_direct_possible
-			? OS_DATA_FILE
-			: OS_DATA_FILE_NO_O_DIRECT,
+			type,
 			read_only_mode,
 			&success);
 	}
@@ -827,10 +827,15 @@ fil_space_extend_must_retry(
 
 	const ulint	page_size = space->physical_size();
 
-	/* fil_read_first_page() expects srv_page_size bytes.
-	fil_node_open_file() expects at least 4 * srv_page_size bytes.*/
+	/* fil_read_first_page() expects innodb_page_size bytes.
+	fil_node_open_file() expects at least 4 * innodb_page_size bytes.
+	os_file_set_size() expects multiples of 4096 bytes.
+	For ROW_FORMAT=COMPRESSED tables using 1024-byte or 2048-byte
+	pages, we will preallocate up to an integer multiple of 4096 bytes,
+	and let normal writes append 1024, 2048, or 3072 bytes to the file. */
 	os_offset_t new_size = std::max(
-		os_offset_t(size - file_start_page_no) * page_size,
+		(os_offset_t(size - file_start_page_no) * page_size)
+		& ~os_offset_t(4095),
 		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE << srv_page_size_shift));
 
 	*success = os_file_set_size(node->name, node->handle, new_size,
@@ -1083,9 +1088,9 @@ fil_space_detach(
 		space->is_in_unflushed_spaces = false;
 	}
 
-	if (space->is_in_rotation_list) {
-		fil_system.rotation_list.remove(*space);
-		space->is_in_rotation_list = false;
+	if (space->is_in_default_encrypt) {
+		fil_system.default_encrypt_tables.remove(*space);
+		space->is_in_default_encrypt = false;
 	}
 
 	UT_LIST_REMOVE(fil_system.space_list, space);
@@ -1292,20 +1297,25 @@ fil_space_create(
 		fil_system.max_assigned_id = id;
 	}
 
+	const bool rotate =
+		(purpose == FIL_TYPE_TABLESPACE
+		 && (mode == FIL_ENCRYPTION_ON
+		     || mode == FIL_ENCRYPTION_OFF || srv_encrypt_tables)
+		 && fil_crypt_must_default_encrypt());
+
 	/* Inform key rotation that there could be something
 	to do */
-	if (purpose == FIL_TYPE_TABLESPACE
-	    && !srv_fil_crypt_rotate_key_age && fil_crypt_threads_event &&
-	    (mode == FIL_ENCRYPTION_ON || mode == FIL_ENCRYPTION_OFF
-	     || srv_encrypt_tables)) {
+	if (rotate) {
 		/* Key rotation is not enabled, need to inform background
 		encryption threads. */
-		fil_system.rotation_list.push_back(*space);
-		space->is_in_rotation_list = true;
-		mutex_exit(&fil_system.mutex);
+		fil_system.default_encrypt_tables.push_back(*space);
+		space->is_in_default_encrypt = true;
+	}
+
+	mutex_exit(&fil_system.mutex);
+
+	if (rotate && srv_n_fil_crypt_threads_started) {
 		os_event_set(fil_crypt_threads_event);
-	} else {
-		mutex_exit(&fil_system.mutex);
 	}
 
 	return(space);
@@ -2904,13 +2914,22 @@ fil_ibd_create(
 		return NULL;
 	}
 
+	ulint type;
+	static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096,
+		      "compatibility");
+	switch (FSP_FLAGS_GET_ZIP_SSIZE(flags)) {
+	case 1:
+	case 2:
+		type = OS_DATA_FILE_NO_O_DIRECT;
+		break;
+	default:
+		type = OS_DATA_FILE;
+	}
+
 	file = os_file_create(
 		innodb_data_file_key, path,
 		OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT,
-		OS_FILE_NORMAL,
-		OS_DATA_FILE,
-		srv_read_only_mode,
-		&success);
+		OS_FILE_NORMAL, type, srv_read_only_mode, &success);
 
 	if (!success) {
 		/* The following call will print an error message */
@@ -3666,7 +3685,7 @@ fil_ibd_load(
 	space = fil_space_get_by_id(space_id);
 	mutex_exit(&fil_system.mutex);
 
-	if (space != NULL) {
+	if (space) {
 		/* Compare the filename we are trying to open with the
 		filename from the first node of the tablespace we opened
 		previously. Fail if it is different. */
@@ -3678,8 +3697,8 @@ fil_ibd_load(
 				<< "' with space ID " << space->id
 				<< ". Another data file called " << node->name
 				<< " exists with the same space ID.";
-				space = NULL;
-				return(FIL_LOAD_ID_CHANGED);
+			space = NULL;
+			return(FIL_LOAD_ID_CHANGED);
 		}
 		return(FIL_LOAD_OK);
 	}
@@ -3716,13 +3735,6 @@ fil_ibd_load(
 		os_offset_t	minimum_size;
 	case DB_SUCCESS:
 		if (file.space_id() != space_id) {
-			ib::info()
-				<< "Ignoring data file '"
-				<< file.filepath()
-				<< "' with space ID " << file.space_id()
-				<< ", since the redo log references "
-				<< file.filepath() << " with space ID "
-				<< space_id << ".";
 			return(FIL_LOAD_ID_CHANGED);
 		}
 		/* Get and test the file size. */
@@ -3791,41 +3803,6 @@ fil_ibd_load(
 	space->add(file.filepath(), OS_FILE_CLOSED, 0, false, false);
 
 	return(FIL_LOAD_OK);
-}
-
-/***********************************************************************//**
-A fault-tolerant function that tries to read the next file name in the
-directory. We retry 100 times if os_file_readdir_next_file() returns -1. The
-idea is to read as much good data as we can and jump over bad data.
-@return 0 if ok, -1 if error even after the retries, 1 if at the end
-of the directory */
-int
-fil_file_readdir_next_file(
-/*=======================*/
-	dberr_t*	err,	/*!< out: this is set to DB_ERROR if an error
-				was encountered, otherwise not changed */
-	const char*	dirname,/*!< in: directory name or path */
-	os_file_dir_t	dir,	/*!< in: directory stream */
-	os_file_stat_t*	info)	/*!< in/out: buffer where the
-				info is returned */
-{
-	for (ulint i = 0; i < 100; i++) {
-		int	ret = os_file_readdir_next_file(dirname, dir, info);
-
-		if (ret != -1) {
-
-			return(ret);
-		}
-
-		ib::error() << "os_file_readdir_next_file() returned -1 in"
-			" directory " << dirname
-			<< ", crash recovery may have failed"
-			" for some .ibd files!";
-
-		*err = DB_ERROR;
-	}
-
-	return(-1);
 }
 
 /** Try to adjust FSP_SPACE_FLAGS if they differ from the expectations.
@@ -4018,27 +3995,30 @@ fil_node_complete_io(fil_node_t* node, const IORequest& type)
 	}
 }
 
-/** Report information about an invalid page access. */
-static
-void
-fil_report_invalid_page_access(
-	ulint		block_offset,	/*!< in: block offset */
-	ulint		space_id,	/*!< in: space id */
-	const char*	space_name,	/*!< in: space name */
-	ulint		byte_offset,	/*!< in: byte offset */
-	ulint		len,		/*!< in: I/O length */
-	bool		is_read)	/*!< in: I/O type */
+/** Compose error message about an invalid page access.
+@param[in]	block_offset	block offset
+@param[in]	space_id	space id
+@param[in]	space_name	space name
+@param[in]	byte_offset	byte offset
+@param[in]	len		I/O length
+@param[in]	is_read		I/O type
+@return	std::string with error message */
+static std::string fil_invalid_page_access_msg(size_t block_offset,
+                                               size_t space_id,
+                                               const char *space_name,
+                                               size_t byte_offset, size_t len,
+                                               bool is_read)
 {
-	ib::fatal()
-		<< "Trying to " << (is_read ? "read" : "write")
-		<< " page number " << block_offset << " in"
-		" space " << space_id << ", space name " << space_name << ","
-		" which is outside the tablespace bounds. Byte offset "
-		<< byte_offset << ", len " << len <<
-		(space_id == 0 && !srv_was_started
-		? "Please check that the configuration matches"
-		" the InnoDB system tablespace location (ibdata files)"
-		: "");
+  std::stringstream ss;
+  ss << "Trying to " << (is_read ? "read" : "write") << " page number "
+     << block_offset << " in space " << space_id << ", space name "
+     << space_name << ", which is outside the tablespace bounds. Byte offset "
+     << byte_offset << ", len " << len
+     << (space_id == 0 && !srv_was_started
+             ? "Please check that the configuration matches"
+               " the InnoDB system tablespace location (ibdata files)"
+             : "");
+  return ss.str();
 }
 
 inline void IORequest::set_fil_node(fil_node_t* node)
@@ -4182,7 +4162,17 @@ fil_io(
 				return(DB_ERROR);
 			}
 
-			fil_report_invalid_page_access(
+			if (space->purpose == FIL_TYPE_IMPORT) {
+				mutex_exit(&fil_system.mutex);
+				ib::error() << fil_invalid_page_access_msg(
+					page_id.page_no(), page_id.space(),
+					space->name, byte_offset, len,
+					req_type.is_read());
+
+				return DB_IO_ERROR;
+			}
+
+			ib::fatal() << fil_invalid_page_access_msg(
 				page_id.page_no(), page_id.space(),
 				space->name, byte_offset, len,
 				req_type.is_read());
@@ -4249,7 +4239,7 @@ fil_io(
 			return(DB_ERROR);
 		}
 
-		fil_report_invalid_page_access(
+		ib::fatal() << fil_invalid_page_access_msg(
 			page_id.page_no(), page_id.space(),
 			space->name, byte_offset, len, req_type.is_read());
 	}

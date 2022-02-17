@@ -1,0 +1,73 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-24971 InnoDB access freed virtual column
+--echo #	after rollback of secondary index
+--echo #
+
+# Exclusive lock must not defer the index removal
+
+CREATE TABLE t1(f1 INT, f2 INT AS (f1 + 2) VIRTUAL)ENGINE=InnoDB;
+INSERT INTO t1(f1) VALUES(1), (1);
+--error ER_DUP_ENTRY
+ALTER TABLE t1 ADD UNIQUE INDEX(f2), ALGORITHM=INPLACE, LOCK=EXCLUSIVE;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# If Shared lock and table doesn't have any other open handle
+# then InnoDB must not defer the index removal
+
+CREATE TABLE t1(f1 INT, f2 INT AS (f1 + 2) VIRTUAL)ENGINE=InnoDB;
+INSERT INTO t1(f1) VALUES(1), (1);
+--error ER_DUP_ENTRY
+ALTER TABLE t1 ADD UNIQUE INDEX(f2), ALGORITHM=INPLACE, LOCK=SHARED;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# InnoDB should store the newly dropped virtual column into
+# new_vcol_info in index when rollback of alter happens
+
+CREATE TABLE t1(f1 INT, f2 INT AS (f1) VIRTUAL)ENGINE=InnoDB;
+INSERT INTO t1(f1) VALUES(1);
+SET DEBUG_DBUG="+d,create_index_fail";
+SET DEBUG_SYNC="innodb_inplace_alter_table_enter SIGNAL con1_go WAIT_FOR alter_signal";
+SEND ALTER TABLE t1 ADD COLUMN f3 INT AS (f1) VIRTUAL, ADD INDEX(f2, f3);
+connect(con1,localhost,root,,,);
+SET DEBUG_SYNC="now WAIT_FOR con1_go";
+BEGIN;
+SELECT * FROM t1;
+SET DEBUG_SYNC="now SIGNAL alter_signal";
+connection default;
+--error ER_DUP_ENTRY
+reap;
+connection con1;
+rollback;
+connection default;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT, f2 INT AS (f1) VIRTUAL)ENGINE=InnoDB;
+INSERT INTO t1(f1) VALUES(1);
+SET DEBUG_DBUG="+d,create_index_fail";
+SET DEBUG_SYNC="innodb_inplace_alter_table_enter SIGNAL con1_go WAIT_FOR alter_signal";
+send ALTER TABLE t1 ADD INDEX(f2);
+connection con1;
+SET DEBUG_SYNC="now WAIT_FOR con1_go";
+BEGIN;
+INSERT INTO t1(f1) VALUES(1);
+SET DEBUG_SYNC="now SIGNAL alter_signal";
+connection default;
+--error ER_DUP_ENTRY
+reap;
+connection con1;
+rollback;
+connection default;
+disconnect con1;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 CHAR(100), f2 CHAR(100) as (f1) VIRTUAL)ENGINE=InnoDB;
+--error ER_DUP_FIELDNAME
+ALTER TABLE t1 ADD COLUMN f3 CHAR(100) AS (f2) VIRTUAL, ADD INDEX(f3(10), f1, f3(12));
+DROP TABLE t1;
+SET DEBUG_SYNC=RESET;

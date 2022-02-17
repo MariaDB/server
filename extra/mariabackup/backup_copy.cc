@@ -195,14 +195,16 @@ datadir_iter_new(const char *path, bool skip_first_level = true)
 	datadir_iter_t *it;
 
 	it = static_cast<datadir_iter_t *>(malloc(sizeof(datadir_iter_t)));
+	if (!it)
+		goto error;
 	memset(it, 0, sizeof(datadir_iter_t));
 
 	pthread_mutex_init(&it->mutex, NULL);
 	it->datadir_path = strdup(path);
 
-	it->dir = os_file_opendir(it->datadir_path, TRUE);
+	it->dir = os_file_opendir(it->datadir_path);
 
-	if (it->dir == NULL) {
+	if (it->dir == IF_WIN(INVALID_HANDLE_VALUE, nullptr)) {
 
 		goto error;
 	}
@@ -233,11 +235,9 @@ bool
 datadir_iter_next_database(datadir_iter_t *it)
 {
 	if (it->dbdir != NULL) {
-		if (os_file_closedir(it->dbdir) != 0) {
-
+		if (os_file_closedir_failed(it->dbdir)) {
 			msg("Warning: could not"
 			      " close database directory %s", it->dbpath);
-
 			it->err = DB_ERROR;
 
 		}
@@ -283,10 +283,9 @@ datadir_iter_next_database(datadir_iter_t *it)
 
 		/* We want wrong directory permissions to be a fatal error for
 		XtraBackup. */
-		it->dbdir = os_file_opendir(it->dbpath, TRUE);
+		it->dbdir = os_file_opendir(it->dbpath);
 
-		if (it->dbdir != NULL) {
-
+		if (it->dir != IF_WIN(INVALID_HANDLE_VALUE, nullptr)) {
 			it->is_file = false;
 			return(true);
 		}
@@ -727,9 +726,9 @@ directory_exists(const char *dir, bool create)
 	}
 
 	/* could be symlink */
-	os_dir = os_file_opendir(dir, FALSE);
+	os_dir = os_file_opendir(dir);
 
-	if (os_dir == NULL) {
+	if (os_dir == IF_WIN(INVALID_HANDLE_VALUE, nullptr)) {
 		my_strerror(errbuf, sizeof(errbuf), my_errno);
 		msg("Can not open directory %s: %s", dir,
 			errbuf);
@@ -757,9 +756,9 @@ directory_exists_and_empty(const char *dir, const char *comment)
 		return(false);
 	}
 
-	os_dir = os_file_opendir(dir, FALSE);
+	os_dir = os_file_opendir(dir);
 
-	if (os_dir == NULL) {
+	if (os_dir == IF_WIN(INVALID_HANDLE_VALUE, nullptr)) {
 		msg("%s can not open directory %s", comment, dir);
 		return(false);
 	}
@@ -1062,6 +1061,7 @@ copy_file(ds_ctxt_t *datasink,
 	ds_file_t		*dstfile = NULL;
 	datafile_cur_t		 cursor;
 	xb_fil_cur_result_t	 res;
+	DBUG_ASSERT(datasink->datasink->remove);
 	const char	*dst_path =
 		(xtrabackup_copy_back || xtrabackup_move_back)?
 		dst_file_path : trim_dotslash(dst_file_path);
@@ -1087,6 +1087,7 @@ copy_file(ds_ctxt_t *datasink,
 		if (ds_write(dstfile, cursor.buf, cursor.buf_read)) {
 			goto error;
 		}
+		DBUG_EXECUTE_IF("copy_file_error", errno=ENOSPC;goto error;);
 	}
 
 	if (res == XB_FIL_CUR_ERROR) {
@@ -1108,6 +1109,7 @@ copy_file(ds_ctxt_t *datasink,
 error:
 	datafile_close(&cursor);
 	if (dstfile != NULL) {
+		datasink->datasink->remove(dstfile->path);
 		ds_close(dstfile);
 	}
 
@@ -1152,17 +1154,18 @@ move_file(ds_ctxt_t *datasink,
 
 	if (my_rename(src_file_path, dst_file_path_abs, MYF(0)) != 0) {
 		if (my_errno == EXDEV) {
-			bool ret;
-			ret = copy_file(datasink, src_file_path,
-					dst_file_path, thread_n);
+			/* Fallback to copy/unlink */
+			if(!copy_file(datasink, src_file_path,
+					dst_file_path, thread_n))
+					return false;
 			msg(thread_n,"Removing %s", src_file_path);
 			if (unlink(src_file_path) != 0) {
 				my_strerror(errbuf, sizeof(errbuf), errno);
-				msg("Error: unlink %s failed: %s",
+				msg("Warning: unlink %s failed: %s",
 					src_file_path,
 					errbuf);
 			}
-			return(ret);
+			return true;
 		}
 		my_strerror(errbuf, sizeof(errbuf), my_errno);
 		msg("Can not move file %s to %s: %s",
@@ -2175,7 +2178,9 @@ decrypt_decompress()
 */
 static bool backup_files_from_datadir(const char *dir_path)
 {
-	os_file_dir_t dir = os_file_opendir(dir_path, TRUE);
+	os_file_dir_t dir = os_file_opendir(dir_path);
+	if (dir == IF_WIN(INVALID_HANDLE_VALUE, nullptr)) return false;
+
 	os_file_stat_t info;
 	bool ret = true;
 	while (os_file_readdir_next_file(dir_path, dir, &info) == 0) {

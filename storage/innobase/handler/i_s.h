@@ -92,26 +92,9 @@ do {									\
 	}								\
 } while (0)
 
-#if !defined __STRICT_ANSI__ && defined __GNUC__ && (__GNUC__) > 2 && !defined __INTEL_COMPILER && !defined __clang__
-#ifdef HAVE_C99_INITIALIZERS
-#define STRUCT_FLD(name, value)	.name = value
-#else
-#define STRUCT_FLD(name, value)	name: value
-#endif /* HAVE_C99_INITIALIZERS */
-#else
-#define STRUCT_FLD(name, value)	value
-#endif
-
 /* Don't use a static const variable here, as some C++ compilers (notably
 HPUX aCC: HP ANSI C++ B3910B A.03.65) can't handle it. */
-#define END_OF_ST_FIELD_INFO \
-	{STRUCT_FLD(field_name,		NULL), \
-	 STRUCT_FLD(field_length,	0), \
-	 STRUCT_FLD(field_type,		MYSQL_TYPE_NULL), \
-	 STRUCT_FLD(value,		0), \
-	 STRUCT_FLD(field_flags,	0), \
-	 STRUCT_FLD(old_name,		""), \
-	 STRUCT_FLD(open_method,	SKIP_OPEN_TABLE)}
+#define END_OF_ST_FIELD_INFO {NULL,0,MYSQL_TYPE_NULL,0,0,"",SKIP_OPEN_TABLE}
 
 /** Fields on INFORMATION_SCHEMA.SYS_SEMAMPHORE_WAITS table */
 #define SYS_SEMAPHORE_WAITS_THREAD_ID	0

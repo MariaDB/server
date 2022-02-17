@@ -267,6 +267,11 @@ void Ack_receiver::run()
 
         net_clear(&net, 0);
         net.vio= &slave->vio;
+        /*
+          Set compress flag. This is needed to support
+          Slave_compress_protocol flag enabled Slaves
+        */
+        net.compress= slave->thd->net.compress;
 
         len= my_net_read(&net);
         if (likely(len != packet_error))

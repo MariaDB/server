@@ -43,12 +43,18 @@ static int local_write(ds_file_t *file, const uchar *buf, size_t len);
 static int local_close(ds_file_t *file);
 static void local_deinit(ds_ctxt_t *ctxt);
 
+static int local_remove(const char *path)
+{
+	return unlink(path);
+}
+
 extern "C" {
 datasink_t datasink_local = {
 	&local_init,
 	&local_open,
 	&local_write,
 	&local_close,
+	&local_remove,
 	&local_deinit
 };
 }

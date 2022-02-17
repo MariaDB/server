@@ -1,4 +1,4 @@
-/* Copyright 2008-2017 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2021 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 
 #ifdef WITH_WSREP
 extern bool WSREP_ON_;
+extern bool WSREP_PROVIDER_EXISTS_;
 
 #include <mysql/plugin.h>
 #include "mysql/service_wsrep.h"
@@ -209,10 +210,10 @@ extern bool wsrep_must_sync_wait (THD* thd, uint mask= WSREP_SYNC_WAIT_BEFORE_RE
 extern bool wsrep_sync_wait (THD* thd, uint mask= WSREP_SYNC_WAIT_BEFORE_READ);
 extern enum wsrep::provider::status
 wsrep_sync_wait_upto (THD* thd, wsrep_gtid_t* upto, int timeout);
-extern void wsrep_last_committed_id (wsrep_gtid_t* gtid);
 extern int  wsrep_check_opts();
 extern void wsrep_prepend_PATH (const char* path);
 extern bool wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* table, wsrep::key_array* keys);
+extern bool wsrep_reload_ssl();
 
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
@@ -221,7 +222,8 @@ extern wsrep_seqno_t wsrep_locked_seqno;
 /* use xxxxxx_NNULL macros when thd pointer is guaranteed to be non-null to
  * avoid compiler warnings (GCC 6 and later) */
 
-#define WSREP_NNULL(thd) (WSREP_ON && thd->variables.wsrep_on)
+#define WSREP_NNULL(thd) \
+  (WSREP_PROVIDER_EXISTS_ && thd->variables.wsrep_on)
 
 #define WSREP(thd) \
   (thd && WSREP_NNULL(thd))
@@ -277,8 +279,7 @@ void WSREP_LOG(void (*fun)(const char* fmt, ...), const char* fmt, ...);
     WSREP_INFO("context: %s:%d", __FILE__, __LINE__); \
   }
 
-#define WSREP_PROVIDER_EXISTS                                                  \
-  (wsrep_provider && strncasecmp(wsrep_provider, WSREP_NONE, FN_REFLEN))
+#define WSREP_PROVIDER_EXISTS (WSREP_PROVIDER_EXISTS_)
 
 static inline bool wsrep_cluster_address_exists()
 {
@@ -286,8 +287,6 @@ static inline bool wsrep_cluster_address_exists()
     mysql_mutex_assert_owner(&LOCK_global_system_variables);
   return wsrep_cluster_address && wsrep_cluster_address[0];
 }
-
-#define WSREP_QUERY(thd) (thd->query())
 
 extern my_bool wsrep_ready_get();
 extern void wsrep_ready_wait();
@@ -375,8 +374,6 @@ int wsrep_to_buf_helper(
 int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 int wsrep_create_event_query(THD *thd, uchar** buf, size_t* buf_len);
 
-bool wsrep_stmt_rollback_is_safe(THD* thd);
-
 void wsrep_init_sidno(const wsrep_uuid_t&);
 bool wsrep_node_is_donor();
 bool wsrep_node_is_synced();
@@ -384,7 +381,6 @@ bool wsrep_node_is_synced();
 void wsrep_init_SR();
 void wsrep_verify_SE_checkpoint(const wsrep_uuid_t& uuid, wsrep_seqno_t seqno);
 int wsrep_replay_from_SR_store(THD*, const wsrep_trx_meta_t&);
-void wsrep_node_uuid(wsrep_uuid_t&);
 
 class Log_event;
 int wsrep_ignored_error_code(Log_event* ev, int error);

@@ -100,25 +100,6 @@ static ib_mutex_t row_drop_list_mutex;
 /** Flag: has row_mysql_drop_list been initialized? */
 static bool row_mysql_drop_list_inited;
 
-/*******************************************************************//**
-Determine if the given name is a name reserved for MySQL system tables.
-@return TRUE if name is a MySQL system table name */
-static
-ibool
-row_mysql_is_system_table(
-/*======================*/
-	const char*	name)
-{
-	if (strncmp(name, "mysql/", 6) != 0) {
-
-		return(FALSE);
-	}
-
-	return(0 == strcmp(name + 6, "host")
-	       || 0 == strcmp(name + 6, "user")
-	       || 0 == strcmp(name + 6, "db"));
-}
-
 #ifdef UNIV_DEBUG
 /** Wait for the background drop list to become empty. */
 void
@@ -689,6 +670,7 @@ row_mysql_handle_errors(
 	dberr_t	err;
 
 	DBUG_ENTER("row_mysql_handle_errors");
+	DEBUG_SYNC_C("row_mysql_handle_errors");
 
 handle_new_error:
 	err = trx->error_state;
@@ -1476,23 +1458,6 @@ error_exit:
 				trx->error_state = DB_FTS_INVALID_DOCID;
 				goto error_exit;
 			}
-
-			/* Difference between Doc IDs are restricted within
-			4 bytes integer. See fts_get_encoded_len(). Consecutive
-			doc_ids difference should not exceed
-			FTS_DOC_ID_MAX_STEP value. */
-
-			if (doc_id - next_doc_id >= FTS_DOC_ID_MAX_STEP) {
-				 ib::error() << "Doc ID " << doc_id
-					<< " is too big. Its difference with"
-					" largest used Doc ID "
-					<< next_doc_id - 1 << " cannot"
-					" exceed or equal to "
-					<< FTS_DOC_ID_MAX_STEP;
-				err = DB_FTS_INVALID_DOCID;
-				trx->error_state = DB_FTS_INVALID_DOCID;
-				goto error_exit;
-			}
 		}
 
 		if (table->skip_alter_undo) {
@@ -1801,12 +1766,11 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 
 	clust_index = dict_table_get_first_index(table);
 
-	if (prebuilt->pcur->btr_cur.index == clust_index) {
-		btr_pcur_copy_stored_position(node->pcur, prebuilt->pcur);
-	} else {
-		btr_pcur_copy_stored_position(node->pcur,
-					      prebuilt->clust_pcur);
-	}
+	btr_pcur_copy_stored_position(node->pcur,
+				      prebuilt->pcur->btr_cur.index
+				      == clust_index
+				      ? prebuilt->pcur
+				      : prebuilt->clust_pcur);
 
 	ut_a(node->pcur->rel_pos == BTR_PCUR_ON);
 
@@ -2024,7 +1988,8 @@ row_unlock_for_mysql(
 			rec_offs* offsets				= offsets_;
 
 			rec_offs_init(offsets_);
-			offsets = rec_get_offsets(rec, index, offsets, true,
+			offsets = rec_get_offsets(rec, index, offsets,
+						  index->n_core_fields,
 						  ULINT_UNDEFINED, &heap);
 
 			rec_trx_id = row_get_rec_trx_id(rec, index, offsets);
@@ -2373,25 +2338,12 @@ row_create_table_for_mysql(
 
 	DBUG_EXECUTE_IF(
 		"ib_create_table_fail_at_start_of_row_create_table_for_mysql",
-		goto err_exit;
+		dict_mem_table_free(table);
+		trx->op_info = "";
+		return DB_ERROR;
 	);
 
 	trx->op_info = "creating table";
-
-	if (row_mysql_is_system_table(table->name.m_name)) {
-
-		ib::error() << "Trying to create a MySQL system table "
-			<< table->name << " of type InnoDB. MySQL system"
-			" tables must be of the MyISAM type!";
-#ifndef DBUG_OFF
-err_exit:
-#endif /* !DBUG_OFF */
-		dict_mem_table_free(table);
-
-		trx->op_info = "";
-
-		return(DB_ERROR);
-	}
 
 	trx_start_if_not_started_xa(trx, true);
 
@@ -4195,14 +4147,6 @@ row_rename_table_for_mysql(
 
 	if (high_level_read_only) {
 		return(DB_READ_ONLY);
-
-	} else if (row_mysql_is_system_table(new_name)) {
-
-		ib::error() << "Trying to create a MySQL system table "
-			<< new_name << " of type InnoDB. MySQL system tables"
-			" must be of the MyISAM type!";
-
-		goto funct_exit;
 	}
 
 	trx->op_info = "renaming table";
@@ -4788,7 +4732,7 @@ func_exit:
 
 	rec = buf + mach_read_from_4(buf);
 
-	offsets = rec_get_offsets(rec, index, offsets_, true,
+	offsets = rec_get_offsets(rec, index, offsets_, index->n_core_fields,
 				  ULINT_UNDEFINED, &heap);
 
 	if (prev_entry != NULL) {

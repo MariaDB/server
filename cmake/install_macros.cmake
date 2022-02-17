@@ -181,18 +181,22 @@ IF(WIN32)
   MARK_AS_ADVANCED(SIGNCODE)
   IF(SIGNCODE)
    SET(SIGNTOOL_PARAMETERS 
-     /a /t http://timestamp.globalsign.com/scripts/timstamp.dll
+     /a /t http://timestamp.globalsign.com/?signature=sha2
      CACHE STRING "parameters for signtool (list)")
-    FIND_PROGRAM(SIGNTOOL_EXECUTABLE signtool 
-      PATHS "$ENV{ProgramFiles}/Microsoft SDKs/Windows/v7.0A/bin"
-      "$ENV{ProgramFiles}/Windows Kits/8.0/bin/x86"
-      "$ENV{ProgramFiles}/Windows Kits/8.1/bin/x86"
-    )
     IF(NOT SIGNTOOL_EXECUTABLE)
-      MESSAGE(FATAL_ERROR 
-      "signtool is not found. Signing executables not possible")
+      FILE(GLOB path_list
+        "$ENV{ProgramFiles} (x86)/Windows Kits/*/bin/*/x64"
+        "$ENV{ProgramFiles} (x86)/Windows Kits/*/App Certification Kit"
+      )
+      FIND_PROGRAM(SIGNTOOL_EXECUTABLE signtool
+        PATHS ${path_list}
+      )
+      IF(NOT SIGNTOOL_EXECUTABLE)
+        MESSAGE(FATAL_ERROR
+        "signtool is not found. Signing executables not possible")
+      ENDIF()
+      MARK_AS_ADVANCED(SIGNTOOL_EXECUTABLE  SIGNTOOL_PARAMETERS)
     ENDIF()
-    MARK_AS_ADVANCED(SIGNTOOL_EXECUTABLE  SIGNTOOL_PARAMETERS)
   ENDIF()
 ENDIF()
 

@@ -236,6 +236,6 @@ hash_assert_can_search(
 #define hash_assert_can_search(t, f)
 #endif /* UNIV_DEBUG */
 
-#include "ha0ha.ic"
+#include "ha0ha.inl"
 
 #endif

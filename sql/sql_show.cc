@@ -66,6 +66,19 @@
 #include "opt_trace.h"
 #include "my_cpu.h"
 
+
+#include "lex_symbol.h"
+#define KEYWORD_SIZE 64
+
+extern SYMBOL symbols[];
+extern size_t symbols_length;
+
+extern SYMBOL sql_functions[];
+extern size_t sql_functions_length;
+
+extern Native_func_registry func_array[];
+extern size_t func_array_length;
+
 enum enum_i_s_events_fields
 {
   ISE_EVENT_CATALOG= 0,
@@ -1571,7 +1584,7 @@ mysqld_list_fields(THD *thd, TABLE_LIST *table_list, const char *wild)
 
   if (open_normal_and_derived_tables(thd, table_list,
                                      MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL,
-                                     DT_INIT | DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE))
     DBUG_VOID_RETURN;
   table= table_list->table;
 
@@ -2289,11 +2302,11 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     }
     else
     {
-      if (field->flags & VERS_SYS_START_FLAG)
+      if (field->flags & VERS_ROW_START)
       {
         packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW START"));
       }
-      else if (field->flags & VERS_SYS_END_FLAG)
+      else if (field->flags & VERS_ROW_END)
       {
         packet->append(STRING_WITH_LEN(" GENERATED ALWAYS AS ROW END"));
       }
@@ -3584,6 +3597,29 @@ void remove_status_vars(SHOW_VAR *list)
   }
 }
 
+/**
+  A union holding a pointer to a type that can be referred by a status variable.
+ */
+union Any_pointer {
+  const void *as_void;
+  const uchar *as_uchar;
+  const char *as_char;
+  const char ** as_charptr;
+  const double *as_double;
+  const int * as_int;
+  const uint * as_uint;
+  const long *as_long;
+  const longlong *as_longlong;
+  const bool *as_bool;
+  const my_bool *as_my_bool;
+  const sys_var *as_sys_var;
+  const system_status_var *as_system_status_var;
+  const ha_rows *as_ha_rows;
+  const LEX_STRING *as_lex_cstring;
+  const SHOW_COMP_OPTION *as_show_comp_options;
+  intptr as_intptr;
+  Atomic_counter<uint32_t>* as_atomic_counter;
+};
 
 /**
   @brief Returns the value of a system or a status variable.
@@ -3608,16 +3644,18 @@ const char* get_one_variable(THD *thd,
                              const CHARSET_INFO **charset, char *buff,
                              size_t *length)
 {
-  void *value= variable->value;
+  Any_pointer value, status_var_value;
+  value.as_void= variable->value;
+  status_var_value.as_system_status_var= status_var;
   const char *pos= buff;
   const char *end= buff;
 
 
   if (show_type == SHOW_SYS)
   {
-    sys_var *var= (sys_var *) value;
+    const sys_var *var= value.as_sys_var;
     show_type= var->show_type();
-    value= var->value_ptr(thd, value_type, &null_clex_str);
+    value.as_uchar= var->value_ptr(thd, value_type, &null_clex_str);
     *charset= var->charset(thd);
   }
 
@@ -3627,66 +3665,65 @@ const char* get_one_variable(THD *thd,
   */
   switch (show_type) {
   case SHOW_DOUBLE_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_DOUBLE:
     /* 6 is the default precision for '%f' in sprintf() */
-    end= buff + my_fcvt(*(double *) value, 6, buff, NULL);
+    end= buff + my_fcvt(*value.as_double, 6, buff, NULL);
     break;
   case SHOW_LONG_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_ULONG:
   case SHOW_LONG_NOFLUSH: // the difference lies in refresh_status()
-    end= int10_to_str(*(long*) value, buff, 10);
+    end= int10_to_str(*value.as_long, buff, 10);
     break;
   case SHOW_LONGLONG_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_ULONGLONG:
-    end= longlong10_to_str(*(longlong*) value, buff, 10);
+    end= longlong10_to_str(*value.as_longlong, buff, 10);
     break;
   case SHOW_HA_ROWS:
-    end= longlong10_to_str((longlong) *(ha_rows*) value, buff, 10);
+    end= longlong10_to_str((longlong) *value.as_ha_rows, buff, 10);
     break;
   case SHOW_BOOL:
-    end= strmov(buff, *(bool*) value ? "ON" : "OFF");
+    end= strmov(buff, *value.as_bool ? "ON" : "OFF");
     break;
   case SHOW_MY_BOOL:
-    end= strmov(buff, *(my_bool*) value ? "ON" : "OFF");
+    end= strmov(buff, *value.as_my_bool ? "ON" : "OFF");
     break;
   case SHOW_UINT32_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_UINT:
-    end= int10_to_str((long) *(uint*) value, buff, 10);
+    end= int10_to_str((long) *value.as_uint, buff, 10);
     break;
   case SHOW_SINT:
-    end= int10_to_str((long) *(int*) value, buff, -10);
+    end= int10_to_str((long) *value.as_int, buff, -10);
     break;
   case SHOW_SLONG:
-    end= int10_to_str(*(long*) value, buff, -10);
+    end= int10_to_str(*value.as_long, buff, -10);
     break;
   case SHOW_SLONGLONG:
-    end= longlong10_to_str(*(longlong*) value, buff, -10);
+    end= longlong10_to_str(*value.as_longlong, buff, -10);
     break;
   case SHOW_HAVE:
     {
-      SHOW_COMP_OPTION tmp= *(SHOW_COMP_OPTION*) value;
-      pos= show_comp_option_name[(int) tmp];
+      pos= show_comp_option_name[(int) *value.as_show_comp_options];
       end= strend(pos);
       break;
     }
   case SHOW_CHAR:
     {
-      if (!(pos= (char*)value))
+      if (!(pos= value.as_char))
         pos= "";
       end= strend(pos);
       break;
     }
   case SHOW_CHAR_PTR:
     {
-      if (!(pos= *(char**) value))
+      if (!(pos= *value.as_charptr))
         pos= "";
 
       end= strend(pos);
@@ -3694,17 +3731,14 @@ const char* get_one_variable(THD *thd,
     }
   case SHOW_LEX_STRING:
     {
-      LEX_STRING *ls=(LEX_STRING*)value;
-      if (!(pos= ls->str))
+      if (!(pos= value.as_lex_cstring->str))
         end= pos= "";
       else
-        end= pos + ls->length;
+        end= pos + value.as_lex_cstring->length;
       break;
     }
   case SHOW_ATOMIC_COUNTER_UINT32_T:
-    end= int10_to_str(
-           static_cast<long>(*static_cast<Atomic_counter<uint32_t>*>(value)),
-           buff, 10);
+    end= int10_to_str(static_cast<long>(*value.as_atomic_counter), buff, 10);
     break;
   case SHOW_UNDEF:
     break;                                        // Return empty string
@@ -3833,15 +3867,8 @@ static bool show_status_array(THD *thd, const char *wild,
 
         if (show_type == SHOW_SYS)
           mysql_mutex_lock(&LOCK_global_system_variables);
-        else if (show_type >= SHOW_LONG_STATUS && scope == OPT_GLOBAL &&
-                 !status_var->local_memory_used)
-        {
-          mysql_mutex_lock(&LOCK_status);
-          *status_var= global_status_var;
-          mysql_mutex_unlock(&LOCK_status);
-          calc_sum_of_all_status(status_var);
-          DBUG_ASSERT(status_var->local_memory_used);
-        }
+        else if (show_type >= SHOW_LONG_STATUS && scope == OPT_GLOBAL)
+          calc_sum_of_all_status_if_needed(status_var);
 
         pos= get_one_variable(thd, var, scope, show_type, status_var,
                               &charset, buff, &length);
@@ -4484,7 +4511,9 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
   if (!lookup_field_vals->wild_table_value &&
       lookup_field_vals->table_value.str)
   {
-    if (lookup_field_vals->table_value.length > NAME_LEN)
+    if (check_table_name(lookup_field_vals->table_value.str,
+                         lookup_field_vals->table_value.length,
+                         false))
     {
       /*
         Impossible value for a table name,
@@ -4520,6 +4549,9 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_CSTRING*> *table_names,
   if (db_name == &INFORMATION_SCHEMA_NAME)
     return (schema_tables_add(thd, table_names,
                               lookup_field_vals->table_value.str));
+
+  if (check_db_name((LEX_STRING*)db_name))
+    return 0; // Impossible TABLE_SCHEMA name
 
   find_files_result res= find_files(thd, table_names, db_name, path,
                                     &lookup_field_vals->table_value);
@@ -6092,7 +6124,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
     }
     else if (field->flags & VERS_SYSTEM_FIELD)
     {
-      if (field->flags & VERS_SYS_START_FLAG)
+      if (field->flags & VERS_ROW_START)
       {
         table->field[21]->store(STRING_WITH_LEN("ROW START"), cs);
         buf.set(STRING_WITH_LEN("STORED GENERATED"), cs);
@@ -6707,6 +6739,16 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
       LEX_CSTRING unknown= {STRING_WITH_LEN("?unknown field?") };
       for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
       {
+        if (key_part->field->invisible >= INVISIBLE_SYSTEM &&
+            DBUG_EVALUATE_IF("test_completely_invisible", 0, 1))
+        {
+          /*
+            NOTE: we will get SEQ_IN_INDEX gap inside the result if this key_part
+            is not last (currently not possible). Though nothing is wrong with
+            that probably.
+          */
+          continue;
+        }
         restore_record(table, s->default_values);
         table->field[0]->store(STRING_WITH_LEN("def"), cs);
         table->field[1]->store(db_name->str, db_name->length, cs);
@@ -7103,8 +7145,7 @@ static bool store_trigger(THD *thd, Trigger *trigger,
                                               (my_time_t)(trigger->create_time/100));
     /* timestamp is with 6 digits */
     timestamp.second_part= (trigger->create_time % 100) * 10000;
-    ((Field_temporal_with_date*) table->field[16])->store_time_dec(&timestamp,
-                                                                   2);
+    table->field[16]->store_time_dec(&timestamp, 2);
   }
 
   sql_mode_string_representation(thd, trigger->sql_mode, &sql_mode_rep);
@@ -7949,6 +7990,60 @@ int fill_variables(THD *thd, TABLE_LIST *tables, COND *cond)
   DBUG_RETURN(res);
 }
 
+int add_symbol_to_table(const char* name, TABLE* table){
+  DBUG_ENTER("add_symbol_to_table");
+
+  size_t length= strlen(name);
+
+  // If you've added a new SQL keyword longer than KEYWORD_SIZE,
+  // please increase the defined max length
+  DBUG_ASSERT(length < KEYWORD_SIZE);
+
+  restore_record(table, s->default_values);
+  table->field[0]->set_notnull();
+  table->field[0]->store(name, length,
+                         system_charset_info);
+  if (schema_table_store_record(table->in_use, table))
+    DBUG_RETURN(1);
+
+  DBUG_RETURN(0);
+}
+
+int fill_i_s_keywords(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  DBUG_ENTER("fill_i_s_keywords");
+
+  TABLE *table= tables->table;
+
+  for (uint i= 0; i < symbols_length; i++){
+    const char *name= symbols[i].name;
+    if (add_symbol_to_table(name, table))
+      DBUG_RETURN(1);
+  }
+
+  DBUG_RETURN(0);
+}
+
+int fill_i_s_sql_functions(THD *thd, TABLE_LIST *tables, COND *cond) {
+  DBUG_ENTER("fill_i_s_sql_functions");
+
+  TABLE *table= tables->table;
+
+  for (uint i= 0; i < sql_functions_length; i++){
+    const char *name= sql_functions[i].name;
+    if (add_symbol_to_table(name, table))
+      DBUG_RETURN(1);
+  }
+
+  for (uint i= 0; i < func_array_length; i++){
+    const char *name= func_array[i].name.str;
+    if (add_symbol_to_table(name, table))
+      DBUG_RETURN(1);
+  }
+
+  DBUG_RETURN(0);
+}
+
 
 int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
 {
@@ -8720,14 +8815,19 @@ end:
 
 bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
 {
+  DBUG_ENTER("optimize_schema_tables_memory_usage");
+
   List_iterator<TABLE_LIST> tli(tables);
 
   while (TABLE_LIST *table_list= tli++)
   {
+    if (!table_list->schema_table)
+      continue;
+
     TABLE *table= table_list->table;
     THD *thd=table->in_use;
 
-    if (!table_list->schema_table || !thd->fill_information_schema_tables())
+    if (!thd->fill_information_schema_tables())
       continue;
 
     if (!table->is_created())
@@ -8775,10 +8875,10 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
       // TODO switch from Aria to Memory if all blobs were optimized away?
       if (instantiate_tmp_table(table, p->keyinfo, p->start_recinfo, &p->recinfo,
                    table_list->select_lex->options | thd->variables.option_bits))
-        return 1;
+        DBUG_RETURN(1);
     }
   }
-  return 0;
+  DBUG_RETURN(0);
 }
 
 
@@ -9238,6 +9338,18 @@ ST_FIELD_INFO enabled_roles_fields_info[]=
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 
+ST_FIELD_INFO keywords_field_info[]=
+{
+  {"WORD", KEYWORD_SIZE, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, SKIP_OPEN_TABLE},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+};
+
+ST_FIELD_INFO sql_functions_field_info[]=
+{
+  {"FUNCTION", KEYWORD_SIZE, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, SKIP_OPEN_TABLE},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+};
+
 
 ST_FIELD_INFO engines_fields_info[]=
 {
@@ -9358,7 +9470,7 @@ ST_FIELD_INFO stat_fields_info[]=
   {"SEQ_IN_INDEX", 2, MYSQL_TYPE_LONGLONG, 0, 0, "Seq_in_index", OPEN_FRM_ONLY},
   {"COLUMN_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Column_name",
    OPEN_FRM_ONLY},
-  {"COLLATION", 1, MYSQL_TYPE_STRING, 0, 1, "Collation", OPEN_FRM_ONLY},
+  {"COLLATION", 1, MYSQL_TYPE_STRING, 0, 1, "Collation", OPEN_FULL_TABLE},
   {"CARDINALITY", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 1,
    "Cardinality", OPEN_FULL_TABLE},
   {"SUB_PART", 3, MYSQL_TYPE_LONGLONG, 0, 1, "Sub_part", OPEN_FRM_ONLY},
@@ -9945,6 +10057,8 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_status, make_old_format, 0, 0, -1, 0, 0},
   {"GLOBAL_VARIABLES", variables_fields_info, 0,
    fill_variables, make_old_format, 0, 0, -1, 0, 0},
+  {"KEYWORDS", keywords_field_info, 0,
+   fill_i_s_keywords, 0, 0, -1, -1, 0, 0},
   {"KEY_CACHES", keycache_fields_info, 0,
    fill_key_cache_tables, 0, 0, -1,-1, 0, 0},
   {"KEY_COLUMN_USAGE", key_column_usage_fields_info, 0,
@@ -9982,6 +10096,8 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"STATISTICS", stat_fields_info, 0,
    get_all_tables, make_old_format, get_schema_stat_record, 1, 2, 0,
    OPEN_TABLE_ONLY|OPTIMIZE_I_S_TABLE},
+  {"SQL_FUNCTIONS", sql_functions_field_info, 0,
+   fill_i_s_sql_functions, 0, 0, -1, -1, 0, 0},
   {"SYSTEM_VARIABLES", sysvars_fields_info, 0,
    fill_sysvars, make_old_format, 0, 0, -1, 0, 0},
   {"TABLES", tables_fields_info, 0,

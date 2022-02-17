@@ -4124,6 +4124,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #ifdef WITH_WSREP
     if (wsrep_before_statement(thd))
     {
+      mysql_mutex_unlock(&rli->data_lock);
+      delete ev;
       WSREP_INFO("Wsrep before statement error");
       DBUG_RETURN(1);
     }
@@ -4386,6 +4388,15 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 #ifdef WITH_WSREP
     wsrep_after_statement(thd);
 #endif /* WITH_WSREP */
+    DBUG_EXECUTE_IF(
+        "pause_sql_thread_on_fde",
+        if (ev && typ == FORMAT_DESCRIPTION_EVENT) {
+          DBUG_ASSERT(!debug_sync_set_action(
+              thd,
+              STRING_WITH_LEN(
+                  "now SIGNAL paused_on_fde WAIT_FOR sql_thread_continue")));
+        });
+
     DBUG_RETURN(exec_res);
   }
   mysql_mutex_unlock(&rli->data_lock);

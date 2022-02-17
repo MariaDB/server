@@ -8,13 +8,15 @@
 --source include/have_innodb.inc
 --source include/have_ssl_communication.inc
 
-SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
-SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
-
 --connection node_1
-call mtr.add_suppression("WSREP: write_handler(): protocol is shutdown.*");
+call mtr.add_suppression("WSREP: write_handler().*");
 --connection node_2
-call mtr.add_suppression("WSREP: write_handler(): protocol is shutdown.*");
+call mtr.add_suppression("WSREP: write_handler():.*");
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
 
 # Setup galera ports
 --connection node_1
@@ -24,6 +26,9 @@ call mtr.add_suppression("WSREP: write_handler(): protocol is shutdown.*");
 --connection node_2
 --source suite/galera/include/galera_base_port.inc
 --let $NODE_GALERAPORT_2 = $_NODE_GALERAPORT
+
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
 # 2. Restart node #1 with a socket.ssl_ca that includes both the new and the old certificate
 
@@ -38,7 +43,7 @@ call mtr.add_suppression("WSREP: write_handler(): protocol is shutdown.*");
 --source include/wait_condition.inc
 SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
-# 3. Restart node #2 with the new socket.ssl_ca , socket.ssl_cert and socket.ssl_key 
+# 3. Restart node #2 with the new socket.ssl_ca , socket.ssl_cert and socket.ssl_key
 
 --connection node_2
 --source include/shutdown_mysqld.inc
@@ -50,7 +55,7 @@ SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_N
 --source include/wait_condition.inc
 SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
-# 4. Restart node #1 with the new socket.ssl_ca , socket.ssl_cert and socket.ssl_key 
+# 4. Restart node #1 with the new socket.ssl_ca , socket.ssl_cert and socket.ssl_key
 
 --connection node_1
 --source include/shutdown_mysqld.inc
@@ -67,3 +72,12 @@ SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_N
 --source include/galera_wait_ready.inc
 
 # Upgrade complete. Both nodes now use the new key and certificate
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc
+
+--connection node_1
+call mtr.add_suppression("WSREP: write_handler().*");
+--connection node_2
+call mtr.add_suppression("WSREP: write_handler():.*");
+

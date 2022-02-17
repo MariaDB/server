@@ -66,6 +66,13 @@ SELECT * FROM t;
 a
 3
 20
+#
+# MDEV-27332 SIGSEGV in fetch_data_into_cache
+#
+BEGIN;
+SELECT trx_state FROM information_schema.innodb_trx;
+trx_state
+COMMIT;
 # restart
 SELECT * FROM t;
 a

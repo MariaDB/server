@@ -656,7 +656,7 @@ Use MONITOR_DEC if appropriate mutex protection exists.
 
 #ifdef HAVE_valgrind
 # define MONITOR_CHECK_DEFINED(value) do {	\
-	mon_type_t m = value;			\
+    mon_type_t m __attribute__((unused))= value;        \
 	MEM_CHECK_DEFINED(&m, sizeof m);	\
 } while (0)
 #else /* HAVE_valgrind */
@@ -904,6 +904,6 @@ void
 srv_mon_default_on(void);
 /*====================*/
 
-#include "srv0mon.ic"
+#include "srv0mon.inl"
 
 #endif

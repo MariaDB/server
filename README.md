@@ -1,7 +1,6 @@
 Code status:
 ------------
 
-* [![Travis CI status](https://secure.travis-ci.org/MariaDB/server.png?branch=10.4)](https://travis-ci.org/MariaDB/server) travis-ci.org (10.4 branch)
 * [![Appveyor CI status](https://ci.appveyor.com/api/projects/status/4u6pexmtpuf8jq66?svg=true)](https://ci.appveyor.com/project/rasmushoj/server) ci.appveyor.com
 
 ## MariaDB: drop-in replacement for MySQL
@@ -83,5 +82,3 @@ https://bugs.mysql.com
 
 The code for MariaDB, including all revision history, can be found at:
 https://github.com/MariaDB/server
-
-***************************************************************************

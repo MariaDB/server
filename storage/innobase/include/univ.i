@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -235,6 +235,12 @@ easy way to get it to work. See http://bugs.mysql.com/bug.php?id=52263. */
 # define UNIV_INTERN
 #endif
 
+#if defined(__GNUC__) && (__GNUC__ >= 11)
+# define ATTRIBUTE_ACCESS(X) __attribute__((access X))
+#else
+# define ATTRIBUTE_ACCESS(X)
+#endif
+
 #ifndef MY_ATTRIBUTE
 #if defined(__GNUC__)
 #  define MY_ATTRIBUTE(A) __attribute__(A)
@@ -423,7 +429,7 @@ in both 32-bit and 64-bit environments. */
 #ifdef UNIV_INNOCHECKSUM
 extern bool 			strict_verify;
 extern FILE* 			log_file;
-extern unsigned long long	cur_page_num;
+extern uint32_t			cur_page_num;
 #endif /* UNIV_INNOCHECKSUM */
 
 typedef int64_t ib_int64_t;

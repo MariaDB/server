@@ -10,9 +10,9 @@ connection node_2;
 SET SESSION wsrep_sync_wait = 0;
 SET SESSION wsrep_on = 0;
 SET SESSION wsrep_on = 1;
-SELECT COUNT(*) = 0 FROM t1;
-COUNT(*) = 0
-1
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
+EXPECT_0
+0
 connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
 connection node_2a;
 FLUSH TABLES WITH READ LOCK;;
@@ -29,12 +29,12 @@ ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 connection node_2a;
 UNLOCK TABLES;
 connection node_2;
-SELECT COUNT(*) = 1 FROM t1;
-COUNT(*) = 1
+SELECT COUNT(*) AS EXPECT_1 FROM t1;
+EXPECT_1
 1
 INSERT INTO t1 VALUES (3);
 connection node_1;
-SELECT COUNT(*) = 2 FROM t1;
-COUNT(*) = 2
-1
+SELECT COUNT(*) AS EXPECT_2 FROM t1;
+EXPECT_2
+2
 DROP TABLE t1;

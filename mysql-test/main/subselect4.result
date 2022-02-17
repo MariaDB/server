@@ -1358,6 +1358,8 @@ INSERT IGNORE INTO t2 VALUES (8,0,0),(5,0,0);
 CREATE TABLE t3 (f4 int,KEY (f4)) ;
 INSERT IGNORE INTO t3 VALUES (0),(0);
 set @@optimizer_switch='semijoin=off';
+# NOTE: the following should have 'SUBQUERY', not 'DEPENDENT SUBQUERY'
+# for line with id=2, see MDEV-27794.
 EXPLAIN
 SELECT * FROM t1 WHERE
 (SELECT f2 FROM t2
@@ -1367,7 +1369,7 @@ FROM t3 AS SQ1_t1 JOIN t3 AS SQ1_t3 ON SQ1_t3.f4
 GROUP BY SQ1_t1.f4));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
 3	SUBQUERY	SQ1_t1	index	NULL	f4	5	NULL	2	Using index; Using temporary
 3	SUBQUERY	SQ1_t3	index	f4	f4	5	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
 SELECT * FROM t1 WHERE
@@ -2694,7 +2696,42 @@ INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4), (5,5);
 SELECT a, b FROM t1 WHERE a IN (SELECT A.a FROM t1 A GROUP BY s.id);
 ERROR 42S22: Unknown column 's.id' in 'group statement'
 DROP TABLE t1;
-# End of 10.2 tests
+#
+# MDEV-24519: Server crashes in Charset::set_charset upon SELECT
+#
+CREATE TABLE t1 (a VARBINARY(8));
+INSERT INTO t1 VALUES ('foo'),('bar');
+CREATE TABLE t2 (b VARBINARY(8));
+EXPLAIN
+SELECT a FROM t1 WHERE (a, a) IN (SELECT 'qux', 'qux') AND a = (SELECT MIN(b) FROM t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+SELECT a FROM t1 WHERE (a, a) IN (SELECT 'qux', 'qux') AND a = (SELECT MIN(b) FROM t2);
+a
+DROP TABLE t1,t2;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b VARBINARY(8));
+EXPLAIN
+SELECT a FROM t1 WHERE (a, a) IN (SELECT 1, 2) AND a = (SELECT MIN(b) FROM t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+SELECT a FROM t1 WHERE (a, a) IN (SELECT 1, 2) AND a = (SELECT MIN(b) FROM t2);
+a
+DROP TABLE t1,t2;
+#
+# MDEV-22462: Item_in_subselect::create_single_in_to_exists_cond(JOIN *, Item **, Item **): Assertion `false' failed.
+#
+select 1 from dual where 1 in (select 5 from dual where 1);
+1
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+update t1 set a = 2 where a in (select a from dual where a = a);
+drop table t1;
 #
 # MDEV-18335: Assertion `!error || error == 137' failed in subselect_rowid_merge_engine::init
 #
@@ -2759,6 +2796,78 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 set names default;
 set @@in_predicate_conversion_threshold= @save_in_predicate_conversion_threshold;
 DROP TABLE t1,t2;
+#
+# MDEV-24925: Server crashes in Item_subselect::init_expr_cache_tracker
+#
+CREATE TABLE t1 (id INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+SELECT
+1 IN (
+SELECT
+(SELECT COUNT(id)
+FROM t1
+WHERE t1_outer.id <> id
+) AS f
+FROM
+t1 AS t1_outer
+GROUP BY f
+);
+1 IN (
+SELECT
+(SELECT COUNT(id)
+FROM t1
+WHERE t1_outer.id <> id
+) AS f
+FROM
+t1 AS t1_outer
+GROUP BY f
+)
+1
+SELECT
+1 IN (
+SELECT
+(SELECT COUNT(id)
+FROM t1
+WHERE t1_outer.id <> id
+) AS f
+FROM
+t1 AS t1_outer
+GROUP BY 1
+);
+1 IN (
+SELECT
+(SELECT COUNT(id)
+FROM t1
+WHERE t1_outer.id <> id
+) AS f
+FROM
+t1 AS t1_outer
+GROUP BY 1
+)
+1
+DROP TABLE t1;
+#
+#  MDEV-24898: Server crashes in st_select_lex::next_select / Item_subselect::is_expensive
+#  (Testcase)
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4);
+SELECT 1 IN (SELECT (SELECT a FROM t1) AS x FROM t2 GROUP BY x);
+ERROR 21000: Subquery returns more than 1 row
+drop table t1,t2;
+#
+# MDEV-25629: Crash in get_sort_by_table() in subquery with order by having outer ref
+#
+CREATE TABLE t1 (i1 int);
+insert into t1 values (1),(2);
+SELECT 1
+FROM (t1 JOIN t1 AS ref_t1 ON
+(t1.i1 > (SELECT ref_t1.i1 AS c0 FROM t1 b ORDER BY -c0)));
+ERROR 21000: Subquery returns more than 1 row
+DROP TABLE t1;
+# End of 10.2 tests
 # End of 10.3 tests
 #
 # MDEV-19134: EXISTS() slower if ORDER BY is defined

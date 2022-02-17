@@ -197,7 +197,6 @@ static inline int my_sigwait(sigset_t *set, int *sig, int *code)
   *code= siginfo.si_code;
   return *sig < 0 ?  errno : 0;
 #else
-#define SI_KERNEL 128
   *code= 0;
   return sigwait(set, sig);
 #endif
@@ -299,16 +298,18 @@ void my_pthread_attr_getstacksize(pthread_attr_t *attrib, size_t *size);
 int my_pthread_mutex_trylock(pthread_mutex_t *mutex);
 #endif
 
-#if !defined(HAVE_PTHREAD_YIELD_ZERO_ARG)
-/* no pthread_yield() available */
 #ifdef HAVE_SCHED_YIELD
 #define pthread_yield() sched_yield()
-#elif defined(HAVE_PTHREAD_YIELD_NP) /* can be Mac OS X */
+#else
+#if !defined(HAVE_PTHREAD_YIELD_ZERO_ARG)
+/* no pthread_yield() available */
+#if defined(HAVE_PTHREAD_YIELD_NP) /* can be Mac OS X */
 #define pthread_yield() pthread_yield_np()
 #elif defined(HAVE_THR_YIELD)
 #define pthread_yield() thr_yield()
-#endif
-#endif
+#endif //defined(HAVE_PTHREAD_YIELD_NP)
+#endif //!defined(HAVE_PTHREAD_YIELD_ZERO_ARG)
+#endif //HAVE_SCHED_YIELD
 
 /*
   The defines set_timespec and set_timespec_nsec should be used

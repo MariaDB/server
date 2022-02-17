@@ -233,4 +233,48 @@ set debug_sync= "now WAIT_FOR got_no_such_table";
 set global debug_dbug= @saved_dbug;
 drop table t1;
 set debug_sync=reset;
+#
+# MDEV-18546 ASAN heap-use-after-free
+# in innobase_get_computed_value / row_purge
+#
+CREATE TABLE t1 (
+pk INT AUTO_INCREMENT,
+b BIT(15),
+v BIT(15) AS (b) VIRTUAL,
+PRIMARY KEY(pk),
+UNIQUE(v)
+) ENGINE=InnoDB;
+INSERT IGNORE INTO t1 (b) VALUES
+(NULL),(b'011'),(b'000110100'),
+(b'01101101010'),(b'01111001001011'),(NULL);
+SET GLOBAL innodb_debug_sync = "ib_clust_v_col_before_row_allocated "
+                               "SIGNAL before_row_allocated "
+                               "WAIT_FOR flush_unlock";
+SET GLOBAL innodb_debug_sync = "ib_open_after_dict_open "
+                               "SIGNAL purge_open "
+                               "WAIT_FOR select_open";
+set global debug_dbug= "d,ib_purge_virtual_index_callback";
+connect purge_waiter,localhost,root;
+SET debug_sync= "now WAIT_FOR before_row_allocated";
+connection default;
+REPLACE INTO t1 (pk, b) SELECT pk, b FROM t1;
+connection purge_waiter;
+connection default;
+disconnect purge_waiter;
+FLUSH TABLES;
+SET GLOBAL innodb_debug_sync = reset;
+SET debug_sync= "now SIGNAL flush_unlock WAIT_FOR purge_open";
+SET GLOBAL innodb_debug_sync = reset;
+SET debug_sync= "ib_open_after_dict_open SIGNAL select_open";
+SELECT * FROM t1;
+pk	b	v
+1	NULL	NULL
+2	 	 
+3	 4	 4
+4	j	j
+5	K	K
+6	NULL	NULL
+DROP TABLE t1;
+SET debug_sync= reset;
+set global debug_dbug= @old_dbug;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

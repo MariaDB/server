@@ -1,0 +1,13 @@
+call mtr.add_suppression("InnoDB: .*: Page 0 at offset 0 looks corrupted");
+call mtr.add_suppression("Index for table 'dst' is corrupt; try to repair it");
+call mtr.add_suppression("Page for tablespace .* is index page with id .* but that index is not found from configuration file");
+CREATE TABLE src (pk INT PRIMARY KEY, value INT) ENGINE=INNODB;
+INSERT INTO src VALUES (1, 1), (2, 2), (3, 3);
+FLUSH TABLES src FOR EXPORT;
+UNLOCK TABLES;
+DROP TABLE src;
+CREATE TABLE dst (pk INT PRIMARY KEY, value INT) ENGINE=INNODB;
+ALTER TABLE dst DISCARD TABLESPACE;
+ALTER TABLE dst IMPORT TABLESPACE;
+ERROR HY000: Index for table 'dst' is corrupt; try to repair it
+DROP TABLE dst;

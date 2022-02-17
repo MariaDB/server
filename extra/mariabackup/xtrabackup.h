@@ -174,6 +174,8 @@ enum binlog_info_enum { BINLOG_INFO_OFF, BINLOG_INFO_ON,
 
 extern ulong opt_binlog_info;
 
+extern ulong xtrabackup_innodb_force_recovery;
+
 void xtrabackup_io_throttling(void);
 my_bool xb_write_delta_metadata(const char *filename,
 				const xb_delta_info_t *info);
@@ -233,4 +235,53 @@ typedef void (*insert_entry_func_t)(const char*);
 void xb_load_list_string(char *list, const char *delimiters,
                          insert_entry_func_t ins);
 void register_ignore_db_dirs_filter(const char *name);
+
+#ifdef _WIN32
+typedef HANDLE	os_file_dir_t;	/*!< directory stream */
+/** The os_file_opendir() function opens a directory stream corresponding to the
+directory named by the dirname argument. The directory stream is positioned
+at the first entry. In both Unix and Windows we automatically skip the '.'
+and '..' items at the start of the directory listing.
+
+@param[in]	dirname		directory name; it must not contain a trailing
+				'\' or '/'
+@return directory stream
+@retval INVALID_HANDLE_VALUE on error */
+HANDLE os_file_opendir(const char *dirname);
+# define os_file_closedir(dir) static_cast<void>(FindClose(dir))
+# define os_file_closedir_failed(dir) !FindClose(dir)
+#else
+typedef DIR* os_file_dir_t;
+# define os_file_opendir(dirname) opendir(dirname)
+# define os_file_closedir(dir) static_cast<void>(closedir(dir))
+# define os_file_closedir_failed(dir) closedir(dir)
+#endif
+
+/** This function returns information of the next file in the directory. We jump
+over the '.' and '..' entries in the directory.
+@param[in]	dirname		directory name or path
+@param[in]	dir		directory stream
+@param[out]	info		buffer where the info is returned
+@return 0 if ok, -1 if error, 1 if at the end of the directory */
+int
+os_file_readdir_next_file(
+	const char*	dirname,
+	os_file_dir_t	dir,
+	os_file_stat_t* info);
+
+/***********************************************************************//**
+A fault-tolerant function that tries to read the next file name in the
+directory. We retry 100 times if os_file_readdir_next_file() returns -1. The
+idea is to read as much good data as we can and jump over bad data.
+@return 0 if ok, -1 if error even after the retries, 1 if at the end
+of the directory */
+int
+fil_file_readdir_next_file(
+/*=======================*/
+	dberr_t*	err,	/*!< out: this is set to DB_ERROR if an error
+				was encountered, otherwise not changed */
+	const char*	dirname,/*!< in: directory name or path */
+	os_file_dir_t	dir,	/*!< in: directory stream */
+	os_file_stat_t* info);	/*!< in/out: buffer where the
+				info is returned */
 #endif /* XB_XTRABACKUP_H */

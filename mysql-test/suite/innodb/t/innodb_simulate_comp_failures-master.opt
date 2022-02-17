@@ -1,2 +1,0 @@
---innodb-file-per-table
---skip-innodb-doublewrite

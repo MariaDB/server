@@ -1,0 +1,12 @@
+--source include/galera_cluster.inc
+
+CREATE TABLE t1(a int not null primary key) engine=innodb;
+REPAIR TABLE t1;
+CREATE VIEW v1 AS SELECT a FROM t1;
+REPAIR VIEW v1;
+DROP VIEW v1;
+DROP TABLE t1;
+
+CREATE VIEW v1 AS SELECT table_name FROM information_schema.tables;
+REPAIR VIEW v1;
+DROP VIEW v1;

@@ -3315,6 +3315,9 @@ SELECT STRAIGHT_JOIN * FROM t1, t2 AS t2_1, t2 AS t2_2
 WHERE t2_2.c = t2_1.c AND t2_2.b = t2_1.b AND ( a IS NULL OR t2_1.c = a );
 a	b	c	b	c
 DROP TABLE t1,t2;
+select a.a from (select 1 as a) a, (select 2 as b) b cross join (select 3 as c) c left join (select 4 as d) d on 1;
+a
+1
 #
 # MDEV-19600: The optimizer should be able to produce rows=1 estimate for unique index with NULLable columns
 #
@@ -3403,3 +3406,4 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t3	ref	a	a	5	test.t2.key2	1	
 drop table t1,t2,t3;
 drop table t1000,t10,t03;
+# End of 10.3 tests

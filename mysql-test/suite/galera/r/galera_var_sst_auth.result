@@ -1,5 +1,7 @@
 connection node_2;
 connection node_1;
+connection node_1;
+connection node_2;
 SELECT @@global.wsrep_sst_auth;
 @@global.wsrep_sst_auth
 ********

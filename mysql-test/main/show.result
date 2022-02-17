@@ -1,3 +1,8 @@
+#
+# MDEV-9538 Server crashes in check_show_access on SHOW STATISTICS
+# MDEV-9539 Server crashes in make_columns_old_format on SHOW GEOMETRY_COLUMNS
+# MDEV-9540 SHOW SPATIAL_REF_SYS and SHOW SYSTEM_VARIABLES return empty results with numerous warnings
+#
 show statistics;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'statistics' at line 1
 show spatial_ref_sys
@@ -10,3 +15,41 @@ show geometry_columns;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'geometry_columns' at line 1
 show nonexistent;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'nonexistent' at line 1
+#
+# MDEV-21603 Crashing SHOW TABLES with derived table in WHERE condition
+#
+create table t1 (nm varchar(32), a int);
+insert t1 values ('1',1),('2',2),('3',3);
+show tables
+where tables_in_test in (select *
+from (select nm from test.t1 group by nm) dt);
+Tables_in_test
+show fields from test.t1
+where field in (select * from (select nm from test.t1 group by nm) dt);
+Field	Type	Null	Key	Default	Extra
+insert t1 values ('nm',0);
+show fields from test.t1
+where field in (select * from (select nm from test.t1 group by nm) dt);
+Field	Type	Null	Key	Default	Extra
+nm	varchar(32)	YES		NULL	
+show fields from test.t1 where field in
+(select * from (select column_name from information_schema.columns
+where table_name='t1' group by column_name) dt);
+Field	Type	Null	Key	Default	Extra
+nm	varchar(32)	YES		NULL	
+a	int(11)	YES		NULL	
+drop table t1;
+#
+# MDEV-4621 select returns null for information_schema.statistics.collation field
+#
+create table t1 (f varchar(64), key(f));
+select index_name, column_name, collation, cardinality from information_schema.STATISTICS where table_schema='test' and table_name='t1';
+index_name	column_name	collation	cardinality
+f	f	A	NULL
+select index_name, column_name, collation from information_schema.STATISTICS where table_schema='test' and table_name='t1';
+index_name	column_name	collation
+f	f	A
+drop table t1;
+#
+# End of 10.2 tests
+#

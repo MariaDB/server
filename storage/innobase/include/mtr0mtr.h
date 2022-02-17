@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -132,6 +132,10 @@ struct mtr_t {
 
 	/** Commit the mini-transaction. */
 	void commit();
+
+	/** Commit a mini-transaction that is shrinking a tablespace.
+	@param space   tablespace that is being shrunk */
+	ATTRIBUTE_COLD void commit_shrink(fil_space_t &space);
 
 	/** Commit a mini-transaction that did not modify any pages,
 	but generated some redo log on a higher level, such as
@@ -482,6 +486,6 @@ private:
 	lsn_t		m_commit_lsn;
 };
 
-#include "mtr0mtr.ic"
+#include "mtr0mtr.inl"
 
 #endif /* mtr0mtr_h */

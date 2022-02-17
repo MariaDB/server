@@ -45,6 +45,6 @@ dict_table_check_if_in_cache_low(
 /*=============================*/
 	const char*	table_name);		/*!< in: table name */
 
-#include "dict0priv.ic"
+#include "dict0priv.inl"
 
 #endif /* dict0priv.h */

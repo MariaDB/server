@@ -124,6 +124,20 @@ drop user 'fetch'@'localhost';
 drop user 'user-1'@'localhost';
 drop user 'O\'Brien'@'localhost';
 
+--echo #
+--echo # MDEV-26080 SHOW GRANTS does not quote role names properly for DEFAULT ROLE
+--echo #
+
+CREATE USER 'test-user';
+CREATE ROLE `r``o'l"e`;
+select user from mysql.user where is_role='Y';
+GRANT `r``o'l"e` TO 'test-user';
+SET DEFAULT ROLE `r``o'l"e` FOR 'test-user';
+# it is expected that quotes won't be shown correctly
+SHOW GRANTS FOR 'test-user';
+DROP ROLE `r``o'l"e`;
+DROP USER 'test-user';
+
 --echo # End of 10.3 tests
 
 #

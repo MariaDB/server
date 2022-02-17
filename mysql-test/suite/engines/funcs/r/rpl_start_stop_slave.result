@@ -1,12 +1,17 @@
-stop slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-reset master;
-reset slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-start slave;
-stop slave;
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
+connection master;
 create table t1(n int);
-start slave;
-stop slave io_thread;
+connection slave;
+include/start_slave.inc
+include/stop_slave_io.inc
 start slave io_thread;
+include/wait_for_slave_io_to_start.inc
+connection master;
+connection slave;
+connection master;
 drop table t1;
+connection slave;
+include/rpl_end.inc

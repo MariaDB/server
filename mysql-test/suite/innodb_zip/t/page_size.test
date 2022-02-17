@@ -86,11 +86,11 @@ c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
 c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(156)
 ) ROW_FORMAT=compact;
 
-# Compressed table; 1878 bytes with 10 CHAR fields
-# Bug#13391353 Limit is 1876 on 32-Linux only
+# Compressed table
+# MDEV-27634 stricter compressBound() limit for the s390x DFLTCC instruction
 CREATE TABLE t1 (
 c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
-c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(76)
+c06 char(200), c07 char(200), c08 char(176)
 ) ROW_FORMAT=compressed;
 DROP TABLE t1;
 --replace_regex /> [0-9]*/> max_row_size/
@@ -186,13 +186,13 @@ c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
 c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(203)
 ) ROW_FORMAT=compact;
 
-# Compressed table; 3905 bytes with 20 CHAR fields
-# Bug#13391353 Limit is 3903 on 32-Linux only
+# Compressed table
+# MDEV-27634 stricter compressBound() limit for the s390x DFLTCC instruction
 CREATE TABLE t1 (
 c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
 c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
 c11 char(200), c12 char(200), c13 char(200), c14 char(200), c15 char(200),
-c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(103)
+c16 char(200), c17 char(200), c18 char(182)
 ) ROW_FORMAT=compressed;
 DROP TABLE t1;
 --replace_regex /> [0-9]*/> max_row_size/
@@ -308,8 +308,8 @@ c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
 c36 char(200), c37 char(200), c38 char(200), c39 char(250), c40 char(247)
 ) ROW_FORMAT=compact;
 
-# Compressed table; 7959 bytes with 40 CHAR fields
-# Bug#13391353 Limit is 7957 on 32-Linux only
+# Compressed table
+# MDEV-27634 stricter compressBound() limit for the s390x DFLTCC instruction
 CREATE TABLE t1 (
 c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
 c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
@@ -318,7 +318,7 @@ c16 char(200), c17 char(200), c18 char(200), c19 char(200), c20 char(200),
 c21 char(200), c22 char(200), c23 char(200), c24 char(200), c25 char(200),
 c26 char(200), c27 char(200), c28 char(200), c29 char(200), c30 char(200),
 c31 char(200), c32 char(200), c33 char(200), c34 char(200), c35 char(200),
-c36 char(200), c37 char(200), c38 char(200), c39 char(200), c40 char(157)
+c36 char(200), c37 char(200), c38 char(196)
 ) ROW_FORMAT=compressed;
 DROP TABLE t1;
 --error ER_TOO_BIG_ROWSIZE
@@ -868,7 +868,9 @@ DROP TABLE t1;
 CREATE TABLE t1(c text, PRIMARY KEY (c(440)))
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
 DROP TABLE t1;
-CREATE TABLE t1(c text, PRIMARY KEY (c(438)))
+--disable_warnings
+CREATE TABLE t1(c text, PRIMARY KEY (c(293)))
 ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
+--enable_warnings
 INSERT INTO t1 VALUES(REPEAT('A',512)),(REPEAT('B',512));
 DROP TABLE t1;

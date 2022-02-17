@@ -6501,6 +6501,44 @@ DROP TABLE t1;
 DROP VIEW v1;
 
 --echo #
+--echo # MDEV-26299: Some views force server (and mysqldump) to generate
+--echo # invalid SQL for their definitions
+--echo #
+
+create view v1 as
+ select * from
+  (select
+  "12345678901234567890123456789012345678901234567890123456789012345") as t1;
+
+let $definition=`select VIEW_DEFINITION from information_schema.views where TABLE_NAME="v1"`;
+
+drop view v1;
+
+eval CREATE VIEW v1 AS $definition;
+
+
+drop view v1;
+
+--echo #
+--echo # MDEV-25631: view with outer reference in select used
+--echo #             as argument of set function
+--echo #
+
+create table t1 (c int);
+insert into t1 values (1);
+create view v1 as select c from t1 where (select t1.c from t1 t) = 1;
+
+select * from (select sum((select * from v1)) as r) dt;
+
+with cte as (select c from t1 where (select t1.c from t1 t) = 1)
+select * from (select sum((select * from cte)) as r) dt1
+union
+select * from (select sum((select * from cte)) as r) dt2;
+
+drop view v1;
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
@@ -6542,3 +6580,24 @@ Drop table t1;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # MDEV-25206: view specification contains unknown column reference
+--echo #
+
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b int);
+INSERT INTO t2 VALUES (2),(3);
+CREATE TABLE t3 (c int);
+
+--error ER_BAD_FIELD_ERROR
+CREATE VIEW v1 AS SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
+--error ER_BAD_FIELD_ERROR
+INSERT INTO t3 SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
+--error ER_BAD_FIELD_ERROR
+CREATE TABLE t4 AS SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
+
+DROP TABLE t1,t2,t3;
+
+--echo # End of 10.4 tests

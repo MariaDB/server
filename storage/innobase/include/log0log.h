@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -176,9 +176,15 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key = false);
 /** write to the log file up to the last log entry.
 @param[in]	sync	whether we want the written log
 also to be flushed to disk. */
-void
-log_buffer_flush_to_disk(
-	bool sync = true);
+void log_buffer_flush_to_disk(bool sync= true);
+
+
+/** Prepare to invoke log_write_and_flush(), before acquiring log_sys.mutex. */
+#define log_write_and_flush_prepare() log_write_mutex_enter()
+
+/** Durably write the log up to log_sys.lsn and release log_sys.mutex. */
+ATTRIBUTE_COLD void log_write_and_flush();
+
 /****************************************************************//**
 This functions writes the log buffer to the log file and if 'flush'
 is set it forces a flush of the log file as well. This is meant to be
@@ -802,6 +808,6 @@ extern os_event_t	log_scrub_event;
 /** Whether log_scrub_thread is active */
 extern bool		log_scrub_thread_active;
 
-#include "log0log.ic"
+#include "log0log.inl"
 
 #endif

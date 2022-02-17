@@ -299,17 +299,6 @@ THD *thd_get_current_thd()
   return current_thd;
 }
 
-/**
-  Clear errors from the previous THD
-
-  @param thd              THD object
-*/
-void thd_clear_errors(THD *thd)
-{
-  my_errno= 0;
-  thd->mysys_var->abort= 0;
-}
-
 
 /**
   Get thread attributes for connection threads
@@ -784,7 +773,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   net.reading_or_writing= 0;
   client_capabilities= 0;                       // minimalistic client
   system_thread= NON_SYSTEM_THREAD;
-  cleanup_done= free_connection_done= abort_on_warning= 0;
+  cleanup_done= free_connection_done= abort_on_warning= got_warning= 0;
   peer_port= 0;					// For SHOW PROCESSLIST
   transaction.m_pending_rows_event= 0;
   transaction.on= 1;
@@ -1292,6 +1281,7 @@ void THD::init()
   m_wsrep_next_trx_id     = WSREP_UNDEFINED_TRX_ID;
   wsrep_replicate_GTID    = false;
   wsrep_aborter           = 0;
+  wsrep_desynced_backup_stage= false;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
@@ -1422,7 +1412,10 @@ void THD::change_user(void)
     cleanup();
   cleanup_done= 0;
   reset_killed();
-  thd_clear_errors(this);
+  /* Clear errors from the previous THD */
+  my_errno= 0;
+  if (mysys_var)
+    mysys_var->abort= 0;
 
   /* Clear warnings. */
   if (!get_stmt_da()->is_warning_info_empty())
@@ -1869,7 +1862,6 @@ void THD::awake_no_mutex(killed_state state_to_set)
   DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
                        this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);
-  mysql_mutex_assert_owner(&LOCK_thd_data);
   mysql_mutex_assert_owner(&LOCK_thd_kill);
 
   print_aborted_warning(3, "KILLED");
@@ -2034,6 +2026,8 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
 
   if (needs_thr_lock_abort)
   {
+    bool mutex_released= false;
+    mysql_mutex_lock(&in_use->LOCK_thd_kill);
     mysql_mutex_lock(&in_use->LOCK_thd_data);
     /* If not already dying */
     if (in_use->killed != KILL_CONNECTION_HARD)
@@ -2050,12 +2044,25 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
           thread can see those instances (e.g. see partitioning code).
         */
         if (!thd_table->needs_reopen())
-        {
           signalled|= mysql_lock_abort_for_thread(this, thd_table);
-        }
       }
+#ifdef WITH_WSREP
+      if (WSREP(this) && wsrep_thd_is_BF(this, false))
+      {
+        WSREP_DEBUG("notify_shared_lock: BF thread %llu query %s"
+                    " victim %llu query %s",
+                    this->real_id, wsrep_thd_query(this),
+                    in_use->real_id, wsrep_thd_query(in_use));
+        wsrep_abort_thd(this, in_use, false);
+        mutex_released= true;
+      }
+#endif /* WITH_WSREP */
     }
-    mysql_mutex_unlock(&in_use->LOCK_thd_data);
+    if (!mutex_released)
+    {
+      mysql_mutex_unlock(&in_use->LOCK_thd_data);
+      mysql_mutex_unlock(&in_use->LOCK_thd_kill);
+    }
   }
   DBUG_RETURN(signalled);
 }
@@ -2796,6 +2803,62 @@ void THD::close_active_vio()
   DBUG_VOID_RETURN;
 }
 #endif
+
+
+/*
+  @brief MySQL parser used for recursive invocations
+
+  @param old_lex  The LEX structure in the state when this parser
+                  is called recursively
+  @param lex      The LEX structure used to parse a new SQL fragment
+  @param str      The SQL fragment to parse
+  @param str_len  The length of the SQL fragment to parse
+  @param stmt_prepare_mode true <=> when parsing a prepare statement
+
+  @details
+    This function is to be used when parsing of an SQL fragment is
+    needed within one of the grammar rules.
+
+  @notes
+    Currently the function is used only when the specification of a CTE
+    is parsed for the not first and not recursive references of the CTE.
+
+  @retval false   On a successful parsing of the fragment
+  @retval true    Otherwise
+*/
+
+bool THD::sql_parser(LEX *old_lex, LEX *lex,
+                     char *str, uint str_len, bool stmt_prepare_mode)
+{
+  extern int MYSQLparse(THD * thd);
+  extern int ORAparse(THD * thd);
+
+  bool parse_status= false;
+  Parser_state parser_state;
+  Parser_state *old_parser_state= m_parser_state;
+
+  if (parser_state.init(this, str, str_len))
+    return true;
+
+  m_parser_state= &parser_state;
+  parser_state.m_lip.stmt_prepare_mode= stmt_prepare_mode;
+  parser_state.m_lip.multi_statements= false;
+  parser_state.m_lip.m_digest= NULL;
+
+  lex->param_list= old_lex->param_list;
+  lex->sphead= old_lex->sphead;
+  lex->spname= old_lex->spname;
+  lex->spcont= old_lex->spcont;
+  lex->sp_chistics= old_lex->sp_chistics;
+  lex->trg_chistics= old_lex->trg_chistics;
+
+  parse_status= (variables.sql_mode & MODE_ORACLE) ?
+                 ORAparse(this) : MYSQLparse(this) != 0;
+
+  m_parser_state= old_parser_state;
+
+  return parse_status;
+}
 
 
 struct Item_change_record: public ilink
@@ -3610,7 +3673,7 @@ int select_max_min_finder_subselect::send_data(List<Item> &items)
     if (!cache)
     {
       cache= val_item->get_cache(thd);
-      switch (val_item->result_type()) {
+      switch (val_item->cmp_type()) {
       case REAL_RESULT:
 	op= &select_max_min_finder_subselect::cmp_real;
 	break;
@@ -3623,8 +3686,13 @@ int select_max_min_finder_subselect::send_data(List<Item> &items)
       case DECIMAL_RESULT:
         op= &select_max_min_finder_subselect::cmp_decimal;
         break;
-      case ROW_RESULT:
       case TIME_RESULT:
+        if (val_item->field_type() == MYSQL_TYPE_TIME)
+          op= &select_max_min_finder_subselect::cmp_time;
+        else
+          op= &select_max_min_finder_subselect::cmp_str;
+        break;
+      case ROW_RESULT:
         // This case should never be choosen
 	DBUG_ASSERT(0);
 	op= 0;
@@ -3669,6 +3737,23 @@ bool select_max_min_finder_subselect::cmp_int()
   return (val1 < val2);
 }
 
+bool select_max_min_finder_subselect::cmp_time()
+{
+  Item *maxmin= ((Item_singlerow_subselect *)item)->element_index(0);
+  THD *thd= current_thd;
+  auto val1= cache->val_time_packed(thd), val2= maxmin->val_time_packed(thd);
+
+  /* Ignore NULLs for ANY and keep them for ALL subqueries */
+  if (cache->null_value)
+    return (is_all && !maxmin->null_value) || (!is_all && maxmin->null_value);
+  if (maxmin->null_value)
+    return !is_all;
+
+  if (fmax)
+    return(val1 > val2);
+  return (val1 < val2);
+}
+
 bool select_max_min_finder_subselect::cmp_decimal()
 {
   Item *maxmin= ((Item_singlerow_subselect *)item)->element_index(0);
@@ -3692,7 +3777,7 @@ bool select_max_min_finder_subselect::cmp_str()
     but added for safety
   */
   val1= cache->val_str(&buf1);
-  val2= maxmin->val_str(&buf1);
+  val2= maxmin->val_str(&buf2);
 
   /* Ignore NULLs for ANY and keep them for ALL subqueries */
   if (cache->null_value)
@@ -4753,7 +4838,7 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
   DBUG_ASSERT(thd->open_tables == NULL);
   DBUG_ASSERT(thd->locked_tables_mode < LTM_PRELOCKED);
 
-  Open_table_context ot_ctx(thd, 0);
+  Open_table_context ot_ctx(thd, MYSQL_OPEN_IGNORE_FLUSH);
   TABLE_LIST *tl= (TABLE_LIST*)thd->alloc(sizeof(TABLE_LIST));
   LEX_CSTRING db_name= {db, dblen };
   LEX_CSTRING table_name= { tb, tblen };
@@ -5064,8 +5149,9 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
      the caller should guarantee that the BF state won't change.
      (e.g. InnoDB does it by keeping lock_sys.mutex locked)
   */
-  if (WSREP_ON && wsrep_thd_is_BF(thd, false) &&
-      wsrep_thd_is_BF(other_thd, false))
+  if (WSREP_ON &&
+      wsrep_thd_is_BF(const_cast<THD *>(thd), false) &&
+      wsrep_thd_is_BF(const_cast<THD *>(other_thd), false))
     return 0;
 #endif /* WITH_WSREP */
   rgi= thd->rgi_slave;
@@ -5179,8 +5265,8 @@ extern "C" bool thd_is_strict_mode(const MYSQL_THD thd)
 */
 void thd_get_query_start_data(THD *thd, char *buf)
 {
-  LEX_CSTRING field_name;
-  Field_timestampf f((uchar *)buf, NULL, 0, Field::NONE, &field_name, NULL, 6);
+  Field_timestampf f((uchar *)buf, nullptr, 0, Field::NONE, &empty_clex_str,
+                     nullptr, 6);
   f.store_TIME(thd->query_start(), thd->query_start_sec_part());
 }
 
@@ -6756,8 +6842,8 @@ void THD::binlog_prepare_row_images(TABLE *table)
     {
       case BINLOG_ROW_IMAGE_MINIMAL:
         /* MINIMAL: Mark only PK */
-        table->mark_columns_used_by_index(table->s->primary_key,
-                                          &table->tmp_set);
+        table->mark_index_columns(table->s->primary_key,
+                                  &table->tmp_set);
         break;
       case BINLOG_ROW_IMAGE_NOBLOB:
         /**

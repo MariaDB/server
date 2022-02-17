@@ -418,6 +418,10 @@ create_log_files(
 		return(DB_READ_ONLY);
 	}
 
+	if (!log_set_capacity(srv_log_file_size_requested)) {
+		return(DB_ERROR);
+	}
+
 	/* Crashing after deleting the first file should be
 	recoverable. The buffer pool was clean, and we can simply
 	create all log files from the scratch. */
@@ -474,9 +478,6 @@ create_log_files(
 	}
 
 	log_sys.log.create(srv_n_log_files);
-	if (!log_set_capacity(srv_log_file_size_requested)) {
-		return(DB_ERROR);
-	}
 
 	fil_open_log_and_system_tablespace_files();
 
@@ -1310,6 +1311,11 @@ dberr_t srv_start(bool create_new_db)
 	      || is_mariabackup_restore_or_export());
 
 
+	if (srv_force_recovery) {
+		ib::info() << "!!! innodb_force_recovery is set to "
+			<< srv_force_recovery << " !!!";
+	}
+
 	if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
 		srv_read_only_mode = true;
 	}
@@ -1630,6 +1636,12 @@ dberr_t srv_start(bool create_new_db)
 			logfilename, dirnamelen, flushed_lsn, logfile0);
 
 		if (err != DB_SUCCESS) {
+			for (Tablespace::const_iterator
+			       i = srv_sys_space.begin();
+			     i != srv_sys_space.end(); i++) {
+				os_file_delete(innodb_data_file_key,
+					       i->filepath());
+			}
 			return(srv_init_abort(err));
 		}
 	} else {
@@ -1828,7 +1840,11 @@ files_checked:
 		All the remaining rollback segments will be created later,
 		after the double write buffer has been created. */
 		trx_sys_create_sys_pages();
-		trx_lists_init_at_db_start();
+		err = trx_lists_init_at_db_start();
+
+		if (err != DB_SUCCESS) {
+			return(srv_init_abort(err));
+		}
 
 		err = dict_create();
 
@@ -1884,7 +1900,10 @@ files_checked:
 		case SRV_OPERATION_RESTORE:
 			/* This must precede
 			recv_apply_hashed_log_recs(true). */
-			trx_lists_init_at_db_start();
+			err = trx_lists_init_at_db_start();
+			if (err != DB_SUCCESS) {
+				return srv_init_abort(err);
+			}
 			break;
 		case SRV_OPERATION_RESTORE_DELTA:
 		case SRV_OPERATION_BACKUP:
@@ -2005,7 +2024,7 @@ files_checked:
 			to the data files and truncate or delete the log.
 			Unless --export is specified, no further change to
 			InnoDB files is needed. */
-			ut_ad(!srv_force_recovery);
+			ut_ad(srv_force_recovery <= SRV_FORCE_IGNORE_CORRUPT);
 			ut_ad(srv_n_log_files_found <= 1);
 			ut_ad(recv_no_log_write);
 			buf_flush_sync_all_buf_pools();
@@ -2345,11 +2364,6 @@ skip_monitors:
 			   << " started; log sequence number "
 			   << srv_start_lsn
 			   << "; transaction id " << trx_sys.get_max_trx_id();
-	}
-
-	if (srv_force_recovery > 0) {
-		ib::info() << "!!! innodb_force_recovery is set to "
-			<< srv_force_recovery << " !!!";
 	}
 
 	if (srv_force_recovery == 0) {

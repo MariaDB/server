@@ -62,6 +62,8 @@ PrivateDevices=false
 # Prevent writes to /usr, /boot, and /etc
 ProtectSystem=full
 
+@SYSTEMD_READWRITEPATH@
+
 # Doesn't yet work properly with SELinux enabled
 # NoNewPrivileges=true
 
@@ -145,7 +147,7 @@ TimeoutStopSec=900
 ##
 
 # Number of files limit. previously [mysqld_safe] open-files-limit
-LimitNOFILE=16384
+LimitNOFILE=32768
 
 # Maximium core size. previously [mysqld_safe] core-file-size
 # LimitCore=

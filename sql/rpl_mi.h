@@ -79,6 +79,11 @@ public:
   void reset_filter();
 
   /*
+    Clear do_ids and ignore_ids to disable domain id filtering
+  */
+  void clear_ids();
+
+  /*
     Update the do/ignore domain id filter lists.
 
     @param do_ids     [IN]            domain ids to be kept

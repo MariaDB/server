@@ -347,6 +347,9 @@ void TABLE::init_cost_info_for_usable_range_rowid_filters(THD *thd)
   usable_range_filter_keys.clear_all();
   key_map::Iterator it(quick_keys);
 
+  if (file->ha_table_flags() & HA_NON_COMPARABLE_ROWID)
+    return;                                     // Cannot create filtering
+
   /*
     From all indexes that can be used for range accesses select only such that
     - range filter pushdown is supported by the engine for them     (1)

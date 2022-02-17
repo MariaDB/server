@@ -58,7 +58,7 @@ if (`SELECT HEX(@commands) = HEX('configure')`)
   --eval CREATE TEMPORARY TABLE nt_tmp_xx_1 ( id INT ) ENGINE = MyIsam
 
   #
-  # Creates a Temporary N-table that is never dropped.
+  # Creates a Temporary T-table that is never dropped.
   #
   --eval CREATE TEMPORARY TABLE tt_tmp_xx_1 ( id INT ) ENGINE = Innodb
 

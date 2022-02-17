@@ -19,6 +19,7 @@ mysql/innodb_table_stats
 mysql/transaction_registry
 test/t1
 test/t2
+FLUSH TABLES t1,t2,t3 FOR EXPORT;
 # t1 yes on expecting NOT FOUND
 NOT FOUND /foobarsecret/ in t1.ibd
 # t2 ... on expecting NOT FOUND
@@ -27,7 +28,7 @@ NOT FOUND /tempsecret/ in t2.ibd
 FOUND 12 /dummysecret/ in t3.ibd
 # ibdata1 expecting NOT FOUND
 NOT FOUND /foobarsecret/ in ibdata1
-# restart
+UNLOCK TABLES;
 # Now turn off encryption and wait for threads to decrypt everything
 SET GLOBAL innodb_encrypt_tables = off;
 # Wait max 10 min for key encryption threads to decrypt all spaces
@@ -42,6 +43,7 @@ test/t3
 SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 NAME
 test/t1
+FLUSH TABLES t1,t2,t3 FOR EXPORT;
 # t1 yes on expecting NOT FOUND
 NOT FOUND /foobarsecret/ in t1.ibd
 # t2 ... default expecting FOUND
@@ -50,7 +52,7 @@ FOUND 12 /tempsecret/ in t2.ibd
 FOUND 12 /dummysecret/ in t3.ibd
 # ibdata1 expecting NOT FOUND
 NOT FOUND /foobarsecret/ in ibdata1
-# restart
+UNLOCK TABLES;
 # Now turn on encryption and wait for threads to encrypt all spaces
 SET GLOBAL innodb_encrypt_tables = on;
 # Wait max 10 min for key encryption threads to encrypt all spaces
@@ -65,6 +67,7 @@ mysql/innodb_table_stats
 mysql/transaction_registry
 test/t1
 test/t2
+FLUSH TABLES t1,t2,t3 FOR EXPORT;
 # t1 yes on expecting NOT FOUND
 NOT FOUND /foobarsecret/ in t1.ibd
 # t2 ... on expecting NOT FOUND
@@ -73,5 +76,5 @@ NOT FOUND /tempsecret/ in t2.ibd
 FOUND 12 /dummysecret/ in t3.ibd
 # ibdata1 expecting NOT FOUND
 NOT FOUND /foobarsecret/ in ibdata1
-# restart
+UNLOCK TABLES;
 drop table t1, t2, t3;

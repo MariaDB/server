@@ -1,17 +1,11 @@
 --source include/have_innodb.inc
 --source include/innodb_page_size.inc
 --source include/have_undo_tablespaces.inc
+--source include/not_embedded.inc
+--source include/have_sequence.inc
 
-SET @save_undo_logs = @@GLOBAL.innodb_undo_logs;
-SET @save_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET @save_truncate = @@GLOBAL.innodb_undo_log_truncate;
 SET GLOBAL innodb_undo_log_truncate = 0;
-SET GLOBAL innodb_undo_logs = 4;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
-
-SET @trunc_start=
-(SELECT variable_value FROM information_schema.global_status
-WHERE variable_name = 'innodb_undo_truncations');
 
 #-----------------------------------------------------------------------------
 #
@@ -21,37 +15,14 @@ WHERE variable_name = 'innodb_undo_truncations');
 create table t1(keyc int primary key, c char(100)) engine = innodb;
 create table t2(keyc int primary key, c char(100)) engine = innodb;
 #
-delimiter |;
-CREATE PROCEDURE populate_t1()
-BEGIN
-        DECLARE i INT DEFAULT 1;
-        while (i <= 20000) DO
-                insert into t1 values (i, 'a');
-                SET i = i + 1;
-        END WHILE;
-END |
-delimiter ;|
-#
-delimiter |;
-CREATE PROCEDURE populate_t2()
-BEGIN
-        DECLARE i INT DEFAULT 1;
-        while (i <= 20000) DO
-                insert into t2 values (i, 'a');
-                SET i = i + 1;
-        END WHILE;
-END |
-delimiter ;|
-#
-#
 let DATADIR = `select @@datadir`;
 connect (con1,localhost,root,,);
 begin;
-send call populate_t1();
+send insert into t1 select seq,'a' from seq_1_to_20000;
 
 connect (con2,localhost,root,,);
 begin;
-send call populate_t2();
+send insert into t2 select seq,'a' from seq_1_to_20000;
 
 connection con1; reap; send update t1 set c = 'mysql';
 connection con2; reap; send update t2 set c = 'mysql';
@@ -61,62 +32,25 @@ connection con1; reap; send delete from t1;
 connection con2; reap; delete from t2;
 connection con1; reap;
 
-let CHECKFILE = $MYSQL_TMP_DIR/check.txt;
-perl;
-($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size1)
-	= stat("$ENV{DATADIR}/undo001");
-($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size2)
-	= stat("$ENV{DATADIR}/undo002");
-open(OUT, ">$ENV{CHECKFILE}") || die;
-print OUT "let \$size1='$size1,$size2';\n";
-close(OUT);
-EOF
-
 SET GLOBAL innodb_undo_log_truncate = 1;
 commit; disconnect con1;
 connection con2; commit; disconnect con2;
 
 connection default;
+
+--replace_regex /.*Trx id counter ([0-9]+).*/\1/
+let $trx_before= `SHOW ENGINE INNODB STATUS`;
+let $trx_before= `select substr('$trx_before',9)+2`;
+
+set global innodb_fast_shutdown=0;
+--source include/restart_mysqld.inc
+--replace_regex /.*Trx id counter ([0-9]+).*/\1/
+let $trx_after= `SHOW ENGINE INNODB STATUS`;
+let $trx_after= `select substr('$trx_after',9)`;
+
 drop table t1, t2;
-drop PROCEDURE populate_t1;
-drop PROCEDURE populate_t2;
 
---source include/wait_all_purged.inc
-
-# Truncation will normally not occur with innodb_page_size=64k,
-# and occasionally not with innodb_page_size=32k,
-# because the undo log will not grow enough.
-if (`select @@innodb_page_size IN (4096,8192,16384)`)
+if ($trx_before > $trx_after)
 {
-  let $wait_condition = (SELECT variable_value!=@trunc_start
-                         FROM information_schema.global_status
-                         WHERE variable_name = 'innodb_undo_truncations');
-  source include/wait_condition.inc;
+  echo Transaction sequence mismatch: $trx_before > $trx_after;
 }
-
---source $CHECKFILE
-perl;
-($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size1)
-	= stat("$ENV{DATADIR}/undo001");
-($dev,$ino,$mode,$nlink,$uid,$gid,$rdev,$size2)
-	= stat("$ENV{DATADIR}/undo002");
-open(OUT, ">$ENV{CHECKFILE}") || die;
-print OUT "let \$size2='$size1,$size2';\n";
-close(OUT);
-EOF
-
---source $CHECKFILE
---remove_file $CHECKFILE
-
-if ($size1 == $size2)
-{
-  # This fails for innodb_page_size=64k, occasionally also for 32k.
-  if (`select @@innodb_page_size IN (4096,8192,16384)`)
-  {
-    echo Truncation did not happen: $size1;
-  }
-}
-
-SET GLOBAL innodb_undo_logs = @save_undo_logs;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
-SET GLOBAL innodb_undo_log_truncate = @save_truncate;

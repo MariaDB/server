@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -795,20 +795,15 @@ loop:
 
 /** Flush the recently written changes to the log file.
 and invoke log_mutex_enter(). */
-static
-void
-log_write_flush_to_disk_low()
+static void log_write_flush_to_disk_low()
 {
-	/* FIXME: This is not holding log_sys.mutex while
-	calling os_event_set()! */
-	ut_a(log_sys.n_pending_flushes == 1); /* No other threads here */
+	ut_a(log_sys.n_pending_flushes);
 
 	bool	do_flush = srv_file_flush_method != SRV_O_DSYNC;
 
 	if (do_flush) {
 		fil_flush(SRV_LOG_SPACE_FIRST_ID);
 	}
-
 
 	log_mutex_enter();
 	if (do_flush) {
@@ -1043,12 +1038,101 @@ loop:
 /** write to the log file up to the last log entry.
 @param[in]	sync	whether we want the written log
 also to be flushed to disk. */
-void
-log_buffer_flush_to_disk(
-	bool sync)
+void log_buffer_flush_to_disk(bool sync)
 {
-	ut_ad(!srv_read_only_mode);
-	log_write_up_to(log_get_lsn(), sync);
+  ut_ad(!srv_read_only_mode);
+  log_write_up_to(log_get_lsn(), sync);
+}
+
+
+/** Durably write the log and release log_sys.mutex */
+ATTRIBUTE_COLD void log_write_and_flush()
+{
+  ut_ad(!srv_read_only_mode);
+  ut_ad(!recv_no_log_write);
+  ut_ad(!recv_recovery_is_on());
+
+  /* The following code is adapted from log_write_up_to(). */
+  DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF,
+                        log_sys.write_lsn, log_sys.lsn));
+  log_sys.n_pending_flushes++;
+  log_sys.current_flush_lsn= log_sys.lsn;
+  os_event_reset(log_sys.flush_event);
+  ut_ad(log_sys.buf_free != log_sys.buf_next_to_write);
+  ulint start_offset= log_sys.buf_next_to_write;
+  ulint end_offset= log_sys.buf_free;
+  ulint area_start= ut_2pow_round(start_offset, ulint(OS_FILE_LOG_BLOCK_SIZE));
+  ulint area_end= ut_calc_align(end_offset, ulint(OS_FILE_LOG_BLOCK_SIZE));
+  ulong write_ahead_size= srv_log_write_ahead_size;
+
+  log_block_set_flush_bit(log_sys.buf + area_start, TRUE);
+  log_block_set_checkpoint_no(log_sys.buf + area_end - OS_FILE_LOG_BLOCK_SIZE,
+                              log_sys.next_checkpoint_no);
+  lsn_t write_lsn= log_sys.lsn;
+  byte *write_buf= log_sys.buf;
+
+  ut_ad(area_end - area_start > 0);
+
+  log_buffer_switch();
+
+  log_sys.log.set_fields(log_sys.write_lsn);
+
+  /* Erase the end of the last log block. */
+  memset(write_buf + end_offset, 0,
+         ~end_offset & (OS_FILE_LOG_BLOCK_SIZE - 1));
+  /* Calculate pad_size if needed. */
+  ulint pad_size= 0;
+  if (write_ahead_size > OS_FILE_LOG_BLOCK_SIZE)
+  {
+    lsn_t end_offset=
+      log_sys.log.calc_lsn_offset(ut_uint64_align_up(write_lsn,
+                                                     OS_FILE_LOG_BLOCK_SIZE));
+    ulint end_offset_in_unit= (ulint) (end_offset % write_ahead_size);
+
+    if (end_offset_in_unit && (area_end - area_start) > end_offset_in_unit)
+    {
+      /* The first block in the unit was initialized after the last
+      writing. Needs to be written padded data once. */
+      pad_size= std::min<ulint>(ulint(write_ahead_size) - end_offset_in_unit,
+                                srv_log_buffer_size - area_end);
+      memset(write_buf + area_end, 0, pad_size);
+    }
+  }
+
+  if (log_sys.is_encrypted())
+    log_crypt(write_buf + area_start, log_sys.write_lsn,
+              area_end - area_start);
+
+  /* Do the write to the log files */
+  log_write_buf(write_buf + area_start, area_end - area_start + pad_size,
+#ifdef UNIV_DEBUG
+                pad_size,
+#endif /* UNIV_DEBUG */
+                ut_uint64_align_down(log_sys.write_lsn,
+                                     OS_FILE_LOG_BLOCK_SIZE),
+                start_offset - area_start);
+  srv_stats.log_padded.add(pad_size);
+  log_sys.write_lsn= write_lsn;
+
+  log_write_mutex_exit();
+
+  /* Code adapted from log_write_flush_to_disk_low() */
+
+  ut_a(log_sys.n_pending_flushes);
+
+  if (srv_file_flush_method != SRV_O_DSYNC)
+    fil_flush(SRV_LOG_SPACE_FIRST_ID);
+
+  log_sys.flushed_to_disk_lsn= log_sys.current_flush_lsn;
+
+  log_sys.n_pending_flushes--;
+
+  os_event_set(log_sys.flush_event);
+
+  const lsn_t flush_lsn= log_sys.flushed_to_disk_lsn;
+  log_mutex_exit();
+
+  innobase_mysql_log_notify(flush_lsn);
 }
 
 /****************************************************************//**

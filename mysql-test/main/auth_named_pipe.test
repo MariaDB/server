@@ -1,5 +1,10 @@
 --source include/windows.inc
 
+if (!$AUTH_NAMED_PIPE_SO)
+{
+  skip No auth_named_pipe plugin;
+}
+
 INSTALL SONAME 'auth_named_pipe';
 
 --replace_result $USERNAME USERNAME

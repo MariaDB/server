@@ -1,9 +1,6 @@
-stop slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-reset master;
-reset slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-start slave;
+include/master-slave.inc
+[connection master]
+connection master;
 create database if not exists mysqltest1;
 DROP VIEW IF EXISTS mysqltest1.v1;
 DROP VIEW IF EXISTS mysqltest1.v2;
@@ -35,6 +32,7 @@ a	c	c2
 1	Thank	GOD
 2	it	is
 3	Friday	TGIF
+connection slave;
 SELECT * FROM mysqltest1.v2;
 qty	price	value
 3	50	150
@@ -45,6 +43,7 @@ a	c	c2
 1	Thank	GOD
 2	it	is
 3	Friday	TGIF
+connection master;
 INSERT INTO mysqltest1.t5 SELECT * FROM mysqltest1.v2;
 INSERT INTO mysqltest1.t3 SELECT * FROM mysqltest1.v1;
 SELECT * FROM mysqltest1.t5 ORDER BY qty;
@@ -57,6 +56,7 @@ a	c	c2
 1	Thank	GOD
 2	it	is
 3	Friday	TGIF
+connection slave;
 SELECT * FROM mysqltest1.t5 ORDER BY qty;
 qty	price	total
 3	50	150
@@ -67,6 +67,7 @@ a	c	c2
 1	Thank	GOD
 2	it	is
 3	Friday	TGIF
+connection master;
 INSERT INTO mysqltest1.v4 VALUES (4,'TEST');
 SELECT * FROM mysqltest1.t1 ORDER BY a;
 a	c
@@ -79,6 +80,7 @@ a	c
 2	it
 3	Friday
 4	TEST
+connection slave;
 SELECT * FROM mysqltest1.t1 ORDER BY a;
 a	c
 1	Thank
@@ -90,6 +92,7 @@ a	c
 2	it
 3	Friday
 4	TEST
+connection master;
 DROP VIEW IF EXISTS mysqltest1.v1;
 DROP VIEW IF EXISTS mysqltest1.v2;
 DROP VIEW IF EXISTS mysqltest1.v3;
@@ -99,3 +102,5 @@ DROP TABLE IF EXISTS mysqltest1.t1;
 DROP TABLE IF EXISTS mysqltest1.t2;
 DROP TABLE IF EXISTS mysqltest1.t4;
 DROP DATABASE mysqltest1;
+connection slave;
+include/rpl_end.inc

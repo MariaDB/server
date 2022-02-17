@@ -2051,6 +2051,18 @@ ALTER TABLE t1 ALTER COLUMN k1 SET DEFAULT (SELECT 1 FROM t2 limit 1);
 DROP TABLE t1,t2;
 
 --echo #
+--echo # MDEV-25403 ALTER TABLE wrongly checks for field's default value if AFTER is used
+--echo #
+create table t1(t int, d date not null);
+insert into t1 values (1,'2001-1-1');
+set sql_mode = "no_zero_date";
+alter table t1 change d d date not null after t, add i int;
+show create table t1;
+--error ER_TRUNCATED_WRONG_VALUE
+alter table t1 add x date not null;
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
@@ -2086,6 +2098,47 @@ alter table t1 add column if not exists i int after pk;
 set max_statement_time= 0;
 drop table t1;
 drop view v1;
+
+--echo #
+--echo # MDEV-25803 Inplace ALTER breaks MyISAM/Aria tables when order of keys is changed
+--echo #
+set @save_default_engine= @@default_storage_engine;
+--disable_query_log
+if ($MTR_COMBINATION_INNODB)
+{
+  set default_storage_engine= innodb;
+}
+if ($MTR_COMBINATION_ARIA)
+{
+  set default_storage_engine= aria;
+}
+--enable_query_log
+
+if (!$MTR_COMBINATION_INNODB)
+{
+  --disable_query_log
+  --disable_result_log
+  # There is no inplace ADD INDEX for MyISAM/Aria:
+  create or replace table t1 (x int);
+  --error ER_ALTER_OPERATION_NOT_SUPPORTED
+  alter table t1 add unique (x), algorithm=inplace;
+  --error ER_ALTER_OPERATION_NOT_SUPPORTED
+  alter table t1 add primary key(x), algorithm=inplace;
+  --error ER_ALTER_OPERATION_NOT_SUPPORTED
+  alter table t1 add index(x), algorithm=inplace;
+  --enable_query_log
+  --enable_result_log
+}
+
+create or replace table t1 (x int, y int, unique (y), unique (x), primary key(x)) engine myisam;
+alter table t1 change x xx int, algorithm=inplace;
+check table t1;
+create or replace table t1 (x int, y int, unique (y), unique (x), primary key(x));
+alter table t1 change x xx int, algorithm=inplace;
+check table t1;
+# cleanup
+drop table t1;
+set @@default_storage_engine= @save_default_engine;
 
 --echo #
 --echo # End of 10.3 tests

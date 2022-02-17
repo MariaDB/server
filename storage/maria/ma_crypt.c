@@ -268,7 +268,7 @@ static my_bool ma_crypt_data_pre_write_hook(PAGECACHE_IO_HOOK_ARGS *args)
     return 1;
   }
 
-  if (!share->now_transactional)
+  if (!share->base.born_transactional)
   {
     /* store a random number instead of LSN (for counter block) */
     store_rand_lsn(args->page);
@@ -345,7 +345,14 @@ static my_bool ma_crypt_index_post_read_hook(int res,
   const uint block_size= share->block_size;
   const uint page_used= _ma_get_page_used(share, args->page);
 
-  if (res == 0 && page_used <= block_size - CRC_SIZE)
+  if (res ||
+      page_used < share->keypage_header ||
+      page_used >= block_size - CRC_SIZE)
+  {
+    res= 1;
+    my_errno= HA_ERR_DECRYPTION_FAILED;
+  }
+  else
   {
     const uchar *src= args->page;
     uchar* dst= args->crypt_buf;
@@ -392,7 +399,7 @@ static my_bool ma_crypt_index_pre_write_hook(PAGECACHE_IO_HOOK_ARGS *args)
     return 1;
   }
 
-  if (!share->now_transactional)
+  if (!share->base.born_transactional)
   {
     /* store a random number instead of LSN (for counter block) */
     store_rand_lsn(args->page);
@@ -506,10 +513,11 @@ static int ma_decrypt(MARIA_SHARE *share, MARIA_CRYPT_DATA *crypt_data,
   if (! (rc == MY_AES_OK && dstlen == size))
   {
     my_errno= HA_ERR_DECRYPTION_FAILED;
-    my_printf_error(HA_ERR_DECRYPTION_FAILED,
-                    "failed to decrypt '%s'  rc: %d  dstlen: %u  size: %u\n",
-                    MYF(ME_FATAL|ME_ERROR_LOG),
-                    share->open_file_name.str, rc, dstlen, size);
+    if (!share->silence_encryption_errors)
+      my_printf_error(HA_ERR_DECRYPTION_FAILED,
+                      "failed to decrypt '%s'  rc: %d  dstlen: %u  size: %u\n",
+                      MYF(ME_FATAL|ME_ERROR_LOG),
+                      share->open_file_name.str, rc, dstlen, size);
     return 1;
   }
   return 0;

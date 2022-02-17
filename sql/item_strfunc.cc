@@ -359,6 +359,8 @@ String *Item_aes_crypt::val_str(String *str2)
                  rkey, AES_KEY_LENGTH / 8, 0, 0))
       {
         str2->length((uint) aes_length);
+        DBUG_ASSERT(collation.collation == &my_charset_bin);
+        str2->set_charset(&my_charset_bin);
         return str2;
       }
     }
@@ -500,7 +502,7 @@ err:
 
 const char *histogram_types[] =
            {"SINGLE_PREC_HB", "DOUBLE_PREC_HB", 0};
-static TYPELIB hystorgam_types_typelib=
+static TYPELIB histogram_types_typelib=
   { array_elements(histogram_types),
     "histogram_types",
     histogram_types, NULL};
@@ -516,7 +518,7 @@ String *Item_func_decode_histogram::val_str(String *str)
   tmp.length(0);
   if (!(res= args[0]->val_str(&tmp)) ||
       (type= find_type(res->c_ptr_safe(),
-                       &hystorgam_types_typelib, MYF(0))) <= 0)
+                       &histogram_types_typelib, MYF(0))) <= 0)
   {
     null_value= 1;
     return 0;
@@ -601,7 +603,7 @@ bool Item_func_concat::realloc_result(String *str, uint length) const
     as str was initially set by args[0]->val_str(str).
     So multiplication by 2 can overflow, if args[0] for some reasons
     did not limit the result to max_alloced_packet. But it's not harmful,
-    "str" will be realloced exactly to "length" bytes in case of overflow.
+    "str" will be reallocated exactly to "length" bytes in case of overflow.
   */
   uint new_length= MY_MAX(str->alloced_length() * 2, length);
   return str->realloc(new_length);
@@ -737,7 +739,7 @@ String *Item_func_des_encrypt::val_str(String *str)
   if ((null_value= args[0]->null_value))
     return 0;                                   // ENCRYPT(NULL) == NULL
   if ((res_length=res->length()) == 0)
-    return make_empty_result();
+    return make_empty_result(str);
   if (arg_count == 1)
   {
     /* Protect against someone doing FLUSH DES_KEY_FILE */
@@ -940,7 +942,7 @@ String *Item_func_concat_ws::val_str(String *str)
     }
 
   if (i ==  arg_count)
-    return make_empty_result();
+    return make_empty_result(str);
 
   for (i++; i < arg_count ; i++)
   {
@@ -1091,7 +1093,7 @@ String *Item_func_reverse::val_str(String *str)
     return 0;
   /* An empty string is a special case as the string pointer may be null */
   if (!res->length())
-    return make_empty_result();
+    return make_empty_result(str);
   if (str->alloc(res->length()))
   {
     null_value= 1;
@@ -1514,20 +1516,21 @@ String *Item_func_insert::val_str(String *str)
   null_value=0;
   res=args[0]->val_str(str);
   res2=args[3]->val_str(&tmp_value);
-  start= args[1]->val_int() - 1;
+  start= args[1]->val_int();
   length= args[2]->val_int();
 
   if (args[0]->null_value || args[1]->null_value || args[2]->null_value ||
       args[3]->null_value)
     goto null; /* purecov: inspected */
 
-  if ((start < 0) || (start > res->length()))
+  if ((start <= 0) || (start > res->length()))
     return res;                                 // Wrong param; skip insert
   if ((length < 0) || (length > res->length()))
     length= res->length();
+  start--;
 
   /*
-    There is one exception not handled (intentionaly) by the character set
+    There is one exception not handled (intentionally) by the character set
     aggregation code. If one string is strong side and is binary, and
     another one is weak side and is a multi-byte character string,
     then we need to operate on the second string in terms on bytes when
@@ -1641,7 +1644,7 @@ String *Item_func_left::val_str(String *str)
 
   /* if "unsigned_flag" is set, we have a *huge* positive number. */
   if ((length <= 0) && (!args[1]->unsigned_flag))
-    return make_empty_result();
+    return make_empty_result(str);
   if ((res->length() <= (ulonglong) length) ||
       (res->length() <= (char_pos= res->charpos((int) length))))
     return res;
@@ -1685,7 +1688,7 @@ String *Item_func_right::val_str(String *str)
 
   /* if "unsigned_flag" is set, we have a *huge* positive number. */
   if ((length <= 0) && (!args[1]->unsigned_flag))
-    return make_empty_result(); /* purecov: inspected */
+    return make_empty_result(str); /* purecov: inspected */
 
   if (res->length() <= (ulonglong) length)
     return res; /* purecov: inspected */
@@ -1727,7 +1730,7 @@ String *Item_func_substr::val_str(String *str)
   /* Negative or zero length, will return empty string. */
   if ((arg_count == 3) && (length <= 0) && 
       (length == 0 || !args[2]->unsigned_flag))
-    return make_empty_result();
+    return make_empty_result(str);
 
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   /* Set here so that rest of code sees out-of-bound value as such. */
@@ -1738,12 +1741,12 @@ String *Item_func_substr::val_str(String *str)
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   if ((!args[1]->unsigned_flag && (start < INT_MIN32 || start > INT_MAX32)) ||
       (args[1]->unsigned_flag && ((ulonglong) start > INT_MAX32)))
-    return make_empty_result();
+    return make_empty_result(str);
 
   start= ((start < 0) ? res->numchars() + start : start - 1);
   start= res->charpos((int) start);
   if ((start < 0) || ((uint) start + 1 > res->length()))
-    return make_empty_result();
+    return make_empty_result(str);
 
   length= res->charpos((int) length, (uint32) start);
   tmp_length= res->length() - start;
@@ -1813,7 +1816,7 @@ String *Item_func_substr_index::val_str(String *str)
   null_value=0;
   uint delimiter_length= delimiter->length();
   if (!res->length() || !delimiter_length || !count)
-    return make_empty_result();		// Wrong parameters
+    return make_empty_result(str);      // Wrong parameters
 
   res->set_charset(collation.collation);
 
@@ -2223,7 +2226,7 @@ String *Item_func_password::val_str_ascii(String *str)
   switch (alg){
   case NEW:
     if (args[0]->null_value || res->length() == 0)
-      return make_empty_result();
+      return make_empty_result(str);
     my_make_scrambled_password(tmp_value, res->ptr(), res->length());
     str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH, &my_charset_latin1);
     break;
@@ -2231,7 +2234,7 @@ String *Item_func_password::val_str_ascii(String *str)
     if ((null_value=args[0]->null_value))
       return 0;
     if (res->length() == 0)
-      return make_empty_result();
+      return make_empty_result(str);
     my_make_scrambled_password_323(tmp_value, res->ptr(), res->length());
     str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH_323, &my_charset_latin1);
     break;
@@ -2270,13 +2273,15 @@ char *Item_func_password::alloc(THD *thd, const char *password,
 String *Item_func_encrypt::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
+
 #ifdef HAVE_CRYPT
   String *res  =args[0]->val_str(str);
+
   char salt[3],*salt_ptr;
   if ((null_value=args[0]->null_value))
     return 0;
   if (res->length() == 0)
-    return make_empty_result();
+    return make_empty_result(str);
   if (arg_count == 1)
   {					// generate random salt
     time_t timestamp=current_thd->query_start();
@@ -2571,7 +2576,7 @@ String *Item_func_soundex::val_str(String *str)
   for ( ; ; ) /* Skip pre-space */
   {
     if ((rc= cs->cset->mb_wc(cs, &wc, (uchar*) from, (uchar*) end)) <= 0)
-      return make_empty_result(); /* EOL or invalid byte sequence */
+      return make_empty_result(str); /* EOL or invalid byte sequence */
     
     if (rc == 1 && cs->ctype)
     {
@@ -2596,7 +2601,7 @@ String *Item_func_soundex::val_str(String *str)
         {
           /* Extra safety - should not really happen */
           DBUG_ASSERT(false);
-          return make_empty_result();
+          return make_empty_result(str);
         }
         to+= rc;
         break;
@@ -2898,7 +2903,7 @@ String *Item_func_make_set::val_str(String *str)
   ulonglong bits;
   bool first_found=0;
   Item **ptr=args+1;
-  String *result= make_empty_result();
+  String *result= make_empty_result(str);
 
   bits=args[0]->val_int();
   if ((null_value=args[0]->null_value))
@@ -2922,7 +2927,7 @@ String *Item_func_make_set::val_str(String *str)
 	  else
 	  {
 	    if (tmp_str.copy(*res))		// Don't use 'str'
-              return make_empty_result();
+              return make_empty_result(str);
 	    result= &tmp_str;
 	  }
 	}
@@ -2932,11 +2937,11 @@ String *Item_func_make_set::val_str(String *str)
 	  {					// Copy data to tmp_str
 	    if (tmp_str.alloc(result->length()+res->length()+1) ||
 		tmp_str.copy(*result))
-              return make_empty_result();
+              return make_empty_result(str);
 	    result= &tmp_str;
 	  }
 	  if (tmp_str.append(STRING_WITH_LEN(","), &my_charset_bin) || tmp_str.append(*res))
-            return make_empty_result();
+            return make_empty_result(str);
 	}
       }
     }
@@ -3077,7 +3082,7 @@ String *Item_func_repeat::val_str(String *str)
   null_value= 0;
 
   if (count <= 0 && (count == 0 || !args[1]->unsigned_flag))
-    return make_empty_result();
+    return make_empty_result(str);
 
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   /* Bounds check on count:  If this is triggered, we will error. */
@@ -3142,7 +3147,7 @@ String *Item_func_space::val_str(String *str)
   null_value= 0;
 
   if (count <= 0 && (count == 0 || !args[0]->unsigned_flag))
-    return make_empty_result();
+    return make_empty_result(str);
   /*
    Assumes that the maximum length of a String is < INT_MAX32.
    Bounds check on count:  If this is triggered, we will error.
@@ -3218,6 +3223,14 @@ err:
 }
 
 
+static String *default_pad_str(String *pad_str, CHARSET_INFO *collation)
+{
+  pad_str->set_charset(collation);
+  pad_str->length(0);
+  pad_str->append(" ", 1);
+  return pad_str;
+}
+
 bool Item_func_pad::fix_length_and_dec()
 {
   if (arg_count == 3)
@@ -3233,9 +3246,7 @@ bool Item_func_pad::fix_length_and_dec()
   {
     if (agg_arg_charsets_for_string_result(collation, &args[0], 1, 1))
       return TRUE;
-    pad_str.set_charset(collation.collation);
-    pad_str.length(0);
-    pad_str.append(" ", 1);
+    default_pad_str(&pad_str, collation.collation);
   }
 
   DBUG_ASSERT(collation.collation->mbmaxlen > 0);
@@ -3258,9 +3269,9 @@ bool Item_func_pad::fix_length_and_dec()
 Sql_mode_dependency Item_func_rpad::value_depends_on_sql_mode() const
 {
   DBUG_ASSERT(fixed);
-  DBUG_ASSERT(arg_count == 3);
+  DBUG_ASSERT(arg_count >= 2);
   if (!args[1]->value_depends_on_sql_mode_const_item() ||
-      !args[2]->value_depends_on_sql_mode_const_item())
+          (arg_count == 3 && !args[2]->value_depends_on_sql_mode_const_item()))
     return Item_func::value_depends_on_sql_mode();
   Longlong_hybrid len= args[1]->to_longlong_hybrid();
   if (args[1]->null_value || len.neg())
@@ -3268,7 +3279,8 @@ Sql_mode_dependency Item_func_rpad::value_depends_on_sql_mode() const
   if (len.abs() > 0 && len.abs() < args[0]->max_char_length())
     return Item_func::value_depends_on_sql_mode();
   StringBuffer<64> padstrbuf;
-  String *padstr= args[2]->val_str(&padstrbuf);
+  String *padstr= arg_count == 3 ? args[2]->val_str(&padstrbuf) :
+                               default_pad_str(&padstrbuf, collation.collation);
   if (!padstr || !padstr->length())
     return Sql_mode_dependency();                  // will return NULL
   if (padstr->lengthsp() != 0)
@@ -3301,14 +3313,14 @@ String *Item_func_rpad::val_str(String *str)
   null_value=0;
 
   if (count == 0)
-    return make_empty_result();
+    return make_empty_result(str);
 
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   /* Set here so that rest of code sees out-of-bound value as such. */
   if ((ulonglong) count > INT_MAX32)
     count= INT_MAX32;
   /*
-    There is one exception not handled (intentionaly) by the character set
+    There is one exception not handled (intentionally) by the character set
     aggregation code. If one string is strong side and is binary, and
     another one is weak side and is a multi-byte character string,
     then we need to operate on the second string in terms on bytes when
@@ -3393,7 +3405,7 @@ String *Item_func_lpad::val_str(String *str)
   null_value=0;
 
   if (count == 0)
-    return make_empty_result();
+    return make_empty_result(str);
 
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   /* Set here so that rest of code sees out-of-bound value as such. */
@@ -3401,7 +3413,7 @@ String *Item_func_lpad::val_str(String *str)
     count= INT_MAX32;
 
   /*
-    There is one exception not handled (intentionaly) by the character set
+    There is one exception not handled (intentionally) by the character set
     aggregation code. If one string is strong side and is binary, and
     another one is weak side and is a multi-byte character string,
     then we need to operate on the second string in terms on bytes when
@@ -3741,7 +3753,7 @@ String *Item_func_hex::val_str_ascii_from_val_real(String *str)
     dec= ~(longlong) 0;
   else
     dec= (ulonglong) (val + (val > 0 ? 0.5 : -0.5));
-  return str->set_hex(dec) ? make_empty_result() : str;
+  return str->set_hex(dec) ? make_empty_result(str) : str;
 }
 
 
@@ -3752,7 +3764,7 @@ String *Item_func_hex::val_str_ascii_from_val_str(String *str)
   DBUG_ASSERT(res != str);
   if ((null_value= (res == NULL)))
     return NULL;
-  return str->set_hex(res->ptr(), res->length()) ? make_empty_result() : str;
+  return str->set_hex(res->ptr(), res->length()) ? make_empty_result(str) : str;
 }
 
 
@@ -3761,7 +3773,7 @@ String *Item_func_hex::val_str_ascii_from_val_int(String *str)
   ulonglong dec= (ulonglong) args[0]->val_int();
   if ((null_value= args[0]->null_value))
     return 0;
-  return str->set_hex(dec) ? make_empty_result() : str;
+  return str->set_hex(dec) ? make_empty_result(str) : str;
 }
 
 
@@ -3795,13 +3807,12 @@ String *Item_func_unhex::val_str(String *str)
   }
   for (end=res->ptr()+res->length(); from < end ; from+=2, to++)
   {
-    int hex_char;
-    *to= (hex_char= hexchar_to_int(from[0])) << 4;
-    if ((null_value= (hex_char == -1)))
+    int hex_char1, hex_char2;
+    hex_char1= hexchar_to_int(from[0]);
+    hex_char2= hexchar_to_int(from[1]);
+    if ((null_value= (hex_char1 == -1 || hex_char2 == -1)))
       return 0;
-    *to|= hex_char= hexchar_to_int(from[1]);
-    if ((null_value= (hex_char == -1)))
-      return 0;
+    *to= (char) ((hex_char1 << 4) | hex_char2);
   }
   return str;
 }
@@ -4210,7 +4221,7 @@ longlong Item_func_uncompressed_length::val_int()
     5 bytes long.
     res->c_ptr() is not used because:
       - we do not need \0 terminated string to get first 4 bytes
-      - c_ptr() tests simbol after string end (uninitialiozed memory) which
+      - c_ptr() tests simbol after string end (uninitialized memory) which
         confuse valgrind
   */
   return uint4korr(res->ptr()) & 0x3FFFFFFF;

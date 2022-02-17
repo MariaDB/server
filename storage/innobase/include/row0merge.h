@@ -167,18 +167,20 @@ row_merge_drop_indexes_dict(
 	table_id_t	table_id)/*!< in: table identifier */
 	MY_ATTRIBUTE((nonnull));
 
-/*********************************************************************//**
-Drop those indexes which were created before an error occurred.
+/** Drop indexes that were created before an error occurred.
 The data dictionary must have been locked exclusively by the caller,
-because the transaction will not be committed. */
+because the transaction will not be committed.
+@param trx              dictionary transaction
+@param table            table containing the indexes
+@param locked           True if table is locked,
+                        false - may need to do lazy drop
+@param alter_trx        Alter table transaction */
 void
 row_merge_drop_indexes(
-/*===================*/
-	trx_t*		trx,	/*!< in/out: transaction */
-	dict_table_t*	table,	/*!< in/out: table containing the indexes */
-	ibool		locked)	/*!< in: TRUE=table locked,
-				FALSE=may need to do a lazy drop */
-	MY_ATTRIBUTE((nonnull));
+        trx_t*          trx,
+        dict_table_t*   table,
+        bool            locked,
+        const trx_t*    alter_trx=NULL);
 
 /*********************************************************************//**
 Drop all partially created indexes during crash recovery. */

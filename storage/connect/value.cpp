@@ -30,11 +30,11 @@
 #include "sql_class.h"
 #include "sql_time.h"
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #include <string.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 #include <math.h>
 
@@ -77,12 +77,12 @@ int DTVAL::Shift = 0;
 /***********************************************************************/
 bool PlugEvalLike(PGLOBAL, LPCSTR, LPCSTR, bool);
 
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 extern "C" {
 PSZ strupr(PSZ s);
 PSZ strlwr(PSZ s);
 }
-#endif   // !__WIN__
+#endif   // !_WIN32
 
 /***********************************************************************/
 /*  Get a long long number from its character representation.          */
@@ -1648,10 +1648,10 @@ int TYPVAL<PSZ>::CompareValue(PVAL vp)
   else
     n = strcmp(Strp, vp->GetCharValue());
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (n == _NLSCMPERROR)
     return n;                        // Here we should raise an error
-#endif   // __WIN__
+#endif   // _WIN32
 
   return (n > 0) ? 1 : (n < 0) ? -1 : 0;
 } // end of CompareValue
@@ -2644,9 +2644,9 @@ bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
 			} else if (valp->GetType() == TYPE_BIGINT &&
 				       !(valp->GetBigintValue() % 1000)) {
 				// Assuming that this timestamp is in milliseconds
-				Tval = (int)(valp->GetBigintValue() / 1000);
+				SetValue((int)(valp->GetBigintValue() / 1000));
 			}	else
-        Tval = valp->GetIntValue();
+        SetValue(valp->GetIntValue());
 
     } else
       Reset();
@@ -2738,20 +2738,38 @@ void DTVAL::SetValue_pvblk(PVBLK blk, int n)
 } // end of SetValue
 
 /***********************************************************************/
+/*  DTVAL SetValue: get date as an integer.                            */
+/***********************************************************************/
+void DTVAL::SetValue(int n)
+{
+  Tval = n;
+
+  if (Pdtp) {
+    size_t slen = (size_t)Len + 1;
+    struct tm tm, *ptm= GetGmTime(&tm);
+
+    if (ptm)
+      strftime(Sdate, slen, Pdtp->OutFmt, ptm);
+
+  } // endif Pdtp
+
+} // end of SetValue
+
+/***********************************************************************/
 /*  DTVAL GetCharString: get string representation of a date value.    */
 /***********************************************************************/
 char *DTVAL::GetCharString(char *p)
 {
   if (Pdtp) {
-    size_t n = 0;
+    size_t n = 0, slen = (size_t)Len + 1;
     struct tm tm, *ptm= GetGmTime(&tm);
 
     if (ptm)
-      n = strftime(Sdate, Len + 1, Pdtp->OutFmt, ptm);
+      n = strftime(Sdate, slen, Pdtp->OutFmt, ptm);
 
     if (!n) {
       *Sdate = '\0';
-      strncat(Sdate, "Error", Len + 1);
+      strncat(Sdate, "Error", slen);
       } // endif n
 
     return Sdate;

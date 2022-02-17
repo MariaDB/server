@@ -6069,6 +6069,93 @@ f2
 drop table t1, t2;
 set join_buffer_size=@save_join_buffer_size;
 #
+# MDEV-21104: BNLH used for multi-join query with embedded outer join
+#             and possible 'not exists' optimization
+#
+set join_cache_level=4;
+CREATE TABLE t1 (a int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b int, c int) ENGINE=MyISAM;
+INSERT INTO t2 VALUES  (1,2),(2,4);
+CREATE TABLE t3 (d int, KEY(d)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (1),(2);
+CREATE TABLE t4 (e int primary key) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (1),(2);
+ANALYZE TABLE t1,t2,t3,t4;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	OK
+SELECT * FROM t2 LEFT JOIN t3 ON c = d;
+b	c	d
+1	2	2
+2	4	NULL
+SELECT * FROM (t2 LEFT JOIN t3 ON c = d ) JOIN t4;
+b	c	d	e
+1	2	2	1
+2	4	NULL	1
+1	2	2	2
+2	4	NULL	2
+EXPLAIN SELECT * FROM t1 LEFT JOIN ( ( t2 LEFT JOIN t3 ON c = d ) JOIN t4 ) ON b = e;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	hash_index	d	#hash#d:d	5:5	test.t2.c	2	Using where; Using index; Using join buffer (incremental, BNLH join)
+1	SIMPLE	t4	hash_index	PRIMARY	#hash#PRIMARY:PRIMARY	4:4	test.t2.b	2	Using index; Using join buffer (incremental, BNLH join)
+SELECT * FROM t1 LEFT JOIN ( ( t2 LEFT JOIN t3 ON c = d ) JOIN t4 ) ON b = e;
+a	b	c	d	e
+1	1	2	2	1
+2	1	2	2	1
+1	2	4	NULL	2
+2	2	4	NULL	2
+EXPLAIN SELECT * FROM t1 LEFT JOIN ( ( t2 LEFT JOIN t3 ON c = d ) JOIN t4 ) ON b = e
+WHERE e IS NULL;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	hash_index	d	#hash#d:d	5:5	test.t2.c	2	Using where; Using index; Using join buffer (incremental, BNLH join)
+1	SIMPLE	t4	hash_index	PRIMARY	#hash#PRIMARY:PRIMARY	4:4	test.t2.b	2	Using where; Using index; Not exists; Using join buffer (incremental, BNLH join)
+SELECT * FROM t1 LEFT JOIN ( ( t2 LEFT JOIN t3 ON c = d ) JOIN t4 ) ON b = e
+WHERE e IS NULL;
+a	b	c	d	e
+DROP TABLE t1,t2,t3,t4;
+set join_cache_level=@save_join_cache_level;
+#
+# MDEV-24767: forced BNLH used for equi-join supported by compound index
+#
+create table t1 (a int, b int, c int ) engine=myisam ;
+create table t2 (a int, b int, c int, primary key (c,a,b)) engine=myisam ;
+insert into t1 values (3,4,2), (5,6,4);
+insert into t2 values (3,4,2), (5,6,4);
+select t1.a, t1.b, t1.c from t1,t2
+where t2.a = t1.a and t2.b = t1.b and t2.c=t1.c;
+a	b	c
+3	4	2
+5	6	4
+explain select t1.a, t1.b, t1.c from t1,t2
+where t2.a = t1.a and t2.b = t1.b and t2.c=t1.c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	12	test.t1.c,test.t1.a,test.t1.b	1	Using index
+set join_cache_level=3;
+select t1.a, t1.b, t1.c from t1,t2
+where t2.a = t1.a and t2.b = t1.b and t2.c=t1.c;
+a	b	c
+3	4	2
+5	6	4
+explain select t1.a, t1.b, t1.c from t1,t2
+where t2.a = t1.a and t2.b = t1.b and t2.c=t1.c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t2	hash_index	PRIMARY	#hash#PRIMARY:PRIMARY	12:12	test.t1.c,test.t1.a,test.t1.b	2	Using index; Using join buffer (flat, BNLH join)
+drop table t1,t2;
+set join_cache_level=@save_join_cache_level;
+#
 # MDEV-21243: Join buffer: condition is checked in wrong place for range access
 #
 create table t1(a int primary key);
@@ -6141,6 +6228,7 @@ EXPLAIN
   }
 }
 drop table t1,t2,t3;
+# End of 10.3 tests
 set @@optimizer_switch=@save_optimizer_switch;
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=

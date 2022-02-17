@@ -40,6 +40,7 @@ datasink_t datasink_stdout = {
 	&stdout_open,
 	&stdout_write,
 	&stdout_close,
+	&dummy_remove,
 	&stdout_deinit
 };
 

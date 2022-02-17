@@ -2294,6 +2294,45 @@ SET max_sort_length= @save_max_sort_length;
 SET sql_select_limit= @save_sql_select_limit;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-25682: EXPLAIN for SELECT with ORDER BY after [ORDER BY] LIMIT
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+explain (select a from t1 limit 2) order by a desc;
+(select a from t1 limit 2) order by a desc;
+
+create table t2 (a int, b int);
+insert into t2 values (3,70), (7,10), (1,40), (4,30);
+explain (select b,a from t2 order by a limit 3) order by b desc;
+(select b,a from t2 order by a limit 3) order by b desc;
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-22256 Assertion `length == pack_length()' failed in Field_timestamp_with_dec::sort_string
+--echo #
+
+SET sql_mode='';
+SET @@SESSION.max_sort_length=4;
+CREATE TABLE t1 (c TIMESTAMP(1));
+INSERT INTO t1 VALUES(0);
+DELETE FROM t1 ORDER BY c;
+DROP TABLE t1;
+SET @@SESSION.max_sort_length=DEFAULT;
+SET sql_mode=DEFAULT;
+
+SET sql_mode='';
+SET @@SESSION.max_sort_length=1;
+CREATE TEMPORARY TABLE t1 (c DATETIME);
+INSERT INTO t1 VALUES(0);
+DELETE FROM t1 ORDER BY c;
+DROP TABLE t1;
+SET @@SESSION.max_sort_length=DEFAULT;
+SET sql_mode=DEFAULT;
+
+
 --echo # End of 10.2 tests
 
 --echo #

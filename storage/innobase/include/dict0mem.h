@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -795,6 +795,35 @@ struct dict_v_col_t{
   }
 };
 
+/** Data structure for newly added virtual column in a index.
+It is used only during rollback_inplace_alter_table() of
+addition of index depending on newly added virtual columns
+and uses index heap. Should be freed when index is being
+removed from cache. */
+struct dict_add_v_col_info
+{
+  ulint n_v_col;
+  dict_v_col_t *v_col;
+
+  /** Add the newly added virtual column while rollbacking
+  the index which contains new virtual columns
+  @param col    virtual column to be duplicated
+  @param offset offset where to duplicate virtual column */
+  dict_v_col_t* add_drop_v_col(mem_heap_t *heap, dict_v_col_t *col,
+                               ulint offset)
+  {
+    ut_ad(n_v_col);
+    ut_ad(offset < n_v_col);
+    if (!v_col)
+      v_col= static_cast<dict_v_col_t*>
+        (mem_heap_alloc(heap, n_v_col * sizeof *v_col));
+    new (&v_col[offset]) dict_v_col_t();
+    v_col[offset].m_col= col->m_col;
+    v_col[offset].v_pos= col->v_pos;
+    return &v_col[offset];
+  }
+};
+
 /** Data structure for newly added virtual column in a table */
 struct dict_add_v_col_t{
 	/** number of new virtual column */
@@ -1039,9 +1068,13 @@ struct dict_index_t {
 	dict_field_t*	fields;	/*!< array of field descriptions */
 	st_mysql_ftparser*
 			parser;	/*!< fulltext parser plugin */
-	bool		has_new_v_col;
-				/*!< whether it has a newly added virtual
-				column in ALTER */
+
+	/** It just indicates whether newly added virtual column
+	during alter. It stores column in case of alter failure.
+	It should use heap from dict_index_t. It should be freed
+	while removing the index from table. */
+	dict_add_v_col_info* new_vcol_info;
+
 	bool            index_fts_syncing;/*!< Whether the fts index is
 					still syncing in the background;
 					FIXME: remove this and use MDL */
@@ -1198,9 +1231,8 @@ public:
 	/** @return whether the index is corrupted */
 	inline bool is_corrupted() const;
 
-  /** Detach the virtual columns from the index that is to be removed.
-  @param   whether to reset fields[].col */
-  void detach_columns(bool clear= false)
+  /** Detach the virtual columns from the index that is to be removed. */
+  void detach_columns()
   {
     if (!has_virtual() || !cached)
       return;
@@ -1210,8 +1242,6 @@ public:
       if (!col || !col->is_virtual())
         continue;
       col->detach(*this);
-      if (clear)
-        fields[i].col= nullptr;
     }
   }
 
@@ -1274,8 +1304,26 @@ public:
 	bool
 	vers_history_row(const rec_t* rec, bool &history_row);
 
-  /** Reconstruct the clustered index fields. */
-  inline void reconstruct_fields();
+  /** Assign the number of new column to be added as a part
+  of the index
+  @param        n_vcol  number of virtual columns to be added */
+  void assign_new_v_col(ulint n_vcol)
+  {
+    new_vcol_info= static_cast<dict_add_v_col_info*>
+      (mem_heap_zalloc(heap, sizeof *new_vcol_info));
+    new_vcol_info->n_v_col= n_vcol;
+  }
+
+  /* @return whether index has new virtual column */
+  bool has_new_v_col() const { return new_vcol_info; }
+
+  /* @return number of newly added virtual column */
+  ulint get_new_n_vcol() const
+  { return new_vcol_info ? new_vcol_info->n_v_col : 0; }
+
+  /** Reconstruct the clustered index fields.
+  @return whether metadata is incorrect */
+  inline bool reconstruct_fields();
 
   /** Check if the index contains a column or a prefix of that column.
   @param[in]	n		column number
@@ -2063,7 +2111,8 @@ public:
 	UT_LIST_BASE_NODE_T(dict_index_t)	indexes;
 #ifdef BTR_CUR_HASH_ADAPT
 	/** List of detached indexes that are waiting to be freed along with
-	the last adaptive hash index entry */
+	the last adaptive hash index entry.
+	Protected by autoinc_mutex (sic!) */
 	UT_LIST_BASE_NODE_T(dict_index_t)	freed_indexes;
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -2230,7 +2279,7 @@ public:
 	from a select. */
 	lock_t*					autoinc_lock;
 
-	/** Mutex protecting the autoincrement counter. */
+	/** Mutex protecting the autoinc counter and freed_indexes. */
 	std::mutex				autoinc_mutex;
 
 	/** Autoinc counter value to give to the next inserted row. */
@@ -2262,7 +2311,6 @@ public:
 	determine whether we can evict the table from the dictionary cache.
 	It is protected by lock_sys.mutex. */
 	ulint					n_rec_locks;
-
 private:
 	/** Count of how many handles are opened to this table. Dropping of the
 	table is NOT allowed until this count gets to zero. MySQL does NOT
@@ -2286,6 +2334,22 @@ public:
 	/** mysql_row_templ_t for base columns used for compute the virtual
 	columns */
 	dict_vcol_templ_t*			vc_templ;
+
+  /* @return whether the table has any other transcation lock
+  other than the given transaction */
+  bool has_lock_other_than(const trx_t *trx) const
+  {
+    for (lock_t *lock= UT_LIST_GET_FIRST(locks); lock;
+         lock= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock))
+      if (lock->trx != trx)
+        return true;
+    return false;
+  }
+
+  /** Check whether the table name is same as mysql/innodb_stats_table
+  or mysql/innodb_index_stats.
+  @return true if the table name is same as stats table */
+  bool is_stats_table() const;
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const
@@ -2377,7 +2441,7 @@ inline void dict_index_t::clear_instant_alter()
 			      { return a.col->ind < b.col->ind; });
 	table->instant = NULL;
 	if (ai_col) {
-		auto a = std::find_if(begin, end,
+		auto a = std::find_if(fields, end,
 				      [ai_col](const dict_field_t& f)
 				      { return f.col == ai_col; });
 		table->persistent_autoinc = (a == end) ? 0 : 1 + (a - fields);
@@ -2457,6 +2521,6 @@ inline void dict_stats_empty_defrag_stats(dict_index_t* index)
 	index->stat_defrag_n_page_split = 0;
 }
 
-#include "dict0mem.ic"
+#include "dict0mem.inl"
 
 #endif /* dict0mem_h */

@@ -1,0 +1,48 @@
+--source include/have_binlog_format_mixed_or_statement.inc
+
+#
+# Tests involving locks and binlog
+# 
+
+--echo #
+--echo # MDEV-25334 FTWRL/Backup blocks DDL on temporary tables with binlog
+--echo #            enabled assertion fails in Diagnostics_area::set_error_status
+--echo #
+
+--connect (con1,localhost,root,,)
+connection default;
+
+--echo #
+--echo # Test 1
+--echo #
+
+CREATE TEMPORARY TABLE tmp (a INT);
+--connection con1
+FLUSH TABLES WITH READ LOCK;
+--connection default
+SET lock_wait_timeout= 1;
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE tmp;
+--connection con1
+unlock tables;
+--connection default
+drop table tmp;
+
+--echo #
+--echo # Test 2 (In statement format to ensure temporary table gets logged)
+--echo #
+
+set @@binlog_format=statement;
+CREATE TEMPORARY TABLE tmp (a INT);
+--connection con1
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_COMMIT;
+--connection default
+SET lock_wait_timeout= 1;
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE tmp;
+--connection con1
+BACKUP STAGE end;
+--connection default
+drop table tmp;
+--disconnect con1

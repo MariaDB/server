@@ -51,5 +51,33 @@ DROP VIEW v1;
 set @@binlog_row_image=default;
 
 DROP TABLE t1;
+SET SQL_MODE=default;
+
+# MDEV-24782
+# ASAN use-after-poison in Field::pack_int / THD::binlog_update_row
+
+CREATE TABLE t1 (pk INT, a VARCHAR(3), b VARCHAR(1) AS (a) VIRTUAL, PRIMARY KEY (pk));
+INSERT IGNORE INTO t1 (pk, a) VALUES (1,'foo'),(2,'bar');
+--error ER_DATA_TOO_LONG
+REPLACE INTO t1 (pk) VALUES (2);
+UPDATE IGNORE t1 SET a = NULL;
+
+# Cleanup
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-18166 ASSERT_COLUMN_MARKED_FOR_READ failed on tables with vcols
+--echo #
+
+SET SESSION binlog_row_image= noblob;
+CREATE TEMPORARY TABLE t1 SELECT UUID();
+show create table t1;
+CREATE TABLE t2 (a INT PRIMARY KEY, b TEXT, c INT GENERATED ALWAYS AS(b));
+INSERT INTO t2 (a,b) VALUES (1,1);
+
+SET SESSION binlog_row_image= default;
+DROP TABLE t2;
+
 
 --source include/rpl_end.inc

@@ -50,6 +50,7 @@ datasink_t datasink_xbstream = {
 	&xbstream_open,
 	&xbstream_write,
 	&xbstream_close,
+	&dummy_remove,
 	&xbstream_deinit
 };
 
@@ -125,15 +126,19 @@ xbstream_open(ds_ctxt_t *ctxt, const char *path, MY_STAT *mystat)
 	pthread_mutex_lock(&stream_ctxt->mutex);
 	if (stream_ctxt->dest_file == NULL) {
 		stream_ctxt->dest_file = ds_open(dest_ctxt, path, mystat);
-		if (stream_ctxt->dest_file == NULL) {
-			return NULL;
-		}
 	}
 	pthread_mutex_unlock(&stream_ctxt->mutex);
+	if (stream_ctxt->dest_file == NULL) {
+		return NULL;
+	}
 
 	file = (ds_file_t *) my_malloc(sizeof(ds_file_t) +
 				       sizeof(ds_stream_file_t),
 				       MYF(MY_FAE));
+	if (!file) {
+		msg("my_malloc() failed.");
+		goto err;
+	}
 	stream_file = (ds_stream_file_t *) (file + 1);
 
 	xbstream = stream_ctxt->xbstream;

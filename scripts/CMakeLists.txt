@@ -99,7 +99,6 @@ INSTALL(FILES
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_test_db.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/fill_help_tables.sql
   ${CMAKE_CURRENT_SOURCE_DIR}/mysql_test_data_timezone.sql
-  ${CMAKE_CURRENT_SOURCE_DIR}/mysql_to_mariadb.sql
   ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp.sql
   ${CMAKE_CURRENT_BINARY_DIR}/maria_add_gis_sp_bootstrap.sql
   ${FIX_PRIVILEGES_SQL}
@@ -164,6 +163,7 @@ ENDIF()
 
 SET(HOSTNAME "uname -n")
 SET(MYSQLD_USER "mysql")
+SET(MYSQLD_GROUP "mysql")
 ENDIF(UNIX)
 
 # Really ugly, one script, "mysql_install_db", needs prefix set to ".",

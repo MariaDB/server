@@ -27,3 +27,14 @@ UNLOCK TABLES;
 LOCK TABLES performance_schema.performance_timers WRITE;
 ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'performance_timers'
 UNLOCK TABLES;
+#
+# MDEV-25325 column_comment for performance_schema tables
+#
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='performance_timers';
+column_name	column_comment
+TIMER_NAME	Time name, used in the setup_timers table.
+TIMER_FREQUENCY	Number of timer units per second. Dependent on the processor speed.
+TIMER_RESOLUTION	Number of timer units by which timed values increase each time.
+TIMER_OVERHEAD	Minimum timer overhead, determined during initialization by calling the timer 20 times and selecting the smallest value. Total overhead will be at least double this, as the timer is called at the beginning and end of each timed event.

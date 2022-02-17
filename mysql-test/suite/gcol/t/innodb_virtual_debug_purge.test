@@ -310,4 +310,68 @@ drop table t1;
 
 --source include/wait_until_count_sessions.inc
 set debug_sync=reset;
+
+--echo #
+--echo # MDEV-18546 ASAN heap-use-after-free
+--echo # in innobase_get_computed_value / row_purge
+--echo #
+
+CREATE TABLE t1 (
+  pk INT AUTO_INCREMENT,
+  b BIT(15),
+  v BIT(15) AS (b) VIRTUAL,
+  PRIMARY KEY(pk),
+  UNIQUE(v)
+) ENGINE=InnoDB;
+INSERT IGNORE INTO t1 (b) VALUES
+  (NULL),(b'011'),(b'000110100'),
+  (b'01101101010'),(b'01111001001011'),(NULL);
+
+SET GLOBAL innodb_debug_sync = "ib_clust_v_col_before_row_allocated "
+                               "SIGNAL before_row_allocated "
+                               "WAIT_FOR flush_unlock";
+SET GLOBAL innodb_debug_sync = "ib_open_after_dict_open "
+                               "SIGNAL purge_open "
+                               "WAIT_FOR select_open";
+
+# In 10.2 trx_undo_roll_ptr_is_insert(t_roll_ptr) condition never pass in purge,
+# so this condition is forced to pass in row_vers_old_has_index_entry
+set global debug_dbug= "d,ib_purge_virtual_index_callback";
+
+# The purge starts from REPLACE command. To avoid possible race, separate
+# connection is used.
+--connect(purge_waiter,localhost,root)
+--send
+SET debug_sync= "now WAIT_FOR before_row_allocated";
+
+--connection default
+REPLACE INTO t1 (pk, b) SELECT pk, b FROM t1;
+
+--connection purge_waiter
+# Now we will definitely catch ib_clust_v_col_before_row_allocated
+--reap
+--connection default
+--disconnect purge_waiter
+
+# purge hangs on the sync point. table is purged, ref_count is set to 0
+FLUSH TABLES;
+
+# Avoid hang on repeating purge.
+# Reset Will be applied after first record is purged
+SET GLOBAL innodb_debug_sync = reset;
+
+SET debug_sync= "now SIGNAL flush_unlock WAIT_FOR purge_open";
+
+# Avoid hang on repeating purge
+SET GLOBAL innodb_debug_sync = reset;
+
+# select unblocks purge thread
+SET debug_sync= "ib_open_after_dict_open SIGNAL select_open";
+SELECT * FROM t1;
+
+# Cleanup
+DROP TABLE t1;
+SET debug_sync= reset;
+set global debug_dbug= @old_dbug;
+
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

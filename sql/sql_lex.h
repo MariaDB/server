@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB Corporation.
+   Copyright (c) 2010, 2021, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -917,6 +917,8 @@ public:
   With_clause *with_clause;
   /* With element where this unit is used as the specification (if any) */
   With_element *with_element;
+  /* The unit used as a CTE specification from which this unit is cloned */
+  st_select_lex_unit *cloned_from;
   /* thread handler */
   THD *thd;
   /*
@@ -938,6 +940,10 @@ public:
 
   void init_query();
   st_select_lex* outer_select();
+  const st_select_lex* first_select() const
+  {
+    return reinterpret_cast<const st_select_lex*>(slave);
+  }
   st_select_lex* first_select()
   {
     return reinterpret_cast<st_select_lex*>(slave);
@@ -1336,7 +1342,8 @@ public:
   }
   inline bool is_subquery_function() { return master_unit()->item != 0; }
 
-  bool mark_as_dependent(THD *thd, st_select_lex *last, Item *dependency);
+  bool mark_as_dependent(THD *thd, st_select_lex *last,
+                         Item_ident *dependency);
 
   void set_braces(bool value)
   {
@@ -1472,6 +1479,8 @@ public:
   bool save_leaf_tables(THD *thd);
   bool save_prep_leaf_tables(THD *thd);
 
+  void set_unique_exclude();
+
   bool is_merged_child_of(st_select_lex *ancestor);
 
   /*
@@ -1494,7 +1503,9 @@ public:
   }
   With_element *get_with_element()
   {
-    return master_unit()->with_element;
+    return master_unit()->cloned_from ?
+           master_unit()->cloned_from->with_element :
+           master_unit()->with_element;
   }
   With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
   bool check_unrestricted_recursive(bool only_standard_compliant);
@@ -3080,7 +3091,8 @@ public:
 struct LEX: public Query_tables_list
 {
   SELECT_LEX_UNIT unit;                         /* most upper unit */
-  inline SELECT_LEX *first_select_lex() {return unit.first_select();}
+  SELECT_LEX *first_select_lex() { return unit.first_select(); }
+  const SELECT_LEX *first_select_lex() const { return unit.first_select(); }
 
 private:
   SELECT_LEX builtin_select;
@@ -3316,6 +3328,20 @@ public:
   */
   uint8 derived_tables;
   uint8 context_analysis_only;
+  /*
+    true <=> The parsed fragment requires resolution of references to CTE
+    at the end of parsing. This name resolution process involves searching
+    for possible dependencies between CTE defined in the parsed fragment and
+    detecting possible recursive references.
+    The flag is set to true if the fragment contains CTE definitions.
+  */
+  bool with_cte_resolution;
+  /*
+    true <=> only resolution of references to CTE are required in the parsed
+    fragment, no checking of dependencies between CTE is required.
+    This flag is used only when parsing clones of CTE specifications.
+  */
+  bool only_cte_resolution;
   bool local_file;
   bool check_exists;
   bool autocommit;
@@ -3699,7 +3725,7 @@ public:
 
   int print_explain(select_result_sink *output, uint8 explain_flags,
                     bool is_analyze, bool *printed_anything);
-  void restore_set_statement_var();
+  bool restore_set_statement_var();
 
   void init_last_field(Column_definition *field, const LEX_CSTRING *name,
                        const CHARSET_INFO *cs);
@@ -4344,6 +4370,25 @@ public:
     return false;
   }
 
+  bool create_like() const
+  {
+    DBUG_ASSERT(!create_info.like() ||
+                !first_select_lex()->item_list.elements);
+    return create_info.like();
+  }
+
+  bool create_select() const
+  {
+    DBUG_ASSERT(!create_info.like() ||
+                !first_select_lex()->item_list.elements);
+    return first_select_lex()->item_list.elements;
+  }
+
+  bool create_simple() const
+  {
+    return !create_like() && !create_select();
+  }
+
   SELECT_LEX *exclude_last_select();
   SELECT_LEX *exclude_not_first_select(SELECT_LEX *exclude);
   void check_automatic_up(enum sub_select_type type);
@@ -4544,6 +4589,11 @@ public:
             select_stack[0]->is_service_select);
   }
 
+  bool check_dependencies_in_with_clauses();
+  bool resolve_references_to_cte_in_hanging_cte();
+  bool check_cte_dependencies_and_resolve_references();
+  bool resolve_references_to_cte(TABLE_LIST *tables,
+                                 TABLE_LIST **tables_last);
 
 };
 
@@ -4806,8 +4856,8 @@ extern void lex_init(void);
 extern void lex_free(void);
 extern void lex_start(THD *thd);
 extern void lex_end(LEX *lex);
-extern void lex_end_stage1(LEX *lex);
-extern void lex_end_stage2(LEX *lex);
+extern void lex_end_nops(LEX *lex);
+extern void lex_unlock_plugins(LEX *lex);
 void end_lex_with_single_table(THD *thd, TABLE *table, LEX *old_lex);
 int init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex);
 extern int MYSQLlex(union YYSTYPE *yylval, THD *thd);

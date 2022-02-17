@@ -483,6 +483,65 @@ SET @commands= 'B N N-Temp T-SELECT-T-Temp N-Temp Te R';
 SET @commands= 'B N N-Temp T-SELECT-T-Temp N-Temp NeT-trig R';
 --source suite/rpl/include/rpl_drop_create_temp_table.inc
 
+--echo # > MDEV-26833
+--echo # Errored out and rolled back Te statement should not produce any event to binlog
+--echo #   in the following cases:
+
+SET @sav_var = @@session.binlog_direct_non_transactional_updates;
+
+SET @@session.binlog_direct_non_transactional_updates = ON;
+SET @commands= 'B T Drop-Temp-TT-Temp Te C';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+SET @commands= 'Drop-Temp-T-Temp B T Create-T-Temp Te C';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+SET @commands= 'B T Drop-Temp-TN-Temp Te C';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+SET @commands= 'B T N-Temp Te C';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+
+SET @commands= 'B T Drop-Temp-TT-Temp Te R';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+SET @commands= 'Drop-Temp-T-Temp B T Create-T-Temp Te R';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+SET @commands= 'B T Drop-Temp-TN-Temp Te R';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+SET @commands= 'B T N-Temp Te R';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+
+--echo # Non-transactional side effects.
+SET @commands= 'B T N-Temp Te Ne C';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+SET @commands= 'B T N-Temp Te Ne R';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+
+SET @@session.binlog_direct_non_transactional_updates = OFF;
+SET @commands= 'B T Drop-Temp-TT-Temp Te C';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+SET @commands= 'Drop-Temp-T-Temp B T Create-T-Temp Te C';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+SET @commands= 'B T Drop-Temp-TN-Temp Te C';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+SET @commands= 'B T N-Temp Te C';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+
+SET @commands= 'B T Drop-Temp-TT-Temp Te R';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+SET @commands= 'Drop-Temp-T-Temp B T Create-T-Temp Te R';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+SET @commands= 'B T Drop-Temp-TN-Temp Te R';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+SET @commands= 'B T N-Temp Te R';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+
+--echo # Non-transactional side effects.
+SET @commands= 'B T N-Temp Te Ne C';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+SET @commands= 'B T N-Temp Te Ne R';
+--source suite/rpl/include/rpl_drop_create_temp_table.inc
+
+SET @@session.binlog_direct_non_transactional_updates = @sav_var;
+--echo # < MDEV-26833
+
 --echo ###################################################################################
 --echo #                               CHECK CONSISTENCY
 --echo ###################################################################################
@@ -495,8 +554,7 @@ if (`select @@session.binlog_format != 'STATEMENT'`)
 {
   --exec $MYSQL_DUMP --compact --order-by-primary --skip-extended-insert --no-create-info test > $MYSQLD_DATADIR/test-temporary-master.sql
   --exec $MYSQL_DUMP_SLAVE --compact --order-by-primary --skip-extended-insert --no-create-info test > $MYSQLD_DATADIR/test-temporary-slave.sql
-  # uncomment when anders.song@greatopensource.com-20110105052107-zoab0bsf5a6xxk2y from mysql-5.6 is merged
-  #--diff_files $MYSQLD_DATADIR/test-temporary-master.sql $MYSQLD_DATADIR/test-temporary-slave.sql
+  --diff_files $MYSQLD_DATADIR/test-temporary-master.sql $MYSQLD_DATADIR/test-temporary-slave.sql
 }
 
 --echo #########################################################################

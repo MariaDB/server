@@ -5518,8 +5518,90 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 #
+# MDEV-25108: Running of the EXPLAIN EXTENDED statement produces extra warning
+#             in case it is executed in PS (prepared statement) mode
+#
+CREATE TABLE t1 (c int);
+CREATE TABLE t2 (d int);
+# EXPLAIN EXTENDED in regular way (not PS mode)
+EXPLAIN EXTENDED SELECT (SELECT 1 FROM t2 WHERE d = c) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where 0) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
+SHOW WARNINGS;
+Level	Code	Message
+Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where 0) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
+# Now run the same EXPLAIN EXTENDED in PS mode. Number of warnings
+# and their content must be the same as in case running the statement
+# in regular way
+PREPARE stmt FROM "EXPLAIN EXTENDED SELECT (SELECT 1 FROM t2 WHERE d = c) FROM t1";
+Warnings:
+Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where 0) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
+SHOW WARNINGS;
+Level	Code	Message
+Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where 0) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+#
+# MDEV-25576: The statement EXPLAIN running as regular statement and
+#             as prepared statement produces different results for
+#             UPDATE with subquery
+#
+CREATE TABLE t1 (c1 INT KEY) ENGINE=MyISAM;
+CREATE TABLE t2 (c2 INT) ENGINE=MyISAM;
+CREATE TABLE t3 (c3 INT) ENGINE=MyISAM;
+EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	0	100.00	
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+PREPARE stmt FROM "EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 )";
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	0	100.00	
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2, t3;
+#
+# MDEV-21866: Assertion `!result' failed in convert_const_to_int upon 2nd execution of PS
+#
+CREATE TABLE t1 (a BIGINT DEFAULT -1);
+CREATE VIEW v1 AS SELECT DISTINCT a FROM t1;
+PREPARE stmt FROM 'SELECT * FROM v1 WHERE a <=> NULL';
+EXECUTE stmt;
+a
+EXECUTE stmt;
+a
+DEALLOCATE PREPARE stmt;
+DROP VIEW v1;
+DROP TABLE t1;
 # End of 10.2 tests
 #
+#
+# MDEV-26147: The test main.sp-row fails in case it is run in PS mode
+#
+CREATE PROCEDURE p1(a ROW(a INT,b INT))
+BEGIN
+SELECT a.a, a.b;
+END;
+$$
+PREPARE stmt FROM 'CALL p1(ROW(10, 20))';
+EXECUTE stmt;
+a.a	a.b
+10	20
+DEALLOCATE PREPARE stmt;
+DROP PROCEDURE p1;
 #
 # MDEV-19263: Server crashes in mysql_handle_single_derived
 # upon 2nd execution of PS
@@ -5535,6 +5617,38 @@ ERROR 42S02: Table 'test.x' doesn't exist
 DEALLOCATE PREPARE stmt;
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# MDEV-25197: The statement set password=password('') executed in PS mode
+#             fails in case it is run by a user with expired password
+#
+CREATE USER user1@localhost PASSWORD EXPIRE;
+SET @disconnect_on_expired_password_save=@@global.disconnect_on_expired_password;
+SET GLOBAL disconnect_on_expired_password=OFF;
+connect con1,localhost,user1;
+connection con1;
+# Check that no regular statement like SELECT can be prepared
+# by a user with an expired password
+PREPARE stmt FROM "SELECT 1";
+ERROR HY000: You must SET PASSWORD before executing this statement
+# Check that the DEALLOCATE PREPARE statement can be run by a user
+# with an expired password
+PREPARE stmt FROM "SET password=password('')";
+DEALLOCATE PREPARE stmt;
+# Check that the SET PASSWORD statement can be executed in PS mode by
+# a user with an expired password
+PREPARE stmt FROM "SET password=password('')";
+EXECUTE stmt;
+PREPARE stmt FROM "SELECT 1";
+# Check that user's password is not expired anymore
+EXECUTE stmt;
+1
+1
+DEALLOCATE PREPARE stmt;
+# Clean up
+disconnect con1;
+connection default;
+SET GLOBAL disconnect_on_expired_password=@disconnect_on_expired_password_save;
+DROP USER user1@localhost;
 #
 # End of 10.4 tests
 #

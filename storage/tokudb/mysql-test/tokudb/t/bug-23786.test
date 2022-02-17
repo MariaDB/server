@@ -1,0 +1,14 @@
+source include/have_tokudb.inc;
+
+--echo #
+--echo # 10.2 Test
+--echo #
+--echo # MDEV-23786: Assertion `!is_set() || (m_status == DA_OK_BULK &&
+--echo # is_bulk_op())'failed for TokuDB engine CREATE TABLE
+--echo #
+
+set default_storage_engine='tokudb';
+--error ER_BAD_DB_ERROR
+CREATE TABLE _uppercase.t (a INT) ENGINE=TokuDB;
+
+--echo # End of 10.2 Test

@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -281,6 +281,8 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
         res= TRUE;
         goto end;
       }
+      if (sl ==  unit->first_select() && !sl->next_select())
+        unit->fake_select_lex= 0;
     }
   }
   
@@ -683,6 +685,31 @@ bool Item_subselect::is_expensive()
 }
 
 
+static
+int walk_items_for_table_list(Item_processor processor,
+                              bool walk_subquery, void *argument,
+                              List<TABLE_LIST>& join_list)
+{
+  List_iterator<TABLE_LIST> li(join_list);
+  int res;
+  while (TABLE_LIST *table= li++)
+  {
+    if (table->on_expr)
+    {
+      if ((res= table->on_expr->walk(processor, walk_subquery, argument)))
+        return res;
+    }
+    if (table->nested_join)
+    {
+      if ((res= walk_items_for_table_list(processor, walk_subquery, argument,
+                                          table->nested_join->join_list)))
+        return res;
+    }
+  }
+  return 0;
+}
+
+
 bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
                           void *argument)
 {
@@ -714,7 +741,10 @@ bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
       if (lex->having && (lex->having)->walk(processor, walk_subquery,
                                              argument))
         return 1;
-      /* TODO: why does this walk WHERE/HAVING but not ON expressions of outer joins? */
+
+     if (walk_items_for_table_list(processor, walk_subquery, argument,
+                                       *lex->join_list))
+        return 1;
 
       while ((item=li++))
       {
@@ -879,7 +909,7 @@ bool Item_subselect::expr_cache_is_needed(THD *thd)
 
 inline bool Item_in_subselect::left_expr_has_null()
 {
-  return (*(optimizer->get_cache()))->null_value;
+  return (*(optimizer->get_cache()))->null_value_inside;
 }
 
 
@@ -1333,7 +1363,17 @@ bool Item_singlerow_subselect::null_inside()
 void Item_singlerow_subselect::bring_value()
 {
   if (!exec() && assigned())
-    null_value= 0;
+  {
+    null_value= true;
+    for (uint i= 0; i < max_columns ; i++)
+    {
+      if (!row[i]->null_value)
+      {
+        null_value= false;
+        return;
+      }
+    }
+  }
   else
     reset();
 }
@@ -1359,7 +1399,11 @@ longlong Item_singlerow_subselect::val_int()
 {
   DBUG_ASSERT(fixed == 1);
   if (forced_const)
-    return value->val_int();
+  {
+    longlong val= value->val_int();
+    null_value= value->null_value;
+    return val;
+  }
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
@@ -1368,6 +1412,7 @@ longlong Item_singlerow_subselect::val_int()
   else
   {
     reset();
+    DBUG_ASSERT(null_value);
     return 0;
   }
 }
@@ -1376,7 +1421,11 @@ String *Item_singlerow_subselect::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   if (forced_const)
-    return value->val_str(str);
+  {
+    String *res= value->val_str(str);
+    null_value= value->null_value;
+    return res;
+  }
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
@@ -1385,6 +1434,7 @@ String *Item_singlerow_subselect::val_str(String *str)
   else
   {
     reset();
+    DBUG_ASSERT(null_value);
     return 0;
   }
 }
@@ -1412,7 +1462,11 @@ my_decimal *Item_singlerow_subselect::val_decimal(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed == 1);
   if (forced_const)
-    return value->val_decimal(decimal_value);
+  {
+    my_decimal *val= value->val_decimal(decimal_value);
+    null_value= value->null_value;
+    return val;
+  }
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
@@ -1421,6 +1475,7 @@ my_decimal *Item_singlerow_subselect::val_decimal(my_decimal *decimal_value)
   else
   {
     reset();
+    DBUG_ASSERT(null_value);
     return 0;
   }
 }
@@ -1430,7 +1485,11 @@ bool Item_singlerow_subselect::val_bool()
 {
   DBUG_ASSERT(fixed == 1);
   if (forced_const)
-    return value->val_bool();
+  {
+    bool val= value->val_bool();
+    null_value= value->null_value;
+    return val;
+  }
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
@@ -1439,6 +1498,7 @@ bool Item_singlerow_subselect::val_bool()
   else
   {
     reset();
+    DBUG_ASSERT(null_value);
     return 0;
   }
 }
@@ -1448,7 +1508,11 @@ bool Item_singlerow_subselect::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t
 {
   DBUG_ASSERT(fixed == 1);
   if (forced_const)
-    return value->get_date(thd, ltime, fuzzydate);
+  {
+    bool val= value->get_date(thd, ltime, fuzzydate);
+    null_value= value->null_value;
+    return val;
+  }
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
@@ -1457,6 +1521,7 @@ bool Item_singlerow_subselect::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t
   else
   {
     reset();
+    DBUG_ASSERT(null_value);
     return 1;
   }
 }
@@ -1747,7 +1812,6 @@ double Item_in_subselect::val_real()
     As far as Item_in_subselect called only from Item_in_optimizer this
     method should not be used
   */
-  DBUG_ASSERT(0);
   DBUG_ASSERT(fixed == 1);
   if (forced_const)
     return value;
@@ -2223,11 +2287,12 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
     */
     Item *item= (Item*) select_lex->item_list.head();
 
-    if (select_lex->table_list.elements)
+    if (select_lex->table_list.elements ||
+        !(select_lex->master_unit()->is_unit_op()))
     {
       Item *having= item;
       Item *orig_item= item;
-       
+
       item= func->create(thd, expr, item);
       if (!abort_on_null && orig_item->maybe_null)
       {
@@ -2271,32 +2336,28 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
     }
     else
     {
-      if (select_lex->master_unit()->is_unit_op())
-      {
-        LEX_CSTRING field_name= {STRING_WITH_LEN("<result>") };
-        Item *new_having=
-          func->create(thd, expr,
-                       new (thd->mem_root) Item_ref_null_helper(thd,
+      DBUG_ASSERT(select_lex->master_unit()->is_unit_op());
+      LEX_CSTRING field_name= {STRING_WITH_LEN("<result>") };
+      Item *new_having=
+        func->create(thd, expr,
+                     new (thd->mem_root) Item_ref_null_helper(thd,
                                                   &select_lex->context,
                                                   this,
                                                   &select_lex->ref_pointer_array[0],
                                                   (char *)"<no matter>",
                                                   &field_name));
-        if (!abort_on_null && left_expr->maybe_null)
-        {
-          disable_cond_guard_for_const_null_left_expr(0);
-          if (!(new_having= new (thd->mem_root) Item_func_trig_cond(thd, new_having,
+      if (!abort_on_null && left_expr->maybe_null)
+      {
+        disable_cond_guard_for_const_null_left_expr(0);
+        if (!(new_having= new (thd->mem_root) Item_func_trig_cond(thd, new_having,
                                                             get_cond_guard(0))))
-            DBUG_RETURN(true);
-        }
-
-        new_having->name= in_having_cond;
-        if (fix_having(new_having, select_lex))
           DBUG_RETURN(true);
-        *having_item= new_having;
       }
-      else
-        DBUG_ASSERT(false);
+
+      new_having->name= in_having_cond;
+      if (fix_having(new_having, select_lex))
+        DBUG_RETURN(true);
+      *having_item= new_having;
     }
   }
 
@@ -3965,6 +4026,8 @@ int subselect_single_select_engine::exec()
               tab->save_read_record= tab->read_record.read_record_func;
               tab->read_record.read_record_func= rr_sequential;
               tab->read_first_record= read_first_record_seq;
+              if (tab->rowid_filter)
+                tab->table->file->disable_pushed_rowid_filter();
               tab->read_record.thd= join->thd;
               tab->read_record.ref_length= tab->table->file->ref_length;
               tab->read_record.unlock_row= rr_unlock_row;
@@ -3985,6 +4048,8 @@ int subselect_single_select_engine::exec()
       tab->read_record.ref_length= 0;
       tab->read_first_record= tab->save_read_first_record;
       tab->read_record.read_record_func= tab->save_read_record;
+      if (tab->rowid_filter)
+        tab->table->file->enable_pushed_rowid_filter();
     }
     executed= 1;
     if (!(uncacheable() & ~UNCACHEABLE_EXPLAIN) &&

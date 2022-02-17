@@ -1,9 +1,7 @@
-stop slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-reset master;
-reset slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-start slave;
+include/master-slave.inc
+[connection master]
+connection master;
+SET @old_log_bin_trust_function_creators= @@global.log_bin_trust_function_creators;
 drop procedure if exists p1;
 drop procedure if exists p2;
 drop function if exists f1;
@@ -20,6 +18,8 @@ set spv=spv+1;
 end while;
 end//
 call p1();
+connection slave;
+connection slave;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -27,6 +27,7 @@ a
 3
 4
 5
+connection master;
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -43,9 +44,12 @@ call p2();
 SELECT * FROM t2 ORDER BY a;
 a
 4
+connection slave;
+connection slave;
 SELECT * FROM t2 ORDER BY a;
 a
 4
+connection master;
 drop procedure p1;
 drop procedure p2;
 drop table t2;
@@ -104,6 +108,8 @@ master:	7
 master:	8
 master:	10
 master:	11
+connection slave;
+connection slave;
 SELECT 'slave:',a FROM t1 ORDER BY a;
 slave:	a
 slave:	1
@@ -120,6 +126,7 @@ slave:	7
 slave:	8
 slave:	10
 slave:	11
+connection master;
 drop procedure p1;
 delete from t1;
 delete from t2;
@@ -134,10 +141,13 @@ SELECT 'master:',a FROM t1 ORDER BY a;
 master:	a
 master:	1
 master:	2
+connection slave;
+connection slave;
 SELECT 'slave:',a FROM t1 ORDER BY a;
 slave:	a
 slave:	1
 slave:	2
+connection master;
 drop view v1;
 delete from t1;
 prepare s1 from 'select f1(?)';
@@ -148,9 +158,12 @@ f1(?)
 SELECT 'master:',a FROM t1 ORDER BY a;
 master:	a
 master:	123
+connection slave;
+connection slave;
 SELECT 'slave:',a FROM t1 ORDER BY a;
 slave:	a
 slave:	123
+connection master;
 delete from t1;
 create procedure p1(spv int)
 begin
@@ -169,12 +182,15 @@ master:	6
 master:	6
 master:	15
 master:	15
+connection slave;
+connection slave;
 SELECT 'slave:',a FROM t1 ORDER BY a;
 slave:	a
 slave:	6
 slave:	6
 slave:	15
 slave:	15
+connection master;
 drop procedure p1;
 drop function f1;
 drop table t1,t2;
@@ -220,6 +236,8 @@ master	100
 master	101
 master	101
 master	102
+connection slave;
+connection slave;
 SELECT 'slave', a FROM t1 ORDER BY a;
 slave	a
 slave	10
@@ -231,7 +249,73 @@ slave	100
 slave	101
 slave	101
 slave	102
+connection master;
 drop table t1;
 drop function f1;
 drop function f2;
 drop procedure p1;
+connection slave;
+connection master;
+create table t2 (b BIT(7));
+create procedure sp_bug26199(bitvalue BIT(7))
+begin
+insert into t2 set b = bitvalue;
+end //
+create function sf_bug26199(b BIT(7)) returns int
+begin
+insert into t2 values(b);
+return 0;
+end//
+call   sp_bug26199(b'1110');
+call   sp_bug26199('\0');
+select sf_bug26199(b'1111111');
+sf_bug26199(b'1111111')
+0
+SET STATEMENT sql_mode = '' FOR
+select sf_bug26199(b'101111111');
+sf_bug26199(b'101111111')
+0
+Warnings:
+Warning	1264	Out of range value for column 'b' at row 1
+select sf_bug26199('\'');
+sf_bug26199('\'')
+0
+select hex(b) from t2;
+hex(b)
+E
+0
+7F
+7F
+27
+connection slave;
+select hex(b) from t2;
+hex(b)
+E
+0
+7F
+7F
+27
+connection master;
+drop table t2;
+drop procedure sp_bug26199;
+drop function sf_bug26199;
+SET @@global.log_bin_trust_function_creators= @old_log_bin_trust_function_creators;
+connection slave;
+set names utf8;
+CREATE FUNCTION f() RETURNS timestamp DETERMINISTIC
+BEGIN RETURN '2012-12-21 12:12:12'; END |
+CREATE PROCEDURE p(t timestamp) 
+BEGIN
+SET @t = t;
+PREPARE stmt FROM " 
+  UPDATE t1 SET a = @t WHERE '2012-12-31 08:00:00' < f() ";
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+END |
+create table t1 (a timestamp);
+call p('2012-12-31 08:00:00');
+drop table t1;
+drop procedure p;
+drop function f;
+end of the tests
+include/rpl_end.inc

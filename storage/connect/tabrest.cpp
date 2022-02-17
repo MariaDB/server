@@ -1,8 +1,7 @@
 /************** tabrest C++ Program Source Code File (.CPP) ************/
-/* PROGRAM NAME: tabrest   Version 1.8                                 */
-/*  (C) Copyright to the author Olivier BERTRAND          2018 - 2020  */
+/* PROGRAM NAME: tabrest   Version 2.1                                 */
+/*  (C) Copyright to the author Olivier BERTRAND          2018 - 2021  */
 /*  This program is the REST Web API support for MariaDB.              */
-/*  When compiled without MARIADB defined, it is the EOM module code.  */
 /*  The way Connect handles NOSQL data returned by REST queries is     */
 /*  just by retrieving it as a file and then leave the existing data   */
 /*  type tables (JSON, XML or CSV) process it as usual.                */
@@ -11,23 +10,13 @@
 /***********************************************************************/
 /*  Definitions needed by the included files.                          */
 /***********************************************************************/
-#if defined(MARIADB)
 #include <my_global.h>    // All MariaDB stuff
 #include <mysqld.h>
 #include <sql_error.h>
-#else   // !MARIADB       OEM module
-#include "mini-global.h"
-#define _MAX_PATH 260
-#if !defined(REST_SOURCE)
-#if defined(__WIN__) || defined(_WINDOWS)
-#include <windows.h>
-#else		 // !__WIN__
-#define __stdcall
-#include <dlfcn.h>         // dlopen(), dlclose(), dlsym() ...
-#endif   // !__WIN__
-#endif	 // !REST_SOURCE
-#define _OS_H_INCLUDED     // Prevent os.h to be called
-#endif  // !MARIADB
+#if !defined(_WIN32) && !defined(_WINDOWS)
+#include <sys/types.h>
+#include <sys/wait.h>
+#endif	 // !_WIN32 && !_WINDOWS
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -48,79 +37,103 @@
 #include "tabrest.h"
 
 #if defined(connect_EXPORTS)
-#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, 0, M)
+#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_NOTE, 0, M)
 #else
 #define PUSH_WARNING(M) htrc(M)
 #endif
 
-#if defined(__WIN__) || defined(_WINDOWS)
-#define popen  _popen
-#define pclose _pclose
-#endif
-
 static XGETREST getRestFnc = NULL;
 static int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename);
-
-#if !defined(MARIADB)
-/***********************************************************************/
-/*  DB static variables.                                               */
-/***********************************************************************/
-int    TDB::Tnum;
-int    DTVAL::Shift;
-int    CSORT::Limit = 0;
-double CSORT::Lg2 = log(2.0);
-size_t CSORT::Cpn[1000] = { 0 };
-
-/***********************************************************************/
-/*  These functions are exported from the REST library.                */
-/***********************************************************************/
-extern "C" {
-  PTABDEF __stdcall GetREST(PGLOBAL, void*);
-  PQRYRES __stdcall ColREST(PGLOBAL, PTOS, char*, char*, bool);
-} // extern "C"
-
-/***********************************************************************/
-/*  This function returns a table definition class.                    */
-/***********************************************************************/
-PTABDEF __stdcall GetREST(PGLOBAL g, void *memp)
-{
-  return new(g, memp) RESTDEF;
-} // end of GetREST
-#endif   // !MARIADB
 
 /***********************************************************************/
 /*  Xcurl: retrieve the REST answer by executing cURL.                 */
 /***********************************************************************/
 int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 {
-	char  buf[1024];
-	int   rc;
-	FILE *pipe;
+	char  buf[512];
+	int   rc = 0;
+
+	if (strchr(filename, '"')) {
+		strcpy(g->Message, "Invalid file name");
+		return 1;
+	} // endif filename
 
 	if (Uri) {
 		if (*Uri == '/' || Http[strlen(Http) - 1] == '/')
-			sprintf(buf, "curl %s%s -o %s", Http, Uri, filename);
+			my_snprintf(buf, sizeof(buf)-1, "%s%s", Http, Uri);
 		else
-			sprintf(buf, "curl %s/%s -o %s", Http, Uri, filename);
+			my_snprintf(buf, sizeof(buf)-1, "%s/%s", Http, Uri);
 
 	} else
-		sprintf(buf, "curl %s -o %s", Http, filename);
+		my_snprintf(buf, sizeof(buf)-1, "%s", Http);
 
-	if ((pipe = popen(buf, "rt"))) {
-		if (trace(515))
-			while (fgets(buf, sizeof(buf), pipe)) {
-				htrc("%s", buf);
-			}	// endwhile
+#if defined(_WIN32)
+	char cmd[1024];
+	STARTUPINFO si;
+	PROCESS_INFORMATION pi;
 
-		pclose(pipe);
-		rc = 0;
+	sprintf(cmd, "curl \"%s\" -o \"%s\"", buf, filename);
+
+	ZeroMemory(&si, sizeof(si));
+	si.cb = sizeof(si);
+	ZeroMemory(&pi, sizeof(pi));
+
+	// Start the child process. 
+	if (CreateProcess(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+		// Wait until child process exits.
+		WaitForSingleObject(pi.hProcess, INFINITE);
+
+		// Close process and thread handles. 
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
 	} else {
-		sprintf(g->Message, "curl failed, errno =%d", errno);
+		sprintf(g->Message, "CreateProcess curl failed (%d)", GetLastError());
 		rc = 1;
-	} // endif pipe
+	}	// endif CreateProcess
+#else   // !_WIN32
+	char  fn[600];
+	pid_t pID;
+
+	// Check if curl package is availabe by executing subprocess
+	FILE *f= popen("command -v curl", "r");
+
+	if (!f) {
+			strcpy(g->Message, "Problem in allocating memory.");
+			return 1;
+	} else {
+		char   temp_buff[50];
+		size_t len = fread(temp_buff,1, 50, f);
+
+		if(!len) {
+			strcpy(g->Message, "Curl not installed.");
+			return 1;
+		}	else
+			pclose(f);
+
+	} // endif f
+	
+	pID = vfork();
+	sprintf(fn, "-o%s", filename);
+
+	if (pID == 0) {
+		// Code executed by child process
+		execlp("curl", "curl", buf, fn, (char*)NULL);
+
+		// If execlp() is successful, we should not reach this next line.
+		strcpy(g->Message, "Unsuccessful execlp from vfork()");
+		exit(1);
+	} else if (pID < 0) {
+		// failed to fork
+		strcpy(g->Message, "Failed to fork");
+		rc = 1;
+	} else {
+		// Parent process
+		wait(NULL);  // Wait for the child to terminate
+	}	// endif pID
+#endif  // !_WIN32
 
 	return rc;
-} // end od Xcurl
+} // end of Xcurl
 
 /***********************************************************************/
 /*  GetREST: load the Rest lib and get the Rest function.              */
@@ -130,11 +143,11 @@ XGETREST GetRestFunction(PGLOBAL g)
 	if (getRestFnc)
 		return getRestFnc;
 	
-#if !defined(MARIADB) || !defined(REST_SOURCE)
+#if !defined(REST_SOURCE)
 	if (trace(515))
 		htrc("Looking for GetRest library\n");
 
-#if defined(__WIN__) || defined(_WINDOWS)
+#if defined(_WIN32) || defined(_WINDOWS)
 	HANDLE Hdll;
 	const char* soname = "GetRest.dll";   // Module name
 
@@ -163,7 +176,7 @@ XGETREST GetRestFunction(PGLOBAL g)
 		FreeLibrary((HMODULE)Hdll);
 		return NULL;
 	} // endif getRestFnc
-#else   // !__WIN__
+#else   // !_WIN32
 	void* Hso;
 	const char* error = NULL;
 	const char* soname = "GetRest.so";   // Module name
@@ -182,10 +195,10 @@ XGETREST GetRestFunction(PGLOBAL g)
 		dlclose(Hso);
 		return NULL;
 	} // endif getdef
-#endif  // !__WIN__
-#else
+#endif  // !_WIN32
+#else   // REST_SOURCE
 	getRestFnc = restGetFile;
-#endif
+#endif	// REST_SOURCE
 
 	return getRestFnc;
 } // end of GetRestFunction
@@ -193,30 +206,21 @@ XGETREST GetRestFunction(PGLOBAL g)
 /***********************************************************************/
 /*  Return the columns definition to MariaDB.                          */
 /***********************************************************************/
-#if defined(MARIADB)
 PQRYRES RESTColumns(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
-#else   // !MARIADB
-PQRYRES __stdcall ColREST(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
-#endif  // !MARIADB
 {
   PQRYRES  qrp= NULL;
   char     filename[_MAX_PATH + 1];  // MAX PATH ???
 	int      rc;
-	bool     curl = false;
   PCSZ     http, uri, fn, ftype;
-	XGETREST grf = GetRestFunction(g);
+	XGETREST grf = NULL;
+	bool     curl = GetBooleanTableOption(g, tp, "Curl", false);
 
-	if (!grf)
+	if (!curl && !(grf = GetRestFunction(g)))
 		curl = true;
 
   http = GetStringTableOption(g, tp, "Http", NULL);
   uri = GetStringTableOption(g, tp, "Uri", NULL);
-#if defined(MARIADB)
   ftype = GetStringTableOption(g, tp, "Type", "JSON");
-#else   // !MARIADB
-  // OEM tables must specify the file type
-  ftype = GetStringTableOption(g, tp, "Ftype", "JSON");
-#endif  // !MARIADB
 	fn = GetStringTableOption(g, tp, "Filename", NULL);
 
 	if (!fn) {
@@ -230,28 +234,25 @@ PQRYRES __stdcall ColREST(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
 			filename[n + i] = tolower(ftype[i]);
 
 		fn = filename;
-		tp->filename = PlugDup(g, fn);
+		tp->subtype = PlugDup(g, fn);
 		sprintf(g->Message, "No file name. Table will use %s", fn);
 		PUSH_WARNING(g->Message);
 	}	// endif fn
 
   //  We used the file name relative to recorded datapath
 	PlugSetPath(filename, fn, db);
-	curl = GetBooleanTableOption(g, tp, "Curl", curl);
+	remove(filename);
 
   // Retrieve the file from the web and copy it locally
 	if (curl)
 		rc = Xcurl(g, http, uri, filename);
-	else if (grf)
+	else
 		rc = grf(g->Message, trace(515), http, uri, filename);
-	else {
-		strcpy(g->Message, "Cannot access to curl nor casablanca");
-		rc = 1;
-	}	// endif !grf
 
-	if (rc)
+	if (rc) {
+		strcpy(g->Message, "Cannot access to curl nor casablanca");
 		return NULL;
-  else if (!stricmp(ftype, "JSON"))
+	} else if (!stricmp(ftype, "JSON"))
     qrp = JSONColumns(g, db, NULL, tp, info);
   else if (!stricmp(ftype, "CSV"))
     qrp = CSVColumns(g, NULL, tp, info);
@@ -274,19 +275,15 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 {
 	char     filename[_MAX_PATH + 1];
   int      rc = 0, n;
-	bool     curl = false, xt = trace(515);
+	bool     xt = trace(515);
 	LPCSTR   ftype;
-	XGETREST grf = GetRestFunction(g);
+	XGETREST grf = NULL;
+	bool     curl = GetBoolCatInfo("Curl", false);
 
-	if (!grf)
+	if (!curl && !(grf = GetRestFunction(g)))
 		curl = true;
 
-#if defined(MARIADB)
   ftype = GetStringCatInfo(g, "Type", "JSON");
-#else   // !MARIADB
-  // OEM tables must specify the file type
-  ftype = GetStringCatInfo(g, "Ftype", "JSON");
-#endif  // !MARIADB
 
   if (xt)
     htrc("ftype = %s am = %s\n", ftype, SVP(am));
@@ -309,24 +306,21 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
   //  We used the file name relative to recorded datapath
   PlugSetPath(filename, Fn, GetPath());
-
-	curl = GetBoolCatInfo("Curl", curl);
+	remove(filename);
 
   // Retrieve the file from the web and copy it locally
 	if (curl) {
 		rc = Xcurl(g, Http, Uri, filename);
 		xtrc(515, "Return from Xcurl: rc=%d\n", rc);
-	} else if (grf) {
+	} else {
 		rc = grf(g->Message, xt, Http, Uri, filename);
 		xtrc(515, "Return from restGetFile: rc=%d\n", rc);
-	} else {
-		strcpy(g->Message, "Cannot access to curl nor casablanca");
-		rc = 1;
-	}	// endif !grf
+	} // endelse
 
-  if (rc)
-    return true;
-  else switch (n) {
+	if (rc) {
+		// strcpy(g->Message, "Cannot access to curl nor casablanca");
+		return true;
+	} else switch (n) {
     case 1: Tdp = new (g) JSONDEF; break;
 #if defined(XML_SUPPORT)
 		case 2: Tdp = new (g) XMLDEF;  break;

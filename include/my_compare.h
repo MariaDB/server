@@ -1,5 +1,5 @@
 /* Copyright (c) 2011, Oracle and/or its affiliates.
-   Copyright (c) Monty Program Ab; 1991-2011
+   Copyright (c) 1991, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -95,15 +95,16 @@ static inline uchar get_rec_bits(const uchar *ptr, uchar ofs, uint len)
 {
   uint16 val= ptr[0];
   if (ofs + len > 8)
-    val|= (uint16)(ptr[1]) << 8;
-  return (val >> ofs) & ((1 << len) - 1);
+    val|= (uint16)(((uint) ptr[1]) << 8);
+  return (uchar) ((val >> ofs) & ((1 << len) - 1));
 }
 
 static inline void set_rec_bits(uint16 bits, uchar *ptr, uchar ofs, uint len)
 {
-  ptr[0]= (ptr[0] & ~(((1 << len) - 1) << ofs)) | (bits << ofs);
+  ptr[0]= (uchar) ((ptr[0] & ~(((1 << len) - 1) << ofs)) | (bits << ofs));
   if (ofs + len > 8)
-    ptr[1]= (ptr[1] & ~((1 << (len - 8 + ofs)) - 1)) | (bits >> (8 - ofs));
+    ptr[1]= (uchar) ((ptr[1] & ~((1 << (len - 8 + ofs)) - 1)) |
+                     bits >> (8 - ofs));
 }
 
 #define clr_rec_bits(bit_ptr, bit_ofs, bit_len) \

@@ -279,7 +279,7 @@ DEFAULT_VALUE	134217728
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
 VARIABLE_COMMENT	The size of the memory buffer InnoDB uses to cache data and indexes of its tables.
-NUMERIC_MIN_VALUE	5242880
+NUMERIC_MIN_VALUE	2097152
 NUMERIC_MAX_VALUE	9223372036854775807
 NUMERIC_BLOCK_SIZE	1048576
 ENUM_VALUE_LIST	NULL
@@ -537,6 +537,18 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	INNODB_DEBUG_SYNC
+SESSION_VALUE	NULL
+DEFAULT_VALUE	
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	VARCHAR
+VARIABLE_COMMENT	debug_sync for innodb purge threads. Use it to set up sync points for all purge threads at once. The commands will be applied sequentially at the beginning of purging the next undo record.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	NONE
 VARIABLE_NAME	INNODB_DEFAULT_ENCRYPTION_KEY_ID
 SESSION_VALUE	1
 DEFAULT_VALUE	1
@@ -1773,18 +1785,6 @@ NUMERIC_BLOCK_SIZE	0
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
-VARIABLE_NAME	INNODB_SIMULATE_COMP_FAILURES
-SESSION_VALUE	NULL
-DEFAULT_VALUE	0
-VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Simulate compression failures.
-NUMERIC_MIN_VALUE	0
-NUMERIC_MAX_VALUE	99
-NUMERIC_BLOCK_SIZE	0
-ENUM_VALUE_LIST	NULL
-READ_ONLY	NO
-COMMAND_LINE_ARGUMENT	NONE
 VARIABLE_NAME	INNODB_SORT_BUFFER_SIZE
 SESSION_VALUE	NULL
 DEFAULT_VALUE	1048576
@@ -2138,7 +2138,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	ON
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Enable atomic writes, instead of using the doublewrite buffer, for files on devices that supports atomic writes. To use this option one must use innodb_file_per_table=1, innodb_flush_method=O_DIRECT. This option only works on Linux with either FusionIO cards using the directFS filesystem or with Shannon cards using any file system.
+VARIABLE_COMMENT	Enable atomic writes, instead of using the doublewrite buffer, for files on devices that supports atomic writes. This option only works on Linux with either FusionIO cards using the directFS filesystem or with Shannon cards using any file system.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL

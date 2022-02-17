@@ -1,5 +1,5 @@
 /* Copyright (c) 2009, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2017, MariaDB
+   Copyright (c) 2012, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -41,5 +41,5 @@
 #define VERSION_thd_specifics           0x0100
 #define VERSION_thd_timezone            0x0100
 #define VERSION_thd_wait                0x0100
-#define VERSION_wsrep                   0x0203
+#define VERSION_wsrep                   0x0400
 #define VERSION_json                    0x0100

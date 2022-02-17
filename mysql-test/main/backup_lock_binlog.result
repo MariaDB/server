@@ -1,0 +1,37 @@
+#
+# MDEV-25334 FTWRL/Backup blocks DDL on temporary tables with binlog
+#            enabled assertion fails in Diagnostics_area::set_error_status
+#
+connect  con1,localhost,root,,;
+connection default;
+#
+# Test 1
+#
+CREATE TEMPORARY TABLE tmp (a INT);
+connection con1;
+FLUSH TABLES WITH READ LOCK;
+connection default;
+SET lock_wait_timeout= 1;
+ALTER TABLE tmp;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+unlock tables;
+connection default;
+drop table tmp;
+#
+# Test 2 (In statement format to ensure temporary table gets logged)
+#
+set @@binlog_format=statement;
+CREATE TEMPORARY TABLE tmp (a INT);
+connection con1;
+BACKUP STAGE START;
+BACKUP STAGE BLOCK_COMMIT;
+connection default;
+SET lock_wait_timeout= 1;
+ALTER TABLE tmp;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+connection con1;
+BACKUP STAGE end;
+connection default;
+drop table tmp;
+disconnect con1;

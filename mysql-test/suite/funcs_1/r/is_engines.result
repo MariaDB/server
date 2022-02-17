@@ -28,27 +28,27 @@ DROP FUNCTION test.f1;
 #########################################################################
 DESCRIBE          information_schema.ENGINES;
 Field	Type	Null	Key	Default	Extra
-ENGINE	varchar(64)	NO			
-SUPPORT	varchar(8)	NO			
-COMMENT	varchar(160)	NO			
+ENGINE	varchar(64)	NO		NULL	
+SUPPORT	varchar(8)	NO		NULL	
+COMMENT	varchar(160)	NO		NULL	
 TRANSACTIONS	varchar(3)	YES		NULL	
 XA	varchar(3)	YES		NULL	
 SAVEPOINTS	varchar(3)	YES		NULL	
 SHOW CREATE TABLE information_schema.ENGINES;
 Table	Create Table
 ENGINES	CREATE TEMPORARY TABLE `ENGINES` (
-  `ENGINE` varchar(64) NOT NULL DEFAULT '',
-  `SUPPORT` varchar(8) NOT NULL DEFAULT '',
-  `COMMENT` varchar(160) NOT NULL DEFAULT '',
-  `TRANSACTIONS` varchar(3) DEFAULT NULL,
-  `XA` varchar(3) DEFAULT NULL,
-  `SAVEPOINTS` varchar(3) DEFAULT NULL
+  `ENGINE` varchar(64) NOT NULL,
+  `SUPPORT` varchar(8) NOT NULL,
+  `COMMENT` varchar(160) NOT NULL,
+  `TRANSACTIONS` varchar(3),
+  `XA` varchar(3),
+  `SAVEPOINTS` varchar(3)
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8
 SHOW COLUMNS FROM information_schema.ENGINES;
 Field	Type	Null	Key	Default	Extra
-ENGINE	varchar(64)	NO			
-SUPPORT	varchar(8)	NO			
-COMMENT	varchar(160)	NO			
+ENGINE	varchar(64)	NO		NULL	
+SUPPORT	varchar(8)	NO		NULL	
+COMMENT	varchar(160)	NO		NULL	
 TRANSACTIONS	varchar(3)	YES		NULL	
 XA	varchar(3)	YES		NULL	
 SAVEPOINTS	varchar(3)	YES		NULL	

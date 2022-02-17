@@ -4,14 +4,14 @@ OPTIMIZER_TRACE	QUERY
 OPTIMIZER_TRACE	TRACE
 OPTIMIZER_TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE
 OPTIMIZER_TRACE	INSUFFICIENT_PRIVILEGES
-show variables like 'optimizer_trace';
-Variable_name	Value
-optimizer_trace	enabled=off
 set optimizer_trace="enabled=on";
 show variables like 'optimizer_trace';
 Variable_name	Value
 optimizer_trace	enabled=on
 set optimizer_trace="enabled=off";
+show variables like 'optimizer_trace';
+Variable_name	Value
+optimizer_trace	enabled=off
 create table t1 (a int, b int);
 insert into t1 values (1,2),(2,3);
 create table t2 (b int);
@@ -571,7 +571,6 @@ create view v2 as select a from t2;
 explain select * from v2 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	
-select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from v2	{
   "steps": [
@@ -685,7 +684,6 @@ explain select * from v1 ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
-select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from v1	{
   "steps": [
@@ -2395,7 +2393,8 @@ select t1.a from t1 left join t2 on t1.a=t2.a	{
             "best_join_order": ["t2", "t1"]
           },
           {
-            "condition_on_constant_tables": "1"
+            "condition_on_constant_tables": "1",
+            "computing_condition": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -2552,7 +2551,8 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
             "best_join_order": ["t1", "t2"]
           },
           {
-            "condition_on_constant_tables": "1"
+            "condition_on_constant_tables": "1",
+            "computing_condition": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -2710,7 +2710,8 @@ explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
             "best_join_order": ["t3", "t2", "t1"]
           },
           {
-            "condition_on_constant_tables": "1"
+            "condition_on_constant_tables": "1",
+            "computing_condition": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -3023,7 +3024,8 @@ explain extended select * from t1 where a in (select pk from t10)	{
             "best_join_order": ["t1", "<subquery2>"]
           },
           {
-            "condition_on_constant_tables": "1"
+            "condition_on_constant_tables": "1",
+            "computing_condition": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -4721,7 +4723,8 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
             "best_join_order": ["t1", "<subquery2>"]
           },
           {
-            "condition_on_constant_tables": "1"
+            "condition_on_constant_tables": "1",
+            "computing_condition": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -7367,7 +7370,8 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
             ]
           },
           {
-            "condition_on_constant_tables": "1"
+            "condition_on_constant_tables": "1",
+            "computing_condition": []
           },
           {
             "attaching_conditions_to_tables": {
@@ -8598,6 +8602,50 @@ set max_session_mem_used=1024*1024*1024;
 select count(*) from information_schema.optimizer_trace;
 select * from information_schema.optimizer_trace;
 set max_session_mem_used=default;
+#
+# MDEV-22380 Assertion `name.length == strlen(name.str)' failed in Item::print_item_w_name on SELECT w/ optimizer_trace enabled
+#
+SET optimizer_trace="enabled=on";
+SELECT 'a\0' LIMIT 0;
+a\x00
+SELECT query, trace FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+query	trace
+SELECT 'a\0' LIMIT 0	{
+  "steps": [
+    {
+      "join_preparation": {
+        "select_id": 1,
+        "steps": [
+          {
+            "expanded_query": "select 'a\0' AS `a\x00` limit 0"
+          }
+        ]
+      }
+    },
+    {
+      "join_optimization": {
+        "select_id": 1,
+        "steps": []
+      }
+    },
+    {
+      "join_execution": {
+        "select_id": 1,
+        "steps": []
+      }
+    }
+  ]
+}
+SET optimizer_trace=DEFAULT;
+#
+# MDEV-27238: Assertion `got_name == named_item_expected()' failed in Json_writer::on_start_object
+#
+CREATE TABLE t1 (a INT KEY,b INT,KEY(b)) ENGINE=MEMORY;
+SET optimizer_trace=1;
+INSERT INTO t1 VALUES (0,0);
+SELECT a FROM t1 WHERE (a,b) in (SELECT @c,@d);
+a
+DROP TABLE t1;
 #
 # End of 10.4 tests
 #

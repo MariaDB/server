@@ -1,0 +1,14 @@
+source include/not_windows.inc;
+source include/not_embedded.inc;
+source include/have_debug.inc;
+--echo #
+--echo # MDEV-18353 Shutdown may miss to wait for connection thread
+--echo #
+call mtr.add_suppression('Thread .* did not exit');
+set @old_dbug=@@global.debug_dbug;
+set global debug_dbug='+d,CONNECT_wait';
+select variable_value into @cons from information_schema.global_status where variable_name='connections';
+exec $MYSQL -e 'select sleep(3600)' >/dev/null 2>&1 &;
+let $wait_condition= select variable_value>@cons from information_schema.global_status where variable_name='connections';
+source include/wait_condition.inc;
+source include/restart_mysqld.inc;

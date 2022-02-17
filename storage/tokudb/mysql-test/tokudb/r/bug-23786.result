@@ -1,0 +1,10 @@
+#
+# 10.2 Test
+#
+# MDEV-23786: Assertion `!is_set() || (m_status == DA_OK_BULK &&
+# is_bulk_op())'failed for TokuDB engine CREATE TABLE
+#
+set default_storage_engine='tokudb';
+CREATE TABLE _uppercase.t (a INT) ENGINE=TokuDB;
+ERROR 42000: Unknown database '_uppercase'
+# End of 10.2 Test

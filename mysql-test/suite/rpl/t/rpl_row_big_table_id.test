@@ -7,6 +7,7 @@
 # Verify row-based events applying when table map id value is about and greater
 # than 1 << 32.
 ##################################################################
+--source include/not_valgrind.inc
 --source include/word_size.inc
 --source include/have_debug.inc
 --source include/have_binlog_format_row.inc

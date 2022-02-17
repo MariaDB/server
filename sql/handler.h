@@ -329,7 +329,17 @@ enum enum_alter_inplace_result {
 
 /* Support native hash index */
 #define HA_CAN_HASH_KEYS        (1ULL << 58)
-#define HA_LAST_TABLE_FLAG HA_CAN_HASH_KEYS
+/*
+  Rowid's are not comparable. This is set if the rowid is unique to the
+  current open handler, like it is with federated where the rowid is a
+  pointer to a local result set buffer. The effect of having this set is
+  that the optimizer will not consirer the following optimizations for
+  the table:
+  ror scans or filtering
+*/
+#define HA_NON_COMPARABLE_ROWID (1ULL << 59)
+
+#define HA_LAST_TABLE_FLAG HA_NON_COMPARABLE_ROWID
 
 /* bits in index_flags(index_number) for what you can do with index */
 #define HA_READ_NEXT            1       /* TODO really use this flag */
@@ -454,6 +464,7 @@ enum enum_alter_inplace_result {
 #define HA_CREATE_TMP_ALTER     8U
 #define HA_LEX_CREATE_SEQUENCE  16U
 #define HA_VERSIONED_TABLE      32U
+#define HA_SKIP_KEY_SORT        64U
 
 #define HA_MAX_REC_LENGTH	65535
 
@@ -1008,6 +1019,7 @@ enum enum_schema_tables
   SCH_FILES,
   SCH_GLOBAL_STATUS,
   SCH_GLOBAL_VARIABLES,
+  SCH_KEYWORDS,
   SCH_KEY_CACHES,
   SCH_KEY_COLUMN_USAGE,
   SCH_OPEN_TABLES,
@@ -1024,6 +1036,7 @@ enum enum_schema_tables
   SCH_SESSION_STATUS,
   SCH_SESSION_VARIABLES,
   SCH_STATISTICS,
+  SCH_SQL_FUNCTIONS,
   SCH_SYSTEM_VARIABLES,
   SCH_TABLES,
   SCH_TABLESPACES,
@@ -1781,15 +1794,37 @@ struct THD_TRANS
  /*
     Define the type of statements which cannot be rolled back safely.
     Each type occupies one bit in m_unsafe_rollback_flags.
+    MODIFIED_NON_TRANS_TABLE is limited to mark only the temporary
+    non-transactional table *when* it's cached along with the transactional
+    events; the regular table is covered by the "namesake" bool var.
   */
   enum unsafe_statement_types
   {
+    MODIFIED_NON_TRANS_TABLE= 1,
     CREATED_TEMP_TABLE= 2,
     DROPPED_TEMP_TABLE= 4,
     DID_WAIT= 8,
-    DID_DDL= 0x10
+    DID_DDL= 0x10,
+    EXECUTED_TABLE_ADMIN_CMD= 0x20
   };
 
+  void mark_modified_non_trans_temp_table()
+  {
+    m_unsafe_rollback_flags|= MODIFIED_NON_TRANS_TABLE;
+  }
+  bool has_modified_non_trans_temp_table() const
+  {
+    return (m_unsafe_rollback_flags & MODIFIED_NON_TRANS_TABLE) != 0;
+  }
+  void mark_executed_table_admin_cmd()
+  {
+    DBUG_PRINT("debug", ("mark_executed_table_admin_cmd"));
+    m_unsafe_rollback_flags|= EXECUTED_TABLE_ADMIN_CMD;
+  }
+  bool trans_executed_admin_cmd()
+  {
+    return (m_unsafe_rollback_flags & EXECUTED_TABLE_ADMIN_CMD) != 0;
+  }
   void mark_created_temp_table()
   {
     DBUG_PRINT("debug", ("mark_created_temp_table"));
@@ -2092,7 +2127,7 @@ public:
 
 struct Table_scope_and_contents_source_pod_st // For trivial members
 {
-  CHARSET_INFO *table_charset;
+  CHARSET_INFO *alter_table_convert_to_charset;
   LEX_CUSTRING tabledef_version;
   LEX_CSTRING connect_string;
   LEX_CSTRING comment;
@@ -2237,7 +2272,7 @@ struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
     DBUG_ASSERT(cs);
     if (check_conflicting_charset_declarations(cs))
       return true;
-    table_charset= default_table_charset= cs;
+    alter_table_convert_to_charset= default_table_charset= cs;
     used_fields|= (HA_CREATE_USED_CHARSET | HA_CREATE_USED_DEFAULT_CHARSET);  
     return false;
   }
@@ -2467,6 +2502,9 @@ public:
 
   /** true when InnoDB should abort the alter when table is not empty */
   bool error_if_not_empty;
+
+  /** True when DDL should avoid downgrading the MDL */
+  bool mdl_exclusive_after_prepare= false;
 
   Alter_inplace_info(HA_CREATE_INFO *create_info_arg,
                      Alter_info *alter_info_arg,
@@ -3109,6 +3147,9 @@ public:
   Rowid_filter *pushed_rowid_filter;
   /* true when the pushed rowid filter has been already filled */
   bool rowid_filter_is_active;
+  /* Used for disabling/enabling pushed_rowid_filter */
+  Rowid_filter *save_pushed_rowid_filter;
+  bool save_rowid_filter_is_active;
 
   Discrete_interval auto_inc_interval_for_cur_row;
   /**
@@ -3176,6 +3217,8 @@ public:
     pushed_idx_cond_keyno(MAX_KEY),
     pushed_rowid_filter(NULL),
     rowid_filter_is_active(0),
+    save_pushed_rowid_filter(NULL),
+    save_rowid_filter_is_active(false),
     auto_inc_intervals_count(0),
     m_psi(NULL), set_top_table_fields(FALSE), top_table(0),
     top_table_field(0), top_table_fields(0),
@@ -3869,8 +3912,6 @@ public:
   /* end of the list of admin commands */
 
   virtual int indexes_are_disabled(void) {return 0;}
-  virtual char *update_table_comment(const char * comment)
-  { return (char*) comment;}
   virtual void append_create_info(String *packet) {}
   /**
     If index == MAX_KEY then a check for table is made and if index <
@@ -4220,6 +4261,27 @@ public:
  {
    pushed_rowid_filter= NULL;
    rowid_filter_is_active= false;
+ }
+
+ virtual void disable_pushed_rowid_filter()
+ {
+   DBUG_ASSERT(pushed_rowid_filter != NULL &&
+               save_pushed_rowid_filter == NULL);
+   save_pushed_rowid_filter= pushed_rowid_filter;
+   if (rowid_filter_is_active)
+     save_rowid_filter_is_active= rowid_filter_is_active;
+   pushed_rowid_filter= NULL;
+   rowid_filter_is_active= false;
+ }
+
+ virtual void enable_pushed_rowid_filter()
+ {
+   DBUG_ASSERT(save_pushed_rowid_filter != NULL &&
+               pushed_rowid_filter == NULL);
+   pushed_rowid_filter= save_pushed_rowid_filter;
+   if (save_rowid_filter_is_active)
+     rowid_filter_is_active= true;
+   save_pushed_rowid_filter= NULL;
  }
 
  virtual bool rowid_filter_push(Rowid_filter *rowid_filter) { return true; }

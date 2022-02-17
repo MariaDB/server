@@ -375,7 +375,7 @@ public:
   const char *func_name() const
   {
     return mode_insert ?
-             (mode_replace ? "json_set" : "json_insert") : "json_update";
+             (mode_replace ? "json_set" : "json_insert") : "json_replace";
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_json_insert>(thd, this); }

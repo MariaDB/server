@@ -86,7 +86,7 @@ my_off_t my_tell(File fd, myf MyFlags)
   DBUG_ENTER("my_tell");
   DBUG_PRINT("my",("fd: %d  MyFlags: %lu",fd, MyFlags));
   DBUG_ASSERT(fd >= 0);
-#if defined (HAVE_TELL) && !defined (_WIN32)
+#if defined (HAVE_TELL) && !defined (_WIN32) && !defined(_AIX)
   pos= tell(fd);
 #else
   pos= my_seek(fd, 0L, MY_SEEK_CUR,0);

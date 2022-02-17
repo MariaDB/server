@@ -62,9 +62,9 @@ SELECT st_astext(st_geomfromgeojson('{ "type": "FeatureCollection", "features": 
 st_astext(st_geomfromgeojson('{ "type": "FeatureCollection", "features": [{ "type": "Feature", "geometry": { "type": "Point", "coordinates": [102.0, 0.5] }, "properties": { "prop0": "value0" } }]}'))
 GEOMETRYCOLLECTION(POINT(102 0.5))
 SELECT ST_AsText(ST_GeomFromGeoJSON('{ "type": "Point", "coordinates": [5.3, 15.0, 4.3]}',5));
-ERROR HY000: Incorrect option value: '5' for function ST_GeometryFromJSON
+ERROR HY000: Incorrect option value: '5' for function ST_GeomFromGeoJSON
 SELECT ST_AsText(ST_GeomFromGeoJSON('{ "type": "Point", "coordinates": [5.3, 15.0, 4.3]}',1));
-ERROR 22023: Invalid GIS data provided to function ST_GeometryFromJSON.
+ERROR 22023: Invalid GIS data provided to function ST_GeomFromGeoJSON.
 SELECT ST_AsText(ST_GeomFromGeoJSON('{ "type": "Point", "coordinates": [5.3, 15.0, 4.3]}',2));
 ST_AsText(ST_GeomFromGeoJSON('{ "type": "Point", "coordinates": [5.3, 15.0, 4.3]}',2))
 POINT(5.3 15)
@@ -107,6 +107,16 @@ Warning	4076	Incorrect GeoJSON format - empty 'coordinates' array.
 SELECT ST_GEOMFROMGEOJSON("{ \"type\": \"Feature\", \"geometry\": [10, 20] }");
 ST_GEOMFROMGEOJSON("{ \"type\": \"Feature\", \"geometry\": [10, 20] }")
 NULL
+SELECT ST_ASTEXT (ST_GEOMFROMGEOJSON ('{ "type": "GEOMETRYCOLLECTION", "coordinates": [102.0, 0.0]}'));
+ST_ASTEXT (ST_GEOMFROMGEOJSON ('{ "type": "GEOMETRYCOLLECTION", "coordinates": [102.0, 0.0]}'))
+NULL
+Warnings:
+Warning	4048	Incorrect GeoJSON format specified for st_geomfromgeojson function.
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"type": ["POINT"], "coINates": [0,0] }'));
+ST_ASTEXT(ST_GEOMFROMGEOJSON('{"type": ["POINT"], "coINates": [0,0] }'))
+NULL
+Warnings:
+Warning	4048	Incorrect GeoJSON format specified for st_geomfromgeojson function.
 #
 # End of 10.2 tests
 #

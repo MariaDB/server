@@ -5,6 +5,8 @@
 
 --source include/have_innodb.inc
 --source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
 
 # Following test is for Bug 14668777 - ASSERT ON IB_VECTOR_SIZE(
 # TABLE->FTS->INDEXES, ALTER TABLE
@@ -52,3 +54,44 @@ INSERT INTO t1 VALUES(1, "mariadb");
 ALTER TABLE t1 FORCE;
 # Cleanup
 DROP TABLE t2, t1;
+
+--echo #
+--echo # MDEV-25200 Index count mismatch due to aborted FULLTEXT INDEX
+--echo #
+CREATE TABLE t1(a INT, b TEXT, c TEXT, FULLTEXT INDEX(b)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, "test", "test_1");
+connect(con1,localhost,root,,test);
+SET DEBUG_DBUG="+d,innodb_OOM_inplace_alter";
+SET DEBUG_SYNC='innodb_commit_inplace_alter_table_enter SIGNAL s2 WAIT_FOR g2';
+send ALTER TABLE t1 ADD FULLTEXT(c);
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR s2';
+START TRANSACTION;
+SELECT * FROM t1;
+SET DEBUG_SYNC='now SIGNAL g2';
+connection con1;
+--error ER_OUT_OF_RESOURCES
+reap;
+disconnect con1;
+connection default;
+SET DEBUG_SYNC=RESET;
+# Exploit MDEV-17468 to force the table definition to be reloaded
+ALTER TABLE t1 ADD bl INT AS (LENGTH(b)) VIRTUAL;
+CHECK TABLE t1;
+DROP TABLE t1;
+--source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # MDEV-25663 Double free of transaction during TRUNCATE
+--echo #
+call mtr.add_suppression("InnoDB: \\(Too many concurrent transactions\\)");
+SET DEBUG_DBUG='-d,ib_create_table_fail_too_many_trx';
+
+CREATE TABLE t1 (b CHAR(12), FULLTEXT KEY(b)) engine=InnoDB;
+SET @save_dbug= @@debug_dbug;
+SET debug_dbug='+d,ib_create_table_fail_too_many_trx';
+--error ER_GET_ERRNO
+TRUNCATE t1;
+SET debug_dbug=@save_dbug;
+DROP TABLE t1;
+--echo # End of 10.3 tests

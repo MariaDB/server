@@ -1,7 +1,7 @@
 #ifndef TABLE_INCLUDED
 #define TABLE_INCLUDED
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1193,9 +1193,6 @@ struct st_cond_statistic;
 #define      CHECK_ROW_FOR_NULLS_TO_REJECT   (1 << 0)
 #define      REJECT_ROW_DUE_TO_NULL_FIELDS   (1 << 1)
 
-/* Bitmap of table's fields */
-typedef Bitmap<MAX_FIELDS> Field_map;
-
 class SplM_opt_info;
 
 struct vers_select_conds_t;
@@ -1513,8 +1510,9 @@ public:
   MY_BITMAP *prepare_for_keyread(uint index, MY_BITMAP *map);
   MY_BITMAP *prepare_for_keyread(uint index)
   { return prepare_for_keyread(index, &tmp_set); }
-  void mark_columns_used_by_index(uint index, MY_BITMAP *map);
-  void mark_columns_used_by_index_no_reset(uint index, MY_BITMAP *map);
+  void mark_index_columns(uint index, MY_BITMAP *bitmap);
+  void mark_index_columns_no_reset(uint index, MY_BITMAP *bitmap);
+  void mark_index_columns_for_read(uint index);
   void restore_column_maps_after_keyread(MY_BITMAP *backup);
   void mark_auto_increment_column(void);
   void mark_columns_needed_for_update(void);
@@ -1723,7 +1721,9 @@ public:
   bool vers_check_update(List<Item> &items);
 
   int delete_row();
+  /* Used in majority of DML (called from fill_record()) */
   void vers_update_fields();
+  /* Used in DELETE, DUP REPLACE and insert history row */
   void vers_update_end();
   void find_constraint_correlated_indexes();
   void clone_handler_for_update();
@@ -2139,6 +2139,29 @@ struct vers_select_conds_t
 
 struct LEX;
 class Index_hint;
+
+/*
+  @struct TABLE_CHAIN
+  @brief Subchain of global chain of table references
+
+  The structure contains a pointer to the address of the next_global
+  pointer to the first TABLE_LIST objectof the subchain and the address
+  of the next_global pointer to the element right after the last
+  TABLE_LIST object of the subchain.  For an empty subchain both pointers
+  have the same value.
+*/
+
+struct TABLE_CHAIN
+{
+  TABLE_CHAIN() {}
+
+  TABLE_LIST **start_pos;
+  TABLE_LIST ** end_pos;
+
+  void set_start_pos(TABLE_LIST **pos) { start_pos= pos; }
+  void set_end_pos(TABLE_LIST **pos) { end_pos= pos; }
+};
+
 struct TABLE_LIST
 {
   TABLE_LIST() {}                          /* Remove gcc warning */
@@ -2473,6 +2496,20 @@ struct TABLE_LIST
   /* call back function for asking handler about caching in query cache */
   qc_engine_callback callback_func;
   thr_lock_type lock_type;
+
+  /*
+    Two fields below are set during parsing this table reference in the cases
+    when the table reference can be potentially a reference to a CTE table.
+    In this cases the fact that the reference is a reference to a CTE or not
+    will be ascertained at the very end of parsing of the query when referencies
+    to CTE are resolved. For references to CTE and to derived tables no mdl
+    requests are needed while for other table references they are. If a request
+    is possibly postponed the info that allows to issue this request must be
+    saved in 'mdl_type' and 'table_options'.
+  */
+  enum_mdl_type mdl_type;
+  ulong         table_options;
+
   uint		outer_join;		/* Which join type */
   uint		shared;			/* Used in multi-upd */
   bool          updatable;		/* VIEW/TABLE can be updated now */
@@ -2617,7 +2654,7 @@ struct TABLE_LIST
   List<String> *partition_names;
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
 
-  void calc_md5(const char *buffer);
+  void calc_md5(char *buffer);
   int view_check_option(THD *thd, bool ignore_failure);
   bool create_field_translation(THD *thd);
   bool setup_underlying(THD *thd);

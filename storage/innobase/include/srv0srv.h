@@ -362,10 +362,6 @@ extern my_bool	srv_load_corrupted;
 
 /** Requested size in bytes */
 extern ulint		srv_buf_pool_size;
-/** Minimum pool size in bytes */
-extern const ulint	srv_buf_pool_min_size;
-/** Default pool size in bytes */
-extern const ulint	srv_buf_pool_def_size;
 /** Requested buffer pool chunk size. Each buffer pool instance consists
 of one or more chunks. */
 extern ulong		srv_buf_pool_chunk_unit;
@@ -591,9 +587,6 @@ extern struct export_var_t export_vars;
 
 /** Global counters */
 extern srv_stats_t	srv_stats;
-
-/** Simulate compression failures. */
-extern uint srv_simulate_comp_failures;
 
 /** Fatal semaphore wait threshold = maximum number of seconds
 that semaphore times out in InnoDB */
@@ -1100,6 +1093,16 @@ struct srv_slot_t{
 						to do */
 	que_thr_t*	thr;			/*!< suspended query thread
 						(only used for user threads) */
+#ifdef UNIV_DEBUG
+	struct debug_sync_t {
+		UT_LIST_NODE_T(debug_sync_t)
+			debug_sync_list;
+		char str[1];
+	};
+	UT_LIST_BASE_NODE_T(debug_sync_t)
+		debug_sync;
+	rw_lock_t debug_sync_lock;
+#endif
 };
 
 #ifdef UNIV_DEBUG

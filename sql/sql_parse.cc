@@ -1641,7 +1641,9 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   if (unlikely(thd->security_ctx->password_expired &&
                command != COM_QUERY &&
                command != COM_PING &&
-               command != COM_QUIT))
+               command != COM_QUIT &&
+               command != COM_STMT_PREPARE &&
+               command != COM_STMT_EXECUTE))
   {
     my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
     goto dispatch_end;
@@ -2230,15 +2232,13 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     size_t length=
 #endif
     my_snprintf(buff, buff_len - 1,
-                        "Uptime: %lu  Threads: %d  Questions: %lu  "
+                        "Uptime: %lu  Threads: %u  Questions: %lu  "
                         "Slow queries: %lu  Opens: %lu  Flush tables: %lld  "
                         "Open tables: %u  Queries per second avg: %u.%03u",
-                        uptime,
-                        (int) thread_count, (ulong) thd->query_id,
+                        uptime, THD_count::value(), (ulong) thd->query_id,
                         current_global_status_var->long_query_count,
                         current_global_status_var->opened_tables,
-                        tdc_refresh_version(),
-                        tc_records(),
+                        tdc_refresh_version(), tc_records(),
                         (uint) (queries_per_second1000 / 1000),
                         (uint) (queries_per_second1000 % 1000));
 #ifdef EMBEDDED_LIBRARY
@@ -3490,7 +3490,10 @@ mysql_execute_command(THD *thd)
               first_table->for_insert_data);
 
   if (thd->security_ctx->password_expired &&
-      lex->sql_command != SQLCOM_SET_OPTION)
+      lex->sql_command != SQLCOM_SET_OPTION &&
+      lex->sql_command != SQLCOM_PREPARE &&
+      lex->sql_command != SQLCOM_EXECUTE &&
+      lex->sql_command != SQLCOM_DEALLOCATE_PREPARE)
   {
     my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
     DBUG_RETURN(1);
@@ -3548,9 +3551,6 @@ mysql_execute_command(THD *thd)
     if (all_tables)
       thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
   }
-
-  if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
-    DBUG_RETURN(1);
 
 #ifdef HAVE_REPLICATION
   if (unlikely(thd->slave_thread))
@@ -3673,6 +3673,11 @@ mysql_execute_command(THD *thd)
   Json_writer_object trace_command(thd);
   Json_writer_array trace_command_steps(thd, "steps");
 
+  /* store old value of binlog format */
+  enum_binlog_format orig_binlog_format,orig_current_stmt_binlog_format;
+
+  thd->get_binlog_format(&orig_binlog_format,
+                         &orig_current_stmt_binlog_format);
 #ifdef WITH_WSREP
   if (WSREP(thd))
   {
@@ -3723,12 +3728,6 @@ mysql_execute_command(THD *thd)
                                           CF_REPORT_PROGRESS);
 
   DBUG_ASSERT(thd->transaction.stmt.modified_non_trans_table == FALSE);
-
-  /* store old value of binlog format */
-  enum_binlog_format orig_binlog_format,orig_current_stmt_binlog_format;
-
-  thd->get_binlog_format(&orig_binlog_format,
-                         &orig_current_stmt_binlog_format);
 
   /*
     Assign system variables with values specified by the clause
@@ -3782,7 +3781,8 @@ mysql_execute_command(THD *thd)
     thd->transaction.stmt.mark_trans_did_ddl();
 #ifdef WITH_WSREP
     /* Clean up the previous transaction on implicit commit */
-    if (wsrep_thd_is_local(thd) && wsrep_after_statement(thd))
+    if (WSREP_NNULL(thd) && wsrep_thd_is_local(thd) &&
+        wsrep_after_statement(thd))
     {
       goto error;
     }
@@ -3856,7 +3856,7 @@ mysql_execute_command(THD *thd)
     Do not start transaction for stored procedures, it will be handled
     internally in SP processing.
   */
-  if (WSREP(thd)                          &&
+  if (WSREP_NNULL(thd)                    &&
       wsrep_thd_is_local(thd)             &&
       lex->sql_command != SQLCOM_BEGIN    &&
       lex->sql_command != SQLCOM_CALL     &&
@@ -5750,6 +5750,11 @@ mysql_execute_command(THD *thd)
     /* Begin transaction with the same isolation level. */
     if (tx_chain)
     {
+#ifdef WITH_WSREP
+      /* If there are pending changes after rollback we should clear them */
+      if (wsrep_on(thd) && wsrep_has_changes(thd))
+        wsrep_after_statement(thd);
+#endif
       if (trans_begin(thd))
         goto error;
     }
@@ -7552,9 +7557,14 @@ void THD::reset_for_next_command(bool do_clear_error)
 
   save_prep_leaf_list= false;
 
-  DBUG_PRINT("debug",
-             ("is_current_stmt_binlog_format_row(): %d",
-              is_current_stmt_binlog_format_row()));
+#ifdef WITH_WSREP
+#if !defined(DBUG_OFF)
+  if (mysql_bin_log.is_open())
+#endif
+#endif
+    DBUG_PRINT("debug",
+               ("is_current_stmt_binlog_format_row(): %d",
+                 is_current_stmt_binlog_format_row()));
 
   DBUG_VOID_RETURN;
 }
@@ -7835,7 +7845,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                       DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
                     });
         WSREP_DEBUG("wsrep retrying AC query: %lu  %s",
-                    thd->wsrep_retry_counter, WSREP_QUERY(thd));
+                    thd->wsrep_retry_counter, wsrep_thd_query(thd));
         wsrep_prepare_for_autocommit_retry(thd, rawbuf, length, parser_state);
         if (thd->lex->explain)
           delete_explain_query(thd->lex);
@@ -7849,7 +7859,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                     is_autocommit,
                     thd->wsrep_retry_counter,
                     thd->variables.wsrep_retry_autocommit,
-                    WSREP_QUERY(thd));
+                    wsrep_thd_query(thd));
         my_error(ER_LOCK_DEADLOCK, MYF(0));
         thd->reset_kill_query();
         thd->wsrep_retry_counter= 0;             //  reset
@@ -8177,7 +8187,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     ptr->is_fqtn= TRUE;
     ptr->db= table->db;
   }
-  else if (lex->copy_db_to(&ptr->db))
+  else if (!lex->with_cte_resolution && lex->copy_db_to(&ptr->db))
     DBUG_RETURN(0);
   else
     ptr->is_fqtn= FALSE;
@@ -8192,9 +8202,11 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     if (ptr->db.length && ptr->db.str != any_db)
       ptr->db.length= my_casedn_str(files_charset_info, (char*) ptr->db.str);
   }
-      
+
   ptr->table_name= table->table;
-  ptr->lock_type=   lock_type;
+  ptr->lock_type= lock_type;
+  ptr->mdl_type= mdl_type;
+  ptr->table_options= table_options;
   ptr->updating=    MY_TEST(table_options & TL_OPTION_UPDATING);
   /* TODO: remove TL_OPTION_FORCE_INDEX as it looks like it's not used */
   ptr->force_index= MY_TEST(table_options & TL_OPTION_FORCE_INDEX);
@@ -8876,8 +8888,10 @@ void st_select_lex::set_lock_for_tables(thr_lock_type lock_type, bool for_update
   {
     tables->lock_type= lock_type;
     tables->updating=  for_update;
-    tables->mdl_request.set_type((lock_type >= TL_WRITE_ALLOW_WRITE) ?
-                                 MDL_SHARED_WRITE : MDL_SHARED_READ);
+
+    if (tables->db.length)
+      tables->mdl_request.set_type((lock_type >= TL_WRITE_ALLOW_WRITE) ?
+                                   MDL_SHARED_WRITE : MDL_SHARED_READ);
   }
   DBUG_VOID_RETURN;
 }
@@ -8983,7 +8997,13 @@ push_new_name_resolution_context(THD *thd,
     left_op->first_leaf_for_name_resolution();
   on_context->last_name_resolution_table=
     right_op->last_leaf_for_name_resolution();
-  return thd->lex->push_context(on_context);
+  LEX *lex= thd->lex;
+  on_context->select_lex = lex->current_select;
+  st_select_lex *curr_select= lex->pop_select();
+  st_select_lex *outer_sel= lex->select_stack_head();
+  lex->push_select(curr_select);
+  on_context->outer_context = outer_sel ? &outer_sel->context : 0;
+  return lex->push_context(on_context);
 }
 
 
@@ -9124,6 +9144,7 @@ THD *find_thread_by_id(longlong id, bool query_id)
   return arg.thd;
 }
 
+
 /**
   kill one thread.
 
@@ -9167,7 +9188,8 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
       faster and do a harder kill than KILL_SYSTEM_THREAD;
     */
 
-    mysql_mutex_lock(&tmp->LOCK_thd_data); // for various wsrep* checks below
+    mysql_mutex_lock(&tmp->LOCK_thd_data); // Lock from concurrent usage
+
 #ifdef WITH_WSREP
     if (((thd->security_ctx->master_access & SUPER_ACL) ||
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
@@ -9182,23 +9204,23 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
       if (tmp->wsrep_aborter && tmp->wsrep_aborter != thd->thread_id)
       {
         /* victim is in hit list already, bail out */
-	WSREP_DEBUG("victim has wsrep aborter: %lu, skipping awake()",
-                    tmp->wsrep_aborter);
+	WSREP_DEBUG("victim %llu has wsrep aborter: %lu, skipping awake()",
+		    id, tmp->wsrep_aborter);
         error= 0;
       }
       else
 #endif /* WITH_WSREP */
       {
-        WSREP_DEBUG("kill_one_thread %llu, victim: %llu wsrep_aborter %llu by signal %d",
-                    thd->thread_id, id, tmp->wsrep_aborter, kill_signal);
+        WSREP_DEBUG("kill_one_thread victim: %llu wsrep_aborter %lu by signal %d",
+                    id, tmp->wsrep_aborter, kill_signal);
         tmp->awake_no_mutex(kill_signal);
-        WSREP_DEBUG("victim: %llu taken care of", id);
         error= 0;
       }
     }
     else
       error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
                                         ER_KILL_DENIED_ERROR);
+
     mysql_mutex_unlock(&tmp->LOCK_thd_data);
   }
   mysql_mutex_unlock(&tmp->LOCK_thd_kill);
@@ -9312,6 +9334,18 @@ static
 void sql_kill(THD *thd, longlong id, killed_state state, killed_type type)
 {
   uint error;
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    WSREP_DEBUG("sql_kill called");
+    if (thd->wsrep_applier)
+    {
+      WSREP_DEBUG("KILL in applying, bailing out here");
+      return;
+    }
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+  }
+#endif /* WITH_WSREP */
   if (likely(!(error= kill_one_thread(thd, id, state, type))))
   {
     if (!thd->killed)
@@ -9321,6 +9355,13 @@ void sql_kill(THD *thd, longlong id, killed_state state, killed_type type)
   }
   else
     my_error(error, MYF(0), id);
+#ifdef WITH_WSREP
+  return;
+ wsrep_error_label:
+  error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
+                                    ER_KILL_DENIED_ERROR);
+  my_error(error, MYF(0), id);
+#endif /* WITH_WSREP */
 }
 
 
@@ -9329,6 +9370,18 @@ void sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
 {
   uint error;
   ha_rows rows;
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    WSREP_DEBUG("sql_kill_user called");
+    if (thd->wsrep_applier)
+    {
+      WSREP_DEBUG("KILL in applying, bailing out here");
+      return;
+    }
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+  }
+#endif /* WITH_WSREP */
   if (likely(!(error= kill_threads_for_user(thd, user, state, &rows))))
     my_ok(thd, rows);
   else
@@ -9339,6 +9392,11 @@ void sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
     */
     my_error(error, MYF(0), user->host.str, user->user.str);
   }
+#ifdef WITH_WSREP
+  return;
+ wsrep_error_label:
+  my_error(ER_CANNOT_USER, MYF(0), user ? user->user.str : "NULL");
+#endif /* WITH_WSREP */
 }
 
 

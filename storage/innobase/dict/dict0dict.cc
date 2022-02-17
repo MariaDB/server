@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -270,7 +270,7 @@ dict_table_try_drop_aborted(
 	    && !UT_LIST_GET_FIRST(table->locks)) {
 		/* Silence a debug assertion in row_merge_drop_indexes(). */
 		ut_d(table->acquire());
-		row_merge_drop_indexes(trx, table, TRUE);
+		row_merge_drop_indexes(trx, table, true);
 		ut_d(table->release());
 		ut_ad(table->get_ref_count() == ref_count);
 		trx_commit_for_mysql(trx);
@@ -1127,6 +1127,7 @@ dict_index_t *dict_index_t::clone_if_needed()
     return this;
   dict_index_t *prev= UT_LIST_GET_PREV(indexes, this);
 
+  table->autoinc_mutex.lock();
   UT_LIST_REMOVE(table->indexes, this);
   UT_LIST_ADD_LAST(table->freed_indexes, this);
   dict_index_t *index= clone();
@@ -1135,6 +1136,7 @@ dict_index_t *dict_index_t::clone_if_needed()
     UT_LIST_INSERT_AFTER(table->indexes, prev, index);
   else
     UT_LIST_ADD_FIRST(table->indexes, index);
+  table->autoinc_mutex.unlock();
   return index;
 }
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -1777,26 +1779,32 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 		UT_DELETE(table->vc_templ);
 	}
 
-	table->autoinc_mutex.~mutex();
-
 	if (keep) {
+		table->autoinc_mutex.~mutex();
 		return;
 	}
 
 #ifdef BTR_CUR_HASH_ADAPT
-	if (UNIV_UNLIKELY(UT_LIST_GET_LEN(table->freed_indexes) != 0)) {
-		if (table->fts) {
-			fts_optimize_remove_table(table);
-			fts_free(table);
-			table->fts = NULL;
-		}
+	if (table->fts) {
+		fts_optimize_remove_table(table);
+		fts_free(table);
+		table->fts = NULL;
+	}
 
-		table->vc_templ = NULL;
-		table->id = 0;
+	table->autoinc_mutex.lock();
+
+	ulint freed = UT_LIST_GET_LEN(table->freed_indexes);
+
+	table->vc_templ = NULL;
+	table->id = 0;
+	table->autoinc_mutex.unlock();
+
+	if (UNIV_UNLIKELY(freed != 0)) {
 		return;
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
+	table->autoinc_mutex.~mutex();
 	dict_mem_table_free(table);
 }
 
@@ -1908,7 +1916,8 @@ dict_index_add_to_cache(
 			/* Set the max_prefix value based on the
 			prefix_len. */
 			ut_ad(field->col->is_binary()
-			      || field->prefix_len % field->col->mbmaxlen == 0);
+			      || field->prefix_len % field->col->mbmaxlen == 0
+			      || field->prefix_len % 4 == 0);
 			field->col->max_prefix = field->prefix_len;
 		}
 		ut_ad(field->col->ord_part == 1);
@@ -2015,8 +2024,10 @@ dict_index_remove_from_cache_low(
 	zero. See also: dict_table_can_be_evicted() */
 
 	if (index->n_ahi_pages()) {
+		table->autoinc_mutex.lock();
 		index->set_freed();
 		UT_LIST_ADD_LAST(table->freed_indexes, index);
+		table->autoinc_mutex.unlock();
 		return;
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -2318,8 +2329,8 @@ dict_index_build_internal_clust(
 	ulint		i;
 	ibool*		indexed;
 
-	ut_ad(dict_index_is_clust(index));
-	ut_ad(!dict_index_is_ibuf(index));
+	ut_ad(index->is_primary());
+	ut_ad(!index->has_virtual());
 
 	ut_ad(mutex_own(&dict_sys.mutex));
 
@@ -4849,7 +4860,9 @@ dict_index_build_node_ptr(
 
 	dtype_set(dfield_get_type(field), DATA_SYS_CHILD, DATA_NOT_NULL, 4);
 
-	rec_copy_prefix_to_dtuple(tuple, rec, index, !level, n_unique, heap);
+	rec_copy_prefix_to_dtuple(tuple, rec, index,
+				  level ? 0 : index->n_core_fields,
+				  n_unique, heap);
 	dtuple_set_info_bits(tuple, dtuple_get_info_bits(tuple)
 			     | REC_STATUS_NODE_PTR);
 
@@ -4873,11 +4886,14 @@ dict_index_build_data_tuple(
 	ulint			n_fields,
 	mem_heap_t*		heap)
 {
+	ut_ad(!index->is_clust());
+
 	dtuple_t* tuple = dtuple_create(heap, n_fields);
 
 	dict_index_copy_types(tuple, index, n_fields);
 
-	rec_copy_prefix_to_dtuple(tuple, rec, index, leaf, n_fields, heap);
+	rec_copy_prefix_to_dtuple(tuple, rec, index,
+				  leaf ? n_fields : 0, n_fields, heap);
 
 	ut_ad(dtuple_check_typed(tuple));
 
@@ -5234,7 +5250,7 @@ dict_set_corrupted(
 
 	/* If this is read only mode, do not update SYS_INDEXES, just
 	mark it as corrupted in memory */
-	if (srv_read_only_mode) {
+	if (high_level_read_only) {
 		index->type |= DICT_CORRUPT;
 		goto func_exit;
 	}
@@ -6307,4 +6323,10 @@ dict_sys_get_size()
 		+ 200; /* arbitrary, covering names and overhead */
 
 	return size;
+}
+
+bool dict_table_t::is_stats_table() const
+{
+  return !strcmp(name.m_name, TABLE_STATS_NAME) ||
+         !strcmp(name.m_name, INDEX_STATS_NAME);
 }

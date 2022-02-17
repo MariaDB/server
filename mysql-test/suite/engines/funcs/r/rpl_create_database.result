@@ -1,13 +1,11 @@
-stop slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-reset master;
-reset slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-start slave;
+include/master-slave.inc
+[connection master]
 DROP DATABASE IF EXISTS mysqltest_prometheus;
 DROP DATABASE IF EXISTS mysqltest_sisyfos;
 DROP DATABASE IF EXISTS mysqltest_bob;
+connection slave;
 DROP DATABASE IF EXISTS mysqltest_bob;
+connection master;
 CREATE DATABASE mysqltest_prometheus;
 CREATE DATABASE mysqltest_sisyfos;
 CREATE DATABASE mysqltest_bob;
@@ -20,25 +18,19 @@ INSERT INTO t2 VALUES(2);
 ALTER DATABASE mysqltest_sisyfos CHARACTER SET latin1;
 USE mysqltest_sisyfos;
 ALTER DATABASE mysqltest_bob CHARACTER SET latin1;
-SHOW DATABASES;
-Database
-information_schema
-mtr
+SHOW DATABASES LIKE 'mysql%';
+Database (mysql%)
 mysql
 mysqltest_bob
 mysqltest_prometheus
 mysqltest_sisyfos
-performance_schema
-test
-SHOW DATABASES;
-Database
-information_schema
-mtr
+connection slave;
+SHOW DATABASES LIKE 'mysql%';
+Database (mysql%)
 mysql
 mysqltest_prometheus
 mysqltest_sisyfos
-performance_schema
-test
+connection master;
 DROP DATABASE IF EXISTS mysqltest_sisyfos;
 USE mysqltest_prometheus;
 CREATE TABLE t1 (a INT);
@@ -46,25 +38,18 @@ INSERT INTO t1 VALUES (1);
 CREATE DATABASE mysqltest_sisyfos;
 USE mysqltest_sisyfos;
 CREATE TABLE t2 (a INT);
-SHOW DATABASES;
-Database
-information_schema
-mtr
+SHOW DATABASES LIKE 'mysql%';
+Database (mysql%)
 mysql
 mysqltest_bob
 mysqltest_prometheus
 mysqltest_sisyfos
-performance_schema
-test
-SHOW DATABASES;
-Database
-information_schema
-mtr
+connection slave;
+SHOW DATABASES LIKE 'mysql%';
+Database (mysql%)
 mysql
 mysqltest_prometheus
 mysqltest_sisyfos
-performance_schema
-test
 USE mysqltest_prometheus;
 SHOW TABLES;
 Tables_in_mysqltest_prometheus
@@ -73,6 +58,9 @@ USE mysqltest_sisyfos;
 SHOW TABLES;
 Tables_in_mysqltest_sisyfos
 t2
+connection master;
 DROP DATABASE IF EXISTS mysqltest_prometheus;
 DROP DATABASE IF EXISTS mysqltest_sisyfos;
 DROP DATABASE IF EXISTS mysqltest_bob;
+connection slave;
+include/rpl_end.inc

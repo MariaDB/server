@@ -20,8 +20,7 @@
 # along with this program; if not, write to the Free Software Foundation,
 # 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA
 
-INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}
-                    ${CMAKE_SOURCE_DIR}/include
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/sql
                     ${CMAKE_BINARY_DIR}/sql
                     ${PCRE_INCLUDES}
@@ -188,9 +187,10 @@ table_session_connect_attrs.cc
 table_session_account_connect_attrs.cc
 )
 
-MYSQL_ADD_PLUGIN(perfschema ${PERFSCHEMA_SOURCES} STORAGE_ENGINE DEFAULT STATIC_ONLY)
+MYSQL_ADD_PLUGIN(perfschema ${PERFSCHEMA_SOURCES} STORAGE_ENGINE DEFAULT
+  STATIC_ONLY DEPENDS GenServerSource)
+
 IF (TARGET perfschema)
-  ADD_DEPENDENCIES(perfschema GenServerSource)
   IF(WITH_UNIT_TESTS)
     ADD_SUBDIRECTORY(unittest)
   ENDIF(WITH_UNIT_TESTS)

@@ -11,6 +11,8 @@ call mtr.add_suppression("WSREP: ALTER TABLE isolation failure");
 --connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4
 
 --connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
 
 CREATE TABLE t1(
  id bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -448,4 +450,8 @@ reap;
 --connection node_1
 DROP TABLE t1;
 DROP PROCEDURE p1;
+
+--disconnect node_3
+--disconnect node_4
+
 

@@ -1,4 +1,4 @@
-/* Copyright (C) 2015-2019 Codership Oy <info@codership.com>
+/* Copyright (C) 2015-2021 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -54,7 +54,7 @@ static const std::string create_cluster_table_str=
   "view_seqno BIGINT NOT NULL,"
   "protocol_version INT NOT NULL,"
   "capabilities INT NOT NULL"
-  ") ENGINE=InnoDB";
+  ") ENGINE=InnoDB STATS_PERSISTENT=0";
 
 static const std::string create_members_table_str=
   "CREATE TABLE IF NOT EXISTS " + wsrep_schema_str + "." + members_table_str +
@@ -63,7 +63,7 @@ static const std::string create_members_table_str=
   "cluster_uuid CHAR(36) NOT NULL,"
   "node_name CHAR(32) NOT NULL,"
   "node_incoming_address VARCHAR(256) NOT NULL"
-  ") ENGINE=InnoDB";
+  ") ENGINE=InnoDB STATS_PERSISTENT=0";
 
 #ifdef WSREP_SCHEMA_MEMBERS_HISTORY
 static const std::string cluster_member_history_table_str= "wsrep_cluster_member_history";
@@ -76,7 +76,7 @@ static const std::string create_members_history_table_str=
   "last_view_seqno BIGINT NOT NULL,"
   "node_name CHAR(32) NOT NULL,"
   "node_incoming_address VARCHAR(256) NOT NULL"
-  ") ENGINE=InnoDB";
+  ") ENGINE=InnoDB STATS_PERSISTENT=0";
 #endif /* WSREP_SCHEMA_MEMBERS_HISTORY */
 
 static const std::string create_frag_table_str=
@@ -88,13 +88,33 @@ static const std::string create_frag_table_str=
   "flags INT NOT NULL, "
   "frag LONGBLOB NOT NULL, "
   "PRIMARY KEY (node_uuid, trx_id, seqno)"
-  ") ENGINE=InnoDB";
+  ") ENGINE=InnoDB STATS_PERSISTENT=0";
 
 static const std::string delete_from_cluster_table=
   "DELETE FROM " + wsrep_schema_str + "." + cluster_table_str;
 
 static const std::string delete_from_members_table=
   "DELETE FROM " + wsrep_schema_str + "." + members_table_str;
+
+/* For rolling upgrade we need to use ALTER. We do not want
+persistent statistics to be collected from these tables. */
+static const std::string alter_cluster_table=
+  "ALTER TABLE " + wsrep_schema_str + "." + cluster_table_str +
+  " STATS_PERSISTENT=0";
+
+static const std::string alter_members_table=
+  "ALTER TABLE " + wsrep_schema_str + "." + members_table_str +
+  " STATS_PERSISTENT=0";
+
+#ifdef WSREP_SCHEMA_MEMBERS_HISTORY
+static const std::string alter_members_history_table=
+  "ALTER TABLE " + wsrep_schema_str + "." + members_history_table_str +
+  " STATS_PERSISTENT=0";
+#endif
+
+static const std::string alter_frag_table=
+  "ALTER TABLE " + wsrep_schema_str + "." + sr_table_str +
+  " STATS_PERSISTENT=0";
 
 namespace Wsrep_schema_impl
 {
@@ -157,6 +177,24 @@ public:
 private:
   THD *m_orig_thd;
   THD *m_cur_thd;
+};
+
+class sql_safe_updates
+{
+public:
+  sql_safe_updates(THD* thd)
+    : m_thd(thd)
+    , m_option_bits(thd->variables.option_bits)
+  {
+    thd->variables.option_bits&= ~OPTION_SAFE_UPDATES;
+  }
+  ~sql_safe_updates()
+  {
+    m_thd->variables.option_bits= m_option_bits;
+  }
+private:
+  THD* m_thd;
+  ulonglong m_option_bits;
 };
 
 static int execute_SQL(THD* thd, const char* sql, uint length) {
@@ -233,13 +271,7 @@ static int open_table(THD* thd,
   thd->lex->query_tables_own_last= 0;
 
   if (!open_n_lock_single_table(thd, &tables, tables.lock_type, flags)) {
-    if (thd->is_error()) {
-      WSREP_WARN("Can't lock table %s.%s : %d (%s)",
-                 schema_name->str, table_name->str,
-                 thd->get_stmt_da()->sql_errno(), thd->get_stmt_da()->message());
-    }
     close_thread_tables(thd);
-    my_error(ER_NO_SUCH_TABLE, MYF(0), schema_name->str, table_name->str);
     DBUG_RETURN(1);
   }
 
@@ -255,8 +287,15 @@ static int open_for_write(THD* thd, const char* table_name, TABLE** table) {
   LEX_CSTRING table_str= { table_name, strlen(table_name) };
   if (Wsrep_schema_impl::open_table(thd, &schema_str, &table_str, TL_WRITE,
                                     table)) {
-    WSREP_ERROR("Failed to open table %s.%s for writing",
-                schema_str.str, table_name);
+    // No need to log an error if the query was bf aborted,
+    // thd client will get ER_LOCK_DEADLOCK in the end.
+    const bool interrupted= thd->killed ||
+      (thd->is_error() &&
+       (thd->get_stmt_da()->sql_errno() == ER_QUERY_INTERRUPTED));
+    if (!interrupted) {
+      WSREP_ERROR("Failed to open table %s.%s for writing",
+                  schema_str.str, table_name);
+    }
     return 1;
   }
   empty_record(*table);
@@ -559,9 +598,11 @@ static int init_for_index_scan(TABLE* table, const uchar* key,
  */
 static int end_index_scan(TABLE* table) {
   int error;
-  if ((error= table->file->ha_index_end())) {
-    WSREP_ERROR("Failed to end scan: %d", error);
-    return 1;
+  if (table->file->inited) {
+    if ((error= table->file->ha_index_end())) {
+      WSREP_ERROR("Failed to end scan: %d", error);
+      return 1;
+    }
   }
   return 0;
 }
@@ -603,13 +644,15 @@ static void wsrep_init_thd_for_schema(THD *thd)
 
   thd->prior_thr_create_utime= thd->start_utime= thd->thr_create_utime;
 
-  /* */
-  thd->variables.wsrep_on    = 0;
+  /* No Galera replication */
+  thd->variables.wsrep_on= 0;
   /* No binlogging */
-  thd->variables.sql_log_bin = 0;
-  thd->variables.option_bits &= ~OPTION_BIN_LOG;
+  thd->variables.sql_log_bin= 0;
+  thd->variables.option_bits&= ~OPTION_BIN_LOG;
+  /* No safe updates */
+  thd->variables.option_bits&= ~OPTION_SAFE_UPDATES;
   /* No general log */
-  thd->variables.option_bits |= OPTION_LOG_OFF;
+  thd->variables.option_bits|= OPTION_LOG_OFF;
   /* Read committed isolation to avoid gap locking */
   thd->variables.tx_isolation= ISO_READ_COMMITTED;
   wsrep_assign_from_threadvars(thd);
@@ -636,13 +679,27 @@ int Wsrep_schema::init()
       Wsrep_schema_impl::execute_SQL(thd,
                                      create_members_history_table_str.c_str(),
                                      create_members_history_table_str.size()) ||
+      Wsrep_schema_impl::execute_SQL(thd,
+                                     alter_members_history_table.c_str(),
+                                     alter_members_history_table.size()) ||
 #endif /* WSREP_SCHEMA_MEMBERS_HISTORY */
       Wsrep_schema_impl::execute_SQL(thd,
                                      create_frag_table_str.c_str(),
-                                     create_frag_table_str.size())) {
+                                     create_frag_table_str.size()) ||
+      Wsrep_schema_impl::execute_SQL(thd,
+                                     alter_cluster_table.c_str(),
+                                     alter_cluster_table.size()) ||
+      Wsrep_schema_impl::execute_SQL(thd,
+                                     alter_members_table.c_str(),
+                                     alter_members_table.size()) ||
+      Wsrep_schema_impl::execute_SQL(thd,
+                                     alter_frag_table.c_str(),
+	                             alter_frag_table.size()))
+  {
     ret= 1;
   }
-  else {
+  else
+  {
     ret= 0;
   }
 
@@ -664,6 +721,7 @@ int Wsrep_schema::store_view(THD* thd, const Wsrep_view& view)
 
   Wsrep_schema_impl::wsrep_off wsrep_off(thd);
   Wsrep_schema_impl::binlog_off binlog_off(thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
 
   /*
     Clean up cluster table and members table.
@@ -918,6 +976,7 @@ int Wsrep_schema::append_fragment(THD* thd,
   thd->lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
 
   Wsrep_schema_impl::binlog_off binlog_off(thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
   Wsrep_schema_impl::init_stmt(thd);
 
   TABLE* frag_table= 0;
@@ -967,6 +1026,7 @@ int Wsrep_schema::update_fragment_meta(THD* thd,
   thd->lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
 
   Wsrep_schema_impl::binlog_off binlog_off(thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
   int error;
   uchar *key=NULL;
   key_part_map key_map= 0;
@@ -1089,6 +1149,7 @@ int Wsrep_schema::remove_fragments(THD* thd,
   WSREP_DEBUG("Removing %zu fragments", fragments.size());
   Wsrep_schema_impl::wsrep_off  wsrep_off(thd);
   Wsrep_schema_impl::binlog_off binlog_off(thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
 
   Query_tables_list query_tables_list_backup;
   Open_tables_backup open_tables_backup;
@@ -1156,6 +1217,7 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
 
   Wsrep_schema_impl::wsrep_off  wsrep_off(&thd);
   Wsrep_schema_impl::binlog_off binlog_off(&thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(&thd);
   Wsrep_schema_impl::thd_context_switch thd_context_switch(orig_thd, &thd);
 
   int ret= 1;
@@ -1270,6 +1332,7 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
   Wsrep_storage_service storage_service(&storage_thd);
   Wsrep_schema_impl::binlog_off binlog_off(&storage_thd);
   Wsrep_schema_impl::wsrep_off wsrep_off(&storage_thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(&storage_thd);
   Wsrep_schema_impl::thd_context_switch thd_context_switch(orig_thd,
                                                            &storage_thd);
   Wsrep_server_state& server_state(Wsrep_server_state::instance());

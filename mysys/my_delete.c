@@ -56,6 +56,7 @@ int my_delete(const char *name, myf MyFlags)
 
 
 #if defined (_WIN32)
+
 /* 
   Delete file.
 
@@ -63,15 +64,14 @@ int my_delete(const char *name, myf MyFlags)
   where another program (or thread in the current program) has the the same file
   open.
 
-  We're using 2 tricks to prevent the errors.
+  We're using several tricks to prevent the errors, such as
 
-  1. A usual Win32's DeleteFile() can with ERROR_SHARED_VIOLATION,
-  because the file is opened in another application (often, antivirus or backup)
-  
-  We avoid the error by using CreateFile() with FILE_FLAG_DELETE_ON_CLOSE, instead
+  - Windows 10 "posix semantics" delete
+
+  - Avoid the error by using CreateFile() with FILE_FLAG_DELETE_ON_CLOSE, instead
   of DeleteFile()
 
-  2. If file which is deleted (delete on close) but has not entirely gone,
+  - If file which is deleted (delete on close) but has not entirely gone,
   because it is still opened by some app, an attempt to trcreate file with the 
   same name would  result in yet another error. The workaround here is renaming 
   a file to unique name.
@@ -112,6 +112,27 @@ static int my_win_unlink(const char *name)
        goto error;
     }
     DBUG_RETURN(0);
+  }
+
+  /*
+    Try Windows 10 method, delete with "posix semantics" (file is not visible, and creating
+    a file with the same name won't fail, even if it the fiile was open)
+  */
+  struct
+  {
+    DWORD _Flags;
+  } disp={0x3};
+  /* 0x3 = FILE_DISPOSITION_FLAG_DELETE | FILE_DISPOSITION_FLAG_POSIX_SEMANTICS */
+
+  handle= CreateFile(name, DELETE, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                     NULL, OPEN_EXISTING, 0, NULL);
+  if (handle != INVALID_HANDLE_VALUE)
+  {
+    BOOL ok= SetFileInformationByHandle(handle,
+      (FILE_INFO_BY_HANDLE_CLASS) 21, &disp, sizeof(disp));
+    CloseHandle(handle);
+    if (ok)
+      DBUG_RETURN(0);
   }
 
   handle= CreateFile(name, DELETE, 0,  NULL, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, NULL);

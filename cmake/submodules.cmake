@@ -28,7 +28,7 @@ IF(GIT_EXECUTABLE AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
                     RESULT_VARIABLE update_result)
   ELSE()
     MESSAGE(STATUS "Updating submodules")
-    EXECUTE_PROCESS(COMMAND "${GIT_EXECUTABLE}" submodule update --init --recursive
+    EXECUTE_PROCESS(COMMAND "${GIT_EXECUTABLE}" submodule update --init --recursive --depth=1
                     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
                     RESULT_VARIABLE update_result)
   ENDIF()

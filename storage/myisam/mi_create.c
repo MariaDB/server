@@ -711,7 +711,11 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   }
 #endif
 
-  /* Write key and keyseg definitions */
+  /* Write key and keyseg definitions
+
+    TODO: update key and keyseg definitions for inplace alter (grep sql layer by
+          MDEV-25803). Do the same for Aria.
+  */
   DBUG_PRINT("info", ("write key and keyseg definitions"));
   for (i=0 ; i < share.base.keys - uniques; i++)
   {

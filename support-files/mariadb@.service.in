@@ -190,6 +190,8 @@ PrivateDevices=false
 # Prevent writes to /usr, /boot, and /etc
 ProtectSystem=full
 
+@SYSTEMD_READWRITEPATH@
+
 # Requires kernel 4.14 or later and SELinux transition rule for mysqld_t
 # (https://github.com/systemd/systemd/issues/3845)
 # NoNewPrivileges=true
@@ -268,7 +270,7 @@ Group=mysql
 ##
 
 # Number of files limit. previously [mysqld_safe] open-files-limit
-LimitNOFILE=16384
+LimitNOFILE=32768
 
 # Maximium core size. previously [mysqld_safe] core-file-size
 # LimitCore=

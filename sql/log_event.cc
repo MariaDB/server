@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -168,6 +168,7 @@ static const char *HA_ERR(int i)
   case HA_ERR_LOGGING_IMPOSSIBLE: return "HA_ERR_LOGGING_IMPOSSIBLE";
   case HA_ERR_CORRUPT_EVENT: return "HA_ERR_CORRUPT_EVENT";
   case HA_ERR_ROWS_EVENT_APPLY : return "HA_ERR_ROWS_EVENT_APPLY";
+  case HA_ERR_PARTITION_LIST : return "HA_ERR_PARTITION_LIST";
   }
   return "No Error!";
 }
@@ -6567,7 +6568,8 @@ int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
     original place when it comes to us; we'll know this by checking
     log_pos ("artificial" events have log_pos == 0).
   */
-  if (!is_artificial_event() && created && thd->transaction.all.ha_list)
+  if (!thd->rli_fake &&
+      !is_artificial_event() && created && thd->transaction.all.ha_list)
   {
     /* This is not an error (XA is safe), just an information */
     rli->report(INFORMATION_LEVEL, 0, NULL,
@@ -7990,8 +7992,10 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     flags2|= FL_WAITED;
   if (thd_arg->transaction.stmt.trans_did_ddl() ||
       thd_arg->transaction.stmt.has_created_dropped_temp_table() ||
+      thd_arg->transaction.stmt.trans_executed_admin_cmd() ||
       thd_arg->transaction.all.trans_did_ddl() ||
-      thd_arg->transaction.all.has_created_dropped_temp_table())
+      thd_arg->transaction.all.has_created_dropped_temp_table() ||
+      thd_arg->transaction.all.trans_executed_admin_cmd())
     flags2|= FL_DDL;
   else if (is_transactional && !is_tmp_table)
     flags2|= FL_TRANSACTIONAL;
@@ -8983,6 +8987,7 @@ err:
 }
 #endif /* MYSQL_CLIENT */
 
+
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
 static bool wsrep_must_replay(THD *thd)
 {
@@ -8995,7 +9000,6 @@ static bool wsrep_must_replay(THD *thd)
   return false;
 #endif
 }
-
 
 int Xid_log_event::do_apply_event(rpl_group_info *rgi)
 {
@@ -11760,19 +11764,21 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   restore_empty_query_table_list(thd->lex);
 
 #if defined(WITH_WSREP) && defined(HAVE_QUERY_CACHE)
-    if (WSREP(thd) && wsrep_thd_is_applying(thd))
-    {
-      query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
-    }
+  if (WSREP(thd) && wsrep_thd_is_applying(thd))
+    query_cache.invalidate_locked_for_write(thd, rgi->tables_to_lock);
 #endif /* WITH_WSREP && HAVE_QUERY_CACHE */
 
-    if (unlikely(get_flags(STMT_END_F) &&
-                 (error= rows_event_stmt_cleanup(rgi, thd))))
-    slave_rows_error_report(ERROR_LEVEL,
-                            thd->is_error() ? 0 : error,
-                            rgi, thd, table,
-                            get_type_str(),
-                            RPL_LOG_NAME, log_pos);
+  if (get_flags(STMT_END_F))
+  {
+    if (unlikely(error= rows_event_stmt_cleanup(rgi, thd)))
+      slave_rows_error_report(ERROR_LEVEL,
+                              thd->is_error() ? 0 : error,
+                              rgi, thd, table,
+                              get_type_str(),
+                              RPL_LOG_NAME, log_pos);
+    if (thd->slave_thread)
+      free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
+  }
   DBUG_RETURN(error);
 
 err:
@@ -15143,14 +15149,23 @@ bool copy_event_cache_to_file_and_reinit(IO_CACHE *cache, FILE *file)
 }
 
 #if defined(HAVE_REPLICATION) && !defined(MYSQL_CLIENT)
-Heartbeat_log_event::Heartbeat_log_event(const char* buf, uint event_len,
+Heartbeat_log_event::Heartbeat_log_event(const char* buf, ulong event_len,
                     const Format_description_log_event* description_event)
   :Log_event(buf, description_event)
 {
   uint8 header_size= description_event->common_header_len;
-  ident_len = event_len - header_size;
-  set_if_smaller(ident_len,FN_REFLEN-1);
-  log_ident= buf + header_size;
+  if (log_pos == 0)
+  {
+    log_pos= uint8korr(buf + header_size);
+    log_ident= buf + header_size + HB_SUB_HEADER_LEN;
+    ident_len= event_len - (header_size + HB_SUB_HEADER_LEN);
+  }
+  else
+  {
+    log_ident= buf + header_size;
+    ident_len = event_len - header_size;
+  }
+
 }
 #endif
 

@@ -174,6 +174,61 @@ drop view v1;
 --echo # End of 10.1 tests
 --echo #
 
+--echo #
+--echo # MDEV-17783: AddressSanitizer: stack-buffer-overflow in table_cond_selectivity
+--echo #
+
+set
+  @tmp_jcl=@@join_cache_level,
+  @tmp_sel=@@optimizer_use_condition_selectivity;
+set
+  join_cache_level=3,
+  optimizer_use_condition_selectivity=2;
+
+CREATE TABLE t1 (
+  c1 int, c2 int, c3 int, c4 int, c5 int, c6 int, c7 int, c8 int, c9 int, c10 int,
+  c11 int, c12 int, c13 int, c14 int, c15 int, c16 int, c17 int, c18 int, c19 int,
+  c20 int, c21 int, c22 int, c23 int, c24 int, c25 int, c26 int, c27 int, c28 int,
+  c29 int, c30 int, c31 int, c32 int, c33 int, c34 int
+) ENGINE=InnoDB;
+
+SELECT * FROM t1
+WHERE
+  (c1, c2, c3, c4, c5, c6, c7, c8, c9, c10,
+   c11, c12, c13, c14, c15, c16, c17, c18, c19,
+   c20, c21, c22, c23, c24, c25, c26, c27, c28, c29,
+   c30, c31, c32, c33, c34) IN (SELECT * FROM t1) ;
+
+set
+  join_cache_level=@tmp_jcl,
+  optimizer_use_condition_selectivity=@tmp_sel;
+drop table t1;
+
+--echo # 
+--echo # MDEV-25013: SIGSEGV in best_extension_by_limited_search | SIGSEGV in restore_prev_nj_state
+--echo # 
+
+SET join_cache_level=3;
+CREATE TABLE t1 (
+  TEXT1 TEXT, TEXT2 TEXT, TEXT3 TEXT, TEXT4 TEXT, TEXT5 TEXT,
+  TEXT6 TEXT, TEXT7 TEXT, TEXT8 TEXT, TEXT9 TEXT, TEXT10 TEXT,
+  TEXT11 TEXT, TEXT12 TEXT,TEXT13 TEXT,TEXT14 TEXT,TEXT15 TEXT,
+  TEXT16 TEXT,TEXT17 TEXT,TEXT18 TEXT,TEXT19 TEXT,TEXT20 TEXT,
+  TEXT21 TEXT,TEXT22 TEXT,TEXT23 TEXT,TEXT24 TEXT,TEXT25 TEXT,
+  TEXT26 TEXT,TEXT27 TEXT,TEXT28 TEXT,TEXT29 TEXT,TEXT30 TEXT,
+  TEXT31 TEXT,TEXT32 TEXT,TEXT33 TEXT,TEXT34 TEXT,TEXT35 TEXT,
+  TEXT36 TEXT,TEXT37 TEXT,TEXT38 TEXT,TEXT39 TEXT,TEXT40 TEXT,
+  TEXT41 TEXT,TEXT42 TEXT,TEXT43 TEXT,TEXT44 TEXT,TEXT45 TEXT,
+  TEXT46 TEXT,TEXT47 TEXT,TEXT48 TEXT,TEXT49 TEXT,TEXT50 TEXT
+) ENGINE=InnoDB;
+EXPLAIN SELECT 1 FROM t1 NATURAL JOIN t1 AS t2;
+
+set join_cache_level=@tmp_jcl;
+drop table t1;
+--echo #
+--echo # End of 10.1 tests
+--echo #
+
 set use_stat_tables= @tmp_ust;
 set optimizer_use_condition_selectivity= @tmp_oucs;
 set @@global.histogram_size=@save_histogram_size;

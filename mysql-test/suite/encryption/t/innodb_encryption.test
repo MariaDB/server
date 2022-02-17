@@ -33,7 +33,7 @@ AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NA
 --echo # Now turn off encryption and wait for threads to decrypt everything
 SET GLOBAL innodb_encrypt_tables = off;
 
---echo # Wait max 10 min for key encryption threads to encrypt all spaces
+--echo # Wait max 10 min for key encryption threads to decrypt all spaces
 --let $wait_timeout= 600
 --let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
 --source include/wait_condition.inc

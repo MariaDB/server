@@ -116,7 +116,9 @@ Warnings:
 Note	1050	Table 't2' already exists
 DROP DATABASE testdb;
 USE test;
-End of 5.1 tests
+#
+# End of 5.1 tests
+#
 #
 # BUG#13489996 valgrind:conditional jump or move depends on
 # uninitialised values-field_blob
@@ -166,7 +168,7 @@ RETURN 0;
 END	latin1	latin1_swedish_ci	latin1_swedish_ci
 SHOW CREATE FUNCTION TESTF_bug11763507;
 Function	sql_mode	Create Function	character_set_client	collation_connection	Database Collation
-testf_bug11763507		CREATE DEFINER=`root`@`localhost` FUNCTION `testf_bug11763507`() RETURNS int(11)
+TESTF_bug11763507		CREATE DEFINER=`root`@`localhost` FUNCTION `TESTF_bug11763507`() RETURNS int(11)
 BEGIN
 RETURN 0;
 END	latin1	latin1_swedish_ci	latin1_swedish_ci
@@ -196,7 +198,7 @@ SELECT "PROCEDURE testp_bug11763507";
 END	latin1	latin1_swedish_ci	latin1_swedish_ci
 SHOW CREATE PROCEDURE TESTP_bug11763507;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-testp_bug11763507		CREATE DEFINER=`root`@`localhost` PROCEDURE `testp_bug11763507`()
+TESTP_bug11763507		CREATE DEFINER=`root`@`localhost` PROCEDURE `TESTP_bug11763507`()
 BEGIN
 SELECT "PROCEDURE testp_bug11763507";
 END	latin1	latin1_swedish_ci	latin1_swedish_ci
@@ -328,3 +330,26 @@ FOR i IN 1..10 DO
 RETURN 1;
 END FOR
 DROP FUNCTION f1;
+#
+# End of 10.2 tests
+#
+#
+# MDEV-25501 routine_definition in information_schema.routines loses tablename if it starts with an _ and is not backticked
+#
+create table _t1 (a int);
+create procedure p1() select * from _t1;
+show create procedure p1;
+Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
+p1		CREATE DEFINER=`root`@`localhost` PROCEDURE `p1`()
+select * from _t1	latin1	latin1_swedish_ci	latin1_swedish_ci
+select routine_definition from information_schema.routines where routine_schema=database() and specific_name='p1';
+routine_definition
+select * from _t1
+select body, body_utf8 from mysql.proc where name='p1';
+body	body_utf8
+select * from _t1	select * from _t1
+drop procedure p1;
+drop table _t1;
+#
+# End of 10.3 tests
+#

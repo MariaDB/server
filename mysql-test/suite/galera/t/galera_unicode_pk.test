@@ -5,6 +5,11 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
+--connection node_1
+# Mare sure both nodes are in the cluster
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
 CREATE TABLE t1 (
 	f1 VARCHAR(255) PRIMARY KEY
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
@@ -12,6 +17,12 @@ CREATE TABLE t1 (
 INSERT INTO t1 VALUES ('текст');
 
 --connection node_2
+# Mare sure that DLL has replicated and insert has replicated
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1
+--source include/wait_condition.inc
+
 SELECT f1 = 'текст' FROM t1;
 
 #

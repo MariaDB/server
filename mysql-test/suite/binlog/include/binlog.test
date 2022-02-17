@@ -406,4 +406,22 @@ SHOW SESSION VARIABLES LIKE "unique_checks";
 DROP TABLE t1;
 
 disconnect fresh;
+connection default;
 
+--echo #
+--echo # MDEV-25595 DROP part of failed CREATE OR REPLACE is not written into binary log
+--echo #
+reset master;
+--error ER_DUP_FIELDNAME
+create table t as select 1 as b, 2 as b;
+create table t (old_table_field int);
+--error ER_DUP_FIELDNAME
+create or replace table t as select 1 as b, 2 as b;
+--error ER_DUP_FIELDNAME
+create or replace temporary table t as select 1 as b, 2 as b;
+create table t (new_table_field int);
+
+--source include/show_binlog_events.inc
+
+# cleanup
+drop table t;

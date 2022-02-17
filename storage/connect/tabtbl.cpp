@@ -36,7 +36,7 @@
 //#include "sql_base.h"
 #include "my_global.h"
 #include "table.h"       // MySQL table definitions
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <stdlib.h>
 #include <stdio.h>
 #if defined(__BORLANDC__)
@@ -71,15 +71,15 @@
 #include "tabmysql.h"
 #include "ha_connect.h"
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 #if defined(__BORLANDC__)
 #define SYSEXIT void _USERENTRY
 #else
 #define SYSEXIT void
 #endif
-#else   // !__WIN__
+#else   // !_WIN32
 #define SYSEXIT void *
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 extern pthread_mutex_t tblmut;
 

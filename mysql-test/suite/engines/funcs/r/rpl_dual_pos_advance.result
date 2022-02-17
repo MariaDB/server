@@ -1,22 +1,28 @@
-stop slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
+include/master-slave.inc
+[connection master]
+connection slave;
 reset master;
-reset slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-start slave;
-reset master;
+connection master;
 change master to master_host="127.0.0.1",master_port=SLAVE_PORT,master_user="root";
-start slave;
+include/start_slave.inc
+connection slave;
 create table t1 (n int);
+connection master;
+connection master;
 create table t4 (n int);
 create table t5 (n int);
 create table t6 (n int);
+connection slave;
+connection slave;
+connection master;
 show tables;
 Tables_in_test
 t1
 t4
 t5
 t6
-stop slave;
+include/stop_slave.inc
 reset slave;
 drop table t1,t4,t5,t6;
+connection slave;
+include/rpl_end.inc

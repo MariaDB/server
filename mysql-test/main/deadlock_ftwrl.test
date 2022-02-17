@@ -1,0 +1,36 @@
+# MDEV-20946 Hard FTWRL deadlock under user level locks
+#
+# Deadlock detector should resolve conflicts between FTWRL and user locks.
+
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+CREATE TABLE t1(a INT);
+SELECT GET_LOCK("l1", 0);
+
+connect(con1,localhost,root,,);
+LOCK TABLES t1 WRITE;
+
+connection default;
+set debug_sync='mdl_acquire_lock_wait SIGNAL ftwrl';
+send FLUSH TABLES WITH READ LOCK;
+# At this point "default" is waiting for tables to be unlocked from
+# LOCK TABLES WRITE issued by "con1".
+
+connection con1;
+set debug_sync='now WAIT_FOR ftwrl';
+# The lock in the following GET_LOCK cannot be acquired since "default" holds
+# a lock on "l1" and is waiting in FLUSH TABLES for con1.
+--error ER_LOCK_DEADLOCK
+SELECT GET_LOCK("l1", 1000);
+disconnect con1;  # Performs an implicit UNLOCK TABLES.
+
+connection default;
+reap;
+SELECT RELEASE_LOCK("l1");
+UNLOCK TABLES;
+DROP TABLE t1;
+
+set debug_sync='reset';
+
+--source include/wait_until_count_sessions.inc

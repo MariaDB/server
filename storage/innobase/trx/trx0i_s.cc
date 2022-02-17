@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -575,7 +575,7 @@ thd_done:
 
 	row->trx_is_read_only = trx->read_only;
 
-	row->trx_is_autocommit_non_locking = trx_is_autocommit_non_locking(trx);
+	row->trx_is_autocommit_non_locking = trx->is_autocommit_non_locking();
 
 	return(TRUE);
 }
@@ -710,7 +710,8 @@ fill_lock_data(
 	ut_a(n_fields > 0);
 
 	heap = NULL;
-	offsets = rec_get_offsets(rec, index, offsets, true, n_fields, &heap);
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
+				  n_fields, &heap);
 
 	/* format and store the data */
 
@@ -1228,7 +1229,24 @@ static void fetch_data_into_cache_low(trx_i_s_cache_t *cache, const trx_t *trx)
 {
   i_s_locks_row_t *requested_lock_row;
 
-  assert_trx_nonlocking_or_in_list(trx);
+#ifdef UNIV_DEBUG
+  {
+    const auto state= trx->state;
+
+    if (trx->is_autocommit_non_locking())
+    {
+      ut_ad(trx->read_only);
+      ut_ad(!trx->is_recovered);
+      ut_ad(trx->mysql_thd);
+      ut_ad(state == TRX_STATE_NOT_STARTED || state == TRX_STATE_ACTIVE);
+    }
+    else
+      ut_ad(state == TRX_STATE_ACTIVE ||
+            state == TRX_STATE_PREPARED ||
+            state == TRX_STATE_PREPARED_RECOVERED ||
+            state == TRX_STATE_COMMITTED_IN_MEMORY);
+  }
+#endif /* UNIV_DEBUG */
 
   if (add_trx_relevant_locks_to_cache(cache, trx, &requested_lock_row))
   {
@@ -1253,18 +1271,23 @@ static void fetch_data_into_cache_low(trx_i_s_cache_t *cache, const trx_t *trx)
 
 static void fetch_data_into_cache(trx_i_s_cache_t *cache)
 {
+  const trx_t *const purge_trx= purge_sys.query ? purge_sys.query->trx : NULL;
+
   ut_ad(lock_mutex_own());
   trx_i_s_cache_clear(cache);
 
   /* Capture the state of transactions */
   mutex_enter(&trx_sys.mutex);
-  for (const trx_t *trx= UT_LIST_GET_FIRST(trx_sys.trx_list);
+  for (trx_t *trx= UT_LIST_GET_FIRST(trx_sys.trx_list);
        trx != NULL;
        trx= UT_LIST_GET_NEXT(trx_list, trx))
   {
-    if (trx_is_started(trx) && trx != purge_sys.query->trx)
+    if (trx != purge_trx && trx->state != TRX_STATE_NOT_STARTED)
     {
-      fetch_data_into_cache_low(cache, trx);
+      mutex_enter(&trx->mutex);
+      if (trx->state != TRX_STATE_NOT_STARTED)
+        fetch_data_into_cache_low(cache, trx);
+      mutex_exit(&trx->mutex);
       if (cache->is_truncated)
         break;
      }

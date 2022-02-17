@@ -15,4 +15,4 @@ wsrep_provider_options='base_port=@mysqld.2.#galera_port;gcache.size=1;pc.ignore
 
 [sst]
 transferfmt=@ENV.MTR_GALERA_TFMT
-streamfmt=xbstream
+streamfmt=mbstream

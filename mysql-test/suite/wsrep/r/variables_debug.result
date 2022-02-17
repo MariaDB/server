@@ -1,25 +1,4 @@
-call mtr.add_suppression("WSREP: Initial position was provided by configuration or SST, avoiding override");
-SET @wsrep_provider_options_saved= @@global.wsrep_provider_options;
-SET @wsrep_cluster_address_saved= @@global.wsrep_cluster_address;
-
-# MDEV#5534: mysql_tzinfo_to_sql generates wrong query
-#
-# Testing wsrep_replicate_myisam variable.
-SELECT @@session.wsrep_replicate_myisam;
-ERROR HY000: Variable 'wsrep_replicate_myisam' is a GLOBAL variable
-SELECT @@global.wsrep_replicate_myisam;
-@@global.wsrep_replicate_myisam
-0
-SET SESSION wsrep_replicate_myisam= ON;
-ERROR HY000: Variable 'wsrep_replicate_myisam' is a GLOBAL variable and should be set with SET GLOBAL
-SET GLOBAL wsrep_replicate_myisam= ON;
-SET GLOBAL wsrep_replicate_myisam= OFF;
-SET GLOBAL wsrep_provider=none;
-#
-# MDEV#5790: SHOW GLOBAL STATUS LIKE does not show the correct list of
-# variables when using "_"
-#
-CALL mtr.add_suppression("WSREP: Could not open saved state file for reading.*");
+# Correct Galera library found
 SHOW GLOBAL STATUS LIKE 'wsrep%';
 Variable_name	Value
 wsrep_local_state_uuid	#
@@ -55,6 +34,7 @@ wsrep_cert_deps_distance	#
 wsrep_apply_oooe	#
 wsrep_apply_oool	#
 wsrep_apply_window	#
+wsrep_apply_waits	#
 wsrep_commit_oooe	#
 wsrep_commit_oool	#
 wsrep_commit_window	#
@@ -66,7 +46,15 @@ wsrep_cert_interval	#
 wsrep_open_transactions	#
 wsrep_open_connections	#
 wsrep_incoming_addresses	#
+wsrep_cluster_weight	#
 wsrep_debug_sync_waiters	#
+wsrep_desync_count	#
+wsrep_evs_delayed	#
+wsrep_evs_evict_list	#
+wsrep_evs_repl_latency	#
+wsrep_evs_state	#
+wsrep_gcomm_uuid	#
+wsrep_gmcast_segment	#
 wsrep_applier_thread_count	#
 wsrep_cluster_capabilities	#
 wsrep_cluster_conf_id	#
@@ -83,143 +71,9 @@ wsrep_provider_version	#
 wsrep_ready	#
 wsrep_rollbacker_thread_count	#
 wsrep_thread_count	#
-
-SHOW GLOBAL STATUS LIKE 'wsrep_%';
-Variable_name	Value
-wsrep_local_state_uuid	#
-wsrep_protocol_version	#
-wsrep_last_committed	#
-wsrep_replicated	#
-wsrep_replicated_bytes	#
-wsrep_repl_keys	#
-wsrep_repl_keys_bytes	#
-wsrep_repl_data_bytes	#
-wsrep_repl_other_bytes	#
-wsrep_received	#
-wsrep_received_bytes	#
-wsrep_local_commits	#
-wsrep_local_cert_failures	#
-wsrep_local_replays	#
-wsrep_local_send_queue	#
-wsrep_local_send_queue_max	#
-wsrep_local_send_queue_min	#
-wsrep_local_send_queue_avg	#
-wsrep_local_recv_queue	#
-wsrep_local_recv_queue_max	#
-wsrep_local_recv_queue_min	#
-wsrep_local_recv_queue_avg	#
-wsrep_local_cached_downto	#
-wsrep_flow_control_paused_ns	#
-wsrep_flow_control_paused	#
-wsrep_flow_control_sent	#
-wsrep_flow_control_recv	#
-wsrep_flow_control_active	#
-wsrep_flow_control_requested	#
-wsrep_cert_deps_distance	#
-wsrep_apply_oooe	#
-wsrep_apply_oool	#
-wsrep_apply_window	#
-wsrep_commit_oooe	#
-wsrep_commit_oool	#
-wsrep_commit_window	#
-wsrep_local_state	#
-wsrep_local_state_comment	#
-wsrep_cert_index_size	#
-wsrep_causal_reads	#
-wsrep_cert_interval	#
-wsrep_open_transactions	#
-wsrep_open_connections	#
-wsrep_incoming_addresses	#
-wsrep_debug_sync_waiters	#
-wsrep_applier_thread_count	#
-wsrep_cluster_capabilities	#
-wsrep_cluster_conf_id	#
-wsrep_cluster_size	#
-wsrep_cluster_state_uuid	#
-wsrep_cluster_status	#
-wsrep_connected	#
-wsrep_local_bf_aborts	#
-wsrep_local_index	#
-wsrep_provider_capabilities	#
-wsrep_provider_name	#
-wsrep_provider_vendor	#
-wsrep_provider_version	#
-wsrep_ready	#
-wsrep_rollbacker_thread_count	#
-wsrep_thread_count	#
-SHOW GLOBAL STATUS LIKE 'wsrep_local_state_comment';
-Variable_name	Value
-wsrep_local_state_comment	#
 # Should show nothing.
 SHOW STATUS LIKE 'x';
 Variable_name	Value
-SET GLOBAL wsrep_provider=none;
-
-SHOW STATUS LIKE 'wsrep_local_state_uuid';
-Variable_name	Value
-wsrep_local_state_uuid	#
-
-SHOW STATUS LIKE 'wsrep_last_committed';
-Variable_name	Value
-wsrep_last_committed	#
-SET GLOBAL wsrep_provider=none;
-
-#
-# MDEV#6206: wsrep_slave_threads subtracts from max_connections
-#
-call mtr.add_suppression("WSREP: Failed to get provider options");
-SELECT @@global.wsrep_provider;
-@@global.wsrep_provider
-libgalera_smm.so
-SELECT @@global.wsrep_slave_threads;
-@@global.wsrep_slave_threads
-1
-SELECT @@global.wsrep_cluster_address;
-@@global.wsrep_cluster_address
-
-SELECT @@global.wsrep_on;
-@@global.wsrep_on
-1
-SHOW STATUS LIKE 'threads_connected';
-Variable_name	Value
-Threads_connected	1
-SHOW STATUS LIKE 'wsrep_thread_count';
-Variable_name	Value
-wsrep_thread_count	0
-
-SELECT @@global.wsrep_provider;
-@@global.wsrep_provider
-libgalera_smm.so
-SELECT @@global.wsrep_cluster_address;
-@@global.wsrep_cluster_address
-
-SELECT @@global.wsrep_on;
-@@global.wsrep_on
-1
-SHOW STATUS LIKE 'threads_connected';
-Variable_name	Value
-Threads_connected	1
-SHOW STATUS LIKE 'wsrep_thread_count';
-Variable_name	Value
-wsrep_thread_count	0
-
-# Setting wsrep_cluster_address triggers the creation of
-# applier/rollbacker threads.
-SET GLOBAL wsrep_cluster_address= 'gcomm://';
-# Wait for applier thread to get created 1.
-# Wait for applier thread to get created 2.
-SELECT VARIABLE_VALUE AS EXPECT_1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
-EXPECT_1
-1
-SELECT VARIABLE_VALUE AS EXPECT_1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
-EXPECT_1
-1
-SELECT VARIABLE_VALUE AS EXPECT_2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
-EXPECT_2
-2
-SELECT @@global.wsrep_provider;
-@@global.wsrep_provider
-libgalera_smm.so
 SELECT @@global.wsrep_cluster_address;
 @@global.wsrep_cluster_address
 gcomm://
@@ -232,47 +86,55 @@ Threads_connected	1
 SHOW STATUS LIKE 'wsrep_thread_count';
 Variable_name	Value
 wsrep_thread_count	2
-
-SET @wsrep_slave_threads_saved= @@global.wsrep_slave_threads;
-SET GLOBAL wsrep_slave_threads= 10;
-# Wait for 9 applier threads to get created.
-SELECT VARIABLE_VALUE AS EXPECT_10 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_applier_thread_count';
-EXPECT_10
-10
-SELECT VARIABLE_VALUE AS EXPECT_1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_rollbacker_thread_count';
-EXPECT_1
-1
-SELECT VARIABLE_VALUE AS EXPECT_11 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_thread_count';
-EXPECT_11
-11
-SHOW STATUS LIKE 'threads_connected';
-Variable_name	Value
-Threads_connected	1
-set wsrep_on=0;
-set wsrep_on=1;
-create user test@localhost;
-connect con1,localhost,test;
-set auto_increment_increment=10;
-set wsrep_on=0;
-ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
-disconnect con1;
-connection default;
-drop user test@localhost;
-#
-# MDEV#6411: Setting set @@global.wsrep_sst_auth=NULL causes crash
-#
-SET @wsrep_sst_auth_saved= @@global.wsrep_sst_auth;
-SET @@global.wsrep_sst_auth= 'user:pass';
-SELECT @@global.wsrep_sst_auth;
-@@global.wsrep_sst_auth
-********
-SET @@global.wsrep_sst_auth= '';
-SELECT @@global.wsrep_sst_auth;
-@@global.wsrep_sst_auth
-
-SET @@global.wsrep_sst_auth= NULL;
-SELECT @@global.wsrep_sst_auth;
-@@global.wsrep_sst_auth
-NULL
-SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
-# End of test.
+# variables
+SELECT VARIABLE_NAME FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE VARIABLE_NAME LIKE "wsrep%" ORDER BY VARIABLE_NAME;
+VARIABLE_NAME
+WSREP_AUTO_INCREMENT_CONTROL
+WSREP_CAUSAL_READS
+WSREP_CERTIFICATION_RULES
+WSREP_CERTIFY_NONPK
+WSREP_CLUSTER_ADDRESS
+WSREP_CLUSTER_NAME
+WSREP_CONVERT_LOCK_TO_TRX
+WSREP_DATA_HOME_DIR
+WSREP_DBUG_OPTION
+WSREP_DEBUG
+WSREP_DESYNC
+WSREP_DIRTY_READS
+WSREP_DRUPAL_282555_WORKAROUND
+WSREP_FORCED_BINLOG_FORMAT
+WSREP_GTID_DOMAIN_ID
+WSREP_GTID_MODE
+WSREP_IGNORE_APPLY_ERRORS
+WSREP_LOAD_DATA_SPLITTING
+WSREP_LOG_CONFLICTS
+WSREP_MAX_WS_ROWS
+WSREP_MAX_WS_SIZE
+WSREP_MYSQL_REPLICATION_BUNDLE
+WSREP_NODE_ADDRESS
+WSREP_NODE_INCOMING_ADDRESS
+WSREP_NODE_NAME
+WSREP_NOTIFY_CMD
+WSREP_ON
+WSREP_OSU_METHOD
+WSREP_PATCH_VERSION
+WSREP_PROVIDER
+WSREP_PROVIDER_OPTIONS
+WSREP_RECOVER
+WSREP_REJECT_QUERIES
+WSREP_REPLICATE_MYISAM
+WSREP_RESTART_SLAVE
+WSREP_RETRY_AUTOCOMMIT
+WSREP_SLAVE_FK_CHECKS
+WSREP_SLAVE_THREADS
+WSREP_SLAVE_UK_CHECKS
+WSREP_SR_STORE
+WSREP_SST_AUTH
+WSREP_SST_DONOR
+WSREP_SST_DONOR_REJECTS_QUERIES
+WSREP_SST_METHOD
+WSREP_SST_RECEIVE_ADDRESS
+WSREP_START_POSITION
+WSREP_SYNC_WAIT
+WSREP_TRX_FRAGMENT_SIZE
+WSREP_TRX_FRAGMENT_UNIT

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation.
+   Copyright (c) 2010, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1091,6 +1091,80 @@ bool Item::check_type_scalar(const char *opname) const
 }
 
 
+extern "C" {
+
+/*
+  All values greater than MY_NAME_BINARY_VALUE are
+  interpreted as binary bytes.
+  The exact constant value does not matter,
+  but it must be greater than 0x10FFFF,
+  which is the maximum possible character in Unicode.
+*/
+#define MY_NAME_BINARY_VALUE 0x200000
+
+/*
+  Print all binary bytes as well as zero character U+0000 in hex notation.
+  Print other characters normally.
+*/
+static int
+my_wc_mb_item_name(CHARSET_INFO *cs, my_wc_t wc, uchar *str, uchar *end)
+{
+  if (wc == 0 || wc >= MY_NAME_BINARY_VALUE)
+  {
+    if (str + 4 >= end)
+      return MY_CS_TOOSMALL3;
+    str[0]= '\\';
+    str[1]= 'x';
+    str[2]= _dig_vec_upper[(uchar) (wc >> 4)];
+    str[3]= _dig_vec_upper[(uchar) wc & 0x0F];
+    return 4;
+  }
+  return my_charset_utf8_handler.wc_mb(cs, wc, str, end);
+}
+
+
+/*
+  Scan characters and mark all illegal sequences as binary byte values,
+  to have my_wc_mb_utf8_escape_name() print them using HEX notation.
+*/
+static int
+my_mb_wc_item_name(CHARSET_INFO *cs, my_wc_t *pwc,
+                   const uchar *str, const uchar *end)
+{
+  int rc= cs->cset->mb_wc(cs, pwc, str, end);
+  if (rc == MY_CS_ILSEQ)
+  {
+    *pwc= MY_NAME_BINARY_VALUE + *str;
+    return 1;
+  }
+  return rc;
+}
+
+}
+
+
+static LEX_CSTRING
+make_name(THD *thd,
+          const char *str, size_t length, CHARSET_INFO *cs,
+          size_t max_octet_length)
+{
+  uint errors;
+  size_t dst_nbytes= length * system_charset_info->mbmaxlen;
+  set_if_smaller(dst_nbytes, max_octet_length);
+  char *dst= (char*) thd->alloc(dst_nbytes + 1);
+  if (!dst)
+    return null_clex_str;
+  uint32 cnv_length= my_convert_using_func(dst, dst_nbytes, system_charset_info,
+                                           my_wc_mb_item_name,
+                                           str, length,
+                                           cs == &my_charset_bin ?
+                                             system_charset_info : cs,
+                                           my_mb_wc_item_name, &errors);
+  dst[cnv_length]= '\0';
+  return Lex_cstring(dst, cnv_length);
+}
+
+
 void Item::set_name(THD *thd, const char *str, size_t length, CHARSET_INFO *cs)
 {
   if (!length)
@@ -1141,32 +1215,14 @@ void Item::set_name(THD *thd, const char *str, size_t length, CHARSET_INFO *cs)
                           ER_REMOVED_SPACES, ER_THD(thd, ER_REMOVED_SPACES),
                           buff);
   }
-  if (!my_charset_same(cs, system_charset_info))
-  {
-    size_t res_length;
-    name.str= sql_strmake_with_convert(thd, str, length, cs,
-                                       MAX_ALIAS_NAME, system_charset_info,
-                                       &res_length);
-    name.length= res_length;
-  }
-  else
-    name.str= thd->strmake(str, (name.length= MY_MIN(length,MAX_ALIAS_NAME)));
+  name= make_name(thd, str, length, cs, MAX_ALIAS_NAME - 1);
 }
 
 
 void Item::set_name_no_truncate(THD *thd, const char *str, uint length,
                                 CHARSET_INFO *cs)
 {
-  if (!my_charset_same(cs, system_charset_info))
-  {
-    size_t res_length;
-    name.str= sql_strmake_with_convert(thd, str, length, cs,
-                                       UINT_MAX, system_charset_info,
-                                       &res_length);
-    name.length= res_length;
-  }
-  else
-    name.str= thd->strmake(str, (name.length= length));
+  name= make_name(thd, str, length, cs, UINT_MAX - 1);
 }
 
 
@@ -2599,9 +2655,7 @@ Item_sp::Item_sp(THD *thd, Name_resolution_context *context_arg,
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE) + sizeof(TABLE_SHARE) +
                                     sizeof(Query_arena));
   dummy_table->s= (TABLE_SHARE*) (dummy_table + 1);
-  /* TODO(cvicentiu) Move this sp_query_arena in the class as a direct member.
-     Currently it can not be done due to header include dependencies. */
-  sp_query_arena= (Query_arena *) (dummy_table->s + 1);
+  sp_query_arena= new(dummy_table->s + 1) Query_arena();
   memset(&sp_mem_root, 0, sizeof(sp_mem_root));
 }
 
@@ -2612,7 +2666,7 @@ Item_sp::Item_sp(THD *thd, Item_sp *item):
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE) +
                                     sizeof(Query_arena));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
-  sp_query_arena= (Query_arena *) (dummy_table->s + 1);
+  sp_query_arena= new(dummy_table->s + 1) Query_arena();
   memset(&sp_mem_root, 0, sizeof(sp_mem_root));
 }
 
@@ -3738,8 +3792,48 @@ void Item_string::print(String *str, enum_query_type query_type)
   }
   else
   {
-    // Caller wants a result in the charset of str_value.
-    str_value.print(str);
+    /*
+      We're restoring a parse-able statement from an Item tree.
+      Make sure to revert character set conversions that previously
+      happened in the parser when Item_string was created.
+    */
+    if (print_introducer)
+    {
+      /*
+        Print the string as is, without conversion:
+        Strings with introducers are not converted in the parser.
+      */
+      str_value.print(str);
+    }
+    else
+    {
+      /*
+        Print the string with conversion.
+        Strings without introducers are converted in the parser,
+        from character_set_client to character_set_connection.
+
+        When restoring a CREATE VIEW statement,
+        - str_value.charsets() contains parse time character_set_connection
+        - str->charset() contains parse time character_set_client
+        So we convert the string back from parse-time character_set_connection
+        to parse time character_set_client.
+
+        In some cases, e.g. SHOW PROCEDURE CODE, it's also possible
+        that str->charset() is "utf8mb3" instead of parse time
+        character_set_client. In these cases we convert
+        here from the parse-time character_set_connection to utf8mb3.
+
+        QQ: perhaps the code behind SHOW PROCEDURE CODE should
+        also request the result in the parse-time character_set_client
+        (like the code restoring CREATE VIEW statements does),
+        rather than in utf8mb3:
+        - utf8mb3 does not work well with non-BMP characters (e.g. emoji).
+        - Simply changing utf8mb3 to utf8mb4 will not fully help:
+          some character sets have unassigned characters,
+          they get lost during during cs->utf8mb4->cs round trip.
+      */
+      str_value.print_with_conversion(str, str->charset());
+    }
   }
 
   str->append('\'');
@@ -4354,13 +4448,15 @@ bool Item_param::get_date(THD *thd, MYSQL_TIME *res, date_mode_t fuzzydate)
 }
 
 
-double Item_param::PValue::val_real() const
+double Item_param::PValue::val_real(const Type_std_attributes *attr) const
 {
   switch (type_handler()->cmp_type()) {
   case REAL_RESULT:
     return real;
   case INT_RESULT:
-    return (double) integer;
+    return attr->unsigned_flag
+      ? (double) (ulonglong) integer
+      : (double) integer;
   case DECIMAL_RESULT:
     return m_decimal.to_double();
   case STRING_RESULT:
@@ -4434,7 +4530,7 @@ String *Item_param::PValue::val_str(String *str,
     str->set_real(real, NOT_FIXED_DEC, &my_charset_bin);
     return str;
   case INT_RESULT:
-    str->set(integer, &my_charset_bin);
+    str->set_int(integer, attr->unsigned_flag, &my_charset_bin);
     return str;
   case DECIMAL_RESULT:
     if (m_decimal.to_string_native(str, 0, 0, 0) <= 1)
@@ -4978,13 +5074,19 @@ bool Item_ref_null_helper::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuz
   @param resolved_item   item which was resolved in outer SELECT(for warning)
   @param mark_item       item which should be marked (can be differ in case of
                          substitution)
+  @param suppress_warning_output  flag specifying whether to suppress output of
+                                  a warning message
 */
 
 static bool mark_as_dependent(THD *thd, SELECT_LEX *last, SELECT_LEX *current,
                               Item_ident *resolved_item,
-                              Item_ident *mark_item)
+                              Item_ident *mark_item,
+                              bool suppress_warning_output)
 {
   DBUG_ENTER("mark_as_dependent");
+  DBUG_PRINT("info", ("current select: %d (%p)  last: %d (%p)",
+                      current->select_number, current,
+                      (last ? last->select_number : 0), last));
 
   /* store pointer on SELECT_LEX from which item is dependent */
   if (mark_item && mark_item->can_be_depended)
@@ -4995,7 +5097,7 @@ static bool mark_as_dependent(THD *thd, SELECT_LEX *last, SELECT_LEX *current,
   if (current->mark_as_dependent(thd, last,
                                  /** resolved_item psergey-thu **/ mark_item))
     DBUG_RETURN(TRUE);
-  if (thd->lex->describe & DESCRIBE_EXTENDED)
+  if ((thd->lex->describe & DESCRIBE_EXTENDED) && !suppress_warning_output)
   {
     const char *db_name= (resolved_item->db_name ?
                           resolved_item->db_name : "");
@@ -5024,6 +5126,8 @@ static bool mark_as_dependent(THD *thd, SELECT_LEX *last, SELECT_LEX *current,
   @param found_item      Item which was found during resolving (if resolved
                          identifier belongs to VIEW)
   @param resolved_item   Identifier which was resolved
+  @param suppress_warning_output  flag specifying whether to suppress output of
+                                  a warning message
 
   @note
     We have to mark all items between current_sel (including) and
@@ -5037,7 +5141,8 @@ void mark_select_range_as_dependent(THD *thd,
                                     SELECT_LEX *last_select,
                                     SELECT_LEX *current_sel,
                                     Field *found_field, Item *found_item,
-                                    Item_ident *resolved_item)
+                                    Item_ident *resolved_item,
+                                    bool suppress_warning_output)
 {
   /*
     Go from current SELECT to SELECT where field was resolved (it
@@ -5072,7 +5177,7 @@ void mark_select_range_as_dependent(THD *thd,
         found_field->table->map;
     prev_subselect_item->const_item_cache= 0;
     mark_as_dependent(thd, last_select, current_sel, resolved_item,
-                      dependent);
+                      dependent, suppress_warning_output);
   }
 }
 
@@ -5422,8 +5527,9 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   Name_resolution_context *outer_context= 0;
   SELECT_LEX *select= 0;
   /* Currently derived tables cannot be correlated */
-  if (current_sel->master_unit()->first_select()->get_linkage() !=
-      DERIVED_TABLE_TYPE)
+  if ((current_sel->master_unit()->first_select()->get_linkage() !=
+       DERIVED_TABLE_TYPE) &&
+      current_sel->master_unit()->outer_select())
     outer_context= context->outer_context;
 
   /*
@@ -5527,6 +5633,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
             max_arg_level for the function if it's needed.
           */
           if (thd->lex->in_sum_func &&
+              thd->lex == context->select_lex->parent_lex &&
               thd->lex->in_sum_func->nest_level >= select->nest_level)
           {
             Item::Type ref_type= (*reference)->type();
@@ -5538,7 +5645,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
                               context->select_lex, this,
                               ((ref_type == REF_ITEM ||
                                 ref_type == FIELD_ITEM) ?
-                               (Item_ident*) (*reference) : 0));
+                               (Item_ident*) (*reference) : 0), false);
             return 0;
           }
         }
@@ -5550,8 +5657,9 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
                             context->select_lex, this,
                             ((ref_type == REF_ITEM || ref_type == FIELD_ITEM) ?
                              (Item_ident*) (*reference) :
-                             0));
+                             0), false);
           if (thd->lex->in_sum_func &&
+              thd->lex == context->select_lex->parent_lex &&
               thd->lex->in_sum_func->nest_level >= select->nest_level)
           {
             set_if_bigger(thd->lex->in_sum_func->max_arg_level,
@@ -5664,7 +5772,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     set_max_sum_func_level(thd, select);
     mark_as_dependent(thd, last_checked_context->select_lex,
                       context->select_lex, rf,
-                      rf);
+                      rf, false);
 
     return 0;
   }
@@ -5677,7 +5785,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
     set_max_sum_func_level(thd, select);
     mark_as_dependent(thd, last_checked_context->select_lex,
                       context->select_lex,
-                      this, (Item_ident*)*reference);
+                      this, (Item_ident*)*reference, false);
     if (last_checked_context->select_lex->having_fix_field)
     {
       Item_ref *rf;
@@ -5822,6 +5930,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
             */
             set_max_sum_func_level(thd, select);
             set_field(new_field);
+            depended_from= (*((Item_field**)res))->depended_from;
             return 0;
           }
           else
@@ -5884,7 +5993,9 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
         goto mark_non_agg_field;
     }
 
-    if (thd->lex->in_sum_func &&
+    if (!thd->lex->current_select->no_wrap_view_item &&
+        thd->lex->in_sum_func &&
+        thd->lex == select->parent_lex &&
         thd->lex->in_sum_func->nest_level == 
         select->nest_level)
       set_if_bigger(thd->lex->in_sum_func->max_arg_level,
@@ -6198,12 +6309,14 @@ Item *Item_field::replace_equal_field(THD *thd, uchar *arg)
                   item_equal->compare_type_handler()->cmp_type());
       return const_item2;
     }
-    Item_field *subst= 
-      (Item_field *)(item_equal->get_first(param->context_tab, this));
+    Item_ident *subst=
+      (Item_ident *) (item_equal->get_first(param->context_tab, this));
     if (subst)
-      subst= (Item_field *) (subst->real_item());
-    if (subst && !field->eq(subst->field))
-      return subst;
+    {
+      Item_field *subst2= (Item_field *) (subst->real_item());
+      if (subst2 && !field->eq(subst2->field))
+      return subst2;
+    }
   }
   return this;
 }
@@ -7648,7 +7761,7 @@ public:
         if (tbl->table == item->field->table)
         {
           if (sel != current_select)
-            mark_as_dependent(thd, sel, current_select, item, item);
+            mark_as_dependent(thd, sel, current_select, item, item, false);
           return;
         }
       }
@@ -7844,7 +7957,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
                               ((refer_type == REF_ITEM ||
                                 refer_type == FIELD_ITEM) ?
                                (Item_ident*) (*reference) :
-                               0));
+                               0), false);
             /*
               view reference found, we substituted it instead of this
               Item, so can quit
@@ -7894,13 +8007,14 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
           goto error;
         thd->change_item_tree(reference, fld);
         mark_as_dependent(thd, last_checked_context->select_lex,
-                          current_sel, fld, fld);
+                          current_sel, fld, fld, false);
         /*
           A reference is resolved to a nest level that's outer or the same as
           the nest level of the enclosing set function : adjust the value of
           max_arg_level for the function if it's needed.
         */
         if (thd->lex->in_sum_func &&
+            thd->lex == context->select_lex->parent_lex &&
             thd->lex->in_sum_func->nest_level >= 
             last_checked_context->select_lex->nest_level)
           set_if_bigger(thd->lex->in_sum_func->max_arg_level,
@@ -7917,13 +8031,14 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
       /* Should be checked in resolve_ref_in_select_and_group(). */
       DBUG_ASSERT(*ref && (*ref)->is_fixed());
       mark_as_dependent(thd, last_checked_context->select_lex,
-                        context->select_lex, this, this);
+                        context->select_lex, this, this, false);
       /*
         A reference is resolved to a nest level that's outer or the same as
         the nest level of the enclosing set function : adjust the value of
         max_arg_level for the function if it's needed.
       */
       if (thd->lex->in_sum_func &&
+          thd->lex == context->select_lex->parent_lex &&
           thd->lex->in_sum_func->nest_level >= 
           last_checked_context->select_lex->nest_level)
         set_if_bigger(thd->lex->in_sum_func->max_arg_level,
@@ -8459,6 +8574,7 @@ Item_cache_wrapper::Item_cache_wrapper(THD *thd, Item *item_arg):
   with_field= orig_item->with_field;
   name= item_arg->name;
   m_with_subquery= orig_item->with_subquery();
+  with_window_func= orig_item->with_window_func;
 
   if ((expr_value= orig_item->get_cache(thd)))
     expr_value->setup(thd, orig_item);
@@ -9449,6 +9565,7 @@ bool Item_default_value::val_native_result(THD *thd, Native *to)
   return Item_field::val_native_result(thd, to);
 }
 
+
 table_map Item_default_value::used_tables() const
 {
   if (!field || !field->default_value)
@@ -9829,7 +9946,7 @@ bool  Item_cache_int::cache_value()
     return FALSE;
   value_cached= TRUE;
   value= example->val_int_result();
-  null_value= example->null_value;
+  null_value_inside= null_value= example->null_value;
   unsigned_flag= example->unsigned_flag;
   return TRUE;
 }
@@ -9906,7 +10023,7 @@ bool Item_cache_temporal::cache_value()
     return false;
   value_cached= true;
   value= example->val_datetime_packed_result(current_thd);
-  null_value= example->null_value;
+  null_value_inside= null_value= example->null_value;
   return true;
 }
 
@@ -9917,7 +10034,7 @@ bool Item_cache_time::cache_value()
     return false;
   value_cached= true;
   value= example->val_time_packed_result(current_thd);
-  null_value= example->null_value;
+  null_value_inside= null_value= example->null_value;
   return true;
 }
 
@@ -10059,7 +10176,7 @@ bool Item_cache_real::cache_value()
     return FALSE;
   value_cached= TRUE;
   value= example->val_result();
-  null_value= example->null_value;
+  null_value_inside= null_value= example->null_value;
   return TRUE;
 }
 
@@ -10126,7 +10243,8 @@ bool Item_cache_decimal::cache_value()
     return FALSE;
   value_cached= TRUE;
   my_decimal *val= example->val_decimal_result(&decimal_value);
-  if (!(null_value= example->null_value) && val != &decimal_value)
+  if (!(null_value_inside= null_value= example->null_value) &&
+        val != &decimal_value)
     my_decimal2decimal(val, &decimal_value);
   return TRUE;
 }
@@ -10175,11 +10293,14 @@ Item *Item_cache_decimal::convert_to_basic_const_item(THD *thd)
 bool Item_cache_str::cache_value()
 {
   if (!example)
+  {
+    DBUG_ASSERT(value_cached == FALSE);
     return FALSE;
+  }
   value_cached= TRUE;
   value_buff.set(buffer, sizeof(buffer), example->collation.collation);
   value= example->str_result(&value_buff);
-  if ((null_value= example->null_value))
+  if ((null_value= null_value_inside= example->null_value))
     value= 0;
   else if (value != &value_buff)
   {
@@ -10274,6 +10395,8 @@ Item *Item_cache_str::convert_to_basic_const_item(THD *thd)
 bool Item_cache_row::setup(THD *thd, Item *item)
 {
   example= item;
+  null_value= true;
+
   if (!values && allocate(thd, item->cols()))
     return 1;
   for (uint i= 0; i < item_count; i++)
@@ -10306,12 +10429,19 @@ bool Item_cache_row::cache_value()
   if (!example)
     return FALSE;
   value_cached= TRUE;
-  null_value= 0;
+  null_value= TRUE;
+  null_value_inside= false;
   example->bring_value();
+
+  /*
+    For Item_cache_row null_value is set to TRUE only when ALL the values
+    inside the cache are NULL
+  */
   for (uint i= 0; i < item_count; i++)
   {
     values[i]->cache_value();
-    null_value|= values[i]->null_value;
+    null_value&= values[i]->null_value;
+    null_value_inside|= values[i]->null_value;
   }
   return TRUE;
 }

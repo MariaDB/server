@@ -1,0 +1,72 @@
+#
+# Purpose:
+#   This test validates that after issuing the `SLAVE RESET ALL` command,
+# any corresponding IGNORE_DOMAIN_IDS/DO_DOMAIN_IDS and IGNORE_SERVER_IDS
+# values are cleared.
+#
+#
+# Methodology:
+#   To ensure the filtering variables are properly cleared after issuing
+# SLAVE RESET ALL, we categorize different combinations of allowable input
+# into three different options, and ensure that the variables are cleared for
+# each category. The categories are as follows:
+#   Category 1) DO_DOMAIN_IDS and IGNORE_SERVER_IDS specified together
+#   Category 2) IGNORE_DOMAIN_IDS and IGNORE_SERVER_IDS specified together
+#   Category 3) Null check - edge case with all empty lists to ensure a lack
+#               of specification doesn't break anything
+#
+#   To specify the values, the variables are set in `CHANGE MASTER TO`. To
+# ensure the slave state is correct, we test the domain/server id filtering
+# variable values at the following times while testing each category.
+#
+#   Before CHANGE MASTER TO the filtering variables are tested to all be
+# empty.
+#
+#   After CHANGE MASTER TO the variables are tested to ensure they reflect
+# those set in the CHANGE MASTER command.
+#
+#   After RESET SLAVE ALL the filtering variables are tested to all be
+# empty.
+#
+
+--source include/master-slave.inc
+--source include/have_debug.inc
+
+--connection slave
+--source include/stop_slave.inc
+
+--echo #
+--echo # Category 1) DO_DOMAIN_IDS and IGNORE_SERVER_IDS specified together
+--echo #
+--let $_do_domain_ids= (1)
+--let $_ignore_domain_ids= ()
+--let $_ignore_server_ids= (3)
+--source include/rpl_reset_slave_all_check.inc
+
+--echo #
+--echo # Category 2) IGNORE_DOMAIN_IDS and IGNORE_SERVER_IDS specified together
+--echo #
+--let $_do_domain_ids= ()
+--let $_ignore_domain_ids= (2)
+--let $_ignore_server_ids= (3)
+--source include/rpl_reset_slave_all_check.inc
+
+--echo #
+--echo # Category 3) Null check - edge case with all empty lists to ensure a
+--echo # lack of specification doesn't break anything
+--echo #
+--let $_do_domain_ids= ()
+--let $_ignore_domain_ids= ()
+--let $_ignore_server_ids= ()
+--source include/rpl_reset_slave_all_check.inc
+
+
+--echo ############################
+--echo # Cleanup
+--echo ############################
+--connection slave
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+eval change master to master_port=$MASTER_MYPORT, master_host='127.0.0.1', master_user='root';
+--source include/start_slave.inc
+
+--source include/rpl_end.inc

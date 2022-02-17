@@ -726,6 +726,41 @@ if ($HAVE_PARTITION)
   }
 }
 
+
+--echo #
+--echo # MDEV-25985 Spider handle ">=" as ">" in some cases
+--echo #
+
+--connection child2_1
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+eval CREATE TABLE t1 (
+    a int,
+    b int,
+    c int,
+    PRIMARY KEY (a),
+    KEY (b,c)
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+
+INSERT INTO t1 VALUES (1, 1, 1), (2, 2, 1);
+
+--connection master_1
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+--enable_warnings
+eval CREATE TABLE t1 (
+    a int,
+    b int,
+    c int,
+    PRIMARY KEY (a),
+    KEY (b,c)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_MDEV_25985;
+
+--connection master_1
+SELECT * FROM t1 WHERE c > 0 AND b >= 1 AND b <= 2;
+SELECT * FROM t1 WHERE c < 3 AND b <= 2;
+
 --echo
 --echo Crash from b4a2baffa82e5c07b96a1c752228560dcac1359b (MDEV-11084)
 --echo Fixed with 4968049799193394d442f26b4e3a8d95b185be72

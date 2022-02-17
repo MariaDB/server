@@ -267,7 +267,7 @@ class binlog_cache_data
 public:
   binlog_cache_data(): m_pending(0), status(0),
   before_stmt_pos(MY_OFF_T_UNDEF),
-  incident(FALSE), changes_to_non_trans_temp_table_flag(FALSE),
+  incident(FALSE),
   saved_max_binlog_cache_size(0), ptr_binlog_cache_use(0),
   ptr_binlog_cache_disk_use(0)
   { }
@@ -316,16 +316,6 @@ public:
     return(incident);
   }
 
-  void set_changes_to_non_trans_temp_table()
-  {
-    changes_to_non_trans_temp_table_flag= TRUE;    
-  }
-
-  bool changes_to_non_trans_temp_table()
-  {
-    return (changes_to_non_trans_temp_table_flag);    
-  }
-
   void reset()
   {
     bool cache_was_empty= empty();
@@ -337,7 +327,6 @@ public:
     if (truncate_file)
       my_chsize(cache_log.file, 0, 0, MYF(MY_WME));
 
-    changes_to_non_trans_temp_table_flag= FALSE;
     status= 0;
     incident= FALSE;
     before_stmt_pos= MY_OFF_T_UNDEF;
@@ -435,12 +424,6 @@ private:
     it is corrupted.
   */ 
   bool incident;
-
-  /*
-    This flag indicates if the cache has changes to temporary tables.
-    @TODO This a temporary fix and should be removed after BUG#54562.
-  */
-  bool changes_to_non_trans_temp_table_flag;
 
   /**
     This function computes binlog cache and disk usage.
@@ -1709,7 +1692,7 @@ static int binlog_close_connection(handlerton *hton, THD *thd)
   binlog_cache_mngr *const cache_mngr=
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
 #ifdef WITH_WSREP
-  if (cache_mngr && !cache_mngr->trx_cache.empty()) {
+  if (WSREP(thd) && cache_mngr && !cache_mngr->trx_cache.empty()) {
     IO_CACHE* cache= cache_mngr->get_binlog_cache_log(true);
     uchar *buf;
     size_t len=0;
@@ -1985,13 +1968,12 @@ static int binlog_prepare(handlerton *hton, THD *thd, bool all)
 */
 static bool trans_cannot_safely_rollback(THD *thd, bool all)
 {
-  binlog_cache_mngr *const cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+  DBUG_ASSERT(ending_trans(thd, all));
 
   return ((thd->variables.option_bits & OPTION_KEEP_LOG) ||
           (trans_has_updated_non_trans_table(thd) &&
            thd->wsrep_binlog_format() == BINLOG_FORMAT_STMT) ||
-          (cache_mngr->trx_cache.changes_to_non_trans_temp_table() &&
+          (thd->transaction.all.has_modified_non_trans_temp_table() &&
            thd->wsrep_binlog_format() == BINLOG_FORMAT_MIXED) ||
           (trans_has_updated_non_trans_table(thd) &&
            ending_single_stmt_trans(thd,all) &&
@@ -2142,17 +2124,19 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
     /*
       Truncate the cache if:
         . aborting a single or multi-statement transaction or;
-        . the OPTION_KEEP_LOG is not active and;
+        . the current statement created or dropped a temporary table
+          while having actual STATEMENT format;
         . the format is not STMT or no non-trans table was
           updated and;
         . the format is not MIXED or no temporary non-trans table
           was updated.
     */
     else if (ending_trans(thd, all) ||
-             (!(thd->variables.option_bits & OPTION_KEEP_LOG) &&
+             (!(thd->transaction.stmt.has_created_dropped_temp_table() &&
+                !thd->is_current_stmt_binlog_format_row()) &&
               (!stmt_has_updated_non_trans_table(thd) ||
                thd->wsrep_binlog_format() != BINLOG_FORMAT_STMT) &&
-              (!cache_mngr->trx_cache.changes_to_non_trans_temp_table() ||
+              (!thd->transaction.stmt.has_modified_non_trans_temp_table() ||
                thd->wsrep_binlog_format() != BINLOG_FORMAT_MIXED)))
       error= binlog_truncate_trx_cache(thd, cache_mngr, all);
   }
@@ -3256,7 +3240,7 @@ MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
    checksum_alg_reset(BINLOG_CHECKSUM_ALG_UNDEF),
    relay_log_checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
    description_event_for_exec(0), description_event_for_queue(0),
-   current_binlog_id(0)
+   current_binlog_id(0), reset_master_count(0)
 {
   /*
     We don't want to initialize locks here as such initialization depends on
@@ -3587,6 +3571,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
             opt_slave_sql_verify_checksum ? (enum_binlog_checksum_alg) binlog_checksum_options
                                           : BINLOG_CHECKSUM_ALG_OFF;
         s.checksum_alg= relay_log_checksum_alg;
+        s.set_relay_log_event();
       }
       else
         s.checksum_alg= (enum_binlog_checksum_alg)binlog_checksum_options;
@@ -4350,6 +4335,7 @@ err:
     }
     mysql_cond_broadcast(&COND_xid_list);
     reset_master_pending--;
+    reset_master_count++;
     mysql_mutex_unlock(&LOCK_xid_list);
   }
 
@@ -6433,9 +6419,8 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       cache_data= cache_mngr->get_binlog_cache_data(is_trans_cache);
       file= &cache_data->cache_log;
 
-      if (thd->lex->stmt_accessed_non_trans_temp_table())
-        cache_data->set_changes_to_non_trans_temp_table();
-
+      if (thd->lex->stmt_accessed_non_trans_temp_table() && is_trans_cache)
+        thd->transaction.stmt.mark_modified_non_trans_temp_table();
       thd->binlog_start_trans_and_stmt();
     }
     DBUG_PRINT("info",("event type: %d",event_info->get_type_code()));
@@ -6984,6 +6969,9 @@ int MYSQL_BIN_LOG::rotate_and_purge(bool force_rotate,
   bool check_purge= false;
 
   mysql_mutex_lock(&LOCK_log);
+
+  DEBUG_SYNC(current_thd, "rotate_after_acquire_LOCK_log");
+
   prev_binlog_id= current_binlog_id;
 
   if ((err_gtid= do_delete_gtid_domain(domain_drop_lex)))
@@ -6994,11 +6982,22 @@ int MYSQL_BIN_LOG::rotate_and_purge(bool force_rotate,
   }
   else if (unlikely((error= rotate(force_rotate, &check_purge))))
     check_purge= false;
+
+  DEBUG_SYNC(current_thd, "rotate_after_rotate");
+
   /*
     NOTE: Run purge_logs wo/ holding LOCK_log because it does not need
           the mutex. Otherwise causes various deadlocks.
+          Explicit binlog rotation must be synchronized with a concurrent
+          binlog ordered commit, in particular not let binlog
+          checkpoint notification request until early binlogged
+          concurrent commits have has been completed.
   */
+  mysql_mutex_lock(&LOCK_after_binlog_sync);
   mysql_mutex_unlock(&LOCK_log);
+  mysql_mutex_lock(&LOCK_commit_ordered);
+  mysql_mutex_unlock(&LOCK_after_binlog_sync);
+  mysql_mutex_unlock(&LOCK_commit_ordered);
 
   if (check_purge)
     checkpoint_and_purge(prev_binlog_id);
@@ -7471,6 +7470,8 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   new transaction directly to participate in the group commit.
 
   @retval < 0   Error
+  @retval  -2   WSREP error with commit ordering
+  @retval  -3   WSREP return code to mark the leader
   @retval > 0   If queued as the first entry in the queue (meaning this
                 is the leader)
   @retval   0   Otherwise (queued as participant, leader handles the commit)
@@ -7768,6 +7769,24 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
     cur= entry->thd->wait_for_commit_ptr;
   }
 
+  result= orig_queue == NULL;
+
+#ifdef WITH_WSREP
+  if (wsrep_is_active(entry->thd) &&
+      wsrep_run_commit_hook(entry->thd, entry->all))
+  {
+    /*  Release commit order here */
+    if (wsrep_ordered_commit(entry->thd, entry->all, wsrep_apply_error()))
+      result= -2;
+
+    /* return -3, if this is leader */
+    if (orig_queue == NULL)
+      result= -3;
+  }
+  else
+    DBUG_ASSERT(result != -2 && result != -3);
+#endif /* WITH_WSREP */
+
   if (opt_binlog_commit_wait_count > 0 && orig_queue != NULL)
     mysql_cond_signal(&COND_prepare_ordered);
   mysql_mutex_unlock(&LOCK_prepare_ordered);
@@ -7775,7 +7794,6 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
 
   DBUG_PRINT("info", ("Queued for group commit as %s",
                       (orig_queue == NULL) ? "leader" : "participant"));
-  result= orig_queue == NULL;
 
 end:
   if (backup_lock_released)
@@ -7789,25 +7807,32 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 {
   int is_leader= queue_for_group_commit(entry);
 #ifdef WITH_WSREP
-  if (wsrep_is_active(entry->thd) &&
-      wsrep_run_commit_hook(entry->thd, entry->all))
+  /* commit order was released in queue_for_group_commit() call,
+     here we check if wsrep_commit_ordered() failed or if we are leader */
+  switch (is_leader)
   {
-    /*
-      Release commit order and if leader, wait for prior commit to
-      complete. This establishes total order for group leaders.
-    */
-    if (wsrep_ordered_commit(entry->thd, entry->all, wsrep_apply_error()))
-    {
-      entry->thd->wakeup_subsequent_commits(1);
-      return 1;
-    }
-    if (is_leader)
-    {
-      if (entry->thd->wait_for_prior_commit())
-        return 1;
-    }
+  case -2: /* wsrep_ordered_commit() has failed */
+    DBUG_ASSERT(wsrep_is_active(entry->thd));
+    DBUG_ASSERT(wsrep_run_commit_hook(entry->thd, entry->all));
+    entry->thd->wakeup_subsequent_commits(1);
+    return true;
+  case -3: /* this is leader, wait for prior commit to
+              complete. This establishes total order for group leaders
+           */
+    DBUG_ASSERT(wsrep_is_active(entry->thd));
+    DBUG_ASSERT(wsrep_run_commit_hook(entry->thd, entry->all));
+    if (entry->thd->wait_for_prior_commit())
+      return true;
+
+    /* retain the correct is_leader value */
+    is_leader= 1;
+    break;
+
+  default: /* native MariaDB cases */
+    break;
   }
 #endif /* WITH_WSREP */
+
   /*
     The first in the queue handles group commit for all; the others just wait
     to be signalled when group commit is done.
@@ -8174,7 +8199,12 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   }
 
   DEBUG_SYNC(leader->thd, "commit_before_get_LOCK_commit_ordered");
+
   mysql_mutex_lock(&LOCK_commit_ordered);
+  DBUG_EXECUTE_IF("crash_before_engine_commit",
+      {
+        DBUG_SUICIDE();
+      });
   last_commit_pos_offset= commit_offset;
 
   /*
@@ -10797,35 +10827,6 @@ void wsrep_thd_binlog_stmt_rollback(THD * thd)
     cache_mngr->stmt_cache.reset();
   }
   DBUG_VOID_RETURN;
-}
-
-bool wsrep_stmt_rollback_is_safe(THD* thd)
-{
-  bool ret(true);
-
-  DBUG_ENTER("wsrep_binlog_stmt_rollback_is_safe");
-
-  binlog_cache_mngr *cache_mngr= 
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
-
-
-  if (binlog_hton && cache_mngr)
-  {
-    binlog_cache_data * trx_cache = &cache_mngr->trx_cache;
-    if (thd->wsrep_sr().fragments_certified() > 0 &&
-        (trx_cache->get_prev_position() == MY_OFF_T_UNDEF ||
-         trx_cache->get_prev_position() < thd->wsrep_sr().log_position()))
-    {
-      WSREP_DEBUG("statement rollback is not safe for streaming replication"
-                  " pre-stmt_pos: %llu, frag repl pos: %zu\n"
-                  "Thread: %llu, SQL: %s",
-                  trx_cache->get_prev_position(),
-                  thd->wsrep_sr().log_position(),
-                  thd->thread_id, thd->query());
-       ret = false;
-    }
-  }
-  DBUG_RETURN(ret);
 }
 
 void wsrep_register_binlog_handler(THD *thd, bool trx)

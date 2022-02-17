@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1383,6 +1383,9 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
     maybe_null=1;
   m_with_subquery= true;
   join_with_sum_func(args[1]);
+  with_window_func= args[0]->with_window_func;
+  // The subquery cannot have window functions aggregated in this select
+  DBUG_ASSERT(!args[1]->with_window_func);
   with_field= with_field || args[1]->with_field;
   with_param= args[0]->with_param || args[1]->with_param; 
   used_tables_and_const_cache_join(args[1]);
@@ -1565,7 +1568,7 @@ longlong Item_in_optimizer::val_int()
     DBUG_RETURN(res);
   }
 
-  if (cache->null_value)
+  if (cache->null_value_inside)
   {
      DBUG_PRINT("info", ("Left NULL..."));
     /*
@@ -5473,7 +5476,7 @@ void Item_func_like::print(String *str, enum_query_type query_type)
 longlong Item_func_like::val_int()
 {
   DBUG_ASSERT(fixed == 1);
-  DBUG_ASSERT(escape != -1);
+  DBUG_ASSERT(escape != ESCAPE_NOT_INITIALIZED);
   String* res= args[0]->val_str(&cmp_value1);
   if (args[0]->null_value)
   {
@@ -5577,7 +5580,7 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
     return TRUE;
   }
 
-  IF_DBUG(*escape= -1,);
+  IF_DBUG(*escape= ESCAPE_NOT_INITIALIZED,);
 
   if (escape_item->const_item())
   {
@@ -5657,13 +5660,17 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
       if (!res2)
         return FALSE;				// Null argument
       
-      const size_t len   = res2->length();
-      const char*  first = res2->ptr();
-      const char*  last  = first + len - 1;
+      const size_t len= res2->length();
+
       /*
         len must be > 2 ('%pattern%')
         heuristic: only do TurboBM for pattern_len > 2
       */
+      if (len <= 2)
+        return FALSE;
+
+      const char*  first= res2->ptr();
+      const char*  last=  first + len - 1;
       
       if (len > MIN_TURBOBM_PATTERN_LEN + 2 &&
           *first == wild_many &&

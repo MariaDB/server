@@ -147,7 +147,8 @@ struct st_mysql_auth
 
     @return 0 for ok, 1 for error
 
-    Can be NULL.
+    Can be NULL, in this case one will not be able to use SET PASSWORD or
+    PASSWORD('...') in GRANT, CREATE USER, ALTER USER.
   */
   int (*hash_password)(const char *password, size_t password_length,
                        char *hash, size_t *hash_length);

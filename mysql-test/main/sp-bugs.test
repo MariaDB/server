@@ -143,7 +143,9 @@ CALL p1();
 DROP DATABASE testdb;
 USE test;
 
---echo End of 5.1 tests
+--echo #
+--echo # End of 5.1 tests
+--echo #
 
 --echo #
 --echo # BUG#13489996 valgrind:conditional jump or move depends on
@@ -350,3 +352,22 @@ DELIMITER ;$$
 SELECT f1();
 SELECT body FROM mysql.proc WHERE db='test' AND specific_name='f1';
 DROP FUNCTION f1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-25501 routine_definition in information_schema.routines loses tablename if it starts with an _ and is not backticked
+--echo #
+create table _t1 (a int);
+create procedure p1() select * from _t1;
+show create procedure p1;
+select routine_definition from information_schema.routines where routine_schema=database() and specific_name='p1';
+select body, body_utf8 from mysql.proc where name='p1';
+drop procedure p1;
+drop table _t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

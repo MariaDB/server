@@ -1,3 +1,9 @@
+
+SET(CPACK_RPM_gssapi-server_PACKAGE_SUMMARY "GSSAPI authentication plugin for MariaDB server" PARENT_SCOPE)
+SET(CPACK_RPM_gssapi-server_PACKAGE_DESCRIPTION "The gssapi authentication plugin allows the user to authenticate with services
+that use the Generic Security Services Application Program Interface (GSSAPI).
+The gssapi authentication plugin is most often used for authenticating with Microsoft Active Directory." PARENT_SCOPE)
+
 IF (WIN32)
  SET(USE_SSPI 1)
 ENDIF()
@@ -11,6 +17,7 @@ IF(USE_SSPI)
 ELSE()
  SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
  FIND_PACKAGE(GSSAPI)
+ SET_PACKAGE_PROPERTIES(GSSAPI PROPERTIES TYPE OPTIONAL)
  IF(GSSAPI_FOUND)
    INCLUDE_DIRECTORIES(${GSSAPI_INCS})
    ADD_DEFINITIONS(-DPLUGIN_GSSAPI)

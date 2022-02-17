@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -540,7 +540,8 @@ page_copy_rec_list_end_no_locks(
 	ut_a(page_is_comp(new_page) == page_rec_is_comp(rec));
 	ut_a(mach_read_from_2(new_page + srv_page_size - 10) == (ulint)
 	     (page_is_comp(new_page) ? PAGE_NEW_INFIMUM : PAGE_OLD_INFIMUM));
-	const bool is_leaf = page_is_leaf(block->frame);
+	const ulint n_core = page_is_leaf(block->frame)
+		? index->n_core_fields : 0;
 
 	cur2 = page_get_infimum_rec(buf_block_get_frame(new_block));
 
@@ -548,7 +549,7 @@ page_copy_rec_list_end_no_locks(
 
 	while (!page_cur_is_after_last(&cur1)) {
 		rec_t*	ins_rec;
-		offsets = rec_get_offsets(cur1.rec, index, offsets, is_leaf,
+		offsets = rec_get_offsets(cur1.rec, index, offsets, n_core,
 					  ULINT_UNDEFINED, &heap);
 		ins_rec = page_cur_insert_rec_low(cur2, index,
 						  cur1.rec, offsets, mtr);
@@ -777,7 +778,7 @@ page_copy_rec_list_start(
 
 	cur2 = ret;
 
-	const bool is_leaf = page_rec_is_leaf(rec);
+	const ulint n_core = page_rec_is_leaf(rec) ? index->n_core_fields : 0;
 
 	/* Copy records from the original page to the new page */
 	if (index->is_spatial()) {
@@ -799,7 +800,7 @@ page_copy_rec_list_start(
 	} else {
 		while (page_cur_get_rec(&cur1) != rec) {
 			offsets = rec_get_offsets(cur1.rec, index, offsets,
-						  is_leaf,
+						  n_core,
 						  ULINT_UNDEFINED, &heap);
 			cur2 = page_cur_insert_rec_low(cur2, index,
 						       cur1.rec, offsets, mtr);
@@ -819,7 +820,7 @@ page_copy_rec_list_start(
 	same temp-table in parallel.
 	max_trx_id is ignored for temp tables because it not required
 	for MVCC. */
-	if (is_leaf && dict_index_is_sec_or_ibuf(index)
+	if (n_core && dict_index_is_sec_or_ibuf(index)
 	    && !index->table->is_temporary()) {
 		page_update_max_trx_id(new_block, NULL,
 				       page_get_max_trx_id(page_align(rec)),
@@ -1050,7 +1051,7 @@ delete_all:
 				       ? MLOG_COMP_LIST_END_DELETE
 				       : MLOG_LIST_END_DELETE, mtr);
 
-	const bool is_leaf = page_is_leaf(page);
+	const ulint n_core = page_is_leaf(page) ? index->n_core_fields : 0;
 
 	if (page_zip) {
 		mtr_log_t	log_mode;
@@ -1064,7 +1065,7 @@ delete_all:
 			page_cur_t	cur;
 			page_cur_position(rec, block, &cur);
 
-			offsets = rec_get_offsets(rec, index, offsets, is_leaf,
+			offsets = rec_get_offsets(rec, index, offsets, n_core,
 						  ULINT_UNDEFINED, &heap);
 			rec = rec_get_next_ptr(rec, TRUE);
 #ifdef UNIV_ZIP_DEBUG
@@ -1097,8 +1098,7 @@ delete_all:
 
 		do {
 			ulint	s;
-			offsets = rec_get_offsets(rec2, index, offsets,
-						  is_leaf,
+			offsets = rec_get_offsets(rec2, index, offsets, n_core,
 						  ULINT_UNDEFINED, &heap);
 			s = rec_offs_size(offsets);
 			ut_ad(ulint(rec2 - page) + s
@@ -1244,11 +1244,12 @@ page_delete_rec_list_start(
 	/* Individual deletes are not logged */
 
 	mtr_log_t	log_mode = mtr_set_log_mode(mtr, MTR_LOG_NONE);
-	const bool	is_leaf = page_rec_is_leaf(rec);
+	const ulint	n_core = page_rec_is_leaf(rec)
+		? index->n_core_fields : 0;
 
 	while (page_cur_get_rec(&cur1) != rec) {
 		offsets = rec_get_offsets(page_cur_get_rec(&cur1), index,
-					  offsets, is_leaf,
+					  offsets, n_core,
 					  ULINT_UNDEFINED, &heap);
 		page_cur_delete_rec(&cur1, index, offsets, mtr);
 	}
@@ -2461,9 +2462,10 @@ wrong_page_type:
 
 	rec = page_get_infimum_rec(page);
 
+	const ulint n_core = page_is_leaf(page) ? index->n_core_fields : 0;
+
 	for (;;) {
-		offsets = rec_get_offsets(rec, index, offsets,
-					  page_is_leaf(page),
+		offsets = rec_get_offsets(rec, index, offsets, n_core,
 					  ULINT_UNDEFINED, &heap);
 
 		if (page_is_comp(page) && page_rec_is_user_rec(rec)
@@ -2709,8 +2711,7 @@ n_owned_zero:
 	rec = page_header_get_ptr(page, PAGE_FREE);
 
 	while (rec != NULL) {
-		offsets = rec_get_offsets(rec, index, offsets,
-					  page_is_leaf(page),
+		offsets = rec_get_offsets(rec, index, offsets, n_core,
 					  ULINT_UNDEFINED, &heap);
 		if (UNIV_UNLIKELY(!page_rec_validate(rec, offsets))) {
 			ret = FALSE;

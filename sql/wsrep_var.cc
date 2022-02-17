@@ -1,4 +1,4 @@
-/* Copyright 2008-2015 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2021 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
 #include <my_dir.h>
 #include <cstdio>
 #include <cstdlib>
+#include "wsrep_trans_observer.h"
 
 ulong   wsrep_reject_queries;
 
@@ -88,10 +89,11 @@ static bool refresh_provider_options()
   }
 }
 
-static void wsrep_set_wsrep_on()
+void wsrep_set_wsrep_on()
 {
-  WSREP_ON_= global_system_variables.wsrep_on && wsrep_provider &&
-    strcmp(wsrep_provider, WSREP_NONE);
+  WSREP_PROVIDER_EXISTS_= wsrep_provider &&
+    strncasecmp(wsrep_provider, WSREP_NONE, FN_REFLEN);
+  WSREP_ON_= global_system_variables.wsrep_on && WSREP_PROVIDER_EXISTS_;
 }
 
 /* This is intentionally declared as a weak global symbol, so that
@@ -102,7 +104,8 @@ struct handlerton* innodb_hton_ptr __attribute__((weak));
 
 bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
 {
-  if (var_type == OPT_GLOBAL) {
+  if (var_type == OPT_GLOBAL)
+  {
     my_bool saved_wsrep_on= global_system_variables.wsrep_on;
 
     thd->variables.wsrep_on= global_system_variables.wsrep_on;
@@ -110,15 +113,15 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
     // If wsrep has not been inited we need to do it now
     if (global_system_variables.wsrep_on && wsrep_provider && !wsrep_inited)
     {
-      char* tmp= strdup(wsrep_provider); // wsrep_init() rewrites provider
-                                         //when fails
-
+      // wsrep_init() rewrites provide if it fails
+      char* tmp= strdup(wsrep_provider);
       mysql_mutex_unlock(&LOCK_global_system_variables);
 
       if (wsrep_init())
       {
         my_error(ER_CANT_OPEN_LIBRARY, MYF(0), tmp, my_error, "wsrep_init failed");
         //rcode= true;
+        saved_wsrep_on= false;
       }
 
       free(tmp);
@@ -130,6 +133,16 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
 
   wsrep_set_wsrep_on();
 
+  if (var_type == OPT_GLOBAL)
+  {
+    if (thd->variables.wsrep_on &&
+        thd->wsrep_cs().state() == wsrep::client_state::s_none)
+    {
+      wsrep_open(thd);
+      wsrep_before_command(thd);
+    }
+  }
+
   return false;
 }
 
@@ -140,12 +153,57 @@ bool wsrep_on_check(sys_var *self, THD* thd, set_var* var)
   if (check_has_super(self, thd, var))
     return true;
 
-  if (new_wsrep_on && innodb_hton_ptr && innodb_lock_schedule_algorithm != 0) {
-    my_message(ER_WRONG_ARGUMENTS, " WSREP (galera) can't be enabled "
-            "if innodb_lock_schedule_algorithm=VATS. Please configure"
-            " innodb_lock_schedule_algorithm=FCFS and restart.", MYF(0));
+  if (new_wsrep_on)
+  {
+    if (innodb_hton_ptr && innodb_lock_schedule_algorithm != 0)
+    {
+      my_message(ER_WRONG_ARGUMENTS, " WSREP (galera) can't be enabled "
+                 "if innodb_lock_schedule_algorithm=VATS. Please configure"
+                 " innodb_lock_schedule_algorithm=FCFS and restart.", MYF(0));
+      return true;
+    }
+
+    if (!WSREP_PROVIDER_EXISTS)
+    {
+      my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) can't be enabled "
+                 "if the wsrep_provider is unset or set to 'none'", MYF(0));
+      return true;
+    }
+
+    if (var->type == OPT_SESSION &&
+        !global_system_variables.wsrep_on)
+    {
+      my_message(ER_WRONG_ARGUMENTS,
+                 "Can't enable @@session.wsrep_on, "
+                 "while @@global.wsrep_on is disabled", MYF(0));
+      return true;
+    }
+  }
+
+  if (thd->in_active_multi_stmt_transaction())
+  {
+    my_error(ER_CANT_DO_THIS_DURING_AN_TRANSACTION, MYF(0));
     return true;
   }
+
+  if (var->type == OPT_GLOBAL)
+  {
+    /*
+      The global value is about to change. Cleanup
+      the transaction state and close the client
+      state. wsrep_on_update() will take care of
+      reopening it should wsrep_on be re-enabled.
+     */
+    if (global_system_variables.wsrep_on && !new_wsrep_on)
+    {
+      wsrep_commit_empty(thd, true);
+      wsrep_after_statement(thd);
+      wsrep_after_command_ignore_result(thd);
+      wsrep_close(thd);
+      wsrep_cleanup(thd);
+    }
+  }
+
   return false;
 }
 
@@ -736,7 +794,7 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
     ret= Wsrep_server_state::instance().provider().desync();
     if (ret) {
       WSREP_WARN ("SET desync failed %d for schema: %s, query: %s", ret,
-                  thd->db.str, WSREP_QUERY(thd));
+                  thd->db.str, wsrep_thd_query(thd));
       my_error (ER_CANNOT_USER, MYF(0), "'desync'", thd->query());
       return true;
     }

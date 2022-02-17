@@ -18,7 +18,7 @@ create table t1(a int not null primary key, b char(200)) engine=innodb;
 
 --echo
 --echo # Restart server with encryption
--- let $restart_parameters=--plugin-load-add=$FILE_KEY_MANAGEMENT_SO --loose-file-key-management --loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt --file-key-management-encryption-algorithm=aes_cbc --innodb-encrypt-tables=ON --innodb-encryption-threads=4 --innodb-tablespaces-encryption --innodb-encryption-rotate-key-age=15
+-- let $restart_parameters=--plugin-load-add=file_key_management --loose-file-key-management --loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt --file-key-management-encryption-algorithm=aes_cbc --innodb-encrypt-tables=ON --innodb-encryption-threads=4 --innodb-tablespaces-encryption --innodb-encryption-rotate-key-age=15
 -- source include/restart_mysqld.inc
 
 --echo # Wait until encryption threads have encrypted all tablespaces

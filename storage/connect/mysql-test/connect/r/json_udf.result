@@ -322,7 +322,7 @@ JsonGet_String(Json_Make_Array(45,28,36,45,89),'3')
 45
 SELECT JsonGet_String(Json_Make_Array(45,28,36,45,89),'["+"]') "list",'=' as "egal",JsonGet_String(Json_Make_Array(45,28,36,45,89),'[+]') "sum";
 list	egal	sum
-45+28+36+45+89	=	243.00
+45+28+36+45+89	=	243
 SELECT JsonGet_String(Json_Make_Array(Json_Make_Array(45,28),Json_Make_Array(36,45,89)),'1.0');
 JsonGet_String(Json_Make_Array(Json_Make_Array(45,28),Json_Make_Array(36,45,89)),'1.0')
 36
@@ -349,10 +349,10 @@ Warnings:
 Warning	1105	
 SELECT department, JsonGet_String(Json_Make_Object(department, Json_Array_Grp(salary) "Json_salaries"),'salaries.[+]') Sumsal FROM t3 GROUP BY department;
 department	Sumsal
-0021	28500.00
-0318	72230.00
-0319	89800.95
-2452	45900.00
+0021	28500.000000
+0318	72230.000000
+0319	89800.950000
+2452	45900.000000
 SELECT JsonGet_Int(@j1, '4');
 JsonGet_Int(@j1, '4')
 89

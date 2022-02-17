@@ -29,10 +29,12 @@ INSERT INTO t1 VALUES (01), (02), (03), (04), (05);
 
 # Disconnect nodes #2 and #3
 --connection node_2
---source suite/galera/include/galera_unload_provider.inc
+--let $wsrep_cluster_address_orig2 = `select @@wsrep_cluster_address`
+--source suite/galera/include/galera_stop_replication.inc
 
 --connection node_3
---source suite/galera/include/galera_unload_provider.inc
+--let $wsrep_cluster_address_orig3 = `select @@wsrep_cluster_address`
+--source suite/galera/include/galera_stop_replication.inc
 
 --connection node_1
 --source include/wait_until_connected_again.inc
@@ -51,8 +53,8 @@ INSERT INTO t1 VALUES (21), (22), (23), (24), (25);
 # ... and restart providers to force IST
 --connection node_2
 --disable_query_log
---eval SET GLOBAL wsrep_provider = '$wsrep_provider_orig';
---eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_orig';
+SET GLOBAL wsrep_cluster_address='';
+--eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_orig2';
 --enable_query_log
 
 --connection node_1
@@ -60,8 +62,8 @@ INSERT INTO t1 VALUES (31), (32), (33), (34), (35);
 
 --connection node_3
 --disable_query_log
---eval SET GLOBAL wsrep_provider = '$wsrep_provider_orig';
---eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_orig';
+SET GLOBAL wsrep_cluster_address='';
+--eval SET GLOBAL wsrep_cluster_address = '$wsrep_cluster_address_orig3';
 --enable_query_log
 
 --connection node_1

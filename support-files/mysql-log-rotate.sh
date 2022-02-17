@@ -20,6 +20,7 @@
 
 @localstatedir@/mysqld.log {
         # create 600 mysql mysql
+        su mysql mysql
         notifempty
         daily
         rotate 3

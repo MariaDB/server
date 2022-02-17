@@ -1,4 +1,4 @@
-/* Copyright (C) 2018 MariaDB corporation
+/* Copyright (C) 2018, 2021, MariaDB corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -178,7 +178,6 @@ static int create_test_table(const char *table_name, int type_of_table)
   int key_field=FIELD_SKIP_PRESPACE,extra_field=FIELD_SKIP_ENDSPACE;
   int key_type=HA_KEYTYPE_NUM;
   int create_flag=0;
-  uint offset_to_key;
   uint pack_seg=0, pack_keys= 0;
   uint key_length;
   uchar record[MAX_REC_LENGTH];
@@ -302,10 +301,6 @@ static int create_test_table(const char *table_name, int type_of_table)
   }
   else
     uniques=0;
-
-  offset_to_key= MY_TEST(null_fields);
-  if (key_field == FIELD_BLOB || key_field == FIELD_VARCHAR)
-    offset_to_key+= 2;
 
   if (!silent)
     printf("- Creating Aria file\n");

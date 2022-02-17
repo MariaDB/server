@@ -40,3 +40,15 @@ execute stmt2;
 deallocate prepare stmt1;
 deallocate prepare stmt2;
 drop table t1;
+
+--echo #
+--echo # MDEV-25808 PREPARE/EXECUTE makes signed integer out of unsigned
+--echo #
+prepare p1 from 'select concat(?)';
+execute p1 using 17864960750176564435;
+prepare p1 from 'select SQRT(?) is not null';
+execute p1 using 17864960750176564435;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

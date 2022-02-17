@@ -592,3 +592,71 @@ t2	CREATE TEMPORARY TABLE `t2` (
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
 drop temporary table t2;
 drop table t1;
+#
+# MDEV-16857 system-invisible row_end is displayed in SHOW INDEX
+#
+create or replace table t1 (id int primary key, x int) with system versioning;
+select table_schema, table_name, non_unique, index_schema, index_name, seq_in_index, column_name
+from information_schema.statistics where table_name = 't1';
+table_schema	table_name	non_unique	index_schema	index_name	seq_in_index	column_name
+test	t1	0	test	PRIMARY	1	id
+show index from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	0	PRIMARY	1	id	#	#	#	#	#	#		
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `x` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+drop table t1;
+#
+# MDEV-26928 Column-inclusive WITH SYSTEM VERSIONING doesn't work with explicit system fields
+#
+create or replace table t1 (x int, y int with system versioning);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
+  `y` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (
+x int, y int with system versioning,
+row_start timestamp(6) as row start,
+row_end timestamp(6) as row end,
+period for system_time(row_start, row_end));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL WITHOUT SYSTEM VERSIONING,
+  `y` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+drop table t1;
+#
+# MDEV-27452 TIMESTAMP(0) system field is allowed for certain creation of system-versioned table
+#
+create or replace table t (
+a int,
+s timestamp as row start,
+e timestamp as row end,
+period for system_time (s, e))
+with system versioning;
+ERROR HY000: `s` must be of type TIMESTAMP(6) for system-versioned table `t`
+create or replace table t (
+a int with system versioning,
+s timestamp as row start,
+e timestamp as row end,
+period for system_time (s, e));
+ERROR HY000: `s` must be of type TIMESTAMP(6) for system-versioned table `t`
+create or replace table t (
+a int with system versioning,
+b int with system versioning,
+s timestamp(6) as row start,
+e timestamp(6) as row end,
+period for system_time (s, e));
+insert into t () values (),();
+drop table t;

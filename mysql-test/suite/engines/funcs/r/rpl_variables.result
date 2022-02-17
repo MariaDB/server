@@ -1,9 +1,5 @@
-stop slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-reset master;
-reset slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-start slave;
+include/master-slave.inc
+[connection master]
 set @my_slave_net_timeout         =@@global.slave_net_timeout;
 set @my_sql_slave_skip_counter    =@@global.sql_slave_skip_counter;
 set global slave_net_timeout=100;
@@ -19,3 +15,4 @@ Variable_name	Value
 slave_skip_errors	3,100,137,643,1752
 set global slave_net_timeout=@my_slave_net_timeout;
 set global sql_slave_skip_counter=@my_sql_slave_skip_counter;
+include/rpl_end.inc

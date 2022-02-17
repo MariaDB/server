@@ -1,0 +1,12 @@
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-25610 Assertion `escape != -1' failed in Item_func_like::val_int
+#
+SELECT _cp866'' LIKE _cp866'' ESCAPE _cp866 0xFF;
+_cp866'' LIKE _cp866'' ESCAPE _cp866 0xFF
+1
+#
+# End of 10.2 tests
+#

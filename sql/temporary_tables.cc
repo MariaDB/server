@@ -1,5 +1,5 @@
 /*
-  Copyright (c) 2016, 2019, MariaDB Corporation.
+  Copyright (c) 2016, 2021, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -875,10 +875,12 @@ void THD::restore_tmp_table_share(TMP_TABLE_SHARE *share)
 inline bool THD::has_temporary_tables()
 {
   DBUG_ENTER("THD::has_temporary_tables");
-  bool result= (rgi_slave
-                ? (rgi_slave->rli->save_temporary_tables &&
-                   !rgi_slave->rli->save_temporary_tables->is_empty())
-                : (has_thd_temporary_tables()));
+  bool result=
+#ifdef HAVE_REPLICATION
+    rgi_slave ? (rgi_slave->rli->save_temporary_tables &&
+                 !rgi_slave->rli->save_temporary_tables->is_empty()) :
+#endif
+    has_thd_temporary_tables();
   DBUG_RETURN(result);
 }
 
@@ -1508,12 +1510,14 @@ bool THD::lock_temporary_tables()
     DBUG_RETURN(false);
   }
 
+#ifdef HAVE_REPLICATION
   if (rgi_slave)
   {
     mysql_mutex_lock(&rgi_slave->rli->data_lock);
     temporary_tables= rgi_slave->rli->save_temporary_tables;
     m_tmp_tables_locked= true;
   }
+#endif
 
   DBUG_RETURN(m_tmp_tables_locked);
 }
@@ -1534,6 +1538,7 @@ void THD::unlock_temporary_tables()
     DBUG_VOID_RETURN;
   }
 
+#ifdef HAVE_REPLICATION
   if (rgi_slave)
   {
     rgi_slave->rli->save_temporary_tables= temporary_tables;
@@ -1541,6 +1546,7 @@ void THD::unlock_temporary_tables()
     mysql_mutex_unlock(&rgi_slave->rli->data_lock);
     m_tmp_tables_locked= false;
   }
+#endif
 
   DBUG_VOID_RETURN;
 }

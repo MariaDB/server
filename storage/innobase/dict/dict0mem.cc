@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -939,7 +939,7 @@ dict_mem_fill_vcol_from_v_indexes(
 		Later virtual column set will be
 		refreshed during loading of table. */
 		if (!dict_index_has_virtual(index)
-		    || index->has_new_v_col) {
+		    || index->has_new_v_col()) {
 			continue;
 		}
 
@@ -1211,8 +1211,9 @@ bool dict_foreign_t::affects_fulltext() const
   return false;
 }
 
-/** Reconstruct the clustered index fields. */
-inline void dict_index_t::reconstruct_fields()
+/** Reconstruct the clustered index fields.
+@return whether metadata is incorrect */
+inline bool dict_index_t::reconstruct_fields()
 {
 	DBUG_ASSERT(is_primary());
 
@@ -1243,10 +1244,14 @@ inline void dict_index_t::reconstruct_fields()
 				fields + n_first, fields + n_fields,
 				[c](const dict_field_t& o)
 				{ return o.col->ind == c.ind(); });
+
+			if (old >= fields + n_fields
+			    || old->prefix_len
+			    || old->col != &table->cols[c.ind()]) {
+				return true;
+			}
+
 			ut_ad(old >= &fields[n_first]);
-			ut_ad(old < &fields[n_fields]);
-			DBUG_ASSERT(!old->prefix_len);
-			DBUG_ASSERT(old->col == &table->cols[c.ind()]);
 			f = *old;
 		}
 
@@ -1259,6 +1264,8 @@ inline void dict_index_t::reconstruct_fields()
 
 	fields = tfields;
 	n_core_null_bytes = UT_BITS_IN_BYTES(n_core_null);
+
+	return false;
 }
 
 /** Reconstruct dropped or reordered columns.
@@ -1323,8 +1330,7 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 	}
 	DBUG_ASSERT(col == &dropped_cols[n_dropped_cols]);
 
-	UT_LIST_GET_FIRST(indexes)->reconstruct_fields();
-	return false;
+	return UT_LIST_GET_FIRST(indexes)->reconstruct_fields();
 }
 
 /** Check if record in clustered index is historical row.
@@ -1375,7 +1381,8 @@ dict_index_t::vers_history_row(
 	rec_t* clust_rec =
 	    row_get_clust_rec(BTR_SEARCH_LEAF, rec, this, &clust_index, &mtr);
 	if (clust_rec) {
-		offsets = rec_get_offsets(clust_rec, clust_index, offsets, true,
+		offsets = rec_get_offsets(clust_rec, clust_index, offsets,
+					  clust_index->n_core_fields,
 					  ULINT_UNDEFINED, &heap);
 
 		history_row = clust_index->vers_history_row(clust_rec, offsets);

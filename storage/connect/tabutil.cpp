@@ -14,7 +14,7 @@
 #include "sql_class.h"
 #include "table.h"
 #include "field.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <stdlib.h>
 #include <stdio.h>
 #if defined(__BORLANDC__)
@@ -708,7 +708,7 @@ bool PRXCOL::Init(PGLOBAL g, PTDB tp)
     MODE mode = To_Tdb->GetMode();
 
     // Needed for MYSQL subtables
-    ((XCOLBLK*)Colp)->Name = Decode(g, Colp->GetName());
+    ((COLBLK*)Colp)->SetName(Decode(g, Colp->GetName()));
 
     // May not have been done elsewhere
     Colp->InitValue(g);        

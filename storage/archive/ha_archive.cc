@@ -243,6 +243,20 @@ Archive_share::Archive_share()
 }
 
 
+Archive_share::~Archive_share()
+{
+  DBUG_PRINT("ha_archive", ("~Archive_share: %p", this));
+  if (archive_write_open)
+  {
+    mysql_mutex_lock(&mutex);
+    (void) close_archive_writer();              // Will reset archive_write_open
+    mysql_mutex_unlock(&mutex);
+  }
+  thr_lock_delete(&lock);
+  mysql_mutex_destroy(&mutex);
+}
+
+
 ha_archive::ha_archive(handlerton *hton, TABLE_SHARE *table_arg)
   :handler(hton, table_arg), delayed_insert(0), bulk_insert(0)
 {
@@ -676,7 +690,6 @@ int ha_archive::close(void)
     if (azclose(&archive))
       rc= 1;
   }
-
   DBUG_RETURN(rc);
 }
 

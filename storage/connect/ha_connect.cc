@@ -139,10 +139,10 @@
 //#include "reldef.h"
 #include "tabcol.h"
 #include "xindex.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include "tabwmi.h"
-#endif   // __WIN__
+#endif   // _WIN32
 #include "connect.h"
 #include "user_connect.h"
 #include "ha_connect.h"
@@ -167,16 +167,16 @@
 #define SZCONV     1024							// Default converted text size
 #define SZWORK 67108864             // Default work area size 64M
 #define SZWMIN  4194304             // Minimum work area size  4M
-#define JSONMAX      10             // JSON Default max grp size
+#define JSONMAX      50             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0002 January 27, 2021";
-#if defined(__WIN__)
-       char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
+       char version[]= "Version 1.07.0003 June 06, 2021";
+#if defined(_WIN32)
+       char compver[]= "Version 1.07.0003 " __DATE__ " "  __TIME__;
        char slash= '\\';
-#else   // !__WIN__
+#else   // !_WIN32
        char slash= '/';
-#endif  // !__WIN__
+#endif  // !_WIN32
 } // extern "C"
 
 #if MYSQL_VERSION_ID > 100200
@@ -275,6 +275,10 @@ static handler *connect_create_handler(handlerton *hton,
                                        TABLE_SHARE *table,
                                        MEM_ROOT *mem_root);
 
+static bool checkPrivileges(THD* thd, TABTYPE type, PTOS options,
+                            const char* db, TABLE* table = NULL,
+                            bool quick = false);
+
 static int connect_assisted_discovery(handlerton *hton, THD* thd,
                                       TABLE_SHARE *table_s,
                                       HA_CREATE_INFO *info);
@@ -284,10 +288,14 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 /****************************************************************************/
 static char *strz(PGLOBAL g, LEX_CSTRING &ls)
 {
-  char *str= (char*)PlugSubAlloc(g, NULL, ls.length + 1);
+  char* str= NULL;
+  
+  if (ls.str) {
+    str= (char*)PlugSubAlloc(g, NULL, ls.length + 1);
+    memcpy(str, ls.str, ls.length);
+    str[ls.length] = 0;
+  } // endif str
 
-  memcpy(str, ls.str, ls.length);
-  str[ls.length]= 0;
   return str;
 } // end of strz
 
@@ -502,7 +510,7 @@ char *GetJsonNull(void)
 int GetDefaultDepth(void) {return THDVAR(current_thd, default_depth);}
 int GetDefaultPrec(void) {return THDVAR(current_thd, default_prec);}
 uint GetJsonGrpSize(void)
-  {return connect_hton ? THDVAR(current_thd, json_grp_size) : 10;}
+  {return connect_hton ? THDVAR(current_thd, json_grp_size) : 50;}
 size_t GetWorkSize(void) {return (size_t)THDVAR(current_thd, work_size);}
 void SetWorkSize(size_t) 
 {
@@ -757,8 +765,8 @@ DllExport LPCSTR PlugSetPath(LPSTR to, LPCSTR name, LPCSTR dir)
 
   For engines that have two file name extensions (separate meta/index file
   and data file), the order of elements is relevant. First element of engine
-  file name extensions array should be meta/index file extention. Second
-  element - data file extention. This order is assumed by
+  file name extensions array should be meta/index file extension. Second
+  element - data file extension. This order is assumed by
   prepare_for_repair() when REPAIR TABLE ... USE_FRM is issued.
 
   @see
@@ -796,11 +804,11 @@ static int connect_init_func(void *p)
   }
 #endif   // 0 (LINUX)
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   sql_print_information("CONNECT: %s", compver);
-#else   // !__WIN__
+#else   // !_WIN32
   sql_print_information("CONNECT: %s", version);
-#endif  // !__WIN__
+#endif  // !_WIN32
 	pthread_mutex_init(&parmut, NULL);
 	pthread_mutex_init(&usrmut, NULL);
 	pthread_mutex_init(&tblmut, NULL);
@@ -859,9 +867,9 @@ int connect_done_func(void *)
 	JAVAConn::ResetJVM();
 #endif // JAVA_SUPPORT
 
-#if	!defined(__WIN__)
+#if	!defined(_WIN32)
 	PROFILE_End();
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 	pthread_mutex_lock(&usrmut);
 	for (pc= user_connect::to_users; pc; pc= pn) {
@@ -935,11 +943,11 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   xp= (table) ? GetUser(ha_thd(), NULL) : NULL;
   if (xp)
     xp->SetHandler(this);
-#if defined(__WIN__)
+#if defined(_WIN32)
   datapath= ".\\";
-#else   // !__WIN__
+#else   // !_WIN32
   datapath= "./";
-#endif  // !__WIN__
+#endif  // !_WIN32
   tdbp= NULL;
   sdvalin1= sdvalin2= sdvalin3= sdvalin4= NULL;
   sdvalout= NULL;
@@ -1294,9 +1302,9 @@ PCSZ GetStringTableOption(PGLOBAL g, PTOS options, PCSZ opname, PCSZ sdef)
 	else if (!stricmp(opname, "Data_charset"))
     opval= options->data_charset;
 	else if (!stricmp(opname, "Http") || !stricmp(opname, "URL"))
-		opval = options->http;
+		opval= options->http;
 	else if (!stricmp(opname, "Uri"))
-		opval = options->uri;
+		opval= options->uri;
 
   if (!opval && options->oplist)
     opval= GetListOption(g, opname, options->oplist);
@@ -1610,7 +1618,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
   pcf->Opt= (fop) ? (int)fop->opt : 0;
 
 	if (fp->field_length >= 0) {
-		pcf->Length = fp->field_length;
+		pcf->Length= fp->field_length;
 
 		// length is bytes for Connect, not characters
 		if (!strnicmp(chset, "utf8", 4))
@@ -1625,7 +1633,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     pcf->Offset= (int)fop->offset;
     pcf->Freq= (int)fop->freq;
     pcf->Datefmt= (char*)fop->dateformat;
-		pcf->Fieldfmt = fop->fieldformat ? (char*)fop->fieldformat
+		pcf->Fieldfmt= fop->fieldformat ? (char*)fop->fieldformat
 			: fop->jsonpath ? (char*)fop->jsonpath : (char*)fop->xmlpath;
 	} else {
     pcf->Offset= -1;
@@ -2829,7 +2837,6 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
       } else {
         char    buff[256];
         String *res, tmp(buff, sizeof(buff), &my_charset_bin);
-        Item_basic_constant *pval= (Item_basic_constant *)args[i];
         PPARM pp= (PPARM)PlugSubAlloc(g, NULL, sizeof(PARM));
 
         // IN and BETWEEN clauses should be col VOP list
@@ -2838,6 +2845,8 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
 
         switch (args[i]->real_type()) {
           case COND::CONST_ITEM:
+          {
+            Item *pval= (Item *)args[i];
           switch (args[i]->cmp_type()) {
             case STRING_RESULT:
               res= pval->val_str(&tmp);
@@ -2863,6 +2872,7 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
             case ROW_RESULT:
               DBUG_ASSERT(0);
               return NULL;
+          }
           }
           break;
           case COND::CACHE_ITEM:    // Possible ???
@@ -3119,7 +3129,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
       } else {
         char    buff[256];
         String *res, tmp(buff, sizeof(buff), &my_charset_bin);
-        Item_basic_constant *pval= (Item_basic_constant *)args[i];
+        Item *pval= (Item *)args[i];
         Item::Type type= args[i]->real_type();
 
         switch (type) {
@@ -4504,11 +4514,9 @@ int ha_connect::delete_all_rows()
 } // end of delete_all_rows
 
 
-bool ha_connect::check_privileges(THD *thd, PTOS options, const char *dbn, bool quick)
+static bool checkPrivileges(THD *thd, TABTYPE type, PTOS options, 
+                            const char *db, TABLE *table, bool quick)
 {
-  const char *db= (dbn && *dbn) ? dbn : NULL;
-  TABTYPE     type=GetRealType(options);
-
   switch (type) {
     case TAB_UNDEF:
 //  case TAB_CATLG:
@@ -4541,11 +4549,11 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, const char *dbn, bool 
  					strcpy(dbpath, mysql_real_data_home);
 
 					if (db)
-#if defined(__WIN__)
+#if defined(_WIN32)
 						strcat(strcat(dbpath, db), "\\");
-#else   // !__WIN__
+#else   // !_WIN32
 						strcat(strcat(dbpath, db), "/");
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 					(void)fn_format(path, options->filename, dbpath, "",
 						MY_RELATIVE_PATH | MY_UNPACK_FILENAME);
@@ -4591,6 +4599,16 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, const char *dbn, bool 
 
   my_printf_error(ER_UNKNOWN_ERROR, "check_privileges failed", MYF(0));
   return true;
+} // end of checkPrivileges
+
+// Check whether the user has required (file) privileges
+bool ha_connect::check_privileges(THD *thd, PTOS options, const char *dbn,
+				  bool quick)
+{
+  const char *db= (dbn && *dbn) ? dbn : NULL;
+  TABTYPE     type=GetRealType(options);
+
+  return checkPrivileges(thd, type, options, db, table, quick);
 } // end of check_privileges
 
 // Check that two indexes are equivalent
@@ -5387,12 +5405,7 @@ static bool add_field(String* sql, TABTYPE ttp, const char* field_name, int typ,
 	                    int len, int dec, char* key, uint tm, const char* rem,
 	                    char* dft, char* xtra, char* fmt, int flag, bool dbf, char v)
 {
-#if defined(DEVELOPMENT)
-	// Some client programs regard CHAR(36) as GUID
-	char var = (len > 255 || len == 36) ? 'V' : v;
-#else
 	char var = (len > 255) ? 'V' : v;
-#endif
 	bool q, error = false;
 	const char* type = PLGtoMYSQLtype(typ, dbf, var);
 
@@ -5461,14 +5474,13 @@ static bool add_field(String* sql, TABTYPE ttp, const char* field_name, int typ,
 	} // endif rem
 
 	if (fmt && *fmt) {
-		switch (ttp) {
-		case TAB_JSON: error |= sql->append(" JPATH='"); break;
-#if defined(BSON_SUPPORT)
-    case TAB_BSON: error |= sql->append(" JPATH='"); break;
-#endif   // BSON_SUPPORT
-    case TAB_XML:  error |= sql->append(" XPATH='"); break;
-		default:	     error |= sql->append(" FIELD_FORMAT='");
-		} // endswitch ttp
+    switch (ttp) {
+      case TAB_MONGO:
+      case TAB_BSON:
+      case TAB_JSON: error |= sql->append(" JPATH='"); break;
+      case TAB_XML:  error |= sql->append(" XPATH='"); break;
+      default:	     error |= sql->append(" FIELD_FORMAT='");
+    } // endswitch ttp
 
 		error |= sql->append_for_single_quote(fmt, strlen(fmt));
 		error |= sql->append("'");
@@ -5599,9 +5611,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 	PCSZ     user, fn, db, host, pwd, sep, tbl, src;
 	PCSZ     col, ocl, rnk, pic, fcl, skc, zfn;
 	char    *tab, *dsn, *shm, *dpath, *url;
-#if defined(__WIN__)
+#if defined(_WIN32)
 	PCSZ     nsp= NULL, cls= NULL;
-#endif   // __WIN__
+#endif   // _WIN32
 //int      hdr, mxe;
 	int      port= 0, mxr __attribute__((unused)) = 0, rc= 0, mul= 0;
 //PCSZ     tabtyp= NULL;
@@ -5617,7 +5629,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // JAVA_SUPPORT
   uint     tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool     bif, ok= false, dbf= false;
-  TABTYPE  ttp= TAB_UNDEF;
+  TABTYPE  ttp= TAB_UNDEF, ttr=TAB_UNDEF;
   PQRYRES  qrp= NULL;
   PCOLRES  crp;
   PCONNECT xp= NULL;
@@ -5660,10 +5672,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
     skc= GetListOption(g, "skipcol", topt->oplist, NULL);
     rnk= GetListOption(g, "rankcol", topt->oplist, NULL);
     pwd= GetListOption(g, "password", topt->oplist);
-#if defined(__WIN__)
+#if defined(_WIN32)
     nsp= GetListOption(g, "namespace", topt->oplist);
     cls= GetListOption(g, "class", topt->oplist);
-#endif   // __WIN__
+#endif   // _WIN32
     port= atoi(GetListOption(g, "port", topt->oplist, "0"));
 #if defined(ODBC_SUPPORT)
 //	tabtyp= GetListOption(g, "Tabtype", topt->oplist, NULL);
@@ -5696,22 +5708,22 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 		if (ttp == TAB_UNDEF && !topt->http) {
 			topt->type= (src) ? "MYSQL" : (tab) ? "PROXY" : "DOS";
 			ttp= GetTypeID(topt->type);
-			sprintf(g->Message, "No table_type. Was set to %s", topt->type);
-			push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+			snprintf(g->Message, sizeof(g->Message), "No table_type. Was set to %s", topt->type);
+			push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, 0, g->Message);
 		} else if (ttp == TAB_NIY) {
-			sprintf(g->Message, "Unsupported table type %s", topt->type);
+			snprintf(g->Message, sizeof(g->Message), "Unsupported table type %s", topt->type);
 			rc= HA_ERR_INTERNAL_ERROR;
 			goto err;
 #if defined(REST_SUPPORT)
 		} else if (topt->http) {
       if (ttp == TAB_UNDEF) {
-        topt->type = "JSON";
-        ttp= GetTypeID(topt->type);
-        sprintf(g->Message, "No table_type. Was set to %s", topt->type);
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
-      } // endif ttp
+        ttr= TAB_JSON;
+        strcpy(g->Message, "No table_type. Was set to JSON");
+        push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, 0, g->Message);
+      } else
+        ttr= ttp;
 
-      switch (ttp) {
+      switch (ttr) {
 				case TAB_JSON:
 #if defined(BSON_SUPPORT)
         case TAB_BSON:
@@ -5725,6 +5737,29 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			}	// endswitch type
 #endif   // REST_SUPPORT
 		} // endif ttp
+
+    if (fn && *fn)
+      switch (ttp) {
+        case TAB_FMT:
+        case TAB_DBF:
+        case TAB_XML:
+        case TAB_INI:
+        case TAB_VEC:
+        case TAB_REST:
+        case TAB_JSON:
+#if defined(BSON_SUPPORT)
+        case TAB_BSON:
+#endif   // BSON_SUPPORT
+          if (checkPrivileges(thd, ttp, topt, db)) {
+            strcpy(g->Message, "This operation requires the FILE privilege");
+            rc= HA_ERR_INTERNAL_ERROR;
+            goto err;
+          } // endif check_privileges
+
+          break;
+        default:
+          break;
+      } // endswitch ttp
 
 		if (!tab) {
 			if (ttp == TAB_TBL) {
@@ -5871,11 +5906,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					ok= false;
 
 				break;
-#if defined(__WIN__)
+#if defined(_WIN32)
 			case TAB_WMI:
 				ok= true;
 				break;
-#endif   // __WIN__
+#endif   // _WIN32
 			case TAB_PIVOT:
 				supfnc= FNC_NO;
                                 // fall through
@@ -5908,9 +5943,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 				if (!fn && !zfn && !mul && !dsn)
 					sprintf(g->Message, "Missing %s file name", topt->type);
-				else
-					ok= true;
+				else if (dsn && !topt->tabname)
+          topt->tabname= tab;
 
+				ok= true;
 				break;
 #if defined(JAVA_SUPPORT)
 			case TAB_MONGO:
@@ -5923,7 +5959,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(REST_SUPPORT)
 			case TAB_REST:
 				if (!topt->http)
-					sprintf(g->Message, "Missing %s HTTP address", topt->type);
+					strcpy(g->Message, "Missing REST HTTP option");
 				else
 					ok = true;
 
@@ -6039,11 +6075,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				case TAB_CSV:
 					qrp= CSVColumns(g, dpath, topt, fnc == FNC_COL);
 					break;
-#if defined(__WIN__)
+#if defined(_WIN32)
 				case TAB_WMI:
 					qrp= WMIColumns(g, nsp, cls, fnc == FNC_COL);
 					break;
-#endif   // __WIN__
+#endif   // _WIN32
 				case TAB_PRX:
 				case TAB_TBL:
 				case TAB_XCL:
@@ -6143,7 +6179,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 				// Restore language type
 				if (ttp == TAB_REST)
-          ttp = GetTypeID(topt->type);
+          ttp = ttr;
 
 				for (i= 0; !rc && i < qrp->Nblin; i++) {
 					typ= len= prec= dec= flg= 0;
@@ -6573,11 +6609,11 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     // on Windows and libxml2 otherwise
     switch (toupper(*xsup)) {
       case '*':
-#if defined(__WIN__)
+#if defined(_WIN32)
         dom= true;
-#else   // !__WIN__
+#else   // !_WIN32
         dom= false;
-#endif  // !__WIN__
+#endif  // !_WIN32
         break;
       case 'M':
       case 'D':
@@ -6960,11 +6996,11 @@ bool ha_connect::FileExists(const char *fn, bool bf)
     int   n;
     struct stat info;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
     s= "\\";
-#else   // !__WIN__
+#else   // !_WIN32
     s= "/";
-#endif  // !__WIN__
+#endif  // !_WIN32
     if (IsPartitioned()) {
       sprintf(tfn, fn, GetPartName());
 
@@ -7481,7 +7517,7 @@ maria_declare_plugin(connect)
   0x0107,                                       /* version number (1.07) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.07.0002",                                  /* string version */
+  "1.07.0003",                                  /* string version */
 	MariaDB_PLUGIN_MATURITY_STABLE                /* maturity */
 }
 maria_declare_plugin_end;

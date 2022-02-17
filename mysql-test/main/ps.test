@@ -4956,8 +4956,74 @@ DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-25108: Running of the EXPLAIN EXTENDED statement produces extra warning
+--echo #             in case it is executed in PS (prepared statement) mode
+--echo #
+CREATE TABLE t1 (c int);
+CREATE TABLE t2 (d int);
+
+--echo # EXPLAIN EXTENDED in regular way (not PS mode)
+EXPLAIN EXTENDED SELECT (SELECT 1 FROM t2 WHERE d = c) FROM t1;
+SHOW WARNINGS;
+
+--echo # Now run the same EXPLAIN EXTENDED in PS mode. Number of warnings
+--echo # and their content must be the same as in case running the statement
+--echo # in regular way
+PREPARE stmt FROM "EXPLAIN EXTENDED SELECT (SELECT 1 FROM t2 WHERE d = c) FROM t1";
+EXECUTE stmt;
+SHOW WARNINGS;
+
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-25576: The statement EXPLAIN running as regular statement and
+--echo #             as prepared statement produces different results for
+--echo #             UPDATE with subquery
+--echo #
+CREATE TABLE t1 (c1 INT KEY) ENGINE=MyISAM;
+CREATE TABLE t2 (c2 INT) ENGINE=MyISAM;
+CREATE TABLE t3 (c3 INT) ENGINE=MyISAM;
+EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 );
+PREPARE stmt FROM "EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 )";
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # MDEV-21866: Assertion `!result' failed in convert_const_to_int upon 2nd execution of PS
+--echo #
+
+CREATE TABLE t1 (a BIGINT DEFAULT -1);
+CREATE VIEW v1 AS SELECT DISTINCT a FROM t1;
+PREPARE stmt FROM 'SELECT * FROM v1 WHERE a <=> NULL';
+EXECUTE stmt;
+EXECUTE stmt;
+
+# Cleanup
+DEALLOCATE PREPARE stmt;
+DROP VIEW v1;
+DROP TABLE t1;
+
+
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-26147: The test main.sp-row fails in case it is run in PS mode
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1(a ROW(a INT,b INT))
+BEGIN
+  SELECT a.a, a.b;
+END;
+$$
+DELIMITER ;$$
+PREPARE stmt FROM 'CALL p1(ROW(10, 20))';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+DROP PROCEDURE p1;
 
 --echo #
 --echo # MDEV-19263: Server crashes in mysql_handle_single_derived
@@ -4978,6 +5044,43 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 DROP VIEW v1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25197: The statement set password=password('') executed in PS mode
+--echo #             fails in case it is run by a user with expired password
+--echo #
+CREATE USER user1@localhost PASSWORD EXPIRE;
+
+SET @disconnect_on_expired_password_save=@@global.disconnect_on_expired_password;
+SET GLOBAL disconnect_on_expired_password=OFF;
+
+connect(con1,localhost,user1);
+connection con1;
+--echo # Check that no regular statement like SELECT can be prepared
+--echo # by a user with an expired password
+--error ER_MUST_CHANGE_PASSWORD
+PREPARE stmt FROM "SELECT 1";
+
+--echo # Check that the DEALLOCATE PREPARE statement can be run by a user
+--echo # with an expired password
+PREPARE stmt FROM "SET password=password('')";
+DEALLOCATE PREPARE stmt;
+
+--echo # Check that the SET PASSWORD statement can be executed in PS mode by
+--echo # a user with an expired password
+PREPARE stmt FROM "SET password=password('')";
+EXECUTE stmt;
+PREPARE stmt FROM "SELECT 1";
+--echo # Check that user's password is not expired anymore
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo # Clean up
+disconnect con1;
+connection default;
+
+SET GLOBAL disconnect_on_expired_password=@disconnect_on_expired_password_save;
+DROP USER user1@localhost;
 
 --echo #
 --echo # End of 10.4 tests

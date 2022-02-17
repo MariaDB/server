@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB
+   Copyright (c) 2010, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -378,6 +378,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   query_plan.table= table;
   query_plan.updating_a_view= MY_TEST(table_list->view);
 
+  promote_select_describe_flag_if_needed(thd->lex);
+
   if (mysql_prepare_delete(thd, table_list, select_lex->with_wild,
                            select_lex->item_list, &conds,
                            &delete_while_scanning))
@@ -632,14 +634,18 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     if (!table->check_virtual_columns_marked_for_read())
     {
       DBUG_PRINT("info", ("Trying direct delete"));
-      if (select && select->cond &&
-          (select->cond->used_tables() == table->map))
+      bool use_direct_delete= !select || !select->cond;
+      if (!use_direct_delete &&
+          (select->cond->used_tables() & ~RAND_TABLE_BIT) == table->map)
       {
         DBUG_ASSERT(!table->file->pushed_cond);
         if (!table->file->cond_push(select->cond))
+        {
+          use_direct_delete= TRUE;
           table->file->pushed_cond= select->cond;
+        }
       }
-      if (!table->file->direct_delete_rows_init())
+      if (use_direct_delete && !table->file->direct_delete_rows_init())
       {
         /* Direct deleting is supported */
         DBUG_PRINT("info", ("Using direct delete"));
@@ -1128,14 +1134,11 @@ int mysql_multi_delete_prepare(THD *thd)
                                     FALSE, DELETE_ACL, SELECT_ACL, FALSE))
     DBUG_RETURN(TRUE);
 
-  if (lex->first_select_lex()->handle_derived(thd->lex, DT_MERGE))
-    DBUG_RETURN(TRUE);
-
   /*
     Multi-delete can't be constructed over-union => we always have
     single SELECT on top and have to check underlying SELECTs of it
   */
-  lex->first_select_lex()->exclude_from_table_unique_test= TRUE;
+  lex->first_select_lex()->set_unique_exclude();
   /* Fix tables-to-be-deleted-from list to point at opened tables */
   for (target_tbl= (TABLE_LIST*) aux_tables;
        target_tbl;
@@ -1158,6 +1161,12 @@ int mysql_multi_delete_prepare(THD *thd)
                target_tbl->table_name.str, "DELETE");
       DBUG_RETURN(TRUE);
     }
+  }
+
+  for (target_tbl= (TABLE_LIST*) aux_tables;
+       target_tbl;
+       target_tbl= target_tbl->next_local)
+  {
     /*
       Check that table from which we delete is not used somewhere
       inside subqueries/view.
@@ -1202,12 +1211,6 @@ multi_delete::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   unit= u;
   do_delete= 1;
   THD_STAGE_INFO(thd, stage_deleting_from_main_table);
-  SELECT_LEX *select_lex= u->first_select();
-  if (select_lex->first_cond_optimization)
-  {
-    if (select_lex->handle_derived(thd->lex, DT_MERGE))
-      DBUG_RETURN(TRUE);
-  }
   DBUG_RETURN(0);
 }
 

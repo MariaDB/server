@@ -70,3 +70,9 @@ insert into performance_schema.setup_actors
   select * from test.setup_actors;
 drop table test.setup_actors;
 
+--echo #
+--echo # MDEV-25325 column_comment for performance_schema tables
+--echo #
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='setup_actors';

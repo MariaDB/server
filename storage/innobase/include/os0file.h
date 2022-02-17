@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -58,8 +58,6 @@ typedef ib_uint64_t os_offset_t;
 
 #ifdef _WIN32
 
-typedef HANDLE	os_file_dir_t;	/*!< directory stream */
-
 /** We define always WIN_ASYNC_IO, and check at run-time whether
 the OS actually supports it: Win 95 does not, NT does. */
 # define WIN_ASYNC_IO
@@ -72,8 +70,6 @@ typedef HANDLE os_file_t;
 
 
 #else /* _WIN32 */
-
-typedef DIR*	os_file_dir_t;	/*!< directory stream */
 
 /** File handle */
 typedef int	os_file_t;
@@ -152,7 +148,6 @@ static const ulint OS_FILE_NORMAL = 62;
 /** Types for file create @{ */
 static const ulint OS_DATA_FILE = 100;
 static const ulint OS_LOG_FILE = 101;
-static const ulint OS_DATA_TEMP_FILE = 102;
 static const ulint OS_DATA_FILE_NO_O_DIRECT = 103;
 /* @} */
 
@@ -515,43 +510,6 @@ parameter (--tmpdir).
 @return temporary file handle, or NULL on error */
 FILE*
 os_file_create_tmpfile();
-
-/** The os_file_opendir() function opens a directory stream corresponding to the
-directory named by the dirname argument. The directory stream is positioned
-at the first entry. In both Unix and Windows we automatically skip the '.'
-and '..' items at the start of the directory listing.
-
-@param[in]	dirname		directory name; it must not contain a trailing
-				'\' or '/'
-@param[in]	is_fatal	true if we should treat an error as a fatal
-				error; if we try to open symlinks then we do
-				not wish a fatal error if it happens not to be
-				a directory
-@return directory stream, NULL if error */
-os_file_dir_t
-os_file_opendir(
-	const char*	dirname,
-	bool		is_fatal);
-
-/**
-Closes a directory stream.
-@param[in] dir	directory stream
-@return 0 if success, -1 if failure */
-int
-os_file_closedir(
-	os_file_dir_t	dir);
-
-/** This function returns information of the next file in the directory. We jump
-over the '.' and '..' entries in the directory.
-@param[in]	dirname		directory name or path
-@param[in]	dir		directory stream
-@param[out]	info		buffer where the info is returned
-@return 0 if ok, -1 if error, 1 if at the end of the directory */
-int
-os_file_readdir_next_file(
-	const char*	dirname,
-	os_file_dir_t	dir,
-	os_file_stat_t*	info);
 
 /**
 This function attempts to create a directory named pathname. The new directory
@@ -1608,6 +1566,6 @@ is_absolute_path(
 	return(false);
 }
 
-#include "os0file.ic"
+#include "os0file.inl"
 
 #endif /* os0file_h */

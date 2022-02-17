@@ -36,9 +36,10 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     wsrep_plugin.cc
     service_wsrep.cc
   )
-  SET(WSREP_LIB wsrep-lib wsrep_api_v26)
+  MYSQL_ADD_PLUGIN(wsrep ${WSREP_SOURCES} MANDATORY NOT_EMBEDDED EXPORT_SYMBOLS LINK_LIBRARIES wsrep-lib wsrep_api_v26)
 ELSE()
-  SET(WSREP_SOURCES wsrep_dummy.cc)
+  ADD_LIBRARY(wsrep STATIC wsrep_dummy.cc)
+  ADD_DEPENDENCIES(wsrep GenError)
 ENDIF()
 
 INCLUDE_DIRECTORIES(
@@ -142,14 +143,13 @@ SET (SQL_SOURCE
                opt_split.cc
                rowid_filter.cc rowid_filter.h
                opt_trace.cc
-	       ${WSREP_SOURCES}
                table_cache.cc encryption.cc temporary_tables.cc
                proxy_protocol.cc backup.cc xa.cc
-               ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
+               ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 )
   
@@ -177,12 +177,18 @@ RECOMPILE_FOR_EMBEDDED)
 
 ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 DTRACE_INSTRUMENT(sql)
-TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS} 
+TARGET_LINK_LIBRARIES(sql
   mysys mysys_ssl dbug strings vio pcre
   ${LIBWRAP} ${LIBCRYPT} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
-  ${WSREP_LIB}
   ${SSL_LIBRARIES}
   ${LIBSYSTEMD})
+
+FOREACH(se aria partition perfschema sql_sequence wsrep)
+  # These engines are used directly in sql sources.
+  IF(TARGET ${se})
+    TARGET_LINK_LIBRARIES(sql ${se})
+  ENDIF()
+ENDFOREACH()
 
 IF(WIN32)
   SET(MYSQLD_SOURCE main.cc nt_servc.cc message.rc)
@@ -267,6 +273,9 @@ IF(MSVC AND NOT WITHOUT_DYNAMIC_PLUGINS)
   SET_TARGET_PROPERTIES(mysqld_import_lib PROPERTIES IMPORTED_LOCATION ${MYSQLD_LIB})
 ENDIF()
 
+ADD_LIBRARY( sql_builtins  ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc)
+TARGET_LINK_LIBRARIES(sql_builtins ${MYSQLD_STATIC_PLUGIN_LIBS})
+
 MYSQL_ADD_EXECUTABLE(mysqld ${MYSQLD_SOURCE} DESTINATION ${INSTALL_SBINDIR} COMPONENT Server)
 
 IF(APPLE) 
@@ -294,7 +303,8 @@ IF(NOT WITHOUT_DYNAMIC_PLUGINS)
   ENDIF()
 ENDIF(NOT WITHOUT_DYNAMIC_PLUGINS)
 
-TARGET_LINK_LIBRARIES(mysqld LINK_PRIVATE sql)
+TARGET_LINK_LIBRARIES(mysqld LINK_PRIVATE sql sql_builtins)
+
 
 # Provide plugins with minimal set of libraries
 SET(INTERFACE_LIBS ${LIBRT})
@@ -318,7 +328,6 @@ IF(WITH_MYSQLD_LDFLAGS)
   SET_TARGET_PROPERTIES(mysqld PROPERTIES LINK_FLAGS 
      "${MYSQLD_LINK_FLAGS} ${WITH_MYSQLD_LDFLAGS}")
 ENDIF()
-
 
 FIND_PACKAGE(BISON 2.0)
 
@@ -381,6 +390,7 @@ ADD_CUSTOM_TARGET(
         ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
         ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
 )
+ADD_DEPENDENCIES(sql GenServerSource)
 
 IF(WIN32 OR HAVE_DLOPEN AND NOT DISABLE_SHARED)
   ADD_LIBRARY(udf_example MODULE udf_example.c udf_example.def)

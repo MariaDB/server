@@ -67,13 +67,13 @@ select _utf8 0xD0B0D0B1D0B2 like concat(_utf8'%',_utf8 0xD0B1,_utf8 '%');
 _utf8 0xD0B0D0B1D0B2 like concat(_utf8'%',_utf8 0xD0B1,_utf8 '%')
 1
 select convert(_latin1'Günter André' using utf8) like CONVERT(_latin1'GÜNTER%' USING utf8);
-convert(_latin1'Günter André' using utf8) like CONVERT(_latin1'GÜNTER%' USING utf8)
+convert(_latin1'G\xFCnter Andr\xE9' using utf8) like CONVERT(_latin1'G\xDCNTER%' USING utf8)
 1
 select CONVERT(_koi8r'×ÁÓÑ' USING utf8) LIKE CONVERT(_koi8r'÷áóñ' USING utf8);
-CONVERT(_koi8r'×ÁÓÑ' USING utf8) LIKE CONVERT(_koi8r'÷áóñ' USING utf8)
+CONVERT(_koi8r'\xD7\xC1\xD3\xD1' USING utf8) LIKE CONVERT(_koi8r'\xF7\xE1\xF3\xF1' USING utf8)
 1
 select CONVERT(_koi8r'÷áóñ' USING utf8) LIKE CONVERT(_koi8r'×ÁÓÑ' USING utf8);
-CONVERT(_koi8r'÷áóñ' USING utf8) LIKE CONVERT(_koi8r'×ÁÓÑ' USING utf8)
+CONVERT(_koi8r'\xF7\xE1\xF3\xF1' USING utf8) LIKE CONVERT(_koi8r'\xD7\xC1\xD3\xD1' USING utf8)
 1
 SELECT 'a' = 'a ';
 'a' = 'a '
@@ -1295,7 +1295,7 @@ concat(concat(_latin1'->',f1),_latin1'<-')
 -><-
 drop table t1;
 select convert(_koi8r'É' using utf8) < convert(_koi8r'Ê' using utf8);
-convert(_koi8r'É' using utf8) < convert(_koi8r'Ê' using utf8)
+convert(_koi8r'\xC9' using utf8) < convert(_koi8r'\xCA' using utf8)
 1
 set names latin1;
 create table t1 (a varchar(10)) character set utf8;
@@ -11240,6 +11240,34 @@ DROP TABLE t1;
 # End of ctype_pad.inc
 #
 SET STORAGE_ENGINE=Default;
+#
+# MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
+#
+SET NAMES utf8;
+SET SESSION character_set_connection=latin1;
+CREATE VIEW v1 AS SELECT 'Ã¤' AS c1;
+SELECT c1, HEX(c1) FROM v1;
+c1	HEX(c1)
+Ã¤	E4
+CREATE TABLE kv (v BLOB);
+LOAD DATA INFILE 'MYSQLD_DATADIR/test/v1.frm' REPLACE INTO TABLE kv;
+SELECT * FROM kv WHERE v LIKE _binary'query=%';
+v
+query=select 'Ã¤' AS `c1`
+DROP TABLE kv;
+DROP VIEW v1;
+SET NAMES utf8;
+#
+# MDEV-24335 Unexpected question mark in the end of a TINYTEXT column
+#
+CREATE TABLE t1 (a TINYTEXT character set utf8);
+INSERT IGNORE INTO t1 VALUES (REPEAT(_utf8 0xD184, 250));
+Warnings:
+Warning	1366	Incorrect string value: '\xD1\x84\xD1\x84\xD1\x84...' for column `test`.`t1`.`a` at row 1
+SELECT LENGTH(a), CHAR_LENGTH(a), RIGHT(a,3) FROM t1;
+LENGTH(a)	CHAR_LENGTH(a)	RIGHT(a,3)
+254	127	Ñ„Ñ„Ñ„
+DROP TABLE t1;
 #
 # End of 10.2 tests
 #

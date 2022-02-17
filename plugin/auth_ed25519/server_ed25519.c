@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2017, MariaDB
+   Copyright (c) 2017, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -42,7 +42,7 @@ static int auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 
   /* prepare random nonce */
   if (my_random_bytes((unsigned char *)nonce, (int)sizeof(nonce)))
-    return CR_AUTH_USER_CREDENTIALS;
+    return CR_ERROR; // eh? OpenSSL error
 
   /* send it */
   if (vio->write_packet(vio, reply + CRYPTO_BYTES, NONCE_BYTES))
@@ -55,7 +55,7 @@ static int auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 
   if (crypto_sign_open(reply, CRYPTO_BYTES + NONCE_BYTES,
                        (unsigned char*)info->auth_string))
-    return CR_ERROR;
+    return CR_AUTH_USER_CREDENTIALS; // wrong password provided by the user
 
   return CR_OK;
 }

@@ -1394,7 +1394,7 @@ static void copy_to_read_buffer(IO_CACHE *write_cache,
 
 static int _my_b_seq_read(IO_CACHE *info, uchar *Buffer, size_t Count)
 {
-  size_t length, diff_length, left_length= 0, save_count, max_length;
+  size_t length, diff_length, save_count, max_length;
   my_off_t pos_in_file;
   save_count=Count;
 
@@ -1445,7 +1445,6 @@ static int _my_b_seq_read(IO_CACHE *info, uchar *Buffer, size_t Count)
       */
       goto read_append_buffer;
     }
-    left_length+=length;
     diff_length=0;
   }
 
@@ -1612,7 +1611,7 @@ int _my_b_async_read(IO_CACHE *info, uchar *Buffer, size_t Count)
     Buffer+=length;
     Count-=length;
     left_length+=length;
-    info->read_end=info->rc_pos+read_length;
+    info->read_end=info->read_pos+read_length;
     info->read_pos+=length;
   }
   else

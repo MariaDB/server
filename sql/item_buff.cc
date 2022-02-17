@@ -47,9 +47,9 @@ Cached_item *new_Cached_item(THD *thd, Item *item, bool pass_through_ref)
   }
   switch (item->result_type()) {
   case STRING_RESULT:
-    return new Cached_item_str(thd, (Item_field *) item);
+    return new Cached_item_str(thd, item);
   case INT_RESULT:
-    return new Cached_item_int((Item_field *) item);
+    return new Cached_item_int(item);
   case REAL_RESULT:
     return new Cached_item_real(item);
   case DECIMAL_RESULT:

@@ -169,7 +169,7 @@ my $path_config_file;           # The generated config file, var/my.cnf
 # configuration used to build them.  To make life easier, an environment
 # variable or command-line option may be specified to control which set of
 # executables will be used by the test suite.
-our $opt_vs_config = $ENV{'MTR_VS_CONFIG'};
+our $multiconfig = $ENV{'MTR_VS_CONFIG'};
 
 my @DEFAULT_SUITES= qw(
     main-
@@ -728,9 +728,13 @@ sub run_test_server ($$$) {
 
                 rename $log_file_name, $log_file_name.".failed";
               }
-	      delete($result->{result});
-	      $result->{retries}= $retries+1;
-	      $result->write_test($sock, 'TESTCASE');
+            {
+              local @$result{'retries', 'result'};
+              delete $result->{result};
+              $result->{retries}= $retries+1;
+              $result->write_test($sock, 'TESTCASE');
+            }
+            push(@$completed, $result);
 	      next;
 	    }
 	  }
@@ -1071,7 +1075,7 @@ sub command_line_setup {
              'ssl|with-openssl'         => \$opt_ssl,
              'skip-ssl'                 => \$opt_skip_ssl,
              'compress'                 => \$opt_compress,
-             'vs-config=s'              => \$opt_vs_config,
+             'vs-config=s'              => \$multiconfig,
 
 	     # Max number of parallel threads to use
 	     'parallel=s'               => \$opt_parallel,
@@ -1252,7 +1256,8 @@ sub command_line_setup {
   {
     $path_client_bindir= mtr_path_exists("$bindir/client_release",
 					 "$bindir/client_debug",
-					 "$bindir/client$opt_vs_config",
+					 "$bindir/client/$multiconfig",
+					 "$bindir/client$multiconfig",
 					 "$bindir/client",
 					 "$bindir/bin");
   }
@@ -1727,7 +1732,6 @@ sub collect_mysqld_features {
 }
 
 
-
 sub collect_mysqld_features_from_running_server ()
 {
   my $mysql= mtr_exe_exists("$path_client_bindir/mysql");
@@ -1743,7 +1747,7 @@ sub collect_mysqld_features_from_running_server ()
   }
 
   mtr_add_arg($args, "--silent"); # Tab separated output
-  mtr_add_arg($args, "-e '%s'", "use mysql; SHOW VARIABLES");
+  mtr_add_arg($args, "-e \"use mysql; SHOW VARIABLES\"");
   my $cmd= "$mysql " . join(' ', @$args);
   mtr_verbose("cmd: $cmd");
 
@@ -1803,13 +1807,13 @@ sub executable_setup () {
   $exe_mysql=          mtr_exe_exists("$path_client_bindir/mysql");
   $exe_mysql_plugin=   mtr_exe_exists("$path_client_bindir/mysql_plugin");
 
-  $exe_mysql_embedded= mtr_exe_maybe_exists("$basedir/libmysqld/examples/mysql_embedded");
+  $exe_mysql_embedded= mtr_exe_maybe_exists("$bindir/libmysqld/examples/mysql_embedded");
 
   # Look for mysqltest executable
   if ( $opt_embedded_server )
   {
     $exe_mysqltest=
-      mtr_exe_exists("$bindir/libmysqld/examples$opt_vs_config/mysqltest_embedded",
+      mtr_exe_exists("$bindir/libmysqld/examples$multiconfig/mysqltest_embedded",
                      "$path_client_bindir/mysqltest_embedded");
   }
   else
@@ -1913,10 +1917,10 @@ sub mysql_client_test_arguments(){
   # mysql_client_test executable may _not_ exist
   if ( $opt_embedded_server ) {
     $exe= mtr_exe_maybe_exists(
-            "$bindir/libmysqld/examples$opt_vs_config/mysql_client_test_embedded",
+            "$bindir/libmysqld/examples$multiconfig/mysql_client_test_embedded",
 		"$bindir/bin/mysql_client_test_embedded");
   } else {
-    $exe= mtr_exe_maybe_exists("$bindir/tests$opt_vs_config/mysql_client_test",
+    $exe= mtr_exe_maybe_exists("$bindir/tests$multiconfig/mysql_client_test",
 			       "$bindir/bin/mysql_client_test");
   }
 
@@ -2088,13 +2092,13 @@ sub environment_setup {
   $ENV{'MYSQL_EMBEDDED'}=           $exe_mysql_embedded;
   if(IS_WINDOWS)
   {
-     $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$opt_vs_config/mysql_install_db",
+     $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$multiconfig/mysql_install_db",
        "$bindir/bin/mysql_install_db");
   }
 
   my $client_config_exe=
     mtr_exe_maybe_exists(
-        "$bindir/libmariadb/mariadb_config$opt_vs_config/mariadb_config",
+        "$bindir/libmariadb/mariadb_config$multiconfig/mariadb_config",
                "$bindir/bin/mariadb_config");
   if ($client_config_exe)
   {
@@ -2113,7 +2117,7 @@ sub environment_setup {
   # some versions, test using it should be skipped
   # ----------------------------------------------------
   my $exe_bug25714=
-      mtr_exe_maybe_exists("$bindir/tests$opt_vs_config/bug25714");
+      mtr_exe_maybe_exists("$bindir/tests$multiconfig/bug25714");
   $ENV{'MYSQL_BUG25714'}=  native_path($exe_bug25714);
 
   # ----------------------------------------------------
@@ -2130,7 +2134,7 @@ sub environment_setup {
   # my_print_defaults
   # ----------------------------------------------------
   my $exe_my_print_defaults=
-    mtr_exe_exists("$bindir/extra$opt_vs_config/my_print_defaults",
+    mtr_exe_exists("$bindir/extra$multiconfig/my_print_defaults",
 		   "$path_client_bindir/my_print_defaults");
   $ENV{'MYSQL_MY_PRINT_DEFAULTS'}= native_path($exe_my_print_defaults);
 
@@ -2165,16 +2169,16 @@ sub environment_setup {
   # ----------------------------------------------------
   # perror
   # ----------------------------------------------------
-  my $exe_perror= mtr_exe_exists("$bindir/extra$opt_vs_config/perror",
+  my $exe_perror= mtr_exe_exists("$bindir/extra$multiconfig/perror",
 				 "$path_client_bindir/perror");
   $ENV{'MY_PERROR'}= native_path($exe_perror);
 
   # ----------------------------------------------------
   # mysql_tzinfo_to_sql
   # ----------------------------------------------------
-  my $exe_mysql_tzinfo_to_sql= mtr_exe_exists("$basedir/sql$opt_vs_config/mysql_tzinfo_to_sql",
+  my $exe_mysql_tzinfo_to_sql= mtr_exe_exists("$basedir/sql$multiconfig/mysql_tzinfo_to_sql",
                                  "$path_client_bindir/mysql_tzinfo_to_sql",
-                                 "$bindir/sql$opt_vs_config/mysql_tzinfo_to_sql");
+                                 "$bindir/sql$multiconfig/mysql_tzinfo_to_sql");
   $ENV{'MYSQL_TZINFO_TO_SQL'}= native_path($exe_mysql_tzinfo_to_sql);
 
   # ----------------------------------------------------
@@ -2182,7 +2186,7 @@ sub environment_setup {
   # ----------------------------------------------------
   my $exe_replace= mtr_exe_exists(vs_config_dirs('extra', 'replace'),
                                  "$basedir/extra/replace",
-                                 "$bindir/extra$opt_vs_config/replace",
+                                 "$bindir/extra$multiconfig/replace",
                                  "$path_client_bindir/replace");
   $ENV{'REPLACE'}= native_path($exe_replace);
 
@@ -2190,7 +2194,7 @@ sub environment_setup {
   # innochecksum
   # ----------------------------------------------------
   my $exe_innochecksum=
-    mtr_exe_maybe_exists("$bindir/extra$opt_vs_config/innochecksum",
+    mtr_exe_maybe_exists("$bindir/extra$multiconfig/innochecksum",
 		         "$path_client_bindir/innochecksum");
   $ENV{'INNOCHECKSUM'}= native_path($exe_innochecksum) if $exe_innochecksum;
 
@@ -2198,13 +2202,13 @@ sub environment_setup {
   # mariabackup
   # ----------------------------------------------------
   my $exe_mariabackup= mtr_exe_maybe_exists(
-      "$bindir/extra/mariabackup$opt_vs_config/mariabackup",
+      "$bindir/extra/mariabackup$multiconfig/mariabackup",
       "$path_client_bindir/mariabackup");
 
   $ENV{XTRABACKUP}= native_path($exe_mariabackup) if $exe_mariabackup;
 
   my $exe_xbstream= mtr_exe_maybe_exists(
-        "$bindir/extra/mariabackup/$opt_vs_config/mbstream",
+        "$bindir/extra/mariabackup/$multiconfig/mbstream",
         "$path_client_bindir/mbstream");
   $ENV{XBSTREAM}= native_path($exe_xbstream) if $exe_xbstream;
 
@@ -2393,10 +2397,10 @@ sub setup_vardir() {
       {
         if (!$opt_embedded_server)
         {
-          for (<$bindir/storage/*$opt_vs_config/*.dll>,
-               <$bindir/plugin/*$opt_vs_config/*.dll>,
-               <$bindir/libmariadb$opt_vs_config/*.dll>,
-               <$bindir/sql$opt_vs_config/*.dll>)
+          for (<$bindir/storage/*$multiconfig/*.dll>,
+               <$bindir/plugin/*$multiconfig/*.dll>,
+               <$bindir/libmariadb$multiconfig/*.dll>,
+               <$bindir/sql$multiconfig/*.dll>)
           {
             my $pname=basename($_);
             copy rel2abs($_), "$plugindir/$pname";
@@ -2413,12 +2417,11 @@ sub setup_vardir() {
           unlink "$plugindir/symlink_test";
         }
 
-        for (<$bindir/storage/*/*.so>,
-             <$bindir/plugin/*/*.so>,
-             <$bindir/plugin/*/auth_pam_tool_dir>,
+        for (<$bindir/storage/*$multiconfig/*.so>,
+             <$bindir/plugin/*$multiconfig/*.so>,
              <$bindir/libmariadb/plugins/*/*.so>,
-             <$bindir/libmariadb/*.so>,
-             <$bindir/sql/*.so>)
+             <$bindir/libmariadb/$multiconfig/*.so>,
+             <$bindir/sql$multiconfig/*.so>)
         {
           my $pname=basename($_);
           if ($opt_use_copy)
@@ -2530,7 +2533,7 @@ sub check_debug_support {
 
 
 #
-# Helper function to find the correct value for the opt_vs_config
+# Helper function to find the correct value for the multiconfig
 # if it was not set explicitly.
 #
 # the configuration with the most recent build dir in sql/ is selected.
@@ -2541,29 +2544,30 @@ sub check_debug_support {
 # executables, and plugins - that is, something that can affect the test suite
 #
 sub fix_vs_config_dir () {
-  return $opt_vs_config="" unless IS_WINDOWS;
-  return $opt_vs_config="/$opt_vs_config" if $opt_vs_config;
+  return $multiconfig="/$multiconfig" if $multiconfig;
 
   my $modified = 1e30;
-  $opt_vs_config="";
+  $multiconfig="";
 
 
-  for (<$bindir/sql/*/mysqld.exe>) { #/
+  for (<$bindir/sql/*/mysqld.exe>,
+      <$bindir/sql/*/mysqld>
+  ) { #/
     if (-M $_ < $modified)
     {
       $modified = -M _;
-      $opt_vs_config = basename(dirname($_));
+      $multiconfig = basename(dirname($_));
     }
   }
 
-  mtr_report("VS config: $opt_vs_config");
-  $opt_vs_config="/$opt_vs_config" if $opt_vs_config;
+  mtr_report("VS config: $multiconfig");
+  $multiconfig="/$multiconfig" if $multiconfig;
 }
 
 
 #
 # Helper function to handle configuration-based subdirectories which Visual
-# Studio uses for storing binaries.  If opt_vs_config is set, this returns
+# Studio uses for storing binaries.  If multiconfig is set, this returns
 # a path based on that setting; if not, it returns paths for the default
 # /release/ and /debug/ subdirectories.
 #
@@ -2577,9 +2581,9 @@ sub vs_config_dirs ($$) {
   # Don't look in these dirs when not on windows
   return () unless IS_WINDOWS;
 
-  if ($opt_vs_config)
+  if ($multiconfig)
   {
-    return ("$basedir/$path_part/$opt_vs_config/$exe");
+    return ("$basedir/$path_part/$multiconfig/$exe");
   }
 
   return ("$basedir/$path_part/release/$exe",
@@ -2684,7 +2688,9 @@ sub mysql_server_start($) {
 
   if (!$opt_embedded_server)
   {
-    mysqld_start($mysqld,$extra_opts);
+    mysqld_start($mysqld, $extra_opts) or
+      mtr_error("Failed to start mysqld ".$mysqld->name()." with command "
+        . $ENV{MYSQLD_LAST_CMD});
 
     # Save this test case information, so next can examine it
     $mysqld->{'started_tinfo'}= $tinfo;
@@ -2707,10 +2713,10 @@ sub mysql_server_start($) {
 
 sub mysql_server_wait {
   my ($mysqld, $tinfo) = @_;
+  my $expect_file= "$opt_vardir/tmp/".$mysqld->name().".expect";
 
-  if (!sleep_until_file_created($mysqld->value('pid-file'),
-                                $opt_start_timeout,
-                                $mysqld->{'proc'},
+  if (!sleep_until_file_created($mysqld->value('pid-file'), $expect_file,
+                                $opt_start_timeout, $mysqld->{'proc'},
                                 $warn_seconds))
   {
     $tinfo->{comment}= "Failed to start ".$mysqld->name() . "\n";
@@ -4024,9 +4030,12 @@ sub run_testcase ($$) {
       # ----------------------------------------------------
       # Check if it was an expected crash
       # ----------------------------------------------------
-      my $check_crash = check_expected_crash_and_restart($wait_for_proc);
+      my @mysqld = grep($wait_for_proc eq $_->{proc}, mysqlds());
+      goto SRVDIED unless @mysqld;
+      my $check_crash = check_expected_crash_and_restart($mysqld[0]);
       if ($check_crash == 0) # unexpected exit/crash of $wait_for_proc
       {
+        $proc= $mysqld[0]->{proc};
         goto SRVDIED;
       }
       elsif ($check_crash == 1) # $wait_for_proc was started again by check_expected_crash_and_restart()
@@ -4372,7 +4381,13 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: Table .*mysql.*innodb_table_stats.* not found./,
      qr/InnoDB: User stopword table .* does not exist./,
      qr/Dump thread [0-9]+ last sent to server [0-9]+ binlog file:pos .+/,
-     qr/Detected table cache mutex contention at instance .* waits. Additional table cache instance cannot be activated: consider raising table_open_cache_instances. Number of active instances/
+     qr/Detected table cache mutex contention at instance .* waits. Additional table cache instance cannot be activated: consider raising table_open_cache_instances. Number of active instances/,
+
+     # for UBSAN
+     qr/decimal\.c.*: runtime error: signed integer overflow/,
+     # Disable test for UBSAN on dynamically loaded objects
+     qr/runtime error: member call.*object.*'Handler_share'/,
+     qr/sql_type\.cc.* runtime error: member call.*object.* 'Type_collection'/,
     );
 
   my $matched_lines= [];
@@ -4586,61 +4601,52 @@ sub check_warnings_post_shutdown {
 }
 
 #
-# Loop through our list of processes and look for and entry
-# with the provided pid, if found check for the file indicating
-# expected crash and restart it.
+# Check for the file indicating expected crash and restart it.
 #
 sub check_expected_crash_and_restart {
-  my ($proc)= @_;
+  my $mysqld = shift;
 
-  foreach my $mysqld ( mysqlds() )
+  # Check if crash expected by looking at the .expect file
+  # in var/tmp
+  my $expect_file= "$opt_vardir/tmp/".$mysqld->name().".expect";
+  if ( -f $expect_file )
   {
-    next unless ( $mysqld->{proc} and $mysqld->{proc} eq $proc );
+    mtr_verbose("Crash was expected, file '$expect_file' exists");
 
-    # Check if crash expected by looking at the .expect file
-    # in var/tmp
-    my $expect_file= "$opt_vardir/tmp/".$mysqld->name().".expect";
-    if ( -f $expect_file )
+    for (my $waits = 0;  $waits < 50;  mtr_milli_sleep(100), $waits++)
     {
-      mtr_verbose("Crash was expected, file '$expect_file' exists");
-
-      for (my $waits = 0;  $waits < 50;  mtr_milli_sleep(100), $waits++)
+      # Race condition seen on Windows: try again until file not empty
+      next if -z $expect_file;
+      # If last line in expect file starts with "wait"
+      # sleep a little and try again, thus allowing the
+      # test script to control when the server should start
+      # up again. Keep trying for up to 5s at a time.
+      my $last_line= mtr_lastlinesfromfile($expect_file, 1);
+      if ($last_line =~ /^wait/ )
       {
-	# Race condition seen on Windows: try again until file not empty
-	next if -z $expect_file;
-	# If last line in expect file starts with "wait"
-	# sleep a little and try again, thus allowing the
-	# test script to control when the server should start
-	# up again. Keep trying for up to 5s at a time.
-	my $last_line= mtr_lastlinesfromfile($expect_file, 1);
-	if ($last_line =~ /^wait/ )
-	{
-	  mtr_verbose("Test says wait before restart") if $waits == 0;
-	  next;
-	}
-
-	# Ignore any partial or unknown command
-	next unless $last_line =~ /^restart/;
-	# If last line begins "restart:", the rest of the line is read as
-        # extra command line options to add to the restarted mysqld.
-        # Anything other than 'wait' or 'restart:' (with a colon) will
-        # result in a restart with original mysqld options.
-	if ($last_line =~ /restart:(.+)/) {
-	  my @rest_opt= split(' ', $1);
-	  $mysqld->{'restart_opts'}= \@rest_opt;
-	} else {
-	  delete $mysqld->{'restart_opts'};
-	}
-	unlink($expect_file);
-
-	# Start server with same settings as last time
-	mysqld_start($mysqld, $mysqld->{'started_opts'});
-
-	return 1;
+        mtr_verbose("Test says wait before restart") if $waits == 0;
+        next;
       }
-      # Loop ran through: we should keep waiting after a re-check
-      return 2;
+
+      # Ignore any partial or unknown command
+      next unless $last_line =~ /^restart/;
+      # If last line begins "restart:", the rest of the line is read as
+      # extra command line options to add to the restarted mysqld.
+      # Anything other than 'wait' or 'restart:' (with a colon) will
+      # result in a restart with original mysqld options.
+      if ($last_line =~ /restart:(.+)/) {
+        my @rest_opt= split(' ', $1);
+        $mysqld->{'restart_opts'}= \@rest_opt;
+      } else {
+        delete $mysqld->{'restart_opts'};
+      }
+      unlink($expect_file);
+
+      # Start server with same settings as last time
+      return mysqld_start($mysqld, $mysqld->{'started_opts'});
     }
+    # Loop ran through: we should keep waiting after a re-check
+    return 2;
   }
 
   # Not an expected crash
@@ -4964,6 +4970,7 @@ sub mysqld_start ($$) {
   # Differs from "generic" MYSQLD_CMD by including all command line
   # options from *.opt and *.combination files.
   $ENV{'MYSQLD_LAST_CMD'}= "$exe  @$args";
+  my $oldexe= $exe;
 
   My::Debugger::setup_args(\$args, \$exe, $mysqld->name());
   $ENV{'VALGRIND_TEST'}= $opt_valgrind = int(($exe || '') eq 'valgrind');
@@ -4997,6 +5004,7 @@ sub mysqld_start ($$) {
 
   if ( defined $exe )
   {
+    mtr_tofile($output, "\$ $exe @$args\n");
     pre_write_errorlog($output);
     $mysqld->{'proc'}= My::SafeProcess->new
       (
@@ -5015,17 +5023,12 @@ sub mysqld_start ($$) {
     mtr_verbose("Started $mysqld->{proc}");
   }
 
-  if (!sleep_until_file_created($mysqld->value('pid-file'),
-                      $opt_start_timeout, $mysqld->{'proc'}, $warn_seconds))
-  {
-    my $mname= $mysqld->name();
-    mtr_error("Failed to start mysqld $mname with command $exe");
-  }
-
-  # Remember options used when starting
   $mysqld->{'started_opts'}= $extra_opts;
 
-  return;
+  my $expect_file= "$opt_vardir/tmp/".$mysqld->name().".expect";
+  return $oldexe eq ($exe || '') ||
+         sleep_until_file_created($mysqld->value('pid-file'), $expect_file,
+                     $opt_start_timeout, $mysqld->{'proc'}, $warn_seconds);
 }
 
 

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2012, 2014 Facebook, Inc. All Rights Reserved.
-Copyright (C) 2014, 2019, MariaDB Corporation.
+Copyright (C) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -309,6 +309,7 @@ btr_defragment_save_defrag_stats_if_needed(
 {
 	if (srv_defragment_stats_accuracy != 0 // stats tracking disabled
 	    && index->table->space_id != 0 // do not track system tables
+	    && !index->table->is_temporary()
 	    && index->stat_defrag_modified_counter
 	       >= srv_defragment_stats_accuracy) {
 		dict_stats_defrag_pool_add(index);
@@ -340,12 +341,12 @@ btr_defragment_calc_n_recs_for_size(
 	ulint size = 0;
 	page_cur_t cur;
 
+	const ulint n_core = page_is_leaf(page) ? index->n_core_fields : 0;
 	page_cur_set_before_first(block, &cur);
 	page_cur_move_to_next(&cur);
 	while (page_cur_get_rec(&cur) != page_get_supremum_rec(page)) {
 		rec_t* cur_rec = page_cur_get_rec(&cur);
-		offsets = rec_get_offsets(cur_rec, index, offsets,
-					  page_is_leaf(page),
+		offsets = rec_get_offsets(cur_rec, index, offsets, n_core,
 					  ULINT_UNDEFINED, &heap);
 		ulint rec_size = rec_offs_size(offsets);
 		size += rec_size;
@@ -357,6 +358,9 @@ btr_defragment_calc_n_recs_for_size(
 		page_cur_move_to_next(&cur);
 	}
 	*n_recs_size = size;
+	if (UNIV_LIKELY_NULL(heap)) {
+		mem_heap_free(heap);
+	}
 	return n_recs;
 }
 
@@ -482,9 +486,10 @@ btr_defragment_merge_pages(
 		lock_update_merge_left(to_block, orig_pred,
 				       from_block);
 		btr_search_drop_page_hash_index(from_block);
-		btr_level_list_remove(
+
+		ut_a(DB_SUCCESS == btr_level_list_remove(
 			index->table->space_id,
-			zip_size, from_page, index, mtr);
+			zip_size, from_page, index, mtr));
 		btr_page_get_father(index, from_block, mtr, &parent);
 		btr_cur_node_ptr_delete(&parent, mtr);
 		/* btr_blob_dbg_remove(from_page, index,

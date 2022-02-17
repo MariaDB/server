@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB
+   Copyright (c) 2010, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2644,7 +2644,17 @@ unlink_all_closed_tables(THD *thd, MYSQL_LOCK *lock, size_t reopen_count)
 
   /* If no tables left, do an automatic UNLOCK TABLES */
   if (thd->lock && thd->lock->table_count == 0)
+  {
+    /*
+      We have to rollback any open transactions here.
+      This is required in the case where the server has been killed
+      but some transations are still open (as part of locked tables).
+      If we don't do this, we will get an assert in unlock_locked_tables().
+    */
+    ha_rollback_trans(thd, FALSE);
+    ha_rollback_trans(thd, TRUE);
     unlock_locked_tables(thd);
+  }
 }
 
 
@@ -3695,7 +3705,11 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
   if (tables->derived)
   {
     if (!tables->view)
+    {
+      if (!tables->is_derived())
+        tables->set_derived();
       goto end;
+    }
     /*
       We restore view's name and database wiped out by derived tables
       processing and fall back to standard open process in order to
@@ -3704,35 +3718,6 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
     */
     tables->db= tables->view_db;
     tables->table_name= tables->view_name;
-  }
-  else if (tables->select_lex) 
-  {
-    /*
-      Check whether 'tables' refers to a table defined in a with clause.
-      If so set the reference to the definition in tables->with.
-    */ 
-    if (!tables->with)
-      tables->with= tables->select_lex->find_table_def_in_with_clauses(tables);
-    /*
-      If 'tables' is defined in a with clause set the pointer to the
-      specification from its definition in tables->derived.
-    */
-    if (tables->with)
-    {
-      if (tables->is_recursive_with_table() &&
-          !tables->is_with_table_recursive_reference())
-      {
-        tables->with->rec_outer_references++;
-        With_element *with_elem= tables->with;
-        while ((with_elem= with_elem->get_next_mutually_recursive()) !=
-               tables->with)
-	  with_elem->rec_outer_references++;
-      }
-      if (tables->set_as_with_table(thd, tables->with))
-        DBUG_RETURN(1);
-      else
-        goto end;
-    }
   }
 
   if (!tables->derived && is_infoschema_db(&tables->db))
@@ -4286,8 +4271,17 @@ bool open_tables(THD *thd, const DDL_options_st &options,
   DBUG_ENTER("open_tables");
 
   /* Data access in XA transaction is only allowed when it is active. */
-  if (*start && thd->transaction.xid_state.check_has_uncommitted_xa())
-    DBUG_RETURN(true);
+  for (TABLE_LIST *table= *start; table; table= table->next_global)
+    if (!table->schema_table)
+    {
+      if (thd->transaction.xid_state.check_has_uncommitted_xa())
+      {
+	thd->transaction.xid_state.er_xaer_rmfail();
+        DBUG_RETURN(true);
+      }
+      else
+        break;
+    }
 
   thd->current_tablenr= 0;
 restart:
@@ -4543,6 +4537,7 @@ restart:
       wsrep_thd_is_local(thd)                          &&
       !is_stat_table(&(*start)->db, &(*start)->alias)  &&
       thd->get_command() != COM_STMT_PREPARE           &&
+      !thd->stmt_arena->is_stmt_prepare()              &&
       ((thd->lex->sql_command == SQLCOM_INSERT         ||
         thd->lex->sql_command == SQLCOM_INSERT_SELECT  ||
         thd->lex->sql_command == SQLCOM_REPLACE        ||
@@ -4644,13 +4639,13 @@ bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
 }
 
 
-static bool internal_table_exists(TABLE_LIST *global_list,
-                                  const char *table_name)
+static TABLE_LIST *internal_table_exists(TABLE_LIST *global_list,
+                                         const char *table_name)
 {
   do
   {
     if (global_list->table_name.str == table_name)
-      return 1;
+      return global_list;
   } while ((global_list= global_list->next_global));
   return 0;
 }
@@ -4665,13 +4660,23 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
 
   do
   {
+    TABLE_LIST *tmp __attribute__((unused));
     DBUG_PRINT("info", ("table name: %s", tables->table_name.str));
     /*
       Skip table if already in the list. Can happen with prepared statements
     */
-    if (tables->next_local &&
-        internal_table_exists(global_table_list, tables->table_name.str))
+    if ((tmp= internal_table_exists(global_table_list,
+                                    tables->table_name.str)))
+    {
+      /*
+        Use the original value for the next local, used by the
+        original prepared statement. We cannot trust the original
+        next_local value as it may have been changed by a previous
+        statement using the same table.
+      */
+      tables->next_local= tmp;
       continue;
+    }
 
     TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
     if (!tl)
@@ -5372,7 +5377,6 @@ bool open_normal_and_derived_tables(THD *thd, TABLE_LIST *tables, uint flags,
   uint counter;
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
   DBUG_ENTER("open_normal_and_derived_tables");
-  DBUG_ASSERT(!thd->fill_derived_tables());
   if (open_tables(thd, &tables, &counter, flags, &prelocking_strategy) ||
       mysql_handle_derived(thd->lex, dt_phases))
     goto end;
@@ -5430,7 +5434,7 @@ bool open_tables_only_view_structure(THD *thd, TABLE_LIST *table_list,
                                            MYSQL_OPEN_GET_NEW_TABLE |
                                            (can_deadlock ?
                                             MYSQL_OPEN_FAIL_ON_MDL_CONFLICT : 0)),
-                                          DT_INIT | DT_PREPARE | DT_CREATE));
+                                          DT_INIT | DT_PREPARE));
   /*
     Restore old value of sql_command back as it is being looked at in
     process_table() function.
@@ -6298,7 +6302,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
           TABLE *table= field_to_set->table;
           DBUG_ASSERT(table);
           if (thd->column_usage == MARK_COLUMNS_READ)
-            bitmap_set_bit(table->read_set, field_to_set->field_index);
+            field_to_set->register_field_in_read_map();
           else
             bitmap_set_bit(table->write_set, field_to_set->field_index);
         }
@@ -6440,8 +6444,9 @@ find_field_in_tables(THD *thd, Item_ident *item,
                                  TRUE, &(item->cached_field_index));
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
       /* Check if there are sufficient access rights to the found field. */
-      if (found && check_privileges &&
-          check_column_grant_in_table_ref(thd, table_ref, name, length, found))
+      if (found && check_privileges && !is_temporary_table(table_ref) &&
+          check_column_grant_in_table_ref(thd, table_ref, name, length,
+                                          found))
         found= WRONG_GRANT;
 #endif
     }
@@ -6470,9 +6475,10 @@ find_field_in_tables(THD *thd, Item_ident *item,
              sl=sl->outer_select())
         {
           Item *subs= sl->master_unit()->item;
-          if (subs->type() == Item::SUBSELECT_ITEM && 
-              ((Item_subselect*)subs)->substype() == Item_subselect::IN_SUBS &&
-              ((Item_in_subselect*)subs)->test_strategy(SUBS_SEMI_JOIN))
+          if (!subs ||
+              (subs->type() == Item::SUBSELECT_ITEM &&
+               ((Item_subselect*)subs)->substype() == Item_subselect::IN_SUBS &&
+               ((Item_in_subselect*)subs)->test_strategy(SUBS_SEMI_JOIN)))
           {
             continue;
           }
@@ -6486,7 +6492,7 @@ find_field_in_tables(THD *thd, Item_ident *item,
         if (!all_merged && current_sel != last_select)
         {
           mark_select_range_as_dependent(thd, last_select, current_sel,
-                                         found, *ref, item);
+                                         found, *ref, item, true);
         }
       }
       return found;
@@ -7681,6 +7687,17 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
 
   thd->column_usage= column_usage;
   DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
+  /*
+    Followimg 2 condition always should be true (but they was added
+    due to an error present only in 10.3):
+    1) nest_level shoud be 0 or positive;
+    2) nest level of all SELECTs on the same level shoud be equal first
+       SELECT on this level (and each other).
+  */
+  DBUG_ASSERT(thd->lex->current_select->nest_level >= 0);
+  DBUG_ASSERT(thd->lex->current_select->master_unit()->first_select()
+                ->nest_level ==
+              thd->lex->current_select->nest_level);
   if (allow_sum_func)
     thd->lex->allow_sum_func.set_bit(thd->lex->current_select->nest_level);
   thd->where= THD::DEFAULT_WHERE;
@@ -7898,11 +7915,15 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
           DBUG_RETURN(1);
       }
       tablenr++;
-    }
-    if (tablenr > MAX_TABLES)
-    {
-      my_error(ER_TOO_MANY_TABLES,MYF(0), static_cast<int>(MAX_TABLES));
-      DBUG_RETURN(1);
+      /*
+        We test the max tables here as we setup_table_map() should not be called
+        with tablenr >= 64
+      */
+      if (tablenr > MAX_TABLES)
+      {
+        my_error(ER_TOO_MANY_TABLES,MYF(0), static_cast<int>(MAX_TABLES));
+        DBUG_RETURN(1);
+      }
     }
   }
   else
@@ -7948,7 +7969,8 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
     if (table_list->jtbm_subselect)
     {
       Item *item= table_list->jtbm_subselect->optimizer;
-      if (table_list->jtbm_subselect->optimizer->fix_fields(thd, &item))
+      if (!table_list->jtbm_subselect->optimizer->fixed &&
+          table_list->jtbm_subselect->optimizer->fix_fields(thd, &item))
       {
         my_error(ER_TOO_MANY_TABLES,MYF(0), static_cast<int>(MAX_TABLES)); /* psergey-todo: WHY ER_TOO_MANY_TABLES ???*/
         DBUG_RETURN(1);
@@ -8849,6 +8871,8 @@ fill_record(THD *thd, TABLE *table, Field **ptr, List<Item> &values,
   if (!thd->is_error())
   {
     thd->abort_on_warning= FALSE;
+    if (table->default_field && table->update_default_fields(ignore_errors))
+      goto err;
     if (table->versioned())
       table->vers_update_fields();
     if (table->vfield &&
@@ -9311,6 +9335,21 @@ int dynamic_column_error_message(enum_dyncol_func_result rc)
   }
   return rc;
 }
+
+
+/**
+  Turn on the SELECT_DESCRIBE flag for the primary SELECT_LEX of the statement
+  being processed in case the statement is EXPLAIN UPDATE/DELETE.
+
+  @param lex  current LEX
+*/
+
+void promote_select_describe_flag_if_needed(LEX *lex)
+{
+  if (lex->describe)
+    lex->first_select_lex()->options|= SELECT_DESCRIBE;
+}
+
 
 /**
   @} (end of group Data_Dictionary)

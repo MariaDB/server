@@ -10,6 +10,7 @@ explain extended select master_pos_wait('master-bin.999999',0,2);
 send select master_pos_wait('master-bin.999999',0);
 connection slave1;
 stop slave sql_thread;
+--source include/wait_for_slave_sql_to_stop.inc
 connection slave;
 reap;
 

@@ -475,6 +475,7 @@ enum enum_vcol_info_type
 {
   VCOL_GENERATED_VIRTUAL, VCOL_GENERATED_STORED,
   VCOL_DEFAULT, VCOL_CHECK_FIELD, VCOL_CHECK_TABLE,
+  VCOL_USING_HASH,
   /* Additional types should be added here */
   /* Following is the highest value last   */
   VCOL_TYPE_NONE = 127 // Since the 0 value is already in use
@@ -492,6 +493,8 @@ static inline const char *vcol_type_name(enum_vcol_info_type type)
   case VCOL_CHECK_FIELD:
   case VCOL_CHECK_TABLE:
     return "CHECK";
+  case VCOL_USING_HASH:
+    return "USING HASH";
   case VCOL_TYPE_NONE:
     return "UNTYPED";
   }
@@ -988,8 +991,9 @@ public:
   virtual void reset_fields() {}
   const uchar *ptr_in_record(const uchar *record) const
   {
-    my_ptrdiff_t l_offset= (my_ptrdiff_t) (record -  table->record[0]);
-    return ptr + l_offset;
+    my_ptrdiff_t l_offset= (my_ptrdiff_t) (ptr -  table->record[0]);
+    DBUG_ASSERT(l_offset >= 0 && table->s->rec_buff_length - l_offset > 0);
+    return record + l_offset;
   }
   virtual int set_default();
 
@@ -1599,7 +1603,7 @@ public:
 
   bool vers_sys_field() const
   {
-    return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
+    return flags & (VERS_ROW_START | VERS_ROW_END);
   }
 
   bool vers_update_unversioned() const
@@ -4029,6 +4033,12 @@ public:
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit);
   void sql_type(String &str) const;
+  /**
+     Copy blob buffer into internal storage "value" and update record pointer.
+
+     @retval true     Memory allocation error
+     @retval false    Success
+  */
   inline bool copy()
   {
     uchar *tmp= get_ptr();
@@ -4040,6 +4050,33 @@ public:
     tmp=(uchar*) value.ptr();
     memcpy(ptr+packlength, &tmp, sizeof(char*));
     return 0;
+  }
+  void swap(String &inout, bool set_read_value)
+  {
+    if (set_read_value)
+      read_value.swap(inout);
+    else
+      value.swap(inout);
+  }
+  /**
+     Return pointer to blob cache or NULL if not cached.
+  */
+  String * cached(bool *set_read_value)
+  {
+    char *tmp= (char *) get_ptr();
+    if (!value.is_empty() && tmp == value.ptr())
+    {
+      *set_read_value= false;
+      return &value;
+    }
+
+    if (!read_value.is_empty() && tmp == read_value.ptr())
+    {
+      *set_read_value= true;
+      return &read_value;
+    }
+
+    return NULL;
   }
   /* store value for the duration of the current read record */
   inline void swap_value_and_read_value()
@@ -4247,6 +4284,8 @@ uint gis_field_options_read(const uchar *buf, size_t buf_len,
 
 class Field_enum :public Field_str {
   static void do_field_enum(Copy_field *copy_field);
+  bool can_optimize_range_or_keypart_ref(const Item_bool_func *cond,
+                                         const Item *item) const;
 protected:
   uint packlength;
 public:
@@ -4333,7 +4372,10 @@ public:
                               const uchar *from_end, uint param_data);
 
   bool can_optimize_keypart_ref(const Item_bool_func *cond,
-                                const Item *item) const;
+                                const Item *item) const
+  {
+    return can_optimize_range_or_keypart_ref(cond, item);
+  }
   bool can_optimize_group_min_max(const Item_bool_func *cond,
                                   const Item *const_item) const
   {
@@ -4348,7 +4390,10 @@ public:
   }
   bool can_optimize_range(const Item_bool_func *cond,
                           const Item *item,
-                          bool is_eq_func) const;
+                          bool is_eq_func) const
+  {
+    return can_optimize_range_or_keypart_ref(cond, item);
+  }
 private:
   int save_field_metadata(uchar *first_byte);
   bool is_equal(const Column_definition &new_field) const;
@@ -4534,7 +4579,13 @@ public:
   void move_field_offset(my_ptrdiff_t ptr_diff)
   {
     Field::move_field_offset(ptr_diff);
-    bit_ptr= ADD_TO_PTR(bit_ptr, ptr_diff, uchar*);
+
+    /*
+      clang does not like when things are added to a null pointer, even if
+      it is never referenced.
+    */
+    if (bit_ptr)
+      bit_ptr= ADD_TO_PTR(bit_ptr, ptr_diff, uchar*);
   }
   void hash(ulong *nr, ulong *nr2);
 
@@ -4631,6 +4682,11 @@ public:
   void frm_pack_charset(uchar *buff) const;
   void frm_unpack_basic(const uchar *buff);
   bool frm_unpack_charset(TABLE_SHARE *share, const uchar *buff);
+  CHARSET_INFO *explicit_or_derived_charset(const Column_derived_attributes
+                                                  *derived_attr) const
+  {
+    return charset ? charset : derived_attr->charset();
+  }
 };
 
 
@@ -4760,10 +4816,19 @@ public:
   }
   bool vers_sys_field() const
   {
-    return flags & (VERS_SYS_START_FLAG | VERS_SYS_END_FLAG);
+    return flags & (VERS_ROW_START | VERS_ROW_END);
   }
   void create_length_to_internal_length_bit();
   void create_length_to_internal_length_newdecimal();
+
+  /*
+    Prepare the "charset" member for string data types,
+    such as CHAR, VARCHAR, TEXT, ENUM, SET:
+    - derive the charset if not specified explicitly
+    - find a _bin collation if the BINARY comparison style was specified, e.g.:
+       CREATE TABLE t1 (a VARCHAR(10) BINARY) CHARSET utf8;
+  */
+  bool prepare_charset_for_string(const Column_derived_attributes *dattr);
 
   /**
     Prepare a SET/ENUM field.
@@ -4800,7 +4865,13 @@ public:
   bool sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root);
 
   bool prepare_stage1(THD *thd, MEM_ROOT *mem_root,
-                      handler *file, ulonglong table_flags);
+                      handler *file, ulonglong table_flags,
+                      const Column_derived_attributes *derived_attr);
+  void prepare_stage1_simple(CHARSET_INFO *cs)
+  {
+    charset= cs;
+    create_length_to_internal_length_simple();
+  }
   bool prepare_stage1_typelib(THD *thd, MEM_ROOT *mem_root,
                               handler *file, ulonglong table_flags);
   bool prepare_stage1_string(THD *thd, MEM_ROOT *mem_root,
@@ -4808,15 +4879,19 @@ public:
   bool prepare_stage1_bit(THD *thd, MEM_ROOT *mem_root,
                           handler *file, ulonglong table_flags);
 
+  bool bulk_alter(const Column_derived_attributes *derived_attr,
+                  const Column_bulk_alter_attributes *bulk_attr)
+  {
+    return type_handler()->Column_definition_bulk_alter(this,
+                                                        derived_attr,
+                                                        bulk_attr);
+  }
   void redefine_stage1_common(const Column_definition *dup_field,
-                              const handler *file,
-                              const Schema_specification_st *schema);
-  bool redefine_stage1(const Column_definition *dup_field, const handler *file,
-                       const Schema_specification_st *schema)
+                              const handler *file);
+  bool redefine_stage1(const Column_definition *dup_field, const handler *file)
   {
     const Type_handler *handler= dup_field->type_handler();
-    return handler->Column_definition_redefine_stage1(this, dup_field,
-                                                      file, schema);
+    return handler->Column_definition_redefine_stage1(this, dup_field, file);
   }
   bool prepare_stage2(handler *handler, ulonglong table_flags);
   bool prepare_stage2_blob(handler *handler,
@@ -5111,6 +5186,15 @@ public:
   }
   /* Used to make a clone of this object for ALTER/CREATE TABLE */
   Create_field *clone(MEM_ROOT *mem_root) const;
+
+  bool is_some_bigint() const
+  {
+    return type_handler() == &type_handler_longlong ||
+           type_handler() == &type_handler_vers_trx_id;
+  }
+
+  bool vers_check_timestamp(const Lex_table_name &table_name) const;
+  bool vers_check_bigint(const Lex_table_name &table_name) const;
 };
 
 

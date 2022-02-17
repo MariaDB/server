@@ -47,7 +47,8 @@ test
 Phase 7/7: Running 'FLUSH PRIVILEGES'
 OK
 Run it again - should say already completed
-This installation of MariaDB is already upgraded to VERSION, use --force if you still need to run mysql_upgrade
+This installation of MariaDB is already upgraded to VERSION.There is no need to run mysql_upgrade again for VERSION.
+You can use --force if you still want to run mysql_upgrade
 Force should run it regardless of whether it has been run before
 Phase 1/7: Checking and upgrading mysql database
 Processing databases
@@ -145,11 +146,12 @@ test
 Phase 7/7: Running 'FLUSH PRIVILEGES'
 OK
 DROP USER mysqltest1@'%';
-Version check failed. Got the following error when calling the 'mysql' command line client
+Reading datadir from the MariaDB server failed. Got the following error when executing the 'mysql' command line client
 ERROR 1045 (28000): Access denied for user 'mysqltest1'@'localhost' (using password: YES)
 FATAL ERROR: Upgrade failed
 Run mysql_upgrade with a non existing server socket
-mysqlcheck: Got error: 2005: Unknown MySQL server host 'not_existing_host' (errno) when trying to connect
+Reading datadir from the MariaDB server failed. Got the following error when executing the 'mysql' command line client
+ERROR 2005 (HY000): Unknown MySQL server host 'not_existing_host' (errno)
 FATAL ERROR: Upgrade failed
 set GLOBAL sql_mode='STRICT_ALL_TABLES,ANSI_QUOTES,NO_ZERO_DATE';
 Phase 1/7: Checking and upgrading mysql database
@@ -412,8 +414,11 @@ OK
 # Bug #21489398: MYSQL_UPGRADE: FATAL ERROR: UPGRADE FAILED - IMPROVE ERROR
 #
 Run mysql_upgrade with unauthorized access
-Version check failed. Got the following error when calling the 'mysql' command line client
+Reading datadir from the MariaDB server failed. Got the following error when executing the 'mysql' command line client
 ERROR 1045 (28000): Access denied for user 'root'@'localhost' (using password: YES)
+FATAL ERROR: Upgrade failed
+Reading datadir from the MariaDB server failed. Got the following error when executing the 'mysql' command line client
+ERROR 1045 (errno): Access denied for user 'root'@'localhost' (using password: YES)
 FATAL ERROR: Upgrade failed
 #
 # MDEV-4332 Increase username length from 16 characters
@@ -758,7 +763,7 @@ GRANT `aRole` TO `root`@`localhost` WITH ADMIN OPTION
 GRANT ALL PRIVILEGES ON *.* TO `root`@`localhost` WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 GRANT USAGE ON *.* TO `aRole`
-SET DEFAULT ROLE aRole FOR 'root'@'localhost'
+SET DEFAULT ROLE `aRole` FOR `root`@`localhost`
 SET DEFAULT ROLE NONE;
 SHOW GRANTS;
 Grants for root@localhost
@@ -768,6 +773,34 @@ GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 GRANT USAGE ON *.* TO `aRole`
 DROP ROLE `aRole`;
 FLUSH PRIVILEGES;
+#
+# MDEV-27279: mariadb_upgrade add --check-if-upgrade-is-needed
+#
+This installation of MariaDB is already upgraded to MariaDB .
+There is no need to run mysql_upgrade again for MariaDB .
+Looking for 'mysql' as: mysql
+This installation of MariaDB is already upgraded to MariaDB .
+There is no need to run mysql_upgrade again for MariaDB .
+#
+# MDEV-27279: mariadb_upgrade check-if-upgrade absence is do it
+#
+Looking for 'mysql' as: mysql
+Empty or non existent ...mysql_upgrade_info. Assuming mysql_upgrade has to be run!
+#
+# MDEV-27279: mariadb_upgrade check-if-upgrade with minor version change
+#
+Looking for 'mysql' as: mysql
+This installation of MariaDB is already upgraded to MariaDB .
+There is no need to run mysql_upgrade again for MariaDB .
+This installation of MariaDB is already upgraded to MariaDB .
+There is no need to run mysql_upgrade again for MariaDB .
+You can use --force if you still want to run mysql_upgrade
+#
+# MDEV-27279: mariadb_upgrade check-if-upgrade with major version change
+#
+Major version upgrade detected from MariaDB  to MariaDB . Check required!
+Looking for 'mysql' as: mysql
+Major version upgrade detected from MariaDB  to MariaDB . Check required!
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
 # End of 10.2 tests
@@ -840,6 +873,78 @@ alter table mysql.user change authentication_string auth_string text collate utf
 select count(*) from mysql.global_priv;
 count(*)
 5
+drop table mysql.global_priv;
+rename table mysql.global_priv_bak to mysql.global_priv;
+#
+# Ensure that mysql_upgrade accounted for 0 password_last_changed
+# and doesn't PASSWORD EXPIRE a user account because < 10.4 zeroed it.
+#
+# switching from mysql.global_priv to mysql.user
+drop view mysql.user_bak;
+drop table mysql.user;
+truncate table mysql.tables_priv;
+FLUSH TABLES mysql.user;
+FLUSH PRIVILEGES;
+CREATE USER mariadb_102;
+UPDATE mysql.user SET password_last_changed=0 WHERE user='mariadb_102';
+FLUSH PRIVILEGES;
+Phase 1/7: Checking and upgrading mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.global_priv_bak                              OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.transaction_registry                         OK
+mysql.user                                         OK
+Upgrading from a version before MariaDB-10.1
+Phase 2/7: Installing used storage engines
+Checking for tables with unknown storage engine
+Phase 3/7: Fixing views
+Phase 4/7: Running 'mysql_fix_privilege_tables'
+Phase 5/7: Fixing table and database names
+Phase 6/7: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+Phase 7/7: Running 'FLUSH PRIVILEGES'
+OK
+SHOW CREATE USER mariadb_102;
+CREATE USER for mariadb_102@%
+CREATE USER `mariadb_102`@`%`
+connect con1,localhost,mariadb_102;
+select current_user();
+current_user()
+mariadb_102@%
+disconnect con1;
+connection default;
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
 # End of 10.4 tests

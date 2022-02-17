@@ -30,7 +30,7 @@
 #define CheckType(X,Y)
 #endif
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 #define EL  "\r\n"
 #else
 #define EL  "\n"
@@ -1138,6 +1138,9 @@ PBVAL BJSON::GetArrayValue(PBVAL bap, int n)
   CheckType(bap, TYPE_JAR);
   int i = 0;
 
+  if (n < 0)
+    n += GetArraySize(bap);
+
   for (PBVAL bvp = GetArray(bap); bvp; bvp = GetNext(bvp), i++)
     if (i == n)
       return bvp;
@@ -1202,15 +1205,14 @@ void BJSON::SetArrayValue(PBVAL bap, PBVAL nvp, int n)
   int   i = 0;
   PBVAL bvp = NULL;
 
-  if (bap->To_Val)
-    for (bvp = GetArray(bap); bvp; i++, bvp = GetNext(bvp))
-      if (i == n) {
-        SetValueVal(bvp, nvp);
-        return;
-      }
+  for (bvp = GetArray(bap); i < n; i++, bvp = bvp ? GetNext(bvp) : NULL)
+    if (!bvp)
+      AddArrayValue(bap, NewVal());
 
   if (!bvp)
     AddArrayValue(bap, MOF(nvp));
+  else
+    SetValueVal(bvp, nvp);
 
 } // end of SetValue
 
@@ -1348,12 +1350,17 @@ PBVAL BJSON::NewVal(PVAL valp)
 /***********************************************************************/
 /* Sub-allocate and initialize a BVAL from another BVAL.               */
 /***********************************************************************/
-PBVAL BJSON::DupVal(PBVAL bvlp) {
-  PBVAL bvp = NewVal();
+PBVAL BJSON::DupVal(PBVAL bvlp)
+{
+  if (bvlp) {
+    PBVAL bvp = NewVal();
 
-  *bvp = *bvlp;
-  bvp->Next = 0;
-  return bvp;
+    *bvp = *bvlp;
+    bvp->Next = 0;
+    return bvp;
+  } else
+    return NULL;
+
 } // end of DupVal
 
 /***********************************************************************/

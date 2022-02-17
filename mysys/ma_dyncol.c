@@ -865,7 +865,7 @@ dynamic_column_uint_read(DYNAMIC_COLUMN_VALUE *store_it_here,
 
 static size_t dynamic_column_sint_bytes(longlong val)
 {
-  return dynamic_column_uint_bytes((val << 1) ^
+  return dynamic_column_uint_bytes((((ulonglong) val) << 1) ^
                                    (val < 0 ? 0xffffffffffffffffull : 0));
 }
 
@@ -883,8 +883,8 @@ static enum enum_dyncol_func_result
 dynamic_column_sint_store(DYNAMIC_COLUMN *str, longlong val)
 {
   return dynamic_column_uint_store(str,
-                                 (val << 1) ^
-                                 (val < 0 ? 0xffffffffffffffffULL : 0));
+                                   (((ulonglong) val) << 1) ^
+                                   (val < 0 ? 0xffffffffffffffffULL : 0));
 }
 
 

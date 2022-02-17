@@ -1,7 +1,7 @@
 #
 # MDEV-5317 Compound statement / anonymous blocks
 #
-source include/have_log_bin.inc;
+source include/have_binlog_format_mixed_or_statement.inc;
 delimiter |;
 
 CREATE TABLE t1 (a INT PRIMARY KEY)|

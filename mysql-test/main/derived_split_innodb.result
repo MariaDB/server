@@ -141,3 +141,146 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 3	DERIVED	t2	index	NULL	PRIMARY	4	NULL	3	
 drop view v1;
 drop table t1,t2;
+#
+#  MDEV-23723: Crash when test_if_skip_sort_order() is checked for derived table subject to split
+#
+CREATE TABLE t1 (a INT, b INT, KEY (a), KEY (a,b)) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT, KEY (c)) ENGINE=InnoDB;
+SELECT * FROM t1 t1a JOIN t1 t1b;
+a	b	a	b
+INSERT INTO t2 VALUES (1),(2);
+INSERT INTO t1 VALUES (1,2),(3,4),(5,6),(7,8),(9,10),(11,12);
+set statement optimizer_switch='split_materialized=off' for EXPLAIN
+SELECT *
+FROM
+t1 JOIN
+(SELECT t1.a, t1.b FROM t1, t2 WHERE t1.b = t2.c GROUP BY t1.a, t1.b) as dt
+WHERE
+t1.a = dt.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	a,a_2	a_2	10	NULL	6	Using where; Using index
+1	PRIMARY	<derived3>	ref	key0	key0	5	test.t1.a	2	
+3	DERIVED	t1	index	NULL	a_2	10	NULL	6	Using where; Using index
+3	DERIVED	t2	ref	c	c	5	test.t1.b	1	Using index
+set statement optimizer_switch='split_materialized=on' for  EXPLAIN
+SELECT *
+FROM
+t1 JOIN
+(SELECT t1.a, t1.b FROM t1, t2 WHERE t1.b = t2.c GROUP BY t1.a, t1.b) as dt
+WHERE
+t1.a = dt.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	a,a_2	a_2	10	NULL	6	Using where; Using index
+1	PRIMARY	<derived3>	ref	key0	key0	5	test.t1.a	2	
+3	LATERAL DERIVED	t1	ref	a,a_2	a	5	test.t1.a	1	Using where; Using temporary; Using filesort
+3	LATERAL DERIVED	t2	ref	c	c	5	test.t1.b	1	Using index
+DROP TABLE t1, t2;
+#
+# Bug mdev-25714: usage non-splitting covering index is cheaper than
+#                 usage of the best splitting index for one group
+#
+create table t1 (
+id int not null, itemid int not null, index idx (itemid)
+) engine=innodb;
+insert into t1 values (1, 2), (2,2), (4,2), (4,2), (0,3), (3,3);
+create table t2 (id int not null) engine=innodb;
+insert into t2 values (2);
+create table t3 (
+id int not null, itemid int not null, userid int not null, primary key (id),
+index idx1 (userid, itemid), index idx2 (itemid)
+) engine innodb;
+insert into t3 values (1,1,1), (2,1,1), (3,2,1), (4,2,1), (5,3,1);
+set use_stat_tables='never';
+set optimizer_use_condition_selectivity=1;
+analyze table t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+test.t2	analyze	status	OK
+test.t3	analyze	status	OK
+set optimizer_switch='split_materialized=on';
+explain select t1.id, t1.itemid, dt.id, t2.id
+from t1,
+(select itemid, max(id) as id from t3 where userid = 1 group by itemid) dt,
+t2
+where t1.id = dt.id and t1.itemid = dt.itemid and t2.id=t1.itemid;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ref	idx	idx	4	test.t2.id	1	
+1	PRIMARY	<derived2>	ref	key0	key0	9	test.t2.id,test.t1.id	2	
+2	DERIVED	t3	ref	idx1,idx2	idx1	4	const	5	Using where; Using index
+select t1.id, t1.itemid, dt.id, t2.id
+from t1,
+(select itemid, max(id) as id from t3 where userid = 1 group by itemid) dt,
+t2
+where t1.id = dt.id and t1.itemid = dt.itemid and t2.id=t1.itemid;
+id	itemid	id	id
+4	2	4	2
+4	2	4	2
+set optimizer_switch='split_materialized=off';
+explain select t1.id, t1.itemid, dt.id, t2.id
+from t1,
+(select itemid, max(id) as id from t3 where userid = 1 group by itemid) dt,
+t2
+where t1.id = dt.id and t1.itemid = dt.itemid and t2.id=t1.itemid;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t1	ref	idx	idx	4	test.t2.id	1	
+1	PRIMARY	<derived2>	ref	key0	key0	9	test.t2.id,test.t1.id	2	
+2	DERIVED	t3	ref	idx1	idx1	4	const	5	Using where; Using index
+select t1.id, t1.itemid, dt.id, t2.id
+from t1,
+(select itemid, max(id) as id from t3 where userid = 1 group by itemid) dt,
+t2
+where t1.id = dt.id and t1.itemid = dt.itemid and t2.id=t1.itemid;
+id	itemid	id	id
+4	2	4	2
+4	2	4	2
+drop table t1,t2,t3;
+set optimizer_switch='split_materialized=default';
+set use_stat_tables=default;
+set optimizer_use_condition_selectivity=default;
+#
+# MDEV-26337: subquery with groupby and ROLLUP returns incorrect results 
+#  (The testcase is taken from testcase for MDEV-13389 due to it being
+#   much smaller)
+#
+create table t3 (a int, b int, c char(127), index idx_b(b)) engine=myisam;
+insert into t3 values
+(8,11,'aa'), (5,15,'cc'), (1,14,'bb'), (2,12,'aa'), (7,17,'cc'),
+(7,18,'aa'), (2,11,'aa'), (7,10,'bb'), (3,11,'dd'), (4,12,'ee'),
+(5,14,'dd'), (9,12,'ee');
+create table t4 (a int, b int, c char(127), index idx(a,c)) engine=myisam;
+insert into t4 values
+(7,10,'cc'), (1,20,'aa'), (2,23,'bb'), (7,18,'cc'), (1,30,'bb'),
+(4,71,'xx'), (3,15,'aa'), (7,82,'aa'), (8,12,'dd'), (4,15,'aa'),
+(11,33,'yy'), (10,42,'zz'), (4,53,'xx'), (10,17,'yy'), (7,12,'cc'),
+(8,20,'dd'), (7,32,'bb'), (1,50,'aa'), (3,40,'bb'), (3,77,'aa');
+insert into t4 select a+10, b+10, concat(c,'f') from t4;
+analyze table t3,t4;
+Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	OK
+# This should use a plan with LATERAL DERIVED:
+explain select t3.a,t3.c,t.max,t.min
+from t3 join
+(select a, c, max(b) max, min(b) min from t4 group by a,c) t
+on t3.a=t.a and t3.c=t.c
+where t3.b > 15;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	range	idx_b	idx_b	5	NULL	2	Using index condition; Using where
+1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	2	
+2	LATERAL DERIVED	t4	ref	idx	idx	133	test.t3.a,test.t3.c	1	
+# ... and if one adds WITH ROLLUP, then LATERAL DERIVED is no longer used:
+explain select t3.a,t3.c,t.max,t.min
+from t3 join
+(select a, c, max(b) max, min(b) min from t4 group by a,c with rollup) t
+on t3.a=t.a and t3.c=t.c
+where t3.b > 15;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	range	idx_b	idx_b	5	NULL	2	Using index condition; Using where
+1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	4	
+2	DERIVED	t4	ALL	NULL	NULL	NULL	NULL	40	Using filesort
+drop table t3, t4;
+# End of 10.3 tests

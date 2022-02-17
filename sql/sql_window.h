@@ -111,8 +111,10 @@ class Window_spec : public Sql_alloc
   LEX_CSTRING *window_ref;
 
   SQL_I_List<ORDER> *partition_list;
+  SQL_I_List<ORDER> *save_partition_list;
 
   SQL_I_List<ORDER> *order_list;
+  SQL_I_List<ORDER> *save_order_list;
 
   Window_frame *window_frame;
 
@@ -123,7 +125,8 @@ class Window_spec : public Sql_alloc
               SQL_I_List<ORDER> *ord_list,
               Window_frame *win_frame)
     : window_names_are_checked(false), window_ref(win_ref),
-      partition_list(part_list), order_list(ord_list),
+      partition_list(part_list), save_partition_list(NULL),
+      order_list(ord_list), save_order_list(NULL),
       window_frame(win_frame), referenced_win_spec(NULL) {}
 
   virtual const char *name() { return NULL; }

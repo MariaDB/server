@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -859,7 +859,7 @@ static my_bool kill_handlerton(THD *thd, plugin_ref plugin,
 {
   handlerton *hton= plugin_hton(plugin);
 
-  mysql_mutex_assert_owner(&thd->LOCK_thd_data);
+  mysql_mutex_assert_owner(&thd->LOCK_thd_kill);
   if (hton->state == SHOW_OPTION_YES && hton->kill_query &&
       thd_get_ha_data(thd, hton))
     hton->kill_query(hton, thd, *(enum thd_kill_levels *) level);
@@ -1558,13 +1558,26 @@ int ha_commit_trans(THD *thd, bool all)
         goto err;
       }
       DBUG_ASSERT(trx_start_id);
+#ifdef WITH_WSREP
+      bool saved_wsrep_on= thd->variables.wsrep_on;
+      thd->variables.wsrep_on= false;
+#endif
       TR_table trt(thd, true);
       if (trt.update(trx_start_id, trx_end_id))
+      {
+#ifdef WITH_WSREP
+        thd->variables.wsrep_on= saved_wsrep_on;
+#endif
+        (void) trans_rollback_stmt(thd);
         goto err;
+      }
       // Here, the call will not commit inside InnoDB. It is only working
       // around closing thd->transaction.stmt open by TR_table::open().
       if (all)
         commit_one_phase_2(thd, false, &thd->transaction.stmt, false);
+#ifdef WITH_WSREP
+      thd->variables.wsrep_on= saved_wsrep_on;
+#endif
     }
   }
 #endif
@@ -1932,7 +1945,7 @@ int ha_rollback_trans(THD *thd, bool all)
   if (thd->is_error())
   {
     WSREP_DEBUG("ha_rollback_trans(%lld, %s) rolled back: %s: %s; is_real %d",
-                thd->thread_id, all?"TRUE":"FALSE", WSREP_QUERY(thd),
+                thd->thread_id, all?"TRUE":"FALSE", wsrep_thd_query(thd),
                 thd->get_stmt_da()->message(), is_real_trans);
   }
   (void) wsrep_after_rollback(thd, all);
@@ -1944,7 +1957,8 @@ int ha_rollback_trans(THD *thd, bool all)
       Thanks to possibility of MDL deadlock rollback request can come even if
       transaction hasn't been started in any transactional storage engine.
     */
-    if (thd->transaction_rollback_request)
+    if (thd->transaction_rollback_request &&
+        thd->transaction.xid_state.is_explicit_XA())
       thd->transaction.xid_state.set_error(thd->get_stmt_da()->sql_errno());
 
     thd->has_waiter= false;
@@ -3343,24 +3357,26 @@ int handler::update_auto_increment()
     DBUG_RETURN(0);
   }
 
-  // ALTER TABLE ... ADD COLUMN ... AUTO_INCREMENT
-  if (thd->lex->sql_command == SQLCOM_ALTER_TABLE)
+  if (table->versioned())
   {
-    if (table->versioned())
+    Field *end= table->vers_end_field();
+    DBUG_ASSERT(end);
+    bitmap_set_bit(table->read_set, end->field_index);
+    if (!end->is_max())
     {
-      Field *end= table->vers_end_field();
-      DBUG_ASSERT(end);
-      bitmap_set_bit(table->read_set, end->field_index);
-      if (!end->is_max())
+      if (thd->lex->sql_command == SQLCOM_ALTER_TABLE)
       {
         if (!table->next_number_field->real_maybe_null())
           DBUG_RETURN(HA_ERR_UNSUPPORTED);
         table->next_number_field->set_null();
-        DBUG_RETURN(0);
       }
+      DBUG_RETURN(0);
     }
-    table->next_number_field->set_notnull();
   }
+
+  // ALTER TABLE ... ADD COLUMN ... AUTO_INCREMENT
+  if (thd->lex->sql_command == SQLCOM_ALTER_TABLE)
+    table->next_number_field->set_notnull();
 
   if ((nr= next_insert_id) >= auto_inc_interval_for_cur_row.maximum())
   {
@@ -3997,6 +4013,9 @@ void handler::print_error(int error, myf errflag)
   case HA_ERR_TABLE_IN_FK_CHECK:
     textno= ER_TABLE_IN_FK_CHECK;
     break;
+  case HA_ERR_PARTITION_LIST:
+    my_error(ER_VERS_NOT_ALLOWED, errflag, table->s->db.str, table->s->table_name.str);
+    DBUG_VOID_RETURN;
   default:
     {
       /* The error was "unknown" to this function.
@@ -6563,7 +6582,7 @@ static int wsrep_after_row(THD *thd)
     my_message(ER_ERROR_DURING_COMMIT, "wsrep_max_ws_rows exceeded", MYF(0));
     DBUG_RETURN(ER_ERROR_DURING_COMMIT);
   }
-  else if (wsrep_after_row(thd, false))
+  else if (wsrep_after_row_internal(thd))
   {
     DBUG_RETURN(ER_LOCK_DEADLOCK);
   }
@@ -6762,7 +6781,8 @@ int handler::ha_write_row(const uchar *buf)
     error= binlog_log_row(table, 0, buf, log_func);
 #ifdef WITH_WSREP
     if (table_share->tmp_table == NO_TMP_TABLE &&
-        WSREP(ha_thd()) && (error= wsrep_after_row(ha_thd())))
+        WSREP(ha_thd()) && ht->flags & HTON_WSREP_REPLICATION &&
+        !error && (error= wsrep_after_row(ha_thd())))
     {
       DBUG_RETURN(error);
     }
@@ -6806,8 +6826,22 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
     rows_changed++;
     error= binlog_log_row(table, old_data, new_data, log_func);
 #ifdef WITH_WSREP
+    THD *thd= ha_thd();
+    bool is_wsrep= WSREP(thd);
+    /* for SR, the followin wsrep_after_row() may replicate a fragment, so we have to
+       declare potential PA unsafe before that*/
+    if (table->s->primary_key == MAX_KEY &&
+	is_wsrep && wsrep_thd_is_local(thd))
+    {
+      WSREP_DEBUG("marking trx as PA unsafe pk %d", table->s->primary_key);
+      if (thd->wsrep_cs().mark_transaction_pa_unsafe())
+      {
+        WSREP_DEBUG("session does not have active transaction, can not mark as PA unsafe");
+      }
+    }
     if (table_share->tmp_table == NO_TMP_TABLE &&
-        WSREP(ha_thd()) && (error= wsrep_after_row(ha_thd())))
+        is_wsrep && ht->flags & HTON_WSREP_REPLICATION &&
+        !error && (error= wsrep_after_row(thd)))
     {
       return error;
     }
@@ -6868,8 +6902,22 @@ int handler::ha_delete_row(const uchar *buf)
     rows_changed++;
     error= binlog_log_row(table, buf, 0, log_func);
 #ifdef WITH_WSREP
+    THD *thd= ha_thd();
+    bool is_wsrep= WSREP(thd);
+    /* for SR, the followin wsrep_after_row() may replicate a fragment, so we have to
+       declare potential PA unsafe before that*/
+    if (table->s->primary_key == MAX_KEY &&
+	is_wsrep && wsrep_thd_is_local(thd))
+    {
+      WSREP_DEBUG("marking trx as PA unsafe pk %d", table->s->primary_key);
+      if (thd->wsrep_cs().mark_transaction_pa_unsafe())
+      {
+        WSREP_DEBUG("session does not have active transaction, can not mark as PA unsafe");
+      }
+    }
     if (table_share->tmp_table == NO_TMP_TABLE &&
-        WSREP(ha_thd()) && (error= wsrep_after_row(ha_thd())))
+        is_wsrep && ht->flags & HTON_WSREP_REPLICATION &&
+        !error && (error= wsrep_after_row(thd)))
     {
       return error;
     }
@@ -7396,11 +7444,11 @@ bool Vers_parse_info::is_end(const char *name) const
 }
 bool Vers_parse_info::is_start(const Create_field &f) const
 {
-  return f.flags & VERS_SYS_START_FLAG;
+  return f.flags & VERS_ROW_START;
 }
 bool Vers_parse_info::is_end(const Create_field &f) const
 {
-  return f.flags & VERS_SYS_END_FLAG;
+  return f.flags & VERS_ROW_END;
 }
 
 static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int flags, bool integer)
@@ -7460,8 +7508,8 @@ bool Vers_parse_info::fix_implicit(THD *thd, Alter_info *alter_info)
   period= start_end_t(default_start, default_end);
   as_row= period;
 
-  if (vers_create_sys_field(thd, default_start, alter_info, VERS_SYS_START_FLAG) ||
-      vers_create_sys_field(thd, default_end, alter_info, VERS_SYS_END_FLAG))
+  if (vers_create_sys_field(thd, default_start, alter_info, VERS_ROW_START) ||
+      vers_create_sys_field(thd, default_end, alter_info, VERS_ROW_END))
   {
     return true;
   }
@@ -7481,15 +7529,16 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   if (!vers_info.need_check(alter_info))
     return false;
 
-  if (!vers_info.versioned_fields && vers_info.unversioned_fields &&
-      !(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING))
+  const bool add_versioning= alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING;
+
+  if (!vers_info.versioned_fields && vers_info.unversioned_fields && !add_versioning)
   {
     // All is correct but this table is not versioned.
     options&= ~HA_VERSIONED_TABLE;
     return false;
   }
 
-  if (!(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING) && vers_info)
+  if (!add_versioning && vers_info && !vers_info.versioned_fields)
   {
     my_error(ER_MISSING, MYF(0), create_table.table_name.str,
              "WITH SYSTEM VERSIONING");
@@ -7499,8 +7548,9 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
   List_iterator<Create_field> it(alter_info->create_list);
   while (Create_field *f= it++)
   {
-    if ((f->versioning == Column_definition::VERSIONING_NOT_SET &&
-         !(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING)) ||
+    if (f->vers_sys_field())
+      continue;
+    if ((f->versioning == Column_definition::VERSIONING_NOT_SET && !add_versioning) ||
         f->versioning == Column_definition::WITHOUT_VERSIONING)
     {
       f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
@@ -7521,9 +7571,10 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
   if (!(options & HA_VERSIONED_TABLE))
     return false;
 
+  uint versioned_fields= 0;
+
   if (!(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING))
   {
-    uint versioned_fields= 0;
     uint fieldnr= 0;
     List_iterator<Create_field> field_it(alter_info->create_list);
     while (Create_field *f= field_it++)
@@ -7540,8 +7591,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
       {
         List_iterator<Create_field> dup_it(alter_info->create_list);
         for (Create_field *dup= dup_it++; !is_dup && dup != f; dup= dup_it++)
-          is_dup= my_strcasecmp(default_charset_info,
-                                dup->field_name.str, f->field_name.str) == 0;
+          is_dup= Lex_ident(dup->field_name).streq(f->field_name);
       }
 
       if (!(f->flags & VERS_UPDATE_UNVERSIONED_FLAG) && !is_dup)
@@ -7555,7 +7605,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
     }
   }
 
-  if (!(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING))
+  if (!(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING) && !versioned_fields)
     return false;
 
   bool can_native= ha_check_storage_engine_flag(db_type,
@@ -7614,8 +7664,13 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     {
       if (f->flags & VERS_SYSTEM_FIELD)
       {
+        if (!table->versioned())
+        {
+          my_error(ER_VERS_NOT_VERSIONED, MYF(0), table->s->table_name.str);
+          return true;
+        }
         my_error(ER_VERS_DUPLICATE_ROW_START_END, MYF(0),
-                 f->flags & VERS_SYS_START_FLAG ? "START" : "END", f->field_name.str);
+                 f->flags & VERS_ROW_START ? "START" : "END", f->field_name.str);
         return true;
       }
     }
@@ -7720,13 +7775,13 @@ Vers_parse_info::fix_create_like(Alter_info &alter_info, HA_CREATE_INFO &create_
 
   while ((f= it++))
   {
-    if (f->flags & VERS_SYS_START_FLAG)
+    if (f->flags & VERS_ROW_START)
     {
       f_start= f;
       if (f_end)
         break;
     }
-    else if (f->flags & VERS_SYS_END_FLAG)
+    else if (f->flags & VERS_ROW_END)
     {
       f_end= f;
       if (f_start)
@@ -7788,36 +7843,30 @@ bool Vers_parse_info::check_conditions(const Lex_table_name &table_name,
   return false;
 }
 
-static bool is_versioning_timestamp(const Create_field *f)
-{
-  return f->type_handler() == &type_handler_timestamp2 &&
-         f->length == MAX_DATETIME_FULL_WIDTH;
-}
 
-static bool is_some_bigint(const Create_field *f)
+bool Create_field::vers_check_timestamp(const Lex_table_name &table_name) const
 {
-  return f->type_handler() == &type_handler_longlong ||
-         f->type_handler() == &type_handler_vers_trx_id;
-}
+  if (type_handler() == &type_handler_timestamp2 &&
+      length == MAX_DATETIME_FULL_WIDTH)
+    return false;
 
-static bool is_versioning_bigint(const Create_field *f)
-{
-  return is_some_bigint(f) && f->flags & UNSIGNED_FLAG &&
-         f->length == MY_INT64_NUM_DECIMAL_DIGITS - 1;
-}
-
-static bool require_timestamp(const Create_field *f, Lex_table_name table_name)
-{
-  my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name.str, "TIMESTAMP(6)",
+  my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), field_name.str, "TIMESTAMP(6)",
            table_name.str);
   return true;
 }
-static bool require_bigint(const Create_field *f, Lex_table_name table_name)
+
+
+bool Create_field::vers_check_bigint(const Lex_table_name &table_name) const
 {
-  my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), f->field_name.str,
+  if (is_some_bigint() && flags & UNSIGNED_FLAG &&
+      length == MY_INT64_NUM_DECIMAL_DIGITS - 1)
+    return false;
+
+  my_error(ER_VERS_FIELD_WRONG_TYPE, MYF(0), field_name.str,
            "BIGINT(20) UNSIGNED", table_name.str);
   return true;
 }
+
 
 bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
                                        const Lex_table_name &db,
@@ -7833,37 +7882,37 @@ bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
   List_iterator<Create_field> it(alter_info->create_list);
   while (Create_field *f= it++)
   {
-    if (!row_start && f->flags & VERS_SYS_START_FLAG)
+    if (!row_start && f->flags & VERS_ROW_START)
       row_start= f;
-    else if (!row_end && f->flags & VERS_SYS_END_FLAG)
+    else if (!row_end && f->flags & VERS_ROW_END)
       row_end= f;
   }
 
-  const bool expect_timestamp=
-      !can_native || !is_some_bigint(row_start) || !is_some_bigint(row_end);
-
-  if (expect_timestamp)
+  if (!row_start || !row_end)
   {
-    if (!is_versioning_timestamp(row_start))
-      return require_timestamp(row_start, table_name);
+    my_error(ER_VERS_PERIOD_COLUMNS, MYF(0), as_row.start.str, as_row.end.str);
+    return true;
+  }
 
-    if (!is_versioning_timestamp(row_end))
-      return require_timestamp(row_end, table_name);
+  if (!can_native ||
+      !row_start->is_some_bigint() ||
+      !row_end->is_some_bigint())
+  {
+    if (row_start->vers_check_timestamp(table_name) ||
+        row_end->vers_check_timestamp(table_name))
+      return true;
   }
   else
   {
-    if (!is_versioning_bigint(row_start))
-      return require_bigint(row_start, table_name);
+    if (row_start->vers_check_bigint(table_name) ||
+        row_end->vers_check_bigint(table_name))
+      return true;
 
-    if (!is_versioning_bigint(row_end))
-      return require_bigint(row_end, table_name);
-  }
-
-  if (is_versioning_bigint(row_start) && is_versioning_bigint(row_end) &&
-      !TR_table::use_transaction_registry)
-  {
-    my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
-    return true;
+    if (!TR_table::use_transaction_registry)
+    {
+      my_error(ER_VERS_TRT_IS_DISABLED, MYF(0));
+      return true;
+    }
   }
 
   return false;

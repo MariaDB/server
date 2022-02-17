@@ -29,6 +29,7 @@ logging=init
 want_syslog=0
 syslog_tag=
 user='@MYSQLD_USER@'
+group='@MYSQLD_GROUP@'
 pid_file=
 err_log=
 err_log_base=
@@ -73,12 +74,14 @@ usage () {
         cat <<EOF
 Usage: $0 [OPTIONS]
   --no-defaults              Don't read the system defaults file
-  --core-file-size=LIMIT     Limit core files to the specified size
   --defaults-file=FILE       Use the specified defaults file
   --defaults-extra-file=FILE Also use defaults from the specified file
+  --defaults-group-suffix=X  Additionally read default groups with X appended
+                             as a suffix
   --ledir=DIRECTORY          Look for mysqld in the specified directory
   --open-files-limit=LIMIT   Limit the number of open files
   --crash-script=FILE        Script to call when mysqld crashes
+  --core-file-size=LIMIT     Limit core files to the specified size
   --timezone=TZ              Set the system timezone
   --malloc-lib=LIB           Preload shared library LIB if available
   --mysqld=FILE              Use the specified file as mysqld
@@ -297,6 +300,7 @@ parse_arguments() {
       --pid[-_]file=*) pid_file="$val" ;;
       --plugin[-_]dir=*) PLUGIN_DIR="$val" ;;
       --user=*) user="$val"; SET_USER=1 ;;
+      --group=*) group="$val"; SET_USER=1 ;;
       --log[-_]basename=*|--hostname=*|--loose[-_]log[-_]basename=*)
         pid_file="$val.pid";
 	err_log_base="$val";
@@ -699,6 +703,7 @@ then
   if test "$user" != "root" -o $SET_USER = 1
   then
     USER_OPTION="--user=$user"
+    GROUP_OPTION="--group=$group"
   fi
   if test -n "$open_files"
   then
@@ -721,7 +726,12 @@ then
     log_error "Fatal error Can't create database directory '$mysql_unix_port'"
     exit 1
   fi
-  chown $user $mysql_unix_port_dir
+  if [ "$user" -a "$group" ]; then
+    chown $user:$group $mysql_unix_port_dir
+  else
+    [ "$user" ] && chown $user $mysql_unix_port_dir
+    [ "$group" ] && chgrp $group $mysql_unix_port_dir
+  fi
   chmod 755 $mysql_unix_port_dir
 fi
 

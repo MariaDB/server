@@ -48,9 +48,11 @@ INSERT INTO test.t3 VALUES ('Yes', 1, NULL, 'spamfilter','scan_incoming');
 INSERT INTO test.t2 VALUES ('Yes', 1, NULL, 'spamfilter','scan_incoming');
 
 select * from test.t2;
+--sorted_result
 select * from test.t3;
 sync_slave_with_master;
 select * from test.t2;
+--sorted_result
 select * from test.t3;
 connection master;
 

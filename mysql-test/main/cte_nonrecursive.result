@@ -618,7 +618,7 @@ with t(c) as (select a from t1 where b >= 'c')
 select * from t r1, t r2 where r1.c=r2.c and r2.c=4;
 show create view v4;
 View	Create View	character_set_client	collation_connection
-v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS with t(c) as (select `test`.`t1`.`a` AS `c` from `test`.`t1` where `test`.`t1`.`b` >= 'c')select `r1`.`c` AS `c`,`r2`.`c` AS `d` from (`t` `r1` join (select `test`.`t1`.`a` AS `c` from `test`.`t1` where `test`.`t1`.`b` >= 'c') `r2`) where `r1`.`c` = `r2`.`c` and `r2`.`c` = 4	latin1	latin1_swedish_ci
+v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS with t(c) as (select `test`.`t1`.`a` AS `c` from `test`.`t1` where `test`.`t1`.`b` >= 'c')select `r1`.`c` AS `c`,`r2`.`c` AS `d` from (`t` `r1` join `t` `r2`) where `r1`.`c` = `r2`.`c` and `r2`.`c` = 4	latin1	latin1_swedish_ci
 select * from v4;
 c	d
 4	4
@@ -1126,7 +1126,7 @@ NULL	UNION RESULT	<union4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 NULL	UNION RESULT	<union11,12>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 NULL	UNION RESULT	<union1,6>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	with cte_e as (with cte_o as (with cte_i as (select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 7)select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1)select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 3 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 and `test`.`t1`.`a` > 1 union select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 4 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 and `test`.`t1`.`a` > 1)select `cte_e1`.`a` AS `a` from `cte_e` `cte_e1` where `cte_e1`.`a` > 1 union select `cte_e2`.`a` AS `a` from (with cte_o as (with cte_i as (select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 7)select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1)select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 3 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 union select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 4 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7) `cte_e2`
+Note	1003	with cte_e as (with cte_o as (with cte_i as (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 7)/* select#3 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1)/* select#4 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 3 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 and `test`.`t1`.`a` > 1 union /* select#5 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 4 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 and `test`.`t1`.`a` > 1)/* select#1 */ select `cte_e1`.`a` AS `a` from `cte_e` `cte_e1` where `cte_e1`.`a` > 1 union /* select#6 */ select `cte_e2`.`a` AS `a` from `cte_e` `cte_e2`
 drop table t1;
 #
 # MDEV-13753: embedded CTE in a VIEW created in prepared statement
@@ -1693,7 +1693,9 @@ disconnect con1;
 #
 # MDEV-22781: create view with CTE without default database
 #
-drop database test;
+create database db;
+use db;
+drop database db;
 create database db1;
 create table db1.t1 (a int);
 insert into db1.t1 values (3),(7),(1);
@@ -1723,8 +1725,499 @@ a
 drop view db1.v1;
 drop table db1.t1;
 drop database db1;
-create database test;
 use test;
+#
+# MDEV-24597: CTE with union used multiple times in query
+#
+with cte(a) as
+(select 1 as d union select 2 as d)
+select a from cte as r1
+union
+select a from cte as r2;
+a
+1
+2
+create table t1 (a int, b int) engine=myisam;
+insert into t1 values
+(3,30), (7,70), (1,10), (7,71), (2,20), (7,72), (3,33), (4,44),
+(5,50), (4,40), (3,33), (4,42), (4,43), (5,51);
+with cte(c) as
+(select a from t1 where b < 30 union select a from t1 where b > 40)
+select * from cte as r1, cte as r2 where r1.c = r2.c;
+c	c
+1	1
+2	2
+7	7
+4	4
+5	5
+with cte(a,c) as
+(
+select a, count(*) from t1 group by a having count(*) = 1
+union
+select a, count(*) from t1 group by a having count(*) = 3
+)
+select a, c from cte as r1 where a < 3
+union
+select a, c from cte as r2 where a > 4;
+a	c
+1	1
+2	1
+7	3
+drop table t1;
+#
+# MDEV-23886: Stored Function returning the result of a query
+#             that uses CTE over a table twice
+#
+create table t1 (c1 int);
+insert into t1 values (1),(2),(6);
+create function f1() returns int return
+( with cte1 as (select c1 from t1)
+select sum(c1) from
+(select * from cte1 union all select * from cte1) dt
+);
+select f1();
+f1()
+18
+create function f2() returns int return
+( with cte1 as (select c1 from t1)
+select sum(s.c1) from cte1 as s, cte1 as t where s.c1=t.c1
+);
+select f2();
+f2()
+9
+create function f3() returns int return
+( with cte1 as (select c1 from t1)
+select
+case
+when exists(select 1 from cte1 where c1 between 1 and 2) then 1
+when exists(select 1 from cte1 where c1 between 5 and 6) then 2
+else 0
+end
+);
+select f3();
+f3()
+1
+create view v1 as (select c1 from t1);
+create function f4() returns int return
+( select sum(c1) from
+(select * from v1 union all select * from v1) dt
+);
+select f4();
+f4()
+18
+create function f5() returns int return
+( select sum(s.c1) from v1 as s, v1 as t where s.c1=t.c1
+);
+select f5();
+f5()
+9
+create view v2(s) as
+with cte1 as (select c1 from t1)
+select sum(c1) from (select * from cte1 union all select * from cte1) dt;
+create function f6() returns int return
+(select s from v2);
+select f6();
+f6()
+18
+create function f7() returns int return
+( select r.s from v2 as r, v2 as t where r.s=t.s
+);
+select f7();
+f7()
+18
+select f5() + f6();
+f5() + f6()
+27
+prepare stmt from "select f5() + f6();";
+execute stmt;
+f5() + f6()
+27
+execute stmt;
+f5() + f6()
+27
+deallocate prepare stmt;
+drop function f1;
+drop function f2;
+drop function f3;
+drop function f4;
+drop function f5;
+drop function f6;
+drop function f7;
+drop view v1;
+drop view v2;
+create table t2 (a int, b int);
+insert into t2
+with cte1 as (select c1 from t1)
+select * from cte1 as s, cte1 as t where s.c1=t.c1 and s.c1 > 5;
+select * from t2;
+a	b
+6	6
+create procedure p1()
+begin
+insert into t2
+with cte1 as (select c1 from t1)
+select * from cte1 as s, cte1 as t where s.c1=t.c1 and s.c1 <= 2 and t.c1 >= 2;
+end |
+call p1();
+select * from t2;
+a	b
+6	6
+2	2
+drop procedure p1;
+# checking CTE resolution for queries with hanging CTEs
+with
+cte1(a) as (select * from t1 where c1 <= 2),
+cte2(b) as (select * from cte1 where a >= 2),
+cte3 as (select * from cte1,cte2 where cte1.a < cte2.b)
+select * from cte3;
+a	b
+1	2
+select * from t2;
+a	b
+6	6
+2	2
+with
+cte1(a) as (select * from t1 where c1 <= 2),
+cte2(b) as (select * from cte1 where a >= 2),
+cte3 as (select * from cte1,cte2 where cte1.a < cte2.b)
+select * from t2;
+a	b
+6	6
+2	2
+with
+cte1(a) as (select * from t1 where c1 <= 2),
+cte2(b) as (select * from cte1 where c1 >= 2),
+cte3 as (select * from cte1,cte2 where cte1.a < cte2.b)
+select * from t2;
+ERROR 42S22: Unknown column 'c1' in 'where clause'
+with
+cte1(a) as (select * from t1 where c1 <= 2),
+cte2(b) as (select * from cte1 where a >= 2),
+cte3 as (select * from cte1,cte2 where cte1.a < cte2.c1)
+select * from t2;
+ERROR 42S22: Unknown column 'cte2.c1' in 'where clause'
+with
+cte1 as (select * from t1 where c1 <= 2),
+cte2(a,b) as (select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+select * from cte2;
+a	b
+1	1
+2	2
+with
+cte1 as (select * from t1 where c1 <= 2),
+cte2(a,b) as (select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+select * from t2;
+a	b
+6	6
+2	2
+with
+cte1 as (select * from t1 where c1 <= 2),
+cte2(a,b) as (select * from cte1 as s1, cte1 as s2 where s1.c1=c1)
+select * from t2;
+ERROR 23000: Column 'c1' in where clause is ambiguous
+with cte3 as
+( with cte2(a,b) as
+( with cte1 as (select * from t1 where c1 <= 2)
+select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+select r1.a,r2.b from cte2 as r1, cte2 as r2)
+select * from cte3;
+a	b
+1	1
+2	1
+1	2
+2	2
+with cte3 as
+( with cte2(a,b) as
+( with cte1 as (select * from t1 where c1 <= 2)
+select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+select r1.a,r2.b from cte2 as r1, cte2 as r2)
+select * from t2;
+a	b
+6	6
+2	2
+with cte3 as
+( with cte2(a,b) as
+( with cte1 as (select * from t1 where c1 <= 2)
+select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+select r1.c1,r2.c1 from cte2 as r1, cte2 as r2)
+select * from t2;
+ERROR 42S22: Unknown column 'r1.c1' in 'field list'
+create procedure p1()
+begin
+insert into t2
+with cte1 as (select c1 from t1)
+select * from t1 as s, t1 as t where s.c1=t.c1 and s.c1 <= 2 and t.c1 >= 2;
+end |
+call p1();
+select * from t2;
+a	b
+6	6
+2	2
+2	2
+drop procedure p1;
+create procedure p1()
+begin
+insert into t2
+with cte1 as (select a from t1)
+select * from t1 as s, t1 as t where s.c1=t.c1 and s.c1 <= 2 and t.c1 >= 2;
+end |
+call p1();
+ERROR 42S22: Unknown column 'a' in 'field list'
+drop procedure p1;
+drop table t1,t2;
+#
+# MDEV-20411: SP containing only one SELECT with WITH clause
+#
+create procedure sp1 ()
+with cte as (select 1 as a) select * from cte;
+call sp1();
+a
+1
+call sp1();
+a
+1
+create table t1 (a int);
+insert into t1 values (3), (7), (1), (7), (1), (1), (3), (1), (5);
+create procedure sp2 ()
+with cte as (select * from t1) select * from cte;
+call sp2();
+a
+3
+7
+1
+7
+1
+1
+3
+1
+5
+call sp2();
+a
+3
+7
+1
+7
+1
+1
+3
+1
+5
+create procedure sp3 ()
+with cte as (select * from t1 group by a) select * from cte;
+call sp3();
+a
+1
+3
+5
+7
+call sp3();
+a
+1
+3
+5
+7
+drop procedure sp1;
+drop procedure sp2;
+drop procedure sp3;
+drop table t1;
+#
+# MDEV-26095: missing RECURSIVE for the recursive definition of CTE
+#             embedded into another CTE definition
+#
+create table t1 (a int);
+insert into t1 values (5), (7);
+with cte_e as (
+with recursive cte_r as (
+select a from t1 union select a+1 as a from cte_r r where a < 10
+) select * from cte_r
+) select * from cte_e;
+a
+5
+7
+6
+8
+9
+10
+with cte_e as (
+with cte_r as (
+select a from t1 union select a+1 as a from cte_r r where a < 10
+) select * from cte_r
+) select * from cte_e;
+ERROR 42S02: Table 'test.cte_r' doesn't exist
+drop table t1;
+#
+# MDEV-26025: query with two usage of a CTE executing via PS /SP
+#
+create table t1 (a int, b int);
+insert into t1 value (1,3), (3,2), (1,3), (4,1);
+prepare stmt from "with
+cte1 as ( select a,b from t1 where a = 1 AND b = 3 ),
+cte2 as ( select a,b from cte1 ),
+cte3 as ( select a,b from cte2 )
+select * from cte3, cte2";
+execute stmt;
+a	b	a	b
+1	3	1	3
+1	3	1	3
+1	3	1	3
+1	3	1	3
+execute stmt;
+a	b	a	b
+1	3	1	3
+1	3	1	3
+1	3	1	3
+1	3	1	3
+deallocate prepare stmt;
+create procedure sp() with
+cte1 as ( select a,b from t1 where a = 1 AND b = 3 ),
+cte2 as ( select a,b from cte1 ),
+cte3 as ( select a,b from cte2 )
+select * from cte3, cte2;
+call sp();
+a	b	a	b
+1	3	1	3
+1	3	1	3
+1	3	1	3
+1	3	1	3
+call sp();
+a	b	a	b
+1	3	1	3
+1	3	1	3
+1	3	1	3
+1	3	1	3
+drop procedure sp;
+drop table t1;
+#
+# MDEV-26825: query with two usage of CTE that refers to another CTE
+#             with stored function using a base table.
+#
+create table t1 (id int primary key);
+insert into t1 values
+(1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+create  function f(in_id int) returns integer
+return (select id from t1 where t1.id = in_id);
+with c1 as (select id from t1 where f(id)=id group by id),
+c2 as (select id from c1 as pt group by id)
+select id from c2 as s1 union select id from c2 as s2;
+id
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+with c1 as (select id from t1 as r where f(id)=id group by id),
+c2 as (select id from c1 as pt group by id)
+select id from c2 as s1 union select id from c2 as s2;
+id
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+create function g() returns int return (select count(*) from t1);
+create  procedure sp1()
+with c1 as (select id from t1 a where g() > 10),
+c2 as (select id from c1)
+select id from c2 as s1 union select id from c2 as s2;
+call sp1();
+id
+call sp1();
+id
+drop procedure sp1;
+drop function g;
+drop function f;
+drop table t1;
+#
+# MDEV-27086: union using CTEs in CREATE TABLE
+#
+create or replace temporary table tmp as
+with cte1 as (select 1 as a), cte2 as (select 2 as a)
+select * from cte1 union select * from cte2;
+select * from tmp;
+a
+1
+2
+create table t1 as
+with cte1 as (select 1 as a), cte2 as (select 2 as a)
+select * from cte1 union select * from cte2;
+select * from t1;
+a
+1
+2
+insert into t1 values (3);
+create table t2 as
+with cte1 as (select * from t1 where a <2), cte2 as (select * from t1 where a > 2)
+select * from cte1 union select * from cte2;
+select * from t2;
+a
+1
+3
+drop table t1,t2;
+#
+# MDEV-26470: CTE in WITH clause of subquery used in DELETE
+#
+create table t1 (a int);
+insert into t1 values (3), (7), (1), (5);
+create table t2 (b int);
+insert into t2 values (4), (1), (3), (2);
+delete from t1
+where a in (with cte(a) as (select * from t2 where b <=2) select a from cte);
+select * from t1;
+a
+3
+7
+5
+insert into t1 values (1), (3);
+delete t1 from t1, t2
+where t1.a=t2.b or
+t1.a in (with cte(a) as (select b+1 from t2) select * from cte);
+select * from t1;
+a
+7
+drop table t1,t2;
+#
+# MDEV-25766: Unused CTE lead to a crash in
+# find_field_in_tables/find_order_in_list
+#
+create table t1 (f1 INTEGER);
+create view v1 as
+select
+subq_0.c4 as c2,
+subq_0.c4 as c4
+from
+(select
+ref_0.f1 as c4
+from
+t1 as ref_0
+where (select 1)
+) as subq_0
+order by c2, c4 desc;
+WITH
+unused_with AS (select
+subq_0.c4 as c6
+from
+(select
+11 as c4
+from
+v1 as ref_0
+) as subq_0,
+v1 as ref_2
+)
+select 1 ;
+1
+1
+drop view v1;
+drop table t1;
 # End of 10.2 tests
 #
 # MDEV-21673: several references to CTE that uses

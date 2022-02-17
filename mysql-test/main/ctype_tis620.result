@@ -4421,5 +4421,14 @@ DROP TABLE t1;
 #
 SET STORAGE_ENGINE=Default;
 #
+# MDEV-24901 SIGSEGV in fts_get_table_name, SIGSEGV in ib_vector_size, SIGSEGV in row_merge_fts_doc_tokenize, stack smashing
+#
+SELECT HEX(WEIGHT_STRING(_tis620 'a\0b'));
+HEX(WEIGHT_STRING(_tis620 'a\0b'))
+610062
+SELECT HEX(WEIGHT_STRING(_tis620 'a\0b' COLLATE tis620_thai_nopad_ci));
+HEX(WEIGHT_STRING(_tis620 'a\0b' COLLATE tis620_thai_nopad_ci))
+610062
+#
 # End of 10.2 tests
 #

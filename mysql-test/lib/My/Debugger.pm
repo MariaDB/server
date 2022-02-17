@@ -61,7 +61,7 @@ my %debuggers = (
   lldb => {
     term => 1,
     options => '-s {script} {exe}',
-    script => 'process launch --stop-at-entry {args}',
+    script => 'process launch --stop-at-entry -- {args}',
   },
   valgrind => {
     options => '--tool=memcheck --show-reachable=yes --leak-check=yes --num-callers=16 --quiet --suppressions='.cwd().'/valgrind.supp {exe} {args} --loose-wait-for-pos-timeout=1500',
@@ -139,7 +139,7 @@ sub do_args($$$$$) {
   my $v = $debuggers{$k};
 
   # on windows mtr args are quoted (for system), otherwise not (for exec)
-  sub quote($) { $_[0] =~ / / ? "\"$_[0]\"" : $_[0] }
+  sub quote($) { $_[0] =~ /[; ]/ ? "\"$_[0]\"" : $_[0] }
   sub unquote($) { $_[0] =~ s/^"(.*)"$/$1/; $_[0] }
   sub quote_from_mtr($) { IS_WINDOWS() ? $_[0] : quote($_[0]) }
   sub unquote_for_mtr($) { IS_WINDOWS() ? $_[0] : unquote($_[0]) }
@@ -147,7 +147,8 @@ sub do_args($$$$$) {
   my %vars = (
     vardir => $::opt_vardir,
     exe => $$exe,
-    args => join(' ', map { quote_from_mtr $_ } @$$args, '--gdb'),
+    args => join(' ', map { quote_from_mtr $_ } @$$args,
+                 '--loose-debug-gdb', '--loose-skip-stack-trace'),
     input => $input,
     script => "$::opt_vardir/tmp/${k}init.$type",
     log => "$::opt_vardir/log/$type.$k",
@@ -158,7 +159,7 @@ sub do_args($$$$$) {
 
   my $script = join "\n", @params;
   if ($v->{script}) {
-    ::mtr_tofile($vars{script}, subst($v->{script}, %vars)."\n".$script);
+    ::mtr_tonewfile($vars{script}, subst($v->{script}, %vars)."\n".$script);
   } elsif ($script) {
     die "$k is not using a script file, nowhere to write the script \n---\n$script\n---\n";
   }

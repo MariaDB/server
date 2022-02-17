@@ -159,7 +159,7 @@ ut_time_ms(void);
 store the given number of bits.
 @param b in: bits
 @return number of bytes (octets) needed to represent b */
-#define UT_BITS_IN_BYTES(b) (((b) + 7) / 8)
+#define UT_BITS_IN_BYTES(b) (((b) + 7) >> 3)
 
 /** Determines if a number is zero or a power of two.
 @param[in]	n	number
@@ -455,7 +455,7 @@ private:
 
 } // namespace ib
 
-#include "ut0ut.ic"
+#include "ut0ut.inl"
 
 #endif
 

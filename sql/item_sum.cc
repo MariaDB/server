@@ -2635,9 +2635,9 @@ bool Item_sum_bit::add_as_window(ulonglong value)
 void Item_sum_or::set_bits_from_counters()
 {
   ulonglong value= 0;
-  for (int i= 0; i < NUM_BIT_COUNTERS; i++)
+  for (uint i= 0; i < NUM_BIT_COUNTERS; i++)
   {
-    value|= bit_counters[i] > 0 ? (1 << i) : 0;
+    value|= bit_counters[i] > 0 ? (1ULL << i) : 0ULL;
   }
   bits= value | reset_bits;
 }
@@ -3738,7 +3738,7 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
    arg_count_field(select_list->elements),
    row_count(0),
    distinct(distinct_arg),
-   warning_for_row(FALSE),
+   warning_for_row(FALSE), always_null(FALSE),
    force_copy_fields(0), row_limit(NULL),
    offset_limit(NULL), limit_clause(limit_clause),
    copy_offset_limit(0), copy_row_limit(0), original(0)

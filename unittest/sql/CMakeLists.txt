@@ -21,10 +21,12 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql
                     ${CMAKE_SOURCE_DIR}/extra/yassl/include)
 
 IF(WIN32)
-  ADD_EXECUTABLE(explain_filename-t explain_filename-t.cc
-                                    ../../sql/nt_servc.cc)
+  ADD_EXECUTABLE(explain_filename-t
+  explain_filename-t.cc
+  dummy_builtins.cc
+  ../../sql/nt_servc.cc)
 ELSE()
-  ADD_EXECUTABLE(explain_filename-t explain_filename-t.cc)
+  ADD_EXECUTABLE(explain_filename-t explain_filename-t.cc  dummy_builtins.cc)
 ENDIF()
 
 TARGET_LINK_LIBRARIES(explain_filename-t sql mytap)
@@ -34,3 +36,8 @@ ADD_EXECUTABLE(mf_iocache-t mf_iocache-t.cc ../../sql/mf_iocache_encr.cc)
 TARGET_LINK_LIBRARIES(mf_iocache-t mysys mytap mysys_ssl)
 ADD_DEPENDENCIES(mf_iocache-t GenError)
 MY_ADD_TEST(mf_iocache)
+
+# Json writer needs String which needs sql library
+ADD_EXECUTABLE(my_json_writer-t my_json_writer-t.cc dummy_builtins.cc)
+TARGET_LINK_LIBRARIES(my_json_writer-t sql mytap)
+MY_ADD_TEST(my_json_writer)
