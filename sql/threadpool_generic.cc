@@ -1337,6 +1337,24 @@ void TP_pool_generic::resume(TP_connection* c)
   add(c);
 }
 
+int TP_pool_generic::wake(TP_connection *c)
+{
+  int status= c->cancel_io();
+  if (status == 0)
+  {
+    THD *thd= c->thd;
+    /* Set custom async_state to handle later in threadpool_process_request().
+       This will avoid possible side effects of dry-running do_command() */
+    DBUG_ASSERT(thd->async_state.m_state == thd_async_state::enum_async_state::NONE);
+    DBUG_ASSERT(thd->async_state.m_command == COM_SLEEP);
+    thd->async_state.m_state= thd_async_state::enum_async_state::RESUMED;
+
+    /* Add c to the task queue */
+    resume(c);
+  }
+  return status;
+}
+
 /**
   MySQL scheduler callback: wait begin
 */
@@ -1497,7 +1515,7 @@ int TP_connection_generic::start_io()
     So we recalculate in which group the connection should be, based
     on thread_id and current group count, and migrate if necessary.
   */
-  if (fix_group)
+  if (unlikely(fix_group))
   {
     fix_group = false;
     thread_group_t *new_group= &all_groups[get_group_id(thd->thread_id)];
@@ -1512,7 +1530,7 @@ int TP_connection_generic::start_io()
   /*
     Bind to poll descriptor if not yet done.
   */
-  if (!bound_to_poll_descriptor)
+  if (unlikely(!bound_to_poll_descriptor))
   {
     bound_to_poll_descriptor= true;
     return io_poll_associate_fd(thread_group->pollfd, fd, this, OPTIONAL_IO_POLL_READ_PARAM);
@@ -1521,6 +1539,23 @@ int TP_connection_generic::start_io()
   return io_poll_start_read(thread_group->pollfd, fd, this, OPTIONAL_IO_POLL_READ_PARAM);
 }
 
+
+int TP_connection_generic::cancel_io()
+{
+  int ret = io_poll_disassociate_fd(thread_group->pollfd,fd);
+  if (ret == 0)
+  {
+    // We have successfully disassociated fd. bound_to_poll_descriptor now will
+    // not be accessed from another threads. bound_to_poll_descriptor changes
+    // together with io_poll_associate_fd/io_poll_disassociate_fd pair
+    DBUG_ASSERT(bound_to_poll_descriptor);
+    bound_to_poll_descriptor= false;
+    return 0;
+  }
+
+  // Hopefully, all POSIX implementations return ENOENT for the case in question
+  return errno == ENOENT ? 1 : -1;
+}
 
 
 /**

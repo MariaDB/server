@@ -35,6 +35,8 @@
     requestor.
 */
 
+#include <atomic>
+
 class THD;
 
 /*
@@ -73,7 +75,7 @@ public:
       process_apc_requests();
   }
 
-  void process_apc_requests(bool lock=true);
+  void process_apc_requests();
   /*
     A lightweight function, intended to be used in frequent checks like this:
 
@@ -108,6 +110,9 @@ public:
 #ifndef DBUG_OFF
   int n_calls_processed; /* Number of calls served by this target */
 #endif
+  // Epoch counter that increases before the command
+  std::atomic<longlong> epoch {0};
+  std::atomic<longlong> process_epoch {0};
 private:
 
   /* 

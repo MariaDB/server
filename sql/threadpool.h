@@ -112,6 +112,15 @@ struct TP_connection
 
   /* Read for the next client command (async) with specified timeout */
   virtual int start_io() = 0;
+  /**
+    Cancels async waiting on the next command.
+    On windows, enqueues the connection task immediately.
+    Removes the connection from the poll on other platforms
+    @return 0,  if waiting was cancelled
+            1,  if waiting was not cancelled
+            -1. if error
+   */
+  virtual int cancel_io() = 0;
 
   virtual void wait_begin(int type)= 0;
   virtual void wait_end() = 0;
@@ -134,6 +143,7 @@ struct TP_pool
   virtual int get_thread_count() { return tp_stats.num_worker_threads; }
   virtual int get_idle_thread_count(){ return 0; }
   virtual void resume(TP_connection* c)=0;
+  virtual int wake(TP_connection *)=0;
 };
 
 #ifdef _WIN32
@@ -148,6 +158,7 @@ struct TP_pool_win:TP_pool
   virtual int set_max_threads(uint);
   virtual int set_min_threads(uint);
   void resume(TP_connection *c);
+  int wake(TP_connection *) final;
 };
 #endif
 
@@ -162,6 +173,7 @@ struct TP_pool_generic :TP_pool
   virtual int set_stall_limit(uint);
   virtual int get_idle_thread_count();
   void resume(TP_connection* c);
+  int wake(TP_connection *) final;
 };
 
 #endif /* HAVE_POOL_OF_THREADS */
