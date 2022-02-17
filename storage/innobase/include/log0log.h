@@ -321,7 +321,9 @@ public:
 
   void set_recovered_lsn(lsn_t lsn) noexcept
   {
+#ifndef SUX_LOCK_GENERIC
     ut_ad(latch.is_write_locked());
+#endif /* SUX_LOCK_GENERIC */
     write_lsn= lsn;
     this->lsn.store(lsn, std::memory_order_relaxed);
     flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
@@ -380,7 +382,9 @@ public:
   @param size  length of str, in bytes */
   void append(byte *&d, const void *s, size_t size) noexcept
   {
+#ifndef SUX_LOCK_GENERIC
     ut_ad(latch.is_locked());
+#endif
     ut_ad(d + size <= buf + (is_pmem() ? file_size : buf_size));
     memcpy(d, s, size);
     d+= size;

@@ -541,7 +541,9 @@ void mtr_t::commit_shrink(fil_space_t &space)
 
   /* Durably write the reduced FSP_SIZE before truncating the data file. */
   log_write_and_flush();
+#ifndef SUX_LOCK_GENERIC
   ut_ad(log_sys.latch.is_write_locked());
+#endif
 
   os_file_truncate(space.chain.start->name, space.chain.start->handle,
                    os_offset_t{space.size} << srv_page_size_shift, true);
@@ -594,7 +596,9 @@ This is to be used at log_checkpoint().
 @return current LSN */
 lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
 {
+#ifndef SUX_LOCK_GENERIC
   ut_ad(log_sys.latch.is_write_locked());
+#endif
   ut_ad(is_active());
   ut_ad(!is_inside_ibuf());
   ut_ad(m_log_mode == MTR_LOG_ALL);
@@ -816,14 +820,16 @@ template<bool pmem>
 inline
 std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
 {
+#ifndef SUX_LOCK_GENERIC
   ut_ad(latch.is_locked());
-  ut_ad(pmem == is_pmem());
-#ifndef _WIN32 // there is no accurate is_write_locked() on SRWLOCK
+# ifndef _WIN32 // there is no accurate is_write_locked() on SRWLOCK
   ut_ad(ex == latch.is_write_locked());
+# endif
 #endif
+  ut_ad(pmem == is_pmem());
   const lsn_t checkpoint_margin{last_checkpoint_lsn + log_capacity - size};
   const size_t avail{(pmem ? size_t(capacity()) : buf_size) - size};
-  lsn_lock.wr_lock(); /* Just use SRWLOCK or pthread_mutex_t */
+  lsn_lock.wr_lock();
   write_to_buf++;
 
   for (ut_d(int count= 50);
@@ -858,7 +864,9 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
 @return whether buf_flush_ahead() will have to be invoked */
 static mtr_t::page_flush_ahead log_close(lsn_t lsn) noexcept
 {
+#ifndef SUX_LOCK_GENERIC
   ut_ad(log_sys.latch.is_locked());
+#endif
 
   const lsn_t checkpoint_age= lsn - log_sys.last_checkpoint_lsn;
 
@@ -879,7 +887,9 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write(bool ex)
 {
   ut_ad(!recv_no_log_write);
   ut_ad(m_log_mode == MTR_LOG_ALL);
+#ifndef SUX_LOCK_GENERIC
   ut_ad(!ex || log_sys.latch.is_write_locked());
+#endif
 
   size_t len= m_log.size() + 5;
   ut_ad(len > 5);

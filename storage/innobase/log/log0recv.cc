@@ -2236,9 +2236,11 @@ template<typename source>
 inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
   noexcept
 {
+#ifndef SUX_LOCK_GENERIC
   ut_ad(log_sys.latch.is_write_locked() ||
         srv_operation == SRV_OPERATION_BACKUP ||
         srv_operation == SRV_OPERATION_BACKUP_NO_DEFER);
+#endif
   mysql_mutex_assert_owner(&mutex);
   ut_ad(log_sys.next_checkpoint_lsn);
   ut_ad(log_sys.is_latest());
@@ -3292,7 +3294,9 @@ void recv_sys_t::apply(bool last_batch)
       my_cond_wait(&cond, &mutex.m_mutex);
     else
     {
+#ifndef SUX_LOCK_GENERIC
       ut_ad(log_sys.latch.is_write_locked());
+#endif
       log_sys.latch.wr_unlock();
       set_timespec_nsec(abstime, 500000000ULL); /* 0.5s */
       my_cond_timedwait(&cond, &mutex.m_mutex, &abstime);
@@ -3417,7 +3421,9 @@ next_free_block:
         }
         else
         {
+#ifndef SUX_LOCK_GENERIC
           ut_ad(log_sys.latch.is_write_locked());
+#endif
           log_sys.latch.wr_unlock();
           set_timespec_nsec(abstime, 500000000ULL); /* 0.5s */
           my_cond_timedwait(&cond, &mutex.m_mutex, &abstime);
@@ -3518,7 +3524,9 @@ static bool recv_scan_log(bool last_phase)
 
   for (ut_d(lsn_t source_offset= 0);;)
   {
+#ifndef SUX_LOCK_GENERIC
     ut_ad(log_sys.latch.is_write_locked());
+#endif
 #ifdef UNIV_DEBUG
     const bool wrap{source_offset + recv_sys.len == log_sys.file_size};
 #endif
@@ -3875,7 +3883,9 @@ recv_init_crash_recovery_spaces(bool rescan, bool& missing_tablespace)
 static dberr_t recv_rename_files()
 {
   mysql_mutex_assert_owner(&recv_sys.mutex);
+#ifndef SUX_LOCK_GENERIC
   ut_ad(log_sys.latch.is_write_locked());
+#endif
 
   dberr_t err= DB_SUCCESS;
 

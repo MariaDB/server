@@ -169,7 +169,9 @@ inline void buf_pool_t::delete_from_flush_list_low(buf_page_t *bpage) noexcept
 @param lsn      start LSN of the mini-transaction that modified the block */
 void buf_pool_t::insert_into_flush_list(buf_block_t *block, lsn_t lsn) noexcept
 {
+#ifndef SUX_LOCK_GENERIC
   ut_ad(recv_recovery_is_on() || log_sys.latch.is_locked());
+#endif
   ut_ad(lsn > 2);
   static_assert(log_t::FIRST_LSN >= 2, "compatibility");
   ut_ad(!fsp_is_system_temporary(block->page.id().space()));
@@ -1748,7 +1750,9 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
 {
   ut_ad(!srv_read_only_mode);
+#ifndef SUX_LOCK_GENERIC
   ut_ad(log_sys.latch.is_write_locked());
+#endif
   ut_ad(oldest_lsn <= end_lsn);
   ut_ad(end_lsn == log_sys.get_lsn());
   ut_ad(!recv_no_log_write);

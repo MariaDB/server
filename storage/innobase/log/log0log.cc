@@ -76,8 +76,9 @@ log_t	log_sys;
 
 void log_t::set_capacity()
 {
+#ifndef SUX_LOCK_GENERIC
 	ut_ad(log_sys.latch.is_write_locked());
-
+#endif
 	/* Margin for the free space in the smallest log, before a new query
 	step which modifies the database, is started */
 
@@ -238,7 +239,9 @@ void log_t::attach(log_file_t file, os_offset_t size)
 
 void log_t::create(lsn_t lsn) noexcept
 {
+#ifndef SUX_LOCK_GENERIC
   ut_ad(latch.is_write_locked());
+#endif
   ut_ad(!recv_no_log_write);
   ut_ad(is_latest());
   ut_ad(this == &log_sys);
@@ -523,7 +526,9 @@ inline void log_t::persist(lsn_t lsn) noexcept
 */
 template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
 {
+#ifndef SUX_LOCK_GENERIC
   ut_ad(latch.is_write_locked());
+#endif
   ut_ad(!srv_read_only_mode);
   ut_ad(!is_pmem());
 
