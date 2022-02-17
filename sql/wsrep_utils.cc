@@ -26,7 +26,6 @@
 #include "wsrep_utils.h"
 #include "wsrep_mysqld.h"
 #include "wsrep_thd.h"
-#include "wsrep_status.h"
 
 #include <sql_class.h>
 
@@ -93,18 +92,6 @@ wsrep_prepend_PATH (const char* path)
 
 namespace wsp
 {
-
-void
-node_status::set(enum wsrep::server_state::state new_status,
-                 const wsrep::view* view)
-{
-    if (status != new_status || 0 != view)
-    {
-        wsrep_notify_status(new_status, view);
-        status= new_status;
-        Wsrep_status::report_state(status);
-    }
-}
 
 bool
 env::ctor_common(char** e)
