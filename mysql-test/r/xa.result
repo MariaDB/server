@@ -239,59 +239,6 @@ XA END 'xa1';
 XA ROLLBACK 'xa1';
 DROP TABLE t1;
 #
-# Bug#12352846 - TRANS_XA_START(THD*):
-#                ASSERTION THD->TRANSACTION.XID_STATE.XID.IS_NULL()
-#                FAILED
-#
-DROP TABLE IF EXISTS t1, t2;
-CREATE TABLE t1 (a INT) ENGINE=InnoDB;
-CREATE TABLE t2 (a INT) ENGINE=InnoDB;
-START TRANSACTION;
-INSERT INTO t1 VALUES (1);
-connect  con2,localhost,root;
-XA START 'xid1';
-# Sending:
-INSERT INTO t2 SELECT a FROM t1;
-connection default;
-# Waiting until INSERT ... is blocked
-DELETE FROM t1;
-connection con2;
-# Reaping: INSERT INTO t2 SELECT a FROM t1
-ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
-XA COMMIT 'xid1';
-ERROR XA102: XA_RBDEADLOCK: Transaction branch was rolled back: deadlock was detected
-connection default;
-COMMIT;
-connection con2;
-XA START 'xid1';
-XA END 'xid1';
-XA PREPARE 'xid1';
-XA ROLLBACK 'xid1';
-connection default;
-DROP TABLE t1, t2;
-disconnect con2;
-CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
-CREATE TABLE t2 (pk INT PRIMARY KEY) ENGINE=InnoDB;
-INSERT INTO t2 VALUES (1),(2);
-CREATE TABLE t3 (i INT) ENGINE=InnoDB;
-XA BEGIN 'xid1';
-REPLACE INTO t1 SELECT * FROM t2;
-connect  con1,localhost,root,,test;
-XA BEGIN 'xid2';
-INSERT INTO t1 SELECT * FROM t2;
-connection default;
-REPLACE INTO t2 SELECT * FROM t2;
-connection con1;
-disconnect con1;
-connect  con2,localhost,root,,test;
-INSERT INTO t3 VALUES (1);
-XA BEGIN 'xid3';
-disconnect con2;
-connection default;
-XA END 'xid1';
-XA ROLLBACK 'xid1';
-DROP TABLE t1, t2, t3;
-#
 # MDEV 15532 XA: Assertion `!log->same_pk' failed in
 # row_log_table_apply_delete
 #
