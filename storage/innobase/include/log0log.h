@@ -67,6 +67,11 @@ log_reserve_and_write_fast(
 	const void*	str,
 	ulint		len,
 	lsn_t*		start_lsn);
+
+UNIV_INLINE
+bool
+log_is_in_distress();
+
 /***********************************************************************//**
 Checks if there is need for a log buffer flush or a new checkpoint, and does
 this if yes. Any database operation should call this when it has modified

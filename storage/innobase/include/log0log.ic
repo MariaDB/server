@@ -51,6 +51,17 @@ log_block_get_flush_bit(
 	return(FALSE);
 }
 
+UNIV_INLINE
+bool log_is_in_distress()
+{
+	bool res;
+	log_mutex_enter();
+	res = 3*(log_sys.lsn - log_sys.last_checkpoint_lsn)/2 > log_sys.log_group_capacity;
+	log_mutex_exit();
+	return res;
+}
+
+
 /************************************************************//**
 Sets the log block flush bit. */
 UNIV_INLINE
