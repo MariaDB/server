@@ -196,7 +196,11 @@ private:
 
 public:
   /** rw-lock protecting buf */
+#if defined(__aarch64__)
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) srw_spin_lock latch;
+#else
   MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) srw_lock latch;
+#endif
 private:
   /** Last written LSN */
   lsn_t write_lsn;
