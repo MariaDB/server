@@ -436,6 +436,11 @@ trx_purge_truncate_rseg_history(
 	mtr_t		mtr;
 	trx_id_t	undo_trx_no;
 
+	/*
+	 *  Early return from this function is OK because in trx_undo_free_page() we would decrement rseg.curr_size
+	 *  for each page that is being freed, and trx_purge_truncate_history() is referring to that
+	 *  count in undo tablespace truncation.
+	 */
 	if (log_is_in_distress())
 		return;
 
