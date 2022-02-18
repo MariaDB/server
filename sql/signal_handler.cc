@@ -71,7 +71,7 @@ static inline void output_core_info()
 #endif
   {
     my_safe_printf_stderr("Resource Limits:\n");
-    while ((len= my_read(fd, (uchar*)buff, sizeof(buff),  MYF(0))) > 0)
+    while ((len= read(fd, (uchar*)buff, sizeof(buff))) > 0)
     {
       my_write_stderr(buff, len);
     }
@@ -81,7 +81,7 @@ static inline void output_core_info()
   if ((fd= my_open("/proc/sys/kernel/core_pattern", O_RDONLY,
                    MYF(MY_NO_REGISTER))) >= 0)
   {
-    len= my_read(fd, (uchar*)buff, sizeof(buff),  MYF(0));
+    len= read(fd, (uchar*)buff, sizeof(buff));
     my_safe_printf_stderr("Core pattern: %.*s\n", (int) len, buff);
     my_close(fd, MYF(0));
   }
