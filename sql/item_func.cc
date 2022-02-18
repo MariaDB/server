@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1163,14 +1163,10 @@ longlong Item_func_plus::int_op()
     }
   }
 
-#ifndef WITH_UBSAN
-  res= val0 + val1;
-#else
   if (res_unsigned)
     res= (longlong) ((ulonglong) val0 + (ulonglong) val1);
   else
-    res= val0+val1;
-#endif /* WITH_UBSAN */
+    res= val0 + val1;
 
   return check_integer_overflow(res, res_unsigned);
 
@@ -1333,14 +1329,10 @@ longlong Item_func_minus::int_op()
         goto err;
     }
   }
-#ifndef WITH_UBSAN
-  res= val0 - val1;
-#else
   if (res_unsigned)
     res= (longlong) ((ulonglong) val0 - (ulonglong) val1);
   else
     res= val0 - val1;
-#endif /* WITH_UBSAN */
 
   return check_integer_overflow(res, res_unsigned);
 
