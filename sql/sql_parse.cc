@@ -1209,6 +1209,16 @@ dispatch_command_return do_command(THD *thd, bool blocking)
 #else
   DBUG_ASSERT(!thd->async_state.pending_ops());
 #endif
+  if (thd->woken)
+  {
+    thd->async_state.m_state= thd_async_state::enum_async_state::NONE;
+    mysql_mutex_lock(&thd->LOCK_thd_kill);
+    thd->woken= false;
+    mysql_mutex_unlock(&thd->LOCK_thd_kill);
+    /* Does whatever one needs for when THD is woken*/
+    /* MOST IMPORTANT!, return once you done */
+    return DISPATCH_COMMAND_SUCCESS;
+  }
 
   if (thd->async_state.m_state == thd_async_state::enum_async_state::RESUMED)
   {

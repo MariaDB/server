@@ -173,7 +173,6 @@ static TP_PRIORITY get_priority(TP_connection *c)
   return prio;
 }
 
-
 void tp_callback(TP_connection *c)
 {
   DBUG_ASSERT(c);
@@ -577,6 +576,22 @@ static void tp_resume(THD* thd)
   pool->resume(c);
 }
 
+static int tp_wake(THD *thd)
+{
+  TP_connection *c= get_TP_connection(thd);
+  if (c->state != TP_STATE_IDLE)
+    return -1;
+  int ret= -1;
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
+  if (!thd->woken)
+  {
+    ret= pool->wake(c);
+    thd->woken= ret == 0;
+  }
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
+  return ret;
+}
+
 static scheduler_functions tp_scheduler_functions=
 {
   0,                                  // max_threads
@@ -588,7 +603,8 @@ static scheduler_functions tp_scheduler_functions=
   tp_wait_end,                        // thd_wait_end
   tp_post_kill_notification,          // post kill notification
   tp_end,                              // end
-  tp_resume
+  tp_resume,
+  tp_wake
 };
 
 void pool_of_threads_scheduler(struct scheduler_functions *func,

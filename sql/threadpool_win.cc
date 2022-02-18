@@ -90,6 +90,7 @@ public:
   void set_io_timeout(int sec) override;
   void wait_begin(int type) override;
   void wait_end() override;
+  int wake();
 
   ulonglong timeout=ULLONG_MAX;
   OVERLAPPED overlapped{};
@@ -129,6 +130,11 @@ void TP_pool_win::resume(TP_connection* c)
 {
   DBUG_ASSERT(c->state == TP_STATE_RUNNING);
   SubmitThreadpoolWork(((TP_connection_win*)c)->work);
+}
+
+int TP_pool_win::wake(TP_connection *c)
+{
+  return ((TP_connection_win *) c)->wake();
 }
 
 #define CHECK_ALLOC_ERROR(op)                                                 \
@@ -174,6 +180,13 @@ int TP_connection_win::start_io()
     CancelThreadpoolIo(io);
     return -1;
   }
+  return 0;
+}
+
+int TP_connection_win::wake()
+{
+  if (!CancelIoEx(sock.m_handle, &sock.m_overlapped))
+    return GetLastError();
   return 0;
 }
 

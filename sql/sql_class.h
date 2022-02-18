@@ -2572,6 +2572,7 @@ private:
   { DBUG_ASSERT(0); return Statement::is_conventional(); }
 
 public:
+  bool woken= false;
   MDL_context mdl_context;
 
   /* Used to execute base64 coded binlog events in MySQL server */

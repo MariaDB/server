@@ -1337,6 +1337,15 @@ void TP_pool_generic::resume(TP_connection* c)
   add(c);
 }
 
+int TP_pool_generic::wake(TP_connection *c)
+{
+  TP_connection_generic *con= (TP_connection_generic *) c;
+  int ret= io_poll_disassociate_fd(con->thread_group->pollfd, con->fd);
+  if (ret)
+    return ret;
+  resume(con);
+  return 0;
+}
 /**
   MySQL scheduler callback: wait begin
 */

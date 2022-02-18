@@ -42,6 +42,16 @@ struct scheduler_functions
   void (*end)(void);
   /** resume previous unfinished command (threadpool only)*/
   void (*thd_resume)(THD* thd);
+
+  /**
+    requests asynchronous procedure call execution
+    Works only when THD is sleeping, i.e awaiting user requests.
+
+    When THD is active, there is another mechanism for that.
+    @return 0, if APC is queued for execution, otherwise the connection
+    active (or maybe executing another APC)
+  */
+  int (*thd_wake)(THD *thd);
 };
 
 
