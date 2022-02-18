@@ -1818,7 +1818,7 @@ row_unlock_for_mysql(
 		/* Restore the cursor position and find the record */
 
 		if (!has_latches_on_recs) {
-			btr_pcur_restore_position(BTR_SEARCH_LEAF, pcur, &mtr);
+			pcur->restore_position(BTR_SEARCH_LEAF, &mtr);
 		}
 
 		rec = btr_pcur_get_rec(pcur);
@@ -1829,8 +1829,8 @@ row_unlock_for_mysql(
 			in the clustered index. */
 
 			if (!has_latches_on_recs) {
-				btr_pcur_restore_position(BTR_SEARCH_LEAF,
-							  clust_pcur, &mtr);
+				clust_pcur->restore_position(BTR_SEARCH_LEAF,
+							  &mtr);
 			}
 
 			rec = btr_pcur_get_rec(clust_pcur);

@@ -19,7 +19,7 @@ SET GLOBAL innodb_compression_level=0;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -47,15 +47,15 @@ The size of the tab5.ibd file: 65536
 # for deterministic reasons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -278,9 +278,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
 # Check the stats of the table
@@ -303,9 +300,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
 # Check the stats of the table
@@ -334,9 +328,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table
 # testcase : pass = 1 fail = 0
 SET @comp_val=0;
@@ -365,7 +356,7 @@ SET GLOBAL innodb_cmp_per_index_enabled=1;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -393,15 +384,15 @@ The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -624,9 +615,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
 # Check the stats of the table
@@ -649,9 +637,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
 # Check the stats of the table
@@ -680,9 +665,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table
 # testcase : pass = 1 fail = 0
 SET @comp_val=0;
@@ -711,7 +693,7 @@ SET GLOBAL innodb_cmp_per_index_enabled=1;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -739,15 +721,15 @@ The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -962,7 +944,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 163840
+The size of the tab5.ibd file: 131072
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -970,9 +952,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -986,7 +965,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 163840
+The size of the tab5.ibd file: 131072
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -995,9 +974,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -1011,7 +987,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 163840
+The size of the tab5.ibd file: 131072
 DROP TABLE tab5;
 #******************************************************************
 # Test 1-8K: innodb_cmp_per_index_enabled=ON and innodb_compression_level=0 with page size 8K
@@ -1024,7 +1000,7 @@ SET GLOBAL innodb_cmp_per_index_enabled=1;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -1052,15 +1028,15 @@ The size of the tab5.ibd file: 122880
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -1275,7 +1251,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 212992
+The size of the tab5.ibd file: 180224
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -1283,9 +1259,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -1299,7 +1272,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 212992
+The size of the tab5.ibd file: 180224
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -1308,9 +1281,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -1324,7 +1294,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 212992
+The size of the tab5.ibd file: 180224
 DROP TABLE tab5;
 #******************************************************************
 # Test 1-16K: innodb_cmp_per_index_enabled=ON and innodb_compression_level=0 with page size 16K
@@ -1337,7 +1307,7 @@ SET GLOBAL innodb_cmp_per_index_enabled=1;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -1365,15 +1335,15 @@ The size of the tab5.ibd file: 245760
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -1588,7 +1558,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 327680
+The size of the tab5.ibd file: 311296
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -1596,9 +1566,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -1612,7 +1579,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 327680
+The size of the tab5.ibd file: 311296
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -1621,9 +1588,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -1637,7 +1601,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 327680
+The size of the tab5.ibd file: 311296
 DROP TABLE tab5;
 #******************************************************************
 # Test 2: test the interaction between wl6347 & wl6344 (2.2)
@@ -1661,7 +1625,7 @@ SET GLOBAL innodb_compression_level=9;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -1690,15 +1654,15 @@ The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -1922,9 +1886,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
 # Check the stats of the table
@@ -1947,9 +1908,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
 # Check the stats of the table
@@ -1978,9 +1936,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table
 # testcase : pass = 1 fail = 0
 SET @comp_val=0;
@@ -2009,7 +1964,7 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -2038,15 +1993,15 @@ The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -2270,9 +2225,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
 # Check the stats of the table
@@ -2295,9 +2247,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
 # Check the stats of the table
@@ -2326,9 +2275,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table
 # testcase : pass = 1 fail = 0
 SET @comp_val=0;
@@ -2357,7 +2303,7 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -2386,15 +2332,15 @@ The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -2610,7 +2556,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 81920
+The size of the tab5.ibd file: 77824
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -2618,9 +2564,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -2634,7 +2577,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 81920
+The size of the tab5.ibd file: 77824
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -2643,9 +2586,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -2659,7 +2599,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 81920
+The size of the tab5.ibd file: 77824
 DROP TABLE tab5;
 #******************************************************************
 # Test 2-8K: innodb_cmp_per_index_enabled=ON and innodb_compression_level=9 with page size 8K
@@ -2672,7 +2612,7 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -2701,15 +2641,15 @@ The size of the tab5.ibd file: 122880
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -2924,7 +2864,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 163840
+The size of the tab5.ibd file: 155648
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -2932,9 +2872,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 212992
 SET @inl_val=1;
@@ -2949,7 +2886,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 163840
+The size of the tab5.ibd file: 155648
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -2958,9 +2895,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -2974,7 +2908,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 163840
+The size of the tab5.ibd file: 155648
 DROP TABLE tab5;
 #******************************************************************
 # Test 2-16K: innodb_cmp_per_index_enabled=ON and innodb_compression_level=9 with page size 16K
@@ -2987,7 +2921,7 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -3016,15 +2950,15 @@ The size of the tab5.ibd file: 245760
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -3239,7 +3173,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 327680
+The size of the tab5.ibd file: 311296
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -3247,9 +3181,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 # The size of the file with 0 compress = 344064
 SET @inl_val=1;
@@ -3264,7 +3195,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 327680
+The size of the tab5.ibd file: 311296
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -3273,9 +3204,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -3289,7 +3217,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 327680
+The size of the tab5.ibd file: 311296
 DROP TABLE tab5;
 #******************************************************************
 # Test 3: test the interaction between wl6347 & wl6344 (2.3)
@@ -3312,7 +3240,7 @@ SET GLOBAL innodb_compression_level=default;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -3341,15 +3269,15 @@ The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -3573,9 +3501,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
 # Check the stats of the table
@@ -3598,9 +3523,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
 # Check the stats of the table
@@ -3628,7 +3550,7 @@ SET GLOBAL innodb_compression_level=default;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -3657,15 +3579,15 @@ The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -3889,9 +3811,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -3919,7 +3838,7 @@ SET GLOBAL innodb_compression_level=default;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -3948,15 +3867,15 @@ The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -4172,7 +4091,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 81920
+The size of the tab5.ibd file: 77824
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -4180,9 +4099,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -4196,7 +4112,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 81920
+The size of the tab5.ibd file: 77824
 DROP TABLE tab5;
 #******************************************************************
 # Test 3-8K: innodb_cmp_per_index_enabled=ON and innodb_compression_level=Def with page size 8K
@@ -4210,7 +4126,7 @@ SET GLOBAL innodb_compression_level=default;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -4239,15 +4155,15 @@ The size of the tab5.ibd file: 122880
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -4463,7 +4379,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 163840
+The size of the tab5.ibd file: 155648
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -4471,9 +4387,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -4487,7 +4400,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 163840
+The size of the tab5.ibd file: 155648
 DROP TABLE tab5;
 #******************************************************************
 # Test 3-16K: innodb_cmp_per_index_enabled=ON and innodb_compression_level=Def with page size 16K
@@ -4501,7 +4414,7 @@ SET GLOBAL innodb_compression_level=default;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -4530,15 +4443,15 @@ The size of the tab5.ibd file: 245760
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -4754,7 +4667,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 327680
+The size of the tab5.ibd file: 311296
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -4762,9 +4675,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -4778,7 +4688,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 327680
+The size of the tab5.ibd file: 311296
 DROP TABLE tab5;
 #******************************************************************
 # Test 4: test the interaction between wl6347 & wl6344 (2.5 & 2.6)
@@ -4812,7 +4722,7 @@ SELECT @@innodb_compression_level;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -4840,15 +4750,15 @@ The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -5071,9 +4981,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
 # Check the stats of the table
@@ -5096,9 +5003,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
 # Check the stats of the table
@@ -5127,9 +5031,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table
 # testcase : pass = 1 fail = 0
 SET @comp_val=0;
@@ -5158,7 +5059,7 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -5186,15 +5087,15 @@ The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -5417,9 +5318,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
 # Check the stats of the table
@@ -5442,9 +5340,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
 # Check the stats of the table
@@ -5471,7 +5366,7 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -5499,15 +5394,15 @@ The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -5722,7 +5617,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 81920
+The size of the tab5.ibd file: 77824
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -5730,9 +5625,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -5746,7 +5638,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 81920
+The size of the tab5.ibd file: 77824
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -5755,9 +5647,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -5771,7 +5660,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 81920
+The size of the tab5.ibd file: 77824
 DROP TABLE tab5;
 #******************************************************************
 # Test 4-8K: innodb_cmp_per_index_enabled=ON and Innodb_compression_failure_threshold_pct=0 with page size 8K
@@ -5784,7 +5673,7 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -5812,15 +5701,15 @@ The size of the tab5.ibd file: 122880
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -6035,7 +5924,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 163840
+The size of the tab5.ibd file: 155648
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -6043,9 +5932,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -6059,7 +5945,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 163840
+The size of the tab5.ibd file: 155648
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -6068,9 +5954,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -6084,7 +5967,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 163840
+The size of the tab5.ibd file: 155648
 DROP TABLE tab5;
 #******************************************************************
 # Test 4-16K: innodb_cmp_per_index_enabled=ON and Innodb_compression_failure_threshold_pct=0 with page size 16K
@@ -6097,7 +5980,7 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -6125,15 +6008,15 @@ The size of the tab5.ibd file: 245760
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -6348,7 +6231,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 327680
+The size of the tab5.ibd file: 311296
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -6356,9 +6239,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -6372,7 +6252,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 327680
+The size of the tab5.ibd file: 311296
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -6381,9 +6261,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -6397,7 +6274,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 327680
+The size of the tab5.ibd file: 311296
 DROP TABLE tab5;
 #******************************************************************
 # Test 5: test the interaction between wl6347 & wl6344 (2.7)
@@ -6433,7 +6310,7 @@ SELECT @@innodb_compression_level;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -6461,15 +6338,15 @@ The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -6692,9 +6569,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
 # Check the stats of the table
@@ -6717,9 +6591,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
 # Check the stats of the table
@@ -6749,9 +6620,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table
 # testcase : pass = 1 fail = 0
 SET @comp_val=0;
@@ -6781,7 +6649,7 @@ SET GLOBAL innodb_compression_failure_threshold_pct=10;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=2;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -6809,15 +6677,15 @@ The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -7040,9 +6908,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
 # Check the stats of the table
@@ -7065,9 +6930,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=2;
 # Check the stats of the table
@@ -7094,7 +6956,7 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=4;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -7122,15 +6984,15 @@ The size of the tab5.ibd file: 65536
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -7345,7 +7207,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 81920
+The size of the tab5.ibd file: 77824
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -7353,9 +7215,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -7369,7 +7228,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 81920
+The size of the tab5.ibd file: 77824
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -7378,9 +7237,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -7394,7 +7250,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 81920
+The size of the tab5.ibd file: 77824
 DROP TABLE tab5;
 #******************************************************************
 # Test 5-8K: innodb_cmp_per_index_enabled=ON and Innodb_compression_failure_threshold_pct=10 with page size 8K
@@ -7408,7 +7264,7 @@ SET GLOBAL innodb_compression_failure_threshold_pct=10;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -7436,15 +7292,15 @@ The size of the tab5.ibd file: 122880
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -7659,7 +7515,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 163840
+The size of the tab5.ibd file: 155648
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -7667,9 +7523,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -7683,7 +7536,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 163840
+The size of the tab5.ibd file: 155648
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -7692,9 +7545,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -7708,7 +7558,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 163840
+The size of the tab5.ibd file: 155648
 DROP TABLE tab5;
 #******************************************************************
 # Test 5-16K: innodb_cmp_per_index_enabled=ON and Innodb_compression_failure_threshold_pct=10 with page size 16K
@@ -7721,7 +7571,7 @@ SET GLOBAL innodb_cmp_per_index_enabled=ON;
 # Create table & Index
 CREATE TABLE tab5(col_1 TINYBLOB, col_2 TINYTEXT,col_3 BLOB,
 col_4 TEXT,col_5 MEDIUMBLOB,col_6 MEDIUMTEXT,
-col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(255))
+col_7 LONGBLOB,col_8 LONGTEXT,col_9 VARCHAR(67))
 ENGINE=INNODB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=16;
 CREATE INDEX  idx9 ON tab5(col_9(10));
 CREATE INDEX  idx8 ON tab5(col_8(10));
@@ -7749,15 +7599,15 @@ The size of the tab5.ibd file: 245760
 # for determintic resons simple data should be inserted.
 # insert some 100 records
 # Load the data
-SET @col_1 = repeat('a', 100);
-SET @col_2 = repeat('b', 100);
-SET @col_3 = repeat('c', 100);
-SET @col_4 = repeat('d', 100);
-SET @col_5 = repeat('e', 100);
-SET @col_6 = repeat('f', 100);
-SET @col_7 = repeat('g', 100);
-SET @col_8 = repeat('h', 100);
-SET @col_9 = repeat('i', 100);
+SET @col_1 = repeat('a', 67);
+SET @col_2 = repeat('b', 67);
+SET @col_3 = repeat('c', 67);
+SET @col_4 = repeat('d', 67);
+SET @col_5 = repeat('e', 67);
+SET @col_6 = repeat('f', 67);
+SET @col_7 = repeat('g', 67);
+SET @col_8 = repeat('h', 67);
+SET @col_9 = repeat('i', 67);
 INSERT INTO tab5
 VALUES (@col_1,@col_2,@col_3,@col_4,@cl_5,@col_6,@col_7,@col_8,@col_9);
 INSERT INTO tab5
@@ -7972,7 +7822,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 327680
+The size of the tab5.ibd file: 311296
 # fetch the compressed page and check the stats
 ===============
 Fetch Records
@@ -7980,9 +7830,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -7996,7 +7843,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 327680
+The size of the tab5.ibd file: 311296
 # fetch the compressed same page once again and check the stats
 # the stat figures should be same as above query
 ===============
@@ -8005,9 +7852,6 @@ Fetch Records
 SELECT col_7,col_8,col_9 FROM tab5
 WHERE col_2='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 LIMIT 1;
-col_7	gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg
-col_8	hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh
-col_9	iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii
 # check the stats of the table & size of the table
 SET @inl_val=1;
 # Check the stats of the table
@@ -8021,7 +7865,7 @@ AND compress_ops BETWEEN @inl_val AND 1000
 AND table_name='tab5' AND database_name='test'
 AND index_name like 'idx%' ;
 compress_stat	1
-The size of the tab5.ibd file: 327680
+The size of the tab5.ibd file: 311296
 DROP TABLE tab5;
 #******************************************************************
 # Test 6: Create multiple tables & indexes having same name in 2 diff DB's

@@ -1,0 +1,79 @@
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+source include/have_debug.inc;
+source include/have_debug_sync.inc;
+
+CREATE TABLE t (a int PRIMARY KEY, b int NOT NULL UNIQUE) engine = InnoDB;
+
+--connect(prevent_purge,localhost,root,,)
+start transaction with consistent snapshot;
+
+--connect(con_del_1,localhost,root,,)
+INSERT INTO t VALUES (20,20);
+SET DEBUG_SYNC = 'innodb_row_search_for_mysql_exit SIGNAL first_del_row_search_mvcc_finished WAIT_FOR first_del_cont';
+--send DELETE FROM t WHERE b = 20
+
+--connect(con_ins_1,localhost,root,,)
+SET DEBUG_SYNC = 'now WAIT_FOR first_del_row_search_mvcc_finished';
+# It's supposed the following INSERT will be suspended just after
+# lock_wait_suspend_thread_enter syncpoint, and will be awaken
+# after the previous DELETE commits. ib_after_row_insert will be executed
+# after the INSERT is woken up. The previous DELETE will wait for
+# first_del_cont signal before commit, and this signal will be sent later.
+# So it's safe to use two signals in a row here, it's guaranted the first
+# signal will be received before the second signal is sent.
+SET DEBUG_SYNC = 'lock_wait_suspend_thread_enter SIGNAL first_ins_locked';
+SET DEBUG_SYNC = 'ib_after_row_insert SIGNAL first_ins_row_inserted WAIT_FOR first_ins_cont';
+--send INSERT INTO t VALUES(10, 20)
+
+--connect(con_del_2,localhost,root,,)
+SET DEBUG_SYNC = 'now WAIT_FOR first_ins_locked';
+SET DEBUG_SYNC = 'lock_wait_suspend_thread_enter SIGNAL second_del_locked';
+###############################################################################
+# This DELETE is locked by the previous DELETE, after that DELETE is
+# committed, it will still be locked by the next INSERT on delete-marked
+# heap_no 2 record. After that INSERT inserted the record with heap_no 3,
+# and after heap_no 2 record is purged, this DELETE will be unlocked and
+# must restore persistent cursor position at heap_no 3 record, as it has the
+# same secondary key value as former heap_no 2 record. Then it must be blocked
+# by the previous INSERT, and after the INSERT is committed, it must
+# delete the record, inserted by the previous INSERT, and the last INSERT(see
+# below) must be finished without error. But instead this DELETE restores
+# persistent cursor position to supremum, as a result, it does not delete the
+# record, inserted by the previous INSERT, and the last INSERT is finished with
+# duplicate key check error.
+###############################################################################
+--send DELETE FROM t WHERE b = 20
+
+--connection default
+SET DEBUG_SYNC = 'now WAIT_FOR second_del_locked';
+SET DEBUG_SYNC = 'now SIGNAL first_del_cont';
+SET DEBUG_SYNC = 'now WAIT_FOR first_ins_row_inserted';
+--connection con_del_1
+--reap
+
+--connection default
+--disconnect prevent_purge
+--source include/wait_all_purged.inc
+SET DEBUG_SYNC = 'now SIGNAL first_ins_cont';
+
+--connection con_del_2
+--reap
+
+--connection con_ins_1
+--reap
+
+--connection default
+###############################################################################
+# Duplicate key error is expected if the bug is not fixed.
+###############################################################################
+INSERT INTO t VALUES(30, 20);
+
+--disconnect con_ins_1
+--disconnect con_del_1
+--disconnect con_del_2
+--connection default
+
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t;
+--source include/wait_until_count_sessions.inc
