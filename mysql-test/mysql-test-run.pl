@@ -2764,6 +2764,24 @@ sub mysql_server_start($) {
     }
   }
 
+  # Run <tname>-master.sh
+  if ($mysqld->option('#!run-master-sh') and
+      defined $tinfo->{master_sh} and
+      run_system('/bin/sh ' . $tinfo->{master_sh}) )
+  {
+    $tinfo->{'comment'}= "Failed to execute '$tinfo->{master_sh}'";
+    return 1;
+  }
+
+  # Run <tname>-slave.sh
+  if ($mysqld->option('#!run-slave-sh') and
+      defined $tinfo->{slave_sh} and
+      run_system('/bin/sh ' . $tinfo->{slave_sh}))
+  {
+    $tinfo->{'comment'}= "Failed to execute '$tinfo->{slave_sh}'";
+    return 1;
+  }
+
   my $mysqld_basedir= $mysqld->value('basedir');
   my $extra_opts= get_extra_opts($mysqld, $tinfo);
 
@@ -2802,24 +2820,6 @@ sub mysql_server_start($) {
 
   # Write start of testcase to log file
   mark_log($mysqld->value('log-error'), $tinfo);
-
-  # Run <tname>-master.sh
-  if ($mysqld->option('#!run-master-sh') and
-      defined $tinfo->{master_sh} and 
-      run_system('/bin/sh ' . $tinfo->{master_sh}) )
-  {
-    $tinfo->{'comment'}= "Failed to execute '$tinfo->{master_sh}'";
-    return 1;
-  }
-
-  # Run <tname>-slave.sh
-  if ($mysqld->option('#!run-slave-sh') and
-      defined $tinfo->{slave_sh} and
-      run_system('/bin/sh ' . $tinfo->{slave_sh}))
-  {
-    $tinfo->{'comment'}= "Failed to execute '$tinfo->{slave_sh}'";
-    return 1;
-  }
 
   if (!$opt_embedded_server)
   {
@@ -3165,6 +3165,7 @@ sub mysql_install_db {
     {
       my $sql_dir= dirname($path_sql);
       # Use the mysql database for system tables
+      mtr_tofile($bootstrap_sql_file, "create database if not exists mysql;\n");
       mtr_tofile($bootstrap_sql_file, "use mysql;\n");
 
       # Add the offical mysql system tables
