@@ -1777,6 +1777,7 @@ public:
   void vers_update_fields();
   void vers_update_end();
   void find_constraint_correlated_indexes();
+  bool referenced_by_foreign_table(THD *thd, FOREIGN_KEY_INFO *&fk_info) const;
 
 /** Number of additional fields used in versioned tables */
 #define VERSIONING_FIELDS 2
