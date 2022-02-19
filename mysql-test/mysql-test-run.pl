@@ -2765,6 +2765,11 @@ sub add_extra_opts ($$) {
         delete $names{$option};
       }
     }
+    # datadir is a special parameter that is handled in
+    # a special way outside of this funtion:
+    if (exists $names{'datadir'}) {
+      delete $names{'datadir'};
+    }
     # Let's add new options:
     foreach my $name (keys %names) {
       my $value = $mysqld->value($names{$name});
@@ -2791,7 +2796,21 @@ sub mysql_server_start($) {
     return;
   }
 
-  my $datadir= $mysqld->value('datadir');
+  my $extra_opts= get_extra_opts($mysqld, $tinfo);
+
+  my $datadir="";
+  foreach my $opt ( @$extra_opts )
+  {
+    if ($opt =~ /^--datadir=/) {
+      $datadir = substr($opt, 10);
+      last;
+    }
+  }
+  if (! $datadir) {
+    $datadir = $mysqld->value('datadir');
+  }
+  $mysqld->{'datadir'} = $datadir;
+
   if (not $opt_start_dirty)
   {
 
@@ -2815,7 +2834,6 @@ sub mysql_server_start($) {
   }
 
   my $mysqld_basedir= $mysqld->value('basedir');
-  my $extra_opts= get_extra_opts($mysqld, $tinfo);
 
   if ( $basedir eq $mysqld_basedir )
   {
@@ -3131,7 +3149,7 @@ sub default_mysqld {
 sub mysql_install_db {
   my ($mysqld, $datadir, $extra_opts)= @_;
 
-  my $install_datadir= $datadir || $mysqld->value('datadir');
+  my $install_datadir= $datadir || $mysqld->{'datadir'};
   my $install_basedir= $mysqld->value('basedir');
   my $install_lang= $mysqld->value('lc-messages-dir');
   my $install_chsdir= $mysqld->value('character-sets-dir');
@@ -3732,7 +3750,7 @@ sub restart_forced_by_test($)
   my $restart = 0;
   foreach my $mysqld ( mysqlds() )
   {
-    my $datadir = $mysqld->value('datadir');
+    my $datadir = $mysqld->{'datadir'};
     my $force_restart_file = "$datadir/mtr/$file";
     if ( -f $force_restart_file )
     {
@@ -5276,7 +5294,7 @@ sub mysqld_start ($$) {
   # Remember this log file for valgrind error report search
   $mysqld_logs{$output}= 1 if $opt_valgrind;
   # Remember data dir for gmon.out files if using gprof
-  $gprof_dirs{$mysqld->value('datadir')}= 1 if $opt_gprof;
+  $gprof_dirs{$mysqld->{'datadir'}}= 1 if $opt_gprof;
 
   if ( defined $exe )
   {

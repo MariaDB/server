@@ -49,7 +49,6 @@ ALTER TABLE t1 ADD COLUMN f2 INTEGER;
 # Force SST
 #
 --echo Cleaning var directory ...
---remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
 --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/mtr
 --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/performance_schema
 --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/test

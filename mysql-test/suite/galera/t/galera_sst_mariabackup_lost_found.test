@@ -35,7 +35,6 @@ SELECT * FROM `#mysql50#not_lost+found`.t1;
 # Force SST
 #
 --echo Cleaning var directory ...
---remove_file $MYSQLTEST_VARDIR/mysqld.2/data/grastate.dat
 --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/mtr
 --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/performance_schema
 --remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/test

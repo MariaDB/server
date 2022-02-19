@@ -1,0 +1,2 @@
+${MYSQLTEST_VARDIR}/mysqld.1/datadir_1
+${MYSQLTEST_VARDIR}/mysqld.2/datadir_2

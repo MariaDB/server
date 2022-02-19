@@ -23,6 +23,7 @@ INSERT INTO t1 VALUES ('node2_committed_before');
 COMMIT;
 
 --echo Shutting down server ...
+let $datadir=`select @@datadir`;
 --source include/shutdown_mysqld.inc
 
 --connection node_1
@@ -30,11 +31,11 @@ COMMIT;
 --source include/wait_condition.inc
 
 --echo Cleaning var directory ...
---remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/mtr
---remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/performance_schema
---remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/test
---remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data/mysql
---remove_files_wildcard $MYSQLTEST_VARDIR/mysqld.2/data
+--remove_files_wildcard $datadir/mtr
+--remove_files_wildcard $datadir/performance_schema
+--remove_files_wildcard $datadir/test
+--remove_files_wildcard $datadir/mysql
+--remove_files_wildcard $datadir
 
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;

@@ -1,0 +1,28 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+wsrep_sst_method=mariabackup
+wsrep_sst_auth="root:"
+wsrep_debug=1
+
+[mysqld.1]
+wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=1;pc.ignore_sb=true'
+# Added here to check for overlaps with an option from the
+# command line with correct handling of this in the mtr code:
+#!bootstrap-opts datadir
+# A non-existent path is intentionally specified here
+# in order to check the override via command line option:
+datadir = @ENV.MYSQLTEST_VARDIR/mysqld.1/datadir_1_err
+
+[mysqld.2]
+wsrep_provider_options='base_port=@mysqld.2.#galera_port;gcache.size=1;pc.ignore_sb=true'
+#!use-slave-opt
+# Added here to check for overlaps with an option from the
+# command line with correct handling of this in the mtr code:
+#!bootstrap-opts datadir
+# A non-existent path is intentionally specified here
+# in order to check the override via command line option:
+datadir = @ENV.MYSQLTEST_VARDIR/mysqld.2/datadir_2_err
+
+[sst]
+transferfmt=@ENV.MTR_GALERA_TFMT
