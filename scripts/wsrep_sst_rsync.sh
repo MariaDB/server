@@ -238,6 +238,15 @@ if [ -z "$SSLMODE" ]; then
     elif [ -n "$SSTKEY" -a -n "$SSTCERT" ]; then
         SSLMODE='REQUIRED'
     fi
+else
+    case "$SSLMODE" in
+    'VERIFY_IDENTITY'|'VERIFY_CA'|'REQUIRED'|'DISABLED')
+        ;;
+    *)
+        wsrep_log_error "Unrecognized ssl-mode option: '$SSLMODE'"
+        exit 22 # EINVAL
+        ;;
+    esac
 fi
 
 if [ -n "$SSTKEY" -a -n "$SSTCERT" ]; then
@@ -262,18 +271,11 @@ VERIFY_OPT=""
 CHECK_OPT=""
 CHECK_OPT_LOCAL=""
 if [ "${SSLMODE#VERIFY}" != "$SSLMODE" ]; then
-    case "$SSLMODE" in
-    'VERIFY_IDENTITY')
+    if [ "$SSLMODE" = 'VERIFY_IDENTITY' ]; then
         VERIFY_OPT='verifyPeer = yes'
-        ;;
-    'VERIFY_CA')
+    else
         VERIFY_OPT='verifyChain = yes'
-        ;;
-    *)
-        wsrep_log_error "Unrecognized ssl-mode option: '$SSLMODE'"
-        exit 22 # EINVAL
-        ;;
-    esac
+    fi
     if [ -z "$SSTCA$SSTCAP" ]; then
         wsrep_log_error "Can't have ssl-mode='$SSLMODE' without CA file or path"
         exit 22 # EINVAL
@@ -338,7 +340,8 @@ while check_pid "$STUNNEL_PID" 1 "$STUNNEL_CONF"; do
     sleep 1
 done
 
-MODULE='rsync_sst'
+MODULE="${WSREP_SST_OPT_MODULE:-rsync_sst}"
+
 RSYNC_PID="$WSREP_SST_OPT_DATA/$MODULE.pid"
 RSYNC_CONF="$WSREP_SST_OPT_DATA/$MODULE.conf"
 
@@ -650,7 +653,7 @@ elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]
 then
     check_sockets_utils
 
-    ADDR="$WSREP_SST_OPT_ADDR"
+    ADDR="$WSREP_SST_OPT_HOST"
     RSYNC_PORT="$WSREP_SST_OPT_PORT"
     RSYNC_ADDR="$WSREP_SST_OPT_HOST"
     RSYNC_ADDR_UNESCAPED="$WSREP_SST_OPT_HOST_UNESCAPED"
@@ -751,7 +754,7 @@ EOF
     fi
 
     if [ "${SSLMODE#VERIFY}" != "$SSLMODE" ]; then
-        # backward-incompatible behavior
+        # backward-incompatible behavior:
         CN=""
         if [ -n "$SSTCERT" ]; then
             # find out my Common Name
@@ -770,7 +773,6 @@ EOF
         ADDR="$CN:$MY_SECRET@$WSREP_SST_OPT_HOST"
     else
         MY_SECRET="" # for check down in recv_joiner()
-        ADDR="$WSREP_SST_OPT_HOST"
     fi
 
     until check_pid_and_port "$TRANSFER_PID" $TRANSFER_REAL_PID \

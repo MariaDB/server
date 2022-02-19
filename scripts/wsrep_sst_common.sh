@@ -99,7 +99,6 @@ WSREP_SST_OPT_ADDR=""
 WSREP_SST_OPT_ADDR_PORT=""
 WSREP_SST_OPT_HOST=""
 WSREP_SST_OPT_HOST_UNESCAPED=""
-WSREP_SST_OPT_HOST_ESCAPED=""
 INNODB_DATA_HOME_DIR=$(trim_dir "${INNODB_DATA_HOME_DIR:-}")
 INNODB_LOG_GROUP_HOME=$(trim_dir "${INNODB_LOG_GROUP_HOME:-}")
 INNODB_UNDO_DIR=$(trim_dir "${INNODB_UNDO_DIR:-}")
@@ -122,20 +121,22 @@ case "$1" in
             # without square brackets:
             readonly WSREP_SST_OPT_HOST_UNESCAPED="${addr_no_bracket%%\]*}"
             # Square brackets are needed in most cases:
-            readonly WSREP_SST_OPT_HOST="[${WSREP_SST_OPT_HOST_UNESCAPED}]"
-            readonly WSREP_SST_OPT_HOST_ESCAPED="\\[${WSREP_SST_OPT_HOST_UNESCAPED}\\]"
+            readonly WSREP_SST_OPT_HOST="[$WSREP_SST_OPT_HOST_UNESCAPED]"
             # Mark this address as IPv6:
             readonly WSREP_SST_OPT_HOST_IPv6=1
+            # Let's remove the leading part that contains the host address:
+            remain="${WSREP_SST_OPT_ADDR#*\]}"
             ;;
         *)
             readonly WSREP_SST_OPT_HOST="${WSREP_SST_OPT_ADDR%%[:/]*}"
             readonly WSREP_SST_OPT_HOST_UNESCAPED="$WSREP_SST_OPT_HOST"
-            readonly WSREP_SST_OPT_HOST_ESCAPED="$WSREP_SST_OPT_HOST"
             readonly WSREP_SST_OPT_HOST_IPv6=0
+            # Let's remove the leading part that contains the host address:
+            remain="${WSREP_SST_OPT_ADDR#*[:/]}"
             ;;
         esac
-        # Let's remove the leading part that contains the host address:
-        remain="${WSREP_SST_OPT_ADDR#$WSREP_SST_OPT_HOST_ESCAPED}"
+        # If there is nothing but the address, then the remainder is empty:
+        [ "$remain" = "$WSREP_SST_OPT_ADDR" ] && remain=""
         # Let's remove the ":" character that separates the port number
         # from the hostname:
         remain="${remain#:}"
@@ -143,39 +144,32 @@ case "$1" in
         # up to "/" (if present):
         WSREP_SST_OPT_ADDR_PORT="${remain%%/*}"
         # If the "/" character is present, then the path is not empty:
-        if [ "${remain#*/}" != "$remain" ]; then
+        if [ "$WSREP_SST_OPT_ADDR_PORT" != "$remain" ]; then
             # This operation removes everything up to the "/" character,
             # effectively removing the port number from the string:
             readonly WSREP_SST_OPT_PATH="${remain#*/}"
         else
             readonly WSREP_SST_OPT_PATH=""
         fi
-        # The rest of the string is the same as the path (for now):
-        remain="$WSREP_SST_OPT_PATH"
-        # If there is one more "/" in the string, then everything before
-        # it will be the module name, otherwise the module name is empty:
-        if [ "${remain%%/*}" != "$remain" ]; then
-            # This operation removes the tail after the very first
-            # occurrence of the "/" character (inclusively):
-            readonly WSREP_SST_OPT_MODULE="${remain%%/*}"
-        else
-            readonly WSREP_SST_OPT_MODULE=""
-        fi
         # Remove the module name part from the string, which ends with "/":
         remain="${WSREP_SST_OPT_PATH#*/}"
-        # If the rest of the string does not match the original, then there
-        # was something else besides the module name:
+        # This operation removes the tail after the very first occurrence
+        # of the "/" character, inclusively:
+        readonly WSREP_SST_OPT_MODULE="${WSREP_SST_OPT_PATH%%/*}"
+        # If there is one more "/" in the string, then everything before
+        # it will be the LSN, otherwise the LSN is empty:
         if [ "$remain" != "$WSREP_SST_OPT_PATH" ]; then
             # Extract the part that matches the LSN by removing all
             # characters starting from the very first "/":
             readonly WSREP_SST_OPT_LSN="${remain%%/*}"
             # Exctract everything after the first occurrence of
             # the "/" character in the string:
+            source="$remain"
             remain="${remain#*/}"
             # If the remainder does not match the original string,
             # then there is something else (the version number in
             # our case):
-            if [ "$remain" != "$WSREP_SST_OPT_LSN" ]; then
+            if [ "$remain" != "$source" ]; then
                 # Let's extract the version number by removing the tail
                 # after the very first occurence of the "/" character
                 # (inclusively):
@@ -238,14 +232,12 @@ case "$1" in
             readonly WSREP_SST_OPT_HOST_UNESCAPED="${addr_no_bracket%%\]*}"
             # Square brackets are needed in most cases:
             readonly WSREP_SST_OPT_HOST="[${WSREP_SST_OPT_HOST_UNESCAPED}]"
-            readonly WSREP_SST_OPT_HOST_ESCAPED="\\[${WSREP_SST_OPT_HOST_UNESCAPED}\\]"
             # Mark this address as IPv6:
             readonly WSREP_SST_OPT_HOST_IPv6=1
             ;;
         *)
             readonly WSREP_SST_OPT_HOST="$2"
             readonly WSREP_SST_OPT_HOST_UNESCAPED="$2"
-            readonly WSREP_SST_OPT_HOST_ESCAPED="$2"
             readonly WSREP_SST_OPT_HOST_IPv6=0
             ;;
         esac
@@ -678,26 +670,17 @@ if [ -n "$WSREP_SST_OPT_ADDR_PORT" ]; then
         # the corresponding variable:
         readonly WSREP_SST_OPT_PORT="$WSREP_SST_OPT_ADDR_PORT"
     fi
-elif [ -n "$WSREP_SST_OPT_ADDR" ]; then
+else
     # If the port is missing, take the default port:
     if [ -z "$WSREP_SST_OPT_PORT" ]; then
         readonly WSREP_SST_OPT_PORT=4444
     fi
     WSREP_SST_OPT_ADDR_PORT="$WSREP_SST_OPT_PORT"
-    # Let's remove the leading part that contains the host address:
-    remain="${WSREP_SST_OPT_ADDR#$WSREP_SST_OPT_HOST_ESCAPED}"
-    # Let's remove the ":" character that separates the port number
-    # from the hostname:
-    remain="${remain#:}"
-    # Let's remove all characters upto first "/" character that
-    # separates the hostname with port number from the path:
-    remain="${remain#/}"
-    # Let's construct a new value for the address with the port:
-    WSREP_SST_OPT_ADDR="$WSREP_SST_OPT_HOST:$WSREP_SST_OPT_PORT"
-    if [ -n "$remain" ]; then
-        WSREP_SST_OPT_ADDR="$WSREP_SST_OPT_ADDR/$remain"
-    fi
 fi
+
+# Let's construct a new value for the address with the port:
+sst_path="${WSREP_SST_OPT_PATH:+/}$WSREP_SST_OPT_PATH"
+WSREP_SST_OPT_ADDR="$WSREP_SST_OPT_HOST:$WSREP_SST_OPT_PORT$sst_path"
 
 readonly WSREP_SST_OPT_ADDR
 readonly WSREP_SST_OPT_ADDR_PORT
@@ -809,8 +792,11 @@ parse_cnf()
         local group="${groups%%\|*}"
         # Remove the remainder (the group name) from the rest
         # of the groups list (as if it were a prefix):
-        groups="${groups#$group}"
-        groups="${groups#\|}"
+        if [ "$group" != "$groups" ]; then
+            groups="${groups#*\|}"
+        else
+            groups=""
+        fi
         # If the group name is the same as the "mysqld" without "--" prefix,
         # then try to use it together with the group suffix:
         if [ "$group" = 'mysqld' -a -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
@@ -835,9 +821,8 @@ parse_cnf()
     done
 
     # Use default if we haven't found a value:
-    if [ -z "$reval" ]; then
-        [ -n "${3:-}" ] && reval="$3"
-    fi
+    [ -z "$reval" ] && reval="${3:-}"
+
     if [ -n "$BASH_VERSION" ]; then
         printf '%s' "$reval"
     else
@@ -868,8 +853,11 @@ in_config()
         local group="${groups%%\|*}"
         # Remove the remainder (the group name) from the rest
         # of the groups list (as if it were a prefix):
-        groups="${groups#$group}"
-        groups="${groups#\|}"
+        if [ "$group" != "$groups" ]; then
+            groups="${groups#*\|}"
+        else
+            groups=""
+        fi
         # If the group name is the same as the "mysqld" without "--" prefix,
         # then try to use it together with the group suffix:
         if [ "$group" = 'mysqld' -a -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
