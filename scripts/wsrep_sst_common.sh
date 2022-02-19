@@ -467,25 +467,25 @@ case "$1" in
                        ;;
                    '--innodb-force-recovery')
                        if [ -n "$value" -a "$value" != "0" ]; then
-                           INNODB_FORCE_RECOVERY="$value"
+                           INNODB_FORCE_RECOVERY=$(trim_string "$value")
                        fi
                        skip_mysqld_arg=1
                        ;;
                    '--log-bin')
                        if [ -z "$WSREP_SST_OPT_BINLOG" ]; then
-                           MYSQLD_OPT_LOG_BIN="$value"
+                           MYSQLD_OPT_LOG_BIN=$(trim_string "$value")
                        fi
                        skip_mysqld_arg=1
                        ;;
                    '--log-bin-index')
                        if [ -z "$WSREP_SST_OPT_BINLOG_INDEX" ]; then
-                           MYSQLD_OPT_LOG_BIN_INDEX="$value"
+                           MYSQLD_OPT_LOG_BIN_INDEX=$(trim_string "$value")
                        fi
                        skip_mysqld_arg=1
                        ;;
                    '--log-basename')
                        if [ -z "$WSREP_SST_OPT_LOG_BASENAME" ]; then
-                           MYSQLD_OPT_LOG_BASENAME="$value"
+                           MYSQLD_OPT_LOG_BASENAME=$(trim_string "$value")
                        fi
                        skip_mysqld_arg=1
                        ;;
@@ -822,6 +822,9 @@ parse_cnf()
 
     # Use default if we haven't found a value:
     [ -z "$reval" ] && reval="${3:-}"
+
+    # Truncate spaces:
+    [ -n "$reval" ] && reval=$(trim_string "$reval")
 
     if [ -n "$BASH_VERSION" ]; then
         printf '%s' "$reval"
@@ -1443,13 +1446,9 @@ check_server_ssl_config()
         fi
     fi
     if [ -n "$tcert" ]; then
-        tcert=$(trim_string "$tcert")
         if [ "${tcert%/}" != "$tcert" -o -d "$tcert" ]; then
             tcap="$tcert"
             tcert=""
         fi
-    fi
-    if [ -n "$tcap" ]; then
-        tcap=$(trim_string "$tcap")
     fi
 }
