@@ -693,3 +693,36 @@ template void ssux_lock_impl<false>::u_unlock();
 template void ssux_lock_impl<false>::wr_unlock();
 # endif
 #endif /* UNIV_PFS_RWLOCK */
+
+void mcspin_lock::lock(mcspin_lock::queue *q) noexcept
+{
+  q->next.store(nullptr, std::memory_order_relaxed);
+  q->held.store(false, std::memory_order_relaxed);
+
+  if (queue* prev= state.exchange(q, std::memory_order_acquire))
+  {
+    ut_ad(prev != q);
+    prev->next.store(q, std::memory_order_relaxed);
+    while (!q->held.load(std::memory_order_acquire))
+      srw_pause(1);
+  }
+}
+
+void mcspin_lock::unlock(mcspin_lock::queue *q) noexcept
+{
+  queue *next= q->next.load(std::memory_order_relaxed);
+
+  if (!next)
+  {
+    queue *qq{q};
+    if (state.compare_exchange_strong(qq, nullptr, std::memory_order_release,
+                                      std::memory_order_relaxed))
+      return;
+
+    while (!(next= q->next.load(std::memory_order_relaxed)))
+      srw_pause(1);
+  }
+
+  ut_ad(next != q);
+  next->held.store(true, std::memory_order_release);
+}

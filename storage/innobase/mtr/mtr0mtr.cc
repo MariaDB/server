@@ -789,11 +789,13 @@ ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t age, lsn_t capacity)
 }
 
 /** Wait in append_prepare() for buffer to become available
-@param ex   whether log_sys.latch is exclusively locked */
-ATTRIBUTE_COLD void log_t::append_prepare_wait(bool ex) noexcept
+@param ex   whether log_sys.latch is exclusively locked
+@param q    lsn_lock queue position */
+ATTRIBUTE_COLD
+void log_t::append_prepare_wait(bool ex, mcspin_lock::queue *q) noexcept
 {
   log_sys.waits++;
-  log_sys.lsn_lock.wr_unlock();
+  log_sys.lsn_lock.unlock(q);
 
   if (ex)
     log_sys.latch.wr_unlock();
@@ -808,7 +810,7 @@ ATTRIBUTE_COLD void log_t::append_prepare_wait(bool ex) noexcept
   else
     log_sys.latch.rd_lock(SRW_LOCK_CALL);
 
-  log_sys.lsn_lock.wr_lock();
+  log_sys.lsn_lock.lock(q);
 }
 
 /** Reserve space in the log buffer for appending data.
@@ -829,7 +831,8 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
   ut_ad(pmem == is_pmem());
   const lsn_t checkpoint_margin{last_checkpoint_lsn + log_capacity - size};
   const size_t avail{(pmem ? size_t(capacity()) : buf_size) - size};
-  lsn_lock.wr_lock();
+  mcspin_lock::queue q;
+  lsn_lock.lock(&q);
   write_to_buf++;
 
   for (ut_d(int count= 50);
@@ -838,7 +841,7 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
                                get_flushed_lsn(std::memory_order_relaxed))
                       : size_t{buf_free}) > avail); )
   {
-    append_prepare_wait(ex);
+    append_prepare_wait(ex, &q);
     ut_ad(count--);
   }
 
@@ -850,7 +853,7 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
   if (pmem && new_buf_free >= file_size)
     new_buf_free-= size_t(capacity());
   buf_free= new_buf_free;
-  lsn_lock.wr_unlock();
+  lsn_lock.unlock(&q);
 
   if (UNIV_UNLIKELY(l > checkpoint_margin) ||
       (!pmem && b >= max_buf_free))

@@ -520,3 +520,16 @@ typedef srw_lock_impl<false> srw_lock;
 typedef srw_lock_impl<true> srw_spin_lock;
 
 #endif
+
+/** Simple spin lock */
+struct mcspin_lock
+{
+  struct queue
+  {
+    std::atomic<queue*> next{nullptr};
+    std::atomic<bool> held{false};
+  };
+  std::atomic<queue*> state{nullptr};
+  void lock(queue *own) noexcept;
+  void unlock(queue *own) noexcept;
+};

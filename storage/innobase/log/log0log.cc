@@ -102,7 +102,6 @@ void log_t::create()
   ut_ad(!is_initialised());
 
   latch.SRW_LOCK_INIT(log_latch_key);
-  lsn_lock.init();
 
   /* LSN 0 and 1 are reserved; @see buf_page_t::oldest_modification_ */
   lsn.store(FIRST_LSN, std::memory_order_relaxed);
@@ -1081,7 +1080,6 @@ void log_t::close()
 #endif
 
   latch.destroy();
-  lsn_lock.destroy();
 
   recv_sys.close();
 

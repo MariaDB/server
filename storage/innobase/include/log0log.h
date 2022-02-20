@@ -214,7 +214,7 @@ public:
 
 private:
   /** spin lock protecting lsn, buf_free in append_prepare() */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) srw_mutex lsn_lock;
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mcspin_lock lsn_lock;
 public:
   /** first free offset within buf use; protected by lsn_lock */
   Atomic_relaxed<size_t> buf_free;
@@ -365,8 +365,10 @@ public:
 
 private:
   /** Wait in append_prepare() for buffer to become available
-  @param ex   whether log_sys.latch is exclusively locked */
-  ATTRIBUTE_COLD static void append_prepare_wait(bool ex) noexcept;
+  @param ex   whether log_sys.latch is exclusively locked
+  @param q    lsn_lock queue position */
+  ATTRIBUTE_COLD
+  static void append_prepare_wait(bool ex, mcspin_lock::queue *q) noexcept;
 public:
   /** Reserve space in the log buffer for appending data.
   @tparam pmem  log_sys.is_pmem()
