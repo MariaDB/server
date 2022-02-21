@@ -2196,6 +2196,12 @@ static ulint page_cleaner_flush_pages_recommendation(ulint last_pages_in,
 	return(n_pages);
 }
 
+#if defined __aarch64__&&defined __GNUC__&&__GNUC__==4&&!defined __clang__
+/* Avoid GCC 4.8.5 internal compiler error "could not split insn".
+We would only need this for buf_flush_page_cleaner(),
+but GCC 4.8.5 does not support pop_options. */
+# pragma GCC optimize ("O0")
+#endif
 /** page_cleaner thread tasked with flushing dirty pages from the buffer
 pools. As of now we'll have only one coordinator. */
 static void buf_flush_page_cleaner()
