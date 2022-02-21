@@ -65,7 +65,6 @@ row_undo_ins_remove_clust_rec(
 /*==========================*/
 	undo_node_t*	node)	/*!< in: undo node */
 {
-	ibool		success;
 	dberr_t		err;
 	ulint		n_tries	= 0;
 	mtr_t		mtr;
@@ -102,12 +101,12 @@ row_undo_ins_remove_clust_rec(
 	purged. However, we can log the removal out of sync with the
 	B-tree modification. */
 
-	success = btr_pcur_restore_position(
+	ut_a(btr_pcur_restore_position(
 		online
 		? BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED
 		: (node->rec_type == TRX_UNDO_INSERT_METADATA)
-		? BTR_MODIFY_TREE : BTR_MODIFY_LEAF, &node->pcur, &mtr);
-	ut_a(success);
+		? BTR_MODIFY_TREE : BTR_MODIFY_LEAF, &node->pcur, &mtr)
+	    == btr_pcur_t::SAME_ALL);
 
 	rec_t* rec = btr_pcur_get_rec(&node->pcur);
 
@@ -138,9 +137,9 @@ row_undo_ins_remove_clust_rec(
 			mtr.commit();
 
 			mtr.start();
-			success = btr_pcur_restore_position(
-				BTR_MODIFY_LEAF, &node->pcur, &mtr);
-			ut_a(success);
+			ut_a(btr_pcur_restore_position(
+				BTR_MODIFY_LEAF, &node->pcur, &mtr)
+			    == btr_pcur_t::SAME_ALL);
 			break;
 		case DICT_COLUMNS_ID:
 			/* This is rolling back an INSERT into SYS_COLUMNS.
@@ -181,11 +180,8 @@ retry:
 	} else {
 		index->set_modified(mtr);
 	}
-
-	success = btr_pcur_restore_position(
-			BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-			&node->pcur, &mtr);
-	ut_a(success);
+	ut_a(btr_pcur_restore_position(BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
+	      &node->pcur, &mtr) == btr_pcur_t::SAME_ALL);
 
 	btr_cur_pessimistic_delete(&err, FALSE, &node->pcur.btr_cur, 0, true,
 				   &mtr);

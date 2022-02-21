@@ -73,7 +73,9 @@ row_purge_reposition_pcur(
 	if (node->found_clust) {
 		ut_ad(node->validate_pcur());
 
-		node->found_clust = btr_pcur_restore_position(mode, &node->pcur, mtr);
+		node->found_clust =
+		  btr_pcur_restore_position(mode, &node->pcur, mtr) ==
+		    btr_pcur_t::SAME_ALL;
 
 	} else {
 		node->found_clust = row_search_on_row_ref(
@@ -256,7 +258,7 @@ static bool row_purge_restore_vsec_cur(
 
 	return btr_pcur_restore_position(
 		is_tree ? BTR_PURGE_TREE : BTR_PURGE_LEAF,
-		sec_pcur, sec_mtr);
+		sec_pcur, sec_mtr) == btr_pcur_t::SAME_ALL;
 }
 
 /** Determines if it is possible to remove a secondary index entry.
