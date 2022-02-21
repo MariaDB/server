@@ -1,12 +1,12 @@
 SHOW CREATE TABLE INFORMATION_SCHEMA.INNODB_CMP_PER_INDEX_RESET;
 Table	Create Table
 INNODB_CMP_PER_INDEX_RESET	CREATE TEMPORARY TABLE `INNODB_CMP_PER_INDEX_RESET` (
-  `database_name` varchar(64) NOT NULL DEFAULT '',
-  `table_name` varchar(64) NOT NULL DEFAULT '',
-  `index_name` varchar(64) NOT NULL DEFAULT '',
-  `compress_ops` int(11) NOT NULL DEFAULT 0,
-  `compress_ops_ok` int(11) NOT NULL DEFAULT 0,
-  `compress_time` int(11) NOT NULL DEFAULT 0,
-  `uncompress_ops` int(11) NOT NULL DEFAULT 0,
-  `uncompress_time` int(11) NOT NULL DEFAULT 0
+  `database_name` varchar(64) NOT NULL,
+  `table_name` varchar(64) NOT NULL,
+  `index_name` varchar(64) NOT NULL,
+  `compress_ops` int(11) NOT NULL,
+  `compress_ops_ok` int(11) NOT NULL,
+  `compress_time` int(11) NOT NULL,
+  `uncompress_ops` int(11) NOT NULL,
+  `uncompress_time` int(11) NOT NULL
 ) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3

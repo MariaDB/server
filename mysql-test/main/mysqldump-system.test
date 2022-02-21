@@ -3,9 +3,10 @@
 --source include/have_udf.inc
 --source include/platform.inc
 
-if (!$AUTH_SOCKET_SO) {
-  --skip Need auth socket plugin
+if (!$AUTH_TEST_PLUGIN_SO) {
+  --skip Need auth test plugin
 }
+install soname 'auth_test_plugin';
 
 --echo #
 --echo # MDEV-23630: mysqldump to logically dump system tables
@@ -21,7 +22,7 @@ flush privileges;
 
 # mariadb.sys because of MDEV-24098
 alter user 'mariadb.sys'@'localhost' ACCOUNT UNLOCK;
-create user USER;
+create user foobar IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 
 # time zone data already loaded
 
@@ -29,9 +30,9 @@ CREATE ROLE role_1;
 CREATE ROLE role_2 WITH ADMIN role_1;
 
 GRANT SHOW DATABASES ON *.* TO role_1;
-GRANT role_1 TO USER;
-GRANT role_2 TO USER;
-SET DEFAULT ROLE role_2 FOR USER;
+GRANT role_1 TO foobar;
+GRANT role_2 TO foobar;
+SET DEFAULT ROLE role_2 FOR foobar;
 
 ALTER TABLE mysql.roles_mapping ORDER BY Host, User, Role;
 
@@ -66,7 +67,7 @@ eval CREATE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 --echo # mysqldump of system tables with --system=all
 --echo #
 
---replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB $AUTH_TEST_PLUGIN_SO AUTH_TEST_PLUGIN_LIB
 --exec $MYSQL_DUMP --skip-comments --system=all
 
 
@@ -74,7 +75,7 @@ eval CREATE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 --echo # mysqldump of system tables with --system=all --replace
 --echo #
 
---replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB $AUTH_TEST_PLUGIN_SO AUTH_TEST_PLUGIN_LIB
 --exec $MYSQL_DUMP --skip-comments --system=all --replace
 
 
@@ -85,7 +86,7 @@ eval CREATE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 --echo # mysqldump of system tables with --system=all --insert-ignore
 --echo #
 
---replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB $AUTH_TEST_PLUGIN_SO AUTH_TEST_PLUGIN_LIB
 --exec $MYSQL_DUMP --skip-comments --system=all --insert-ignore
 
 
@@ -107,7 +108,7 @@ GRANT ALL ON *.* TO mariadb_test_restore WITH GRANT OPTION;
 GRANT PROXY ON ''@'%' TO mariadb_test_restore WITH GRANT OPTION;
 GRANT SUPER, CREATE USER /*M!100502 ,FEDERATED ADMIN */ ON *.* TO mariadb_test_restore WITH GRANT OPTION;
 
-drop user USER;
+drop user foobar;
 delete from mysql.table_stats;
 delete from mysql.innodb_table_stats;
 delete from mysql.time_zone_transition;
@@ -151,9 +152,10 @@ drop table mysql.tz;
 DROP ROLE role_2;
 DROP ROLE role_1;
 
-drop user USER;
+drop user foobar;
 
 replace into mysql.global_priv select * from backup_users;
 replace into mysql.tables_priv select * from tables_priv;
 flush privileges;
 drop table backup_users, tables_priv;
+uninstall soname 'auth_test_plugin';

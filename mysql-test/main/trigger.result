@@ -2428,6 +2428,13 @@ CREATE TRIGGER t1_trigger BEFORE INSERT ON t1 FOR EACH ROW BEGIN END;
 INSERT INTO t1 () VALUES ();
 DROP TABLE t1;
 #
+# Bug#33141958 - THE FIRST ASAN UAF ISSUE OF MYSQL SERVER
+#
+create table t1 (a int);
+create trigger tr1 after insert on t1 for each row alter table t1 tablespace s2;
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
+drop table t1;
+#
 # End of 10.2 tests
 #
 #

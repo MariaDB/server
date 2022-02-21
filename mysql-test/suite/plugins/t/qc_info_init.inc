@@ -30,5 +30,5 @@ select * from t1;
 set time_zone= @time_zone, default_week_format= @default_week_format, character_set_client= @character_set_client,character_set_results= @character_set_results, sql_mode= @sql_mode, div_precision_increment= @div_precision_increment, lc_time_names= @lc_time_names, autocommit= @autocommit, group_concat_max_len= @group_concat_max_len, max_sort_length= @max_sort_length;
 
 --sorted_result
---replace_column 5 # 19 # 23 #
+--replace_column 5 # 20 # 24 #
 select * from information_schema.query_cache_info;

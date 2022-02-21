@@ -954,5 +954,32 @@ Warnings:
 Warning	1264	Out of range value for column 'converted' at row 2
 Warning	1366	Incorrect integer value: 'foo' for column ``.`(temporary)`.`converted` at row 3
 #
+# MDEV-27696 Json table columns accept redundant COLLATE syntax
+#
+SELECT * FROM json_table('[{"name":"str"}]', '$[*]'
+  COLUMNS (
+name BLOB COLLATE `binary` PATH '$.name'
+  )
+) AS jt;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COLLATE `binary` PATH '$.name'
+  )
+) AS jt' at line 3
+SELECT * FROM json_table('[{"name":"str"}]', '$[*]'
+  COLUMNS (
+name VARCHAR(10) COLLATE latin1_bin COLLATE latin1_swedish_ci PATH '$.name'
+  )
+) AS jt;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COLLATE latin1_swedish_ci PATH '$.name'
+  )
+) AS jt' at line 3
+SELECT * FROM json_table('[{"name":"str"}]', '$[*]'
+  COLUMNS (
+name VARCHAR(10) BINARY COLLATE utf8_czech_ci path '$.name'
+  )
+) AS jt;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COLLATE utf8_czech_ci path '$.name'
+  )
+) AS jt' at line 3
+#
 # End of 10.6 tests
 #

@@ -1197,8 +1197,9 @@ bool dict_foreign_t::affects_fulltext() const
   return false;
 }
 
-/** Reconstruct the clustered index fields. */
-inline void dict_index_t::reconstruct_fields()
+/** Reconstruct the clustered index fields.
+@return whether metadata is incorrect */
+inline bool dict_index_t::reconstruct_fields()
 {
 	DBUG_ASSERT(is_primary());
 
@@ -1232,10 +1233,14 @@ inline void dict_index_t::reconstruct_fields()
 				fields + n_first, fields + n_fields,
 				[c](const dict_field_t& o)
 				{ return o.col->ind == c.ind(); });
+
+			if (old >= fields + n_fields
+			    || old->prefix_len
+			    || old->col != &table->cols[c.ind()]) {
+				return true;
+			}
+
 			ut_ad(old >= &fields[n_first]);
-			ut_ad(old < &fields[n_fields]);
-			DBUG_ASSERT(!old->prefix_len);
-			DBUG_ASSERT(old->col == &table->cols[c.ind()]);
 			f = *old;
 		}
 
@@ -1248,6 +1253,8 @@ inline void dict_index_t::reconstruct_fields()
 
 	fields = tfields;
 	n_core_null_bytes = static_cast<byte>(UT_BITS_IN_BYTES(n_core_null));
+
+	return false;
 }
 
 /** Reconstruct dropped or reordered columns.
@@ -1312,8 +1319,7 @@ bool dict_table_t::deserialise_columns(const byte* metadata, ulint len)
 	}
 	DBUG_ASSERT(col == &dropped_cols[n_dropped_cols]);
 
-	UT_LIST_GET_FIRST(indexes)->reconstruct_fields();
-	return false;
+	return UT_LIST_GET_FIRST(indexes)->reconstruct_fields();
 }
 
 /** Check if record in clustered index is historical row.

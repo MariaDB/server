@@ -672,7 +672,7 @@ processed:
 		mtr_x_lock_index(index, &mtr);
 		/* This will acquire index->lock SX-latch, which per WL#6363 is allowed
 		when we are already holding the X-latch. */
-		btr_pcur_restore_position(BTR_MODIFY_TREE, item->pcur, &mtr);
+		item->pcur->restore_position(BTR_MODIFY_TREE, &mtr);
 		buf_block_t* first_block = btr_pcur_get_block(item->pcur);
 		if (buf_block_t *last_block =
 		    btr_defragment_n_pages(first_block, index,

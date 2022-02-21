@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2021, MariaDB
+   Copyright (c) 2008, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -200,8 +200,8 @@ public:
   Prepared_statement(THD *thd_arg);
   virtual ~Prepared_statement();
   void setup_set_params();
-  virtual Query_arena::Type type() const;
-  virtual void cleanup_stmt(bool restore_set_statement_vars);
+  Query_arena::Type type() const override;
+  bool cleanup_stmt(bool restore_set_statement_vars) override;
   bool set_name(const LEX_CSTRING *name);
   inline void close_cursor() { delete cursor; cursor= 0; }
   inline bool is_in_use() { return flags & (uint) IS_IN_USE; }
@@ -3137,7 +3137,6 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
   }
   for (; sl; sl= sl->next_select_in_list())
   {
-    sl->parent_lex->in_sum_func= NULL;
     if (sl->changed_elements & TOUCHED_SEL_COND)
     {
       /* remove option which was put by mysql_explain_union() */
@@ -3272,6 +3271,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
     lex->result->set_thd(thd);
   }
   lex->allow_sum_func.clear_all();
+  lex->in_sum_func= NULL;
   DBUG_VOID_RETURN;
 }
 
@@ -4206,19 +4206,20 @@ Query_arena::Type Prepared_statement::type() const
 }
 
 
-void Prepared_statement::cleanup_stmt(bool restore_set_statement_vars)
+bool Prepared_statement::cleanup_stmt(bool restore_set_statement_vars)
 {
+  bool error= false;
   DBUG_ENTER("Prepared_statement::cleanup_stmt");
   DBUG_PRINT("enter",("stmt: %p", this));
 
   if (restore_set_statement_vars)
-    lex->restore_set_statement_var();
+    error= lex->restore_set_statement_var();
 
   thd->rollback_item_tree_changes();
   cleanup_items(free_list);
   thd->cleanup_after_query();
 
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(error);
 }
 
 
@@ -4454,7 +4455,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     Pass the value true to restore original values of variables modified
     on handling SET STATEMENT clause.
   */
-  cleanup_stmt(true);
+  error|= cleanup_stmt(true);
 
   thd->restore_backup_statement(this, &stmt_backup);
   thd->stmt_arena= old_stmt_arena;
@@ -5258,7 +5259,8 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
   */
   log_slow_statement(thd);
 
-  lex->restore_set_statement_var();
+  error|= lex->restore_set_statement_var();
+
 
   /*
     EXECUTE command has its own dummy "explain data". We don't need it,
@@ -5302,7 +5304,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
   }
 
 error:
-  thd->lex->restore_set_statement_var();
+  error|= thd->lex->restore_set_statement_var();
   flags&= ~ (uint) IS_IN_USE;
   return error;
 }

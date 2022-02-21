@@ -1,4 +1,6 @@
 --source include/have_partition.inc
+--source include/have_sequence.inc
+
 #
 # Basic stored PROCEDURE tests
 #
@@ -10031,6 +10033,46 @@ drop procedure p1|
 drop function f1|
 delimiter ;|
 
+--echo #
+--echo # MDEV-24827: MariaDB 10.5.5 crash (sig 11) during a SELECT
+--echo #
+
+CREATE TABLE t1 (c1 INT PRIMARY KEY, c2 INT);
+CREATE TABLE t2 (c1 INT PRIMARY KEY, c2 INT, KEY idx_c2(c2));
+
+INSERT INTO t1 (c1, c2) SELECT seq, seq FROM seq_1_to_10000;
+INSERT INTO t2 (c1, c2) SELECT seq, seq FROM seq_1_to_20000;
+
+--delimiter $
+
+CREATE OR REPLACE PROCEDURE p1()
+begin
+  DECLARE done INT DEFAULT FALSE;
+  DECLARE a INT;
+
+  DECLARE cur1 CURSOR FOR
+    SELECT t2.c1 AS c1 FROM t1 LEFT JOIN t2 ON t1.c1 = t2.c1
+    WHERE EXISTS (SELECT 1 FROM t1 WHERE c2 = -1) ORDER BY c1;
+
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+  OPEN cur1;
+  read_loop: LOOP
+    FETCH cur1 INTO a;
+    IF done THEN
+      LEAVE read_loop;
+    END IF;
+  END LOOP;
+  CLOSE cur1;
+END $
+
+--delimiter ;
+
+CALL p1();
+
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP TABLE t2;
 
 --echo #End of 10.2 tests
 

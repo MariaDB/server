@@ -32,7 +32,7 @@ Full Text Search interface
 #include "fts0fts.h"
 #include "fts0priv.h"
 #include "fts0types.h"
-#include "fts0types.ic"
+#include "fts0types.inl"
 #include "fts0vlc.h"
 #include "fts0plugin.h"
 #include "dict0stats.h"
@@ -223,9 +223,7 @@ ulint
 fts_add_doc_by_id(
 /*==============*/
 	fts_trx_table_t*ftt,		/*!< in: FTS trx table */
-	doc_id_t	doc_id,		/*!< in: doc id */
-	ib_vector_t*	fts_indexes MY_ATTRIBUTE((unused)));
-					/*!< in: affected fts indexes */
+	doc_id_t	doc_id);	/*!< in: doc id */
 /******************************************************************//**
 Update the last document id. This function could create a new
 transaction to update the last document id.
@@ -2775,7 +2773,7 @@ fts_add(
 
 	ut_a(row->state == FTS_INSERT || row->state == FTS_MODIFY);
 
-	fts_add_doc_by_id(ftt, doc_id, row->fts_indexes);
+	fts_add_doc_by_id(ftt, doc_id);
 
 	mysql_mutex_lock(&table->fts->cache->deleted_lock);
 	++table->fts->cache->added;
@@ -3331,9 +3329,7 @@ ulint
 fts_add_doc_by_id(
 /*==============*/
 	fts_trx_table_t*ftt,		/*!< in: FTS trx table */
-	doc_id_t	doc_id,		/*!< in: doc id */
-	ib_vector_t*	fts_indexes MY_ATTRIBUTE((unused)))
-					/*!< in: affected fts indexes */
+	doc_id_t	doc_id)		/*!< in: doc id */
 {
 	mtr_t		mtr;
 	mem_heap_t*	heap;
@@ -3452,7 +3448,6 @@ fts_add_doc_by_id(
 				get_doc, clust_index, doc_pcur, offsets, &doc);
 
 			if (doc.found) {
-				ibool	success MY_ATTRIBUTE((unused));
 
 				btr_pcur_store_position(doc_pcur, &mtr);
 				mtr_commit(&mtr);
@@ -3511,12 +3506,10 @@ fts_add_doc_by_id(
 				mtr_start(&mtr);
 
 				if (i < num_idx - 1) {
-
-					success = btr_pcur_restore_position(
-						BTR_SEARCH_LEAF, doc_pcur,
-						&mtr);
-
-					ut_ad(success);
+					ut_d(auto status=)
+					  doc_pcur->restore_position(
+					      BTR_SEARCH_LEAF, &mtr);
+					ut_ad(status == btr_pcur_t::SAME_ALL);
 				}
 			}
 
@@ -4570,7 +4563,7 @@ fts_tokenize_add_word_for_parser(
 	ut_ad(boolean_info->position >= 0);
 	position = boolean_info->position + fts_param->add_pos;
 	*/
-	position = fts_param->add_pos;
+	position = fts_param->add_pos++;
 
 	fts_add_token(result_doc, str, position);
 

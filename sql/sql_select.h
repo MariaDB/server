@@ -1206,7 +1206,17 @@ public:
     Indicates that grouping will be performed on the result set during
     query execution. This field belongs to query execution.
 
-    @see make_group_fields, alloc_group_fields, JOIN::exec
+    If 'sort_and_group' is set, then the optimizer is going to use on of
+    the following algorithms to resolve GROUP BY.
+
+    - If one table, sort the table and then calculate groups on the fly.
+    - If more than one table, create a temporary table to hold the join,
+      sort it and then resolve group by on the fly.
+
+    The 'on the fly' calculation is done in end_send_group()
+
+    @see make_group_fields, alloc_group_fields, JOIN::exec,
+         setup_end_select_func
   */
   bool     sort_and_group; 
   bool     first_record,full_join, no_field_update;
@@ -1585,7 +1595,7 @@ public:
   bool make_range_rowid_filters();
   bool init_range_rowid_filters();
   bool make_sum_func_list(List<Item> &all_fields, List<Item> &send_fields,
-			  bool before_group_by, bool recompute= FALSE);
+			  bool before_group_by);
 
   /// Initialzes a slice, see comments for ref_ptrs above.
   Ref_ptr_array ref_ptr_array_slice(size_t slice_num)
@@ -1728,6 +1738,7 @@ public:
   void add_keyuses_for_splitting();
   bool inject_best_splitting_cond(table_map remaining_tables);
   bool fix_all_splittings_in_plan();
+  bool inject_splitting_cond_for_all_tables_with_split_opt();
   void make_notnull_conds_for_range_scans();
 
   bool transform_in_predicates_into_in_subq(THD *thd);

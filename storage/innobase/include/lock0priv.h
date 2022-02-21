@@ -577,6 +577,6 @@ lock_table_has(
 	const dict_table_t*	table,	/*!< in: table */
 	enum lock_mode		mode);	/*!< in: lock mode */
 
-#include "lock0priv.ic"
+#include "lock0priv.inl"
 
 #endif /* lock0priv_h */

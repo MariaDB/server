@@ -905,6 +905,7 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
       node->deferred= true;
       if (!space->acquire())
         goto fail;
+      fil_names_dirty(space);
       const bool is_compressed= fil_space_t::is_compressed(flags);
 #ifdef _WIN32
       const bool is_sparse= is_compressed;
@@ -939,14 +940,16 @@ fail:
 
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
-@param[in]	create		whether the file is being created
+@param[in]	type		redo log type
 @param[in]	name		file name (not NUL-terminated)
 @param[in]	len		length of name, in bytes
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
-void (*log_file_op)(ulint space_id, bool create,
+void (*log_file_op)(ulint space_id, int type,
 		    const byte* name, ulint len,
 		    const byte* new_name, ulint new_len);
+
+void (*first_page_init)(ulint space_id);
 
 /** Information about initializing page contents during redo log processing.
 FIXME: Rely on recv_sys.pages! */
@@ -1151,7 +1154,8 @@ void
 fil_name_process(char* name, ulint len, ulint space_id,
 		 bool deleted, lsn_t lsn, store_t *store)
 {
-	if (srv_operation == SRV_OPERATION_BACKUP) {
+	if (srv_operation == SRV_OPERATION_BACKUP
+	    || srv_operation == SRV_OPERATION_BACKUP_NO_DEFER) {
 		return;
 	}
 
@@ -2100,6 +2104,8 @@ static void store_freed_or_init_rec(page_id_t page_id, bool freed)
 {
   uint32_t space_id= page_id.space();
   uint32_t page_no= page_id.page_no();
+  if (!freed && page_no == 0 && first_page_init)
+    first_page_init(space_id);
   if (is_predefined_tablespace(space_id))
   {
     if (!srv_immediate_scrub_data_uncompressed)
@@ -2575,8 +2581,8 @@ same_page:
         if (fn2)
           fil_name_process(const_cast<char*>(fn2), fn2end - fn2, space_id,
                            false, start_lsn, store);
-        if ((b & 0xf0) < FILE_MODIFY && log_file_op)
-          log_file_op(space_id, (b & 0xf0) == FILE_CREATE,
+        if ((b & 0xf0) < FILE_CHECKPOINT && log_file_op)
+          log_file_op(space_id, b & 0xf0,
                       l, static_cast<ulint>(fnend - fn),
                       reinterpret_cast<const byte*>(fn2),
                       fn2 ? static_cast<ulint>(fn2end - fn2) : 0);
@@ -2913,36 +2919,33 @@ func_exit:
 	ut_ad(mtr.has_committed());
 }
 
-/** Reads in pages which have hashed log records, from an area around a given
-page number.
-@param[in]	page_id	page id */
+/** Read pages for which log needs to be applied.
+@param page_id	first page identifier to read
+@param i        iterator to recv_sys.pages */
 TRANSACTIONAL_TARGET
-static void recv_read_in_area(page_id_t page_id)
+static void recv_read_in_area(page_id_t page_id, recv_sys_t::map::iterator i)
 {
-	uint32_t page_nos[32];
-	page_id.set_page_no(ut_2pow_round(page_id.page_no(), 32U));
-	const uint32_t up_limit = page_id.page_no() + 32;
-	uint32_t* p = page_nos;
+  uint32_t page_nos[32];
+  ut_ad(page_id == i->first);
+  page_id.set_page_no(ut_2pow_round(page_id.page_no(), 32U));
+  const page_id_t up_limit{page_id + 31};
+  uint32_t* p= page_nos;
 
-	for (recv_sys_t::map::iterator i= recv_sys.pages.lower_bound(page_id);
-	     i != recv_sys.pages.end()
-	     && i->first.space() == page_id.space()
-	     && i->first.page_no() < up_limit; i++) {
-		if (i->second.state == page_recv_t::RECV_NOT_PROCESSED
-		    && !buf_pool.page_hash_contains(
-			    i->first,
-			    buf_pool.page_hash.cell_get(i->first.fold()))) {
-			i->second.state = page_recv_t::RECV_BEING_READ;
-			*p++ = i->first.page_no();
-		}
-	}
+  for (; i != recv_sys.pages.end() && i->first <= up_limit; i++)
+  {
+    if (i->second.state == page_recv_t::RECV_NOT_PROCESSED)
+    {
+      i->second.state= page_recv_t::RECV_BEING_READ;
+      *p++= i->first.page_no();
+    }
+  }
 
-	if (p != page_nos) {
-		mysql_mutex_unlock(&recv_sys.mutex);
-		buf_read_recv_pages(page_id.space(), page_nos,
-				    ulint(p - page_nos));
-		mysql_mutex_lock(&recv_sys.mutex);
-	}
+  if (p != page_nos)
+  {
+    mysql_mutex_unlock(&recv_sys.mutex);
+    buf_read_recv_pages(page_id.space(), page_nos, ulint(p - page_nos));
+    mysql_mutex_lock(&recv_sys.mutex);
+  }
 }
 
 /** Attempt to initialize a page based on redo log records.
@@ -3147,8 +3150,7 @@ void recv_sys_t::apply(bool last_batch)
     for (map::iterator p= pages.begin(); p != pages.end(); )
     {
       const page_id_t page_id= p->first;
-      page_recv_t &recs= p->second;
-      ut_ad(!recs.log.empty());
+      ut_ad(!p->second.log.empty());
 
       const uint32_t space_id= page_id.space();
       auto d= deferred_spaces.defers.find(space_id);
@@ -3180,7 +3182,7 @@ erase_for_space:
         continue;
       }
 
-      switch (recs.state) {
+      switch (p->second.state) {
       case page_recv_t::RECV_BEING_READ:
       case page_recv_t::RECV_BEING_PROCESSED:
         p++;
@@ -3192,33 +3194,17 @@ next_free_block:
           mysql_mutex_unlock(&mutex);
           free_block= buf_LRU_get_free_block(false);
           mysql_mutex_lock(&mutex);
-next_page:
-          p= pages.lower_bound(page_id);
-        }
-        continue;
-      case page_recv_t::RECV_NOT_PROCESSED:
-        mtr.start();
-        mtr.set_log_mode(MTR_LOG_NO_REDO);
-        if (buf_block_t *block= buf_page_get_low(page_id, 0, RW_X_LATCH,
-                                                 nullptr, BUF_GET_IF_IN_POOL,
-                                                 &mtr, nullptr, false))
-        {
-          recv_recover_page(block, mtr, p);
-          ut_ad(mtr.has_committed());
-        }
-        else
-        {
-          mtr.commit();
-          recv_read_in_area(page_id);
           break;
         }
-        map::iterator r= p++;
-        r->second.log.clear();
-        pages.erase(r);
+        ut_ad(p == pages.end() || p->first > page_id);
         continue;
+      case page_recv_t::RECV_NOT_PROCESSED:
+        recv_read_in_area(page_id, p);
       }
-
-      goto next_page;
+      p= pages.lower_bound(page_id);
+      /* Ensure that progress will be made. */
+      ut_ad(p == pages.end() || p->first > page_id ||
+            p->second.state >= page_recv_t::RECV_BEING_READ);
     }
 
     buf_pool.free_block(free_block);
@@ -4239,7 +4225,6 @@ completed:
 		err = recv_rename_files();
 	}
 	mysql_mutex_unlock(&recv_sys.mutex);
-	mysql_mutex_unlock(&log_sys.mutex);
 
 	recv_lsn_checks_on = true;
 
@@ -4251,6 +4236,7 @@ completed:
 		err = DB_CORRUPTION;
 	}
 
+	mysql_mutex_unlock(&log_sys.mutex);
 	return err;
 }
 

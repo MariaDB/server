@@ -1817,6 +1817,6 @@ bool
 dict_table_have_virtual_index(
 	dict_table_t*	table);
 
-#include "dict0dict.ic"
+#include "dict0dict.inl"
 
 #endif

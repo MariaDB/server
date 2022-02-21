@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2020, 2021, MariaDB Corporation.
+Copyright (c) 2020, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -339,6 +339,17 @@ void ssux_lock_impl<spinloop>::wake() { WakeByAddressSingle(&readers); }
 #   include <sys/futex.h>
 #   define SRW_FUTEX(a,op,n) \
     futex((volatile uint32_t*) a, FUTEX_ ## op, n, nullptr, nullptr)
+#  elif defined __FreeBSD__
+#   include <sys/types.h>
+#   include <sys/umtx.h>
+#   define FUTEX_WAKE UMTX_OP_WAKE_PRIVATE
+#   define FUTEX_WAIT UMTX_OP_WAIT_UINT_PRIVATE
+#   define SRW_FUTEX(a,op,n) _umtx_op(a, FUTEX_ ## op, n, nullptr, nullptr)
+#  elif defined __DragonFly__
+#   include <unistd.h>
+#   define FUTEX_WAKE(a,n) umtx_wakeup(a,n)
+#   define FUTEX_WAIT(a,n) umtx_sleep(a,n,0)
+#   define SRW_FUTEX(a,op,n) FUTEX_ ## op((volatile int*) a, int(n))
 #  else
 #   error "no futex support"
 #  endif
@@ -385,7 +396,7 @@ assembler code or a Microsoft intrinsic function.
 # define IF_NOT_FETCH_OR_GOTO(mem, bit, label)				\
   __asm__ goto("lock btsl $" #bit ", %0\n\t"				\
                "jnc %l1" : : "m" (mem) : "cc", "memory" : label);
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
 # define IF_FETCH_OR_GOTO(mem, bit, label)				\
   if (_interlockedbittestandset(reinterpret_cast<volatile long*>(&mem), bit)) \
     goto label;

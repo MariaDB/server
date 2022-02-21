@@ -642,8 +642,7 @@ loop:
 	}
 }
 
-/** Flush the recently written changes to the log file.
-and invoke mysql_mutex_lock(&log_sys.mutex). */
+/** Flush the recently written changes to the log file.*/
 static void log_write_flush_to_disk_low(lsn_t lsn)
 {
   if (!log_sys.log.writes_are_durable())
@@ -783,10 +782,6 @@ static void log_write(bool rotate_key)
 		start_offset - area_start);
 	srv_stats.log_padded.add(pad_size);
 	log_sys.write_lsn = write_lsn;
-	if (log_sys.log.writes_are_durable()) {
-		log_sys.set_flushed_lsn(write_lsn);
-		log_flush_notify(write_lsn);
-	}
 	return;
 }
 
@@ -827,9 +822,12 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key,
 repeat:
   lsn_t ret_lsn1= 0, ret_lsn2= 0;
 
-  if (flush_to_disk &&
-      flush_lock.acquire(lsn, callback) != group_commit_lock::ACQUIRED)
-    return;
+  if (flush_to_disk)
+  {
+    if (flush_lock.acquire(lsn, callback) != group_commit_lock::ACQUIRED)
+      return;
+    flush_lock.set_pending(log_sys.get_lsn());
+  }
 
   if (write_lock.acquire(lsn, flush_to_disk ? nullptr : callback) ==
       group_commit_lock::ACQUIRED)
@@ -837,7 +835,8 @@ repeat:
     mysql_mutex_lock(&log_sys.mutex);
     lsn_t write_lsn= log_sys.get_lsn();
     write_lock.set_pending(write_lsn);
-
+    if (flush_to_disk)
+      flush_lock.set_pending(write_lsn);
     log_write(rotate_key);
 
     ut_a(log_sys.write_lsn == write_lsn);

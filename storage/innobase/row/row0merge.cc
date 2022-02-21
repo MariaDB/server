@@ -2001,8 +2001,8 @@ scan_next:
 				/* Restore position on the record, or its
 				predecessor if the record was purged
 				meanwhile. */
-				btr_pcur_restore_position(
-					BTR_SEARCH_LEAF, &pcur, &mtr);
+				pcur.restore_position(
+					BTR_SEARCH_LEAF, &mtr);
 				/* Move to the successor of the
 				original record. */
 				if (!btr_pcur_move_to_next_user_rec(
@@ -2545,9 +2545,8 @@ write_buffers:
 						overflow). */
 						mtr.start();
 						mtr_started = true;
-						btr_pcur_restore_position(
-							BTR_SEARCH_LEAF, &pcur,
-							&mtr);
+						pcur.restore_position(
+							BTR_SEARCH_LEAF, &mtr);
 						buf = row_merge_buf_empty(buf);
 						merge_buf[i] = buf;
 						/* Restart the outer loop on the

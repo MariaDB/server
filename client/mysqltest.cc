@@ -156,6 +156,7 @@ static struct property prop_list[] = {
   { &display_session_track_info, 0, 1, 1, "$ENABLED_STATE_CHANGE_INFO" },
   { &display_metadata, 0, 0, 0, "$ENABLED_METADATA" },
   { &ps_protocol_enabled, 0, 0, 0, "$ENABLED_PS_PROTOCOL" },
+  { &view_protocol_enabled, 0, 0, 0, "$ENABLED_VIEW_PROTOCOL"},
   { &disable_query_log, 0, 0, 1, "$ENABLED_QUERY_LOG" },
   { &disable_result_log, 0, 0, 1, "$ENABLED_RESULT_LOG" },
   { &disable_warnings, 0, 0, 1, "$ENABLED_WARNINGS" }
@@ -170,6 +171,7 @@ enum enum_prop {
   P_SESSION_TRACK,
   P_META,
   P_PS,
+  P_VIEW,
   P_QUERY,
   P_RESULT,
   P_WARN,
@@ -375,6 +377,7 @@ enum enum_commands {
   Q_LOWERCASE,
   Q_START_TIMER, Q_END_TIMER,
   Q_CHARACTER_SET, Q_DISABLE_PS_PROTOCOL, Q_ENABLE_PS_PROTOCOL,
+  Q_DISABLE_VIEW_PROTOCOL, Q_ENABLE_VIEW_PROTOCOL,
   Q_ENABLE_NON_BLOCKING_API, Q_DISABLE_NON_BLOCKING_API,
   Q_DISABLE_RECONNECT, Q_ENABLE_RECONNECT,
   Q_IF,
@@ -462,6 +465,8 @@ const char *command_names[]=
   "character_set",
   "disable_ps_protocol",
   "enable_ps_protocol",
+  "disable_view_protocol",
+  "enable_view_protocol",
   "enable_non_blocking_api",
   "disable_non_blocking_api",
   "disable_reconnect",
@@ -1387,6 +1392,16 @@ void close_connections()
   DBUG_VOID_RETURN;
 }
 
+void close_util_connections()
+{
+  DBUG_ENTER("close_util_connections");
+  if (cur_con->util_mysql)
+  {
+    mysql_close(cur_con->util_mysql);
+    cur_con->util_mysql = 0;
+  }
+  DBUG_VOID_RETURN;
+}
 
 void close_statements()
 {
@@ -9719,6 +9734,14 @@ int main(int argc, char **argv)
         break;
       case Q_ENABLE_PS_PROTOCOL:
         set_property(command, P_PS, ps_protocol);
+        break;
+      case Q_DISABLE_VIEW_PROTOCOL:
+        set_property(command, P_VIEW, 0);
+        /* Close only util connections */
+        close_util_connections();
+        break;
+      case Q_ENABLE_VIEW_PROTOCOL:
+        set_property(command, P_VIEW, view_protocol);
         break;
       case Q_DISABLE_NON_BLOCKING_API:
         non_blocking_api_enabled= 0;

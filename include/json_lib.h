@@ -222,6 +222,7 @@ typedef struct st_json_engine_t
 
   int stack[JSON_DEPTH_LIMIT]; /* Keeps the stack of nested JSON structures. */
   int stack_p;                 /* The 'stack' pointer. */
+  volatile uchar *killed_ptr;
 } json_engine_t;
 
 

@@ -204,7 +204,7 @@ static const uchar sort_order_eucjpms[]=
 #define IS_MB3_CHAR(x,y,z)    (iseucjpms_ss3(x) && IS_MB2_JIS(y,z))
 #define IS_MB_PREFIX2(x,y)    (iseucjpms_ss3(x) && iseucjpms(y))
 #define DEFINE_ASIAN_ROUTINES
-#include "ctype-mb.ic"
+#include "ctype-mb.inl"
 
 #define MY_FUNCTION_NAME(x)  my_ ## x ## _eucjpms_japanese_ci
 #define WEIGHT_ILSEQ(x)      (0xFF0000 + (uchar) (x))
@@ -212,7 +212,7 @@ static const uchar sort_order_eucjpms[]=
 #define WEIGHT_MB2(x,y)      ((((uint) (uchar)(x)) << 16) | \
                              (((uint) (uchar) (y)) <<  8))
 #define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define MY_FUNCTION_NAME(x)  my_ ## x ## _eucjpms_bin
@@ -221,7 +221,7 @@ static const uchar sort_order_eucjpms[]=
 #define WEIGHT_MB2(x,y)      ((((uint) (uchar)(x)) << 16) | \
                              (((uint) (uchar) (y)) <<  8))
 #define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -231,7 +231,7 @@ static const uchar sort_order_eucjpms[]=
 #define WEIGHT_MB2(x,y)      ((((uint) (uchar)(x)) << 16) | \
                              (((uint) (uchar) (y)) <<  8))
 #define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 #define DEFINE_STRNNCOLLSP_NOPAD
@@ -241,7 +241,7 @@ static const uchar sort_order_eucjpms[]=
 #define WEIGHT_MB2(x,y)      ((((uint) (uchar)(x)) << 16) | \
                              (((uint) (uchar) (y)) <<  8))
 #define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
-#include "strcoll.ic"
+#include "strcoll.inl"
 
 
 /* Case info pages for JIS-X-0208 range */
@@ -67498,6 +67498,7 @@ static MY_COLLATION_HANDLER my_collation_eucjpms_japanese_ci_handler =
     NULL,		/* init */
     my_strnncoll_eucjpms_japanese_ci,
     my_strnncollsp_eucjpms_japanese_ci,
+    my_strnncollsp_nchars_eucjpms_japanese_ci,
     my_strnxfrm_mb,	/* strnxfrm     */
     my_strnxfrmlen_simple,
     my_like_range_mb,   /* like_range   */
@@ -67516,6 +67517,7 @@ static MY_COLLATION_HANDLER my_collation_eucjpms_bin_handler =
     NULL,		/* init */
     my_strnncoll_eucjpms_bin,
     my_strnncollsp_eucjpms_bin,
+    my_strnncollsp_nchars_eucjpms_bin,
     my_strnxfrm_mb,
     my_strnxfrmlen_simple,
     my_like_range_mb,
@@ -67534,6 +67536,7 @@ static MY_COLLATION_HANDLER my_collation_eucjpms_japanese_nopad_ci_handler =
     NULL,		/* init */
     my_strnncoll_eucjpms_japanese_ci,
     my_strnncollsp_eucjpms_japanese_nopad_ci,
+    my_strnncollsp_nchars_eucjpms_japanese_nopad_ci,
     my_strnxfrm_mb_nopad,	/* strnxfrm     */
     my_strnxfrmlen_simple,
     my_like_range_mb,   /* like_range   */
@@ -67552,6 +67555,7 @@ static MY_COLLATION_HANDLER my_collation_eucjpms_nopad_bin_handler =
     NULL,		/* init */
     my_strnncoll_eucjpms_bin,
     my_strnncollsp_eucjpms_nopad_bin,
+    my_strnncollsp_nchars_eucjpms_nopad_bin,
     my_strnxfrm_mb_nopad,
     my_strnxfrmlen_simple,
     my_like_range_mb,

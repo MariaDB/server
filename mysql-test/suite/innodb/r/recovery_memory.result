@@ -1,0 +1,12 @@
+CREATE TABLE t1(c TEXT, KEY(c(3072)))ENGINE=InnoDB;
+CREATE PROCEDURE dorepeat()
+LOOP
+INSERT INTO t1 VALUES ('abc');
+UPDATE t1 SET c='cba';
+END LOOP
+|
+connect con1,localhost,root,,,;
+CALL dorepeat();
+connection default;
+# restart: --innodb_buffer_pool_size=5242880
+DROP TABLE t1;

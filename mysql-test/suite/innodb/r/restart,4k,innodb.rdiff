@@ -1,0 +1,16 @@
+--- ./suite/innodb/r/restart.result	2022-01-18 20:36:56.054653376 +1100
++++ suite/innodb/r/restart.reject	2022-01-19 08:13:56.397475513 +1100
+@@ -32,10 +32,10 @@
+ SELECT @@innodb_buffer_pool_size INTO @innodb_buffer_pool_size_orig;
+ SELECT CEILING((256 + 64) * @@innodb_page_size / 1048576) * 1048576 INTO @min_pool_size;
+ EXECUTE IMMEDIATE 'SET GLOBAL innodb_buffer_pool_size = ?' USING (@min_pool_size -1);
+-ERROR 42000: Variable 'innodb_buffer_pool_size' can't be set to the value of 'WRONG_VALUE'
++ERROR 42000: Variable 'innodb_buffer_pool_size' can't be set to the value of '2097151'
+ SHOW WARNINGS;
+ Level	Code	Message
+-Warning	1210	innodb_buffer_pool_size must be at least MIN_VAL for innodb_page_size=PAGE_SIZE
+-Error	1231	Variable 'innodb_buffer_pool_size' can't be set to the value of 'WRONG_VALUE'
++Warning	1210	innodb_buffer_pool_size must be at least 2097152 for innodb_page_size=4096
++Error	1231	Variable 'innodb_buffer_pool_size' can't be set to the value of '2097151'
+ EXECUTE IMMEDIATE 'SET GLOBAL innodb_buffer_pool_size = ?' USING (@min_pool_size);
+ SET GLOBAL innodb_buffer_pool_size = @innodb_buffer_pool_size_orig;

@@ -132,6 +132,6 @@ ha_storage_get_size(
 /*================*/
 	const ha_storage_t*	storage);	/*!< in: hash storage */
 
-#include "ha0storage.ic"
+#include "ha0storage.inl"
 
 #endif /* ha0storage_h */

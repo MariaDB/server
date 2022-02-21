@@ -1921,3 +1921,28 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 DROP TABLE t1;
 
 
+--echo #
+--echo # Beginning of 10.2 test
+--echo #
+--echo # MDEV-25460: Assertion `!is_set() || (m_status == DA_OK_BULK &&
+--echo # is_bulk_op())' failed in Diagnostics_area::set_ok_status in my_ok
+--echo # from mysql_sql_stmt_prepare
+--echo #
+
+CREATE TEMPORARY TABLE a (c INT) ENGINE=InnoDB;
+CREATE TABLE b (c INT) ENGINE=InnoDB;
+
+--error ER_TEMP_TABLE_PREVENTS_SWITCH_OUT_OF_RBR
+PREPARE s FROM 'SET STATEMENT binlog_format=ROW FOR SELECT * FROM b';
+
+DROP TABLE b;
+DROP TEMPORARY TABLE a;
+
+CREATE TEMPORARY TABLE t (c INT);
+--error ER_TEMP_TABLE_PREVENTS_SWITCH_OUT_OF_RBR
+PREPARE s FROM 'SET STATEMENT binlog_format=ROW FOR SELECT 1';
+DROP TEMPORARY TABLE t;
+
+--echo #
+--echo # End of 10.2 test
+--echo #

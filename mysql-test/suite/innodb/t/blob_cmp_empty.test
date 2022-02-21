@@ -1,0 +1,26 @@
+--source include/innodb_row_format.inc
+--source include/count_sessions.inc
+--connect(prevent_purge,localhost,root,,)
+start transaction with consistent snapshot;
+
+--connection default
+SET @fill_amount = (@@innodb_page_size / 2 ) + 1;
+CREATE TABLE t1 (col_text TEXT NOT NULL, KEY (col_text(9))) ENGINE=InnoDB;
+
+INSERT INTO t1 (col_text) VALUES (REPEAT('x', @fill_amount));
+UPDATE t1 SET col_text='';
+UPDATE t1 SET col_text=REPEAT('y', @fill_amount);
+
+--connect(con1,localhost,root,,)
+SET @fill_amount = (@@innodb_page_size / 2 ) + 1;
+BEGIN;
+INSERT INTO t1 (col_text) VALUES (REPEAT('z', @fill_amount));
+
+--connection default
+# If the bug is not fixed, CHECK TABLE will complain about wrong secondary index
+# rows count
+CHECK TABLE t1;
+--disconnect con1
+--disconnect prevent_purge
+DROP TABLE t1;
+--source include/wait_until_count_sessions.inc

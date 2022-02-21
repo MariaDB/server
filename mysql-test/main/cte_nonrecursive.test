@@ -1637,6 +1637,42 @@ select * from t1;
 
 drop table t1,t2;
 
+--echo #
+--echo # MDEV-25766: Unused CTE lead to a crash in
+--echo # find_field_in_tables/find_order_in_list
+--echo #
+
+create table t1 (f1 INTEGER);
+
+create view v1 as
+select
+    subq_0.c4 as c2,
+    subq_0.c4 as c4
+  from
+    (select
+          ref_0.f1 as c4
+        from
+          t1 as ref_0
+        where (select 1)
+        ) as subq_0
+  order by c2, c4 desc;
+
+WITH
+unused_with AS (select
+    subq_0.c4 as c6
+  from
+    (select
+            11 as c4
+          from
+            v1 as ref_0
+     ) as subq_0,
+     v1 as ref_2
+)
+select 1 ;
+
+drop view v1;
+drop table t1;
+
 --echo # End of 10.2 tests
 
 --echo #

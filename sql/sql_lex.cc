@@ -4965,7 +4965,21 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
       }
       if (empty_union_result)
         subquery_predicate->no_rows_in_result();
-      if (!is_correlated_unit)
+
+      if (is_correlated_unit)
+      {
+        /*
+          Some parts of UNION are not correlated. This means we will need to
+          re-execute the whole UNION every time. Mark all parts of the UNION
+          as correlated so that they are prepared to be executed multiple
+          times (if we don't do that, some part of the UNION may free its
+          execution data at the end of first execution and crash on the second
+          execution)
+        */
+        for (SELECT_LEX *sl= un->first_select(); sl; sl= sl->next_select())
+          sl->uncacheable |= UNCACHEABLE_DEPENDENT;
+      }
+      else
         un->uncacheable&= ~UNCACHEABLE_DEPENDENT;
       subquery_predicate->is_correlated= is_correlated_unit;
     }
@@ -5902,18 +5916,19 @@ void LEX::free_arena_for_set_stmt()
   DBUG_VOID_RETURN;
 }
 
-void LEX::restore_set_statement_var()
+bool LEX::restore_set_statement_var()
 {
+  bool err= false;
   DBUG_ENTER("LEX::restore_set_statement_var");
   if (!old_var_list.is_empty())
   {
     DBUG_PRINT("info", ("vars: %d", old_var_list.elements));
-    sql_set_variables(thd, &old_var_list, false);
+    err= sql_set_variables(thd, &old_var_list, false);
     old_var_list.empty();
     free_arena_for_set_stmt();
   }
   DBUG_ASSERT(!is_arena_for_set_stmt());
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(err);
 }
 
 unit_common_op st_select_lex_unit::common_op()

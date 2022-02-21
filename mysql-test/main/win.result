@@ -4199,6 +4199,38 @@ drop procedure sp7;
 drop view v1,v2;
 drop table t1;
 #
+# MDEV-17785: Window functions not working in ONLY_FULL_GROUP_BY mode
+#
+CREATE TABLE t1(a VARCHAR(10), b int);
+INSERT INTO t1 VALUES
+('Maths', 60),('Maths', 60),
+('Maths', 70),('Maths', 55),
+('Biology', 60), ('Biology', 70);
+SET @save_sql_mode= @@sql_mode;
+SET sql_mode = 'ONLY_FULL_GROUP_BY';
+SELECT
+RANK() OVER (PARTITION BY a ORDER BY b) AS rank,
+a, b FROM t1 ORDER BY a, b DESC;
+rank	a	b
+2	Biology	70
+1	Biology	60
+4	Maths	70
+2	Maths	60
+2	Maths	60
+1	Maths	55
+SET sql_mode= @save_sql_mode;
+DROP TABLE t1;
+CREATE TABLE t1(i int,j int);
+INSERT INTO t1 VALUES (1,1), (1,5),(1,4), (2,2),(2,5), (3,3),(4,4);
+INSERT INTO t1 VALUES (1,1), (1,5),(1,4), (2,2),(2,5), (3,3),(4,4);
+SELECT i, LAST_VALUE(COUNT(i)) OVER (PARTITION BY i ORDER BY j) FROM t1 GROUP BY i;
+i	LAST_VALUE(COUNT(i)) OVER (PARTITION BY i ORDER BY j)
+1	6
+2	4
+3	2
+4	2
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #
 #

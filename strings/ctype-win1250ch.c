@@ -678,6 +678,7 @@ static MY_COLLATION_HANDLER my_collation_czech_cs_handler =
   NULL,				/* init */
   my_strnncoll_win1250ch,
   my_strnncollsp_win1250ch,
+  my_strnncollsp_nchars_generic_8bit,
   my_strnxfrm_win1250ch,
   my_strnxfrmlen_simple,
   my_like_range_win1250ch,

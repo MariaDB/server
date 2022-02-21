@@ -1,5 +1,5 @@
-/* Copyright 2008-2021 Codership Oy <http://www.codership.com>
-   Copyright (c) 2020, 2021, MariaDB
+/* Copyright (c) 2008, 2022 Codership Oy <http://www.codership.com>
+   Copyright (c) 2020, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -329,7 +329,6 @@ void WSREP_LOG(void (*fun)(const char* fmt, ...), const char* fmt, ...)
 
 wsrep_uuid_t               local_uuid       = WSREP_UUID_UNDEFINED;
 wsrep_seqno_t              local_seqno      = WSREP_SEQNO_UNDEFINED;
-wsp::node_status           local_status;
 
 /*
  */
@@ -804,7 +803,6 @@ int wsrep_init_server()
 
 void wsrep_init_globals()
 {
-  wsrep_gtid_server.domain_id= wsrep_gtid_domain_id;
   wsrep_init_sidno(Wsrep_server_state::instance().connected_gtid().id());
   /* Recover last written wsrep gtid */
   wsrep_init_gtid();
@@ -818,6 +816,13 @@ void wsrep_init_globals()
     /* Try to search for domain_id and server_id combination in binlog if found continue from last seqno */
     wsrep_get_binlog_gtid_seqno(new_gtid);
     wsrep_gtid_server.gtid(new_gtid);
+  }
+  else
+  {
+    if (wsrep_gtid_mode && wsrep_gtid_server.server_id != global_system_variables.server_id)
+    {
+      WSREP_WARN("Ignoring server id for non bootstrap node.");
+    }
   }
   wsrep_init_schema();
   if (WSREP_ON)
@@ -1143,6 +1148,15 @@ bool wsrep_start_replication(const char *wsrep_cluster_address)
   }
 
   DBUG_ASSERT(wsrep_cluster_address[0]);
+
+  // --wsrep-new-cluster flag is not used, checking wsrep_cluster_address
+  // it should match gcomm:// only to be considered as bootstrap node.
+  // This logic is used in galera.
+  if (!wsrep_new_cluster && (strlen(wsrep_cluster_address) == 8) &&
+      !strncmp(wsrep_cluster_address, "gcomm://", 8))
+  {
+    wsrep_new_cluster= true;
+  }
 
   bool const bootstrap(TRUE == wsrep_new_cluster);
 
@@ -1608,14 +1622,23 @@ wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* key
     bool fail= false;
     TABLE_LIST *table;
 
+    for (table= tables; table; table= table->next_local)
+    {
+      if (is_temporary_table(table))
+      {
+        WSREP_DEBUG("Temporary table %s.%s already opened query=%s", table->db.str,
+                    table->table_name.str, wsrep_thd_query(thd));
+	return false;
+      }
+    }
+
     thd->release_transactional_locks();
     uint counter;
     MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
-    if (thd->open_temporary_tables(tables) ||
-         open_tables(thd, &tables, &counter, MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL))
+    if (open_tables(thd, &tables, &counter, MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL))
     {
-      WSREP_DEBUG("unable to open table for FK checks for %s", thd->query());
+      WSREP_DEBUG("Unable to open table for FK checks for %s", wsrep_thd_query(thd));
       fail= true;
       goto exit;
     }
@@ -3285,21 +3308,17 @@ bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
   }
   else
   {
-    /* here we have CREATE TABLE LIKE <temporary table>
-       the temporary table definition will be needed in slaves to
-       enable the create to succeed
-     */
-    TABLE_LIST tbl;
-    bzero((void*) &tbl, sizeof(tbl));
-    tbl.db= src_table->db;
-    tbl.table_name= tbl.alias= src_table->table_name;
-    tbl.table= src_table->table;
+    /* Non-MERGE tables ignore this call. */
+    if (src_table->table->file->extra(HA_EXTRA_ADD_CHILDREN_LIST))
+      return (true);
+
     char buf[2048];
     String query(buf, sizeof(buf), system_charset_info);
     query.length(0);  // Have to zero it since constructor doesn't
 
-    (void)  show_create_table(thd, &tbl, &query, NULL, WITH_DB_NAME);
-    WSREP_DEBUG("TMP TABLE: %s", query.ptr());
+    int result __attribute__((unused))=
+      show_create_table(thd, src_table, &query, NULL, WITH_DB_NAME);
+    WSREP_DEBUG("TMP TABLE: %s ret_code %d", query.ptr(), result);
 
     thd->wsrep_TOI_pre_query=     query.ptr();
     thd->wsrep_TOI_pre_query_len= query.length();
@@ -3308,6 +3327,9 @@ bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
 
     thd->wsrep_TOI_pre_query=      NULL;
     thd->wsrep_TOI_pre_query_len= 0;
+
+    /* Non-MERGE tables ignore this call. */
+    src_table->table->file->extra(HA_EXTRA_DETACH_CHILDREN);
   }
 
   return(false);

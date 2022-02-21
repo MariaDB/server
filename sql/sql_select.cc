@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1730,7 +1730,8 @@ bool JOIN::prepare_stage2()
 #endif
   if (select_lex->olap == ROLLUP_TYPE && rollup_init())
     goto err;
-  if (alloc_func_list())
+  if (alloc_func_list() ||
+      make_sum_func_list(all_fields, fields_list, false))
     goto err;
 
   res= FALSE;
@@ -2361,7 +2362,21 @@ JOIN::optimize_inner()
       If all items were resolved by opt_sum_query, there is no need to
       open any tables.
     */
-    if ((res=opt_sum_query(thd, select_lex->leaf_tables, all_fields, conds)))
+
+    /*
+      The following resetting and restoring of sum_funcs is needed to
+      go around a bug in spider where it assumes that
+      make_sum_func_list() has not been called yet and do logical
+      choices based on this if special handling of min/max functions should
+      be done. We disable this special handling while we are trying to find
+      out if we can replace MIN/MAX values with constants.
+    */
+    Item_sum **save_func_sums= sum_funcs, *tmp_sum_funcs= 0;
+    sum_funcs= &tmp_sum_funcs;
+    res= opt_sum_query(thd, select_lex->leaf_tables, all_fields, conds);
+    sum_funcs= save_func_sums;
+
+    if (res)
     {
       DBUG_ASSERT(res >= 0);
       if (res == HA_ERR_KEY_NOT_FOUND)
@@ -2961,18 +2976,14 @@ int JOIN::optimize_stage2()
   }
 
   /*
-    Remove ORDER BY in the following cases:
-    - GROUP BY is more specific. Example GROUP BY a, b ORDER BY a
-    - If there are aggregate functions and no GROUP BY, this always leads
-      to one row result, no point in sorting.
+    We can ignore ORDER BY if it's a prefix of the GROUP BY list
+    (as MariaDB is by default sorting on GROUP BY) or
+    if there is no GROUP BY and aggregate functions are used
+    (as the result will only contain one row).
   */
-  if (test_if_subpart(group_list, order) ||
-      (!group_list && tmp_table_param.sum_func_count))
-  {
-    order= 0;
-    if (is_indexed_agg_distinct(this, NULL))
-      sort_and_group= 0;
-  }
+  if (order && (test_if_subpart(group_list, order) ||
+                (!group_list && tmp_table_param.sum_func_count)))
+    order=0;
 
   // Can't use sort on head table if using join buffering
   if (full_join || hash_join)
@@ -3003,7 +3014,6 @@ int JOIN::optimize_stage2()
   */
   if (select_lex->have_window_funcs())
     simple_order= FALSE;
-
 
   /*
     If the hint FORCE INDEX FOR ORDER BY/GROUP BY is used for the table
@@ -3263,6 +3273,14 @@ setup_subq_exit:
       need_tmp= 1;
     }
     if (make_aggr_tables_info())
+      DBUG_RETURN(1);
+
+    /*
+      It could be that we've only done optimization stage 1 for
+      some of the derived tables, and never did stage 2.
+      Do it now, otherwise Explain data structure will not be complete.
+    */
+    if (select_lex->handle_derived(thd->lex, DT_OPTIMIZE))
       DBUG_RETURN(1);
   }
   /*
@@ -3729,7 +3747,7 @@ bool JOIN::make_aggr_tables_info()
       // for the first table
       if (group_list || tmp_table_param.sum_func_count)
       {
-        if (make_sum_func_list(*curr_all_fields, *curr_fields_list, true, true))
+        if (make_sum_func_list(*curr_all_fields, *curr_fields_list, true))
           DBUG_RETURN(true);
         if (prepare_sum_aggregators(thd, sum_funcs,
                                     !join_tab->is_using_agg_loose_index_scan()))
@@ -3839,7 +3857,7 @@ bool JOIN::make_aggr_tables_info()
       last_tab->all_fields= &tmp_all_fields3;
       last_tab->fields= &tmp_fields_list3;
     }
-    if (make_sum_func_list(*curr_all_fields, *curr_fields_list, true, true))
+    if (make_sum_func_list(*curr_all_fields, *curr_fields_list, true))
       DBUG_RETURN(true);
     if (prepare_sum_aggregators(thd, sum_funcs,
                                 !join_tab ||
@@ -4056,8 +4074,6 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   }
   else
   {
-    if (make_sum_func_list(all_fields, fields_list, false))
-      goto err;
     if (prepare_sum_aggregators(thd, sum_funcs,
                                 !join_tab->is_using_agg_loose_index_scan()))
       goto err;
@@ -7309,8 +7325,7 @@ void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array)
   Check for the presence of AGGFN(DISTINCT a) queries that may be subject
   to loose index scan.
 
-
-  Check if the query is a subject to AGGFN(DISTINCT) using loose index scan 
+  Check if the query is a subject to AGGFN(DISTINCT) using loose index scan
   (QUICK_GROUP_MIN_MAX_SELECT).
   Optionally (if out_args is supplied) will push the arguments of 
   AGGFN(DISTINCT) to the list
@@ -7343,12 +7358,9 @@ is_indexed_agg_distinct(JOIN *join, List<Item_field> *out_args)
   Item_sum **sum_item_ptr;
   bool result= false;
 
-  if (join->table_count != 1 ||                    /* reference more than 1 table */
+  if (join->table_count != 1 ||               /* reference more than 1 table */
       join->select_distinct ||                /* or a DISTINCT */
       join->select_lex->olap == ROLLUP_TYPE)  /* Check (B3) for ROLLUP */
-    return false;
-
-  if (join->make_sum_func_list(join->all_fields, join->fields_list, true))
     return false;
 
   Bitmap<MAX_FIELDS> first_aggdistinct_fields;
@@ -7452,16 +7464,23 @@ add_group_and_distinct_keys(JOIN *join, JOIN_TAB *join_tab)
     while ((item= select_items_it++))
       item->walk(&Item::collect_item_field_processor, 0, &indexed_fields);
   }
-  else if (join->tmp_table_param.sum_func_count &&
-           is_indexed_agg_distinct(join, &indexed_fields))
+  else if (!join->tmp_table_param.sum_func_count ||
+           !is_indexed_agg_distinct(join, &indexed_fields))
   {
-    join->sort_and_group= 1;
-  }
-  else
+    /*
+      There where no GROUP BY fields and also either no aggregate
+      functions or not all aggregate functions where used with the
+      same DISTINCT (or MIN() / MAX() that works similarly).
+      Nothing to do there.
+    */
     return;
+  }
 
   if (indexed_fields.elements == 0)
+  {
+    /* There where no index we could use to satisfy the GROUP BY */
     return;
+  }
 
   /* Intersect the keys of all group fields. */
   cur_item= indexed_fields_it++;
@@ -10712,7 +10731,10 @@ bool JOIN::get_best_combination()
   if (!(join_tab= (JOIN_TAB*) thd->alloc(sizeof(JOIN_TAB)*
                                         (top_join_tab_count + aggr_tables))))
     DBUG_RETURN(TRUE);
-   
+
+  if (inject_splitting_cond_for_all_tables_with_split_opt())
+    DBUG_RETURN(TRUE);
+
   JOIN_TAB_RANGE *root_range;
   if (!(root_range= new (thd->mem_root) JOIN_TAB_RANGE))
     DBUG_RETURN(TRUE);
@@ -14762,8 +14784,6 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
     DBUG_RETURN(0);
   }
 
-  join->join_free();
-
   if (send_row)
   {
     /*
@@ -14810,6 +14830,14 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
     if (likely(!send_error))
       result->send_eof();				// Should be safe
   }
+  /*
+    JOIN::join_free() must be called after the virtual method
+    select::send_result_set_metadata() returned control since
+    implementation of this method could use data strutcures
+    that are released by the method JOIN::join_free().
+  */
+  join->join_free();
+
   DBUG_RETURN(0);
 }
 
@@ -18541,7 +18569,7 @@ Field *create_tmp_field(TABLE *table, Item *item,
                       make_copy_field);
   Field *result= item->create_tmp_field_ex(table->in_use->mem_root,
                                            table, &src, &prm);
-  if (item->is_json_type() && make_json_valid_expr(table, result))
+  if (is_json_type(item) && make_json_valid_expr(table, result))
     result= NULL;
 
   *from_field= src.field();
@@ -18989,7 +19017,7 @@ bool Create_tmp_table::add_fields(THD *thd,
                          item->marker == MARKER_NULL_KEY ||
                          param->bit_fields_as_long,
                          param->force_copy_fields);
-      if (!new_field)
+      if (unlikely(!new_field))
       {
         if (unlikely(thd->is_fatal_error))
           goto err;                             // Got OOM
@@ -19584,16 +19612,7 @@ bool Create_tmp_table::add_schema_fields(THD *thd, TABLE *table,
       DBUG_RETURN(true); // EOM
     }
     field->init(table);
-    switch (def.def()) {
-    case DEFAULT_NONE:
-      field->flags|= NO_DEFAULT_VALUE_FLAG;
-      break;
-    case DEFAULT_TYPE_IMPLICIT:
-      break;
-    default:
-      DBUG_ASSERT(0);
-      break;
-    }
+    field->flags|= NO_DEFAULT_VALUE_FLAG;
     add_field(table, field, fieldnr, param->force_not_null_cols);
   }
 
@@ -21329,11 +21348,8 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
       */
       if (shortcut_for_distinct && found_records != join->found_records)
         DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
-    }
-    else
-    {
-      join->thd->get_stmt_da()->inc_current_row_for_warning();
-      join_tab->read_record.unlock_row(join_tab);
+
+      DBUG_RETURN(NESTED_LOOP_OK);
     }
   }
   else
@@ -21343,9 +21359,11 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
       with the beginning coinciding with the current partial join.
     */
     join->join_examined_rows++;
-    join->thd->get_stmt_da()->inc_current_row_for_warning();
-    join_tab->read_record.unlock_row(join_tab);
   }
+
+  join->thd->get_stmt_da()->inc_current_row_for_warning();
+  join_tab->read_record.unlock_row(join_tab);
+
   DBUG_RETURN(NESTED_LOOP_OK);
 }
 
@@ -23147,21 +23165,6 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
 	test_if_ref(root_cond, (Item_field*) right_item,left_item))
     {
       cond->marker= MARKER_CHECK_ON_READ;	// Checked when read
-      return (COND*) 0;
-    }
-    /*
-      If cond is an equality injected for split optimization then
-      a. when retain_ref_cond == false : cond is removed unconditionally
-         (cond that supports ref access is removed by the preceding code)
-      b. when retain_ref_cond == true : cond is removed if it does not
-         support ref access
-    */
-    if (left_item->type() == Item::FIELD_ITEM &&
-        is_eq_cond_injected_for_split_opt((Item_func_eq *) cond) &&
-        (!retain_ref_cond ||
-         !test_if_ref(root_cond, (Item_field*) left_item,right_item)))
-    {
-      cond->marker= MARKER_CHECK_ON_READ;
       return (COND*) 0;
     }
   }
@@ -25965,15 +25968,12 @@ bool JOIN::alloc_func_list()
 
 bool JOIN::make_sum_func_list(List<Item> &field_list,
                               List<Item> &send_result_set_metadata,
-			      bool before_group_by, bool recompute)
+			      bool before_group_by)
 {
   List_iterator_fast<Item> it(field_list);
   Item_sum **func;
   Item *item;
   DBUG_ENTER("make_sum_func_list");
-
-  if (*sum_funcs && !recompute)
-    DBUG_RETURN(FALSE); /* We have already initialized sum_funcs. */
 
   func= sum_funcs;
   while ((item=it++))
@@ -26121,7 +26121,7 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   Change all funcs to be fields in tmp table.
 
   @param thd                   THD pointer
-  @param ref_pointer_array     array of pointers to top elements of filed list
+  @param ref_pointer_array     array of pointers to top elements of field list
   @param res_selected_fields   new list of items of select item list
   @param res_all_fields        new list of all items
   @param elements              number of elements in select item list
@@ -29522,6 +29522,12 @@ AGGR_OP::end_send()
   table->reginfo.lock_type= TL_UNLOCK;
 
   bool in_first_read= true;
+
+  /*
+     Reset the counter before copying rows from internal temporary table to
+     INSERT table.
+  */
+  join_tab->join->thd->get_stmt_da()->reset_current_row_for_warning();
   while (rc == NESTED_LOOP_OK)
   {
     int error;

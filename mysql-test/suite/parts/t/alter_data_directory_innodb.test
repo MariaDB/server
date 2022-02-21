@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_partition.inc
+--source include/have_symlink.inc
 
 --echo #
 --echo # MDEV-15953 Alter InnoDB Partitioned Table Moves Files (which were originally not in the datadir) to the datadir

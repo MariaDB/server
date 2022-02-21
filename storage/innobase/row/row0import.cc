@@ -1362,15 +1362,7 @@ row_import::match_schema(
 {
 	/* Do some simple checks. */
 
-	if (m_table->n_cols != m_n_cols) {
-		ib_errf(thd, IB_LOG_LEVEL_ERROR, ER_TABLE_SCHEMA_MISMATCH,
-			"Number of columns don't match, table has %u "
-			"columns but the tablespace meta-data file has "
-			ULINTPF " columns",
-			m_table->n_cols, m_n_cols);
-
-		return(DB_ERROR);
-	} else if (UT_LIST_GET_LEN(m_table->indexes) != m_n_indexes) {
+	if (UT_LIST_GET_LEN(m_table->indexes) != m_n_indexes) {
 
 		/* If the number of indexes don't match then it is better
 		to abort the IMPORT. It is easy for the user to create a
@@ -1583,7 +1575,7 @@ IndexPurge::next() UNIV_NOTHROW
 
 	mtr_set_log_mode(&m_mtr, MTR_LOG_NO_REDO);
 
-	btr_pcur_restore_position(BTR_MODIFY_LEAF, &m_pcur, &m_mtr);
+	m_pcur.restore_position(BTR_MODIFY_LEAF, &m_mtr);
 	/* The following is based on btr_pcur_move_to_next_user_rec(). */
 	m_pcur.old_stored = false;
 	ut_ad(m_pcur.latch_mode == BTR_MODIFY_LEAF);
@@ -1659,8 +1651,7 @@ IndexPurge::purge_pessimistic_delete() UNIV_NOTHROW
 {
 	dberr_t	err;
 
-	btr_pcur_restore_position(BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-				  &m_pcur, &m_mtr);
+	m_pcur.restore_position(BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE, &m_mtr);
 
 	ut_ad(rec_get_deleted_flag(
 			btr_pcur_get_rec(&m_pcur),
@@ -1688,7 +1679,7 @@ IndexPurge::purge() UNIV_NOTHROW
 
 	mtr_set_log_mode(&m_mtr, MTR_LOG_NO_REDO);
 
-	btr_pcur_restore_position(BTR_MODIFY_LEAF, &m_pcur, &m_mtr);
+	m_pcur.restore_position(BTR_MODIFY_LEAF, &m_mtr);
 }
 
 /** Adjust the BLOB reference for a single column that is externally stored
@@ -3253,7 +3244,10 @@ static dberr_t handle_instant_metadata(dict_table_t *table,
     }
 
     mem_heap_t *heap= NULL;
-    SCOPE_EXIT([&heap]() { mem_heap_free(heap); });
+    SCOPE_EXIT([&heap]() {
+      if (heap)
+        mem_heap_free(heap);
+    });
 
     while (btr_page_get_level(page.get()) != 0)
     {
