@@ -1,0 +1,51 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+wsrep_sst_method=mariabackup
+wsrep_sst_auth="root:"
+wsrep_debug=1
+
+# Set non-standard parameters:
+innodb-compression-algorithm = none
+innodb-page-size = 8k
+log-slave-updates = ON
+
+# Let's check that these parameters will be overridden by settings
+# in the specific sections below:
+datadir = @ENV.MYSQLTEST_VARDIR/bug_1
+log-bin = @ENV.MYSQLTEST_VARDIR/bug_2
+log-bin-index = @ENV.MYSQLTEST_VARDIR/bug_3
+innodb-data-home-dir = @ENV.MYSQLTEST_VARDIR/bug_4
+innodb-log-group-home-dir = @ENV.MYSQLTEST_VARDIR/bug_5
+innodb-undo-directory = @ENV.MYSQLTEST_VARDIR/bug_6
+innodb-buffer-pool-filename = bug_7
+
+[mysqld.1]
+#!run-master-sh
+wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=1;pc.ignore_sb=true'
+
+# Let's override a lot of the default path and
+# filename settings for the first node:
+datadir = @ENV.MYSQLTEST_VARDIR/mysqld.1/datadir_1
+log-bin = @ENV.MYSQLTEST_VARDIR/mysqld.1/logs_1/mylogs_1
+log-bin-index = @ENV.MYSQLTEST_VARDIR/mysqld.1/index_1/myindex_1.idx
+innodb-data-home-dir = @ENV.MYSQLTEST_VARDIR/mysqld.1/innodb_data_1
+innodb-log-group-home-dir = @ENV.MYSQLTEST_VARDIR/mysqld.1/innodb_logs_1
+innodb-undo-directory = @ENV.MYSQLTEST_VARDIR/mysqld.1/innodb_undo_1
+innodb-buffer-pool-filename = my_buffer_pool_1
+
+[mysqld.2]
+wsrep_provider_options='base_port=@mysqld.2.#galera_port;gcache.size=1;pc.ignore_sb=true'
+
+# Let's override a lot of the default path and
+# filename settings for the second node:
+datadir = @ENV.MYSQLTEST_VARDIR/mysqld.2/datadir_2
+log-bin = @ENV.MYSQLTEST_VARDIR/mysqld.2/logs_2/mylogs_2
+log-bin-index = @ENV.MYSQLTEST_VARDIR/mysqld.2/index_2/myindex_2.idx
+innodb-data-home-dir = @ENV.MYSQLTEST_VARDIR/mysqld.2/innodb_data_2
+innodb-log-group-home-dir = @ENV.MYSQLTEST_VARDIR/mysqld.2/innodb_logs_2
+innodb-undo-directory = @ENV.MYSQLTEST_VARDIR/mysqld.2/innodb_undo_2
+innodb-buffer-pool-filename = my_buffer_pool_2
+
+[sst]
+transferfmt=@ENV.MTR_GALERA_TFMT
