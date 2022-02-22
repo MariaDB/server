@@ -27,6 +27,7 @@ SELECT * FROM t1;
 set global example_ulong_var=500;
 set global example_enum_var= e1;
 set session example_int_var= -1;
+set global example_deprecated_var=1;
 show status like 'example%';
 show variables like 'example%';
 
