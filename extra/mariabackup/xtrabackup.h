@@ -69,6 +69,7 @@ extern char		*xtrabackup_incremental_dir;
 extern char		*xtrabackup_incremental_basedir;
 extern char		*innobase_data_home_dir;
 extern char		*innobase_buffer_pool_filename;
+extern char		*buffer_pool_filename;
 extern char		*xb_plugin_dir;
 extern char		*xb_rocksdb_datadir;
 extern my_bool	xb_backup_rocksdb;
@@ -164,6 +165,7 @@ extern uint		opt_lock_wait_timeout;
 extern uint		opt_lock_wait_threshold;
 extern uint		opt_debug_sleep_before_unlock;
 extern uint		opt_safe_slave_backup_timeout;
+extern uint		opt_max_binlogs;
 
 extern const char	*opt_history;
 

@@ -1,3 +1,9 @@
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_4;
 SELECT VARIABLE_VALUE AS EXPECT_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 EXPECT_4
 4
@@ -6,10 +12,8 @@ CREATE TABLE t1 (f1 INTEGER);
 INSERT INTO t1 VALUES (1);
 connection node_2;
 INSERT INTO t1 VALUES (2);
-connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
 connection node_3;
 INSERT INTO t1 VALUES (3);
-connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4;
 connection node_4;
 INSERT INTO t1 VALUES (4);
 connection node_3;
@@ -81,3 +85,6 @@ CALL mtr.add_suppression("There are no nodes in the same segment that will ever 
 CALL mtr.add_suppression("Action message in non-primary configuration from member 0");
 connection node_4;
 CALL mtr.add_suppression("Action message in non-primary configuration from member 0");
+connection node_1;
+disconnect node_3;
+disconnect node_4;

@@ -187,4 +187,14 @@ xb_read_full(File fd, uchar *buf, size_t len)
 	return tlen;
 }
 
+#ifdef _WIN32
+#define IS_TRAILING_SLASH(name, length) \
+	((length) > 1 && \
+		(name[(length) - 1] == '/' || \
+		 name[(length) - 1] == '\\'))
+#else
+#define IS_TRAILING_SLASH(name, length) \
+	((length) > 1 && name[(length) - 1] == FN_LIBCHAR)
+#endif
+
 #endif
