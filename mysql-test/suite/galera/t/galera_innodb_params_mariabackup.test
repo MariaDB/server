@@ -13,7 +13,7 @@
 
 # Additional options to be passed to the server when
 # restarting in the --wsrep-recover mode:
---let $wsrep_recover_additional=--innodb-compression-algorithm=none --innodb-page-size=8k --datadir=$MYSQLTEST_VARDIR/mysqld.2/datadir_2 --log-bin=$MYSQLTEST_VARDIR/mysqld.2/logs_2/mylogs_2 --log-bin-index=$MYSQLTEST_VARDIR/mysqld.2/index_2/myindex_2.idx --log-slave-updates --innodb-data-home-dir=$MYSQLTEST_VARDIR/mysqld.2/innodb_data_2 --innodb-log-group-home-dir=$MYSQLTEST_VARDIR/mysqld.2/innodb_logs_2 --innodb-undo-directory=$MYSQLTEST_VARDIR/mysqld.2/innodb_undo_2 --innodb-buffer-pool-filename=my_buffer_pool_2
+--let $wsrep_recover_additional=$MTR_BOOTSTRAP_OPTS_2
 
 --source suite/galera/include/galera_st_kill_slave.inc
 --source suite/galera/include/galera_st_kill_slave_ddl.inc

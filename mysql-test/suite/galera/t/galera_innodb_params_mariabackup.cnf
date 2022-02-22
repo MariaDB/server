@@ -20,6 +20,8 @@ innodb-log-group-home-dir = @ENV.MYSQLTEST_VARDIR/bug_5
 innodb-undo-directory = @ENV.MYSQLTEST_VARDIR/bug_6
 innodb-buffer-pool-filename = bug_7
 
+#!bootstrap-opts innodb-compression-algorithm,innodb-page-size,innodb-checksums,log-bin,log-bin-index,log-slave-updates,innodb-data-home-dir,innodb-log-group-home-dir,innodb-undo-directory,innodb-buffer-pool-filename
+
 [mysqld.1]
 #!run-master-sh
 wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=1;pc.ignore_sb=true'

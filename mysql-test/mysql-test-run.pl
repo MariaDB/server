@@ -307,6 +307,10 @@ my %mysqld_logs;
 my $opt_debug_sync_timeout= 300; # Default timeout for WAIT_FOR actions.
 my $warn_seconds = 60;
 
+my $rebootstrap_re= '--(?:loose[-_])?innodb[-_](?:page[-_]size|file[-_](?:format|per[-_]table)|compression[-_](?:default|algorithm)|checksum(?:s|[-_]algorithm)|undo[-_](?:directory|tablespaces)|(?:data|log[-_]group)[-_]home[-_]dir|buffer[-_]pool[-_]filename|data[-_]file[-_]path|sys[-_]|large[-_]prefix)|force_rebootstrap|--(?:loose[-_])?aria[-_]log[-_](?:dir[-_]path|file[-_]size)';
+my $rebootstrap_en= '--(?:loose[-_])?innodb[-_](?:encrypt[-_](?:log|tables)|tablespaces[-_]encryption|default[-_](?:encryption[-_]key[-_]id|page[-_]encryption))';
+my $rebootstrap_pl= '--(?:loose[-_])?(?:plugin[-_]load[-_]add|file[-_]key[-_]management)';
+
 sub testcase_timeout ($) { return $opt_testcase_timeout * 60; }
 sub check_timeout ($) { return testcase_timeout($_[0]); }
 
@@ -2728,6 +2732,61 @@ sub vs_config_dirs ($$) {
           "$basedir/$path_part/debug/$exe");
 }
 
+# This function is used to substitute options with parameter values
+# according to the list specified in the #!bootstrap-opts:
+sub add_extra_opts ($$$$) {
+  my ($mysqld, $opts, $params, $main) = @_;
+  # Remove leading and trailing spaces:
+  $params =~ s/^\s+|\s+$//g;
+  # Convert parameters list into array:
+  my @list = split /\s*(?:[,;]\s*)+/, $params;
+  # Convert parameters list into hash:
+  my %names;
+  foreach my $param (@list) {
+    # If such a parameter actually exists in the configuration:
+    if ($mysqld->option($param) or
+        (defined($main) and $main->option($param)))
+    {
+      # Normalize parameter name:
+      my $original = $param;
+      $param =~ s/_/-/g;
+      # We need to keep the original parameter name:
+      $names{$param} = $original;
+    }
+  }
+  # Remove the parameters that are already listed as
+  # the command line options:
+  foreach my $opt (@$opts) {
+    my $option = $opt;
+    # Normalize option name and remove its value:
+    $option =~ s/^\s*--?([\-\w]+).*/$1/;
+    $option =~ s/_/-/g;
+    # Remove the name from the hash if there is such an option:
+    if (exists $names{$option}) {
+      delete $names{$option};
+    }
+  }
+  # datadir is a special parameter that is handled in
+  # a special way outside of this function:
+  if (exists $names{'datadir'}) {
+    delete $names{'datadir'};
+  }
+  # Let's add new options:
+  foreach my $name (keys %names) {
+    # Read the parameter value using its original name:
+    my $original = $names{$name};
+    my $value = $mysqld->option($original) ?
+      $mysqld->value($original) : $main->value($original);
+    # Let's construct a new option:
+    if ($value) {
+      push @$opts, '--'.$name.'='.$value;
+    }
+    else {
+      push @$opts, '--'.$name;
+    }
+  }
+}
+
 sub mysql_server_start($) {
   my ($mysqld, $tinfo) = @_;
 
@@ -2741,7 +2800,28 @@ sub mysql_server_start($) {
     return;
   }
 
-  my $datadir= $mysqld->value('datadir');
+  my $extra_opts= get_extra_opts($mysqld, $tinfo);
+
+  # The options for the test may contain the datadir parameter,
+  # but on the bootstrap stage it is only read directly from
+  # the .cnf file. So we need to parse the options to get the
+  # actual value of datadir given both the options and the .cnf
+  # and then store this value in $mysqld hash to use it later
+  # in cases where we need to know the actual value of datadir:
+  my $datadir="";
+  foreach my $opt ( @$extra_opts )
+  {
+    if ($opt =~ /^--datadir=/) {
+      $datadir = substr($opt, 10);
+      last;
+    }
+  }
+  # If datadir is not in the options, then read it from .cnf:
+  if (! $datadir) {
+    $datadir = $mysqld->value('datadir');
+  }
+  $mysqld->{datadir} = $datadir;
+
   if (not $opt_start_dirty)
   {
 
@@ -2783,18 +2863,68 @@ sub mysql_server_start($) {
   }
 
   my $mysqld_basedir= $mysqld->value('basedir');
-  my $extra_opts= get_extra_opts($mysqld, $tinfo);
 
   if ( $basedir eq $mysqld_basedir )
   {
     if (! $opt_start_dirty)	# If dirty, keep possibly grown system db
     {
-      # Some InnoDB options are incompatible with the default bootstrap.
-      # If they are used, re-bootstrap
-      if ( $extra_opts and
-           "@$extra_opts" =~ /--innodb[-_](?:page[-_]size|checksum[-_]algorithm|undo[-_]tablespaces|log[-_]group[-_]home[-_]dir|data[-_]home[-_]dir)|data[-_]file[-_]path/ )
+      # Find the name of the current section in
+      # the configuration file and its suffix:
+      my $section = $mysqld->{name};
+      my $server_name;
+      my $suffix = "";
+      if (index($section, '.') != -1) {
+        ($server_name, $suffix) = $section =~ /^\s*([^\s.]+)\s*\.\s*([^\s]+)/;
+      }
+      else {
+        $server_name = $section =~ /^\s*([^\s]+)/;
+      }
+      # If the section has a suffix, then we need to get a reference
+      # to the parent section (if any):
+      my $main = $suffix ? $config->group($server_name) : undef;
+      # Let's check if there is a special parameter #!bootstrap-opts
+      # with additional bootstrap options:
+      my $bootstrap_opts = undef;
+      if ($mysqld->option('#!bootstrap-opts')) {
+        $bootstrap_opts = $mysqld->value('#!bootstrap-opts');
+      }
+      elsif (defined($main) and $main->option('#!bootstrap-opts')) {
+        $bootstrap_opts = $main->value('#!bootstrap-opts');
+      }
+      # Some InnoDB options are incompatible with the default bootstrap:
+      my @rebootstrap_opts;
+      @rebootstrap_opts = grep {/$rebootstrap_re/o} @$extra_opts if $extra_opts;
+      # Check if there are options responsible for encryption:
+      my @rebootstrap_enc;
+      @rebootstrap_enc  = grep {/$rebootstrap_en/o} @$extra_opts if $extra_opts;
+      if (@rebootstrap_enc) {
+        # Let's load all the plugins, as they are needed for encryption:
+        @rebootstrap_opts = (@rebootstrap_opts,
+                             @rebootstrap_enc,
+                             grep {/$rebootstrap_pl/o} @$extra_opts);
+      }
+      # If there are additional options, add them:
+      if ($bootstrap_opts) {
+        add_extra_opts($mysqld, \@rebootstrap_opts, $bootstrap_opts, $main);
+      }
+      # Let's store the options in an environment variable -
+      # they may be used in tests for re-bootstrap, recovery, etc:
+      my $extra_text = "--datadir=$datadir";
+      if (@rebootstrap_opts) {
+        $extra_text .= ' '.join(' ', @rebootstrap_opts);
+      }
+      if ($suffix) {
+        $ENV{'MTR_BOOTSTRAP_OPTS_'.$suffix} = $extra_text;
+      }
+      else {
+        $ENV{'MTR_BOOTSTRAP_OPTS'} = $extra_text;
+      }
+      # If the list of additional options is not empty,
+      # then we need to re-bootstrap:
+      if ($tinfo->{dirs} or @rebootstrap_opts)
       {
-        mysql_install_db($mysqld, undef, $extra_opts);
+        mtr_verbose("Re-bootstrap with @rebootstrap_opts");
+        mysql_install_db($mysqld, undef, \@rebootstrap_opts);
       }
       else {
         # Copy datadir from installed system db
@@ -3078,7 +3208,7 @@ sub default_mysqld {
 sub mysql_install_db {
   my ($mysqld, $datadir, $extra_opts)= @_;
 
-  my $install_datadir= $datadir || $mysqld->value('datadir');
+  my $install_datadir= $datadir || $mysqld->{datadir};
   my $install_basedir= $mysqld->value('basedir');
   my $install_lang= $mysqld->value('lc-messages-dir');
   my $install_chsdir= $mysqld->value('character-sets-dir');
@@ -3680,7 +3810,7 @@ sub restart_forced_by_test($)
   my $restart = 0;
   foreach my $mysqld ( mysqlds() )
   {
-    my $datadir = $mysqld->value('datadir');
+    my $datadir = $mysqld->{datadir};
     my $force_restart_file = "$datadir/mtr/$file";
     if ( -f $force_restart_file )
     {
@@ -3772,6 +3902,120 @@ sub resfile_report_test ($) {
   resfile_test_info("start_time", isotime time);
 }
 
+# Environment variable substitution:
+sub subst_vars ($) {
+  my $line = shift;
+  # Remove leading and trailing spaces:
+  $line =~ s/^\s+|\s+$//g;
+  # Variable substitution:
+  $line =~ s/\$\{([^}:]+)(:([^}]+))?\}/defined $ENV{$1} ? $ENV{$1} : ($2 ? $3 : $1)/eg;
+  $line =~ s/\$(\w+)/defined $ENV{$1} ? $ENV{$1} : $1/eg;
+  return $line
+}
+
+# Create the directories specified in the .dirs file:
+sub create_dirs ($) {
+  my $tinfo = shift;
+  my $res = 0;
+  if ($tinfo->{dirs}) {
+    open my $file, $tinfo->{dirs} or $res = 1;
+    if ($res == 0) {
+      while (my $line = <$file>) {
+        my $dir = subst_vars($line);
+        my $src = "";
+        # Splitting the string into the name of the temporary directory
+        # and the name of the source directory - to copy its content if
+        # it is specified:
+        if (index($dir, '=') != -1) {
+          ($dir, $src) = $dir =~ /^([^=\s]*(?:\s+[^=\s])*)\s*=\s*(.*)$/;
+        }
+        if ($dir eq "") {
+           next;
+        }
+        # Protective check for top-level directories:
+        if (!($dir =~ /^[\/\\][^\/\\]*$/)) {
+          if (-d $dir) {
+            rmtree($dir);
+            if (-d $dir) {
+              $res = 1;
+              last;
+            }
+          }
+          if ($src eq "") {
+            mkpath($dir);
+          }
+          else {
+            copytree($dir, $src);
+          }
+          if (! -d $dir) {
+            $res = 1;
+            last;
+          }
+        }
+        else {
+          mtr_print("Operations with the root of FS are prohibited");
+          $res = 1;
+          last;
+        }
+      }
+      close $file;
+    }
+    # Create temporary directories:
+    if ($res != 0) {
+      my $diag= "Failed to create directories specified in '$tinfo->{dirs}'";
+      $tinfo->{'comment'} = $diag;
+    }
+  }
+  return $res == 0;
+}
+
+# Delete the directories specified in the .dirs file:
+sub delete_dirs ($) {
+  my $tinfo = shift;
+  my $res = 0;
+  if ($tinfo->{dirs}) {
+    open my $file, $tinfo->{dirs} or $res = 1;
+    if ($res == 0) {
+      while (my $line = <$file>) {
+        my $dir = subst_vars($line);
+        # Remove extra spaces and source directory name (if any):
+        if (index($dir, '=') != -1) {
+          ($dir) = $dir =~ /^([^=\s]*(?:\s+[^=\s])*)\s*=.*$/;
+        }
+        if ($dir eq "") {
+           next;
+        }
+        # Protective check for top-level directories:
+        if (!($dir =~ /^[\/\\][^\/\\]*$/)) {
+          if (-d $dir) {
+            rmtree($dir);
+            if (-d $dir) {
+              $res = 1;
+              last;
+            }
+          }
+        }
+        else {
+          mtr_print("Operations with the root of FS are prohibited");
+          $res = 1;
+          last;
+        }
+      }
+      close $file;
+    }
+    # Delete temporary directories:
+    if ($res != 0) {
+      my $diag= "Failed to delete directories specified in '$tinfo->{dirs}'";
+      if ($tinfo->{'comment'}) {
+        $tinfo->{'comment'} .= "\n".$diag;
+      }
+      else {
+        $tinfo->{'comment'} = $diag;
+      }
+    }
+  }
+  return $res == 0;
+}
 
 #
 # Run a single test case
@@ -3904,7 +4148,7 @@ sub run_testcase ($$) {
       My::SafeProcess->start_exit();
     }
 
-    if (start_servers($tinfo))
+    if (create_dirs($tinfo) && start_servers($tinfo))
     {
       report_failure_and_restart($tinfo);
       unlink $path_current_testlog;
@@ -4065,6 +4309,10 @@ sub run_testcase ($$) {
           }
         }
         mtr_report_test_passed($tinfo);
+        if ($tinfo->{dirs}) {
+          stop_all_servers($opt_shutdown_timeout);
+          delete_dirs($tinfo);
+        }
       }
       elsif ( $res == 62 )
       {
@@ -4075,9 +4323,11 @@ sub run_testcase ($$) {
         mtr_report_test_skipped($tinfo);
         # Restart if skipped due to missing perl, it may have had side effects
 	if ( restart_forced_by_test('force_restart_if_skipped') ||
-             $tinfo->{'comment'} =~ /^perl not found/ )
+             $tinfo->{'comment'} =~ /^perl not found/ ||
+             $tinfo->{dirs} )
         {
           stop_all_servers($opt_shutdown_timeout);
+          delete_dirs($tinfo);
         }
       }
       elsif ( $res == 65 )
@@ -4880,7 +5130,6 @@ sub report_failure_and_restart ($) {
   my $test_failures= $tinfo->{'failures'} || 0;
   $tinfo->{'failures'}=  $test_failures + 1;
 
-
   if ( $tinfo->{comment} )
   {
     # The test failure has been detected by mysql-test-run.pl
@@ -4925,6 +5174,8 @@ sub report_failure_and_restart ($) {
   }
 
   after_failure($tinfo);
+
+  delete_dirs($tinfo);
 
   mtr_report_test($tinfo);
 
@@ -5103,7 +5354,7 @@ sub mysqld_start ($$) {
   # Remember this log file for valgrind error report search
   $mysqld_logs{$output}= 1 if $opt_valgrind;
   # Remember data dir for gmon.out files if using gprof
-  $gprof_dirs{$mysqld->value('datadir')}= 1 if $opt_gprof;
+  $gprof_dirs{$mysqld->{datadir}}= 1 if $opt_gprof;
 
   if ( defined $exe )
   {
@@ -5183,9 +5434,15 @@ sub server_need_restart {
     return 1;
   }
 
-  if ( $tinfo->{'master_sh'}  || $tinfo->{'slave_sh'} )
+  if ( $tinfo->{'master_sh'} || $tinfo->{'slave_sh'} )
   {
     mtr_verbose_restart($server, "sh script to run");
+    return 1;
+  }
+
+  if ( $tinfo->{dirs} )
+  {
+    mtr_verbose_restart($server, "uses additional directories");
     return 1;
   }
 

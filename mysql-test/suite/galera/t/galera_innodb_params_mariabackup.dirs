@@ -1,0 +1,12 @@
+${MYSQLTEST_VARDIR}/mysqld.1/datadir_1
+${MYSQLTEST_VARDIR}/mysqld.2/datadir_2
+${MYSQLTEST_VARDIR}/mysqld.1/innodb_data_1
+${MYSQLTEST_VARDIR}/mysqld.2/innodb_data_2
+${MYSQLTEST_VARDIR}/mysqld.1/innodb_logs_1
+${MYSQLTEST_VARDIR}/mysqld.2/innodb_logs_2
+${MYSQLTEST_VARDIR}/mysqld.1/innodb_undo_1
+${MYSQLTEST_VARDIR}/mysqld.2/innodb_undo_2
+${MYSQLTEST_VARDIR}/mysqld.1/logs_1
+${MYSQLTEST_VARDIR}/mysqld.2/logs_2
+${MYSQLTEST_VARDIR}/mysqld.1/index_1
+${MYSQLTEST_VARDIR}/mysqld.2/index_2
