@@ -1353,7 +1353,7 @@ public:
   {
     ut_ad(is_initialised());
     size_t size= 0;
-    for (auto j= n_chunks; j--; )
+    for (auto j= ut_min(n_chunks_new, n_chunks); j--; )
       size+= chunks[j].size;
     return size;
   }
@@ -1363,7 +1363,7 @@ public:
   @return whether the frame will be withdrawn */
   bool will_be_withdrawn(const byte *ptr) const
   {
-    ut_ad(curr_size < old_size);
+    ut_ad(n_chunks_new < n_chunks);
 #ifdef SAFE_MUTEX
     if (resize_in_progress())
       mysql_mutex_assert_owner(&mutex);
@@ -1383,7 +1383,7 @@ public:
   @return whether the frame will be withdrawn */
   bool will_be_withdrawn(const buf_page_t &bpage) const
   {
-    ut_ad(curr_size < old_size);
+    ut_ad(n_chunks_new < n_chunks);
 #ifdef SAFE_MUTEX
     if (resize_in_progress())
       mysql_mutex_assert_owner(&mutex);
@@ -1540,11 +1540,18 @@ public:
   inline void watch_remove(buf_page_t *watch, hash_chain &chain);
 
   /** @return whether less than 1/4 of the buffer pool is available */
+  TPOOL_SUPPRESS_TSAN
   bool running_out() const
   {
     return !recv_recovery_is_on() &&
-      UNIV_UNLIKELY(UT_LIST_GET_LEN(free) + UT_LIST_GET_LEN(LRU) <
-                    std::min(curr_size, old_size) / 4);
+      UT_LIST_GET_LEN(free) + UT_LIST_GET_LEN(LRU) <
+        n_chunks_new / 4 * chunks->size;
+  }
+
+  /** @return whether the buffer pool is shrinking */
+  inline bool is_shrinking() const
+  {
+    return n_chunks_new < n_chunks;
   }
 
 #ifdef UNIV_DEBUG
@@ -1603,15 +1610,15 @@ public:
 	ut_allocator<unsigned char>	allocator;	/*!< Allocator used for
 					allocating memory for the the "chunks"
 					member. */
-	volatile ulint	n_chunks;	/*!< number of buffer pool chunks */
-	volatile ulint	n_chunks_new;	/*!< new number of buffer pool chunks */
+	ulint		n_chunks;	/*!< number of buffer pool chunks */
+	ulint		n_chunks_new;	/*!< new number of buffer pool chunks.
+					both n_chunks{,new} are protected under
+					mutex */
 	chunk_t*	chunks;		/*!< buffer pool chunks */
 	chunk_t*	chunks_old;	/*!< old buffer pool chunks to be freed
 					after resizing buffer pool */
 	/** current pool size in pages */
 	Atomic_counter<ulint> curr_size;
-	/** previous pool size in pages */
-	Atomic_counter<ulint> old_size;
 	/** read-ahead request size in pages */
 	Atomic_counter<uint32_t> read_ahead_area;
 

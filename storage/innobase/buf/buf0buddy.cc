@@ -298,7 +298,7 @@ static buf_buddy_free_t* buf_buddy_alloc_zip(ulint i)
 
 	buf = UT_LIST_GET_FIRST(buf_pool.zip_free[i]);
 
-	if (buf_pool.curr_size < buf_pool.old_size
+	if (buf_pool.is_shrinking()
 	    && UT_LIST_GET_LEN(buf_pool.withdraw)
 	    < buf_pool.withdraw_target) {
 
@@ -609,7 +609,7 @@ recombine:
 	We may waste up to 15360*max_len bytes to free blocks
 	(1024 + 2048 + 4096 + 8192 = 15360) */
 	if (UT_LIST_GET_LEN(buf_pool.zip_free[i]) < 16
-	    && buf_pool.curr_size >= buf_pool.old_size) {
+	    && !buf_pool.is_shrinking()) {
 		goto func_exit;
 	}
 
@@ -715,7 +715,7 @@ buf_buddy_realloc(void* buf, ulint size)
 void buf_buddy_condense_free()
 {
 	mysql_mutex_assert_owner(&buf_pool.mutex);
-	ut_ad(buf_pool.curr_size < buf_pool.old_size);
+	ut_ad(buf_pool.is_shrinking());
 
 	for (ulint i = 0; i < UT_ARR_SIZE(buf_pool.zip_free); ++i) {
 		buf_buddy_free_t* buf =
