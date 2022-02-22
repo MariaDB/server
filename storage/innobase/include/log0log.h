@@ -68,7 +68,6 @@ log_reserve_and_write_fast(
 	ulint		len,
 	lsn_t*		start_lsn);
 
-UNIV_INLINE
 bool
 log_is_in_distress();
 

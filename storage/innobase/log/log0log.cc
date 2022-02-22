@@ -227,6 +227,16 @@ log_calculate_actual_len(
 	return(len + extra_len);
 }
 
+bool log_is_in_distress()
+{
+	bool res;
+	log_mutex_enter();
+	res = 3*(log_sys.lsn - log_sys.last_checkpoint_lsn)/2 > log_sys.log_group_capacity;
+	log_mutex_exit();
+	return res;
+}
+
+
 /** Check margin not to overwrite transaction log from the last checkpoint.
 If would estimate the log write to exceed the log_group_capacity,
 waits for the checkpoint is done enough.
