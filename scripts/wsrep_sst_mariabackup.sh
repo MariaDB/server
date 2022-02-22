@@ -40,7 +40,7 @@ tcert=""
 tcap=""
 tpem=""
 tkey=""
-tmode='DISABLED'
+tmode=""
 sockopt=""
 progress=""
 ttime=0
@@ -474,6 +474,15 @@ read_cnf()
     tmode=$(parse_cnf "$encgroups" 'ssl-mode' 'DISABLED' | \
             tr [:lower:] [:upper:])
 
+    case "$tmode" in
+    'VERIFY_IDENTITY'|'VERIFY_CA'|'REQUIRED'|'DISABLED')
+        ;;
+    *)
+        wsrep_log_error "Unrecognized ssl-mode option: '$tmode'"
+        exit 22 # EINVAL
+        ;;
+    esac
+
     if [ $encrypt -eq 0 -o $encrypt -ge 2 ]; then
         if [ "$tmode" != 'DISABLED' -o $encrypt -ge 2 ]; then
             check_server_ssl_config
@@ -667,16 +676,13 @@ setup_ports()
 #
 wait_for_listen()
 {
-    local PORT="$1"
-    local ADDR="$2"
-    local MODULE="$3"
     for i in {1..150}; do
-        if check_port "" "$PORT" 'socat|nc'; then
+        if check_port "" "$SST_PORT" 'socat|nc'; then
             break
         fi
         sleep 0.2
     done
-    echo "ready $ADDR/$MODULE//$sst_ver"
+    echo "ready $ADDR:$SST_PORT/$MODULE/$lsn/$sst_ver"
 }
 
 check_extra()
@@ -733,7 +739,7 @@ recv_joiner()
     set +e
 
     if [ $wait -ne 0 ]; then
-        wait_for_listen "$SST_PORT" "$ADDR" "$MODULE" &
+        wait_for_listen &
     fi
 
     timeit "$msg" "$ltcmd | $strmcmd; RC=( "\${PIPESTATUS[@]}" )"
@@ -1179,7 +1185,7 @@ then
 
     stagemsg='Joiner-Recv'
 
-    MODULE='xtrabackup_sst'
+    MODULE="${WSREP_SST_OPT_MODULE:-xtrabackup_sst}"
 
     [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE"
 
@@ -1187,7 +1193,7 @@ then
     [ -f "$DATA/xtrabackup_binary"      ] && rm -f "$DATA/xtrabackup_binary"
     [ -f "$DATA/xtrabackup_galera_info" ] && rm -f "$DATA/xtrabackup_galera_info"
 
-    ADDR="$WSREP_SST_OPT_ADDR"
+    ADDR="$WSREP_SST_OPT_HOST"
 
     if [ "${tmode#VERIFY}" != "$tmode" ]; then
         # backward-incompatible behavior:
@@ -1201,7 +1207,7 @@ then
                 exit 42
             fi
             CN=$("$OPENSSL_BINARY" x509 -noout -subject -in "$tpem" | \
-                 tr ',' '\n' | grep -F 'CN =' | cut -d= -f2 | sed s/^\ // | \
+                 tr ',' '\n' | grep -F 'CN =' | cut -d '=' -f2 | sed s/^\ // | \
                  sed s/\ %//)
         fi
         MY_SECRET="$(wsrep_gen_secret)"
