@@ -3546,7 +3546,6 @@ static bool recv_scan_log(bool last_phase)
       if (source_offset + size > log_sys.file_size)
         size= static_cast<size_t>(log_sys.file_size - source_offset);
 
-      log_sys.n_log_ios++;
       if (dberr_t err= log_sys.log.read(source_offset,
                                         {log_sys.buf + recv_sys.len, size}))
       {

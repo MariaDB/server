@@ -99,11 +99,6 @@ void
 log_print(
 /*======*/
 	FILE*	file);	/*!< in: file where to print */
-/**********************************************************************//**
-Refreshes the statistics used to print per-second averages. */
-void
-log_refresh_stats(void);
-/*===================*/
 
 /** Offsets of a log file header */
 /* @{ */
@@ -239,16 +234,6 @@ public:
   uint32_t format;
   /** Log file */
   log_file_t log;
-
-	/** The fields involved in the log buffer flush @{ */
-
-	ulint		n_log_ios;	/*!< number of log i/os initiated thus
-					far */
-	ulint		n_log_ios_old;	/*!< number of log i/o's at the
-					previous printout */
-	time_t		last_printout_time;/*!< when log_print was last time
-					called */
-	/* @} */
 
 	/** Fields involved in checkpoints @{ */
 	lsn_t		log_capacity;	/*!< capacity of the log; if

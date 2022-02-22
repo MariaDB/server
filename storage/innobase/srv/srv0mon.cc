@@ -800,11 +800,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_MAX_AGE_ASYNC},
 
-	{"log_num_log_io", "recovery", "Number of log I/Os",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
-	 MONITOR_DEFAULT_START, MONITOR_LOG_IO},
-
 	{"log_waits", "recovery",
 	 "Number of log waits due to small log buffer (innodb_log_waits)",
 	 static_cast<monitor_type_t>(
@@ -1704,10 +1699,6 @@ srv_mon_process_existing_counter(
 
 	case MONITOR_OVLD_LSN_CURRENT:
 		value = log_sys.get_lsn();
-		break;
-
-	case MONITOR_LOG_IO:
-		value = log_sys.n_log_ios;
 		break;
 
         case MONITOR_OVLD_CHECKPOINTS:

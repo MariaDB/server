@@ -180,7 +180,6 @@ log_lsn_current	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0
 log_lsn_checkpoint_age	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Current LSN value minus LSN at last checkpoint
 log_lsn_buf_pool_oldest	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	The oldest modified block LSN in the buffer pool
 log_max_modified_age_async	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Maximum LSN difference; when exceeded, start asynchronous preflush
-log_num_log_io	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Number of log I/Os
 log_waits	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of log waits due to small log buffer (innodb_log_waits)
 log_write_requests	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of log write requests (innodb_log_write_requests)
 log_writes	recovery	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	status_counter	Number of log writes (innodb_log_writes)

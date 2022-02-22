@@ -126,12 +126,7 @@ void log_t::create()
   max_buf_free= buf_size / LOG_BUF_FLUSH_RATIO - LOG_BUF_FLUSH_MARGIN;
   set_check_flush_or_checkpoint();
 
-  n_log_ios_old= n_log_ios;
-  last_printout_time= time(NULL);
-
   last_checkpoint_lsn= FIRST_LSN;
-  n_log_ios= 0;
-  n_log_ios_old= 0;
   log_capacity= 0;
   max_modified_age_async= 0;
   max_checkpoint_age= 0;
@@ -1007,9 +1002,6 @@ log_print(
 /*======*/
 	FILE*	file)	/*!< in: file where to print */
 {
-	double	time_elapsed;
-	time_t	current_time;
-
 	log_sys.latch.rd_lock(SRW_LOCK_CALL);
 
 	const lsn_t lsn= log_sys.get_lsn();
@@ -1027,38 +1019,7 @@ log_print(
 		pages_flushed,
 		lsn_t{log_sys.last_checkpoint_lsn});
 
-	current_time = time(NULL);
-
-	time_elapsed = difftime(current_time,
-				log_sys.last_printout_time);
-
-	if (time_elapsed <= 0) {
-		time_elapsed = 1;
-	}
-
-	fprintf(file,
-		ULINTPF " pending chkp writes\n"
-		ULINTPF " log i/o's done, %.2f log i/o's/second\n",
-		log_sys.n_pending_checkpoint_writes,
-		log_sys.n_log_ios,
-		static_cast<double>(
-			log_sys.n_log_ios - log_sys.n_log_ios_old)
-		/ time_elapsed);
-
-	log_sys.n_log_ios_old = log_sys.n_log_ios;
-	log_sys.last_printout_time = current_time;
-
 	log_sys.latch.rd_unlock();
-}
-
-/**********************************************************************//**
-Refreshes the statistics used to print per-second averages. */
-void
-log_refresh_stats(void)
-/*===================*/
-{
-	log_sys.n_log_ios_old = log_sys.n_log_ios;
-	log_sys.last_printout_time = time(NULL);
 }
 
 /** Shut down the redo log subsystem. */

@@ -146,7 +146,6 @@ log_lsn_current	disabled
 log_lsn_checkpoint_age	disabled
 log_lsn_buf_pool_oldest	disabled
 log_max_modified_age_async	disabled
-log_num_log_io	disabled
 log_waits	disabled
 log_write_requests	disabled
 log_writes	disabled
