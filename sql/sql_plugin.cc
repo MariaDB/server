@@ -311,7 +311,8 @@ public:
   struct st_mysql_sys_var *plugin_var;
 
   sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
-                    st_plugin_int *p, st_mysql_sys_var *plugin_var_arg);
+                    st_plugin_int *p, st_mysql_sys_var *plugin_var_arg,
+                    const char *substitute);
   sys_var_pluginvar *cast_pluginvar() { return this; }
   uchar* real_value_ptr(THD *thd, enum_var_type type) const;
   TYPELIB* plugin_var_typelib(void) const;
@@ -3412,11 +3413,11 @@ static int pluginvar_sysvar_flags(const st_mysql_sys_var *p)
 }
 
 sys_var_pluginvar::sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
-        st_plugin_int *p, st_mysql_sys_var *pv)
+        st_plugin_int *p, st_mysql_sys_var *pv, const char *substitute)
     : sys_var(chain, name_arg, pv->comment, pluginvar_sysvar_flags(pv),
               0, pv->flags & PLUGIN_VAR_NOCMDOPT ? -1 : 0, NO_ARG,
               pluginvar_show_type(pv), 0,
-              NULL, VARIABLE_NOT_IN_BINLOG, NULL, NULL, NULL),
+              NULL, VARIABLE_NOT_IN_BINLOG, NULL, NULL, substitute),
     plugin(p), plugin_var(pv)
 {
   plugin_var->name= name_arg;
@@ -4158,7 +4159,8 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
           my_casedn_str(&my_charset_latin1, varname);
           convert_dash_to_underscore(varname, len-1);
         }
-        v= new (mem_root) sys_var_pluginvar(&chain, varname, tmp, o);
+        const char *s= o->flags & PLUGIN_VAR_DEPRECATED ? "" : NULL;
+        v= new (mem_root) sys_var_pluginvar(&chain, varname, tmp, o, s);
         v->test_load= (var ? &var->loaded : &static_unload);
         DBUG_ASSERT(static_unload == FALSE);
 

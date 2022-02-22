@@ -1060,12 +1060,17 @@ static MYSQL_THDVAR_DOUBLE(
   1000.5,
   0);
 
+static MYSQL_THDVAR_INT(
+  deprecated_var, PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, "-1..1",
+  NULL, NULL, 0, -1, 1, 0);
+
 static struct st_mysql_sys_var* example_system_variables[]= {
   MYSQL_SYSVAR(enum_var),
   MYSQL_SYSVAR(ulong_var),
   MYSQL_SYSVAR(int_var),
   MYSQL_SYSVAR(double_var),
   MYSQL_SYSVAR(double_thdvar),
+  MYSQL_SYSVAR(deprecated_var),
   MYSQL_SYSVAR(varopt_default),
   NULL
 };
