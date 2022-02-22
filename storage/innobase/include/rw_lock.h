@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2020, 2021, MariaDB Corporation.
+Copyright (c) 2020, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -20,9 +20,17 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <atomic>
 #include "my_dbug.h"
 
-#if !(defined __linux__ || defined __OpenBSD__ || defined _WIN32)
-# define SUX_LOCK_GENERIC
-#elif 0 // defined SAFE_MUTEX
+#if defined __linux__
+/* futex(2): FUTEX_WAIT_PRIVATE, FUTEX_WAKE_PRIVATE */
+#elif defined __OpenBSD__ || defined __FreeBSD__ || defined __DragonFly__
+/* system calls similar to Linux futex(2) */
+#elif defined _WIN32
+/* SRWLOCK as well as WaitOnAddress(), WakeByAddressSingle() */
+#else
+# define SUX_LOCK_GENERIC /* fall back to generic synchronization primitives */
+#endif
+
+#if !defined SUX_LOCK_GENERIC && 0 /* defined SAFE_MUTEX */
 # define SUX_LOCK_GENERIC /* Use dummy implementation for debugging purposes */
 #endif
 
