@@ -99,11 +99,6 @@ void
 log_print(
 /*======*/
 	FILE*	file);	/*!< in: file where to print */
-/**********************************************************************//**
-Refreshes the statistics used to print per-second averages. */
-void
-log_refresh_stats(void);
-/*===================*/
 
 /** Offsets of a log file header */
 /* @{ */
@@ -141,7 +136,7 @@ public:
 
   dberr_t close() noexcept;
   dberr_t read(os_offset_t offset, span<byte> buf) noexcept;
-  dberr_t write(os_offset_t offset, span<const byte> buf) noexcept;
+  void write(os_offset_t offset, span<const byte> buf) noexcept;
   bool flush() const noexcept { return os_file_flush(m_file); }
 #ifdef HAVE_PMEM
   byte *mmap(bool read_only, const struct stat &st) noexcept;
@@ -244,16 +239,6 @@ public:
   /** Log file */
   log_file_t log;
 
-	/** The fields involved in the log buffer flush @{ */
-
-	ulint		n_log_ios;	/*!< number of log i/os initiated thus
-					far */
-	ulint		n_log_ios_old;	/*!< number of log i/o's at the
-					previous printout */
-	time_t		last_printout_time;/*!< when log_print was last time
-					called */
-	/* @} */
-
 	/** Fields involved in checkpoints @{ */
 	lsn_t		log_capacity;	/*!< capacity of the log; if
 					the checkpoint age exceeds this, it is
@@ -325,7 +310,9 @@ public:
 
   void set_recovered_lsn(lsn_t lsn) noexcept
   {
+#ifndef SUX_LOCK_GENERIC
     ut_ad(latch.is_write_locked());
+#endif /* SUX_LOCK_GENERIC */
     write_lsn= lsn;
     this->lsn.store(lsn, std::memory_order_relaxed);
     flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed);
@@ -384,7 +371,9 @@ public:
   @param size  length of str, in bytes */
   void append(byte *&d, const void *s, size_t size) noexcept
   {
+#ifndef SUX_LOCK_GENERIC
     ut_ad(latch.is_locked());
+#endif
     ut_ad(d + size <= buf + (is_pmem() ? file_size : buf_size));
     memcpy(d, s, size);
     d+= size;

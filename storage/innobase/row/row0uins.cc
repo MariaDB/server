@@ -66,7 +66,6 @@ row_undo_ins_remove_clust_rec(
 /*==========================*/
 	undo_node_t*	node)	/*!< in: undo node */
 {
-	ibool		success;
 	dberr_t		err;
 	ulint		n_tries	= 0;
 	mtr_t		mtr;
@@ -112,14 +111,12 @@ restart:
 	We must log the removal, so that the row will be correctly
 	purged. However, we can log the removal out of sync with the
 	B-tree modification. */
-
-	success = btr_pcur_restore_position(
-		online
-		? BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED
-		: (node->rec_type == TRX_UNDO_INSERT_METADATA)
-		? BTR_MODIFY_TREE : BTR_MODIFY_LEAF, &node->pcur, &mtr);
-	ut_a(success);
-
+	ut_a(node->pcur.restore_position(
+	      online ? BTR_MODIFY_LEAF | BTR_ALREADY_S_LATCHED
+	      : (node->rec_type == TRX_UNDO_INSERT_METADATA)
+		? BTR_MODIFY_TREE
+		: BTR_MODIFY_LEAF,
+	      &mtr) == btr_pcur_t::SAME_ALL);
 	rec_t* rec = btr_pcur_get_rec(&node->pcur);
 
 	ut_ad(rec_get_trx_id(rec, index) == node->trx->id
@@ -214,9 +211,8 @@ restart:
 			}
 
 			mtr.start();
-			success = btr_pcur_restore_position(
-				BTR_MODIFY_LEAF, &node->pcur, &mtr);
-			ut_a(success);
+			ut_a(node->pcur.restore_position(
+				BTR_MODIFY_LEAF, &mtr) == btr_pcur_t::SAME_ALL);
 		}
 	}
 
@@ -234,11 +230,9 @@ retry:
 	} else {
 		index->set_modified(mtr);
 	}
-
-	success = btr_pcur_restore_position(
-			BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
-			&node->pcur, &mtr);
-	ut_a(success);
+	ut_a(
+	    node->pcur.restore_position(BTR_MODIFY_TREE | BTR_LATCH_FOR_DELETE,
+	      &mtr) == btr_pcur_t::SAME_ALL);
 
 	btr_cur_pessimistic_delete(&err, FALSE, &node->pcur.btr_cur, 0, true,
 				   &mtr);

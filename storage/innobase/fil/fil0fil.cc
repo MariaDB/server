@@ -890,8 +890,9 @@ bool fil_space_free(uint32_t id, bool x_latched)
 
 			log_sys.latch.wr_unlock();
 		} else {
+#ifndef SUX_LOCK_GENERIC
 			ut_ad(log_sys.latch.is_write_locked());
-
+#endif
 			if (space->max_lsn) {
 				ut_d(space->max_lsn = 0);
 				fil_system.named_spaces.remove(*space);
@@ -1860,8 +1861,10 @@ static bool fil_rename_tablespace(uint32_t id, const char *old_path,
 	}
 
 	/* log_sys.latch is above fil_system.mutex in the latching order */
+#ifndef SUX_LOCK_GENERIC
 	ut_ad(log_sys.latch.is_write_locked() ||
 	      srv_operation == SRV_OPERATION_RESTORE_DELTA);
+#endif
 	mysql_mutex_lock(&fil_system.mutex);
 	space->release();
 	ut_ad(node->name == old_file_name);
@@ -3035,7 +3038,9 @@ void
 fil_names_dirty(
 	fil_space_t*	space)
 {
+#ifndef SUX_LOCK_GENERIC
 	ut_ad(log_sys.latch.is_write_locked());
+#endif
 	ut_ad(recv_recovery_is_on());
 	ut_ad(log_sys.get_lsn() != 0);
 	ut_ad(space->max_lsn == 0);
@@ -3049,7 +3054,9 @@ fil_names_dirty(
 tablespace was modified for the first time since fil_names_clear(). */
 ATTRIBUTE_NOINLINE ATTRIBUTE_COLD void mtr_t::name_write()
 {
+#ifndef SUX_LOCK_GENERIC
   ut_ad(log_sys.latch.is_write_locked());
+#endif
   ut_d(fil_space_validate_for_mtr_commit(m_user_space));
   ut_ad(!m_user_space->max_lsn);
   m_user_space->max_lsn= log_sys.get_lsn();
@@ -3077,7 +3084,9 @@ lsn_t fil_names_clear(lsn_t lsn)
 {
 	mtr_t	mtr;
 
+#ifndef SUX_LOCK_GENERIC
 	ut_ad(log_sys.latch.is_write_locked());
+#endif
 	ut_ad(lsn);
 	ut_ad(log_sys.is_latest());
 

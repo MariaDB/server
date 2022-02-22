@@ -2510,6 +2510,7 @@ static void use_systemd_activated_sockets()
         addr.un.sun_path[0] = '@';
       sql_print_information("Using systemd activated unix socket %s%s",
                             addr.un.sun_path, sock.is_extra_port ? " (extra)" : "");
+      memset(addr.un.sun_path, 0, sizeof(addr.un.sun_path));
     }
     else
     {

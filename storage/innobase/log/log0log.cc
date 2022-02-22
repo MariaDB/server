@@ -76,8 +76,9 @@ log_t	log_sys;
 
 void log_t::set_capacity()
 {
+#ifndef SUX_LOCK_GENERIC
 	ut_ad(log_sys.latch.is_write_locked());
-
+#endif
 	/* Margin for the free space in the smallest log, before a new query
 	step which modifies the database, is started */
 
@@ -125,12 +126,7 @@ void log_t::create()
   max_buf_free= buf_size / LOG_BUF_FLUSH_RATIO - LOG_BUF_FLUSH_MARGIN;
   set_check_flush_or_checkpoint();
 
-  n_log_ios_old= n_log_ios;
-  last_printout_time= time(NULL);
-
   last_checkpoint_lsn= FIRST_LSN;
-  n_log_ios= 0;
-  n_log_ios_old= 0;
   log_capacity= 0;
   max_modified_age_async= 0;
   max_checkpoint_age= 0;
@@ -159,11 +155,12 @@ dberr_t log_file_t::read(os_offset_t offset, span<byte> buf) noexcept
   return os_file_read(IORequestRead, m_file, buf.data(), offset, buf.size());
 }
 
-dberr_t log_file_t::write(os_offset_t offset, span<const byte> buf) noexcept
+void log_file_t::write(os_offset_t offset, span<const byte> buf) noexcept
 {
   ut_ad(is_opened());
-  return os_file_write(IORequestWrite, "ib_logfile0", m_file,
-                       buf.data(), offset, buf.size());
+  if (dberr_t err= os_file_write(IORequestWrite, "ib_logfile0", m_file,
+                                 buf.data(), offset, buf.size()))
+    ib::fatal() << "write(\"ib_logfile0\") returned " << err;
 }
 
 #ifdef HAVE_PMEM
@@ -238,7 +235,9 @@ void log_t::attach(log_file_t file, os_offset_t size)
 
 void log_t::create(lsn_t lsn) noexcept
 {
+#ifndef SUX_LOCK_GENERIC
   ut_ad(latch.is_write_locked());
+#endif
   ut_ad(!recv_no_log_write);
   ut_ad(is_latest());
   ut_ad(this == &log_sys);
@@ -523,7 +522,9 @@ inline void log_t::persist(lsn_t lsn) noexcept
 */
 template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
 {
+#ifndef SUX_LOCK_GENERIC
   ut_ad(latch.is_write_locked());
+#endif
   ut_ad(!srv_read_only_mode);
   ut_ad(!is_pmem());
 
@@ -652,9 +653,13 @@ void log_write_up_to(lsn_t lsn, bool durable,
 #endif
 
 repeat:
-  if (durable &&
-      flush_lock.acquire(lsn, callback) != group_commit_lock::ACQUIRED)
-    return;
+  if (durable)
+  {
+    if (flush_lock.acquire(lsn, callback) != group_commit_lock::ACQUIRED)
+      return;
+    flush_lock.set_pending(log_sys.get_lsn());
+  }
+ 
 
   lsn_t pending_write_lsn= 0, pending_flush_lsn= 0;
 
@@ -997,9 +1002,6 @@ log_print(
 /*======*/
 	FILE*	file)	/*!< in: file where to print */
 {
-	double	time_elapsed;
-	time_t	current_time;
-
 	log_sys.latch.rd_lock(SRW_LOCK_CALL);
 
 	const lsn_t lsn= log_sys.get_lsn();
@@ -1017,38 +1019,7 @@ log_print(
 		pages_flushed,
 		lsn_t{log_sys.last_checkpoint_lsn});
 
-	current_time = time(NULL);
-
-	time_elapsed = difftime(current_time,
-				log_sys.last_printout_time);
-
-	if (time_elapsed <= 0) {
-		time_elapsed = 1;
-	}
-
-	fprintf(file,
-		ULINTPF " pending chkp writes\n"
-		ULINTPF " log i/o's done, %.2f log i/o's/second\n",
-		log_sys.n_pending_checkpoint_writes,
-		log_sys.n_log_ios,
-		static_cast<double>(
-			log_sys.n_log_ios - log_sys.n_log_ios_old)
-		/ time_elapsed);
-
-	log_sys.n_log_ios_old = log_sys.n_log_ios;
-	log_sys.last_printout_time = current_time;
-
 	log_sys.latch.rd_unlock();
-}
-
-/**********************************************************************//**
-Refreshes the statistics used to print per-second averages. */
-void
-log_refresh_stats(void)
-/*===================*/
-{
-	log_sys.n_log_ios_old = log_sys.n_log_ios;
-	log_sys.last_printout_time = time(NULL);
 }
 
 /** Shut down the redo log subsystem. */

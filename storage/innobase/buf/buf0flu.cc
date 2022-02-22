@@ -169,7 +169,9 @@ inline void buf_pool_t::delete_from_flush_list_low(buf_page_t *bpage) noexcept
 @param lsn      start LSN of the mini-transaction that modified the block */
 void buf_pool_t::insert_into_flush_list(buf_block_t *block, lsn_t lsn) noexcept
 {
+#ifndef SUX_LOCK_GENERIC
   ut_ad(recv_recovery_is_on() || log_sys.latch.is_locked());
+#endif
   ut_ad(lsn > 2);
   static_assert(log_t::FIRST_LSN >= 2, "compatibility");
   ut_ad(!fsp_is_system_temporary(block->page.id().space()));
@@ -188,15 +190,33 @@ void buf_pool_t::insert_into_flush_list(buf_block_t *block, lsn_t lsn) noexcept
   MEM_CHECK_DEFINED(block->page.zip.data
                     ? block->page.zip.data : block->page.frame,
                     block->physical_size());
+rescan:
   if (buf_page_t *prev= UT_LIST_GET_FIRST(flush_list))
   {
-    if (prev->oldest_modification() <= lsn)
+    lsn_t om= prev->oldest_modification();
+    if (om == 1)
+    {
+      delete_from_flush_list(prev);
+      goto rescan;
+    }
+    ut_ad(om > 2);
+    if (om <= lsn)
       goto insert_first;
     while (buf_page_t *next= UT_LIST_GET_NEXT(list, prev))
-      if (next->oldest_modification() <= lsn)
+    {
+      om= next->oldest_modification();
+      if (om == 1)
+      {
+        delete_from_flush_list(next);
+        continue;
+      }
+      ut_ad(om > 2);
+      if (om <= lsn)
         break;
       else
         prev= next;
+    }
+    flush_hp.adjust(prev);
     UT_LIST_INSERT_AFTER(flush_list, prev, &block->page);
   }
   else
@@ -1730,7 +1750,9 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 static bool log_checkpoint_low(lsn_t oldest_lsn, lsn_t end_lsn)
 {
   ut_ad(!srv_read_only_mode);
+#ifndef SUX_LOCK_GENERIC
   ut_ad(log_sys.latch.is_write_locked());
+#endif
   ut_ad(oldest_lsn <= end_lsn);
   ut_ad(end_lsn == log_sys.get_lsn());
   ut_ad(!recv_no_log_write);
@@ -2174,6 +2196,12 @@ static ulint page_cleaner_flush_pages_recommendation(ulint last_pages_in,
 	return(n_pages);
 }
 
+#if defined __aarch64__&&defined __GNUC__&&__GNUC__==4&&!defined __clang__
+/* Avoid GCC 4.8.5 internal compiler error "could not split insn".
+We would only need this for buf_flush_page_cleaner(),
+but GCC 4.8.5 does not support pop_options. */
+# pragma GCC optimize ("O0")
+#endif
 /** page_cleaner thread tasked with flushing dirty pages from the buffer
 pools. As of now we'll have only one coordinator. */
 static void buf_flush_page_cleaner()

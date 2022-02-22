@@ -711,8 +711,6 @@ static void srv_refresh_innodb_monitor_stats(time_t current_time)
 	btr_cur_n_non_sea_old = btr_cur_n_non_sea;
 #endif /* BTR_CUR_HASH_ADAPT */
 
-	log_refresh_stats();
-
 	buf_refresh_io_stats();
 
 	srv_n_rows_inserted_old = srv_stats.n_rows_inserted;
