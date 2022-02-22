@@ -1711,7 +1711,8 @@ dberr_t recv_sys_t::find_checkpoint()
   lsn= 0;
   buf= my_assume_aligned<4096>(log_sys.buf);
   if (!log_sys.is_pmem())
-    log_sys.log.read(0, {buf, 4096});
+    if (dberr_t err= log_sys.log.read(0, {buf, 4096}))
+      return err;
   /* Check the header page checksum. There was no
   checksum in the first redo log format (version 0). */
   log_sys.format= mach_read_from_4(buf + LOG_HEADER_FORMAT);
@@ -1782,7 +1783,9 @@ dberr_t recv_sys_t::find_checkpoint()
       if (log_sys.is_pmem())
         buf= log_sys.buf + field;
       else
-        log_sys.log.read(field, {buf, log_sys.get_block_size()});
+        if (dberr_t err= log_sys.log.read(field,
+                                          {buf, log_sys.get_block_size()}))
+          return err;
       const lsn_t checkpoint_lsn{mach_read_from_8(buf)};
       const lsn_t end_lsn{mach_read_from_8(buf + 8)};
       if (checkpoint_lsn < first_lsn || end_lsn < checkpoint_lsn ||
@@ -3543,9 +3546,17 @@ static bool recv_scan_log(bool last_phase)
       if (source_offset + size > log_sys.file_size)
         size= static_cast<size_t>(log_sys.file_size - source_offset);
 
-      log_sys.n_log_ios++;
-      log_sys.log.read(source_offset, {log_sys.buf + recv_sys.len, size});
-      recv_sys.len+= size;
+      if (dberr_t err= log_sys.log.read(source_offset,
+                                        {log_sys.buf + recv_sys.len, size}))
+      {
+        mysql_mutex_unlock(&recv_sys.mutex);
+        ib::error() << "Failed to read log at " << source_offset
+                    << ": " << err;
+        recv_sys.set_corrupt_log();
+        mysql_mutex_lock(&recv_sys.mutex);
+      }
+      else
+        recv_sys.len+= size;
     }
 
     if (recv_sys.report(time(nullptr)))
@@ -3639,6 +3650,9 @@ static bool recv_scan_log(bool last_phase)
     if (log_sys.is_pmem())
       break;
 #endif
+    if (recv_sys.is_corrupt_log())
+      break;
+
     if (recv_sys.offset < log_sys.get_block_size())
       break;
 
