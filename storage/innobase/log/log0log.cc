@@ -160,11 +160,12 @@ dberr_t log_file_t::read(os_offset_t offset, span<byte> buf) noexcept
   return os_file_read(IORequestRead, m_file, buf.data(), offset, buf.size());
 }
 
-dberr_t log_file_t::write(os_offset_t offset, span<const byte> buf) noexcept
+void log_file_t::write(os_offset_t offset, span<const byte> buf) noexcept
 {
   ut_ad(is_opened());
-  return os_file_write(IORequestWrite, "ib_logfile0", m_file,
-                       buf.data(), offset, buf.size());
+  if (dberr_t err= os_file_write(IORequestWrite, "ib_logfile0", m_file,
+                                 buf.data(), offset, buf.size()))
+    ib::fatal() << "write(\"ib_logfile0\") returned " << err;
 }
 
 #ifdef HAVE_PMEM
