@@ -175,7 +175,7 @@ SET SESSION example_double_thdvar = 300.3333;
 --echo #
 --echo # Variables by thread
 SELECT variable_name, variable_value FROM performance_schema.variables_by_thread
-WHERE variable_name LIKE "example_%" ORDER BY variable_value;
+WHERE variable_name LIKE "example_%" ORDER BY variable_value, variable_name;
 
 --echo #
 --echo # ================================================================================
@@ -203,7 +203,7 @@ WHERE variable_name LIKE "example_%" ORDER BY variable_value;
 --echo #
 --echo # Variables by thread
 SELECT variable_name, variable_value FROM performance_schema.variables_by_thread
-WHERE variable_name LIKE "example_%" ORDER BY variable_value;
+WHERE variable_name LIKE "example_%" ORDER BY variable_value, variable_name;
 
 --echo #
 --echo # ================================================================================
@@ -228,7 +228,7 @@ SET SESSION example_double_thdvar = 333.3333;
 --echo #
 --echo # Variables by thread
 SELECT variable_name, variable_value FROM performance_schema.variables_by_thread
-WHERE variable_name LIKE "example_%" ORDER BY variable_value;
+WHERE variable_name LIKE "example_%" ORDER BY variable_value, variable_name;
 
 --echo #
 --echo # ================================================================================
@@ -244,7 +244,7 @@ UNINSTALL PLUGIN example;
 --echo #
 --echo # VARIABLES BY THREAD
 SELECT variable_name, variable_value FROM performance_schema.variables_by_thread
-WHERE variable_name LIKE "example_%" ORDER BY variable_value;
+WHERE variable_name LIKE "example_%" ORDER BY variable_value, variable_name;
 
 --echo #
 --echo # ================================================================================

@@ -411,11 +411,23 @@ example_varopt_default	5
 #
 # Variables by thread
 SELECT variable_name, variable_value FROM performance_schema.variables_by_thread
-WHERE variable_name LIKE "example_%" ORDER BY variable_value;
+WHERE variable_name LIKE "example_%" ORDER BY variable_value, variable_name;
 variable_name	variable_value
 example_deprecated_var	0
+example_deprecated_var	0
+example_deprecated_var	0
+example_deprecated_var	0
+example_int_var	0
+example_int_var	0
+example_int_var	0
 example_int_var	0
 example_double_thdvar	300.000000
+example_double_thdvar	300.111100
+example_double_thdvar	300.222200
+example_double_thdvar	300.333300
+example_varopt_default	5
+example_varopt_default	5
+example_varopt_default	5
 example_varopt_default	5
 #
 # ================================================================================
@@ -489,7 +501,7 @@ example_varopt_default	5
 #
 # Variables by thread
 SELECT variable_name, variable_value FROM performance_schema.variables_by_thread
-WHERE variable_name LIKE "example_%" ORDER BY variable_value;
+WHERE variable_name LIKE "example_%" ORDER BY variable_value, variable_name;
 variable_name	variable_value
 example_deprecated_var	0
 example_int_var	0
@@ -570,11 +582,23 @@ example_varopt_default	5
 #
 # Variables by thread
 SELECT variable_name, variable_value FROM performance_schema.variables_by_thread
-WHERE variable_name LIKE "example_%" ORDER BY variable_value;
+WHERE variable_name LIKE "example_%" ORDER BY variable_value, variable_name;
 variable_name	variable_value
 example_deprecated_var	0
+example_deprecated_var	0
+example_deprecated_var	0
+example_deprecated_var	0
+example_int_var	0
+example_int_var	0
+example_int_var	0
 example_int_var	0
 example_double_thdvar	300.000000
+example_double_thdvar	311.111100
+example_double_thdvar	322.222200
+example_double_thdvar	333.333300
+example_varopt_default	5
+example_varopt_default	5
+example_varopt_default	5
 example_varopt_default	5
 #
 # ================================================================================
@@ -612,7 +636,7 @@ variable_name	variable_value
 #
 # VARIABLES BY THREAD
 SELECT variable_name, variable_value FROM performance_schema.variables_by_thread
-WHERE variable_name LIKE "example_%" ORDER BY variable_value;
+WHERE variable_name LIKE "example_%" ORDER BY variable_value, variable_name;
 variable_name	variable_value
 #
 # ================================================================================
