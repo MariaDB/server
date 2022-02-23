@@ -74,7 +74,6 @@ class Json_writer;
 *************************************************************************************/
 
 
-const uint FAKE_SELECT_LEX_ID= UINT_MAX;
 
 class Explain_query;
 

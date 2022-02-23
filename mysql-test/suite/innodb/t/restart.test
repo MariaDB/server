@@ -93,7 +93,7 @@ DROP TABLE tr,tc,td;
 
 let $wait_timeout = 180;
 let $wait_condition =
-  SELECT SUBSTR(variable_value, 1, 34) = 'Completed resizing buffer pool at '
+  SELECT SUBSTR(variable_value, 1, 31) = 'Completed resizing buffer pool.'
   FROM information_schema.global_status
   WHERE LOWER(variable_name) = 'innodb_buffer_pool_resize_status';
 

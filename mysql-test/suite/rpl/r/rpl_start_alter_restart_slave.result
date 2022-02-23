@@ -1,0 +1,119 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+SET @old_debug_slave= @@global.debug;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=4;
+set global slave_parallel_mode=optimistic;
+set global gtid_strict_mode=1;
+set global debug_dbug="+d,rpl_slave_stop_CA_before_binlog";
+include/start_slave.inc
+connection master;
+SET @old_debug_master= @@global.debug;
+set global debug_dbug="+d,start_alter_delay_master";
+set global binlog_alter_two_phase=true;
+create table t1( a int primary key, b int) engine=myisam;
+create table t2( a int primary key, b int) engine=myisam;
+connect  con1,localhost,root,,;
+alter table t1 add column c int;;
+connection master;
+# Get into binlog first and wait
+# master gtid state is 0-1-3
+connect  con2,localhost,root,,;
+alter table t2 add column c int;;
+connection master;
+# Get into binlog next and wait as well
+# master gtid state is 0-1-4
+set DEBUG_SYNC= "now signal alter_cont";
+connection con1;
+connection con2;
+create table t3( a int primary key, b int) engine=innodb;
+# master gtid state is 0-1-7
+show binlog events  from <binlog_start>;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid_list	1	#	[]
+master-bin.000001	#	Binlog_checkpoint	1	#	master-bin.000001
+master-bin.000001	#	Gtid	1	#	GTID #-#-#
+master-bin.000001	#	Query	1	#	use `test`; create table t1( a int primary key, b int) engine=myisam
+master-bin.000001	#	Gtid	1	#	GTID #-#-#
+master-bin.000001	#	Query	1	#	use `test`; create table t2( a int primary key, b int) engine=myisam
+master-bin.000001	#	Gtid	1	#	GTID #-#-# START ALTER
+master-bin.000001	#	Query	1	#	use `test`; alter table <t> add column c int
+master-bin.000001	#	Gtid	1	#	GTID #-#-# START ALTER
+master-bin.000001	#	Query	1	#	use `test`; alter table <t> add column c int
+master-bin.000001	#	Gtid	1	#	GTID #-#-# COMMIT ALTER id=<seq_no>
+master-bin.000001	#	Query	1	#	use `test`; alter table <t> add column c int
+master-bin.000001	#	Gtid	1	#	GTID #-#-# COMMIT ALTER id=<seq_no>
+master-bin.000001	#	Query	1	#	use `test`; alter table <t> add column c int
+master-bin.000001	#	Gtid	1	#	GTID #-#-#
+master-bin.000001	#	Query	1	#	use `test`; create table t3( a int primary key, b int) engine=innodb
+# Stop Slave
+# As master binlog is SA SA CA CA
+# let's stop at first CA processing (in process_commit_alter)
+connection slave;
+include/sync_with_master_gtid.inc
+connect extra_slave,127.0.0.1,root,,test,$SLAVE_MYPORT;
+stop slave;;
+connection slave;
+connection extra_slave;
+SET GLOBAL debug_dbug= @old_debug_slave;
+connection slave;
+include/wait_for_slave_sql_to_stop.inc
+# The list of events after the slave has stopped must have just one CA:
+show binlog events  from <binlog_start>;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000001	#	Gtid_list	2	#	[]
+slave-bin.000001	#	Binlog_checkpoint	2	#	slave-bin.000001
+slave-bin.000001	#	Gtid	1	#	GTID #-#-#
+slave-bin.000001	#	Query	1	#	use `test`; create table t1( a int primary key, b int) engine=myisam
+slave-bin.000001	#	Gtid	1	#	GTID #-#-#
+slave-bin.000001	#	Query	1	#	use `test`; create table t2( a int primary key, b int) engine=myisam
+slave-bin.000001	#	Gtid	1	#	GTID #-#-# START ALTER
+slave-bin.000001	#	Query	1	#	use `test`; alter table <t> add column c int
+slave-bin.000001	#	Gtid	1	#	GTID #-#-# START ALTER
+slave-bin.000001	#	Query	1	#	use `test`; alter table <t> add column c int
+slave-bin.000001	#	Gtid	1	#	GTID #-#-# COMMIT ALTER id=<seq_no>
+slave-bin.000001	#	Query	1	#	use `test`; alter table <t> add column c int
+select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
+domain_id	seq_no
+0	5
+include/start_slave.inc
+connection master;
+connection slave;
+# Everything from the master binlog must have been applied now:
+select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
+domain_id	seq_no
+0	7
+# slave gtid state is 0-1-7
+# The list of events after the slave has synchronized must have both CA:
+show binlog events  from <binlog_start>;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000001	#	Gtid_list	2	#	[]
+slave-bin.000001	#	Binlog_checkpoint	2	#	slave-bin.000001
+slave-bin.000001	#	Gtid	1	#	GTID #-#-#
+slave-bin.000001	#	Query	1	#	use `test`; create table t1( a int primary key, b int) engine=myisam
+slave-bin.000001	#	Gtid	1	#	GTID #-#-#
+slave-bin.000001	#	Query	1	#	use `test`; create table t2( a int primary key, b int) engine=myisam
+slave-bin.000001	#	Gtid	1	#	GTID #-#-# START ALTER
+slave-bin.000001	#	Query	1	#	use `test`; alter table <t> add column c int
+slave-bin.000001	#	Gtid	1	#	GTID #-#-# START ALTER
+slave-bin.000001	#	Query	1	#	use `test`; alter table <t> add column c int
+slave-bin.000001	#	Gtid	1	#	GTID #-#-# COMMIT ALTER id=<seq_no>
+slave-bin.000001	#	Query	1	#	use `test`; alter table <t> add column c int
+slave-bin.000001	#	Gtid	1	#	GTID #-#-# COMMIT ALTER id=<seq_no>
+slave-bin.000001	#	Query	1	#	use `test`; alter table <t> add column c int
+slave-bin.000001	#	Gtid	1	#	GTID #-#-#
+slave-bin.000001	#	Query	1	#	use `test`; create table t3( a int primary key, b int) engine=innodb
+connection master;
+drop table t1,t2,t3;
+set global binlog_alter_two_phase = 0;
+SET GLOBAL debug_dbug= @old_debug_master;
+set DEBUG_SYNC= 'RESET';
+connection slave;
+stop slave;
+set global slave_parallel_threads = 0;;
+set global slave_parallel_mode = optimistic;;
+set global gtid_strict_mode = 0;;
+set DEBUG_SYNC= 'RESET';
+start slave;
+include/rpl_end.inc

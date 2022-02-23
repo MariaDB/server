@@ -25,6 +25,8 @@
 #include "opt_range.h"
 #include "sql_expression_cache.h"
 
+#include <stack>
+
 const char * STR_DELETING_ALL_ROWS= "Deleting all rows";
 const char * STR_IMPOSSIBLE_WHERE= "Impossible WHERE";
 const char * STR_NO_ROWS_AFTER_PRUNING= "No matching rows after partition pruning";
@@ -41,7 +43,7 @@ static void write_item(Json_writer *writer, Item *item);
 static void append_item_to_str(String *out, Item *item);
 
 Explain_query::Explain_query(THD *thd_arg, MEM_ROOT *root) : 
-  mem_root(root), upd_del_plan(NULL),  insert_plan(NULL),
+  mem_root(root), upd_del_plan(nullptr),  insert_plan(nullptr),
   unions(root), selects(root),  thd(thd_arg), apc_enabled(false),
   operations(0)
 {
@@ -1062,14 +1064,13 @@ void Explain_aggr_window_funcs::print_json_members(Json_writer *writer,
 {
   Explain_aggr_filesort *srt;
   List_iterator<Explain_aggr_filesort> it(sorts);
-  writer->add_member("sorts").start_object();
+  Json_writer_array sorts(writer, "sorts");
   while ((srt= it++))
   {
-    writer->add_member("filesort").start_object();
+    Json_writer_object sort(writer);
+    Json_writer_object filesort(writer, "filesort");
     srt->print_json_members(writer, is_analyze);
-    writer->end_object(); // filesort
   }
-  writer->end_object(); // sorts
 }
 
 
@@ -1091,17 +1092,26 @@ print_explain_json_interns(Explain_query *query,
                            Json_writer *writer, 
                            bool is_analyze)
 {
-  Json_writer_nesting_guard guard(writer);
-  for (uint i=0; i< n_join_tabs; i++)
   {
-    if (join_tabs[i]->start_dups_weedout)
-      writer->add_member("duplicates_removal").start_object();
+    Json_writer_array loop(writer, "nested_loop");
+    for (uint i=0; i< n_join_tabs; i++)
+    {
+      if (join_tabs[i]->start_dups_weedout)
+      {
+        writer->start_object();
+        writer->add_member("duplicates_removal");
+        writer->start_array();
+      }
 
-    join_tabs[i]->print_explain_json(query, writer, is_analyze);
+      join_tabs[i]->print_explain_json(query, writer, is_analyze);
 
-    if (join_tabs[i]->end_dups_weedout)
-      writer->end_object();
-  }
+      if (join_tabs[i]->end_dups_weedout)
+      {
+        writer->end_array();
+        writer->end_object();
+      }
+    }
+  } // "nested_loop"
   print_explain_json_for_children(query, writer, is_analyze);
 }
 
@@ -1685,7 +1695,7 @@ void Explain_table_access::print_explain_json(Explain_query *query,
                                               Json_writer *writer,
                                               bool is_analyze)
 {
-  Json_writer_nesting_guard guard(writer);
+  Json_writer_object jsobj(writer);
   
   if (pre_join_sort)
   {
@@ -2081,14 +2091,15 @@ void Explain_quick_select::print_json(Json_writer *writer)
   }
   else
   {
-    writer->add_member(get_name_by_type()).start_object();
+    Json_writer_array ranges(writer, get_name_by_type());
 
     List_iterator_fast<Explain_quick_select> it (children);
     Explain_quick_select* child;
     while ((child = it++))
+    {
+      Json_writer_object obj(writer);
       child->print_json(writer);
-
-    writer->end_object();
+    }
   }
 }
 

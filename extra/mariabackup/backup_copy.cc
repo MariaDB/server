@@ -1818,26 +1818,11 @@ copy_back()
 	dst_dir = (srv_log_group_home_dir && *srv_log_group_home_dir)
 		? srv_log_group_home_dir : mysql_data_home;
 
-	/* --backup generates a single LOG_FILE_NAME, which we must copy
-	if it exists. */
+	/* --backup generates a single ib_logfile0, which we must copy. */
 
 	ds_data = ds_create(dst_dir, DS_TYPE_LOCAL);
-	MY_STAT stat_arg;
-	if (!my_stat(LOG_FILE_NAME, &stat_arg, MYF(0)) || !stat_arg.st_size) {
-		/* After completed --prepare, redo log files are redundant.
-		We must delete any redo logs at the destination, so that
-		the database will not jump to a different log sequence number
-		(LSN). */
-
-		char filename[FN_REFLEN];
-		snprintf(filename, sizeof filename, "%s/%s0", dst_dir,
-			 LOG_FILE_NAME_PREFIX);
-		unlink(filename);
-		snprintf(filename, sizeof filename, "%s/%s101", dst_dir,
-			 LOG_FILE_NAME_PREFIX);
-		unlink(filename);
-	} else if (!(ret = copy_or_move_file(LOG_FILE_NAME, LOG_FILE_NAME,
-					     dst_dir, 1))) {
+	if (!(ret = copy_or_move_file(LOG_FILE_NAME, LOG_FILE_NAME,
+				      dst_dir, 1))) {
 		goto cleanup;
 	}
 	ds_destroy(ds_data);

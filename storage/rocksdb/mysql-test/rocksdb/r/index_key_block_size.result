@@ -23,6 +23,11 @@ CREATE TABLE t1 (a INT,
 b CHAR(8),
 PRIMARY KEY ind2(b(1) DESC) KEY_BLOCK_SIZE=32768 COMMENT 'big key_block_size value'
 ) ENGINE=rocksdb;
+ERROR HY000: Table storage engine 'ROCKSDB' does not support the create option 'DESC'
+CREATE TABLE t1 (a INT,
+b CHAR(8),
+PRIMARY KEY ind2(b(1)) KEY_BLOCK_SIZE=32768 COMMENT 'big key_block_size value'
+) ENGINE=rocksdb;
 Warnings:
 Warning	1280	Name 'ind2' ignored for PRIMARY key.
 SHOW INDEX IN t1;

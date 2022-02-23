@@ -641,15 +641,6 @@ bool spider_check_pk_update(
   TABLE *table
 );
 
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-bool spider_check_hs_pk_update(
-  ha_spider *spider,
-  key_range *key
-);
-#endif
-#endif
-
 void spider_set_tmp_share_pointer(
   SPIDER_SHARE *tmp_share,
   char **tmp_connect_info,

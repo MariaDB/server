@@ -1,0 +1,6 @@
+@@character_set_client
+utf8mb4
+ERROR 1045 (28000): Access denied for user 'u'@'localhost' (using password: YES)
+2
+2
+DROP user u;

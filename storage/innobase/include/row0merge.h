@@ -109,6 +109,7 @@ struct index_field_t {
 	ulint		prefix_len;	/*!< column prefix length, or 0
 					if indexing the whole column */
 	bool		is_v_col;	/*!< whether this is a virtual column */
+	bool		descending;	/*!< whether to use DESC order */
 };
 
 /** Definition of an index being created */

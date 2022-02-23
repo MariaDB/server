@@ -189,13 +189,17 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "tt",
-      "access_type": "ALL",
-      "rows": 40,
-      "filtered": 100,
-      "table_function": "json_table"
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tt",
+          "access_type": "ALL",
+          "rows": 40,
+          "filtered": 100,
+          "table_function": "json_table"
+        }
+      }
+    ]
   }
 }
 select * from

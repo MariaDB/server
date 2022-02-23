@@ -1,0 +1,67 @@
+-- source include/mysql_upgrade_preparation.inc
+--source include/have_sequence.inc
+
+call mtr.add_suppression("Incorrect definition of table mysql.column_stats:.*");
+
+set histogram_type=single_prec_hb;
+create table t1 (a int);
+insert into t1 select seq from seq_1_to_100;
+analyze table t1 persistent for all;
+
+set histogram_type=double_prec_hb, histogram_size=20;
+create table t2 (a int);
+insert into t2 select seq from seq_1_to_100;
+analyze table t2 persistent for all;
+
+# Create a table with old definition
+CREATE TABLE IF NOT EXISTS t3 (
+  db_name varchar(64) NOT NULL, 
+  table_name varchar(64) NOT NULL, 
+  column_name varchar(64) NOT NULL, 
+  min_value varbinary(255) DEFAULT NULL, 
+  max_value varbinary(255) DEFAULT NULL, 
+  nulls_ratio decimal(12,4) DEFAULT NULL, 
+  avg_length decimal(12,4) DEFAULT NULL, 
+  avg_frequency decimal(12,4) DEFAULT NULL, 
+  hist_size tinyint unsigned, 
+  hist_type enum('SINGLE_PREC_HB','DOUBLE_PREC_HB'), 
+  histogram varbinary(255), 
+  PRIMARY KEY (db_name,table_name,column_name)
+) engine=Aria transactional=0 CHARACTER SET utf8 COLLATE utf8_bin comment='Statistics on Columns';
+
+# Copy the data there
+insert into t3 select * from mysql.column_stats;
+
+create table t4 like t3;
+insert into t4 select * from t3;
+
+# Put the old table in place of mysql.column_stats
+
+drop table mysql.column_stats;
+alter table t3 rename mysql.column_stats;
+--echo # Run mysql_upgrade
+
+--exec $MYSQL_UPGRADE --upgrade-system-tables  --force --silent 2>&1 
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--file_exists $MYSQLD_DATADIR/mysql_upgrade_info
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+--echo #
+--echo # Table definition after upgrade:
+--echo #
+show create table mysql.column_stats;
+
+select 
+  A.db_name, 
+  A.table_name, 
+  A.hist_type = B.hist_type as hist_type_equal,
+  A.histogram = B.histogram as histogram_equal
+from
+  t4 A 
+  left join 
+  mysql.column_stats B on A.db_name=B.db_name and
+                          A.table_name=B.table_name and
+                          A.column_name=B.column_name;
+
+drop table t1,t2,t4;

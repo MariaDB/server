@@ -81,6 +81,7 @@ class Wsrep_applier_service;
 class Reprepare_observer;
 class Relay_log_info;
 struct rpl_group_info;
+struct rpl_parallel_thread;
 class Rpl_filter;
 class Query_log_event;
 class Load_log_event;
@@ -290,9 +291,9 @@ class Key_part_spec :public Sql_alloc {
 public:
   LEX_CSTRING field_name;
   uint length;
-  bool generated;
+  bool generated, asc;
   Key_part_spec(const LEX_CSTRING *name, uint len, bool gen= false)
-    : field_name(*name), length(len), generated(gen)
+    : field_name(*name), length(len), generated(gen), asc(1)
   {}
   bool operator==(const Key_part_spec& other) const;
   /**
@@ -853,6 +854,7 @@ typedef struct system_variables
 
   vers_asof_timestamp_t vers_asof_timestamp;
   ulong vers_alter_history;
+  my_bool binlog_alter_two_phase;
 } SV;
 
 /**
@@ -2996,6 +2998,11 @@ public:
   }
   bool binlog_table_should_be_logged(const LEX_CSTRING *db);
 
+  // Accessors and setters of two-phase loggable ALTER binlog properties
+  uchar get_binlog_flags_for_alter();
+  void   set_binlog_flags_for_alter(uchar);
+  uint64 get_binlog_start_alter_seq_no();
+  void   set_binlog_start_alter_seq_no(uint64);
 #endif /* MYSQL_CLIENT */
 
 public:
@@ -7776,6 +7783,39 @@ extern THD_list server_threads;
 
 void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps,
                                     uint field_count);
+
+/*
+  RAII utility class to ease binlogging with temporary setting
+  THD etc context and restoring the original one upon logger execution.
+*/
+class Write_log_with_flags
+{
+  THD*   m_thd;
+#ifdef WITH_WSREP
+  bool wsrep_to_isolation;
+#endif
+
+public:
+~Write_log_with_flags()
+  {
+    m_thd->set_binlog_flags_for_alter(0);
+    m_thd->set_binlog_start_alter_seq_no(0);
+#ifdef WITH_WSREP
+    if (wsrep_to_isolation)
+      wsrep_to_isolation_end(m_thd);
+#endif
+  }
+
+  Write_log_with_flags(THD *thd, uchar flags,
+                       bool do_wsrep_iso __attribute__((unused))= false) :
+    m_thd(thd)
+  {
+    m_thd->set_binlog_flags_for_alter(flags);
+#ifdef WITH_WSREP
+    wsrep_to_isolation= do_wsrep_iso && WSREP(m_thd);
+#endif
+  }
+};
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_CLASS_INCLUDED */

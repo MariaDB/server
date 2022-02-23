@@ -1,0 +1,66 @@
+include/master-slave.inc
+[connection master]
+connection master;
+set binlog_alter_two_phase=true;
+CREATE OR REPLACE TABLE tab (
+a int PRIMARY KEY,
+b varchar(50),
+c varchar(50)
+) CHARACTER SET=latin1 engine=innodb;
+SET SESSION alter_algorithm='INSTANT';
+ALTER TABLE tab MODIFY COLUMN b varchar(100);
+SET SESSION alter_algorithm='NOCOPY';
+ALTER TABLE tab MODIFY COLUMN c varchar(100);
+SHOW CREATE TABLE tab;
+Table	Create Table
+tab	CREATE TABLE `tab` (
+  `a` int(11) NOT NULL,
+  `b` varchar(100) DEFAULT NULL,
+  `c` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE tab (
+a int PRIMARY KEY,
+b varchar(50),
+c varchar(50)
+) CHARACTER SET=latin1 engine=innodb
+master-bin.000001	#	Gtid	#	#	GTID #-#-# START ALTER
+master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN b varchar(100)
+master-bin.000001	#	Gtid	#	#	GTID #-#-# COMMIT ALTER id=#
+master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN b varchar(100)
+master-bin.000001	#	Gtid	#	#	GTID #-#-# START ALTER
+master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN c varchar(100)
+master-bin.000001	#	Gtid	#	#	GTID #-#-# COMMIT ALTER id=#
+master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN c varchar(100)
+connection slave;
+SHOW CREATE TABLE tab;
+Table	Create Table
+tab	CREATE TABLE `tab` (
+  `a` int(11) NOT NULL,
+  `b` varchar(100) DEFAULT NULL,
+  `c` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE tab (
+a int PRIMARY KEY,
+b varchar(50),
+c varchar(50)
+) CHARACTER SET=latin1 engine=innodb
+slave-bin.000001	#	Gtid	#	#	GTID #-#-# START ALTER
+slave-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN b varchar(100)
+slave-bin.000001	#	Gtid	#	#	GTID #-#-# COMMIT ALTER id=#
+slave-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN b varchar(100)
+slave-bin.000001	#	Gtid	#	#	GTID #-#-# START ALTER
+slave-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN c varchar(100)
+slave-bin.000001	#	Gtid	#	#	GTID #-#-# COMMIT ALTER id=#
+slave-bin.000001	#	Query	#	#	use `test`; ALTER TABLE tab MODIFY COLUMN c varchar(100)
+connection master;
+DROP TABLE tab;
+connection slave;
+include/rpl_end.inc

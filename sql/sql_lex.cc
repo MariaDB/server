@@ -7145,6 +7145,27 @@ bool LEX::sp_declare_cursor(THD *thd, const LEX_CSTRING *name,
   uint offp;
   sp_instr_cpush *i;
 
+  /* In some cases param_ctx can be NULL. e.g.: FOR rec IN (SELECT...) */
+  if (param_ctx)
+  {
+    for (uint prm= 0; prm < param_ctx->context_var_count(); prm++)
+    {
+      const sp_variable *param= param_ctx->get_context_variable(prm);
+      if (param->mode != sp_variable::MODE_IN)
+      {
+        /*
+          PL/SQL supports the IN keyword in cursor parameters.
+          We also support this for compatibility. Note, OUT/INOUT parameters
+          will unlikely be ever supported. So "YET" may sound confusing here.
+          But it should be better than using a generic error. Adding a dedicated
+          error message for this small issue is not desirable.
+        */
+        my_error(ER_NOT_SUPPORTED_YET, MYF(0), "OUT/INOUT cursor parameter");
+        return true;
+      }
+    }
+  }
+
   if (spcont->find_cursor(name, &offp, true))
   {
     my_error(ER_SP_DUP_CURS, MYF(0), name->str);

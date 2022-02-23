@@ -1,0 +1,419 @@
+connect  server_1,127.0.0.1,root,,,$SERVER_MYPORT_1;
+connect  server_2,127.0.0.1,root,,,$SERVER_MYPORT_2;
+connect  server_3,127.0.0.1,root,,,$SERVER_MYPORT_3;
+connection server_1;
+SET @save_binlog_alter_two_phase= @@GLOBAL.binlog_alter_two_phase;
+SET GLOBAL binlog_alter_two_phase = ON;
+SET binlog_alter_two_phase = ON;
+# Create table and perform CA and RA
+CREATE TABLE t1( a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1,1);
+INSERT INTO t1 VALUES(2,2);
+# Normal Alter
+ALTER TABLE t1 ADD COLUMN c INT;
+# Failed Alter
+INSERT INTO t1 VALUES(1,1, NULL);
+ALTER TABLE t1 CHANGE a a INT UNIQUE;
+ERROR 23000: Duplicate entry '1' for key 'a'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+0-1-8
+# apply the binlog
+DROP TABLE t1;
+# reset the binlog
+RESET MASTER;
+# execute the binlog
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+0-1-8
+# Same as before
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1;
+# reset the binlog
+RESET MASTER;
+RESET SLAVE;
+connection server_2;
+SET @save_binlog_alter_two_phase= @@GLOBAL.binlog_alter_two_phase;
+SET GLOBAL binlog_alter_two_phase = ON;
+connection server_3;
+SET @save_gtid_strict_mode= @@GLOBAL.gtid_strict_mode;
+SET @slave_parallel_threads= @@GLOBAL.slave_parallel_threads;
+SET @slave_parallel_mode= @@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_threads=20;
+SET GLOBAL slave_parallel_mode=optimistic;
+SET GLOBAL gtid_strict_mode=1;
+connection server_1;
+SET gtid_domain_id= 11;
+CREATE DATABASE s1;
+USE s1;
+connect master_node,127.0.0.1,root,,$db_name, $M_port;
+set gtid_domain_id= 11;;
+connect slave_node,127.0.0.1,root,,test, $S_port;
+set gtid_domain_id= 11;;
+# myisam
+connection master_node;
+create table t1(a int, b int) engine=myisam;;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+# Normal Alter
+alter table t1 add column c int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+# Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique;
+ERROR 23000: Duplicate entry '1' for key 'a'
+set @@session.binlog_alter_two_phase = 0;
+alter table t1 change a a int;
+set @@session.binlog_alter_two_phase = 1;
+alter table t1 change a a int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+connection master_node;
+drop table t1;
+# innodb
+connection master_node;
+create table t1(a int, b int) engine=innodb;;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+# Normal Alter
+alter table t1 add column c int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+# Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique;
+ERROR 23000: Duplicate entry '1' for key 'a'
+set @@session.binlog_alter_two_phase = 0;
+alter table t1 change a a int;
+set @@session.binlog_alter_two_phase = 1;
+alter table t1 change a a int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+connection master_node;
+drop table t1;
+# aria
+connection master_node;
+create table t1(a int, b int) engine=aria;;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+# Normal Alter
+alter table t1 add column c int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+# Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique;
+ERROR 23000: Duplicate entry '1' for key 'a'
+set @@session.binlog_alter_two_phase = 0;
+alter table t1 change a a int;
+set @@session.binlog_alter_two_phase = 1;
+alter table t1 change a a int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+connection master_node;
+drop table t1;
+# concurrent alter Myisam
+# Concurrent DML
+# Rollback tests
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+# concurrent alter Aria
+# Concurrent DML
+# Rollback tests
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+# concurrent alter Innodb copy
+# Concurrent DML
+# Rollback tests
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+# concurrent alter Innodb Inplace
+# Concurrent DML
+# Rollback tests
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection server_1;
+DROP DATABASE s1;
+connection server_2;
+SET gtid_domain_id= 12;
+CREATE DATABASE s2;
+USE s2;
+connect master_node,127.0.0.1,root,,$db_name, $M_port;
+set gtid_domain_id= 12;;
+connect slave_node,127.0.0.1,root,,test, $S_port;
+set gtid_domain_id= 12;;
+# myisam
+connection master_node;
+create table t1(a int, b int) engine=myisam;;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+# Normal Alter
+alter table t1 add column c int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+# Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique;
+ERROR 23000: Duplicate entry '1' for key 'a'
+set @@session.binlog_alter_two_phase = 0;
+alter table t1 change a a int;
+set @@session.binlog_alter_two_phase = 1;
+alter table t1 change a a int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+connection master_node;
+drop table t1;
+# innodb
+connection master_node;
+create table t1(a int, b int) engine=innodb;;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+# Normal Alter
+alter table t1 add column c int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+# Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique;
+ERROR 23000: Duplicate entry '1' for key 'a'
+set @@session.binlog_alter_two_phase = 0;
+alter table t1 change a a int;
+set @@session.binlog_alter_two_phase = 1;
+alter table t1 change a a int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+connection master_node;
+drop table t1;
+# aria
+connection master_node;
+create table t1(a int, b int) engine=aria;;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+# Normal Alter
+alter table t1 add column c int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+# Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique;
+ERROR 23000: Duplicate entry '1' for key 'a'
+set @@session.binlog_alter_two_phase = 0;
+alter table t1 change a a int;
+set @@session.binlog_alter_two_phase = 1;
+alter table t1 change a a int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+connection master_node;
+drop table t1;
+# concurrent alter Myisam
+# Concurrent DML
+# Rollback tests
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+# concurrent alter Aria
+# Concurrent DML
+# Rollback tests
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+# concurrent alter Innodb copy
+# Concurrent DML
+# Rollback tests
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+# concurrent alter Innodb Inplace
+# Concurrent DML
+# Rollback tests
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+connection server_2;
+DROP DATABASE s2;
+connection server_3;
+START ALL SLAVES;
+Warnings:
+Note	1937	SLAVE 'm2' started
+Note	1937	SLAVE 'm1' started
+SET default_master_connection = 'm1';
+include/wait_for_slave_to_start.inc
+SET default_master_connection = 'm2';
+include/wait_for_slave_to_start.inc
+SET default_master_connection = 'm1';
+include/sync_with_master_gtid.inc
+SET default_master_connection = 'm2';
+include/sync_with_master_gtid.inc
+# Stop slaves and apply binlog
+connection server_3;
+SET default_master_connection = 'm1';
+include/stop_slave.inc
+SET default_master_connection = 'm2';
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads = @slave_parallel_threads;
+SET GLOBAL slave_parallel_mode = @slave_parallel_mode;
+SET GLOBAL gtid_strict_mode = @save_gtid_strict_mode;
+SET GLOBAL gtid_domain_id= 0;
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+11-1-412,12-2-412
+# reset the binlog
+RESET MASTER;
+# execute the binlog
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+11-1-412,12-2-412
+# One more time to simulate S->S case
+RESET MASTER;
+# execute the binlog
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+11-1-412,12-2-412
+RESET MASTER;
+RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos= '';
+connection server_1;
+SET GLOBAL binlog_alter_two_phase=@save_binlog_alter_two_phase;
+SET GLOBAL gtid_domain_id= 0;
+RESET MASTER;
+connection server_2;
+SET GLOBAL gtid_domain_id= 0;
+SET GLOBAL binlog_alter_two_phase=@save_binlog_alter_two_phase;
+RESET MASTER;
+disconnect server_1;
+disconnect server_2;
+disconnect server_3;

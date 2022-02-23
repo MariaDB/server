@@ -55,10 +55,6 @@ public:
   SPIDER_SHARE       *share;
   ulonglong          spider_thread_id;
   ulonglong          trx_conn_adjustment;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  ulonglong          trx_hs_r_conn_adjustment;
-  ulonglong          trx_hs_w_conn_adjustment;
-#endif
   uint               mem_calc_id;
   const char         *mem_calc_func_name;
   const char         *mem_calc_file_name;
@@ -71,14 +67,6 @@ public:
   char               *conn_keys_first_ptr;
   char               **conn_keys;
   SPIDER_CONN        **conns;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  char               **hs_r_conn_keys;
-  SPIDER_CONN        **hs_r_conns;
-  ulonglong          *hs_r_conn_ages;
-  char               **hs_w_conn_keys;
-  SPIDER_CONN        **hs_w_conns;
-  ulonglong          *hs_w_conn_ages;
-#endif
   /* for active-standby mode */
   uint               *conn_link_idx;
   uchar              *conn_can_fo;
@@ -182,27 +170,8 @@ public:
   uchar              *m_handler_opened;
   uint               *m_handler_id;
   char               **m_handler_cid;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  uchar              *r_handler_opened;
-  uint               *r_handler_id;
-  uint               *r_handler_index;
-  uchar              *w_handler_opened;
-  uint               *w_handler_id;
-  uint               *w_handler_index;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-  uchar              *do_hs_direct_update;
-  uint32             **hs_r_ret_fields;
-  uint32             **hs_w_ret_fields;
-  size_t             *hs_r_ret_fields_num;
-  size_t             *hs_w_ret_fields_num;
-  uchar              *tmp_column_bitmap;
-#endif
-#endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   bool               do_direct_update;
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  bool               maybe_do_hs_direct_update;
-#endif
   uint               direct_update_kinds;
 #endif
   spider_index_rnd_init prev_index_rnd_init;
@@ -974,26 +943,6 @@ public:
   int reset_sql_sql(
     ulong sql_type
   );
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  int reset_hs_sql(
-    ulong sql_type
-  );
-  int reset_hs_keys(
-    ulong sql_type
-  );
-  int reset_hs_upds(
-    ulong sql_type
-  );
-  int reset_hs_strs(
-    ulong sql_type
-  );
-  int reset_hs_strs_pos(
-    ulong sql_type
-  );
-  int push_back_hs_upds(
-    SPIDER_HS_STRING_REF &info
-  );
-#endif
   int append_tmp_table_and_sql_for_bka(
     const key_range *start_key
   );
@@ -1004,17 +953,9 @@ public:
   int reuse_union_table_and_sql_for_bka();
   int append_insert_sql_part();
   int append_update_sql_part();
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-  int append_increment_update_set_sql_part();
-#endif
-#endif
   int append_update_set_sql_part();
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   int append_direct_update_set_sql_part();
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  int append_direct_update_set_hs_part();
-#endif
 #endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   int append_dup_update_pushdown_sql_part(
@@ -1081,13 +1022,6 @@ public:
     const key_range *end_key,
     ulong sql_type
   );
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  int append_key_where_hs_part(
-    const key_range *start_key,
-    const key_range *end_key,
-    ulong sql_type
-  );
-#endif
   int append_match_where_sql_part(
     ulong sql_type
   );
@@ -1142,13 +1076,6 @@ public:
     longlong limit,
     ulong sql_type
   );
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  int append_limit_hs_part(
-    longlong offset,
-    longlong limit,
-    ulong sql_type
-  );
-#endif
   int reappend_limit_sql_part(
     longlong offset,
     longlong limit,
@@ -1160,11 +1087,6 @@ public:
   int append_insert_values_sql_part(
     ulong sql_type
   );
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  int append_insert_values_hs_part(
-    ulong sql_type
-  );
-#endif
   int append_into_sql_part(
     ulong sql_type
   );
@@ -1233,9 +1155,6 @@ public:
   bool support_use_handler_sql(
     int use_handler
   );
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-  bool support_bulk_access_hs() const;
-#endif
   int init_union_table_name_pos_sql();
   int set_union_table_name_pos_sql();
   int append_lock_tables_list();

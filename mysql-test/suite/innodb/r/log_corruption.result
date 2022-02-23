@@ -12,16 +12,15 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 FOUND 1 /InnoDB: Upgrade after a crash is not supported. This redo log was created before MariaDB 10\.2\.2, and we did not find a valid checkpoint/ in mysqld.1.err
-FOUND 2 /Plugin 'InnoDB' registration as a STORAGE ENGINE failed/ in mysqld.1.err
 # redo log from before MariaDB 10.2.2, with corrupted log block
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /InnoDB: Upgrade after a crash is not supported. This redo log was created before MariaDB 10\.2\.2, and it appears corrupted/ in mysqld.1.err
+FOUND 1 /InnoDB: Upgrade after a crash is not supported. This redo log was created before MariaDB 10\.2\.2, and we did not find a valid checkpoint/ in mysqld.1.err
 # empty redo log from before MariaDB 10.2.2
-# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=2m
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=4m
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
@@ -29,53 +28,55 @@ COUNT(*)
 1
 FOUND 1 /InnoDB: Upgrading redo log:/ in mysqld.1.err
 # Corrupted multi-file redo log from before MariaDB 10.2.2
-# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=2m
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=4m
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 COUNT(*)
 0
-FOUND 2 /InnoDB: Upgrade after a crash is not supported. This redo log was created before MariaDB 10\.2\.2, and it appears corrupted/ in mysqld.1.err
-# Empty multi-file redo log from before MariaDB 10.2.2
-# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=2m
+FOUND 1 /InnoDB: Upgrade after a crash is not supported. This redo log was created before MariaDB 10\.2\.2, and it appears corrupted/ in mysqld.1.err
+# Empty multi-file redo log (wrong offset) from before MariaDB 10.2.2
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=4m
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 COUNT(*)
-1
-FOUND 2 /InnoDB: Upgrading redo log:/ in mysqld.1.err
+0
+FOUND 3 /Upgrade after a crash is not supported. This redo log was created before MariaDB 10\.2\.2, and we did not find a valid checkpoint\./ in mysqld.1.err
 # Multi-file redo log with size mismatch from after MariaDB 10.2.2
 # Corrupted multi-file redo log from after MariaDB 10.2.2
-# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=2m
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=4m
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 COUNT(*)
 0
-FOUND 1 /InnoDB: Log file .*ib_logfile1 is of different size 1048576 bytes than other log files 2097152 bytes!/ in mysqld.1.err
-FOUND 1 /InnoDB: Upgrade after a crash is not supported\. The redo log was created with BogoDB 1\.2\.3\.4, and it appears corrupted\./ in mysqld.1.err
-# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=2m
+FOUND 3 /Upgrade after a crash is not supported. This redo log was created before MariaDB 10\.2\.2, and we did not find a valid checkpoint\./ in mysqld.1.err
+FOUND 1 /InnoDB: No valid checkpoint was found; the log was created with BogoDB 1\.2\.3\.4\./ in mysqld.1.err
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=4m
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 COUNT(*)
 0
-FOUND 2 /InnoDB: Upgrade after a crash is not supported\. The redo log was created with BogoDB 1\.2\.3\.4, and it appears corrupted\./ in mysqld.1.err
+FOUND 1 /InnoDB: Log file .*ib_logfile1 is of different size 2097152 bytes than other log files 1048576 bytes!/ in mysqld.1.err
+FOUND 2 /InnoDB: No valid checkpoint was found; the log was created with BogoDB 1\.2\.3\.4\./ in mysqld.1.err
 # Empty multi-file redo log from after MariaDB 10.2.2
-# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=2m
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=4m
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 COUNT(*)
-1
-FOUND 3 /InnoDB: Upgrading redo log:/ in mysqld.1.err
+0
+FOUND 3 /InnoDB: No valid checkpoint was found; the log was created with BogoDB 1\.2\.3\.4\./ in mysqld.1.err
 # redo log from "after" MariaDB 10.2.2, but with invalid header checksum
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /InnoDB: Invalid redo log header checksum/ in mysqld.1.err
+FOUND 1 /InnoDB: Log file .*ib_logfile1 is of different size 2097152 bytes than other log files 4194304 bytes!/ in mysqld.1.err
+FOUND 1 /InnoDB: Invalid log header checksum/ in mysqld.1.err
 # distant future redo log format, with valid header checksum
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
@@ -89,14 +90,14 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /InnoDB: No valid checkpoint found .corrupted redo log/ in mysqld.1.err
+FOUND 1 /InnoDB: No valid checkpoint was found; the log was created with malicious intentions, or perhaps\./ in mysqld.1.err
 # valid header, valid checkpoint 1, all-zero (invalid) checkpoint 2, invalid block checksum
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 3362026715 found: 144444122/ in mysqld.1.err
+FOUND 2 /InnoDB: Invalid log header checksum/ in mysqld.1.err
 FOUND 1 /InnoDB: Upgrade after a crash is not supported\. The redo log was created with malicious intentions, or perhaps, and it appears corrupted\./ in mysqld.1.err
 # same, but with current-version header
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5
@@ -104,7 +105,7 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 2 /InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 3362026715 found: 144444122/ in mysqld.1.err
+FOUND 3 /InnoDB: Invalid log header checksum/ in mysqld.1.err
 # --innodb-force-recovery=6 (skip the entire redo log)
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=6
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
@@ -112,7 +113,7 @@ WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 InnoDB	YES	Supports transactions, row-level locking, foreign keys and encryption for tables	YES	YES	YES
-FOUND 1 /\[Note\] InnoDB: .* started; log sequence number 0/ in mysqld.1.err
+FOUND 1 /\[Note\] InnoDB: log sequence number 0.*; transaction id 0/ in mysqld.1.err
 # valid header, valid checkpoint 1, all-zero (invalid) checkpoint 2, invalid block number
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
@@ -141,8 +142,9 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /InnoDB: Invalid log block checksum. block: 2372 checkpoint no: 1 expected: 2454333373 found: 150151/ in mysqld.1.err
-FOUND 3 /\[ERROR\] InnoDB: Upgrade after a crash is not supported\. The redo log was created with MariaDB 10\.3\.1, and it appears corrupted\./ in mysqld.1.err
+NOT FOUND /InnoDB: Invalid log header checksum
+--source include/search_pattern_in_file.inc
+let SEARCH_PATTERN=\[ERROR\] InnoDB: Upgrade after a crash is not supported\. The redo log was created with MariaDB 10\.3\.1, and it appears corrupted\./ in mysqld.1.err
 # valid header, invalid checkpoint 1, valid checkpoint 2, invalid log record
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption
 SELECT * FROM INFORMATION_SCHEMA.ENGINES
@@ -165,21 +167,29 @@ AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 FOUND 3 /\[ERROR\] InnoDB: Upgrade after a crash is not supported\. The redo log was created with MariaDB 10\.3\.1\./ in mysqld.1.err
 # Empty 10.3 redo log
-# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=2m
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=4m
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 COUNT(*)
 1
-FOUND 1 /InnoDB: .* started; log sequence number 1213964; transaction id 0/ in mysqld.1.err
+FOUND 1 /InnoDB: log sequence number 1213964\b.*; transaction id 0/ in mysqld.1.err
 # Empty 10.2 redo log
-# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=2m
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=4m
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 COUNT(*)
 1
-FOUND 5 /InnoDB: Upgrading redo log:/ in mysqld.1.err
+FOUND 3 /InnoDB: Upgrading redo log:/ in mysqld.1.err
+# Empty 10.5 redo log
+# restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5 --innodb-log-file-size=4m
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.ENGINES
+WHERE engine = 'innodb'
+AND support IN ('YES', 'DEFAULT', 'ENABLED');
+COUNT(*)
+1
+FOUND 4 /InnoDB: Upgrading redo log:/ in mysqld.1.err
 # Minimal MariaDB 10.1.21 encrypted redo log
 # restart: --innodb-data-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-log-group-home-dir=MYSQLTEST_VARDIR/tmp/log_corruption --innodb-force-recovery=5
 SELECT * FROM INFORMATION_SCHEMA.ENGINES

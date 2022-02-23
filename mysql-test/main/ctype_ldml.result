@@ -34,6 +34,9 @@ Bar	+7-912-800-80-01
 SELECT * FROM t1 WHERE phone='7 9 1 2 8 0 0 8 0 0 1';
 name	phone
 Bar	+7-912-800-80-01
+SELECT * FROM t1 WHERE phone='tel.79128008001';
+name	phone
+Bar	+7-912-800-80-01
 DROP TABLE t1;
 show collation like 'utf8mb3_test_ci';
 Collation	Charset	Id	Default	Compiled	Sortlen
@@ -3042,3 +3045,37 @@ SHOW COLLATION LIKE 'latin1_test_replace';
 Collation	Charset	Id	Default	Compiled	Sortlen
 SELECT 'foo' = 'foo ' COLLATE latin1_test_replace;
 ERROR HY000: Unknown collation: 'latin1_test_replace'
+#
+# MDEV-27042 UCA: Resetting contractions to ignorable does not work well
+#
+CREATE TABLE t1 (
+phone VARCHAR(64) CHARACTER SET utf8 COLLATE utf8_phone_ci
+);
+INSERT INTO t1 VALUES ('123');
+INSERT INTO t1 VALUES ('tel.123');
+INSERT INTO t1 VALUES ('tél.123');
+INSERT INTO t1 VALUES ('tèl.123');
+INSERT INTO t1 VALUES ('ťel.123');
+INSERT INTO t1 VALUES ('ťèl.123');
+INSERT INTO t1 VALUES ('tex.123');
+SELECT * FROM t1 WHERE phone='123' ORDER BY BINARY phone;
+phone
+123
+tel.123
+tél.123
+ťel.123
+SELECT * FROM t1 WHERE phone<>'123' ORDER BY BINARY phone;
+phone
+tex.123
+tèl.123
+ťèl.123
+SELECT phone, HEX(WEIGHT_STRING(phone)) FROM t1 ORDER BY phone, BINARY phone;
+phone	HEX(WEIGHT_STRING(phone))
+123	0E2A0E2B0E2C
+tel.123	0E2A0E2B0E2C
+tél.123	0E2A0E2B0E2C
+ťel.123	0E2A0E2B0E2C
+tèl.123	10020E8B0F2E025D0E2A0E2B0E2C
+ťèl.123	10020E8B0F2E025D0E2A0E2B0E2C
+tex.123	10020E8B105A025D0E2A0E2B0E2C
+DROP TABLE t1;

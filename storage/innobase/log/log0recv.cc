@@ -62,7 +62,7 @@ recv_sys_t	recv_sys;
 bool	recv_needed_recovery;
 #ifdef UNIV_DEBUG
 /** TRUE if writing to the redo log (mtr_commit) is forbidden.
-Protected by log_sys.mutex. */
+Protected by log_sys.latch. */
 bool	recv_no_log_write = false;
 #endif /* UNIV_DEBUG */
 
@@ -87,7 +87,7 @@ is bigger than the lsn we are able to scan up to, that is an indication that
 the recovery failed and the database may be corrupt. */
 static lsn_t	recv_max_page_lsn;
 
-/** Stored physical log record with logical LSN (@see log_t::FORMAT_10_5) */
+/** Stored physical log record with logical LSN */
 struct log_phys_t : public log_rec_t
 {
   /** start LSN of the mini-transaction (not necessarily of this record) */
@@ -248,19 +248,19 @@ public:
           memset_aligned<8>(FIL_PAGE_PREV + frame, 0xff, 8);
           mach_write_to_4(frame + FIL_PAGE_SPACE_ID, block.page.id().space());
           last_offset= FIL_PAGE_TYPE;
-      next_after_applying:
+        next_after_applying:
           if (applied == APPLIED_NO)
             applied= APPLIED_YES;
         }
         else
         {
-      record_corrupted:
+        record_corrupted:
           if (!srv_force_recovery)
           {
             recv_sys.set_corrupt_log();
             return applied;
           }
-      next_not_same_page:
+        next_not_same_page:
           last_offset= 1; /* the next record must not be same_page  */
         }
       next:
@@ -307,7 +307,7 @@ public:
             goto record_corrupted;
           if (undo_append(block, ++l, --rlen) && !srv_force_recovery)
           {
-page_corrupted:
+          page_corrupted:
             sql_print_error("InnoDB: Set innodb_force_recovery=1"
                             " to ignore corruption.");
             recv_sys.set_corrupt_log();
@@ -1115,36 +1115,22 @@ inline void recv_sys_t::trim(const page_id_t page_id, lsn_t lsn)
 	DBUG_VOID_RETURN;
 }
 
-void recv_sys_t::open_log_files_if_needed()
+inline void recv_sys_t::read(os_offset_t total_offset, span<byte> buf)
 {
-  if (!recv_sys.files.empty())
-    return;
-
-  for (auto &&path : get_existing_log_files_paths())
-  {
-    recv_sys.files.emplace_back(std::move(path));
-    ut_a(recv_sys.files.back().open(true) == DB_SUCCESS);
-  }
-}
-
-void recv_sys_t::read(os_offset_t total_offset, span<byte> buf)
-{
-  open_log_files_if_needed();
-
-  size_t file_idx= static_cast<size_t>(total_offset / log_sys.log.file_size);
-  os_offset_t offset= total_offset % log_sys.log.file_size;
+  size_t file_idx= static_cast<size_t>(total_offset / log_sys.file_size);
+  os_offset_t offset= total_offset % log_sys.file_size;
   dberr_t err= recv_sys.files[file_idx].read(offset, buf);
   ut_a(err == DB_SUCCESS);
 }
 
 inline size_t recv_sys_t::files_size()
 {
-  open_log_files_if_needed();
+  ut_ad(!files.empty());
   return files.size();
 }
 
 /** Process a file name from a FILE_* record.
-@param[in,out]	name		file name
+@param[in]	name		file name
 @param[in]	len		length of the file name
 @param[in]	space_id	the tablespace ID
 @param[in]	deleted		whether this is a FILE_DELETE record
@@ -1153,8 +1139,8 @@ inline size_t recv_sys_t::files_size()
 				stored */
 static
 void
-fil_name_process(char* name, ulint len, uint32_t space_id,
-		 bool deleted, lsn_t lsn, store_t *store)
+fil_name_process(const char* name, ulint len, uint32_t space_id,
+		 bool deleted, lsn_t lsn, store_t store)
 {
 	if (srv_operation == SRV_OPERATION_BACKUP
 	    || srv_operation == SRV_OPERATION_BACKUP_NO_DEFER) {
@@ -1200,7 +1186,7 @@ fil_name_process(char* name, ulint len, uint32_t space_id,
 		the space_id. If not, ignore the file after displaying
 		a note. Abort if there are multiple files with the
 		same space_id. */
-		switch (fil_ibd_load(space_id, name, space)) {
+		switch (fil_ibd_load(space_id, fname.name.c_str(), space)) {
 		case FIL_LOAD_OK:
 			ut_ad(space != NULL);
 
@@ -1223,12 +1209,14 @@ same_space:
 				sql_print_error("InnoDB: Tablespace " UINT32PF
 						" has been found"
 						" in two places:"
-						" '%.*s' and '%s'."
+						" '%.*s' and '%.*s'."
 						" You must delete"
 						" one of them.",
 						space_id,
 						int(f.name.size()),
-						f.name.data(), name);
+						f.name.data(),
+						int(fname.name.size()),
+						fname.name.data());
 				recv_sys.set_corrupt_fs();
 			}
 			break;
@@ -1253,20 +1241,21 @@ same_space:
 
 				sql_print_information(
 					"InnoDB: At LSN: " LSN_PF
-					": unable to open file %s"
+					": unable to open file %.*s"
 					" for tablespace " UINT32PF,
-					recv_sys.recovered_lsn,
-					name, space_id);
+					recv_sys.lsn,
+					int(fname.name.size()),
+					fname.name.data(), space_id);
 			}
 			break;
 
 		case FIL_LOAD_DEFER:
 			/** Skip the deferred spaces
 			when lsn is already processed */
-			if (*store != store_t::STORE_IF_EXISTS) {
+			if (store != store_t::STORE_IF_EXISTS) {
 				deferred_spaces.add(
 					static_cast<uint32_t>(space_id),
-					name, lsn);
+					fname.name.c_str(), lsn);
 			}
 			break;
 		case FIL_LOAD_INVALID:
@@ -1323,12 +1312,6 @@ void recv_sys_t::close()
     deferred_spaces.clear();
     ut_d(mysql_mutex_unlock(&mutex));
 
-    if (buf)
-    {
-      ut_free_dodump(buf, RECV_PARSING_BUF_SIZE);
-      buf= nullptr;
-    }
-
     last_stored_lsn= 0;
     mysql_mutex_destroy(&mutex);
     pthread_cond_destroy(&cond);
@@ -1351,17 +1334,12 @@ void recv_sys_t::create()
 	apply_log_recs = false;
 	apply_batch_on = false;
 
-	buf = static_cast<byte*>(ut_malloc_dontdump(RECV_PARSING_BUF_SIZE,
-						    PSI_INSTRUMENT_ME));
 	len = 0;
-	parse_start_lsn = 0;
-	scanned_lsn = 0;
-	scanned_checkpoint_no = 0;
-	recovered_offset = 0;
-	recovered_lsn = 0;
+	offset = 0;
+	lsn = 0;
 	found_corrupt_log = false;
 	found_corrupt_fs = false;
-	mlog_checkpoint_lsn = 0;
+	file_checkpoint = 0;
 
 	progress_time = time(NULL);
 	recv_max_page_lsn = 0;
@@ -1402,9 +1380,6 @@ void recv_sys_t::debug_free()
 
   recovery_on= false;
   pages.clear();
-  ut_free_dodump(buf, RECV_PARSING_BUF_SIZE);
-
-  buf= nullptr;
 
   mysql_mutex_unlock(&mutex);
 }
@@ -1488,176 +1463,11 @@ inline void recv_sys_t::free(const void *data)
 }
 
 
-/** Read a log segment to log_sys.buf.
-@param[in,out]	start_lsn	in: read area start,
-out: the last read valid lsn
-@param[in]	end_lsn		read area end
-@return	whether no invalid blocks (e.g checksum mismatch) were found */
-bool log_t::file::read_log_seg(lsn_t* start_lsn, lsn_t end_lsn)
+/** @return whether a log_t::FORMAT_10_5 log block checksum matches */
+static bool recv_check_log_block(const byte *buf)
 {
-	ulint	len;
-	bool success = true;
-	mysql_mutex_assert_owner(&log_sys.mutex);
-	ut_ad(!(*start_lsn % OS_FILE_LOG_BLOCK_SIZE));
-	ut_ad(!(end_lsn % OS_FILE_LOG_BLOCK_SIZE));
-	byte* buf = log_sys.buf;
-loop:
-	lsn_t source_offset = calc_lsn_offset_old(*start_lsn);
-
-	ut_a(end_lsn - *start_lsn <= ULINT_MAX);
-	len = (ulint) (end_lsn - *start_lsn);
-
-	ut_ad(len != 0);
-
-	const bool at_eof = (source_offset % file_size) + len > file_size;
-	if (at_eof) {
-		/* If the above condition is true then len (which is ulint)
-		is > the expression below, so the typecast is ok */
-		len = ulint(file_size - (source_offset % file_size));
-	}
-
-	log_sys.n_log_ios++;
-
-	ut_a((source_offset >> srv_page_size_shift) <= ULINT_MAX);
-
-	recv_sys.read(source_offset, {buf, len});
-
-	for (ulint l = 0; l < len; l += OS_FILE_LOG_BLOCK_SIZE,
-		     buf += OS_FILE_LOG_BLOCK_SIZE,
-		     (*start_lsn) += OS_FILE_LOG_BLOCK_SIZE) {
-		const ulint block_number = log_block_get_hdr_no(buf);
-
-		if (block_number != log_block_convert_lsn_to_no(*start_lsn)) {
-			/* Garbage or an incompletely written log block.
-			We will not report any error, because this can
-			happen when InnoDB was killed while it was
-			writing redo log. We simply treat this as an
-			abrupt end of the redo log. */
-fail:
-			end_lsn = *start_lsn;
-			success = false;
-			break;
-		}
-
-		ulint crc = log_block_calc_checksum_crc32(buf);
-		ulint cksum = log_block_get_checksum(buf);
-
-		DBUG_EXECUTE_IF("log_intermittent_checksum_mismatch", {
-				static int block_counter;
-				if (block_counter++ == 0) {
-					cksum = crc + 1;
-				}
-			});
-
-		DBUG_EXECUTE_IF("log_checksum_mismatch", { cksum = crc + 1; });
-
-		if (UNIV_UNLIKELY(crc != cksum)) {
-			ib::error_or_warn(srv_operation!=SRV_OPERATION_BACKUP)
-				<< "Invalid log block checksum. block: "
-				<< block_number
-				<< " checkpoint no: "
-				<< log_block_get_checkpoint_no(buf)
-				<< " expected: " << crc
-				<< " found: " << cksum;
-			goto fail;
-		}
-
-		if (is_encrypted()
-		    && !log_crypt(buf, *start_lsn,
-				  OS_FILE_LOG_BLOCK_SIZE,
-				  LOG_DECRYPT)) {
-			goto fail;
-		}
-
-		ulint dl = log_block_get_data_len(buf);
-		if (dl < LOG_BLOCK_HDR_SIZE
-		    || (dl != OS_FILE_LOG_BLOCK_SIZE
-			&& dl > log_sys.trailer_offset())) {
-			recv_sys.set_corrupt_log();
-			goto fail;
-		}
-	}
-
-	if (recv_sys.report(time(NULL))) {
-		sql_print_information("InnoDB: Read redo log up to LSN="
-				      LSN_PF, *start_lsn);
-		service_manager_extend_timeout(
-			INNODB_EXTEND_TIMEOUT_INTERVAL,
-			"Read redo log up to LSN=" LSN_PF, *start_lsn);
-	}
-
-	if (*start_lsn != end_lsn) {
-		goto loop;
-	}
-
-	return(success);
-}
-
-
-
-/********************************************************//**
-Copies a log segment from the most up-to-date log group to the other log
-groups, so that they all contain the latest log data. Also writes the info
-about the latest checkpoint to the groups, and inits the fields in the group
-memory structs to up-to-date values. */
-static
-void
-recv_synchronize_groups()
-{
-	const lsn_t recovered_lsn = recv_sys.recovered_lsn;
-
-	/* Read the last recovered log block to the recovery system buffer:
-	the block is always incomplete */
-
-	lsn_t start_lsn = ut_uint64_align_down(recovered_lsn,
-					       OS_FILE_LOG_BLOCK_SIZE);
-	log_sys.log.read_log_seg(&start_lsn,
-				 start_lsn + OS_FILE_LOG_BLOCK_SIZE);
-	log_sys.log.set_fields(recovered_lsn);
-
-	/* Copy the checkpoint info to the log; remember that we have
-	incremented checkpoint_no by one, and the info will not be written
-	over the max checkpoint info, thus making the preservation of max
-	checkpoint info on disk certain */
-
-	if (!srv_read_only_mode) {
-		log_write_checkpoint_info(0);
-		mysql_mutex_lock(&log_sys.mutex);
-	}
-}
-
-/** Check the consistency of a log header block.
-@param[in]	log header block
-@return true if ok */
-static
-bool
-recv_check_log_header_checksum(
-	const byte*	buf)
-{
-	return(log_block_get_checksum(buf)
-	       == log_block_calc_checksum_crc32(buf));
-}
-
-static bool redo_file_sizes_are_correct()
-{
-  auto paths= get_existing_log_files_paths();
-  auto get_size= [](const std::string &path) {
-    return os_file_get_size(path.c_str()).m_total_size;
-  };
-  os_offset_t size= get_size(paths[0]);
-
-  auto it=
-      std::find_if(paths.begin(), paths.end(), [&](const std::string &path) {
-        return get_size(path) != size;
-      });
-
-  if (it == paths.end())
-    return true;
-
-  sql_print_error("InnoDB: Log file %.*s is of different size " UINT64PF
-                  " bytes than other log files " UINT64PF " bytes!",
-                  int(it->size()), it->data(), get_size(*it), size);
-  return false;
+  return mach_read_from_4(my_assume_aligned<4>(508 + buf)) ==
+    my_crc32c(0, buf, 508);
 }
 
 /** Calculate the checksum for a log block using the pre-10.2.2 algorithm. */
@@ -1686,12 +1496,8 @@ inline uint32_t log_block_calc_checksum_format_0(const byte *b)
 ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
 {
   uint64_t max_no= 0;
-  byte *buf= log_sys.buf;
 
-  ut_ad(log_sys.log.format == 0);
-
-  if (!redo_file_sizes_are_correct())
-    return DB_CORRUPTION;
+  ut_ad(log_sys.format == 0);
 
   /** Offset of the first checkpoint checksum */
   constexpr uint CHECKSUM_1= 288;
@@ -1704,22 +1510,21 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
   /** Least significant bits of the checkpoint offset */
   constexpr uint OFFS_LO= 16;
 
-  lsn_t lsn= 0;
-
-  for (ulint field= LOG_CHECKPOINT_1; field <= LOG_CHECKPOINT_2;
-       field += LOG_CHECKPOINT_2 - LOG_CHECKPOINT_1)
+  lsn_t source_offset= 0;
+  const lsn_t log_size{(log_sys.file_size - 2048) * recv_sys.files_size()};
+  for (size_t field= 512; field < 2048; field+= 1024)
   {
-    log_sys.log.read(field, {buf, OS_FILE_LOG_BLOCK_SIZE});
+    const byte *buf= log_sys.buf + field;
 
     if (static_cast<uint32_t>(ut_fold_binary(buf, CHECKSUM_1)) !=
         mach_read_from_4(buf + CHECKSUM_1) ||
         static_cast<uint32_t>(ut_fold_binary(buf + CHECKPOINT_LSN,
                                              CHECKSUM_2 - CHECKPOINT_LSN)) !=
         mach_read_from_4(buf + CHECKSUM_2))
-     {
-       DBUG_LOG("ib_log", "invalid pre-10.2.2 checkpoint " << field);
-       continue;
-     }
+    {
+      DBUG_PRINT("ib_log", ("invalid pre-10.2.2 checkpoint %zu", field));
+      continue;
+    }
 
     if (!log_crypt_101_read_checkpoint(buf))
     {
@@ -1733,287 +1538,345 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
                           checkpoint_no,
                           mach_read_from_8(buf + CHECKPOINT_LSN)));
 
-    if (checkpoint_no >= max_no)
+    if (checkpoint_no < max_no)
+      continue;
+
+    const lsn_t o= lsn_t{mach_read_from_4(buf + OFFS_HI)} << 32 |
+      mach_read_from_4(buf + OFFS_LO);
+    if (o >= 0x80c && (o & ~511) + 512 < log_size)
     {
       max_no= checkpoint_no;
-      lsn= mach_read_from_8(buf + CHECKPOINT_LSN);
-      log_sys.log.set_lsn(lsn);
-      log_sys.log.set_lsn_offset(lsn_t{mach_read_from_4(buf + OFFS_HI)} << 32 |
-                                 mach_read_from_4(buf + OFFS_LO));
+      log_sys.next_checkpoint_lsn= mach_read_from_8(buf + CHECKPOINT_LSN);
+      source_offset= o;
     }
   }
 
-  if (!lsn)
+  const char *uag= srv_operation == SRV_OPERATION_NORMAL
+    ? "InnoDB: Upgrade after a crash is not supported."
+    : "mariadb-backup --prepare is not possible.";
+
+  if (!log_sys.next_checkpoint_lsn)
   {
-    sql_print_error("InnoDB: Upgrade after a crash is not supported."
+    sql_print_error("%s"
                     " This redo log was created before MariaDB 10.2.2,"
                     " and we did not find a valid checkpoint."
                     " Please follow the instructions at"
-                    " https://mariadb.com/kb/en/library/upgrading/");
+                    " https://mariadb.com/kb/en/library/upgrading/", uag);
     return DB_ERROR;
   }
 
-  log_sys.set_lsn(lsn);
-  log_sys.set_flushed_lsn(lsn);
-  const lsn_t source_offset= log_sys.log.calc_lsn_offset_old(lsn);
-
-  static const char NO_UPGRADE_RECOVERY_MSG[]=
-    "Upgrade after a crash is not supported."
+  static const char pre_10_2[]=
     " This redo log was created before MariaDB 10.2.2";
 
-  recv_sys.read(source_offset & ~511, {buf, 512});
+  byte *buf= const_cast<byte*>(field_ref_zero);
 
-  if (log_block_calc_checksum_format_0(buf) != log_block_get_checksum(buf) &&
-      !log_crypt_101_read_block(buf, lsn))
+  if (source_offset < (log_sys.is_pmem() ? log_sys.file_size : 4096))
+    memcpy_aligned<512>(buf, &log_sys.buf[source_offset & ~511], 512);
+  else
+    recv_sys.read(source_offset & ~511, {buf, 512});
+
+  if (log_block_calc_checksum_format_0(buf) !=
+      mach_read_from_4(my_assume_aligned<4>(buf + 508)) &&
+      !log_crypt_101_read_block(buf, log_sys.next_checkpoint_lsn))
   {
-    sql_print_error("InnoDB: %s, and it appears corrupted.",
-                    NO_UPGRADE_RECOVERY_MSG);
+    sql_print_error("%s%s, and it appears corrupted.", uag, pre_10_2);
     return DB_CORRUPTION;
   }
 
   if (mach_read_from_2(buf + 4) == (source_offset & 511))
-  {
-    /* Mark the redo log for upgrading. */
-    srv_log_file_size= 0;
-    recv_sys.parse_start_lsn= recv_sys.recovered_lsn= recv_sys.scanned_lsn=
-      recv_sys.mlog_checkpoint_lsn = lsn;
-    log_sys.last_checkpoint_lsn= log_sys.next_checkpoint_lsn=
-      log_sys.write_lsn= log_sys.current_flush_lsn= lsn;
-    log_sys.next_checkpoint_no= 0;
     return DB_SUCCESS;
-  }
 
   if (buf[20 + 32 * 9] == 2)
     sql_print_error("InnoDB: Cannot decrypt log for upgrading."
                     " The encrypted log was created before MariaDB 10.2.2.");
   else
-    sql_print_error("InnoDB: %s.", NO_UPGRADE_RECOVERY_MSG);
+    sql_print_error("%s%s.", uag, pre_10_2);
 
   return DB_ERROR;
 }
 
-/** Calculate the offset of a log sequence number
-in an old redo log file (during upgrade check).
-@param[in]	lsn	log sequence number
-@return byte offset within the log */
-inline lsn_t log_t::file::calc_lsn_offset_old(lsn_t lsn) const
-{
-  const lsn_t size= capacity() * recv_sys.files_size();
-  lsn_t l= lsn - this->lsn;
-  if (longlong(l) < 0)
-  {
-    l= lsn_t(-longlong(l)) % size;
-    l= size - l;
-  }
-
-  l+= lsn_offset - LOG_FILE_HDR_SIZE * (1 + lsn_offset / file_size);
-  l%= size;
-  return l + LOG_FILE_HDR_SIZE * (1 + l / (file_size - LOG_FILE_HDR_SIZE));
-}
-
-/** Determine if a redo log from MariaDB 10.2.2+, 10.3, or 10.4 is clean.
+/** Determine if a redo log from MariaDB 10.2.2, 10.3, 10.4, or 10.5 is clean.
+@param lsn_offset  checkpoint LSN offset
 @return	error code
 @retval	DB_SUCCESS	if the redo log is clean
 @retval	DB_CORRUPTION	if the redo log is corrupted
 @retval	DB_ERROR	if the redo log is not empty */
-static dberr_t recv_log_recover_10_4()
+static dberr_t recv_log_recover_10_5(lsn_t lsn_offset)
 {
-	const lsn_t	lsn = log_sys.log.get_lsn();
-	const lsn_t	source_offset =	log_sys.log.calc_lsn_offset_old(lsn);
-	byte*		buf = log_sys.buf;
+  byte *buf= const_cast<byte*>(field_ref_zero);
 
-	if (!redo_file_sizes_are_correct()) {
-		return DB_CORRUPTION;
-	}
+  if (lsn_offset < (log_sys.is_pmem() ? log_sys.file_size : 4096))
+    memcpy_aligned<512>(buf, &log_sys.buf[lsn_offset & ~511], 512);
+  else
+    recv_sys.read(lsn_offset & ~511, {buf, 512});
 
-	recv_sys.read(source_offset & ~(OS_FILE_LOG_BLOCK_SIZE - 1),
-		      {buf, OS_FILE_LOG_BLOCK_SIZE});
+  if (!recv_check_log_block(buf))
+  {
+    sql_print_error("InnoDB: Invalid log header checksum");
+    return DB_CORRUPTION;
+  }
 
-	ulint crc = log_block_calc_checksum_crc32(buf);
-	ulint cksum = log_block_get_checksum(buf);
+  if (log_sys.is_encrypted() &&
+      !log_decrypt(buf, log_sys.next_checkpoint_lsn & ~511, 512))
+    return DB_ERROR;
 
-	if (UNIV_UNLIKELY(crc != cksum)) {
-		sql_print_error("InnoDB: Invalid log block checksum."
-				" block: " ULINTPF " checkpoint no: " ULINTPF
-				" expected: " ULINTPF " found: " ULINTPF,
-				log_block_get_hdr_no(buf),
-				log_block_get_checkpoint_no(buf), crc, cksum);
-		return DB_CORRUPTION;
-	}
+  /* On a clean shutdown, the redo log will be logically empty
+  after the checkpoint lsn. */
 
-	if (log_sys.log.is_encrypted()
-	    && !log_crypt(buf, lsn & ~511, 512, LOG_DECRYPT)) {
-		return DB_ERROR;
-	}
+  if (mach_read_from_2(my_assume_aligned<2>(buf + 4)) != (lsn_offset & 511))
+    return DB_ERROR;
 
-	/* On a clean shutdown, the redo log will be logically empty
-	after the checkpoint lsn. */
-
-	if (log_block_get_data_len(buf)
-	    != (source_offset & (OS_FILE_LOG_BLOCK_SIZE - 1))) {
-		return DB_ERROR;
-	}
-
-	/* Mark the redo log for upgrading. */
-	srv_log_file_size = 0;
-	recv_sys.parse_start_lsn = recv_sys.recovered_lsn
-		= recv_sys.scanned_lsn
-		= recv_sys.mlog_checkpoint_lsn = lsn;
-	log_sys.set_lsn(lsn);
-	log_sys.set_flushed_lsn(lsn);
-	log_sys.last_checkpoint_lsn = log_sys.next_checkpoint_lsn
-		= log_sys.write_lsn = log_sys.current_flush_lsn = lsn;
-	log_sys.next_checkpoint_no = 0;
-	return DB_SUCCESS;
+  return DB_SUCCESS;
 }
 
-/** Find the latest checkpoint in the log header.
-@param[out]	max_field	LOG_CHECKPOINT_1 or LOG_CHECKPOINT_2
-@return error code or DB_SUCCESS */
-dberr_t
-recv_find_max_checkpoint(ulint* max_field)
+dberr_t recv_sys_t::find_checkpoint()
 {
-	ib_uint64_t	max_no;
-	ib_uint64_t	checkpoint_no;
-	ulint		field;
-	byte*		buf;
+  bool wrong_size= false;
+  byte *buf;
 
-	max_no = 0;
-	*max_field = 0;
+  if (files.empty())
+  {
+    file_checkpoint= 0;
+    std::string path{get_log_file_path()};
+    bool success;
+    os_file_t file{os_file_create_func(path.c_str(),
+                                       OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
+                                       OS_FILE_NORMAL, OS_LOG_FILE,
+                                       srv_read_only_mode, &success)};
+    if (file == OS_FILE_CLOSED)
+      return DB_ERROR;
+    const os_offset_t size{os_file_get_size(file)};
+    if (!size)
+    {
+      if (srv_operation != SRV_OPERATION_NORMAL)
+        goto too_small;
+    }
+    else if (size < log_t::START_OFFSET + SIZE_OF_FILE_CHECKPOINT)
+    {
+    too_small:
+      os_file_close(file);
+      sql_print_error("InnoDB: File %.*s is too small",
+                      int(path.size()), path.data());
+      return DB_ERROR;
+    }
 
-	buf = log_sys.checkpoint_buf;
+    log_sys.attach(file, size);
+    recv_sys.files.emplace_back(file);
+    for (int i= 1; i < 101; i++)
+    {
+      path= get_log_file_path(LOG_FILE_NAME_PREFIX).append(std::to_string(i));
+      file= os_file_create_func(path.c_str(),
+                                OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT |
+                                OS_FILE_ON_ERROR_SILENT,
+                                OS_FILE_NORMAL, OS_LOG_FILE, true, &success);
+      if (file == OS_FILE_CLOSED)
+        break;
+      const os_offset_t sz{os_file_get_size(file)};
+      if (size != sz)
+      {
+        sql_print_error("InnoDB: Log file %.*s is of different size " UINT64PF
+                        " bytes than other log files " UINT64PF " bytes!",
+                        int(path.size()), path.data(), sz, size);
+        wrong_size= true;
+      }
+      recv_sys.files.emplace_back(file);
+    }
 
-	log_sys.log.read(0, {buf, OS_FILE_LOG_BLOCK_SIZE});
-	/* Check the header page checksum. There was no
-	checksum in the first redo log format (version 0). */
-	log_sys.log.format = mach_read_from_4(buf + LOG_HEADER_FORMAT);
-	log_sys.log.subformat = log_sys.log.format != log_t::FORMAT_3_23
-		? mach_read_from_4(buf + LOG_HEADER_SUBFORMAT)
-		: 0;
-	if (log_sys.log.format != log_t::FORMAT_3_23
-	    && !recv_check_log_header_checksum(buf)) {
-		sql_print_error("InnoDB: Invalid redo log header checksum.");
-		return(DB_CORRUPTION);
-	}
+    if (!size)
+    {
+      if (wrong_size)
+        return DB_CORRUPTION;
+      if (log_sys.next_checkpoint_lsn < 8204)
+      {
+        /* Before MDEV-14425, InnoDB had a minimum LSN of 8192+12=8204.
+        Likewise, mariadb-backup --prepare would create an empty
+        ib_logfile0 after applying the log. We will allow an upgrade
+        from such an empty log.
 
-	char creator[LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR + 1];
+        If a user replaces the redo log with an empty file and the
+        FIL_PAGE_FILE_FLUSH_LSN field was zero in the system
+        tablespace (see SysTablespace::read_lsn_and_check_flags()) we
+        must refuse to start up. */
+        sql_print_error("InnoDB: ib_logfile0 is empty, and LSN is unknown.");
+        return DB_CORRUPTION;
+      }
+      lsn= log_sys.next_checkpoint_lsn;
+      log_sys.format= log_t::FORMAT_3_23;
+      goto upgrade;
+    }
+  }
+  else
+    ut_ad(srv_operation == SRV_OPERATION_BACKUP);
+  log_sys.next_checkpoint_lsn= 0;
+  lsn= 0;
+  buf= my_assume_aligned<4096>(log_sys.buf);
+  if (!log_sys.is_pmem())
+    if (dberr_t err= log_sys.log.read(0, {buf, 4096}))
+      return err;
+  /* Check the header page checksum. There was no
+  checksum in the first redo log format (version 0). */
+  log_sys.format= mach_read_from_4(buf + LOG_HEADER_FORMAT);
+  if (log_sys.format == log_t::FORMAT_3_23)
+  {
+    if (wrong_size)
+      return DB_CORRUPTION;
+    if (dberr_t err= recv_log_recover_pre_10_2())
+      return err;
+  upgrade:
+    memset_aligned<512>(const_cast<byte*>(field_ref_zero), 0, 512);
+    /* Mark the redo log for upgrading. */
+    log_sys.last_checkpoint_lsn= log_sys.next_checkpoint_lsn;
+    log_sys.set_recovered_lsn(log_sys.next_checkpoint_lsn);
+    lsn= file_checkpoint= log_sys.next_checkpoint_lsn;
+    log_sys.next_checkpoint_no= 0;
+    return DB_SUCCESS;
+  }
 
-	memcpy(creator, buf + LOG_HEADER_CREATOR, sizeof creator);
-	/* Ensure that the string is NUL-terminated. */
-	creator[LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR] = 0;
+  if (!recv_check_log_block(buf))
+  {
+    sql_print_error("InnoDB: Invalid log header checksum");
+    return DB_CORRUPTION;
+  }
 
-	switch (log_sys.log.format) {
-	case log_t::FORMAT_3_23:
-		return recv_log_recover_pre_10_2();
-	case log_t::FORMAT_10_2:
-	case log_t::FORMAT_10_2 | log_t::FORMAT_ENCRYPTED:
-	case log_t::FORMAT_10_3:
-	case log_t::FORMAT_10_3 | log_t::FORMAT_ENCRYPTED:
-	case log_t::FORMAT_10_4:
-	case log_t::FORMAT_10_4 | log_t::FORMAT_ENCRYPTED:
-	case log_t::FORMAT_10_5:
-	case log_t::FORMAT_10_5 | log_t::FORMAT_ENCRYPTED:
-		break;
-	default:
-		sql_print_error("InnoDB: Unsupported redo log format."
-				" The redo log was created with %s.", creator);
-		return(DB_ERROR);
-	}
+  const lsn_t first_lsn{mach_read_from_8(buf + LOG_HEADER_START_LSN)};
+  log_sys.set_first_lsn(first_lsn);
+  char creator[LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR + 1];
+  memcpy(creator, buf + LOG_HEADER_CREATOR, sizeof creator);
+  /* Ensure that the string is NUL-terminated. */
+  creator[LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR]= 0;
 
-	for (field = LOG_CHECKPOINT_1; field <= LOG_CHECKPOINT_2;
-	     field += LOG_CHECKPOINT_2 - LOG_CHECKPOINT_1) {
-		log_sys.log.read(field, {buf, OS_FILE_LOG_BLOCK_SIZE});
+  lsn_t lsn_offset= 0;
 
-		const ulint crc32 = log_block_calc_checksum_crc32(buf);
-		const ulint cksum = log_block_get_checksum(buf);
+  switch (log_sys.format) {
+  default:
+    sql_print_error("InnoDB: Unsupported redo log format."
+                    " The redo log was created with %s.", creator);
+    return DB_ERROR;
+  case log_t::FORMAT_10_8:
+    if (files.size() != 1)
+    {
+      sql_print_error("InnoDB: Expecting only ib_logfile0");
+      return DB_CORRUPTION;
+    }
 
-		if (crc32 != cksum) {
-			DBUG_PRINT("ib_log",
-				   ("invalid checkpoint,"
-				    " at " ULINTPF
-				    ", checksum " ULINTPFx
-				    " expected " ULINTPFx,
-				    field, cksum, crc32));
-			continue;
-		}
+    if (*reinterpret_cast<const uint32_t*>(buf + LOG_HEADER_FORMAT + 4) ||
+        first_lsn < log_t::FIRST_LSN)
+    {
+      sql_print_error("InnoDB: Invalid ib_logfile0 header block;"
+                      " the log was created with %s.", creator);
+      return DB_CORRUPTION;
+    }
 
-		if (log_sys.is_encrypted()
-		    && !log_crypt_read_checkpoint_buf(buf)) {
-			sql_print_error("InnoDB: Reading checkpoint"
-					" encryption info failed.");
-			continue;
-		}
+    if (!mach_read_from_4(buf + LOG_HEADER_CREATOR_END));
+    else if (!log_crypt_read_header(buf + LOG_HEADER_CREATOR_END))
+    {
+      sql_print_error("InnoDB: Reading log encryption info failed;"
+                      " the log was created with %s.", creator);
+      return DB_ERROR;
+    }
+    else
+      log_sys.format= log_t::FORMAT_ENC_10_8;
 
-		checkpoint_no = mach_read_from_8(
-			buf + LOG_CHECKPOINT_NO);
+    for (size_t field= log_t::CHECKPOINT_1; field <= log_t::CHECKPOINT_2;
+         field+= log_t::CHECKPOINT_2 - log_t::CHECKPOINT_1)
+    {
+      if (log_sys.is_pmem())
+        buf= log_sys.buf + field;
+      else
+        if (dberr_t err= log_sys.log.read(field,
+                                          {buf, log_sys.get_block_size()}))
+          return err;
+      const lsn_t checkpoint_lsn{mach_read_from_8(buf)};
+      const lsn_t end_lsn{mach_read_from_8(buf + 8)};
+      if (checkpoint_lsn < first_lsn || end_lsn < checkpoint_lsn ||
+          memcmp(buf + 16, field_ref_zero, 60 - 16) ||
+          my_crc32c(0, buf, 60) != mach_read_from_4(buf + 60))
+      {
+        DBUG_PRINT("ib_log", ("invalid checkpoint at %zu", field));
+        continue;
+      }
 
-		DBUG_PRINT("ib_log",
-			   ("checkpoint " UINT64PF " at " LSN_PF " found",
-			    checkpoint_no, mach_read_from_8(
-				    buf + LOG_CHECKPOINT_LSN)));
+      if (checkpoint_lsn >= log_sys.next_checkpoint_lsn)
+      {
+        log_sys.next_checkpoint_lsn= checkpoint_lsn;
+        log_sys.next_checkpoint_no= field == log_t::CHECKPOINT_1;
+        lsn= end_lsn;
+      }
+    }
+    if (!log_sys.next_checkpoint_lsn)
+      goto got_no_checkpoint;
+    if (!memcmp(creator, "Backup ", 7))
+      srv_start_after_restore= true;
+    return DB_SUCCESS;
+  case log_t::FORMAT_10_5:
+  case log_t::FORMAT_10_5 | log_t::FORMAT_ENCRYPTED:
+    if (files.size() != 1)
+    {
+      sql_print_error("InnoDB: Expecting only ib_logfile0");
+      return DB_CORRUPTION;
+    }
+    /* fall through */
+  case log_t::FORMAT_10_2:
+  case log_t::FORMAT_10_2 | log_t::FORMAT_ENCRYPTED:
+  case log_t::FORMAT_10_3:
+  case log_t::FORMAT_10_3 | log_t::FORMAT_ENCRYPTED:
+  case log_t::FORMAT_10_4:
+  case log_t::FORMAT_10_4 | log_t::FORMAT_ENCRYPTED:
+    uint64_t max_no= 0;
+    const lsn_t log_size{(log_sys.file_size - 2048) * files.size()};
+    for (size_t field= 512; field < 2048; field += 1024)
+    {
+      const byte *b = buf + field;
 
-		if (checkpoint_no >= max_no) {
-			*max_field = field;
-			max_no = checkpoint_no;
-			log_sys.log.set_lsn(mach_read_from_8(
-				buf + LOG_CHECKPOINT_LSN));
-			log_sys.log.set_lsn_offset(mach_read_from_8(
-				buf + LOG_CHECKPOINT_OFFSET));
-			log_sys.next_checkpoint_no = checkpoint_no;
-		}
-	}
+      if (!recv_check_log_block(b))
+      {
+        DBUG_PRINT("ib_log", ("invalid checkpoint checksum at %zu", field));
+        continue;
+      }
 
-	if (*max_field == 0) {
-		/* Before 10.2.2, we could get here during database
-		initialization if we created an ib_logfile0 file that
-		was filled with zeroes, and were killed. After
-		10.2.2, we would reject such a file already earlier,
-		when checking the file header. */
-		sql_print_error("InnoDB: No valid checkpoint found"
-				" (corrupted redo log)."
-				" You can try --innodb-force-recovery=6"
-				" as a last resort.");
-		return(DB_ERROR);
-	}
+      if (log_sys.is_encrypted() && !log_crypt_read_checkpoint_buf(b))
+      {
+        sql_print_error("InnoDB: Reading checkpoint encryption info failed.");
+        continue;
+      }
 
-	switch (log_sys.log.format) {
-	case log_t::FORMAT_10_5:
-	case log_t::FORMAT_10_5 | log_t::FORMAT_ENCRYPTED:
-		break;
-	default:
-		if (dberr_t err = recv_log_recover_10_4()) {
-			sql_print_error("InnoDB: Upgrade after a crash"
-					" is not supported."
-					" The redo log was created with %s%s.",
-					creator,
-					(err == DB_ERROR
-					 ? "" : ", and it appears corrupted"));
-			return err;
-		}
-	}
+      const uint64_t checkpoint_no= mach_read_from_8(b);
+      const lsn_t checkpoint_lsn= mach_read_from_8(b + 8);
+      DBUG_PRINT("ib_log", ("checkpoint " UINT64PF " at " LSN_PF " found",
+                            checkpoint_no, checkpoint_lsn));
+      const lsn_t o{mach_read_from_8(b + 16)};
+      if (checkpoint_no >= max_no && o >= 0x80c && (o & ~511) + 512 < log_size)
+      {
+        max_no= checkpoint_no;
+        log_sys.next_checkpoint_lsn= checkpoint_lsn;
+        log_sys.next_checkpoint_no= field == 512;
+        lsn_offset= mach_read_from_8(b + 16);
+      }
+    }
+  }
 
-	return(DB_SUCCESS);
-}
+  if (!log_sys.next_checkpoint_lsn)
+  {
+  got_no_checkpoint:
+    sql_print_error("InnoDB: No valid checkpoint was found;"
+                    " the log was created with %s.", creator);
+    return DB_ERROR;
+  }
 
-/*******************************************************//**
-Calculates the new value for lsn when more data is added to the log. */
-static
-lsn_t
-recv_calc_lsn_on_data_add(
-/*======================*/
-	lsn_t		lsn,	/*!< in: old lsn */
-	ib_uint64_t	len)	/*!< in: this many bytes of data is
-				added, log block headers not included */
-{
-	unsigned frag_len = static_cast<unsigned>(lsn % OS_FILE_LOG_BLOCK_SIZE)
-		- LOG_BLOCK_HDR_SIZE;
-	unsigned payload_size = log_sys.payload_size();
-	ut_ad(frag_len < payload_size);
-	lsn_t lsn_len = len;
-	lsn_len += (lsn_len + frag_len) / payload_size
-		* (OS_FILE_LOG_BLOCK_SIZE - payload_size);
+  if (wrong_size)
+    return DB_CORRUPTION;
 
-	return(lsn + lsn_len);
+  if (dberr_t err= recv_log_recover_10_5(lsn_offset))
+  {
+    sql_print_error("%s The redo log was created with %s%s",
+                    srv_operation == SRV_OPERATION_NORMAL
+                    ? "InnoDB: Upgrade after a crash is not supported."
+                    : "mariadb-backup --prepare is not possible", creator,
+                    (err == DB_ERROR ? "." : ", and it appears corrupted."));
+    return err;
+  }
+
+  goto upgrade;
 }
 
 /** Trim old log records for a page.
@@ -2060,7 +1923,7 @@ inline void page_recv_t::will_not_read()
 @param it       page iterator
 @param start_lsn start LSN of the mini-transaction
 @param lsn      @see mtr_t::commit_lsn()
-@param recs     redo log snippet @see log_t::FORMAT_10_5
+@param l        redo log snippet
 @param len      length of l, in bytes */
 inline void recv_sys_t::add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
                             const byte *l, size_t len)
@@ -2109,7 +1972,7 @@ append:
     goto append;
   }
   recs.log.append(new (alloc(log_phys_t::alloc_size(len)))
-                  log_phys_t(start_lsn, lsn, l, len));
+                  log_phys_t{start_lsn, lsn, l, len});
 }
 
 /** Store/remove the freed pages in fil_name_t of recv_spaces.
@@ -2119,8 +1982,6 @@ static void store_freed_or_init_rec(page_id_t page_id, bool freed)
 {
   uint32_t space_id= page_id.space();
   uint32_t page_no= page_id.page_no();
-  if (!freed && page_no == 0 && first_page_init)
-    first_page_init(space_id);
   if (is_predefined_tablespace(space_id))
   {
     if (!srv_immediate_scrub_data_uncompressed)
@@ -2145,83 +2006,323 @@ static void store_freed_or_init_rec(page_id_t page_id, bool freed)
   }
 }
 
-/** Parse and register one mini-transaction in log_t::FORMAT_10_5.
-@param checkpoint_lsn  the log sequence number of the latest checkpoint
-@param store           whether to store the records
-@param apply           whether to apply file-level log records
-@return whether FILE_CHECKPOINT record was seen the first time,
-or corruption was noticed */
-bool recv_sys_t::parse(lsn_t checkpoint_lsn, store_t *store, bool apply)
+/** Wrapper for log_sys.buf[] between recv_sys.offset and recv_sys.len */
+struct recv_buf
 {
-  mysql_mutex_assert_owner(&log_sys.mutex);
-  mysql_mutex_assert_owner(&mutex);
-  ut_ad(parse_start_lsn);
-  ut_ad(log_sys.is_physical());
+  const byte *ptr;
 
-  bool last_phase= (*store == STORE_IF_EXISTS);
-  const byte *const end= buf + len;
-loop:
-  const byte *const log= buf + recovered_offset;
-  const lsn_t start_lsn= recovered_lsn;
-  map::iterator cached_pages_it = pages.end();
+  constexpr recv_buf(const byte *ptr) : ptr(ptr) {}
+  constexpr bool operator==(const recv_buf other) const
+  { return ptr == other.ptr; }
+
+  static const byte *end() { return &log_sys.buf[recv_sys.len]; }
+
+  const char *get_filename(byte*, size_t) const noexcept
+  { return reinterpret_cast<const char*>(ptr); }
+
+  bool is_eof(size_t len= 0) const noexcept { return ptr + len >= end(); }
+
+  byte operator*() const noexcept
+  {
+    ut_ad(ptr >= log_sys.buf);
+    ut_ad(ptr < end());
+    return *ptr;
+  }
+  byte operator[](size_t size) const noexcept { return *(*this + size); }
+  recv_buf operator+(size_t len) const noexcept
+  { recv_buf r{*this}; return r+= len; }
+  recv_buf &operator++() noexcept { return *this+= 1; }
+  recv_buf &operator+=(size_t len) noexcept { ptr+= len; return *this; }
+
+  size_t operator-(const recv_buf start) const noexcept
+  {
+    ut_ad(ptr >= start.ptr);
+    return size_t(ptr - start.ptr);
+  }
+
+  uint32_t crc32c(const recv_buf start) const noexcept
+  {
+    return my_crc32c(0, start.ptr, ptr - start.ptr);
+  }
+
+  void *memcpy(void *buf, size_t size) const noexcept
+  {
+    ut_ad(size);
+    ut_ad(!is_eof(size - 1));
+    return ::memcpy(buf, ptr, size);
+  }
+
+  bool is_zero(size_t size) const noexcept
+  {
+    ut_ad(!is_eof(size));
+    return !memcmp(ptr, field_ref_zero, size);
+  }
+
+  uint64_t read8() const noexcept
+  { ut_ad(!is_eof(7)); return mach_read_from_8(ptr); }
+  uint32_t read4() const noexcept
+  { ut_ad(!is_eof(3)); return mach_read_from_4(ptr); }
+
+  /** Update the pointer if the new pointer is within the buffer. */
+  bool set_if_contains(const byte *pos) noexcept
+  {
+    if (pos > end() || pos < ptr)
+      return false;
+    ptr= pos;
+    return true;
+  }
+
+  /** Get the contiguous, unencrypted buffer.
+  @param buf         return value of copy_if_needed()
+  @param start       start of the mini-transaction
+  @param decrypt_buf possibly, a copy of the mini-transaction
+  @return contiguous, non-encrypted buffer */
+  const byte *get_buf(const byte *buf, const recv_buf start,
+                      const byte *decrypt_buf) const noexcept
+  { return ptr == buf ? start.ptr : decrypt_buf; }
+
+  /** Copy and decrypt a log record if needed.
+  @param iv    initialization vector
+  @param tmp   buffer for the decrypted log record
+  @param start un-encrypted start of the log record
+  @param len   length of the possibly encrypted part, in bytes */
+  const byte *copy_if_needed(const byte *iv, byte *tmp, recv_buf start,
+                             size_t len)
+  {
+    ut_ad(*this - start + len <= srv_page_size);
+    if (!len || !log_sys.is_encrypted())
+      return ptr;
+    const size_t s(*this - start);
+    start.memcpy(tmp, s);
+    return log_decrypt_buf(iv, tmp + s, ptr, static_cast<uint>(len));
+  }
+};
+
+#ifdef HAVE_PMEM
+/** Ring buffer wrapper for log_sys.buf[]; recv_sys.len == log_sys.file_size */
+struct recv_ring : public recv_buf
+{
+  constexpr recv_ring(const byte *ptr) : recv_buf(ptr) {}
+
+  constexpr static bool is_eof() { return false; }
+  constexpr static bool is_eof(size_t) { return false; }
+
+  byte operator*() const noexcept
+  {
+    ut_ad(ptr >= &log_sys.buf[log_sys.START_OFFSET]);
+    ut_ad(ptr < end());
+    return *ptr;
+  }
+  byte operator[](size_t size) const noexcept { return *(*this + size); }
+  recv_ring operator+(size_t len) const noexcept
+  { recv_ring r{*this}; return r+= len; }
+  recv_ring &operator++() noexcept { return *this+= 1; }
+  recv_ring &operator+=(size_t len) noexcept
+  {
+    ut_ad(ptr < end());
+    ut_ad(ptr >= &log_sys.buf[log_sys.START_OFFSET]);
+    ut_ad(len < recv_sys.MTR_SIZE_MAX * 2);
+    ptr+= len;
+    if (ptr >= end())
+    {
+      ptr-= recv_sys.len - log_sys.START_OFFSET;
+      ut_ad(ptr >= &log_sys.buf[log_sys.START_OFFSET]);
+      ut_ad(ptr < end());
+    }
+    return *this;
+  }
+  size_t operator-(const recv_ring start) const noexcept
+  {
+    auto s= ptr - start.ptr;
+    return s >= 0
+      ? size_t(s)
+      : size_t(s + recv_sys.len - log_sys.START_OFFSET);
+  }
+
+  uint32_t crc32c(const recv_ring start) const noexcept
+  {
+    return ptr >= start.ptr
+      ? my_crc32c(0, start.ptr, ptr - start.ptr)
+      : my_crc32c(my_crc32c(0, start.ptr, end() - start.ptr),
+                  &log_sys.buf[log_sys.START_OFFSET],
+                  ptr - &log_sys.buf[log_sys.START_OFFSET]);
+  }
+
+  void *memcpy(void *buf, size_t size) const noexcept
+  {
+    ut_ad(size);
+    ut_ad(size < srv_page_size);
+
+    auto s= ptr + size - end();
+    if (s <= 0)
+      return ::memcpy(buf, ptr, size);
+    ::memcpy(buf, ptr, size - s);
+    ::memcpy(static_cast<byte*>(buf) + size - s,
+             &log_sys.buf[log_sys.START_OFFSET], s);
+    return buf;
+  }
+
+  bool is_zero(size_t size) const noexcept
+  {
+    auto s= ptr + size - end();
+    if (s <= 0)
+      return !memcmp(ptr, field_ref_zero, size);
+    return !memcmp(ptr, field_ref_zero, size - s) &&
+      !memcmp(&log_sys.buf[log_sys.START_OFFSET], field_ref_zero, s);
+  }
+
+  uint64_t read8() const noexcept
+  {
+    if (UNIV_LIKELY(ptr + 8 <= end()))
+      return mach_read_from_8(ptr);
+    byte b[8];
+    return mach_read_from_8(static_cast<const byte*>(memcpy(b, 8)));
+  }
+  uint32_t read4() const noexcept
+  {
+    if (UNIV_LIKELY(ptr + 4 <= end()))
+      return mach_read_from_4(ptr);
+    byte b[4];
+    return mach_read_from_4(static_cast<const byte*>(memcpy(b, 4)));
+  }
+
+  /** Get the contiguous, unencrypted buffer.
+  @param buf         return value of copy_if_needed()
+  @param start       start of the mini-transaction
+  @param decrypt_buf possibly, a copy of the mini-transaction
+  @return contiguous, non-encrypted buffer */
+  const byte *get_buf(const byte *buf, const recv_ring start,
+                      const byte *decrypt_buf) const noexcept
+  { return ptr == buf && start.ptr < ptr ? start.ptr : decrypt_buf; }
+
+  const char *get_filename(byte* buf, size_t rlen) const noexcept
+  {
+    return UNIV_LIKELY(ptr + rlen <= end())
+      ? reinterpret_cast<const char*>(ptr)
+      : static_cast<const char*>(memcpy(buf, rlen));
+  }
+
+  /** Copy and decrypt a log record if needed.
+  @param iv    initialization vector
+  @param tmp   buffer for the decrypted log record
+  @param start un-encrypted start of the log record
+  @param len   length of the possibly encrypted part, in bytes */
+  const byte *copy_if_needed(const byte *iv, byte *tmp, recv_ring start,
+                             size_t len)
+  {
+    if (!len)
+      return ptr;
+    const size_t s(*this - start);
+    ut_ad(s + len <= srv_page_size);
+    if (!log_sys.is_encrypted())
+    {
+      if (start.ptr + s == ptr && ptr + len <= end())
+        return ptr;
+      start.memcpy(tmp, s + len);
+      return tmp + s;
+    }
+
+    start.memcpy(tmp, s);
+
+    const byte *b= ptr;
+    if (ptr + len > end())
+      b= static_cast<byte*>(memcpy(alloca(len), len));
+    return log_decrypt_buf(iv, tmp + s, b, static_cast<uint>(len));
+  }
+};
+#endif
+
+/** Parse and register one log_t::FORMAT_10_8 mini-transaction.
+@param store   whether to store the records
+@param l       log data source */
+template<typename source>
+inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
+  noexcept
+{
+#ifndef SUX_LOCK_GENERIC
+  ut_ad(log_sys.latch.is_write_locked() ||
+        srv_operation == SRV_OPERATION_BACKUP ||
+        srv_operation == SRV_OPERATION_BACKUP_NO_DEFER);
+#endif
+  mysql_mutex_assert_owner(&mutex);
+  ut_ad(log_sys.next_checkpoint_lsn);
+  ut_ad(log_sys.is_latest());
+
+  alignas(8) byte iv[MY_AES_BLOCK_SIZE];
+  byte *decrypt_buf= static_cast<byte*>(alloca(srv_page_size));
+
+  const lsn_t start_lsn{lsn};
+  map::iterator cached_pages_it{pages.end()};
 
   /* Check that the entire mini-transaction is included within the buffer */
-  const byte *l;
+  if (l.is_eof(0))
+    return PREMATURE_EOF;
+
+  if (*l <= 1)
+    return GOT_EOF; /* We should never write an empty mini-transaction. */
+
+  const source begin{l};
   uint32_t rlen;
-  for (l= log; l < end; l+= rlen)
+  for (uint32_t total_len= 0; !l.is_eof(); l+= rlen, total_len+= rlen)
   {
-    if (!*l)
+    if (total_len >= MTR_SIZE_MAX)
+      return GOT_EOF;
+    if (*l <= 1)
       goto eom_found;
-    if (UNIV_LIKELY((*l & 0x70) != RESERVED));
-    else if (srv_force_recovery)
-      sql_print_warning("InnoDB: Ignoring unknown log record at LSN " LSN_PF,
-                        recovered_lsn);
-    else
-    {
-malformed:
-      sql_print_error("InnoDB: Malformed log record;"
-                     " set innodb_force_recovery=1 to ignore.");
-corrupted:
-      const size_t trailing_bytes= std::min<size_t>(100, size_t(end - l));
-      sql_print_information("InnoDB: Dump from the start of the"
-                            " mini-transaction (LSN=" LSN_PF ") to %zu"
-                            " bytes after the record:",
-                            start_lsn, trailing_bytes);
-      ut_print_buf(stderr, log, l - log + trailing_bytes);
-      putc('\n', stderr);
-      found_corrupt_log= true;
-      return true;
-    }
-    rlen= *l++ & 0xf;
-    if (l + (rlen ? rlen : 16) >= end)
-      break;
+    rlen= *l & 0xf;
+    ++l;
     if (!rlen)
     {
+      if (l.is_eof(0))
+        break;
       rlen= mlog_decode_varint_length(*l);
-      if (l + rlen >= end)
+      if (l.is_eof(rlen))
         break;
       const uint32_t addlen= mlog_decode_varint(l);
-      if (UNIV_UNLIKELY(addlen == MLOG_DECODE_ERROR))
-      {
-        sql_print_error("InnoDB: Corrupted record length");
-        goto corrupted;
-      }
+      if (UNIV_UNLIKELY(addlen >= MTR_SIZE_MAX))
+        return GOT_EOF;
       rlen= addlen + 15;
     }
   }
 
   /* Not the entire mini-transaction was present. */
-  return false;
+  return PREMATURE_EOF;
 
-eom_found:
-  ut_ad(!*l);
-  ut_d(const byte *const el= l + 1);
+ eom_found:
+  if (*l != log_sys.get_sequence_bit((l - begin) + lsn))
+    return GOT_EOF;
 
-  const lsn_t end_lsn= recv_calc_lsn_on_data_add(start_lsn, l + 1 - log);
-  if (UNIV_UNLIKELY(end_lsn > scanned_lsn))
-    /* The log record filled a log block, and we require that also the
-    next log block should have been scanned in */
-    return false;
+  if (l.is_eof(4))
+    return PREMATURE_EOF;
+
+  uint32_t crc{l.crc32c(begin)};
+
+  if (log_sys.is_encrypted())
+  {
+    if (l.is_eof(8 + 4))
+      return PREMATURE_EOF;
+    (l + 1).memcpy(iv, 8);
+    l+= 8;
+    crc= my_crc32c(crc, iv, 8);
+  }
+
+  DBUG_EXECUTE_IF("log_intermittent_checksum_mismatch",
+                  {
+                    static int c;
+                    if (!c++)
+                    {
+                      sql_print_information("Invalid log block checksum");
+                      return GOT_EOF;
+                    }
+                  });
+
+  if (crc != (l + 1).read4())
+    return GOT_EOF;
+
+  l+= 5;
+  ut_d(const source el{l});
+  lsn+= l - begin;
+  offset= l.ptr - log_sys.buf;
 
   ut_d(std::set<page_id_t> freed);
 #if 0 && defined UNIV_DEBUG /* MDEV-21727 FIXME: enable this */
@@ -2236,58 +2337,83 @@ eom_found:
 
   uint32_t space_id= 0, page_no= 0, last_offset= 0;
   bool got_page_op= false;
-  for (l= log; l < end; l+= rlen)
-  {
-    const byte *const recs= l;
-    const byte b= *l++;
 
-    if (!b)
+  for (l= begin;; l+= rlen)
+  {
+    const source recs{l};
+    ++l;
+    const byte b= *recs;
+
+    if (b <= 1)
       break;
-    ut_ad(UNIV_LIKELY(b & 0x70) != RESERVED || srv_force_recovery);
+
+    if (UNIV_LIKELY((b & 0x70) != RESERVED));
+    else if (srv_force_recovery)
+      sql_print_warning("InnoDB: Ignoring unknown log record at LSN " LSN_PF,
+                        lsn);
+    else
+    {
+      sql_print_error("InnoDB: Unknown log record at LSN " LSN_PF, lsn);
+    corrupted:
+      found_corrupt_log= true;
+      pthread_cond_broadcast(&cond);
+      return GOT_EOF;
+    }
+
     rlen= b & 0xf;
-    ut_ad(l + rlen < end);
-    ut_ad(rlen || l + 16 < end);
     if (!rlen)
     {
       const uint32_t lenlen= mlog_decode_varint_length(*l);
-      ut_ad(l + lenlen < end);
       const uint32_t addlen= mlog_decode_varint(l);
       ut_ad(addlen != MLOG_DECODE_ERROR);
       rlen= addlen + 15 - lenlen;
       l+= lenlen;
     }
-    ut_ad(l + rlen < end);
+    ut_ad(!l.is_eof(rlen));
+
     uint32_t idlen;
     if ((b & 0x80) && got_page_op)
     {
       /* This record is for the same page as the previous one. */
       if (UNIV_UNLIKELY((b & 0x70) <= INIT_PAGE))
       {
-record_corrupted:
+      record_corrupted:
         /* FREE_PAGE,INIT_PAGE cannot be with same_page flag */
         if (!srv_force_recovery)
-          goto malformed;
+        {
+        malformed:
+          sql_print_error("InnoDB: Malformed log record at LSN " LSN_PF
+                          "; set innodb_force_recovery=1 to ignore.", lsn);
+          goto corrupted;
+        }
         sql_print_warning("InnoDB: Ignoring malformed log record at LSN "
-                          LSN_PF, recovered_lsn);
+                          LSN_PF, lsn);
         last_offset= 1; /* the next record must not be same_page  */
         continue;
       }
+      if (srv_operation == SRV_OPERATION_BACKUP)
+        continue;
+      DBUG_PRINT("ib_log",
+                 ("scan " LSN_PF ": rec %x len %zu page %u:%u",
+                  lsn, b, l - recs + rlen, space_id, page_no));
       goto same_page;
     }
     last_offset= 0;
     idlen= mlog_decode_varint_length(*l);
     if (UNIV_UNLIKELY(idlen > 5 || idlen >= rlen))
     {
-page_id_corrupted:
+      if (!*l && b == FILE_CHECKPOINT + 1)
+        continue;
+    page_id_corrupted:
       if (!srv_force_recovery)
       {
         sql_print_error("InnoDB: Corrupted page identifier at " LSN_PF
                         "; set innodb_force_recovery=1 to ignore the record.",
-                        recovered_lsn);
+                        lsn);
         goto corrupted;
       }
       sql_print_warning("InnoDB: Ignoring corrupted page identifier at LSN "
-                        LSN_PF, recovered_lsn);
+                        LSN_PF, lsn);
       continue;
     }
     space_id= mlog_decode_varint(l);
@@ -2303,12 +2429,21 @@ page_id_corrupted:
       goto page_id_corrupted;
     l+= idlen;
     rlen-= idlen;
-    got_page_op = !(b & 0x80);
-    if (got_page_op && apply && !is_predefined_tablespace(space_id))
+    mach_write_to_4(iv + 8, space_id);
+    mach_write_to_4(iv + 12, page_no);
+    got_page_op= !(b & 0x80);
+    if (!got_page_op);
+    else if (srv_operation == SRV_OPERATION_BACKUP)
+    {
+      if (page_no == 0 && first_page_init && (b & 0x10))
+        first_page_init(space_id);
+      continue;
+    }
+    else if (file_checkpoint && !is_predefined_tablespace(space_id))
     {
       recv_spaces_t::iterator i= recv_spaces.lower_bound(space_id);
       if (i != recv_spaces.end() && i->first == space_id);
-      else if (recovered_lsn < mlog_checkpoint_lsn)
+      else if (lsn < file_checkpoint)
         /* We have not seen all records between the checkpoint and
         FILE_CHECKPOINT. There should be a FILE_DELETE for this
         tablespace later. */
@@ -2319,23 +2454,25 @@ page_id_corrupted:
         if (!srv_force_recovery)
         {
           ib::error() << "Missing FILE_DELETE or FILE_MODIFY for " << id
-                      << " at " << recovered_lsn
+                      << " at " << lsn
                       << "; set innodb_force_recovery=1 to ignore the record.";
           goto corrupted;
         }
-        ib::warn() << "Ignoring record for " << id << " at " << recovered_lsn;
+        ib::warn() << "Ignoring record for " << id << " at " << lsn;
         continue;
       }
     }
-same_page:
     DBUG_PRINT("ib_log",
                ("scan " LSN_PF ": rec %x len %zu page %u:%u",
-                recovered_lsn, b, static_cast<size_t>(l + rlen - recs),
-                space_id, page_no));
-
+                lsn, b, l - recs + rlen, space_id, page_no));
     if (got_page_op)
     {
-      const page_id_t id(space_id, page_no);
+    same_page:
+      const byte *cl= l.ptr;
+      if (!rlen);
+      else if (UNIV_UNLIKELY(l - recs + rlen > srv_page_size))
+        goto record_corrupted;
+      const page_id_t id{space_id, page_no};
       ut_d(if ((b & 0x70) == INIT_PAGE) freed.erase(id));
       ut_ad(freed.find(id) == freed.end());
       switch (b & 0x70) {
@@ -2353,7 +2490,8 @@ same_page:
       case EXTENDED:
         if (UNIV_UNLIKELY(!rlen))
           goto record_corrupted;
-        if (rlen == 1 && *l == TRIM_PAGES)
+        cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
+        if (rlen == 1 && *cl == TRIM_PAGES)
         {
 #if 0 /* For now, we can only truncate an undo log tablespace */
           if (UNIV_UNLIKELY(!space_id || !page_no))
@@ -2365,7 +2503,7 @@ same_page:
           static_assert(UT_ARR_SIZE(truncated_undo_spaces) ==
                         TRX_SYS_MAX_UNDO_SPACES, "compatibility");
           truncated_undo_spaces[space_id - srv_undo_space_id_start]=
-            { recovered_lsn, page_no };
+            { lsn, page_no };
 #endif
           last_offset= 1; /* the next record must not be same_page  */
           continue;
@@ -2380,10 +2518,12 @@ same_page:
       case MEMSET:
         if (UNIV_UNLIKELY(rlen == 0 || last_offset == 1))
           goto record_corrupted;
-        const uint32_t olen= mlog_decode_varint_length(*l);
+        ut_d(const source payload{l});
+        cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
+        const uint32_t olen= mlog_decode_varint_length(*cl);
         if (UNIV_UNLIKELY(olen >= rlen) || UNIV_UNLIKELY(olen > 3))
           goto record_corrupted;
-        const uint32_t offset= mlog_decode_varint(l);
+        const uint32_t offset= mlog_decode_varint(cl);
         ut_ad(offset != MLOG_DECODE_ERROR);
         static_assert(FIL_PAGE_OFFSET == 4, "compatibility");
         if (UNIV_UNLIKELY(offset >= srv_page_size))
@@ -2391,13 +2531,13 @@ same_page:
         last_offset+= offset;
         if (UNIV_UNLIKELY(last_offset < 8 || last_offset >= srv_page_size))
           goto record_corrupted;
-        l+= olen;
+        cl+= olen;
         rlen-= olen;
         if ((b & 0x70) == WRITE)
         {
           if (UNIV_UNLIKELY(rlen + last_offset > srv_page_size))
             goto record_corrupted;
-          if (UNIV_UNLIKELY(!page_no) && apply)
+          if (UNIV_UNLIKELY(!page_no) && file_checkpoint)
           {
             const bool has_size= last_offset <= FSP_HEADER_OFFSET + FSP_SIZE &&
               last_offset + rlen >= FSP_HEADER_OFFSET + FSP_SIZE + 4;
@@ -2408,15 +2548,15 @@ same_page:
             {
               recv_spaces_t::iterator it= recv_spaces.find(space_id);
               const uint32_t size= has_size
-                ? mach_read_from_4(FSP_HEADER_OFFSET + FSP_SIZE + l -
+                ? mach_read_from_4(FSP_HEADER_OFFSET + FSP_SIZE + cl -
                                    last_offset)
                 : 0;
               const uint32_t flags= has_flags
-                ? mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + l -
+                ? mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + cl -
                                    last_offset)
                 : file_name_t::initial_flags;
               if (it == recv_spaces.end())
-                ut_ad(!mlog_checkpoint_lsn || space_id == TRX_SYS_SPACE ||
+                ut_ad(!file_checkpoint || space_id == TRX_SYS_SPACE ||
                       srv_is_undo_tablespace(space_id));
               else if (!it->second.space)
               {
@@ -2428,30 +2568,33 @@ same_page:
               fil_space_set_recv_size_and_flags(space_id, size, flags);
             }
           }
+        parsed_ok:
           last_offset+= rlen;
+          ut_ad(l == payload);
+          if (!l.set_if_contains(cl))
+            (l= recs)+= cl - decrypt_buf;
           break;
         }
-        uint32_t llen= mlog_decode_varint_length(*l);
+        uint32_t llen= mlog_decode_varint_length(*cl);
         if (UNIV_UNLIKELY(llen > rlen || llen > 3))
           goto record_corrupted;
-        const uint32_t len= mlog_decode_varint(l);
+        const uint32_t len= mlog_decode_varint(cl);
         ut_ad(len != MLOG_DECODE_ERROR);
         if (UNIV_UNLIKELY(last_offset + len > srv_page_size))
           goto record_corrupted;
-        l+= llen;
+        cl+= llen;
         rlen-= llen;
         llen= len;
         if ((b & 0x70) == MEMSET)
         {
           if (UNIV_UNLIKELY(rlen > llen))
             goto record_corrupted;
-          last_offset+= llen;
-          break;
+          goto parsed_ok;
         }
-        const uint32_t slen= mlog_decode_varint_length(*l);
+        const uint32_t slen= mlog_decode_varint_length(*cl);
         if (UNIV_UNLIKELY(slen != rlen || slen > 3))
           goto record_corrupted;
-        uint32_t s= mlog_decode_varint(l);
+        uint32_t s= mlog_decode_varint(cl);
         ut_ad(slen != MLOG_DECODE_ERROR);
         if (s & 1)
           s= last_offset - (s >> 1) - 1;
@@ -2459,8 +2602,7 @@ same_page:
           s= last_offset + (s >> 1) + 1;
         if (UNIV_UNLIKELY(s < 8 || s + llen > srv_page_size))
           goto record_corrupted;
-        last_offset+= llen;
-        break;
+        goto parsed_ok;
       }
 #if 0 && defined UNIV_DEBUG
       switch (b & 0x70) {
@@ -2475,7 +2617,7 @@ same_page:
       }
 #endif
       const bool is_init= (b & 0x70) <= INIT_PAGE;
-      switch (*store) {
+      switch (store) {
       case STORE_IF_EXISTS:
         if (fil_space_t *space= fil_space_t::get(space_id))
         {
@@ -2490,10 +2632,11 @@ same_page:
       case STORE_YES:
         if (!mlog_init.will_avoid_read(id, start_lsn))
         {
-          if (cached_pages_it == pages.end() || cached_pages_it->first != id)
-            cached_pages_it= pages.emplace(id, page_recv_t()).first;
-          add(cached_pages_it, start_lsn, end_lsn, recs,
-              static_cast<size_t>(l + rlen - recs));
+          if (cached_pages_it == pages.end() ||
+              cached_pages_it->first != id)
+            cached_pages_it= pages.emplace(id, page_recv_t{}).first;
+          add(cached_pages_it, start_lsn, lsn,
+              l.get_buf(cl, recs, decrypt_buf), l - recs + rlen);
         }
         continue;
       case STORE_NO:
@@ -2511,41 +2654,42 @@ same_page:
     {
       switch (b & 0xf0) {
       case FILE_CHECKPOINT:
-        if (space_id == 0 && page_no == 0 && rlen == 8)
+        if (space_id || page_no || l[rlen] > 1);
+        else if (rlen != 8)
         {
-          const lsn_t lsn= mach_read_from_8(l);
-
+          if (rlen < UNIV_PAGE_SIZE_MAX && !l.is_zero(rlen))
+            continue;
+        }
+        else if (const lsn_t c= l.read8())
+        {
           if (UNIV_UNLIKELY(srv_print_verbose_log == 2))
             fprintf(stderr, "FILE_CHECKPOINT(" LSN_PF ") %s at " LSN_PF "\n",
-                    lsn, lsn != checkpoint_lsn
-                    ? "ignored"
-                    : mlog_checkpoint_lsn ? "reread" : "read",
-                    recovered_lsn);
+                    c, c != log_sys.next_checkpoint_lsn
+                    ? "ignored" : file_checkpoint ? "reread" : "read", lsn);
 
-          DBUG_PRINT("ib_log", ("FILE_CHECKPOINT(" LSN_PF ") %s at " LSN_PF,
-                                lsn, lsn != checkpoint_lsn
-                                ? "ignored"
-                                : mlog_checkpoint_lsn ? "reread" : "read",
-                                recovered_lsn));
+          DBUG_PRINT("ib_log",
+                     ("FILE_CHECKPOINT(" LSN_PF ") %s at " LSN_PF,
+                      c, c != log_sys.next_checkpoint_lsn
+                      ? "ignored" : file_checkpoint ? "reread" : "read", lsn));
 
-          if (lsn == checkpoint_lsn)
+          if (c == log_sys.next_checkpoint_lsn)
           {
             /* There can be multiple FILE_CHECKPOINT for the same LSN. */
-            if (mlog_checkpoint_lsn)
+            if (file_checkpoint)
               continue;
-            mlog_checkpoint_lsn= recovered_lsn;
-            l+= 8;
-            recovered_offset= l - buf;
-            return true;
+            file_checkpoint= lsn;
+            return GOT_EOF;
           }
           continue;
         }
+        else
+          continue;
         /* fall through */
       default:
         if (!srv_force_recovery)
           goto malformed;
         sql_print_warning("InnoDB: Ignoring malformed log record at LSN "
-                          LSN_PF, recovered_lsn);
+                          LSN_PF, lsn);
         continue;
       case FILE_DELETE:
       case FILE_MODIFY:
@@ -2561,7 +2705,7 @@ same_page:
           }
 
           sql_print_warning("InnoDB: Ignoring corrupted file-level record"
-                            " at LSN " LSN_PF, recovered_lsn);
+                            " at LSN " LSN_PF, lsn);
           continue;
         }
         /* fall through */
@@ -2570,7 +2714,8 @@ same_page:
           goto file_rec_error;
         /* There is no terminating NUL character. Names must end in .ibd.
         For FILE_RENAME, there is a NUL between the two file names. */
-        const char * const fn= reinterpret_cast<const char*>(l);
+
+        const char * const fn= l.get_filename(decrypt_buf, rlen);
         const char *fn2= static_cast<const char*>(memchr(fn, 0, rlen));
 
         if (UNIV_UNLIKELY((fn2 == nullptr) == ((b & 0xf0) == FILE_RENAME)))
@@ -2593,22 +2738,23 @@ same_page:
         if (fnend - fn < 4 || memcmp(fnend - 4, DOT_IBD, 4))
           goto file_rec_error;
 
-        const char saved_end= fn[rlen];
-        const_cast<char&>(fn[rlen])= '\0';
-        fil_name_process(const_cast<char*>(fn), fnend - fn, space_id,
+        if (UNIV_UNLIKELY(!recv_needed_recovery && srv_read_only_mode))
+          continue;
+
+        fil_name_process(fn, fnend - fn, space_id,
                          (b & 0xf0) == FILE_DELETE, start_lsn,
                          store);
         if (fn2)
-          fil_name_process(const_cast<char*>(fn2), fn2end - fn2, space_id,
+          fil_name_process(fn2, fn2end - fn2, space_id,
                            false, start_lsn, store);
         if ((b & 0xf0) < FILE_CHECKPOINT && log_file_op)
           log_file_op(space_id, b & 0xf0,
-                      l, static_cast<ulint>(fnend - fn),
+                      reinterpret_cast<const byte*>(fn),
+                      static_cast<ulint>(fnend - fn),
                       reinterpret_cast<const byte*>(fn2),
                       fn2 ? static_cast<ulint>(fn2end - fn2) : 0);
-        const_cast<char&>(fn[rlen])= saved_end;
 
-        if (fn2 && apply)
+        if (fn2 && file_checkpoint)
         {
           const size_t len= fn2end - fn2;
           auto r= renamed_spaces.emplace(space_id, std::string{fn2, len});
@@ -2616,20 +2762,42 @@ same_page:
             r.first->second= std::string{fn2, len};
         }
         if (is_corrupt_fs())
-          return true;
+          return GOT_EOF;
       }
     }
+    else if (b == FILE_CHECKPOINT + 2 && !space_id && !page_no);
     else
       goto malformed;
   }
 
+  l+= log_sys.is_encrypted() ? 4U + 8U : 4U;
   ut_ad(l == el);
-  recovered_offset= l - buf;
-  recovered_lsn= end_lsn;
-  if (is_memory_exhausted(store) && last_phase)
-    return false;
-  goto loop;
+  return OK;
 }
+
+ATTRIBUTE_NOINLINE
+recv_sys_t::parse_mtr_result recv_sys_t::parse_mtr(store_t store) noexcept
+{
+  recv_buf s{&log_sys.buf[recv_sys.offset]};
+  return recv_sys.parse(store, s);
+}
+
+#ifdef HAVE_PMEM
+recv_sys_t::parse_mtr_result recv_sys_t::parse_pmem(store_t store) noexcept
+{
+  recv_sys_t::parse_mtr_result r{parse_mtr(store)};
+  if (r != PREMATURE_EOF || !log_sys.is_pmem())
+    return r;
+  ut_ad(recv_sys.len == log_sys.file_size);
+  ut_ad(recv_sys.offset >= log_sys.START_OFFSET);
+  ut_ad(recv_sys.offset <= recv_sys.len);
+  recv_ring s
+    {recv_sys.offset == recv_sys.len
+     ? &log_sys.buf[log_sys.START_OFFSET]
+     : &log_sys.buf[recv_sys.offset]};
+  return recv_sys.parse(store, s);
+}
+#endif
 
 /** Apply the hashed log records to the page, if the page lsn is less than the
 lsn of a log record.
@@ -2651,7 +2819,7 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 	ut_ad(block->page.id() == p->first);
 	ut_ad(!p->second.is_being_processed());
 	ut_ad(!space || space->id == block->page.id().space());
-	ut_ad(log_sys.is_physical());
+	ut_ad(log_sys.is_latest());
 
 	if (UNIV_UNLIKELY(srv_print_verbose_log == 2)) {
 		ib::info() << "Applying log to page " << block->page.id();
@@ -2682,7 +2850,7 @@ static void recv_recover_page(buf_block_t* block, mtr_t& mtr,
 		const log_phys_t* l = static_cast<const log_phys_t*>(recv);
 		ut_ad(l->lsn);
 		ut_ad(end_lsn <= l->lsn);
-		ut_ad(l->lsn <= log_sys.log.scanned_lsn);
+		ut_ad(l->lsn <= log_sys.get_lsn());
 
 		ut_ad(l->start_lsn);
 		ut_ad(recv_start_lsn <= l->start_lsn);
@@ -2810,19 +2978,23 @@ set_start_lsn:
 
 	if (start_lsn) {
 		ut_ad(end_lsn >= start_lsn);
+		ut_ad(!block->page.oldest_modification());
 		mach_write_to_8(FIL_PAGE_LSN + frame, end_lsn);
-		if (UNIV_LIKELY(frame == block->page.frame)) {
+		if (UNIV_LIKELY(!block->page.zip.data)) {
 			mach_write_to_8(srv_page_size
 					- FIL_PAGE_END_LSN_OLD_CHKSUM
 					+ frame, end_lsn);
 		} else {
 			buf_zip_decompress(block, false);
 		}
-
-		buf_block_modify_clock_inc(block);
-		mysql_mutex_lock(&log_sys.flush_order_mutex);
-		buf_flush_note_modification(block, start_lsn, end_lsn);
-		mysql_mutex_unlock(&log_sys.flush_order_mutex);
+		/* The following is adapted from
+		buf_pool_t::insert_into_flush_list() */
+		mysql_mutex_lock(&buf_pool.flush_list_mutex);
+		buf_pool.stat.flush_list_bytes+= block->physical_size();
+		block->page.set_oldest_modification(start_lsn);
+		UT_LIST_ADD_FIRST(buf_pool.flush_list, &block->page);
+		buf_pool.page_cleaner_wakeup();
+		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 	} else if (free_page && init) {
 		/* There have been no operations that modify the page.
 		Any buffered changes must not be merged. A subsequent
@@ -2987,7 +3159,7 @@ inline buf_block_t *recv_sys_t::recover_low(const page_id_t page_id,
   ut_ad(recs.state == page_recv_t::RECV_WILL_NOT_READ);
   buf_block_t* block= nullptr;
   mlog_init_t::init &i= mlog_init.last(page_id);
-  const lsn_t end_lsn = recs.log.last()->lsn;
+  const lsn_t end_lsn= recs.log.last()->lsn;
   bool first_page= page_id.page_no() == 0;
   if (end_lsn < i.lsn)
     DBUG_LOG("ib_log", "skip log for page " << page_id
@@ -3113,30 +3285,26 @@ void recv_sys_t::apply(bool last_batch)
         srv_operation == SRV_OPERATION_RESTORE ||
         srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 
-#ifdef SAFE_MUTEX
-  DBUG_ASSERT(!last_batch == mysql_mutex_is_owner(&log_sys.mutex));
-#endif /* SAFE_MUTEX */
-  mysql_mutex_lock(&mutex);
+  mysql_mutex_assert_owner(&mutex);
 
   timespec abstime;
 
   while (apply_batch_on)
   {
     if (is_corrupt_log())
-    {
-      mysql_mutex_unlock(&mutex);
       return;
-    }
     if (last_batch)
-    {
-      mysql_mutex_assert_not_owner(&log_sys.mutex);
       my_cond_wait(&cond, &mutex.m_mutex);
-    }
     else
     {
-      mysql_mutex_unlock(&mutex);
+#ifndef SUX_LOCK_GENERIC
+      ut_ad(log_sys.latch.is_write_locked());
+#endif
+      log_sys.latch.wr_unlock();
       set_timespec_nsec(abstime, 500000000ULL); /* 0.5s */
-      my_cond_timedwait(&cond, &log_sys.mutex.m_mutex, &abstime);
+      my_cond_timedwait(&cond, &mutex.m_mutex, &abstime);
+      mysql_mutex_unlock(&mutex);
+      log_sys.latch.wr_lock(SRW_LOCK_CALL);
       mysql_mutex_lock(&mutex);
     }
   }
@@ -3150,11 +3318,11 @@ void recv_sys_t::apply(bool last_batch)
   if (!pages.empty())
   {
     const char *msg= last_batch
-      ? "Starting final batch to recover "
-      : "Starting a batch to recover ";
+      ? "Starting final batch to recover"
+      : "Starting a batch to recover";
     const size_t n= pages.size();
     sql_print_information("InnoDB: %s %zu pages from redo log.", msg, n);
-    sd_notifyf(0, "STATUS=%s" ULINTPF " pages from redo log", msg, n);
+    sd_notifyf(0, "STATUS=%s %zu pages from redo log", msg, n);
 
     apply_log_recs= true;
     apply_batch_on= true;
@@ -3243,7 +3411,6 @@ next_free_block:
       {
         if (last_batch)
         {
-          mysql_mutex_assert_not_owner(&log_sys.mutex);
           if (!empty)
             my_cond_wait(&cond, &mutex.m_mutex);
           else
@@ -3257,9 +3424,14 @@ next_free_block:
         }
         else
         {
-          mysql_mutex_unlock(&mutex);
+#ifndef SUX_LOCK_GENERIC
+          ut_ad(log_sys.latch.is_write_locked());
+#endif
+          log_sys.latch.wr_unlock();
           set_timespec_nsec(abstime, 500000000ULL); /* 0.5s */
-          my_cond_timedwait(&cond, &log_sys.mutex.m_mutex, &abstime);
+          my_cond_timedwait(&cond, &mutex.m_mutex, &abstime);
+          mysql_mutex_unlock(&mutex);
+          log_sys.latch.wr_lock(SRW_LOCK_CALL);
           mysql_mutex_lock(&mutex);
         }
         continue;
@@ -3267,7 +3439,6 @@ next_free_block:
       if (is_corrupt_fs() && !srv_force_recovery)
         sql_print_information("InnoDB: Set innodb_force_recovery=1"
                               " to ignore corrupted pages.");
-      mysql_mutex_unlock(&mutex);
       return;
     }
   }
@@ -3278,10 +3449,9 @@ next_free_block:
   else
   {
     mlog_init.reset();
-    mysql_mutex_unlock(&log_sys.mutex);
+    log_sys.latch.wr_unlock();
   }
 
-  mysql_mutex_assert_not_owner(&log_sys.mutex);
   mysql_mutex_unlock(&mutex);
 
   if (last_batch && srv_operation != SRV_OPERATION_RESTORE &&
@@ -3291,392 +3461,227 @@ next_free_block:
   {
     /* Instead of flushing, last_batch could sort the buf_pool.flush_list
     in ascending order of buf_page_t::oldest_modification. */
-    buf_flush_sync_batch(recovered_lsn);
+    buf_flush_sync_batch(lsn);
   }
 
   if (!last_batch)
   {
     buf_pool_invalidate();
-    mysql_mutex_lock(&log_sys.mutex);
+    log_sys.latch.wr_lock(SRW_LOCK_CALL);
   }
+#ifdef HAVE_PMEM
+  else if (log_sys.is_pmem())
+    mprotect(log_sys.buf, len, PROT_READ | PROT_WRITE);
+#endif
 
   mysql_mutex_lock(&mutex);
 
   ut_d(after_apply= true);
   clear();
-  mysql_mutex_unlock(&mutex);
 }
 
 /** Check whether the number of read redo log blocks exceeds the maximum.
-Store last_stored_lsn if the recovery is not in the last phase.
-@param[in,out] store    whether to store page operations
 @return whether the memory is exhausted */
-inline bool recv_sys_t::is_memory_exhausted(store_t *store)
+inline bool recv_sys_t::is_memory_exhausted()
 {
-  if (*store == STORE_NO ||
-      UT_LIST_GET_LEN(blocks) * 3 < buf_pool.get_n_pages())
+  if (UT_LIST_GET_LEN(blocks) * 3 < buf_pool.get_n_pages())
     return false;
-  if (*store == STORE_YES)
-    last_stored_lsn= recovered_lsn;
-  *store= STORE_NO;
   DBUG_PRINT("ib_log",("Ran out of memory and last stored lsn " LSN_PF
-                       " last stored offset " ULINTPF "\n",
-                       recovered_lsn, recovered_offset));
+                       " last stored offset %zu\n", lsn, offset));
   return true;
 }
 
-/** Adds data from a new log block to the parsing buffer of recv_sys if
-recv_sys.parse_start_lsn is non-zero.
-@param[in]	log_block	log block to add
-@param[in]	scanned_lsn	lsn of how far we were able to find
-				data in this log block
-@return true if more data added */
-bool recv_sys_add_to_parsing_buf(const byte* log_block, lsn_t scanned_lsn)
-{
-	ulint	more_len;
-	ulint	data_len;
-	ulint	start_offset;
-	ulint	end_offset;
-
-	ut_ad(scanned_lsn >= recv_sys.scanned_lsn);
-
-	if (!recv_sys.parse_start_lsn) {
-		/* Cannot start parsing yet because no start point for
-		it found */
-		return(false);
-	}
-
-	data_len = log_block_get_data_len(log_block);
-
-	if (recv_sys.parse_start_lsn >= scanned_lsn) {
-
-		return(false);
-
-	} else if (recv_sys.scanned_lsn >= scanned_lsn) {
-
-		return(false);
-
-	} else if (recv_sys.parse_start_lsn > recv_sys.scanned_lsn) {
-		more_len = (ulint) (scanned_lsn - recv_sys.parse_start_lsn);
-	} else {
-		more_len = (ulint) (scanned_lsn - recv_sys.scanned_lsn);
-	}
-
-	if (more_len == 0) {
-		return(false);
-	}
-
-	ut_ad(data_len >= more_len);
-
-	start_offset = data_len - more_len;
-
-	if (start_offset < LOG_BLOCK_HDR_SIZE) {
-		start_offset = LOG_BLOCK_HDR_SIZE;
-	}
-
-	end_offset = std::min<ulint>(data_len, log_sys.trailer_offset());
-
-	ut_ad(start_offset <= end_offset);
-
-	if (start_offset < end_offset) {
-		memcpy(recv_sys.buf + recv_sys.len,
-		       log_block + start_offset, end_offset - start_offset);
-
-		recv_sys.len += end_offset - start_offset;
-
-		ut_a(recv_sys.len <= RECV_PARSING_BUF_SIZE);
-	}
-
-	return(true);
-}
-
-/** Moves the parsing buffer data left to the buffer start. */
-void recv_sys_justify_left_parsing_buf()
-{
-	memmove(recv_sys.buf, recv_sys.buf + recv_sys.recovered_offset,
-		recv_sys.len - recv_sys.recovered_offset);
-
-	recv_sys.len -= recv_sys.recovered_offset;
-
-	recv_sys.recovered_offset = 0;
-}
-
-/** Scan redo log from a buffer and stores new log data to the parsing buffer.
-Parse and hash the log records if new data found.
-Apply log records automatically when the hash table becomes full.
-@param[in,out]	store			whether the records should be
-					stored into recv_sys.pages; this is
-					reset if just debug checking is
-					needed, or when the num_max_blocks in
-					recv_sys runs out
-@param[in]	log_block		log segment
-@param[in]	checkpoint_lsn		latest checkpoint LSN
-@param[in]	start_lsn		buffer start LSN
-@param[in]	end_lsn			buffer end LSN
-@param[in,out]	contiguous_lsn		it is known that all groups contain
-					contiguous log data upto this lsn
-@param[out]	group_scanned_lsn	scanning succeeded upto this lsn
-@return true if not able to scan any more in this log group */
-static bool recv_scan_log_recs(
-	store_t*	store,
-	const byte*	log_block,
-	lsn_t		checkpoint_lsn,
-	lsn_t		start_lsn,
-	lsn_t		end_lsn,
-	lsn_t*		contiguous_lsn,
-	lsn_t*		group_scanned_lsn)
-{
-	lsn_t		scanned_lsn	= start_lsn;
-	bool		finished	= false;
-	ulint		data_len;
-	bool		more_data	= false;
-	bool		apply		= recv_sys.mlog_checkpoint_lsn != 0;
-	ulint		recv_parsing_buf_size = RECV_PARSING_BUF_SIZE;
-	const bool	last_phase = (*store == STORE_IF_EXISTS);
-	ut_ad(start_lsn % OS_FILE_LOG_BLOCK_SIZE == 0);
-	ut_ad(end_lsn % OS_FILE_LOG_BLOCK_SIZE == 0);
-	ut_ad(end_lsn >= start_lsn + OS_FILE_LOG_BLOCK_SIZE);
-	ut_ad(log_sys.is_physical());
-
-	const byte* const	log_end = log_block
-		+ ulint(end_lsn - start_lsn);
-	constexpr ulint sizeof_checkpoint= SIZE_OF_FILE_CHECKPOINT;
-
-	do {
-		ut_ad(!finished);
-
-		if (log_block_get_flush_bit(log_block)) {
-			/* This block was a start of a log flush operation:
-			we know that the previous flush operation must have
-			been completed for all log groups before this block
-			can have been flushed to any of the groups. Therefore,
-			we know that log data is contiguous up to scanned_lsn
-			in all non-corrupt log groups. */
-
-			if (scanned_lsn > *contiguous_lsn) {
-				*contiguous_lsn = scanned_lsn;
-			}
-		}
-
-		data_len = log_block_get_data_len(log_block);
-
-		if (scanned_lsn + data_len > recv_sys.scanned_lsn
-		    && log_block_get_checkpoint_no(log_block)
-		    < recv_sys.scanned_checkpoint_no
-		    && (recv_sys.scanned_checkpoint_no
-			- log_block_get_checkpoint_no(log_block)
-			> 0x80000000UL)) {
-
-			/* Garbage from a log buffer flush which was made
-			before the most recent database recovery */
-			finished = true;
-			break;
-		}
-
-		if (!recv_sys.parse_start_lsn
-		    && (log_block_get_first_rec_group(log_block) > 0)) {
-
-			/* We found a point from which to start the parsing
-			of log records */
-
-			recv_sys.parse_start_lsn = scanned_lsn
-				+ log_block_get_first_rec_group(log_block);
-			recv_sys.scanned_lsn = recv_sys.parse_start_lsn;
-			recv_sys.recovered_lsn = recv_sys.parse_start_lsn;
-		}
-
-		scanned_lsn += data_len;
-
-		if (data_len == LOG_BLOCK_HDR_SIZE + sizeof_checkpoint
-		    && scanned_lsn == checkpoint_lsn + sizeof_checkpoint
-		    && log_block[LOG_BLOCK_HDR_SIZE]
-		    == (FILE_CHECKPOINT | (SIZE_OF_FILE_CHECKPOINT - 2))
-		    && checkpoint_lsn == mach_read_from_8(
-			    (LOG_BLOCK_HDR_SIZE + 1 + 2)
-			    + log_block)) {
-			/* The redo log is logically empty. */
-			ut_ad(recv_sys.mlog_checkpoint_lsn == 0
-			      || recv_sys.mlog_checkpoint_lsn
-			      == checkpoint_lsn);
-			recv_sys.mlog_checkpoint_lsn = checkpoint_lsn;
-			DBUG_PRINT("ib_log", ("found empty log; LSN=" LSN_PF,
-					      scanned_lsn));
-			finished = true;
-			break;
-		}
-
-		if (scanned_lsn > recv_sys.scanned_lsn) {
-			ut_ad(!srv_log_file_created);
-			if (!recv_needed_recovery) {
-				recv_needed_recovery = true;
-
-				if (srv_read_only_mode) {
-					sql_print_warning(
-						"InnoDB: innodb_read_only"
-						" prevents crash recovery");
-					return(true);
-				}
-
-				sql_print_information("InnoDB: Starting"
-						      " crash recovery from"
-						      " checkpoint LSN=" LSN_PF
-						      "," LSN_PF,
-						      checkpoint_lsn,
-						      recv_sys.scanned_lsn);
-			}
-
-			/* We were able to find more log data: add it to the
-			parsing buffer if parse_start_lsn is already
-			non-zero */
-
-			DBUG_EXECUTE_IF(
-				"reduce_recv_parsing_buf",
-				recv_parsing_buf_size = RECV_SCAN_SIZE * 2;
-				);
-
-			if (recv_sys.len + 4 * OS_FILE_LOG_BLOCK_SIZE
-			    >= recv_parsing_buf_size) {
-				sql_print_error("InnoDB: Log parsing buffer"
-						" overflow."
-						" Recovery may have failed!");
-
-				recv_sys.set_corrupt_log();
-
-				if (!srv_force_recovery) {
-					sql_print_information(
-						"InnoDB: Set"
-                                                " innodb_force_recovery"
-						" to ignore this error.");
-					return(true);
-				}
-			} else if (!recv_sys.is_corrupt_log()) {
-				more_data = recv_sys_add_to_parsing_buf(
-					log_block, scanned_lsn);
-			}
-
-			recv_sys.scanned_lsn = scanned_lsn;
-			recv_sys.scanned_checkpoint_no
-				= log_block_get_checkpoint_no(log_block);
-		}
-
-		/* During last phase of scanning, there can be redo logs
-		left in recv_sys.buf to parse & store it in recv_sys.heap */
-		if (last_phase
-		    && recv_sys.recovered_lsn < recv_sys.scanned_lsn) {
-			more_data = true;
-		}
-
-		if (data_len < OS_FILE_LOG_BLOCK_SIZE) {
-			/* Log data for this group ends here */
-			finished = true;
-			break;
-		} else {
-			log_block += OS_FILE_LOG_BLOCK_SIZE;
-		}
-	} while (log_block < log_end);
-
-	*group_scanned_lsn = scanned_lsn;
-
-	mysql_mutex_lock(&recv_sys.mutex);
-
-	if (more_data && !recv_sys.is_corrupt_log()) {
-		/* Try to parse more log records */
-		if (recv_sys.parse(checkpoint_lsn, store, apply)) {
-			ut_ad(recv_sys.is_corrupt_log()
-			      || recv_sys.is_corrupt_fs()
-			      || recv_sys.mlog_checkpoint_lsn
-			      == recv_sys.recovered_lsn);
-			finished = true;
-			goto func_exit;
-		}
-
-		recv_sys.is_memory_exhausted(store);
-
-		if (recv_sys.recovered_offset > recv_parsing_buf_size / 4
-		    || (recv_sys.recovered_offset
-			&& recv_sys.len
-			>= recv_parsing_buf_size - RECV_SCAN_SIZE)) {
-			/* Move parsing buffer data to the buffer start */
-			recv_sys_justify_left_parsing_buf();
-		}
-
-		/* Need to re-parse the redo log which're stored
-		in recv_sys.buf */
-		if (last_phase && *store == STORE_NO) {
-			finished = false;
-		}
-	}
-
-func_exit:
-	recv_sys.maybe_finish_batch();
-	mysql_mutex_unlock(&recv_sys.mutex);
-	return(finished);
-}
-
-/** Scans log from a buffer and stores new log data to the parsing buffer.
-Parses and hashes the log records if new data found.
-@param[in]	checkpoint_lsn		latest checkpoint log sequence number
-@param[in,out]	contiguous_lsn		log sequence number
-until which all redo log has been scanned
-@param[in]	last_phase		whether changes
-can be applied to the tablespaces
+/** Scan log_t::FORMAT_10_8 log store records to the parsing buffer.
+@param last_phase     whether changes can be applied to the tablespaces
 @return whether rescan is needed (not everything was stored) */
-static
-bool
-recv_group_scan_log_recs(
-	lsn_t		checkpoint_lsn,
-	lsn_t*		contiguous_lsn,
-	bool		last_phase)
+static bool recv_scan_log(bool last_phase)
 {
-	DBUG_ENTER("recv_group_scan_log_recs");
-	DBUG_ASSERT(!last_phase || recv_sys.mlog_checkpoint_lsn > 0);
+  DBUG_ENTER("recv_scan_log");
+  DBUG_ASSERT(!last_phase || recv_sys.file_checkpoint);
 
-	mysql_mutex_lock(&recv_sys.mutex);
-	recv_sys.len = 0;
-	recv_sys.recovered_offset = 0;
-	recv_sys.clear();
-	recv_sys.parse_start_lsn = *contiguous_lsn;
-	recv_sys.scanned_lsn = *contiguous_lsn;
-	recv_sys.recovered_lsn = *contiguous_lsn;
-	recv_sys.scanned_checkpoint_no = 0;
-	ut_ad(recv_max_page_lsn == 0);
-	mysql_mutex_unlock(&recv_sys.mutex);
+  ut_ad(log_sys.is_latest());
+  const size_t block_size_1{log_sys.get_block_size() - 1};
 
-	lsn_t	start_lsn;
-	lsn_t	end_lsn;
-	store_t	store	= recv_sys.mlog_checkpoint_lsn == 0
-		? STORE_NO : (last_phase ? STORE_IF_EXISTS : STORE_YES);
+  mysql_mutex_lock(&recv_sys.mutex);
+  recv_sys.clear();
+  ut_d(recv_sys.after_apply= last_phase);
+  ut_ad(!last_phase || recv_sys.file_checkpoint);
 
-	log_sys.log.scanned_lsn = end_lsn = *contiguous_lsn =
-		ut_uint64_align_down(*contiguous_lsn, OS_FILE_LOG_BLOCK_SIZE);
-	ut_d(recv_sys.after_apply = last_phase);
+  store_t store= last_phase
+    ? STORE_IF_EXISTS : recv_sys.file_checkpoint ? STORE_YES : STORE_NO;
+  size_t buf_size= log_sys.buf_size;
+#ifdef HAVE_PMEM
+  if (log_sys.is_pmem())
+  {
+    recv_sys.offset= size_t(log_sys.calc_lsn_offset(recv_sys.lsn));
+    buf_size= size_t(log_sys.file_size);
+    recv_sys.len= size_t(log_sys.file_size);
+  }
+  else
+#endif
+  {
+    recv_sys.offset= size_t(recv_sys.lsn - log_sys.get_first_lsn()) &
+      block_size_1;
+    recv_sys.len= 0;
+  }
 
-	do {
-		if (last_phase && store == STORE_NO) {
-			store = STORE_IF_EXISTS;
-			recv_sys.apply(false);
-			/* Rescan the redo logs from last stored lsn */
-			end_lsn = recv_sys.recovered_lsn;
-		}
+  for (ut_d(lsn_t source_offset= 0);;)
+  {
+#ifndef SUX_LOCK_GENERIC
+    ut_ad(log_sys.latch.is_write_locked());
+#endif
+#ifdef UNIV_DEBUG
+    const bool wrap{source_offset + recv_sys.len == log_sys.file_size};
+#endif
+    if (size_t size= buf_size - recv_sys.len)
+    {
+#ifndef UNIV_DEBUG
+      lsn_t
+#endif
+      source_offset=
+        log_sys.calc_lsn_offset(recv_sys.lsn + recv_sys.len - recv_sys.offset);
+      ut_ad(!wrap || source_offset == log_t::START_OFFSET);
+      source_offset&= ~block_size_1;
 
-		start_lsn = ut_uint64_align_down(end_lsn,
-						 OS_FILE_LOG_BLOCK_SIZE);
-		end_lsn = start_lsn;
-		log_sys.log.read_log_seg(&end_lsn, start_lsn + RECV_SCAN_SIZE);
-	} while (end_lsn != start_lsn
-		 && !recv_scan_log_recs(&store, log_sys.buf, checkpoint_lsn,
-					start_lsn, end_lsn, contiguous_lsn,
-					&log_sys.log.scanned_lsn));
+      if (source_offset + size > log_sys.file_size)
+        size= static_cast<size_t>(log_sys.file_size - source_offset);
 
-	if (recv_sys.is_corrupt_log() || recv_sys.is_corrupt_fs()) {
-		DBUG_RETURN(false);
-	}
+      if (dberr_t err= log_sys.log.read(source_offset,
+                                        {log_sys.buf + recv_sys.len, size}))
+      {
+        mysql_mutex_unlock(&recv_sys.mutex);
+        ib::error() << "Failed to read log at " << source_offset
+                    << ": " << err;
+        recv_sys.set_corrupt_log();
+        mysql_mutex_lock(&recv_sys.mutex);
+      }
+      else
+        recv_sys.len+= size;
+    }
 
-	DBUG_PRINT("ib_log", ("%s " LSN_PF " completed",
-			      last_phase ? "rescan" : "scan",
-			      log_sys.log.scanned_lsn));
+    if (recv_sys.report(time(nullptr)))
+    {
+      sql_print_information("InnoDB: Read redo log up to LSN=" LSN_PF,
+                            recv_sys.lsn);
+      service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
+                                     "Read redo log up to LSN=" LSN_PF,
+                                     recv_sys.lsn);
+    }
 
-	DBUG_RETURN(store == STORE_NO);
+    recv_sys_t::parse_mtr_result r;
+
+    if (UNIV_UNLIKELY(!recv_needed_recovery))
+    {
+      ut_ad(store == (recv_sys.file_checkpoint ? STORE_YES : STORE_NO));
+      ut_ad(recv_sys.lsn >= log_sys.next_checkpoint_lsn);
+
+      for (;;)
+      {
+        const byte b{log_sys.buf[recv_sys.offset]};
+        r= recv_sys.parse_pmem(store);
+        if (r == recv_sys_t::OK)
+        {
+          if (store == STORE_NO &&
+              (b == FILE_CHECKPOINT + 2 + 8 || (b & 0xf0) == FILE_MODIFY))
+            continue;
+        }
+        else if (r == recv_sys_t::PREMATURE_EOF)
+          goto read_more;
+        else if (store != STORE_NO)
+          break;
+
+        if (store == STORE_NO)
+        {
+          const lsn_t end{recv_sys.file_checkpoint};
+          mysql_mutex_unlock(&recv_sys.mutex);
+
+          if (!end)
+          {
+            recv_sys.set_corrupt_log();
+            sql_print_error("InnoDB: Missing FILE_CHECKPOINT(" LSN_PF
+                            ") at " LSN_PF, log_sys.next_checkpoint_lsn,
+                            recv_sys.lsn);
+          }
+          else
+            ut_ad(end == recv_sys.lsn);
+          DBUG_RETURN(true);
+        }
+
+        recv_needed_recovery= true;
+        if (srv_read_only_mode)
+        {
+          mysql_mutex_unlock(&recv_sys.mutex);
+          DBUG_RETURN(false);
+        }
+        sql_print_information("InnoDB: Starting crash recovery from"
+                              " checkpoint LSN="  LSN_PF,
+                              log_sys.next_checkpoint_lsn);
+        break;
+      }
+    }
+
+    while ((r= recv_sys.parse_pmem(store)) == recv_sys_t::OK)
+    {
+      if (store != STORE_NO && recv_sys.is_memory_exhausted())
+      {
+        ut_ad(last_phase == (store == STORE_IF_EXISTS));
+        if (store == STORE_YES)
+        {
+          store= STORE_NO;
+          recv_sys.last_stored_lsn= recv_sys.lsn;
+        }
+        else
+        {
+          ut_ad(store == STORE_IF_EXISTS);
+          log_sys.set_recovered_lsn(recv_sys.lsn);
+          recv_sys.apply(false);
+        }
+      }
+    }
+
+    if (r != recv_sys_t::PREMATURE_EOF)
+    {
+      ut_ad(r == recv_sys_t::GOT_EOF);
+      break;
+    }
+
+  read_more:
+#ifdef HAVE_PMEM
+    if (log_sys.is_pmem())
+      break;
+#endif
+    if (recv_sys.is_corrupt_log())
+      break;
+
+    if (recv_sys.offset < log_sys.get_block_size())
+      break;
+
+    if (recv_sys.offset > buf_size / 4 ||
+        (recv_sys.offset > block_size_1 &&
+         recv_sys.len >= buf_size - recv_sys.MTR_SIZE_MAX))
+    {
+      const size_t ofs{recv_sys.offset & ~block_size_1};
+      memmove_aligned<64>(log_sys.buf, log_sys.buf + ofs, recv_sys.len - ofs);
+      recv_sys.len-= ofs;
+      recv_sys.offset&= block_size_1;
+    }
+  }
+
+  const bool corrupt= recv_sys.is_corrupt_log() || recv_sys.is_corrupt_fs();
+  recv_sys.maybe_finish_batch();
+  if (last_phase)
+    log_sys.set_recovered_lsn(recv_sys.lsn);
+  mysql_mutex_unlock(&recv_sys.mutex);
+
+  if (corrupt)
+    DBUG_RETURN(false);
+
+  DBUG_PRINT("ib_log",
+             ("%s " LSN_PF " completed", last_phase ? "rescan" : "scan",
+              recv_sys.lsn));
+  ut_ad(!last_phase || recv_sys.lsn >= recv_sys.file_checkpoint);
+
+  DBUG_RETURN(store == STORE_NO);
 }
 
 /** Report a missing tablespace for which page-redo log exists.
@@ -3892,7 +3897,9 @@ recv_init_crash_recovery_spaces(bool rescan, bool& missing_tablespace)
 static dberr_t recv_rename_files()
 {
   mysql_mutex_assert_owner(&recv_sys.mutex);
-  mysql_mutex_assert_owner(&log_sys.mutex);
+#ifndef SUX_LOCK_GENERIC
+  ut_ad(log_sys.latch.is_write_locked());
+#endif
 
   dberr_t err= DB_SUCCESS;
 
@@ -3965,19 +3972,11 @@ done:
 }
 
 /** Start recovering from a redo log checkpoint.
-@param[in]	flush_lsn	FIL_PAGE_FILE_FLUSH_LSN
 of first system tablespace page
 @return error code or DB_SUCCESS */
-dberr_t
-recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
+dberr_t recv_recovery_from_checkpoint_start()
 {
-	ulint		max_cp_field;
-	lsn_t		checkpoint_lsn;
 	bool		rescan = false;
-	ib_uint64_t	checkpoint_no;
-	lsn_t		contiguous_lsn;
-	byte*		buf;
-	dberr_t		err = DB_SUCCESS;
 
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
 	      || srv_operation == SRV_OPERATION_RESTORE
@@ -3995,148 +3994,65 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 
 	recv_sys.recovery_on = true;
 
-	mysql_mutex_lock(&log_sys.mutex);
+	log_sys.latch.wr_lock(SRW_LOCK_CALL);
 
-	err = recv_find_max_checkpoint(&max_cp_field);
-
-	if (err != DB_SUCCESS) {
-		recv_sys.recovered_lsn = log_sys.get_lsn();
-		mysql_mutex_unlock(&log_sys.mutex);
-		return(err);
+	dberr_t err = recv_sys.find_checkpoint();
+        if (err != DB_SUCCESS) {
+early_exit:
+		log_sys.latch.wr_unlock();
+		return err;
 	}
 
-	buf = log_sys.checkpoint_buf;
-	log_sys.log.read(max_cp_field, {buf, OS_FILE_LOG_BLOCK_SIZE});
-
-	checkpoint_lsn = mach_read_from_8(buf + LOG_CHECKPOINT_LSN);
-	checkpoint_no = mach_read_from_8(buf + LOG_CHECKPOINT_NO);
+	log_sys.set_capacity();
 
 	/* Start reading the log from the checkpoint lsn. The variable
 	contiguous_lsn contains an lsn up to which the log is known to
 	be contiguously written. */
-	recv_sys.mlog_checkpoint_lsn = 0;
-
-	ut_ad(RECV_SCAN_SIZE <= srv_log_buffer_size);
-
-	const lsn_t	end_lsn = mach_read_from_8(
-		buf + LOG_CHECKPOINT_END_LSN);
 
 	ut_ad(recv_sys.pages.empty());
-	contiguous_lsn = checkpoint_lsn;
-	switch (log_sys.log.format) {
-	case 0:
-		mysql_mutex_unlock(&log_sys.mutex);
-		return DB_SUCCESS;
-	default:
-		if (end_lsn == 0) {
-			break;
+
+	if (log_sys.format == log_t::FORMAT_3_23) {
+		goto early_exit;
+	}
+
+	if (log_sys.is_latest()) {
+		const bool rewind = recv_sys.lsn
+			!= log_sys.next_checkpoint_lsn;
+		log_sys.last_checkpoint_lsn = log_sys.next_checkpoint_lsn;
+
+		recv_scan_log(false);
+		if (recv_needed_recovery) {
+read_only_recovery:
+			sql_print_warning("InnoDB: innodb_read_only"
+					  " prevents crash recovery");
+			err = DB_READ_ONLY;
+			goto early_exit;
 		}
-		if (end_lsn >= checkpoint_lsn) {
-			contiguous_lsn = end_lsn;
-			break;
+		if (recv_sys.is_corrupt_log()) {
+			sql_print_error("InnoDB: Log scan aborted at LSN "
+					LSN_PF, recv_sys.lsn);
+                        goto err_exit;
 		}
-		recv_sys.set_corrupt_log();
-		mysql_mutex_unlock(&log_sys.mutex);
-		return(DB_ERROR);
-	}
-
-	size_t sizeof_checkpoint;
-
-	if (!log_sys.is_physical()) {
-		sizeof_checkpoint = 9/* size of MLOG_CHECKPOINT */;
-		goto completed;
-	}
-
-	/* Look for FILE_CHECKPOINT. */
-	recv_group_scan_log_recs(checkpoint_lsn, &contiguous_lsn, false);
-	/* The first scan should not have stored or applied any records. */
-	ut_ad(recv_sys.pages.empty());
-	ut_ad(!recv_sys.is_corrupt_fs());
-
-	if (srv_read_only_mode && recv_needed_recovery) {
-		mysql_mutex_unlock(&log_sys.mutex);
-		return(DB_READ_ONLY);
-	}
-
-	if (recv_sys.is_corrupt_log() && !srv_force_recovery) {
-		mysql_mutex_unlock(&log_sys.mutex);
-		sql_print_warning("InnoDB: Log scan aborted at LSN " LSN_PF,
-				  contiguous_lsn);
-		return(DB_ERROR);
-	}
-
-	if (recv_sys.mlog_checkpoint_lsn == 0) {
-		lsn_t scan_lsn = log_sys.log.scanned_lsn;
-		if (!srv_read_only_mode && scan_lsn != checkpoint_lsn) {
-			mysql_mutex_unlock(&log_sys.mutex);
-			sql_print_error("InnoDB: Missing FILE_CHECKPOINT"
-					" at " LSN_PF
-					" between the checkpoint " LSN_PF
-					" and the end " LSN_PF ".",
-					end_lsn, checkpoint_lsn, scan_lsn);
-			return(DB_ERROR);
+		ut_ad(recv_sys.file_checkpoint);
+		if (rewind) {
+			recv_sys.lsn = log_sys.next_checkpoint_lsn;
+			recv_sys.offset = 0;
+			recv_sys.len = 0;
 		}
+		ut_ad(!recv_max_page_lsn);
+		rescan = recv_scan_log(false);
 
-		log_sys.log.scanned_lsn = checkpoint_lsn;
-	} else {
-		contiguous_lsn = checkpoint_lsn;
-		rescan = recv_group_scan_log_recs(
-			checkpoint_lsn, &contiguous_lsn, false);
+		if (srv_read_only_mode && recv_needed_recovery) {
+			goto read_only_recovery;
+		}
 
 		if ((recv_sys.is_corrupt_log() && !srv_force_recovery)
 		    || recv_sys.is_corrupt_fs()) {
-			mysql_mutex_unlock(&log_sys.mutex);
-			return(DB_ERROR);
+			goto err_exit;
 		}
 	}
 
-	/* NOTE: we always do a 'recovery' at startup, but only if
-	there is something wrong we will print a message to the
-	user about recovery: */
-	sizeof_checkpoint= SIZE_OF_FILE_CHECKPOINT;
-
-completed:
-	if (flush_lsn == checkpoint_lsn + sizeof_checkpoint
-	    && recv_sys.mlog_checkpoint_lsn == checkpoint_lsn) {
-		/* The redo log is logically empty. */
-	} else if (checkpoint_lsn != flush_lsn) {
-		ut_ad(!srv_log_file_created);
-
-		if (checkpoint_lsn + sizeof_checkpoint < flush_lsn) {
-			sql_print_warning("InnoDB: Are you sure you are using"
-					  " the right ib_logfile0"
-					  " to start up the database?"
-					  " The checkpoint is " LSN_PF
-					  ", less than the"
-					  " log sequence number " LSN_PF
-					  " in the system tablespace.",
-					  checkpoint_lsn, flush_lsn);
-		}
-
-		if (!recv_needed_recovery) {
-			sql_print_information(
-				"InnoDB: The log sequence number " LSN_PF
-				" in the system tablespace does not match"
-				" the log checkpoint " LSN_PF
-				" in ib_logfile0!", flush_lsn, checkpoint_lsn);
-
-			if (srv_read_only_mode) {
-				sql_print_error("InnoDB: innodb_read_only"
-						" prevents crash recovery");
-				mysql_mutex_unlock(&log_sys.mutex);
-				return(DB_READ_ONLY);
-			}
-
-			recv_needed_recovery = true;
-		}
-	}
-
-	log_sys.set_lsn(recv_sys.recovered_lsn);
-	if (UNIV_LIKELY(log_sys.get_flushed_lsn() < recv_sys.recovered_lsn)) {
-		/* This may already have been set by create_log_file()
-		if no logs existed when the server started up. */
-		log_sys.set_flushed_lsn(recv_sys.recovered_lsn);
-	}
+	log_sys.set_recovered_lsn(recv_sys.lsn);
 
 	if (recv_needed_recovery) {
 		bool missing_tablespace = false;
@@ -4145,8 +4061,7 @@ completed:
 			rescan, missing_tablespace);
 
 		if (err != DB_SUCCESS) {
-			mysql_mutex_unlock(&log_sys.mutex);
-			return(err);
+			goto early_exit;
 		}
 
 		/* If there is any missing tablespace and rescan is needed
@@ -4156,33 +4071,29 @@ completed:
 		ut_ad(rescan || !missing_tablespace);
 
 		while (missing_tablespace) {
+			recv_sys.lsn = recv_sys.last_stored_lsn;
 			DBUG_PRINT("ib_log", ("Rescan of redo log to validate "
 					      "the missing tablespace. Scan "
 					      "from last stored LSN " LSN_PF,
-					      recv_sys.last_stored_lsn));
-
-			lsn_t recent_stored_lsn = recv_sys.last_stored_lsn;
-			rescan = recv_group_scan_log_recs(
-				checkpoint_lsn, &recent_stored_lsn, false);
-
+					      recv_sys.lsn));
+			rescan = recv_scan_log(false);
 			ut_ad(!recv_sys.is_corrupt_fs());
 
 			missing_tablespace = false;
 
-			err = recv_sys.is_corrupt_log()
-				? DB_ERROR
-				: recv_validate_tablespace(
-					rescan, missing_tablespace);
+			if (recv_sys.is_corrupt_log()) {
+				goto err_exit;
+			}
+
+			err = recv_validate_tablespace(
+				rescan, missing_tablespace);
 
 			if (err != DB_SUCCESS) {
-				mysql_mutex_unlock(&log_sys.mutex);
-				return err;
+				goto early_exit;
 			}
 
 			rescan = true;
 		}
-
-		recv_sys.parse_start_lsn = checkpoint_lsn;
 
 		if (srv_operation == SRV_OPERATION_NORMAL) {
 			deferred_spaces.deferred_dblwr();
@@ -4192,68 +4103,64 @@ completed:
 		ut_ad(srv_force_recovery <= SRV_FORCE_NO_UNDO_LOG_SCAN);
 
 		if (rescan) {
-			contiguous_lsn = checkpoint_lsn;
-
-			recv_group_scan_log_recs(
-				checkpoint_lsn, &contiguous_lsn, true);
-
+			recv_sys.lsn = log_sys.next_checkpoint_lsn;
+			rescan = recv_scan_log(true);
 			if ((recv_sys.is_corrupt_log()
 			     && !srv_force_recovery)
 			    || recv_sys.is_corrupt_fs()) {
-				mysql_mutex_unlock(&log_sys.mutex);
-				return(DB_ERROR);
+				goto err_exit;
 			}
 		}
 	} else {
-		ut_ad(!rescan || recv_sys.pages.empty());
+		ut_ad(recv_sys.pages.empty());
 	}
 
-	if (log_sys.is_physical()
-	    && (log_sys.log.scanned_lsn < checkpoint_lsn
-		|| log_sys.log.scanned_lsn < recv_max_page_lsn)) {
+	if (log_sys.is_latest()
+	    && (recv_sys.lsn < log_sys.next_checkpoint_lsn
+		|| recv_sys.lsn < recv_max_page_lsn)) {
 
 		sql_print_error("InnoDB: We scanned the log up to " LSN_PF "."
 				" A checkpoint was at " LSN_PF
 				" and the maximum LSN on a database page was "
 				LSN_PF ". It is possible that the"
 				" database is now corrupt!",
-				log_sys.log.scanned_lsn, checkpoint_lsn,
+				recv_sys.lsn,
+				log_sys.next_checkpoint_lsn,
 				recv_max_page_lsn);
 	}
 
-	if (recv_sys.recovered_lsn < checkpoint_lsn) {
-		mysql_mutex_unlock(&log_sys.mutex);
-		sql_print_error("InnoDB: Recovered only to lsn: " LSN_PF
-				" checkpoint_lsn: " LSN_PF,
-				recv_sys.recovered_lsn, checkpoint_lsn);
-		return(DB_ERROR);
+	if (recv_sys.lsn < log_sys.next_checkpoint_lsn) {
+err_exit:
+		err = DB_ERROR;
+		goto early_exit;
 	}
 
-	log_sys.next_checkpoint_lsn = checkpoint_lsn;
-	log_sys.next_checkpoint_no = checkpoint_no + 1;
-
-	recv_synchronize_groups();
-
-	ut_ad(recv_needed_recovery
-	      || checkpoint_lsn == recv_sys.recovered_lsn);
-
-	log_sys.write_lsn = log_sys.get_lsn();
-	log_sys.buf_free = log_sys.write_lsn % OS_FILE_LOG_BLOCK_SIZE;
-	log_sys.buf_next_to_write = log_sys.buf_free;
-
-	log_sys.last_checkpoint_lsn = checkpoint_lsn;
-
-	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL
-	    && (~log_t::FORMAT_ENCRYPTED & log_sys.log.format)
-	    == log_t::FORMAT_10_5) {
-		/* Write a FILE_CHECKPOINT marker as the first thing,
-		before generating any other redo log. This ensures
-		that subsequent crash recovery will be possible even
-		if the server were killed soon after this. */
-		fil_names_clear(log_sys.last_checkpoint_lsn, true);
+	if (!srv_read_only_mode && log_sys.is_latest()) {
+		ut_ad(log_sys.get_flushed_lsn() == log_sys.get_lsn());
+		ut_ad(recv_sys.lsn == log_sys.get_lsn());
+		if (!log_sys.is_pmem()) {
+			const size_t bs_1{log_sys.get_block_size() - 1};
+			const size_t ro{recv_sys.offset};
+			recv_sys.offset &= bs_1;
+			memmove_aligned<64>(log_sys.buf,
+					    log_sys.buf + (ro & ~bs_1),
+					    log_sys.get_block_size());
+#ifdef HAVE_PMEM
+		} else {
+			mprotect(log_sys.buf, size_t(log_sys.file_size),
+				 PROT_READ | PROT_WRITE);
+#endif
+		}
+		log_sys.buf_free = recv_sys.offset;
+		if (recv_needed_recovery
+		    && srv_operation == SRV_OPERATION_NORMAL) {
+			/* Write a FILE_CHECKPOINT marker as the first thing,
+			before generating any other redo log. This ensures
+			that subsequent crash recovery will be possible even
+			if the server were killed soon after this. */
+			fil_names_clear(log_sys.next_checkpoint_lsn);
+		}
 	}
-
-	log_sys.next_checkpoint_no = ++checkpoint_no;
 
 	mysql_mutex_lock(&recv_sys.mutex);
 	recv_sys.apply_log_recs = true;
@@ -4275,7 +4182,7 @@ completed:
 		err = DB_CORRUPTION;
 	}
 
-	mysql_mutex_unlock(&log_sys.mutex);
+	log_sys.latch.wr_unlock();
 	return err;
 }
 

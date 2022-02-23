@@ -1108,16 +1108,24 @@ Field_longstr::pack_sort_string(uchar *to, const SORT_FIELD_ATTR *sort_field)
   relative position of the field value in the numeric interval [min,max] 
 */
 
-double Field::pos_in_interval_val_real(Field *min, Field *max)
+double pos_in_interval_for_double(double midp_val, double min_val,
+                                  double max_val)
 {
   double n, d;
-  n= val_real() - min->val_real();
+  n= midp_val - min_val;
   if (n < 0)
     return 0.0;
-  d= max->val_real() - min->val_real();
+  d= max_val - min_val;
   if (d <= 0)
     return 1.0;
   return MY_MIN(n/d, 1.0);
+}
+
+
+double Field::pos_in_interval_val_real(Field *min, Field *max)
+{
+  return pos_in_interval_for_double(val_real(), min->val_real(),
+                                    max->val_real());
 }
 
 
@@ -1178,22 +1186,32 @@ static inline double safe_substract(ulonglong a, ulonglong b)
 
 double Field::pos_in_interval_val_str(Field *min, Field *max, uint data_offset)
 {
+  return pos_in_interval_for_string(charset(),
+            ptr      + data_offset, data_length(),
+            min->ptr + data_offset, min->data_length(),
+            max->ptr + data_offset, max->data_length()
+         );
+}
+
+
+double pos_in_interval_for_string(CHARSET_INFO *cset,
+                                  const uchar *midp_val, uint32 midp_len,
+                                  const uchar *min_val,  uint32 min_len,
+                                  const uchar *max_val,  uint32 max_len)
+{
   uchar mp_prefix[sizeof(ulonglong)];
   uchar minp_prefix[sizeof(ulonglong)];
   uchar maxp_prefix[sizeof(ulonglong)];
   ulonglong mp, minp, maxp;
-  charset()->strnxfrm(mp_prefix, sizeof(mp),
-                      ptr + data_offset,
-                      data_length());
-  charset()->strnxfrm(minp_prefix, sizeof(minp),
-                      min->ptr + data_offset,
-                      min->data_length());
-  charset()->strnxfrm(maxp_prefix, sizeof(maxp),
-                      max->ptr + data_offset,
-                      max->data_length());
-  mp= char_prefix_to_ulonglong(mp_prefix);
+
+  cset->strnxfrm(mp_prefix, sizeof(mp), midp_val, midp_len);
+  cset->strnxfrm(minp_prefix, sizeof(minp), min_val, min_len);
+  cset->strnxfrm(maxp_prefix, sizeof(maxp), max_val, max_len);
+
+  mp=   char_prefix_to_ulonglong(mp_prefix);
   minp= char_prefix_to_ulonglong(minp_prefix);
   maxp= char_prefix_to_ulonglong(maxp_prefix);
+
   double n, d;
   n= safe_substract(mp, minp);
   if (n < 0)

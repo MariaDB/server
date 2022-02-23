@@ -1,0 +1,121 @@
+# This test will restart the slave in middle of start alter commit alter processing
+#  slave will be restarted after start alter and before binlogging of commit alter,
+#  Then we will recieved commit alter from the master.
+#  Commit alter will act like standalone alter
+#   =====>  SA SA CA(Stop Slave before binlogging) CA
+#
+--source include/have_log_bin.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+--source include/have_debug.inc
+
+--connection slave
+SET @old_debug_slave= @@global.debug;
+--source include/stop_slave.inc
+--let $gtid_strict_mode= `select @@gtid_strict_mode`
+--let $slave_parallel_threads= `select @@slave_parallel_threads`
+--let $slave_parallel_mode= `select @@slave_parallel_mode`
+SET GLOBAL slave_parallel_threads=4;
+set global slave_parallel_mode=optimistic;
+set global gtid_strict_mode=1;
+
+set global debug_dbug="+d,rpl_slave_stop_CA_before_binlog";
+
+--source include/start_slave.inc
+#
+# SLAVE Shutdown
+--connection master
+SET @old_debug_master= @@global.debug;
+set global debug_dbug="+d,start_alter_delay_master";
+--let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
+set global binlog_alter_two_phase=true;
+create table t1( a int primary key, b int) engine=myisam;
+create table t2( a int primary key, b int) engine=myisam;
+
+--connect (con1,localhost,root,,)
+--send alter table t1 add column c int;
+
+--connection master
+--echo # Get into binlog first and wait
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'debug sync point: now';
+--source include/wait_condition.inc
+--let $master_gtid_state = `select @@gtid_binlog_state`
+--echo # master gtid state is $master_gtid_state
+
+--connect (con2,localhost,root,,)
+--send alter table t2 add column c int;
+
+--connection master
+--echo # Get into binlog next and wait as well
+--let $wait_condition = SELECT COUNT(*) = 2 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'debug sync point: now';
+--source include/wait_condition.inc
+--let $master_gtid_state = `select @@gtid_binlog_state`
+--echo # master gtid state is $master_gtid_state
+
+# Memorize for slave's next sync with master
+--let $master_pos=$master_gtid_state
+
+set DEBUG_SYNC= "now signal alter_cont";
+
+--connection con1
+--reap
+--connection con2
+--reap
+create table t3( a int primary key, b int) engine=innodb;
+--let $master_gtid_state = `select @@gtid_binlog_state`
+--echo # master gtid state is $master_gtid_state
+--let $replace_regexp=/alter table t[12]/alter table <t>/ /id=[0-9]+/id=<seq_no>/
+--source include/show_binlog_events2.inc
+
+--echo # Stop Slave
+--echo # As master binlog is SA SA CA CA
+--echo # let's stop at first CA processing (in process_commit_alter)
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+# set debug_sync="now wait_for CA_1_processing";
+connect(extra_slave,127.0.0.1,root,,test,$SLAVE_MYPORT);
+--send stop slave;
+--connection slave
+# set debug_sync="now signal proceed_CA_1";
+--connection extra_slave
+--reap
+SET GLOBAL debug_dbug= @old_debug_slave;
+
+--connection slave
+--source include/wait_for_slave_sql_to_stop.inc
+--echo # The list of events after the slave has stopped must have just one CA:
+--let $replace_regexp=/alter table t[12]/alter table <t>/ /id=[0-9]+/id=<seq_no>/
+--source include/show_binlog_events2.inc
+
+select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
+--source include/start_slave.inc
+--connection master
+--sync_slave_with_master
+--echo # Everything from the master binlog must have been applied now:
+select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
+--let $slave_gtid_state = `select @@gtid_binlog_state`
+--echo # slave gtid state is $slave_gtid_state
+if (`select $master_gtid_state <> $slave_gtid_state`)
+{
+  --echo Gtid state mismatch: $master_gtid_state <> $slave_gtid_state
+  --die
+}
+--echo # The list of events after the slave has synchronized must have both CA:
+--let $replace_regexp=/alter table t[12]/alter table <t>/ /id=[0-9]+/id=<seq_no>/
+--source include/show_binlog_events2.inc
+
+--connection master
+drop table t1,t2,t3;
+--eval set global binlog_alter_two_phase = $binlog_alter_two_phase
+SET GLOBAL debug_dbug= @old_debug_master;
+set DEBUG_SYNC= 'RESET';
+
+--sync_slave_with_master
+stop slave;
+--eval set global slave_parallel_threads = $slave_parallel_threads;
+--eval set global slave_parallel_mode = $slave_parallel_mode;
+--eval set global gtid_strict_mode = $gtid_strict_mode;
+set DEBUG_SYNC= 'RESET';
+start slave;
+--source include/rpl_end.inc

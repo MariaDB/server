@@ -3987,7 +3987,7 @@ fts_sync_begin(
 		ib::info() << "FTS SYNC for table " << sync->table->name
 			<< ", deleted count: "
 			<< ib_vector_size(cache->deleted_doc_ids)
-			<< " size: " << cache->total_size << " bytes";
+			<< " size: " << ib::bytes_iec{cache->total_size};
 	}
 }
 

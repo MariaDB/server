@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2010, 2021, MariaDB Corporation.
+# Copyright (c) 2010, 2022, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -151,6 +151,7 @@ SET (SQL_SOURCE
                sql_analyze_stmt.cc
                sql_join_cache.cc
                create_options.cc multi_range_read.cc
+               opt_histogram_json.cc
                opt_index_cond_pushdown.cc opt_subselect.cc
                opt_table_elimination.cc sql_expression_cache.cc
                gcalc_slicescan.cc gcalc_tools.cc
@@ -482,13 +483,12 @@ IF(WIN32)
   MYSQL_ADD_EXECUTABLE(mariadb-install-db
     mysql_install_db.cc
     ${CMAKE_CURRENT_BINARY_DIR}/mysql_bootstrap_sql.c
+    password.c
     COMPONENT Server
   )
-
   SET_TARGET_PROPERTIES(mariadb-install-db PROPERTIES COMPILE_DEFINITIONS
-   "INSTALL_PLUGINDIR=${INSTALL_PLUGINDIR};INSTALL_SHAREDIR=${INSTALL_SHAREDIR}"
-  )
-  TARGET_LINK_LIBRARIES(mariadb-install-db mysys shlwapi)
+   "INSTALL_PLUGINDIR=${INSTALL_PLUGINDIR};INSTALL_SHAREDIR=${INSTALL_SHAREDIR}")
+  TARGET_LINK_LIBRARIES(mariadb-install-db mysys mysys_ssl shlwapi)
 
   ADD_LIBRARY(winservice STATIC winservice.c)
   TARGET_LINK_LIBRARIES(winservice shell32)

@@ -1,0 +1,83 @@
+include/rpl_init.inc [topology=1->2->3->4]
+connection server_3;
+set global gtid_strict_mode=1;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+set global slave_parallel_mode=optimistic;
+change master to master_use_gtid=slave_pos;
+include/start_slave.inc
+connection server_1;
+set global binlog_alter_two_phase=ON;
+set binlog_alter_two_phase=ON;
+connect master_node,127.0.0.1,root,,$db_name, $SERVER_MYPORT_1;
+connect slave_node,127.0.0.1,root,,test, $SERVER_MYPORT_2;
+# innodb
+connection master_node;
+create table t1(a int, b int) engine=innodb;;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+# Normal Alter
+alter table t1 add column c int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+# Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique;
+ERROR 23000: Duplicate entry '1' for key 'a'
+set @@session.binlog_alter_two_phase = 0;
+alter table t1 change a a int;
+set @@session.binlog_alter_two_phase = 1;
+alter table t1 change a a int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+connection master_node;
+drop table t1;
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+disconnect master_node;
+disconnect slave_node;
+connection server_1;
+set global binlog_alter_two_phase=0;
+include/rpl_sync.inc
+connection server_2;
+select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
+domain_id	seq_no
+0	12
+connection server_3;
+select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
+domain_id	seq_no
+0	12
+include/stop_slave.inc
+set global slave_parallel_threads = 0;;
+set global slave_parallel_mode = optimistic;;
+set global gtid_strict_mode = 0;;
+include/start_slave.inc
+select @@slave_parallel_threads;
+@@slave_parallel_threads
+0
+connection server_4;
+select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
+domain_id	seq_no
+0	12
+include/rpl_end.inc

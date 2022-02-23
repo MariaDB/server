@@ -1,0 +1,25 @@
+# MDEV-11675 two phase logged ALTER
+#
+# The tests verifies execution of non-ALTER queries that are handled
+# through mysql_alter_table function.
+
+--source include/have_log_bin.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection master
+set binlog_alter_two_phase = ON;
+
+--connection master
+CREATE TABLE t1 (i int) engine=innodb;
+CREATE TABLE t2 (i int) engine=innodb;
+
+ALTER TABLE t1 DROP CONSTRAINT IF EXISTS y;
+OPTIMIZE TABLE t2;
+
+--sync_slave_with_master
+
+--connection master
+drop table t1,t2;
+
+--source include/rpl_end.inc

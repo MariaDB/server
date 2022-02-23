@@ -57,6 +57,7 @@
 #include "semisync_master.h"
 #include "sp_rcontext.h"
 #include "sp_head.h"
+#include "sql_table.h"
 
 #include "wsrep_mysqld.h"
 #ifdef WITH_WSREP
@@ -576,12 +577,136 @@ public:
   ulong binlog_id;
   /* Set if we get an error during commit that must be returned from unlog(). */
   bool delayed_error;
-
+  //Will be reset when gtid is written into binlog
+  uchar  gtid_flags3;
+  decltype (rpl_gtid::seq_no) sa_seq_no;
 private:
 
   binlog_cache_mngr& operator=(const binlog_cache_mngr& info);
   binlog_cache_mngr(const binlog_cache_mngr& info);
 };
+
+/**
+  The function handles the first phase of two-phase binlogged ALTER.
+  On master binlogs START ALTER when that is configured to do so.
+  On slave START ALTER gets binlogged and its gtid committed into gtid slave pos
+  table.
+
+  @param thd                Thread handle.
+  @param start_alter_id     Start Alter identifier or zero.
+  @param[out]
+         partial_alter      Is set to true when Start Alter phase is completed.
+  @param if_exists          True indicates the binary logging of the query
+                            should be done with "if exists" option.
+
+  @return  false on success, true on failure
+  @return  @c partial_alter set to @c true when START ALTER phase
+           has been completed
+*/
+bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
+                               uint64 start_alter_id, bool if_exists)
+{
+#if defined(HAVE_REPLICATION)
+  if (thd->variables.option_bits & OPTION_BIN_TMP_LOG_OFF)
+    return false;
+
+  if (start_alter_id)
+  {
+    if (thd->rgi_slave->get_finish_event_group_called())
+      return false;                   // can get here through retrying
+
+    DBUG_EXECUTE_IF("at_write_start_alter", {
+    debug_sync_set_action(thd,
+                          STRING_WITH_LEN("now wait_for alter_cont"));
+      });
+
+    Master_info *mi= thd->rgi_slave->rli->mi;
+    start_alter_info *info= thd->rgi_slave->sa_info;
+    bool is_shutdown= false;
+
+    info->sa_seq_no= start_alter_id;
+    info->domain_id= thd->variables.gtid_domain_id;
+    mysql_mutex_lock(&mi->start_alter_list_lock);
+    // possible stop-slave's marking of the whole alter state list is checked
+    is_shutdown= mi->is_shutdown;
+    mi->start_alter_list.push_back(info, &mi->mem_root);
+    mysql_mutex_unlock(&mi->start_alter_list_lock);
+    info->state= start_alter_state::REGISTERED;
+    thd->rgi_slave->commit_orderer.wait_for_prior_commit(thd);
+    thd->rgi_slave->start_alter_ev->update_pos(thd->rgi_slave);
+    if (mysql_bin_log.is_open())
+    {
+      Write_log_with_flags wlwf (thd, Gtid_log_event::FL_START_ALTER_E1);
+      if (write_bin_log(thd, true, thd->query(), thd->query_length()))
+      {
+        DBUG_ASSERT(thd->is_error());
+        return true;
+      }
+    }
+    thd->rgi_slave->mark_start_commit();
+    thd->wakeup_subsequent_commits(0);
+    thd->rgi_slave->finish_start_alter_event_group();
+
+    if (is_shutdown)
+    {
+      /* SA exists abruptly and will notify any CA|RA waiter. */
+      mysql_mutex_lock(&mi->start_alter_lock);
+      /*
+        If there is (or will be) unlikely any CA it will execute
+        the whole query before to stop itself.
+      */
+      info->direct_commit_alter= true;
+      info->state= start_alter_state::ROLLBACK_ALTER;
+      mysql_mutex_unlock(&mi->start_alter_lock);
+
+      return true;
+    }
+
+    return false;
+  }
+#endif
+
+#ifndef WITH_WSREP
+  rpl_group_info *rgi= thd->rgi_slave ? thd->rgi_slave : thd->rgi_fake;
+#else
+  rpl_group_info *rgi= thd->slave_thread ? thd->rgi_slave :
+    WSREP(thd) ? (thd->wsrep_rgi ? thd->wsrep_rgi : thd->rgi_fake) :
+    thd->rgi_fake;
+#endif
+
+  if (!rgi && thd->variables.binlog_alter_two_phase)
+  {
+    /* slave applier can handle here only regular ALTER */
+    DBUG_ASSERT(!rgi || !(rgi->gtid_ev_flags_extra &
+                          (Gtid_log_event::FL_START_ALTER_E1 |
+                           Gtid_log_event::FL_COMMIT_ALTER_E1 |
+                           Gtid_log_event::FL_ROLLBACK_ALTER_E1)));
+
+    /*
+      After logging binlog state stays flagged with SA flags3 an seq_no.
+      The state is not reset after write_bin_log() is done which is
+      deferred for the second logging phase.
+    */
+    thd->set_binlog_flags_for_alter(Gtid_log_event::FL_START_ALTER_E1);
+    if(write_bin_log_with_if_exists(thd, false, false, if_exists, false))
+    {
+      DBUG_ASSERT(thd->is_error());
+
+      thd->set_binlog_flags_for_alter(0);
+      return true;
+    }
+    partial_alter= true;
+  }
+  else if (rgi && rgi->direct_commit_alter)
+  {
+    DBUG_ASSERT(rgi->gtid_ev_flags_extra &
+                Gtid_log_event::FL_COMMIT_ALTER_E1);
+
+    partial_alter= true;
+  }
+
+  return false;
+}
 
 bool LOGGER::is_log_table_enabled(uint log_table_type)
 {
@@ -5753,6 +5878,39 @@ binlog_cache_mngr *THD::binlog_setup_trx_data()
   DBUG_RETURN(cache_mngr);
 }
 
+
+/*
+  Two phase logged ALTER getter and setter methods.
+*/
+uchar THD::get_binlog_flags_for_alter()
+{
+  return mysql_bin_log.is_open() ? binlog_setup_trx_data()->gtid_flags3 : 0;
+}
+
+void THD::set_binlog_flags_for_alter(uchar flags)
+{
+  if (mysql_bin_log.is_open())
+  {
+    // SA must find the flag set empty
+    DBUG_ASSERT(flags != Gtid_log_event::FL_START_ALTER_E1 ||
+                binlog_setup_trx_data()->gtid_flags3 == 0);
+
+    binlog_setup_trx_data()->gtid_flags3= flags;
+  }
+}
+
+uint64 THD::get_binlog_start_alter_seq_no()
+{
+  return mysql_bin_log.is_open() ? binlog_setup_trx_data()->sa_seq_no : 0;
+}
+
+void THD::set_binlog_start_alter_seq_no(uint64 s_no)
+{
+  if (mysql_bin_log.is_open())
+    binlog_setup_trx_data()->sa_seq_no= s_no;
+}
+
+
 /*
   Function to start a statement and optionally a transaction for the
   binary log.
@@ -6265,6 +6423,8 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
     DBUG_RETURN(true);
 
   thd->set_last_commit_gtid(gtid);
+  if (thd->get_binlog_flags_for_alter() & Gtid_log_event::FL_START_ALTER_E1)
+    thd->set_binlog_start_alter_seq_no(gtid.seq_no);
 
   Gtid_log_event gtid_event(thd, seq_no, domain_id, standalone,
                             LOG_EVENT_SUPPRESS_USE_F, is_transactional,

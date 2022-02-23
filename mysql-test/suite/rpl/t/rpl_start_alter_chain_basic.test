@@ -1,0 +1,54 @@
+#
+#  MENT-662 Lag Free alter for slave
+#   In this we will see if chain replication works as
+#   M->S(Legacy)->S(Parallel)->S(Legacy, without log-slave-upadates)
+#
+--source include/have_innodb.inc
+--let $rpl_topology=1->2->3->4
+--source include/rpl_init.inc
+
+--connection server_3
+--let $gtid_strict_mode= `select @@gtid_strict_mode`
+--let $slave_parallel_threads= `select @@slave_parallel_threads`
+--let $slave_parallel_mode= `select @@slave_parallel_mode`
+set global gtid_strict_mode=1;
+
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+set global slave_parallel_mode=optimistic;
+change master to master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+
+--connection server_1
+--let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
+set global binlog_alter_two_phase=ON;
+set binlog_alter_two_phase=ON;
+--let $engine=innodb
+--let $sync_slave= 1
+connect(master_node,127.0.0.1,root,,$db_name, $SERVER_MYPORT_1);
+connect(slave_node,127.0.0.1,root,,test, $SERVER_MYPORT_2);
+--source include/start_alter_basic.inc
+--disconnect master_node
+--disconnect slave_node
+--connection server_1
+--eval set global binlog_alter_two_phase=$binlog_alter_two_phase
+--source include/rpl_sync.inc
+
+
+--connection server_2
+select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
+
+--connection server_3
+select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
+--source include/stop_slave.inc
+--eval set global slave_parallel_threads = $slave_parallel_threads;
+--eval set global slave_parallel_mode = $slave_parallel_mode;
+--eval set global gtid_strict_mode = $gtid_strict_mode;
+--source include/start_slave.inc
+select @@slave_parallel_threads;
+
+--connection server_4
+select domain_id, seq_no from mysql.gtid_slave_pos order by seq_no desc limit 1;
+
+--source include/rpl_end.inc

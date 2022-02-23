@@ -1,0 +1,327 @@
+include/master-slave.inc
+[connection master]
+connection master;
+set global binlog_alter_two_phase = ON;
+set binlog_alter_two_phase = ON;
+connection slave;
+set global gtid_strict_mode=1;
+connection slave;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+set global slave_parallel_mode=optimistic;
+change master to master_use_gtid=slave_pos;
+include/start_slave.inc
+# Parallel Slave
+connection master;
+connect master_node,127.0.0.1,root,,$db_name, $M_port;
+connect slave_node,127.0.0.1,root,,test, $S_port;
+# myisam
+connection master_node;
+create table t1(a int, b int) engine=myisam;;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+# Normal Alter
+alter table t1 add column c int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+# Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique;
+ERROR 23000: Duplicate entry '1' for key 'a'
+set @@session.binlog_alter_two_phase = 0;
+alter table t1 change a a int;
+set @@session.binlog_alter_two_phase = 1;
+alter table t1 change a a int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+connection master_node;
+drop table t1;
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+# innodb
+connection master_node;
+create table t1(a int, b int) engine=innodb;;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+# Normal Alter
+alter table t1 add column c int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+# Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique;
+ERROR 23000: Duplicate entry '1' for key 'a'
+set @@session.binlog_alter_two_phase = 0;
+alter table t1 change a a int;
+set @@session.binlog_alter_two_phase = 1;
+alter table t1 change a a int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+connection master_node;
+drop table t1;
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+# aria
+connection master_node;
+create table t1(a int, b int) engine=aria;;
+insert into t1 values(1,1);
+insert into t1 values(2,2);
+# Normal Alter
+alter table t1 add column c int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+# Failed Alter
+insert into t1 values(1,1, NULL);
+alter table t1 change a a int unique;
+ERROR 23000: Duplicate entry '1' for key 'a'
+set @@session.binlog_alter_two_phase = 0;
+alter table t1 change a a int;
+set @@session.binlog_alter_two_phase = 1;
+alter table t1 change a a int;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+connection master_node;
+drop table t1;
+include/save_master_gtid.inc
+connection slave_node;
+include/sync_with_master_gtid.inc
+# concurrent alter Myisam
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# Concurrent DML
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# Rollback tests
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# diff_table of master and slave , we will do only in the case when
+# sync_slave is on
+include/diff_tables.inc [master_node:t1, slave_node:t1]
+include/diff_tables.inc [master_node:t2, slave_node:t2]
+include/diff_tables.inc [master_node:t3, slave_node:t3]
+include/diff_tables.inc [master_node:t4, slave_node:t4]
+include/diff_tables.inc [master_node:t5, slave_node:t5]
+include/diff_tables.inc [master_node:t6, slave_node:t6]
+include/diff_tables.inc [master_node:t7, slave_node:t7]
+include/diff_tables.inc [master_node:t8, slave_node:t8]
+include/diff_tables.inc [master_node:t9, slave_node:t9]
+include/diff_tables.inc [master_node:t10, slave_node:t10]
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# concurrent alter Aria
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# Concurrent DML
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# Rollback tests
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# diff_table of master and slave , we will do only in the case when
+# sync_slave is on
+include/diff_tables.inc [master_node:t1, slave_node:t1]
+include/diff_tables.inc [master_node:t2, slave_node:t2]
+include/diff_tables.inc [master_node:t3, slave_node:t3]
+include/diff_tables.inc [master_node:t4, slave_node:t4]
+include/diff_tables.inc [master_node:t5, slave_node:t5]
+include/diff_tables.inc [master_node:t6, slave_node:t6]
+include/diff_tables.inc [master_node:t7, slave_node:t7]
+include/diff_tables.inc [master_node:t8, slave_node:t8]
+include/diff_tables.inc [master_node:t9, slave_node:t9]
+include/diff_tables.inc [master_node:t10, slave_node:t10]
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# concurrent alter Innodb copy
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# Concurrent DML
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# Rollback tests
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# diff_table of master and slave , we will do only in the case when
+# sync_slave is on
+include/diff_tables.inc [master_node:t1, slave_node:t1]
+include/diff_tables.inc [master_node:t2, slave_node:t2]
+include/diff_tables.inc [master_node:t3, slave_node:t3]
+include/diff_tables.inc [master_node:t4, slave_node:t4]
+include/diff_tables.inc [master_node:t5, slave_node:t5]
+include/diff_tables.inc [master_node:t6, slave_node:t6]
+include/diff_tables.inc [master_node:t7, slave_node:t7]
+include/diff_tables.inc [master_node:t8, slave_node:t8]
+include/diff_tables.inc [master_node:t9, slave_node:t9]
+include/diff_tables.inc [master_node:t10, slave_node:t10]
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# concurrent alter Innodb Inplace
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# Concurrent DML
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# Rollback tests
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+ERROR 23000: Duplicate entry '2' for key 'b'
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+# diff_table of master and slave , we will do only in the case when
+# sync_slave is on
+include/diff_tables.inc [master_node:t1, slave_node:t1]
+include/diff_tables.inc [master_node:t2, slave_node:t2]
+include/diff_tables.inc [master_node:t3, slave_node:t3]
+include/diff_tables.inc [master_node:t4, slave_node:t4]
+include/diff_tables.inc [master_node:t5, slave_node:t5]
+include/diff_tables.inc [master_node:t6, slave_node:t6]
+include/diff_tables.inc [master_node:t7, slave_node:t7]
+include/diff_tables.inc [master_node:t8, slave_node:t8]
+include/diff_tables.inc [master_node:t9, slave_node:t9]
+include/diff_tables.inc [master_node:t10, slave_node:t10]
+# Sync slave
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+connection master;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+# cleanup
+include/stop_slave.inc
+set global slave_parallel_threads = 0;;
+set global slave_parallel_mode = optimistic;;
+set global gtid_strict_mode = 0;;
+set global gtid_domain_id= 0;
+include/start_slave.inc
+connection master;
+set global binlog_alter_two_phase=0;;
+set global gtid_domain_id= 0;
+include/rpl_end.inc

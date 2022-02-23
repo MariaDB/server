@@ -38,7 +38,7 @@ typedef struct xb_page_bitmap_range_struct xb_page_bitmap_range;
 
 /****************************************************************//**
 Read the disk bitmap and build the changed page bitmap tree for the
-LSN interval incremental_lsn to checkpoint_lsn_start.
+LSN interval incremental_lsn to log_sys.next_checkpoint_lsn.
 
 @return the built bitmap tree */
 xb_page_bitmap*

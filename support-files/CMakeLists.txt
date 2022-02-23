@@ -51,8 +51,8 @@ ENDIF()
 
 IF(UNIX AND NOT WITHOUT_SERVER)
   SET(prefix ${CMAKE_INSTALL_PREFIX})
-  FOREACH(script mysqld_multi.server mysql-log-rotate binary-configure wsrep_notify)
-    CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${script}.sh 
+  FOREACH(script mysqld_multi.server mysql-log-rotate binary-configure wsrep_notify mini-benchmark)
+    CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${script}.sh
                    ${CMAKE_CURRENT_BINARY_DIR}/${script} @ONLY )
     INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${script}
       DESTINATION ${inst_location} COMPONENT Server_Scripts)

@@ -1,0 +1,12 @@
+# Kill the server
+# run mysql_install_db with --service parameter
+# Start service
+# Connect with root user password=パスワード
+connect  con1,localhost,root,$password,mysql;
+select @@datadir;
+@@datadir
+DATADIR/
+# Stop service and wait until it is down
+# Delete service
+connection default;
+# restart

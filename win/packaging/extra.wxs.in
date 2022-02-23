@@ -468,7 +468,7 @@
             Section="mysqld"
             Name="my.ini"
             Key="character-set-server"
-            Value="utf8" />
+            Value="utf8mb4" />
       </Component>
 
       <!-- Shortcuts in program menu (mysql client etc) -->

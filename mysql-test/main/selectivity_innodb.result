@@ -1257,8 +1257,8 @@ EXPLAIN EXTENDED
 SELECT * FROM language, country, continent
 WHERE country_group = lang_group AND lang_group IS NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	country	ALL	NULL	NULL	NULL	NULL	2	0.00	Using where
-1	SIMPLE	language	ALL	NULL	NULL	NULL	NULL	6	0.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	country	ALL	NULL	NULL	NULL	NULL	2	50.00	Using where
+1	SIMPLE	language	ALL	NULL	NULL	NULL	NULL	6	16.67	Using where; Using join buffer (flat, BNL join)
 1	SIMPLE	continent	ALL	NULL	NULL	NULL	NULL	6	100.00	Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`language`.`lang_group` AS `lang_group`,`test`.`language`.`lang` AS `lang`,`test`.`country`.`code` AS `code`,`test`.`country`.`country_group` AS `country_group`,`test`.`continent`.`cont_group` AS `cont_group`,`test`.`continent`.`cont` AS `cont` from `test`.`language` join `test`.`country` join `test`.`continent` where `test`.`language`.`lang_group` = `test`.`country`.`country_group` and `test`.`country`.`country_group` is null
@@ -1384,14 +1384,14 @@ test.t2	analyze	status	OK
 explain extended 
 select * from t1 straight_join t2 where t1.a=t2.a and t1.a<10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1.96	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1.00	Using where
 1	SIMPLE	t2	ref	a	a	5	test.t1.a	10	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` straight_join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` < 10
 explain extended 
 select * from t1 straight_join t2 where t1.a=t2.a and t2.a<10;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1.96	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1.00	Using where
 1	SIMPLE	t2	ref	a	a	5	test.t1.a	10	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` straight_join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` < 10
@@ -1661,12 +1661,12 @@ test.t1	analyze	status	OK
 # Check what info the optimizer has about selectivities
 explain extended select * from t1 use index () where a in (17,51,5);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	3.90	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	2.90	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` USE INDEX () where `test`.`t1`.`a` in (17,51,5)
 explain extended select * from t1 use index () where b=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	5.47	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	5.90	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` USE INDEX () where `test`.`t1`.`b` = 2
 # Now, the equality is used for ref access, while the range condition
@@ -1907,7 +1907,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN EXTENDED SELECT * from t1 where t1.a >= 81;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	66.41	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	66.67	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` >= 81
 SELECT HEX(a), b from t1 where t1.a >= 81;
@@ -1931,7 +1931,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	39.84	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	40.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2
 SET optimizer_use_condition_selectivity=3;

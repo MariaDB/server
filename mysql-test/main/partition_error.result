@@ -896,7 +896,7 @@ partitions 3
 (partition tablespace ts1,
 partition x2 tablespace ts2,
 partition x3 tablespace ts3);
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ts1,
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '
 partition x2 tablespace ts2,
 partition x3 tablespace ts3)' at line 8
 CREATE TABLE t1 (

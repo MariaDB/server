@@ -157,31 +157,37 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t3",
-      "access_type": "ALL",
-      "rows": 7,
-      "filtered": 100
-    },
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
-      "key_length": "18",
-      "used_key_parts": ["name"],
-      "ref": ["federated.t3.name"],
-      "rows": 2,
-      "filtered": 100,
-      "materialized": {
-        "query_block": {
-          "select_id": 2,
-          "table": {
-            "message": "Pushed derived"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "ALL",
+          "rows": 7,
+          "filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "18",
+          "used_key_parts": ["name"],
+          "ref": ["federated.t3.name"],
+          "rows": 2,
+          "filtered": 100,
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "table": {
+                "message": "Pushed derived"
+              }
+            }
           }
         }
       }
-    }
+    ]
   }
 }
 ANALYZE
@@ -221,41 +227,47 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t3",
-      "access_type": "ALL",
-      "r_loops": 1,
-      "rows": 7,
-      "r_rows": 7,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "filtered": 100,
-      "r_filtered": 100
-    },
-    "table": {
-      "table_name": "<derived2>",
-      "access_type": "ref",
-      "possible_keys": ["key0"],
-      "key": "key0",
-      "key_length": "18",
-      "used_key_parts": ["name"],
-      "ref": ["federated.t3.name"],
-      "r_loops": 7,
-      "rows": 2,
-      "r_rows": 0,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "filtered": 100,
-      "r_filtered": 100,
-      "materialized": {
-        "query_block": {
-          "select_id": 2,
-          "table": {
-            "message": "Pushed derived"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t3",
+          "access_type": "ALL",
+          "r_loops": 1,
+          "rows": 7,
+          "r_rows": 7,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "<derived2>",
+          "access_type": "ref",
+          "possible_keys": ["key0"],
+          "key": "key0",
+          "key_length": "18",
+          "used_key_parts": ["name"],
+          "ref": ["federated.t3.name"],
+          "r_loops": 7,
+          "rows": 2,
+          "r_rows": 0,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "table": {
+                "message": "Pushed derived"
+              }
+            }
           }
         }
       }
-    }
+    ]
   }
 }
 SELECT t.id, federated.t3.name
@@ -346,31 +358,37 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "t5",
-      "access_type": "ALL",
-      "rows": 2,
-      "filtered": 100
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "<derived2>",
-        "access_type": "ALL",
-        "rows": 5,
-        "filtered": 100
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t5",
+          "access_type": "ALL",
+          "rows": 2,
+          "filtered": 100
+        }
       },
-      "buffer_type": "flat",
-      "buffer_size": "65",
-      "join_type": "BNL",
-      "materialized": {
-        "query_block": {
-          "select_id": 2,
+      {
+        "block-nl-join": {
           "table": {
-            "message": "Pushed derived"
+            "table_name": "<derived2>",
+            "access_type": "ALL",
+            "rows": 5,
+            "filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "65",
+          "join_type": "BNL",
+          "materialized": {
+            "query_block": {
+              "select_id": 2,
+              "table": {
+                "message": "Pushed derived"
+              }
+            }
           }
         }
       }
-    }
+    ]
   }
 }
 drop table t5;

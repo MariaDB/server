@@ -2,7 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,7 +29,6 @@ Created June 2005 by Marko Makela
 #include "fsp0types.h"
 #include "page0page.h"
 #include "buf0checksum.h"
-#include "ut0crc32.h"
 #include "zlib.h"
 #include "span.h"
 
@@ -4562,7 +4561,7 @@ page_zip_copy_recs(
 	to the compressed data page. */
 	{
 		page_zip_t*	data = page_zip->data;
-		new (page_zip) page_zip_des_t(*src_zip);
+		new (page_zip) page_zip_des_t(*src_zip, false);
 		page_zip->data = data;
 	}
 	ut_ad(page_zip_get_trailer_len(page_zip, dict_index_is_clust(index))
@@ -4605,11 +4604,11 @@ uint32_t page_zip_calc_checksum(const void *data, size_t size, bool use_adler)
 	ut_ad(size > FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 
 	if (!use_adler) {
-		return ut_crc32(s + FIL_PAGE_OFFSET,
-				FIL_PAGE_LSN - FIL_PAGE_OFFSET)
-			^ ut_crc32(s + FIL_PAGE_TYPE, 2)
-			^ ut_crc32(s + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
-				   size - FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
+		return my_crc32c(0, s + FIL_PAGE_OFFSET,
+				 FIL_PAGE_LSN - FIL_PAGE_OFFSET)
+			^ my_crc32c(0, s + FIL_PAGE_TYPE, 2)
+			^ my_crc32c(0, s + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
+				    size - FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 	} else {
 		adler = adler32(0L, s + FIL_PAGE_OFFSET,
 				FIL_PAGE_LSN - FIL_PAGE_OFFSET);

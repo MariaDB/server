@@ -340,7 +340,8 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
   */
   DBUG_ASSERT(!tl->derived);
   DBUG_ASSERT(!tl->schema_table);
-  DBUG_ASSERT(has_temporary_tables());
+  DBUG_ASSERT(has_temporary_tables() ||
+              (rgi_slave && rgi_slave->is_parallel_exec));
 
   if (tl->open_type == OT_BASE_ONLY)
   {
@@ -872,12 +873,20 @@ void THD::restore_tmp_table_share(TMP_TABLE_SHARE *share)
 bool THD::has_temporary_tables()
 {
   DBUG_ENTER("THD::has_temporary_tables");
-  bool result=
+  bool result;
 #ifdef HAVE_REPLICATION
-    rgi_slave ? (rgi_slave->rli->save_temporary_tables &&
-                 !rgi_slave->rli->save_temporary_tables->is_empty()) :
+  if (rgi_slave)
+  {
+    mysql_mutex_lock(&rgi_slave->rli->data_lock);
+    result= rgi_slave->rli->save_temporary_tables &&
+      !rgi_slave->rli->save_temporary_tables->is_empty();
+    mysql_mutex_unlock(&rgi_slave->rli->data_lock);
+  }
+  else
 #endif
-    has_thd_temporary_tables();
+  {
+    result= has_thd_temporary_tables();
+  }
   DBUG_RETURN(result);
 }
 

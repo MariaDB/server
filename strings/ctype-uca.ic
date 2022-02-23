@@ -36,6 +36,7 @@
 #error MY_UCA_COLL_INIT is not defined
 #endif
 
+
 #include "ctype-uca-scanner_next.inl"
 #define SCANNER_NEXT_NCHARS
 #include "ctype-uca-scanner_next.inl"

@@ -517,8 +517,6 @@ extern mysql_pfs_key_t fts_pll_tokenize_mutex_key;
 extern mysql_pfs_key_t ibuf_bitmap_mutex_key;
 extern mysql_pfs_key_t ibuf_mutex_key;
 extern mysql_pfs_key_t ibuf_pessimistic_insert_mutex_key;
-extern mysql_pfs_key_t log_sys_mutex_key;
-extern mysql_pfs_key_t log_flush_order_mutex_key;
 extern mysql_pfs_key_t recalc_pool_mutex_key;
 extern mysql_pfs_key_t purge_sys_pq_mutex_key;
 extern mysql_pfs_key_t recv_sys_mutex_key;
@@ -547,5 +545,6 @@ extern mysql_pfs_key_t index_tree_rw_lock_key;
 extern mysql_pfs_key_t index_online_log_key;
 extern mysql_pfs_key_t trx_sys_rw_lock_key;
 extern mysql_pfs_key_t lock_latch_key;
+extern mysql_pfs_key_t log_latch_key;
 # endif /* UNIV_PFS_RWLOCK */
 #endif /* HAVE_PSI_INTERFACE */

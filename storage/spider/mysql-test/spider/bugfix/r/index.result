@@ -1,0 +1,99 @@
+for master_1
+connect  master_1, localhost, root, , , $MASTER_1_MYPORT, $MASTER_1_MYSOCK;
+connection master_1;
+CALL mtr.add_suppression("unknown variable");
+SET SESSION sql_log_bin= 0;
+INSTALL PLUGIN spider SONAME 'ha_spider';
+CREATE SERVER s_1 FOREIGN DATA WRAPPER mysql OPTIONS (
+HOST 'localhost',
+DATABASE 'auto_test_local',
+USER 'root',
+PASSWORD '',
+SOCKET '$MASTER_1_MYSOCK'
+    );
+SET spider_internal_sql_log_off= 0;
+SET spider_direct_order_limit= 10000;
+SET spider_init_sql_alloc_size= 1;
+for child2
+for child3
+create database auto_test_local;
+set spider_same_server_link= on;
+#
+# MDEV-27590 Auto-increment on Spider tables with DESC PK does not work properly
+#
+select @@spider_auto_increment_mode;
+@@spider_auto_increment_mode
+-1
+create or replace table auto_test_local.t (id int primary key) engine=InnoDB;
+create or replace table t_sp1 (id int auto_increment, primary key(id desc))
+engine=Spider COMMENT='wrapper "mysql", srv "s_1", table "t"';
+insert into t_sp1 () values (),(),();
+insert into t_sp1 () values (),(),();
+select * from t_sp1;
+id
+1
+2
+3
+4
+5
+6
+drop table t_sp1, auto_test_local.t;
+#
+# MDEV-27581 Wrong result with DESC key on partitioned Spider table
+#
+create table auto_test_local.t1 (a int primary key);
+create table auto_test_local.t2 (a int primary key);
+create table t (a int, primary key (a desc)) engine=spider
+engine=spider comment='wrapper "mysql", srv "s_1"'
+partition by range (a)
+(partition p1 values less than (4) comment "table 't1'",
+partition p2 values less than (maxvalue) comment "table 't2'");
+insert into t values (1),(2),(10),(11);
+select * from t where a > 1 order by a;
+a
+2
+10
+11
+drop table t, auto_test_local.t1, auto_test_local.t2;
+#
+# MDEV-27617 HANDLER KEY > (x) does not work with DESC keys, Spider is affected and returns wrong results
+#
+create table auto_test_local.t (a int, b char(1), primary key(a desc));
+insert into auto_test_local.t VALUES (1,'f'),(2,'g'),(3,'j'), (4,'i'),(5,'h');
+create table ts (a int, b char(1), primary key(a desc))
+engine=spider comment='wrapper "mysql", srv "s_1", table "t"';
+set spider_use_handler=3;
+select a, b from ts where a > 0 and b = 'g' order by a;
+a	b
+2	g
+set spider_use_handler=default;
+select a, b from ts where a > 0 and b = 'g' order by a;
+a	b
+2	g
+drop table ts, auto_test_local.t;
+drop database auto_test_local;
+for master_1
+connection master_1;
+DROP FUNCTION spider_flush_table_mon_cache;
+DROP FUNCTION spider_copy_tables;
+DROP FUNCTION spider_ping_table;
+DROP FUNCTION spider_bg_direct_sql;
+DROP FUNCTION spider_direct_sql;
+UNINSTALL PLUGIN spider_wrapper_protocols;
+UNINSTALL PLUGIN spider_alloc_mem;
+UNINSTALL PLUGIN spider;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+DROP TABLE IF EXISTS mysql.spider_xa;
+DROP TABLE IF EXISTS mysql.spider_xa_member;
+DROP TABLE IF EXISTS mysql.spider_xa_failed_log;
+DROP TABLE IF EXISTS mysql.spider_tables;
+DROP TABLE IF EXISTS mysql.spider_link_mon_servers;
+DROP TABLE IF EXISTS mysql.spider_link_failed_log;
+DROP TABLE IF EXISTS mysql.spider_table_position_for_recovery;
+DROP TABLE IF EXISTS mysql.spider_table_sts;
+DROP TABLE IF EXISTS mysql.spider_table_crd;
+DROP SERVER s_1;
+disconnect master_1;
+for child2
+for child3

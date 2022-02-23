@@ -1,0 +1,769 @@
+@@ -13,212 +13,212 @@
+ #
+ # Pre-create several tables
+ SET SQL_MODE='STRICT_ALL_TABLES';
+-CREATE TABLE t1(a TINYINT AUTO_INCREMENT KEY) ENGINE = InnoDB;
++CREATE TABLE t1(a TINYINT AUTO_INCREMENT, PRIMARY KEY(a DESC)) ENGINE = InnoDB;
+ INSERT INTO t1 VALUES(0), (0), (0), (0), (-1), (-10), (0),
+ (20), (30), (31);
+ SELECT * FROM t1;
+ a
+--10
+--1
+-1
+-2
+-3
+-4
+-5
+-20
+-30
+ 31
+-CREATE TABLE t2(a TINYINT UNSIGNED AUTO_INCREMENT KEY) ENGINE = InnoDB;
++30
++20
++5
++4
++3
++2
++1
++-1
++-10
++CREATE TABLE t2(a TINYINT UNSIGNED AUTO_INCREMENT, PRIMARY KEY(a DESC)) ENGINE = InnoDB;
+ INSERT INTO t2 VALUES(-5);
+ ERROR 22003: Out of range value for column 'a' at row 1
+ INSERT INTO t2 VALUES(0), (0), (0), (0), (8), (10), (0),
+ (20), (30), (31);
+ SELECT * FROM t2;
+ a
+-1
+-2
+-3
+-4
+-8
+-10
+-11
+-20
+-30
+ 31
+-CREATE TABLE t3(a SMALLINT AUTO_INCREMENT KEY) ENGINE = InnoDB;
++30
++20
++11
++10
++8
++4
++3
++2
++1
++CREATE TABLE t3(a SMALLINT AUTO_INCREMENT, PRIMARY KEY(a DESC)) ENGINE = InnoDB;
+ INSERT INTO t3 VALUES(0), (0), (0), (0), (-1), (-10), (0),
+ (20), (30), (31), (1024), (4096);
+ SELECT * FROM t3;
+ a
+--10
+--1
+-1
+-2
+-3
+-4
+-5
+-20
+-30
+-31
+-1024
+ 4096
+-CREATE TABLE t4(a SMALLINT UNSIGNED AUTO_INCREMENT KEY) ENGINE = InnoDB;
++1024
++31
++30
++20
++5
++4
++3
++2
++1
++-1
++-10
++CREATE TABLE t4(a SMALLINT UNSIGNED AUTO_INCREMENT, PRIMARY KEY(a DESC)) ENGINE = InnoDB;
+ INSERT INTO t4 VALUES(-5);
+ ERROR 22003: Out of range value for column 'a' at row 1
+ INSERT INTO t4 VALUES(0), (0), (0), (0), (8), (10), (0),
+ (20), (30), (31), (1024), (4096);
+ SELECT * FROM t4;
+ a
+-1
+-2
+-3
+-4
+-8
+-10
+-11
+-20
+-30
+-31
+-1024
+ 4096
+-CREATE TABLE t5(a MEDIUMINT AUTO_INCREMENT KEY) ENGINE = InnoDB;
++1024
++31
++30
++20
++11
++10
++8
++4
++3
++2
++1
++CREATE TABLE t5(a MEDIUMINT AUTO_INCREMENT, PRIMARY KEY(a DESC)) ENGINE = InnoDB;
+ INSERT INTO t5 VALUES(0), (0), (0), (0), (-1), (-10), (0),
+ (20), (30), (31), (1000000), (1000005);
+ SELECT * FROM t5;
+ a
+--10
+--1
+-1
+-2
+-3
+-4
+-5
+-20
+-30
+-31
+-1000000
+ 1000005
+-CREATE TABLE t6(a MEDIUMINT UNSIGNED AUTO_INCREMENT KEY) ENGINE = InnoDB;
++1000000
++31
++30
++20
++5
++4
++3
++2
++1
++-1
++-10
++CREATE TABLE t6(a MEDIUMINT UNSIGNED AUTO_INCREMENT, PRIMARY KEY(a DESC)) ENGINE = InnoDB;
+ INSERT INTO t6 VALUES(-5);
+ ERROR 22003: Out of range value for column 'a' at row 1
+ INSERT INTO t6 VALUES(0), (0), (0), (0), (8), (10), (0),
+ (20), (30), (31), (1000000), (1000005);
+ SELECT * FROM t6;
+ a
+-1
+-2
+-3
+-4
+-8
+-10
+-11
+-20
+-30
+-31
+-1000000
+ 1000005
+-CREATE TABLE t7(a INT AUTO_INCREMENT KEY) ENGINE = InnoDB;
++1000000
++31
++30
++20
++11
++10
++8
++4
++3
++2
++1
++CREATE TABLE t7(a INT AUTO_INCREMENT, PRIMARY KEY(a DESC)) ENGINE = InnoDB;
+ INSERT INTO t7 VALUES(0), (0), (0), (0), (-1), (-10), (0),
+ (20), (30), (31), (100000000), (100000008);
+ SELECT * FROM t7;
+ a
+--10
+--1
+-1
+-2
+-3
+-4
+-5
+-20
+-30
+-31
+-100000000
+ 100000008
+-CREATE TABLE t8(a INT UNSIGNED AUTO_INCREMENT KEY) ENGINE = InnoDB;
++100000000
++31
++30
++20
++5
++4
++3
++2
++1
++-1
++-10
++CREATE TABLE t8(a INT UNSIGNED AUTO_INCREMENT, PRIMARY KEY(a DESC)) ENGINE = InnoDB;
+ INSERT INTO t8 VALUES(-5);
+ ERROR 22003: Out of range value for column 'a' at row 1
+ INSERT INTO t8 VALUES(0), (0), (0), (0), (8), (10), (0),
+ (20), (30), (31), (100000000), (100000008);
+ SELECT * FROM t8;
+ a
+-1
+-2
+-3
+-4
+-8
+-10
+-11
+-20
+-30
+-31
+-100000000
+ 100000008
+-CREATE TABLE t9(a BIGINT AUTO_INCREMENT KEY) ENGINE = InnoDB;
++100000000
++31
++30
++20
++11
++10
++8
++4
++3
++2
++1
++CREATE TABLE t9(a BIGINT AUTO_INCREMENT, PRIMARY KEY(a DESC)) ENGINE = InnoDB;
+ INSERT INTO t9 VALUES(0), (0), (0), (0), (-1), (-10), (0),
+ (20), (30), (31), (100000000000), (100000000006);
+ SELECT * FROM t9;
+ a
+--10
+--1
+-1
+-2
+-3
+-4
+-5
+-20
+-30
+-31
+-100000000000
+ 100000000006
+-CREATE TABLE t10(a BIGINT UNSIGNED AUTO_INCREMENT KEY) ENGINE = InnoDB;
++100000000000
++31
++30
++20
++5
++4
++3
++2
++1
++-1
++-10
++CREATE TABLE t10(a BIGINT UNSIGNED AUTO_INCREMENT, PRIMARY KEY(a DESC)) ENGINE = InnoDB;
+ INSERT INTO t10 VALUES(-5);
+ ERROR 22003: Out of range value for column 'a' at row 1
+ INSERT INTO t10 VALUES(0), (0), (0), (0), (8), (10), (0),
+ (20), (30), (31), (100000000000), (100000000006);
+ SELECT * FROM t10;
+ a
+-1
+-2
+-3
+-4
+-8
+-10
+-11
+-20
+-30
+-31
+-100000000000
+ 100000000006
+-CREATE TABLE t11(a FLOAT AUTO_INCREMENT KEY) ENGINE = InnoDB;
++100000000000
++31
++30
++20
++11
++10
++8
++4
++3
++2
++1
++CREATE TABLE t11(a FLOAT AUTO_INCREMENT, PRIMARY KEY(a DESC)) ENGINE = InnoDB;
+ INSERT INTO t11 VALUES(0), (0), (0), (0), (-1), (-10), (0),
+ (20), (30), (31);
+ SELECT * FROM t11;
+ a
+--10
+--1
+-1
+-2
+-3
+-4
+-5
+-20
+-30
+ 31
+-CREATE TABLE t12(a DOUBLE AUTO_INCREMENT KEY) ENGINE = InnoDB;
++30
++20
++5
++4
++3
++2
++1
++-1
++-10
++CREATE TABLE t12(a DOUBLE AUTO_INCREMENT, PRIMARY KEY(a DESC)) ENGINE = InnoDB;
+ INSERT INTO t12 VALUES(0), (0), (0), (0), (-1), (-10), (0),
+ (20), (30), (31);
+ SELECT * FROM t12;
+ a
+--10
+--1
+-1
+-2
+-3
+-4
+-5
+-20
+-30
+ 31
++30
++20
++5
++4
++3
++2
++1
++-1
++-10
+ # Scenario 1: Normal restart, to test if the counters are persisted
+ # Scenario 2: Delete some values, to test the counters should not be the
+ # one which is the largest in current table
+@@ -242,14 +242,14 @@
+ SELECT MAX(a) AS `Expect 100000000000` FROM t9;
+ Expect 100000000000
+ 100000000000
+-CREATE TABLE t13(a INT AUTO_INCREMENT KEY) ENGINE = InnoDB,
++CREATE TABLE t13(a INT AUTO_INCREMENT, PRIMARY KEY(a DESC)) ENGINE = InnoDB,
+ AUTO_INCREMENT = 1234;
+ # restart
+ SHOW CREATE TABLE t13;
+ Table	Create Table
+ t13	CREATE TABLE `t13` (
+   `a` int(11) NOT NULL AUTO_INCREMENT,
+-  PRIMARY KEY (`a`)
++  PRIMARY KEY (`a` DESC)
+ ) ENGINE=InnoDB AUTO_INCREMENT=1234 DEFAULT CHARSET=latin1
+ INSERT INTO t13 VALUES(0);
+ SELECT a AS `Expect 1234` FROM t13;
+@@ -464,28 +464,28 @@
+ INSERT INTO t1 VALUES(0), (0);
+ SELECT * FROM t1;
+ a
+-1
+ 2
++1
+ INSERT INTO t3 VALUES(0), (0);
+ SELECT * FROM t3;
+ a
+-1
+ 2
++1
+ INSERT INTO t5 VALUES(0), (0);
+ SELECT * FROM t5;
+ a
+-1
+ 2
++1
+ INSERT INTO t7 VALUES(0), (0);
+ SELECT * FROM t7;
+ a
+-1
+ 2
++1
+ INSERT INTO t9 VALUES(0), (0);
+ SELECT * FROM t9;
+ a
+-1
+ 2
++1
+ # Ensure that all changes before the server is killed are persisted.
+ set global innodb_flush_log_at_trx_commit=1;
+ TRUNCATE TABLE t1;
+@@ -498,63 +498,63 @@
+ INSERT INTO t19 VALUES(0), (0);
+ SELECT * FROM t19;
+ a
+-1
+ 2
++1
+ # restart
+ INSERT INTO t1 VALUES(0), (0);
+ SELECT * FROM t1;
+ a
+-1
+ 2
++1
+ INSERT INTO t3 VALUES(0), (0);
+ SELECT * FROM t3;
+ a
+-1
+ 2
++1
+ INSERT INTO t5 VALUES(0), (0);
+ SELECT * FROM t5;
+ a
+-1
+ 2
++1
+ INSERT INTO t7 VALUES(0), (0);
+ SELECT * FROM t7;
+ a
+-1
+ 2
++1
+ INSERT INTO t19 VALUES(0), (0);
+ SELECT * FROM t19;
+ a
+-1
+-2
+-3
+ 4
++3
++2
++1
+ DELETE FROM t19 WHERE a = 4;
+ RENAME TABLE t19 to t9;
+ INSERT INTO t9 VALUES(0), (0);
+ SELECT * FROM t9;
+ a
+-1
+-2
+-3
+-5
+ 6
++5
++3
++2
++1
+ TRUNCATE TABLE t9;
+ INSERT INTO t9 VALUES(0), (0);
+ SELECT * FROM t9;
+ a
+-1
+ 2
++1
+ # Scenario 8: Test ALTER TABLE operations
+ INSERT INTO t3 VALUES(0), (0), (100), (200), (1000);
+ SELECT * FROM t3;
+ a
+-1
+-2
+-3
+-4
+-100
+-200
+ 1000
++200
++100
++4
++3
++2
++1
+ DELETE FROM t3 WHERE a > 300;
+ SELECT MAX(a) AS `Expect 200` FROM t3;
+ Expect 200
+@@ -566,7 +566,7 @@
+ Table	Create Table
+ t3	CREATE TABLE `t3` (
+   `a` smallint(6) NOT NULL AUTO_INCREMENT,
+-  PRIMARY KEY (`a`)
++  PRIMARY KEY (`a` DESC)
+ ) ENGINE=InnoDB AUTO_INCREMENT=201 DEFAULT CHARSET=latin1
+ INSERT INTO t3 VALUES(0);
+ SELECT MAX(a) AS `Expect 201` FROM t3;
+@@ -579,7 +579,7 @@
+ Table	Create Table
+ t3	CREATE TABLE `t3` (
+   `a` smallint(6) NOT NULL AUTO_INCREMENT,
+-  PRIMARY KEY (`a`)
++  PRIMARY KEY (`a` DESC)
+ ) ENGINE=InnoDB AUTO_INCREMENT=500 DEFAULT CHARSET=latin1
+ INSERT INTO t3 VALUES(0);
+ SELECT MAX(a) AS `Expect 500` FROM t3;
+@@ -591,13 +591,13 @@
+ Table	Create Table
+ t3	CREATE TABLE `t3` (
+   `a` smallint(6) NOT NULL AUTO_INCREMENT,
+-  PRIMARY KEY (`a`)
++  PRIMARY KEY (`a` DESC)
+ ) ENGINE=InnoDB AUTO_INCREMENT=100 DEFAULT CHARSET=latin1
+ INSERT INTO t3 VALUES(0), (0);
+ SELECT * FROM t3;
+ a
+-100
+ 101
++100
+ INSERT INTO t3 VALUES(150), (180);
+ UPDATE t3 SET a = 200 WHERE a = 150;
+ INSERT INTO t3 VALUES(220);
+@@ -607,7 +607,7 @@
+ Table	Create Table
+ t3	CREATE TABLE `t3` (
+   `a` smallint(6) NOT NULL AUTO_INCREMENT,
+-  PRIMARY KEY (`a`)
++  PRIMARY KEY (`a` DESC)
+ ) ENGINE=InnoDB AUTO_INCREMENT=221 DEFAULT CHARSET=latin1
+ INSERT INTO t3 VALUES(0);
+ SELECT MAX(a) AS `Expect 221` FROM t3;
+@@ -619,7 +619,7 @@
+ Table	Create Table
+ t3	CREATE TABLE `t3` (
+   `a` smallint(6) NOT NULL AUTO_INCREMENT,
+-  PRIMARY KEY (`a`)
++  PRIMARY KEY (`a` DESC)
+ ) ENGINE=InnoDB AUTO_INCREMENT=120 DEFAULT CHARSET=latin1
+ # MDEV-6076: Test adding an AUTO_INCREMENT COLUMN
+ CREATE TABLE mdev6076a (b INT) ENGINE=InnoDB;
+@@ -669,18 +669,18 @@
+ INSERT INTO t_inplace SELECT * FROM t3;
+ SELECT * FROM t_inplace;
+ a
+-100
+-101
+-120
+-121
+-122
+-200
+ 210
++200
++122
++121
++120
++101
++100
+ SHOW CREATE TABLE t_inplace;
+ Table	Create Table
+ t_inplace	CREATE TABLE `t_inplace` (
+   `a` smallint(6) NOT NULL AUTO_INCREMENT,
+-  PRIMARY KEY (`a`)
++  PRIMARY KEY (`a` DESC)
+ ) ENGINE=InnoDB AUTO_INCREMENT=211 DEFAULT CHARSET=latin1
+ # This will keep the autoinc counter
+ ALTER TABLE t_inplace AUTO_INCREMENT = 250, ALGORITHM = INPLACE;
+@@ -689,7 +689,7 @@
+ Table	Create Table
+ t_inplace	CREATE TABLE `t_inplace` (
+   `a` smallint(6) NOT NULL AUTO_INCREMENT,
+-  PRIMARY KEY (`a`)
++  PRIMARY KEY (`a` DESC)
+ ) ENGINE=InnoDB AUTO_INCREMENT=250 DEFAULT CHARSET=latin1
+ # This should keep the autoinc counter as well
+ ALTER TABLE t_inplace ADD COLUMN b INT, ALGORITHM = INPLACE;
+@@ -699,16 +699,16 @@
+ t_inplace	CREATE TABLE `t_inplace` (
+   `a` smallint(6) NOT NULL AUTO_INCREMENT,
+   `b` int(11) DEFAULT NULL,
+-  PRIMARY KEY (`a`)
++  PRIMARY KEY (`a` DESC)
+ ) ENGINE=InnoDB AUTO_INCREMENT=250 DEFAULT CHARSET=latin1
+ DELETE FROM t_inplace WHERE a > 150;
+ SELECT * FROM t_inplace;
+ a	b
+-100	NULL
+-101	NULL
+-120	NULL
+-121	NULL
+ 122	NULL
++121	NULL
++120	NULL
++101	NULL
++100	NULL
+ # This should reset the autoinc counter to the one specified
+ # Since it's smaller than current one but bigger than existing
+ # biggest counter in the table
+@@ -719,7 +719,7 @@
+ t_inplace	CREATE TABLE `t_inplace` (
+   `a` smallint(6) NOT NULL AUTO_INCREMENT,
+   `b` int(11) DEFAULT NULL,
+-  PRIMARY KEY (`a`)
++  PRIMARY KEY (`a` DESC)
+ ) ENGINE=InnoDB AUTO_INCREMENT=180 DEFAULT CHARSET=latin1
+ # This should reset the autoinc counter to the next value of
+ # current max counter in the table, since the specified value
+@@ -730,7 +730,7 @@
+ Table	Create Table
+ t_inplace	CREATE TABLE `t_inplace` (
+   `a` smallint(6) NOT NULL AUTO_INCREMENT,
+-  PRIMARY KEY (`a`)
++  PRIMARY KEY (`a` DESC)
+ ) ENGINE=InnoDB AUTO_INCREMENT=123 DEFAULT CHARSET=latin1
+ INSERT INTO t_inplace VALUES(0), (0);
+ SELECT MAX(a) AS `Expect 124` FROM t_inplace;
+@@ -757,18 +757,18 @@
+ INSERT INTO t_copy SELECT * FROM t3;
+ SELECT * FROM t_copy;
+ a
+-100
+-101
+-120
+-121
+-122
+-200
+ 210
++200
++122
++121
++120
++101
++100
+ SHOW CREATE TABLE t_copy;
+ Table	Create Table
+ t_copy	CREATE TABLE `t_copy` (
+   `a` smallint(6) NOT NULL AUTO_INCREMENT,
+-  PRIMARY KEY (`a`)
++  PRIMARY KEY (`a` DESC)
+ ) ENGINE=InnoDB AUTO_INCREMENT=211 DEFAULT CHARSET=latin1
+ # This will keep the autoinc counter
+ ALTER TABLE t_copy AUTO_INCREMENT = 250, ALGORITHM = COPY;
+@@ -777,7 +777,7 @@
+ Table	Create Table
+ t_copy	CREATE TABLE `t_copy` (
+   `a` smallint(6) NOT NULL AUTO_INCREMENT,
+-  PRIMARY KEY (`a`)
++  PRIMARY KEY (`a` DESC)
+ ) ENGINE=InnoDB AUTO_INCREMENT=250 DEFAULT CHARSET=latin1
+ # This should keep the autoinc counter as well
+ ALTER TABLE t_copy ADD COLUMN b INT, ALGORITHM = COPY;
+@@ -787,16 +787,16 @@
+ t_copy	CREATE TABLE `t_copy` (
+   `a` smallint(6) NOT NULL AUTO_INCREMENT,
+   `b` int(11) DEFAULT NULL,
+-  PRIMARY KEY (`a`)
++  PRIMARY KEY (`a` DESC)
+ ) ENGINE=InnoDB AUTO_INCREMENT=250 DEFAULT CHARSET=latin1
+ DELETE FROM t_copy WHERE a > 150;
+ SELECT * FROM t_copy;
+ a	b
+-100	NULL
+-101	NULL
+-120	NULL
+-121	NULL
+ 122	NULL
++121	NULL
++120	NULL
++101	NULL
++100	NULL
+ # This should reset the autoinc counter to the one specified
+ # Since it's smaller than current one but bigger than existing
+ # biggest counter in the table
+@@ -807,7 +807,7 @@
+ t_copy	CREATE TABLE `t_copy` (
+   `a` smallint(6) NOT NULL AUTO_INCREMENT,
+   `b` int(11) DEFAULT NULL,
+-  PRIMARY KEY (`a`)
++  PRIMARY KEY (`a` DESC)
+ ) ENGINE=InnoDB AUTO_INCREMENT=180 DEFAULT CHARSET=latin1
+ # This should reset the autoinc counter to the next value of
+ # current max counter in the table, since the specified value
+@@ -818,7 +818,7 @@
+ Table	Create Table
+ t_copy	CREATE TABLE `t_copy` (
+   `a` smallint(6) NOT NULL AUTO_INCREMENT,
+-  PRIMARY KEY (`a`)
++  PRIMARY KEY (`a` DESC)
+ ) ENGINE=InnoDB AUTO_INCREMENT=123 DEFAULT CHARSET=latin1
+ INSERT INTO t_copy VALUES(0), (0);
+ SELECT MAX(a) AS `Expect 124` FROM t_copy;
+@@ -842,7 +842,7 @@
+ 126
+ DROP TABLE t_copy, it_copy;
+ # Scenario 9: Test the sql_mode = NO_AUTO_VALUE_ON_ZERO
+-CREATE TABLE t30 (a INT NOT NULL AUTO_INCREMENT PRIMARY KEY, b INT, key(b)) ENGINE = InnoDB;
++CREATE TABLE t30 (a INT NOT NULL AUTO_INCREMENT, PRIMARY KEY(a DESC), b INT, key(b)) ENGINE = InnoDB;
+ set SQL_MODE = NO_AUTO_VALUE_ON_ZERO;
+ INSERT INTO t30 VALUES(NULL, 1), (200, 2), (0, 3);
+ INSERT INTO t30(b) VALUES(4), (5), (6), (7);
+@@ -869,20 +869,20 @@
+ set global innodb_flush_log_at_trx_commit=1;
+ CREATE TABLE t31 (a INT) ENGINE = InnoDB;
+ INSERT INTO t31 VALUES(1), (2);
+-ALTER TABLE t31 ADD b INT AUTO_INCREMENT PRIMARY KEY;
++ALTER TABLE t31 ADD b INT AUTO_INCREMENT, ADD PRIMARY KEY(b DESC);
+ INSERT INTO t31 VALUES(3, 0), (4, NULL), (5, NULL);
+ INSERT INTO t31 VALUES(6, 0);
+ ERROR 23000: Duplicate entry '0' for key 'PRIMARY'
+ SELECT * FROM t31;
+ a	b
+-3	0
+-1	1
+-2	2
+-4	3
+ 5	4
++4	3
++2	2
++1	1
++3	0
+ SET SQL_MODE = 0;
+ # Scenario 10: Rollback would not rollback the counter
+-CREATE TABLE t32 (a BIGINT AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB;
++CREATE TABLE t32 (a BIGINT AUTO_INCREMENT, PRIMARY KEY(a DESC)) ENGINE=InnoDB;
+ INSERT INTO t32 VALUES(0), (0);
+ # Ensure that all changes before the server is killed are persisted.
+ set global innodb_flush_log_at_trx_commit=1;
+@@ -897,7 +897,7 @@
+ # increasing the counter
+ CREATE TABLE t33 (
+ a BIGINT NOT NULL PRIMARY KEY,
+-b BIGINT NOT NULL AUTO_INCREMENT, KEY(b)) ENGINE = InnoDB;
++b BIGINT NOT NULL AUTO_INCREMENT, INDEX(b DESC)) ENGINE = InnoDB;
+ INSERT INTO t33 VALUES(1, NULL);
+ INSERT INTO t33 VALUES(2, NULL);
+ INSERT INTO t33 VALUES(2, NULL);
+@@ -920,13 +920,13 @@
+ INSERT INTO t31(a) VALUES(6), (0);
+ SELECT * FROM t31;
+ a	b
+-3	0
+-1	1
+-2	2
+-4	3
+-5	4
+-6	5
+ 0	6
++6	5
++5	4
++4	3
++2	2
++1	1
++3	0
+ DROP TABLE t31;
+ set SQL_MODE = NO_AUTO_VALUE_ON_ZERO;
+ DELETE FROM t30 WHERE a = 0;
+@@ -965,7 +965,7 @@
+ DROP TABLE t33;
+ CREATE TABLE t33 (
+ a BIGINT NOT NULL PRIMARY KEY,
+-b BIGINT NOT NULL AUTO_INCREMENT, KEY(b)) ENGINE = InnoDB;
++b BIGINT NOT NULL AUTO_INCREMENT, INDEX(b DESC)) ENGINE = InnoDB;
+ ALTER TABLE t33 DISCARD TABLESPACE;
+ restore: t33 .ibd and .cfg files
+ ALTER TABLE t33 IMPORT TABLESPACE;
+@@ -975,7 +975,7 @@
+ 4
+ SELECT * FROM t33;
+ a	b
+-10	1
+-2	2
+ 3	4
++2	2
++10	1
+ DROP TABLE t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t30, t32, t33;

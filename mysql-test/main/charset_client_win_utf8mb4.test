@@ -1,0 +1,22 @@
+--source include/windows.inc
+--source include/check_utf8_cli.inc
+--exec $MYSQL --default-character-set=auto -e "select @@character_set_client"
+
+# Test that a user with old, non-UTF8 password can still connect
+# by setting setting non-auto --default-character-set
+# This is important for backward compatibility
+
+# Emulate creating password in an interactive client session, with older clients
+# which communicates with the server using with something like cp850
+
+exec chcp 850 > NUL && echo CREATE USER 'u' IDENTIFIED by 'ü' | $MYSQL --default-character-set=cp850;
+
+
+# Can't connect with UTF8
+--error 1
+exec $MYSQL --default-character-set=auto --user=u --password=ü  -e "select 1" 2>&1;
+
+# Can connect with tweaked --default-character-set
+exec $MYSQL --default-character-set=cp850 --user=u --password=ü -e "select 2";
+DROP user u;
+

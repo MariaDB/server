@@ -93,29 +93,33 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 10000,
-      "filesort": {
-        "sort_key": "t3.`id` DIV 100",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_used_priority_queue": false,
-        "r_output_rows": 10000,
-        "r_buffer_size": "REPLACED",
-        "r_sort_mode": "sort_key,packed_addon_fields",
-        "table": {
-          "table_name": "t3",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 10000,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
           "r_rows": 10000,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 100,
-          "r_filtered": 100
+          "filesort": {
+            "sort_key": "t3.`id` DIV 100",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 10000,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "sort_key,packed_addon_fields",
+            "table": {
+              "table_name": "t3",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 10000,
+              "r_rows": 10000,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 flush status;
@@ -250,30 +254,34 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 10000,
-      "filesort": {
-        "sort_key": "t3.`id` DIV 100",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_used_priority_queue": false,
-        "r_output_rows": 10000,
-        "r_sort_passes": 4,
-        "r_buffer_size": "REPLACED",
-        "r_sort_mode": "sort_key,packed_addon_fields",
-        "table": {
-          "table_name": "t3",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 10000,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
           "r_rows": 10000,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 100,
-          "r_filtered": 100
+          "filesort": {
+            "sort_key": "t3.`id` DIV 100",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 10000,
+            "r_sort_passes": 4,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "sort_key,packed_addon_fields",
+            "table": {
+              "table_name": "t3",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 10000,
+              "r_rows": 10000,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 flush status;
@@ -405,29 +413,33 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 10000,
-      "filesort": {
-        "sort_key": "t3.`names`, t3.address",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_used_priority_queue": false,
-        "r_output_rows": 10000,
-        "r_buffer_size": "REPLACED",
-        "r_sort_mode": "packed_sort_key,packed_addon_fields",
-        "table": {
-          "table_name": "t3",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 10000,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
           "r_rows": 10000,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 100,
-          "r_filtered": 100
+          "filesort": {
+            "sort_key": "t3.`names`, t3.address",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 10000,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "packed_sort_key,packed_addon_fields",
+            "table": {
+              "table_name": "t3",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 10000,
+              "r_rows": 10000,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 flush status;
@@ -454,29 +466,33 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 10000,
-      "filesort": {
-        "sort_key": "t3.`names`, t3.address",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_used_priority_queue": false,
-        "r_output_rows": 10000,
-        "r_buffer_size": "REPLACED",
-        "r_sort_mode": "packed_sort_key,rowid",
-        "table": {
-          "table_name": "t3",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 10000,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
           "r_rows": 10000,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 100,
-          "r_filtered": 100
+          "filesort": {
+            "sort_key": "t3.`names`, t3.address",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 10000,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "packed_sort_key,rowid",
+            "table": {
+              "table_name": "t3",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 10000,
+              "r_rows": 10000,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 flush status;

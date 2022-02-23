@@ -176,24 +176,30 @@ EXPLAIN
     "filesort": {
       "sort_key": "t2.b",
       "temporary_table": {
-        "table": {
-          "table_name": "t0",
-          "access_type": "ALL",
-          "rows": 10,
-          "filtered": 100,
-          "attached_condition": "t0.a is not null"
-        },
-        "table": {
-          "table_name": "t2",
-          "access_type": "ref",
-          "possible_keys": ["a"],
-          "key": "a",
-          "key_length": "5",
-          "used_key_parts": ["a"],
-          "ref": ["test.t0.a"],
-          "rows": 1,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t0",
+              "access_type": "ALL",
+              "rows": 10,
+              "filtered": 100,
+              "attached_condition": "t0.a is not null"
+            }
+          },
+          {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ref",
+              "possible_keys": ["a"],
+              "key": "a",
+              "key_length": "5",
+              "used_key_parts": ["a"],
+              "ref": ["test.t0.a"],
+              "rows": 1,
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -215,34 +221,40 @@ ANALYZE
       "r_output_rows": 4,
       "r_sort_mode": "sort_key,rowid",
       "temporary_table": {
-        "table": {
-          "table_name": "t0",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 10,
-          "r_rows": 10,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 100,
-          "r_filtered": 100,
-          "attached_condition": "t0.a is not null"
-        },
-        "table": {
-          "table_name": "t2",
-          "access_type": "ref",
-          "possible_keys": ["a"],
-          "key": "a",
-          "key_length": "5",
-          "used_key_parts": ["a"],
-          "ref": ["test.t0.a"],
-          "r_loops": 10,
-          "rows": 1,
-          "r_rows": 0.4,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 100,
-          "r_filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t0",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 10,
+              "r_rows": 10,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100,
+              "attached_condition": "t0.a is not null"
+            }
+          },
+          {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ref",
+              "possible_keys": ["a"],
+              "key": "a",
+              "key_length": "5",
+              "used_key_parts": ["a"],
+              "ref": ["test.t0.a"],
+              "r_loops": 10,
+              "rows": 1,
+              "r_rows": 0.4,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -261,29 +273,35 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "read_sorted_file": {
-      "filesort": {
-        "sort_key": "t0.a",
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "t0.a",
+            "table": {
+              "table_name": "t0",
+              "access_type": "ALL",
+              "rows": 10,
+              "filtered": 100,
+              "attached_condition": "t0.a is not null"
+            }
+          }
+        }
+      },
+      {
         "table": {
-          "table_name": "t0",
-          "access_type": "ALL",
-          "rows": 10,
-          "filtered": 100,
-          "attached_condition": "t0.a is not null"
+          "table_name": "t2",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t0.a"],
+          "rows": 1,
+          "filtered": 100
         }
       }
-    },
-    "table": {
-      "table_name": "t2",
-      "access_type": "ref",
-      "possible_keys": ["a"],
-      "key": "a",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "ref": ["test.t0.a"],
-      "rows": 1,
-      "filtered": 100
-    }
+    ]
   }
 }
 analyze format=json 
@@ -294,46 +312,52 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 10,
-      "filesort": {
-        "sort_key": "t0.a",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_used_priority_queue": false,
-        "r_output_rows": 10,
-        "r_buffer_size": "REPLACED",
-        "r_sort_mode": "sort_key,addon_fields",
-        "table": {
-          "table_name": "t0",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 10,
+    "nested_loop": [
+      {
+        "read_sorted_file": {
           "r_rows": 10,
+          "filesort": {
+            "sort_key": "t0.a",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 10,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "sort_key,addon_fields",
+            "table": {
+              "table_name": "t0",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 10,
+              "r_rows": 10,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100,
+              "attached_condition": "t0.a is not null"
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "ref",
+          "possible_keys": ["a"],
+          "key": "a",
+          "key_length": "5",
+          "used_key_parts": ["a"],
+          "ref": ["test.t0.a"],
+          "r_loops": 10,
+          "rows": 1,
+          "r_rows": 0.4,
           "r_table_time_ms": "REPLACED",
           "r_other_time_ms": "REPLACED",
           "filtered": 100,
-          "r_filtered": 100,
-          "attached_condition": "t0.a is not null"
+          "r_filtered": 100
         }
       }
-    },
-    "table": {
-      "table_name": "t2",
-      "access_type": "ref",
-      "possible_keys": ["a"],
-      "key": "a",
-      "key_length": "5",
-      "used_key_parts": ["a"],
-      "ref": ["test.t0.a"],
-      "r_loops": 10,
-      "rows": 1,
-      "r_rows": 0.4,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "filtered": 100,
-      "r_filtered": 100
-    }
+    ]
   }
 }
 drop table t2;
@@ -365,18 +389,22 @@ ANALYZE
       "r_buffer_size": "REPLACED",
       "r_sort_mode": "sort_key,rowid",
       "temporary_table": {
-        "table": {
-          "table_name": "t2",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 1000,
-          "r_rows": 1000,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 100,
-          "r_filtered": 50,
-          "attached_condition": "t2.a MOD 2 = 0"
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 1000,
+              "r_rows": 1000,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 50,
+              "attached_condition": "t2.a MOD 2 = 0"
+            }
+          }
+        ]
       }
     }
   }
@@ -414,35 +442,41 @@ ANALYZE
     "r_total_time_ms": "REPLACED",
     "duplicate_removal": {
       "temporary_table": {
-        "table": {
-          "table_name": "t0",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 10,
-          "r_rows": 10,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 100,
-          "r_filtered": 100
-        },
-        "block-nl-join": {
-          "table": {
-            "table_name": "t3",
-            "access_type": "ALL",
-            "r_loops": 1,
-            "rows": 10,
-            "r_rows": 10,
-            "r_table_time_ms": "REPLACED",
-            "r_other_time_ms": "REPLACED",
-            "filtered": 100,
-            "r_filtered": 100
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t0",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 10,
+              "r_rows": 10,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100
+            }
           },
-          "buffer_type": "flat",
-          "buffer_size": "65",
-          "join_type": "BNL",
-          "attached_condition": "t3.a = t0.a",
-          "r_filtered": 10
-        }
+          {
+            "block-nl-join": {
+              "table": {
+                "table_name": "t3",
+                "access_type": "ALL",
+                "r_loops": 1,
+                "rows": 10,
+                "r_rows": 10,
+                "r_table_time_ms": "REPLACED",
+                "r_other_time_ms": "REPLACED",
+                "filtered": 100,
+                "r_filtered": 100
+              },
+              "buffer_type": "flat",
+              "buffer_size": "65",
+              "join_type": "BNL",
+              "attached_condition": "t3.a = t0.a",
+              "r_filtered": 10
+            }
+          }
+        ]
       }
     }
   }
@@ -488,36 +522,42 @@ ANALYZE
           "r_buffer_size": "REPLACED",
           "r_sort_mode": "sort_key,rowid",
           "temporary_table": {
-            "table": {
-              "table_name": "t6",
-              "access_type": "ALL",
-              "r_loops": 1,
-              "rows": 5,
-              "r_rows": 5,
-              "r_table_time_ms": "REPLACED",
-              "r_other_time_ms": "REPLACED",
-              "filtered": 100,
-              "r_filtered": 80,
-              "attached_condition": "t6.b > 0 and t6.a <= 5"
-            },
-            "block-nl-join": {
-              "table": {
-                "table_name": "t5",
-                "access_type": "ALL",
-                "r_loops": 1,
-                "rows": 7,
-                "r_rows": 7,
-                "r_table_time_ms": "REPLACED",
-                "r_other_time_ms": "REPLACED",
-                "filtered": 100,
-                "r_filtered": 100
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t6",
+                  "access_type": "ALL",
+                  "r_loops": 1,
+                  "rows": 5,
+                  "r_rows": 5,
+                  "r_table_time_ms": "REPLACED",
+                  "r_other_time_ms": "REPLACED",
+                  "filtered": 100,
+                  "r_filtered": 80,
+                  "attached_condition": "t6.b > 0 and t6.a <= 5"
+                }
               },
-              "buffer_type": "flat",
-              "buffer_size": "119",
-              "join_type": "BNL",
-              "attached_condition": "t5.a = t6.a",
-              "r_filtered": 21.42857143
-            }
+              {
+                "block-nl-join": {
+                  "table": {
+                    "table_name": "t5",
+                    "access_type": "ALL",
+                    "r_loops": 1,
+                    "rows": 7,
+                    "r_rows": 7,
+                    "r_table_time_ms": "REPLACED",
+                    "r_other_time_ms": "REPLACED",
+                    "filtered": 100,
+                    "r_filtered": 100
+                  },
+                  "buffer_type": "flat",
+                  "buffer_size": "119",
+                  "join_type": "BNL",
+                  "attached_condition": "t5.a = t6.a",
+                  "r_filtered": 21.42857143
+                }
+              }
+            ]
           }
         }
       }
@@ -538,25 +578,31 @@ EXPLAIN
         "filesort": {
           "sort_key": "t5.a",
           "temporary_table": {
-            "table": {
-              "table_name": "t6",
-              "access_type": "ALL",
-              "rows": 5,
-              "filtered": 100,
-              "attached_condition": "t6.b > 0 and t6.a <= 5"
-            },
-            "block-nl-join": {
-              "table": {
-                "table_name": "t5",
-                "access_type": "ALL",
-                "rows": 7,
-                "filtered": 100
+            "nested_loop": [
+              {
+                "table": {
+                  "table_name": "t6",
+                  "access_type": "ALL",
+                  "rows": 5,
+                  "filtered": 100,
+                  "attached_condition": "t6.b > 0 and t6.a <= 5"
+                }
               },
-              "buffer_type": "flat",
-              "buffer_size": "119",
-              "join_type": "BNL",
-              "attached_condition": "t5.a = t6.a"
-            }
+              {
+                "block-nl-join": {
+                  "table": {
+                    "table_name": "t5",
+                    "access_type": "ALL",
+                    "rows": 7,
+                    "filtered": 100
+                  },
+                  "buffer_type": "flat",
+                  "buffer_size": "119",
+                  "join_type": "BNL",
+                  "attached_condition": "t5.a = t6.a"
+                }
+              }
+            ]
           }
         }
       }
@@ -593,21 +639,25 @@ ANALYZE
     "select_id": 1,
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "table": {
-      "table_name": "t2",
-      "access_type": "range",
-      "key": "idx",
-      "key_length": "5",
-      "used_key_parts": ["col1"],
-      "r_loops": 1,
-      "rows": 7,
-      "r_rows": 20,
-      "r_table_time_ms": "REPLACED",
-      "r_other_time_ms": "REPLACED",
-      "filtered": 100,
-      "r_filtered": 100,
-      "using_index_for_group_by": true
-    }
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t2",
+          "access_type": "range",
+          "key": "idx",
+          "key_length": "5",
+          "used_key_parts": ["col1"],
+          "r_loops": 1,
+          "rows": 7,
+          "r_rows": 20,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_filtered": 100,
+          "using_index_for_group_by": true
+        }
+      }
+    ]
   }
 }
 drop table t2;

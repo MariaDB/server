@@ -178,6 +178,7 @@ extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf
 int my_init_large_pages(my_bool super_large_pages);
 uchar *my_large_malloc(size_t *size, myf my_flags);
 void my_large_free(void *ptr, size_t size);
+void my_large_page_truncate(size_t *size);
 
 #ifdef _WIN32
 extern BOOL my_obtain_privilege(LPCSTR lpPrivilege);
@@ -850,7 +851,6 @@ extern void delete_dynamic(DYNAMIC_ARRAY *array);
 extern void delete_dynamic_element(DYNAMIC_ARRAY *array, size_t array_index);
 extern void delete_dynamic_with_callback(DYNAMIC_ARRAY *array, FREE_FUNC f);
 extern void freeze_size(DYNAMIC_ARRAY *array);
-extern int  get_index_dynamic(DYNAMIC_ARRAY *array, void *element);
 #define dynamic_array_ptr(array,array_index) ((array)->buffer+(array_index)*(array)->size_of_element)
 #define dynamic_element(array,array_index,type) ((type)((array)->buffer) +(array_index))
 #define push_dynamic(A,B) insert_dynamic((A),(B))
@@ -1087,6 +1087,9 @@ extern char *get_tty_password(const char *opt_message);
 #define BACKSLASH_MBTAIL
 /* File system character set */
 extern CHARSET_INFO *fs_character_set(void);
+extern int my_set_console_cp(const char *name);
+#else
+#define my_set_console_cp(A) do {} while (0)
 #endif
 extern const char *my_default_csname(void);
 extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
@@ -1097,13 +1100,6 @@ extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
 extern void thd_increment_bytes_sent(void *thd, size_t length);
 extern void thd_increment_bytes_received(void *thd, size_t length);
 extern void thd_increment_net_big_packet_count(void *thd, size_t length);
-
-#ifdef _WIN32
-
-/* implemented in my_conio.c */
-char* my_cgets(char *string, size_t clen, size_t* plen);
-
-#endif
 
 #include <mysql/psi/psi.h>
 

@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1046,32 +1046,6 @@ dict_mem_table_free_foreign_vcol_set(
 }
 
 /**********************************************************************//**
-Adds a field definition to an index. NOTE: does not take a copy
-of the column name if the field is a column. The memory occupied
-by the column name may be released only after publishing the index. */
-void
-dict_mem_index_add_field(
-/*=====================*/
-	dict_index_t*	index,		/*!< in: index */
-	const char*	name,		/*!< in: column name */
-	ulint		prefix_len)	/*!< in: 0 or the column prefix length
-					in a MySQL index like
-					INDEX (textcol(25)) */
-{
-	dict_field_t*	field;
-
-	ut_ad(index);
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	index->n_def++;
-
-	field = dict_index_get_nth_field(index, unsigned(index->n_def) - 1);
-
-	field->name = name;
-	field->prefix_len = prefix_len & ((1U << 12) - 1);
-}
-
-/**********************************************************************//**
 Frees an index memory object. */
 void
 dict_mem_index_free(
@@ -1203,6 +1177,8 @@ inline bool dict_index_t::reconstruct_fields()
 {
 	DBUG_ASSERT(is_primary());
 
+	const auto old_n_fields = n_fields;
+
 	n_fields = (n_fields + table->instant->n_dropped)
 		& dict_index_t::MAX_N_FIELDS;
 	n_def = (n_def + table->instant->n_dropped)
@@ -1230,11 +1206,11 @@ inline bool dict_index_t::reconstruct_fields()
 		} else {
 			DBUG_ASSERT(!c.is_not_null());
 			const auto old = std::find_if(
-				fields + n_first, fields + n_fields,
+				fields + n_first, fields + old_n_fields,
 				[c](const dict_field_t& o)
 				{ return o.col->ind == c.ind(); });
 
-			if (old >= fields + n_fields
+			if (old >= fields + old_n_fields
 			    || old->prefix_len
 			    || old->col != &table->cols[c.ind()]) {
 				return true;

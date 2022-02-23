@@ -478,6 +478,18 @@ ut_strerr(
 
 namespace ib {
 
+std::ostream &operator<<(std::ostream &lhs, const bytes_iec &rhs)
+{
+  static const char *sizes[]= {"B", "KiB", "MiB", "GiB", "TiB", "PiB",
+                              "EiB", "ZiB", "YiB"};
+  size_t i= 0;
+  double d= rhs.get_double();
+  for (; d > 512.0 && i < array_elements(sizes); i++, d/= 1024.0);
+  lhs.precision(3);
+  lhs << std::fixed << d << sizes[i];
+  return lhs;
+}
+
 ATTRIBUTE_COLD logger& logger::operator<<(dberr_t err)
 {
   m_oss << ut_strerr(err);

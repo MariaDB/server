@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2016, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2014, 2021, MariaDB Corporation.
+   Copyright (c) 2014, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -48,7 +48,6 @@ The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 #include "buf0buf.h"             /* buf_page_is_corrupted */
 #include "page0zip.h"            /* page_zip_*() */
 #include "trx0undo.h"            /* TRX_* */
-#include "ut0crc32.h"            /* ut_crc32_init() */
 #include "fil0crypt.h"           /* fil_space_verify_crypt_checksum */
 
 #include <string.h>
@@ -635,7 +634,7 @@ static bool update_checksum(byte* page, uint32_t flags)
 	} else if (use_full_crc32) {
 		ulint payload = buf_page_full_crc32_size(page, NULL, NULL)
 			- FIL_PAGE_FCRC32_CHECKSUM;
-		checksum = ut_crc32(page, payload);
+		checksum = my_crc32c(0, page, payload);
 		byte* c = page + payload;
 		if (mach_read_from_4(c) == checksum) return false;
 		mach_write_to_4(c, checksum);

@@ -375,29 +375,3 @@ void freeze_size(DYNAMIC_ARRAY *array)
     array->max_element= elements;
   }
 }
-
-#ifdef NOT_USED
-/*
-  Get the index of a dynamic element
-
-  SYNOPSIS
-    get_index_dynamic()
-     array	Array
-     element Whose element index
-
-*/
-
-int get_index_dynamic(DYNAMIC_ARRAY *array, void* element)
-{
-  size_t ret;
-  if (array->buffer > (uchar*) element)
-    return -1;
-
-  ret= ((uchar*) element - array->buffer) /  array->size_of_element;
-  if (ret > array->elements)
-    return -1;
-
-  return ret;
-
-}
-#endif
