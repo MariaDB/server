@@ -29,6 +29,14 @@
 #pragma GCC poison __WIN__
 #endif
 
+#if defined(_MSC_VER) && !defined(__clang__)
+/*
+  Following functions have bugs, when used with UTF-8 active codepage.
+  #include <winservice.h> will use the non-buggy wrappers
+*/
+#pragma deprecated("CreateServiceA", "OpenServiceA", "ChangeServiceConfigA")
+#endif
+
 /*
   InnoDB depends on some MySQL internals which other plugins should not
   need.  This is because of InnoDB's foreign key support, "safe" binlog

@@ -73,12 +73,6 @@ int spider_param_reset_sql_alloc(
   THD *thd,
   int reset_sql_alloc
 );
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-longlong spider_param_hs_result_free_size(
-  THD *thd,
-  longlong hs_result_free_size
-);
-#endif
 int spider_param_multi_split_read(
   THD *thd,
   int multi_split_read
@@ -261,11 +255,6 @@ int spider_param_sts_bg_mode(
 double spider_param_ping_interval_at_trx_start(
   THD *thd
 );
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-double spider_param_hs_ping_interval(
-  THD *thd
-);
-#endif
 int spider_param_auto_increment_mode(
   THD *thd,
   int auto_increment_mode
@@ -320,28 +309,6 @@ int spider_param_udf_ct_bulk_insert_interval(
 longlong spider_param_udf_ct_bulk_insert_rows(
   longlong udf_ct_bulk_insert_rows
 );
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-uint spider_param_hs_r_conn_recycle_mode(
-  THD *thd
-);
-uint spider_param_hs_r_conn_recycle_strict(
-  THD *thd
-);
-uint spider_param_hs_w_conn_recycle_mode(
-  THD *thd
-);
-uint spider_param_hs_w_conn_recycle_strict(
-  THD *thd
-);
-int spider_param_use_hs_read(
-  THD *thd,
-  int use_hs_read
-);
-int spider_param_use_hs_write(
-  THD *thd,
-  int use_hs_write
-);
-#endif
 int spider_param_use_handler(
   THD *thd,
   int use_handler

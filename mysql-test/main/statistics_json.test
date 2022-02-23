@@ -1,0 +1,462 @@
+--echo #
+--echo # Test that we can store JSON arrays in histogram field mysql.column_stats when histogram_type=JSON
+--echo #
+
+let $histogram_type_override='JSON_HB';
+--source statistics.test
+
+--source include/have_innodb.inc
+--source include/have_stat_tables.inc
+--source include/have_sequence.inc
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+set @save_histogram_type=@@histogram_type;
+set @save_histogram_size=@@histogram_size;
+
+call mtr.add_suppression("Failed to parse histogram for table .*");
+create table ten(a int primary key);
+insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+set histogram_size=100;
+set histogram_type='double_prec_hb';
+create table t1_bin (a varchar(255));
+insert into t1_bin select concat('a-', a) from ten;
+analyze table t1_bin persistent for all;
+select hex(histogram) from mysql.column_stats where table_name='t1_bin';
+explain extended select * from t1_bin where a between 'a-3a' and 'zzzzzzzzz';
+analyze select * from t1_bin where a between 'a-3a' and 'zzzzzzzzz';
+
+set histogram_type=json_hb;
+create table t1_json (a varchar(255));
+insert into t1_json select concat('a-', a) from ten;
+analyze table t1_json persistent for all;
+--source include/json_hb_histogram.inc
+select * from mysql.column_stats where table_name='t1_json';
+explain extended select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
+analyze select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
+explain extended select * from t1_json where a < 'b-1a';
+analyze select * from t1_json where a > 'zzzzzzzzz';
+
+drop table ten;
+
+#
+# Test different valid JSON strings that are invalid histograms.
+#
+UPDATE mysql.column_stats 
+SET histogram='["not-what-you-expect"]' WHERE table_name='t1_json';
+FLUSH TABLES;
+explain select * from t1_json limit 1;
+
+UPDATE mysql.column_stats 
+SET histogram='{"histogram_hb":"not-histogram"}' WHERE table_name='t1_json';
+FLUSH TABLES;
+explain select * from t1_json limit 1;
+
+UPDATE mysql.column_stats 
+SET histogram='{"histogram_hb":["not-a-bucket"]}'
+WHERE table_name='t1_json';
+FLUSH TABLES;
+explain select * from t1_json limit 1;
+
+UPDATE mysql.column_stats 
+SET histogram='{"histogram_hb":[{"no-expected-members":1}]}'
+WHERE table_name='t1_json';
+FLUSH TABLES;
+explain select * from t1_json limit 1;
+
+UPDATE mysql.column_stats 
+SET histogram='{"histogram_hb":[{"start":{}}]}'
+WHERE table_name='t1_json';
+FLUSH TABLES;
+explain select * from t1_json limit 1;
+
+UPDATE mysql.column_stats 
+SET histogram='{"histogram_hb":[{"start":"aaa", "size":"not-an-integer"}]}'
+WHERE table_name='t1_json';
+FLUSH TABLES;
+explain select * from t1_json limit 1;
+
+UPDATE mysql.column_stats 
+SET histogram='{"histogram_hb":[{"start":"aaa", "size":0.25}]}'
+WHERE table_name='t1_json';
+FLUSH TABLES;
+explain select * from t1_json limit 1;
+
+UPDATE mysql.column_stats 
+SET histogram='{"histogram_hb":[{"start":"aaa", "size":0.25, "ndv":1}]}'
+WHERE table_name='t1_json';
+FLUSH TABLES;
+explain select * from t1_json limit 1;
+
+UPDATE mysql.column_stats 
+SET histogram='{"histogram_hb":[]}'
+WHERE table_name='t1_json';
+FLUSH TABLES;
+explain select * from t1_json limit 1;
+
+--source include/have_sequence.inc
+create table t2 (
+  city varchar(100)
+);
+set histogram_size=50;
+insert into t2 select 'Moscow' from seq_1_to_99;
+insert into t2 select 'Helsinki' from seq_1_to_2;
+set histogram_type=json_hb;
+analyze table t2 persistent for all;
+explain extended select * from t2 where city = 'Moscow';
+analyze select * from t2 where city = 'Moscow';
+explain extended select * from t2 where city = 'Helsinki';
+analyze select * from t2 where city = 'helsinki';
+explain extended select * from t2 where city < 'Lagos';
+
+drop table t1_bin;
+drop table t1_json;
+drop table t2;
+
+DELETE FROM mysql.column_stats;
+
+create schema world;
+use world;
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/world_schema_utf8.inc
+--source include/world.inc
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+set histogram_type='JSON_HB';
+set histogram_size=50;
+--disable_result_log
+ANALYZE TABLE Country, City, CountryLanguage persistent for all;
+--enable_result_log
+
+--source include/histogram_replaces.inc
+SELECT column_name, min_value, max_value, hist_size, hist_type, histogram FROM mysql.column_stats;
+analyze select * from Country use index () where Code between 'BBC' and 'GGG';
+analyze select * from Country use index () where Code < 'BBC';
+
+set histogram_type=@save_histogram_type;
+set histogram_size=@save_histogram_size;
+
+DROP SCHEMA world;
+use test;
+
+create table t10 (
+  a varchar(10)
+);
+
+--echo #
+--echo # Histograms are not collected for empty tables:
+--echo #
+analyze table t10 persistent for all;
+select histogram
+from mysql.column_stats where table_name='t10' and db_name=database();
+
+--echo #
+--echo # Try with n_buckets > n_rows
+--echo #
+insert into t10 values ('Berlin'),('Paris'),('Rome');
+set histogram_size=10, histogram_type='json_hb';
+analyze table t10 persistent for all;
+--source include/histogram_replaces.inc
+select histogram
+from mysql.column_stats where table_name='t10' and db_name=database();
+drop table t10;
+
+--echo #
+--echo #  MDEV-26590: Stack smashing/buffer overflow in Histogram_json_hb::parse upon UPDATE on table with long VARCHAR
+--echo #
+
+CREATE TABLE t1 (b INT, a VARCHAR(3176));
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+SET histogram_type= JSON_HB;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+SELECT * FROM t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-26589: Assertion failure upon DECODE_HISTOGRAM with NULLs in first column
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (NULL,1), (NULL,2);
+SET histogram_type = JSON_HB;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+--source include/histogram_replaces.inc
+SELECT DECODE_HISTOGRAM(hist_type, histogram) from mysql.column_stats;
+drop table t1;
+
+--echo #
+--echo # MDEV-26711: Values in JSON histograms are not properly quoted
+--echo #
+
+create table t1 (a varchar(32));
+insert into t1 values ('this is "quoted" text');
+set histogram_type= JSON_HB;
+analyze table t1 persistent for all;
+select * from t1 where a = 'foo';
+drop table t1;
+
+--echo #
+--echo # MDEV-26724 Endless loop in json_escape_to_string upon ... empty string
+--echo #
+CREATE TABLE t1 (f VARCHAR(8));
+INSERT INTO t1 VALUES ('a'),(''),('b');
+SET histogram_type=JSON_HB;
+ANALYZE TABLE t PERSISTENT FOR ALL;
+select * from t1;
+drop table t1;
+
+create table t1 (a char(1)) character set latin1;
+insert into t1 values (0xD1);
+select hex(a) from t1;
+set histogram_type='json_hb';
+analyze table t1 persistent for all;
+
+--source include/histogram_replaces.inc
+select decode_histogram(hist_type, histogram)
+from mysql.column_stats
+where db_name=database() and table_name='t1';
+
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # Another testcase: use a character that cannot be represented in utf8:
+--echo # Also, now it's testcase for:
+--echo #  MDEV-26764: JSON_HB Histograms: handle BINARY and unassigned characters
+--echo #
+create table t1 ( a varchar(100) character set cp1251);
+insert into t1 values ( _cp1251 x'88'),( _cp1251 x'88'), ( _cp1251 x'88');
+insert into t1 values ( _cp1251 x'98'),( _cp1251 x'98');
+analyze table t1 persistent for all;
+
+--source include/histogram_replaces.inc
+select hist_type, histogram
+from mysql.column_stats
+where db_name=database() and table_name='t1';
+
+analyze select * from t1 where a=_cp1251 x'88';
+
+drop table t1;
+
+--echo #
+--echo # ASAN use-after-poison my_strnxfrm_simple_internal / Histogram_json_hb::range_selectivity ...
+--echo # (Just the testcase)
+--echo #
+
+CREATE TABLE t1 (f CHAR(8));
+INSERT INTO t1 VALUES ('foo'),('bar');
+
+SET histogram_type = JSON_HB;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+SELECT * FROM t1 WHERE f > 'qux';
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-26737: Outdated VARIABLE_COMMENT for HISTOGRAM_TYPE in I_S.SYSTEM_VARIABLES
+--echo #
+select variable_comment from information_schema.system_variables where VARIABLE_NAME='HISTOGRAM_TYPE';
+
+--echo #
+--echo # MDEV-26709: JSON histogram may contain bucketS than histogram_size allows
+--echo #
+create table t1 (a int);
+insert into t1 values (1),(3),(5),(7);
+insert into t1 select 2 from seq_1_to_25;
+insert into t1 select 4 from seq_1_to_25;
+insert into t1 select 6 from seq_1_to_25;
+
+set histogram_size=4, histogram_type=JSON_HB;
+analyze table t1 persistent for all;
+
+--source include/json_hb_histogram.inc
+select histogram from mysql.column_stats where table_name = 't1';
+
+drop table t1;
+
+--echo #
+--echo # MDEV-26750: Estimation for filtered rows is far off with JSON_HB histogram
+--echo #
+create table t1 (c char(8));
+
+insert into t1 values ('1x');
+insert into t1 values ('1x');
+insert into t1 values ('1xx');
+insert into t1 values ('0xx');
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+
+set histogram_type= JSON_HB;
+analyze table t1 persistent for all;
+analyze
+select c from t1 where c > '1';
+
+drop table t1;
+
+--echo #
+--echo # MDEV-26849: JSON Histograms: point selectivity estimates are off for non-existent values
+--echo #
+
+create table t0(a int);
+insert into t0 (a) values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select 100*A.a from t0 A, t0 B, t0 C;
+select a, count(*) from t1 group by a order by a;
+set histogram_type=json_hb, histogram_size=default;
+analyze table t1 persistent for all;
+--source include/json_hb_histogram.inc
+select * from mysql.column_stats where table_name='t1';
+analyze select * from t1 where a=0;
+analyze select * from t1 where a=50;
+analyze select * from t1 where a=70;
+analyze select * from t1 where a=100;
+analyze select * from t1 where a=150;
+analyze select * from t1 where a=200;
+
+drop table t0,t1;
+
+--echo #
+--echo # MDEV-26892: JSON histograms become invalid with a specific (corrupt) value in t
+--echo #
+create table t1 (a varchar(32)) DEFAULT CHARSET=cp1257;
+set histogram_type= JSON_HB, histogram_size= 1;
+insert into t1 values ('foo'),(unhex('9C'));
+analyze table t1 persistent for all;
+
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-26911: Unexpected ER_DUP_KEY, ASAN errors, double free detected in tcache with JSON_HB histogram
+--echo #
+
+SET histogram_type= JSON_HB;
+ 
+CREATE TABLE t1 (pk INT AUTO_INCREMENT, f VARCHAR(8), PRIMARY KEY (pk));
+INSERT INTO t1 (f) VALUES ('foo');
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ALTER TABLE t1 MODIFY f TEXT, ORDER BY pk;
+INSERT INTO t1 (f) VALUES ('bar');
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-26886: Estimation for filtered rows less precise with JSON histogram
+--echo #
+create table t1 (a tinyint) as select if(seq%3,seq,0) as a from seq_1_to_100;
+select count(*) from t1 where a <= 0;
+
+set histogram_type = JSON_HB, histogram_size=default;
+analyze table t1 persistent for all;
+analyze select * from t1 where a <= 0;
+analyze select * from t1 where a < 0;
+analyze select * from t1 where a > 0;
+analyze select * from t1 where a >= 0;
+drop table t1;
+
+
+--echo #
+--echo # More test coverage
+--echo #
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+
+create table t2 (a int);
+insert into t2 select 1 from t1;
+insert into t2 select (a+1)*10 from t0;
+insert into t2 values (0);
+
+analyze table t2 persistent for all;
+analyze select * from t2 where a < 1;
+analyze select * from t2 where a =100;
+
+drop table t0,t1,t2;
+
+--echo #
+--echo # MDEV-27230: Estimation for filtered rows less precise ...
+--echo #
+create table t1 (a char(1));
+insert into t1 select chr(seq%26+97) from seq_1_to_50;
+insert into t1 select ':' from t1;
+analyze table t1 persistent for all;
+analyze select COUNT(*) FROM t1 WHERE a <> 'a';
+analyze select COUNT(*) FROM t1 WHERE a < 'a';
+drop table t1;
+
+--echo #
+--echo # MDEV-27229: Estimation for filtered rows less precise ... #5
+--echo #
+create table t1 (id int, a varchar(8));
+insert into t1 select seq, 'bar' from seq_1_to_100;
+insert into t1 select id, 'qux' from t1;
+
+set histogram_type=JSON_HB;
+analyze table t1 persistent for all;
+analyze select COUNT(*) FROM t1 WHERE a > 'foo';
+
+analyze select COUNT(*) FROM t1 WHERE a > 'aaa';
+analyze select COUNT(*) FROM t1 WHERE a >='aaa';
+
+analyze select COUNT(*) FROM t1 WHERE a > 'bar';
+analyze select COUNT(*) FROM t1 WHERE a >='bar';
+
+# Can enable these after get_avg_frequency issue is resolved:
+analyze select COUNT(*) FROM t1 WHERE a < 'aaa';
+analyze select COUNT(*) FROM t1 WHERE a <='aaa';
+analyze select COUNT(*) FROM t1 WHERE a < 'bar';
+
+analyze select COUNT(*) FROM t1 WHERE a <='bar';
+
+drop table t1;
+
+--echo #
+--echo # MDEV-27243: Estimation for filtered rows less precise ... #7
+--echo # (Testcase only)
+
+CREATE TABLE t1 (f TIME);
+INSERT INTO t1 SELECT IF(seq%2,'00:00:00',SEC_TO_TIME(seq+7200)) FROM seq_1_to_1000;
+
+SET histogram_type= JSON_HB;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE SELECT * FROM t1 WHERE f > '00:01:00';
+drop table t1;
+
+--echo #
+--echo # MDEV-26901: Estimation for filtered rows less precise ... #4
+--echo #
+create table t1 (f int);
+insert into t1 values
+  (7),(5),(0),(5),(112),(9),(9),(7),(5),(9),
+  (1),(7),(0),(6),(6),(2),(1),(6),(169),(7);
+
+select f from t1 where f in (77, 1, 144, 73, 14, 12);
+
+set histogram_type= JSON_HB;
+analyze table t1 persistent for all;
+
+analyze select f from t1 where f in (77, 1, 144, 73, 14, 12);
+drop table t1;
+
+
+--echo #
+--echo # Test that histograms over BIT fields use hex
+--echo #
+create table t1 (a BIT(64));
+insert into t1 values 
+  (x'01'),(x'10'),(x'BE562B1A99001918');
+set histogram_type= JSON_HB;
+analyze table t1 persistent for all;
+--source include/json_hb_histogram.inc
+select histogram
+from mysql.column_stats where table_name='t1' and db_name=database();
+
+drop table t1;
+

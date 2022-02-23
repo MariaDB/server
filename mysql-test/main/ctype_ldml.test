@@ -33,6 +33,7 @@ SELECT * FROM t1 ORDER BY phone;
 SELECT * FROM t1 WHERE phone='+7(912)800-80-01';
 SELECT * FROM t1 WHERE phone='79128008001';
 SELECT * FROM t1 WHERE phone='7 9 1 2 8 0 0 8 0 0 1';
+SELECT * FROM t1 WHERE phone='tel.79128008001';
 DROP TABLE t1;
 
 show collation like 'utf8mb3_test_ci';
@@ -615,3 +616,23 @@ SELECT 'a' COLLATE utf8_czech_test_bad_w2;
 SHOW COLLATION LIKE 'latin1_test_replace';
 --error ER_UNKNOWN_COLLATION
 SELECT 'foo' = 'foo ' COLLATE latin1_test_replace;
+
+
+--echo #
+--echo # MDEV-27042 UCA: Resetting contractions to ignorable does not work well
+--echo #
+
+CREATE TABLE t1 (
+  phone VARCHAR(64) CHARACTER SET utf8 COLLATE utf8_phone_ci
+);
+INSERT INTO t1 VALUES ('123');
+INSERT INTO t1 VALUES ('tel.123');
+INSERT INTO t1 VALUES ('tél.123');
+INSERT INTO t1 VALUES ('tèl.123');
+INSERT INTO t1 VALUES ('ťel.123');
+INSERT INTO t1 VALUES ('ťèl.123');
+INSERT INTO t1 VALUES ('tex.123');
+SELECT * FROM t1 WHERE phone='123' ORDER BY BINARY phone;
+SELECT * FROM t1 WHERE phone<>'123' ORDER BY BINARY phone;
+SELECT phone, HEX(WEIGHT_STRING(phone)) FROM t1 ORDER BY phone, BINARY phone;
+DROP TABLE t1;

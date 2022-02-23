@@ -1,0 +1,48 @@
+--source ../t/test_init.inc
+create database auto_test_local;
+set spider_same_server_link= on;
+
+--echo #
+--echo # MDEV-27590 Auto-increment on Spider tables with DESC PK does not work properly
+--echo #
+
+select @@spider_auto_increment_mode;
+create or replace table auto_test_local.t (id int primary key) engine=InnoDB;
+create or replace table t_sp1 (id int auto_increment, primary key(id desc))
+engine=Spider COMMENT='wrapper "mysql", srv "s_1", table "t"';
+insert into t_sp1 () values (),(),();
+insert into t_sp1 () values (),(),();
+select * from t_sp1;
+drop table t_sp1, auto_test_local.t;
+
+--echo #
+--echo # MDEV-27581 Wrong result with DESC key on partitioned Spider table
+--echo #
+create table auto_test_local.t1 (a int primary key);
+create table auto_test_local.t2 (a int primary key);
+create table t (a int, primary key (a desc)) engine=spider
+engine=spider comment='wrapper "mysql", srv "s_1"'
+partition by range (a)
+(partition p1 values less than (4) comment "table 't1'",
+ partition p2 values less than (maxvalue) comment "table 't2'");
+
+insert into t values (1),(2),(10),(11);
+select * from t where a > 1 order by a;
+drop table t, auto_test_local.t1, auto_test_local.t2;
+
+--echo #
+--echo # MDEV-27617 HANDLER KEY > (x) does not work with DESC keys, Spider is affected and returns wrong results
+--echo #
+
+create table auto_test_local.t (a int, b char(1), primary key(a desc));
+insert into auto_test_local.t VALUES (1,'f'),(2,'g'),(3,'j'), (4,'i'),(5,'h');
+create table ts (a int, b char(1), primary key(a desc))
+engine=spider comment='wrapper "mysql", srv "s_1", table "t"';
+set spider_use_handler=3;
+select a, b from ts where a > 0 and b = 'g' order by a;
+set spider_use_handler=default;
+select a, b from ts where a > 0 and b = 'g' order by a;
+drop table ts, auto_test_local.t;
+
+drop database auto_test_local;
+--source ../t/test_deinit.inc

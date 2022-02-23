@@ -43,13 +43,15 @@ create table mysql.tz like mysql.time_zone_transition;
 alter table mysql.tz engine=innodb;
 insert into mysql.tz select * from mysql.time_zone_transition;
 set global innodb_stats_persistent=1;
+set time_zone="+03:00";
+SET TIMESTAMP= UNIX_TIMESTAMP('2022-01-07 07:07:00');
 ANALYZE TABLE mysql.tz PERSISTENT FOR ALL;
 # for predictable output in tests
 delete from mysql.index_stats where prefix_arity!=1;
 delete from mysql.column_stats where column_name!='Time_zone_id';
-set time_zone="+03:00";
 update mysql.innodb_index_stats set last_update="2020-01-01" where database_name="mysql" and table_name="tz";
 update mysql.innodb_table_stats set last_update="2020-01-01" where database_name="mysql" and table_name="tz";
+update mysql.column_stats set histogram=json_replace(histogram, '$.collected_by', replace(json_value(histogram, '$.collected_by'), @@version, 'version'));
 set global innodb_stats_persistent= @save_innodb_stats_persistent;
 alter table mysql.time_zone_name ORDER BY Name;
 

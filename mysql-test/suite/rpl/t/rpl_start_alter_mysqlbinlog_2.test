@@ -1,0 +1,164 @@
+#
+# MENT-662 Lag Free Alter On Slave
+#
+
+# Start Alter with Parallel Replication, With 2 sources
+# 2 domain id (From 2 sources)
+# |Concurrent alters| < |Parallel workers on slave|
+#  |x| denotes number of entities it encloses
+# And then binary log from slave is replayed to slave again to check if
+# binlog output is okay.
+#
+
+--source include/have_log_bin.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--connect (server_1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--connect (server_2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+--connect (server_3,127.0.0.1,root,,,$SERVER_MYPORT_3)
+
+--connection server_1
+SET @save_binlog_alter_two_phase= @@GLOBAL.binlog_alter_two_phase;
+SET GLOBAL binlog_alter_two_phase = ON;
+SET binlog_alter_two_phase = ON;
+--echo # Create table and perform CA and RA
+CREATE TABLE t1( a INT, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1,1);
+INSERT INTO t1 VALUES(2,2);
+--echo # Normal Alter
+ALTER TABLE t1 ADD COLUMN c INT;
+--echo # Failed Alter
+INSERT INTO t1 VALUES(1,1, NULL);
+--error ER_DUP_ENTRY
+ALTER TABLE t1 CHANGE a a INT UNIQUE;
+SHOW CREATE TABLE t1;
+SELECT @@gtid_binlog_state;
+
+--echo # apply the binlog
+let MYSQLD_DATADIR= `select @@datadir;`;
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/master_1.sql
+DROP TABLE t1;
+--echo # reset the binlog
+RESET MASTER;
+
+--echo # execute the binlog
+--exec $MYSQL --port=$SERVER_MYPORT_1 --host=127.0.0.1 -e "source $MYSQLTEST_VARDIR/tmp/master_1.sql"
+SELECT @@gtid_binlog_state;
+--echo # Same as before
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+--echo # reset the binlog
+RESET MASTER;
+RESET SLAVE;
+remove_file $MYSQLTEST_VARDIR/tmp/master_1.sql;
+
+--connection server_2
+SET @save_binlog_alter_two_phase= @@GLOBAL.binlog_alter_two_phase;
+SET GLOBAL binlog_alter_two_phase = ON;
+
+--connection server_3
+SET @save_gtid_strict_mode= @@GLOBAL.gtid_strict_mode;
+SET @slave_parallel_threads= @@GLOBAL.slave_parallel_threads;
+SET @slave_parallel_mode= @@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_threads=20;
+SET GLOBAL slave_parallel_mode=optimistic;
+SET GLOBAL gtid_strict_mode=1;
+
+--disable_warnings
+--disable_query_log
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval CHANGE MASTER 'm1' TO MASTER_PORT=$SERVER_MYPORT_1, MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_USE_GTID=slave_pos;
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval CHANGE MASTER 'm2' TO MASTER_PORT=$SERVER_MYPORT_2, MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_USE_GTID=slave_pos;
+--enable_query_log
+--enable_warnings
+
+--connection server_1
+SET gtid_domain_id= 11;
+CREATE DATABASE s1;
+USE s1;
+--let $domain_1=11
+--let $domain_2=11
+--let $M_port= $SERVER_MYPORT_1
+--let $S_port= $SERVER_MYPORT_3
+--let $sync_slave=0
+--let $db_name=s1
+--source include/start_alter_include.inc
+
+--connection server_1
+DROP DATABASE s1;
+--let $master_pos_1= `SELECT @@gtid_binlog_pos`
+
+--connection server_2
+SET gtid_domain_id= 12;
+CREATE DATABASE s2;
+USE s2;
+--let $domain_1=12
+--let $domain_2=12
+--let $M_port= $SERVER_MYPORT_2
+--let $S_port= $SERVER_MYPORT_3
+--let $sync_slave=0
+--let $db_name=s2
+--source include/start_alter_include.inc
+--connection server_2
+DROP DATABASE s2;
+--let $master_pos_2= `SELECT @@gtid_binlog_pos`
+
+--connection server_3
+START ALL SLAVES;
+SET default_master_connection = 'm1';
+--source include/wait_for_slave_to_start.inc
+SET default_master_connection = 'm2';
+--source include/wait_for_slave_to_start.inc
+
+SET default_master_connection = 'm1';
+--let $master_pos= $master_pos_1
+--source include/sync_with_master_gtid.inc
+SET default_master_connection = 'm2';
+--let $master_pos= $master_pos_2
+--source include/sync_with_master_gtid.inc
+
+--echo # Stop slaves and apply binlog
+--connection server_3
+SET default_master_connection = 'm1';
+--source include/stop_slave.inc
+SET default_master_connection = 'm2';
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads = @slave_parallel_threads;
+SET GLOBAL slave_parallel_mode = @slave_parallel_mode;
+SET GLOBAL gtid_strict_mode = @save_gtid_strict_mode;
+SET GLOBAL gtid_domain_id= 0;
+SELECT @@gtid_binlog_state;
+
+let MYSQLD_DATADIR= `select @@datadir;`;
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/slave_1.sql
+--echo # reset the binlog
+RESET MASTER;
+--echo # execute the binlog
+--exec $MYSQL --port=$SERVER_MYPORT_3 --host=127.0.0.1 -e "source $MYSQLTEST_VARDIR/tmp/slave_1.sql"
+SELECT @@gtid_binlog_state;
+
+--echo # One more time to simulate S->S case
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/slave_2.sql
+RESET MASTER;
+--echo # execute the binlog
+--exec $MYSQL --port=$SERVER_MYPORT_3 --host=127.0.0.1 -e "source $MYSQLTEST_VARDIR/tmp/slave_2.sql"
+SELECT @@gtid_binlog_state;
+remove_file $MYSQLTEST_VARDIR/tmp/slave_1.sql;
+remove_file $MYSQLTEST_VARDIR/tmp/slave_2.sql;
+RESET MASTER;
+RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos= '';
+
+--connection server_1
+SET GLOBAL binlog_alter_two_phase=@save_binlog_alter_two_phase;
+SET GLOBAL gtid_domain_id= 0;
+RESET MASTER;
+--connection server_2
+SET GLOBAL gtid_domain_id= 0;
+SET GLOBAL binlog_alter_two_phase=@save_binlog_alter_two_phase;
+RESET MASTER;
+
+--disconnect server_1
+--disconnect server_2
+--disconnect server_3

@@ -16,6 +16,9 @@
 #ifndef SQL_STATISTICS_H
 #define SQL_STATISTICS_H
 
+#include <vector>
+#include <string>
+
 /*
   For COMPLEMENTARY_FOR_QUERIES and PREFERABLY_FOR_QUERIES they are
   similar to the COMPLEMENTARY and PREFERABLY respectively except that
@@ -42,7 +45,9 @@ typedef
 enum enum_histogram_type
 {
   SINGLE_PREC_HB,
-  DOUBLE_PREC_HB
+  DOUBLE_PREC_HB,
+  JSON_HB,
+  INVALID_HISTOGRAM
 } Histogram_type;
 
 enum enum_stat_tables
@@ -120,6 +125,7 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables);
 int collect_statistics_for_table(THD *thd, TABLE *table);
 void delete_stat_values_for_table_share(TABLE_SHARE *table_share);
 int alloc_statistics_for_table(THD *thd, TABLE *table);
+void free_statistics_for_table(THD *thd, TABLE *table);
 int update_statistics_for_table(THD *thd, TABLE *table);
 int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab);
 int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col);
@@ -140,9 +146,82 @@ double get_column_range_cardinality(Field *field,
 bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table);
 bool is_eits_usable(Field* field);
 
-class Histogram
-{
+class Histogram_builder;
 
+/*
+  Common base for all histograms
+*/
+class Histogram_base
+{
+public:
+  virtual bool parse(MEM_ROOT *mem_root,
+                     const char *db_name, const char *table_name,
+                     Field *field, Histogram_type type_arg,
+                     const char *hist_data, size_t hist_data_len)= 0;
+  virtual void serialize(Field *to_field)= 0;
+
+  virtual Histogram_type get_type()=0;
+
+  virtual uint get_width()=0;
+
+  /*
+    The creation-time workflow is:
+     * create a histogram
+     * init_for_collection()
+     * create_builder()
+     * feed the data to the builder
+     * serialize();
+  */
+  virtual void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
+                                   ulonglong size)=0;
+  virtual Histogram_builder *create_builder(Field *col, uint col_len,
+                                            ha_rows rows)=0;
+
+  /*
+    This function checks that histograms should be usable only when
+      1) the level of optimizer_use_condition_selectivity > 3
+  */
+  bool is_usable(THD *thd)
+  {
+    return thd->variables.optimizer_use_condition_selectivity > 3;
+  }
+
+
+  virtual double point_selectivity(Field *field, key_range *endpoint,
+                                   double avg_sel)=0;
+  virtual double range_selectivity(Field *field, key_range *min_endp,
+                                   key_range *max_endp, double avg_sel)=0;
+
+  /*
+    Legacy: return the size of the histogram on disk.
+
+    This will be stored in mysql.column_stats.hist_size column.
+    The value is not really needed as one can look at
+    LENGTH(mysql.column_stats.histogram) directly.
+  */
+  virtual uint get_size()=0;
+  virtual ~Histogram_base()= default;
+
+  Histogram_base() : owner(NULL) {}
+
+  /*
+    Memory management: a histogram may be (exclusively) "owned" by a particular
+    thread (done for histograms that are being collected).  By default, a
+    histogram has owner==NULL and is not owned by any particular thread.
+  */
+  THD *get_owner() { return owner; }
+  void set_owner(THD *thd) { owner=thd; }
+private:
+  THD *owner;
+};
+
+
+/*
+  A Height-balanced histogram that stores numeric fractions
+*/
+
+class Histogram_binary : public Histogram_base
+{
 private:
   Histogram_type type;
   uint8 size; /* Size of values array, in bytes */
@@ -155,22 +234,25 @@ private:
       return ((uint) (1 << 8) - 1);
     case DOUBLE_PREC_HB:
       return ((uint) (1 << 16) - 1);
+    default:
+      DBUG_ASSERT(0);
     }
     return 1;
   }
 
 public:
-  uint get_width()
+  uint get_width() override
   {
     switch (type) {
     case SINGLE_PREC_HB:
       return size;
     case DOUBLE_PREC_HB:
       return size / 2;
+    default:
+      DBUG_ASSERT(0);
     }
     return 0;
   }
-
 private:
   uint get_value(uint i)
   {
@@ -180,6 +262,8 @@ private:
       return (uint) (((uint8 *) values)[i]);
     case DOUBLE_PREC_HB:
       return (uint) uint2korr(values + i * 2);
+    default:
+      DBUG_ASSERT(0);
     }
     return 0;
   }
@@ -224,40 +308,30 @@ private:
   }
 
 public:
+  uint get_size() override {return (uint)size;}
 
-  uint get_size() { return (uint) size; }
+  Histogram_type get_type() override { return type; }
 
-  Histogram_type get_type() { return type; }
-
-  uchar *get_values() { return (uchar *) values; }
-
-  void set_size (ulonglong sz) { size= (uint8) sz; }
-
-  void set_type (Histogram_type t) { type= t; }
-
-  void set_values (uchar *vals) { values= (uchar *) vals; }
-
-  bool is_available() { return get_size() > 0 && get_values(); }
-
-  /*
-    This function checks that histograms should be usable only when
-      1) the level of optimizer_use_condition_selectivity > 3
-      2) histograms have been collected
-  */
-  bool is_usable(THD *thd)
-  {
-    return thd->variables.optimizer_use_condition_selectivity > 3 &&
-           is_available();
-  }
+  bool parse(MEM_ROOT *mem_root, const char*, const char*, Field*,
+             Histogram_type type_arg, const char *hist_data,
+             size_t hist_data_len) override;
+  void serialize(Field *to_field) override;
+  void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
+                           ulonglong size) override;
+  Histogram_builder *create_builder(Field *col, uint col_len,
+                                    ha_rows rows) override;
 
   void set_value(uint i, double val)
   {
     switch (type) {
-    case SINGLE_PREC_HB:   
+    case SINGLE_PREC_HB:
       ((uint8 *) values)[i]= (uint8) (val * prec_factor());
       return;
     case DOUBLE_PREC_HB:
       int2store(values + i * 2, val * prec_factor());
+      return;
+    default:
+      DBUG_ASSERT(0);
       return;
     }
   }
@@ -265,29 +339,93 @@ public:
   void set_prev_value(uint i)
   {
     switch (type) {
-    case SINGLE_PREC_HB:   
+    case SINGLE_PREC_HB:
       ((uint8 *) values)[i]= ((uint8 *) values)[i-1];
       return;
     case DOUBLE_PREC_HB:
       int2store(values + i * 2, uint2korr(values + i * 2 - 2));
       return;
+    default:
+      DBUG_ASSERT(0);
+      return;
     }
   }
 
-  double range_selectivity(double min_pos, double max_pos)
-  {
-    double sel;
-    double bucket_sel= 1.0/(get_width() + 1);  
-    uint min= find_bucket(min_pos, TRUE);
-    uint max= find_bucket(max_pos, FALSE);
-    sel= bucket_sel * (max - min + 1);
-    return sel;
-  } 
-  
+  double range_selectivity(Field *field, key_range *min_endp,
+                           key_range *max_endp, double avg_sel) override;
+
   /*
     Estimate selectivity of "col=const" using a histogram
   */
-  double point_selectivity(double pos, double avg_sel);
+  double point_selectivity(Field *field, key_range *endpoint,
+                           double avg_sel) override;
+};
+
+
+/*
+  This is used to collect the the basic statistics from a Unique object:
+   - count of values
+   - count of distinct values
+   - count of distinct values that have occurred only once
+*/
+
+class Basic_stats_collector
+{
+  ulonglong count;         /* number of values retrieved                   */
+  ulonglong count_distinct;    /* number of distinct values retrieved      */
+  /* number of distinct values that occured only once  */
+  ulonglong count_distinct_single_occurence;
+
+public:
+  Basic_stats_collector()
+  {
+    count= 0;
+    count_distinct= 0;
+    count_distinct_single_occurence= 0;
+  }
+
+  ulonglong get_count_distinct() const { return count_distinct; }
+  ulonglong get_count_single_occurence() const
+  {
+    return count_distinct_single_occurence;
+  }
+  ulonglong get_count() const { return count; }
+
+  void next(void *elem, element_count elem_cnt)
+  {
+    count_distinct++;
+    if (elem_cnt == 1)
+      count_distinct_single_occurence++;
+    count+= elem_cnt;
+  }
+};
+
+
+/*
+  Histogram_builder is a helper class that is used to build histograms
+  for columns.
+
+  Do not create directly, call Histogram->get_builder(...);
+*/
+
+class Histogram_builder
+{
+protected:
+  Field *column;           /* table field for which the histogram is built */
+  uint col_length;         /* size of this field                           */
+  ha_rows records;         /* number of records the histogram is built for */
+
+  Histogram_builder(Field *col, uint col_len, ha_rows rows) :
+    column(col), col_length(col_len), records(rows)
+  {}
+
+public:
+  // A histogram builder will also collect the counters
+  Basic_stats_collector counters;
+
+  virtual int next(void *elem, element_count elem_cnt)=0;
+  virtual void finalize()=0;
+  virtual ~Histogram_builder(){}
 };
 
 
@@ -308,7 +446,6 @@ public:
 
   /* Array of records per key for index prefixes */
   ulonglong *idx_avg_frequency;
-  uchar *histograms;                /* Sequence of histograms       */                    
 };
 
 
@@ -370,8 +507,10 @@ private:
   ulonglong avg_frequency;
 
 public:
+  /* Histogram type as specified in mysql.column_stats.hist_type */
+  Histogram_type histogram_type_on_disk;
 
-  Histogram histogram;
+  Histogram_base *histogram;
 
   uint32 no_values_provided_bitmap()
   {

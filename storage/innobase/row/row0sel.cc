@@ -149,7 +149,7 @@ row_sel_sec_rec_is_for_blob(
 		return false;
 	}
 
-	return(!cmp_data_data(mtype, prtype, buf, len, sec_field, sec_len));
+	return !cmp_data(mtype, prtype, false, buf, len, sec_field, sec_len);
 }
 
 /** Function to read the secondary spatial index, calculate
@@ -396,9 +396,8 @@ compare_blobs:
 			}
 		}
 
-		if (0 != cmp_data_data(col->mtype, col->prtype,
-				       clust_field, len,
-				       sec_field, sec_len)) {
+		if (cmp_data(col->mtype, col->prtype, false,
+			     clust_field, len, sec_field, sec_len)) {
 			return DB_SUCCESS;
 		}
 	}
@@ -3282,7 +3281,7 @@ class Row_sel_get_clust_rec_for_mysql
       ulint len1, len2;
       const byte *b1= rec_get_nth_field(cached_clust_rec, offsets, n, &len1);
       const byte *b2= rec_get_nth_field(cached_old_vers, vers_offs, n, &len2);
-      ut_ad(!cmp_data_data(col->mtype, col->prtype, b1, len1, b2, len2));
+      ut_ad(!cmp_data(col->mtype, col->prtype, false, b1, len1, b2, len2));
     }
   }
 #endif
@@ -5024,7 +5023,7 @@ wrong_offs:
 
 		/* fputs("Comparing rec and search tuple\n", stderr); */
 
-		if (0 != cmp_dtuple_rec(search_tuple, rec, offsets)) {
+		if (cmp_dtuple_rec(search_tuple, rec, index, offsets)) {
 
 			if (set_also_gap_locks
 			    && !dict_index_is_spatial(index)) {
@@ -5059,7 +5058,8 @@ wrong_offs:
 
 	} else if (match_mode == ROW_SEL_EXACT_PREFIX) {
 
-		if (!cmp_dtuple_is_prefix_of_rec(search_tuple, rec, offsets)) {
+		if (!cmp_dtuple_is_prefix_of_rec(search_tuple, rec,
+						 index, offsets)) {
 
 			if (set_also_gap_locks
 			    && !dict_index_is_spatial(index)) {
@@ -5180,7 +5180,7 @@ wrong_offs:
 		    && direction == 0
 		    && dtuple_get_n_fields_cmp(search_tuple)
 		    == dict_index_get_n_unique(index)
-		    && 0 == cmp_dtuple_rec(search_tuple, rec, offsets)) {
+		    && !cmp_dtuple_rec(search_tuple, rec, index, offsets)) {
 no_gap_lock:
 			lock_type = LOCK_REC_NOT_GAP;
 		}
@@ -6116,24 +6116,36 @@ row_search_get_max_rec(
 {
 	btr_pcur_t	pcur;
 	const rec_t*	rec;
+	const bool	desc	= index->fields[0].descending;
 	/* Open at the high/right end (false), and init cursor */
 	btr_pcur_open_at_index_side(
-		false, index, BTR_SEARCH_LEAF, &pcur, true, 0, mtr);
+		desc, index, BTR_SEARCH_LEAF, &pcur, true, 0, mtr);
 
-	do {
-		const page_t*	page;
-
-		page = btr_pcur_get_page(&pcur);
-		rec = page_find_rec_max_not_deleted(page);
-
-		if (page_rec_is_user_rec(rec)) {
-			break;
-		} else {
-			rec = NULL;
+	if (desc) {
+		const bool comp = index->table->not_redundant();
+		while (btr_pcur_move_to_next_user_rec(&pcur, mtr)) {
+			rec = btr_pcur_get_rec(&pcur);
+			if (rec_is_metadata(rec, *index)) {
+				continue;
+			}
+			if (!rec_get_deleted_flag(rec, comp)) {
+				goto found;
+			}
 		}
-		btr_pcur_move_before_first_on_page(&pcur);
-	} while (btr_pcur_move_to_prev(&pcur, mtr));
+	} else {
+		do {
+			rec = page_find_rec_last_not_deleted(
+				btr_pcur_get_page(&pcur));
+			if (page_rec_is_user_rec(rec)) {
+				goto found;
+			}
+			btr_pcur_move_before_first_on_page(&pcur);
+		} while (btr_pcur_move_to_prev(&pcur, mtr));
+	}
 
+	rec = nullptr;
+
+found:
 	btr_pcur_close(&pcur);
 
 	ut_ad(!rec

@@ -135,8 +135,8 @@ typedef struct my_contraction_list_t
 
 my_bool my_uca_can_be_contraction_head(const MY_CONTRACTIONS *c, my_wc_t wc);
 my_bool my_uca_can_be_contraction_tail(const MY_CONTRACTIONS *c, my_wc_t wc);
-uint16 *my_uca_contraction2_weight(const MY_CONTRACTIONS *c,
-                                   my_wc_t wc1, my_wc_t wc2);
+const uint16 *my_uca_contraction2_weight(const MY_CONTRACTIONS *c,
+                                         my_wc_t wc1, my_wc_t wc2);
 
 
 /* Collation weights on a single level (e.g. primary, secondary, tertiarty) */

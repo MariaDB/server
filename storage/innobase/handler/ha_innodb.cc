@@ -171,6 +171,8 @@ static const long AUTOINC_OLD_STYLE_LOCKING = 0;
 static const long AUTOINC_NEW_STYLE_LOCKING = 1;
 static const long AUTOINC_NO_LOCKING = 2;
 
+static constexpr size_t buf_pool_chunk_min_size= 1U << 20;
+
 static ulong innobase_open_files;
 static long innobase_autoinc_lock_mode;
 
@@ -240,10 +242,10 @@ static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
     if (thd_kill_level(thd))
       break;
     /* Adjust for purge_coordinator_state::refresh() */
-    mysql_mutex_lock(&log_sys.mutex);
+    log_sys.latch.rd_lock(SRW_LOCK_CALL);
     const lsn_t last= log_sys.last_checkpoint_lsn,
       max_age= log_sys.max_checkpoint_age;
-    mysql_mutex_unlock(&log_sys.mutex);
+    log_sys.latch.rd_unlock();
     const lsn_t lsn= log_sys.get_lsn();
     if ((lsn - last) / 4 >= max_age / 5)
       buf_flush_ahead(last + max_age / 5, false);
@@ -532,8 +534,6 @@ mysql_pfs_key_t	fts_pll_tokenize_mutex_key;
 mysql_pfs_key_t	ibuf_bitmap_mutex_key;
 mysql_pfs_key_t	ibuf_mutex_key;
 mysql_pfs_key_t	ibuf_pessimistic_insert_mutex_key;
-mysql_pfs_key_t	log_sys_mutex_key;
-mysql_pfs_key_t	log_flush_order_mutex_key;
 mysql_pfs_key_t	recalc_pool_mutex_key;
 mysql_pfs_key_t	purge_sys_pq_mutex_key;
 mysql_pfs_key_t	recv_sys_mutex_key;
@@ -569,12 +569,10 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(fts_cache_init_mutex),
 	PSI_KEY(fts_delete_mutex),
 	PSI_KEY(fts_doc_id_mutex),
-	PSI_KEY(log_flush_order_mutex),
 	PSI_KEY(ibuf_bitmap_mutex),
 	PSI_KEY(ibuf_mutex),
 	PSI_KEY(ibuf_pessimistic_insert_mutex),
 	PSI_KEY(index_online_log),
-	PSI_KEY(log_sys_mutex),
 	PSI_KEY(page_zip_stat_per_index_mutex),
 	PSI_KEY(purge_sys_pq_mutex),
 	PSI_KEY(recv_sys_mutex),
@@ -601,6 +599,7 @@ mysql_pfs_key_t	fil_space_latch_key;
 mysql_pfs_key_t trx_i_s_cache_lock_key;
 mysql_pfs_key_t	trx_purge_latch_key;
 mysql_pfs_key_t lock_latch_key;
+mysql_pfs_key_t	log_latch_key;
 
 /* all_innodb_rwlocks array contains rwlocks that are
 performance schema instrumented if "UNIV_PFS_RWLOCK"
@@ -615,6 +614,7 @@ static PSI_rwlock_info all_innodb_rwlocks[] =
   { &trx_i_s_cache_lock_key, "trx_i_s_cache_lock", 0 },
   { &trx_purge_latch_key, "trx_purge_latch", 0 },
   { &lock_latch_key, "lock_latch", 0 },
+  { &log_latch_key, "log_latch", 0 },
   { &index_tree_rw_lock_key, "index_tree_rw_lock", PSI_RWLOCK_FLAG_SX }
 };
 # endif /* UNIV_PFS_RWLOCK */
@@ -635,7 +635,6 @@ static PSI_thread_info	all_innodb_threads[] = {
 performance schema instrumented if "UNIV_PFS_IO" is defined */
 static PSI_file_info	all_innodb_files[] = {
 	PSI_KEY(innodb_data_file),
-	PSI_KEY(innodb_log_file),
 	PSI_KEY(innodb_temp_file)
 };
 # endif /* UNIV_PFS_IO */
@@ -947,12 +946,12 @@ static SHOW_VAR innodb_status_variables[]= {
   {"buffer_pool_reads",
    &export_vars.innodb_buffer_pool_reads, SHOW_SIZE_T},
   {"buffer_pool_wait_free", &buf_pool.stat.LRU_waits, SHOW_SIZE_T},
-  {"buffer_pool_write_requests",
-   &export_vars.innodb_buffer_pool_write_requests, SHOW_SIZE_T},
+  {"buffer_pool_write_requests", &buf_pool.flush_list_requests, SHOW_SIZE_T},
   {"checkpoint_age", &export_vars.innodb_checkpoint_age, SHOW_SIZE_T},
   {"checkpoint_max_age", &export_vars.innodb_checkpoint_max_age, SHOW_SIZE_T},
-  {"data_fsyncs", &export_vars.innodb_data_fsyncs, SHOW_SIZE_T},
-  {"data_pending_fsyncs", &export_vars.innodb_data_pending_fsyncs,SHOW_SIZE_T},
+  {"data_fsyncs", (size_t*) &os_n_fsyncs, SHOW_SIZE_T},
+  {"data_pending_fsyncs",
+   (size_t*) &fil_n_pending_tablespace_flushes, SHOW_SIZE_T},
   {"data_pending_reads", &export_vars.innodb_data_pending_reads, SHOW_SIZE_T},
   {"data_pending_writes", &export_vars.innodb_data_pending_writes,SHOW_SIZE_T},
   {"data_read", &export_vars.innodb_data_read, SHOW_SIZE_T},
@@ -977,9 +976,9 @@ static SHOW_VAR innodb_status_variables[]= {
   {"ibuf_merges", &ibuf.n_merges, SHOW_SIZE_T},
   {"ibuf_segment_size", &ibuf.seg_size, SHOW_SIZE_T},
   {"ibuf_size", &ibuf.size, SHOW_SIZE_T},
-  {"log_waits", &export_vars.innodb_log_waits, SHOW_SIZE_T},
-  {"log_write_requests", &export_vars.innodb_log_write_requests, SHOW_SIZE_T},
-  {"log_writes", &export_vars.innodb_log_writes, SHOW_SIZE_T},
+  {"log_waits", &log_sys.waits, SHOW_SIZE_T},
+  {"log_write_requests", &log_sys.write_to_buf, SHOW_SIZE_T},
+  {"log_writes", &log_sys.write_to_log, SHOW_SIZE_T},
   {"lsn_current", &export_vars.innodb_lsn_current, SHOW_ULONGLONG},
   {"lsn_flushed", &export_vars.innodb_lsn_flushed, SHOW_ULONGLONG},
   {"lsn_last_checkpoint", &export_vars.innodb_lsn_last_checkpoint,
@@ -991,11 +990,6 @@ static SHOW_VAR innodb_status_variables[]= {
   {"mem_adaptive_hash", &export_vars.innodb_mem_adaptive_hash, SHOW_SIZE_T},
 #endif
   {"mem_dictionary", &export_vars.innodb_mem_dictionary, SHOW_SIZE_T},
-  {"os_log_fsyncs", &export_vars.innodb_os_log_fsyncs, SHOW_SIZE_T},
-  {"os_log_pending_fsyncs", &export_vars.innodb_os_log_pending_fsyncs,
-   SHOW_SIZE_T},
-  {"os_log_pending_writes", &export_vars.innodb_os_log_pending_writes,
-   SHOW_SIZE_T},
   {"os_log_written", &export_vars.innodb_os_log_written, SHOW_SIZE_T},
   {"page_size", &srv_page_size, SHOW_ULONG},
   {"pages_created", &buf_pool.stat.n_pages_created, SHOW_SIZE_T},
@@ -1619,54 +1613,14 @@ innobase_start_trx_and_assign_read_view(
 					be committed */
 
 /** Flush InnoDB redo logs to the file system.
-@param[in]	hton			InnoDB handlerton
-@param[in]	binlog_group_flush	true if we got invoked by binlog
-group commit during flush stage, false in other cases.
 @return false */
-static
-bool
-innobase_flush_logs(
-	handlerton*	hton,
-	bool		binlog_group_flush)
+static bool innobase_flush_logs(handlerton*)
 {
-	DBUG_ENTER("innobase_flush_logs");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
-	if (srv_read_only_mode) {
-		DBUG_RETURN(false);
-	}
-
-	/* If !binlog_group_flush, we got invoked by FLUSH LOGS or similar.
-	Else, we got invoked by binlog group commit during flush stage. */
-
-	if (binlog_group_flush && srv_flush_log_at_trx_commit == 0) {
-		/* innodb_flush_log_at_trx_commit=0
-		(write and sync once per second).
-		Do not flush the redo log during binlog group commit. */
-		DBUG_RETURN(false);
-	}
-
-	/* Flush the redo log buffer to the redo log file.
-	Sync it to disc if we are in FLUSH LOGS, or if
-	innodb_flush_log_at_trx_commit=1
-	(write and sync at each commit). */
-	log_buffer_flush_to_disk(!binlog_group_flush
-				 || srv_flush_log_at_trx_commit == 1);
-
-	DBUG_RETURN(false);
-}
-
-/** Flush InnoDB redo logs to the file system.
-@param[in]	hton			InnoDB handlerton
-@param[in]	binlog_group_flush	true if we got invoked by binlog
-group commit during flush stage, false in other cases.
-@return false */
-static
-bool
-innobase_flush_logs(
-	handlerton*	hton)
-{
-	return innobase_flush_logs(hton, true);
+  if (!srv_read_only_mode && srv_flush_log_at_trx_commit)
+    /* Write any outstanding redo log. Durably if
+    innodb_flush_log_at_trx_commit=1. */
+    log_buffer_flush_to_disk(srv_flush_log_at_trx_commit == 1);
+  return false;
 }
 
 /************************************************************************//**
@@ -3710,11 +3664,6 @@ innodb_buffer_pool_size_update(
 	void*				var_ptr,
 	const void*			save);
 
-/* If the default value of innodb_buffer_pool_size is increased to be more than
-BUF_POOL_SIZE_THRESHOLD (srv/srv0start.cc), then srv_buf_pool_instances_default
-can be removed and 8 used instead. The problem with the current setup is that
-with 128MiB default buffer pool size and 8 instances by default we would emit
-a warning when no options are specified. */
 static MYSQL_SYSVAR_ULONGLONG(buffer_pool_size, innobase_buffer_pool_size,
   PLUGIN_VAR_RQCMDARG,
   "The size of the memory buffer InnoDB uses to cache data and indexes of its tables.",
@@ -3771,17 +3720,26 @@ static ulonglong innodb_prepare_commit_versioned(THD* thd, ulonglong *trx_id)
   return 0;
 }
 
-/** Initialize and normalize innodb_buffer_pool_size. */
+/** Initialize and normalize innodb_buffer_pool_{chunk_,}size. */
 static void innodb_buffer_pool_size_init()
 {
-	if (srv_buf_pool_chunk_unit > srv_buf_pool_size) {
-		/* Size unit of buffer pool is larger than srv_buf_pool_size.
-		adjust srv_buf_pool_chunk_unit for srv_buf_pool_size. */
-		srv_buf_pool_chunk_unit = ulong(srv_buf_pool_size);
-	}
+  if (srv_buf_pool_chunk_unit > srv_buf_pool_size)
+  {
+    /* Size unit of buffer pool is larger than srv_buf_pool_size.
+    adjust srv_buf_pool_chunk_unit for srv_buf_pool_size. */
+    srv_buf_pool_chunk_unit = srv_buf_pool_size;
+  }
+  else if (srv_buf_pool_chunk_unit == 0)
+  {
+    srv_buf_pool_chunk_unit = srv_buf_pool_size / 64;
+    my_large_page_truncate(&srv_buf_pool_chunk_unit);
+  }
 
-	srv_buf_pool_size = buf_pool_size_align(srv_buf_pool_size);
-	innobase_buffer_pool_size = srv_buf_pool_size;
+  if (srv_buf_pool_chunk_unit < buf_pool_chunk_min_size)
+    srv_buf_pool_chunk_unit = buf_pool_chunk_min_size;
+
+  srv_buf_pool_size = buf_pool_size_align(srv_buf_pool_size);
+  innobase_buffer_pool_size = srv_buf_pool_size;
 }
 
 
@@ -4007,23 +3965,6 @@ static int innodb_init_params()
 			srv_max_undo_log_size,
 			ulonglong(SRV_UNDO_TABLESPACE_SIZE_IN_PAGES)
 			<< srv_page_size_shift);
-	}
-
-	if (srv_log_write_ahead_size > srv_page_size) {
-		srv_log_write_ahead_size = srv_page_size;
-	} else {
-		ulong	srv_log_write_ahead_size_tmp = OS_FILE_LOG_BLOCK_SIZE;
-
-		while (srv_log_write_ahead_size_tmp
-		       < srv_log_write_ahead_size) {
-			srv_log_write_ahead_size_tmp
-				= srv_log_write_ahead_size_tmp * 2;
-		}
-		if (srv_log_write_ahead_size_tmp
-		    != srv_log_write_ahead_size) {
-			srv_log_write_ahead_size
-				= srv_log_write_ahead_size_tmp / 2;
-		}
 	}
 
 	srv_buf_pool_size = ulint(innobase_buffer_pool_size);
@@ -5510,6 +5451,11 @@ innobase_match_index_columns(
 		     key_part->field->real_type() == MYSQL_TYPE_SET) &&
 		    mtype == DATA_FIXBINARY) {
 			col_type= DATA_FIXBINARY;
+		}
+
+		if (innodb_idx_fld->descending
+		    != !!(key_part->key_part_flag & HA_REVERSE_SORT)) {
+			DBUG_RETURN(FALSE);
 		}
 
 		if (col_type != mtype) {
@@ -10936,7 +10882,9 @@ create_index(
 			}
 
 			dict_mem_index_add_field(index, field->field_name.str,
-						 0);
+						 0,
+						 key->key_part->key_part_flag
+						 & HA_REVERSE_SORT);
 		}
 
 		DBUG_RETURN(convert_error_code_to_mysql(
@@ -11030,7 +10978,9 @@ create_index(
 			index->type |= DICT_VIRTUAL;
 		}
 
-		dict_mem_index_add_field(index, field_name, prefix_len);
+		dict_mem_index_add_field(index, field_name, prefix_len,
+					 key_part->key_part_flag
+					 & HA_REVERSE_SORT);
 	}
 
 	ut_ad(key->flags & HA_FULLTEXT || !(index->type & DICT_FTS));
@@ -11594,6 +11544,8 @@ bool create_table_info_t::innobase_table_flags()
 
 		/* Do a pre-check on FTS DOC ID index */
 		if (!(key->flags & HA_NOSAME)
+		    || key->user_defined_key_parts != 1
+		    || (key->key_part[0].key_part_flag & HA_REVERSE_SORT)
 		    || strcmp(key->name.str, FTS_DOC_ID_INDEX_NAME)
 		    || strcmp(key->key_part[0].field->field_name.str,
 			      FTS_DOC_ID_COL_NAME)) {
@@ -16871,7 +16823,8 @@ ha_innobase::cmp_ref(
 		}
 
 		if (result) {
-
+			if (key_part->key_part_flag & HA_REVERSE_SORT)
+				result = -result;
 			return(result);
 		}
 
@@ -17420,12 +17373,12 @@ innodb_buffer_pool_size_update(THD*,st_mysql_sys_var*,void*, const void* save)
 
 	snprintf(export_vars.innodb_buffer_pool_resize_status,
 	        sizeof(export_vars.innodb_buffer_pool_resize_status),
-		"Requested to resize buffer pool.");
+		"Buffer pool resize requested");
 
 	buf_resize_start();
 
 	ib::info() << export_vars.innodb_buffer_pool_resize_status
-		<< " (new size: " << in_val << " bytes)";
+		<< " (New size: " << in_val << " bytes).";
 }
 
 /** The latest assigned innodb_ft_aux_table name */
@@ -18324,31 +18277,22 @@ static my_bool	innodb_buf_flush_list_now = TRUE;
 static uint	innodb_merge_threshold_set_all_debug
 	= DICT_INDEX_MERGE_THRESHOLD_DEFAULT;
 
-/****************************************************************//**
-Force innodb to checkpoint. */
+/** Force an InnoDB log checkpoint. */
 static
 void
-checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
+checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void *save)
 {
-	if (*(my_bool*) save) {
-		mysql_mutex_unlock(&LOCK_global_system_variables);
+  if (!*static_cast<const my_bool*>(save))
+    return;
+  const auto size= log_sys.is_encrypted()
+    ? SIZE_OF_FILE_CHECKPOINT + 8 : SIZE_OF_FILE_CHECKPOINT;
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  lsn_t lsn;
+  while (log_sys.last_checkpoint_lsn.load(std::memory_order_acquire) + size <
+         (lsn= log_sys.get_lsn(std::memory_order_acquire)))
+    log_make_checkpoint();
 
-		lsn_t lsn;
-
-		while (log_sys.last_checkpoint_lsn.load(
-			       std::memory_order_acquire)
-		       + SIZE_OF_FILE_CHECKPOINT
-		       < (lsn= log_sys.get_lsn(std::memory_order_acquire))) {
-			log_make_checkpoint();
-			log_sys.log.flush();
-		}
-
-		if (dberr_t err = fil_write_flushed_lsn(lsn)) {
-			ib::warn() << "Checkpoint set failed " << err;
-		}
-
-		mysql_mutex_lock(&LOCK_global_system_variables);
-	}
+  mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 /****************************************************************//**
@@ -18493,51 +18437,6 @@ buffer_pool_load_abort(
 		buf_load_abort();
 		mysql_mutex_lock(&LOCK_global_system_variables);
 	}
-}
-
-/****************************************************************//**
-Update the system variable innodb_log_write_ahead_size using the "saved"
-value. This function is registered as a callback with MySQL. */
-static
-void
-innodb_log_write_ahead_size_update(
-/*===============================*/
-	THD*				thd,	/*!< in: thread handle */
-	st_mysql_sys_var*, void*,
-	const void*			save)	/*!< in: immediate result
-						from check function */
-{
-	ulong	val = OS_FILE_LOG_BLOCK_SIZE;
-	ulong	in_val = *static_cast<const ulong*>(save);
-
-	while (val < in_val) {
-		val = val * 2;
-	}
-
-	if (val > srv_page_size) {
-		val = srv_page_size;
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    ER_WRONG_ARGUMENTS,
-				    "innodb_log_write_ahead_size cannot"
-				    " be set higher than innodb_page_size.");
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    ER_WRONG_ARGUMENTS,
-				    "Setting innodb_log_write_ahead_size"
-				    " to %lu",
-				    srv_page_size);
-	} else if (val != in_val) {
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    ER_WRONG_ARGUMENTS,
-				    "innodb_log_write_ahead_size should be"
-				    " set 2^n value and larger than 512.");
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    ER_WRONG_ARGUMENTS,
-				    "Setting innodb_log_write_ahead_size"
-				    " to %lu",
-				    val);
-	}
-
-	srv_log_write_ahead_size = val;
 }
 
 /** Update innodb_status_output or innodb_status_output_locks,
@@ -18773,7 +18672,7 @@ innobase_wsrep_set_checkpoint(
 	if (wsrep_is_wsrep_xid(xid)) {
 
 		trx_rseg_update_wsrep_checkpoint(xid);
-		innobase_flush_logs(hton, false);
+		log_buffer_flush_to_disk(srv_flush_log_at_trx_commit == 1);
 		return 0;
 	} else {
 		return 1;
@@ -19091,13 +18990,13 @@ static MYSQL_SYSVAR_UINT(autoextend_increment,
   "Data file autoextend increment in megabytes",
   NULL, NULL, 64, 1, 1000, 0);
 
-static MYSQL_SYSVAR_ULONG(buffer_pool_chunk_size, srv_buf_pool_chunk_unit,
+static MYSQL_SYSVAR_SIZE_T(buffer_pool_chunk_size, srv_buf_pool_chunk_unit,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Size of a single memory chunk"
-  " for resizing buffer pool. Online buffer pool resizing happens"
-  " at this granularity. 0 means disable resizing buffer pool.",
+  " for resizing buffer pool. Online buffer pool resizing happens at this"
+  " granularity. 0 means autosize this variable based on buffer pool size.",
   NULL, NULL,
-  128 * 1024 * 1024, 1024 * 1024, LONG_MAX, 1024 * 1024);
+  0, 0, SIZE_T_MAX, 1024 * 1024);
 
 static MYSQL_SYSVAR_STR(buffer_pool_filename, srv_buf_dump_filename,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
@@ -19323,23 +19222,15 @@ static MYSQL_SYSVAR_ULONG(page_size, srv_page_size,
   NULL, NULL, UNIV_PAGE_SIZE_DEF,
   UNIV_PAGE_SIZE_MIN, UNIV_PAGE_SIZE_MAX, 0);
 
-static MYSQL_SYSVAR_ULONG(log_buffer_size, srv_log_buffer_size,
+static MYSQL_SYSVAR_SIZE_T(log_buffer_size, log_sys.buf_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "The size of the buffer which InnoDB uses to write log to the log files on disk.",
-  NULL, NULL, 16L << 20, 256L << 10, LONG_MAX, 1024);
+  "Redo log buffer size in bytes.",
+  NULL, NULL, 16U << 20, 2U << 20, SIZE_T_MAX, 4096);
 
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Size of each log file in a log group.",
-  NULL, NULL, 96 << 20, 1 << 20, std::numeric_limits<ulonglong>::max(),
-  UNIV_PAGE_SIZE_MAX);
-
-static MYSQL_SYSVAR_ULONG(log_write_ahead_size, srv_log_write_ahead_size,
-  PLUGIN_VAR_RQCMDARG,
-  "Redo log write ahead unit size to avoid read-on-write,"
-  " it should match the OS cache block IO size",
-  NULL, innodb_log_write_ahead_size_update,
-  8*1024L, OS_FILE_LOG_BLOCK_SIZE, UNIV_PAGE_SIZE_DEF, OS_FILE_LOG_BLOCK_SIZE);
+  "Redo log size in bytes.",
+  NULL, NULL, 96 << 20, 4 << 20, std::numeric_limits<ulonglong>::max(), 4096);
 
 static MYSQL_SYSVAR_UINT(old_blocks_pct, innobase_old_blocks_pct,
   PLUGIN_VAR_RQCMDARG,
@@ -19815,7 +19706,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(page_size),
   MYSQL_SYSVAR(log_buffer_size),
   MYSQL_SYSVAR(log_file_size),
-  MYSQL_SYSVAR(log_write_ahead_size),
   MYSQL_SYSVAR(log_group_home_dir),
   MYSQL_SYSVAR(max_dirty_pages_pct),
   MYSQL_SYSVAR(max_dirty_pages_pct_lwm),
@@ -20922,7 +20812,7 @@ innodb_buffer_pool_size_validate(
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
 				    "innodb_buffer_pool_size must be at least"
-				    " innodb_buffer_pool_chunk_size=%lu",
+				    " innodb_buffer_pool_chunk_size=%zu",
 				    srv_buf_pool_chunk_unit);
 		/* nothing to do */
 		return(0);
@@ -21267,12 +21157,12 @@ ulint
 buf_pool_size_align(
 	ulint	size)
 {
-  const ulong	m = srv_buf_pool_chunk_unit;
-  size = ut_max((size_t) size, (size_t) MYSQL_SYSVAR_NAME(buffer_pool_size).min_val);
+  const size_t m = srv_buf_pool_chunk_unit;
+  size = ut_max(size, (size_t) MYSQL_SYSVAR_NAME(buffer_pool_size).min_val);
 
   if (size % m == 0) {
     return(size);
   } else {
-    return (ulint)((size / m + 1) * m);
+    return (size / m + 1) * m;
   }
 }

@@ -1,0 +1,33 @@
+#
+# Start Alter with Legacy Replication
+#
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/master-slave.inc
+
+--connection master
+--let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
+set global binlog_alter_two_phase = ON;
+set binlog_alter_two_phase = ON;
+--connection slave
+--let $gtid_strict_mode= `select @@gtid_strict_mode`
+set global gtid_strict_mode=1;
+
+--echo # Legacy Master Slave
+--let $domain_1=0
+--let $domain_2=0
+--let $M_port= $MASTER_MYPORT
+--let $S_port= $SLAVE_MYPORT
+--let $sync_slave=1
+
+--source include/start_alter_include.inc
+--connection master
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--eval set global gtid_strict_mode = $gtid_strict_mode;
+
+--connection master
+--eval set global binlog_alter_two_phase=$binlog_alter_two_phase;
+--source include/rpl_end.inc

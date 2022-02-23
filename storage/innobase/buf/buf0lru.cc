@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -460,9 +460,7 @@ not_found:
 			<< flush_failures << " failed attempts to"
 			" flush a page!"
 			" Consider increasing innodb_buffer_pool_size."
-			" Pending flushes (fsync) log: "
-			<< log_sys.get_pending_flushes()
-			<< "; buffer pool: "
+			" Pending flushes (fsync): "
 			<< fil_n_pending_tablespace_flushes
 			<< ". " << os_n_file_reads << " OS file reads, "
 			<< os_n_file_writes << " OS file writes, "

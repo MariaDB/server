@@ -91,6 +91,7 @@ C_MODE_START
   On AARCH64, we use the generic timer base register. We override clang
   implementation for aarch64 as it access a PMU register which is not
   guarenteed to be active.
+  On RISC-V, we use the rdcycle instruction to read from mcycle register.
 
   Sadly, we have nothing for the Digital Alpha, MIPS, Motorola m68k,
   HP PA-RISC or other non-mainstream (or obsolete) processors.
@@ -109,6 +110,9 @@ C_MODE_START
 
   ARM notes
   ---------
+  Userspace high precision timing on CNTVCT_EL0 requires that CNTKCTL_EL1
+  is set to 1 for each CPU in privileged mode.
+
   During tests on ARMv7 Debian, perf_even_open() based cycle counter provided
   too low frequency with too high overhead:
   MariaDB [performance_schema]> SELECT * FROM performance_timers;
@@ -175,6 +179,28 @@ static inline ulonglong my_timer_cycles(void)
     __asm __volatile("mrs	%0, CNTVCT_EL0" : "=&r" (result));
     return result;
   }
+#elif defined(__riscv)
+  /* Use RDCYCLE (and RDCYCLEH on riscv32) */
+  {
+# if __riscv_xlen == 32
+    ulong result_lo, result_hi0, result_hi1;
+    /* Implemented in assembly because Clang insisted on branching. */
+    __asm __volatile__(
+        "rdcycleh %0\n"
+        "rdcycle %1\n"
+        "rdcycleh %2\n"
+        "sub %0, %0, %2\n"
+        "seqz %0, %0\n"
+        "sub %0, zero, %0\n"
+        "and %1, %1, %0\n"
+        : "=r"(result_hi0), "=r"(result_lo), "=r"(result_hi1));
+    return (static_cast<ulonglong>(result_hi1) << 32) | result_lo;
+# else
+    ulonglong result;
+    __asm __volatile__("rdcycle %0" : "=r"(result));
+    return result;
+  }
+# endif
 #elif defined(HAVE_SYS_TIMES_H) && defined(HAVE_GETHRTIME)
   /* gethrtime may appear as either cycle or nanosecond counter */
   return (ulonglong) gethrtime();
@@ -233,6 +259,7 @@ C_MODE_END
 #define MY_TIMER_ROUTINE_GETSYSTEMTIMEASFILETIME 26
 #define MY_TIMER_ROUTINE_ASM_S390                28
 #define MY_TIMER_ROUTINE_AARCH64                 29
+#define MY_TIMER_ROUTINE_RISCV                   30
 
 #endif
 

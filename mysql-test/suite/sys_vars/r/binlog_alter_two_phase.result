@@ -1,0 +1,53 @@
+set binlog_alter_two_phase = OFF;
+select @@binlog_alter_two_phase;
+@@binlog_alter_two_phase
+0
+set binlog_alter_two_phase = ON;
+select @@binlog_alter_two_phase;
+@@binlog_alter_two_phase
+1
+# wrong value
+set binlog_alter_two_phase=BINLOG_OY;
+ERROR 42000: Variable 'binlog_alter_two_phase' can't be set to the value of 'BINLOG_OY'
+select @@binlog_alter_two_phase;
+@@binlog_alter_two_phase
+1
+#true and false
+set binlog_alter_two_phase=false;
+select @@binlog_alter_two_phase;
+@@binlog_alter_two_phase
+0
+set binlog_alter_two_phase=true;
+select @@binlog_alter_two_phase;
+@@binlog_alter_two_phase
+1
+set binlog_alter_two_phase=0;
+select @@binlog_alter_two_phase;
+@@binlog_alter_two_phase
+0
+set binlog_alter_two_phase=1;
+select @@binlog_alter_two_phase;
+@@binlog_alter_two_phase
+1
+##wrong value
+set binlog_alter_two_phase=2;
+ERROR 42000: Variable 'binlog_alter_two_phase' can't be set to the value of '2'
+select @@binlog_alter_two_phase;
+@@binlog_alter_two_phase
+1
+#Global value
+set global binlog_alter_two_phase = OFF;
+connect  con1,localhost,root,,;
+select @@binlog_alter_two_phase;
+@@binlog_alter_two_phase
+0
+disconnect con1;
+connection default;
+set global binlog_alter_two_phase = ON;
+connect  con1,localhost,root,,;
+select @@binlog_alter_two_phase;
+@@binlog_alter_two_phase
+1
+disconnect con1;
+connection default;
+set global binlog_alter_two_phase=0;

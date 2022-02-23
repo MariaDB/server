@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -477,8 +477,7 @@ void fsp_apply_init_file_page(buf_block_t *block)
   const page_id_t id(block->page.id());
 
   mach_write_to_4(block->page.frame + FIL_PAGE_OFFSET, id.page_no());
-  if (log_sys.is_physical())
-    memset_aligned<8>(block->page.frame + FIL_PAGE_PREV, 0xff, 8);
+  memset_aligned<8>(block->page.frame + FIL_PAGE_PREV, 0xff, 8);
   mach_write_to_4(block->page.frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,
                   id.space());
   if (page_zip_des_t* page_zip= buf_block_get_page_zip(block))
@@ -488,8 +487,7 @@ void fsp_apply_init_file_page(buf_block_t *block)
     static_assert(FIL_PAGE_OFFSET == 4, "compatibility");
     memcpy_aligned<4>(page_zip->data + FIL_PAGE_OFFSET,
                       block->page.frame + FIL_PAGE_OFFSET, 4);
-    if (log_sys.is_physical())
-      memset_aligned<8>(page_zip->data + FIL_PAGE_PREV, 0xff, 8);
+    memset_aligned<8>(page_zip->data + FIL_PAGE_PREV, 0xff, 8);
     static_assert(FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID % 4 == 2,
                   "not perfect alignment");
     memcpy_aligned<2>(page_zip->data + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID,

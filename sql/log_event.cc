@@ -1375,6 +1375,7 @@ code_name(int code)
   case Q_MASTER_DATA_WRITTEN_CODE: return "Q_MASTER_DATA_WRITTEN_CODE";
   case Q_HRNOW: return "Q_HRNOW";
   case Q_XID: return "XID";
+  case Q_GTID_FLAGS3: return "Q_GTID_FLAGS3";
   }
   sprintf(buf, "CODE#%d", code);
   return buf;
@@ -1423,7 +1424,8 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
    flags2_inited(0), sql_mode_inited(0), charset_inited(0), flags2(0),
    auto_increment_increment(1), auto_increment_offset(1),
    time_zone_len(0), lc_time_names_number(0), charset_database_number(0),
-   table_map_for_update(0), xid(0), master_data_written(0)
+   table_map_for_update(0), xid(0), master_data_written(0), gtid_flags_extra(0),
+   sa_seq_no(0)
 {
   ulong data_len;
   uint32 tmp;
@@ -1439,28 +1441,28 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
   post_header_len= description_event->post_header_len[event_type-1];
   DBUG_PRINT("info",("event_len: %u  common_header_len: %d  post_header_len: %d",
                      event_len, common_header_len, post_header_len));
-  
+
   /*
     We test if the event's length is sensible, and if so we compute data_len.
     We cannot rely on QUERY_HEADER_LEN here as it would not be format-tolerant.
     We use QUERY_HEADER_MINIMAL_LEN which is the same for 3.23, 4.0 & 5.0.
   */
   if (event_len < (uint)(common_header_len + post_header_len))
-    DBUG_VOID_RETURN;				
+    DBUG_VOID_RETURN;
   data_len= event_len - (common_header_len + post_header_len);
   buf+= common_header_len;
-  
-  thread_id= slave_proxy_id= uint4korr(buf + Q_THREAD_ID_OFFSET);
-  exec_time= uint4korr(buf + Q_EXEC_TIME_OFFSET);
-  db_len= buf[Q_DB_LEN_OFFSET]; // TODO: add a check of all *_len vars
-  error_code= uint2korr(buf + Q_ERR_CODE_OFFSET);
+
+  thread_id = slave_proxy_id = uint4korr(buf + Q_THREAD_ID_OFFSET);
+  exec_time = uint4korr(buf + Q_EXEC_TIME_OFFSET);
+  db_len = (uchar)buf[Q_DB_LEN_OFFSET]; // TODO: add a check of all *_len vars
+  error_code = uint2korr(buf + Q_ERR_CODE_OFFSET);
 
   /*
     5.0 format starts here.
     Depending on the format, we may or not have affected/warnings etc
     The remnent post-header to be parsed has length:
   */
-  tmp= post_header_len - QUERY_HEADER_MINIMAL_LEN; 
+  tmp= post_header_len - QUERY_HEADER_MINIMAL_LEN;
   if (tmp)
   {
     status_vars_len= uint2korr(buf + Q_STATUS_VARS_LEN_OFFSET);
@@ -1607,11 +1609,24 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
       pos+= 3;
       break;
     }
-    case Q_XID:
+   case Q_XID:
     {
       CHECK_SPACE(pos, end, 8);
       xid= uint8korr(pos);
       pos+= 8;
+      break;
+    }
+    case Q_GTID_FLAGS3:
+    {
+      CHECK_SPACE(pos, end, 1);
+      gtid_flags_extra= *pos++;
+      if (gtid_flags_extra & (Gtid_log_event::FL_COMMIT_ALTER_E1 |
+                              Gtid_log_event::FL_ROLLBACK_ALTER_E1))
+      {
+        CHECK_SPACE(pos, end, 8);
+        sa_seq_no = uint8korr(pos);
+        pos+= 8;
+      }
       break;
     }
     default:
@@ -2609,13 +2624,18 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
       extra engines flags presence is identifed by non-zero byte value
       at this point
     */
-    if (flags_extra & FL_EXTRA_MULTI_ENGINE)
+    if (flags_extra & FL_EXTRA_MULTI_ENGINE_E1)
     {
       DBUG_ASSERT(static_cast<uint>(buf - buf_0) < event_len);
 
       extra_engines= *buf++;
 
       DBUG_ASSERT(extra_engines > 0);
+    }
+    if (flags_extra & (FL_COMMIT_ALTER_E1 | FL_ROLLBACK_ALTER_E1))
+    {
+      sa_seq_no= uint8korr(buf);
+      buf+= 8;
     }
   }
   /*
@@ -2633,6 +2653,20 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
               buf_0[event_len - 1] == 0);
 }
 
+int compare_glle_gtids(const void * _gtid1, const void *_gtid2)
+{
+  rpl_gtid *gtid1= (rpl_gtid *) _gtid1;
+  rpl_gtid *gtid2= (rpl_gtid *) _gtid2;
+
+  int ret;
+  if (*gtid1 < *gtid2)
+    ret= -1;
+  else if (*gtid1 > *gtid2)
+    ret= 1;
+  else
+    ret= 0;
+  return ret;
+}
 
 /* GTID list. */
 

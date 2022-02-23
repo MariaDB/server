@@ -1403,18 +1403,24 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "t0.a"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "t0.a"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t0",
-          "access_type": "ALL",
-          "rows": 10,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t0",
+              "access_type": "ALL",
+              "rows": 10,
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -1434,18 +1440,24 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.a",
       "window_functions_computation": {
-        "sorts": {
-          "filesort": {
-            "sort_key": "sum(t1.b)"
+        "sorts": [
+          {
+            "filesort": {
+              "sort_key": "sum(t1.b)"
+            }
           }
-        },
+        ],
         "temporary_table": {
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 10,
-            "filtered": 100
-          }
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 10,
+                "filtered": 100
+              }
+            }
+          ]
         }
       }
     }
@@ -1463,18 +1475,24 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "sum(t1.b)"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "sum(t1.b)"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 10,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 10,
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -1497,18 +1515,24 @@ EXPLAIN
     "filesort": {
       "sort_key": "t1.b",
       "window_functions_computation": {
-        "sorts": {
-          "filesort": {
-            "sort_key": "t1.b"
+        "sorts": [
+          {
+            "filesort": {
+              "sort_key": "t1.b"
+            }
           }
-        },
+        ],
         "temporary_table": {
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 10,
-            "filtered": 100
-          }
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 10,
+                "filtered": 100
+              }
+            }
+          ]
         }
       }
     }
@@ -1642,18 +1666,24 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "t1.c, t1.a"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "t1.c, t1.a"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 3,
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -1668,18 +1698,24 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "t1.a"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "t1.a"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 3,
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -1694,18 +1730,24 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "t1.c, t1.a"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "t1.c, t1.a"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 3,
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -1720,18 +1762,24 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "t1.c, t1.a"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "t1.c, t1.a"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 3,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 3,
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -1776,18 +1824,24 @@ EXPLAIN
     "filesort": {
       "sort_key": "row_number() over ( order by t1.s1,t1.s2) desc",
       "window_functions_computation": {
-        "sorts": {
-          "filesort": {
-            "sort_key": "t1.s1, t1.s2"
+        "sorts": [
+          {
+            "filesort": {
+              "sort_key": "t1.s1, t1.s2"
+            }
           }
-        },
+        ],
         "temporary_table": {
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 6,
-            "filtered": 100
-          }
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 6,
+                "filtered": 100
+              }
+            }
+          ]
         }
       }
     }
@@ -1929,18 +1983,24 @@ EXPLAIN
     "select_id": 1,
     "duplicate_removal": {
       "window_functions_computation": {
-        "sorts": {
-          "filesort": {
-            "sort_key": "t1.part_id, t1.a"
+        "sorts": [
+          {
+            "filesort": {
+              "sort_key": "t1.part_id, t1.a"
+            }
           }
-        },
+        ],
         "temporary_table": {
-          "table": {
-            "table_name": "t1",
-            "access_type": "ALL",
-            "rows": 9,
-            "filtered": 100
-          }
+          "nested_loop": [
+            {
+              "table": {
+                "table_name": "t1",
+                "access_type": "ALL",
+                "rows": 9,
+                "filtered": 100
+              }
+            }
+          ]
         }
       }
     }
@@ -2102,18 +2162,24 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "t1.a, t1.pk"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "t1.a, t1.pk"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 11,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 11,
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -2163,18 +2229,24 @@ EXPLAIN
   "query_block": {
     "select_id": 1,
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "t1.a, t1.b"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "t1.a, t1.b"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "rows": 6,
-          "filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 6,
+              "filtered": 100
+            }
+          }
+        ]
       }
     }
   }
@@ -3755,29 +3827,35 @@ ANALYZE
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "`row_number() OVER()`",
-          "r_loops": 1,
-          "r_total_time_ms": "REPLACED",
-          "r_used_priority_queue": false,
-          "r_output_rows": 3,
-          "r_buffer_size": "REPLACED",
-          "r_sort_mode": "sort_key,rowid"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "`row_number() OVER()`",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 3,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "sort_key,rowid"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 3,
-          "r_rows": 3,
-          "r_table_time_ms": "REPLACED",
-          "r_other_time_ms": "REPLACED",
-          "filtered": 100,
-          "r_filtered": 100
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 3,
+              "r_rows": 3,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        ]
       }
     }
   }

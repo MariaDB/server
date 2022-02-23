@@ -1,0 +1,75 @@
+# Test crashing of master after writing start alter into binary log.
+#  And the doing the same alter again, to test on slave if that is successful
+#   ====>  SA Crash SA CA Case
+#
+--source include/have_log_bin.inc
+--source include/have_binlog_format_mixed.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+--source include/have_debug.inc
+
+--connection slave
+SET @old_debug_slave= @@global.debug;
+stop slave;
+--let $gtid_strict_mode= `select @@gtid_strict_mode`
+--let $slave_parallel_threads= `select @@slave_parallel_threads`
+--let $slave_parallel_mode= `select @@slave_parallel_mode`
+SET GLOBAL slave_parallel_threads=4;
+set global slave_parallel_mode=optimistic;
+set global gtid_strict_mode=1;
+start slave;
+
+--connection master
+call mtr.add_suppression("ALTER query started at .+ could not be completed");
+
+SET @old_debug_master= @@global.debug;
+--let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
+set binlog_alter_two_phase=true;
+create table t3( a int primary key, b int) engine=innodb;
+
+--connection master
+--sync_slave_with_master
+--source include/stop_slave.inc
+
+
+--connection master
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+SET SESSION debug_dbug="d,start_alter_kill_after_binlog";
+--error 2013
+alter table t3 add column d int;
+
+--let $rpl_server_number= 1
+--source include/rpl_reconnect.inc
+set binlog_alter_two_phase= true;
+alter table t3 add column d int;
+show create table t3;
+--source include/show_binlog_events.inc
+--let $binlog_file=master-bin.000002
+--source include/show_binlog_events.inc
+--let $binlog_file=
+
+--connection slave
+--source include/start_slave.inc
+
+--connection master
+--sync_slave_with_master
+--source include/show_binlog_events.inc
+show create table t3;
+
+
+--connection master
+SET GLOBAL debug_dbug= @old_debug_master;
+drop table t3;
+--eval set global binlog_alter_two_phase = $binlog_alter_two_phase
+
+--sync_slave_with_master
+SET GLOBAL debug_dbug= @old_debug_slave;
+stop slave;
+--eval set global slave_parallel_threads = $slave_parallel_threads;
+--eval set global slave_parallel_mode = $slave_parallel_mode;
+--eval set global gtid_strict_mode = $gtid_strict_mode;
+start slave;
+--connection master
+let MYSQLD_DATADIR= `select @@datadir;`;
+--remove_files_wildcard $MYSQLD_DATADIR/test #sql*.frm
+--source include/rpl_end.inc

@@ -989,6 +989,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       else
         compl_result_code= HA_ADMIN_FAILED;
 
+      if (table->table)
+        free_statistics_for_table(thd, table->table);
       if (compl_result_code)
         result_code= HA_ADMIN_FAILED;
       else

@@ -1,0 +1,497 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+stop slave;
+change master to master_use_gtid= current_pos;
+SET GLOBAL slave_parallel_threads=4;
+set global slave_parallel_mode=optimistic;
+set global gtid_strict_mode=1;
+start slave;
+connection master;
+set binlog_alter_two_phase=true;
+create table t1(a int , b int) engine=innodb;
+create table a1(a int , b int) engine=myisam;
+create temporary table tmp_tbl(a int, b int) engine=innodb;
+alter table t1 add column if not exists c int , force , algorithm=default;
+alter table t1 add column d int first, force , algorithm=default;
+alter table t1 add column e int after c, force , algorithm=default;
+alter table t1 add column f int after c, force , add column g int first ,add column  h char, algorithm=default;
+alter table t1 drop column c, drop column d, drop column e, drop column f, drop column g , drop column h, force , algorithm=default;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f int after b, force , add column g int first ,add column  h varchar(100), algorithm=default;
+alter table t1 add index if not exists index_1(f), force , algorithm=default;
+alter table t1 drop index index_1, force , algorithm=default;
+alter table t1 add unique key unique_1(g), force , algorithm=default;
+alter table t1 drop index unique_1, force , algorithm=default;
+alter table t1 add fulltext  key f_1(h), force , algorithm=default;
+alter table t1  drop column f, drop column g , force , algorithm=default;
+alter table t1 add primary key(h), force , algorithm=copy;
+alter table t1 drop primary key, force , algorithm=copy;
+alter table t1  drop column h, force , algorithm=copy;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b, add column g varchar(100) first ,add column  h char, force , algorithm=default;
+alter table t1 add period for system_time(f,h);
+alter table t1 add system versioning;
+alter table t1 drop system versioning;
+alter table t1  drop column f, drop column g , drop column h, force , algorithm=default;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=default ;;
+alter table t1 alter column f set default "****", force , algorithm=default ;;
+alter table t1 alter column f drop default, force , algorithm=default ;;
+alter table t1 change column g new_g char, force , algorithm=copy;;
+alter table t1 modify column h varchar(100), force , algorithm=copy;;
+alter table t1 drop column new_g ,drop column f, drop column h, force , algorithm=default ;;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=default;
+alter table t1 add index if not exists index_1(f), force , algorithm=default;
+alter table t1 disable keys, force , algorithm=copy;
+Warnings:
+Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
+alter table t1 enable keys, force , algorithm=copy;
+Warnings:
+Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
+alter table t1 rename t2, force , algorithm=default;
+alter table t2 rename t1, force , algorithm=default;
+alter table a1 order by a;
+alter table t1 rename column f to new_f, force , algorithm=copy;
+alter table t1 convert to character set 'utf8', force , algorithm=copy;
+alter table t1 default character set 'utf8', force , algorithm=copy;
+alter table t1 default collate 'utf8_icelandic_ci', force , algorithm=copy;
+alter table t1 drop column new_f ,drop column g, drop column h, force , algorithm=default;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=default;
+alter table t1  partition  by hash(b) partitions 8;
+alter table t1  remove partitioning;
+alter table t1 drop column f ,drop column g, drop column h, force , algorithm=default;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+connection master;
+drop table t1, a1;
+drop temporary table tmp_tbl;
+connection slave;
+include/stop_slave.inc
+set global slave_parallel_threads = 0;;
+set global slave_parallel_mode = optimistic;;
+set global gtid_strict_mode = 0;;
+include/start_slave.inc
+connection slave;
+stop slave;
+change master to master_use_gtid= current_pos;
+SET GLOBAL slave_parallel_threads=4;
+set global slave_parallel_mode=optimistic;
+set global gtid_strict_mode=1;
+start slave;
+connection master;
+set binlog_alter_two_phase=true;
+create table t1(a int , b int) engine=innodb;
+create table a1(a int , b int) engine=myisam;
+create temporary table tmp_tbl(a int, b int) engine=innodb;
+alter table t1 add column if not exists c int , force , algorithm=inplace;
+alter table t1 add column d int first, force , algorithm=inplace;
+alter table t1 add column e int after c, force , algorithm=inplace;
+alter table t1 add column f int after c, force , add column g int first ,add column  h char, algorithm=inplace;
+alter table t1 drop column c, drop column d, drop column e, drop column f, drop column g , drop column h, force , algorithm=inplace;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f int after b, force , add column g int first ,add column  h varchar(100), algorithm=inplace;
+alter table t1 add index if not exists index_1(f), force , algorithm=inplace;
+alter table t1 drop index index_1, force , algorithm=inplace;
+alter table t1 add unique key unique_1(g), force , algorithm=inplace;
+alter table t1 drop index unique_1, force , algorithm=inplace;
+alter table t1 add fulltext  key f_1(h), force , algorithm=inplace;
+alter table t1  drop column f, drop column g , force , algorithm=inplace;
+alter table t1 add primary key(h), force , algorithm=copy;
+alter table t1 drop primary key, force , algorithm=copy;
+alter table t1  drop column h, force , algorithm=copy;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b, add column g varchar(100) first ,add column  h char, force , algorithm=inplace;
+alter table t1 add period for system_time(f,h);
+alter table t1 add system versioning;
+alter table t1 drop system versioning;
+alter table t1  drop column f, drop column g , drop column h, force , algorithm=inplace;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=inplace ;;
+alter table t1 alter column f set default "****", force , algorithm=inplace ;;
+alter table t1 alter column f drop default, force , algorithm=inplace ;;
+alter table t1 change column g new_g char, force , algorithm=copy;;
+alter table t1 modify column h varchar(100), force , algorithm=copy;;
+alter table t1 drop column new_g ,drop column f, drop column h, force , algorithm=inplace ;;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=inplace;
+alter table t1 add index if not exists index_1(f), force , algorithm=inplace;
+alter table t1 disable keys, force , algorithm=copy;
+Warnings:
+Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
+alter table t1 enable keys, force , algorithm=copy;
+Warnings:
+Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
+alter table t1 rename t2, force , algorithm=inplace;
+alter table t2 rename t1, force , algorithm=inplace;
+alter table a1 order by a;
+alter table t1 rename column f to new_f, force , algorithm=copy;
+alter table t1 convert to character set 'utf8', force , algorithm=copy;
+alter table t1 default character set 'utf8', force , algorithm=copy;
+alter table t1 default collate 'utf8_icelandic_ci', force , algorithm=copy;
+alter table t1 drop column new_f ,drop column g, drop column h, force , algorithm=inplace;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=inplace;
+alter table t1  partition  by hash(b) partitions 8;
+alter table t1  remove partitioning;
+alter table t1 drop column f ,drop column g, drop column h, force , algorithm=inplace;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+connection master;
+drop table t1, a1;
+drop temporary table tmp_tbl;
+connection slave;
+include/stop_slave.inc
+set global slave_parallel_threads = 0;;
+set global slave_parallel_mode = optimistic;;
+set global gtid_strict_mode = 0;;
+include/start_slave.inc
+connection slave;
+stop slave;
+change master to master_use_gtid= current_pos;
+SET GLOBAL slave_parallel_threads=4;
+set global slave_parallel_mode=optimistic;
+set global gtid_strict_mode=1;
+start slave;
+connection master;
+set binlog_alter_two_phase=true;
+create table t1(a int , b int) engine=innodb;
+create table a1(a int , b int) engine=myisam;
+create temporary table tmp_tbl(a int, b int) engine=innodb;
+alter table t1 add column if not exists c int , force , algorithm=copy;
+alter table t1 add column d int first, force , algorithm=copy;
+alter table t1 add column e int after c, force , algorithm=copy;
+alter table t1 add column f int after c, force , add column g int first ,add column  h char, algorithm=copy;
+alter table t1 drop column c, drop column d, drop column e, drop column f, drop column g , drop column h, force , algorithm=copy;
+alter table tmp_tbl add column if not exists c int , force , algorithm=copy;
+alter table tmp_tbl add column d int first, force , algorithm=copy;
+alter table tmp_tbl add column e int after c, force , algorithm=copy;
+alter table tmp_tbl add column f int after c, force , add column g int first ,add column  h char, algorithm=copy;
+alter table tmp_tbl drop column c, drop column d, drop column e, drop column f, drop column g , drop column h, force , algorithm=copy;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f int after b, force , add column g int first ,add column  h varchar(100), algorithm=copy;
+alter table t1 add index if not exists index_1(f), force , algorithm=copy;
+alter table t1 drop index index_1, force , algorithm=copy;
+alter table t1 add unique key unique_1(g), force , algorithm=copy;
+alter table t1 drop index unique_1, force , algorithm=copy;
+alter table t1 add fulltext  key f_1(h), force , algorithm=copy;
+alter table t1  drop column f, drop column g , force , algorithm=copy;
+alter table tmp_tbl add column f int after b, force , add column g int first ,add column  h varchar(100), algorithm=copy;
+alter table tmp_tbl add index if not exists index_1(f), force , algorithm=copy;
+alter table tmp_tbl drop index index_1, force , algorithm=copy;
+alter table tmp_tbl add unique key unique_1(g), force , algorithm=copy;
+alter table tmp_tbl drop index unique_1, force , algorithm=copy;
+alter table tmp_tbl drop column f, drop column g , force , algorithm=copy;
+alter table t1 add primary key(h), force , algorithm=copy;
+alter table t1 drop primary key, force , algorithm=copy;
+alter table t1  drop column h, force , algorithm=copy;
+alter table tmp_tbl add primary key(h), force , algorithm=copy;
+alter table tmp_tbl drop primary key, force , algorithm=copy;
+alter table tmp_tbl  drop column h, force , algorithm=copy;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b, add column g varchar(100) first ,add column  h char, force , algorithm=copy;
+alter table t1 add period for system_time(f,h);
+alter table t1 add system versioning;
+alter table t1 drop system versioning;
+alter table t1  drop column f, drop column g , drop column h, force , algorithm=copy;
+# show binlog and clear status
+alter table tmp_tbl add column f varchar(100) after b, add column g varchar(100) first ,add column  h char, force , algorithm=copy;
+alter table tmp_tbl drop column f, drop column g , drop column h, force , algorithm=copy;
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=copy ;;
+alter table t1 alter column f set default "****", force , algorithm=copy ;;
+alter table t1 alter column f drop default, force , algorithm=copy ;;
+alter table t1 change column g new_g char, force , algorithm=copy;;
+alter table t1 modify column h varchar(100), force , algorithm=copy;;
+alter table t1 drop column new_g ,drop column f, drop column h, force , algorithm=copy ;;
+alter table tmp_tbl add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=copy ;;
+alter table tmp_tbl alter column f set default "****", force , algorithm=copy ;;
+alter table tmp_tbl alter column f drop default, force , algorithm=copy ;;
+alter table tmp_tbl change column g new_g char, force , algorithm=copy;;
+alter table tmp_tbl modify column h varchar(100), force , algorithm=copy;;
+alter table tmp_tbl drop column new_g ,drop column f, drop column h, force , algorithm=copy ;;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=copy;
+alter table t1 add index if not exists index_1(f), force , algorithm=copy;
+alter table t1 disable keys, force , algorithm=copy;
+Warnings:
+Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
+alter table t1 enable keys, force , algorithm=copy;
+Warnings:
+Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
+alter table t1 rename t2, force , algorithm=copy;
+alter table t2 rename t1, force , algorithm=copy;
+alter table a1 order by a;
+alter table t1 rename column f to new_f, force , algorithm=copy;
+alter table t1 convert to character set 'utf8', force , algorithm=copy;
+alter table t1 default character set 'utf8', force , algorithm=copy;
+alter table t1 default collate 'utf8_icelandic_ci', force , algorithm=copy;
+alter table t1 drop column new_f ,drop column g, drop column h, force , algorithm=copy;
+alter table tmp_tbl add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=copy;
+alter table tmp_tbl add index if not exists index_1(f), force , algorithm=copy;
+alter table tmp_tbl disable keys, force , algorithm=copy;
+Warnings:
+Note	1031	Storage engine InnoDB of the table `test`.`tmp_tbl` doesn't have this option
+alter table tmp_tbl enable keys, force , algorithm=copy;
+Warnings:
+Note	1031	Storage engine InnoDB of the table `test`.`tmp_tbl` doesn't have this option
+alter table a1 order by a;
+alter table tmp_tbl rename column f to new_f, force , algorithm=copy;
+alter table tmp_tbl convert to character set 'utf8', force , algorithm=copy;
+alter table tmp_tbl default character set 'utf8', force , algorithm=copy;
+alter table tmp_tbl default collate 'utf8_icelandic_ci', force , algorithm=copy;
+alter table tmp_tbl drop column new_f ,drop column g, drop column h, force , algorithm=copy;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=copy;
+alter table t1  partition  by hash(b) partitions 8;
+alter table t1  remove partitioning;
+alter table t1 drop column f ,drop column g, drop column h, force , algorithm=copy;
+alter table tmp_tbl add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=copy;
+alter table tmp_tbl drop column f ,drop column g, drop column h, force , algorithm=copy;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+connection master;
+drop table t1, a1;
+drop temporary table tmp_tbl;
+connection slave;
+include/stop_slave.inc
+set global slave_parallel_threads = 0;;
+set global slave_parallel_mode = optimistic;;
+set global gtid_strict_mode = 0;;
+include/start_slave.inc
+# Prove formal support for nocopy and instant
+connection slave;
+stop slave;
+change master to master_use_gtid= current_pos;
+SET GLOBAL slave_parallel_threads=4;
+set global slave_parallel_mode=optimistic;
+set global gtid_strict_mode=1;
+start slave;
+connection master;
+set binlog_alter_two_phase=true;
+create table t1(a int , b int) engine=innodb;
+create table a1(a int , b int) engine=myisam;
+create temporary table tmp_tbl(a int, b int) engine=innodb;
+alter table t1 add column if not exists c int , force , algorithm=instant;
+alter table t1 add column d int first, force , algorithm=instant;
+alter table t1 add column e int after c, force , algorithm=instant;
+alter table t1 add column f int after c, force , add column g int first ,add column  h char, algorithm=instant;
+alter table t1 drop column c, drop column d, drop column e, drop column f, drop column g , drop column h, force , algorithm=instant;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f int after b, force , add column g int first ,add column  h varchar(100), algorithm=instant;
+alter table t1 add index if not exists index_1(f), force , algorithm=instant;
+alter table t1 drop index index_1, force , algorithm=instant;
+alter table t1 add unique key unique_1(g), force , algorithm=instant;
+alter table t1 drop index unique_1, force , algorithm=instant;
+alter table t1 add fulltext  key f_1(h), force , algorithm=instant;
+alter table t1  drop column f, drop column g , force , algorithm=instant;
+alter table t1 add primary key(h), force , algorithm=copy;
+alter table t1 drop primary key, force , algorithm=copy;
+alter table t1  drop column h, force , algorithm=copy;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b, add column g varchar(100) first ,add column  h char, force , algorithm=instant;
+alter table t1 add period for system_time(f,h);
+alter table t1 add system versioning;
+alter table t1 drop system versioning;
+alter table t1  drop column f, drop column g , drop column h, force , algorithm=instant;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=instant ;;
+alter table t1 alter column f set default "****", force , algorithm=instant ;;
+alter table t1 alter column f drop default, force , algorithm=instant ;;
+alter table t1 change column g new_g char, force , algorithm=copy;;
+alter table t1 modify column h varchar(100), force , algorithm=copy;;
+alter table t1 drop column new_g ,drop column f, drop column h, force , algorithm=instant ;;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=instant;
+alter table t1 add index if not exists index_1(f), force , algorithm=instant;
+alter table t1 disable keys, force , algorithm=copy;
+Warnings:
+Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
+alter table t1 enable keys, force , algorithm=copy;
+Warnings:
+Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
+alter table t1 rename t2, force , algorithm=instant;
+alter table t2 rename t1, force , algorithm=instant;
+alter table a1 order by a;
+alter table t1 rename column f to new_f, force , algorithm=copy;
+alter table t1 convert to character set 'utf8', force , algorithm=copy;
+alter table t1 default character set 'utf8', force , algorithm=copy;
+alter table t1 default collate 'utf8_icelandic_ci', force , algorithm=copy;
+alter table t1 drop column new_f ,drop column g, drop column h, force , algorithm=instant;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=instant;
+alter table t1  partition  by hash(b) partitions 8;
+alter table t1  remove partitioning;
+alter table t1 drop column f ,drop column g, drop column h, force , algorithm=instant;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+connection master;
+drop table t1, a1;
+drop temporary table tmp_tbl;
+connection slave;
+include/stop_slave.inc
+set global slave_parallel_threads = 0;;
+set global slave_parallel_mode = optimistic;;
+set global gtid_strict_mode = 0;;
+include/start_slave.inc
+connection slave;
+stop slave;
+change master to master_use_gtid= current_pos;
+SET GLOBAL slave_parallel_threads=4;
+set global slave_parallel_mode=optimistic;
+set global gtid_strict_mode=1;
+start slave;
+connection master;
+set binlog_alter_two_phase=true;
+create table t1(a int , b int) engine=innodb;
+create table a1(a int , b int) engine=myisam;
+create temporary table tmp_tbl(a int, b int) engine=innodb;
+alter table t1 add column if not exists c int , force , algorithm=nocopy;
+alter table t1 add column d int first, force , algorithm=nocopy;
+alter table t1 add column e int after c, force , algorithm=nocopy;
+alter table t1 add column f int after c, force , add column g int first ,add column  h char, algorithm=nocopy;
+alter table t1 drop column c, drop column d, drop column e, drop column f, drop column g , drop column h, force , algorithm=nocopy;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f int after b, force , add column g int first ,add column  h varchar(100), algorithm=nocopy;
+alter table t1 add index if not exists index_1(f), force , algorithm=nocopy;
+alter table t1 drop index index_1, force , algorithm=nocopy;
+alter table t1 add unique key unique_1(g), force , algorithm=nocopy;
+alter table t1 drop index unique_1, force , algorithm=nocopy;
+alter table t1 add fulltext  key f_1(h), force , algorithm=nocopy;
+alter table t1  drop column f, drop column g , force , algorithm=nocopy;
+alter table t1 add primary key(h), force , algorithm=copy;
+alter table t1 drop primary key, force , algorithm=copy;
+alter table t1  drop column h, force , algorithm=copy;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b, add column g varchar(100) first ,add column  h char, force , algorithm=nocopy;
+alter table t1 add period for system_time(f,h);
+alter table t1 add system versioning;
+alter table t1 drop system versioning;
+alter table t1  drop column f, drop column g , drop column h, force , algorithm=nocopy;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=nocopy ;;
+alter table t1 alter column f set default "****", force , algorithm=nocopy ;;
+alter table t1 alter column f drop default, force , algorithm=nocopy ;;
+alter table t1 change column g new_g char, force , algorithm=copy;;
+alter table t1 modify column h varchar(100), force , algorithm=copy;;
+alter table t1 drop column new_g ,drop column f, drop column h, force , algorithm=nocopy ;;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=nocopy;
+alter table t1 add index if not exists index_1(f), force , algorithm=nocopy;
+alter table t1 disable keys, force , algorithm=copy;
+Warnings:
+Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
+alter table t1 enable keys, force , algorithm=copy;
+Warnings:
+Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this option
+alter table t1 rename t2, force , algorithm=nocopy;
+alter table t2 rename t1, force , algorithm=nocopy;
+alter table a1 order by a;
+alter table t1 rename column f to new_f, force , algorithm=copy;
+alter table t1 convert to character set 'utf8', force , algorithm=copy;
+alter table t1 default character set 'utf8', force , algorithm=copy;
+alter table t1 default collate 'utf8_icelandic_ci', force , algorithm=copy;
+alter table t1 drop column new_f ,drop column g, drop column h, force , algorithm=nocopy;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+alter table t1 add column f varchar(100) after b,add column g varchar(100) first ,add column  h char, force , algorithm=nocopy;
+alter table t1  partition  by hash(b) partitions 8;
+alter table t1  remove partitioning;
+alter table t1 drop column f ,drop column g, drop column h, force , algorithm=nocopy;
+# show binlog and clear status
+connection slave;
+reset master;
+connection master;
+connection master;
+drop table t1, a1;
+drop temporary table tmp_tbl;
+connection slave;
+include/stop_slave.inc
+set global slave_parallel_threads = 0;;
+set global slave_parallel_mode = optimistic;;
+set global gtid_strict_mode = 0;;
+include/start_slave.inc
+include/rpl_end.inc

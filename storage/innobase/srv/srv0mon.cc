@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -663,24 +663,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_OS_LOG_WRITTEN},
 
-	{"os_log_fsyncs", "os",
-	 "Number of fsync log writes (innodb_os_log_fsyncs)",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_OS_LOG_FSYNC},
-
-	{"os_log_pending_fsyncs", "os",
-	 "Number of pending fsync write (innodb_os_log_pending_fsyncs)",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_OS_LOG_PENDING_FSYNC},
-
-	{"os_log_pending_writes", "os",
-	 "Number of pending log file writes (innodb_os_log_pending_writes)",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_OS_LOG_PENDING_WRITES},
-
 	/* ========== Counters for Transaction Module ========== */
 	{"module_trx", "transaction", "Transaction Manager",
 	 MONITOR_MODULE,
@@ -781,8 +763,9 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_DEFAULT_START, MONITOR_MODULE_RECOVERY},
 
 	{"log_checkpoints", "recovery", "Number of checkpoints",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_NUM_CHECKPOINT},
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_CHECKPOINTS},
 
 	{"log_lsn_last_flush", "recovery", "LSN of Last flush",
 	 static_cast<monitor_type_t>(
@@ -817,21 +800,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_MAX_AGE_ASYNC},
 
-	{"log_pending_log_flushes", "recovery", "Pending log flushes",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
-	 MONITOR_DEFAULT_START, MONITOR_PENDING_LOG_FLUSH},
-
-	{"log_pending_checkpoint_writes", "recovery", "Pending checkpoints",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
-	 MONITOR_DEFAULT_START, MONITOR_PENDING_CHECKPOINT_WRITE},
-
-	{"log_num_log_io", "recovery", "Number of log I/Os",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
-	 MONITOR_DEFAULT_START, MONITOR_LOG_IO},
-
 	{"log_waits", "recovery",
 	 "Number of log waits due to small log buffer (innodb_log_waits)",
 	 static_cast<monitor_type_t>(
@@ -849,12 +817,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 static_cast<monitor_type_t>(
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_LOG_WRITES},
-
-	{"log_padded", "recovery",
-	 "Bytes of log padded for log write ahead",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_LOG_PADDED},
 
 	/* ========== Counters for Page Compression ========== */
 	{"module_compress", "compression", "Page Compression Info",
@@ -1404,6 +1366,7 @@ corresponding monitors are turned on/off/reset, and do appropriate
 mathematics to deduct the actual value. Please also refer to
 srv_export_innodb_status() for related global counters used by
 the existing status variables.*/
+TPOOL_SUPPRESS_TSAN
 void
 srv_mon_process_existing_counter(
 /*=============================*/
@@ -1438,7 +1401,7 @@ srv_mon_process_existing_counter(
 	/* innodb_buffer_pool_write_requests, the number of
 	write request */
 	case MONITOR_OVLD_BUF_POOL_WRITE_REQUEST:
-		value = srv_stats.buf_pool_write_requests;
+		value = buf_pool.flush_list_requests;
 		break;
 
 	/* innodb_buffer_pool_wait_free */
@@ -1565,43 +1528,22 @@ srv_mon_process_existing_counter(
 
 	/* innodb_os_log_written */
 	case MONITOR_OVLD_OS_LOG_WRITTEN:
-		value = (mon_type_t) srv_stats.os_log_written;
-		break;
-
-	/* innodb_os_log_fsyncs */
-	case MONITOR_OVLD_OS_LOG_FSYNC:
-		value = log_sys.get_flushes();
-		break;
-
-	/* innodb_os_log_pending_fsyncs */
-	case MONITOR_OVLD_OS_LOG_PENDING_FSYNC:
-		value = log_sys.get_pending_flushes();
-		update_min = TRUE;
-		break;
-
-	/* innodb_os_log_pending_writes */
-	case MONITOR_OVLD_OS_LOG_PENDING_WRITES:
-		value = srv_stats.os_log_pending_writes;
-		update_min = TRUE;
+		value = log_sys.get_lsn() - recv_sys.lsn;
 		break;
 
 	/* innodb_log_waits */
 	case MONITOR_OVLD_LOG_WAITS:
-		value = srv_stats.log_waits;
+		value = log_sys.waits;
 		break;
 
 	/* innodb_log_write_requests */
 	case MONITOR_OVLD_LOG_WRITE_REQUEST:
-		value = srv_stats.log_write_requests;
+		value = log_sys.write_to_buf;
 		break;
 
 	/* innodb_log_writes */
 	case MONITOR_OVLD_LOG_WRITES:
-		value = srv_stats.log_writes;
-		break;
-
-	case MONITOR_OVLD_LOG_PADDED:
-		value = srv_stats.log_padded;
+		value = log_sys.write_to_log;
 		break;
 
 	/* innodb_dblwr_writes */
@@ -1759,29 +1701,15 @@ srv_mon_process_existing_counter(
 		value = log_sys.get_lsn();
 		break;
 
-	case MONITOR_PENDING_LOG_FLUSH:
-		value = static_cast<mon_type_t>(log_sys.pending_flushes);
-
-		break;
-
-	case MONITOR_PENDING_CHECKPOINT_WRITE:
-		mysql_mutex_lock(&log_sys.mutex);
-		value = static_cast<mon_type_t>(
-		    log_sys.n_pending_checkpoint_writes);
-		mysql_mutex_unlock(&log_sys.mutex);
-		break;
-
-	case MONITOR_LOG_IO:
-		mysql_mutex_lock(&log_sys.mutex);
-		value = static_cast<mon_type_t>(log_sys.n_log_ios);
-		mysql_mutex_unlock(&log_sys.mutex);
+        case MONITOR_OVLD_CHECKPOINTS:
+		value = log_sys.next_checkpoint_no;
 		break;
 
 	case MONITOR_LSN_CHECKPOINT_AGE:
-		mysql_mutex_lock(&log_sys.mutex);
+		log_sys.latch.rd_lock(SRW_LOCK_CALL);
 		value = static_cast<mon_type_t>(log_sys.get_lsn()
 						- log_sys.last_checkpoint_lsn);
-		mysql_mutex_unlock(&log_sys.mutex);
+		log_sys.latch.rd_unlock();
 		break;
 
 	case MONITOR_OVLD_BUF_OLDEST_LSN:

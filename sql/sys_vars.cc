@@ -2409,6 +2409,12 @@ static Sys_var_bit Sys_skip_parallel_replication(
        SESSION_ONLY(option_bits), NO_CMD_LINE, OPTION_RPL_SKIP_PARALLEL,
        DEFAULT(FALSE));
 
+static Sys_var_mybool Sys_binlog_alter_two_phase(
+       "binlog_alter_two_phase",
+       "When set, split ALTER at binary logging into 2 statements: "
+       "START ALTER and COMMIT/ROLLBACK ALTER",
+       SESSION_VAR(binlog_alter_two_phase), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE));
 
 static bool
 check_gtid_ignore_duplicates(sys_var *self, THD *thd, set_var *var)
@@ -4929,7 +4935,9 @@ static Sys_var_mybool Sys_keep_files_on_create(
        "keep_files_on_create",
        "Don't overwrite stale .MYD and .MYI even if no directory is specified",
        SESSION_VAR(keep_files_on_create), CMD_LINE(OPT_ARG),
-       DEFAULT(FALSE));
+       DEFAULT(FALSE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(0),
+       DEPRECATED("")); // since 10.8.0
 
 static char *license;
 static Sys_var_charptr Sys_license(
@@ -5142,13 +5150,19 @@ static Sys_var_have Sys_have_symlink(
        "--skip-symbolic-links option.",
        READ_ONLY GLOBAL_VAR(have_symlink), NO_CMD_LINE);
 
-#if defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN)
+#if defined __SANITIZE_ADDRESS__ || defined WITH_UBSAN || __has_feature(memory_sanitizer)
 
-#ifdef __SANITIZE_ADDRESS__
-#define SANITIZER_MODE "ASAN"
-#else
-#define SANITIZER_MODE "UBSAN"
-#endif /* __SANITIZE_ADDRESS__ */
+# ifdef __SANITIZE_ADDRESS__
+#  ifdef WITH_UBSAN
+#   define SANITIZER_MODE "ASAN+UBSAN"
+#  else
+#   define SANITIZER_MODE "ASAN"
+#  endif
+# elif defined WITH_UBSAN
+#  define SANITIZER_MODE "UBSAN"
+# else
+#  define SANITIZER_MODE "MSAN"
+# endif
 
 static char *have_sanitizer;
 static Sys_var_charptr Sys_have_santitizer(
@@ -6523,7 +6537,8 @@ static Sys_var_enum Sys_histogram_type(
        "Specifies type of the histograms created by ANALYZE. "
        "Possible values are: "
        "SINGLE_PREC_HB - single precision height-balanced, "
-       "DOUBLE_PREC_HB - double precision height-balanced.",
+       "DOUBLE_PREC_HB - double precision height-balanced, "
+       "JSON_HB - height-balanced, stored as JSON.",
        SESSION_VAR(histogram_type), CMD_LINE(REQUIRED_ARG),
        histogram_types, DEFAULT(1));
 

@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -106,15 +106,6 @@ struct pfs_os_file_t
 	}
 #endif
 };
-
-/** The next value should be smaller or equal to the smallest sector size used
-on any disk. A log block is required to be a portion of disk which is written
-so that if the start and the end of a block get written to disk, then the
-whole block gets written. This should be true even in most cases of a crash:
-if this fails for a log block, then it is equivalent to a media failure in the
-log. */
-
-#define OS_FILE_LOG_BLOCK_SIZE		512U
 
 /** Options for os_file_create_func @{ */
 enum os_file_create_t {
@@ -456,7 +447,6 @@ bool os_file_close_func(os_file_t file);
 
 /* Keys to register InnoDB I/O with performance schema */
 extern mysql_pfs_key_t	innodb_data_file_key;
-extern mysql_pfs_key_t	innodb_log_file_key;
 extern mysql_pfs_key_t	innodb_temp_file_key;
 
 /* Following four macros are instumentations to register

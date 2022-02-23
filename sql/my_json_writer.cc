@@ -13,12 +13,11 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#include "mariadb.h"
-#include "sql_priv.h"
-#include "sql_string.h"
+#include "my_global.h"
 #include "my_json_writer.h"
 
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+
 bool Json_writer::named_item_expected() const
 {
   return named_items_expectation.size()
@@ -39,7 +38,13 @@ inline void Json_writer::on_start_object()
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   if(!fmt_helper.is_making_writer_calls())
   {
-    VALIDITY_ASSERT(got_name == named_item_expected());
+    if (got_name != named_item_expected())
+    {
+      sql_print_error(got_name
+                      ? "Json_writer got a member name which is not expected.\n"
+                      : "Json_writer: a member name was expected.\n");
+      VALIDITY_ASSERT(got_name == named_item_expected());
+    }
     named_items_expectation.push_back(true);
   }
 #endif
@@ -60,6 +65,7 @@ void Json_writer::start_object()
   document_start= false;
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   got_name= false;
+  named_items.emplace();
 #endif
 }
 
@@ -71,6 +77,8 @@ void Json_writer::start_array()
     VALIDITY_ASSERT(got_name == named_item_expected());
     named_items_expectation.push_back(false);
     got_name= false;
+    if (document_start)
+      named_items.emplace();
   }
 #endif
 
@@ -95,6 +103,8 @@ void Json_writer::end_object()
   named_items_expectation.pop_back();
   VALIDITY_ASSERT(!got_name);
   got_name= false;
+  VALIDITY_ASSERT(named_items.size());
+  named_items.pop();
 #endif
   indent_level-=INDENT_SIZE;
   if (!first_child)
@@ -140,7 +150,19 @@ Json_writer& Json_writer::add_member(const char *name, size_t len)
   }
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   if (!fmt_helper.is_making_writer_calls())
+  {
+    VALIDITY_ASSERT(!got_name);
     got_name= true;
+    VALIDITY_ASSERT(named_items.size());
+    auto& named_items_keys= named_items.top();
+    auto emplaced= named_items_keys.emplace(name, len);
+    auto is_uniq_key= emplaced.second;
+    if(!is_uniq_key)
+    {
+      sql_print_error("Duplicated key: %s\n", emplaced.first->c_str());
+      VALIDITY_ASSERT(is_uniq_key);
+    }
+  }
 #endif
   return *this;
 }

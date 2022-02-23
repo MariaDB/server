@@ -992,10 +992,34 @@ This option is useful for point\-in\-time recovery\&.
 \fB\-\-start\-position=\fR\fB\fIN\fR\fR,
 \fB\-j \fR\fB\fIN\fR\fR
 .sp
-Start reading the binary log at the first event having a position equal to or greater than
-\fIN\fR\&. This option applies to the first log file named on the command line\&.
+Start reading the binary log at \fIN\fR\&. Type can either be a positive
+integer or a GTID\& list\&. When using a positive integer, the value only
+applies to the first binlog passed on the command line, and the first event
+that has a position equal to or greater than \fIN\fR is printed\&. In GTID mode,
+multiple GTIDs can be passed as a comma separated list, where each must have a
+unique domain id\&. The list represents the gtid binlog state that the client
+(another "replica" server) is aware of\&. Therefore, each GTID is exclusive; only
+events after a given sequence number will be printed to allow users to receive
+events after their current state\&.
 .sp
 This option is useful for point\-in\-time recovery\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlbinlog: gtid-strict-mode
+.\" gtid-strict-mode option: mysqlbinlog
+\fB\-\-gtid\-strict\-mode
+.sp
+Process binlog according to gtid-strict-mode specification\&. The start, stop
+positions are verified to satisfy start < stop comparison condition\&. Sequence
+numbers of any gtid domain must comprise monotically growing sequence\&.
 .RE
 .sp
 .RS 4
@@ -1063,8 +1087,13 @@ The slave server_id used for \fB--read-from-remote-server --stop-never\fR\&.
 .\" stop-position option: mysqlbinlog
 \fB\-\-stop\-position=\fR\fB\fIN\fR\fR
 .sp
-Stop reading the binary log at the first event having a position equal to or greater than
-\fIN\fR\&. This option applies to the last log file named on the command line\&.
+Stop reading the binary log at the first event having a position equal to or
+greater than \fIN\fR\&. Type can either be a positive integer or a GTID
+list\&. When using a positive integer, the value only applies to the last log
+file named on the command line\&. When in GTID mode, multiple GTIDs can be
+passed as a comma separated list, where each must have a unique domain id\&.
+Each GTID is inclusive; only events up to the given sequence numbers are
+printed.
 .sp
 This option is useful for point\-in\-time recovery\&.
 .RE
@@ -1133,6 +1162,7 @@ The MariaDB username to use when connecting to a remote server\&.
 \fB\-v\fR
 .sp
 Reconstruct row events and display them as commented SQL statements\&. If this option is given twice, the output includes comments to indicate column data types and some metadata\&.
+If this option is given three times, the output includes diagnostic warnings about event integrity before program exit\&.
 .sp
 For examples that show the effect of
 \fB\-\-base64\-output\fR

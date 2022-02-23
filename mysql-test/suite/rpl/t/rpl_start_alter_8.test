@@ -1,0 +1,109 @@
+#
+# Start Alter with Parallel Replication, With 2 sources
+# 2 domain id (From 2 sources)
+# |Concurrent alters| < |Parallel workers on slave|
+#  |x| denotes number of entities it encloses
+#
+--source include/have_log_bin.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--connect (server_1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--connect (server_2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+--connect (server_3,127.0.0.1,root,,,$SERVER_MYPORT_3)
+
+--connection server_1
+--let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
+set global binlog_alter_two_phase = ON;
+set binlog_alter_two_phase = ON;
+
+--connection server_2
+stop slave;
+set global binlog_alter_two_phase=true;
+
+--connection server_3
+--let $gtid_strict_mode= `select @@gtid_strict_mode`
+--let $slave_parallel_threads= `select @@slave_parallel_threads`
+--let $slave_parallel_mode= `select @@slave_parallel_mode`
+SET GLOBAL slave_parallel_threads=20;
+set global slave_parallel_mode=optimistic;
+set global gtid_strict_mode=1;
+
+--disable_warnings
+--disable_query_log
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval change master 'm1' to master_port=$SERVER_MYPORT_1 , master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval change master 'm2' to master_port=$SERVER_MYPORT_2 , master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+--enable_query_log
+--enable_warnings
+
+--connection server_1
+set gtid_domain_id= 11;
+create database s1;
+use s1;
+--let $domain_1=11
+--let $domain_2=11
+--let $M_port= $SERVER_MYPORT_1
+--let $S_port= $SERVER_MYPORT_3
+--let $sync_slave=0
+--let $db_name=s1
+--source include/start_alter_include.inc
+--connection server_1
+drop database s1;
+--let $master_pos_1= `SELECT @@gtid_binlog_pos`
+
+--connection server_2
+set gtid_domain_id= 12;
+create database s2;
+use s2;
+--let $domain_1=12
+--let $domain_2=12
+--let $M_port= $SERVER_MYPORT_2
+--let $S_port= $SERVER_MYPORT_3
+--let $sync_slave=0
+--let $db_name=s2
+--source include/start_alter_include.inc
+--connection server_2
+drop database s2;
+--let $master_pos_2= `SELECT @@gtid_binlog_pos`
+
+--connection server_3
+start all slaves;
+set default_master_connection = 'm1';
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = 'm2';
+--source include/wait_for_slave_to_start.inc
+
+set default_master_connection = 'm1';
+--let $master_pos= $master_pos_1
+--source include/sync_with_master_gtid.inc
+set default_master_connection = 'm2';
+--let $master_pos= $master_pos_2
+--source include/sync_with_master_gtid.inc
+
+--echo # cleanup
+--connection server_3
+set default_master_connection = 'm1';
+--source include/stop_slave.inc
+set default_master_connection = 'm2';
+--source include/stop_slave.inc
+--eval set global slave_parallel_threads = $slave_parallel_threads;
+--eval set global slave_parallel_mode = $slave_parallel_mode;
+--eval set global gtid_strict_mode = $gtid_strict_mode;
+set global gtid_domain_id= 0;
+reset master;
+RESET SLAVE ALL;
+SET GLOBAL gtid_slave_pos= '';
+
+--connection server_1
+--eval set global binlog_alter_two_phase=$binlog_alter_two_phase;
+set global gtid_domain_id= 0;
+reset master;
+--connection server_2
+set global gtid_domain_id= 0;
+--eval set global binlog_alter_two_phase=$binlog_alter_two_phase;
+reset master;
+
+--disconnect server_1
+--disconnect server_2
+--disconnect server_3

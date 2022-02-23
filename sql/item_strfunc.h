@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1944,15 +1944,27 @@ public:
 class Item_func_crc32 :public Item_long_func
 {
   bool check_arguments() const override
-  { return args[0]->check_type_can_return_str(func_name_cstring()); }
+  {
+    return args[0]->check_type_can_return_str(func_name_cstring()) &&
+      (arg_count == 1 ||
+       args[1]->check_type_can_return_int(func_name_cstring()));
+  }
   String value;
+  uint32 (*const crc_func)(uint32, const void*, size_t);
 public:
-  Item_func_crc32(THD *thd, Item *a): Item_long_func(thd, a)
+  Item_func_crc32(THD *thd, bool Castagnoli, Item *a) :
+    Item_long_func(thd, a),
+    crc_func(Castagnoli ? my_crc32c : my_checksum)
+  { unsigned_flag= 1; }
+  Item_func_crc32(THD *thd, bool Castagnoli, Item *a, Item *b) :
+    Item_long_func(thd, a, b),
+    crc_func(Castagnoli ? my_crc32c : my_checksum)
   { unsigned_flag= 1; }
   LEX_CSTRING func_name_cstring() const override
   {
-    static LEX_CSTRING name= {STRING_WITH_LEN("crc32") };
-    return name;
+    static LEX_CSTRING crc32_name= {STRING_WITH_LEN("crc32") };
+    static LEX_CSTRING crc32c_name= {STRING_WITH_LEN("crc32c") };
+    return crc_func == my_crc32c ? crc32c_name : crc32_name;
   }
   bool fix_length_and_dec() override { max_length=10; return FALSE; }
   longlong val_int() override;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1657,6 +1657,7 @@ ibuf_entry_build(
 		dfield_copy(field, entry_field);
 
 		ifield = dict_index_get_nth_field(index, i);
+		ut_ad(!ifield->descending);
 		/* Prefix index columns of fixed-length columns are of
 		fixed length.  However, in the function call below,
 		dfield_get_type(entry_field) contains the fixed length
@@ -2597,7 +2598,7 @@ static bool ibuf_get_volume_buffered_hash(const rec_t *rec, ulint *hash,
   ut_ad(rec_get_n_fields_old(rec) > IBUF_REC_FIELD_USER);
   const ulint start= rec_get_field_start_offs(rec, IBUF_REC_FIELD_USER);
   const ulint len= rec_get_data_size_old(rec) - start;
-  const uint32_t fold= ut_crc32(rec + start, len);
+  const uint32_t fold= my_crc32c(0, rec + start, len);
   hash+= (fold / (CHAR_BIT * sizeof *hash)) % size;
   ulint bitmask= static_cast<ulint>(1) << (fold % (CHAR_BIT * sizeof(*hash)));
 
@@ -3491,7 +3492,7 @@ ibuf_insert(
 
 	ut_ad(dtuple_check_typed(entry));
 	ut_ad(page_id.space() != SRV_TMP_SPACE_ID);
-
+	ut_ad(index->is_btree());
 	ut_a(!dict_index_is_clust(index));
 	ut_ad(!index->table->is_temporary());
 
@@ -3825,7 +3826,7 @@ dump:
 				      		    &offsets, heap, mtr,
 						    &page_cur);
 
-		ut_ad(!cmp_dtuple_rec(entry, rec, offsets));
+		ut_ad(!cmp_dtuple_rec(entry, rec, index, offsets));
 		lock_rec_restore_from_page_infimum(*block, rec,
 						   block->page.id());
 	} else {

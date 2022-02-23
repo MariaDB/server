@@ -4112,6 +4112,9 @@ void handler::get_auto_increment(ulonglong offset, ulonglong increment,
   int error;
   MY_BITMAP *old_read_set;
   bool rnd_inited= (inited ==  RND);
+  bool rev= table->key_info[table->s->next_number_index].
+              key_part[table->s->next_number_keypart].key_part_flag &
+                HA_REVERSE_SORT;
 
   if (rnd_inited && ha_rnd_end())
     return;
@@ -4133,7 +4136,8 @@ void handler::get_auto_increment(ulonglong offset, ulonglong increment,
 
   if (table->s->next_number_keypart == 0)
   {						// Autoincrement at key-start
-    error= ha_index_last(table->record[1]);
+    error= rev ? ha_index_first(table->record[1])
+               : ha_index_last(table->record[1]);
     /*
       MySQL implicitly assumes such method does locking (as MySQL decides to
       use nr+increment without checking again with the handler, in
@@ -4148,9 +4152,8 @@ void handler::get_auto_increment(ulonglong offset, ulonglong increment,
              table->key_info + table->s->next_number_index,
              table->s->next_number_key_offset);
     error= ha_index_read_map(table->record[1], key,
-                             make_prev_keypart_map(table->s->
-                                                   next_number_keypart),
-                             HA_READ_PREFIX_LAST);
+                          make_prev_keypart_map(table->s->next_number_keypart),
+                          rev ? HA_READ_KEY_EXACT : HA_READ_PREFIX_LAST);
     /*
       MySQL needs to call us for next row: assume we are inserting ("a",null)
       here, we return 3, and next this statement will want to insert

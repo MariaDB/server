@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, 2021, MariaDB Corporation.
+Copyright (c) 2019, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -115,6 +115,16 @@ struct page_zip_des_t
 	void clear() {
 		/* Clear everything except the member "fix". */
 		memset((void*) this, 0,
+		       reinterpret_cast<char*>(&fix)
+		       - reinterpret_cast<char*>(this));
+	}
+
+	page_zip_des_t() = default;
+	page_zip_des_t(const page_zip_des_t&) = default;
+
+	/* Initialize everything except the member "fix". */
+	page_zip_des_t(const page_zip_des_t& old, bool) {
+		memcpy((void*) this, (void*) &old,
 		       reinterpret_cast<char*>(&fix)
 		       - reinterpret_cast<char*>(this));
 	}

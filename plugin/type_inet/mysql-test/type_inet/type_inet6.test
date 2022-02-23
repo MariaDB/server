@@ -1612,3 +1612,24 @@ SELECT IF(1, '::', a) AS f FROM t1 GROUP BY 'foo' HAVING f != '';
 SELECT IF(1, '::', a) AS f FROM t1 GROUP BY 'foo' HAVING f != '::';
 SELECT IF(1, '::', a) AS f FROM t1 GROUP BY 'foo' HAVING f != '::1';
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22256 Assertion `length == pack_length()' failed in Field_timestamp_with_dec::sort_string
+--echo #
+
+SET sql_mode='';
+SET @@SESSION.max_sort_length=4;
+CREATE TEMPORARY TABLE t1(c INET6,d DATE);
+INSERT INTO t1 VALUES(0,0);
+SELECT c FROM t1 ORDER BY c;
+DROP TABLE t1;
+SET max_sort_length=DEFAULT;
+SET sql_mode=DEFAULT;
+
+CREATE TABLE t1 (a INET6);
+INSERT INTO t1 VALUES ('::'),('f::f');
+SET SESSION max_sort_length= 8;
+SELECT CASE 1 WHEN 0 THEN 'foo' ELSE a END AS f FROM t1 GROUP BY f WITH ROLLUP;
+SELECT CASE 1 WHEN 0 THEN 'foo' ELSE a END AS f FROM t1 GROUP BY f;
+DROP TABLE t1;
+SET max_sort_length=DEFAULT;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -151,20 +151,17 @@ public:
 	@param[in]  is_temp		whether this is a temporary tablespace
 	@param[in]  create_new_db	whether we are creating a new database
 	@param[out] sum_new_sizes	sum of sizes of the new files added
-	@param[out] flush_lsn		FIL_PAGE_FILE_FLUSH_LSN of first file
 	@return DB_SUCCESS or error code */
 	dberr_t open_or_create(
 		bool	is_temp,
 		bool	create_new_db,
-		ulint*	sum_new_sizes,
-		lsn_t*	flush_lsn)
+		ulint*	sum_new_sizes)
 		MY_ATTRIBUTE((warn_unused_result));
 
 private:
 	/** Check the tablespace header for this tablespace.
-	@param[out]	flushed_lsn	the value of FIL_PAGE_FILE_FLUSH_LSN
 	@return DB_SUCCESS or error code */
-	dberr_t read_lsn_and_check_flags(lsn_t* flushed_lsn);
+	inline dberr_t read_lsn_and_check_flags();
 
 	/**
 	@return true if the last file size is valid. */

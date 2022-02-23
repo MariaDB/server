@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2015, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -130,12 +131,17 @@ ibuf_should_try(
 						a secondary index when we
 						decide */
 {
-	return(innodb_change_buffering
-	       && ibuf.max_size != 0
-	       && !dict_index_is_clust(index)
-	       && !dict_index_is_spatial(index)
-	       && index->table->quiesce == QUIESCE_NONE
-	       && (ignore_sec_unique || !dict_index_is_unique(index)));
+  if (!innodb_change_buffering || !ibuf.max_size || index->is_clust() ||
+      index->is_spatial())
+    return false;
+  if (!ignore_sec_unique && index->is_unique())
+    return false;
+  if (index->table->quiesce != QUIESCE_NONE)
+    return false;
+  for (unsigned i= 0; i < index->n_fields; i++)
+    if (index->fields[i].descending)
+      return false;
+  return true;
 }
 
 /******************************************************************//**

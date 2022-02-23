@@ -1,0 +1,58 @@
+#
+# Start Alter with Parallel Replication
+# 2 domain id
+# |Concurrent alters| < |Parallel workers on slave|
+#  |x| denotes number of entities it encloses
+# slave_domain_parallel_threads < |Concurrent Alters|
+#
+--source include/have_log_bin.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+--source include/have_debug.inc
+--connection master
+--let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
+set global binlog_alter_two_phase = ON;
+set binlog_alter_two_phase = ON;
+--connection slave
+--let $gtid_strict_mode= `select @@gtid_strict_mode`
+--let $slave_parallel_threads= `select @@slave_parallel_threads`
+--let $slave_parallel_mode= `select @@slave_parallel_mode`
+--let $slave_domain_parallel_threads= `select @@slave_domain_parallel_threads`
+set global gtid_strict_mode=1;
+
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+set global slave_parallel_mode=optimistic;
+set global slave_domain_parallel_threads=3;
+change master to master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+--echo # Parallel Slave
+--connection master
+--let $master_server= "master"
+--let $domain_1=11
+--let $domain_2=12
+--let $M_port= $MASTER_MYPORT
+--let $S_port= $SLAVE_MYPORT
+--let $sync_slave=1
+--source include/start_alter_include.inc
+--connection master
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--echo # cleanup
+--source include/stop_slave.inc
+--eval set global slave_parallel_threads = $slave_parallel_threads;
+--eval set global slave_parallel_mode = $slave_parallel_mode;
+--eval set global gtid_strict_mode = $gtid_strict_mode;
+--eval set global slave_domain_parallel_threads = $slave_domain_parallel_threads;
+set global gtid_domain_id= 0;
+--source include/start_slave.inc
+
+--connection master
+--eval set global binlog_alter_two_phase=$binlog_alter_two_phase;
+set global gtid_domain_id= 0;
+--source include/rpl_end.inc

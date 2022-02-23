@@ -7580,8 +7580,7 @@ int ha_rocksdb::create_key_def(const TABLE *const table_arg, const uint i,
     (*new_key_def)->m_ttl_column = ttl_column;
   }
   // initialize key_def
-  (*new_key_def)->setup(table_arg, tbl_def_arg);
-  DBUG_RETURN(HA_EXIT_SUCCESS);
+  DBUG_RETURN((*new_key_def)->setup(table_arg, tbl_def_arg));
 }
 
 int rdb_normalize_tablename(const std::string &tablename,

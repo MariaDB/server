@@ -589,7 +589,7 @@ xb_find_lsn_in_bitmap_file(
 
 /****************************************************************//**
 Read the disk bitmap and build the changed page bitmap tree for the
-LSN interval incremental_lsn to checkpoint_lsn_start.
+LSN interval incremental_lsn to log_sys.next_checkpoint_lsn.
 
 @return the built bitmap tree or NULL if unable to read the full interval for
 any reason. */
@@ -599,7 +599,7 @@ xb_page_bitmap_init(void)
 {
 	log_online_bitmap_file_t	bitmap_file;
 	lsn_t				bmp_start_lsn	= incremental_lsn;
-	lsn_t				bmp_end_lsn	= checkpoint_lsn_start;
+	const lsn_t bmp_end_lsn{log_sys.next_checkpoint_lsn};
 	byte				page[MODIFIED_PAGE_BLOCK_SIZE];
 	lsn_t				current_page_end_lsn;
 	xb_page_bitmap			*result;

@@ -6195,36 +6195,42 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "table": {
-      "table_name": "a",
-      "access_type": "range",
-      "possible_keys": ["PRIMARY"],
-      "key": "PRIMARY",
-      "key_length": "4",
-      "used_key_parts": ["a"],
-      "rows": 10,
-      "filtered": 100,
-      "attached_condition": "a.a <= 10",
-      "using_index": true
-    },
-    "block-nl-join": {
-      "table": {
-        "table_name": "b",
-        "access_type": "range",
-        "possible_keys": ["kp1"],
-        "key": "kp1",
-        "key_length": "10",
-        "used_key_parts": ["kp1", "kp2"],
-        "rows": 836,
-        "filtered": 76.43428802,
-        "index_condition": "b.kp2 <= 10",
-        "attached_condition": "b.kp2 <= 10 and b.col1 + 1 < 33333"
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "a",
+          "access_type": "range",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "rows": 10,
+          "filtered": 100,
+          "attached_condition": "a.a <= 10",
+          "using_index": true
+        }
       },
-      "buffer_type": "flat",
-      "buffer_size": "54",
-      "join_type": "BNL",
-      "attached_condition": "b.kp1 = a.a"
-    }
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "b",
+            "access_type": "range",
+            "possible_keys": ["kp1"],
+            "key": "kp1",
+            "key_length": "10",
+            "used_key_parts": ["kp1", "kp2"],
+            "rows": 836,
+            "filtered": 76,
+            "index_condition": "b.kp2 <= 10",
+            "attached_condition": "b.kp2 <= 10 and b.col1 + 1 < 33333"
+          },
+          "buffer_type": "flat",
+          "buffer_size": "54",
+          "join_type": "BNL",
+          "attached_condition": "b.kp1 = a.a"
+        }
+      }
+    ]
   }
 }
 drop table t1,t2,t3;

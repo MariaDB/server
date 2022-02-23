@@ -211,7 +211,8 @@ int write_bin_log(THD *thd, bool clear_error,
                   char const *query, ulong query_length,
                   bool is_trans= FALSE);
 int write_bin_log_with_if_exists(THD *thd, bool clear_error,
-                                 bool is_trans, bool add_if_exists);
+                                 bool is_trans, bool add_if_exists,
+                                 bool commit_alter= false);
 
 void promote_first_timestamp_column(List<Create_field> *column_definitions);
 

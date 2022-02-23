@@ -17,6 +17,7 @@
 */
 
 
+#include "log_event.h"
 #ifndef MYSQL_CLIENT
 #error MYSQL_CLIENT must be defined here
 #endif
@@ -2005,6 +2006,19 @@ err:
   return 1;
 }
 
+bool Query_log_event::print_verbose(IO_CACHE* cache, PRINT_EVENT_INFO* print_event_info)
+{
+  if (my_b_printf(cache, "### ") ||
+      my_b_write(cache, (uchar *) query, q_len) ||
+      my_b_printf(cache, "\n"))
+  {
+    goto err;
+  }
+  return 0;
+
+err:
+  return 1;
+}
 
 bool Query_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
 {
@@ -2020,9 +2034,42 @@ bool Query_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
     goto err;
   if (!is_flashback)
   {
-    if (my_b_write(&cache, (uchar*) query, q_len) ||
-        my_b_printf(&cache, "\n%s\n", print_event_info->delimiter))
-      goto err;
+    if (gtid_flags_extra & (Gtid_log_event::FL_START_ALTER_E1 |
+                            Gtid_log_event::FL_COMMIT_ALTER_E1 |
+                            Gtid_log_event::FL_ROLLBACK_ALTER_E1))
+    {
+      bool do_print_encoded=
+        print_event_info->base64_output_mode != BASE64_OUTPUT_NEVER &&
+        print_event_info->base64_output_mode != BASE64_OUTPUT_DECODE_ROWS &&
+        !print_event_info->short_form;
+      bool comment_mode= do_print_encoded &&
+        gtid_flags_extra & (Gtid_log_event::FL_START_ALTER_E1 |
+                            Gtid_log_event::FL_ROLLBACK_ALTER_E1);
+
+      if(comment_mode)
+        my_b_printf(&cache, "/*!100600 ");
+      if (do_print_encoded)
+        my_b_printf(&cache, "BINLOG '\n");
+      if (print_base64(&cache, print_event_info, do_print_encoded))
+        goto err;
+      if (do_print_encoded)
+      {
+        if(comment_mode)
+           my_b_printf(&cache, "' */%s\n", print_event_info->delimiter);
+        else
+           my_b_printf(&cache, "'%s\n", print_event_info->delimiter);
+      }
+      if (print_event_info->verbose && print_verbose(&cache, print_event_info))
+      {
+        goto err;
+      }
+    }
+    else
+    {
+      if (my_b_write(&cache, (uchar*) query, q_len) ||
+          my_b_printf(&cache, "\n%s\n", print_event_info->delimiter))
+        goto err;
+    }
   }
   else // is_flashback == 1
   {
@@ -2294,6 +2341,8 @@ Gtid_list_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
                                Write_on_release_cache::FLUSH_F);
   char buf[21];
   uint32 i;
+
+  qsort(list, count, sizeof(rpl_gtid), compare_glle_gtids);
 
   if (print_header(&cache, print_event_info, FALSE) ||
       my_b_printf(&cache, "\tGtid list ["))
@@ -3791,6 +3840,8 @@ st_print_event_info::st_print_event_info()
   printed_fd_event=FALSE;
   file= 0;
   base64_output_mode=BASE64_OUTPUT_UNSPEC;
+  m_is_event_group_active= TRUE;
+  m_is_event_group_filtering_enabled= FALSE;
   open_cached_file(&head_cache, NULL, NULL, 0, flags);
   open_cached_file(&body_cache, NULL, NULL, 0, flags);
   open_cached_file(&tail_cache, NULL, NULL, 0, flags);
@@ -3853,6 +3904,15 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
         goto err;
     if (flags2 & FL_WAITED)
       if (my_b_write_string(&cache, " waited"))
+        goto err;
+    if (flags_extra & FL_START_ALTER_E1)
+      if (my_b_write_string(&cache, " START ALTER"))
+        goto err;
+    if (flags_extra & FL_COMMIT_ALTER_E1)
+      if (my_b_printf(&cache, " COMMIT ALTER id= %lu", sa_seq_no))
+        goto err;
+    if (flags_extra & FL_ROLLBACK_ALTER_E1)
+      if (my_b_printf(&cache, " ROLLBACK ALTER id= %lu", sa_seq_no))
         goto err;
     if (my_b_printf(&cache, "\n"))
       goto err;

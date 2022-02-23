@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB
+   Copyright (c) 2010, 2020, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -290,6 +290,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   class With_element_head *with_element_head;
   class With_clause *with_clause;
   class Virtual_column_info *virtual_column;
+  engine_option_value *engine_option_value_ptr;
 
   handlerton *db_type;
   st_select_lex *select_lex;
@@ -1738,8 +1739,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <num> sp_handler_type sp_hcond_list
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
 %type <spname> sp_name
-%type <spvar> sp_param_name sp_param_name_and_type
-%type <spvar> sp_param_name_and_type_anchored
+%type <spvar> sp_param_name sp_param_name_and_mode sp_param
+%type <spvar> sp_param_anchored
 %type <for_loop> sp_for_loop_index_and_bounds
 %type <for_loop_bounds> sp_for_loop_bounds
 %type <trim> trim_operands
@@ -1792,6 +1793,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <vers_range_unit> opt_history_unit
 %type <vers_history_point> history_point
 %type <vers_column_versioning> with_or_without_system
+%type <engine_option_value_ptr> engine_defined_option;
 
 %ifdef MARIADB
 %type <NONE> sp_tail_standalone
@@ -3039,8 +3041,8 @@ sp_fdparam_list:
         ;
 
 sp_fdparams:
-          sp_fdparams ',' sp_param_name_and_type
-        | sp_param_name_and_type
+          sp_fdparams ',' sp_param
+        | sp_param
         ;
 
 sp_param_name:
@@ -3051,20 +3053,6 @@ sp_param_name:
           }
         ;
 
-sp_param_name_and_type:
-          sp_param_name field_type
-          {
-            if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
-              MYSQL_YYABORT;
-          }
-        | sp_param_name ROW_SYM row_type_body
-          {
-            if (unlikely(Lex->sphead->spvar_fill_row(thd, $$= $1, $3)))
-              MYSQL_YYABORT;
-          }
-        | sp_param_name_and_type_anchored
-        ;
-
 /* Stored PROCEDURE parameter declaration list */
 sp_pdparam_list:
           /* Empty */
@@ -3072,8 +3060,8 @@ sp_pdparam_list:
         ;
 
 sp_pdparams:
-          sp_pdparams ',' sp_pdparam
-        | sp_pdparam
+          sp_pdparams ',' sp_param
+        | sp_param
         ;
 
 sp_parameter_type:
@@ -5030,7 +5018,7 @@ sub_part_definition:
             part_info->use_default_num_subpartitions= FALSE;
             part_info->count_curr_subparts++;
           }
-          sub_name opt_part_options {}
+          sub_name opt_subpart_options {}
         ;
 
 sub_name:
@@ -5044,15 +5032,34 @@ sub_name:
 
 opt_part_options:
          /* empty */ {}
-       | opt_part_option_list {}
+       | part_option_list {}
        ;
 
-opt_part_option_list:
-         opt_part_option_list opt_part_option {}
-       | opt_part_option {}
+part_option_list:
+         part_option_list part_option {}
+       | part_option {}
        ;
 
-opt_part_option:
+part_option:
+          server_part_option {}
+        | engine_defined_option
+          {
+            $1->link(&Lex->part_info->curr_part_elem->option_list,
+                     &Lex->option_list_last);
+          }
+        ;
+
+opt_subpart_options:
+         /* empty */ {}
+       | subpart_option_list {}
+       ;
+
+subpart_option_list:
+         subpart_option_list server_part_option {}
+       | server_part_option {}
+       ;
+
+server_part_option:
           TABLESPACE opt_equal ident_or_text
           { /* Compatibility with MySQL */ }
         | opt_storage ENGINE_SYM opt_equal storage_engines
@@ -5414,42 +5421,43 @@ create_table_option:
 	    Lex->create_info.used_fields|= HA_CREATE_USED_TRANSACTIONAL;
             Lex->create_info.transactional= $3;
           }
-        | IDENT_sys equal TEXT_STRING_sys
+        | engine_defined_option
+          {
+            $1->link(&Lex->create_info.option_list, &Lex->option_list_last);
+          }
+        | SEQUENCE_SYM opt_equal choice
+          {
+            Lex->create_info.used_fields|= HA_CREATE_USED_SEQUENCE;
+            Lex->create_info.sequence= ($3 == HA_CHOICE_YES);
+          }
+        | versioning_option
+        ;
+
+engine_defined_option:
+          IDENT_sys equal TEXT_STRING_sys
           {
             if (unlikely($3.length > ENGINE_OPTION_MAX_LENGTH))
               my_yyabort_error((ER_VALUE_TOO_LONG, MYF(0), $1.str));
-            (void) new (thd->mem_root)
-                   engine_option_value($1, $3, true,
-                                       &Lex->create_info.option_list,
-                                       &Lex->option_list_last);
+            $$= new (thd->mem_root) engine_option_value($1, $3, true);
+            MYSQL_YYABORT_UNLESS($$);
           }
         | IDENT_sys equal ident
           {
             if (unlikely($3.length > ENGINE_OPTION_MAX_LENGTH))
               my_yyabort_error((ER_VALUE_TOO_LONG, MYF(0), $1.str));
-            (void) new (thd->mem_root)
-                   engine_option_value($1, $3, false,
-                                       &Lex->create_info.option_list,
-                                       &Lex->option_list_last);
+            $$= new (thd->mem_root) engine_option_value($1, $3, false);
+            MYSQL_YYABORT_UNLESS($$);
           }
         | IDENT_sys equal real_ulonglong_num
           {
-            (void) new (thd->mem_root)
-                   engine_option_value($1, $3, &Lex->create_info.option_list,
-                                       &Lex->option_list_last, thd->mem_root);
+            $$= new (thd->mem_root) engine_option_value($1, $3, thd->mem_root);
+            MYSQL_YYABORT_UNLESS($$);
           }
         | IDENT_sys equal DEFAULT
           {
-            (void) new (thd->mem_root)
-                   engine_option_value($1, &Lex->create_info.option_list,
-                                       &Lex->option_list_last);
+            $$= new (thd->mem_root) engine_option_value($1);
+            MYSQL_YYABORT_UNLESS($$);
           }
-        | SEQUENCE_SYM opt_equal choice
-          {
-	    Lex->create_info.used_fields|= HA_CREATE_USED_SEQUENCE;
-            Lex->create_info.sequence= ($3 == HA_CHOICE_YES);
-	  }
-        | versioning_option
         ;
 
 opt_versioning_option:
@@ -6340,35 +6348,9 @@ asrow_attribute:
 
 serial_attribute:
           asrow_attribute
-        | IDENT_sys equal TEXT_STRING_sys
+        | engine_defined_option
           {
-            if (unlikely($3.length > ENGINE_OPTION_MAX_LENGTH))
-              my_yyabort_error((ER_VALUE_TOO_LONG, MYF(0), $1.str));
-            (void) new (thd->mem_root)
-                   engine_option_value($1, $3, true,
-                                       &Lex->last_field->option_list,
-                                       &Lex->option_list_last);
-          }
-        | IDENT_sys equal ident
-          {
-            if (unlikely($3.length > ENGINE_OPTION_MAX_LENGTH))
-              my_yyabort_error((ER_VALUE_TOO_LONG, MYF(0), $1.str));
-            (void) new (thd->mem_root)
-                   engine_option_value($1, $3, false,
-                                       &Lex->last_field->option_list,
-                                       &Lex->option_list_last);
-          }
-        | IDENT_sys equal real_ulonglong_num
-          {
-            (void) new (thd->mem_root)
-                   engine_option_value($1, $3, &Lex->last_field->option_list,
-                                       &Lex->option_list_last, thd->mem_root);
-          }
-        | IDENT_sys equal DEFAULT
-          {
-            (void) new (thd->mem_root)
-                   engine_option_value($1, &Lex->last_field->option_list,
-                                       &Lex->option_list_last);
+            $1->link(&Lex->last_field->option_list, &Lex->option_list_last);
           }
         | with_or_without_system VERSIONING_SYM
           {
@@ -6769,33 +6751,9 @@ all_key_opt:
           {
             Lex->last_key->key_create_info.is_ignored= $1;
           }
-        | IDENT_sys equal TEXT_STRING_sys
+        | engine_defined_option
           {
-            if (unlikely($3.length > ENGINE_OPTION_MAX_LENGTH))
-              my_yyabort_error((ER_VALUE_TOO_LONG, MYF(0), $1.str));
-            (void) new (thd->mem_root)
-                   engine_option_value($1, $3, true, &Lex->option_list,
-                                       &Lex->option_list_last);
-          }
-        | IDENT_sys equal ident
-          {
-            if (unlikely($3.length > ENGINE_OPTION_MAX_LENGTH))
-              my_yyabort_error((ER_VALUE_TOO_LONG, MYF(0), $1.str));
-            (void) new (thd->mem_root)
-                   engine_option_value($1, $3, false, &Lex->option_list,
-                                       &Lex->option_list_last);
-          }
-        | IDENT_sys equal real_ulonglong_num
-          {
-            (void) new (thd->mem_root)
-                  engine_option_value($1, $3, &Lex->option_list,
-                                      &Lex->option_list_last, thd->mem_root);
-          }
-        | IDENT_sys equal DEFAULT
-          {
-            (void) new (thd->mem_root)
-                   engine_option_value($1, &Lex->option_list,
-                                       &Lex->option_list_last);
+            $1->link(&Lex->option_list, &Lex->option_list_last);
           }
         ;
 
@@ -6833,10 +6791,12 @@ ignorability:
 key_list:
           key_list ',' key_part order_dir
           {
+            $3->asc= $4;
             Lex->last_key->columns.push_back($3, thd->mem_root);
           }
         | key_part order_dir
           {
+            $1->asc= $2;
             Lex->last_key->columns.push_back($1, thd->mem_root);
           }
         ;
@@ -18018,11 +17978,6 @@ sp_opt_default:
         | DEFAULT expr { $$ = $2; }
         ;
 
-sp_pdparam:
-          sp_parameter_type sp_param_name_and_type { $2->mode=$1; }
-        | sp_param_name_and_type { $1->mode= sp_variable::MODE_IN; }
-        ;
-
 sp_decl_variable_list_anchored:
           sp_decl_idents_init_vars
           TYPE_SYM OF_SYM optionally_qualified_column_ident
@@ -18042,26 +17997,49 @@ sp_decl_variable_list_anchored:
           }
         ;
 
-sp_param_name_and_type_anchored:
-          sp_param_name TYPE_SYM OF_SYM ident '.' ident
+sp_param_name_and_mode:
+          sp_parameter_type sp_param_name
+          {
+            $2->mode= $1;
+            $$= $2;
+          }
+        | sp_param_name
+        ;
+
+sp_param:
+          sp_param_name_and_mode field_type
+          {
+            if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name_and_mode ROW_SYM row_type_body
+          {
+            if (unlikely(Lex->sphead->spvar_fill_row(thd, $$= $1, $3)))
+              MYSQL_YYABORT;
+          }
+        | sp_param_anchored
+        ;
+
+sp_param_anchored:
+          sp_param_name_and_mode TYPE_SYM OF_SYM ident '.' ident
           {
             if (unlikely(Lex->sphead->spvar_fill_type_reference(thd,
                                                                 $$= $1, $4,
                                                                 $6)))
               MYSQL_YYABORT;
           }
-        | sp_param_name TYPE_SYM OF_SYM ident '.' ident '.' ident
+        | sp_param_name_and_mode TYPE_SYM OF_SYM ident '.' ident '.' ident
           {
             if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $$= $1,
                                                                 $4, $6, $8)))
               MYSQL_YYABORT;
           }
-        | sp_param_name ROW_SYM TYPE_SYM OF_SYM ident
+        | sp_param_name_and_mode ROW_SYM TYPE_SYM OF_SYM ident
           {
             if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $5)))
               MYSQL_YYABORT;
           }
-        | sp_param_name ROW_SYM TYPE_SYM OF_SYM ident '.' ident
+        | sp_param_name_and_mode ROW_SYM TYPE_SYM OF_SYM ident '.' ident
           {
             if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $5, $7)))
               MYSQL_YYABORT;
@@ -18444,46 +18422,6 @@ sp_opt_inout:
         | sp_parameter_type
         | IN_SYM OUT_SYM { $$= sp_variable::MODE_INOUT; }
         ;
-
-sp_pdparam:
-          sp_param_name sp_opt_inout field_type
-          {
-            $1->mode= $2;
-            if (unlikely(Lex->sp_param_fill_definition($1, $3)))
-              MYSQL_YYABORT;
-          }
-        | sp_param_name sp_opt_inout sp_decl_ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
-          {
-            $1->mode= $2;
-            if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $1, $3, $5)))
-              MYSQL_YYABORT;
-          }
-        | sp_param_name sp_opt_inout sp_decl_ident '.' ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
-          {
-            $1->mode= $2;
-            if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $1, $3, $5, $7)))
-              MYSQL_YYABORT;
-          }
-        | sp_param_name sp_opt_inout sp_decl_ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
-          {
-            $1->mode= $2;
-            if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $1, $3)))
-              MYSQL_YYABORT;
-          }
-        | sp_param_name sp_opt_inout sp_decl_ident '.' ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
-          {
-            $1->mode= $2;
-            if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $1, $3, $5)))
-              MYSQL_YYABORT;
-          }
-        | sp_param_name sp_opt_inout ROW_SYM row_type_body
-          {
-            $1->mode= $2;
-            if (unlikely(Lex->sphead->spvar_fill_row(thd, $1, $4)))
-              MYSQL_YYABORT;
-          }
-        ;
-
 
 sp_proc_stmts1_implicit_block:
           {
@@ -18916,23 +18854,45 @@ sp_decl_variable_list_anchored:
           }
         ;
 
-sp_param_name_and_type_anchored:
-          sp_param_name sp_decl_ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
+sp_param_name_and_mode:
+          sp_param_name sp_opt_inout
+          {
+             $1->mode= $2;
+             $$= $1;
+          }
+        ;
+
+sp_param:
+          sp_param_name_and_mode field_type
+          {
+            if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name_and_mode ROW_SYM row_type_body
+          {
+            if (unlikely(Lex->sphead->spvar_fill_row(thd, $$= $1, $3)))
+              MYSQL_YYABORT;
+          }
+        | sp_param_anchored
+        ;
+
+sp_param_anchored:
+          sp_param_name_and_mode sp_decl_ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
           {
             if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $$= $1, $2, $4)))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_decl_ident '.' ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
+        | sp_param_name_and_mode sp_decl_ident '.' ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
           {
             if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $$= $1, $2, $4, $6)))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_decl_ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
+        | sp_param_name_and_mode sp_decl_ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
           {
             if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $2)))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_decl_ident '.' ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
+        | sp_param_name_and_mode sp_decl_ident '.' ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
           {
             if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $2, $4)))
               MYSQL_YYABORT;

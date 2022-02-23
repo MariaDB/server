@@ -191,7 +191,7 @@ fresh install:
   script:
     - *test-prepare-container
     - *test-install
-    - service mariadb status # There is no init.d/mysql in MariaDB 10.7
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.8
     - *test-verify-final
   variables:
     GIT_STRATEGY: none
@@ -199,7 +199,7 @@ fresh install:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb-10.7 Sid upgrade:
+mariadb-10.8 Sid upgrade:
   stage: upgrade in Sid
   needs:
     - job: build
@@ -212,7 +212,7 @@ mariadb-10.7 Sid upgrade:
   script:
     - *test-prepare-container
     - *test-install
-    - service mariadb status # There is no init.d/mysql in MariaDB 10.7
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.8
     - *test-verify-final
   variables:
     GIT_STRATEGY: none
@@ -220,7 +220,7 @@ mariadb-10.7 Sid upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb-10.5 Bullseye to mariadb-10.7 upgrade:
+mariadb-10.5 Bullseye to mariadb-10.8 upgrade:
   stage: upgrade from Bullseye/Buster/Stretch
   needs:
     - job: build
@@ -246,7 +246,7 @@ mariadb-10.5 Bullseye to mariadb-10.7 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb-10.3 Buster to mariadb-10.7 upgrade:
+mariadb-10.3 Buster to mariadb-10.8 upgrade:
   stage: upgrade from Bullseye/Buster/Stretch
   needs:
     - job: build
@@ -272,7 +272,7 @@ mariadb-10.3 Buster to mariadb-10.7 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb-10.1 Stretch to mariadb-10.7 upgrade:
+mariadb-10.1 Stretch to mariadb-10.8 upgrade:
   stage: upgrade from Bullseye/Buster/Stretch
   needs:
     - job: build
@@ -313,7 +313,7 @@ test basic features:
   script:
     - *test-prepare-container
     - *test-install
-    - service mariadb status # There is no init.d/mysql in MariaDB 10.7
+    - service mariadb status # There is no init.d/mysql in MariaDB 10.8
     - *test-verify-final
     - |
       # Print info about server
@@ -526,7 +526,7 @@ mariadb-connector-c Stretch upgrade:
 
 # Upgrading from MySQL 8.0 with datadir in place is not possible. Users need to do a data dump.
 # The Debian maintainer scripts detect this situation and simply moves old datadir aside and start fresh.
-mysql-8.0 Sid to mariadb-10.7 upgrade:
+mysql-8.0 Sid to mariadb-10.8 upgrade:
   stage: upgrade in Sid
   needs:
     - job: build
@@ -553,7 +553,7 @@ mysql-8.0 Sid to mariadb-10.7 upgrade:
 
 # Upgrading from MySQL 8.0 with datadir in place is not possible. Users need to do a data dump.
 # The Debian maintainer scripts detect this situation and simply moves old datadir aside and start fresh.
-mysql-8.0 Focal to mariadb-10.7 upgrade:
+mysql-8.0 Focal to mariadb-10.8 upgrade:
   stage: upgrade extras
   needs:
     - job: build buster-backports
@@ -587,7 +587,7 @@ mysql-8.0 Focal to mariadb-10.7 upgrade:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
 
-mariadb.org-10.5 to mariadb-10.7 upgrade:
+mariadb.org-10.5 to mariadb-10.8 upgrade:
   stage: upgrade extras
   needs:
     - job: build
@@ -625,7 +625,7 @@ mariadb.org-10.5 to mariadb-10.7 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb.org-10.4 to mariadb-10.7 upgrade:
+mariadb.org-10.4 to mariadb-10.8 upgrade:
   stage: upgrade extras
   needs:
     - job: build
@@ -657,7 +657,7 @@ mariadb.org-10.4 to mariadb-10.7 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb.org-10.3 to mariadb-10.7 upgrade:
+mariadb.org-10.3 to mariadb-10.8 upgrade:
   stage: upgrade extras
   needs:
     - job: build
@@ -692,7 +692,7 @@ mariadb.org-10.3 to mariadb-10.7 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mariadb.org-10.2 to mariadb-10.7 upgrade:
+mariadb.org-10.2 to mariadb-10.8 upgrade:
   stage: upgrade extras
   needs:
     - job: build
@@ -727,7 +727,7 @@ mariadb.org-10.2 to mariadb-10.7 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-mysql.com-5.7 to mariadb-10.7 upgrade:
+mysql.com-5.7 to mariadb-10.8 upgrade:
   stage: upgrade extras
   needs:
     - job: build buster-backports
@@ -758,7 +758,7 @@ mysql.com-5.7 to mariadb-10.7 upgrade:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
 
-percona-xtradb-5.7 to mariadb-10.7 upgrade (MDEV-22679):
+percona-xtradb-5.7 to mariadb-10.8 upgrade (MDEV-22679):
   stage: upgrade extras
   needs:
     - job: build buster-backports
