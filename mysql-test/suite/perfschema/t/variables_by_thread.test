@@ -1,0 +1,157 @@
+--source include/have_perfschema.inc
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+
+--echo #
+--echo # Results from inactive connections are shown
+--echo #
+SET time_zone= '+2:00';
+
+SELECT THREAD_ID INTO @def_thread_id FROM performance_schema.threads
+                 WHERE PROCESSLIST_ID = CONNECTION_ID();
+
+--connect (con2, localhost, root,,)
+--connect (con1, localhost, root,,)
+set time_zone= '+10:00';
+
+SELECT THREAD_ID INTO @con1_thread_id FROM performance_schema.threads
+                 WHERE PROCESSLIST_ID = CONNECTION_ID();
+
+let $con1_thread_id= `select @con1_thread_id`;
+let $con1_kill_thread_id= `select CONNECTION_ID()`;
+
+SELECT thread_id = @con1_thread_id as current, variable_value
+  FROM performance_schema.variables_by_thread
+  WHERE variable_name = "time_zone";
+
+--connection con2
+--disable_query_log
+eval set @con1_thread_id= $con1_thread_id;
+eval set @con1_kill_thread_id= $con1_kill_thread_id;
+--enable_query_log
+
+--connection default
+--disable_query_log
+eval set @con1_thread_id= $con1_thread_id;
+eval set @con1_kill_thread_id= $con1_kill_thread_id;
+--enable_query_log
+
+SELECT thread_id = @def_thread_id as current, variable_value
+  FROM performance_schema.variables_by_thread
+  WHERE variable_name = "time_zone";
+
+--echo #
+--echo # Notify APC before net_read
+--echo #
+--connection con2
+select "good";
+--connection con1
+--send
+set debug_sync= "before_do_command_net_read SIGNAL net WAIT_FOR pass";
+--connection default
+set debug_sync= "now WAIT_FOR net";
+set debug_sync= "apc_after_notify SIGNAL pass";
+SELECT thread_id = @def_thread_id as current, variable_value
+  FROM performance_schema.variables_by_thread
+  WHERE variable_name = "time_zone";
+
+set debug_sync= "now SIGNAL pass";
+--connection con1
+--reap
+--connection default
+
+--echo #
+--echo # Test timeout
+--echo #
+set @old_dbug= @@global.debug_dbug;
+set global debug_dbug= "+d,apc_timeout";
+--connection con2
+select "good";
+--connection con1
+--send
+set debug_sync= "now SIGNAL waiting WAIT_FOR pass";
+--connection default
+set debug_sync= "now WAIT_FOR waiting";
+--echo # Should timeout in 1ms.
+SELECT thread_id = @def_thread_id as current, variable_value
+  FROM performance_schema.variables_by_thread
+  WHERE variable_name = "time_zone"       
+  and thread_id in (@def_thread_id, 
+                    @con1_thread_id); # con2 can be nondeterministically skipped
+set debug_sync= "now SIGNAL pass";
+--connection con1
+--reap
+SELECT "ok";
+--connection con2
+select "good";
+--connection default
+set global debug_dbug= @old_dbug;
+
+--echo #
+--echo # Two requests
+--echo #
+
+--connection con1
+set debug_sync= "before_do_command_net_read SIGNAL net WAIT_FOR pass";
+--send
+SELECT "work";
+--connection con2
+set debug_sync= "now WAIT_FOR net";
+set debug_sync= "apc_after_notify SIGNAL con2_hangs";
+--send
+SELECT thread_id = @con1_thread_id as `con1's`, variable_value
+  FROM performance_schema.variables_by_thread
+  WHERE variable_name = "time_zone";
+--connection default
+set debug_sync= "now WAIT_FOR con2_hangs";
+set debug_sync= "apc_after_notify SIGNAL pass";
+SELECT thread_id = @def_thread_id as current, variable_value
+  FROM performance_schema.variables_by_thread
+  WHERE variable_name = "time_zone";
+
+--connection con1
+--reap
+--connection con2
+--reap
+select "good";
+
+--echo #
+--echo # Result from the killed query is shown.
+--echo #
+
+--connection con1
+set debug_sync= "after_dispatch_command SIGNAL dispatched WAIT_FOR pass";
+--send
+SELECT "work";
+--connection default
+set debug_sync= "now WAIT_FOR dispatched";
+KILL QUERY @con1_kill_thread_id;
+--connection default
+SELECT thread_id = @def_thread_id as current, variable_value
+  FROM performance_schema.variables_by_thread
+  WHERE variable_name = "time_zone";
+
+set debug_sync= "now SIGNAL pass";
+
+--echo #
+--echo # Result from the killed connection is ignored.
+--echo #
+
+--connection con1
+--reap
+set debug_sync= "after_dispatch_command SIGNAL dispatched WAIT_FOR pass";
+--send
+SELECT "work";
+--connection default
+set debug_sync= "now WAIT_FOR dispatched";
+KILL CONNECTION @con1_kill_thread_id;
+SELECT thread_id = @def_thread_id as current, variable_value
+  FROM performance_schema.variables_by_thread
+  WHERE variable_name = "time_zone";
+
+
+--echo # Cleanup
+--connection default
+set debug_sync= "reset";
+--disconnect con1
+--disconnect con2
