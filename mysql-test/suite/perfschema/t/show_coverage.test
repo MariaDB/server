@@ -157,6 +157,11 @@ SELECT thread_id = @con1_thread_id as current, variable_value
   FROM performance_schema.variables_by_thread
   WHERE variable_name = "time_zone";
 
+#SELECT CONNECTION_ID();
+
+--connection default
+#SELECT CONNECTION_ID();
+SELECT 1;
 --disconnect con1
 --connection default
 
