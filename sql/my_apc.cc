@@ -136,6 +136,8 @@ int Apc_target::wait_for_completion(THD *caller_thd, Call_request *apc_request,
   struct timespec abstime;
   const int timeout= timeout_sec;
   set_timespec(abstime, timeout);
+
+  DBUG_EXECUTE_IF("apc_timeout", set_timespec_nsec(abstime, 1000000););
   int res = 1;
   int wait_res= 0;
   PSI_stage_info old_stage;
