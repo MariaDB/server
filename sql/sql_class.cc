@@ -706,8 +706,8 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
 
 /* wsrep-lib */
    m_wsrep_next_trx_id(WSREP_UNDEFINED_TRX_ID),
-   m_wsrep_mutex(LOCK_thd_data),
-   m_wsrep_cond(COND_wsrep_thd),
+   m_wsrep_mutex(&LOCK_thd_data),
+   m_wsrep_cond(&COND_wsrep_thd),
    m_wsrep_client_service(this, m_wsrep_client_state),
    m_wsrep_client_state(this,
                         m_wsrep_mutex,
