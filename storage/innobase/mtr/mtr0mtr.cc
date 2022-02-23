@@ -793,7 +793,7 @@ ATTRIBUTE_COLD static void log_overwrite_warning(lsn_t age, lsn_t capacity)
 ATTRIBUTE_COLD void log_t::append_prepare_wait(bool ex) noexcept
 {
   log_sys.waits++;
-  log_sys.lsn_lock.wr_unlock();
+  log_sys.unlock_lsn();
 
   if (ex)
     log_sys.latch.wr_unlock();
@@ -808,7 +808,7 @@ ATTRIBUTE_COLD void log_t::append_prepare_wait(bool ex) noexcept
   else
     log_sys.latch.rd_lock(SRW_LOCK_CALL);
 
-  log_sys.lsn_lock.wr_lock();
+  log_sys.lock_lsn();
 }
 
 /** Reserve space in the log buffer for appending data.
@@ -829,7 +829,7 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
   ut_ad(pmem == is_pmem());
   const lsn_t checkpoint_margin{last_checkpoint_lsn + log_capacity - size};
   const size_t avail{(pmem ? size_t(capacity()) : buf_size) - size};
-  lsn_lock.wr_lock();
+  lock_lsn();
   write_to_buf++;
 
   for (ut_d(int count= 50);
@@ -850,7 +850,7 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
   if (pmem && new_buf_free >= file_size)
     new_buf_free-= size_t(capacity());
   buf_free= new_buf_free;
-  lsn_lock.wr_unlock();
+  unlock_lsn();
 
   if (UNIV_UNLIKELY(l > checkpoint_margin) ||
       (!pmem && b >= max_buf_free))

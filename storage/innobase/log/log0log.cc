@@ -102,7 +102,7 @@ void log_t::create()
   ut_ad(!is_initialised());
 
   latch.SRW_LOCK_INIT(log_latch_key);
-  lsn_lock.init();
+  init_lsn_lock();
 
   /* LSN 0 and 1 are reserved; @see buf_page_t::oldest_modification_ */
   lsn.store(FIRST_LSN, std::memory_order_relaxed);
@@ -542,7 +542,7 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
     write_lock.set_pending(lsn);
     ut_ad(write_lsn >= get_flushed_lsn());
     const size_t block_size_1{get_block_size() - 1};
-    const lsn_t offset{calc_lsn_offset(write_lsn) & ~block_size_1};
+    const lsn_t offset{calc_lsn_offset(write_lsn) & ~lsn_t{block_size_1}};
 
     DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF " at " LSN_PF,
                           write_lsn, lsn, offset));
@@ -1043,7 +1043,7 @@ void log_t::close()
 #endif
 
   latch.destroy();
-  lsn_lock.destroy();
+  destroy_lsn_lock();
 
   recv_sys.close();
 

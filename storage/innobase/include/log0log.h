@@ -189,9 +189,19 @@ private:
   This must hold if lsn - last_checkpoint_lsn > max_checkpoint_age. */
   std::atomic<bool> check_flush_or_checkpoint_;
 
+
+#if defined(__aarch64__)
+/* On ARM, we do more spinning */
+typedef srw_spin_lock log_rwlock_t;
+#define LSN_LOCK_ATTR MY_MUTEX_INIT_FAST
+#else
+typedef srw_lock log_rwlock_t;
+#define LSN_LOCK_ATTR nullptr
+#endif
+
 public:
   /** rw-lock protecting buf */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) srw_lock latch;
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) log_rwlock_t latch;
 private:
   /** Last written LSN */
   lsn_t write_lsn;
@@ -209,7 +219,12 @@ public:
 
 private:
   /** spin lock protecting lsn, buf_free in append_prepare() */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) srw_mutex lsn_lock;
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) pthread_mutex_t lsn_lock;
+  void init_lsn_lock() { pthread_mutex_init(&lsn_lock, LSN_LOCK_ATTR); }
+  void lock_lsn() { pthread_mutex_lock(&lsn_lock); }
+  void unlock_lsn() { pthread_mutex_unlock(&lsn_lock); }
+  void destroy_lsn_lock() { pthread_mutex_destroy(&lsn_lock); }
+
 public:
   /** first free offset within buf use; protected by lsn_lock */
   Atomic_relaxed<size_t> buf_free;
