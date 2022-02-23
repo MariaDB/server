@@ -126,6 +126,21 @@ int pthread_cancel(pthread_t thread);
 #define pthread_mutex_destroy(A) (DeleteCriticalSection(A), 0)
 #define pthread_kill(A,B) pthread_dummy((A) ? 0 : ESRCH)
 
+static HRESULT pthread_setname_np(DWORD thread_id, char *name)
+{
+  HANDLE h= OpenThread(THREAD_SET_INFORMATION, FALSE, thread_id);
+  if (unlikely(h == 0))
+    return GetLastError();
+  wchar_t buf[50];
+  int len= MultiByteToWideChar(CP_ACP, 0, name, (int)strlen(name), buf, (int)sizeof buf/sizeof buf[0]);
+  if (unlikely(len == 0))
+    return GetLastError();
+  buf[len]= 0;
+  HRESULT result= SetThreadDescription(h, buf);
+  CloseHandle(h);
+  return result;
+}
+
 
 /* Dummy defines for easier code */
 #define pthread_attr_setdetachstate(A,B) pthread_dummy(0)

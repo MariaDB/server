@@ -1109,6 +1109,11 @@ static int check_connection(THD *thd)
 void setup_connection_thread_globals(THD *thd)
 {
   thd->store_globals();
+#if !defined(DBUG_OFF)
+  char con_name[16];
+  snprintf(con_name, sizeof con_name, "con_%llu", thd->thread_id);
+  pthread_setname_np(thd->real_id, con_name);
+#endif
 }
 
 
@@ -1447,7 +1452,7 @@ end_thread:
       We have to call store_globals to update mysys_var->id and lock_info
       with the new thread_id
     */
-    thd->store_globals();
+    setup_connection_thread_globals(thd);
 
     /* reset abort flag for the thread */
     thd->mysys_var->abort= 0;

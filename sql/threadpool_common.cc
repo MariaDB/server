@@ -154,7 +154,7 @@ static void thread_attach(THD* thd)
 #endif /* WITH_WSREP */
   set_mysys_var(thd->mysys_var);
   thd->thread_stack=(char*)&thd;
-  thd->store_globals();
+  setup_connection_thread_globals(thd);
   PSI_CALL_set_thread(thd->get_psi());
   mysql_socket_set_thread_owner(thd->net.vio->mysql_socket);
 }
