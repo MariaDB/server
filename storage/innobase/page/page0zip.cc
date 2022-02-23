@@ -2,7 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4562,7 +4562,7 @@ page_zip_copy_recs(
 	to the compressed data page. */
 	{
 		page_zip_t*	data = page_zip->data;
-		new (page_zip) page_zip_des_t(*src_zip);
+		new (page_zip) page_zip_des_t(*src_zip, false);
 		page_zip->data = data;
 	}
 	ut_ad(page_zip_get_trailer_len(page_zip, dict_index_is_clust(index))
