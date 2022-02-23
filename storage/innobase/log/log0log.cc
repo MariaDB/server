@@ -542,7 +542,7 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
     write_lock.set_pending(lsn);
     ut_ad(write_lsn >= get_flushed_lsn());
     const size_t block_size_1{get_block_size() - 1};
-    const lsn_t offset{calc_lsn_offset(write_lsn) & ~block_size_1};
+    const lsn_t offset{calc_lsn_offset(write_lsn) & ~lsn_t{block_size_1}};
 
     DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF " at " LSN_PF,
                           write_lsn, lsn, offset));
