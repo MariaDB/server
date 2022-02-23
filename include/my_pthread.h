@@ -125,6 +125,7 @@ int pthread_cancel(pthread_t thread);
 #define pthread_mutex_unlock(A)  (LeaveCriticalSection(A), 0)
 #define pthread_mutex_destroy(A) (DeleteCriticalSection(A), 0)
 #define pthread_kill(A,B) pthread_dummy((A) ? 0 : ESRCH)
+#define pthread_setname_np(T, N) SetThreadDescription(T, N)
 
 
 /* Dummy defines for easier code */
