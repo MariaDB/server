@@ -5078,13 +5078,19 @@ static Sys_var_have Sys_have_symlink(
        "--skip-symbolic-links option.",
        READ_ONLY GLOBAL_VAR(have_symlink), NO_CMD_LINE);
 
-#if defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN)
+#if defined __SANITIZE_ADDRESS__ || defined WITH_UBSAN || __has_feature(memory_sanitizer)
 
-#ifdef __SANITIZE_ADDRESS__
-#define SANITIZER_MODE "ASAN"
-#else
-#define SANITIZER_MODE "UBSAN"
-#endif /* __SANITIZE_ADDRESS__ */
+# ifdef __SANITIZE_ADDRESS__
+#  ifdef WITH_UBSAN
+#   define SANITIZER_MODE "ASAN+UBSAN"
+#  else
+#   define SANITIZER_MODE "ASAN"
+#  endif
+# elif defined WITH_UBSAN
+#  define SANITIZER_MODE "UBSAN"
+# else
+#  define SANITIZER_MODE "MSAN"
+# endif
 
 static char *have_sanitizer;
 static Sys_var_charptr Sys_have_santitizer(
