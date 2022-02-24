@@ -800,6 +800,36 @@ innodb_stopword_table_validate(
 						for update function */
 	struct st_mysql_value*		value);	/*!< in: incoming string */
 
+static
+void innodb_ft_cache_size_update(THD*, st_mysql_sys_var*, void*, const void* save)
+{
+#if UNIV_WORD_SIZE == 4
+  my_atomic_store32_explicit(
+    &fts_max_cache_size, *static_cast<const size_t*>(save),
+    MY_MEMORY_ORDER_RELAXED);
+#else
+  my_atomic_store64_explicit(
+    reinterpret_cast<int64*>(&fts_max_cache_size),
+    *static_cast<const size_t*>(save),
+    MY_MEMORY_ORDER_RELAXED);
+#endif
+}
+
+static
+void innodb_ft_total_cache_size_update(THD*, st_mysql_sys_var*, void*, const void* save)
+{
+#if UNIV_WORD_SIZE == 4
+  my_atomic_store32_explicit(
+    &fts_max_total_cache_size, *static_cast<const size_t*>(save),
+    MY_MEMORY_ORDER_RELAXED);
+#else
+  my_atomic_store64_explicit(
+    reinterpret_cast<int64*>(&fts_max_total_cache_size),
+    *static_cast<const size_t*>(save),
+    MY_MEMORY_ORDER_RELAXED);
+#endif
+}
+
 static bool is_mysql_datadir_path(const char *path);
 
 /** Validate passed-in "value" is a valid directory name.
@@ -19787,15 +19817,31 @@ static MYSQL_SYSVAR_STR(ft_aux_table, innodb_ft_aux_table,
   "FTS internal auxiliary table to be checked",
   innodb_ft_aux_table_validate, NULL, NULL);
 
-static MYSQL_SYSVAR_ULONG(ft_cache_size, fts_max_cache_size,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "InnoDB Fulltext search cache size in bytes",
-  NULL, NULL, 8000000, 1600000, 80000000, 0);
+#if UNIV_WORD_SIZE == 4
 
-static MYSQL_SYSVAR_ULONG(ft_total_cache_size, fts_max_total_cache_size,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+static MYSQL_SYSVAR_SIZE_T(ft_cache_size, fts_max_cache_size,
+  PLUGIN_VAR_RQCMDARG,
+  "InnoDB Fulltext search cache size in bytes",
+  NULL, innodb_ft_cache_size_update, 8000000, 1600000, 1U << 29, 0);
+
+static MYSQL_SYSVAR_SIZE_T(ft_total_cache_size, fts_max_total_cache_size,
+  PLUGIN_VAR_RQCMDARG,
   "Total memory allocated for InnoDB Fulltext Search cache",
-  NULL, NULL, 640000000, 32000000, 1600000000, 0);
+  NULL, innodb_ft_total_cache_size_update, 640000000, 32000000, 1600000000, 0);
+
+#else
+
+static MYSQL_SYSVAR_SIZE_T(ft_cache_size, fts_max_cache_size,
+  PLUGIN_VAR_RQCMDARG,
+  "InnoDB Fulltext search cache size in bytes",
+  NULL, innodb_ft_cache_size_update, 8000000, 1600000, 1ULL << 40, 0);
+
+static MYSQL_SYSVAR_SIZE_T(ft_total_cache_size, fts_max_total_cache_size,
+  PLUGIN_VAR_RQCMDARG,
+  "Total memory allocated for InnoDB Fulltext Search cache",
+  NULL, innodb_ft_total_cache_size_update, 640000000, 32000000, 1ULL << 40, 0);
+
+#endif
 
 static MYSQL_SYSVAR_SIZE_T(ft_result_cache_limit, fts_result_cache_limit,
   PLUGIN_VAR_RQCMDARG,

@@ -2734,6 +2734,19 @@ static ulint fts_optimize_how_many()
 	return(n_tables);
 }
 
+/** @return innodb_ft_total_cache_size */
+static size_t fts_get_max_total_cache_size()
+{
+#if UNIV_WORD_SIZE == 4
+  return my_atomic_load32_explicit(
+    &fts_max_total_cache_size, MY_MEMORY_ORDER_RELAXED);
+#else
+  return my_atomic_load64_explicit((volatile int64 *)
+	reinterpret_cast<int64*>(&fts_max_total_cache_size),
+	MY_MEMORY_ORDER_RELAXED);
+#endif
+}
+
 /**********************************************************************//**
 Check if the total memory used by all FTS table exceeds the maximum limit.
 @return true if a sync is needed, false otherwise */
@@ -2761,7 +2774,7 @@ static bool fts_is_sync_needed()
 			total_memory += slot->table->fts->cache->total_size;
 		}
 
-		if (total_memory > fts_max_total_cache_size) {
+		if (total_memory > fts_get_max_total_cache_size()) {
 			return(true);
 		}
 	}

@@ -352,10 +352,10 @@ struct fts_stopword_t;
 extern const char*	fts_default_stopword[];
 
 /** Variable specifying the maximum FTS cache size for each table */
-extern ulong		fts_max_cache_size;
+extern size_t	fts_max_cache_size;
 
 /** Variable specifying the total memory allocated for FTS cache */
-extern ulong		fts_max_total_cache_size;
+extern size_t	fts_max_total_cache_size;
 
 /** Variable specifying the FTS result cache limit for each query */
 extern size_t		fts_result_cache_limit;
