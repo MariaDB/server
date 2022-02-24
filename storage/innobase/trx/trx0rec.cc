@@ -2129,7 +2129,7 @@ err_exit:
 					mtr.set_log_mode(MTR_LOG_NO_REDO);
 				}
 
-				rseg->latch.wr_lock();
+				rseg->latch.wr_lock(SRW_LOCK_CALL);
 				trx_undo_free_last_page(undo, &mtr);
 				rseg->latch.wr_unlock();
 

@@ -558,7 +558,7 @@ buf_block_t* trx_undo_add_page(trx_undo_t* undo, mtr_t* mtr)
 	a pessimistic insert in a B-tree, and we must reserve the
 	counterpart of the tree latch, which is the rseg mutex. */
 
-	rseg->latch.wr_lock();
+	rseg->latch.wr_lock(SRW_LOCK_CALL);
 
 	buf_block_t* header_block = trx_undo_page_get(
 		page_id_t(undo->rseg->space->id, undo->hdr_page_no), mtr);
@@ -679,7 +679,7 @@ void trx_undo_truncate_end(trx_undo_t& undo, undo_no_t limit, bool is_temp)
 		}
 
 		trx_undo_rec_t* trunc_here = NULL;
-		undo.rseg->latch.wr_lock();
+		undo.rseg->latch.wr_lock(SRW_LOCK_CALL);
 		buf_block_t* undo_block = trx_undo_page_get(
 			page_id_t(undo.rseg->space->id, undo.last_page_no),
 			&mtr);
@@ -1160,7 +1160,7 @@ trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
 
 	trx_rseg_t* rseg = trx->rsegs.m_redo.rseg;
 
-	rseg->latch.wr_lock();
+	rseg->latch.wr_lock(SRW_LOCK_CALL);
 	buf_block_t* block = trx_undo_reuse_cached(
 		trx, rseg, &trx->rsegs.m_redo.undo, mtr);
 
@@ -1216,7 +1216,7 @@ trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 		*err = DB_TOO_MANY_CONCURRENT_TRXS; return NULL;
 	);
 
-	rseg->latch.wr_lock();
+	rseg->latch.wr_lock(SRW_LOCK_CALL);
 
 	buf_block_t* block = trx_undo_reuse_cached(trx, rseg, undo, mtr);
 
@@ -1310,7 +1310,7 @@ void trx_undo_commit_cleanup(trx_undo_t *undo)
 	trx_rseg_t*	rseg	= undo->rseg;
 	ut_ad(rseg->space == fil_system.temp_space);
 
-	rseg->latch.wr_lock();
+	rseg->latch.wr_lock(SRW_LOCK_CALL);
 
 	UT_LIST_REMOVE(rseg->undo_list, undo);
 

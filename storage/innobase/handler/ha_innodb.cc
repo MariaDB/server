@@ -595,6 +595,7 @@ mysql_pfs_key_t	fil_space_latch_key;
 mysql_pfs_key_t trx_i_s_cache_lock_key;
 mysql_pfs_key_t	trx_purge_latch_key;
 mysql_pfs_key_t lock_latch_key;
+mysql_pfs_key_t trx_rseg_latch_key;
 
 /* all_innodb_rwlocks array contains rwlocks that are
 performance schema instrumented if "UNIV_PFS_RWLOCK"
@@ -609,6 +610,7 @@ static PSI_rwlock_info all_innodb_rwlocks[] =
   { &trx_i_s_cache_lock_key, "trx_i_s_cache_lock", 0 },
   { &trx_purge_latch_key, "trx_purge_latch", 0 },
   { &lock_latch_key, "lock_latch", 0 },
+  { &trx_rseg_latch_key, "trx_rseg_latch", 0 },
   { &index_tree_rw_lock_key, "index_tree_rw_lock", PSI_RWLOCK_FLAG_SX }
 };
 # endif /* UNIV_PFS_RWLOCK */

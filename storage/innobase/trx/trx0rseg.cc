@@ -380,7 +380,7 @@ void trx_rseg_t::destroy()
 
 void trx_rseg_t::init(fil_space_t *space, uint32_t page)
 {
-  latch.init();
+  latch.SRW_LOCK_INIT(trx_rseg_latch_key);
   ut_ad(!this->space);
   this->space= space;
   page_no= page;

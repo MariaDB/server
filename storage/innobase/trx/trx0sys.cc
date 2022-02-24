@@ -212,7 +212,7 @@ uint32_t trx_sys_t::history_size()
   uint32_t size= 0;
   for (auto &rseg : rseg_array)
   {
-    rseg.latch.rd_lock();
+    rseg.latch.rd_lock(SRW_LOCK_CALL);
     size+= rseg.history_size;
   }
   for (auto &rseg : rseg_array)
@@ -228,7 +228,7 @@ bool trx_sys_t::history_exceeds(uint32_t threshold)
   size_t i;
   for (i= 0; i < array_elements(rseg_array); i++)
   {
-    rseg_array[i].latch.rd_lock();
+    rseg_array[i].latch.rd_lock(SRW_LOCK_CALL);
     size+= rseg_array[i].history_size;
     if (size > threshold)
     {
