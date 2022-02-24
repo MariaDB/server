@@ -141,6 +141,13 @@ const uint16 *my_uca_contraction2_weight(const MY_CONTRACTIONS *c,
                                          my_wc_t wc1, my_wc_t wc2);
 
 
+typedef struct my_uca_contraction_hash_t
+{
+  size_t nitems_alloced;
+  MY_CONTRACTION *item;
+} MY_UCA_CONTRACTION_HASH;
+
+
 /* Collation weights on a single level (e.g. primary, secondary, tertiarty) */
 typedef struct my_uca_level_info_st
 {
@@ -149,6 +156,7 @@ typedef struct my_uca_level_info_st
   uint16  **weights;
   MY_CONTRACTIONS contractions;
   uint    levelno;
+  MY_UCA_CONTRACTION_HASH contraction_hash;
 } MY_UCA_WEIGHT_LEVEL;
 
 
