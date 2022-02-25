@@ -33,6 +33,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include "debug_sync.h"
 
 #include <my_service_manager.h>
 
@@ -1704,6 +1705,15 @@ wait_signal:
           }
 
           locked= true;
+          DBUG_EXECUTE_IF("sync.wsrep_donor_state",
+                  {
+                    const char act[]=
+                      "now "
+                      "SIGNAL sync.wsrep_donor_state_reached "
+                      "WAIT_FOR signal.wsrep_donor_state";
+                    DBUG_ASSERT(!debug_sync_set_action(thd.ptr,
+                                                       STRING_WITH_LEN(act)));
+                  };);
           goto wait_signal;
         }
       }
