@@ -803,9 +803,8 @@ static std::string filename_to_spacename(const void *filename, size_t len)
 	ut_a(table);
 	*table = 0;
 	char *db = strrchr(f, '/');
-	ut_a(db);
 	*table = '/';
-	std::string s(db+1);
+	std::string s(db ? db+1 : f);
 	free(f);
 	return s;
 }
@@ -3032,8 +3031,8 @@ static bool xtrabackup_copy_logfile()
                 ds_write(dst_log_file, &seq_1, 1))
               goto write_error;
             if (so < -1 &&
-                ds_write(dst_log_file, log_sys.buf + recv_sys.len - (1 - so),
-                         1 - so))
+                ds_write(dst_log_file, log_sys.buf + recv_sys.len + (1 + so),
+                         -(1 + so)))
               goto write_error;
             if (ds_write(dst_log_file, log_sys.buf + log_sys.START_OFFSET,
                          recv_sys.offset - log_sys.START_OFFSET))
