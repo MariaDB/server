@@ -21,7 +21,8 @@ ADD_EXECUTABLE(innodb_fts-t innodb_fts-t.cc)
 TARGET_LINK_LIBRARIES(innodb_fts-t mysys mytap)
 ADD_DEPENDENCIES(innodb_fts-t GenError)
 MY_ADD_TEST(innodb_fts)
-IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64")
+# See explanation in innobase/CmakeLists.txt
+IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64|s390x")
   ADD_COMPILE_FLAGS(
       ../sync/srw_lock.cc
       COMPILE_FLAGS "-mhtm"

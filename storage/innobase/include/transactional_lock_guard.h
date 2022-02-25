@@ -18,8 +18,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #pragma once
 
-#if defined __powerpc64__ && defined __clang__ && defined __linux__
-#elif defined __powerpc64__&&defined __GNUC__&&defined __linux__&&__GNUC__ > 4
+#if defined __powerpc64__
+#elif defined __s390__
 #elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64) && !defined(__clang__)
 #elif defined __GNUC__ && (defined __i386__ || defined __x86_64__)
 # if __GNUC__ >= 8
@@ -69,7 +69,7 @@ static inline bool xtest() { return have_transactional_memory && _xtest(); }
 TRANSACTIONAL_INLINE static inline void xabort() { _xabort(0); }
 
 TRANSACTIONAL_INLINE static inline void xend() { _xend(); }
-# elif defined __powerpc64__
+# elif defined __powerpc64__ || defined __s390__
 extern bool have_transactional_memory;
 bool transactional_lock_enabled();
 #   define TRANSACTIONAL_TARGET __attribute__((hot))
@@ -77,10 +77,17 @@ bool transactional_lock_enabled();
 
 /**
   Newer gcc compilers only provide __builtin_{htm}
-  function when the -mhtm is actually provided. So
+  functions when the -mhtm CFLAG is actually provided. So
   we've got the option of including it globally, or
-  pushing down to one file with that enabled and removing
-  the inline optimization.
+  pushing down the inclusion of htmxlintrin.h to one
+  file with -mhtm enabled and removing the inline
+  optimization.
+
+  Per FIXME in s390x's htmxlintrin.h, the __TM_simple_begin
+  isn't always_inline resulting in duplicate definitions if
+  it where included more than once.  While xabort and xend
+  could be implemented here, we keep the implementation the
+  same as ppc64.
  */
 TRANSACTIONAL_TARGET bool xbegin();
 TRANSACTIONAL_TARGET void xabort();
