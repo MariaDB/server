@@ -1,0 +1,39 @@
+--source include/big_test.inc
+--source include/have_innodb.inc
+--source include/have_mariabackup.inc
+--source hashicorp_plugin.inc
+
+--source hashicorp_init.inc
+
+CREATE TABLE t(i INT) ENGINE INNODB encrypted=yes encryption_key_id=1;
+INSERT INTO t VALUES(1);
+
+echo # mariabackup backup;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+
+INSERT INTO t VALUES(2);
+
+echo # mariabackup prepare;
+--disable_result_log
+exec $XTRABACKUP --prepare --target-dir=$targetdir;
+
+let $_datadir= `SELECT @@datadir`;
+echo # shutdown server;
+--source include/shutdown_mysqld.inc
+echo # remove datadir;
+rmdir $_datadir;
+echo # mariabackup move back;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --copy-back --datadir=$_datadir --target-dir=$targetdir --parallel=2 --throttle=1;
+--source include/start_mysqld.inc
+--enable_result_log
+
+SELECT * FROM t;
+DROP TABLE t;
+
+rmdir $targetdir;
+
+--source hashicorp_deinit.inc

@@ -1,4 +1,4 @@
-/* Copyright (C) 2019, 2020 MariaDB Corporation
+/* Copyright (C) 2019-2021 MariaDB Corporation
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <time.h>
 #include <errno.h>
 #include <string>
 #include <sstream>
@@ -25,68 +26,178 @@
 #ifdef _WIN32
 #include <malloc.h>
 #define alloca _alloca
-#else
+#elif !defined(__FreeBSD__)
 #include <alloca.h>
 #endif
 #include <algorithm>
 #include <unordered_map>
 #include <mutex>
 
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS) || defined(_CPPUNWIND)
+#define HASHICORP_HAVE_EXCEPTIONS 1
+#else
+#define HASHICORP_HAVE_EXCEPTIONS 0
+#endif
+
+#define HASICORP_DEBUG_LOGGING 0
+
 #define PLUGIN_ERROR_HEADER "hashicorp: "
 
+static clock_t cache_max_time;
+static clock_t cache_max_ver_time;
+
+/*
+  Convert milliseconds to timer ticks with rounding
+  to nearest integer:
+*/
+static clock_t ms_to_ticks (long ms)
+{
+  long long ticks_1000 = ms * (long long) CLOCKS_PER_SEC;
+  clock_t ticks = (clock_t) (ticks_1000 / 1000);
+  return ticks + ((clock_t) (ticks_1000 % 1000) >= 500);
+}
+
 static std::mutex mtx;
+
+/* Key version information structure: */
+typedef struct VER_INFO
+{
+  unsigned int key_version;
+  clock_t timestamp;
+  VER_INFO() : key_version(0), timestamp(0) {};
+  VER_INFO(unsigned int key_version_, clock_t timestamp_) :
+    key_version(key_version_), timestamp(timestamp_) {};
+} VER_INFO;
 
 /* Key information structure: */
 typedef struct KEY_INFO
 {
   unsigned int key_id;
   unsigned int key_version;
+  clock_t timestamp;
   unsigned int length;
   unsigned char data [MY_AES_MAX_KEY_LENGTH];
-  KEY_INFO() : key_id(0), key_version(0), length(0) {};
+  KEY_INFO() : key_id(0), key_version(0), timestamp(0), length(0) {};
+  KEY_INFO(unsigned int key_id_,
+           unsigned int key_version_,
+           clock_t timestamp_,
+           unsigned int length_) :
+    key_id(key_id_), key_version(key_version_),
+    timestamp(timestamp_), length(length_) {};
 } KEY_INFO;
 
 /* Cache for the latest version, per key id: */
-static std::unordered_map<unsigned int, unsigned int> latest_version_cache;
+typedef std::unordered_map<unsigned int, VER_INFO> VER_MAP;
+static VER_MAP latest_version_cache;
 
 /* Cache for key information: */
-static std::unordered_map<unsigned long long, KEY_INFO> key_info_cache;
+typedef std::unordered_map<unsigned long long, KEY_INFO> KEY_MAP;
+static KEY_MAP key_info_cache;
 
 #define KEY_ID_AND_VERSION(key_id, version) \
   ((unsigned long long)key_id << 32 | version)
 
-static void cache_add (unsigned int key_id, unsigned int key_version,
-                       unsigned int length, KEY_INFO* info)
+static void cache_add (const KEY_INFO& info, bool update_version)
 {
-  info->key_id = key_id;
-  info->key_version = key_version;
-  info->length = length;
+  unsigned int key_id = info.key_id;
+  unsigned int key_version = info.key_version;
   mtx.lock();
-  latest_version_cache[key_id]=
-    std::max(latest_version_cache[key_id], key_version);
-  key_info_cache[KEY_ID_AND_VERSION(key_id, key_version)]= *info;
+  VER_INFO &ver_info = latest_version_cache[key_id];
+  if (update_version || ver_info.key_version < key_version)
+  {
+    ver_info.key_version = key_version;
+    ver_info.timestamp = info.timestamp;
+  }
+  key_info_cache[KEY_ID_AND_VERSION(key_id, key_version)] = info;
+#if HASICORP_DEBUG_LOGGING
+  my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                  "cache_add: key_id = %u, key_version = %u, "
+                  "timestamp = %u, update_version = %u, new version = %u",
+                  ME_ERROR_LOG_ONLY | ME_NOTE, key_id, key_version,
+                  timestamp, (int) update_version, ver_info.key_version);
+#endif
   mtx.unlock();
 }
 
 static unsigned int
   cache_get (unsigned int key_id, unsigned int key_version,
-             unsigned char* data, unsigned int* buflen)
+             unsigned char* data, unsigned int* buflen,
+             bool with_timeouts)
 {
-  unsigned int ver= key_version;
+  unsigned int version = key_version;
+  clock_t current_time = clock();
   mtx.lock();
   if (key_version == ENCRYPTION_KEY_VERSION_INVALID)
   {
-    ver= latest_version_cache[key_id];
-    if (ver == 0)
+    clock_t timestamp;
+#if HASHICORP_HAVE_EXCEPTIONS
+    try
+    {
+      VER_INFO &ver_info = latest_version_cache.at(key_id);
+      version = ver_info.key_version;
+      timestamp = ver_info.timestamp;
+    }
+    catch (const std::out_of_range &e)
+#else
+    VER_MAP::const_iterator ver_iter = latest_version_cache.find(key_id);
+    if (ver_iter != latest_version_cache.end())
+    {
+      version = ver_iter->second.key_version;
+      timestamp = ver_iter->second.timestamp;
+    }
+    else
+#endif
+    {
+      mtx.unlock();
+      return ENCRYPTION_KEY_VERSION_INVALID;
+    }
+#if HASICORP_DEBUG_LOGGING
+    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                    "cache_get: key_id = %u, key_version = %u, "
+                    "last version = %u, version timestamp = %u, "
+                    "current time = %u, diff = %u",
+                    ME_ERROR_LOG_ONLY | ME_NOTE, key_id, key_version,
+                    version, timestamp, current_time,
+                    current_time - timestamp);
+#endif
+    if (with_timeouts && current_time - timestamp > cache_max_ver_time)
     {
       mtx.unlock();
       return ENCRYPTION_KEY_VERSION_INVALID;
     }
   }
-  KEY_INFO info= key_info_cache[KEY_ID_AND_VERSION(key_id, ver)];
+  KEY_INFO info;
+#if HASHICORP_HAVE_EXCEPTIONS
+  try
+  {
+    info = key_info_cache.at(KEY_ID_AND_VERSION(key_id, version));
+  }
+  catch (const std::out_of_range &e)
+#else
+  KEY_MAP::const_iterator key_iter =
+    key_info_cache.find(KEY_ID_AND_VERSION(key_id, version));
+  if (key_iter != key_info_cache.end())
+  {
+    info = key_iter->second;
+  }
+  else
+#endif
+  {
+    mtx.unlock();
+    return ENCRYPTION_KEY_VERSION_INVALID;
+  }
   mtx.unlock();
+#if HASICORP_DEBUG_LOGGING
+  my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                  "cache_get: key_id = %u, key_version = %u, "
+                  "effective version = %u, key data timestamp = %u, "
+                  "current time = %u, diff = %u",
+                  ME_ERROR_LOG_ONLY | ME_NOTE, key_id, key_version,
+                  version, info.timestamp, current_time,
+                  current_time - info.timestamp);
+#endif
   unsigned int length= info.length;
-  if (length == 0)
+  if (with_timeouts && current_time - info.timestamp > cache_max_time)
   {
     return ENCRYPTION_KEY_VERSION_INVALID;
   }
@@ -113,13 +224,75 @@ static unsigned int
 
 static unsigned int cache_get_version (unsigned int key_id)
 {
-  unsigned int ver;
+  unsigned int version;
   mtx.lock();
-  ver= latest_version_cache[key_id];
-  mtx.unlock();
-  if (ver)
+#if HASHICORP_HAVE_EXCEPTIONS
+  try
   {
-    return ver;
+    version = latest_version_cache.at(key_id).key_version;
+  }
+  catch (const std::out_of_range &e)
+#else
+  VER_MAP::const_iterator ver_iter = latest_version_cache.find(key_id);
+  if (ver_iter != latest_version_cache.end())
+  {
+    version = ver_iter->second.key_version;
+  }
+  else
+#endif
+  {
+    version = ENCRYPTION_KEY_VERSION_INVALID;
+  }
+  mtx.unlock();
+  return version;
+}
+
+static unsigned int cache_check_version (unsigned int key_id)
+{
+  unsigned int version;
+  clock_t timestamp;
+  mtx.lock();
+#if HASHICORP_HAVE_EXCEPTIONS
+  try
+  {
+    VER_INFO &ver_info = latest_version_cache.at(key_id);
+    version = ver_info.key_version;
+    timestamp = ver_info.timestamp;
+  }
+  catch (const std::out_of_range &e)
+#else
+  VER_MAP::const_iterator ver_iter = latest_version_cache.find(key_id);
+  if (ver_iter != latest_version_cache.end())
+  {
+    version = ver_iter->second.key_version;
+    timestamp = ver_iter->second.timestamp;
+  }
+  else
+#endif
+  {
+    mtx.unlock();
+#if HASICORP_DEBUG_LOGGING
+    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                    "cache_check_version: key_id = %u (not in the cache)",
+                    ME_ERROR_LOG_ONLY | ME_NOTE,
+                    key_id);
+#endif
+    return ENCRYPTION_KEY_VERSION_INVALID;
+  }
+  mtx.unlock();
+  clock_t current_time = clock();
+#if HASICORP_DEBUG_LOGGING
+  my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                  "cache_check_version: key_id = %u, "
+                  "last version = %u, version timestamp = %u, "
+                  "current time = %u, diff = %u",
+                  ME_ERROR_LOG_ONLY | ME_NOTE, key_id, version,
+                  version, timestamp, current_time,
+                  current_time - timestamp);
+#endif
+  if (current_time - timestamp <= cache_max_ver_time)
+  {
+    return version;
   }
   else
   {
@@ -133,6 +306,8 @@ static char* vault_ca;
 static int timeout;
 static int max_retries;
 static char caching_enabled;
+static long cache_timeout;
+static long cache_version_timeout;
 static char use_cache_on_timeout;
 
 static MYSQL_SYSVAR_STR(vault_ca, vault_ca,
@@ -169,6 +344,33 @@ static MYSQL_SYSVAR_BOOL(caching_enabled, caching_enabled,
   "the Hashicorp Vault server in the local memory)",
   NULL, NULL, 1);
 
+static void cache_timeout_update (MYSQL_THD thd,
+                                  struct st_mysql_sys_var *var,
+                                  void *var_ptr,
+                                  const void *save)
+{
+  cache_max_time = ms_to_ticks(* (long *) var_ptr);
+}
+
+static MYSQL_SYSVAR_LONG(cache_timeout, cache_timeout,
+  PLUGIN_VAR_RQCMDARG,
+  "Cache timeout for key data (in milliseconds)",
+  NULL, cache_timeout_update, 60000, 0, LONG_MAX, 1);
+
+static void
+  cache_version_timeout_update (MYSQL_THD thd,
+                                struct st_mysql_sys_var *var,
+                                void *var_ptr,
+                                const void *save)
+{
+  cache_max_ver_time = ms_to_ticks(* (long *) var_ptr);
+}
+
+static MYSQL_SYSVAR_LONG(cache_version_timeout, cache_version_timeout,
+  PLUGIN_VAR_RQCMDARG,
+  "Cache timeout for key version (in milliseconds)",
+  NULL, cache_version_timeout_update, 0, 0, LONG_MAX, 1);
+
 static MYSQL_SYSVAR_BOOL(use_cache_on_timeout, use_cache_on_timeout,
   PLUGIN_VAR_RQCMDARG,
   "In case of timeout (when accessing the vault server) "
@@ -182,6 +384,8 @@ static struct st_mysql_sys_var *settings[] = {
   MYSQL_SYSVAR(timeout),
   MYSQL_SYSVAR(max_retries),
   MYSQL_SYSVAR(caching_enabled),
+  MYSQL_SYSVAR(cache_timeout),
+  MYSQL_SYSVAR(cache_version_timeout),
   MYSQL_SYSVAR(use_cache_on_timeout),
   NULL
 };
@@ -443,7 +647,7 @@ static unsigned int get_version (const char *js, int js_len,
   if (version > UINT_MAX || (version == ULONG_MAX && errno))
   {
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
-                    "Integer conversion error (for version number)"
+                    "Integer conversion error (for version number) "
                     "(http response is: %s)",
                     0, response);
     return ENCRYPTION_KEY_VERSION_INVALID;
@@ -476,15 +680,26 @@ static int get_key_data (const char *js, int js_len,
   return 0;
 }
 
-static char* vault_url_data;
+static char *vault_url_data;
 static size_t vault_url_len;
 
 static unsigned int get_latest_version (unsigned int key_id)
 {
+  unsigned int version;
+#if HASICORP_DEBUG_LOGGING
+  my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                  "get_latest_version: key_id = %u",
+                  ME_ERROR_LOG_ONLY | ME_NOTE, key_id);
+#endif
+  if (caching_enabled)
+  {
+    version = cache_check_version(key_id);
+    if (version != ENCRYPTION_KEY_VERSION_INVALID)
+    {
+      return version;
+    }
+  }
   std::string response_str;
-  const char *response;
-  const char *js;
-  int js_len;
   /*
     Maximum buffer length = url length plus 20 characters of
     a 64-bit unsigned integer, plus a slash character, plus
@@ -499,22 +714,24 @@ static unsigned int get_latest_version (unsigned int key_id)
   {
     if (rc == OPERATION_TIMEOUT)
     {
-      unsigned int ver = cache_get_version(key_id);
-      if (ver != ENCRYPTION_KEY_VERSION_INVALID)
+      version = cache_get_version(key_id);
+      if (version != ENCRYPTION_KEY_VERSION_INVALID)
       {
-        return ver;
+        return version;
       }
     }
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Unable to get key data", 0);
     return ENCRYPTION_KEY_VERSION_INVALID;
   }
-  response = get_data(response_str, &js, &js_len);
+  const char *js;
+  int js_len;
+  const char *response = get_data(response_str, &js, &js_len);
   if (response == NULL)
   {
     return ENCRYPTION_KEY_VERSION_INVALID;
   }
-  unsigned int version = get_version(js, js_len, response, &rc);
+  version = get_version(js, js_len, response, &rc);
   if (!caching_enabled || rc)
   {
     return version;
@@ -525,8 +742,8 @@ static unsigned int get_latest_version (unsigned int key_id)
   {
      return ENCRYPTION_KEY_VERSION_INVALID;
   }
-  KEY_INFO info;
   unsigned int length = (unsigned int) key_len >> 1;
+  KEY_INFO info(key_id, version, clock(), length);
   if (length > sizeof(info.data))
   {
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
@@ -539,7 +756,7 @@ static unsigned int get_latest_version (unsigned int key_id)
   {
     return ENCRYPTION_KEY_VERSION_INVALID;
   }
-  cache_add(key_id, version, length, &info);
+  cache_add(info, true);
   return version;
 }
 
@@ -548,16 +765,18 @@ static unsigned int get_key_from_vault (unsigned int key_id,
                                         unsigned char *dstbuf,
                                         unsigned int *buflen)
 {
+#if HASICORP_DEBUG_LOGGING
+  my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                  "get_latest_version: key_id = %u, key_version = %u",
+                  ME_ERROR_LOG_ONLY | ME_NOTE, key_id, key_version);
+#endif
   if (caching_enabled &&
-      cache_get(key_id, key_version, dstbuf, buflen) !=
+      cache_get(key_id, key_version, dstbuf, buflen, true) !=
       ENCRYPTION_KEY_VERSION_INVALID)
   {
     return 0;
   }
   std::string response_str;
-  const char *response;
-  const char *js;
-  int js_len;
   /*
     Maximum buffer length = url length plus 40 characters of the
     two 64-bit unsigned integers, plus a slash character, plus a
@@ -571,13 +790,25 @@ static unsigned int get_key_from_vault (unsigned int key_id,
              vault_url_data, key_id, key_version);
   else
     snprintf(url, buf_len, "%s%u", vault_url_data, key_id);
-  if (curl_run(url, &response_str, false) != OPERATION_OK)
+  bool use_cache= caching_enabled && use_cache_on_timeout;
+  int rc;
+  if ((rc= curl_run(url, &response_str, use_cache)) != OPERATION_OK)
   {
+    if (rc == OPERATION_TIMEOUT)
+    {
+      if (cache_get(key_id, key_version, dstbuf, buflen, false) !=
+          ENCRYPTION_KEY_VERSION_INVALID)
+      {
+        return 0;
+      }
+    }
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Unable to get key data", 0);
     return ENCRYPTION_KEY_VERSION_INVALID;
   }
-  response = get_data(response_str, &js, &js_len);
+  const char *js;
+  int js_len;
+  const char *response = get_data(response_str, &js, &js_len);
   if (response == NULL)
   {
     return ENCRYPTION_KEY_VERSION_INVALID;
@@ -617,7 +848,7 @@ static unsigned int get_key_from_vault (unsigned int key_id,
   {
      return ENCRYPTION_KEY_VERSION_INVALID;
   }
-  unsigned int max_length = *buflen;
+  unsigned int max_length = dstbuf ? *buflen : 0;
   unsigned int length = (unsigned int) key_len >> 1;
   *buflen = length;
   if (length > max_length)
@@ -639,9 +870,9 @@ static unsigned int get_key_from_vault (unsigned int key_id,
   }
   if (caching_enabled)
   {
-    KEY_INFO info;
+    KEY_INFO info(key_id, (unsigned int) version, clock(), length);
     memcpy(info.data, dstbuf, length);
-    cache_add(key_id, (unsigned int) version, length, &info);
+    cache_add(info, key_version == ENCRYPTION_KEY_VERSION_INVALID);
   }
   return 0;
 }
@@ -678,8 +909,8 @@ static int setenv(const char *name, const char *value, int overwrite)
 
 #define MAX_URL_SIZE 32768
 
-static char *local_token= NULL;
-static char *token_header= NULL;
+static char *local_token;
+static char *token_header;
 
 static int hashicorp_key_management_plugin_init(void *p)
 {
@@ -687,6 +918,7 @@ static int hashicorp_key_management_plugin_init(void *p)
   const static size_t x_vault_token_len = strlen(x_vault_token);
   char *token_env= getenv("VAULT_TOKEN");
   size_t token_len = strlen(token);
+  local_token = NULL;
   if (token_len == 0)
   {
     if (token_env)
@@ -746,6 +978,11 @@ static int hashicorp_key_management_plugin_init(void *p)
       }
     }
   }
+#if HASICORP_DEBUG_LOGGING
+  my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                  "plugin_init: token = %s, token_len = %d",
+                  ME_ERROR_LOG_ONLY | ME_NOTE, token, (int) token_len);
+#endif
   size_t buf_len = x_vault_token_len + token_len + 1;
   token_header = (char *) malloc(buf_len);
   if (token_header == NULL)
@@ -791,6 +1028,8 @@ static int hashicorp_key_management_plugin_init(void *p)
   }
   memcpy(vault_url_data, vault_url, vault_url_len);
   memcpy(vault_url_data + vault_url_len, "/data/", 7);
+  cache_max_time = ms_to_ticks(cache_timeout);
+  cache_max_ver_time = ms_to_ticks(cache_version_timeout);
   return 0;
 }
 
@@ -799,6 +1038,7 @@ static int hashicorp_key_management_plugin_deinit(void *p)
   if (list)
   {
     curl_slist_free_all(list);
+    list = NULL;
   }
   latest_version_cache.clear();
   key_info_cache.clear();
@@ -806,14 +1046,18 @@ static int hashicorp_key_management_plugin_deinit(void *p)
   if (vault_url_data)
   {
     free(vault_url_data);
+    vault_url_data = NULL;
+    vault_url_len = 0;
   }
   if (token_header)
   {
     free(token_header);
+    token_header = NULL;
   }
   if (local_token)
   {
     free(local_token);
+    local_token = NULL;
   }
   return 0;
 }
@@ -831,10 +1075,10 @@ maria_declare_plugin(hashicorp_key_management)
   PLUGIN_LICENSE_GPL,
   hashicorp_key_management_plugin_init,
   hashicorp_key_management_plugin_deinit,
-  0x0103 /* 1.03 */,
+  0x0104 /* 1.04 */,
   NULL, /* status variables */
   settings,
-  "1.03",
+  "1.04",
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
