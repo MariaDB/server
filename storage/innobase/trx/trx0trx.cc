@@ -1039,7 +1039,7 @@ trx_write_serialisation_history(
 
 	ut_ad(!trx->read_only);
 	ut_ad(!undo || undo->rseg == rseg);
-	rseg->latch.wr_lock();
+	rseg->latch.wr_lock(SRW_LOCK_CALL);
 
 	/* Assign the transaction serialisation number and add any
 	undo log to the purge queue. */

@@ -16,6 +16,15 @@ select * from information_schema.session_variables where variable_name='innodb_f
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_FT_CACHE_SIZE	8000000
 set global innodb_ft_cache_size=1;
-ERROR HY000: Variable 'innodb_ft_cache_size' is a read only variable
+Warnings:
+Warning	1292	Truncated incorrect innodb_ft_cache_size value: '1'
+SHOW VARIABLES like 'innodb_ft_cache_size';
+Variable_name	Value
+innodb_ft_cache_size	1600000
 set session innodb_ft_cache_size=1;
-ERROR HY000: Variable 'innodb_ft_cache_size' is a read only variable
+ERROR HY000: Variable 'innodb_ft_cache_size' is a GLOBAL variable and should be set with SET GLOBAL
+set global innodb_ft_cache_size=512*1024*1024;
+SHOW VARIABLES like 'innodb_ft_cache_size';
+Variable_name	Value
+innodb_ft_cache_size	536870912
+set global innodb_ft_cache_size=default;

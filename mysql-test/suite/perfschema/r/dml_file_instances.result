@@ -34,57 +34,57 @@ OPEN_COUNT	Open handles on the file. A value of greater than zero means that the
 ###
 CREATE DATABASE db_26152751;
 USE db_26152751;
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 FILE_NAME
 CREATE TABLE t_db_26152751 (a INT) ENGINE=MYISAM;
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 FILE_NAME
 t_db_26152751.MYD
 t_db_26152751.MYI
 t_db_26152751.frm
 RENAME TABLE t_db_26152751 to t_db_26152751_new;
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 FILE_NAME
 t_db_26152751_new.MYD
 t_db_26152751_new.MYI
 t_db_26152751_new.frm
 RENAME TABLE t_db_26152751_new to t_db_26152751;
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 FILE_NAME
 t_db_26152751.MYD
 t_db_26152751.MYI
 t_db_26152751.frm
 ALTER TABLE t_db_26152751 ADD COLUMN b INT;
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 FILE_NAME
 t_db_26152751.frm
-t_db_26152751.MYI
 t_db_26152751.MYD
+t_db_26152751.MYI
 DROP TABLE t_db_26152751;
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 FILE_NAME
 CREATE TABLE t_db_26152751 (a INT) ENGINE=INNODB;
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 FILE_NAME
 t_db_26152751.frm
 t_db_26152751.ibd
 RENAME TABLE t_db_26152751 to t_db_26152751_new;
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 FILE_NAME
 t_db_26152751_new.frm
 t_db_26152751_new.ibd
 RENAME TABLE t_db_26152751_new to t_db_26152751;
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 FILE_NAME
 t_db_26152751.frm
 t_db_26152751.ibd
 ALTER TABLE t_db_26152751 ADD COLUMN b INT;
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 FILE_NAME
 t_db_26152751.frm
 t_db_26152751.ibd
 DROP TABLE t_db_26152751;
-SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
+SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%" ORDER BY FILE_NAME;
 FILE_NAME
 DROP DATABASE db_26152751;
 #

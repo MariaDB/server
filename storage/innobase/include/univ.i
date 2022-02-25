@@ -547,5 +547,6 @@ extern mysql_pfs_key_t index_tree_rw_lock_key;
 extern mysql_pfs_key_t index_online_log_key;
 extern mysql_pfs_key_t trx_sys_rw_lock_key;
 extern mysql_pfs_key_t lock_latch_key;
+extern mysql_pfs_key_t trx_rseg_latch_key;
 # endif /* UNIV_PFS_RWLOCK */
 #endif /* HAVE_PSI_INTERFACE */
