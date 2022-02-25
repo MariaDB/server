@@ -2776,7 +2776,7 @@ innobase_trx_init(
 	while holding lock_sys.mutex, by lock_rec_enqueue_waiting(),
 	will not end up acquiring LOCK_global_system_variables in
 	intern_sys_var_ptr(). */
-	THDVAR(thd, lock_wait_timeout);
+	(void) THDVAR(thd, lock_wait_timeout);
 
 	trx->check_foreigns = !thd_test_options(
 		thd, OPTION_NO_FOREIGN_KEY_CHECKS);
