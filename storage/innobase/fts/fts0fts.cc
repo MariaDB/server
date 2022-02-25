@@ -53,14 +53,14 @@ by looking up the key word in the obsolete table names */
 
 /** This is maximum FTS cache for each table and would be
 a configurable variable */
-ulong	fts_max_cache_size;
+Atomic_relaxed<size_t> fts_max_cache_size;
 
 /** Whether the total memory used for FTS cache is exhausted, and we will
 need a sync to free some memory */
 bool	fts_need_sync = false;
 
 /** Variable specifying the total memory allocated for FTS cache */
-ulong	fts_max_total_cache_size;
+Atomic_relaxed<size_t> fts_max_total_cache_size;
 
 /** This is FTS result cache limit for each query and would be
 a configurable variable */
@@ -4258,7 +4258,7 @@ fts_sync(
 	ulint		i;
 	dberr_t		error = DB_SUCCESS;
 	fts_cache_t*	cache = sync->table->fts->cache;
-
+	size_t		fts_cache_size= 0;
 	rw_lock_x_lock(&cache->lock);
 
 	/* Check if cache is being synced.
@@ -4283,11 +4283,17 @@ fts_sync(
 	fts_sync_begin(sync);
 
 begin_sync:
-	if (cache->total_size > fts_max_cache_size) {
+	fts_cache_size= fts_max_cache_size;
+	if (cache->total_size > fts_cache_size) {
 		/* Avoid the case: sync never finish when
 		insert/update keeps comming. */
 		ut_ad(sync->unlock_cache);
 		sync->unlock_cache = false;
+		ib::warn() << "Total InnoDB FTS size "
+			<< cache->total_size << " for the table "
+			<< cache->sync->table->name
+			<< " exceeds the innodb_ft_cache_size "
+			<< fts_cache_size;
 	}
 
 	for (i = 0; i < ib_vector_size(cache->indexes); ++i) {
@@ -4309,6 +4315,13 @@ begin_sync:
 
 		if (error != DB_SUCCESS) {
 			goto end_sync;
+		}
+
+		if (!sync->unlock_cache
+		    && cache->total_size < fts_max_cache_size) {
+			/* Reset the unlock cache if the value
+			is less than innodb_ft_cache_size */
+			sync->unlock_cache = true;
 		}
 	}
 

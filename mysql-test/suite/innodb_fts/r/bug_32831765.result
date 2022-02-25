@@ -1,3 +1,4 @@
+call mtr.add_suppression("InnoDB: Total InnoDB FTS size .* for the table .* exceeds the innodb_ft_cache_size .*");
 #
 # Bug#32831765 SERVER HITS OOM CONDITION WHEN LOADING TWO
 # INNODB TABLES WITH FTS INDEXES
