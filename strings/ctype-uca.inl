@@ -95,6 +95,15 @@ MY_FUNCTION_NAME(strnncoll_onelevel)(CHARSET_INFO *cs,
   my_uca_scanner tscanner;
   int s_res;
   int t_res;
+
+#if MY_UCA_ASCII_OPTIMIZE
+{
+  size_t prefix= my_uca_level_booster_equal_prefix_length(level->booster,
+                                                          s, slen, t, tlen);
+  s+= prefix, slen-= prefix;
+  t+= prefix, tlen-= prefix;
+}
+#endif
   
   my_uca_scanner_init_any(&sscanner, cs, level, s, slen);
   my_uca_scanner_init_any(&tscanner, cs, level, t, tlen);
@@ -203,6 +212,15 @@ MY_FUNCTION_NAME(strnncollsp_onelevel)(CHARSET_INFO *cs,
 {
   my_uca_scanner sscanner, tscanner;
   int s_res, t_res;
+
+#if MY_UCA_ASCII_OPTIMIZE
+{
+  size_t prefix= my_uca_level_booster_equal_prefix_length(level->booster,
+                                                          s, slen, t, tlen);
+  s+= prefix, slen-= prefix;
+  t+= prefix, tlen-= prefix;
+}
+#endif
 
   my_uca_scanner_init_any(&sscanner, cs, level, s, slen);
   my_uca_scanner_init_any(&tscanner, cs, level, t, tlen);
@@ -431,6 +449,18 @@ MY_FUNCTION_NAME(strnncollsp_nchars_onelevel)(CHARSET_INFO *cs,
   my_uca_scanner tscanner;
   size_t s_nchars_left= nchars;
   size_t t_nchars_left= nchars;
+
+/*
+TODO: strnncollsp_nchars_onelevel
+#if MY_UCA_ASCII_OPTIMIZE
+{
+  size_t prefix= my_uca_level_booster_equal_prefix_length(level->booster,
+                                                          s, slen, t, tlen);
+  s+= prefix, slen-= prefix;
+  t+= prefix, tlen-= prefix;
+}
+#endif
+*/
 
   my_uca_scanner_init_any(&sscanner, cs, level, s, slen);
   my_uca_scanner_init_any(&tscanner, cs, level, t, tlen);

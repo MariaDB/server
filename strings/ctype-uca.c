@@ -6549,7 +6549,8 @@ MY_UCA_INFO my_uca_v400=
         NULL     /*   flags           */
       },
       0,         /* levelno            */
-      {0}        /* contraction_hash   */
+      {0},       /* contraction_hash   */
+      NULL       /* booster            */
     },
     {
       0,
@@ -6561,7 +6562,8 @@ MY_UCA_INFO my_uca_v400=
         NULL
       },
       1,        /* levelno            */
-      {0}       /* contraction_hash   */
+      {0},      /* contraction_hash   */
+      NULL      /* booster            */
     },
     {0}
   },
@@ -30112,7 +30114,8 @@ MY_UCA_INFO my_uca_v520_th=
           NULL               /*   flags */
       },
       0,             /* levelno */
-      {0}            /* contraction_hash   */
+      {0},           /* contraction_hash   */
+      NULL           /* booster            */
     },
     {
       0x10FFFF,      /* maxchar */
@@ -30124,7 +30127,8 @@ MY_UCA_INFO my_uca_v520_th=
           NULL                  /*   flags */
       },
       1,             /* levelno */
-      {0}            /* contraction_hash   */
+      {0},           /* contraction_hash   */
+      NULL           /* booster            */
     },
     {0}
   },
@@ -30164,7 +30168,8 @@ MY_UCA_INFO my_uca_v520=
 	NULL         /*   flags           */
       },
       0,             /* levelno */
-      {0}            /* contraction_hash   */
+      {0},           /* contraction_hash   */
+      NULL           /* booster            */
     },
 
     {
@@ -30177,7 +30182,8 @@ MY_UCA_INFO my_uca_v520=
         NULL       /*   flags */
       },
       1,           /* levelno */
-      {0}          /* contraction_hash   */
+      {0},         /* contraction_hash   */
+      NULL         /* booster            */
     },
 
     {0}
@@ -30221,7 +30227,8 @@ static MY_UCA_INFO my_uca_v1400=
         NULL         /*   flags           */
       },
       0,             /* levelno */
-      {0}            /* contraction_hash   */
+      {0},           /* contraction_hash   */
+      NULL           /* booster            */
     },
 
     {
@@ -30234,7 +30241,8 @@ static MY_UCA_INFO my_uca_v1400=
         NULL         /*   flags */
       },
       1,             /* levelno */
-      {0}            /* contraction_hash   */
+      {0},           /* contraction_hash   */
+      NULL           /* booster            */
     },
 
     {
@@ -30247,7 +30255,8 @@ static MY_UCA_INFO my_uca_v1400=
         NULL         /*   flags */
       },
       2,             /* levelno */
-      {0}            /* contraction_hash   */
+      {0},           /* contraction_hash   */
+      NULL           /* booster            */
     }
 
   },
@@ -33947,8 +33956,522 @@ my_uca_generate_pages(MY_CHARSET_LOADER *loader,
 }
 
 
+static size_t
+my_uca_weight_cpy(uint16 *dst, const uint16 *src)
+{
+  const uint16 *src0= src;
+  for ( ; ; dst++, src++ )
+  {
+    *dst= *src;
+    if (!dst[0])
+      break;
+  }
+  return src - src0;
+}
+
+
+/*
+  The value 0xFFFF does not exist in UCA weights.
+  Let's use it to mark byte pairs that have complex
+  mapping.
+*/
+#define MY_UCA_2BYTES_NOT_APPLICABLE 0xFFFF
+
+
+static inline my_bool
+my_uca_2bytes_item_is_applicable(const MY_UCA_2BYTES_ITEM *w2)
+{
+  return w2->weight[1] != MY_UCA_2BYTES_NOT_APPLICABLE;
+}
+
+
+static void
+my_uca_2bytes_item_set_not_applicable(MY_UCA_2BYTES_ITEM *dst)
+{
+  dst->weight[0]= 0;
+  dst->weight[1]= MY_UCA_2BYTES_NOT_APPLICABLE;
+}
+
+
+/* Calculate the length of a 0-terminated weight string */
+static inline size_t
+my_uca_weight_length(const uint16 *str)
+{
+  uint res;
+  for (res= 0; str[res] ; res++)
+  { }
+  return res;
+}
+
+
+/*
+  Copy a 0-terminated weight string if it fits,
+  otherwise mark the byte pair as not applicable for optimization.
+*/
+static void
+my_uca_2bytes_item_weight_cpy(MY_UCA_2BYTES_ITEM *dst, const uint16 *src)
+{
+  size_t wlen= my_uca_weight_length(src);
+  if (wlen + 1 > array_elements(dst->weight))
+    my_uca_2bytes_item_set_not_applicable(dst);
+  else
+    my_uca_weight_cpy(dst->weight, src);
+}
+
+
+/*
+  Concatenate two 0-terminated weight strings if they fit together,
+  otherwise mark the byte pair as not applicable for optimization.
+*/
+static void
+my_uca_2bytes_item_weight_cpy2(MY_UCA_2BYTES_ITEM *dst,
+                               const uint16 *wa,
+                               const uint16 *wb)
+{
+  size_t la= my_uca_weight_length(wa);
+  size_t lb= my_uca_weight_length(wb);
+  if (la + lb + 1 > array_elements(dst->weight))
+  {
+    my_uca_2bytes_item_set_not_applicable(dst);
+  }
+  else
+  {
+    my_uca_weight_cpy(dst->weight, wa);
+    my_uca_weight_cpy(dst->weight + la, wb);
+  }
+}
+
+
+/*
+  Contatenate weights of two ASCII characters if they fit together,
+  otherwise mark the byte pair as not applicable for optimization.
+*/
+static void
+my_uca_2bytes_item_set_ascii2(MY_UCA_2BYTES_ITEM *dst,
+                              const MY_UCA_WEIGHT_LEVEL *level,
+                              uchar a, uchar b)
+{
+  const uint16 *wa= level->weights[0] + (uint) a * level->lengths[0];
+  const uint16 *wb= level->weights[0] + (uint) b * level->lengths[0];
+  my_uca_2bytes_item_weight_cpy2(dst, wa, wb);
+}
+
+
+/*
+  Check if two bytes make a well-formed 2-byte character.
+  Copy its weight if it fits.
+  If the two bytes do not make a well-formed 2-byte character,
+  or the weight of a valid 2-byte character is too long, then
+  mark this byte pair as not applicable for optimization.
+*/
+static  void
+my_uca_2bytes_item_set_non_ascii2(MY_UCA_2BYTES_ITEM *dst,
+                                  const MY_UCA_WEIGHT_LEVEL *level,
+                                  CHARSET_INFO *cs,
+                                  uchar a, uchar b)
+{
+  uchar ch[2]= {a, b};
+  my_wc_t wc;
+  int rc= my_ci_mb_wc(cs, &wc, &ch[0], &ch[2]);
+  if (rc == 2)
+  {
+    /* Byte sequence 'ab' make one valid 2-byte character */
+    uint pageno= wc>>8;
+    const uint16 *w= level->weights[pageno] + (wc & 0xFF) * level->lengths[pageno];
+    my_uca_2bytes_item_weight_cpy(dst, w);
+  }
+  else
+  {
+    my_uca_2bytes_item_set_not_applicable(dst);
+  }
+}
+
+
+static inline MY_UCA_2BYTES_ITEM *
+my_uca_level_booster_2bytes_item_addr(MY_UCA_LEVEL_BOOSTER *booster,
+                                      uchar a, uchar b)
+{
+  size_t w2offs= a * 256 + b;
+  return &booster->weight_strings_2bytes[w2offs];
+}
+
+
+static inline const MY_UCA_2BYTES_ITEM *
+my_uca_level_booster_2bytes_item_addr_const(const MY_UCA_LEVEL_BOOSTER *booster,
+                                            uchar a, uchar b)
+{
+  size_t w2offs= a * 256 + b;
+  return &booster->weight_strings_2bytes[w2offs];
+}
+
+
+static inline const MY_UCA_WEIGHT2 *
+my_uca_level_booster_simple_weight2_addr_const(
+                                        const MY_UCA_LEVEL_BOOSTER *booster,
+                                        uchar a, uchar b)
+{
+  uint offs= (uint) a * 256 + b;
+  return &booster->weight_strings_2bytes_to_1_or_2_weights[offs];
+}
+
+
+static void
+my_uca_level_booster_2bytes_disable2(MY_UCA_LEVEL_BOOSTER *booster,
+                                     uchar a, uchar b)
+{
+  MY_UCA_2BYTES_ITEM *dst= my_uca_level_booster_2bytes_item_addr(booster, a, b);
+  my_uca_2bytes_item_set_not_applicable(dst);
+}
+
+
+static void
+my_uca_level_booster_2bytes_disable_if_2byte_mb(MY_UCA_LEVEL_BOOSTER *booster,
+                                                CHARSET_INFO *cs,
+                                                my_wc_t wc)
+{
+  uchar tmp[MY_CS_MBMAXLEN];
+  int rc= my_ci_wc_mb(cs, wc, tmp, tmp + sizeof(tmp));
+  if (rc == 2)
+    my_uca_level_booster_2bytes_disable2(booster, tmp[0], tmp[1]);
+}
+
+
+static inline void
+my_uca_level_booster_2bytes_set_not_applicable_by_tail(
+                                                 MY_UCA_LEVEL_BOOSTER *booster,
+                                                 uchar tail)
+{
+  uint head;
+  for (head= 0; head < 256; head++)
+    my_uca_level_booster_2bytes_disable2(booster, (uchar) head, tail);
+}
+
+
+/*
+  Mark all byte pairs whose weight depend on the surrounding context
+  because of the given true contraction.
+*/
+static void
+my_uca_level_booster_2bytes_disable_contraction(MY_UCA_LEVEL_BOOSTER *booster,
+                                                const MY_CONTRACTION *c,
+                                                CHARSET_INFO *cs)
+{
+  /* Previous context sequences are handled by a separate routine */
+  DBUG_ASSERT(!c->with_context);
+
+  if (c->ch[0] < 0x80)
+  {
+    /*
+      2-byte pairs that end with an ASCII contraction head.
+      ...xAB...
+      Suppose AB is a contraction where A is an ASCII character.
+      Disable byte pairs xA (for all x=0x00..0xFF).
+    */
+    my_uca_level_booster_2bytes_set_not_applicable_by_tail(booster,
+                                                           (uchar) c->ch[0]);
+
+    /*
+      Disable 2-byte ASCII combinations that start
+      3-character (or longer) contractions.
+    */
+    if (c->ch[1] < 0x80 && c->ch[2] != 0)
+    {
+      /*
+         A 3+ character contraction that starts with two ASCII characters:
+           ...ABx...
+      */
+      my_uca_level_booster_2bytes_disable2(booster,
+                                           (uchar) c->ch[0],
+                                           (uchar) c->ch[1]);
+    }
+  }
+  else
+  {
+    /*
+      Disable 2-byte characters that start contractions:
+        ...[Aa][B]...    MB    +  ASCII
+        ...[Aa][Bb]..    MB    +  MB2
+        ...[Aa][Bbb]..   MB    +  MB3
+        ...[Aa][Bbbb]..  MB    +  MB4
+      The weight of the character [Aa] depends on what goes after it.
+    */
+    my_uca_level_booster_2bytes_disable_if_2byte_mb(booster, cs, c->ch[0]);
+  }
+}
+
+
+/*
+  Mark all byte pairs whose weight depend on the surrounding context
+  because of the given previous context sequence.
+*/
+static void
+my_uca_level_booster_2bytes_disable_previous_context(
+                                                 MY_UCA_LEVEL_BOOSTER *booster,
+                                                 const MY_CONTRACTION *c,
+                                                 CHARSET_INFO *cs)
+{
+  /* True contractions are handled by a separate routine */
+  DBUG_ASSERT(c->with_context);
+
+  if (c->ch[0] < 0x80 && c->ch[1] < 0x80)
+  {
+    DBUG_ASSERT(c->ch[2] == 0);
+    if (c->ch[2] == 0)
+    {
+      /*
+        A previous context pair with exactly two ASCII characters:
+          ...AB...
+        "A" is a look-behind character (the context).
+        "B" is a character that we need to generate a weight for.
+        The underlying code does not support handling these character
+        in a single shot yet. It works as follows at the moment:
+        - A is scanned separately from B and generates its independent weight.
+        - B is scanned separately on the next step and and generates its
+          context dependent weight (by looking behind).
+      */
+      my_uca_level_booster_2bytes_disable2(booster,
+                                           (uchar) c->ch[0],
+                                           (uchar) c->ch[1]);
+    }
+  }
+  else
+  {
+    /*
+      Disable 2-byte characters that start pairs with a previous context:
+        ...[Aa][B]...    MB    +  ASCII
+        ...[Aa][Bb]..    MB    +  MB
+      These characters can be actually scanned in a single shot,
+      but the relevant code in scanner_next() assumes previous context
+      head characters are ASCII only, so it sets the previous
+      character simply as sbeg[1].
+    */
+    my_uca_level_booster_2bytes_disable_if_2byte_mb(booster, cs, c->ch[0]);
+  }
+}
+
+
+/*
+  Set the weight of a 2-byte sequence,
+  or mark the sequence as not applicable for optimization.
+*/
+static void
+my_uca_2bytes_item_set_pair(MY_UCA_2BYTES_ITEM *dst,
+                            const MY_UCA_WEIGHT_LEVEL *level,
+                            CHARSET_INFO *cs,
+                            uchar a, uchar b)
+{
+  if (a < 0x80 && b < 0x80)
+    my_uca_2bytes_item_set_ascii2(dst, level, a, b);
+  else
+    my_uca_2bytes_item_set_non_ascii2(dst, level, cs, a, b);
+}
+
+
+/*
+  For every byte pair [00..FF][00..FF] set its weight,
+  or mark it as not applicable for optimization.
+*/
+static void
+my_uca_level_booster_2bytes_populate_pairs(MY_UCA_LEVEL_BOOSTER *booster,
+                                           const MY_UCA_WEIGHT_LEVEL *level,
+                                           CHARSET_INFO *cs)
+{
+  uint a, b;
+  for (a= 0; a < 256; a++)
+  {
+    for (b= 0; b < 256; b++)
+    {
+      MY_UCA_2BYTES_ITEM *dst;
+      dst= my_uca_level_booster_2bytes_item_addr(booster, (uchar) a, (uchar) b);
+      my_uca_2bytes_item_set_pair(dst, level, cs, (uchar) a, (uchar) b);
+    }
+  }
+}
+
+
+/*
+  Populate contractions consisting of two ASCII letters.
+  Only true contractions are handled here so far.
+  Previous context pairs are handled separately.
+*/
+static void
+my_uca_level_booster_2bytes_pupulate_ascii2_contractions(
+                                                 MY_UCA_LEVEL_BOOSTER *booster,
+                                                 const MY_CONTRACTIONS *list)
+{
+  size_t i;
+  for (i= 0; i < list->nitems; i++)
+  {
+    const MY_CONTRACTION *c= &list->item[i];
+    if (c->ch[0] < 0x80 && c->ch[1] < 0x80 && c->ch[2] == 0 &&
+        !c->with_context)
+    {
+      MY_UCA_2BYTES_ITEM *dst;
+      dst= my_uca_level_booster_2bytes_item_addr(booster,
+                                                 (uchar) c->ch[0],
+                                                 (uchar) c->ch[1]);
+      my_uca_2bytes_item_weight_cpy(dst, c->weight);
+    }
+  }
+}
+
+
+/*
+  Mark all byte pairs whose weight depend on the context
+  (because of contractions and previous context sequences)
+  as not applicable for optimization.
+*/
+static void
+my_uca_level_booster_2bytes_disable_context_dependent(
+                                              MY_UCA_LEVEL_BOOSTER *booster,
+                                              const MY_CONTRACTIONS *list,
+                                              CHARSET_INFO *cs)
+{
+  size_t i;
+  for (i= 0; i < list->nitems; i++)
+  {
+    const MY_CONTRACTION *c= &list->item[i];
+    if (c->with_context)
+      my_uca_level_booster_2bytes_disable_previous_context(booster, c, cs);
+    else
+      my_uca_level_booster_2bytes_disable_contraction(booster, c, cs);
+  }
+}
+
+
+/*
+  Populate the array of MY_UCA_WEIGHT2 for all possible byte pairs {a,b}
+  as follows:
+
+  Number of characters        Number of weights                      WEIGHT2
+  --------------------        -----------------                      ------
+  2 (two ASCII chars)         0  (both ignorable)                    {0,0} [IGN]
+  2 (two ASCII chars)         1  (e.g. Czech "ch")                   {X,0}
+  2 (two ASCII chars)         1  (e.g. ignorable + non-ignorable)    {X,0}
+  2 (two ASCII chars)         2  (two ASCII chars, one weigth each)  {X,0}
+  2 (two ASCII chars)         3+ (contraction with a long expansion) {0,0} [E3]
+  1 (one 2-byte char)         0  (ignorable)                         {0,0} [IGN]
+  1 (one 2-byte char)         1                                      {X,0}
+  1 (one 2-byte char)         2  (short expansion, e.g. German SZ)   {X,Y}
+  1 (one 2-byte char)         3+ (long expansion)                    {0,0} [E3]
+  0 (incomplete 3/4-byte char)                                       {0,0} [INC]
+
+  All byte pairs that depend on the context (e.g. contraction parts)
+  and that were previously marked as such by
+  my_uca_level_booster_2bytes_disable_context_dependent()
+  set WEIGHT2 to {0,0} [CTX].
+
+  After the initialization, the array contains non-zero weights for
+  the most typical simple cases of mapping from 2-bytes to weights,
+  so inside strnncoll*() we can skip equal string prefixes much faster,
+  using a cheaper simpler code.
+*/
+static void
+my_uca_level_booster_weight2_populate(MY_UCA_LEVEL_BOOSTER *booster)
+{
+  size_t i;
+  for (i= 0; i < 0x10000; i++)
+  {
+    MY_UCA_WEIGHT2 *dst= &booster->weight_strings_2bytes_to_1_or_2_weights[i];
+    MY_UCA_2BYTES_ITEM *src= &booster->weight_strings_2bytes[i];
+    if (src->weight[0] && (!src->weight[1] || !src->weight[2]))
+    {
+      /*
+        Simplest mapping:
+        - Two ASCII characters make one or two weights
+        - One 2-byte character makes one or two weights
+        Handled by the simpler loop at the comparison time.
+      */
+      dst->weight[0]= src->weight[0];
+      dst->weight[1]= src->weight[1];
+    }
+    else
+    {
+      /*
+        More complex mapping:
+        - Ignorable                                 - see [IGN] above
+        - More than two weights                     - see [E3]  above
+        - Incomplete (a 3-byte or 4-byte char head) - see [INC] above
+        - Not applicable (context dependent)        - see [CTX] above
+        Handled by the full-featured slower loop at the comparison time.
+      */
+      dst->weight[0]= 0;
+      dst->weight[1]= 0;
+    }
+  }
+}
+
+
+static void
+my_uca_level_booster_populate(MY_UCA_LEVEL_BOOSTER *dst,
+                              const MY_UCA_WEIGHT_LEVEL *src,
+                              CHARSET_INFO *cs)
+{
+  my_uca_level_booster_2bytes_populate_pairs(dst, src, cs);
+  my_uca_level_booster_2bytes_pupulate_ascii2_contractions(dst,
+                                                           &src->contractions);
+  my_uca_level_booster_2bytes_disable_context_dependent(dst,
+                                                        &src->contractions,
+                                                        cs);
+  my_uca_level_booster_weight2_populate(dst);
+}
+
+
+static MY_UCA_LEVEL_BOOSTER *
+my_uca_level_booster_alloc(MY_CHARSET_LOADER *loader)
+{
+  size_t nbytes= sizeof(MY_UCA_LEVEL_BOOSTER);
+  MY_UCA_LEVEL_BOOSTER *res;
+  if (!(res= (MY_UCA_LEVEL_BOOSTER *) (loader->once_alloc)(nbytes)))
+    return NULL;
+  bzero(res, nbytes);
+  return res;
+}
+
+
+static MY_UCA_LEVEL_BOOSTER *
+my_uca_level_booster_new(MY_CHARSET_LOADER *loader,
+                         CHARSET_INFO *cs,
+                         MY_UCA_WEIGHT_LEVEL *level)
+{
+  MY_UCA_LEVEL_BOOSTER *res;
+  if (!(res= my_uca_level_booster_alloc(loader)))
+    return NULL;
+  my_uca_level_booster_populate(res, level, cs);
+  return res;
+}
+
+
+/*
+  Skip the simple equal prefix of two string using
+  "One or two bytes produce one or two weights" optimization.
+  Return the prefix length.
+*/
+static size_t
+my_uca_level_booster_equal_prefix_length(const MY_UCA_LEVEL_BOOSTER *booster,
+                                         const uchar *s, size_t slen,
+                                         const uchar *t, size_t tlen)
+{
+  const uchar *s0= s;
+  size_t simple_count= MY_MIN(slen, tlen) >> 1;
+  for ( ; simple_count; s+= 2, t+= 2, simple_count--)
+  {
+    const MY_UCA_WEIGHT2 *ws, *wt;
+    ws= my_uca_level_booster_simple_weight2_addr_const(booster, s[0], s[1]);
+    wt= my_uca_level_booster_simple_weight2_addr_const(booster, t[0], t[1]);
+    if (ws->weight[0] &&
+        ws->weight[0] == wt->weight[0] &&
+        ws->weight[1] == wt->weight[1])
+      continue;
+    break;
+  }
+  return s - s0;
+}
+
+
 static my_bool
-init_weight_level(MY_CHARSET_LOADER *loader, MY_COLL_RULES *rules,
+init_weight_level(MY_CHARSET_LOADER *loader, CHARSET_INFO *cs,
+                  MY_COLL_RULES *rules,
                   MY_UCA_WEIGHT_LEVEL *dst, const MY_UCA_WEIGHT_LEVEL *src)
 {
   MY_COLL_RULE *r, *rlast;
@@ -34055,6 +34578,9 @@ init_weight_level(MY_CHARSET_LOADER *loader, MY_COLL_RULES *rules,
     }
   }
 
+  if (cs->mbminlen == 1)
+    dst->booster= my_uca_level_booster_new(loader, cs, dst);
+
   return FALSE;
 }
 
@@ -34151,7 +34677,7 @@ my_uca_init_levels(MY_CHARSET_LOADER *loader, MY_UCA_INFO *dst,
                   cs->coll_name.str, i + 1);
       return TRUE;
     }
-    if (init_weight_level(loader, rules,
+    if (init_weight_level(loader, cs, rules,
                           &dst->level[i], &src->level[i]))
       return TRUE;
   }
