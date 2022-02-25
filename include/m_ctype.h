@@ -141,6 +141,58 @@ const uint16 *my_uca_contraction2_weight(const MY_CONTRACTIONS *c,
                                          my_wc_t wc1, my_wc_t wc2);
 
 
+typedef struct my_uca_weight2_t
+{
+  uint16 weight[2];
+} MY_UCA_WEIGHT2;
+
+
+/*
+  In DUCET as of Unicode-14.0.0:
+  - All characters in the range U+0000..U+007F (i.e. using one byte in utf8)
+    have not more than two weights on all weight levels.
+  - All characters in the range U+0080..U+07FF (i.e. using two bytes in utf8)
+    have not more than four weights on all weight levels.
+  Therefore the limit of 4 weights should cover all byte pairs
+  (i.e. two ASCII characters or one 2-byte character)
+  that are a subject for the "process 2 bytes at a time" optimization.
+  If some collation reorders any character from the mentioned ranges
+  in the way that it produces more weights, such character will not
+  be optimized, but will be correctly processed the slower mb_wc-based
+  method (1 character at a time).
+*/
+#define MY_UCA_2BYTES_MAX_WEIGHT_SIZE (4+1) /* Including 0 terminator */
+
+typedef struct my_uca_2bytes_item_t
+{
+  uint16 weight[MY_UCA_2BYTES_MAX_WEIGHT_SIZE];
+} MY_UCA_2BYTES_ITEM;
+
+
+typedef struct my_uca_level_booster_t
+{
+  /*
+    A helper array to process 2 bytes at a time during string comparison.
+    It maps all 2-bytes sequences that make:
+    - two ASCII characters or
+    - one 2-byte character
+    to their weights. The weight length is limited to
+    MY_UCA_2BYTES_MAX_WEIGHT_SIZE-1 weights.
+    This array is used in the main loop optimization.
+  */
+  MY_UCA_2BYTES_ITEM weight_strings_2bytes[0x10000];
+  /*
+    A helper array to process 2bytes at a time during string comparison,
+    with an even more efficient way than the above one.
+    The weight size is limited to 2 weights, so it's used for the cases
+    when 2 input bytes produce 1 or 2 weights.
+    This limit makes the code using this array even simpler and faster.
+    This array is used for prefix optimization.
+  */
+  MY_UCA_WEIGHT2 weight_strings_2bytes_to_1_or_2_weights[0x10000];
+} MY_UCA_LEVEL_BOOSTER;
+
+
 typedef struct my_uca_contraction_hash_t
 {
   size_t nitems_alloced;
@@ -157,6 +209,7 @@ typedef struct my_uca_level_info_st
   MY_CONTRACTIONS contractions;
   uint    levelno;
   MY_UCA_CONTRACTION_HASH contraction_hash;
+  MY_UCA_LEVEL_BOOSTER *booster;
 } MY_UCA_WEIGHT_LEVEL;
 
 
