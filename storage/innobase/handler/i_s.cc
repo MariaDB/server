@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -6483,6 +6483,8 @@ static ST_FIELD_INFO innodb_sys_tablespaces_fields_info[]=
 };
 } // namespace Show
 
+extern size_t os_file_get_fs_block_size(const char *path);
+
 /** Produce one row of INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES.
 @param thd  connection
 @param s    tablespace
@@ -6524,31 +6526,18 @@ static int i_s_sys_tablespaces_fill(THD *thd, const fil_space_t &s, TABLE *t)
   OK(field_store_string(fields[SYS_TABLESPACES_FILENAME], filepath));
 
   OK(fields[SYS_TABLESPACES_PAGE_SIZE]->store(s.physical_size(), true));
-  os_file_stat_t stat;
-  stat.block_size= 0;
+  size_t fs_block_size;
   os_file_size_t file= os_file_get_size(filepath);
   if (file.m_total_size == os_offset_t(~0))
   {
     file.m_total_size= 0;
     file.m_alloc_size= 0;
+    fs_block_size= 0;
   }
   else
-  {
-    /* Get the file system (or Volume) block size. */
-    switch (dberr_t err= os_file_get_status(filepath, &stat, false, false)) {
-    case DB_FAIL:
-      ib::warn() << "File '" << filepath << "', failed to get stats";
-      break;
-    case DB_SUCCESS:
-    case DB_NOT_FOUND:
-      break;
-    default:
-      ib::error() << "File '" << filepath << "' " << err;
-      break;
-    }
-  }
+    fs_block_size= os_file_get_fs_block_size(filepath);
 
-  OK(fields[SYS_TABLESPACES_FS_BLOCK_SIZE]->store(stat.block_size, true));
+  OK(fields[SYS_TABLESPACES_FS_BLOCK_SIZE]->store(fs_block_size, true));
   OK(fields[SYS_TABLESPACES_FILE_SIZE]->store(file.m_total_size, true));
   OK(fields[SYS_TABLESPACES_ALLOC_SIZE]->store(file.m_alloc_size, true));
 

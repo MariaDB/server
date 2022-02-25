@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2021, MariaDB Corporation.
+Copyright (c) 2016, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -355,10 +355,10 @@ struct fts_stopword_t;
 extern const char*	fts_default_stopword[];
 
 /** Variable specifying the maximum FTS cache size for each table */
-extern ulong		fts_max_cache_size;
+extern Atomic_relaxed<size_t> fts_max_cache_size;
 
 /** Variable specifying the total memory allocated for FTS cache */
-extern ulong		fts_max_total_cache_size;
+extern Atomic_relaxed<size_t> fts_max_total_cache_size;
 
 /** Variable specifying the FTS result cache limit for each query */
 extern size_t		fts_result_cache_limit;

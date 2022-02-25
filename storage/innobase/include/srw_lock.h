@@ -505,6 +505,8 @@ public:
   }
   bool rd_lock_try() { return lock.rd_lock_try(); }
   bool wr_lock_try() { return lock.wr_lock_try(); }
+  void lock_shared() { return rd_lock(SRW_LOCK_CALL); }
+  void unlock_shared() { return rd_unlock(); }
 #ifndef SUX_LOCK_GENERIC
   /** @return whether any lock may be held by any thread */
   bool is_locked_or_waiting() const noexcept

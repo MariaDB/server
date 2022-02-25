@@ -2009,6 +2009,8 @@ static void store_freed_or_init_rec(page_id_t page_id, bool freed)
 /** Wrapper for log_sys.buf[] between recv_sys.offset and recv_sys.len */
 struct recv_buf
 {
+  bool is_pmem() const noexcept { return log_sys.is_pmem(); }
+
   const byte *ptr;
 
   constexpr recv_buf(const byte *ptr) : ptr(ptr) {}
@@ -2102,6 +2104,8 @@ struct recv_buf
 /** Ring buffer wrapper for log_sys.buf[]; recv_sys.len == log_sys.file_size */
 struct recv_ring : public recv_buf
 {
+  static constexpr bool is_pmem() { return true; }
+
   constexpr recv_ring(const byte *ptr) : recv_buf(ptr) {}
 
   constexpr static bool is_eof() { return false; }
@@ -2323,6 +2327,11 @@ inline recv_sys_t::parse_mtr_result recv_sys_t::parse(store_t store, source &l)
   ut_d(const source el{l});
   lsn+= l - begin;
   offset= l.ptr - log_sys.buf;
+  if (!l.is_pmem());
+  else if (offset == log_sys.file_size)
+    offset= log_sys.START_OFFSET;
+  else
+    ut_ad(offset < log_sys.file_size);
 
   ut_d(std::set<page_id_t> freed);
 #if 0 && defined UNIV_DEBUG /* MDEV-21727 FIXME: enable this */

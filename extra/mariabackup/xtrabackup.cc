@@ -241,7 +241,8 @@ ulong innobase_read_io_threads = 4;
 ulong innobase_write_io_threads = 4;
 
 longlong innobase_page_size = (1LL << 14); /* 16KB */
-char*	innobase_buffer_pool_filename = NULL;
+char *innobase_buffer_pool_filename = NULL;
+char *buffer_pool_filename = NULL;
 
 /* The default values for the following char* start-up parameters
 are determined in innobase_init below: */
@@ -336,6 +337,7 @@ uint opt_lock_wait_timeout = 0;
 uint opt_lock_wait_threshold = 0;
 uint opt_debug_sleep_before_unlock = 0;
 uint opt_safe_slave_backup_timeout = 0;
+uint opt_max_binlogs = UINT_MAX;
 
 const char *opt_history = NULL;
 
@@ -803,9 +805,8 @@ static std::string filename_to_spacename(const void *filename, size_t len)
 	ut_a(table);
 	*table = 0;
 	char *db = strrchr(f, '/');
-	ut_a(db);
 	*table = '/';
-	std::string s(db+1);
+	std::string s(db ? db+1 : f);
 	free(f);
 	return s;
 }
@@ -1064,7 +1065,8 @@ enum options_xtrabackup
   OPT_XTRA_CHECK_PRIVILEGES,
   OPT_XTRA_MYSQLD_ARGS,
   OPT_XB_IGNORE_INNODB_PAGE_CORRUPTION,
-  OPT_INNODB_FORCE_RECOVERY
+  OPT_INNODB_FORCE_RECOVERY,
+  OPT_MAX_BINLOGS
 };
 
 struct my_option xb_client_options[]= {
@@ -1461,6 +1463,17 @@ struct my_option xb_client_options[]= {
      &opt_log_innodb_page_corruption, &opt_log_innodb_page_corruption, 0,
      GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
+    {"sst_max_binlogs", OPT_MAX_BINLOGS,
+     "Number of recent binary logs to be included in the backup. "
+     "Setting this parameter to zero normally disables transmission "
+     "of binary logs to the joiner nodes during SST using Galera. "
+     "But sometimes a single current binlog can still be transmitted "
+     "to the joiner even with sst_max_binlogs=0, because it is "
+     "required for Galera to work properly with GTIDs support.",
+     (G_PTR *) &opt_max_binlogs,
+     (G_PTR *) &opt_max_binlogs, 0, GET_UINT, OPT_ARG,
+     UINT_MAX, 0, UINT_MAX, 0, 1, 0},
+
 #define MYSQL_CLIENT
 #include "sslopt-longopts.h"
 #undef MYSQL_CLIENT
@@ -1514,14 +1527,14 @@ struct my_option xb_server_options[] =
    (G_PTR*)&opt_encrypted_backup,
    0, GET_BOOL, NO_ARG, TRUE, 0, 0, 0, 0, 0},
 
-   {"log", OPT_LOG, "Ignored option for MySQL option compatibility",
+  {"log", OPT_LOG, "Ignored option for MySQL option compatibility",
    (G_PTR*) &log_ignored_opt, (G_PTR*) &log_ignored_opt, 0,
    GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 
-   {"log_bin", OPT_LOG, "Base name for the log sequence",
+  {"log_bin", OPT_LOG, "Base name for the log sequence",
    &opt_log_bin, &opt_log_bin, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 
-   {"innodb", OPT_INNODB, "Ignored option for MySQL option compatibility",
+  {"innodb", OPT_INNODB, "Ignored option for MySQL option compatibility",
    (G_PTR*) &innobase_ignored_opt, (G_PTR*) &innobase_ignored_opt, 0,
    GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #ifdef BTR_CUR_HASH_ADAPT
@@ -1664,12 +1677,12 @@ struct my_option xb_server_options[] =
   &xb_rocksdb_datadir, &xb_rocksdb_datadir,
   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
 
-  { "rocksdb-backup", OPT_BACKUP_ROCKSDB, "Backup rocksdb data, if rocksdb plugin is installed."
+  {"rocksdb-backup", OPT_BACKUP_ROCKSDB, "Backup rocksdb data, if rocksdb plugin is installed."
    "Used only with --backup option. Can be useful for partial backups, to exclude all rocksdb data",
    &xb_backup_rocksdb, &xb_backup_rocksdb,
    0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0 },
 
-   {"check-privileges", OPT_XTRA_CHECK_PRIVILEGES, "Check database user "
+  {"check-privileges", OPT_XTRA_CHECK_PRIVILEGES, "Check database user "
    "privileges fro the backup user",
    &opt_check_privileges, &opt_check_privileges,
    0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0 },
@@ -3032,8 +3045,8 @@ static bool xtrabackup_copy_logfile()
                 ds_write(dst_log_file, &seq_1, 1))
               goto write_error;
             if (so < -1 &&
-                ds_write(dst_log_file, log_sys.buf + recv_sys.len - (1 - so),
-                         1 - so))
+                ds_write(dst_log_file, log_sys.buf + recv_sys.len + (1 + so),
+                         -(1 + so)))
               goto write_error;
             if (ds_write(dst_log_file, log_sys.buf + log_sys.START_OFFSET,
                          recv_sys.offset - log_sys.START_OFFSET))
@@ -6353,6 +6366,44 @@ static bool check_all_privileges()
 	return true;
 }
 
+static
+void
+xb_init_buffer_pool(const char * filename)
+{
+	if (filename &&
+#ifdef _WIN32
+		(filename[0] == '/'  ||
+		 filename[0] == '\\' ||
+		 strchr(filename, ':')))
+#else
+		filename[0] == FN_LIBCHAR)
+#endif
+	{
+		buffer_pool_filename = strdup(filename);
+	} else {
+		char filepath[FN_REFLEN];
+		char *dst_dir =
+			(innobase_data_home_dir && *innobase_data_home_dir) ?
+			 innobase_data_home_dir : mysql_data_home;
+		size_t dir_length;
+		if (dst_dir && *dst_dir) {
+			dir_length = strlen(dst_dir);
+			while (IS_TRAILING_SLASH(dst_dir, dir_length)) {
+				dir_length--;
+			}
+			memcpy(filepath, dst_dir, dir_length);
+		}
+		else {
+			filepath[0] = '.';
+			dir_length = 1;
+		}
+		snprintf(filepath + dir_length,
+			sizeof(filepath) - dir_length, "%c%s", FN_LIBCHAR,
+			filename ? filename : "ib_buffer_pool");
+		buffer_pool_filename = strdup(filepath);
+	}
+}
+
 bool
 xb_init()
 {
@@ -6417,11 +6468,16 @@ xb_init()
 		if (!get_mysql_vars(mysql_connection)) {
 			return(false);
 		}
+
+		xb_init_buffer_pool(buffer_pool_filename);
+
 		if (opt_check_privileges && !check_all_privileges()) {
 			return(false);
 		}
-		history_start_time = time(NULL);
 
+		history_start_time = time(NULL);
+	} else {
+		xb_init_buffer_pool(innobase_buffer_pool_filename);
 	}
 
 	return(true);
@@ -6813,6 +6869,8 @@ int main(int argc, char **argv)
 	cleanup_errmsgs();
 	free_error_messages();
 	mysql_mutex_destroy(&LOCK_error_log);
+
+	free(buffer_pool_filename);
 
 	if (status == EXIT_SUCCESS) {
 		msg("completed OK!");
