@@ -16327,7 +16327,7 @@ struct ShowStatus {
 	};
 
 	/** Order by m_waits, in descending order. */
-	struct OrderByWaits: public std::binary_function<Value, Value, bool>
+	struct OrderByWaits
 	{
 		/** @return true if rhs < lhs */
 		bool operator()(
