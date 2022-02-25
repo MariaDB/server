@@ -2380,6 +2380,49 @@ FROM (t1 JOIN t1 AS ref_t1 ON
 
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-22377: Subquery in an UPDATE query uses full scan instead of range
+--echo #
+
+CREATE TABLE t1 (
+  key1 varchar(30) NOT NULL,
+  col1 int(11) NOT NULL,
+  filler char(100)
+);
+insert into t1 select seq, seq, seq from seq_1_to_100;
+
+CREATE TABLE t10 (
+  key1 varchar(30) NOT NULL,
+  col1 int,
+  filler char(100),
+  PRIMARY KEY (key1)
+);
+insert into t10 select seq, seq, seq from seq_1_to_1000;
+
+CREATE TABLE t11 (
+  key1 varchar(30) NOT NULL,
+  filler char(100),
+  PRIMARY KEY (key1)
+);
+insert into t11 select seq, seq from seq_1_to_1000;
+
+
+set @tmp_os=@@optimizer_switch;
+set optimizer_switch='semijoin=off,materialization=off';
+
+--echo # Must use range access (not full scan) for table tms:
+explain select * from t1 hist
+WHERE
+  key1 IN ('1','2','3','4','5','6','7','8','9','10') AND
+  hist.col1 NOT IN (SELECT tn.col1
+                    FROM t10 tn JOIN t11 tms ON tms.key1 = tn.key1
+                    WHERE tn.key1 IN ('1','2','3','4','5','6','7','8','9','10')
+                   );
+
+set optimizer_switch=@tmp_os;
+
+drop table t1, t10, t11;
+
 --echo # End of 10.2 tests
 
 --echo # End of 10.3 tests

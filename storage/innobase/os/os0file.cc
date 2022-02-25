@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2019, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -2724,48 +2724,6 @@ os_file_get_status_win32(
 				CloseHandle(fh);
 			}
 		}
-		stat_info->block_size = 0;
-
-		/* What follows, is calculation of FS block size, which is not important
-		(it is just shown in I_S innodb tables). The error to calculate it will be ignored.*/
-		char	volname[MAX_PATH];
-		BOOL	result = GetVolumePathName(path, volname, MAX_PATH);
-		static	bool warned_once = false;
-		if (!result) {
-			if (!warned_once) {
-				ib::warn()
-					<< "os_file_get_status_win32: "
-					<< "Failed to get the volume path name for: "
-					<< path
-					<< "- OS error number " << GetLastError();
-				warned_once = true;
-			}
-			return(DB_SUCCESS);
-		}
-
-		DWORD	sectorsPerCluster;
-		DWORD	bytesPerSector;
-		DWORD	numberOfFreeClusters;
-		DWORD	totalNumberOfClusters;
-
-		result = GetDiskFreeSpace(
-			(LPCSTR) volname,
-			&sectorsPerCluster,
-			&bytesPerSector,
-			&numberOfFreeClusters,
-			&totalNumberOfClusters);
-
-		if (!result) {
-			if (!warned_once) {
-				ib::warn()
-					<< "GetDiskFreeSpace(" << volname << ",...) "
-					<< "failed "
-					<< "- OS error number " << GetLastError();
-				warned_once = true;
-			}
-			return(DB_SUCCESS);
-		}
-		stat_info->block_size = bytesPerSector * sectorsPerCluster;
 	} else {
 		stat_info->type = OS_FILE_TYPE_UNKNOWN;
 	}
@@ -3572,6 +3530,35 @@ dberr_t IORequest::punch_hole(os_offset_t off, ulint len) const
 	}
 
 	return (err);
+}
+
+/*
+  Get file system block size, by path.
+
+  This is expensive on Windows, and not very useful in general,
+  (only shown in some I_S table), so we keep that out of usual
+  stat.
+*/
+size_t os_file_get_fs_block_size(const char *path)
+{
+#ifdef _WIN32
+  char volname[MAX_PATH];
+  if (!GetVolumePathName(path, volname, MAX_PATH))
+    return 0;
+  DWORD sectorsPerCluster;
+  DWORD bytesPerSector;
+  DWORD numberOfFreeClusters;
+  DWORD totalNumberOfClusters;
+
+  if (GetDiskFreeSpace(volname, &sectorsPerCluster, &bytesPerSector,
+                       &numberOfFreeClusters, &totalNumberOfClusters))
+    return ((size_t) bytesPerSector) * sectorsPerCluster;
+#else
+  os_file_stat_t info;
+  if (os_file_get_status(path, &info, false, false) == DB_SUCCESS)
+    return info.block_size;
+#endif
+  return 0;
 }
 
 /** This function returns information about the specified file
