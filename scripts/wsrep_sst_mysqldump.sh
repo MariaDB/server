@@ -3,7 +3,7 @@
 set -ue
 
 # Copyright (C) 2009-2015 Codership Oy
-# Copyright (C) 2017-2021 MariaDB
+# Copyright (C) 2017-2022 MariaDB
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -40,8 +40,7 @@ then
 fi
 
 # Check client version
-if ! $MYSQL_CLIENT --version | grep 'Distrib 10\.[1-9]' >/dev/null
-then
+if ! $MYSQL_CLIENT --version | grep -q -E 'Distrib 10\.[1-9]'; then
     $MYSQL_CLIENT --version >&2
     wsrep_log_error "this operation requires MySQL client version 10.1 or newer"
     exit $EINVAL
@@ -95,7 +94,7 @@ DROP PREPARE stmt;"
 SET_START_POSITION="SET GLOBAL wsrep_start_position='$WSREP_SST_OPT_GTID';"
 
 SET_WSREP_GTID_DOMAIN_ID=""
-if [ -n $WSREP_SST_OPT_GTID_DOMAIN_ID ]; then
+if [ -n "$WSREP_SST_OPT_GTID_DOMAIN_ID" ]; then
     SET_WSREP_GTID_DOMAIN_ID="
     SET @val = (SELECT GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME = 'WSREP_GTID_STRICT_MODE' AND GLOBAL_VALUE > 0);
     SET @stmt = IF (@val IS NOT NULL, 'SET GLOBAL WSREP_GTID_DOMAIN_ID=$WSREP_SST_OPT_GTID_DOMAIN_ID', 'SET @dummy = 0');

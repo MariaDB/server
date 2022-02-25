@@ -9,3 +9,6 @@ log-slave-updates
 log-bin = hostname2-bin
 log-bin-index = hostname2.bdx
 log-slave-updates
+
+[sst]
+sst_max_binlogs=

@@ -146,7 +146,7 @@ SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 select * from t2;
 SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 select * from t2;
-SET GLOBAL innodb_lock_wait_timeout=1;
+SET SESSION innodb_lock_wait_timeout=1;
 --error ER_LOCK_WAIT_TIMEOUT
 insert into t2 values(1,2);
 insert into t2 values(9,10);
