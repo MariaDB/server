@@ -6711,6 +6711,9 @@ static ST_FIELD_INFO innodb_sys_tablespaces_fields_info[]=
   END_OF_ST_FIELD_INFO
 };
 
+
+extern size_t os_file_get_fs_block_size(const char *path);
+
 /**********************************************************************//**
 Function to fill INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES with information
 collected by scanning SYS_TABLESPACESS table.
@@ -6775,11 +6778,10 @@ i_s_dict_fill_sys_tablespaces(
 	OK(fields[SYS_TABLESPACES_ZIP_PAGE_SIZE]->store(
 		   fil_space_t::physical_size(cflags), true));
 
-	os_file_stat_t	stat;
+	size_t fs_block_size = 0;
 	os_file_size_t	file;
 
 	memset(&file, 0xff, sizeof(file));
-	memset(&stat, 0x0, sizeof(stat));
 
 	if (fil_space_t* s = fil_space_acquire_silent(space)) {
 		const char *filepath = s->chain.start
@@ -6789,36 +6791,19 @@ i_s_dict_fill_sys_tablespaces(
 		}
 
 		file = os_file_get_size(filepath);
-
-		/* Get the file system (or Volume) block size. */
-		switch (dberr_t err = os_file_get_status(filepath, &stat,
-							 false, false)) {
-		case DB_FAIL:
-			ib::warn()
-				<< "File '" << filepath << "', failed to get "
-				<< "stats";
-			break;
-
-		case DB_SUCCESS:
-		case DB_NOT_FOUND:
-			break;
-
-		default:
-			ib::error() << "File '" << filepath << "' " << err;
-			break;
-		}
+		fs_block_size= os_file_get_fs_block_size(filepath);
 
 file_done:
 		s->release();
 	}
 
 	if (file.m_total_size == static_cast<os_offset_t>(~0)) {
-		stat.block_size = 0;
+		fs_block_size = 0;
 		file.m_total_size = 0;
 		file.m_alloc_size = 0;
 	}
 
-	OK(fields[SYS_TABLESPACES_FS_BLOCK_SIZE]->store(stat.block_size, true));
+	OK(fields[SYS_TABLESPACES_FS_BLOCK_SIZE]->store(fs_block_size, true));
 
 	OK(fields[SYS_TABLESPACES_FILE_SIZE]->store(file.m_total_size, true));
 
