@@ -4,11 +4,11 @@ connect u,localhost,root;
 # MDEV-24909 JSON functions don't respect KILL QUERY / max_statement_time limit
 #
 set group_concat_max_len= 4294967295;
-set @obj=concat_ws('','{', repeat('"a":"b",', 125000000/2), '"c":"d"}');
-set @arr=concat_ws('','[', repeat('1234567,', 125000000/2), '2345678]');
+set @obj=concat_ws('','{', repeat('"a":"b",', 1250000/2), '"c":"d"}');
+set @arr=concat_ws('','[', repeat('1234567,', 1250000/2), '2345678]');
 select length(@obj), length(@arr);
 length(@obj)	length(@arr)
-500000009	500000009
+5000009	5000009
 set max_statement_time=0.0001;
 select json_array_append(@arr, '$[0]', 1);
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
