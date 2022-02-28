@@ -66,6 +66,24 @@ struct st_debug_sync_control
   char                  ds_proc_info[80];       /* proc_info string */
 };
 
+struct st_debug_sync_signal_counter
+{
+  String signal_name;
+  ulong suspended_threads;
+  ulong resumed_threads;
+
+  st_debug_sync_signal_counter(const String &sig)
+  {
+    suspended_threads= 0;
+    resumed_threads= 0;
+    signal_name.copy(sig);
+  }
+
+  ~st_debug_sync_signal_counter()
+  {
+    signal_name.free();
+  }
+};
 
 /**
   Definitions for the debug sync facility.
@@ -81,8 +99,72 @@ struct st_debug_sync_globals
   ulonglong             dsp_hits;               /* statistics */
   ulonglong             dsp_executed;           /* statistics */
   ulonglong             dsp_max_active;         /* statistics */
+
+  /*
+    Data structure which keeps track of the synchronization between threads for
+    a given DEBUG_SYNC signal. A HASH data structure which uses signal names as
+    keys, where each signal points to two counters:
+      1) suspended_threads, which keeps track of the number of threads that were
+         waiting for a signal, and
+      2) resumed_threads, which keeps track of the number of threads that
+         acknowledged the signal (or potentially timed out in waiting)
+  */
+  HASH ds_signals_all;
+
+  /*
+    Safety variable which is used to ensure that a signal is fully acknowledged
+    by all corresponding threads. I.e., this value reflects the number of
+    threads that need to acknowledge the currently active SIGNAL (ds_signal).
+  */
+  ulong cur_acks_needed;
 };
 static st_debug_sync_globals debug_sync_global; /* All globals in one object */
+
+/**
+  HASH lookup function to get the signal name of an element
+*/
+uchar *get_key_sig_map(struct st_debug_sync_signal_counter *sig_el,
+                       size_t *length,
+                       my_bool not_used __attribute__((unused)))
+{
+  *length= sig_el->signal_name.length();
+  return (uchar*) sig_el->signal_name.ptr();
+}
+
+/**
+  HASH cleanup function when a signal has been fully acknowleged
+*/
+void free_sig_ele(struct st_debug_sync_signal_counter *sig_el)
+{
+  sig_el->~st_debug_sync_signal_counter();
+  my_free(sig_el);
+}
+
+/**
+  Convenience function to find (or create) the hash record for a given
+  DEBUG_SYNC signal.
+*/
+struct st_debug_sync_signal_counter *
+find_or_create_signal_counter(const String &sig)
+{
+  struct st_debug_sync_signal_counter *sig_el= NULL;
+  DBUG_ASSERT(sig.length());
+
+  if (!(sig_el= (struct st_debug_sync_signal_counter *) my_hash_search(
+            &debug_sync_global.ds_signals_all, (uchar *) sig.ptr(),
+            sig.length())))
+  {
+    /* Signal doesn't exist, create one */
+    if (!(sig_el= ((struct st_debug_sync_signal_counter *) my_malloc(
+              sizeof(struct st_debug_sync_signal_counter), MYF(MY_WME)))))
+      goto end;
+    new (sig_el) st_debug_sync_signal_counter(sig);
+    my_hash_insert(&debug_sync_global.ds_signals_all, (uchar*) sig_el);
+  }
+
+end:
+  return sig_el;
+}
 
 /**
   Callbacks from C files.
@@ -152,6 +234,11 @@ int debug_sync_init(void)
 
     /* Set the call back pointer in C files. */
     debug_sync_C_callback_ptr= debug_sync;
+
+    debug_sync_global.cur_acks_needed= 0;
+    my_hash_init(&debug_sync_global.ds_signals_all, system_charset_info, 8,
+                 0, 0, (my_hash_get_key) get_key_sig_map,
+                 (my_hash_free_key) free_sig_ele, 0);
   }
 
   DBUG_RETURN(0);
@@ -177,6 +264,7 @@ void debug_sync_end(void)
 
     /* Destroy the global variables. */
     debug_sync_global.ds_signal.free();
+    my_hash_free(&debug_sync_global.ds_signals_all);
     mysql_cond_destroy(&debug_sync_global.ds_cond);
     mysql_mutex_destroy(&debug_sync_global.ds_mutex);
 
@@ -528,7 +616,33 @@ static void debug_sync_reset(THD *thd)
 
   /* Clear the global signal. */
   mysql_mutex_lock(&debug_sync_global.ds_mutex);
+
+  /*
+    Bad synchronization state, a SIGNAL has been sent but never
+    acknowledged, the underlying test probably has a pattern similar to
+
+    SET DEBUG_SYNC= 'now SIGNAL sig1';
+    SET DEBUG_SYNC= 'RESET';
+
+    where the RESET is overwriting the existence of SIG1 before any threads
+    waiting on sig1 can acknowledge it.
+
+    To fix this issue, change the test to ensure previous signals are
+    acknowledged before sending laster signals. Various existing tests can
+    have this pattern and can be used as a starting place to fix this, e.g.
+      1) rpl.rpl_seconds_behind_master_spike
+      2) rpl.rpl_dump_request_retry_warning
+  */
+  if (debug_sync_global.cur_acks_needed)
+  {
+    sql_print_error("Lost DEBUG_SYNC signal '%s' due to RESET",
+                    debug_sync_global.ds_signal.ptr());
+    DBUG_ABORT();
+  }
+
   debug_sync_global.ds_signal.length(0);
+  debug_sync_global.cur_acks_needed= 0;
+  my_hash_reset(&debug_sync_global.ds_signals_all);
   mysql_mutex_unlock(&debug_sync_global.ds_mutex);
 
   DBUG_VOID_RETURN;
@@ -1353,6 +1467,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
 
   if (action->execute)
   {
+    struct st_debug_sync_signal_counter *sig_el;
     const char  *UNINIT_VAR(old_proc_info);
 
     action->execute--;
@@ -1381,6 +1496,32 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
 
     if (action->signal.length())
     {
+      /*
+        Bad synchronization state, a SIGNAL has been sent but never
+        acknowledged, the underlying test probably has a pattern similar to
+
+        SET DEBUG_SYNC= 'now SIGNAL sig1';
+        SET DEBUG_SYNC= 'now SIGNAL sig2';
+
+        where sig2 is overwriting sig1 before a suspended thread can
+        acknowledge sig1.
+
+        To fix this issue, change the test to ensure previous signals are
+        acknowledged before sending laster signals. Various existing tests can
+        have this pattern and can be used as a starting place to fix this, e.g.
+          1) main.query_cache_debug
+          2) main.partition_debug_sync
+      */
+      if (debug_sync_global.cur_acks_needed)
+      {
+        sql_print_error("Lost DEBUG_SYNC signal '%s' due to SIGNAL '%s'",
+                        debug_sync_global.ds_signal.ptr(),
+                        action->signal.ptr());
+        DBUG_ABORT();
+      }
+
+      sig_el= find_or_create_signal_counter(action->signal);
+
       /* Copy the signal to the global variable. */
       if (debug_sync_global.ds_signal.copy(action->signal))
       {
@@ -1390,6 +1531,14 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         */
         debug_sync_emergency_disable(); /* purecov: tested */
       }
+
+      /*
+        The WAIT_FOR hasn't yet executed, but we want to save that this signal
+        was given
+      */
+      debug_sync_global.cur_acks_needed=
+          sig_el->suspended_threads ? sig_el->suspended_threads : 1;
+
       /* Wake threads waiting in a sync point. */
       mysql_cond_broadcast(&debug_sync_global.ds_cond);
       DBUG_PRINT("debug_sync_exec", ("signal '%s'  at: '%s'",
@@ -1433,6 +1582,12 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
                       sig_wait, dsp_name, sig_glob));});
 
       /*
+        Increment the total number of threads waiting on this signal
+      */
+      sig_el= find_or_create_signal_counter(action->wait_for);
+      sig_el->suspended_threads++;
+
+      /*
         Wait until global signal string matches the wait_for string.
         Interrupt when thread or query is killed or facility disabled.
         The facility can become disabled when some thread cannot get
@@ -1464,6 +1619,21 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         }
         error= 0;
       }
+
+      /*
+        This thread is no longer awaiting a SIGNAL
+      */
+      sig_el->resumed_threads++;
+      debug_sync_global.cur_acks_needed=
+          sig_el->suspended_threads - sig_el->resumed_threads;
+
+      /*
+        If all suspended threads have acknowledged the signal, delete the
+        counter
+      */
+      if (sig_el->resumed_threads == sig_el->suspended_threads)
+        my_hash_delete(&debug_sync_global.ds_signals_all, (uchar*) sig_el);
+
       DBUG_EXECUTE("debug_sync_exec",
                    if (thd->killed)
                      DBUG_PRINT("debug_sync_exec",
