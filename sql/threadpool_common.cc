@@ -645,17 +645,9 @@ static bool tp_notify_apc(THD *thd)
         // We are either before apc requests checked or processed, or after APC
         // processed. We can't distinguish these states, so just flush the pool
         // and then retry if failed.
-        int status= c->stop_io();
+        int status= pool->wake(c);
         if (likely(status == 0))
         {
-          /* Set custom async_state to handle later in threadpool_process_request().
-             This will avoid possible side effects of dry-running do_command() */
-          DBUG_ASSERT(thd->async_state.m_state == thd_async_state::enum_async_state::NONE);
-          thd->async_state.m_state= thd_async_state::enum_async_state::RESUMED;
-          thd->async_state.m_command= COM_SLEEP;
-
-          /* Add c to the task queue */
-          pool->resume(c);
           break;
         }
         else if (unlikely(status < 0))
