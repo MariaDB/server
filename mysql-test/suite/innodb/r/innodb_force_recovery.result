@@ -118,7 +118,7 @@ SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 select * from t2;
 f1	f2
 1	2
-SET GLOBAL innodb_lock_wait_timeout=1;
+SET SESSION innodb_lock_wait_timeout=1;
 insert into t2 values(1,2);
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 insert into t2 values(9,10);

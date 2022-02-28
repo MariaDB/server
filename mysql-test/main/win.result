@@ -4230,6 +4230,14 @@ i	LAST_VALUE(COUNT(i)) OVER (PARTITION BY i ORDER BY j)
 4	2
 DROP TABLE t1;
 #
+# MDEV-15208: server crashed, when using ORDER BY with window function and UNION
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(1),(1),(1),(1),(2),(2),(2),(2),(2),(2);
+SELECT 1 UNION SELECT a FROM t1 ORDER BY (row_number() over ());
+ERROR HY000: Expression #1 of ORDER BY contains aggregate function and applies to a UNION
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #
 #
