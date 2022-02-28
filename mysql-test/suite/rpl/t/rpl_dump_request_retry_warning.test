@@ -43,6 +43,12 @@ START SLAVE;
 SET DEBUG_SYNC= 'now WAIT_FOR parked';
 SET @@GLOBAL.debug_dbug = @saved_dbug;
 SET DEBUG_SYNC= 'now SIGNAL continue';
+
+# Ensure the last DEBUG_SYNC signal was received by the target thread before
+# reset; otherwise, the reset can drop the last signal before it gets
+# acknowledged
+let $wait_condition= select count(*)=0 from information_schema.processlist where state like "%debug%";
+source include/wait_condition.inc;
 SET DEBUG_SYNC= 'RESET';
 
 --source include/wait_for_slave_io_to_start.inc

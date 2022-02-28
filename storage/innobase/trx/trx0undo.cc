@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -466,6 +466,10 @@ static uint16_t trx_undo_header_create(buf_block_t *undo_page, trx_id_t trx_id,
                   free);
   mtr->write<8,mtr_t::MAYBE_NOP>(*undo_page, free + TRX_UNDO_TRX_ID +
                                  undo_page->frame, trx_id);
+  if (UNIV_UNLIKELY(mach_read_from_8(free + TRX_UNDO_TRX_NO +
+                                     undo_page->frame)))
+    mtr->memset(undo_page, free + TRX_UNDO_TRX_NO, 8, 0);
+
   /* Write TRX_UNDO_NEEDS_PURGE=1 and TRX_UNDO_LOG_START. */
   mach_write_to_2(buf, 1);
   memcpy_aligned<2>(buf + 2, start, 2);
@@ -886,12 +890,19 @@ corrupted:
 		sql_print_error("InnoDB: unsupported undo header state %u",
 				state);
 		goto corrupted;
+	case TRX_UNDO_CACHED:
+		if (UNIV_UNLIKELY(type != 0)) {
+			/* This undo page was not updated by MariaDB
+			10.3 or later. The TRX_UNDO_TRX_NO field may
+			contain garbage. */
+			break;
+		}
+		goto read_trx_no;
 	case TRX_UNDO_TO_PURGE:
 		if (UNIV_UNLIKELY(type == 1)) {
 			goto corrupted_type;
 		}
-		/* fall through */
-	case TRX_UNDO_CACHED:
+	read_trx_no:
 		trx_id_t id = mach_read_from_8(TRX_UNDO_TRX_NO + undo_header);
 		if (id >> 48) {
 			sql_print_error("InnoDB: corrupted TRX_NO %llx", id);

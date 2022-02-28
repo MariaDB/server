@@ -197,8 +197,17 @@ SET DEBUG_SYNC="now WAIT_FOR parked1_2";
 --echo ** and finally release the mutex. The threads will continue to wait
 --echo ** until a broadcast signal reaches them causing both threads to 
 --echo ** come alive and check the condition.
+
+# Before sending signals back-to-back, we have to ensure the previous signal
+# was received
+let $wait_condition= select count(*)=3 from information_schema.processlist where state like "%debug%";
+source include/wait_condition.inc;
 SET DEBUG_SYNC="now SIGNAL go2";
+let $wait_condition= select count(*)=2 from information_schema.processlist where state like "%debug%";
+source include/wait_condition.inc;
 SET DEBUG_SYNC="now SIGNAL go3";
+let $wait_condition= select count(*)=1 from information_schema.processlist where state like "%debug%";
+source include/wait_condition.inc;
 
 --echo **
 --echo ** Finally signal the DELETE statement on THD1 one last time.
@@ -208,6 +217,8 @@ SET DEBUG_SYNC="now SIGNAL go3";
 --echo ** invalidations and a broadcast signal will be sent to the thread 
 --echo ** group holding result set writers.
 SET DEBUG_SYNC="now SIGNAL go1_2";
+let $wait_condition= select count(*)=0 from information_schema.processlist where state like "%debug%";
+source include/wait_condition.inc;
 
 --echo **
 --echo *************************************************************************
