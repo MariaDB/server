@@ -58,7 +58,6 @@ static void  threadpool_remove_connection(THD *thd);
 static dispatch_command_return threadpool_process_request(THD *thd);
 static THD*  threadpool_add_connection(CONNECT *connect, TP_connection *c);
 
-extern bool do_command(THD*);
 
 static inline TP_connection *get_TP_connection(THD *thd)
 {
@@ -211,7 +210,7 @@ retry:
           thd->async_state.m_state = thd_async_state::enum_async_state::RESUMED;
           goto retry;
         }
-        return false;
+        return true;
       case DISPATCH_COMMAND_CLOSE_CONNECTION:
         /*
           QUIT or an error occurred.
@@ -640,17 +639,9 @@ static bool tp_notify_apc(THD *thd)
         // We are either before apc requests checked or processed, or after APC
         // processed. We can't distinguish these states, so just flush the pool
         // and then retry if failed.
-        int status= c->stop_io();
+        int status= pool->wake(c);
         if (likely(status == 0))
         {
-          /* Set custom async_state to handle later in threadpool_process_request().
-             This will avoid possible side effects of dry-running do_command() */
-          DBUG_ASSERT(thd->async_state.m_state == thd_async_state::enum_async_state::NONE);
-          thd->async_state.m_state= thd_async_state::enum_async_state::RESUMED;
-          thd->async_state.m_command= COM_SLEEP;
-
-          /* Add c to the task queue */
-          pool->resume(c);
           break;
         }
         else if (unlikely(status < 0))
@@ -664,9 +655,9 @@ static bool tp_notify_apc(THD *thd)
              poll, then we will wait until the epoch change, therefore, will wait
              until the task will reach the worker by the queue, which can be
              long.
-             So longer sleep here.
+             So longer sleep here (1ms).
            */
-          sleep(1);
+          my_sleep(1000);
         }
       }
     }

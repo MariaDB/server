@@ -1337,6 +1337,24 @@ void TP_pool_generic::resume(TP_connection* c)
   add(c);
 }
 
+int TP_pool_generic::wake(TP_connection *c)
+{
+  int status= c->cancel_io();
+  if (status == 0)
+  {
+    THD *thd= c->thd;
+    /* Set custom async_state to handle later in threadpool_process_request().
+       This will avoid possible side effects of dry-running do_command() */
+    DBUG_ASSERT(thd->async_state.m_state == thd_async_state::enum_async_state::NONE);
+    DBUG_ASSERT(thd->async_state.m_command == COM_SLEEP);
+    thd->async_state.m_state= thd_async_state::enum_async_state::RESUMED;
+
+    /* Add c to the task queue */
+    resume(c);
+  }
+  return status;
+}
+
 /**
   MySQL scheduler callback: wait begin
 */
@@ -1522,7 +1540,7 @@ int TP_connection_generic::start_io()
 }
 
 
-int TP_connection_generic::stop_io()
+int TP_connection_generic::cancel_io()
 {
   int ret = io_poll_disassociate_fd(thread_group->pollfd,fd);
   if (ret == 0)
