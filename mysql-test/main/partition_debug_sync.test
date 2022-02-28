@@ -66,12 +66,27 @@ SET DEBUG_SYNC= 'alter_table_before_rename_result_table WAIT_FOR delete_done';
 --send ALTER TABLE t2 REMOVE PARTITIONING
 connection default;
 SET DEBUG_SYNC= 'now WAIT_FOR removing_partitions';
-SET DEBUG_SYNC= 'rm_table_no_locks_before_delete_table SIGNAL waiting_for_alter';
+
+SET DEBUG_SYNC= 'rm_table_no_locks_before_delete_table SIGNAL waiting_for_alter WAIT_FOR mtr_continue';
 SET DEBUG_SYNC= 'rm_table_no_locks_before_binlog SIGNAL delete_done';
-DROP TABLE IF EXISTS t2;
+--send DROP TABLE IF EXISTS t2
+
+--echo # Create a new connection thread to orchestrate the ALTER and DROP
+--echo # threads' DEBUG_SYNC points to avoid lost signals
+connect(con2,localhost,root,,);
+let $wait_condition= select count(*)=0 from information_schema.processlist where state like "debug sync point: alter_table_before_open_tables";
+source include/wait_condition.inc;
+SET DEBUG_SYNC= 'now SIGNAL mtr_continue';
+
+# Return execution for DROP TABLE
+connection default;
+--reap
+
+# Return execution for ALTER TABLE
 connection con1;
 --error ER_NO_SUCH_TABLE
 --reap
+
 SET DEBUG_SYNC= 'RESET';
 disconnect con1;
 --source include/wait_until_disconnected.inc

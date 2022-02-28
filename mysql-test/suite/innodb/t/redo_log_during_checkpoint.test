@@ -6,6 +6,8 @@
 # We are crashing the server on purpose
 --source include/not_valgrind.inc
 --source include/not_crashrep.inc
+# This often fails under MSAN builder due timing differences
+--source include/not_msan.inc
 
 # The test does work with any page size, but we want to reduce the
 # test running time by limiting the combinations. The redo log format
