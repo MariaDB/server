@@ -1,0 +1,31 @@
+create user foo;
+create database deny_db;
+
+create table deny_db.t1 (a int, b int, secret int);
+
+--connect (con1,localhost,foo,,)
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from deny_db.t1;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from deny_db.t2;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from deny_db2.t3;
+
+disconnect con1;
+connection default;
+
+grant select (secret) on deny_db.t1 to foo;
+
+deny select on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+use information_schema; # Information schema should still be accessible.
+--error ER_DBACCESS_DENIED_ERROR
+use deny_db; # Ensure we can't move to a db we don't have access to.
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from deny_db.t1;
