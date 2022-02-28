@@ -467,7 +467,7 @@ static uint16_t trx_undo_header_create(buf_block_t *undo_page, trx_id_t trx_id,
   mtr->write<8,mtr_t::MAYBE_NOP>(*undo_page, free + TRX_UNDO_TRX_ID +
                                  undo_page->frame, trx_id);
   if (UNIV_UNLIKELY(mach_read_from_8(free + TRX_UNDO_TRX_NO +
-                                     undo_page->frame)))
+                                     undo_page->frame) != 0))
     mtr->memset(undo_page, free + TRX_UNDO_TRX_NO, 8, 0);
 
   /* Write TRX_UNDO_NEEDS_PURGE=1 and TRX_UNDO_LOG_START. */
