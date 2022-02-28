@@ -193,9 +193,11 @@ static bool tp_callback_run(TP_connection *c)
       return false;
     }
     c->connect= 0;
+    thd->apc_target.epoch.fetch_add(1, std::memory_order_release);
   }
   else
   {
+    thd->apc_target.epoch.fetch_add(1, std::memory_order_release);
 retry:
     switch(threadpool_process_request(thd))
     {
@@ -211,7 +213,12 @@ retry:
         }
         return false;
       case DISPATCH_COMMAND_CLOSE_CONNECTION:
-        /* QUIT or an error occurred. */
+        /*
+          QUIT or an error occurred.
+
+          We can skip epoch increase here: process_apc_requests will be called
+          one last time after thd is unlinked.
+        */
         return false;
       case DISPATCH_COMMAND_SUCCESS:
         break;
@@ -226,22 +233,11 @@ retry:
   c->set_io_timeout(thd->get_net_wait_timeout());
   c->state= TP_STATE_IDLE;
 
-  mysql_mutex_lock(&thd->LOCK_thd_kill);
-  thd->apc_target.process_apc_requests(false);
+  thd->apc_target.epoch.fetch_add(1, std::memory_order_acquire);
+  if (unlikely(thd->apc_target.have_apc_requests()))
+    thd->apc_target.process_apc_requests();
 
   int error= c->start_io();
-
-  /*
-    Generally, it is not safe to refer to any resources under thd after
-    start_io(), but it is ok to unlock LOCK_thd_kill, if we acquired it before
-    the call.
-
-    The possible race condition can be with lock destruction in ~THD.
-    It is not the case for unlocking LOCK_thd_kill, because it is specifically
-    reacquired and then released right before the destruction, thus,
-    waiting for a holder to release the lock.
-   */
-  mysql_mutex_unlock(&thd->LOCK_thd_kill);
 
   return error == 0;
 }
@@ -344,7 +340,7 @@ static void threadpool_remove_connection(THD *thd)
   // The rest of APC requests should be processed after unlinking.
   // This guarantees that no new APC requests can be added.
   // TODO: better notify the requestor with some KILLED state here.
-  thd->apc_target.process_apc_requests(true);
+  thd->apc_target.process_apc_requests();
   PSI_CALL_delete_current_thread(); // before THD is destroyed
   delete thd;
 
@@ -605,6 +601,7 @@ static void tp_resume(THD* thd)
 {
   DBUG_ASSERT(thd->async_state.m_state == thd_async_state::enum_async_state::SUSPENDED);
   thd->async_state.m_state = thd_async_state::enum_async_state::RESUMED;
+  thd->apc_target.epoch.fetch_add(1, std::memory_order_acquire);
   TP_connection* c = get_TP_connection(thd);
   pool->resume(c);
 }
@@ -613,36 +610,66 @@ static bool tp_notify_apc(THD *thd)
 {
   mysql_mutex_assert_owner(&thd->LOCK_thd_kill);
   TP_connection* c= get_TP_connection(thd);
-
-  int stopped= c->stop_io();
-  if (stopped)
+  longlong process_epoch= thd->apc_target.process_epoch;
+  longlong first_epoch= thd->apc_target.epoch;
+  while (1)
   {
-    /* Set custom async_state to handle later in threadpool_process_request().
-       This will avoid possible side effects of dry-running do_command() */
-    DBUG_ASSERT(thd->async_state.m_state == thd_async_state::enum_async_state::NONE);
-    thd->async_state.m_state = thd_async_state::enum_async_state::RESUMED;
-    thd->async_state.m_command= COM_SLEEP;
+    longlong epoch= thd->apc_target.epoch;
+    if (epoch & 1 || epoch != first_epoch)
+    {
+      // We are in the safe zone, where we can guarantee a processing.
+      break;
+    }
+    else
+    {
 
-    /* Add c to the task queue */
-    pool->resume(c);
-  }
-  if (unlikely(stopped == -1))
-  {
-    return false;
-  }
-  else
-  {
-    /*
-      Do nothing.
+      /*
+         Continue to the retry-loop.
+         We are either before APC request check, or after the check and before
+         run, or the run is skipped.
+       */
 
-      Since we didn't stop the io listening succesfully, it wasn't in a
-      listening poll (i.e. epoll/kqueue/etc). THD is running in the worker
-      now. It didn't return to the poll yet (i.e. c->start_io()), because now
-      it does it under LOCK_thd_kill.
+      process_epoch= thd->apc_target.process_epoch;
+      if (process_epoch & 1)
+      {
+        // We are hanging on LOCK_thd_kill in process_apc_requests, or going to.
+        break;
+      }
+      else
+      {
+        // We are either before apc requests checked or processed, or after APC
+        // processed. We can't distinguish these states, so just flush the pool
+        // and then retry if failed.
+        int status= c->stop_io();
+        if (likely(status == 0))
+        {
+          /* Set custom async_state to handle later in threadpool_process_request().
+             This will avoid possible side effects of dry-running do_command() */
+          DBUG_ASSERT(thd->async_state.m_state == thd_async_state::enum_async_state::NONE);
+          thd->async_state.m_state= thd_async_state::enum_async_state::RESUMED;
+          thd->async_state.m_command= COM_SLEEP;
 
-      It checks pending APC requests under the same lock, so it's guaranteed
-      that our request will be processed before sleep.
-     */
+          /* Add c to the task queue */
+          pool->resume(c);
+          break;
+        }
+        else if (unlikely(status < 0))
+        {
+          return false;
+        }
+        else
+        {
+          /*
+             If the run is skipped and somebody else took connection out of the
+             poll, then we will wait until the epoch change, therefore, will wait
+             until the task will reach the worker by the queue, which can be
+             long.
+             So longer sleep here.
+           */
+          sleep(1);
+        }
+      }
+    }
   }
   return true;
 }
