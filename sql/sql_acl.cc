@@ -15865,6 +15865,13 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
 #endif
 
     sctx->master_access= acl_user->access;
+    sctx->denies_active= NO_PRIV;
+    if (acl_user->denies)
+    {
+      sctx->master_access&= ~acl_user->denies->get_global();
+      sctx->denies_active= acl_user->denies->get_specified_denies();
+    }
+
     strmake_buf(sctx->priv_user, acl_user->user.str);
 
     if (acl_user->host.hostname)
