@@ -92,8 +92,6 @@ struct TP_connection_generic :public TP_connection
   /**
       Designates whether fd is currently connected to the poll denoted by
       thread_group->pollfd. See also change_group.
-
-      The access is protected by thd->LOCK_thd_kill for APC purposes.
   */
   bool bound_to_poll_descriptor;
   int waiting;
