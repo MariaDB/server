@@ -17,15 +17,6 @@ STOP SLAVE;
 RESET SLAVE ALL;
 
 --echo #
---echo # MDEV-25778 Overrun buffer in to_string_native()
---echo #
-
-CREATE TABLE t1 (a DECIMAL(15,11) ZEROFILL);
-INSERT INTO t1 (a) VALUES (0.1),(0.2);
-SELECT length(ENCRYPT(a)) AS f, COUNT(*) FROM t1 GROUP BY f;
-DROP TABLE t1;
-
---echo #
 --echo # MDEV-25754 ASAN: stack-buffer-overflow in Field_newdate::val_str
 --echo #
 

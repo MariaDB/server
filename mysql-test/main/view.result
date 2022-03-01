@@ -1942,14 +1942,6 @@ f1
 2005-02-02
 drop view v1;
 drop table t1;
-CREATE VIEW v1 AS SELECT ENCRYPT("dhgdhgd");
-SELECT * FROM v1;
-drop view v1;
-CREATE VIEW v1 AS SELECT SUBSTRING_INDEX("dkjhgd:kjhdjh", ":", 1);
-SELECT * FROM v1;
-SUBSTRING_INDEX("dkjhgd:kjhdjh", ":", 1)
-dkjhgd
-drop view v1;
 create table t1 (f59 int, f60 int, f61 int);
 insert into t1 values (19,41,32);
 create view v1 as select f59, f60 from t1 where f59 in

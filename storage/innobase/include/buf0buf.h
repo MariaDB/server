@@ -1873,9 +1873,14 @@ public:
   buf_tmp_buffer_t *io_buf_reserve() { return io_buf.reserve(); }
 
   /** @return whether any I/O is pending */
-  bool any_io_pending() const
+  bool any_io_pending()
   {
-    return n_pend_reads || n_flush_LRU() || n_flush_list();
+    if (n_pend_reads)
+      return true;
+    mysql_mutex_lock(&mutex);
+    const bool any_pending{n_flush_LRU_ || n_flush_list_};
+    mysql_mutex_unlock(&mutex);
+    return any_pending;
   }
   /** @return total amount of pending I/O */
   ulint io_pending() const

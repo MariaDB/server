@@ -2,19 +2,19 @@
 # Test lock taken
 #
 BACKUP LOCK test.t1;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_SHARED_HIGH_PRIO	Table metadata lock	test	t1
 BACKUP UNLOCK;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 BACKUP LOCK t1;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_SHARED_HIGH_PRIO	Table metadata lock	test	t1
 BACKUP UNLOCK;
 BACKUP LOCK non_existing.t1;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info where table_name not like "innodb_%";
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 MDL_SHARED_HIGH_PRIO	Table metadata lock	non_existing	t1
 BACKUP UNLOCK;
