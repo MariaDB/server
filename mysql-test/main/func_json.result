@@ -2013,5 +2013,21 @@ SELECT JSON_VALUE(@json, '$.A[last-1][last-1].key1');
 JSON_VALUE(@json, '$.A[last-1][last-1].key1')
 123
 #
+# MDEV-27972: Unexpected behavior with negative zero (-0) in JSON Path
+#
+SET @json='{ "x": [0,1]}';
+SELECT JSON_VALUE(@json,'$.x[last]');
+JSON_VALUE(@json,'$.x[last]')
+1
+SELECT JSON_VALUE(@json,'$.x[last-0]');
+JSON_VALUE(@json,'$.x[last-0]')
+1
+SELECT JSON_VALUE(@json,'$.x[-0]');
+JSON_VALUE(@json,'$.x[-0]')
+0
+SELECT JSON_VALUE(@json,'$.x[0]');
+JSON_VALUE(@json,'$.x[0]')
+0
+#
 # End of 10.9 Test
 #
