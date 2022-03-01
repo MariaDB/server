@@ -230,3 +230,13 @@ a	b
 hello	12NKz5XM5JeKI
 DROP TABLE t1;
 # End of 10.2 tests
+#
+# MDEV-25778 Overrun buffer in to_string_native()
+#
+CREATE TABLE t1 (a DECIMAL(15,11) ZEROFILL);
+INSERT INTO t1 (a) VALUES (0.1),(0.2);
+SELECT length(ENCRYPT(a)) AS f, COUNT(*) FROM t1 GROUP BY f;
+f	COUNT(*)
+13	2
+DROP TABLE t1;
+# End of 10.6 tests
