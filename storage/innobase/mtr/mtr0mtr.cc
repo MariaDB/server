@@ -37,8 +37,6 @@ Created 11/26/1995 Heikki Tuuri
 /** Iterate over a memo block in reverse. */
 template <typename Functor>
 struct CIterate {
-	CIterate() : functor() {}
-
 	CIterate(const Functor& functor) : functor(functor) {}
 
 	/** @return false if the functor returns false. */
@@ -64,7 +62,7 @@ struct CIterate {
 		return(true);
 	}
 
-	Functor functor;
+	const Functor& functor;
 };
 
 template <typename Functor>
@@ -306,6 +304,7 @@ struct DebugCheck {
 		return(true);
 	}
 };
+static DebugCheck dummyDebugCheck;
 #endif
 
 /** Release page latches held by the mini-transaction. */
@@ -390,7 +389,7 @@ void mtr_t::start()
 inline void mtr_t::release_resources()
 {
   ut_ad(is_active());
-  ut_d(m_memo.for_each_block_in_reverse(CIterate<DebugCheck>()));
+  ut_d(m_memo.for_each_block_in_reverse(CIterate<DebugCheck>(dummyDebugCheck)));
   m_log.erase();
   m_memo.erase();
   ut_d(m_commit= true);
@@ -455,7 +454,8 @@ void mtr_t::commit()
     if (m_made_dirty)
       log_sys.latch.rd_unlock();
 
-    m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>());
+    ReleaseLatches rl;
+    m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>(rl));
 
     if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
       buf_flush_ahead(m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);
@@ -469,7 +469,10 @@ void mtr_t::commit()
     }
   }
   else
-    m_memo.for_each_block_in_reverse(CIterate<ReleaseAll>());
+  {
+    ReleaseAll rl;
+    m_memo.for_each_block_in_reverse(CIterate<ReleaseAll>(rl));
+  }
 
   release_resources();
 }
@@ -582,7 +585,8 @@ void mtr_t::commit_shrink(fil_space_t &space)
   space.is_being_truncated= false;
   mysql_mutex_unlock(&fil_system.mutex);
 
-  m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>());
+  ReleaseLatches rl;
+  m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>(rl));
 
   release_resources();
 }
