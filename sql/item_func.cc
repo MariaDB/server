@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3463,6 +3463,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 	  thd->alloc(f_args.arg_count*sizeof(Item_result))))
 
     {
+    err_exit:
       free_udf(u_d);
       DBUG_RETURN(TRUE);
     }
@@ -3504,7 +3505,8 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
       f_args.arg_type[i]=item->result_type();
     }
     //TODO: why all following memory is not allocated with 1 thd->alloc() call?
-    if (!(buffers=new String[arg_count]) ||
+    buffers= new String[arg_count];
+    if (!buffers ||
 	!(f_args.args= (char**) thd->alloc(arg_count * sizeof(char *))) ||
 	!(f_args.lengths= (ulong*) thd->alloc(arg_count * sizeof(long))) ||
 	!(f_args.maybe_null= (char*) thd->alloc(arg_count * sizeof(char))) ||
@@ -3514,10 +3516,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
                                                  sizeof(char *))) ||
 	!(f_args.attribute_lengths= (ulong*) thd->alloc(arg_count *
 						       sizeof(long))))
-    {
-      free_udf(u_d);
-      DBUG_RETURN(TRUE);
-    }
+      goto err_exit;
   }
   if (func->fix_length_and_dec())
     DBUG_RETURN(TRUE);
@@ -3583,8 +3582,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
     {
       my_error(ER_CANT_INITIALIZE_UDF, MYF(0),
                u_d->name.str, init_msg_buff);
-      free_udf(u_d);
-      DBUG_RETURN(TRUE);
+      goto err_exit;
     }
     func->max_length=MY_MIN(initid.max_length,MAX_BLOB_WIDTH);
     func->maybe_null=initid.maybe_null;
