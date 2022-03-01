@@ -53,9 +53,14 @@ SET DEBUG_SYNC= 'alter_table_before_rename_result_table WAIT_FOR delete_done';
 ALTER TABLE t2 REMOVE PARTITIONING;
 connection default;
 SET DEBUG_SYNC= 'now WAIT_FOR removing_partitions';
-SET DEBUG_SYNC= 'rm_table_no_locks_before_delete_table SIGNAL waiting_for_alter';
+SET DEBUG_SYNC= 'rm_table_no_locks_before_delete_table SIGNAL waiting_for_alter WAIT_FOR mtr_continue';
 SET DEBUG_SYNC= 'rm_table_no_locks_before_binlog SIGNAL delete_done';
 DROP TABLE IF EXISTS t2;
+# Create a new connection thread to orchestrate the ALTER and DROP
+# threads' DEBUG_SYNC points to avoid lost signals
+connect con2,localhost,root,,;
+SET DEBUG_SYNC= 'now SIGNAL mtr_continue';
+connection default;
 connection con1;
 ERROR 42S02: Table 'test.t2' doesn't exist
 SET DEBUG_SYNC= 'RESET';

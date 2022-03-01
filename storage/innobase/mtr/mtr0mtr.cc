@@ -450,8 +450,8 @@ void mtr_t::commit()
     else
       ut_ad(!m_freed_space);
 
-    ReleaseBlocks rb{lsns.first, m_commit_lsn};
-    m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>(rb));
+    Iterate<ReleaseBlocks> rb{ReleaseBlocks{lsns.first, m_commit_lsn}};
+    m_memo.for_each_block_in_reverse(rb);
     if (m_made_dirty)
       log_sys.latch.rd_unlock();
 
@@ -460,10 +460,10 @@ void mtr_t::commit()
     if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
       buf_flush_ahead(m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);
 
-    if (rb.modified)
+    if (rb.functor.modified)
     {
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
-      buf_pool.flush_list_requests+= rb.modified;
+      buf_pool.flush_list_requests+= rb.functor.modified;
       buf_pool.page_cleaner_wakeup();
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);
     }

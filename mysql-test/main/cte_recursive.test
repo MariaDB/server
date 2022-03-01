@@ -1,4 +1,7 @@
 --source include/default_optimizer_switch.inc
+# This is too slow on MSAN
+--source include/not_msan.inc
+--source include/not_valgrind.inc
 
 create table t1 (a int, b varchar(32));
 insert into t1 values
