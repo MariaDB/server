@@ -1,6 +1,4 @@
 -- source include/have_crypt.inc
-# MDEV-27964 The function ENCRYPT() causes SIGSEGV in WITH_MSAN builds
--- source include/not_msan.inc
 
 --disable_warnings
 drop table if exists t1;
