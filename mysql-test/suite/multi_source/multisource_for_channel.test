@@ -329,7 +329,9 @@ START SLAVE for channel 'master1';
 --echo
 --echo show slave status for channel 'master1'
 --let $status_items= Master_Port, Relay_Log_File, Slave_IO_Running, Slave_SQL_Running, Last_Errno, Last_SQL_Errno
---let $slave_field_result_replace= /$SERVER_MYPORT_1/MYPORT_1/ /Preparing/Yes/
+# Relay log rotation from 4 to 5 is asynchronous with the show-slave-status,
+# so both possible results are masked as [45].
+--let $slave_field_result_replace= /$SERVER_MYPORT_1/MYPORT_1/ /Preparing/Yes/  /000004/00000[45]/  /000005/00000[45]/ 
 --let $slave_name= 'master1'
 --let $for_channel= 1
 --source include/show_slave_status.inc

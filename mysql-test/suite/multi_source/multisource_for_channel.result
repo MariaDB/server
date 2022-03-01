@@ -282,7 +282,7 @@ include/wait_for_slave_to_start.inc
 
 show slave status for channel 'master1'
 Master_Port = 'MYPORT_1'
-Relay_Log_File = 'mysqld-relay-bin-master1.000005'
+Relay_Log_File = 'mysqld-relay-bin-master1.00000[45]'
 Slave_IO_Running = 'Yes'
 Slave_SQL_Running = 'Yes'
 Last_Errno = '0'
