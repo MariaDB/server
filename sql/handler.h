@@ -4668,6 +4668,11 @@ public:
                                 const uchar *pack_frm_data,
                                 size_t pack_frm_len)
   { return HA_ERR_WRONG_COMMAND; }
+  /* @return true if it's necessary to switch current statement log format from
+   STATEMENT to ROW if binary log format is MIXED and autoincrement values
+   are changed in the statement */
+  virtual bool autoinc_lock_mode_stmt_unsafe() const
+  { return false; }
   virtual int drop_partitions(const char *path)
   { return HA_ERR_WRONG_COMMAND; }
   virtual int rename_partitions(const char *path)
