@@ -930,6 +930,116 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write(bool ex)
   return finish_write(len, ex);
 }
 
+inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
+                                size_t seq) noexcept
+{
+#ifndef SUX_LOCK_GENERIC
+  ut_ad(latch.is_locked());
+#endif
+
+  if (UNIV_LIKELY_NULL(resize_buf))
+  {
+    ut_ad(end >= buf);
+    end-= len;
+    size_t s;
+
+#ifdef HAVE_PMEM
+    if (!resize_flush_buf)
+    {
+      ut_ad(is_pmem());
+      const size_t resize_capacity{resize_target - START_OFFSET};
+      const lsn_t resizing{resize_in_progress()};
+      if (UNIV_UNLIKELY(lsn < resizing))
+      {
+        size_t l= resizing - lsn;
+        if (l >= len)
+          return;
+        end+= l - len;
+        len-= l;
+        lsn+= l;
+      }
+      lsn-= resizing;
+      s= START_OFFSET + lsn % resize_capacity;
+
+      if (UNIV_UNLIKELY(end < &buf[START_OFFSET]))
+      {
+        /* The source buffer (log_sys.buf) wrapped around */
+        ut_ad(end + capacity() < &buf[file_size]);
+        ut_ad(end + len >= &buf[START_OFFSET]);
+        ut_ad(end + capacity() + len >= &buf[file_size]);
+
+        size_t l= size_t(buf - (end - START_OFFSET));
+        if (UNIV_LIKELY(s + len <= resize_target))
+        {
+          /* The destination buffer (log_sys.resize_buf) did not wrap around */
+          memcpy(resize_buf + s, end + capacity(), l);
+          memcpy(resize_buf + s + l, &buf[START_OFFSET], len - l);
+          goto pmem_nowrap;
+        }
+        else
+        {
+          /* Both log_sys.buf and log_sys.resize_buf wrapped around */
+          const size_t rl= resize_target - s;
+          if (l <= rl)
+          {
+            /* log_sys.buf wraps around first */
+            memcpy(resize_buf + s, end + capacity(), l);
+            memcpy(resize_buf + s + l, &buf[START_OFFSET], rl - l);
+            memcpy(resize_buf + START_OFFSET, &buf[START_OFFSET + rl - l],
+                   len - l);
+          }
+          else
+          {
+            /* log_sys.resize_buf wraps around first */
+            memcpy(resize_buf + s, end + capacity(), rl);
+            memcpy(resize_buf + START_OFFSET, end + capacity() + rl, l - rl);
+            memcpy(resize_buf + START_OFFSET + (l - rl),
+                   &buf[START_OFFSET], len - l);
+          }
+          goto pmem_wrap;
+        }
+      }
+      else
+      {
+        ut_ad(end + len <= &buf[file_size]);
+
+        if (UNIV_LIKELY(s + len <= resize_target))
+        {
+          memcpy(resize_buf + s, end, len);
+        pmem_nowrap:
+          s+= len - seq;
+        }
+        else
+        {
+          /* The log_sys.resize_buf wrapped around */
+          memcpy(resize_buf + s, end, resize_target - s);
+          memcpy(resize_buf + START_OFFSET, end + (resize_target - s),
+                 len - (resize_target - s));
+        pmem_wrap:
+          s+= len - seq;
+          if (s >= resize_target)
+            s-= resize_capacity;
+          resize_lsn.fetch_add(resize_capacity); /* Move the target ahead. */
+        }
+      }
+    }
+    else
+#endif
+    {
+      ut_ad(resize_flush_buf);
+      s= end - buf;
+      ut_ad(s + len <= buf_size);
+      memcpy(resize_buf + s, end, len);
+      s+= len - seq;
+    }
+
+    /* Always set the sequence bit. If the resized log were to wrap around,
+    we will advance resize_lsn. */
+    ut_ad(resize_buf[s] <= 1);
+    resize_buf[s]= 1;
+  }
+}
+
 /** Write the mini-transaction log to the redo log buffer.
 @param len   number of bytes to write
 @param ex    whether log_sys.latch is exclusively locked
@@ -960,6 +1070,7 @@ mtr_t::finish_write(size_t len, bool ex)
       start.second+= 8;
     }
     mach_write_to_4(start.second, m_crc);
+    start.second+= 4;
   }
 #ifdef HAVE_PMEM
   else
@@ -1006,8 +1117,13 @@ mtr_t::finish_write(size_t len, bool ex)
     ::memcpy(start.second, tail, size_left);
     ::memcpy(log_sys.buf + log_sys.START_OFFSET, tail + size_left,
              size - size_left);
+    start.second= log_sys.buf +
+      ((size >= size_left) ? log_sys.START_OFFSET : log_sys.file_size) +
+      (size - size_left);
   }
 #endif
+
+  log_sys.resize_write(start.first, start.second, len, size);
 
   m_commit_lsn= start.first + len;
   return {start.first, log_close(m_commit_lsn)};

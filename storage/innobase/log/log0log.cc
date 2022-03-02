@@ -158,13 +158,41 @@ dberr_t log_file_t::read(os_offset_t offset, span<byte> buf) noexcept
 void log_file_t::write(os_offset_t offset, span<const byte> buf) noexcept
 {
   ut_ad(is_opened());
-  if (dberr_t err= os_file_write(IORequestWrite, "ib_logfile0", m_file,
-                                 buf.data(), offset, buf.size()))
+  if (dberr_t err= os_file_write_func(IORequestWrite, "ib_logfile0", m_file,
+                                      buf.data(), offset, buf.size()))
     ib::fatal() << "write(\"ib_logfile0\") returned " << err;
 }
 
 #ifdef HAVE_PMEM
 # include <libpmem.h>
+
+/** Attempt to memory map a file.
+@param file  log file handle
+@param size  file size
+@return pointer to memory mapping
+@retval MAP_FAILED  if the memory cannot be mapped */
+static void *log_mmap(os_file_t file, os_offset_t size)
+{
+  void *ptr=
+    my_mmap(0, size_t(size),
+            srv_read_only_mode ? PROT_READ : PROT_READ | PROT_WRITE,
+            MAP_SHARED_VALIDATE | MAP_SYNC, file, 0);
+#ifdef __linux__
+  if (ptr == MAP_FAILED)
+  {
+    struct stat st;
+    if (!fstat(file, &st))
+    {
+      const auto st_dev= st.st_dev;
+      if (!stat("/dev/shm", &st) && st.st_dev == st_dev)
+        ptr= my_mmap(0, size_t(size),
+                     srv_read_only_mode ? PROT_READ : PROT_READ | PROT_WRITE,
+                     MAP_SHARED, file, 0);
+    }
+  }
+#endif /* __linux__ */
+  return ptr;
+}
 #endif
 
 void log_t::attach(log_file_t file, os_offset_t size)
@@ -178,24 +206,7 @@ void log_t::attach(log_file_t file, os_offset_t size)
   ut_ad(!flush_buf);
   if (size && !(size_t(size) & 4095))
   {
-    void *ptr=
-      my_mmap(0, size_t(size),
-              srv_read_only_mode ? PROT_READ : PROT_READ | PROT_WRITE,
-              MAP_SHARED_VALIDATE | MAP_SYNC, log.m_file, 0);
-#ifdef __linux__
-    if (ptr == MAP_FAILED)
-    {
-      struct stat st;
-      if (!fstat(log.m_file, &st))
-      {
-        const auto st_dev= st.st_dev;
-        if (!stat("/dev/shm", &st) && st.st_dev == st_dev)
-          ptr= my_mmap(0, size_t(size),
-                       srv_read_only_mode ? PROT_READ : PROT_READ | PROT_WRITE,
-                       MAP_SHARED, log.m_file, 0);
-      }
-    }
-#endif /* __linux__ */
+    void *ptr= log_mmap(log.m_file, size);
     if (ptr != MAP_FAILED)
     {
       log.close();
@@ -233,6 +244,30 @@ void log_t::attach(log_file_t file, os_offset_t size)
 #endif
 }
 
+/** Write a log file header.
+@param buf        log header buffer
+@param lsn        log sequence number corresponding to log_sys.START_OFFSET
+@param encrypted  whether the log is encrypted */
+void log_t::header_write(byte *buf, lsn_t lsn, bool encrypted)
+{
+  mach_write_to_4(my_assume_aligned<4>(buf) + LOG_HEADER_FORMAT,
+                  log_sys.FORMAT_10_8);
+  mach_write_to_8(my_assume_aligned<8>(buf + LOG_HEADER_START_LSN), lsn);
+  static constexpr const char LOG_HEADER_CREATOR_CURRENT[]=
+    "MariaDB "
+    IB_TO_STR(MYSQL_VERSION_MAJOR) "."
+    IB_TO_STR(MYSQL_VERSION_MINOR) "."
+    IB_TO_STR(MYSQL_VERSION_PATCH);
+
+  strcpy(reinterpret_cast<char*>(buf) + LOG_HEADER_CREATOR,
+         LOG_HEADER_CREATOR_CURRENT);
+  static_assert(LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR >=
+                sizeof LOG_HEADER_CREATOR_CURRENT, "compatibility");
+  if (encrypted)
+    log_crypt_write_header(buf + LOG_HEADER_CREATOR_END);
+  mach_write_to_4(my_assume_aligned<4>(508 + buf), my_crc32c(0, buf, 508));
+}
+
 void log_t::create(lsn_t lsn) noexcept
 {
 #ifndef SUX_LOCK_GENERIC
@@ -264,22 +299,7 @@ void log_t::create(lsn_t lsn) noexcept
     memset_aligned<4096>(buf, 0, buf_size);
   }
 
-  mach_write_to_4(buf + LOG_HEADER_FORMAT, FORMAT_10_8);
-  mach_write_to_8(buf + LOG_HEADER_START_LSN, lsn);
-  static constexpr const char LOG_HEADER_CREATOR_CURRENT[]=
-    "MariaDB "
-    IB_TO_STR(MYSQL_VERSION_MAJOR) "."
-    IB_TO_STR(MYSQL_VERSION_MINOR) "."
-    IB_TO_STR(MYSQL_VERSION_PATCH);
-
-  strcpy(reinterpret_cast<char*>(buf) + LOG_HEADER_CREATOR,
-         LOG_HEADER_CREATOR_CURRENT);
-  static_assert(LOG_HEADER_CREATOR_END - LOG_HEADER_CREATOR >=
-                sizeof LOG_HEADER_CREATOR_CURRENT, "compatibility");
-  if (is_encrypted())
-    log_crypt_write_header(buf + LOG_HEADER_CREATOR_END);
-  mach_write_to_4(my_assume_aligned<4>(508 + buf), my_crc32c(0, buf, 508));
-
+  log_sys.header_write(buf, lsn, is_encrypted());
   DBUG_PRINT("ib_log", ("write header " LSN_PF, lsn));
 
 #ifdef HAVE_PMEM
@@ -318,6 +338,168 @@ void log_t::close_file()
   if (is_opened())
     if (const dberr_t err= log.close())
       ib::fatal() << "closing ib_logfile0 failed: " << err;
+}
+
+/** Acquire the latches that protect log resizing. */
+static void log_resize_acquire()
+{
+  if (!log_sys.is_pmem())
+  {
+    while (flush_lock.acquire(log_sys.get_lsn() + 1, nullptr) !=
+           group_commit_lock::ACQUIRED);
+    while (write_lock.acquire(log_sys.get_lsn() + 1, nullptr) !=
+           group_commit_lock::ACQUIRED);
+  }
+
+  log_sys.latch.wr_lock(SRW_LOCK_CALL);
+}
+
+/** Release the latches that protect log resizing. */
+void log_resize_release()
+{
+  log_sys.latch.wr_unlock();
+
+  if (!log_sys.is_pmem())
+  {
+    lsn_t lsn1= write_lock.release(write_lock.value());
+    lsn_t lsn2= flush_lock.release(flush_lock.value());
+    if (lsn1 || lsn2)
+      log_write_up_to(std::max(lsn1, lsn2), true, nullptr);
+  }
+}
+
+/** Start resizing the log and release the exclusive latch.
+@param size  requested new file_size
+@return whether the resizing was started successfully */
+log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
+{
+  ut_ad(size >= 4U << 20);
+  ut_ad(!(size & 4095));
+  ut_ad(!srv_read_only_mode);
+
+  log_resize_acquire();
+
+  resize_start_status status= RESIZE_NO_CHANGE;
+  lsn_t start_lsn{0};
+
+  if (resize_in_progress())
+    status= RESIZE_IN_PROGRESS;
+  else if (size != file_size)
+  {
+    ut_ad(!resize_in_progress());
+    ut_ad(!resize_log.is_opened());
+    ut_ad(!resize_buf);
+    ut_ad(!resize_flush_buf);
+    std::string path{get_log_file_path("ib_logfile101")};
+    bool success;
+    resize_lsn.store(1, std::memory_order_relaxed);
+    resize_target= 0;
+    resize_log.m_file=
+      os_file_create_func(path.c_str(),
+                          OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT,
+                          OS_FILE_NORMAL, OS_LOG_FILE, false, &success);
+    if (success)
+    {
+      log_resize_release();
+
+      void *ptr= nullptr, *ptr2= nullptr;
+      success= os_file_set_size(path.c_str(), resize_log.m_file, size);
+      if (!success);
+#ifdef HAVE_PMEM
+      else if (is_pmem())
+      {
+        ptr= log_mmap(resize_log.m_file, size);
+        if (ptr == MAP_FAILED)
+          goto alloc_fail;
+      }
+#endif
+      else
+      {
+        ptr= ut_malloc_dontdump(buf_size, PSI_INSTRUMENT_ME);
+        if (ptr)
+        {
+          TRASH_ALLOC(ptr, buf_size);
+          ptr2= ut_malloc_dontdump(buf_size, PSI_INSTRUMENT_ME);
+          if (ptr2)
+            TRASH_ALLOC(ptr2, buf_size);
+          else
+          {
+            ut_free_dodump(ptr, buf_size);
+            ptr= nullptr;
+            goto alloc_fail;
+          }
+        }
+        else
+        alloc_fail:
+          success= false;
+      }
+
+      log_resize_acquire();
+
+      if (!success)
+      {
+        resize_log.close();
+        IF_WIN(DeleteFile(path.c_str()), unlink(path.c_str()));
+      }
+      else
+      {
+        resize_target= size;
+        resize_buf= static_cast<byte*>(ptr);
+        resize_flush_buf= static_cast<byte*>(ptr2);
+        if (is_pmem())
+        {
+          resize_log.close();
+          start_lsn= get_lsn();
+        }
+        else
+        {
+          memcpy_aligned<16>(resize_buf, buf, (buf_free + 15) & ~15);
+          start_lsn= first_lsn +
+            (~lsn_t{block_size - 1} & (write_lsn - first_lsn));
+        }
+      }
+      resize_lsn.store(start_lsn, std::memory_order_relaxed);
+      status= success ? RESIZE_STARTED : RESIZE_FAILED;
+    }
+  }
+
+  log_resize_release();
+
+  if (start_lsn)
+    buf_flush_ahead(start_lsn, false);
+
+  return status;
+}
+
+/** Abort log resizing. */
+void log_t::resize_abort() noexcept
+{
+  log_resize_acquire();
+
+  if (resize_in_progress() > 1)
+  {
+    if (!is_pmem())
+    {
+      resize_log.close();
+      ut_free_dodump(resize_buf, buf_size);
+      ut_free_dodump(resize_flush_buf, buf_size);
+      resize_flush_buf= nullptr;
+    }
+#ifdef HAVE_PMEM
+    else
+    {
+      ut_ad(!resize_log.is_opened());
+      ut_ad(!resize_flush_buf);
+      if (resize_buf)
+        my_munmap(resize_buf, resize_target);
+    }
+#endif
+    resize_buf= nullptr;
+    resize_target= 0;
+    resize_lsn.store(0, std::memory_order_relaxed);
+  }
+
+  log_resize_release();
 }
 
 /** Write an aligned buffer to ib_logfile0.
@@ -489,8 +671,12 @@ inline void log_t::persist(lsn_t lsn) noexcept
   if (old >= lsn)
     return;
 
+  const lsn_t resizing{resize_in_progress()};
+  if (UNIV_UNLIKELY(resizing))
+    latch.rd_lock(SRW_LOCK_CALL);
   const size_t start(calc_lsn_offset(old));
   const size_t end(calc_lsn_offset(lsn));
+
   if (UNIV_UNLIKELY(end < start))
   {
     pmem_persist(log_sys.buf + start, log_sys.file_size - start);
@@ -502,25 +688,52 @@ inline void log_t::persist(lsn_t lsn) noexcept
 
   old= flushed_to_disk_lsn.load(std::memory_order_relaxed);
 
-  if (old >= lsn)
-    return;
+  if (old < lsn)
+  {
+    while (!flushed_to_disk_lsn.compare_exchange_weak
+           (old, lsn, std::memory_order_release, std::memory_order_relaxed))
+      if (old >= lsn)
+        break;
 
-  while (!flushed_to_disk_lsn.compare_exchange_weak
-         (old, lsn, std::memory_order_release, std::memory_order_relaxed))
-    if (old >= lsn)
-      break;
+    log_flush_notify(lsn);
+    DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
+  }
 
-  log_flush_notify(lsn);
-  DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
+  if (UNIV_UNLIKELY(resizing))
+    latch.rd_unlock();
 }
 #endif
 
+/** Write resize_buf to resize_log.
+@param length  the used length of resize_buf */
+ATTRIBUTE_COLD void log_t::resize_write_buf(size_t length) noexcept
+{
+  ut_ad(!(resize_target & (block_size - 1)));
+  ut_ad(!(length & (block_size - 1)));
+  ut_ad(length >= block_size);
+  ut_ad(length <= resize_target);
+  const lsn_t resizing{resize_in_progress()};
+  ut_ad(resizing <= write_lsn);
+  lsn_t offset= START_OFFSET +
+    ((write_lsn - resizing) & ~lsn_t{block_size - 1}) %
+    (resize_target - START_OFFSET);
+
+  if (UNIV_UNLIKELY(offset + length > resize_target))
+  {
+    offset= START_OFFSET;
+    resize_lsn.store(first_lsn +
+                     (~lsn_t{block_size - 1} & (write_lsn - first_lsn)),
+                     std::memory_order_relaxed);
+  }
+
+  ut_a(os_file_write_func(IORequestWrite, "ib_logfile101", resize_log.m_file,
+                          resize_flush_buf, offset, length) == DB_SUCCESS);
+}
+
 /** Write buf to ib_logfile0.
 @tparam release_latch whether to invoke latch.wr_unlock()
-@return lsn of a callback pending on write_lock
-@retval 0 if everything was written
-*/
-template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
+@return the current log sequence number */
+template<bool release_latch> lsn_t log_t::write_buf() noexcept
 {
 #ifndef SUX_LOCK_GENERIC
   ut_ad(latch.is_write_locked());
@@ -542,7 +755,7 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
     write_lock.set_pending(lsn);
     ut_ad(write_lsn >= get_flushed_lsn());
     const size_t block_size_1{get_block_size() - 1};
-    const lsn_t offset{calc_lsn_offset(write_lsn) & ~lsn_t{block_size_1}};
+    lsn_t offset{calc_lsn_offset(write_lsn) & ~lsn_t{block_size_1}};
 
     DBUG_PRINT("ib_log", ("write " LSN_PF " to " LSN_PF " at " LSN_PF,
                           write_lsn, lsn, offset));
@@ -568,11 +781,18 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
       buf[length]= 0; /* allow recovery to catch EOF faster */
       length&= ~block_size_1;
       memcpy_aligned<16>(flush_buf, buf + length, (new_buf_free + 15) & ~15);
+      if (UNIV_LIKELY_NULL(resize_flush_buf))
+      {
+        MEM_MAKE_DEFINED(resize_buf + length, get_block_size() - new_buf_free);
+        memcpy_aligned<16>(resize_flush_buf, resize_buf + length,
+                           (new_buf_free + 15) & ~15);
+      }
       length+= get_block_size();
 #endif
     }
 
     std::swap(buf, flush_buf);
+    std::swap(resize_buf, resize_flush_buf);
     write_to_log++;
     if (release_latch)
       latch.wr_unlock();
@@ -585,13 +805,17 @@ template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
 
     /* Do the write to the log file */
     log_write_buf(write_buf, length, offset);
+    if (UNIV_LIKELY_NULL(resize_buf))
+      resize_write_buf(length);
     write_lsn= lsn;
   }
 
-  return write_lock.release(lsn);
+  return lsn;
 }
 
-inline bool log_t::flush(lsn_t lsn) noexcept
+template lsn_t log_t::write_buf<false>() noexcept;
+
+bool log_t::flush(lsn_t lsn) noexcept
 {
   ut_ad(lsn >= get_flushed_lsn());
   flush_lock.set_pending(lsn);
@@ -659,7 +883,6 @@ repeat:
       return;
     flush_lock.set_pending(log_sys.get_lsn());
   }
- 
 
   lsn_t pending_write_lsn= 0, pending_flush_lsn= 0;
 
@@ -667,7 +890,7 @@ repeat:
       group_commit_lock::ACQUIRED)
   {
     log_sys.latch.wr_lock(SRW_LOCK_CALL);
-    pending_write_lsn= log_sys.write_buf<true>();
+    pending_write_lsn= write_lock.release(log_sys.write_buf<true>());
   }
 
   if (durable)
@@ -710,8 +933,9 @@ ATTRIBUTE_COLD void log_write_and_flush()
   ut_ad(!srv_read_only_mode);
   if (!log_sys.is_pmem())
   {
-    log_sys.write_buf<false>();
-    log_flush(write_lock.value());
+    const lsn_t lsn{log_sys.write_buf<false>()};
+    write_lock.release(lsn);
+    log_flush(lsn);
   }
 #ifdef HAVE_PMEM
   else

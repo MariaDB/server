@@ -18461,6 +18461,57 @@ buffer_pool_load_abort(
 	}
 }
 
+static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
+                                        void *var, const void *save)
+{
+  ut_ad(var == &srv_log_file_size);
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+
+  if (high_level_read_only)
+    ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_READ_ONLY_MODE);
+  else if (!log_sys.is_pmem() &&
+           *static_cast<const ulonglong*>(save) < log_sys.buf_size)
+    my_printf_error(ER_WRONG_ARGUMENTS,
+                    "innodb_log_file_size must be at least"
+                    " innodb_log_buffer_size=%zu", MYF(0), log_sys.buf_size);
+  else
+  {
+    switch (log_sys.resize_start(*static_cast<const ulonglong*>(save))) {
+    case log_t::RESIZE_NO_CHANGE:
+      break;
+    case log_t::RESIZE_IN_PROGRESS:
+      my_printf_error(ER_WRONG_USAGE,
+                      "innodb_log_file_size change is already in progress",
+                      MYF(0));
+      break;
+    case log_t::RESIZE_FAILED:
+      ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_CANT_CREATE_HANDLER_FILE);
+      break;
+    case log_t::RESIZE_STARTED:
+      for (timespec abstime;;)
+      {
+        if (thd_kill_level(thd))
+        {
+          log_sys.resize_abort();
+          break;
+        }
+
+        set_timespec(abstime, 5);
+        mysql_mutex_lock(&buf_pool.flush_list_mutex);
+        const bool in_progress(buf_pool.get_oldest_modification(LSN_MAX) <
+                               log_sys.resize_in_progress());
+        if (in_progress)
+          my_cond_timedwait(&buf_pool.do_flush_list,
+                            &buf_pool.flush_list_mutex.m_mutex, &abstime);
+        mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+        if (!log_sys.resize_in_progress())
+          break;
+      }
+    }
+  }
+  mysql_mutex_lock(&LOCK_global_system_variables);
+}
+
 /** Update innodb_status_output or innodb_status_output_locks,
 which control InnoDB "status monitor" output to the error log.
 @param[out]	var	current value
@@ -19270,9 +19321,10 @@ static MYSQL_SYSVAR_SIZE_T(log_buffer_size, log_sys.buf_size,
   NULL, NULL, 16U << 20, 2U << 20, SIZE_T_MAX, 4096);
 
 static MYSQL_SYSVAR_ULONGLONG(log_file_size, srv_log_file_size,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  PLUGIN_VAR_RQCMDARG,
   "Redo log size in bytes.",
-  NULL, NULL, 96 << 20, 4 << 20, std::numeric_limits<ulonglong>::max(), 4096);
+  nullptr, innodb_log_file_size_update,
+  96 << 20, 4 << 20, std::numeric_limits<ulonglong>::max(), 4096);
 
 static MYSQL_SYSVAR_UINT(old_blocks_pct, innobase_old_blocks_pct,
   PLUGIN_VAR_RQCMDARG,
