@@ -45,8 +45,8 @@ bool transactional_lock_enabled();
 
 #  include <immintrin.h>
 #  if defined __GNUC__ && !defined __INTEL_COMPILER
-#   define TRANSACTIONAL_TARGET __attribute__((target("rtm")))
-#   define TRANSACTIONAL_INLINE __attribute__((target("rtm"),always_inline))
+#   define TRANSACTIONAL_TARGET __attribute__((target("rtm"),hot))
+#   define TRANSACTIONAL_INLINE __attribute__((target("rtm"),hot,always_inline))
 #  else
 #   define TRANSACTIONAL_TARGET /* nothing */
 #   define TRANSACTIONAL_INLINE /* nothing */
@@ -70,25 +70,25 @@ TRANSACTIONAL_INLINE static inline void xabort() { _xabort(0); }
 
 TRANSACTIONAL_INLINE static inline void xend() { _xend(); }
 # elif defined __powerpc64__
-#  include <htmxlintrin.h>
 extern bool have_transactional_memory;
 bool transactional_lock_enabled();
-#   define TRANSACTIONAL_TARGET __attribute__((target("htm")))
-#   define TRANSACTIONAL_INLINE __attribute__((target("htm"),always_inline))
+#   define TRANSACTIONAL_TARGET __attribute__((hot))
+#   define TRANSACTIONAL_INLINE __attribute__((hot,always_inline))
 
-TRANSACTIONAL_INLINE static inline bool xbegin()
-{
-  return have_transactional_memory &&
-    __TM_simple_begin() == _HTM_TBEGIN_STARTED;
-}
-
+/**
+  Newer gcc compilers only provide __builtin_{htm}
+  function when the -mhtm is actually provided. So
+  we've got the option of including it globally, or
+  pushing down to one file with that enabled and removing
+  the inline optimization.
+ */
+TRANSACTIONAL_TARGET bool xbegin();
+TRANSACTIONAL_TARGET void xabort();
+TRANSACTIONAL_TARGET void xend();
 #  ifdef UNIV_DEBUG
 bool xtest();
 #  endif
 
-TRANSACTIONAL_INLINE static inline void xabort() { __TM_abort(); }
-
-TRANSACTIONAL_INLINE static inline void xend() { __TM_end(); }
 # endif
 #endif
 

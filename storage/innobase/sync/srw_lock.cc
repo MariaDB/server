@@ -55,6 +55,20 @@ TRANSACTIONAL_TARGET
 bool xtest() { return have_transactional_memory && _xtest(); }
 # endif
 #elif defined __powerpc64__
+# include <htmxlintrin.h>
+
+__attribute__((target("htm"),hot))
+bool xbegin()
+{
+  return have_transactional_memory &&
+    __TM_simple_begin() == _HTM_TBEGIN_STARTED;
+}
+
+__attribute__((target("htm"),hot))
+void xabort() { __TM_abort(); }
+
+__attribute__((target("htm"),hot))
+void xend() { __TM_end(); }
 # ifdef __linux__
 #  include <sys/auxv.h>
 
@@ -79,7 +93,8 @@ bool transactional_lock_enabled()
 }
 
 # ifdef UNIV_DEBUG
-TRANSACTIONAL_TARGET bool xtest()
+__attribute__((target("htm"),hot))
+bool xtest()
 {
   return have_transactional_memory &&
     _HTM_STATE (__builtin_ttest ()) == _HTM_TRANSACTIONAL;
