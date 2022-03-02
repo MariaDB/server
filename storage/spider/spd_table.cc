@@ -2060,6 +2060,16 @@ int st_spider_param_string_parse::print_param_error()
     } \
     break; \
   }
+#define SPIDER_PARAM_DEPRECATED_WARNING(title_name)                           \
+  if (!strncasecmp(tmp_ptr, title_name, title_length) && create_table)        \
+  {                                                                           \
+    THD *thd= current_thd;                                                    \
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,                  \
+                        ER_WARN_DEPRECATED_SYNTAX,                            \
+                        "The table parameter '%s' is deprecated and will be " \
+                        "removed in a future release",                        \
+                        title_name);                                          \
+  }
 
 int spider_parse_connect_info(
   SPIDER_SHARE *share,
@@ -2437,6 +2447,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_LONG_LIST_WITH_MAX("svc", tgt_ssl_vscs, 0, 1);
           SPIDER_PARAM_STR_LIST("tbl", tgt_table_names);
           SPIDER_PARAM_INT_WITH_MAX("tcm", table_count_mode, 0, 3);
+          SPIDER_PARAM_DEPRECATED_WARNING("uhd");
           SPIDER_PARAM_LONG_LIST_WITH_MAX("uhd", use_handlers, 0, 3);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
           SPIDER_PARAM_LONG_LIST_WITH_MAX(
@@ -2520,6 +2531,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_INT_WITH_MAX("sts_bg_mode", sts_bg_mode, 0, 2);
 #endif
           SPIDER_PARAM_LONG_LIST_WITH_MAX("link_status", link_statuses, 0, 3);
+          SPIDER_PARAM_DEPRECATED_WARNING("use_handler");
           SPIDER_PARAM_LONG_LIST_WITH_MAX("use_handler", use_handlers, 0, 3);
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
           SPIDER_PARAM_LONG_LIST_WITH_MAX("use_hs_read", use_hs_reads, 0, 1);

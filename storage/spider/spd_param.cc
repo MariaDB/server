@@ -2680,7 +2680,7 @@ int spider_param_use_hs_write(
  */
 static MYSQL_THDVAR_INT(
   use_handler, /* name */
-  PLUGIN_VAR_RQCMDARG, /* opt */
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED, /* opt */
   "Use handler for reading", /* comment */
   NULL, /* check */
   NULL, /* update */
