@@ -6210,7 +6210,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
             table->file->ht)
           multi_write_engine= TRUE;
         if (share->non_determinstic_insert &&
-            !(sql_command_flags[lex->sql_command] & CF_SCHEMA_CHANGE))
+            (sql_command_flags[lex->sql_command] & CF_CAN_GENERATE_ROW_EVENTS
+             && !(sql_command_flags[lex->sql_command] & CF_SCHEMA_CHANGE)))
           has_write_tables_with_unsafe_statements= true;
 
         trans= table->file->has_transactions();

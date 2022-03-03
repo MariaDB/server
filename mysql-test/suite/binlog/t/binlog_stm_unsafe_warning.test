@@ -189,8 +189,20 @@ SHOW WARNINGS;
 SELECT sf_bug50192();
 SHOW WARNINGS;
 
+# The test proves MDEV-24617 fixes leave in force
+# unsafe warnings in non-deterministic CREATE..SELECT cases.
+# Below an inserted default value to `b` of the target table is replication
+# unsafe. A warning must be out.
+CREATE TABLE t3 (a INT(11) DEFAULT NULL);
+INSERT INTO t3 VALUES (1);
+CREATE TABLE t4 (a INT(11) DEFAULT NULL, b BIGINT(20) DEFAULT uuid_short()) SELECT * FROM t3;
+SHOW WARNINGS;
+# no warning out of a deterministic "rhs" of SELECT
+CREATE OR REPLACE TABLE t4 (a INT(11) DEFAULT NULL) SELECT * FROM t3;
+SHOW WARNINGS;
+
 # cleanup
 
 DROP FUNCTION sf_bug50192;
 DROP TRIGGER tr_bug50192;
-DROP TABLE t1, t2;
+DROP TABLE t1, t2, t3, t4;
