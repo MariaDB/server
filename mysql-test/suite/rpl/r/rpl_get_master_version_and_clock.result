@@ -9,12 +9,18 @@ SET @saved_dbug = @@GLOBAL.debug_dbug;
 connection slave;
 include/stop_slave.inc
 SET @old_dbug = @@global.debug_dbug;
-SET @@global.debug_dbug= "d,'debug_lock.before_get_UNIX_TIMESTAMP'";
-include/start_slave.inc
+SET @@global.debug_dbug= "d,dbug.before_get_UNIX_TIMESTAMP";
+# Ensure no initial DEBUG_SYNC state
 slave is going to hang in get_master_version_and_clock
+START SLAVE;
+connection slave1;
+# Wait for slave to hit the WAIT_FOR sync point in get_master_version_and_clock
+connection master;
 include/rpl_stop_server.inc [server_number=1]
+connection slave1;
 slave is unblocked
 SET DEBUG_SYNC='now SIGNAL signal.get_unix_timestamp';
+# Waiting for DEBUG_SYNC signal to be acknowledged..
 connection slave;
 Check network error happened here
 include/wait_for_slave_io_error.inc [errno=1053, 2002, 2003, 2006, 2013]
@@ -25,12 +31,18 @@ connection slave;
 connection slave;
 include/stop_slave.inc
 SET @old_dbug = @@global.debug_dbug;
-SET @@global.debug_dbug= "d,'debug_lock.before_get_SERVER_ID'";
-include/start_slave.inc
+SET @@global.debug_dbug= "d,dbug.before_get_SERVER_ID";
+# Ensure no initial DEBUG_SYNC state
 slave is going to hang in get_master_version_and_clock
+START SLAVE;
+connection slave1;
+# Wait for slave to hit the WAIT_FOR sync point in get_master_version_and_clock
+connection master;
 include/rpl_stop_server.inc [server_number=1]
+connection slave1;
 slave is unblocked
 SET DEBUG_SYNC='now SIGNAL signal.get_server_id';
+# Waiting for DEBUG_SYNC signal to be acknowledged..
 connection slave;
 Check network error happened here
 include/wait_for_slave_io_error.inc [errno=1053, 2002, 2003, 2006, 2013]

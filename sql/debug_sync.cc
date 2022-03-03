@@ -71,11 +71,13 @@ struct st_debug_sync_signal_counter
   String signal_name;
   ulong suspended_threads;
   ulong resumed_threads;
+  ulong killed_threads;
 
   st_debug_sync_signal_counter(const String &sig)
   {
     suspended_threads= 0;
     resumed_threads= 0;
+    killed_threads= 0;
     signal_name.copy(sig);
   }
 
@@ -618,8 +620,9 @@ static void debug_sync_reset(THD *thd)
   mysql_mutex_lock(&debug_sync_global.ds_mutex);
 
   /*
-    Bad synchronization state, a SIGNAL has been sent but never
-    acknowledged, the underlying test probably has a pattern similar to
+    This block validates that an existing signal which was not acknowledged
+    (i.e. by WAIT_FOR) is not being dropped. If you have encountered this
+    error, the underlying test may have a pattern similar to:
 
     SET DEBUG_SYNC= 'now SIGNAL sig1';
     SET DEBUG_SYNC= 'RESET';
@@ -1497,8 +1500,10 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
     if (action->signal.length())
     {
       /*
-        Bad synchronization state, a SIGNAL has been sent but never
-        acknowledged, the underlying test probably has a pattern similar to
+        This block validates that the new signal is not overwriting an existing
+        signal which was not acknowledged (i.e. by WAIT_FOR). If you
+        have encountered this error, the underlying test may have a pattern
+        similar to:
 
         SET DEBUG_SYNC= 'now SIGNAL sig1';
         SET DEBUG_SYNC= 'now SIGNAL sig2';
@@ -1511,13 +1516,25 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         have this pattern and can be used as a starting place to fix this, e.g.
           1) main.query_cache_debug
           2) main.partition_debug_sync
+
+        Note that, if the new signal is the same as the current signal, this
+        check is skipped, as concurrent threads performing the same task can
+        send the same signal, e.g. in parallel replication.
       */
-      if (debug_sync_global.cur_acks_needed)
+      if (debug_sync_global.ds_signal.length() &&
+          stringcmp(&debug_sync_global.ds_signal, &action->signal))
       {
-        sql_print_error("Lost DEBUG_SYNC signal '%s' due to SIGNAL '%s'",
-                        debug_sync_global.ds_signal.ptr(),
-                        action->signal.ptr());
-        DBUG_ABORT();
+        st_debug_sync_signal_counter *cur_sig_el=
+            find_or_create_signal_counter(debug_sync_global.ds_signal);
+        if (debug_sync_global.cur_acks_needed && !cur_sig_el->killed_threads)
+        {
+          sql_print_error("Lost DEBUG_SYNC signal '%s' due to SIGNAL '%s' "
+                          "(needed %lu acks and got %lu)",
+                          debug_sync_global.ds_signal.ptr(),
+                          action->signal.ptr(), cur_sig_el->suspended_threads,
+                          cur_sig_el->resumed_threads);
+          DBUG_ABORT();
+        }
       }
 
       sig_el= find_or_create_signal_counter(action->signal);
@@ -1532,12 +1549,26 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         debug_sync_emergency_disable(); /* purecov: tested */
       }
 
+
       /*
         The WAIT_FOR hasn't yet executed, but we want to save that this signal
         was given
       */
       debug_sync_global.cur_acks_needed=
-          sig_el->suspended_threads ? sig_el->suspended_threads : 1;
+          (sig_el->suspended_threads ? sig_el->suspended_threads : 1) -
+          sig_el->killed_threads;
+
+      if (sig_el->killed_threads && !debug_sync_global.cur_acks_needed)
+      {
+        /*
+          No other threads need to be acknowledged by the signal, delete it
+          from the map here
+        */
+        fprintf(stderr, "Deleting signal %s during SIGNALLING because of killed thread\n", sig_el->signal_name.ptr());
+        my_hash_delete(&debug_sync_global.ds_signals_all, (uchar *) sig_el);
+      }
+
+      fprintf(stderr, "Set cur_acks_needed=%lu for signal %s\n", debug_sync_global.cur_acks_needed, action->signal.ptr());
 
       /* Wake threads waiting in a sync point. */
       mysql_cond_broadcast(&debug_sync_global.ds_cond);
@@ -1587,6 +1618,9 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
       sig_el= find_or_create_signal_counter(action->wait_for);
       sig_el->suspended_threads++;
 
+      fprintf(stderr, "suspending waiting for signal %s (total %lu)\n",
+              sig_el->signal_name.ptr(), sig_el->suspended_threads);
+
       /*
         Wait until global signal string matches the wait_for string.
         Interrupt when thread or query is killed or facility disabled.
@@ -1627,12 +1661,40 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
       debug_sync_global.cur_acks_needed=
           sig_el->suspended_threads - sig_el->resumed_threads;
 
-      /*
-        If all suspended threads have acknowledged the signal, delete the
-        counter
-      */
-      if (sig_el->resumed_threads == sig_el->suspended_threads)
+      fprintf(stderr,
+              "Signal %s finished waiting (%lu of %lu) cur acks is %lu killed "
+              "is %d\n",
+              sig_el->signal_name.ptr(), sig_el->resumed_threads,
+              sig_el->suspended_threads, debug_sync_global.cur_acks_needed,
+              thd->killed
+      );
+
+      if (thd->killed)
+      {
+        /*
+          A thread which was awaiting a signal was forcibly killed, we should
+          make note of this in case the corresponding signal is given later
+
+          We do not want to remove the signal from the map yet because the
+          signal can be given later.
+
+          ALSO maybe rewrite this?
+        */
+        sig_el->killed_threads++;
+      }
+      else if (sig_el->resumed_threads == sig_el->suspended_threads)
+      {
+        /*
+          If all suspended threads have acknowledged the signal, delete the
+          counter
+        */
+        fprintf(
+            stderr,
+            "Removing signal %s because it has been fully ACKd\n",
+            sig_el->signal_name.ptr());
         my_hash_delete(&debug_sync_global.ds_signals_all, (uchar*) sig_el);
+      }
+
 
       DBUG_EXECUTE("debug_sync_exec",
                    if (thd->killed)

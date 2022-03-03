@@ -1168,7 +1168,6 @@ a	b
 4	4
 5	NULL
 6	NULL
-SET debug_sync= 'now SIGNAL cont';
 include/stop_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
 SET GLOBAL binlog_format= @old_format;
@@ -1207,9 +1206,11 @@ a
 connection server_2;
 include/start_slave.inc
 SET debug_sync= 'now WAIT_FOR scheduled_gtid_0_x_100';
+SET GLOBAL debug_dbug="-d,rpl_parallel_scheduled_gtid_0_x_100";
 STOP SLAVE;
 connection con_temp2;
 SET debug_sync= 'now WAIT_FOR wait_for_done_waiting';
+SET GLOBAL debug_dbug="-d,rpl_parallel_wait_for_done_trigger";
 ROLLBACK;
 connection server_2;
 include/wait_for_slave_sql_to_stop.inc

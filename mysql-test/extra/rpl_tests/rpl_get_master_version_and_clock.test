@@ -44,18 +44,36 @@ if (!$debug_sync_action)
 SET @old_dbug = @@global.debug_dbug;
 eval SET @@global.debug_dbug= "d,$dbug_sync_point";
 
---source include/start_slave.inc
+--echo # Ensure no initial DEBUG_SYNC state
+let $wait_condition= select count(*)=0 from information_schema.processlist where state like "%debug%";
+source include/wait_condition.inc;
+
 --echo slave is going to hang in get_master_version_and_clock
+
+--send START SLAVE
+
+--connection slave1
+--echo # Wait for slave to hit the WAIT_FOR sync point in get_master_version_and_clock
+let $wait_condition= select count(*)=1 from information_schema.processlist where state like "%debug%";
+source include/wait_condition.inc;
+
+--connection master
 
 --let $rpl_server_number= 1
 --source include/rpl_stop_server.inc
 
+--connection slave1
 --echo slave is unblocked
 
 eval SET DEBUG_SYNC=$debug_sync_action;
 
+--echo # Waiting for DEBUG_SYNC signal to be acknowledged..
+let $wait_condition= select count(*)=0 from information_schema.processlist where state like "%debug%";
+source include/wait_condition.inc;
+
 # Show slave last IO errno
 connection slave;
+--reap
 --echo Check network error happened here
 # '2013' CR_SERVER_LOST 
 # '2003' CR_CONN_HOST_ERROR 

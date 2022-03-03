@@ -36,6 +36,7 @@ connection con_temp2;
 COMMIT;
 connection server_2;
 include/stop_slave.inc
+SET debug_sync='now WAIT_FOR continue_worker';
 include/assert.inc [table t1 should have zero rows where a>32]
 SELECT * FROM t1 WHERE a>32;
 a

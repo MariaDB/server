@@ -94,6 +94,14 @@ COMMIT;
 # Clean up.
 --connection server_2
 --source include/stop_slave.inc
+
+# Here we manually must complete the DEBUG_SYNC communication from the last
+# signal. This is because the last worker thread signalled 'continue_worker'
+# after committing the transaction; however, the signal remains unacknowledged
+# because the WAIT_FOR happens when a new GTID is processed, but there are no
+# more events.
+SET debug_sync='now WAIT_FOR continue_worker';
+
 --let $assert_cond= COUNT(*) = 0 FROM t1 WHERE a>32
 --let $assert_text= table t1 should have zero rows where a>32
 --source include/assert.inc

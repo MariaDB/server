@@ -1547,7 +1547,6 @@ SELECT * FROM t4 ORDER BY a;
 SET debug_sync= 'now WAIT_FOR waiting';
 --sync_with_master
 SELECT * FROM t4 ORDER BY a;
-SET debug_sync= 'now SIGNAL cont';
 
 # Re-spawn the worker threads to remove any DBUG injections or DEBUG_SYNC.
 --source include/stop_slave.inc
@@ -1620,6 +1619,7 @@ SELECT * FROM t2 WHERE a=40 FOR UPDATE;
 # transaction in the previous relay log file, blocked on the SELECT FOR
 # UPDATE.
 SET debug_sync= 'now WAIT_FOR scheduled_gtid_0_x_100';
+SET GLOBAL debug_dbug="-d,rpl_parallel_scheduled_gtid_0_x_100";
 # At this point, the SQL driver thread is in the new relay log file, while
 # the DELETE from the old relay log file is not yet complete. We will stop
 # the slave at this point. The bug was that the DELETE statement would
@@ -1637,6 +1637,7 @@ send STOP SLAVE;
 # transaction (and not after a later transaction that might have been able
 # to set a fixed position).
 SET debug_sync= 'now WAIT_FOR wait_for_done_waiting';
+SET GLOBAL debug_dbug="-d,rpl_parallel_wait_for_done_trigger";
 # Now release the row lock that was blocking the replication of DELETE.
 ROLLBACK;
 
