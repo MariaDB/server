@@ -34,10 +34,10 @@ CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE table_exists (
              -----------
 
              in_db (VARCHAR(64)):
-               The database name to check for the existance of the table in.
+               The database name to check for the existence of the table in.
 
              in_table (VARCHAR(64)):
-               The name of the table to check the existance of.
+               The name of the table to check the existence of.
 
              out_exists ENUM('''', ''BASE TABLE'', ''VIEW'', ''TEMPORARY''):
                The return value: whether the table exists. The value is one of:

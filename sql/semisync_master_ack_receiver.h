@@ -183,7 +183,7 @@ public:
 
   bool listen_on_sockets()
   {
-    /* Reinitialze the fds with active fds before calling select */
+    /* Reinitialize the fds with active fds before calling select */
     m_fds= m_init_fds;
     struct timeval tv= {1,0};
     /* select requires max fd + 1 for the first argument */
