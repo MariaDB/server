@@ -177,7 +177,7 @@ centos8:
     GIT_STRATEGY: fetch
     GIT_SUBMODULE_STRATEGY: normal
   script:
-    - yum install -y yum-utils rpm-build openssl-devel
+    - yum install -y yum-utils rpm-build openssl-devel pcre2-devel
     - yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
     # dnf --enablerepo=powertools install Judy-devel  #--> not found
     - dnf config-manager --set-enabled powertools
@@ -226,7 +226,7 @@ centos7:
     # This repository does not have any .spec files, so install dependencies based on Fedora spec file
     - yum-builddep -y mariadb-server
     # ..with a few extra ones, as CentOS 7 is very old and these are added in newer MariaDB releases
-    - yum install -y yum-utils rpm-build gcc gcc-c++ bison libxml2-devel libevent-devel openssl-devel
+    - yum install -y yum-utils rpm-build gcc gcc-c++ bison libxml2-devel libevent-devel openssl-devel pcre2-devel
     - mkdir builddir; cd builddir
     - cmake -DRPM=$CI_JOB_NAME $CMAKE_FLAGS .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
     - make package -j 2 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
