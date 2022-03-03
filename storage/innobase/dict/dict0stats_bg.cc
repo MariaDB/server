@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -38,6 +38,7 @@ Created Apr 25, 2012 Vasil Dimov
 # include "wsrep.h"
 # include "log.h"
 # include "wsrep_mysqld.h"
+# include "mdl.h"
 #endif
 
 #include <vector>
@@ -397,10 +398,49 @@ static std::mutex dict_stats_mutex;
 
 static void dict_stats_func(void*)
 {
+  bool done= false;
   THD *thd= innobase_create_background_thd("InnoDB statistics");
   set_current_thd(thd);
-  while (dict_stats_process_entry_from_recalc_pool(thd)) {}
-  dict_defrag_process_entries_from_defrag_pool(thd);
+  do
+  {
+#ifdef WITH_WSREP
+    MDL_ticket *mdl= nullptr;
+    if (thd_try_acquire_global_mdl(current_thd, &mdl))
+    {
+      goto try_later;
+    }
+    else
+    {
+#endif
+      done= dict_stats_process_entry_from_recalc_pool(thd);
+#ifdef WITH_WSREP
+      thd_release_global_mdl(current_thd, &mdl);
+    }
+#endif
+  } while (done);
+  done= true;
+  do
+  {
+#ifdef WITH_WSREP
+    MDL_ticket *mdl= nullptr;
+    if (!thd_try_acquire_global_mdl(current_thd, &mdl))
+    {
+#endif
+      dict_defrag_process_entries_from_defrag_pool(thd);
+      done= false;
+#ifdef WITH_WSREP
+      thd_release_global_mdl(current_thd, &mdl);
+    }
+    else
+    {
+      goto try_later;
+    }
+#endif
+  } while(done);
+
+try_later:
+  dict_stats_schedule(MIN_RECALC_INTERVAL * 1000);
+
   set_current_thd(nullptr);
   innobase_destroy_background_thd(thd);
 }

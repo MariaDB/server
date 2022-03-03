@@ -1,5 +1,5 @@
 /* Copyright (c) 2007, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2020, MariaDB
+   Copyright (c) 2020, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3289,5 +3289,36 @@ void MDL_ticket::wsrep_report(bool debug) const
               m_lock->key.db_name(),
               m_lock->key.name(),
               psi_stage->m_name);
+}
+
+int thd_try_acquire_global_mdl(THD* thd, MDL_ticket **mdl)
+{
+  MDL_request request;
+
+  WSREP_DEBUG("Trying to acquire global MDL for thread %lu", thd_get_thread_id(thd));
+  DBUG_ASSERT(*mdl == NULL);
+
+  MDL_REQUEST_INIT(&request, MDL_key::BACKUP, "", "", MDL_BACKUP_DML,MDL_EXPLICIT);
+
+  if (thd->mdl_context.try_acquire_lock(&request) ||
+      !request.ticket)
+  {
+    WSREP_DEBUG("Can't acquire global MDL for thread %lu", thd_get_thread_id(thd));
+    return 1;
+  }
+
+  WSREP_DEBUG("Acquired global MDL for thread %lu", thd_get_thread_id(thd));
+  *mdl= request.ticket;
+  (*mdl)->wsrep_report(wsrep_debug);
+  return 0;
+}
+
+void thd_release_global_mdl(THD *thd, MDL_ticket **mdl)
+{
+  WSREP_DEBUG("Releasing global MDL for thread %lu", thd_get_thread_id(thd));
+  DBUG_ASSERT(*mdl != NULL);
+  (*mdl)->wsrep_report(wsrep_debug);
+  thd->mdl_context.release_lock(*mdl);
+  *mdl= NULL;
 }
 #endif /* WITH_WSREP */

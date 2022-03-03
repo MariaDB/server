@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -40,6 +40,7 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 #include "fsp0fsp.h"
 #include "fil0pagecompress.h"
 #include <my_crypt.h>
+#include "mdl.h"
 
 static bool fil_crypt_threads_inited = false;
 
@@ -952,10 +953,56 @@ func_exit:
 	mtr.commit();
 }
 
+/** State of a rotation thread */
+struct rotate_thread_t {
+	explicit rotate_thread_t(uint no) : thread_no(no) {}
+
+  uint thread_no;
+  bool first = true;              /*!< is position before first space */
+  space_list_t::iterator space
+    = fil_system.space_list.end();/*!< current space or .end() */
+  uint32_t offset = 0;            /*!< current page number */
+  ulint batch = 0;                /*!< #pages to rotate */
+  uint min_key_version_found = 0; /*!< min key version found but not rotated */
+  lsn_t end_lsn = 0;              /*!< max lsn when rotating this space */
+
+  uint estimated_max_iops = 20;/*!< estimation of max iops */
+  uint allocated_iops = 0;     /*!< allocated iops */
+  ulint cnt_waited = 0;	       /*!< #times waited during this slot */
+  uintmax_t sum_waited_us = 0; /*!< wait time during this slot */
+
+  THD *thd =nullptr;           /*!< Thread handle for rotation thread */
+  MDL_ticket *mdl=nullptr;     /*!< MDL-ticket for global lock */
+
+  fil_crypt_stat_t crypt_stat; // statistics
+
+  /** @return whether this thread should terminate */
+  bool should_shutdown() const
+  {
+    mysql_mutex_assert_owner(&fil_crypt_threads_mutex);
+    switch (srv_shutdown_state)
+    {
+    case SRV_SHUTDOWN_NONE:
+      return thread_no >= srv_n_fil_crypt_threads;
+    case SRV_SHUTDOWN_EXIT_THREADS:
+      /* srv_init_abort() must have been invoked */
+    case SRV_SHUTDOWN_CLEANUP:
+    case SRV_SHUTDOWN_INITIATED:
+      return true;
+    case SRV_SHUTDOWN_LAST_PHASE:
+      break;
+    }
+    ut_ad(0);
+    return true;
+  }
+};
+
+
 /** Start encrypting a space
+@param[in]		state		Rotate thread state
 @param[in,out]		space		Tablespace
 @return true if a recheck of tablespace is needed by encryption thread. */
-static bool fil_crypt_start_encrypting_space(fil_space_t* space)
+static bool fil_crypt_start_encrypting_space(rotate_thread_t* state, fil_space_t* space)
 {
 	mysql_mutex_lock(&fil_crypt_threads_mutex);
 
@@ -976,6 +1023,20 @@ func_exit:
 		return recheck;
 	}
 
+#ifdef WITH_WSREP
+	/* Take global MDL-lock to restrict other threads
+	doing FTWRL or EXPORT. Note that we do not wait here,
+	it is trylock. Releasing mutex before this call is not safe
+	because some other thread could start encrypting space then.*/
+	if (!state->mdl) {
+		if (thd_try_acquire_global_mdl(state->thd, &state->mdl)) {
+			mysql_mutex_unlock(&fil_crypt_threads_mutex);
+			return recheck;
+		}
+	}
+
+	ut_ad(!sst_in_progress);
+#endif /* WITH_WSREP */
 	/* NOTE: we need to write and flush page 0 before publishing
 	* the crypt data. This so that after restart there is no
 	* risk of finding encrypted pages without having
@@ -1040,6 +1101,11 @@ func_exit:
 		crypt_data->rotate_state.starting = false;
 
 		fil_crypt_start_converting = false;
+#ifdef WITH_WSREP
+		if (state->mdl) {
+			thd_release_global_mdl(state->thd, &state->mdl);
+		}
+#endif
 		mysql_mutex_unlock(&fil_crypt_threads_mutex);
 		mysql_mutex_unlock(&crypt_data->mutex);
 
@@ -1050,51 +1116,19 @@ abort:
 	mtr.commit();
 	mysql_mutex_lock(&fil_crypt_threads_mutex);
 	fil_crypt_start_converting = false;
-	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
+#ifdef WITH_WSREP
+	if (state->mdl) {
+		thd_release_global_mdl(state->thd, &state->mdl);
+ 	}
+#endif
+
+	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 	crypt_data->~fil_space_crypt_t();
 	ut_free(crypt_data);
+
 	return false;
 }
-
-/** State of a rotation thread */
-struct rotate_thread_t {
-  explicit rotate_thread_t(uint no) : thread_no(no) {}
-
-  uint thread_no;
-  bool first = true;              /*!< is position before first space */
-  space_list_t::iterator space
-    = fil_system.space_list.end();/*!< current space or .end() */
-  uint32_t offset = 0;            /*!< current page number */
-  ulint batch = 0;                /*!< #pages to rotate */
-  uint min_key_version_found = 0; /*!< min key version found but not rotated */
-  lsn_t end_lsn = 0;              /*!< max lsn when rotating this space */
-
-  uint estimated_max_iops = 20;/*!< estimation of max iops */
-  uint allocated_iops = 0;     /*!< allocated iops */
-  ulint cnt_waited = 0;	       /*!< #times waited during this slot */
-  uintmax_t sum_waited_us = 0; /*!< wait time during this slot */
-
-	fil_crypt_stat_t crypt_stat; // statistics
-
-	/** @return whether this thread should terminate */
-	bool should_shutdown() const {
-		mysql_mutex_assert_owner(&fil_crypt_threads_mutex);
-		switch (srv_shutdown_state) {
-		case SRV_SHUTDOWN_NONE:
-			return thread_no >= srv_n_fil_crypt_threads;
-		case SRV_SHUTDOWN_EXIT_THREADS:
-			/* srv_init_abort() must have been invoked */
-		case SRV_SHUTDOWN_CLEANUP:
-		case SRV_SHUTDOWN_INITIATED:
-			return true;
-		case SRV_SHUTDOWN_LAST_PHASE:
-			break;
-		}
-		ut_ad(0);
-		return true;
-	}
-};
 
 /** Avoid the removal of the tablespace from
 default_encrypt_list only when
@@ -1150,7 +1184,7 @@ fil_crypt_space_needs_rotation(
 		* space has no crypt data
 		*   start encrypting it...
 		*/
-		*recheck = fil_crypt_start_encrypting_space(space);
+		*recheck = fil_crypt_start_encrypting_space(state, space);
 		crypt_data = space->crypt_data;
 
 		if (crypt_data == NULL) {
@@ -1921,7 +1955,9 @@ fil_crypt_rotate_pages(
 		if (state->space->is_stopping()) {
 			break;
 		}
-
+#ifdef WITH_WSREP
+		ut_ad(!sst_in_progress);
+#endif
 		fil_crypt_rotate_page(key_state, state);
 	}
 }
@@ -1939,6 +1975,10 @@ fil_crypt_flush_space(
 	fil_space_crypt_t *crypt_data = space->crypt_data;
 
 	ut_ad(space->referenced());
+
+#ifdef WITH_WSREP
+	ut_ad(!sst_in_progress);
+#endif
 
 	/* flush tablespace pages so that there are no pages left with old key */
 	lsn_t end_lsn = crypt_data->rotate_state.end_lsn;
@@ -2050,8 +2090,11 @@ static void fil_crypt_complete_rotate_space(rotate_thread_t* state)
 accordingly */
 static void fil_crypt_thread()
 {
+ 	/* state of this thread */
+	my_thread_init();
 	mysql_mutex_lock(&fil_crypt_threads_mutex);
 	rotate_thread_t thr(srv_n_fil_crypt_threads_started++);
+	thr.thd = innobase_create_background_thd("InnoDB encryption rotation thread");
 	pthread_cond_signal(&fil_crypt_cond); /* signal that we started */
 
 	if (!thr.should_shutdown()) {
@@ -2080,6 +2123,13 @@ wait_for_work:
 				goto wait_for_work;
 			}
 
+#ifdef WITH_WSREP
+			if (thd_try_acquire_global_mdl(thr.thd, &thr.mdl)) {
+				thr.space->release();
+				thr.space = fil_system.space_list.end();
+				break;
+			}
+#endif
 			/* we found a space to rotate */
 			mysql_mutex_unlock(&fil_crypt_threads_mutex);
 			fil_crypt_start_rotate_space(&new_state, &thr);
@@ -2091,6 +2141,9 @@ wait_for_work:
 				space and stop rotation. */
 				if (thr.space->is_stopping()) {
 					fil_crypt_complete_rotate_space(&thr);
+#ifdef WITH_WSREP
+					thd_release_global_mdl(thr.thd, &thr.mdl);
+#endif
 					thr.space->release();
 					thr.space = fil_system.space_list.end();
 					break;
@@ -2114,6 +2167,10 @@ wait_for_work:
 			mysql_mutex_lock(&fil_crypt_threads_mutex);
 			/* release iops */
 			fil_crypt_return_iops(&thr);
+
+#ifdef WITH_WSREP
+			thd_release_global_mdl(thr.thd, &thr.mdl);
+#endif
 		}
 
 		if (thr.space != fil_system.space_list.end()) {
@@ -2125,7 +2182,16 @@ wait_for_work:
 	fil_crypt_return_iops(&thr);
 	srv_n_fil_crypt_threads_started--;
 	pthread_cond_signal(&fil_crypt_cond); /* signal that we stopped */
+
+#ifdef WITH_WSREP
+	if (thr.mdl) {
+		thd_release_global_mdl(thr.thd, &thr.mdl);
+	}
+#endif
+
+	innobase_destroy_background_thd(thr.thd);
 	mysql_mutex_unlock(&fil_crypt_threads_mutex);
+	my_thread_end();
 
 #ifdef UNIV_PFS_THREAD
 	pfs_delete_thread();

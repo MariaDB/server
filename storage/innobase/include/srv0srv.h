@@ -300,13 +300,6 @@ extern ulong	srv_log_write_ahead_size;
 extern my_bool	srv_adaptive_flushing;
 extern my_bool	srv_flush_sync;
 
-#ifdef WITH_INNODB_DISALLOW_WRITES
-extern my_bool innodb_disallow_writes;
-void innodb_wait_allow_writes();
-#else
-# define innodb_wait_allow_writes() do {} while (0)
-#endif /* WITH_INNODB_DISALLOW_WRITES */
-
 /** Requested size in bytes */
 extern ulint		srv_buf_pool_size;
 /** Requested buffer pool chunk size. Each buffer pool instance consists

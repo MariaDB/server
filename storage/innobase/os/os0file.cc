@@ -82,6 +82,10 @@ Created 10/21/1995 Heikki Tuuri
 #include <chrono>
 #include <memory>
 
+#ifdef WITH_WSREP
+#include "mdl.h"
+#endif
+
 /* Per-IO operation environment*/
 class io_slots
 {
@@ -152,8 +156,6 @@ static ulint	os_innodb_umask = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
 static ulint	os_innodb_umask	= 0;
 #endif /* _WIN32 */
 
-
-#define WAIT_ALLOW_WRITES() innodb_wait_allow_writes()
 
 Atomic_counter<ulint> os_n_file_reads;
 static ulint	os_bytes_read_since_printout;
@@ -376,7 +378,6 @@ FILE*
 os_file_create_tmpfile()
 {
 	FILE*	file	= NULL;
-	WAIT_ALLOW_WRITES();
 	File	fd	= mysql_tmpfile("ib");
 
 	if (fd >= 0) {
@@ -979,7 +980,6 @@ os_file_flush_func(
 {
 	int	ret;
 
-	WAIT_ALLOW_WRITES();
 	ret = os_file_sync_posix(file);
 
 	if (ret == 0) {
@@ -1030,10 +1030,6 @@ os_file_create_simple_func(
 
 	int		create_flag;
 	const char*	mode_str	= NULL;
-
-	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW) {
-		WAIT_ALLOW_WRITES();
-	}
 
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_NO_EXIT));
@@ -1148,7 +1144,6 @@ os_file_create_directory(
 {
 	int	rcode;
 
-	WAIT_ALLOW_WRITES();
 	rcode = mkdir(pathname, 0770);
 
 	if (!(rcode == 0 || (errno == EEXIST && !fail_if_exists))) {
@@ -1353,10 +1348,6 @@ os_file_create_simple_no_error_handling_func(
 	os_file_t	file;
 	int		create_flag;
 
-	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW) {
-		WAIT_ALLOW_WRITES();
-	}
-
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_NO_EXIT));
 
@@ -1431,7 +1422,6 @@ os_file_delete_if_exists_func(
 	}
 
 	int	ret;
-	WAIT_ALLOW_WRITES();
 
 	ret = unlink(name);
 
@@ -1456,7 +1446,6 @@ os_file_delete_func(
 	const char*	name)
 {
 	int	ret;
-	WAIT_ALLOW_WRITES();
 
 	ret = unlink(name);
 
@@ -1495,7 +1484,6 @@ os_file_rename_func(
 #endif /* UNIV_DEBUG */
 
 	int	ret;
-	WAIT_ALLOW_WRITES();
 
 	ret = rename(oldpath, newpath);
 
@@ -1670,7 +1658,6 @@ bool
 os_file_set_eof(
 	FILE*		file)	/*!< in: file to be truncated */
 {
-	WAIT_ALLOW_WRITES();
 	return(!ftruncate(fileno(file), ftell(file)));
 }
 
@@ -2133,10 +2120,6 @@ os_file_create_func(
 	DWORD		share_mode = read_only
 		? FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
 		: FILE_SHARE_READ | FILE_SHARE_DELETE;
-
-	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW) {
-		WAIT_ALLOW_WRITES();
-	}
 
 	on_error_no_exit = create_mode & OS_FILE_ON_ERROR_NO_EXIT
 		? true : false;
@@ -2920,8 +2903,6 @@ os_file_write_func(
 	dberr_t		err;
 
 	ut_ad(n > 0);
-
-	WAIT_ALLOW_WRITES();
 
 	ssize_t	n_bytes = os_file_pwrite(type, file, (byte*)buf, n, offset, &err);
 
@@ -3872,6 +3853,9 @@ func_exit:
 	if (type.is_read()) {
 		++os_n_file_reads;
 	} else {
+#ifdef WITH_WSREP
+		ut_ad(!sst_in_progress);
+#endif
 		++os_n_file_writes;
 	}
 

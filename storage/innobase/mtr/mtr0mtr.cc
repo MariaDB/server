@@ -36,6 +36,9 @@ Created 11/26/1995 Heikki Tuuri
 #ifdef BTR_CUR_HASH_ADAPT
 # include "btr0sea.h"
 #endif
+#ifdef WITH_WSREP
+#include "mdl.h"
+#endif
 
 /** Iterate over a memo block in reverse. */
 template <typename Functor>
@@ -890,6 +893,9 @@ static mtr_t::page_flush_ahead log_close(lsn_t lsn)
 {
   mysql_mutex_assert_owner(&log_sys.mutex);
   ut_ad(lsn == log_sys.get_lsn());
+#ifdef WITH_WSREP
+  ut_ad(!sst_in_progress);
+#endif
 
   byte *log_block= static_cast<byte*>(ut_align_down(log_sys.buf +
                                                     log_sys.buf_free,

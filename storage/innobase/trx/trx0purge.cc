@@ -41,6 +41,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0rseg.h"
 #include "trx0trx.h"
 #include <mysql/service_wsrep.h>
+#include "mdl.h"
 
 #include <unordered_map>
 
@@ -1163,6 +1164,15 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 	while (UNIV_LIKELY(srv_undo_sources) || !srv_fast_shutdown) {
 		purge_node_t*		node;
 		trx_purge_rec_t		purge_rec;
+#ifdef WITH_WSREP
+		MDL_ticket		*mdl= nullptr;
+
+		if (thd_try_acquire_global_mdl(current_thd, &mdl)) {
+			return 0; /* Try again later */
+		}
+
+		ut_ad(!sst_in_progress);
+#endif
 
 		/* Get the purge node. */
 		node = (purge_node_t*) thr->child;
@@ -1181,8 +1191,14 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 			purge_sys.heap);
 
 		if (purge_rec.undo_rec == NULL) {
+#ifdef WITH_WSREP
+			thd_release_global_mdl(current_thd, &mdl);
+#endif
 			break;
 		} else if (purge_rec.undo_rec == &trx_purge_dummy_rec) {
+#ifdef WITH_WSREP
+			thd_release_global_mdl(current_thd, &mdl);
+#endif
 			continue;
 		}
 
@@ -1207,6 +1223,9 @@ trx_purge_attach_undo_recs(ulint n_purge_threads)
 
 		node->undo_recs.push(purge_rec);
 
+#ifdef WITH_WSREP
+		thd_release_global_mdl(current_thd, &mdl);
+#endif
 		if (n_pages_handled >= batch_size) {
 			break;
 		}

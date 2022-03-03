@@ -1,7 +1,7 @@
 #ifndef MDL_H
 #define MDL_H
 /* Copyright (c) 2009, 2012, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2020, 2021, MariaDB
+   Copyright (c) 2020, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1130,4 +1130,11 @@ typedef int (*mdl_iterator_callback)(MDL_ticket *ticket, void *arg,
                                      bool granted);
 extern MYSQL_PLUGIN_IMPORT
 int mdl_iterate(mdl_iterator_callback callback, void *arg);
+
+#ifdef WITH_WSREP
+extern int thd_try_acquire_global_mdl(THD* thd, MDL_ticket **mdl);
+extern void thd_release_global_mdl(THD* thd, MDL_ticket **mdl);
+extern bool sst_in_progress;
+#endif /* WITH_WSREP */
+
 #endif /* MDL_H */
