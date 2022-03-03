@@ -5367,9 +5367,9 @@ name, then 'TEMPORARY' will be returned.
 
 ##### Parameters
 
-* in_db (VARCHAR(64)): The database name to check for the existance of the table in.
+* in_db (VARCHAR(64)): The database name to check for the existence of the table in.
 
-* in_table (VARCHAR(64)): The name of the table to check the existance of.
+* in_table (VARCHAR(64)): The name of the table to check the existence of.
 
 * out_exists ENUM('', 'BASE TABLE', 'VIEW', 'TEMPORARY'):  The return value: whether the table exists. The value is one of:
    - ''           - the table does not exist neither as a base table, view, nor temporary table.

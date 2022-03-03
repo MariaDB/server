@@ -67,7 +67,7 @@ drop table t1;
 --list_files $mysqld_datadir/test
 
 --echo #
---echo # discover of table non-existance on drop
+--echo # discover of table non-existence on drop
 --echo #
 select * from t0;
 remove_file $mysqld_datadir/test/t0.ARZ;
@@ -119,7 +119,7 @@ select * from t1;
 --list_files $mysqld_datadir/test
 
 #
-# MDEV-4955 discover of table non-existance on CREATE
+# MDEV-4955 discover of table non-existence on CREATE
 #
 create table t1 (a int) engine=archive;
 select * from t1;

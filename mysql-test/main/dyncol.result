@@ -1508,7 +1508,7 @@ select column_get(column_create("1212", 2, "адын", 1, 3, 3), "4" as int);
 column_get(column_create("1212", 2, "адын", 1, 3, 3), "4" as int)
 NULL
 set names latin1;
-# column existance test (names)
+# column existence test (names)
 set names utf8;
 select column_exists(column_create("адын", 1212), "адын");
 column_exists(column_create("адын", 1212), "адын")
