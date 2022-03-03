@@ -208,10 +208,10 @@ err:
 
 
 static bool
-do_rename_temporary(THD *thd, TABLE_LIST *ren_table, TABLE_LIST *new_table)
+rename_temporary_table(THD *thd, TABLE_LIST *ren_table, TABLE_LIST *new_table)
 {
   LEX_CSTRING *new_alias;
-  DBUG_ENTER("do_rename_temporary");
+  DBUG_ENTER("rename_temporary_table");
 
   new_alias= (lower_case_table_names == 2) ? &new_table->alias :
                                              &new_table->table_name;
@@ -228,7 +228,7 @@ do_rename_temporary(THD *thd, TABLE_LIST *ren_table, TABLE_LIST *new_table)
 
 
 /**
-   Parameters for do_rename
+   Parameters for rename_table_and_triggers()
 */
 
 struct rename_param
@@ -240,8 +240,6 @@ struct rename_param
 
 
 /**
-  check_rename()
-
   Check pre-conditions for rename
   - From table should exists
   - To table should not exists.
@@ -258,14 +256,14 @@ struct rename_param
 */
 
 static int
-check_rename(THD *thd, rename_param *param,
-             TABLE_LIST *ren_table,
-             const LEX_CSTRING *new_db,
-             const LEX_CSTRING *new_table_name,
-             const LEX_CSTRING *new_table_alias,
-             bool if_exists)
+rename_check_preconditions(THD *thd, rename_param *param,
+                           TABLE_LIST *ren_table,
+                           const LEX_CSTRING *new_db,
+                           const LEX_CSTRING *new_table_name,
+                           const LEX_CSTRING *new_table_alias,
+                           bool if_exists)
 {
-  DBUG_ENTER("check_rename");
+  DBUG_ENTER("rename_check_preconditions");
   DBUG_PRINT("enter", ("if_exists: %d", (int) if_exists));
 
 
@@ -316,7 +314,6 @@ check_rename(THD *thd, rename_param *param,
   Rename a single table or a view
 
   SYNPOSIS
-    do_rename()
       thd               Thread handle
       ren_table         A table/view to be renamed
       new_db            The database to which the table to be moved to
@@ -334,15 +331,16 @@ check_rename(THD *thd, rename_param *param,
 */
 
 static bool
-do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
-          TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
-          bool skip_error, bool *force_if_exists)
+rename_table_and_triggers(THD *thd, rename_param *param,
+                          DDL_LOG_STATE *ddl_log_state,
+                          TABLE_LIST *ren_table, const LEX_CSTRING *new_db,
+                          bool skip_error, bool *force_if_exists)
 {
   int rc= 1;
   handlerton *hton;
   LEX_CSTRING *old_alias, *new_alias;
   TRIGGER_RENAME_PARAM rename_param;
-  DBUG_ENTER("do_rename");
+  DBUG_ENTER("rename_table_and_triggers");
   DBUG_PRINT("enter", ("skip_error: %d", (int) skip_error));
 
   old_alias= &param->old_alias;
@@ -515,24 +513,25 @@ rename_tables(THD *thd, TABLE_LIST *table_list, DDL_LOG_STATE *ddl_log_state,
       pair->from= ren_table;
       pair->to=   new_table;
 
-      if (do_rename_temporary(thd, ren_table, new_table))
+      if (rename_temporary_table(thd, ren_table, new_table))
         goto revert_rename;
     }
     else
     {
       int error;
       rename_param param;
-      error= check_rename(thd, &param, ren_table, &new_table->db,
-                          &new_table->table_name,
-                          &new_table->alias, (skip_error || if_exists));
+      error= rename_check_preconditions(thd, &param, ren_table,
+                                        &new_table->db, &new_table->table_name,
+                                        &new_table->alias,
+                                        (skip_error || if_exists));
       if (error < 0)
         continue;                               // Ignore rename (if exists)
       if (error > 0)
         goto revert_rename;
 
-      if (do_rename(thd, &param, ddl_log_state,
-                    ren_table, &new_table->db,
-                    skip_error, force_if_exists))
+      if (rename_table_and_triggers(thd, &param, ddl_log_state,
+                                    ren_table, &new_table->db,
+                                    skip_error, force_if_exists))
         goto revert_rename;
     }
   }
@@ -542,7 +541,7 @@ revert_rename:
   /* Revert temporary tables. Normal tables are reverted in the caller */
   List_iterator_fast<TABLE_PAIR> it(tmp_tables);
   while (TABLE_PAIR *pair= it++)
-    do_rename_temporary(thd, pair->to, pair->from);
+    rename_temporary_table(thd, pair->to, pair->from);
 
   DBUG_RETURN(1);
 }

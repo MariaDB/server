@@ -2916,7 +2916,7 @@ struct Item_change_record: public ilink
 
 
 /*
-  Register an item tree tree transformation, performed by the query
+  Register an item tree transformation, performed by the query
   optimizer. We need a pointer to runtime_memroot because it may be !=
   thd->mem_root (due to possible set_n_backup_active_arena called for thd).
 */

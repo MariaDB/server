@@ -2761,7 +2761,7 @@ int ddl_log_execute_recovery()
     if (ddl_log_entry.entry_type == DDL_LOG_EXECUTE_CODE)
     {
       /*
-        Remeber information about executive ddl log entry,
+        Remember information about executive ddl log entry,
         used for binary logging during recovery
       */
       recovery_state.execute_entry_pos= i;
@@ -3532,7 +3532,7 @@ bool ddl_log_store_query(THD *thd, DDL_LOG_STATE *ddl_state,
     ddl_log_entry.extra_name.length= 0;
     max_query_length= ddl_log_free_space_in_entry(&ddl_log_entry);
   }
-  if (ddl_log_write_execute_entry(first_entry->entry_pos,
+  if (ddl_log_write_execute_entry(first_entry->entry_pos, 0,
                                   &ddl_state->execute_entry))
     goto err;
 
