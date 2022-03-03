@@ -323,7 +323,7 @@ exec $XTRABACKUP  --prepare --target-dir=$targetdir > $backuplog;
 --echo # "innodb_corrupted_pages" file must not exist after successful prepare
 --error 1
 --file_exists $targetdir/innodb_corrupted_pages
---let SEARCH_PATTERN=was successfuly fixed.*
+--let SEARCH_PATTERN=was successfully fixed.*
 --let SEARCH_FILE=$backuplog
 --source include/search_pattern_in_file.inc
 
@@ -347,7 +347,7 @@ exec $XTRABACKUP --prepare --target-dir=$targetdir --incremental-dir=$incdir > $
 --file_exists $targetdir/innodb_corrupted_pages
 --echo # do not remove "innodb_corrupted_pages" in incremental dir
 --file_exists $incdir/innodb_corrupted_pages
---let SEARCH_PATTERN=was successfuly fixed.*
+--let SEARCH_PATTERN=was successfully fixed.*
 --let SEARCH_FILE=$backuplog
 --source include/search_pattern_in_file.inc
 

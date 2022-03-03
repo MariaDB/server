@@ -11760,29 +11760,33 @@ index_bad:
 		zip_ssize = 0;
 	}
 
+	ulint level = 0;
+
 	if (is_temp) {
 		m_flags2 |= DICT_TF2_TEMPORARY;
-	} else if (m_use_file_per_table) {
-		m_flags2 |= DICT_TF2_USE_FILE_PER_TABLE;
-	}
+	} else {
+		if (m_use_file_per_table) {
+			m_flags2 |= DICT_TF2_USE_FILE_PER_TABLE;
+		}
 
-	ulint level = ulint(options->page_compression_level);
-	if (!level) {
-		level = page_zip_level;
-		if (!level && options->page_compressed) {
-			push_warning_printf(
-				m_thd, Sql_condition::WARN_LEVEL_WARN,
-				ER_ILLEGAL_HA_CREATE_OPTION,
-				"InnoDB: PAGE_COMPRESSED requires"
-				" PAGE_COMPRESSION_LEVEL or"
-				" innodb_compression_level > 0");
-			DBUG_RETURN(false);
+		level = ulint(options->page_compression_level);
+		if (!level) {
+			level = page_zip_level;
+			if (!level && options->page_compressed) {
+				push_warning_printf(
+					m_thd, Sql_condition::WARN_LEVEL_WARN,
+					ER_ILLEGAL_HA_CREATE_OPTION,
+					"InnoDB: PAGE_COMPRESSED requires"
+					" PAGE_COMPRESSION_LEVEL or"
+					" innodb_compression_level > 0");
+				DBUG_RETURN(false);
+			}
 		}
 	}
 
 	/* Set the table flags */
 	dict_tf_set(&m_flags, innodb_row_format, zip_ssize,
-		    m_use_data_dir, options->page_compressed, level);
+		    m_use_data_dir, level && options->page_compressed, level);
 
 	if (m_form->s->table_type == TABLE_TYPE_SEQUENCE) {
 		m_flags |= DICT_TF_MASK_NO_ROLLBACK;
@@ -13840,6 +13844,7 @@ int ha_innobase::truncate()
 
 		int err = create(ib_table->name.m_name, table, &info, true,
 				 trx);
+		ut_ad(!err);
 		if (!err) {
 			err = open(ib_table->name.m_name, 0, 0);
 			m_prebuilt->stored_select_lock_type = stored_lock;

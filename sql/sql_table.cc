@@ -4457,7 +4457,7 @@ int create_table_impl(THD *thd,
       else if (options.if_not_exists())
       {
         /*
-          We never come here as part of normal create table as table existance
+          We never come here as part of normal create table as table existence
           is  checked in open_and_lock_tables(). We may come here as part of
           ALTER TABLE when converting a table for a distributed engine to a
           a local one.

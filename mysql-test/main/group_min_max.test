@@ -1718,7 +1718,9 @@ CREATE TABLE `t1` (
 INSERT INTO t1 (owner_id, foo, whatever)
 VALUES (1, TRUE, "yello"), (1, FALSE, "yello"), (2, TRUE, "yello"),
        (2, TRUE, "yello"), (2, FALSE, "yello");
-EXPLAIN SELECT DISTINCT owner_id FROM t1 WHERE foo = true GROUP BY owner_id HAVING (COUNT(*) = 1);
+--replace_column 9 #
+EXPLAIN 
+SELECT DISTINCT owner_id FROM t1 WHERE foo = true GROUP BY owner_id HAVING (COUNT(*) = 1);
 SELECT DISTINCT owner_id FROM t1 WHERE foo = true GROUP BY owner_id HAVING (COUNT(*) = 1);
 DROP TABLE t1;
 
