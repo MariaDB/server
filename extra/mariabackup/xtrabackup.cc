@@ -600,7 +600,7 @@ void CorruptedPages::zero_out_free_pages()
           die("Can't zero out corrupted page " UINT32PF " of tablespace %s",
               *page_it, space_name.c_str());
         msg("Corrupted page " UINT32PF
-            " of tablespace %s was successfuly fixed.",
+            " of tablespace %s was successfully fixed.",
             *page_it, space_name.c_str());
       }
     }
