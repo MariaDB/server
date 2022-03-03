@@ -695,9 +695,11 @@ enum Log_event_type
   /* New MySQL/Sun events are to be added right above this comment */
   MYSQL_EVENTS_END,
 
-  MARIA_EVENTS_BEGIN= 160,
   /* New Maria event numbers start from here */
   ANNOTATE_ROWS_EVENT= 160,
+  /* Keep that here for GDB to display ANNOTATE_ROWS_EVENT */
+  MARIA_EVENTS_BEGIN= 160,
+
   /*
     Binlog checkpoint event. Used for XA crash recovery on the master, not used
     in replication.
