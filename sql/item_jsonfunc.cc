@@ -4387,7 +4387,7 @@ error:
     report_json_error(js, &je, 0);
   if (ve.s.error)
     report_json_error(val, &ve, 1);
-  return 1;
+  return 0;
 }
 
 bool Item_func_json_overlaps::fix_length_and_dec()

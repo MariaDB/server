@@ -1084,6 +1084,7 @@ SELECT JSON_OVERLAPS('[1,2,{"A":B}]', '{"A":B}', '{"C":"string1"}');
 --error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
 SELECT JSON_OVERLAPS('[1,2,{"A":B}]');
 SELECT JSON_OVERLAPS('','');
+SELECT JSON_OVERLAPS('true','tr');
 
 --echo #
 --echo # End of 10.9 test

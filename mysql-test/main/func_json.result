@@ -1742,9 +1742,14 @@ SELECT JSON_OVERLAPS('[1,2,{"A":B}]');
 ERROR 42000: Incorrect parameter count in the call to native function 'JSON_OVERLAPS'
 SELECT JSON_OVERLAPS('','');
 JSON_OVERLAPS('','')
-1
+0
 Warnings:
 Warning	4037	Unexpected end of JSON text in argument 1 to function 'json_overlaps'
+SELECT JSON_OVERLAPS('true','tr');
+JSON_OVERLAPS('true','tr')
+0
+Warnings:
+Warning	4037	Unexpected end of JSON text in argument 2 to function 'json_overlaps'
 #
 # End of 10.9 test
 #
