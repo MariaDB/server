@@ -19,10 +19,6 @@ create database some_db;
 create table some_db.t1 (a int, secret int);
 
 
-#TODO(cvicentiu) -- this DBUG ASSERTS!!!
-#deny select on some_db to foo;
-
-
 show databases;
 
 grant select on *.* to foo;
