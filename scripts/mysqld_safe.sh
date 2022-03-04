@@ -694,6 +694,7 @@ then
   if test "$user" != "root" -o $SET_USER = 1
   then
     USER_OPTION="--user=$user"
+    # To be used if/when we enable --system-group as an option to mysqld
     GROUP_OPTION="--group=$group"
   fi
   if test -n "$open_files"
