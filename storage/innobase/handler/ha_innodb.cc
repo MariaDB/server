@@ -417,14 +417,6 @@ static TYPELIB innodb_change_buffering_typelib = {
 	NULL
 };
 
-static void innodb_change_buffering_deprecated(THD *thd, st_mysql_sys_var*,
-                                               void *var_ptr, const void *save)
-{
-  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, HA_ERR_UNSUPPORTED,
-                      "The parameter innodb_change_buffering is deprecated");
-  *static_cast<ulong*>(var_ptr) = *static_cast<const ulong*>(save);
-}
-
 /** Allowed values of innodb_instant_alter_column_allowed */
 const char* innodb_instant_alter_column_allowed_names[] = {
 	"never", /* compatible with MariaDB 5.5 to 10.2 */
@@ -19461,10 +19453,9 @@ static MYSQL_SYSVAR_BOOL(numa_interleave, srv_numa_interleave,
 #endif /* HAVE_LIBNUMA */
 
 static MYSQL_SYSVAR_ENUM(change_buffering, innodb_change_buffering,
-  PLUGIN_VAR_RQCMDARG,
-  "Buffer changes to secondary indexes (deprecated).",
-  nullptr, innodb_change_buffering_deprecated, IBUF_USE_NONE,
-  &innodb_change_buffering_typelib);
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED,
+  "Buffer changes to secondary indexes.",
+  nullptr, nullptr, IBUF_USE_NONE, &innodb_change_buffering_typelib);
 
 static MYSQL_SYSVAR_UINT(change_buffer_max_size,
   srv_change_buffer_max_size,
