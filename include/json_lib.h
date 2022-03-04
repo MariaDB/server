@@ -84,7 +84,8 @@ enum json_path_step_types
   JSON_PATH_KEY_DOUBLEWILD= 1+8,
   JSON_PATH_ARRAY_WILD= 2+4,
   JSON_PATH_ARRAY_DOUBLEWILD= 2+8,
-  JSON_PATH_NEGATIVE_INDEX= 16
+  JSON_PATH_NEGATIVE_INDEX= 16,
+  JSON_PATH_ARRAY_RANGE= 32
 };
 
 
@@ -95,6 +96,7 @@ typedef struct st_json_path_step_t
   const uchar *key; /* Pointer to the beginning of the key. */
   const uchar *key_end;  /* Pointer to the end of the key. */
   int n_item;  /* Item number in an array. No meaning for the key step. */
+  int n_item_end; /* Last index of the range. */
 } json_path_step_t;
 
 

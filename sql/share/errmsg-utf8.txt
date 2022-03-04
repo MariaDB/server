@@ -8420,7 +8420,7 @@ ER_JSON_PATH_DEPTH
         eng "Limit of %d on JSON path depth is reached in argument %d to function '%s' at position %d"
         spa "El límite de %d en profundidad de ruta JSON se ha alcanzado en argumento %d a función '%s' en la posición %d"
 ER_JSON_PATH_NO_WILDCARD
-        eng "Wildcards in JSON path not allowed in argument %d to function '%s'"
+        eng "Wildcards or range in JSON path not allowed in argument %d to function '%s'"
         spa "Comodines en ruta JSON no permitidos en argumento %d a función '%s'"
 ER_JSON_PATH_ARRAY
         eng "JSON path should end with an array identifier in argument %d to function '%s'"

@@ -561,7 +561,8 @@ int ha_json_table::fill_column_values(THD *thd, uchar * buf, uchar *pos)
                 more matches for it in json and report an error if so.
               */
               if (jc->m_path.types_used &
-                    (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD) &&
+                    (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD |
+                     JSON_PATH_ARRAY_RANGE) &&
                   (json_scan_next(&je) ||
                    !json_find_path(&je, &jc->m_path, &cur_step,
                                    array_counters)))

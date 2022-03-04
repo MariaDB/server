@@ -374,7 +374,8 @@ static int path_setup_nwc(json_path_t *p, CHARSET_INFO *i_cs,
 {
   if (!json_path_setup(p, i_cs, str, end))
   {
-    if ((p->types_used & (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD)) == 0)
+    if ((p->types_used & (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD |
+                          JSON_PATH_ARRAY_RANGE)) == 0)
       return 0;
     p->s.error= NO_WILDCARD_ALLOWED;
   }
@@ -862,7 +863,8 @@ String *Item_func_json_extract::read_json(String *str,
   }
 
   possible_multiple_values= arg_count > 2 ||
-    (paths[0].p.types_used & (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD));
+    (paths[0].p.types_used & (JSON_PATH_WILD | JSON_PATH_DOUBLE_WILD |
+                              JSON_PATH_ARRAY_RANGE));
 
   *type= possible_multiple_values ? JSON_VALUE_ARRAY : JSON_VALUE_NULL;
 

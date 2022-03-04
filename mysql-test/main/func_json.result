@@ -2029,5 +2029,194 @@ SELECT JSON_VALUE(@json,'$.x[0]');
 JSON_VALUE(@json,'$.x[0]')
 0
 #
+# MDEV-27911: Implement range notation for json path
+#
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [15, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20],
+             21, 22
+            ]';
+SELECT JSON_EXISTS(@json, '$[3][3][-2 to last]');
+JSON_EXISTS(@json, '$[3][3][-2 to last]')
+1
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [15, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20],
+             21, 22
+            ]';
+SELECT JSON_SEARCH(@json, 'one', '12', NULL, '$[3][0 to 3]');
+JSON_SEARCH(@json, 'one', '12', NULL, '$[3][0 to 3]')
+NULL
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [12, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20]
+            ]';
+SELECT JSON_VALUE(@json, '$[0][1 to 2].key1');
+JSON_VALUE(@json, '$[0][1 to 2].key1')
+value1
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_QUERY(@json, '$.A[-2][-3 to -1]');
+JSON_QUERY(@json, '$.A[-2][-3 to -1]')
+[13, 14]
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [15, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20],
+             21, 22
+            ]';
+SELECT JSON_EXTRACT(@json, '$[0 to 3][2]');
+JSON_EXTRACT(@json, '$[0 to 3][2]')
+[3, 6, [9, {"key2": 2}, 11], [14]]
+SELECT JSON_EXTRACT(@json, '$[3][3][last-1 to last]');
+JSON_EXTRACT(@json, '$[3][3][last-1 to last]')
+["string1", [16, {"key1": [1, 2, 3, [4, 5, 6]]}, 18]]
+SELECT JSON_EXTRACT(@json, '$[3][3][-2 to -1]');
+JSON_EXTRACT(@json, '$[3][3][-2 to -1]')
+["string1", [16, {"key1": [1, 2, 3, [4, 5, 6]]}, 18]]
+# Checking errors
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [15, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20],
+             21, 22
+            ]';
+SELECT JSON_CONTAINS_PATH(@json,'one', '$[3][0 to 3]');
+JSON_CONTAINS_PATH(@json,'one', '$[3][0 to 3]')
+1
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [15, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20],
+             21, 22
+            ]';
+SELECT JSON_CONTAINS(@json, '$[3][0 to 3]');
+JSON_CONTAINS(@json, '$[3][0 to 3]')
+NULL
+Warnings:
+Warning	4038	Syntax error in JSON text in argument 2 to function 'json_contains' at position 1
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_ARRAY_INSERT(@json, '$.A[0 to last-1]', 5);
+JSON_ARRAY_INSERT(@json, '$.A[0 to last-1]', 5)
+NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_array_insert'
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, 13, {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_ARRAY_APPEND(@json, '$.A[*]', 7);
+JSON_ARRAY_APPEND(@json, '$.A[*]', 7)
+NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_array_append'
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [12, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20]
+            ]';
+SELECT JSON_SET(@json, '$[0][1 to 2].key1', 1);
+JSON_SET(@json, '$[0][1 to 2].key1', 1)
+NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_set'
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [15, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20],
+             21, 22
+            ]';
+SELECT JSON_REPLACE(@json, '$[1][last-2 to last]', 4);
+JSON_REPLACE(@json, '$[1][last-2 to last]', 4)
+NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_replace'
+SET @json= '[
+             [1, {"key1": "value1"}, 3],
+             [false, 5, 6],
+             [7, 8, [9, {"key2": 2}, 11]],
+             [15, 1.34, [14], ["string1", [16, {"key1":[1,2,3,[4,5,6]]}, 18]]],
+             [19, 20],
+             21, 22
+            ]';
+SELECT JSON_REMOVE(@json, '$[1][-6 to last-2]');
+JSON_REMOVE(@json, '$[1][-6 to last-2]')
+NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_remove'
+SET @json='{
+            "A": [0,
+                  [1, 2, 3],
+                  [4, 5, 6],
+                  "seven",
+                   0.8,
+                   true,
+                   false,
+                   "eleven",
+                  [12, [13, 14], {"key1":"value1"},[15]],
+                  true],
+            "B": {"C": 1},
+            "D": 2
+           }';
+SELECT JSON_KEYS(@json, '$.A[8][1 to 3]');
+JSON_KEYS(@json, '$.A[8][1 to 3]')
+NULL
+Warnings:
+Warning	4044	Wildcards or range in JSON path not allowed in argument 2 to function 'json_keys'
+#
 # End of 10.9 Test
 #
