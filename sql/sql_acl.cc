@@ -13683,7 +13683,14 @@ bool Sql_cmd_grant_table::execute(THD *thd)
 {
   TABLE_LIST *table= thd->lex->first_select_lex()->table_list.first;
   if (m_deny)
+  {
+    if (table)
+    {
+      my_error(ER_UNSUPPORTED_DENY, MYF(0), "Table");
+      return true;
+    }
     return execute_deny(thd);
+  }
   if (table)
     return execute_grant_table(thd, table);
   return execute_grant_database_or_global(thd);

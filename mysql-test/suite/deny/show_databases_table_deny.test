@@ -1,0 +1,35 @@
+--source include/not_embedded.inc
+
+#
+# This test covers show databases command interacting with DENY command.
+# A user is able to see a database in `show databases` if:
+# 1. They have globally granted any of the *DB_ACLS* (see privilege sets)
+#    or they have SHOW DATABASES privilege
+# 2. They have on the database level granted any privilege.
+# 3. They have grants on any of the underlying database objects:
+#    a. Tables
+#    b. Columns
+#    c. Stored Procedures
+# A deny masking rights should affect all levels of this chain.
+#
+
+create user foo;
+create database some_db;
+
+create table some_db.t1 (a int, secret int);
+
+
+show databases;
+
+#TODO(cvicentiu) Currently table level denies are not supported.
+--error ER_UNSUPPORTED_DENY
+deny select on t1 to foo;
+
+--error ER_UNSUPPORTED_DENY
+deny select on some_db.t1 to foo;
+
+show grants for foo;
+
+drop database some_db;
+drop user foo;
+
