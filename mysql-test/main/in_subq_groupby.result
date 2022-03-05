@@ -1,0 +1,21 @@
+#
+# MDEV-27957 Select from view with subselect fails with lost connection
+#
+CREATE TABLE t1 (id INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+CREATE OR REPLACE VIEW v1 AS SELECT
+1 IN (
+SELECT
+(SELECT COUNT(id)
+FROM t1
+WHERE t1_outer.id <> id
+) AS f
+FROM
+t1 AS t1_outer
+GROUP BY f
+);
+SELECT * FROM v1;
+Name_exp_1
+1
+DROP VIEW v1;
+DROP TABLE t1;

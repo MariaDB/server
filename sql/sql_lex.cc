@@ -3253,8 +3253,9 @@ void st_select_lex_node::exclude_from_tree()
 */
 void st_select_lex_node::exclude()
 {
-  /* exclude from global list */
-  fast_exclude();
+  /* if current slave exists, exclude from global list */
+  if (slave)
+    slave->fast_exclude();
   /* exclude from other structures */
   exclude_from_tree();
   /* 
