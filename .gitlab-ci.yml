@@ -172,7 +172,7 @@ fedora-clang:
 
 centos8:
   stage: build
-  image: centos:8
+  image: quay.io/centos/centos:stream8 # CentOS 8 is deprecated, use this Stream8 instead
   variables:
     GIT_STRATEGY: fetch
     GIT_SUBMODULE_STRATEGY: normal
@@ -186,7 +186,7 @@ centos8:
     # - package Judy-devel-1.0.5-18.module_el8.3.0+757+d382997d.i686 is filtered out by modular filtering
     # - package Judy-devel-1.0.5-18.module_el8.3.0+757+d382997d.x86_64 is filtered out by modular filtering
     # Solution: install Judy-devel directly from downloaded rpm file:
-    - yum install -y http://mirror.centos.org/centos/8/PowerTools/x86_64/os/Packages/Judy-devel-1.0.5-18.module_el8.3.0+757+d382997d.x86_64.rpm
+    - yum install -y http://vault.centos.org/centos/8/PowerTools/x86_64/os/Packages/Judy-devel-1.0.5-18.module_el8.3.0+757+d382997d.x86_64.rpm
     # Use eatmydata to speed up build
     - yum install -y https://github.com/stewartsmith/libeatmydata/releases/download/v129/libeatmydata-129-1.fc33.x86_64.rpm
     - yum install -y ccache  # From EPEL
