@@ -2323,63 +2323,6 @@ overflow:
 	return(~(ulonglong) 0);
 }
 
-/********************************************************************//**
-Reset the autoinc value in the table.
-@return	DB_SUCCESS if all went well else error code */
-UNIV_INTERN
-dberr_t
-ha_innobase::innobase_reset_autoinc(
-/*================================*/
-	ulonglong	autoinc)	/*!< in: value to store */
-{
-	dberr_t		error;
-
-	error = innobase_lock_autoinc();
-
-	if (error == DB_SUCCESS) {
-
-		dict_table_autoinc_initialize(m_prebuilt->table, autoinc);
-		m_prebuilt->table->autoinc_mutex.unlock();
-	}
-
-	return(error);
-}
-
-/*******************************************************************//**
-Reset the auto-increment counter to the given value, i.e. the next row
-inserted will get the given value. This is called e.g. after TRUNCATE
-is emulated by doing a 'DELETE FROM t'. HA_ERR_WRONG_COMMAND is
-returned by storage engines that don't support this operation.
-@return	0 or error code */
-UNIV_INTERN
-int
-ha_innobase::reset_auto_increment(
-/*==============================*/
-	ulonglong	value)		/*!< in: new value for table autoinc */
-{
-	DBUG_ENTER("ha_innobase::reset_auto_increment");
-
-	dberr_t	error;
-
-	update_thd(ha_thd());
-
-	error = row_lock_table_autoinc_for_mysql(m_prebuilt);
-
-	if (error != DB_SUCCESS) {
-		DBUG_RETURN(convert_error_code_to_mysql(
-				    error, m_prebuilt->table->flags, m_user_thd));
-	}
-
-	/* The next value can never be 0. */
-	if (value == 0) {
-		value = 1;
-	}
-
-	innobase_reset_autoinc(value);
-
-	DBUG_RETURN(0);
-}
-
 /*********************************************************************//**
 Initializes some fields in an InnoDB transaction object. */
 static
@@ -8612,16 +8555,6 @@ ha_innobase::delete_row(
 #endif /* WITH_WSREP */
 	DBUG_RETURN(convert_error_code_to_mysql(
 			    error, m_prebuilt->table->flags, m_user_thd));
-}
-
-/** Delete all rows from the table.
-@return error number or 0 */
-
-int
-ha_innobase::delete_all_rows()
-{
-	DBUG_ENTER("ha_innobase::delete_all_rows");
-	DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 
 /**********************************************************************//**

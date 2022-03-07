@@ -2817,7 +2817,21 @@ wait_again:
 		err = fts_sync_table(const_cast<dict_table_t*>(new_table));
 
 		if (err == DB_SUCCESS) {
-			fts_update_next_doc_id(NULL, new_table, max_doc_id);
+			new_table->fts->cache->synced_doc_id = max_doc_id;
+
+		        /* Update the max value as next FTS_DOC_ID */
+			if (max_doc_id >= new_table->fts->cache->next_doc_id) {
+				new_table->fts->cache->next_doc_id =
+					max_doc_id + 1;
+			}
+
+			new_table->fts->cache->first_doc_id =
+				new_table->fts->cache->next_doc_id;
+
+			err= fts_update_sync_doc_id(
+				new_table,
+				new_table->fts->cache->synced_doc_id,
+				NULL);
 		}
 	}
 

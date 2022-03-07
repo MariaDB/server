@@ -25,3 +25,10 @@ f1
 disconnect con1;
 connection default;
 drop table t1;
+#
+# MDEV-27993 Assertion failed in btr_page_reorganize_low()
+#
+CREATE TABLE t1(a INT PRIMARY KEY, b INT UNIQUE) ENGINE=InnoDB;
+SET DEBUG_DBUG = '+d,do_page_reorganize';
+INSERT INTO t1 VALUES(0,0);
+DROP TABLE t1;

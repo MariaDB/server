@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -104,8 +104,6 @@ public:
 	double scan_time() override;
 
 	double read_time(uint index, uint ranges, ha_rows rows) override;
-
-	int delete_all_rows() override;
 
 	int write_row(const uchar * buf) override;
 
@@ -242,7 +240,6 @@ public:
 		ulonglong		nb_desired_values,
 		ulonglong*		first_value,
 		ulonglong*		nb_reserved_values) override;
-	int reset_auto_increment(ulonglong value) override;
 
 	bool get_error_message(int error, String *buf) override;
 
@@ -450,7 +447,6 @@ protected:
 	dberr_t innobase_lock_autoinc();
 	ulonglong innobase_peek_autoinc();
 	dberr_t innobase_set_max_autoinc(ulonglong auto_inc);
-	dberr_t innobase_reset_autoinc(ulonglong auto_inc);
 
 	/** Resets a query execution 'template'.
 	@see build_template() */
