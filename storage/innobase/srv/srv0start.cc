@@ -203,7 +203,7 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn)
 	os_file_t file{
           os_file_create_func(logfile0.c_str(),
                               OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT,
-                              OS_FILE_NORMAL, OS_LOG_FILE, false, &ret)
+                              OS_FILE_AIO, OS_LOG_FILE, false, &ret)
         };
 
 	if (!ret) {
@@ -524,7 +524,7 @@ srv_check_undo_redo_logs_exists()
 	fh = os_file_create_func(logfilename.c_str(),
 				 OS_FILE_OPEN_RETRY | OS_FILE_ON_ERROR_NO_EXIT
 				 | OS_FILE_ON_ERROR_SILENT,
-				 OS_FILE_NORMAL, OS_LOG_FILE,
+				 OS_FILE_AIO, OS_LOG_FILE,
 				 srv_read_only_mode, &ret);
 
 	if (ret) {
