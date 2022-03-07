@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -888,29 +888,26 @@ public:
 /*********************************************************************//**
 Creates a new record lock and inserts it to the lock queue. Does NOT check
 for deadlocks or lock compatibility!
-@param[in] c_lock conflicting lock
-@param[in] thr thread owning trx
-@param[in] type_mode lock mode and wait flag, type is ignored and replaced by
-LOCK_REC
-@param[in] block buffer block containing the record
-@param[in] heap_no heap number of the record
-@param[in] index index of record
-@param[in,out] trx transaction
-@param[in] caller_owns_trx_mutex TRUE if caller owns trx mutex
-@param[in] insert_before_waiting if true, inserts new B-tree record lock
-just after the last non-waiting lock of the current transaction which is
-located before the first waiting for the current transaction lock, otherwise
-the lock is inserted at the end of the queue
 @return created lock */
 UNIV_INLINE
-lock_t *lock_rec_create(lock_t *c_lock,
+lock_t*
+lock_rec_create(
+/*============*/
 #ifdef WITH_WSREP
-                        que_thr_t *thr,
+	lock_t*			c_lock,	/*!< conflicting lock */
+	que_thr_t*		thr,	/*!< thread owning trx */
 #endif
-                        ulint type_mode, const buf_block_t *block,
-                        ulint heap_no, dict_index_t *index, trx_t *trx,
-                        bool caller_owns_trx_mutex,
-                        bool insert_before_waiting= false);
+	ulint			type_mode,/*!< in: lock mode and wait
+					flag, type is ignored and
+					replaced by LOCK_REC */
+	const buf_block_t*	block,	/*!< in: buffer block containing
+					the record */
+	ulint			heap_no,/*!< in: heap number of the record */
+	dict_index_t*		index,	/*!< in: index of record */
+	trx_t*			trx,	/*!< in,out: transaction */
+	bool			caller_owns_trx_mutex);
+					/*!< in: true if caller owns
+					trx mutex */
 
 /*************************************************************//**
 Removes a record lock request, waiting or granted, from the queue. */
@@ -923,7 +920,6 @@ lock_rec_discard(
 
 /** Create a new record lock and inserts it to the lock queue,
 without checking for deadlocks or conflicts.
-@param[in]	c_lock		conflicting lock
 @param[in]	type_mode	lock mode and wait flag; type will be replaced
 				with LOCK_REC
 @param[in]	space		tablespace id
@@ -933,15 +929,11 @@ without checking for deadlocks or conflicts.
 @param[in]	index		the index tree
 @param[in,out]	trx		transaction
 @param[in]	holds_trx_mutex	whether the caller holds trx->mutex
-@param[in]	insert_before_waiting if true, inserts new B-tree record lock
-just after the last non-waiting lock of the current transaction which is
-located before the first waiting for the current transaction lock, otherwise
-the lock is inserted at the end of the queue
 @return created lock */
 lock_t*
 lock_rec_create_low(
-	lock_t*		c_lock,
 #ifdef WITH_WSREP
+	lock_t*		c_lock,	/*!< conflicting lock */
 	que_thr_t*	thr,	/*!< thread owning trx */
 #endif
 	ulint		type_mode,
@@ -951,12 +943,9 @@ lock_rec_create_low(
 	ulint		heap_no,
 	dict_index_t*	index,
 	trx_t*		trx,
-	bool		holds_trx_mutex,
-	bool		insert_before_waiting = false);
-
+	bool		holds_trx_mutex);
 /** Enqueue a waiting request for a lock which cannot be granted immediately.
 Check for deadlocks.
-@param[in]	c_lock		conflicting lock
 @param[in]	type_mode	the requested lock mode (LOCK_S or LOCK_X)
 				possibly ORed with LOCK_GAP or
 				LOCK_REC_NOT_GAP, ORed with
@@ -975,7 +964,9 @@ Check for deadlocks.
 				(or it happened to commit) */
 dberr_t
 lock_rec_enqueue_waiting(
-	lock_t*			c_lock,
+#ifdef WITH_WSREP
+	lock_t*			c_lock,	/*!< conflicting lock */
+#endif
 	ulint			type_mode,
 	const buf_block_t*	block,
 	ulint			heap_no,
