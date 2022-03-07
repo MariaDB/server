@@ -243,7 +243,7 @@ lock_prdt_has_lock(
 	ut_ad(!(precise_mode & LOCK_INSERT_INTENTION));
 
 	for (lock = lock_rec_get_first(
-		lock_hash_get(type_mode), block->page.id(), PRDT_HEAPNO);
+		lock_hash_get(type_mode), block, PRDT_HEAPNO);
 	     lock != NULL;
 	     lock = lock_rec_get_next(PRDT_HEAPNO, lock)) {
 		ut_ad(lock->type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE));
@@ -298,7 +298,7 @@ lock_prdt_other_has_conflicting(
 	ut_ad(lock_mutex_own());
 
 	for (lock_t* lock = lock_rec_get_first(
-		lock_hash_get(mode), block->page.id(), PRDT_HEAPNO);
+		lock_hash_get(mode), block, PRDT_HEAPNO);
 	     lock != NULL;
 	     lock = lock_rec_get_next(PRDT_HEAPNO, lock)) {
 
@@ -489,13 +489,9 @@ lock_prdt_add_to_queue(
 		}
 	}
 
-	/* Note: We will not pass any conflicting lock to lock_rec_create(),
-	because we should be moving an existing waiting lock request. */
-	ut_ad(!(type_mode & LOCK_WAIT) || trx->lock.wait_trx);
-
-	lock = lock_rec_create(NULL,
+	lock = lock_rec_create(
 #ifdef WITH_WSREP
-		NULL, /* FIXME: replicate SPATIAL INDEX locks */
+		NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
 #endif
 		type_mode, block, PRDT_HEAPNO, index, trx,
 		caller_owns_trx_mutex);
@@ -547,8 +543,7 @@ lock_prdt_insert_check_and_lock(
 	lock_t*		lock;
 
 	/* Only need to check locks on prdt_hash */
-	lock = lock_rec_get_first(&lock_sys.prdt_hash, block->page.id(),
-	    PRDT_HEAPNO);
+	lock = lock_rec_get_first(&lock_sys.prdt_hash, block, PRDT_HEAPNO);
 
 	if (lock == NULL) {
 		lock_mutex_exit();
@@ -586,7 +581,9 @@ lock_prdt_insert_check_and_lock(
 		trx_mutex_enter(trx);
 
 		err = lock_rec_enqueue_waiting(
+#ifdef WITH_WSREP
 			NULL, /* FIXME: replicate SPATIAL INDEX locks */
+#endif
 			LOCK_X | LOCK_PREDICATE | LOCK_INSERT_INTENTION,
 			block, PRDT_HEAPNO, index, thr, prdt);
 
@@ -825,9 +822,9 @@ lock_prdt_lock(
 	lock_t*		lock = lock_sys.get_first(hash, block->page.id());
 
 	if (lock == NULL) {
-		lock = lock_rec_create(NULL,
+		lock = lock_rec_create(
 #ifdef WITH_WSREP
-			NULL, /* FIXME: replicate SPATIAL INDEX locks */
+			NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
 #endif
 			prdt_mode, block, PRDT_HEAPNO,
 			index, trx, FALSE);
@@ -857,8 +854,10 @@ lock_prdt_lock(
 				if (wait_for != NULL) {
 
 					err = lock_rec_enqueue_waiting(
+#ifdef WITH_WSREP
 						NULL, /* FIXME: replicate
 						      SPATIAL INDEX locks */
+#endif
 						prdt_mode,
 						block, PRDT_HEAPNO,
 						index, thr, prdt);
@@ -938,9 +937,9 @@ lock_place_prdt_page_lock(
 	}
 
 	if (lock == NULL) {
-		lock = lock_rec_create_low(NULL,
+		lock = lock_rec_create_low(
 #ifdef WITH_WSREP
-			NULL, /* FIXME: replicate SPATIAL INDEX locks */
+			NULL, NULL, /* FIXME: replicate SPATIAL INDEX locks */
 #endif
 			mode, page_id, NULL, PRDT_HEAPNO,
 			index, trx, FALSE);
@@ -986,7 +985,7 @@ lock_prdt_rec_move(
 	lock_mutex_enter();
 
 	for (lock_t *lock = lock_rec_get_first(&lock_sys.prdt_hash,
-					       donator->page.id(), PRDT_HEAPNO);
+					       donator, PRDT_HEAPNO);
 	     lock != NULL;
 	     lock = lock_rec_get_next(PRDT_HEAPNO, lock)) {
 

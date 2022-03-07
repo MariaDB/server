@@ -562,13 +562,14 @@ lock_rec_get_next_const(
 
 /*********************************************************************//**
 Gets the first explicit lock request on a record.
-@param[in] hash hash chain the lock on
-@param[in] page_id page id
-@param[in] heap_no heap number of the record
 @return first lock, NULL if none exists */
 UNIV_INLINE
-lock_t *lock_rec_get_first(hash_table_t *hash, page_id_t page_id,
-                           ulint heap_no);
+lock_t*
+lock_rec_get_first(
+/*===============*/
+	hash_table_t*		hash,	/*!< in: hash chain the lock on */
+	const buf_block_t*	block,	/*!< in: block containing the record */
+	ulint			heap_no);/*!< in: heap number of the record */
 
 /*********************************************************************//**
 Gets the mode of a lock.
@@ -622,25 +623,14 @@ lock_table_has(
 
 /** Set the wait status of a lock.
 @param[in,out]	lock	lock that will be waited for
-@param[in,out]	trx	transaction that will wait for the lock
-@param[in]      c_lock   conflicting lock */
-inline void lock_set_lock_and_trx_wait(lock_t* lock, trx_t* trx,
-	const lock_t *c_lock)
+@param[in,out]	trx	transaction that will wait for the lock */
+inline void lock_set_lock_and_trx_wait(lock_t* lock, trx_t* trx)
 {
 	ut_ad(lock);
 	ut_ad(lock->trx == trx);
+	ut_ad(trx->lock.wait_lock == NULL);
 	ut_ad(lock_mutex_own());
 	ut_ad(trx_mutex_own(trx));
-
-	if (trx->lock.wait_trx) {
-		ut_ad(!c_lock || trx->lock.wait_trx == c_lock->trx);
-		ut_ad(trx->lock.wait_lock);
-		ut_ad((*trx->lock.wait_lock).trx == trx);
-	} else {
-		ut_ad(c_lock);
-		trx->lock.wait_trx = c_lock->trx;
-		ut_ad(!trx->lock.wait_lock);
-	}
 
 	trx->lock.wait_lock = lock;
 	lock->type_mode |= LOCK_WAIT;
@@ -654,7 +644,6 @@ inline void lock_reset_lock_and_trx_wait(lock_t* lock)
 	ut_ad(lock_mutex_own());
 	ut_ad(lock->trx->lock.wait_lock == NULL
 	      || lock->trx->lock.wait_lock == lock);
-	lock->trx->lock.wait_trx= nullptr;
 	lock->trx->lock.wait_lock = NULL;
 	lock->type_mode &= ~LOCK_WAIT;
 }
