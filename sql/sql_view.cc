@@ -1797,7 +1797,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
       else
       {
         if (old_lex->sql_command == SQLCOM_SELECT &&
-            (old_lex->describe & DESCRIBE_EXTENDED) &&
+            old_lex->describe &&
             lex->first_select_lex()->order_list.elements &&
             !table->select_lex->master_unit()->is_unit_op())
         {

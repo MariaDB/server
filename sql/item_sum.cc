@@ -430,7 +430,7 @@ bool Item_sum::register_sum_func(THD *thd, Item **ref)
   }
   thd->lex->current_select->mark_as_dependent(thd, aggr_sel, NULL);
 
-  if ((thd->lex->describe & DESCRIBE_EXTENDED) && aggr_sel)
+  if (thd->lex->describe && aggr_sel)
   {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_WARN_AGGFUNC_DEPENDENCE,

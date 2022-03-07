@@ -2722,14 +2722,11 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
                        Item_empty_string(this, "table", NAME_CHAR_LEN, cs),
                        mem_root);
   item->set_maybe_null();
-  if (explain_flags & DESCRIBE_PARTITIONS)
-  {
-    /* Maximum length of string that make_used_partitions_str() can produce */
-    item= new (mem_root) Item_empty_string(this, "partitions",
-                                           MAX_PARTITIONS * (1 + FN_LEN), cs);
-    field_list.push_back(item, mem_root);
-    item->set_maybe_null();
-  }
+  /* Maximum length of string that make_used_partitions_str() can produce */
+  item= new (mem_root) Item_empty_string(this, "partitions",
+                                         MAX_PARTITIONS * (1 + FN_LEN), cs);
+  field_list.push_back(item, mem_root);
+  item->set_maybe_null();
   field_list.push_back(item= new (mem_root)
                        Item_empty_string(this, "type", 10, cs),
                        mem_root);
@@ -2764,13 +2761,10 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
     item->set_maybe_null();
   }
 
-  if (is_analyze || (explain_flags & DESCRIBE_EXTENDED))
-  {
-    field_list.push_back(item= new (mem_root)
-                         Item_float(this, "filtered", 0.1234, 2, 4),
-                         mem_root);
-    item->set_maybe_null();
-  }
+  field_list.push_back(item= new (mem_root)
+                       Item_float(this, "filtered", 0.1234, 2, 4),
+                       mem_root);
+  item->set_maybe_null();
 
   if (is_analyze)
   {

@@ -5999,6 +5999,18 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     my_ok(thd);
     break;
   }
+  if (lex->describe)
+  {
+    if (lex->describe & DESCRIBE_EXTENDED ||
+        lex->describe & DESCRIBE_PARTITIONS)
+    {
+      push_warning_printf(
+          thd, Sql_condition::WARN_LEVEL_WARN,
+          ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,
+          ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
+          "EXPLAIN EXTENDED|PARTITIONS");
+    }
+  }
   THD_STAGE_INFO(thd, stage_query_end);
   thd->update_stats();
 
@@ -6208,19 +6220,16 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         {
           lex->explain->print_explain(result, thd->lex->describe,
                                       thd->lex->analyze_stmt);
-          if (lex->describe & DESCRIBE_EXTENDED)
-          {
-            char buff[1024];
-            String str(buff,(uint32) sizeof(buff), system_charset_info);
-            str.length(0);
-            /*
-              The warnings system requires input in utf8, @see
-              mysqld_show_warnings().
-            */
-            lex->unit.print(&str, QT_EXPLAIN_EXTENDED);
-            push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
-                         ER_YES, str.c_ptr_safe());
-          }
+          char buff[1024];
+          String str(buff,(uint32) sizeof(buff), system_charset_info);
+          str.length(0);
+          /*
+            The warnings system requires input in utf8, @see
+            mysqld_show_warnings().
+          */
+          lex->unit.print(&str, QT_EXPLAIN_EXTENDED);
+          push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
+                       ER_YES, str.c_ptr_safe());
         }
       }
 

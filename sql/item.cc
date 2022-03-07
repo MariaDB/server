@@ -5193,7 +5193,7 @@ static bool mark_as_dependent(THD *thd, SELECT_LEX *last, SELECT_LEX *current,
   if (current->mark_as_dependent(thd, last,
                                  /** resolved_item psergey-thu **/ mark_item))
     DBUG_RETURN(TRUE);
-  if ((thd->lex->describe & DESCRIBE_EXTENDED) && !suppress_warning_output)
+  if (thd->lex->describe && !suppress_warning_output)
   {
     const char *db_name= (resolved_item->db_name.str ?
                           resolved_item->db_name.str : "");
