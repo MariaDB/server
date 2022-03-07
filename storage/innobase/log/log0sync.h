@@ -1,5 +1,5 @@
 /*****************************************************************************
-Copyright (c) 2020 MariaDB Corporation.
+Copyright (c) 2020, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -56,14 +56,6 @@ Operations supported on this semaphore
 - might return some lsn, meaning there are some pending
   callbacks left, and there is no new group commit lead
   (i.e caller must do something to flush those pending callbacks)
-
-3. value()
-- read current value
-
-4. pending_value()
-- read pending value
-
-5. set_pending_value()
 */
 class group_commit_lock
 {
@@ -73,7 +65,6 @@ class group_commit_lock
 #endif
   std::mutex m_mtx;
   std::atomic<value_type> m_value;
-  std::atomic<value_type> m_pending_value;
   bool m_lock;
   group_commit_waiter_t* m_waiters_list;
 
@@ -91,9 +82,11 @@ public:
   lock_return_code acquire(value_type num, const completion_callback *cb);
   value_type release(value_type num);
   value_type value() const;
-  value_type pending() const;
-  void set_pending(value_type num);
 #ifndef DBUG_OFF
-  bool is_owner();
+  bool locked() const noexcept;
+  bool is_owner() const noexcept;
+  bool has_owner() const noexcept;
+  void set_owner();
+  void reset_owner();
 #endif
 };

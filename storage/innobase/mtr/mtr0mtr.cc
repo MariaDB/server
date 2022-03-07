@@ -540,7 +540,7 @@ void mtr_t::commit_shrink(fil_space_t &space)
   const lsn_t start_lsn= do_write(true).first;
 
   /* Durably write the reduced FSP_SIZE before truncating the data file. */
-  log_write_and_flush();
+  lsn_t pending_lsn= log_write_and_flush();
 #ifndef SUX_LOCK_GENERIC
   ut_ad(log_sys.latch.is_write_locked());
 #endif
@@ -585,6 +585,8 @@ void mtr_t::commit_shrink(fil_space_t &space)
   m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>());
 
   release_resources();
+  if (pending_lsn)
+    log_buffer_flush_to_disk_async();
 }
 
 /** Commit a mini-transaction that did not modify any pages,
