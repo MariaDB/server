@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3406,6 +3406,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 	  thd->alloc(f_args.arg_count*sizeof(Item_result))))
 
     {
+    err_exit:
       free_udf(u_d);
       DBUG_RETURN(TRUE);
     }
@@ -3445,7 +3446,8 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
       func->used_tables_and_const_cache_join(item);
       f_args.arg_type[i]=item->result_type();
     }
-    if (!(buffers=new (thd->mem_root) String[arg_count]) ||
+    buffers=new (thd->mem_root) String[arg_count];
+    if (!buffers ||
         !multi_alloc_root(thd->mem_root,
                           &f_args.args,              arg_count * sizeof(char *),
                           &f_args.lengths,           arg_count * sizeof(long),
@@ -3454,10 +3456,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
                           &f_args.attributes,        arg_count * sizeof(char *),
                           &f_args.attribute_lengths, arg_count * sizeof(long),
                           NullS))
-    {
-      free_udf(u_d);
-      DBUG_RETURN(TRUE);
-    }
+      goto err_exit;
   }
   if (func->fix_length_and_dec())
     DBUG_RETURN(TRUE);
@@ -3525,8 +3524,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
     {
       my_error(ER_CANT_INITIALIZE_UDF, MYF(0),
                u_d->name.str, init_msg_buff);
-      free_udf(u_d);
-      DBUG_RETURN(TRUE);
+      goto err_exit;
     }
     func->max_length=MY_MIN(initid.max_length,MAX_BLOB_WIDTH);
     func->maybe_null=initid.maybe_null;

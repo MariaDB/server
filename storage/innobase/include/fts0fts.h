@@ -402,17 +402,6 @@ fts_get_next_doc_id(
 /*================*/
 	const dict_table_t*	table,	/*!< in: table */
 	doc_id_t*		doc_id);/*!< out: new document id */
-/*********************************************************************//**
-Update the next and last Doc ID in the CONFIG table to be the input
-"doc_id" value (+ 1). We would do so after each FTS index build or
-table truncate */
-void
-fts_update_next_doc_id(
-/*===================*/
-	trx_t*			trx,		/*!< in/out: transaction */
-	const dict_table_t*	table,		/*!< in: table */
-	doc_id_t		doc_id)		/*!< in: DOC ID to set */
-	MY_ATTRIBUTE((nonnull(2)));
 
 /******************************************************************//**
 Create a new fts_doc_ids_t.
@@ -963,5 +952,17 @@ and fetch the parent table id and index id
 bool fts_check_aux_table(const char *name,
                          table_id_t *table_id,
                          index_id_t *index_id);
+
+/** Update the last document id. This function could create a new
+transaction to update the last document id.
+@param	table	table to be updated
+@param	doc_id	last document id
+@param	trx	update trx or null
+@retval DB_SUCCESS if OK */
+dberr_t
+fts_update_sync_doc_id(const dict_table_t *table,
+		       doc_id_t  doc_id,
+		       trx_t *trx)
+MY_ATTRIBUTE((nonnull(1)));
 
 #endif /*!< fts0fts.h */
