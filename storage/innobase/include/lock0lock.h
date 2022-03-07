@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2022, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1175,10 +1175,6 @@ without checking for deadlocks or conflicts.
 @param[in]	index		the index tree
 @param[in,out]	trx		transaction
 @param[in]	holds_trx_mutex	whether the caller holds trx->mutex
-@param[in]	insert_before_waiting if true, inserts new B-tree record lock
-just after the last non-waiting lock of the current transaction which is
-located before the first waiting for the current transaction lock, otherwise
-the lock is inserted at the end of the queue
 @return created lock */
 lock_t*
 lock_rec_create_low(
@@ -1189,8 +1185,7 @@ lock_rec_create_low(
 	ulint		heap_no,
 	dict_index_t*	index,
 	trx_t*		trx,
-	bool		holds_trx_mutex,
-	bool		insert_before_waiting = false);
+	bool		holds_trx_mutex);
 
 /** Enqueue a waiting request for a lock which cannot be granted immediately.
 Check for deadlocks.

@@ -2802,44 +2802,6 @@ overflow:
 	return(~(ulonglong) 0);
 }
 
-/*******************************************************************//**
-Reset the auto-increment counter to the given value, i.e. the next row
-inserted will get the given value. This is called e.g. after TRUNCATE
-is emulated by doing a 'DELETE FROM t'. HA_ERR_WRONG_COMMAND is
-returned by storage engines that don't support this operation.
-@return	0 or error code */
-int ha_innobase::reset_auto_increment(ulonglong value)
-{
-	DBUG_ENTER("ha_innobase::reset_auto_increment");
-
-	dberr_t	error;
-
-	update_thd(ha_thd());
-
-	error = row_lock_table_autoinc_for_mysql(m_prebuilt);
-
-	if (error != DB_SUCCESS) {
-err_exit:
-		DBUG_RETURN(convert_error_code_to_mysql(
-				    error, m_prebuilt->table->flags, m_user_thd));
-	}
-
-	/* The next value can never be 0. */
-	if (value == 0) {
-		value = 1;
-	}
-
-	error = innobase_lock_autoinc();
-	if (error != DB_SUCCESS) {
-		goto err_exit;
-	}
-
-	dict_table_autoinc_initialize(m_prebuilt->table, value);
-	m_prebuilt->table->autoinc_mutex.wr_unlock();
-
-	DBUG_RETURN(0);
-}
-
 /*********************************************************************//**
 Initializes some fields in an InnoDB transaction object. */
 static
@@ -8791,16 +8753,6 @@ ha_innobase::delete_row(
 #endif /* WITH_WSREP */
 	DBUG_RETURN(convert_error_code_to_mysql(
 			    error, m_prebuilt->table->flags, m_user_thd));
-}
-
-/** Delete all rows from the table.
-@return error number or 0 */
-
-int
-ha_innobase::delete_all_rows()
-{
-	DBUG_ENTER("ha_innobase::delete_all_rows");
-	DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 
 /**********************************************************************//**

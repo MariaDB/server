@@ -513,10 +513,11 @@ then
   args="$args --user=$user"
 fi
 
-if test -n "$group"
-then
-  args="$args --group=$group"
-fi
+#To be enabled if/when we enable --group as an option to mysqld
+#if test -n "$group"
+#then
+#  args="$args --group=$group"
+#fi
 
 if test -f "$ldata/mysql/user.frm"
 then
