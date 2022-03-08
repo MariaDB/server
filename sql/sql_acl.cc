@@ -9453,7 +9453,14 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
                                           t_ref->get_table_name(),
                                           TRUE);
 
-    if (!grant_table && !grant_table_role)
+    const bool no_grant_table_rights=
+      !grant_table ||
+      !((grant_table->privs | grant_table->cols) & ~deny_mask);
+    const bool no_grant_table_role_rights=
+      !grant_table_role ||
+      !((grant_table_role->privs | grant_table_role->cols) & ~deny_mask);
+
+    if (no_grant_table_rights && no_grant_table_role_rights)
     {
       want_access&= ~(t_ref->grant.privilege & ~deny_mask);
       goto err;					// No grants
