@@ -1,0 +1,34 @@
+--source include/have_innodb.inc
+--source include/count_sessions.inc
+
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t VALUES (3);
+
+BEGIN;
+
+connection default;
+UPDATE t SET a = 2;
+
+connect con1,localhost,root;
+send DELETE FROM t;
+
+connection default;
+let $wait_condition=
+    select count(*) = 1 from information_schema.processlist
+    where state = "Updating" and info = "DELETE FROM t";
+--source include/wait_condition.inc
+
+UPDATE t SET a = 1;
+COMMIT;
+
+connection con1;
+error ER_LOCK_DEADLOCK;
+reap;
+disconnect con1;
+
+connection default;
+--echo # The above DELETE must delete all the rows in the table, so the
+--echo # following SELECT must show 0 rows.
+SELECT count(*) FROM t;
+DROP TABLE t;
+--source include/wait_until_count_sessions.inc
