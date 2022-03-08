@@ -1004,19 +1004,18 @@ func_exit:
 /*********************************************************************//**
 Checks if some other transaction has a conflicting explicit lock request
 in the queue, so that we have to wait.
-@return lock or NULL */
-static
-lock_t*
-lock_rec_other_has_conflicting(
-/*===========================*/
-	unsigned		mode,	/*!< in: LOCK_S or LOCK_X,
-					possibly ORed to LOCK_GAP or
-					LOC_REC_NOT_GAP,
-					LOCK_INSERT_INTENTION */
-	const hash_cell_t&	cell,	/*!< in: lock hash table cell */
-	const page_id_t		id,	/*!< in: page identifier */
-	ulint			heap_no,/*!< in: heap number of the record */
-	const trx_t*		trx)	/*!< in: our transaction */
+@param[in] mode LOCK_S or LOCK_X, possibly ORed to LOCK_GAP or LOC_REC_NOT_GAP,
+LOCK_INSERT_INTENTION
+@param[in] cell lock hash table cell
+@param[in] id page identifier
+@param[in] heap_no heap number of the record
+@param[in] trx our transaction
+@return conflicting lock and the flag which indicated if conflicting locks
+which wait for the current transaction were ignored */
+static lock_t *lock_rec_other_has_conflicting(unsigned mode,
+                                              const hash_cell_t &cell,
+                                              const page_id_t id,
+                                              ulint heap_no, const trx_t *trx)
 {
 	bool	is_supremum = (heap_no == PAGE_HEAP_NO_SUPREMUM);
 
@@ -1232,7 +1231,7 @@ lock_rec_create_low(
 	ut_ad(index->table->get_ref_count() || !index->table->can_be_evicted);
 
 	const auto lock_hash = &lock_sys.hash_get(type_mode);
-	HASH_INSERT(lock_t, hash, lock_hash, page_id.fold(), lock);
+	lock_hash->cell_get(page_id.fold())->append(*lock, &lock_t::hash);
 
 	if (type_mode & LOCK_WAIT) {
 		if (trx->lock.wait_trx) {
@@ -1258,7 +1257,6 @@ lock_rec_create_low(
 
 /** Enqueue a waiting request for a lock which cannot be granted immediately.
 Check for deadlocks.
-@param[in]	c_lock		conflicting lock
 @param[in]	type_mode	the requested lock mode (LOCK_S or LOCK_X)
 				possibly ORed with LOCK_GAP or
 				LOCK_REC_NOT_GAP, ORed with
@@ -1357,24 +1355,19 @@ on the record, and the request to be added is not a waiting request, we
 can reuse a suitable record lock object already existing on the same page,
 just setting the appropriate bit in its bitmap. This is a low-level function
 which does NOT check for deadlocks or lock compatibility!
-@return lock where the bit was set */
+@param[in] type_mode lock mode, wait, gap etc. flags
+@param[in,out] cell first hash table cell
+@param[in] id page identifier
+@param[in] page buffer block containing the record
+@param[in] heap_no heap number of the record
+@param[in] index index of record
+@param[in,out] trx transaction
+@param[in] caller_owns_trx_mutex TRUE if caller owns the transaction mutex */
 TRANSACTIONAL_TARGET
-static
-void
-lock_rec_add_to_queue(
-/*==================*/
-	unsigned		type_mode,/*!< in: lock mode, wait, gap
-					etc. flags */
-	hash_cell_t&		cell,	/*!< in,out: first hash table cell */
-	const page_id_t		id,	/*!< in: page identifier */
-	const page_t*		page,	/*!< in: buffer block containing
-					the record */
-	ulint			heap_no,/*!< in: heap number of the record */
-	dict_index_t*		index,	/*!< in: index of record */
-	trx_t*			trx,	/*!< in/out: transaction */
-	bool			caller_owns_trx_mutex)
-					/*!< in: TRUE if caller owns the
-					transaction mutex */
+static void lock_rec_add_to_queue(unsigned type_mode, hash_cell_t &cell,
+                                  const page_id_t id, const page_t *page,
+                                  ulint heap_no, dict_index_t *index,
+                                  trx_t *trx, bool caller_owns_trx_mutex)
 {
 	ut_d(lock_sys.hash_get(type_mode).assert_locked(id));
 	ut_ad(xtest() || caller_owns_trx_mutex == trx->mutex_is_owner());
