@@ -246,8 +246,91 @@ show grants for foo;
 
 --connect (con1,localhost,foo,,information_schema)
 show databases;
+disconnect con1;
 
 connection default;
 
 drop user foo;
+drop database some_db;
+
+--echo ##############################################
+--echo # Test SELECT command interacting with deny. #
+--echo ##############################################
+create user foo;
+create user bar;
+create database some_db;
+
+create table some_db.t1 (a int, secret int);
+insert into some_db.t1 values (1, 100);
+
+use some_db;
+create view v1 as (select a from t1);
+create view v2 as (select secret from t1);
+
+--connect (con1,localhost,foo,,)
+select table_name, table_type from information_schema.tables where table_schema like 'some_db';
+disconnect con1;
+
+connection default;
+
+grant select on *.* to foo;
+grant select on some_db.* to foo;
+grant select on some_db.t1 to foo;
+grant select(a) on some_db.t1 to foo;
+
+--echo #
+--echo # See what foo sees before denies.
+--echo #
+--connect (con1,localhost,foo,,)
+select table_name, table_type from information_schema.tables where table_schema like 'some_db';
+disconnect con1;
+connection default;
+
+show grants for foo;
+deny select on *.* to foo;
+show grants for foo;
+
+--connect (con1,localhost,foo,,)
+
+show grants;
+--error ER_DBACCESS_DENIED_ERROR
+use some_db;
+
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from some_db.t1;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from some_db.v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+select * from some_db.v2;
+
+select table_name, table_type from information_schema.tables where table_schema like "some_db";
+select table_name, column_name from information_schema.columns where table_schema like "some_db";
+
+disconnect con1;
+connection default;
+grant insert(a) on some_db.t1 to bar;
+grant insert(a) on some_db.t1 to foo;
+
+--connect (con1,localhost,foo,,)
+select table_name, column_name from information_schema.columns where table_schema like "some_db";
+disconnect con1;
+--connect (con2,localhost,bar,,)
+select table_name, column_name from information_schema.columns where table_schema like "some_db";
+disconnect con2;
+
+connection default;
+deny insert on *.* to foo;
+deny insert on *.* to bar;
+
+--connect (con1,localhost,foo,,)
+select table_name, column_name from information_schema.columns where table_schema like "some_db";
+disconnect con1;
+
+--connect (con2,localhost,bar,,)
+select table_name, column_name from information_schema.columns where table_schema like "some_db";
+disconnect con2;
+
+connection default;
+drop user foo;
+drop user bar;
 drop database some_db;
