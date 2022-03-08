@@ -388,3 +388,27 @@ ERROR 22003: Out of range value for column 'f' at row ROW
 delete ignore from t
 for portion of app from '2015-07-07 00:00:00' to '2020-03-11 08:48:52';
 drop table t;
+#
+# MDEV-19190 Assertion `part_share->auto_inc_initialized` failed in
+# ha_partition::get_auto_increment
+#
+create table t1 (id int, s date, e date, period for app(s,e))
+partition by key(id);
+insert into t1 (s,e) values ('2023-07-21','2024-06-07');
+alter table t1 modify id int auto_increment key;
+delete from t1 for portion of app from '2023-07-20' to '2024-05-23';
+select * from t1;
+id	s	e
+2	2024-05-23	2024-06-07
+drop table t1;
+create table t1 (id int, s date, e date, period for app(s,e))
+partition by key(id);
+insert into t1 (s,e) values ('2023-07-21','2024-06-07');
+alter table t1 modify id int auto_increment key;
+delete from t1 for portion of app from '2023-07-20' to '2024-05-23';
+select * from t1;
+id	s	e
+2	2024-05-23	2024-06-07
+drop table t1;
+drop table log_tbl;
+drop procedure log;
