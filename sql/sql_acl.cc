@@ -9382,6 +9382,8 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
     const bool no_grant_table_role_rights=
       !grant_table_role ||
       !((grant_table_role->privs | grant_table_role->cols) & ~deny_mask);
+    //TODO(cvicentiu) column level deny_mask needs to be computed separately
+    //per-column. This will have to be done as an extra step.
 
     if (no_grant_table_rights && no_grant_table_role_rights)
     {
@@ -10034,12 +10036,20 @@ privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
   GRANT_TABLE *grant_table_role;
   GRANT_COLUMN *grant_column;
   privilege_t priv(NO_ACL);
+  privilege_t deny_mask(NO_ACL);
 
   mysql_rwlock_rdlock(&LOCK_grant);
+
+  /* TODO(cvicentiu) save this alongside grant->version to speed lookup. */
+  DBUG_ASSERT(db_name);
+  deny_mask= acl_get_effective_deny_mask(thd->security_ctx,
+                                         {db_name, strlen(db_name)});
+
   /* reload table if someone has modified any grants */
   if (grant->version != grant_version)
   {
     Security_context *sctx= thd->security_ctx;
+
     grant->grant_table_user=
       table_hash_search(sctx->host, sctx->ip,
                         db_name, sctx->priv_user,
@@ -10080,7 +10090,9 @@ privilege_t get_column_grant(THD *thd, GRANT_INFO *grant,
     }
   }
   mysql_rwlock_unlock(&LOCK_grant);
-  return priv;
+  /* TODO(cvicentiu) This mask only covers global & database denies. Table and
+     column level denies need dedicated handling. */
+  return priv & ~deny_mask;
 }
 
 
