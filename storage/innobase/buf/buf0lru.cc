@@ -288,7 +288,7 @@ buf_block_t* buf_LRU_get_free_only()
 		ut_a(!block->page.in_file());
 		UT_LIST_REMOVE(buf_pool.free, &block->page);
 
-		if (buf_pool.curr_size >= buf_pool.old_size
+		if (!buf_pool.is_shrinking()
 		    || UT_LIST_GET_LEN(buf_pool.withdraw)
 			>= buf_pool.withdraw_target
 		    || !buf_pool.will_be_withdrawn(block->page)) {
@@ -321,7 +321,7 @@ static void buf_LRU_check_size_of_non_data_objects()
 {
   mysql_mutex_assert_owner(&buf_pool.mutex);
 
-  if (recv_recovery_is_on() || buf_pool.curr_size != buf_pool.old_size)
+  if (recv_recovery_is_on() || buf_pool.n_chunks_new != buf_pool.n_chunks)
     return;
 
   const auto s= UT_LIST_GET_LEN(buf_pool.free) + UT_LIST_GET_LEN(buf_pool.LRU);
@@ -1012,7 +1012,7 @@ buf_LRU_block_free_non_file_page(
 		page_zip_set_size(&block->page.zip, 0);
 	}
 
-	if (buf_pool.curr_size < buf_pool.old_size
+	if (buf_pool.is_shrinking()
 	    && UT_LIST_GET_LEN(buf_pool.withdraw) < buf_pool.withdraw_target
 	    && buf_pool.will_be_withdrawn(block->page)) {
 		/* This should be withdrawn */

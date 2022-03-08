@@ -1217,7 +1217,7 @@ static void buf_flush_LRU_list_batch(ulint max, flush_counters_t *n)
   ulint free_limit= srv_LRU_scan_depth;
 
   mysql_mutex_assert_owner(&buf_pool.mutex);
-  if (buf_pool.withdraw_target && buf_pool.curr_size < buf_pool.old_size)
+  if (buf_pool.withdraw_target && buf_pool.is_shrinking())
     free_limit+= buf_pool.withdraw_target - UT_LIST_GET_LEN(buf_pool.withdraw);
 
   const auto neighbors= UT_LIST_GET_LEN(buf_pool.LRU) < BUF_LRU_OLD_MIN_LEN

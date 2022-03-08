@@ -7357,16 +7357,15 @@ static bool mysql_inplace_alter_table(THD *thd,
     lock for prepare phase under LOCK TABLES in the same way as when
     exclusive lock is required for duration of the whole statement.
   */
-  if (!ha_alter_info->mdl_exclusive_after_prepare &&
-      (inplace_supported == HA_ALTER_INPLACE_EXCLUSIVE_LOCK ||
-       ((inplace_supported == HA_ALTER_INPLACE_COPY_NO_LOCK ||
+  if (inplace_supported == HA_ALTER_INPLACE_EXCLUSIVE_LOCK ||
+      ((inplace_supported == HA_ALTER_INPLACE_COPY_NO_LOCK ||
         inplace_supported == HA_ALTER_INPLACE_COPY_LOCK ||
         inplace_supported == HA_ALTER_INPLACE_NOCOPY_NO_LOCK ||
         inplace_supported == HA_ALTER_INPLACE_NOCOPY_LOCK ||
         inplace_supported == HA_ALTER_INPLACE_INSTANT) &&
        (thd->locked_tables_mode == LTM_LOCK_TABLES ||
         thd->locked_tables_mode == LTM_PRELOCKED_UNDER_LOCK_TABLES)) ||
-      alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE))
+      alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE)
   {
     if (wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
       goto cleanup;
@@ -7478,7 +7477,8 @@ static bool mysql_inplace_alter_table(THD *thd,
     necessary only for prepare phase (unless we are not under LOCK TABLES) and
     user has not explicitly requested exclusive lock.
   */
-  if ((inplace_supported == HA_ALTER_INPLACE_COPY_NO_LOCK ||
+  if (!ha_alter_info->mdl_exclusive_after_prepare &&
+      (inplace_supported == HA_ALTER_INPLACE_COPY_NO_LOCK ||
        inplace_supported == HA_ALTER_INPLACE_COPY_LOCK ||
        inplace_supported == HA_ALTER_INPLACE_NOCOPY_LOCK ||
        inplace_supported == HA_ALTER_INPLACE_NOCOPY_NO_LOCK) &&

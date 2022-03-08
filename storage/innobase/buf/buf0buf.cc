@@ -1194,7 +1194,6 @@ bool buf_pool_t::create()
   for (size_t i= 0; i < UT_ARR_SIZE(zip_free); ++i)
     UT_LIST_INIT(zip_free[i], &buf_buddy_free_t::list);
   ulint s= curr_size;
-  old_size= s;
   s/= BUF_READ_AHEAD_PORTION;
   read_ahead_area= s >= READ_AHEAD_PAGES
     ? READ_AHEAD_PAGES
@@ -1663,7 +1662,6 @@ inline void buf_pool_t::resize()
 #endif /* BTR_CUR_HASH_ADAPT */
 
 	mysql_mutex_lock(&mutex);
-	ut_ad(curr_size == old_size);
 	ut_ad(n_chunks_new == n_chunks);
 	ut_ad(UT_LIST_GET_LEN(withdraw) == 0);
 
@@ -1672,7 +1670,7 @@ inline void buf_pool_t::resize()
 	curr_size = n_chunks_new * chunks->size;
 	mysql_mutex_unlock(&mutex);
 
-	if (curr_size < old_size) {
+	if (is_shrinking()) {
 		/* set withdraw target */
 		size_t w = 0;
 
@@ -1693,7 +1691,7 @@ inline void buf_pool_t::resize()
 
 withdraw_retry:
 	/* wait for the number of blocks fit to the new size (if needed)*/
-	bool	should_retry_withdraw = curr_size < old_size
+	bool	should_retry_withdraw = is_shrinking()
 		&& withdraw_blocks();
 
 	if (srv_shutdown_state != SRV_SHUTDOWN_NONE) {
@@ -1776,7 +1774,7 @@ withdraw_retry:
 			  ULINTPF " to " ULINTPF ".",
 			  n_chunks, n_chunks_new);
 
-	if (n_chunks_new < n_chunks) {
+	if (is_shrinking()) {
 		/* delete chunks */
 		chunk_t* chunk = chunks + n_chunks_new;
 		const chunk_t* const echunk = chunks + n_chunks;
@@ -1840,8 +1838,7 @@ withdraw_retry:
 			goto calc_buf_pool_size;
 		}
 
-		ulint	n_chunks_copy = ut_min(n_chunks_new,
-					       n_chunks);
+		ulint	n_chunks_copy = ut_min(n_chunks_new, n_chunks);
 
 		memcpy(new_chunks, chunks,
 		       n_chunks_copy * sizeof *new_chunks);
@@ -1908,7 +1905,6 @@ calc_buf_pool_size:
 	/* set size */
 	ut_ad(UT_LIST_GET_LEN(withdraw) == 0);
   ulint s= curr_size;
-  old_size= s;
   s/= BUF_READ_AHEAD_PORTION;
   read_ahead_area= s >= READ_AHEAD_PAGES
     ? READ_AHEAD_PAGES
@@ -3870,7 +3866,7 @@ void buf_pool_t::validate()
 
 	mysql_mutex_unlock(&flush_list_mutex);
 
-	if (curr_size == old_size
+	if (n_chunks_new == n_chunks
 	    && n_lru + n_free > curr_size + n_zip) {
 
 		ib::fatal() << "n_LRU " << n_lru << ", n_free " << n_free
@@ -3880,7 +3876,7 @@ void buf_pool_t::validate()
 
 	ut_ad(UT_LIST_GET_LEN(LRU) >= n_lru);
 
-	if (curr_size == old_size
+	if (n_chunks_new == n_chunks
 	    && UT_LIST_GET_LEN(free) != n_free) {
 
 		ib::fatal() << "Free list len "
