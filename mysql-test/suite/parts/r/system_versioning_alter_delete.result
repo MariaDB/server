@@ -1,0 +1,8 @@
+#
+# MDEV-19190 Assertion `part_share->auto_inc_initialized' failed in ha_partition::get_auto_increment
+#
+CREATE OR REPLACE TABLE t1 (f BIGINT, s DATE, e DATE, PERIOD FOR app(s,e)) PARTITION BY KEY(f) PARTITIONS 8;
+REPLACE INTO t1 (s,e) VALUES ('2023-07-21','2024-06-07');
+ALTER TABLE t1 MODIFY f SERIAL;
+DELETE FROM t1 FOR PORTION OF app FROM '2023-07-20' TO '2024-05-23';
+DROP TABLE t1;
