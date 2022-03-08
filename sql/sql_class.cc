@@ -5313,8 +5313,9 @@ thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd)
 
 extern "C" int thd_rpl_stmt_based(const MYSQL_THD thd)
 {
-  return !thd->is_current_stmt_binlog_format_row() &&
-    !thd->is_current_stmt_binlog_disabled();
+  return mysql_bin_log.is_open() &&
+    !thd->is_current_stmt_binlog_format_row() &&
+    thd->variables.option_bits & OPTION_BIN_LOG;
 }
 
 /*
