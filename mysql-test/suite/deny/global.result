@@ -226,6 +226,96 @@ connect  con1,localhost,foo,,information_schema;
 show databases;
 Database
 information_schema
+disconnect con1;
 connection default;
 drop user foo;
+drop database some_db;
+##############################################
+# Test SELECT command interacting with deny. #
+##############################################
+create user foo;
+create user bar;
+create database some_db;
+create table some_db.t1 (a int, secret int);
+insert into some_db.t1 values (1, 100);
+use some_db;
+create view v1 as (select a from t1);
+create view v2 as (select secret from t1);
+connect  con1,localhost,foo,,;
+select table_name, table_type from information_schema.tables where table_schema like 'some_db';
+table_name	table_type
+disconnect con1;
+connection default;
+grant select on *.* to foo;
+grant select on some_db.* to foo;
+grant select on some_db.t1 to foo;
+grant select(a) on some_db.t1 to foo;
+#
+# See what foo sees before denies.
+#
+connect  con1,localhost,foo,,;
+select table_name, table_type from information_schema.tables where table_schema like 'some_db';
+table_name	table_type
+v2	VIEW
+v1	VIEW
+t1	BASE TABLE
+disconnect con1;
+connection default;
+show grants for foo;
+Grants for foo@%
+GRANT SELECT ON *.* TO `foo`@`%`
+GRANT SELECT ON `some_db`.* TO `foo`@`%`
+GRANT SELECT, SELECT (a) ON `some_db`.`t1` TO `foo`@`%`
+deny select on *.* to foo;
+show grants for foo;
+Grants for foo@%
+GRANT SELECT ON *.* TO `foo`@`%`
+GRANT SELECT ON `some_db`.* TO `foo`@`%`
+GRANT SELECT, SELECT (a) ON `some_db`.`t1` TO `foo`@`%`
+connect  con1,localhost,foo,,;
+show grants;
+Grants for foo@%
+GRANT SELECT ON *.* TO `foo`@`%`
+GRANT SELECT ON `some_db`.* TO `foo`@`%`
+GRANT SELECT, SELECT (a) ON `some_db`.`t1` TO `foo`@`%`
+use some_db;
+ERROR 42000: Access denied for user 'foo'@'%' to database 'some_db'
+select * from some_db.t1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 't1'
+select * from some_db.v1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'v1'
+select * from some_db.v2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'v2'
+select table_name, table_type from information_schema.tables where table_schema like "some_db";
+table_name	table_type
+select table_name, column_name from information_schema.columns where table_schema like "some_db";
+table_name	column_name
+disconnect con1;
+connection default;
+grant insert(a) on some_db.t1 to bar;
+grant insert(a) on some_db.t1 to foo;
+connect  con1,localhost,foo,,;
+select table_name, column_name from information_schema.columns where table_schema like "some_db";
+table_name	column_name
+t1	a
+disconnect con1;
+connect  con2,localhost,bar,,;
+select table_name, column_name from information_schema.columns where table_schema like "some_db";
+table_name	column_name
+t1	a
+disconnect con2;
+connection default;
+deny insert on *.* to foo;
+deny insert on *.* to bar;
+connect  con1,localhost,foo,,;
+select table_name, column_name from information_schema.columns where table_schema like "some_db";
+table_name	column_name
+disconnect con1;
+connect  con2,localhost,bar,,;
+select table_name, column_name from information_schema.columns where table_schema like "some_db";
+table_name	column_name
+disconnect con2;
+connection default;
+drop user foo;
+drop user bar;
 drop database some_db;
