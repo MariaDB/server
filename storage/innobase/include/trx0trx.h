@@ -182,6 +182,7 @@ note that the trx may have been committed before the caller acquires
 trx_t::mutex
 @retval	NULL if no match */
 trx_t* trx_get_trx_by_xid(const XID* xid);
+#ifdef HAVE_REPLICATION
 /**********************************************************************//**
 If required, flushes the log to disk if we called trx_commit_for_mysql()
 with trx->flush_log_later == TRUE. */
@@ -189,6 +190,7 @@ void
 trx_commit_complete_for_mysql(
 /*==========================*/
 	trx_t*	trx);	/*!< in/out: transaction */
+#endif
 /**********************************************************************//**
 Marks the latest SQL statement ended. */
 void
@@ -792,6 +794,7 @@ public:
 					for secondary indexes when we decide
 					if we can use the insert buffer for
 					them, we set this FALSE */
+#ifdef HAVE_REPLICATION
 	bool		flush_log_later;/* In 2PC, we hold the
 					prepare_commit mutex across
 					both phases. In that case, we
@@ -804,6 +807,7 @@ public:
 					in that case we will
 					flush the log in
 					trx_commit_complete_for_mysql() */
+#endif
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
 	bool		dict_operation;	/**< whether this modifies InnoDB
 					data dictionary */
@@ -820,7 +824,7 @@ public:
 	/*------------------------------*/
 	THD*		mysql_thd;	/*!< MySQL thread handle corresponding
 					to this trx, or NULL */
-
+#ifdef HAVE_REPLICATION
 	const char*	mysql_log_file_name;
 					/*!< if MySQL binlog is used, this field
 					contains a pointer to the latest file
@@ -830,6 +834,7 @@ public:
 					/*!< if MySQL binlog is used, this
 					field contains the end offset of the
 					binlog entry */
+#endif
 	/*------------------------------*/
 	ib_uint32_t	n_mysql_tables_in_use; /*!< number of Innobase tables
 					used in the processing of the current

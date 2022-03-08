@@ -4352,6 +4352,7 @@ innobase_commit_ordered_2(
 {
 	DBUG_ENTER("innobase_commit_ordered_2");
 
+#ifdef HAVE_REPLICATION
 	const bool read_only = trx->read_only || trx->id == 0;
 
 	if (!read_only) {
@@ -4374,6 +4375,7 @@ innobase_commit_ordered_2(
 		to work we want to do the flush later. */
 		trx->flush_log_later = true;
 	}
+#endif
 
 #ifdef WITH_WSREP
 	/* If the transaction is not run in 2pc, we must assign wsrep
@@ -4385,10 +4387,12 @@ innobase_commit_ordered_2(
 
 	innobase_commit_low(trx);
 
+#ifdef HAVE_REPLICATION
 	if (!read_only) {
 		trx->mysql_log_file_name = NULL;
 		trx->flush_log_later = false;
 	}
+#endif
 
 	DBUG_VOID_RETURN;
 }
@@ -4492,10 +4496,10 @@ innobase_commit(
 		visible to others. So we can wakeup other commits waiting for
 		this one, to allow then to group commit with us. */
 		thd_wakeup_subsequent_commits(thd, 0);
-
+#ifdef HAVE_REPLICATION
 		/* Now do a write + flush of logs. */
 		trx_commit_complete_for_mysql(trx);
-
+#endif
 		trx_deregister_from_2pc(trx);
 	} else {
 		/* We just mark the SQL statement ended and do not do a
@@ -7617,6 +7621,7 @@ ha_innobase::innobase_lock_autoinc()
 
   ut_ad(!srv_read_only_mode);
 
+#ifdef HAVE_REPLICATION
   switch (innobase_autoinc_lock_mode) {
   default:
     if (UNIV_UNLIKELY(thd_rpl_stmt_based(m_user_thd)))
@@ -7649,6 +7654,7 @@ ha_innobase::innobase_lock_autoinc()
     if (dberr_t error= row_lock_table_autoinc(m_prebuilt, false))
       DBUG_RETURN(error);
   }
+#endif
 
   /* Acquire the AUTOINC mutex. */
   m_prebuilt->table->autoinc_mutex.wr_lock();

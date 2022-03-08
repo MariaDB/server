@@ -304,12 +304,14 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 	}
 #endif
 
+#ifdef HAVE_REPLICATION
 	if (trx->mysql_log_file_name && *trx->mysql_log_file_name) {
 		/* Update the latest MySQL binlog name and offset info
 		in rollback segment header if MySQL binlogging is on
 		or the database server is a MySQL replication save. */
 		trx_rseg_update_binlog_offset(rseg_header, trx, mtr);
 	}
+#endif
 
 	/* Add the log as the first in the history list */
 	flst_add_first(rseg_header, TRX_RSEG + TRX_RSEG_HISTORY, undo_page,

@@ -372,7 +372,9 @@ void trx_t::free()
   MEM_CHECK_DEFINED(this, sizeof *this);
 
   ut_ad(!n_mysql_tables_in_use);
+#ifdef HAVE_REPLICATION
   ut_ad(!mysql_log_file_name);
+#endif
   ut_ad(!mysql_n_tables_locked);
   ut_ad(!will_lock);
   ut_ad(error_state == DB_SUCCESS);
@@ -535,7 +537,9 @@ void trx_disconnect_prepared(trx_t *trx)
 {
   ut_ad(trx_state_eq(trx, TRX_STATE_PREPARED));
   ut_ad(trx->mysql_thd);
+#ifdef HAVE_REPLICATION
   ut_ad(!trx->mysql_log_file_name);
+#endif
   trx->read_view.close();
   trx->is_recovered= true;
   trx->mysql_thd= NULL;
@@ -1219,7 +1223,9 @@ void trx_t::evict_table(table_id_t table_id, bool reset_only)
 /** Mark a transaction committed in the main memory data structures. */
 TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
 {
+#ifdef HAVE_REPLICATION
   must_flush_log_later= false;
+#endif
   read_view.close();
 
   if (is_autocommit_non_locking())
@@ -1338,9 +1344,11 @@ TRANSACTIONAL_INLINE inline void trx_t::commit_in_memory(const mtr_t *mtr)
     commit_lsn= undo_no || !xid.is_null() ? mtr->commit_lsn() : 0;
     if (!commit_lsn)
       /* Nothing to be done. */;
+#ifdef HAVE_REPLICATION
     else if (flush_log_later)
       /* Do nothing yet */
       must_flush_log_later= true;
+#endif
     else if (srv_flush_log_at_trx_commit)
       trx_flush_log_if_needed(commit_lsn, this);
   }
@@ -1582,6 +1590,7 @@ trx_commit_for_mysql(
 	return(DB_CORRUPTION);
 }
 
+#ifdef HAVE_REPLICATION
 /**********************************************************************//**
 If required, flushes the log to disk if we called trx_commit_for_mysql()
 with trx->flush_log_later == TRUE. */
@@ -1601,6 +1610,7 @@ trx_commit_complete_for_mysql(
 
 	trx->must_flush_log_later = false;
 }
+#endif
 
 /**********************************************************************//**
 Marks the latest SQL statement ended. */
