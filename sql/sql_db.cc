@@ -1127,7 +1127,7 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
     debug_crash_here("ddl_log_drop_after_drop_tables");
 
     LEX_CSTRING cpath{ path, path_length};
-    ddl_log_drop_db(thd, &ddl_log_state, &rm_db, &cpath);
+    ddl_log_drop_db(&ddl_log_state, &rm_db, &cpath);
 
     drop_database_objects(thd, &cpath, &rm_db, rm_mysql_schema);
 

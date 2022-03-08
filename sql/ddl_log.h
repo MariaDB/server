@@ -281,61 +281,59 @@ bool ddl_log_execute_entry(THD *thd, uint first_entry);
 
 void ddl_log_add_entry(DDL_LOG_STATE *state, DDL_LOG_MEMORY_ENTRY *log_entry);
 void ddl_log_release_entries(DDL_LOG_STATE *ddl_log_state);
-bool ddl_log_rename_table(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_rename_table(DDL_LOG_STATE *ddl_state,
                           handlerton *hton,
                           const LEX_CSTRING *org_db,
                           const LEX_CSTRING *org_alias,
                           const LEX_CSTRING *new_db,
                           const LEX_CSTRING *new_alias);
-bool ddl_log_rename_view(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_rename_view(DDL_LOG_STATE *ddl_state,
                          const LEX_CSTRING *org_db,
                          const LEX_CSTRING *org_alias,
                          const LEX_CSTRING *new_db,
                          const LEX_CSTRING *new_alias);
-bool ddl_log_drop_table_init(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_drop_table_init(DDL_LOG_STATE *ddl_state,
                              const LEX_CSTRING *db,
                              const LEX_CSTRING *comment);
-bool ddl_log_drop_view_init(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_drop_view_init(DDL_LOG_STATE *ddl_state,
                             const LEX_CSTRING *db);
-bool ddl_log_drop_table(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_drop_table(DDL_LOG_STATE *ddl_state,
                         handlerton *hton,
                         const LEX_CSTRING *path,
                         const LEX_CSTRING *db,
                         const LEX_CSTRING *table);
-bool ddl_log_drop_view(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_drop_view(DDL_LOG_STATE *ddl_state,
                         const LEX_CSTRING *path,
                         const LEX_CSTRING *db,
                         const LEX_CSTRING *table);
-bool ddl_log_drop_trigger(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_drop_trigger(DDL_LOG_STATE *ddl_state,
                           const LEX_CSTRING *db,
                           const LEX_CSTRING *table,
                           const LEX_CSTRING *trigger_name,
                           const LEX_CSTRING *query);
-bool ddl_log_drop_view(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_drop_view(DDL_LOG_STATE *ddl_state,
                         const LEX_CSTRING *path,
                         const LEX_CSTRING *db,
                         const LEX_CSTRING *table);
-bool ddl_log_drop_view(THD *thd, DDL_LOG_STATE *ddl_state,
-                       const LEX_CSTRING *db);
-bool ddl_log_drop_db(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_drop_db(DDL_LOG_STATE *ddl_state,
                      const LEX_CSTRING *db, const LEX_CSTRING *path);
-bool ddl_log_create_table(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_create_table(DDL_LOG_STATE *ddl_state,
                           handlerton *hton,
                           const LEX_CSTRING *path,
                           const LEX_CSTRING *db,
                           const LEX_CSTRING *table,
                           bool only_frm);
-bool ddl_log_create_view(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_create_view(DDL_LOG_STATE *ddl_state,
                          const LEX_CSTRING *path,
                          enum_ddl_log_create_view_phase phase);
-bool ddl_log_delete_tmp_file(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_delete_tmp_file(DDL_LOG_STATE *ddl_state,
                              const LEX_CSTRING *path,
                              DDL_LOG_STATE *depending_state);
-bool ddl_log_create_trigger(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_create_trigger(DDL_LOG_STATE *ddl_state,
                             const LEX_CSTRING *db, const LEX_CSTRING *table,
                             const LEX_CSTRING *trigger_name,
                             enum_ddl_log_create_trigger_phase phase);
-bool ddl_log_alter_table(THD *thd, DDL_LOG_STATE *ddl_state,
+bool ddl_log_alter_table(DDL_LOG_STATE *ddl_state,
                          handlerton *org_hton,
                          const LEX_CSTRING *db, const LEX_CSTRING *table,
                          handlerton *new_hton,
