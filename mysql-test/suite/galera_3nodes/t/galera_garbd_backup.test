@@ -65,6 +65,7 @@ SET SESSION debug_sync = "now WAIT_FOR sync.wsrep_donor_state_reached";
 #
 --exec find $datadir -type f -exec md5sum {} \; | md5sum >$MYSQLTEST_VARDIR/tmp/innodb_before
 
+# this should force buffer pool flushing, if not already done by donor state change transfer
 SET GLOBAL innodb_max_dirty_pages_pct_lwm=0;
 SET GLOBAL innodb_max_dirty_pages_pct=0;
 
@@ -75,6 +76,15 @@ select * from ten;
 --enable_result_log
 --enable_query_log
 
+# buffer pool flushing may create tables_flushed file, ignore this 
+--error 0,1
+--remove_file $MYSQLTEST_VARDIR/mysqld.1/tables_flushed
+
+# wsrep_sst_backup will create backup_sst_complete file, ignore this in diff as well
+--error 0,1
+--remove_file $MYSQLTEST_VARDIR/mysqld.1/backup_sst_complete
+
+#
 #
 # record the hash of data directory contents after BP dirty page flushing
 #

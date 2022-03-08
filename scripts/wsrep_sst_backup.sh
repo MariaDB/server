@@ -30,7 +30,7 @@ OS="$(uname)"
 . $(dirname "$0")/wsrep_sst_common
 wsrep_check_datadir
 
-MAGIC_FILE="$WSREP_SST_OPT_DATA/rsync_sst_complete"
+MAGIC_FILE="$WSREP_SST_OPT_DATA/backup_sst_complete"
 
 WSREP_LOG_DIR="$INNODB_LOG_GROUP_HOME"
 
