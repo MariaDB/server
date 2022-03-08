@@ -53,4 +53,12 @@ connection default;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-27993 Assertion failed in btr_page_reorganize_low()
+--echo #
+CREATE TABLE t1(a INT PRIMARY KEY, b INT UNIQUE) ENGINE=InnoDB;
+SET DEBUG_DBUG = '+d,do_page_reorganize';
+INSERT INTO t1 VALUES(0,0);
+DROP TABLE t1;
+
 --source include/wait_until_count_sessions.inc
