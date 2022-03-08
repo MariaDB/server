@@ -4,7 +4,6 @@
 [mysqld]
 loose-innodb
 binlog-format=row
-innodb-autoinc-lock-mode=2
 default-storage-engine=innodb
 wsrep-provider=@ENV.WSREP_PROVIDER
 wsrep_node_address=127.0.0.1

@@ -9,11 +9,11 @@
  NUMERIC_MAX_VALUE	512
 @@ -73,7 +73,7 @@
  SESSION_VALUE	NULL
- DEFAULT_VALUE	1
+ DEFAULT_VALUE	2
  VARIABLE_SCOPE	GLOBAL
 -VARIABLE_TYPE	BIGINT
 +VARIABLE_TYPE	INT
- VARIABLE_COMMENT	The AUTOINC lock modes supported by InnoDB: 0 => Old style AUTOINC locking (for backward compatibility); 1 => New style AUTOINC locking; 2 => No AUTOINC locking (unsafe for SBR)
+ VARIABLE_COMMENT	The AUTOINC lock modes supported by InnoDB: 0 => Pre-MySQL-5.1.22 style AUTOINC locking; 1 => MySQL-style AUTOINC locking; 2 => Exclusive lock only for BINLOG_FORMAT=STATEMENT (default)
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	2
 @@ -85,10 +85,10 @@

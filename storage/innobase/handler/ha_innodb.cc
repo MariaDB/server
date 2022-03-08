@@ -4476,9 +4476,6 @@ innobase_commit(
 				" but transaction is active");
 	}
 
-	bool	read_only = trx->read_only || trx->id == 0;
-	DBUG_PRINT("info", ("readonly: %d", read_only));
-
 	if (commit_trx
 	    || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))) {
 
@@ -4507,9 +4504,7 @@ innobase_commit(
 		/* If we had reserved the auto-inc lock for some
 		table in this SQL statement we release it now */
 
-		if (!read_only) {
-			lock_unlock_table_autoinc(trx);
-		}
+		lock_unlock_table_autoinc(trx);
 
 		/* Store the current undo_no of the transaction so that we
 		know where to roll back if we have to roll back the next
@@ -7616,82 +7611,63 @@ the special lock handling.
 @return DB_SUCCESS if all OK else error code */
 
 dberr_t
-ha_innobase::innobase_lock_autoinc(void)
-/*====================================*/
+ha_innobase::innobase_lock_autoinc()
 {
-	DBUG_ENTER("ha_innobase::innobase_lock_autoinc");
-	dberr_t		error = DB_SUCCESS;
+  DBUG_ENTER("ha_innobase::innobase_lock_autoinc");
 
-	ut_ad(!srv_read_only_mode);
+  ut_ad(!srv_read_only_mode);
 
-	switch (innobase_autoinc_lock_mode) {
-	case AUTOINC_NO_LOCKING:
-		/* Acquire only the AUTOINC mutex. */
-		m_prebuilt->table->autoinc_mutex.wr_lock();
-		break;
+  switch (innobase_autoinc_lock_mode) {
+  default:
+    if (UNIV_UNLIKELY(thd_rpl_stmt_based(m_user_thd)))
+      if (dberr_t error= row_lock_table_autoinc(m_prebuilt, true))
+        DBUG_RETURN(error);
+    break;
 
-	case AUTOINC_NEW_STYLE_LOCKING:
-		/* For simple (single/multi) row INSERTs/REPLACEs and RBR
-		events, we fallback to the old style only if another
-		transaction has already acquired the AUTOINC lock on
-		behalf of a LOAD FILE or INSERT ... SELECT etc. type of
-		statement. */
-		switch (thd_sql_command(m_user_thd)) {
-		case SQLCOM_INSERT:
-		case SQLCOM_REPLACE:
-		case SQLCOM_END: // RBR event
-			/* Acquire the AUTOINC mutex. */
-			m_prebuilt->table->autoinc_mutex.wr_lock();
-			/* We need to check that another transaction isn't
-			already holding the AUTOINC lock on the table. */
-			if (!m_prebuilt->table->n_waiting_or_granted_auto_inc_locks) {
-				/* Do not fall back to old style locking. */
-				DBUG_RETURN(error);
-			}
-			m_prebuilt->table->autoinc_mutex.wr_unlock();
-		}
-		/* Use old style locking. */
-		/* fall through */
-	case AUTOINC_OLD_STYLE_LOCKING:
-		DBUG_EXECUTE_IF("die_if_autoinc_old_lock_style_used",
-				ut_ad(0););
-		error = row_lock_table_autoinc_for_mysql(m_prebuilt);
+  case AUTOINC_NEW_STYLE_LOCKING:
+    /* For simple (single/multi) row INSERTs/REPLACEs and RBR
+    events, we fallback to the old style only if another
+    transaction has already acquired the AUTOINC lock on
+    behalf of a LOAD FILE or INSERT ... SELECT etc. type of
+    statement. */
+    switch (thd_sql_command(m_user_thd)) {
+    case SQLCOM_INSERT:
+    case SQLCOM_REPLACE:
+    case SQLCOM_END: // RBR event
+      /* Acquire the AUTOINC mutex. */
+      m_prebuilt->table->autoinc_mutex.wr_lock();
+      /* We need to check that another transaction isn't
+         already holding the AUTOINC lock on the table. */
+      if (!m_prebuilt->table->n_waiting_or_granted_auto_inc_locks)
+        /* Do not fall back to old style locking. */
+        DBUG_RETURN(DB_SUCCESS);
+      m_prebuilt->table->autoinc_mutex.wr_unlock();
+    }
+    /* fall through */
+  case AUTOINC_OLD_STYLE_LOCKING:
+    DBUG_EXECUTE_IF("die_if_autoinc_old_lock_style_used", DBUG_SUICIDE(););
+    if (dberr_t error= row_lock_table_autoinc(m_prebuilt, false))
+      DBUG_RETURN(error);
+  }
 
-		if (error == DB_SUCCESS) {
-
-			/* Acquire the AUTOINC mutex. */
-			m_prebuilt->table->autoinc_mutex.wr_lock();
-		}
-		break;
-
-	default:
-		ut_error;
-	}
-
-	DBUG_RETURN(error);
+  /* Acquire the AUTOINC mutex. */
+  m_prebuilt->table->autoinc_mutex.wr_lock();
+  DBUG_RETURN(DB_SUCCESS);
 }
 
 /********************************************************************//**
 Store the autoinc value in the table. The autoinc value is only set if
 it's greater than the existing autoinc value in the table.
+@param auto_inc  AUTO_INCREMENT value to be set
 @return DB_SUCCESS if all went well else error code */
 
-dberr_t
-ha_innobase::innobase_set_max_autoinc(
-/*==================================*/
-	ulonglong	auto_inc)	/*!< in: value to store */
+dberr_t ha_innobase::innobase_set_max_autoinc(ulonglong auto_inc)
 {
-	dberr_t		error;
-
-	error = innobase_lock_autoinc();
-
-	if (error == DB_SUCCESS) {
-
-		dict_table_autoinc_update_if_greater(m_prebuilt->table, auto_inc);
-		m_prebuilt->table->autoinc_mutex.wr_unlock();
-	}
-
-	return(error);
+  if (dberr_t error= innobase_lock_autoinc())
+    return error;
+  dict_table_autoinc_update_if_greater(m_prebuilt->table, auto_inc);
+  m_prebuilt->table->autoinc_mutex.wr_unlock();
+  return DB_SUCCESS;
 }
 
 /** @return whether the table is read-only */
@@ -9192,6 +9168,14 @@ ha_innobase::change_active_index(
 	build_template(false);
 
 	DBUG_RETURN(0);
+}
+
+/* @return true if it's necessary to switch current statement log format from
+STATEMENT to ROW if binary log format is MIXED and autoincrement values
+are changed in the statement */
+bool ha_innobase::prefer_binlog_format_row() const
+{
+  return innobase_autoinc_lock_mode == AUTOINC_NO_LOCKING;
 }
 
 /***********************************************************************//**
@@ -16461,7 +16445,7 @@ ha_innobase::innobase_get_autoinc(
 
 	m_prebuilt->autoinc_error = innobase_lock_autoinc();
 
-	if (m_prebuilt->autoinc_error == DB_SUCCESS) {
+	if (UNIV_LIKELY(m_prebuilt->autoinc_error == DB_SUCCESS)) {
 
 		/* Determine the first value of the interval */
 		*value = dict_table_autoinc_read(m_prebuilt->table);
@@ -19351,13 +19335,13 @@ static MYSQL_SYSVAR_BOOL(undo_log_truncate, srv_undo_log_truncate,
   NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_LONG(autoinc_lock_mode, innobase_autoinc_lock_mode,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY | PLUGIN_VAR_DEPRECATED,
   "The AUTOINC lock modes supported by InnoDB:"
-  " 0 => Old style AUTOINC locking (for backward compatibility);"
-  " 1 => New style AUTOINC locking;"
-  " 2 => No AUTOINC locking (unsafe for SBR)",
-  NULL, NULL,
-  AUTOINC_NEW_STYLE_LOCKING,	/* Default setting */
+  " 0 => Pre-MySQL-5.1.22 style AUTOINC locking;"
+  " 1 => MySQL-style AUTOINC locking;"
+  " 2 => Exclusive lock only for BINLOG_FORMAT=STATEMENT (default)",
+  nullptr, nullptr,
+  AUTOINC_NO_LOCKING,	/* Default setting */
   AUTOINC_OLD_STYLE_LOCKING,	/* Minimum value */
   AUTOINC_NO_LOCKING, 0);	/* Maximum value */
 

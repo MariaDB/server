@@ -74,10 +74,11 @@ ib_lock_t::print(std::ostream& out) const
   static_assert(LOCK_S == 2, "compatibility");
   static_assert(LOCK_X == 3, "compatibility");
   static_assert(LOCK_AUTO_INC == 4, "compatibility");
-  static_assert(LOCK_NONE == 5, "compatibility");
+  static_assert(LOCK_AUTO_INC_X == 5, "compatibility");
+  static_assert(LOCK_NONE == 6, "compatibility");
   static_assert(LOCK_NONE_UNSET == 7, "compatibility");
   const char *const modes[8]=
-  { "IS", "IX", "S", "X", "AUTO_INC", "NONE", "?", "NONE_UNSET" };
+  { "IS", "IX", "S", "X", "AUTO_INC", "AUTO_INC_X", "NONE", "NONE_UNSET" };
 
   out << "[lock_t: type_mode=" << type_mode << "(" << type_string()
       << " | LOCK_" << modes[mode()];
@@ -350,46 +351,62 @@ locks, so that also the waiting locks are transformed to granted gap type
 locks on the inserted record. */
 
 /* LOCK COMPATIBILITY MATRIX
- *    IS IX S  X  AI
- * IS +	 +  +  -  +
- * IX +	 +  -  -  +
- * S  +	 -  +  -  -
- * X  -	 -  -  -  -
- * AI +	 +  -  -  -
+ *     IS IX S  X  AI AIX
+ * IS  +  +  +  -  +  -
+ * IX  +  +  -  -  +  -
+ * S   +  -  +  -  -  -
+ * X   -  -  -  -  -  -
+ * AI  +  +  -  -  -  -
+ * AIX -  -  -  -  -  -
  *
  * Note that for rows, InnoDB only acquires S or X locks.
  * For tables, InnoDB normally acquires IS or IX locks.
  * S or X table locks are only acquired for LOCK TABLES.
- * Auto-increment (AI) locks are needed because of
+ * Auto-increment (AI, AIX) locks are needed because of
  * statement-level MySQL binlog.
  * See also lock_mode_compatible().
  */
-static const byte lock_compatibility_matrix[5][5] = {
- /**         IS     IX       S     X       AI */
- /* IS */ {  TRUE,  TRUE,  TRUE,  FALSE,  TRUE},
- /* IX */ {  TRUE,  TRUE,  FALSE, FALSE,  TRUE},
- /* S  */ {  TRUE,  FALSE, TRUE,  FALSE,  FALSE},
- /* X  */ {  FALSE, FALSE, FALSE, FALSE,  FALSE},
- /* AI */ {  TRUE,  TRUE,  FALSE, FALSE,  FALSE}
+static const bool lock_compatibility_matrix[6][6]= {
+  /*          IS     IX     S      X      AI     AIX */
+  /* IS */  { true,  true,  true,  false, true,  false },
+  /* IX */  { true,  true,  false, false, true,  false },
+  /* S  */  { true,  false, true,  false, false, false },
+  /* X  */  { false, false, false, false, false, false },
+  /* AI */  { true,  true,  false, false, false, false },
+  /* AIX */ { false, false, false, false, false, false }
 };
 
+/** @return nonzero if mode1 compatible with mode2 */
+inline bool lock_mode_compatible(lock_mode mode1, lock_mode mode2)
+{
+  return lock_compatibility_matrix[mode1][mode2];
+}
+
 /* STRONGER-OR-EQUAL RELATION (mode1=row, mode2=column)
- *    IS IX S  X  AI
- * IS +  -  -  -  -
- * IX +  +  -  -  -
- * S  +  -  +  -  -
- * X  +  +  +  +  +
- * AI -  -  -  -  +
+ *     IS IX S  X  AI AIX
+ * IS  +  -  -  -  -  -
+ * IX  +  +  -  -  -  -
+ * S   +  -  +  -  -  -
+ * X   +  +  +  +  +  -
+ * AI  -  -  -  -  +  -
+ * AIX -  -  -  -  -  +
  * See lock_mode_stronger_or_eq().
  */
-static const byte lock_strength_matrix[5][5] = {
- /**         IS     IX       S     X       AI */
- /* IS */ {  TRUE,  FALSE, FALSE,  FALSE, FALSE},
- /* IX */ {  TRUE,  TRUE,  FALSE, FALSE,  FALSE},
- /* S  */ {  TRUE,  FALSE, TRUE,  FALSE,  FALSE},
- /* X  */ {  TRUE,  TRUE,  TRUE,  TRUE,   TRUE},
- /* AI */ {  FALSE, FALSE, FALSE, FALSE,  TRUE}
+static const bool lock_strength_matrix[6][6]= {
+  /*          IS     IX     S      X      AI     AIX */
+  /* IS */  { true,  false, false, false, false, false },
+  /* IX */  { true,  true,  false, false, false, false },
+  /* S  */  { true,  false, true,  false, false, false },
+  /* X  */  { true,  true,  true,  true,  true,  false },
+  /* AI */  { false, false, false, false, true,  false },
+  /* AIX */ { false, false, false, false, false, true  },
 };
+
+/** @return nonzero if mode1 stronger or equal to mode2 */
+inline bool lock_mode_stronger_or_eq(lock_mode mode1, lock_mode mode2)
+{
+  return lock_strength_matrix[mode1][mode2];
+}
 
 #define PRDT_HEAPNO	PAGE_HEAP_NO_INFIMUM
 /** Record locking request status */
@@ -401,11 +418,6 @@ enum lock_rec_req_status {
         /** Explicitly created a new lock */
         LOCK_REC_SUCCESS_CREATED
 };
-
-#ifdef UNIV_DEBUG
-/** The count of the types of locks. */
-static const ulint      lock_types = UT_ARR_SIZE(lock_compatibility_matrix);
-#endif /* UNIV_DEBUG */
 
 /*********************************************************************//**
 Gets the previous record lock set on a record.
@@ -544,26 +556,6 @@ inline lock_t *lock_sys_t::get_first(const hash_cell_t &cell, page_id_t id,
   }
   return nullptr;
 }
-
-/*********************************************************************//**
-Calculates if lock mode 1 is compatible with lock mode 2.
-@return nonzero if mode1 compatible with mode2 */
-UNIV_INLINE
-ulint
-lock_mode_compatible(
-/*=================*/
-	enum lock_mode	mode1,	/*!< in: lock mode */
-	enum lock_mode	mode2);	/*!< in: lock mode */
-
-/*********************************************************************//**
-Calculates if lock mode 1 is stronger or equal to lock mode 2.
-@return nonzero if mode1 stronger or equal to mode2 */
-UNIV_INLINE
-ulint
-lock_mode_stronger_or_eq(
-/*=====================*/
-	enum lock_mode	mode1,	/*!< in: lock mode */
-	enum lock_mode	mode2);	/*!< in: lock mode */
 
 /*********************************************************************//**
 Checks if a transaction has the specified table lock, or stronger. This

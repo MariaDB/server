@@ -9,7 +9,6 @@
 [mysqld]
 log-bin=mysqld-bin
 binlog-format=row
-innodb-autoinc-lock-mode=2
 default-storage-engine=innodb
 
 [mysqld.1]

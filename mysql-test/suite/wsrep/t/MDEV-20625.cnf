@@ -5,4 +5,3 @@ wsrep-on=OFF
 binlog-format=ROW
 wsrep-provider=@ENV.WSREP_PROVIDER
 wsrep-cluster-address='gcomm://'
-innodb_autoinc_lock_mode=2

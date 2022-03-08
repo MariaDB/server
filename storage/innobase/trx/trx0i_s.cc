@@ -729,6 +729,7 @@ static bool fill_locks_row(
 		row->lock_mode = uint8_t(7 + is_gap_lock);
 		break;
 	case LOCK_AUTO_INC:
+	case LOCK_AUTO_INC_X:
 		row->lock_mode = 9;
 		break;
 	default:

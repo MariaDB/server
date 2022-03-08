@@ -108,6 +108,9 @@ innobase_convert_name(
 	ulint		idlen,	/*!< in: length of id, in bytes */
 	THD*		thd);	/*!< in: MySQL connection thread, or NULL */
 
+/** @return whether statement-based replication is active */
+extern "C" int thd_rpl_stmt_based(const THD* thd);
+
 /******************************************************************//**
 Returns true if the transaction this thread is processing has edited
 non-transactional tables. Used by the deadlock detector when deciding

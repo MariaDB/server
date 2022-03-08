@@ -194,19 +194,13 @@ row_update_prebuilt_trx(
 					in MySQL handle */
 	trx_t*		trx);		/*!< in: transaction handle */
 
-/*********************************************************************//**
-Sets an AUTO_INC type lock on the table mentioned in prebuilt. The
-AUTO_INC lock gives exclusive access to the auto-inc counter of the
-table. The lock is reserved only for the duration of an SQL statement.
-It is not compatible with another AUTO_INC or exclusive lock on the
-table.
+/** Acquire an exclusive or AUTO_INCREMENT lock on prebuilt->table.
+The lock gives exclusive access to the auto-inc counter.
+The lock is held for the duration of an SQL statement.
+@param prebuilt    table handle
+@param auto_inc    false=exclusive lock, true=AUTO_INC lock
 @return error code or DB_SUCCESS */
-dberr_t
-row_lock_table_autoinc_for_mysql(
-/*=============================*/
-	row_prebuilt_t*	prebuilt)	/*!< in: prebuilt struct in the MySQL
-					table handle */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+dberr_t row_lock_table_autoinc(row_prebuilt_t *prebuilt, bool exclusive);
 
 /** Lock a table.
 @param[in,out]	prebuilt	table handle

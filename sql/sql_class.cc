@@ -5311,6 +5311,12 @@ thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd)
   return 1;
 }
 
+extern "C" int thd_rpl_stmt_based(const MYSQL_THD thd)
+{
+  return !thd->is_current_stmt_binlog_format_row() &&
+    !thd->is_current_stmt_binlog_disabled();
+}
+
 /*
   This function is called from InnoDB to check if the commit order of
   two transactions has already been decided by the upper layer. This happens
@@ -6239,6 +6245,10 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     bool is_write= FALSE;                        // If any write tables
     bool has_read_tables= FALSE;                 // If any read only tables
     bool has_auto_increment_write_tables= FALSE; // Write with auto-increment
+    /* true if it's necessary to switch current statement log format from
+    STATEMENT to ROW if binary log format is MIXED and autoincrement values
+    are changed in the statement */
+    bool prefer_binlog_format_low= false;
     /* If a write table that doesn't have auto increment part first */
     bool has_write_table_auto_increment_not_first_in_pk= FALSE;
     bool has_auto_increment_write_tables_not_first= FALSE;
@@ -6361,6 +6371,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
           has_auto_increment_write_tables_not_first= found_first_not_own_table;
           if (share->next_number_keypart != 0)
             has_write_table_auto_increment_not_first_in_pk= true;
+          prefer_binlog_format_low=
+            table->file->prefer_binlog_format_row();
         }
       }
 
@@ -6576,7 +6588,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
          I.e., nothing prevents us from row logging if needed. */
       else
       {
-        if (lex->is_stmt_unsafe() || lex->is_stmt_row_injection()
+        if (prefer_binlog_format_low
+            || lex->is_stmt_unsafe() || lex->is_stmt_row_injection()
             || (flags_write_all_set & HA_BINLOG_STMT_CAPABLE) == 0 ||
             is_bulk_op())
         {

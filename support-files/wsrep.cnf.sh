@@ -18,9 +18,6 @@ binlog_format=ROW
 # Currently only InnoDB storage engine is supported
 default-storage-engine=innodb
 
-# to avoid issues with 'bulk mode inserts' using autoinc
-innodb_autoinc_lock_mode=2
-
 # Override bind-address
 # In some systems bind-address defaults to 127.0.0.1, and with mysqldump SST
 # it will have (most likely) disastrous consequences on donor node

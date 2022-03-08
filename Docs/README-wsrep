@@ -263,12 +263,6 @@ binlog_format=ROW
    that. As a side effect, binlog, if turned on, can be ROW only. In future this
    option won't have special meaning.
 
-innodb_autoinc_lock_mode=2
-   This is a required parameter. Without it INSERTs into tables with
-   AUTO_INCREMENT column may fail.
-   autoinc lock modes 0 and 1 can cause unresolved deadlock, and make
-   the system unresponsive.
-
 5.2 WSREP OPTIONS
 
 All options are optional except for wsrep_provider, wsrep_cluster_address, and

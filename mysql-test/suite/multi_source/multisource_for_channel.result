@@ -226,8 +226,8 @@ mysqld-relay-bin.000002	#	Query	#	#	create database db2
 mysqld-relay-bin.000002	#	Gtid	#	#	GTID #-#-#
 mysqld-relay-bin.000002	#	Query	#	#	use `db2`; create table t1 (pk int auto_increment primary key, f1 int) engine=InnoDB
 mysqld-relay-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-mysqld-relay-bin.000002	#	Intvar	#	#	INSERT_ID=1
-mysqld-relay-bin.000002	#	Query	#	#	use `db2`; insert into t1 (f1) values (1),(2)
+mysqld-relay-bin.000002	#	Table_map	#	#	table_id: # (db2.t1)
+mysqld-relay-bin.000002	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 mysqld-relay-bin.000002	#	Xid	#	#	COMMIT /* XID */
 disconnect slave;
 connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;

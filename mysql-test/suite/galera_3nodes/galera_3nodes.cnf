@@ -3,7 +3,6 @@
 
 [mysqld]
 binlog-format=row
-innodb-autoinc-lock-mode=2
 default-storage-engine=innodb
 auto_increment_increment=3
 

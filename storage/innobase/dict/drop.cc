@@ -163,6 +163,7 @@ dberr_t trx_t::drop_table(const dict_table_t &table)
       break;
     case LOCK_TABLE | LOCK_IX:
     case LOCK_TABLE | LOCK_AUTO_INC:
+    case LOCK_TABLE | LOCK_AUTO_INC_X:
       break;
     default:
       ut_ad("unexpected lock type" == 0);

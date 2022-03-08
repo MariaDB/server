@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2021, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -44,9 +44,9 @@ enum lock_mode {
 	LOCK_X,		/* exclusive */
 	LOCK_AUTO_INC,	/* locks the auto-inc counter of a table
 			in an exclusive mode */
+	LOCK_AUTO_INC_X,/* exclusive lock for protecting AUTO_INCREMENT */
 	LOCK_NONE,	/* this is used elsewhere to note consistent read */
-	LOCK_NUM = LOCK_NONE, /* number of lock modes */
-	LOCK_NONE_UNSET = 7
+	LOCK_NONE_UNSET
 };
 
 /** A table lock */
@@ -200,6 +200,8 @@ struct ib_lock_t
 	}
 
 	bool is_table() const { return type_mode & LOCK_TABLE; }
+
+	bool is_auto_increment() const { return type_mode & LOCK_AUTO_INC; }
 
 	enum lock_mode mode() const
 	{

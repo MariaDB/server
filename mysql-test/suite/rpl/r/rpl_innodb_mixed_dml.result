@@ -838,16 +838,24 @@ master-bin.000001	#	Query	#	#	use `test_rpl`; CREATE TABLE t1 (a int auto_increm
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; CREATE TABLE t2 (a int auto_increment not null, b char(254), PRIMARY KEY(a)) ENGINE=innodb
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(1, 't1, text 1')
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(1, 't1, text 1')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(2, 't1, text 2')
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(2, 't1, text 2')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t2 VALUES(1, 't2, text 1')
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t2 VALUES(1, 't2, text 1')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1 WHERE a = 1
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1 WHERE a = 1
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t2 WHERE b <> SYS_GUID()
@@ -855,13 +863,14 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
 master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t2
-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(1, 't1, text 1')
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(1, 't1, text 1')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(2, SYS_GUID())
@@ -874,19 +883,29 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t2 VALUES (1, 't1, text 1') ON DUPLICATE KEY UPDATE b = 't2, text 1'
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t2 VALUES (1, 't1, text 1') ON DUPLICATE KEY UPDATE b = 't2, text 1'
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
+master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1 WHERE a = 2
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1 WHERE a = 2
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t2 WHERE a = 2
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t2 WHERE a = 2
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t2
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t2
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	#	#	LOAD DATA INFILE 'MYSQLTEST_VARDIR/std_data/rpl_mixed.dat' INTO TABLE t1 FIELDS TERMINATED BY '|'
@@ -894,22 +913,29 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t2
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(1, 't1, text 1')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(1, 't1, text 1')
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(2, 't1, text 2')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(2, 't1, text 2')
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(3, 't1, text 3')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(3, 't1, text 3')
-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; REPLACE INTO t1 VALUES(1, 't1, text 11')
+master-bin.000001	#	Annotate_rows	#	#	REPLACE INTO t1 VALUES(1, 't1, text 11')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	#	#	REPLACE INTO t1 VALUES(2, SYS_GUID())
@@ -917,108 +943,151 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; REPLACE INTO t1 SET a=3, b='t1, text 33'
+master-bin.000001	#	Annotate_rows	#	#	REPLACE INTO t1 SET a=3, b='t1, text 33'
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1 WHERE a = 2
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1 WHERE a = 2
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t2
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(1, 't1, text 1')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(1, 't1, text 1')
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(1, 'CCC')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t2
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(2, 'DDD')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(1, 'CCC')
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t2 VALUES(1, 'DDD')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(2, 'DDD')
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t2 VALUES(2, 'CCC')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t2 VALUES(1, 'DDD')
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t2 VALUES(2, 'CCC')
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t2
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(1, 't1, text 1')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t2
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t2 VALUES(1, 't2, text 1')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(1, 't1, text 1')
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t2 VALUES(1, 't2, text 1')
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t2
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1
-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t2
-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(1, 't1, text 1')
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(1, 't1, text 1')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; TRUNCATE t1
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(1, 't1, text 1')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t2
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t2 VALUES(1, 't2, text 1')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(1, 't1, text 1')
+master-bin.000001	#	Annotate_rows	#	#	UPDATE t1 SET b = 't1, text 1 updated' WHERE a = 1
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t2 VALUES(1, 't2, text 1')
+master-bin.000001	#	Annotate_rows	#	#	UPDATE t1, t2 SET t1.b = 'test', t2.b = 'test'
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
+master-bin.000001	#	Update_rows_v1	#	#	table_id: #
+master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; UPDATE t1 SET b = 't1, text 1 updated' WHERE a = 1
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; UPDATE t1, t2 SET t1.b = 'test', t2.b = 'test'
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t2
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (1, 'start')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t2
-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES (1, 'start')
-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES (3, 'before savepoint s1')
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (3, 'before savepoint s1')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	SAVEPOINT `s1`
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES (5, 'before savepoint s2')
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (5, 'before savepoint s2')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Query	#	#	SAVEPOINT `s2`
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES (6, 'after savepoint s2')
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (6, 'after savepoint s2')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES (7, CONCAT('with SYS_GUID() ',SYS_GUID()))
 master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1 WHERE a = 7
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1 WHERE a = 7
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1
-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t2
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; CREATE USER 'user_test_rpl'@'localhost' IDENTIFIED BY PASSWORD '*1111111111111111111111111111111111111111'
@@ -1033,7 +1102,9 @@ master-bin.000001	#	Query	#	#	use `test_rpl`; RENAME USER 'user_test_rpl'@'local
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; DROP USER 'user_test_rpl_2'@'localhost'
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(100, 'test')
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(100, 'test')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; ANALYZE TABLE t1
@@ -1052,13 +1123,19 @@ BEGIN
 UPDATE t1 SET b = SYS_GUID() WHERE a = 202;
 END
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT  INTO t1 VALUES(201, 'test 201')
+master-bin.000001	#	Annotate_rows	#	#	INSERT  INTO t1 VALUES(201, 'test 201')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; UPDATE t1 SET b = 'test' WHERE a = 201
+master-bin.000001	#	Annotate_rows	#	#	UPDATE t1 SET b = 'test' WHERE a = 201
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT  INTO t1 VALUES(202, 'test 202')
+master-bin.000001	#	Annotate_rows	#	#	INSERT  INTO t1 VALUES(202, 'test 202')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Annotate_rows	#	#	UPDATE t1 SET b = SYS_GUID() WHERE a = 202
@@ -1066,7 +1143,9 @@ master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
 master-bin.000001	#	Update_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1 WHERE a = 202
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1 WHERE a = 202
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; ALTER PROCEDURE p1 COMMENT 'p1'
@@ -1075,10 +1154,9 @@ master-bin.000001	#	Query	#	#	use `test_rpl`; DROP PROCEDURE p1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; DROP PROCEDURE p2
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1
-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t2
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; CREATE DEFINER=`root`@`localhost` TRIGGER tr1 BEFORE INSERT ON t1
@@ -1093,15 +1171,21 @@ master-bin.000001	#	Write_rows_v1	#	#	table_id: #
 master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t2
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t2
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t2)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; DROP TRIGGER tr1
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(1, 'test1')
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(1, 'test1')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; CREATE DEFINER=`root`@`localhost` EVENT e1 ON SCHEDULE EVERY '1' SECOND COMMENT 'e_second_comment' DO DELETE FROM t1
@@ -1110,16 +1194,19 @@ master-bin.000001	#	Query	#	#	use `test_rpl`; ALTER EVENT e1 RENAME TO e2
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; DROP EVENT e2
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t2
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(1, 'test1')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(1, 'test1')
-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; INSERT INTO t1 VALUES(2, 'test2')
+master-bin.000001	#	Annotate_rows	#	#	INSERT INTO t1 VALUES(2, 'test2')
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS SELECT * FROM t1 WHERE a = 1
@@ -1132,10 +1219,9 @@ master-bin.000001	#	Query	#	#	use `test_rpl`; DROP VIEW v1
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test_rpl`; DROP VIEW v2
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t1
-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
-master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000001	#	Query	#	#	use `test_rpl`; DELETE FROM t2
+master-bin.000001	#	Annotate_rows	#	#	DELETE FROM t1
+master-bin.000001	#	Table_map	#	#	table_id: # (test_rpl.t1)
+master-bin.000001	#	Delete_rows_v1	#	#	table_id: # flags: STMT_END_F
 master-bin.000001	#	Xid	#	#	COMMIT /* XID */
 connection slave;
 connection master;

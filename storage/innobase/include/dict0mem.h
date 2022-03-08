@@ -2301,7 +2301,7 @@ public:
   /** The transaction that currently holds the the AUTOINC lock on this table.
   Protected by lock_mutex.
   The thread that is executing autoinc_trx may read this field without
-  holding a latch, in row_lock_table_autoinc_for_mysql().
+  holding a latch, in row_lock_table_autoinc().
   Only the autoinc_trx thread may clear this field; it cannot be
   modified on the behalf of a transaction that is being handled by a
   different thread. */
