@@ -1,6 +1,7 @@
 [innodb]
 innodb
 default-storage-engine=innodb
+innodb-autoinc-lock-mode=1
 partition
 
 [myisam]
