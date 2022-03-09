@@ -728,10 +728,12 @@ static bool fill_locks_row(
 	case LOCK_IX:
 		row->lock_mode = uint8_t(7 + is_gap_lock);
 		break;
+#ifndef NO_AUTOINC_LOCKS
 	case LOCK_AUTO_INC:
 	case LOCK_AUTO_INC_X:
 		row->lock_mode = 9;
 		break;
+#endif
 	default:
 		ut_ad("unknown lock mode" == 0);
 		row->lock_mode = 0;

@@ -42,9 +42,11 @@ enum lock_mode {
 	LOCK_IX,	/* intention exclusive */
 	LOCK_S,		/* shared */
 	LOCK_X,		/* exclusive */
+#ifndef NO_AUTOINC_LOCKS
 	LOCK_AUTO_INC,	/* locks the auto-inc counter of a table
 			in an exclusive mode */
 	LOCK_AUTO_INC_X,/* exclusive lock for protecting AUTO_INCREMENT */
+#endif
 	LOCK_NONE,	/* this is used elsewhere to note consistent read */
 	LOCK_NONE_UNSET
 };
@@ -201,7 +203,9 @@ struct ib_lock_t
 
 	bool is_table() const { return type_mode & LOCK_TABLE; }
 
+#ifndef NO_AUTOINC_LOCKS
 	bool is_auto_increment() const { return type_mode & LOCK_AUTO_INC; }
+#endif
 
 	enum lock_mode mode() const
 	{

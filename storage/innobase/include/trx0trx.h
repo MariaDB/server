@@ -887,12 +887,14 @@ public:
 	ulint		n_autoinc_rows;	/*!< no. of AUTO-INC rows required for
 					an SQL statement. This is useful for
 					multi-row INSERTs */
+#ifndef NO_AUTOINC_LOCKS
 	ib_vector_t*    autoinc_locks;  /* AUTOINC locks held by this
 					transaction. Note that these are
 					also in the lock list trx_locks. This
 					vector needs to be freed explicitly
 					when the trx instance is destroyed.
 					Protected by lock_sys.latch. */
+#endif
 	/*------------------------------*/
 	bool		read_only;	/*!< true if transaction is flagged
 					as a READ-ONLY transaction.
@@ -1067,7 +1069,9 @@ public:
     ut_ad(!lock.wait_lock);
     ut_ad(UT_LIST_GET_LEN(lock.trx_locks) == 0);
     ut_ad(lock.table_locks.empty());
+#ifndef NO_AUTOINC_LOCKS
     ut_ad(!autoinc_locks || ib_vector_is_empty(autoinc_locks));
+#endif
     ut_ad(UT_LIST_GET_LEN(lock.evicted_tables) == 0);
     ut_ad(!dict_operation);
   }

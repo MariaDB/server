@@ -512,6 +512,7 @@ bool lock_table_has_locks(dict_table_t *table);
 @retval DB_LOCK_WAIT_TIMEOUT if the lock wait timed out
 @retval DB_SUCCESS if the lock was granted */
 dberr_t lock_wait(que_thr_t *thr);
+#ifndef NO_AUTOINC_LOCKS
 /*********************************************************************//**
 Unlocks AUTO_INC type locks that were possibly reserved by a trx. This
 function should be called at the the end of an SQL statement, by the
@@ -520,6 +521,7 @@ void
 lock_unlock_table_autoinc(
 /*======================*/
 	trx_t*	trx);			/*!< in/out: transaction */
+#endif
 
 /** Handle a pending lock wait (DB_LOCK_WAIT) in a semi-consistent read
 while holding a clustered index leaf page latch.

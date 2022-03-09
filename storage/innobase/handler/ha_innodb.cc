@@ -4505,10 +4505,12 @@ innobase_commit(
 		/* We just mark the SQL statement ended and do not do a
 		transaction commit */
 
+#ifndef NO_AUTOINC_LOCKS
 		/* If we had reserved the auto-inc lock for some
 		table in this SQL statement we release it now */
 
 		lock_unlock_table_autoinc(trx);
+#endif
 
 		/* Store the current undo_no of the transaction so that we
 		know where to roll back if we have to roll back the next
@@ -4558,10 +4560,12 @@ innobase_rollback(
 
 	trx->n_autoinc_rows = 0;
 
+#ifndef NO_AUTOINC_LOCKS
 	/* If we had reserved the auto-inc lock for some table (if
 	we come here to roll back the latest SQL statement) we
 	release it now before a possibly lengthy rollback */
 	lock_unlock_table_autoinc(trx);
+#endif
 
 	/* This is a statement level variable. */
 
@@ -4605,10 +4609,12 @@ innobase_rollback_trx(
 	DBUG_ENTER("innobase_rollback_trx");
 	DBUG_PRINT("trans", ("aborting transaction"));
 
+#ifndef NO_AUTOINC_LOCKS
 	/* If we had reserved the auto-inc lock for some table (if
 	we come here to roll back the latest SQL statement) we
 	release it now before a possibly lengthy rollback */
 	lock_unlock_table_autoinc(trx);
+#endif
 	trx_deregister_from_2pc(trx);
 
 	DBUG_RETURN(convert_error_code_to_mysql(trx_rollback_for_mysql(trx),
@@ -7622,6 +7628,7 @@ ha_innobase::innobase_lock_autoinc()
   ut_ad(!srv_read_only_mode);
 
 #ifdef HAVE_REPLICATION
+# ifndef NO_AUTOINC_LOCKS
   switch (innobase_autoinc_lock_mode) {
   default:
     if (UNIV_UNLIKELY(thd_rpl_stmt_based(m_user_thd)))
@@ -7654,6 +7661,7 @@ ha_innobase::innobase_lock_autoinc()
     if (dberr_t error= row_lock_table_autoinc(m_prebuilt, false))
       DBUG_RETURN(error);
   }
+# endif
 #endif
 
   /* Acquire the AUTOINC mutex. */
@@ -16932,10 +16940,12 @@ innobase_xa_prepare(
 		/* We just mark the SQL statement ended and do not do a
 		transaction prepare */
 
+#ifndef NO_AUTOINC_LOCKS
 		/* If we had reserved the auto-inc lock for some
 		table in this SQL statement we release it now */
 
 		lock_unlock_table_autoinc(trx);
+#endif
 
 		/* Store the current undo_no of the transaction so that we
 		know where to roll back if we have to roll back the next

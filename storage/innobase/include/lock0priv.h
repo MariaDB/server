@@ -73,12 +73,22 @@ ib_lock_t::print(std::ostream& out) const
   static_assert(LOCK_IX == 1, "compatibility");
   static_assert(LOCK_S == 2, "compatibility");
   static_assert(LOCK_X == 3, "compatibility");
+#ifndef NO_AUTOINC_LOCKS
   static_assert(LOCK_AUTO_INC == 4, "compatibility");
   static_assert(LOCK_AUTO_INC_X == 5, "compatibility");
   static_assert(LOCK_NONE == 6, "compatibility");
   static_assert(LOCK_NONE_UNSET == 7, "compatibility");
+#else
+  static_assert(LOCK_NONE == 4, "compatibility");
+  static_assert(LOCK_NONE_UNSET == 5, "compatibility");
+#endif
   const char *const modes[8]=
-  { "IS", "IX", "S", "X", "AUTO_INC", "AUTO_INC_X", "NONE", "NONE_UNSET" };
+  { "IS", "IX", "S", "X",
+#ifndef NO_AUTOINC_LOCKS
+    "AUTO_INC", "AUTO_INC_X",
+#endif
+    "NONE", "NONE_UNSET"
+  };
 
   out << "[lock_t: type_mode=" << type_mode << "(" << type_string()
       << " | LOCK_" << modes[mode()];

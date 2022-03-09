@@ -571,11 +571,14 @@ static const LEX_CSTRING lock_mode_values[] =
 	{ STRING_WITH_LEN("IS") },
 	{ STRING_WITH_LEN("IS,GAP") },
 	{ STRING_WITH_LEN("IX") },
-	{ STRING_WITH_LEN("IX,GAP") },
-	{ STRING_WITH_LEN("AUTO_INC") }
+	{ STRING_WITH_LEN("IX,GAP") }
+#ifndef NO_AUTOINC_LOCKS
+	,{ STRING_WITH_LEN("AUTO_INC") }
+#endif
 };
 
-static TypelibBuffer<9> lock_mode_values_typelib(lock_mode_values);
+static TypelibBuffer<array_elements(lock_mode_values)>
+lock_mode_values_typelib(lock_mode_values);
 
 static const LEX_CSTRING lock_type_values[] =
 {

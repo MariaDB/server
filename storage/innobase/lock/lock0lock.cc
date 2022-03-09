@@ -1654,8 +1654,10 @@ static void lock_wait_rpl_report(trx_t *trx)
   const lock_t *wait_lock= trx->lock.wait_lock;
   if (!wait_lock)
     return;
+#ifndef NO_AUTOINC_LOCKS
   static_assert(LOCK_AUTO_INC & LOCK_AUTO_INC_X, "compatibility");
   ut_ad(!(wait_lock->type_mode & LOCK_AUTO_INC));
+#endif
   /* This would likely be too large to attempt to use a memory transaction,
   even for wait_lock->is_table(). */
   if (!lock_sys.wr_lock_try())
@@ -1674,14 +1676,20 @@ func_exit:
   }
   else if (!wait_lock->is_waiting())
     goto func_exit;
+#ifndef NO_AUTOINC_LOCKS
   ut_ad(!(wait_lock->type_mode & LOCK_AUTO_INC));
+#endif
 
   if (wait_lock->is_table())
   {
     dict_table_t *table= wait_lock->un_member.tab_lock.table;
     for (lock_t *lock= UT_LIST_GET_FIRST(table->locks); lock;
          lock= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock))
-      if (!(lock->type_mode & LOCK_AUTO_INC) && lock->trx != trx)
+      if (
+#ifndef NO_AUTOINC_LOCKS
+          !(lock->type_mode & LOCK_AUTO_INC) &&
+#endif
+          lock->trx != trx)
         thd_rpl_deadlock_check(thd, lock->trx->mysql_thd);
   }
   else
@@ -1769,7 +1777,11 @@ dberr_t lock_wait(que_thr_t *thr)
   thd_need_wait_reports() will hold even if parallel (or any) replication
   is not being used. We want to be allow the user to skip
   lock_wait_rpl_report(). */
-  const bool rpl= !(type_mode & LOCK_AUTO_INC) && trx->mysql_thd &&
+  const bool rpl=
+# ifndef NO_AUTOINC_LOCKS
+    !(type_mode & LOCK_AUTO_INC) &&
+# endif
+    trx->mysql_thd &&
     innodb_deadlock_detect && thd_need_wait_reports(trx->mysql_thd);
 #endif
   const bool row_lock_wait= thr->lock_state == QUE_THR_LOCK_ROW;
@@ -1894,6 +1906,7 @@ static void lock_grant(lock_t *lock)
   lock_reset_lock_and_trx_wait(lock);
   trx_t *trx= lock->trx;
   trx->mutex_lock();
+#ifndef NO_AUTOINC_LOCKS
   switch (lock->mode()) {
   default:
     break;
@@ -1905,6 +1918,7 @@ static void lock_grant(lock_t *lock)
     ib_vector_push(trx->autoinc_locks, &lock);
     break;
   }
+#endif
 
   DBUG_PRINT("ib_lock", ("wait for trx " TRX_ID_FMT " ends", trx->id));
 
@@ -3160,6 +3174,7 @@ lock_t *lock_table_create(dict_table_t *table, unsigned type_mode, trx_t *trx,
 		  == table->name.m_name + strlen(table->name.m_name) + 1));
 
 	switch (LOCK_MODE_MASK & type_mode) {
+#ifndef NO_AUTOINC_LOCKS
 	case LOCK_AUTO_INC:
 	case LOCK_AUTO_INC_X:
 		++table->n_waiting_or_granted_auto_inc_locks;
@@ -3177,6 +3192,7 @@ lock_t *lock_table_create(dict_table_t *table, unsigned type_mode, trx_t *trx,
 		}
 
 		break;
+#endif
 	case LOCK_X:
 	case LOCK_S:
 		++table->n_lock_x_or_s;
@@ -3188,7 +3204,9 @@ lock_t *lock_table_create(dict_table_t *table, unsigned type_mode, trx_t *trx,
 		: static_cast<lock_t*>(
 			mem_heap_alloc(trx->lock.lock_heap, sizeof *lock));
 
+#ifndef NO_AUTOINC_LOCKS
 allocated:
+#endif
 	lock->type_mode = ib_uint32_t(type_mode | LOCK_TABLE);
 	lock->trx = trx;
 
@@ -3221,6 +3239,7 @@ allocated:
 	return(lock);
 }
 
+#ifndef NO_AUTOINC_LOCKS
 /*************************************************************//**
 Pops autoinc lock requests from the transaction's autoinc_locks. We
 handle the case where there are gaps in the array and they need to
@@ -3296,6 +3315,7 @@ lock_table_remove_autoinc_lock(
 		ut_error;
 	}
 }
+#endif
 
 /*************************************************************//**
 Removes a table lock request from the queue and the trx list of locks;
@@ -3321,6 +3341,7 @@ lock_table_remove_low(
 	/* Remove the table from the transaction's AUTOINC vector, if
 	the lock that is being released is an AUTOINC lock. */
 	switch (lock->mode()) {
+#ifndef NO_AUTOINC_LOCKS
 	case LOCK_AUTO_INC:
 	case LOCK_AUTO_INC_X:
 		ut_ad((table->autoinc_trx == trx) == !lock->is_waiting());
@@ -3340,6 +3361,7 @@ lock_table_remove_low(
 		ut_ad(table->n_waiting_or_granted_auto_inc_locks);
 		--table->n_waiting_or_granted_auto_inc_locks;
 		break;
+#endif
 	case LOCK_X:
 	case LOCK_S:
 		ut_ad(table->n_lock_x_or_s);
@@ -4167,10 +4189,12 @@ lock_table_print(FILE* file, const lock_t* lock)
 		ut_ad(lock->trx->id != 0);
 		fputs(" lock mode IX", file);
 		break;
+#ifndef NO_AUTOINC_LOCKS
 	case LOCK_AUTO_INC:
 	case LOCK_AUTO_INC_X:
 		fputs(" lock mode AUTO-INC", file);
 		break;
+#endif
 	default:
 		fprintf(file, " unknown lock mode %u", mode);
 	}
@@ -5579,6 +5603,7 @@ lock_clust_rec_read_check_and_lock_alt(
 	return(err);
 }
 
+#ifndef NO_AUTOINC_LOCKS
 /*******************************************************************//**
 Check if a transaction holds any autoinc locks.
 @return TRUE if the transaction holds any AUTOINC locks. */
@@ -5619,6 +5644,7 @@ static void lock_release_autoinc_locks(trx_t *trx)
   mysql_mutex_unlock(&lock_sys.wait_mutex);
   trx->mutex_unlock();
 }
+#endif
 
 /** Cancel a waiting lock request and release possibly waiting transactions */
 static void lock_cancel_waiting_and_release(lock_t *lock)
@@ -5633,11 +5659,13 @@ static void lock_cancel_waiting_and_release(lock_t *lock)
     lock_rec_dequeue_from_page(lock, true);
   else
   {
+#ifndef NO_AUTOINC_LOCKS
     if (lock->is_auto_increment())
     {
       ut_ad(trx->autoinc_locks);
       ib_vector_remove(trx->autoinc_locks, lock);
     }
+#endif
     lock_table_dequeue(lock, true);
     /* Remove the lock from table lock vector too. */
     lock_trx_table_locks_remove(lock);
@@ -5785,6 +5813,7 @@ void lock_sys_t::cancel(trx_t *trx)
   mysql_mutex_unlock(&lock_sys.wait_mutex);
 }
 
+#ifndef NO_AUTOINC_LOCKS
 /*********************************************************************//**
 Unlocks AUTO_INC type locks that were possibly reserved by a trx. This
 function should be called at the the end of an SQL statement, by the
@@ -5812,6 +5841,7 @@ lock_unlock_table_autoinc(
 		lock_release_autoinc_locks(trx);
 	}
 }
+#endif
 
 /** Handle a pending lock wait (DB_LOCK_WAIT) in a semi-consistent read
 while holding a clustered index leaf page latch.

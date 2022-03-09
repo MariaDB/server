@@ -1078,7 +1078,7 @@ row_get_prebuilt_insert_row(
 	return(prebuilt->ins_node->row);
 }
 
-
+#ifndef NO_AUTOINC_LOCKS
 /** Acquire an exclusive or AUTO_INCREMENT lock on prebuilt->table.
 The lock gives exclusive access to the auto-inc counter.
 The lock is held for the duration of an SQL statement.
@@ -1114,6 +1114,7 @@ dberr_t row_lock_table_autoinc(row_prebuilt_t *prebuilt, bool exclusive)
 
   return err;
 }
+#endif
 
 /** Lock a table.
 @param[in,out]	prebuilt	table handle

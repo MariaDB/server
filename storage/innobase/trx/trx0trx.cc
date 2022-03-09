@@ -333,20 +333,18 @@ trx_t *trx_create()
 
 	trx->assert_freed();
 
-	mem_heap_t*	heap;
-	ib_alloc_t*	alloc;
-
 	/* We just got trx from pool, it should be non locking */
 	ut_ad(!trx->will_lock);
 	ut_ad(!trx->rw_trx_hash_pins);
 
 	DBUG_LOG("trx", "Create: " << trx);
 
-	heap = mem_heap_create(sizeof(ib_vector_t) + sizeof(void*) * 8);
-
-	alloc = ib_heap_allocator_create(heap);
-
+#ifndef NO_AUTOINC_LOCKS
+	mem_heap_t* heap
+		= mem_heap_create(sizeof(ib_vector_t) + sizeof(void*) * 8);
+	ib_alloc_t* alloc = ib_heap_allocator_create(heap);
 	trx->autoinc_locks = ib_vector_create(alloc, sizeof(void**), 4);
+#endif
 
 	ut_ad(trx->mod_tables.empty());
 	ut_ad(trx->lock.n_rec_locks == 0);
@@ -389,6 +387,7 @@ void trx_t::free()
 
   mysql_thd= nullptr;
 
+#ifndef NO_AUTOINC_LOCKS
   // FIXME: We need to avoid this heap free/alloc for each commit.
   if (autoinc_locks)
   {
@@ -397,6 +396,7 @@ void trx_t::free()
     ib_vector_free(autoinc_locks);
     autoinc_locks= NULL;
   }
+#endif
 
   MEM_NOACCESS(&n_ref, sizeof n_ref);
   /* do not poison mutex */
@@ -439,7 +439,9 @@ void trx_t::free()
   MEM_NOACCESS(&in_rollback, sizeof in_rollback);
   MEM_NOACCESS(&pages_undone, sizeof pages_undone);
   MEM_NOACCESS(&n_autoinc_rows, sizeof n_autoinc_rows);
+#ifndef NO_AUTOINC_LOCKS
   MEM_NOACCESS(&autoinc_locks, sizeof autoinc_locks);
+#endif
   MEM_NOACCESS(&read_only, sizeof read_only);
   MEM_NOACCESS(&auto_commit, sizeof auto_commit);
   MEM_NOACCESS(&will_lock, sizeof will_lock);
@@ -491,7 +493,9 @@ inline void trx_t::release_locks()
     lock_release(this);
     ut_ad(!lock.n_rec_locks);
     ut_ad(UT_LIST_GET_LEN(lock.trx_locks) == 0);
+#ifndef NO_AUTOINC_LOCKS
     ut_ad(ib_vector_is_empty(autoinc_locks));
+#endif
     mem_heap_empty(lock.lock_heap);
   }
 
@@ -918,7 +922,9 @@ trx_start_low(
 	trx->xid.null();
 #endif /* WITH_WSREP */
 
+#ifndef NO_AUTOINC_LOCKS
 	ut_a(ib_vector_is_empty(trx->autoinc_locks));
+#endif
 	ut_a(trx->lock.table_locks.empty());
 
 	/* No other thread can access this trx object through rw_trx_hash,

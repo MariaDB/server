@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -194,6 +194,7 @@ row_update_prebuilt_trx(
 					in MySQL handle */
 	trx_t*		trx);		/*!< in: transaction handle */
 
+#ifndef NO_AUTOINC_LOCKS
 /** Acquire an exclusive or AUTO_INCREMENT lock on prebuilt->table.
 The lock gives exclusive access to the auto-inc counter.
 The lock is held for the duration of an SQL statement.
@@ -201,6 +202,7 @@ The lock is held for the duration of an SQL statement.
 @param auto_inc    false=exclusive lock, true=AUTO_INC lock
 @return error code or DB_SUCCESS */
 dberr_t row_lock_table_autoinc(row_prebuilt_t *prebuilt, bool exclusive);
+#endif
 
 /** Lock a table.
 @param[in,out]	prebuilt	table handle
