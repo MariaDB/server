@@ -10908,11 +10908,7 @@ void ha_spider::check_pre_call(
     ) ||
     (
       (skip_parallel_search & 2) &&
-#ifdef SPIDER_SQL_CACHE_IS_IN_LEX
       lex->sql_cache == LEX::SQL_NO_CACHE //  for mysqldump
-#else
-      select_lex && select_lex->sql_cache == SELECT_LEX::SQL_NO_CACHE //  for mysqldump
-#endif
     )
   ) {
     use_pre_call = FALSE;
