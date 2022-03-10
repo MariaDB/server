@@ -48,6 +48,58 @@ namespace tpool
   static const int  OVERSUBSCRIBE_FACTOR = 2;
 
 /**
+  Process the cb synchronously
+*/
+void aio::synchronous(aiocb *cb)
+{
+#ifdef _WIN32
+  size_t ret_len;
+#else
+  ssize_t ret_len;
+#endif
+  int err= 0;
+  switch (cb->m_opcode)
+  {
+  case aio_opcode::AIO_PREAD:
+    ret_len= pread(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
+    break;
+  case aio_opcode::AIO_PWRITE:
+    ret_len= pwrite(cb->m_fh, cb->m_buffer, cb->m_len, cb->m_offset);
+    break;
+  default:
+    abort();
+  }
+#ifdef _WIN32
+  if (static_cast<int>(ret_len) < 0)
+    err= GetLastError();
+#else
+  if (ret_len < 0)
+  {
+    err= errno;
+    ret_len= 0;
+  }
+#endif
+  cb->m_ret_len = ret_len;
+  cb->m_err = err;
+  if (!err && cb->m_ret_len != cb->m_len)
+    finish_synchronous(cb);
+}
+
+
+/**
+  A partial read/write has occured, continue synchronously.
+*/
+void aio::finish_synchronous(aiocb *cb)
+{
+  assert(cb->m_ret_len != (unsigned int) cb->m_len && !cb->m_err);
+  /* partial read/write */
+  cb->m_buffer= (char *) cb->m_buffer + cb->m_ret_len;
+  cb->m_len-= (unsigned int) cb->m_ret_len;
+  cb->m_offset+= cb->m_ret_len;
+  synchronous(cb);
+}
+
+/**
   Implementation of generic threadpool.
   This threadpool consists of the following components
 

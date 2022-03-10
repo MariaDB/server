@@ -297,7 +297,7 @@ nothing_read:
 		/* Trx sys header is so low in the latching order that we play
 		safe and do not leave the i/o-completion to an asynchronous
 		i/o-thread. Change buffer pages must always be read with
-		syncronous i/o, to make sure they do not get involved in
+		synchronous i/o, to make sure they do not get involved in
 		thread deadlocks. */
 		sync = true;
 	}
