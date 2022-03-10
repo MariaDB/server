@@ -22,14 +22,10 @@ INSERT INTO t33 VALUES (12345, '1234567890');
 # Restart the server with encryption and rotate key age
 # restart: with restart_parameters
 # Wait until encryption threads have encrypted all tablespaces
-SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE "test/%";
 NAME
-SELECT NAME, MIN_KEY_VERSION FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
-NAME	MIN_KEY_VERSION
-innodb_system	1
-mysql/innodb_table_stats	1
-mysql/innodb_index_stats	1
-mysql/transaction_registry	1
+SELECT NAME, CURRENT_KEY_VERSION FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE "test/%";
+NAME	CURRENT_KEY_VERSION
 test/t1	1
 test/t2	1
 test/t3	1
@@ -43,35 +39,27 @@ ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'E
 alter table t33 encryption_key_id=222;
 ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ENCRYPTION_KEY_ID'
 # Wait until encryption threads have encrypted all tablespaces
-SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE "test/%";
 NAME
 test/t4
-SELECT NAME, MIN_KEY_VERSION FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
-NAME	MIN_KEY_VERSION
-innodb_system	1
-mysql/innodb_table_stats	1
-mysql/innodb_index_stats	1
-mysql/transaction_registry	1
-test/t1	1
-test/t2	1
-test/t3	1
+SELECT NAME, CURRENT_KEY_VERSION FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE "test/%";
+NAME	CURRENT_KEY_VERSION
+test/t1	2
+test/t2	2
+test/t3	2
 test/t33	1
 # Disable encryption when innodb_encryption_rotate_key_age is 0
 set global innodb_encrypt_tables = OFF;
 # Wait until encryption threads to decrypt all encrypted tablespaces
-SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE "test/%";
 NAME
-innodb_system
-mysql/innodb_table_stats
-mysql/innodb_index_stats
-mysql/transaction_registry
 test/t1
 test/t2
 test/t4
 # Display only encrypted create tables (t3)
-SELECT NAME, MIN_KEY_VERSION FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
-NAME	MIN_KEY_VERSION
-test/t3	1
+SELECT NAME, CURRENT_KEY_VERSION FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE "test/%";
+NAME	CURRENT_KEY_VERSION
+test/t3	2
 test/t33	1
 alter table t33 encryption_key_id=333;
 ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ENCRYPTION_KEY_ID'
@@ -81,33 +69,27 @@ ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'E
 # Enable encryption when innodb_encryption_rotate_key_age is 0
 set global innodb_encrypt_tables = ON;
 # Wait until encryption threads to encrypt all unencrypted tablespaces
-SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE "test/%";
 NAME
 test/t4
 # Display only unencrypted create tables (t4)
-SELECT NAME, MIN_KEY_VERSION FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
-NAME	MIN_KEY_VERSION
-innodb_system	3
-mysql/innodb_table_stats	3
-mysql/innodb_index_stats	3
-mysql/transaction_registry	3
+SELECT NAME, CURRENT_KEY_VERSION FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE "test/%";
+NAME	CURRENT_KEY_VERSION
 test/t1	3
 test/t2	3
-test/t3	1
+test/t3	3
 test/t33	1
 # restart: with restart_parameters
-SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+alter table t33 encryption_key_id=555;
+ERROR HY000: Table storage engine 'InnoDB' does not support the create option 'ENCRYPTION_KEY_ID'
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0 AND NAME LIKE "test/%";
 NAME
 test/t4
-SELECT NAME, MIN_KEY_VERSION FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
-NAME	MIN_KEY_VERSION
-innodb_system	3
-mysql/innodb_table_stats	3
-mysql/innodb_index_stats	3
-mysql/transaction_registry	3
+SELECT NAME, CURRENT_KEY_VERSION FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0 AND NAME LIKE "test/%";
+NAME	CURRENT_KEY_VERSION
 test/t1	3
 test/t2	3
-test/t3	1
+test/t3	3
 test/t33	1
 DROP TABLE t4, t3, t2, t1;
 DROP TABLE t33;

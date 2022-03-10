@@ -1,4 +1,4 @@
-/* Copyright (C) 2019-2021 MariaDB Corporation
+/* Copyright (C) 2019-2022 MariaDB Corporation
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -114,7 +114,8 @@ static void cache_add (const KEY_INFO& info, bool update_version)
                   "cache_add: key_id = %u, key_version = %u, "
                   "timestamp = %u, update_version = %u, new version = %u",
                   ME_ERROR_LOG_ONLY | ME_NOTE, key_id, key_version,
-                  timestamp, (int) update_version, ver_info.key_version);
+                  ver_info.timestamp, (int) update_version,
+                  ver_info.key_version);
 #endif
   mtx.unlock();
 }
@@ -918,7 +919,6 @@ static int hashicorp_key_management_plugin_init(void *p)
   const static size_t x_vault_token_len = strlen(x_vault_token);
   char *token_env= getenv("VAULT_TOKEN");
   size_t token_len = strlen(token);
-  local_token = NULL;
   if (token_len == 0)
   {
     if (token_env)
@@ -989,16 +989,9 @@ static int hashicorp_key_management_plugin_init(void *p)
   {
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Memory allocation error", 0);
-    return 1;
+    goto Failure2;
   }
   snprintf(token_header, buf_len, "%s%s", x_vault_token, token);
-  curl_global_init(CURL_GLOBAL_ALL);
-  list = curl_slist_append(list, token_header);
-  if (list == NULL)
-  {
-    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
-                    "curl: unable to construct slist", 0);
-  }
   vault_url_len = strlen(vault_url);
   /*
     Checking the maximum allowable length to protect
@@ -1009,6 +1002,15 @@ static int hashicorp_key_management_plugin_init(void *p)
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Maximum allowed vault URL length exceeded",
                     0);
+Failure:
+    free(token_header);
+    token_header = NULL;
+Failure2:
+    if (local_token)
+    {
+      free(local_token);
+      local_token = NULL;
+    }
     return 1;
   }
   if (vault_url_len && vault_url[vault_url_len - 1] == '/')
@@ -1024,12 +1026,22 @@ static int hashicorp_key_management_plugin_init(void *p)
   {
     my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
                     "Memory allocation error", 0);
-    return 1;
+    goto Failure;
   }
   memcpy(vault_url_data, vault_url, vault_url_len);
   memcpy(vault_url_data + vault_url_len, "/data/", 7);
   cache_max_time = ms_to_ticks(cache_timeout);
   cache_max_ver_time = ms_to_ticks(cache_version_timeout);
+  /* Initialize curl: */
+  curl_global_init(CURL_GLOBAL_ALL);
+  list = curl_slist_append(list, token_header);
+  if (list == NULL)
+  {
+    my_printf_error(ER_UNKNOWN_ERROR, PLUGIN_ERROR_HEADER
+                    "curl: unable to construct slist", 0);
+    curl_global_cleanup();
+    goto Failure;
+  }
   return 0;
 }
 
