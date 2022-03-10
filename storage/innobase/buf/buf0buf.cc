@@ -2673,7 +2673,8 @@ ignore_block:
 		after buf_zip_decompress() in this function. */
 		block->page.lock.s_lock();
 		state = block->page.state();
-		ut_ad(state < buf_page_t::READ_FIX);
+		ut_ad(state < buf_page_t::READ_FIX
+		      || state >= buf_page_t::WRITE_FIX);
 		const page_id_t id{block->page.id()};
 		block->page.lock.s_unlock();
 
