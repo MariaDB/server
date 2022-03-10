@@ -1,0 +1,12 @@
+#
+# MDEV-26575 Server crashes when execute shutdown statement after
+# starting an XA transaction
+#
+
+--source include/galera_cluster.inc
+
+--connection node_2
+SET SESSION wsrep_on = OFF;
+--error ER_NOT_SUPPORTED_YET
+XA START 'xatest';
+--source include/restart_mysqld.inc
