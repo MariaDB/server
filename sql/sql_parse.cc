@@ -6047,7 +6047,7 @@ mysql_execute_command(THD *thd)
   }
   case SQLCOM_XA_START:
 #ifdef WITH_WSREP
-    if (WSREP(thd))
+    if (WSREP_ON)
     {
       my_error(ER_NOT_SUPPORTED_YET, MYF(0),
                "XA transactions with Galera replication");
