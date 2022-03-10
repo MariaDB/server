@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates.
-# Copyright (c) 2008, 2021, MariaDB Corporation.
+# Copyright (c) 2008, 2022, MariaDB Corporation.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -83,9 +83,11 @@ SET(MYSQL_PROJECT_NAME_DOCSTRING "MySQL project name")
 
 IF(CMAKE_VERSION VERSION_LESS "3.1")
   IF(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu99")
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
   ENDIF()
 ELSE()
+  SET(CMAKE_C_STANDARD 99)
   SET(CMAKE_CXX_STANDARD 11)
 ENDIF()
 
