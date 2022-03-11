@@ -42,6 +42,14 @@ GCCVERSION=$(gcc -dumpfullversion -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g
 # Debian policy and targeting Debian Sid. Then case-by-case run in autobake-deb.sh
 # tests for backwards compatibility and strip away parts on older builders.
 
+CODENAME="$(lsb_release -sc)"
+case "${CODENAME}" in
+	stretch)
+		# MDEV-28022 libzstd-dev-1.1.3 minimum version
+		sed -i -e '/libzstd-dev/d' debian/control
+		;;
+esac
+
 # If libcrack2 (>= 2.9.0) is not available (before Debian Jessie and Ubuntu Trusty)
 # clean away the cracklib stanzas so the package can build without them.
 if ! apt-cache madison libcrack2-dev | grep 'libcrack2-dev *| *2\.9' >/dev/null 2>&1
@@ -70,13 +78,6 @@ then
   sed '/galera_new_cluster/d' -i debian/mariadb-server-10.4.install
   sed '/galera_recovery/d' -i debian/mariadb-server-10.4.install
   sed '/mariadb-service-convert/d' -i debian/mariadb-server-10.4.install
-fi
-
-# If libzstd-dev is not available (before Debian Stretch and Ubuntu Xenial)
-# remove the dependency from server and rocksdb so it can build properly
-if ! apt-cache madison libzstd-dev | grep 'libzstd-dev' >/dev/null 2>&1
-then
-  sed '/libzstd-dev/d' -i debian/control
 fi
 
 # The binaries should be fully hardened by default. However TokuDB compilation seems to fail on
@@ -139,7 +140,6 @@ source ./VERSION
 UPSTREAM="${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}.${MYSQL_VERSION_PATCH}${MYSQL_VERSION_EXTRA}"
 PATCHLEVEL="+maria"
 LOGSTRING="MariaDB build"
-CODENAME="$(lsb_release -sc)"
 EPOCH="1:"
 
 dch -b -D ${CODENAME} -v "${EPOCH}${UPSTREAM}${PATCHLEVEL}~${CODENAME}" "Automatic build with ${LOGSTRING}."

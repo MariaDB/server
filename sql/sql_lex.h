@@ -1902,6 +1902,11 @@ public:
     */
     BINLOG_STMT_UNSAFE_AUTOINC_NOT_FIRST,
 
+    /**
+       Autoincrement lock mode is incompatible with STATEMENT binlog format.
+    */
+    BINLOG_STMT_UNSAFE_AUTOINC_LOCK_MODE,
+
     /* The last element of this enumeration type. */
     BINLOG_STMT_UNSAFE_COUNT
   };
