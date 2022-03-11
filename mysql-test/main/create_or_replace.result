@@ -353,7 +353,8 @@ drop table test.t1;
 #
 create table t1 (i int);
 lock table t1 write;
-select * from information_schema.metadata_lock_info;
+select * from information_schema.metadata_lock_info
+where table_schema!='mysql' or table_name not like 'innodb_%_stats';
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_BACKUP_DDL	NULL	Backup lock		
 #	MDL_BACKUP_DML	NULL	Backup lock		
@@ -364,7 +365,8 @@ ERROR 22001: Data too long for column 'a' at row 1
 show tables;
 Tables_in_test
 t2
-select * from information_schema.metadata_lock_info;
+select * from information_schema.metadata_lock_info
+where table_schema!='mysql' or table_name not like 'innodb_%_stats';
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 create table t1 (i int);
 drop table t1;
