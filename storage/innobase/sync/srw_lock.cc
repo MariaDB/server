@@ -54,32 +54,68 @@ bool transactional_lock_enabled()
 TRANSACTIONAL_TARGET
 bool xtest() { return have_transactional_memory && _xtest(); }
 # endif
-#elif defined __powerpc64__
-# ifdef __linux__
-#  include <sys/auxv.h>
+#elif defined __powerpc64__ || defined __s390__
+# include <htmxlintrin.h>
+# include <setjmp.h>
+# include <signal.h>
 
-#  ifndef PPC_FEATURE2_HTM_NOSC
-#   define PPC_FEATURE2_HTM_NOSC 0x01000000
-#  endif
-#  ifndef PPC_FEATURE2_HTM_NO_SUSPEND
-#   define PPC_FEATURE2_HTM_NO_SUSPEND 0x00080000
-#  endif
+__attribute__((target("htm"),hot))
+bool xbegin()
+{
+  return have_transactional_memory &&
+    __TM_simple_begin() == _HTM_TBEGIN_STARTED;
+}
 
-#  ifndef AT_HWCAP2
-#   define AT_HWCAP2 26
-#  endif
-# endif
+__attribute__((target("htm"),hot))
+void xabort() { __TM_abort(); }
+
+__attribute__((target("htm"),hot))
+void xend() { __TM_end(); }
+
 bool have_transactional_memory;
+static sigjmp_buf ill_jmp;
+static void ill_handler(int sig)
+{
+  siglongjmp(ill_jmp, sig);
+}
+/**
+  Here we are testing we can do a transaction without SIGILL
+  and a 1 instruction store can succeed.
+*/
+__attribute__((noinline))
+static void test_tm(bool *r)
+{
+  if (__TM_simple_begin() == _HTM_TBEGIN_STARTED)
+  {
+    *r= true;
+    __TM_end();
+  }
+}
 bool transactional_lock_enabled()
 {
-# ifdef __linux__
-  return getauxval(AT_HWCAP2) &
-    (PPC_FEATURE2_HTM_NOSC | PPC_FEATURE2_HTM_NO_SUSPEND);
-# endif
+  bool r= false;
+  sigset_t oset;
+  struct sigaction ill_act, oact_ill;
+
+  memset(&ill_act, 0, sizeof(ill_act));
+  ill_act.sa_handler = ill_handler;
+  sigfillset(&ill_act.sa_mask);
+  sigdelset(&ill_act.sa_mask, SIGILL);
+
+  sigprocmask(SIG_SETMASK, &ill_act.sa_mask, &oset);
+  sigaction(SIGILL, &ill_act, &oact_ill);
+  if (sigsetjmp(ill_jmp, 1) == 0)
+  {
+    test_tm(&r);
+  }
+  sigaction(SIGILL, &oact_ill, NULL);
+  sigprocmask(SIG_SETMASK, &oset, NULL);
+  return r;
 }
 
 # ifdef UNIV_DEBUG
-TRANSACTIONAL_TARGET bool xtest()
+__attribute__((target("htm"),hot))
+bool xtest()
 {
   return have_transactional_memory &&
     _HTM_STATE (__builtin_ttest ()) == _HTM_TRANSACTIONAL;
