@@ -31,5 +31,7 @@ connection con2;
 commit;
 disconnect con2;
 connection default;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+SET GLOBAL innodb_max_purge_lag_wait=0;
 set global innodb_fast_shutdown=0;
 drop table t1, t2;
