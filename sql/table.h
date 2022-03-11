@@ -699,12 +699,21 @@ public:
   void abort_stats_load() { stats_state.abort_load(); }
 };
 
+
+struct Table_name
+{
+  LEX_CSTRING   db;
+  LEX_CSTRING   table_name;
+  LEX_CSTRING   alias;
+};
+
+
 /**
   This structure is shared between different table objects. There is one
   instance of table share per one table in the database.
 */
 
-struct TABLE_SHARE
+struct TABLE_SHARE: public Table_name
 {
   TABLE_SHARE() {}                    /* Remove gcc warning */
 
@@ -754,8 +763,6 @@ struct TABLE_SHARE
     To ensure this one can use set_table_cache() methods.
   */
   LEX_CSTRING table_cache_key;
-  LEX_CSTRING db;                        /* Pointer to db */
-  LEX_CSTRING table_name;                /* Table name (for open) */
   LEX_CSTRING path;                	/* Path to .frm file (from datadir) */
   LEX_CSTRING normalized_path;		/* unpack_filename(path) */
   LEX_CSTRING connect_string;
@@ -2151,7 +2158,8 @@ struct TABLE_CHAIN
   void set_end_pos(TABLE_LIST **pos) { end_pos= pos; }
 };
 
-struct TABLE_LIST
+
+struct TABLE_LIST: public Table_name
 {
   TABLE_LIST() {}                          /* Remove gcc warning */
 
@@ -2238,10 +2246,7 @@ struct TABLE_LIST
   TABLE_LIST *next_local;
   /* link in a global list of all queries tables */
   TABLE_LIST *next_global, **prev_global;
-  LEX_CSTRING   db;
-  LEX_CSTRING   table_name;
   LEX_CSTRING   schema_table_name;
-  LEX_CSTRING   alias;
   const char    *option;                /* Used by cache index  */
   Item		*on_expr;		/* Used with outer join */
   Name_resolution_context *on_context;  /* For ON expressions */
