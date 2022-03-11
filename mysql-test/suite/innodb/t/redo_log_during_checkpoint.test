@@ -3,9 +3,6 @@
 --source include/big_test.inc
 # Embedded server tests do not support restarting
 --source include/not_embedded.inc
-# We are crashing the server on purpose
---source include/not_valgrind.inc
---source include/not_crashrep.inc
 # This often fails under MSAN builder due timing differences
 --source include/not_msan.inc
 
@@ -37,12 +34,10 @@ while ($i)
 --exec echo "wait" > $_expect_file_name
 
 SET debug_dbug = '+d,increase_mtr_checkpoint_size';
-SET debug_dbug = '+d,crash_after_checkpoint';
---error 2013
 set global innodb_log_checkpoint_now = 1;
 
---echo # Skip MLOG_FILE_NAME redo records during recovery
---source include/start_mysqld.inc
+--let $restart_timeout=0
+--source include/restart_mysqld.inc
 
 DROP DATABASE very_long_database_name;
 
@@ -67,13 +62,9 @@ while ($i)
 }
 --enable_query_log
 
---exec echo "wait" > $_expect_file_name
-SET debug_dbug = '+d,crash_after_checkpoint';
---error 2013
 set global innodb_log_checkpoint_now = 1;
 
---echo # Skip MLOG_FILE_NAME redo records during recovery
 --let $restart_parameters = --debug-dbug=d,reduce_recv_parsing_buf
---source include/start_mysqld.inc
+--source include/restart_mysqld.inc
 
 DROP DATABASE very_long_database_name;
