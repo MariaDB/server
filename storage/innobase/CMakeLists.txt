@@ -380,6 +380,19 @@ IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64"
       COMPILE_FLAGS "-O0"
       )
 ENDIF()
+
+# Older gcc version insist on -mhtm flag for including the
+# htmxlintrin.h header. This is also true for new gcc versions
+# like 11.2.0 in Debian Sid
+# s390x because of the way it defines the high level intrinsics
+# as not-inline in the header file can only be included by one
+# source file that has -mhtm enabled.
+IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64|s390x")
+  ADD_COMPILE_FLAGS(
+      sync/srw_lock.cc
+      COMPILE_FLAGS "-mhtm"
+      )
+ENDIF()
 IF(MSVC)
   IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
    ADD_COMPILE_FLAGS(

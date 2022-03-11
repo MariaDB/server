@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -615,6 +615,13 @@ Query_tables_list::binlog_stmt_unsafe_errcode[BINLOG_STMT_UNSAFE_COUNT] =
   ER_BINLOG_UNSAFE_UPDATE_IGNORE,
   ER_BINLOG_UNSAFE_INSERT_TWO_KEYS,
   ER_BINLOG_UNSAFE_AUTOINC_NOT_FIRST,
+  /*
+    There is no need to add new error code as we plan to get rid of auto
+    increment lock mode variable, so we use existing error code below, add
+    the correspondent text to the existing error message during merging to
+    non-GA release.
+  */
+  ER_BINLOG_UNSAFE_SYSTEM_VARIABLE,
   ER_BINLOG_UNSAFE_SKIP_LOCKED
 };
 

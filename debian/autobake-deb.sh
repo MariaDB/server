@@ -13,6 +13,14 @@ set -e
 
 source ./VERSION
 
+CODENAME="$(lsb_release -sc)"
+case "${CODENAME}" in
+	stretch)
+		# MDEV-28022 libzstd-dev-1.1.3 minimum version
+		sed -i -e '/libzstd-dev/d' debian/control
+		;;
+esac
+
 # This file is invoked from Buildbot and Travis-CI to build deb packages.
 # As both of those CI systems have many parallel jobs that include different
 # parts of the test suite, we don't need to run the mysql-test-run at all when
@@ -106,7 +114,6 @@ echo "Incrementing changelog and starting build scripts"
 UPSTREAM="${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}.${MYSQL_VERSION_PATCH}${MYSQL_VERSION_EXTRA}"
 PATCHLEVEL="+maria"
 LOGSTRING="MariaDB build"
-CODENAME="$(lsb_release -sc)"
 EPOCH="1:"
 VERSION="${EPOCH}${UPSTREAM}${PATCHLEVEL}~${CODENAME}"
 
