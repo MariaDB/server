@@ -8715,13 +8715,14 @@ inline bool rollback_inplace_alter_table(Alter_inplace_info *ha_alter_info,
     const bool fts_exist= (ctx->new_table->flags2 &
                            (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS)) ||
       ctx->adding_fulltext_index();
-    if (fts_exist)
-    {
-      fts_optimize_remove_table(ctx->new_table);
-      purge_sys.stop_FTS(*ctx->new_table);
-    }
     if (ctx->need_rebuild())
     {
+      if (fts_exist)
+      {
+        fts_optimize_remove_table(ctx->new_table);
+        purge_sys.stop_FTS(*ctx->new_table);
+      }
+
       dberr_t err= lock_table_for_trx(ctx->new_table, ctx->trx, LOCK_X);
       if (fts_exist)
       {
@@ -8768,12 +8769,25 @@ inline bool rollback_inplace_alter_table(Alter_inplace_info *ha_alter_info,
 
       if (fts_exist)
       {
+        const dict_index_t *fts_index= nullptr;
         for (ulint a= 0; a < ctx->num_to_add_index; a++)
         {
           const dict_index_t *index = ctx->add_index[a];
           if (index->type & DICT_FTS)
-            ut_a(!fts_lock_index_tables(ctx->trx, *index));
+            fts_index= index;
         }
+
+        /* Remove the fts table from fts_optimize_wq if there are
+        no FTS secondary index exist other than newly added one */
+        if (fts_index &&
+            (ib_vector_is_empty(prebuilt->table->fts->indexes) ||
+             (ib_vector_size(prebuilt->table->fts->indexes) == 1 &&
+              fts_index == static_cast<dict_index_t*>(
+                ib_vector_getp(prebuilt->table->fts->indexes, 0)))))
+          fts_optimize_remove_table(prebuilt->table);
+
+        purge_sys.stop_FTS(*prebuilt->table);
+        ut_a(!fts_index || !fts_lock_index_tables(ctx->trx, *fts_index));
         ut_a(!fts_lock_common_tables(ctx->trx, *ctx->new_table));
         ut_a(!lock_sys_tables(ctx->trx));
       }

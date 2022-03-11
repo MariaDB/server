@@ -12,10 +12,14 @@ c char(32) DEFAULT 'dummy_text',
 PRIMARY KEY (i)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 insert into t1(i) values(null);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system variable that may have a different value on the slave
 select * from t1;
 i	c
 1	dummy_text
 insert into t1(i) values(null), (null), (null);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system variable that may have a different value on the slave
 select * from t1;
 i	c
 1	dummy_text
@@ -46,10 +50,14 @@ c char(32) DEFAULT 'dummy_text',
 PRIMARY KEY (i)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 insert into t1(i) values(null);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system variable that may have a different value on the slave
 select * from t1;
 i	c
 1	dummy_text
 insert into t1(i) values(null), (null), (null);
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system variable that may have a different value on the slave
 select * from t1;
 i	c
 1	dummy_text
