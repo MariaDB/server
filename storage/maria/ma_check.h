@@ -1,4 +1,4 @@
-/* Copyright (C) 2019 MariaDB Corporation AB
+/* Copyright (C) 2019, 2022, MariaDB Corporation AB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,17 +20,17 @@
   in myisamchk.h
 */
 
-typedef struct st_sort_key_blocks		/* Used when sorting */
+struct st_sort_key_blocks		/* Used when sorting */
 {
   uchar *buff, *end_pos;
   uchar lastkey[MARIA_MAX_POSSIBLE_KEY_BUFF];
   uint last_length;
   int inited;
-} MA_SORT_KEY_BLOCKS;
+};
 
-typedef struct st_sort_ftbuf
+struct st_sort_ftbuf
 {
   uchar *buf, *end;
   int count;
   uchar lastkey[MARIA_MAX_KEY_BUFF];
-} MA_SORT_FT_BUF;
+};
