@@ -6242,6 +6242,10 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     bool is_write= FALSE;                        // If any write tables
     bool has_read_tables= FALSE;                 // If any read only tables
     bool has_auto_increment_write_tables= FALSE; // Write with auto-increment
+    /* true if it's necessary to switch current statement log format from
+    STATEMENT to ROW if binary log format is MIXED and autoincrement values
+    are changed in the statement */
+    bool has_unsafe_stmt_autoinc_lock_mode= false;
     /* If a write table that doesn't have auto increment part first */
     bool has_write_table_auto_increment_not_first_in_pk= FALSE;
     bool has_auto_increment_write_tables_not_first= FALSE;
@@ -6364,6 +6368,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
           has_auto_increment_write_tables_not_first= found_first_not_own_table;
           if (share->next_number_keypart != 0)
             has_write_table_auto_increment_not_first_in_pk= true;
+          has_unsafe_stmt_autoinc_lock_mode=
+            table->file->autoinc_lock_mode_stmt_unsafe();
         }
       }
 
@@ -6378,7 +6384,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
           blackhole_table_found= 1;
 
         if (share->non_determinstic_insert &&
-            !(sql_command_flags[lex->sql_command] & CF_SCHEMA_CHANGE))
+            (sql_command_flags[lex->sql_command] & CF_CAN_GENERATE_ROW_EVENTS
+             && !(sql_command_flags[lex->sql_command] & CF_SCHEMA_CHANGE)))
           has_write_tables_with_unsafe_statements= true;
 
         trans= table->file->has_transactions();
@@ -6434,6 +6441,9 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 
       if (has_write_tables_with_unsafe_statements)
         lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+
+      if (has_unsafe_stmt_autoinc_lock_mode)
+        lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_LOCK_MODE);
 
       /*
         A query that modifies autoinc column in sub-statement can make the

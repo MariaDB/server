@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -990,8 +990,6 @@ ATTRIBUTE_COLD void log_write_checkpoint_info(lsn_t end_lsn)
 			      log_sys.get_flushed_lsn()));
 
 	MONITOR_INC(MONITOR_NUM_CHECKPOINT);
-
-	DBUG_EXECUTE_IF("crash_after_checkpoint", DBUG_SUICIDE(););
 
 	mysql_mutex_unlock(&log_sys.mutex);
 }
