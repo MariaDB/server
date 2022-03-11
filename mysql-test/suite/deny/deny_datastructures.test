@@ -16,6 +16,13 @@ flush privileges;
 show grants for foo;
 show grants for bar;
 
+deny select on some_db.* to foo;
+deny show view on some_db.* to foo;
+deny insert on some_other_db.* to bar;
+
+select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'bar';
+
 #TODO(cvicentiu) Update results with further deny types.
 
 drop user foo;
