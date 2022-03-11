@@ -1,0 +1,92 @@
+--echo #
+--echo # This test checks the implementation of denies with regards to show view
+--echo # commands and I_S tables.
+--echo #
+create database some_db;
+use some_db;
+create user foo;
+
+
+create table t1 (id int);
+create view v1 as select * from t1;
+create definer = foo
+sql security definer view v2 as select 1;
+
+grant insert(id) on some_db.t1 to foo;
+grant show view on some_db.* to foo;
+grant show view on some_db.v1 to foo;
+grant select on some_db.* to foo;
+grant select on some_db.v1 to foo;
+grant select(id) on some_db.v1 to foo;
+
+show grants for foo;
+--connect (con1,localhost,foo,,)
+select * from information_schema.views
+where table_name='v1' or table_name='v2' order by table_name;
+show create view some_db.v1;
+show create view some_db.v2;
+disconnect con1;
+
+connection default;
+deny select on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+select * from information_schema.views
+where table_name='v1' or table_name='v2' order by table_name;
+--error ER_TABLEACCESS_DENIED_ERROR
+show create view some_db.v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+show create view some_db.v2;
+disconnect con1;
+
+connection default;
+deny show view on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+select * from information_schema.views
+where table_name='v1' or table_name='v2' order by table_name;
+--error ER_TABLEACCESS_DENIED_ERROR
+show create view some_db.v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+show create view some_db.v2;
+disconnect con1;
+
+connection default;
+revoke deny show view on *.* from foo;
+
+--connect (con1,localhost,foo,,)
+select * from information_schema.views
+where table_name='v1' or table_name='v2' order by table_name;
+--error ER_TABLEACCESS_DENIED_ERROR
+show create view some_db.v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+show create view some_db.v2;
+disconnect con1;
+
+connection default;
+revoke deny select on *.* from foo;
+
+--connect (con1,localhost,foo,,)
+select * from information_schema.views
+where table_name='v1' or table_name='v2' order by table_name;
+show create view some_db.v1;
+show create view some_db.v2;
+disconnect con1;
+
+connection default;
+deny show view on *.* to foo;
+
+--connect (con1,localhost,foo,,)
+select * from information_schema.views
+where table_name='v1' or table_name='v2' order by table_name;
+--error ER_TABLEACCESS_DENIED_ERROR
+show create view some_db.v1;
+--error ER_TABLEACCESS_DENIED_ERROR
+show create view some_db.v2;
+disconnect con1;
+
+connection default;
+drop view v1, v2;
+drop table t1;
+drop user foo;
+drop database some_db;
