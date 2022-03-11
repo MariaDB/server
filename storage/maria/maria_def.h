@@ -150,21 +150,21 @@ struct st_maria_share;
 struct st_maria_handler;                        /* For referense */
 struct st_maria_keydef;
 
-typedef struct st_maria_key                 /* Internal info about a key */
+struct st_maria_key                 /* Internal info about a key */
 {
   uchar *data;                              /* Data for key */
   struct st_maria_keydef *keyinfo;          /* Definition for key */
   uint data_length;                         /* Length of key data */
   uint ref_length;                          /* record ref + transid */
   uint32 flag;                               /* 0 or SEARCH_PART_KEY */
-} MARIA_KEY;
+};
 
-typedef struct st_maria_decode_tree     /* Decode huff-table */
+struct st_maria_decode_tree     /* Decode huff-table */
 {
   uint16 *table;
   uint quick_table_bits;
   uchar *intervalls;
-} MARIA_DECODE_TREE;
+};
 
 
 typedef struct s3_info S3_INFO;
