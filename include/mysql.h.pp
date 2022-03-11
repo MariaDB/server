@@ -238,7 +238,9 @@ typedef struct st_mysql_field {
 typedef char **MYSQL_ROW;
 typedef unsigned int MYSQL_FIELD_OFFSET;
 typedef unsigned long long my_ulonglong;
+extern "C" {
 typedef unsigned int PSI_memory_key;
+}
 extern "C" {
 typedef struct st_used_mem
 {

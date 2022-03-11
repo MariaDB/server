@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2017, MariaDB Corporation.
+   Copyright (c) 2017, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -613,21 +613,21 @@ typedef struct st_mi_block_info         /* Parameter to _mi_get_block_info */
 } MI_BLOCK_INFO;
 
 
-typedef struct st_sort_key_blocks		/* Used when sorting */
+struct st_sort_key_blocks		/* Used when sorting */
 {
   uchar *buff, *end_pos;
   uchar lastkey[HA_MAX_POSSIBLE_KEY_BUFF];
   uint last_length;
   int inited;
-} SORT_KEY_BLOCKS;
+};
 
 
-typedef struct st_sort_ftbuf
+struct st_sort_ftbuf
 {
   uchar *buf, *end;
   int count;
   uchar lastkey[HA_MAX_KEY_BUFF];
-} SORT_FT_BUF;
+};
 
 /* bits in return from _mi_get_block_info */
 
