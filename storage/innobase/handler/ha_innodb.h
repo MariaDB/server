@@ -457,6 +457,10 @@ protected:
 
 	int general_fetch(uchar* buf, uint direction, uint match_mode);
 	int change_active_index(uint keynr);
+	/* @return true if it's necessary to switch current statement log
+	format from STATEMENT to ROW if binary log format is MIXED and
+	autoincrement values are changed in the statement */
+	bool autoinc_lock_mode_stmt_unsafe() const;
 	dict_index_t* innobase_get_index(uint keynr);
 
 #ifdef WITH_WSREP
