@@ -3158,11 +3158,7 @@ check_access(THD *thd, privilege_t want_access,
     DBUG_RETURN(FALSE); // CTE reference or an error later
   }
 
-  if (sctx->denies_active & (GLOBAL_PRIV | DATABASE_PRIV))
-  {
-    /* TODO(cvicentiu) handle db level denies. */
-    deny_mask= acl_get_effective_deny_mask(sctx, {db, db ? strlen(db) : 0});
-  }
+  deny_mask= acl_get_effective_deny_mask(sctx, {db, db ? strlen(db) : 0});
   masked_access= sctx->master_access & ~deny_mask;
 
   if (likely((db != NULL) && (db != any_db.str)))
@@ -3520,7 +3516,7 @@ static bool check_show_access(THD *thd, TABLE_LIST *table)
 
 bool
 check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
-		   bool any_combination_of_privileges_will_do,
+                   bool any_combination_of_privileges_will_do,
                    uint number, bool no_errors)
 {
   TABLE_LIST *org_tables= tables;
@@ -3608,6 +3604,8 @@ check_routine_access(THD *thd, privilege_t want_access, const LEX_CSTRING *db,
     Since the I_S and P_S do not contain routines, this bypass is ok,
     as long as this code path is not abused to create routines.
     The assert enforce that.
+    TODO(cvicentiu) This shortcut doesn't work with denies properly. We can't
+    assume access is granted here. It could be removed via a more granular deny.
   */
   DBUG_ASSERT((want_access & CREATE_PROC_ACL) == NO_ACL);
   if ((thd->security_ctx->master_access & want_access) == want_access)
