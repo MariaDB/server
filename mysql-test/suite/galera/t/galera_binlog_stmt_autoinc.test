@@ -18,8 +18,16 @@
 --connection node_2
 SET GLOBAL wsrep_forced_binlog_format='STATEMENT';
 
+--disable_query_log
+call mtr.add_suppression("Unsafe statement written to the binary log");
+--enable_query_log
+
 --connection node_1
 SET GLOBAL wsrep_forced_binlog_format='STATEMENT';
+
+--disable_query_log
+call mtr.add_suppression("Unsafe statement written to the binary log");
+--enable_query_log
 
 CREATE TABLE t1 (
      i int(11) NOT NULL AUTO_INCREMENT,
