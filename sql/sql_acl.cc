@@ -10064,6 +10064,8 @@ privilege_t get_table_grant(THD *thd, TABLE_LIST *table)
   const char *db = table->db.str ? table->db.str : thd->db.str;
   GRANT_TABLE *grant_table;
   GRANT_TABLE *grant_table_role= NULL;
+  //TODO(cvicentiu) table level and column level deny mask recompute per table.
+  privilege_t deny_mask= acl_get_effective_deny_mask(sctx, {db, strlen(db)});
 
   mysql_rwlock_rdlock(&LOCK_grant);
 #ifdef EMBEDDED_LIBRARY
@@ -10083,6 +10085,9 @@ privilege_t get_table_grant(THD *thd, TABLE_LIST *table)
     table->grant.privilege|= grant_table->privs;
   if (grant_table_role)
     table->grant.privilege|= grant_table_role->privs;
+
+  table->grant.privilege &= ~deny_mask;
+
   privilege_t privilege(table->grant.privilege);
   mysql_rwlock_unlock(&LOCK_grant);
   return privilege;

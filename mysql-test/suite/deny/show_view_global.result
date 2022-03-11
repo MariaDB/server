@@ -1,0 +1,106 @@
+#
+# This test checks the implementation of denies with regards to show view
+# commands and I_S tables.
+#
+create database some_db;
+use some_db;
+create user foo;
+create table t1 (id int);
+create view v1 as select * from t1;
+create definer = foo
+sql security definer view v2 as select 1;
+grant insert(id) on some_db.t1 to foo;
+grant show view on some_db.* to foo;
+grant show view on some_db.v1 to foo;
+grant select on some_db.* to foo;
+grant select on some_db.v1 to foo;
+grant select(id) on some_db.v1 to foo;
+show grants for foo;
+Grants for foo@%
+GRANT USAGE ON *.* TO `foo`@`%`
+GRANT SELECT, SHOW VIEW ON `some_db`.* TO `foo`@`%`
+GRANT SELECT, SELECT (id), SHOW VIEW ON `some_db`.`v1` TO `foo`@`%`
+GRANT INSERT (id) ON `some_db`.`t1` TO `foo`@`%`
+connect  con1,localhost,foo,,;
+select * from information_schema.views
+where table_name='v1' or table_name='v2' order by table_name;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1	select `some_db`.`t1`.`id` AS `id` from `some_db`.`t1`	NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+def	some_db	v2	select 1 AS `1`	NONE	NO	foo@%	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+show create view some_db.v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `some_db`.`v1` AS select `some_db`.`t1`.`id` AS `id` from `some_db`.`t1`	latin1	latin1_swedish_ci
+show create view some_db.v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`foo`@`%` SQL SECURITY DEFINER VIEW `some_db`.`v2` AS select 1 AS `1`	latin1	latin1_swedish_ci
+disconnect con1;
+connection default;
+deny select on *.* to foo;
+connect  con1,localhost,foo,,;
+select * from information_schema.views
+where table_name='v1' or table_name='v2' order by table_name;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1		NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+def	some_db	v2	select 1 AS `1`	NONE	NO	foo@%	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+show create view some_db.v1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'v1'
+show create view some_db.v2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'v2'
+disconnect con1;
+connection default;
+deny show view on *.* to foo;
+connect  con1,localhost,foo,,;
+select * from information_schema.views
+where table_name='v1' or table_name='v2' order by table_name;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+show create view some_db.v1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'v1'
+show create view some_db.v2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'v2'
+disconnect con1;
+connection default;
+revoke deny show view on *.* from foo;
+connect  con1,localhost,foo,,;
+select * from information_schema.views
+where table_name='v1' or table_name='v2' order by table_name;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1		NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+def	some_db	v2	select 1 AS `1`	NONE	NO	foo@%	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+show create view some_db.v1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'v1'
+show create view some_db.v2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'v2'
+disconnect con1;
+connection default;
+revoke deny select on *.* from foo;
+connect  con1,localhost,foo,,;
+select * from information_schema.views
+where table_name='v1' or table_name='v2' order by table_name;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1	select `some_db`.`t1`.`id` AS `id` from `some_db`.`t1`	NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+def	some_db	v2	select 1 AS `1`	NONE	NO	foo@%	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+show create view some_db.v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `some_db`.`v1` AS select `some_db`.`t1`.`id` AS `id` from `some_db`.`t1`	latin1	latin1_swedish_ci
+show create view some_db.v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`foo`@`%` SQL SECURITY DEFINER VIEW `some_db`.`v2` AS select 1 AS `1`	latin1	latin1_swedish_ci
+disconnect con1;
+connection default;
+deny show view on *.* to foo;
+connect  con1,localhost,foo,,;
+select * from information_schema.views
+where table_name='v1' or table_name='v2' order by table_name;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1		NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+def	some_db	v2	select 1 AS `1`	NONE	NO	foo@%	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+show create view some_db.v1;
+ERROR 42000: SHOW VIEW command denied to user 'foo'@'localhost' for table 'v1'
+show create view some_db.v2;
+ERROR 42000: SHOW VIEW command denied to user 'foo'@'localhost' for table 'v2'
+disconnect con1;
+connection default;
+drop view v1, v2;
+drop table t1;
+drop user foo;
+drop database some_db;
