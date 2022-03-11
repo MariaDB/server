@@ -4670,4 +4670,32 @@ select (SELECT name FROM t1 WHERE name='tom' AND pw=PASSWORD(@undefined));
 
 drop table t1;
 
+--echo #
+--echo # Bug MDEV-24262 Server crashes in st_join_table::cleanup upon
+--echo # erroneous GROUP_CONCAT
+--echo #
+
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,10),(2,20);
+--error ER_BAD_FIELD_ERROR
+SELECT b, GROUP_CONCAT(b ORDER BY 2), MIN(a) AS f FROM t1 GROUP BY b ORDER BY f;
+
+DROP TABLE t1;
+
+--echo #
+--echo # Bug MDEV-24560 SIGSEGV in st_join_table::cleanup + server and client
+--echo # hang + cross-mysqld-interaction + double free or corruption (!prev)
+--echo #
+
+CREATE TABLE t1 (c INT);
+SET SESSION sql_buffer_result=1;
+SELECT GROUP_CONCAT(c ORDER BY 2) FROM t1;
+SELECT GROUP_CONCAT(c ORDER BY 0) FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (grp INT,c CHAR);
+SET sql_buffer_result=1;
+SELECT grp,GROUP_CONCAT(c ORDER BY 2) FROM t1 GROUP BY grp;
+DROP TABLE t1;
+
 --echo End of 10.0 tests
