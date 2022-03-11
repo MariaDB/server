@@ -1718,11 +1718,13 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   mach_write_to_8(my_assume_aligned<8>(c + 8), end_lsn);
   mach_write_to_4(my_assume_aligned<4>(c + 60), my_crc32c(0, c, 60));
 
-  lsn_t resizing= resize_lsn.load(std::memory_order_relaxed);
+  lsn_t resizing;
 
 #ifdef HAVE_PMEM
   if (is_pmem())
   {
+    resizing= resize_lsn.load(std::memory_order_relaxed);
+
     if (resizing > 1 && resizing <= next_checkpoint_lsn)
     {
       memcpy_aligned<64>(resize_buf + CHECKPOINT_1, c, 64);
@@ -1737,6 +1739,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     n_pending_checkpoint_writes++;
     latch.wr_unlock();
     log_write_and_flush_prepare();
+    resizing= resize_lsn.load(std::memory_order_relaxed);
     /* FIXME: issue an asynchronous write */
     log.write(offset, {c, get_block_size()});
     if (resizing > 1 && resizing <= next_checkpoint_lsn)
@@ -1747,16 +1750,11 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
       resize_log.write(0, {buf, 4096});
       aligned_free(buf);
       resize_log.write(CHECKPOINT_1, {c, get_block_size()});
-      latch.wr_lock(SRW_LOCK_CALL);
-      /* FIXME: write and flush outside exclusive latch */
-      ut_a(flush(write_buf<false>()));
     }
-    else
-    {
-      if (srv_file_flush_method != SRV_O_DSYNC)
-        ut_a(log.flush());
-      latch.wr_lock(SRW_LOCK_CALL);
-    }
+
+    if (srv_file_flush_method != SRV_O_DSYNC)
+      ut_a(log.flush());
+    latch.wr_lock(SRW_LOCK_CALL);
     n_pending_checkpoint_writes--;
     resizing= resize_lsn.load(std::memory_order_relaxed);
   }
