@@ -1,8 +1,8 @@
 extern "C" {
+typedef unsigned int PSI_memory_key;
 }
 extern "C" {
 struct PSI_thread;
-typedef unsigned int PSI_memory_key;
 struct PSI_memory_info_v2
 {
   int placeholder;
