@@ -285,13 +285,15 @@ create table t1 (i int);
 lock table t1 write;
 --replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select * from information_schema.metadata_lock_info
+where table_schema!='mysql' or table_name not like 'innodb_%_stats';
 --error ER_DATA_TOO_LONG
 create or replace table t1 (a char(1)) engine=Innodb select 'foo' as a;
 show tables;
 --replace_column 1 #
 --sorted_result
-select * from information_schema.metadata_lock_info;
+select * from information_schema.metadata_lock_info
+where table_schema!='mysql' or table_name not like 'innodb_%_stats';
 create table t1 (i int);
 drop table t1;
 
