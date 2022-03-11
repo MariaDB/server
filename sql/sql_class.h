@@ -6172,8 +6172,8 @@ public:
 private:
   TABLE *create_table_from_items(THD *thd,
                                   List<Item> *items,
-                                  MYSQL_LOCK **lock,
-                                  TABLEOP_HOOKS *hooks);
+                                  MYSQL_LOCK **lock);
+  int postlock(THD *thd, TABLE **tables);
 };
 
 #include <myisam.h>
