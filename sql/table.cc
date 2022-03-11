@@ -1370,7 +1370,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (frm_image[61] && !share->default_part_plugin)
   {
     enum legacy_db_type db_type= (enum legacy_db_type) (uint) frm_image[61];
-    share->default_part_plugin= ha_lock_engine(NULL, ha_checktype(thd, db_type));
+    share->default_part_plugin= ha_lock_engine(NULL, ha_checktype(thd, db_type, 1));
     if (!share->default_part_plugin)
       goto err;
   }
