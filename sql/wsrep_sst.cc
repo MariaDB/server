@@ -1,4 +1,4 @@
-/* Copyright 2008-2020 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2022 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -30,6 +30,7 @@
 #include "wsrep_xid.h"
 #include <cstdio>
 #include <cstdlib>
+#include "debug_sync.h"
 
 #include <my_service_manager.h>
 
@@ -1415,6 +1416,33 @@ static int run_sql_command(THD *thd, const char *query)
   return 0;
 }
 
+static void sst_disallow_writes (THD* thd, bool yes)
+{
+  char query_str[64]= { 0, };
+  ssize_t const query_max= sizeof(query_str) - 1;
+  CHARSET_INFO *current_charset;
+
+  current_charset= thd->variables.character_set_client;
+
+  if (!is_supported_parser_charset(current_charset))
+  {
+      /* Do not use non-supported parser character sets */
+      WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->csname);
+      thd->variables.character_set_client= &my_charset_latin1;
+      WSREP_WARN("For SST temporally setting character set to : %s",
+                 my_charset_latin1.csname);
+  }
+
+  snprintf (query_str, query_max, "SET GLOBAL innodb_disallow_writes=%d",
+            yes ? 1 : 0);
+
+  if (run_sql_command(thd, query_str))
+  {
+    WSREP_ERROR("Failed to disallow InnoDB writes");
+  }
+  thd->variables.character_set_client= current_charset;
+}
+
 
 static int sst_flush_tables(THD* thd)
 {
@@ -1477,6 +1505,10 @@ static int sst_flush_tables(THD* thd)
   {
     WSREP_INFO("Tables flushed.");
 
+    /* disable further disk IO */
+    sst_disallow_writes(thd, true);
+    WSREP_INFO("Disabled further disk IO.");
+
     /*
       Tables have been flushed. Create a file with cluster state ID and
       wsrep_gtid_domain_id.
@@ -1485,37 +1517,12 @@ static int sst_flush_tables(THD* thd)
     snprintf(content, sizeof(content), "%s:%lld %d\n", wsrep_cluster_state_uuid,
              (long long)wsrep_locked_seqno, wsrep_gtid_domain_id);
     err= sst_create_file(flush_success, content);
+
+    if(err)
+      WSREP_INFO("Creating file for flush_success failed %d",err);
   }
 
   return err;
-}
-
-
-static void sst_disallow_writes (THD* thd, bool yes)
-{
-  char query_str[64] = { 0, };
-  ssize_t const query_max = sizeof(query_str) - 1;
-  CHARSET_INFO *current_charset;
-
-  current_charset = thd->variables.character_set_client;
-
-  if (!is_supported_parser_charset(current_charset))
-  {
-      /* Do not use non-supported parser character sets */
-      WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->csname);
-      thd->variables.character_set_client = &my_charset_latin1;
-      WSREP_WARN("For SST temporally setting character set to : %s",
-              my_charset_latin1.csname);
-  }
-
-  snprintf (query_str, query_max, "SET GLOBAL innodb_disallow_writes=%d",
-            yes ? 1 : 0);
-
-  if (run_sql_command(thd, query_str))
-  {
-    WSREP_ERROR("Failed to disallow InnoDB writes");
-  }
-  thd->variables.character_set_client = current_charset;
 }
 
 static void* sst_donor_thread (void* a)
@@ -1565,8 +1572,7 @@ wait_signal:
         err= sst_flush_tables (thd.ptr);
         if (!err)
         {
-          sst_disallow_writes (thd.ptr, true);
-          /*
+           /*
             Lets also keep statements that modify binary logs (like RESET LOGS,
             RESET MASTER) from proceeding until the files have been transferred
             to the joiner node.
@@ -1577,6 +1583,18 @@ wait_signal:
           }
 
           locked= true;
+
+	  WSREP_INFO("Donor state reached");
+
+          DBUG_EXECUTE_IF("sync.wsrep_donor_state",
+                  {
+                    const char act[]=
+                      "now "
+                      "SIGNAL sync.wsrep_donor_state_reached "
+                      "WAIT_FOR signal.wsrep_donor_state";
+                    assert(!debug_sync_set_action(thd.ptr,
+                                                  STRING_WITH_LEN(act)));
+                  };);
           goto wait_signal;
         }
       }
