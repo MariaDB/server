@@ -2484,11 +2484,11 @@ bool ddl_log_write_entry(DDL_LOG_ENTRY *ddl_log_entry,
 
   if (unlikely(write_ddl_log_file_entry((*active_entry)->entry_pos)))
   {
+    sql_print_error("DDL_LOG: Failed to write entry %u",
+                    (*active_entry)->entry_pos);
     ddl_log_release_memory_entry(*active_entry);
     *active_entry= 0;
     error= TRUE;
-    sql_print_error("DDL_LOG: Failed to write entry %u",
-                    (*active_entry)->entry_pos);
   }
   DBUG_RETURN(error);
 }
@@ -2545,13 +2545,13 @@ bool ddl_log_write_execute_entry(uint first_entry,
  }
   if (write_ddl_log_file_entry((*active_entry)->entry_pos))
   {
+    sql_print_error("DDL_LOG: Error writing execute entry %u",
+                    (*active_entry)->entry_pos);
     if (got_free_entry)
     {
       ddl_log_release_memory_entry(*active_entry);
       *active_entry= 0;
     }
-    sql_print_error("DDL_LOG: Error writing execute entry %u",
-                    (*active_entry)->entry_pos);
     DBUG_RETURN(TRUE);
   }
   (void) ddl_log_sync_no_lock();
