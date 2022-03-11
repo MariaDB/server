@@ -2476,7 +2476,8 @@ rollback:
         fts_optimize_add_table(table);
       }
       trx->rollback();
-      row_mysql_unlock_data_dictionary(trx);
+      if (trx->dict_operation_lock_mode)
+        row_mysql_unlock_data_dictionary(trx);
       return err;
     }
   }

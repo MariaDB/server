@@ -733,7 +733,7 @@ ATTRIBUTE_COLD void log_t::resize_write_buf(size_t length) noexcept
 /** Write buf to ib_logfile0.
 @tparam release_latch whether to invoke latch.wr_unlock()
 @return the current log sequence number */
-template<bool release_latch> lsn_t log_t::write_buf() noexcept
+template<bool release_latch> inline lsn_t log_t::write_buf() noexcept
 {
 #ifndef SUX_LOCK_GENERIC
   ut_ad(latch.is_write_locked());
@@ -777,16 +777,17 @@ template<bool release_latch> lsn_t log_t::write_buf() noexcept
       (We want to avoid memset() while holding mutex.)
       This block will be overwritten later, once records beyond
       the current LSN are generated. */
+# ifdef HAVE_valgrind
       MEM_MAKE_DEFINED(buf + length, get_block_size() - new_buf_free);
+      if (UNIV_LIKELY_NULL(resize_flush_buf))
+        MEM_MAKE_DEFINED(resize_buf + length, get_block_size() - new_buf_free);
+# endif
       buf[length]= 0; /* allow recovery to catch EOF faster */
       length&= ~block_size_1;
       memcpy_aligned<16>(flush_buf, buf + length, (new_buf_free + 15) & ~15);
       if (UNIV_LIKELY_NULL(resize_flush_buf))
-      {
-        MEM_MAKE_DEFINED(resize_buf + length, get_block_size() - new_buf_free);
         memcpy_aligned<16>(resize_flush_buf, resize_buf + length,
                            (new_buf_free + 15) & ~15);
-      }
       length+= get_block_size();
 #endif
     }
@@ -812,8 +813,6 @@ template<bool release_latch> lsn_t log_t::write_buf() noexcept
 
   return lsn;
 }
-
-template lsn_t log_t::write_buf<false>() noexcept;
 
 bool log_t::flush(lsn_t lsn) noexcept
 {

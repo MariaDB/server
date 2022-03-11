@@ -486,7 +486,7 @@ public:
   /** Write buf to ib_logfile0.
   @tparam release_latch whether to invoke latch.wr_unlock()
   @return the current log sequence number */
-  template<bool release_latch> lsn_t write_buf() noexcept;
+  template<bool release_latch> inline lsn_t write_buf() noexcept;
 
   /** Create the log. */
   void create(lsn_t lsn) noexcept;
