@@ -14571,14 +14571,8 @@ TEXT_STRING_sys:
 TEXT_STRING_literal:
           TEXT_STRING
           {
-            if (thd->charset_is_collation_connection)
-              $$= $1;
-            else
-            {
-              if (thd->convert_string(&$$, thd->variables.collation_connection,
-                                  $1.str, $1.length, thd->charset()))
-                MYSQL_YYABORT;
-            } 
+            if (thd->make_text_string_connection(&$$, &$1))
+              MYSQL_YYABORT;
           }
         ;
 

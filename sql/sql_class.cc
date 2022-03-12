@@ -2148,7 +2148,7 @@ void THD::cleanup_after_query()
 */
 
 bool THD::convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
-			 const char *from, uint from_length,
+			 const char *from, size_t from_length,
 			 CHARSET_INFO *from_cs)
 {
   DBUG_ENTER("THD::convert_string");
@@ -2167,6 +2167,58 @@ bool THD::convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
     DBUG_RETURN(true);
   }
   DBUG_RETURN(false);
+}
+
+
+/*
+  Reinterpret a binary string to a character string
+
+  @param[OUT] to    The result will be written here,
+                    either the original string as is,
+                    or a newly alloced fixed string with
+                    some zero bytes prepended.
+  @param cs         The destination character set
+  @param str        The binary string
+  @param length     The length of the binary string
+
+  @return           false on success
+  @return           true on error
+*/
+
+bool THD::reinterpret_string_from_binary(LEX_CSTRING *to, CHARSET_INFO *cs,
+                                         const char *str, size_t length)
+{
+  /*
+    When reinterpreting from binary to tricky character sets like
+    UCS2, UTF16, UTF32, we may need to prepend some zero bytes.
+    This is possible in scenarios like this:
+      SET COLLATION_CONNECTION=utf32_general_ci, CHARACTER_SET_CLIENT=binary;
+    This code is similar to String::copy_aligned().
+  */
+  size_t incomplete= length % cs->mbminlen; // Bytes in an incomplete character
+  if (incomplete)
+  {
+    size_t zeros= cs->mbminlen - incomplete;
+    size_t aligned_length= zeros + length;
+    char *dst= (char*) alloc(aligned_length + 1);
+    if (!dst)
+    {
+      to->str= NULL; // Safety
+      to->length= 0;
+      return true;
+    }
+    bzero(dst, zeros);
+    memcpy(dst + zeros, str, length);
+    dst[aligned_length]= '\0';
+    to->str= dst;
+    to->length= aligned_length;
+  }
+  else
+  {
+    to->str= str;
+    to->length= length;
+  }
+  return check_string_for_wellformedness(to->str, to->length, cs);
 }
 
 
@@ -2271,6 +2323,21 @@ bool THD::convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs)
   }
   s->swap(convert_buffer);
   return FALSE;
+}
+
+
+bool THD::check_string_for_wellformedness(const char *str,
+                                          size_t length,
+                                          CHARSET_INFO *cs) const
+{
+  size_t wlen= Well_formed_prefix(cs, str, length).length();
+  if (wlen < length)
+  {
+    ErrConvString err(str, length, &my_charset_bin);
+    my_error(ER_INVALID_CHARACTER_STRING, MYF(0), cs->csname, err.ptr());
+    return true;
+  }
+  return false;
 }
 
 

@@ -290,6 +290,19 @@ EXECUTE s;
 DEALLOCATE PREPARE s;
 SET NAMES utf8;
 
+--echo #
+--echo # MDEV-23210 Assertion `(length % 4) == 0' failed in my_lengthsp_utf32 on ALTER TABLE, SELECT and INSERT
+--echo #
+
+CREATE TABLE t1 (a CHAR(1));
+SET COLLATION_CONNECTION=utf32_myanmar_ci, CHARACTER_SET_CLIENT=binary;
+--error ER_DUPLICATED_VALUE_IN_TYPE
+ALTER TABLE t1 CHANGE a a ENUM('a','a') CHARACTER SET utf32;
+ALTER TABLE t1 CHANGE a a ENUM('a','b') CHARACTER SET utf32;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+SET NAMES utf8;
+
 
 --echo #
 --echo # End of 10.2 tests

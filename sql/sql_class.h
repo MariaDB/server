@@ -3503,8 +3503,31 @@ public:
     return true;     // EOM
   }
   bool convert_string(LEX_STRING *to, CHARSET_INFO *to_cs,
-		      const char *from, uint from_length,
+		      const char *from, size_t from_length,
 		      CHARSET_INFO *from_cs);
+  bool reinterpret_string_from_binary(LEX_CSTRING *to, CHARSET_INFO *to_cs,
+                                      const char *from, size_t from_length);
+  bool convert_string(LEX_CSTRING *to, CHARSET_INFO *to_cs,
+                      const char *from, size_t from_length,
+                      CHARSET_INFO *from_cs)
+  {
+    LEX_STRING tmp;
+    bool rc= convert_string(&tmp, to_cs, from, from_length, from_cs);
+    to->str= tmp.str;
+    to->length= tmp.length;
+    return rc;
+  }
+  bool convert_string(LEX_CSTRING *to, CHARSET_INFO *tocs,
+                      const LEX_CSTRING *from, CHARSET_INFO *fromcs,
+                      bool simple_copy_is_possible)
+  {
+    if (!simple_copy_is_possible)
+      return unlikely(convert_string(to, tocs, from->str, from->length, fromcs));
+    if (fromcs == &my_charset_bin)
+      return reinterpret_string_from_binary(to, tocs, from->str, from->length);
+    *to= *from;
+    return false;
+  }
   /*
     Convert a strings between character sets.
     Uses my_convert_fix(), which uses an mb_wc .. mc_mb loop internally.
@@ -3540,6 +3563,44 @@ public:
 
   bool convert_string(String *s, CHARSET_INFO *from_cs, CHARSET_INFO *to_cs);
 
+  /*
+    Check if the string is wellformed, raise an error if not wellformed.
+    @param str    - The string to check.
+    @param length - the string length.
+  */
+  bool check_string_for_wellformedness(const char *str,
+                                       size_t length,
+                                       CHARSET_INFO *cs) const;
+
+  bool make_text_string_connection(LEX_CSTRING *to,
+                                   const LEX_CSTRING *from)
+  {
+    return convert_string(to, variables.collation_connection,
+                          from, charset(), charset_is_collation_connection);
+  }
+#if MYSQL_VERSION_ID < 100300
+  /*
+    A wrapper method for 10.2. It fixes the problem
+    that various fields in bison %union use LEX_STRING.
+    In 10.3 those fields are fixed to use LEX_CSTRING.
+    Please remove this wrapper when mering to 10.3.
+  */
+  bool make_text_string_connection(LEX_STRING *to,
+                                   const LEX_STRING *from)
+  {
+    LEX_CSTRING cto;
+    LEX_CSTRING cfrom;
+    bool rc;
+    cfrom.str= from->str;
+    cfrom.length= from->length;
+    rc= make_text_string_connection(&cto, &cfrom);
+    to->str= (char*) cto.str;
+    to->length= cto.length;
+    return rc;
+  }
+#else
+#error Remove the above wrapper
+#endif
   void add_changed_table(TABLE *table);
   void add_changed_table(const char *key, long key_length);
   CHANGED_TABLE_LIST * changed_table_dup(const char *key, long key_length);
