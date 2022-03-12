@@ -154,7 +154,7 @@ public:
     db{nullptr, 0}, table{nullptr, 0}, column{nullptr, 0}, routine{nullptr, 0}
   { }
 
-  Priv_spec(privilege_t access, bool revoke, LEX_CSTRING db, bool deny=false):
+  Priv_spec(privilege_t access, bool revoke, const LEX_CSTRING &db, bool deny=false):
     revoke{revoke}, deny{deny}, access{access},
     spec_type{PRIV_TYPE::DATABASE_PRIV}, db{db},
     table{nullptr, 0}, column{nullptr, 0}, routine{nullptr, 0}
@@ -4541,11 +4541,17 @@ static uchar* check_get_key(ACL_USER *buff, size_t *length,
 }
 
 
-static void acl_update_role(const char *rolename, const privilege_t privileges)
+static void acl_update_role(const char *rolename, const privilege_t privileges,
+                            const Deny_spec *deny_spec)
 {
   ACL_ROLE *role= find_acl_role(rolename);
+  DBUG_ASSERT(role);
   if (role)
+  {
     role->initial_role_access= role->access= privileges;
+    delete role->denies;
+    role->denies= deny_spec;
+  }
 }
 
 
@@ -4679,7 +4685,8 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
 }
 
 
-static void acl_insert_role(const char *rolename, privilege_t privileges)
+static void acl_insert_role(const char *rolename, privilege_t privileges,
+                            const Deny_spec *deny_spec)
 {
   ACL_ROLE *entry;
 
@@ -4689,6 +4696,8 @@ static void acl_insert_role(const char *rolename, privilege_t privileges)
                         sizeof(ACL_USER_BASE *), 0, 8, MYF(0));
   my_init_dynamic_array(key_memory_acl_mem, &entry->role_grants,
                         sizeof(ACL_ROLE *), 0, 8, MYF(0));
+
+  entry->denies= deny_spec;
 
   my_hash_insert(&acl_roles, (uchar *)entry);
 }
@@ -6078,9 +6087,9 @@ end:
     if (handle_as_role)
     {
       if (old_row_exists)
-        acl_update_role(combo->user.str, access);
+        acl_update_role(combo->user.str, access, deny_spec);
       else
-        acl_insert_role(combo->user.str, access);
+        acl_insert_role(combo->user.str, access, deny_spec);
     }
     else
     {
@@ -13715,7 +13724,8 @@ bool Sql_cmd_grant_table::execute_deny(THD *thd)
   const bool no_auto_create_users= MY_TEST(thd->variables.sql_mode &
                                            MODE_NO_AUTO_CREATE_USER);
 
-  Priv_spec priv_spec{m_gp.object_privilege(), is_revoke(), true};
+  Priv_spec priv_spec{m_gp.object_privilege(), is_revoke(),
+                      m_gp.db(), true};
 
   privilege_t required_access= m_gp.object_privilege() |
                                m_gp.column_privilege_total() |
