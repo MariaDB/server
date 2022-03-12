@@ -236,11 +236,13 @@ public:
   bool get_json_repr(String *s) const
   {
     bool append_comma= false;
+    char v[FLOATING_POINT_BUFFER + 1];
+    size_t vlen;
     s->length(0);
     s->append('{');
+
     if (specified_denies & GLOBAL_PRIV)
     {
-      char v[FLOATING_POINT_BUFFER + 1];
       size_t vlen= longlong10_to_str(global_denies, v, -10) - v;
       s->append(STRING_WITH_LEN("\"global\":"));
       s->append(v, vlen);
@@ -254,8 +256,7 @@ public:
       for (size_t i= 0; i < db_denies->size(); i++)
       {
         const deny_entry *entry= db_denies->at(i);
-        char v[FLOATING_POINT_BUFFER + 1];
-        size_t vlen= longlong10_to_str(entry->second, v, -10) - v;
+        vlen= longlong10_to_str(entry->second, v, -10) - v;
         s->append(STRING_WITH_LEN("{\"name\":\""));
 
         char buf[1500]; //TODO(cvicentiu) size...
@@ -275,7 +276,15 @@ public:
           s->append(STRING_WITH_LEN("}"));
       }
       s->append(']');
+      append_comma= true;
     }
+
+    if (append_comma)
+      s->append(',');
+    /* Append the version id used to generate this deny JSON spec. */
+    s->append(STRING_WITH_LEN("\"version_id\":"));
+    vlen= longlong10_to_str(MYSQL_VERSION_ID, v, -10) - v;
+    s->append(v, vlen);
     s->append('}');
     return false;
   }
@@ -1991,7 +2000,7 @@ class User_table_json: public User_table
 
     Deny_spec *result= new Deny_spec;
 
-    if (result->load_deny(value_start, vl))
+    if (!result || result->load_deny(value_start, vl))
     {
       delete result;
       return nullptr;
@@ -5907,15 +5916,16 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   if (priv_spec.deny)
   {
     deny_spec= user_table.get_deny();
+    /*
+       TODO(cvicentiu) get_deny can fail due to OOM or wrong table format.
+       Perhaps the API should always return an empty Deny_spec to avoid
+       all these "new" calls if it failed.
+    */
     if (!deny_spec)
       deny_spec= new Deny_spec;
 
-    if (!deny_spec)
-    {
-      error= 1;
-      goto end;
-    }
-    if (deny_spec->update_deny(priv_spec) ||
+    if (!deny_spec ||
+        deny_spec->update_deny(priv_spec) ||
         user_table.set_deny(deny_spec))
     {
       error= 1;

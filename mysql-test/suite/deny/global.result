@@ -156,7 +156,7 @@ connection default;
 #
 select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
 user	host	JSON_EXTRACT(priv, '$.deny')
-foo	%	{"global": 1}
+foo	%	{"global": 1, "version_id": 100900}
 show grants for foo;
 Grants for foo@%
 GRANT SELECT ON *.* TO `foo`@`%`
