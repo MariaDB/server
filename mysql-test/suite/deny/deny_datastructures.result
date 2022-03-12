@@ -7,10 +7,10 @@ deny select on *.* to foo;
 deny insert on *.* to bar;
 select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
 user	host	JSON_EXTRACT(priv, '$.deny')
-foo	%	{"global": 1}
+foo	%	{"global": 1, "version_id": 100900}
 select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'bar';
 user	host	JSON_EXTRACT(priv, '$.deny')
-bar		{"global": 2}
+bar		{"global": 2, "version_id": 100900}
 flush privileges;
 show grants for foo;
 Grants for foo@%
@@ -18,5 +18,15 @@ GRANT USAGE ON *.* TO `foo`@`%`
 show grants for bar;
 Grants for bar
 GRANT USAGE ON *.* TO `bar`
+deny select on some_db.* to foo;
+deny show view on some_db.* to foo;
+deny insert on some_other_db.* to foo;
+deny insert on some_other_db.* to bar;
+select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+user	host	JSON_EXTRACT(priv, '$.deny')
+foo	%	{"global": 1, "db": [{"name": "some_other_db", "access": 2}, {"name": "some_db", "access": 4194305}], "version_id": 100900}
+select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'bar';
+user	host	JSON_EXTRACT(priv, '$.deny')
+bar		{"global": 2, "db": [{"name": "some_other_db", "access": 2}], "version_id": 100900}
 drop user foo;
 drop role bar;
