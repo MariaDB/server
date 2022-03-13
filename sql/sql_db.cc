@@ -1784,8 +1784,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
     db_access= sctx->master_access |
                  acl_get_current_auth(sctx, new_db_file_name.str, false);
 
-  if (sctx->denies_active)
-    deny_mask= acl_get_effective_deny_mask(sctx, new_db_file_name);
+  deny_mask= acl_get_effective_deny_mask(sctx, new_db_file_name);
   db_access&= ~deny_mask;
 
   // TODO(cvicentiu) check how force_switch impacts denies.
