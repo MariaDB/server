@@ -467,8 +467,7 @@ public:
 
         entry->second= db_deny;
         db_denies->insert(entry);
-        if (global_denies)
-          specified_denies|= DATABASE_PRIV;
+        specified_denies|= DATABASE_PRIV;
         idx++;
       }
     }
@@ -13664,6 +13663,14 @@ static bool maria_deny(THD *thd, const User_table &user_table,
   List_iterator<LEX_USER> it(list);
   bool result;
   DBUG_ENTER("maria_deny");
+
+  /* Only allow DB level denies. */
+  if (priv_spec.spec_type == DATABASE_PRIV &&
+      (priv_spec.access & DB_ACLS) != priv_spec.access)
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "DATABASE DENY", "GLOBAL PRIVILEGES");
+    DBUG_RETURN(true);
+  }
 
   /* go through users in user_list */
   for (LEX_USER *user= it++; user != NULL; user= it++)
