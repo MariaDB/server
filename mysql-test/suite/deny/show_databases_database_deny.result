@@ -263,7 +263,7 @@ disconnect con1;
 connection default;
 select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
 user	host	JSON_EXTRACT(priv, '$.deny')
-foo	%	{"global": 16384, "db": [{"name": "mysql", "access": 264207}], "version_id": 100900}
+foo	%	{"global": 16384, "db": [{"name": "mysql", "access": 264207}], "version_id": VERSION_ID}
 drop table mysql.t1;
 drop procedure mysql.proc_1;
 drop function mysql.func_1;
