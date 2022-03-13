@@ -100,6 +100,100 @@ show create view some_db.v2;
 ERROR 42000: SHOW VIEW command denied to user 'foo'@'localhost' for table 'v2'
 disconnect con1;
 connection default;
+grant select on *.* to foo;
+grant show view on *.* to foo;
+grant show view on some_db.* to foo;
+revoke deny show view on *.* from foo;
+show grants for foo;
+Grants for foo@%
+GRANT SELECT, SHOW VIEW ON *.* TO `foo`@`%`
+GRANT SELECT, SHOW VIEW ON `some_db`.* TO `foo`@`%`
+GRANT SELECT, SELECT (id), SHOW VIEW ON `some_db`.`v1` TO `foo`@`%`
+GRANT INSERT (id) ON `some_db`.`t1` TO `foo`@`%`
+connect  con1,localhost,foo,,;
+#################################################
+# Begin testing show view with database denies. #
+#################################################
+select * from information_schema.views
+where table_name='v1' or table_name='v2' order by table_name;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1	select `some_db`.`t1`.`id` AS `id` from `some_db`.`t1`	NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+def	some_db	v2	select 1 AS `1`	NONE	NO	foo@%	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+show create view some_db.v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `some_db`.`v1` AS select `some_db`.`t1`.`id` AS `id` from `some_db`.`t1`	latin1	latin1_swedish_ci
+show create view some_db.v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`foo`@`%` SQL SECURITY DEFINER VIEW `some_db`.`v2` AS select 1 AS `1`	latin1	latin1_swedish_ci
+disconnect con1;
+connection default;
+select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+user	host	JSON_EXTRACT(priv, '$.deny')
+foo	%	{"global": 0, "version_id": VERSION_ID}
+deny select on some_db.* to foo;
+connect  con1,localhost,foo,,;
+select * from information_schema.views
+where table_name='v1' or table_name='v2' order by table_name;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1		NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+def	some_db	v2	select 1 AS `1`	NONE	NO	foo@%	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+show create view some_db.v1;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'v1'
+show create view some_db.v2;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'v2'
+disconnect con1;
+connection default;
+revoke deny select on some_db.* from foo;
+connect  con1,localhost,foo,,;
+select * from information_schema.views
+where table_name='v1' or table_name='v2' order by table_name;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1	select `some_db`.`t1`.`id` AS `id` from `some_db`.`t1`	NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+def	some_db	v2	select 1 AS `1`	NONE	NO	foo@%	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+show create view some_db.v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `some_db`.`v1` AS select `some_db`.`t1`.`id` AS `id` from `some_db`.`t1`	latin1	latin1_swedish_ci
+show create view some_db.v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`foo`@`%` SQL SECURITY DEFINER VIEW `some_db`.`v2` AS select 1 AS `1`	latin1	latin1_swedish_ci
+disconnect con1;
+connection default;
+deny show view on some_db.* to foo;
+connect  con1,localhost,foo,,;
+select * from information_schema.views
+where table_name='v1' or table_name='v2' order by table_name;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1		NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+def	some_db	v2	select 1 AS `1`	NONE	NO	foo@%	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+show create view some_db.v1;
+ERROR 42000: SHOW VIEW command denied to user 'foo'@'localhost' for table 'v1'
+show create view some_db.v2;
+ERROR 42000: SHOW VIEW command denied to user 'foo'@'localhost' for table 'v2'
+disconnect con1;
+connection default;
+deny insert on some_db.* to foo;
+connect  con1,localhost,foo,,;
+select * from information_schema.views
+where table_name='v1' or table_name='v2' order by table_name;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+def	some_db	v1		NONE	YES	root@localhost	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+def	some_db	v2	select 1 AS `1`	NONE	NO	foo@%	DEFINER	latin1	latin1_swedish_ci	UNDEFINED
+show create view some_db.v1;
+ERROR 42000: SHOW VIEW command denied to user 'foo'@'localhost' for table 'v1'
+show create view some_db.v2;
+ERROR 42000: SHOW VIEW command denied to user 'foo'@'localhost' for table 'v2'
+disconnect con1;
+#
+# Deny all available rights, views should not be visible any more.
+#
+connection default;
+deny select on some_db.* to foo;
+connect  con1,localhost,foo,,;
+select * from information_schema.views
+where table_name='v1' or table_name='v2' order by table_name;
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	VIEW_DEFINITION	CHECK_OPTION	IS_UPDATABLE	DEFINER	SECURITY_TYPE	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	ALGORITHM
+disconnect con1;
+connection default;
 drop view v1, v2;
 drop table t1;
 drop user foo;
