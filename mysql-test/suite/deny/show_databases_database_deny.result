@@ -1,0 +1,275 @@
+###############################
+# Test database level denies. #
+###############################
+create user foo;
+grant select on *.* to foo;
+#
+# Test masking database level denies.
+#
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+sys
+test
+disconnect con1;
+connection default;
+#
+# Mask all rights.
+#
+deny select on mysql.* to foo;
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+mtr
+performance_schema
+sys
+test
+disconnect con1;
+connection default;
+#
+# Not all rights masked.
+#
+grant insert on *.* to foo;
+grant insert on mysql.* to foo;
+#
+# mysql db should now show up in the list because insert is not masked.
+#
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+sys
+test
+disconnect con1;
+connection default;
+deny insert on mysql.* to foo;
+#
+# mysql db should not be present now.
+#
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+mtr
+performance_schema
+sys
+test
+disconnect con1;
+connection default;
+grant show databases on *.* to foo;
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+sys
+test
+disconnect con1;
+connection default;
+deny show databases on *.* to foo;
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+mtr
+performance_schema
+sys
+test
+disconnect con1;
+connection default;
+show grants for foo;
+Grants for foo@%
+GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
+GRANT INSERT ON `mysql`.* TO `foo`@`%`
+grant update on mysql.* to foo;
+connect  con1,localhost,foo,,;
+#
+# Update not masked via database deny, mysql should show up.
+#
+show databases;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+sys
+test
+disconnect con1;
+connection default;
+deny update on mysql.* to foo;
+connect  con1,localhost,foo,,;
+#
+# Now it should not show up.
+#
+show grants;
+Grants for foo@%
+GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
+GRANT INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
+show databases;
+Database
+information_schema
+mtr
+performance_schema
+sys
+test
+disconnect con1;
+connection default;
+#
+# Test masking table level grants with global denies.
+#
+create table mysql.t1 (a int);
+connection default;
+grant insert on mysql.t1 to foo;
+show grants for foo;
+Grants for foo@%
+GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
+GRANT INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
+GRANT INSERT ON `mysql`.`t1` TO `foo`@`%`
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+mtr
+performance_schema
+sys
+test
+disconnect con1;
+connection default;
+grant delete on mysql.t1 to foo;
+show grants for foo;
+Grants for foo@%
+GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
+GRANT INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
+GRANT INSERT, DELETE ON `mysql`.`t1` TO `foo`@`%`
+connect  con1,localhost,foo,,;
+#
+# mysql should show up because we have delete rights on t1.
+#
+show databases;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+sys
+test
+disconnect con1;
+connection default;
+deny delete on mysql.* to foo;
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+mtr
+performance_schema
+sys
+test
+disconnect con1;
+connection default;
+#
+# Test masking column level grants with global denies.
+#
+grant references (a) on mysql.t1 to foo;
+show grants for foo;
+Grants for foo@%
+GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
+GRANT INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
+GRANT INSERT, DELETE, REFERENCES (a) ON `mysql`.`t1` TO `foo`@`%`
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+sys
+test
+disconnect con1;
+connection default;
+deny references on mysql.* to foo;
+show grants for foo;
+Grants for foo@%
+GRANT SELECT, INSERT, SHOW DATABASES ON *.* TO `foo`@`%`
+GRANT INSERT, UPDATE ON `mysql`.* TO `foo`@`%`
+GRANT INSERT, DELETE, REFERENCES (a) ON `mysql`.`t1` TO `foo`@`%`
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+mtr
+performance_schema
+sys
+test
+disconnect con1;
+connection default;
+#
+# Test masking procedure / function / package level grants with global
+# denies.
+#
+create procedure mysql.proc_1()
+begin
+select 1;
+end|
+create function mysql.func_1() returns int
+begin
+return 3;
+end|
+set @old_sql_mode=@@sql_mode|
+set sql_mode=ORACLE|
+create package mysql.util_functions as
+function f1(id int) return int;
+end|
+create package body mysql.util_functions as
+function f1(id int) return int as result int;
+begin
+return 10;
+end;
+end|
+grant execute on procedure mysql.proc_1 to foo;
+grant execute on function mysql.func_1 to foo;
+grant execute on package mysql.util_functions to foo;
+set sql_mode=@old_sql_mode;
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+sys
+test
+disconnect con1;
+connection default;
+deny execute on mysql.* to foo;
+connect  con1,localhost,foo,,;
+show databases;
+Database
+information_schema
+mtr
+performance_schema
+sys
+test
+disconnect con1;
+connection default;
+select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+user	host	JSON_EXTRACT(priv, '$.deny')
+foo	%	{"global": 16384, "db": [{"name": "mysql", "access": 264207}], "version_id": 100900}
+drop table mysql.t1;
+drop procedure mysql.proc_1;
+drop function mysql.func_1;
+set @old_sql_mode=@@sql_mode;
+set sql_mode=ORACLE;
+drop package body mysql.util_functions;
+drop package mysql.util_functions;
+set sql_mode=@old_sql_mode;
+drop user foo;
