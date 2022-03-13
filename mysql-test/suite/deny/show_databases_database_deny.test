@@ -196,8 +196,36 @@ disconnect con1;
 connection default;
 
 --replace_regex $REGEX_VERSION_ID
-select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv
+where user = 'foo';
+show grants for foo;
 
+create database some_db;
+grant all on some_db.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+deny all on some_db.* to foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+--echo #
+--echo # Removing a deny for show databases globaly should make some_db show up.
+--echo #
+revoke deny all on *.* from foo;
+
+--connect (con1,localhost,foo,,)
+show databases;
+disconnect con1;
+connection default;
+
+drop database some_db;
 drop table mysql.t1;
 drop procedure mysql.proc_1;
 drop function mysql.func_1;
