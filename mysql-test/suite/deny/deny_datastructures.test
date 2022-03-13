@@ -1,3 +1,7 @@
+--source include/not_embedded.inc
+
+let $REGEX_VERSION_ID=/$mysql_get_server_version/VERSION_ID/;
+
 create user foo;
 create role bar;
 
@@ -7,7 +11,9 @@ create role bar;
 deny select on *.* to foo;
 deny insert on *.* to bar;
 
+--replace_regex $REGEX_VERSION_ID
 select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+--replace_regex $REGEX_VERSION_ID
 select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'bar';
 
 flush privileges;
@@ -21,7 +27,9 @@ deny show view on some_db.* to foo;
 deny insert on some_other_db.* to foo;
 deny insert on some_other_db.* to bar;
 
+--replace_regex $REGEX_VERSION_ID
 select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'foo';
+--replace_regex $REGEX_VERSION_ID
 select user, host, JSON_EXTRACT(priv, '$.deny') from mysql.global_priv where user = 'bar';
 
 #TODO(cvicentiu) Update results with further deny types.
