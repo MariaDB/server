@@ -243,12 +243,5 @@ information_schema
 test
 disconnect con1;
 connection default;
-# TODO(cvicentiu) -- When database level denies are implemented, check
-# the following:
-# If we still have show databases ACL, yet we have
-# DENY all on some_db.* to foo, show databases should still show some_db,
-# simply because we *do* have show databases ACL.
-# NOTE: Currently we still have show databases ACL. This means
-# That even if all rights are denie
 drop user foo;
 drop database some_db;
