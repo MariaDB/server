@@ -758,15 +758,6 @@ sp_instr_set_trigger_field::print(String *str)
                                     QT_ITEM_ORIGINAL_FUNC_NULLIF));
 }
 
-/*
-  sp_instr_opt_meta
-*/
-
-uint sp_instr_opt_meta::get_cont_dest() const
-{
-  return m_cont_dest;
-}
-
 
 /*
  sp_instr_jump class functions
@@ -929,8 +920,15 @@ sp_instr_jump_if_not::opt_move(uint dst, List<sp_instr_opt_meta> *bp)
   }
   else if (m_cont_optdest)
     m_cont_dest= m_cont_optdest->m_ip; // Backward
-  /* This will take care of m_dest and m_ip */
-  sp_instr_jump::opt_move(dst, bp);
+
+  /*
+    Take care about m_dest and m_ip
+  */
+  if (m_dest > m_ip)
+    bp->push_back(this);      // Forward
+  else if (m_optdest)
+    m_dest= m_optdest->m_ip;  // Backward
+  m_ip= dst;
 }
 
 
@@ -1206,7 +1204,7 @@ sp_instr_cpush::execute(THD *thd, uint *nextp)
 {
   DBUG_ENTER("sp_instr_cpush::execute");
 
-  sp_cursor::reset(thd, &m_lex_keeper);
+  sp_cursor::reset(thd);
   m_lex_keeper.disable_query_cache();
   thd->spcont->push_cursor(this);
 
@@ -1503,14 +1501,14 @@ sp_instr_cursor_copy_struct::exec_core(THD *thd, uint *nextp)
 
   /*
     Copy structure only once. If the cursor%ROWTYPE variable is declared
-    inside a LOOP block, it gets its structure on the first loop interation
+    inside a LOOP block, it gets its structure on the first loop iteration
     and remembers the structure for all consequent loop iterations.
     It we recreated the structure on every iteration, we would get
     potential memory leaks, and it would be less efficient.
   */
   if (!row->arguments())
   {
-    sp_cursor tmp(thd, &m_lex_keeper, true);
+    sp_cursor tmp(thd, true);
     // Open the cursor without copying data
     if (!(ret= tmp.open(thd)))
     {
