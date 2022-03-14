@@ -2009,6 +2009,16 @@ int st_spider_param_string_parse::print_param_error()
     } \
     break; \
   }
+#define SPIDER_PARAM_DEPRECATED_WARNING(title_name)                           \
+  if (!strncasecmp(tmp_ptr, title_name, title_length) && create_table)        \
+  {                                                                           \
+    THD *thd= current_thd;                                                    \
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,                  \
+                        ER_WARN_DEPRECATED_SYNTAX,                            \
+                        "The table parameter '%s' is deprecated and will be " \
+                        "removed in a future release",                        \
+                        title_name);                                          \
+  }
 
 /*
   Set a given engine-defined option, which holds a string list, to the
@@ -2409,6 +2419,7 @@ int spider_parse_connect_info(
                                       option_struct &&
                                           option_struct->remote_table);
           SPIDER_PARAM_INT_WITH_MAX("tcm", table_count_mode, 0, 3);
+          SPIDER_PARAM_DEPRECATED_WARNING("uhd");
           SPIDER_PARAM_LONG_LIST_WITH_MAX("uhd", use_handlers, 0, 3);
           SPIDER_PARAM_INT_WITH_MAX("upu", use_pushdown_udf, 0, 1);
           SPIDER_PARAM_INT_WITH_MAX("utc", use_table_charset, 0, 1);
@@ -2492,6 +2503,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_INT_WITH_MAX("sts_bg_mode", sts_bg_mode, 0, 2);
 #endif
           SPIDER_PARAM_LONG_LIST_WITH_MAX("link_status", link_statuses, 0, 3);
+          SPIDER_PARAM_DEPRECATED_WARNING("use_handler");
           SPIDER_PARAM_LONG_LIST_WITH_MAX("use_handler", use_handlers, 0, 3);
           SPIDER_PARAM_INT_WITH_MAX("casual_read", casual_read, 0, 63);
           SPIDER_PARAM_INT("buffer_size", buffer_size, 0);

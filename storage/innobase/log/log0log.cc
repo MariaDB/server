@@ -188,11 +188,16 @@ void log_t::attach(log_file_t file, os_offset_t size)
       struct stat st;
       if (!fstat(log.m_file, &st))
       {
+        MSAN_STAT_WORKAROUND(&st);
         const auto st_dev= st.st_dev;
-        if (!stat("/dev/shm", &st) && st.st_dev == st_dev)
-          ptr= my_mmap(0, size_t(size),
-                       srv_read_only_mode ? PROT_READ : PROT_READ | PROT_WRITE,
-                       MAP_SHARED, log.m_file, 0);
+        if (!stat("/dev/shm", &st))
+        {
+          MSAN_STAT_WORKAROUND(&st);
+          if (st.st_dev == st_dev)
+            ptr= my_mmap(0, size_t(size), srv_read_only_mode
+                         ? PROT_READ : PROT_READ | PROT_WRITE,
+                         MAP_SHARED, log.m_file, 0);
+        }
       }
     }
 #endif /* __linux__ */

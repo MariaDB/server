@@ -1188,7 +1188,7 @@ static enum enum_server_command fetch_command(THD *thd, char *packet)
     DISPATCH_COMMAND_CLOSE_CONNECTION  request of THD shutdown
           (s. dispatch_command() description)
   @retval
-    DISPATCH_COMMAND_WOULDBLOCK - need to wait for asyncronous operations
+    DISPATCH_COMMAND_WOULDBLOCK - need to wait for asynchronous operations
                                   to finish. Only returned if parameter
                                   'blocking' is false.
 */

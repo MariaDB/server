@@ -1,0 +1,27 @@
+--echo #
+--echo # MDEV-27228 Deprecate Spider plugin variables that result in excessive tweak
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source test_init.inc
+--enable_result_log
+--enable_query_log
+
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+--echo # MDEV-27923 Deprecate spider_use_handler
+SET spider_use_handler= 3;
+SHOW VARIABLES LIKE "spider_use_handler";
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE COMMENT='uhd "3"';
+eval CREATE TABLE tbl_b (a INT) $MASTER_1_ENGINE COMMENT='use_handler "3"';
+
+DROP DATABASE auto_test_local;
+
+--disable_query_log
+--disable_result_log
+--source test_deinit.inc
+--enable_result_log
+--enable_query_log
