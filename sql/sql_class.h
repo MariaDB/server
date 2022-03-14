@@ -6125,7 +6125,6 @@ class select_insert :public select_result_interceptor {
 
 
 class select_create: public select_insert {
-  TABLE_LIST *create_table;
   Table_specification_st *create_info;
   TABLE_LIST *select_tables;
   Alter_info *alter_info;
@@ -6146,7 +6145,6 @@ public:
                 TABLE_LIST *select_tables_arg):
     select_insert(thd_arg, table_arg, NULL, &select_fields, 0, 0, duplic,
                   ignore, NULL),
-    create_table(table_arg),
     create_info(create_info_par),
     select_tables(select_tables_arg),
     alter_info(alter_info_arg),
