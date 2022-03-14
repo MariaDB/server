@@ -704,10 +704,11 @@ size_t my_vsnprintf_ex(CHARSET_INFO *cs, char *to, size_t n,
     }
     else if (*fmt == 'f' || *fmt == 'g')
     {
+      double d;
 #if __has_feature(memory_sanitizer)         /* QQ: MSAN has double trouble? */
       __msan_check_mem_is_initialized(ap, sizeof(double));
 #endif
-      double d= va_arg(ap, double);
+      d= va_arg(ap, double);
 #if __has_feature(memory_sanitizer)        /* QQ: MSAN has double trouble? */
       __msan_unpoison(&d, sizeof(double));
 #endif

@@ -953,7 +953,7 @@ os_file_status_posix(
 
 	if (!ret) {
 		/* file exists, everything OK */
-
+		MSAN_STAT_WORKAROUND(&statinfo);
 	} else if (errno == ENOENT || errno == ENOTDIR || errno == ENAMETOOLONG) {
 		/* file does not exist */
 		return(true);
@@ -1548,8 +1548,10 @@ bool os_file_close_func(os_file_t file)
 os_offset_t
 os_file_get_size(os_file_t file)
 {
-	struct stat statbuf;
-	return fstat(file, &statbuf) ? os_offset_t(-1) : statbuf.st_size;
+  struct stat statbuf;
+  if (fstat(file, &statbuf)) return os_offset_t(-1);
+  MSAN_STAT_WORKAROUND(&statbuf);
+  return statbuf.st_size;
 }
 
 /** Gets a file size.
@@ -1566,6 +1568,7 @@ os_file_get_size(
 	int	ret = stat(filename, &s);
 
 	if (ret == 0) {
+		MSAN_STAT_WORKAROUND(&s);
 		file_size.m_total_size = s.st_size;
 		/* st_blocks is in 512 byte sized blocks */
 		file_size.m_alloc_size = s.st_blocks * 512;
@@ -1609,6 +1612,8 @@ os_file_get_status_posix(
 
 		return(DB_FAIL);
 	}
+
+	MSAN_STAT_WORKAROUND(statinfo);
 
 	switch (statinfo->st_mode & S_IFMT) {
 	case S_IFDIR:
@@ -3300,6 +3305,7 @@ fallback:
 		if (fstat(file, &statbuf)) {
 			err = errno;
 		} else {
+			MSAN_STAT_WORKAROUND(&statbuf);
 			os_offset_t current_size = statbuf.st_size;
 			if (current_size >= size) {
 				return true;
@@ -4186,6 +4192,7 @@ void fil_node_t::find_metadata(os_file_t file
 #else
 	struct stat sbuf;
 	if (!statbuf && !fstat(file, &sbuf)) {
+		MSAN_STAT_WORKAROUND(&sbuf);
 		statbuf = &sbuf;
 	}
 	if (statbuf) {
@@ -4229,6 +4236,7 @@ bool fil_node_t::read_page0()
 	if (fstat(handle, &statbuf)) {
 		return false;
 	}
+	MSAN_STAT_WORKAROUND(&statbuf);
 	os_offset_t size_bytes = statbuf.st_size;
 #else
 	os_offset_t size_bytes = os_file_get_size(handle);

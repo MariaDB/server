@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2008, 2020, MariaDB Corporation.
+   Copyright (c) 2008, 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -350,11 +350,14 @@ MY_STAT *my_stat(const char *path, MY_STAT *stat_area, myf my_flags)
                                            my_flags)))
       goto error;
 #ifndef _WIN32
-    if (! stat((char *) path, (struct stat *) stat_area) )
-      DBUG_RETURN(stat_area);
+  if (!stat((char *) path, (struct stat *) stat_area))
+  {
+    MSAN_STAT_WORKAROUND(stat_area);
+    DBUG_RETURN(stat_area);
+  }
 #else
-    if (! my_win_stat(path, stat_area) )
-      DBUG_RETURN(stat_area);
+  if (!my_win_stat(path, stat_area))
+    DBUG_RETURN(stat_area);
 #endif
   DBUG_PRINT("error",("Got errno: %d from stat", errno));
   my_errno= errno;
