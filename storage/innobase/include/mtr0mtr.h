@@ -100,6 +100,15 @@ struct mtr_t {
   /** Commit the mini-transaction. */
   void commit();
 
+  /** Release latches till savepoint. To simplify the code only
+  MTR_MEMO_S_LOCK and MTR_MEMO_PAGE_S_FIX slot types are allowed to be
+  released, otherwise it would be neccesary to add one more argument in the
+  function to point out what slot types are allowed for rollback, and this
+  would be overengineering as corrently the function is used only in one place
+  in the code.
+  @param savepoint   savepoint, can be obtained with get_savepoint */
+  void rollback_to_savepoint(ulint savepoint);
+
   /** Commit a mini-transaction that is shrinking a tablespace.
   @param space   tablespace that is being shrunk */
   ATTRIBUTE_COLD void commit_shrink(fil_space_t &space);

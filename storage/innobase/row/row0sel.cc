@@ -3603,13 +3603,11 @@ record with the same ordering prefix in in the B-tree index
 @param[in] pcur cursor whose position has been stored
 @param[in] moves_up true if the cursor moves up in the index
 @param[in] mtr mtr; CAUTION: may commit mtr temporarily!
-@param[in] select_lock_type select lock type
 @return true if we may need to process the record the cursor is now
 positioned on (i.e. we should not go to the next record yet) */
 static bool sel_restore_position_for_mysql(bool *same_user_rec,
                                            ulint latch_mode, btr_pcur_t *pcur,
-                                           bool moves_up, mtr_t *mtr,
-                                           lock_mode select_lock_type)
+                                           bool moves_up, mtr_t *mtr)
 {
 	auto status = pcur->restore_position(latch_mode, mtr);
 
@@ -3632,8 +3630,7 @@ static bool sel_restore_position_for_mysql(bool *same_user_rec,
 	switch (pcur->rel_pos) {
 	case BTR_PCUR_ON:
 		if (!*same_user_rec && moves_up) {
-			if (status == btr_pcur_t::SAME_UNIQ
-			    && select_lock_type != LOCK_NONE)
+			if (status == btr_pcur_t::SAME_UNIQ)
 			  return true;
 next:
 			if (btr_pcur_move_to_next(pcur, mtr)
@@ -4326,7 +4323,7 @@ row_search_mvcc(
 	const rec_t*	clust_rec;
 	Row_sel_get_clust_rec_for_mysql row_sel_get_clust_rec_for_mysql;
 	ibool		unique_search			= FALSE;
-	ibool		mtr_has_extra_clust_latch	= FALSE;
+	ulint		mtr_extra_clust_savepoint	= 0;
 	bool		moves_up			= false;
 	/* if the returned record was locked and we did a semi-consistent
 	read (fetch the newest committed version), then this is set to
@@ -4698,7 +4695,7 @@ wait_table_again:
 
 		bool	need_to_process = sel_restore_position_for_mysql(
 			&same_user_rec, BTR_SEARCH_LEAF,
-			pcur, moves_up, &mtr, prebuilt->select_lock_type);
+			pcur, moves_up, &mtr);
 
 		if (UNIV_UNLIKELY(need_to_process)) {
 			if (UNIV_UNLIKELY(prebuilt->row_read_type
@@ -5445,7 +5442,7 @@ requires_clust_rec:
 		/* It was a non-clustered index and we must fetch also the
 		clustered index record */
 
-		mtr_has_extra_clust_latch = TRUE;
+		mtr_extra_clust_savepoint = mtr.get_savepoint();
 
 		ut_ad(!vrow);
 		/* The following call returns 'offsets' associated with
@@ -5744,27 +5741,15 @@ next_rec:
 		/* No need to do store restore for R-tree */
 		mtr.commit();
 		mtr.start();
-		mtr_has_extra_clust_latch = FALSE;
-	} else if (mtr_has_extra_clust_latch) {
+		mtr_extra_clust_savepoint = 0;
+	} else if (mtr_extra_clust_savepoint) {
 		/* If we have extra cluster latch, we must commit
 		mtr if we are moving to the next non-clustered
 		index record, because we could break the latching
 		order if we would access a different clustered
 		index page right away without releasing the previous. */
-
-		btr_pcur_store_position(pcur, &mtr);
-		mtr.commit();
-		mtr_has_extra_clust_latch = FALSE;
-
-		mtr.start();
-
-		if (sel_restore_position_for_mysql(&same_user_rec,
-						   BTR_SEARCH_LEAF,
-						   pcur, moves_up, &mtr,
-						   prebuilt->select_lock_type)
-		    ) {
-			goto rec_loop;
-		}
+		mtr.rollback_to_savepoint(mtr_extra_clust_savepoint);
+		mtr_extra_clust_savepoint = 0;
 	}
 
 	if (moves_up) {
@@ -5824,7 +5809,7 @@ page_read_error:
 
 lock_table_wait:
 	mtr.commit();
-	mtr_has_extra_clust_latch = FALSE;
+	mtr_extra_clust_savepoint = 0;
 
 	trx->error_state = err;
 	thr->lock_state = QUE_THR_LOCK_ROW;
@@ -5846,7 +5831,7 @@ lock_table_wait:
 		if (!dict_index_is_spatial(index)) {
 			sel_restore_position_for_mysql(
 				&same_user_rec, BTR_SEARCH_LEAF, pcur,
-				moves_up, &mtr, prebuilt->select_lock_type);
+				moves_up, &mtr);
 		}
 
 		if (trx->isolation_level <= TRX_ISO_READ_COMMITTED
