@@ -271,7 +271,24 @@ public:
 
   virtual void invalidate() = 0;
 
+  /**
+    Return the query string, which can be passed to the parser. I.e. the
+    operation should return a valid SQL-statement query string.
+
+    @param[out] sql_query SQL-statement query string.
+  */
+  virtual void get_query(String *sql_query) const;
+
 protected:
+  /**
+    @return the expression query string. This string can not be passed directly
+    to the parser as it is most likely not a valid SQL-statement.
+  */
+  virtual LEX_CSTRING get_expr_query() const
+  {
+    return null_clex_str;
+  }
+
   sp_lex_keeper m_lex_keeper;
 };
 
@@ -290,17 +307,13 @@ class sp_instr_stmt : public sp_lex_instr
   */
   bool m_valid;
 
-public:
-
   LEX_STRING m_query;           ///< For thd->query
 
-  sp_instr_stmt(uint ip, sp_pcontext *ctx, LEX *lex)
+public:
+  sp_instr_stmt(uint ip, sp_pcontext *ctx, LEX *lex, LEX_STRING query)
     : sp_lex_instr(ip, ctx, lex, true),
-      m_valid(true)
-  {
-    m_query.str= 0;
-    m_query.length= 0;
-  }
+      m_valid(true), m_query(query)
+  {}
 
   int execute(THD *thd, uint *nextp) override;
 
@@ -316,6 +329,11 @@ public:
   void invalidate() override
   {
     m_valid= false;
+  }
+
+  void get_query(String *sql_query) const override
+  {
+    sql_query->append(m_query.str, m_query.length);
   }
 
 public:
@@ -335,9 +353,10 @@ public:
   sp_instr_set(uint ip, sp_pcontext *ctx,
                const Sp_rcontext_handler *rh,
                uint offset, Item *val,
-               LEX *lex, bool lex_resp)
+               LEX *lex, bool lex_resp, LEX_CSTRING expr_str)
     : sp_lex_instr(ip, ctx, lex, lex_resp),
-      m_rcontext_handler(rh), m_offset(offset), m_value(val)
+      m_rcontext_handler(rh), m_offset(offset), m_value(val),
+      m_expr_str(expr_str)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -357,10 +376,18 @@ public:
   }
 
 protected:
+  LEX_CSTRING get_expr_query() const override
+  {
+    return m_expr_str;
+  }
+
   sp_rcontext *get_rcontext(THD *thd) const;
   const Sp_rcontext_handler *m_rcontext_handler;
   uint m_offset;                ///< Frame offset
   Item *m_value;
+
+private:
+  LEX_CSTRING m_expr_str;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
@@ -385,8 +412,9 @@ public:
                          const Sp_rcontext_handler *rh,
                          uint offset, uint field_offset,
                          Item *val,
-                         LEX *lex, bool lex_resp)
-    : sp_instr_set(ip, ctx, rh, offset, val, lex, lex_resp),
+                         LEX *lex, bool lex_resp,
+                         LEX_CSTRING value_query)
+    : sp_instr_set(ip, ctx, rh, offset, val, lex, lex_resp, value_query),
       m_field_offset(field_offset)
   {}
 
@@ -425,8 +453,9 @@ public:
                                  const Sp_rcontext_handler *rh,
                                  uint offset, const LEX_CSTRING &field_name,
                                  Item *val,
-                                 LEX *lex, bool lex_resp)
-    : sp_instr_set(ip, ctx, rh, offset, val, lex, lex_resp),
+                                 LEX *lex, bool lex_resp,
+                                 LEX_CSTRING value_query)
+    : sp_instr_set(ip, ctx, rh, offset, val, lex, lex_resp, value_query),
       m_field_name(field_name)
   {}
 
@@ -448,10 +477,11 @@ public:
 
   sp_instr_set_trigger_field(uint ip, sp_pcontext *ctx,
                              Item_trigger_field *trg_fld,
-                             Item *val, LEX *lex)
+                             Item *val, LEX *lex, LEX_CSTRING value_query)
     : sp_lex_instr(ip, ctx, lex, true),
       trigger_field(trg_fld),
-      value(val)
+      value(val),
+      m_expr_str(value_query)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -470,9 +500,19 @@ public:
     value= nullptr;
   }
 
+protected:
+  LEX_CSTRING get_expr_query() const override
+  {
+    return m_expr_str;
+  }
+
 private:
   Item_trigger_field *trigger_field;
   Item *value;
+  /**
+    SQL clause corresponding to the expression value.
+  */
+  LEX_CSTRING m_expr_str;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
@@ -571,16 +611,18 @@ class sp_instr_jump_if_not : public sp_lex_instr, public sp_instr_opt_meta
 
 public:
 
-  sp_instr_jump_if_not(uint ip, sp_pcontext *ctx, Item *i, LEX *lex)
+  sp_instr_jump_if_not(uint ip, sp_pcontext *ctx, Item *i, LEX *lex,
+                       LEX_CSTRING expr_query)
     : sp_lex_instr(ip, ctx, lex, true),
       sp_instr_opt_meta(0),
-      m_expr(i)
+      m_expr(i), m_expr_str(expr_query)
   {}
 
-  sp_instr_jump_if_not(uint ip, sp_pcontext *ctx, Item *i, uint dest, LEX *lex)
+  sp_instr_jump_if_not(uint ip, sp_pcontext *ctx, Item *i, uint dest, LEX *lex,
+                       LEX_CSTRING expr_query)
     : sp_lex_instr(ip, ctx, lex, true),
       sp_instr_opt_meta(dest),
-      m_expr(i)
+      m_expr(i), m_expr_str(expr_query)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -629,10 +671,20 @@ public:
     m_expr= nullptr;
   }
 
+protected:
+  LEX_CSTRING get_expr_query() const override
+  {
+    return m_expr_str;
+  }
+
 private:
 
   Item *m_expr;                 ///< The condition
 
+  /**
+    SQL clause corresponding to the expression value.
+  */
+  LEX_CSTRING m_expr_str;
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
@@ -674,7 +726,8 @@ class sp_instr_freturn : public sp_lex_instr
 public:
 
   sp_instr_freturn(uint ip, sp_pcontext *ctx,
-                   Item *val, const Type_handler *handler, LEX *lex)
+                   Item *val, const Type_handler *handler, LEX *lex,
+                   LEX_CSTRING expr_query)
     : sp_lex_instr(ip, ctx, lex, true),
       m_value(val), m_type_handler(handler)
   {}
@@ -693,6 +746,11 @@ public:
 
 protected:
 
+  LEX_CSTRING get_expr_query() const override
+  {
+    return m_expr_str;
+  }
+
   Item *m_value;
   const Type_handler *m_type_handler;
 
@@ -707,6 +765,13 @@ protected:
        is not leaked */
     m_value= nullptr;
   }
+
+private:
+  /**
+    SQL-query corresponding to the RETURN-expression.
+  */
+  LEX_CSTRING m_expr_str;
+
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
   static PSI_statement_info psi_info;
@@ -853,9 +918,10 @@ class sp_instr_cpush : public sp_lex_instr, public sp_cursor
 
 public:
 
-  sp_instr_cpush(uint ip, sp_pcontext *ctx, LEX *lex, uint offset)
+  sp_instr_cpush(uint ip, sp_pcontext *ctx, LEX *lex, uint offset,
+                 LEX_CSTRING cursor_query)
     : sp_lex_instr(ip, ctx, lex, true), m_cursor(offset),
-      m_metadata_changed(false)
+      m_metadata_changed(false), m_cursor_query(cursor_query)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -884,6 +950,12 @@ public:
   {
     return &m_lex_keeper;
   }
+
+  void get_query(String *sql_query) const override
+  {
+    sql_query->append(m_cursor_query.str, m_cursor_query.length);
+  }
+
 private:
 
   uint m_cursor;                /**< Frame offset (for debugging) */
@@ -893,6 +965,11 @@ private:
     on depending database objects used in the statement.
   */
   bool m_metadata_changed;
+
+  /**
+    This attribute keeps the cursor SELECT statement.
+  */
+  LEX_CSTRING m_cursor_query;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }
@@ -1123,9 +1200,11 @@ class sp_instr_set_case_expr : public sp_lex_instr, public sp_instr_opt_meta
 public:
 
   sp_instr_set_case_expr(uint ip, sp_pcontext *ctx, uint case_expr_id,
-                         Item *case_expr, LEX *lex)
+                         Item *case_expr, LEX *lex,
+                         LEX_CSTRING case_expr_query)
     : sp_lex_instr(ip, ctx, lex, true), sp_instr_opt_meta(0),
-      m_case_expr_id(case_expr_id), m_case_expr(case_expr)
+      m_case_expr_id(case_expr_id), m_case_expr(case_expr),
+      m_expr_str(case_expr_query)
   {}
 
   int execute(THD *thd, uint *nextp) override;
@@ -1159,10 +1238,17 @@ public:
     m_case_expr= nullptr;
   }
 
+protected:
+  LEX_CSTRING get_expr_query() const override
+  {
+    return m_expr_str;
+  }
+
 private:
 
   uint m_case_expr_id;
   Item *m_case_expr;
+  LEX_CSTRING m_expr_str;
 
 public:
   PSI_statement_info* get_psi_info() override { return & psi_info; }

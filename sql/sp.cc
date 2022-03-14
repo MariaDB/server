@@ -65,7 +65,8 @@ ulong Sp_handler_procedure::recursion_depth(THD *thd) const
 
 bool Sp_handler::add_instr_freturn(THD *thd, sp_head *sp,
                                    sp_pcontext *spcont,
-                                   Item *item, LEX *lex) const
+                                   Item *item, LEX *lex,
+                                   LEX_CSTRING expr_query) const
 {
   my_error(ER_SP_BADRETURN, MYF(0));
   return true;
@@ -82,9 +83,10 @@ bool Sp_handler::add_instr_preturn(THD *thd, sp_head *sp,
 
 bool Sp_handler_function::add_instr_freturn(THD *thd, sp_head *sp,
                                             sp_pcontext *spcont,
-                                            Item *item, LEX *lex) const
+                                            Item *item, LEX *lex,
+                                            LEX_CSTRING expr_query) const
 {
-  return sp->add_instr_freturn(thd, spcont, item, lex);
+  return sp->add_instr_freturn(thd, spcont, item, lex, expr_query);
 }
 
 
