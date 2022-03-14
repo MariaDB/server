@@ -300,6 +300,50 @@ struct ReleaseAll {
   }
 };
 
+/** Stops iteration is savepoint is reached */
+template <typename Functor> struct TillSavepoint
+{
+
+  /** Constructor
+  @param[in] functor functor which is called if savepoint is not reached
+  @param[in] savepoint savepoint value to rollback
+  @param[in] used current position in slots container */
+  TillSavepoint(const Functor &functor, ulint savepoint, ulint used)
+      : functor(functor),
+        m_slots_count((used - savepoint) / sizeof(mtr_memo_slot_t))
+  {
+    ut_ad(savepoint);
+    ut_ad(used >= savepoint);
+  }
+
+  /** @return true if savepoint is not reached, false otherwise */
+  bool operator()(mtr_memo_slot_t *slot)
+  {
+#ifdef UNIV_DEBUG
+    /** This check is added because the code is invoked only from
+    row_search_mvcc() to release latches acquired during clustered index search
+    for secondary index record. To make it more universal we could add one more
+    member in this functor for debug build to pass only certain slot types,
+    but this is currently not necessary. */
+    switch (slot->type)
+    {
+    case MTR_MEMO_S_LOCK:
+    case MTR_MEMO_PAGE_S_FIX:
+      break;
+    default:
+      ut_a(false);
+    }
+#endif
+    return m_slots_count-- && functor(slot);
+  }
+
+private:
+  /** functor to invoke */
+  const Functor &functor;
+  /** slots count left till savepoint */
+  ulint m_slots_count;
+};
+
 #ifdef UNIV_DEBUG
 /** Check that all slots have been handled. */
 struct DebugCheck {
@@ -466,6 +510,21 @@ void mtr_t::commit()
     m_memo.for_each_block_in_reverse(CIterate<ReleaseAll>());
 
   release_resources();
+}
+
+/** Release latches till savepoint. To simplify the code only
+MTR_MEMO_S_LOCK and MTR_MEMO_PAGE_S_FIX slot types are allowed to be
+released, otherwise it would be neccesary to add one more argument in the
+function to point out what slot types are allowed for rollback, and this
+would be overengineering as corrently the function is used only in one place
+in the code.
+@param savepoint   savepoint, can be obtained with get_savepoint */
+void mtr_t::rollback_to_savepoint(ulint savepoint)
+{
+  Iterate<TillSavepoint<ReleaseLatches>> iteration(
+      TillSavepoint<ReleaseLatches>(ReleaseLatches(), savepoint,
+                                    get_savepoint()));
+  m_memo.for_each_block_in_reverse(iteration);
 }
 
 /** Shrink a tablespace. */
