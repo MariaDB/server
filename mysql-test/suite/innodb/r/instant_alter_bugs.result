@@ -448,4 +448,13 @@ ALTER TABLE t ADD d INT;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 DROP TABLE t;
+#
+# MDEV-28060 Online DDL fails while checking for instant
+#		alter condition
+#
+CREATE TABLE t1(f1 CHAR(10) NOT NULL)ROW_FORMAT=REDUNDANT,ENGINE=InnoDB;
+ALTER TABLE t1 ADD COLUMN(f2 INT NOT NULL, f3 INT NOT NULL,
+f4 INT NOT NULL, f5 INT NOT NULL),
+CHANGE COLUMN f1 f1 CHAR(10) DEFAULT NULL;
+DROP TABLE t1;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;
