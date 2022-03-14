@@ -141,7 +141,6 @@ C_MODE_END
 C_MODE_START
 /* Dummy structures and interfaces to be used when compiling without S3 */
 struct s3_info;
-typedef struct s3_info S3_INFO;
 struct ms3_st;
 C_MODE_END
 #endif /* WITH_S3_STORAGE_ENGINE */
