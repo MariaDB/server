@@ -163,6 +163,8 @@ cont:
     if (mysql_file_fstat(file, &state, MYF(MY_WME)))
       goto err;
 
+    MSAN_STAT_WORKAROUND(&state);
+
     if (mysql_file_seek(file, 0, SEEK_SET, MYF(MY_WME)))
       goto err;
 
