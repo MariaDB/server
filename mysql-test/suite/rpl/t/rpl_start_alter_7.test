@@ -79,9 +79,11 @@ set default_master_connection = 'm2';
 
 set default_master_connection = 'm1';
 --let $master_pos= $master_pos_1
+--let $slave_timeout= 600
 --source include/sync_with_master_gtid.inc
 set default_master_connection = 'm2';
 --let $master_pos= $master_pos_2
+--let $slave_timeout= 600
 --source include/sync_with_master_gtid.inc
 
 --echo # cleanup
