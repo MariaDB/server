@@ -1758,8 +1758,13 @@ set_max_size:
 		Field** af = altered_table->field;
 		Field** const end = altered_table->field
 			+ altered_table->s->fields;
+		List_iterator_fast<Create_field> cf_it(
+			ha_alter_info->alter_info->create_list);
 		for (unsigned c = 0; af < end; af++) {
-			if (!(*af)->stored_in_db()) {
+			const Create_field* cf = cf_it++;
+			if (!cf->field || !(*af)->stored_in_db()) {
+				/* Ignore virtual or newly created
+				column */
 				continue;
 			}
 

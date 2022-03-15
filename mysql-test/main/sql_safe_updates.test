@@ -1,4 +1,23 @@
-#
-# MDEV-14429 sql_safe_updates in my.cnf not work
-#
+--echo #
+--echo # MDEV-14429 sql_safe_updates in my.cnf not work
+--echo #
 select @@sql_safe_updates;
+
+--echo #
+--echo # MDEV-18304 sql_safe_updates does not work with OR clauses
+--echo #
+create table t1 (a int, b int, primary key (a), key (b));
+--error ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
+update t1 set b=2 where a=1 or b=2;
+explain update t1 set b=2 where a=1 or b=2;
+--error ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
+delete from t1 where a=1 or b=2;
+explain delete from t1 where a=1 or b=2;
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8);
+update t1 set b=2 where a=1 or b=2;
+delete from t1 where a=1 or b=2;
+drop table t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
