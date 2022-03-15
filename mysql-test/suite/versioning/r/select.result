@@ -153,23 +153,23 @@ delete from t1;
 delete from t2;
 explain extended select * from (select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`x` AS `IJ2_x1`,`test`.`t1`.`y` AS `y1`,`test`.`t2`.`x` AS `x2`,`test`.`t2`.`y` AS `y2` from `test`.`t1` FOR SYSTEM_TIME AS OF TIMESTAMP @`t0` join `test`.`t2` FOR SYSTEM_TIME AS OF TIMESTAMP @`t0` where `test`.`t1`.`x` = `test`.`t2`.`x` and `test`.`t2`.`row_end` > @`t0` and `test`.`t2`.`row_start` <= @`t0` and `test`.`t1`.`row_end` > @`t0` and `test`.`t1`.`row_start` <= @`t0`
 explain extended select * from (select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`x` AS `LJ2_x1`,`test`.`t1`.`y` AS `y1`,`test`.`t2`.`x` AS `x2`,`test`.`t2`.`y` AS `y2` from `test`.`t1` FOR SYSTEM_TIME AS OF TIMESTAMP @`t0` left join `test`.`t2` FOR SYSTEM_TIME AS OF TIMESTAMP @`t0` on(`test`.`t2`.`x` = `test`.`t1`.`x` and `test`.`t2`.`row_end` > @`t0` and `test`.`t2`.`row_start` <= @`t0`) where `test`.`t1`.`row_end` > @`t0` and `test`.`t1`.`row_start` <= @`t0`
 explain extended select * from (select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`x` AS `RJ2_x1`,`test`.`t1`.`y` AS `y1`,`test`.`t2`.`x` AS `x2`,`test`.`t2`.`y` AS `y2` from `test`.`t2` FOR SYSTEM_TIME AS OF TIMESTAMP @`t0` left join `test`.`t1` FOR SYSTEM_TIME AS OF TIMESTAMP @`t0` on(`test`.`t1`.`x` = `test`.`t2`.`x` and `test`.`t1`.`row_end` > @`t0` and `test`.`t1`.`row_start` <= @`t0`) where `test`.`t2`.`row_end` > @`t0` and `test`.`t2`.`row_start` <= @`t0`
 select * from (select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x)
@@ -326,10 +326,10 @@ insert into t1 values (2);
 insert into t1 values (3);
 explain extended
 select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a` from `test`.`t1` left join (`test`.`t1` `t2` left join `test`.`t1` `t3` on(`test`.`t3`.`a` = `test`.`t2`.`a` and `test`.`t3`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999')) on(`test`.`t2`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999' and `test`.`t1`.`a` > 1) where `test`.`t1`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999'
 select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
@@ -556,11 +556,11 @@ insert t3 values (1),(2);
 insert t4 values (1),(2);
 explain extended
 select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`f1` AS `f1` from `test`.`t1` join `test`.`t2` left join (`test`.`t3` left join `test`.`t4` on(`test`.`t4`.`f4` = `test`.`t2`.`f2` and `test`.`t4`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999')) on(`test`.`t3`.`f3` = `test`.`t2`.`f2`) where `test`.`t1`.`row_end` = TIMESTAMP'2038-01-19 03:14:07.999999'
 drop view v1;
