@@ -2411,7 +2411,7 @@ struct xarecover_st
 */
 static xid_recovery_member*
 xid_member_insert(HASH *hash_arg, my_xid xid_arg, MEM_ROOT *ptr_mem_root,
-                  XID *full_xid_arg)
+                  XID *full_xid_arg, decltype(::server_id) server_id_arg)
 {
   xid_recovery_member *member= (xid_recovery_member *)
     alloc_root(ptr_mem_root, sizeof(xid_recovery_member));
@@ -2425,7 +2425,7 @@ xid_member_insert(HASH *hash_arg, my_xid xid_arg, MEM_ROOT *ptr_mem_root,
 
   if (full_xid_arg)
     *xid_full= *full_xid_arg;
-  *member= xid_recovery_member(xid_arg, 1, false, xid_full);
+  *member= xid_recovery_member(xid_arg, 1, false, xid_full, server_id_arg);
 
   return
     my_hash_insert(hash_arg, (uchar*) member) ? NULL : member;
@@ -2440,14 +2440,15 @@ xid_member_insert(HASH *hash_arg, my_xid xid_arg, MEM_ROOT *ptr_mem_root,
 */
 static bool xid_member_replace(HASH *hash_arg, my_xid xid_arg,
                                MEM_ROOT *ptr_mem_root,
-                               XID *full_xid_arg)
+                               XID *full_xid_arg,
+                               decltype(::server_id) server_id_arg)
 {
   xid_recovery_member* member;
   if ((member= (xid_recovery_member *)
        my_hash_search(hash_arg, (uchar *)& xid_arg, sizeof(xid_arg))))
     member->in_engine_prepare++;
   else
-    member= xid_member_insert(hash_arg, xid_arg, ptr_mem_root, full_xid_arg);
+    member= xid_member_insert(hash_arg, xid_arg, ptr_mem_root, full_xid_arg,  server_id_arg);
 
   return member == NULL;
 }
@@ -2499,7 +2500,8 @@ static void xarecover_do_commit_or_rollback(handlerton *hton,
   Binlog_offset *ptr_commit_max= arg->binlog_coord;
 
   if (!member->full_xid)
-    x.set(member->xid);
+    // Populate xid using the server_id from original transaction
+    x.set(member->xid, member->server_id);
   else
     x= *member->full_xid;
 
@@ -2655,9 +2657,12 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
         */
         if (info->mem_root)
         {
-          // remember "full" xid too when it's not in mysql format
+          // remember "full" xid too when it's not in mysql format.
+          // Also record the transaction's original server_id. It will be used for
+          // populating the input XID to be searched in hash.
           if (xid_member_replace(info->commit_list, x, info->mem_root,
-                                 is_server_xid? NULL : &info->list[i]))
+                                 is_server_xid? NULL : &info->list[i],
+                                 is_server_xid? info->list[i].get_trx_server_id() : server_id))
           {
             info->error= true;
             sql_print_error("Error in memory allocation at xarecover_handlerton");

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2021, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2021, MariaDB Corporation.
+Copyright (c) 2014, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -83,7 +83,9 @@ bool fil_space_t::try_to_close(bool print_info)
     of fil_system.space_list, so that they would be less likely to be
     closed here. */
     fil_node_t *node= UT_LIST_GET_FIRST(space.chain);
-    ut_ad(node);
+    if (!node)
+      /* fil_ibd_create() did not invoke fil_space_t::add() yet */
+      continue;
     ut_ad(!UT_LIST_GET_NEXT(chain, node));
 
     if (!node->is_open())
@@ -444,6 +446,8 @@ static bool fil_node_open_file(fil_node_t *node)
       /* Flush tablespaces so that we can close modified files. */
       fil_flush_file_spaces();
       mysql_mutex_lock(&fil_system.mutex);
+      if (node->is_open())
+        return true;
     }
   }
 
