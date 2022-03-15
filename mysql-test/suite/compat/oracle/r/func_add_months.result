@@ -67,8 +67,8 @@ c2
 0000-11-02 00:00:00
 9999-11-02 00:00:00
 EXPLAIN EXTENDED SELECT c1, ADD_MONTHS(c2, -15) FROM t1 WHERE c1 = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1`,`test`.`t1`.`c2` + interval -15 month AS `ADD_MONTHS(c2, -15)` from `test`.`t1` where `test`.`t1`.`c1` = 1
 SELECT ADD_MONTHS("2000-10-10", 12);

@@ -26,8 +26,8 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 analyze table t1;
 explain select * from t1 force index(d2) order by d;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	d2	23	NULL	4	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	d2	23	NULL	4	
 select * from t1 force index (d2) order by d;
 a	b	c	d
 3	4	ad	ad
@@ -80,8 +80,8 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 explain select * from t1 force index(c) order by c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	c	10	NULL	4	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	c	10	NULL	4	
 alter table t1 add primary key (a), drop index c;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
@@ -123,8 +123,8 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 explain select * from t1 force index(c) order by c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	c	10	NULL	4	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	c	10	NULL	4	
 select * from t1 force index(c) order by c;
 a	b	c	d
 3	4	ad	ad
@@ -178,14 +178,14 @@ a	b	c	d
 4	4	tr	tr
 analyze table t1;
 explain select * from t1 force index(b) order by b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	b	5	NULL	5	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	b	5	NULL	5	
 explain select * from t1 force index(c) order by c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	c	10	NULL	5	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	c	10	NULL	5	
 explain select * from t1 force index(d) order by d;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	d	23	NULL	5	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	d	23	NULL	5	
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -256,14 +256,14 @@ a	b	c	d
 4	4	afe	afe
 5	1	ggg	ggg
 explain select * from t1 order by b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using filesort
 explain select * from t1 force index(c) order by c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using filesort
 explain select * from t1 force index(d) order by d;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using filesort
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -297,14 +297,14 @@ a	b	c	d
 5	1	ggg	ggg
 analyze table t1;
 explain select * from t1 order by b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	6	Using filesort
 explain select * from t1 force index(c) order by c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	6	Using filesort
 explain select * from t1 order by d;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	6	Using filesort
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -339,8 +339,8 @@ a	b	c	d
 8	9	fff	fff
 analyze table t1;
 explain select * from t1 force index(b) order by b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	b	16	NULL	5	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	b	16	NULL	5	
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -373,8 +373,8 @@ a	b	c	d
 11	11	kkk	kkk
 analyze table t1;
 explain select * from t1 force index(b) order by b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	b	16	NULL	6	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	b	16	NULL	6	
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -419,11 +419,11 @@ a	b	c	d
 13	13	yyy	aaa
 analyze table t1;
 explain select * from t1 force index(b) order by b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	b	16	NULL	7	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	b	16	NULL	7	
 explain select * from t1 force index(c) order by c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	c	34	NULL	7	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	c	34	NULL	7	
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -599,8 +599,8 @@ a	b	c	d
 8	9	fff	fff
 10	10	kkk	iii
 explain select * from t1 force index(b) order by b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	b	5	NULL	6	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	b	5	NULL	6	
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -650,14 +650,14 @@ a	b	c	d
 10	10	kkk	iii
 11	11	aaa	mmm
 explain select * from t1 force index(b) order by b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	b	5	NULL	7	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	b	5	NULL	7	
 explain select * from t1 force index(c) order by c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	c	31	NULL	7	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	c	31	NULL	7	
 explain select * from t1 force index(d) order by d;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	d	63	NULL	7	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	d	63	NULL	7	
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -748,14 +748,14 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 analyze table t1;
 explain select * from t1 force index(c) order by c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	c	5	NULL	9	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	c	5	NULL	9	
 explain select * from t1 order by a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	9	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	9	
 explain select * from t1 force index(b) order by b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	b	4	NULL	9	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	b	4	NULL	9	
 select * from t1 order by a;
 a	b	c
 1	5	1
@@ -815,14 +815,14 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 explain select * from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
 explain select * from t1 order by a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using filesort
 explain select * from t1 order by b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	2	
 checksum table t1;
 Table	Checksum
 test.t1	582702641
@@ -852,11 +852,11 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 explain select * from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	2	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	2	Using index
 explain select * from t1 order by a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	2	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	2	Using index
 drop table t1;
 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;
 SET FOREIGN_KEY_CHECKS=0;

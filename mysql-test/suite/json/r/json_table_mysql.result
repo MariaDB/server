@@ -375,8 +375,8 @@ WHERE a=1;
 i	a
 EXPLAIN SELECT * FROM jt, JSON_TABLE(jt.i, '$' COLUMNS (a INT PATH '$')) AS tt
 WHERE a=1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT * FROM (
 SELECT * FROM jt, JSON_TABLE(jt.i, '$' COLUMNS (a INT PATH '$')) AS tt
 WHERE a=1) AS ttt;
@@ -384,8 +384,8 @@ i	a
 EXPLAIN SELECT * FROM (
 SELECT * FROM jt, JSON_TABLE(jt.i, '$' COLUMNS (a INT PATH '$')) AS tt
 WHERE a=1) AS ttt;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 DROP TABLE jt;
 CREATE VIEW v AS 
 SELECT * FROM JSON_TABLE('[1,2,3]',
@@ -480,9 +480,9 @@ EXPLAIN SELECT /*+ JOIN_ORDER(jt, t1) */ id, jt.*
 FROM t1,
 JSON_TABLE(jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
 val INT PATH '$')) AS jt;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	jt	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 SELECT /*+ JOIN_ORDER(t2,jt) */ t1.id, t2.id, jt.*
 FROM t1,
 JSON_TABLE(t1.jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
@@ -506,19 +506,19 @@ FROM t1,
 JSON_TABLE(t1.jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
 val INT PATH '$')) AS jt,
 t1 AS t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
-1	SIMPLE	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+1	SIMPLE	jt	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 EXPLAIN SELECT /*+ JOIN_ORDER(t2,jt) */ t1.id, t2.id, jt.*
 FROM t1,
 JSON_TABLE(t1.jd, '$[*]' COLUMNS (jid FOR ORDINALITY,
 val INT PATH '$')) AS jt,
 t1 AS t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
-1	SIMPLE	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+1	SIMPLE	jt	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 SELECT * FROM t1 WHERE id IN
 (SELECT * FROM JSON_TABLE('[1,2]', '$[*]' COLUMNS
 (id INT PATH '$')) AS jt);
@@ -528,10 +528,10 @@ id	jd
 EXPLAIN SELECT * FROM t1 WHERE id IN
 (SELECT * FROM JSON_TABLE('[1,2]', '$[*]' COLUMNS
 (id INT PATH '$')) AS jt);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	jt	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 DROP TABLE t1;
 SELECT * FROM JSON_TABLE('"asdf"', '$' COLUMNS(
 tm TIME PATH '$',
@@ -673,8 +673,8 @@ SELECT * FROM t1 LEFT JOIN JSON_TABLE(t1.jc, '$' COLUMNS
 id	jc	id
 EXPLAIN SELECT * FROM t1 LEFT JOIN JSON_TABLE(t1.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt ON t1.jc=jt.id;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT * FROM t1 t1o RIGHT JOIN t1 ON t1o.id=t1.id
 LEFT JOIN JSON_TABLE(t1.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt ON t1.jc=jt.id;
@@ -682,8 +682,8 @@ id	jc	id	jc	id
 EXPLAIN SELECT * FROM t1 t1o RIGHT JOIN t1 ON t1o.id=t1.id
 LEFT JOIN JSON_TABLE(t1.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt ON t1.jc=jt.id;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT * FROM t1 AS t1o RIGHT JOIN
 (t1 AS t1i JOIN JSON_TABLE(t1o.jc, '$' COLUMNS
 (id FOR ORDINALITY)) as jt ON t1i.jc=jt.id)
@@ -729,9 +729,9 @@ id	jc	id
 3	3	3
 EXPLAIN SELECT * FROM t1 LEFT JOIN JSON_TABLE(t1.jc, '$' COLUMNS
 (id INT PATH '$')) as jt ON t1.id=jt.id;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
-1	SIMPLE	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	jt	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table; Using where
 SELECT * FROM t1 
 LEFT JOIN
 JSON_TABLE(t1.jc, '$' COLUMNS (id FOR ORDINALITY)) as jt ON t1.jc=jt.id
@@ -1006,29 +1006,29 @@ SELECT alias.* FROM JSON_TABLE('"asd123"', '$' COLUMNS (blb BLOB PATH '$')) as a
 blb
 asd123
 EXPLAIN SELECT alias.* FROM JSON_TABLE('"asd123"', '$' COLUMNS (blb BLOB PATH '$')) as alias;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	alias	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	alias	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 EXPLAIN SELECT alias.* FROM JSON_TABLE('"asd123"', '$' COLUMNS (blb TINYBLOB PATH '$')) as alias;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	alias	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	alias	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 EXPLAIN SELECT alias.* FROM JSON_TABLE('"asd123"', '$' COLUMNS (blb MEDIUMBLOB PATH '$')) as alias;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	alias	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	alias	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 EXPLAIN SELECT alias.* FROM JSON_TABLE('"asd123"', '$' COLUMNS (blb LONGBLOB PATH '$')) as alias;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	alias	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	alias	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 EXPLAIN SELECT alias.* FROM JSON_TABLE('"asd123"', '$' COLUMNS (blb TEXT PATH '$')) as alias;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	alias	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	alias	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 EXPLAIN SELECT alias.* FROM JSON_TABLE('"asd123"', '$' COLUMNS (blb TINYTEXT PATH '$')) as alias;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	alias	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	alias	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 EXPLAIN SELECT alias.* FROM JSON_TABLE('"asd123"', '$' COLUMNS (blb MEDIUMTEXT PATH '$')) as alias;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	alias	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	alias	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 EXPLAIN SELECT alias.* FROM JSON_TABLE('"asd123"', '$' COLUMNS (blb LONGTEXT PATH '$')) as alias;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	alias	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	alias	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 SELECT * FROM 
 (SELECT CAST(blb AS JSON) jf FROM
 JSON_TABLE('"asd123"', '$' COLUMNS (blb BLOB PATH '$')) AS jti) AS dt,
@@ -1050,16 +1050,16 @@ DROP TABLE t;
 # Bug#26583283: ASSERTION `!THD->IS_ERROR()' FAILED IN SQL_RESOLVER.CC
 #
 EXPLAIN SELECT * FROM JSON_TABLE('null', '$' COLUMNS(AA DECIMAL PATH '$')) tt;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	tt	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 CREATE VIEW v1 AS SELECT * FROM
 JSON_TABLE( 'null', '$' COLUMNS (c1 DECIMAL PATH '$' ) ) AS jt;
 SELECT * FROM v1;
 c1
 NULL
 EXPLAIN SELECT * FROM v1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	jt	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 DROP VIEW v1;
 #
 # Bug#25822408: ASSERTION `!COL->CHILD_JDS->PRODUCING_RECORDS' FAILED
@@ -1115,9 +1115,9 @@ EXPLAIN SELECT * FROM t1 WHERE col_varchar_key NOT IN (
 SELECT col_varchar_key FROM JSON_TABLE(
 '[{"col_key": 1},{"col_key": 2}]', "$[*]" COLUMNS
 (col_varchar_key VARCHAR(10) PATH "$.col_key")) AS innr1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	innr1	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	innr1	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table; Using where
 SELECT * FROM t1 WHERE col_varchar_key IN (
 SELECT col_varchar_key FROM JSON_TABLE(
 '[{"col_key": 1},{"col_key": 2}]', "$[*]" COLUMNS
@@ -1128,9 +1128,9 @@ EXPLAIN SELECT * FROM t1 WHERE col_varchar_key IN (
 SELECT col_varchar_key FROM JSON_TABLE(
 '[{"col_key": 1},{"col_key": 2}]', "$[*]" COLUMNS
 (col_varchar_key VARCHAR(10) PATH "$.col_key")) AS innr1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	innr1	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table; Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	innr1	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table; Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 DROP TABLE t1;
 #
 # Bug#26711551: WL8867:CONDITIONAL JUMP IN JSON_TABLE_COLUMN::CLEANUP
@@ -1202,10 +1202,10 @@ id	f1	id	f1
 EXPLAIN SELECT * FROM t1 as jj1,
 (SELECT tt2.* FROM t1 as tt2,
 JSON_TABLE(f1, "$" COLUMNS (id FOR ORDINALITY)) AS tbl) dt;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	jj1	ALL	NULL	NULL	NULL	NULL	6	
-1	SIMPLE	tt2	ALL	NULL	NULL	NULL	NULL	6	Using join buffer (flat, BNL join)
-1	SIMPLE	tbl	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	jj1	NULL	ALL	NULL	NULL	NULL	NULL	6	
+1	SIMPLE	tt2	NULL	ALL	NULL	NULL	NULL	NULL	6	Using join buffer (flat, BNL join)
+1	SIMPLE	tbl	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 SELECT * FROM t1 as jj1,
 (SELECT tt2.* FROM t1 as tt2,
 JSON_TABLE(f1, "$" COLUMNS (id FOR ORDINALITY)) AS tbl STRAIGHT_JOIN 
@@ -1225,11 +1225,11 @@ EXPLAIN SELECT * FROM t1 as jj1,
 (SELECT tt2.* FROM t1 as tt2,
 JSON_TABLE(f1, "$" COLUMNS (id FOR ORDINALITY)) AS tbl STRAIGHT_JOIN 
 t1 AS tt3) dt ORDER BY 1,3 LIMIT 11;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	jj1	ALL	NULL	NULL	NULL	NULL	6	Using temporary; Using filesort
-1	SIMPLE	tt2	ALL	NULL	NULL	NULL	NULL	6	Using join buffer (flat, BNL join)
-1	SIMPLE	tbl	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
-1	SIMPLE	tt3	ALL	NULL	NULL	NULL	NULL	6	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	jj1	NULL	ALL	NULL	NULL	NULL	NULL	6	Using temporary; Using filesort
+1	SIMPLE	tt2	NULL	ALL	NULL	NULL	NULL	NULL	6	Using join buffer (flat, BNL join)
+1	SIMPLE	tbl	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+1	SIMPLE	tt3	NULL	ALL	NULL	NULL	NULL	NULL	6	Using join buffer (flat, BNL join)
 SELECT * FROM t1 WHERE id IN
 (SELECT id FROM t1 as tt2,
 JSON_TABLE(f1, "$" COLUMNS (jf FOR ORDINALITY)) AS tbl);
@@ -1243,11 +1243,11 @@ id	f1
 EXPLAIN SELECT * FROM t1 WHERE id IN
 (SELECT id FROM t1 as tt2,
 JSON_TABLE(f1, "$" COLUMNS (jf FOR ORDINALITY)) AS tbl);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	tt2	ALL	NULL	NULL	NULL	NULL	6	
-2	MATERIALIZED	tbl	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	6	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	tt2	NULL	ALL	NULL	NULL	NULL	NULL	6	
+2	MATERIALIZED	tbl	NULL	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 DROP TABLE t1;
 #
 # Bug#26760811: WL#8867: MEMORY LEAK REPORTED BY ASAN AND VALGRIND

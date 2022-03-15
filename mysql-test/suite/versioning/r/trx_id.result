@@ -296,18 +296,18 @@ PERIOD FOR SYSTEM_TIME (sys_trx_start, sys_trx_end)
 INSERT INTO t1 (x) VALUES (1);
 SET @ts= DATE_ADD(NOW(), INTERVAL 1 YEAR);
 EXPLAIN EXTENDED SELECT x FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION @ts;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME AS OF TRANSACTION @`ts` where trt_trx_sees(`test`.`t1`.`sys_trx_end`,@`ts`) and trt_trx_sees_eq(@`ts`,`test`.`t1`.`sys_trx_start`)
 EXPLAIN EXTENDED SELECT x FROM t1 FOR SYSTEM_TIME AS OF TIMESTAMP @ts;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME AS OF TIMESTAMP @`ts` where trt_trx_sees(`test`.`t1`.`sys_trx_end`,<cache>(trt_trx_id(@`ts`))) and trt_trx_sees_eq(<cache>(trt_trx_id(@`ts`)),`test`.`t1`.`sys_trx_start`)
 EXPLAIN EXTENDED SELECT x FROM t1 FOR SYSTEM_TIME AS OF @ts;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`x` AS `x` from `test`.`t1` FOR SYSTEM_TIME AS OF TIMESTAMP @`ts` where trt_trx_sees(`test`.`t1`.`sys_trx_end`,<cache>(trt_trx_id(@`ts`))) and trt_trx_sees_eq(<cache>(trt_trx_id(@`ts`)),`test`.`t1`.`sys_trx_start`)
 DROP TABLE t1;

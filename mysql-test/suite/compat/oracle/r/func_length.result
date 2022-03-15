@@ -15,7 +15,7 @@ SELECT LENGTHB(_utf8 0xC39F), LENGTHB(CHAR(14844588 USING utf8));
 LENGTHB(_utf8 0xC39F)	LENGTHB(CHAR(14844588 USING utf8))
 2	3
 EXPLAIN EXTENDED SELECT LENGTH('a'), LENGTHB('a');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select char_length('a') AS "LENGTH('a')",octet_length('a') AS "LENGTHB('a')"

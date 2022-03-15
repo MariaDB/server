@@ -18,8 +18,8 @@ SELECT REPLACE('aaa','a',null) ;
 REPLACE('aaa','a',null)
 NULL
 EXPLAIN EXTENDED SELECT REPLACE('ab','a',null) ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select replace_oracle('ab','a',NULL) AS "REPLACE('ab','a',null)"
 CREATE VIEW v1 AS SELECT REPLACE('ab','a',null) ;

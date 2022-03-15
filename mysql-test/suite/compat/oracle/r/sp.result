@@ -1050,8 +1050,8 @@ ERROR 42000: Undeclared variable: unknown_ident
 # MDEV-10583 sql_mode=ORACLE: SQL%ROWCOUNT
 #
 EXPLAIN EXTENDED SELECT sql%rowcount;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select SQL%ROWCOUNT AS "sql%rowcount"
 CREATE TABLE t1 AS SELECT SQL%ROWCOUNT;

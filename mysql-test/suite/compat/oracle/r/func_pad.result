@@ -41,8 +41,8 @@ NULL	NULL
 a	a
 a.	a 
 EXPLAIN EXTENDED SELECT RPAD('a',0,'.'), LPAD('a',0,'.'), LPAD(c1,c2,c3), LPAD(c1,c2), RPAD(c1,c2,c3), RPAD(c1,c2) FROM t1 ORDER BY ord;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	Using filesort
 Warnings:
 Note	1003	select rpad_oracle('a',0,'.') AS "RPAD('a',0,'.')",lpad_oracle('a',0,'.') AS "LPAD('a',0,'.')",lpad_oracle("test"."t1"."c1","test"."t1"."c2","test"."t1"."c3") AS "LPAD(c1,c2,c3)",lpad_oracle("test"."t1"."c1","test"."t1"."c2") AS "LPAD(c1,c2)",rpad_oracle("test"."t1"."c1","test"."t1"."c2","test"."t1"."c3") AS "RPAD(c1,c2,c3)",rpad_oracle("test"."t1"."c1","test"."t1"."c2") AS "RPAD(c1,c2)" from "test"."t1" order by "test"."t1"."ord"
 CREATE VIEW v1 AS SELECT RPAD('a',0,'.') AS "C1", LPAD('a',0,'.') AS "C2", LPAD(c1,c2,c3) AS "C3", LPAD(c1,c2) AS "C4", RPAD(c1,c2,c3) AS "C5", RPAD(c1,c2) AS "C6" FROM t1 ORDER BY ord;

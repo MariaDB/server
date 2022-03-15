@@ -441,11 +441,11 @@ next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_si
 drop sequence s1;
 CREATE SEQUENCE t1 start with 5 minvalue 1 maxvalue 10 increment by 1 cache 5 cycle;
 explain select next value for t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 explain select next value for t1, minimum_value from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	1	
 drop table t1;
 CREATE SEQUENCE s1;
 CREATE TABLE t1 (a int);
@@ -478,13 +478,13 @@ select next value for s1;
 next value for s1
 3984356
 explain extended select next value for s1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select nextval(`test`.`s1`) AS `next value for s1`
 explain extended select previous value for s1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select lastval(`test`.`s1`) AS `previous value for s1`
 drop sequence s1;

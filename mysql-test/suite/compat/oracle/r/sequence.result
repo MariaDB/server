@@ -16,16 +16,16 @@ SELECT s1.nextval;
 s1.nextval
 3
 EXPLAIN EXTENDED SELECT s1.nextval;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select nextval("test"."s1") AS "s1.nextval"
 SELECT nextval(s1);
 nextval(s1)
 4
 EXPLAIN EXTENDED SELECT s1.currval;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select lastval("test"."s1") AS "s1.currval"
 SELECT lastval(s1);

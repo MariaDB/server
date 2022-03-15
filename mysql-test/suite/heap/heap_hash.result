@@ -64,8 +64,8 @@ a
 869751
 alter table t1 engine=myisam;
 explain select * from t1 where a in (869751,736494,226312,802616);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	uniq_id	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	uniq_id	NULL	NULL	NULL	5	Using where
 drop table t1;
 create table t1 (x int not null, y int not null, key x  using HASH (x), unique y  using HASH (y))
 engine=heap;
@@ -83,9 +83,9 @@ x	y	x	y
 2	5	2	2
 2	6	2	2
 explain select * from t1,t1 as t2 where t1.x=t2.y;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	x	NULL	NULL	NULL	6	
-1	SIMPLE	t2	eq_ref	y	y	4	test.t1.x	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	x	NULL	NULL	NULL	6	
+1	SIMPLE	t2	NULL	eq_ref	y	y	4	test.t1.x	1	
 drop table t1;
 create table t1 (a int) engine=heap;
 insert into t1 values(1);
@@ -157,18 +157,18 @@ drop table t1;
 create table t1 (btn char(10) not null, key using HASH (btn)) engine=heap;
 insert into t1 values ("hello"),("hello"),("hello"),("hello"),("hello"),("a"),("b"),("c"),("d"),("e"),("f"),("g"),("h"),("i");
 explain select * from t1 where btn like "q%";
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	btn	NULL	NULL	NULL	14	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	btn	NULL	NULL	NULL	14	Using where
 select * from t1 where btn like "q%";
 btn
 alter table t1 add column new_col char(1) not null, add key using HASH (btn,new_col), drop key btn;
 update t1 set new_col=left(btn,1);
 explain select * from t1 where btn="a";
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	btn	NULL	NULL	NULL	14	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	btn	NULL	NULL	NULL	14	Using where
 explain select * from t1 where btn="a" and new_col="a";
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	btn	btn	11	const,const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	btn	btn	11	const,const	2	Using where
 drop table t1;
 CREATE TABLE t1 (
 a int default NULL,
@@ -180,16 +180,16 @@ INSERT INTO t1 VALUES (NULL,99),(99,NULL),(1,1),(2,2),(1,3);
 SELECT * FROM t1 WHERE a=NULL;
 a	b
 explain SELECT * FROM t1 WHERE a IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	5	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	5	const	2	Using where
 SELECT * FROM t1 WHERE a<=>NULL;
 a	b
 NULL	99
 SELECT * FROM t1 WHERE b=NULL;
 a	b
 explain SELECT * FROM t1 WHERE b IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	b	b	5	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	b	b	5	const	1	Using where
 SELECT * FROM t1 WHERE b<=>NULL;
 a	b
 99	NULL
@@ -218,59 +218,59 @@ insert into t1 values ('aaaf', 'prefill-hash=4',0);
 insert into t1 values ('aaag', 'prefill-hash=3',0);
 insert into t1 values ('aaah', 'prefill-hash=6',0);
 explain select * from t1 where a='aaaa';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	8	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	8	const	2	Using where
 explain select * from t1 where a='aaab';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	8	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	8	const	2	Using where
 explain select * from t1 where a='aaac';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	8	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	8	const	2	Using where
 explain select * from t1 where a='aaad';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	8	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	8	const	2	Using where
 insert into t1 select * from t1;
 flush tables;
 explain select * from t1 where a='aaaa';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	8	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	8	const	2	Using where
 explain select * from t1 where a='aaab';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	8	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	8	const	2	Using where
 explain select * from t1 where a='aaac';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	8	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	8	const	2	Using where
 explain select * from t1 where a='aaad';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	8	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	8	const	2	Using where
 flush tables;
 explain select * from t1 where a='aaaa';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	8	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	8	const	2	Using where
 explain select * from t1 where a='aaab';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	8	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	8	const	2	Using where
 explain select * from t1 where a='aaac';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	8	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	8	const	2	Using where
 explain select * from t1 where a='aaad';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	8	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	8	const	2	Using where
 create table t2 as select * from t1;
 delete from t1;
 insert into t1 select * from t2;
 explain select * from t1 where a='aaaa';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	8	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	8	const	2	Using where
 explain select * from t1 where a='aaab';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	8	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	8	const	2	Using where
 explain select * from t1 where a='aaac';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	8	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	8	const	2	Using where
 explain select * from t1 where a='aaad';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	8	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	8	const	2	Using where
 drop table t1, t2;
 create table t1 (
 id int unsigned not null primary key auto_increment, 
@@ -289,29 +289,29 @@ insert into t1 (name) values ('Matt'), ('Lilu'), ('Corbin'), ('Carly'),
 ('Emily'), ('Mike');
 insert into t2 select * from t1;
 explain select * from t1 where name='matt';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	heap_idx,btree_idx	btree_idx	22	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	heap_idx,btree_idx	btree_idx	22	const	1	Using where
 explain select * from t2 where name='matt';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	btree_idx,heap_idx	btree_idx	22	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ref	btree_idx,heap_idx	btree_idx	22	const	1	Using where
 explain select * from t1 where name='Lilu';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	heap_idx,btree_idx	btree_idx	22	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	heap_idx,btree_idx	btree_idx	22	const	1	Using where
 explain select * from t2 where name='Lilu';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	btree_idx,heap_idx	btree_idx	22	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ref	btree_idx,heap_idx	btree_idx	22	const	1	Using where
 explain select * from t1 where name='Phil';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	heap_idx,btree_idx	btree_idx	22	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	heap_idx,btree_idx	btree_idx	22	const	1	Using where
 explain select * from t2 where name='Phil';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	btree_idx,heap_idx	btree_idx	22	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ref	btree_idx,heap_idx	btree_idx	22	const	1	Using where
 explain select * from t1 where name='Lilu';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	heap_idx,btree_idx	btree_idx	22	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	heap_idx,btree_idx	btree_idx	22	const	1	Using where
 explain select * from t2 where name='Lilu';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	btree_idx,heap_idx	btree_idx	22	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ref	btree_idx,heap_idx	btree_idx	22	const	1	Using where
 insert into t1 (name) select name from t2;
 insert into t1 (name) select name from t2;
 insert into t1 (name) select name from t2;
@@ -323,8 +323,8 @@ select count(*) from t1 where name='Matt';
 count(*)
 7
 explain select * from t1 ignore index (btree_idx) where name='matt';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	heap_idx	heap_idx	22	const	7	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	heap_idx	heap_idx	22	const	7	Using where
 show index from t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	PRIMARY	1	id	NULL	91	NULL	NULL		HASH			NO
@@ -351,9 +351,9 @@ Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_par
 t3	1	a	1	a	NULL	NULL	NULL	NULL		HASH			NO
 t3	1	a	2	b	NULL	13	NULL	NULL		HASH			NO
 explain select * from t1 ignore key(btree_idx), t3 where t1.name='matt' and t3.a = concat('',t1.name) and t3.b=t1.name;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	heap_idx	heap_idx	22	const	7	Using where
-1	SIMPLE	t3	ref	a	a	44	func,const	7	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	heap_idx	heap_idx	22	const	7	Using where
+1	SIMPLE	t3	NULL	ref	a	a	44	func,const	7	Using where
 drop table t1, t2, t3;
 create temporary table t1 ( a int, index (a) ) engine=memory;
 insert into t1 values (1),(2),(3),(4),(5);
@@ -362,8 +362,8 @@ a
 1
 3
 explain select a from t1 where a in (1,3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	4	Using where
 drop table t1;
 End of 4.1 tests
 CREATE TABLE t1(col1 VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL, 
@@ -392,8 +392,8 @@ INSERT INTO t1 VALUES (2, NULL);
 INSERT INTO t1 VALUES (3, 1);
 INSERT INTO t1 VALUES (4, NULL);
 EXPLAIN SELECT * FROM t1 WHERE val IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	val	val	5	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	val	val	5	const	1	Using where
 SELECT * FROM t1 WHERE val IS NULL;
 pk	val
 4	NULL
@@ -410,21 +410,21 @@ select 0+a from t1 where a > 736494;
 869751
 802616
 explain select 0+a from t1 where a > 736494;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	uniq_id	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	uniq_id	NULL	NULL	NULL	5	Using where
 select 0+a from t1 where a = 736494;
 0+a
 736494
 explain select 0+a from t1 where a = 736494;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	uniq_id	uniq_id	8	const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	const	uniq_id	uniq_id	8	const	1	
 select 0+a from t1 where a=869751 or a=736494;
 0+a
 736494
 869751
 explain select 0+a from t1 where a=869751 or a=736494;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	uniq_id	uniq_id	8	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	uniq_id	uniq_id	8	NULL	2	Using where
 select 0+a from t1 where a in (869751,736494,226312,802616,728912);
 0+a
 226312
@@ -433,8 +433,8 @@ select 0+a from t1 where a in (869751,736494,226312,802616,728912);
 802616
 869751
 explain select 0+a from t1 where a in (869751,736494,226312,802616,728912);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	uniq_id	uniq_id	8	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	uniq_id	uniq_id	8	NULL	5	Using where
 drop table t1;
 End of 5.3 tests
 #
@@ -453,15 +453,15 @@ DROP TABLE t1;
 CREATE TABLE t1 (c1 VARCHAR(10) NOT NULL, KEY i1 (c1(3))) ENGINE=MEMORY DEFAULT CHARSET=latin1;
 INSERT INTO t1 VALUES ('foo1'), ('bar2'), ('baz3');
 explain SELECT * FROM t1 WHERE c1='bar2';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	i1	i1	5	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	i1	i1	5	const	2	Using where
 SELECT * FROM t1 WHERE c1='bar2';
 c1
 bar2
 ALTER TABLE t1 DROP KEY i1, ADD KEY il (c1(3)) using btree;
 explain SELECT * FROM t1 WHERE c1='bar2';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	il	il	5	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	il	il	5	const	1	Using where
 SELECT * FROM t1 WHERE c1='bar2';
 c1
 bar2

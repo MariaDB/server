@@ -134,8 +134,8 @@ EXPLAIN EXTENDED SELECT c%ISOPEN, c%ROWCOUNT, c%FOUND, c%NOTFOUND;
 END;
 $$
 CALL p1();
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select "c"%ISOPEN AS "c%ISOPEN","c"%ROWCOUNT AS "c%ROWCOUNT","c"%FOUND AS "c%FOUND","c"%NOTFOUND AS "c%NOTFOUND"
 DROP PROCEDURE p1;

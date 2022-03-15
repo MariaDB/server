@@ -113,14 +113,14 @@ EXPLAIN EXTENDED SELECT TRIM('abc'),
 TRIM(BOTH 'a' FROM 'abc'),
 TRIM(LEADING 'a' FROM 'abc'),
 TRIM(TRAILING 'a' FROM 'abc') ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select trim_oracle('abc') AS "TRIM('abc')",trim_oracle(both 'a' from 'abc') AS "TRIM(BOTH 'a' FROM 'abc')",trim_oracle(leading 'a' from 'abc') AS "TRIM(LEADING 'a' FROM 'abc')",trim_oracle(trailing 'a' from 'abc') AS "TRIM(TRAILING 'a' FROM 'abc')"
 EXPLAIN EXTENDED SELECT RTRIM('abc'),
 LTRIM('abc');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select rtrim_oracle('abc') AS "RTRIM('abc')",ltrim_oracle('abc') AS "LTRIM('abc')"
 CREATE VIEW v1 AS SELECT ord,TRIM('abc'),RTRIM('abc'),LTRIM('abc'),

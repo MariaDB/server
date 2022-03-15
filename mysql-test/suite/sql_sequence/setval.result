@@ -235,8 +235,8 @@ select next_not_cached_value,cycle_count from t1;
 next_not_cached_value	cycle_count
 1016	0
 explain extended select setval(t1,100),setval(t1,100,TRUE),setval(t1,100,FALSE,50);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select setval(`test`.`t1`,100,1,0) AS `setval(t1,100)`,setval(`test`.`t1`,100,1,0) AS `setval(t1,100,TRUE)`,setval(`test`.`t1`,100,0,50) AS `setval(t1,100,FALSE,50)`
 drop sequence t1;

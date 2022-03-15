@@ -111,6 +111,7 @@ select 2 as a, 2 as b) as t2 for update;
 id	1
 select_type	PRIMARY
 table	<derived2>
+partitions	NULL
 type	ALL
 possible_keys	NULL
 key	NULL
@@ -121,6 +122,7 @@ Extra
 id	1
 select_type	PRIMARY
 table	t1
+partitions	NULL
 type	eq_ref
 possible_keys	PRIMARY
 key	PRIMARY
@@ -131,6 +133,7 @@ Extra	Using where
 id	2
 select_type	DERIVED
 table	NULL
+partitions	NULL
 type	NULL
 possible_keys	NULL
 key	NULL
@@ -141,6 +144,7 @@ Extra	No tables used
 id	3
 select_type	UNION
 table	NULL
+partitions	NULL
 type	NULL
 possible_keys	NULL
 key	NULL
@@ -302,6 +306,7 @@ select 3 as a, 1 as b) as t2 for update;
 id	1
 select_type	PRIMARY
 table	<derived2>
+partitions	NULL
 type	ALL
 possible_keys	NULL
 key	NULL
@@ -312,6 +317,7 @@ Extra
 id	1
 select_type	PRIMARY
 table	t1
+partitions	NULL
 type	eq_ref
 possible_keys	PRIMARY
 key	PRIMARY
@@ -322,6 +328,7 @@ Extra	Using where
 id	2
 select_type	DERIVED
 table	NULL
+partitions	NULL
 type	NULL
 possible_keys	NULL
 key	NULL
@@ -332,6 +339,7 @@ Extra	No tables used
 id	3
 select_type	UNION
 table	NULL
+partitions	NULL
 type	NULL
 possible_keys	NULL
 key	NULL

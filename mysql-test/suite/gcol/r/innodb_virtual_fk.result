@@ -596,8 +596,8 @@ KEY (f1, f2), FOREIGN KEY(f1) REFERENCES t1(f1))ENGINE=INNODB;
 INSERT INTO t1 VALUES(1);
 INSERT INTO t2(f1) VALUES(1);
 EXPLAIN SELECT f1, f2 FROM t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	f1	9	NULL	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	NULL	f1	9	NULL	1	Using index
 SELECT f1, f2 FROM t2;
 f1	f2
 1	1
@@ -611,15 +611,15 @@ ON UPDATE CASCADE)ENGINE=INNODB;
 INSERT INTO t1 VALUES(1);
 INSERT INTO t2(f1) VALUES(1);
 EXPLAIN SELECT f1, f2 FROM t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	f1	9	NULL	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	NULL	f1	9	NULL	1	Using index
 SELECT f1, f2 FROM t2;
 f1	f2
 1	1
 UPDATE t1 SET f1 = 2 WHERE f1 = 1;
 EXPLAIN SELECT f1, f2 FROM t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	f1	9	NULL	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	NULL	f1	9	NULL	1	Using index
 SELECT f1, f2 FROM t2;
 f1	f2
 2	2
@@ -635,8 +635,8 @@ ON UPDATE CASCADE, ALGORITHM=INPLACE;
 SET FOREIGN_KEY_CHECKS = 1;
 UPDATE t1 SET f1 = 3;
 EXPLAIN SELECT f1, f2 FROM t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	f1	9	NULL	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	NULL	f1	9	NULL	1	Using index
 SELECT f1, f2 FROM t2;
 f1	f2
 3	3
@@ -650,8 +650,8 @@ ALTER TABLE t2 ADD FOREIGN KEY (f1) REFERENCES t1(f1)
 ON UPDATE CASCADE, ALGORITHM=COPY;
 UPDATE t1 SET f1 = 3;
 EXPLAIN SELECT f1, f2 FROM t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	f1	9	NULL	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	NULL	f1	9	NULL	1	Using index
 SELECT f1, f2 FROM t2;
 f1	f2
 3	3
@@ -666,8 +666,8 @@ INSERT INTO t2(f1) VALUES(1);
 ALTER TABLE t2 DROP COLUMN f2, ALGORITHM=INPLACE;
 UPDATE t1 SET f1 = 3;
 EXPLAIN SELECT f1, f3 FROM t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	idx1	9	NULL	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	NULL	idx1	9	NULL	1	Using index
 SELECT f1, f3 FROM t2;
 f1	f3
 3	2
@@ -682,8 +682,8 @@ INSERT INTO t2(f1) VALUES(1);
 ALTER TABLE t2 DROP COLUMN f2, ALGORITHM=COPY;
 UPDATE t1 SET f1 = 3;
 EXPLAIN SELECT f1, f3 FROM t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	idx1	9	NULL	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	NULL	idx1	9	NULL	1	Using index
 SELECT f1, f3 FROM t2;
 f1	f3
 3	2

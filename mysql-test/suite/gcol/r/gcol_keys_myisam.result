@@ -204,8 +204,8 @@ WHERE
 outr.col_varchar_nokey in ('c', 'x', 'i')
 AND (outr.col_time_key IS NULL OR
 outr.col_datetime_key = '2009-09-27');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	outr	index_merge	col_time_key,col_datetime_key	col_time_key,col_datetime_key	4,6	NULL	x	x
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	outr	NULL	index_merge	col_time_key,col_datetime_key	col_time_key,col_datetime_key	4,6	NULL	x	x
 SELECT
 outr.col_time_key AS x
 FROM c AS outr
@@ -312,8 +312,8 @@ UNIQUE KEY (b)
 );
 INSERT INTO t1 (id) VALUES (2),(3),(4),(5),(6),(7),(8),(9),(10);
 EXPLAIN SELECT b FROM t1 FORCE INDEX(b);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	b	5	NULL	9	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	b	5	NULL	9	Using index
 SELECT b FROM t1 FORCE INDEX(b);
 b
 3
@@ -326,8 +326,8 @@ b
 10
 11
 EXPLAIN SELECT b FROM t1 FORCE INDEX(b) WHERE b BETWEEN 1 AND 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	b	b	5	NULL	3	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	b	b	5	NULL	3	Using where; Using index
 SELECT b FROM t1 FORCE INDEX(b) WHERE b BETWEEN 1 AND 5;
 b
 3
@@ -357,29 +357,29 @@ f1	gc
 8	9
 9	10
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 > 7;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 SELECT * FROM t1 WHERE f1 + 1 = 7;
 f1	gc
 6	7
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 = 7;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 SELECT * FROM t1 WHERE f1 + 1 IN (7,5);
 f1	gc
 4	5
 6	7
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 IN(7,5);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 SELECT * FROM t1 WHERE f1 + 1 BETWEEN 5 AND 7;
 f1	gc
 4	5
 5	6
 6	7
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 BETWEEN 5 AND 7;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 # Check that expression isn't transformed for a disabled key
 SELECT * FROM t1 IGNORE KEY (gc) WHERE f1 + 1 BETWEEN 5 AND 7;
 f1	gc
@@ -387,8 +387,8 @@ f1	gc
 5	6
 6	7
 EXPLAIN SELECT * FROM t1 IGNORE KEY (gc) WHERE f1 + 1 BETWEEN 5 AND 7;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 # Check that ORDER BY could be optimized
 SELECT * FROM t1 ORDER BY f1 + 1;
 f1	gc
@@ -403,11 +403,11 @@ f1	gc
 8	9
 9	10
 EXPLAIN SELECT * FROM t1 ORDER BY f1 + 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using filesort
 EXPLAIN SELECT * FROM t1 IGNORE KEY (gc) ORDER BY f1 + 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using filesort
 # Check that GROUP BY could be optimized
 SELECT f1 + 1, MAX(GC) FROM t1 GROUP BY f1 + 1;
 f1 + 1	MAX(GC)
@@ -422,12 +422,12 @@ f1 + 1	MAX(GC)
 9	9
 10	10
 EXPLAIN SELECT f1 + 1, MAX(GC) FROM t1 GROUP BY f1 + 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
 EXPLAIN SELECT f1 + 1, MAX(GC)
 FROM t1 IGNORE KEY (gc) GROUP BY f1 + 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
 # Shouldn't use index
 SELECT * FROM t1 WHERE f1 + 1 > 7.0;
 f1	gc
@@ -435,8 +435,8 @@ f1	gc
 8	9
 9	10
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 > 7.0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 DROP TABLE t1;
 # Pick index with proper type
 CREATE TABLE t1 (f1 int,
@@ -466,8 +466,8 @@ f1	gc_int	gc_date
 90909	90910	2009-09-10
 # INT column & index should be picked
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 > 070707;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	18	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where
 SELECT * FROM t1 WHERE f1 + 1 > CAST(070707 AS DATE);
 f1	gc_int	gc_date
 101010	101011	2010-10-11
@@ -476,8 +476,8 @@ f1	gc_int	gc_date
 90909	90910	2009-09-10
 # DATE column & index should be picked
 EXPLAIN SELECT * FROM t1 WHERE f1 + 1 > CAST(070707 AS DATE);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	18	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where
 DROP TABLE t1;
 #
 # BUG#21229846: WL8170: SIGNAL 11 IN JOIN::MAKE_SUM_FUNC_LIST
@@ -501,9 +501,9 @@ field1	field2
 EXPLAIN SELECT  table1.col_int_key + 1 AS field1, table2.col_int_key AS field2
 FROM (t1 AS table1  JOIN t1 AS table2 ON (table2.pk = table1.pk))
 ORDER BY field1, field2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	table1	system	PRIMARY	NULL	NULL	NULL	1	
-1	SIMPLE	table2	system	PRIMARY	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	table1	NULL	system	PRIMARY	NULL	NULL	NULL	1	
+1	SIMPLE	table2	NULL	system	PRIMARY	NULL	NULL	NULL	1	
 SELECT  table1.col_int_key + 1 AS field1, table2.col_int_key AS field2
 FROM (t1 AS table1  JOIN t1 AS table2 ON (table2.pk = table1.pk))
 GROUP BY field1, field2;
@@ -512,9 +512,9 @@ field1	field2
 EXPLAIN SELECT  table1.col_int_key + 1 AS field1, table2.col_int_key AS field2
 FROM (t1 AS table1  JOIN t1 AS table2 ON (table2.pk = table1.pk))
 GROUP BY field1, field2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	table1	system	PRIMARY	NULL	NULL	NULL	1	
-1	SIMPLE	table2	system	PRIMARY	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	table1	NULL	system	PRIMARY	NULL	NULL	NULL	1	
+1	SIMPLE	table2	NULL	system	PRIMARY	NULL	NULL	NULL	1	
 DROP TABLE t1;
 #
 # Bug#21391781 ASSERT WHEN RUNNING ALTER TABLE ON A TABLE WITH INDEX
@@ -733,69 +733,69 @@ Table	Op	Msg_type	Msg_text
 test.t	analyze	status	Engine-independent statistics collected
 test.t	analyze	status	OK
 EXPLAIN SELECT a, b FROM t WHERE (a AND b) = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
 SELECT a, b FROM t WHERE (a AND b) = 1;
 a	b
 1	1
 EXPLAIN SELECT a, b FROM t WHERE 1 = (a AND b);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
 SELECT a, b FROM t WHERE 1 = (a AND b);
 a	b
 1	1
 EXPLAIN SELECT a, b FROM t WHERE (a AND b) IN (1, 2, 3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
 SELECT a, b FROM t WHERE (a AND b) IN (1, 2, 3);
 a	b
 1	1
 EXPLAIN SELECT a, b FROM t WHERE (a OR b) = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
 SELECT a, b FROM t WHERE (a OR b) = 1;
 a	b
 0	1
 1	0
 1	1
 EXPLAIN SELECT a, b FROM t WHERE (a OR b) BETWEEN 1 AND 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
 SELECT a, b FROM t WHERE (a OR b) BETWEEN 1 AND 10;
 a	b
 0	1
 1	0
 1	1
 EXPLAIN SELECT a, b FROM t WHERE (a XOR b) = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
 SELECT a, b FROM t WHERE (a XOR b) = 1;
 a	b
 0	1
 1	0
 EXPLAIN SELECT a FROM t WHERE (NOT a) = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
 SELECT a FROM t WHERE (NOT a) = 1;
 a
 0
 0
 EXPLAIN SELECT a FROM t WHERE (CASE WHEN (a AND b) THEN a ELSE b END) = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
 SELECT a FROM t WHERE (CASE WHEN (a AND b) THEN a ELSE b END) = 1;
 a
 0
 1
 EXPLAIN SELECT a, b FROM t WHERE 1 = (b AND a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
 SELECT a, b FROM t WHERE 1 = (b AND a);
 a	b
 1	1
 EXPLAIN SELECT a, b FROM t WHERE 1 = (b OR a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
 SELECT a, b FROM t WHERE 1 = (b OR a);
 a	b
 0	1
@@ -819,15 +819,15 @@ test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 # Used to choose the index on a1 and get wrong results.
 EXPLAIN SELECT * FROM t1 WHERE (a2 AND a2) = 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT * FROM t1 WHERE (a2 AND a2) = 0;
 a1	a2
 # Used to get assertion or wrong results.
 EXPLAIN SELECT * FROM t1 STRAIGHT_JOIN t2 ON b WHERE (b AND b) = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t2	NULL	system	NULL	NULL	NULL	NULL	1	
 SELECT * FROM t1 STRAIGHT_JOIN t2 ON b WHERE (b AND b) = 1;
 a1	a2	b
 0	NULL	1

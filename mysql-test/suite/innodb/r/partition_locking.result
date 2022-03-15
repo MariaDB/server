@@ -196,8 +196,8 @@ d	a	b	c
 9	03	07	343
 explain SELECT d,a,b,c FROM t3 ORDER BY d 
 LOCK IN SHARE MODE SKIP LOCKED;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	index	NULL	PRIMARY	257	NULL	14	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	index	NULL	PRIMARY	257	NULL	14	
 #
 #  UPDATE ...
 SELECT * FROM t1 FOR UPDATE;
@@ -390,8 +390,8 @@ d	a	b	c
 9	03	07	343
 explain SELECT d,a,b,c FROM t3 ORDER BY d 
 LOCK IN SHARE MODE SKIP LOCKED;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	index	NULL	PRIMARY	257	NULL	14	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	index	NULL	PRIMARY	257	NULL	14	
 #
 #  UPDATE ...
 SELECT * FROM t1 FOR UPDATE;

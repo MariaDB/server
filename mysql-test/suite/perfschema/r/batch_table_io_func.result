@@ -116,10 +116,10 @@ id2	id3	c
 61	612	612
 explain extended select t1.*, t2.*, t3.*
 from t1 join t2 using (id1) join t3 using (id2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	1000	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`id1` AS `id1`,`test`.`t1`.`a` AS `a`,`test`.`t2`.`id1` AS `id1`,`test`.`t2`.`id2` AS `id2`,`test`.`t2`.`b` AS `b`,`test`.`t3`.`id2` AS `id2`,`test`.`t3`.`id3` AS `id3`,`test`.`t3`.`c` AS `c` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t3`.`id2` = `test`.`t2`.`id2` and `test`.`t2`.`id1` = `test`.`t1`.`id1`
 call before_payload();
@@ -153,10 +153,10 @@ alter table t3 add unique index(id3);
 alter table t3 add index(id2);
 explain extended select t1.*, t2.*, t3.*
 from t1 join t2 using (id1) join t3 using (id2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	id1	NULL	NULL	NULL	10	100.00	Using where
-1	SIMPLE	t2	ref	id2,id1	id1	5	test.t1.id1	10	100.00	Using where
-1	SIMPLE	t3	ref	id2	id2	5	test.t2.id2	10	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	id1	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t2	NULL	ref	id2,id1	id1	5	test.t1.id1	10	100.00	Using where
+1	SIMPLE	t3	NULL	ref	id2	id2	5	test.t2.id2	10	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`id1` AS `id1`,`test`.`t1`.`a` AS `a`,`test`.`t2`.`id1` AS `id1`,`test`.`t2`.`id2` AS `id2`,`test`.`t2`.`b` AS `b`,`test`.`t3`.`id2` AS `id2`,`test`.`t3`.`id3` AS `id3`,`test`.`t3`.`c` AS `c` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t3`.`id2` = `test`.`t2`.`id2` and `test`.`t2`.`id1` = `test`.`t1`.`id1`
 call before_payload();
