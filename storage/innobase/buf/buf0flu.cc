@@ -185,6 +185,7 @@ void buf_pool_t::insert_into_flush_list(buf_block_t *block, lsn_t lsn) noexcept
   else
     stat.flush_list_bytes+= block->physical_size();
   ut_ad(stat.flush_list_bytes <= curr_pool_size);
+  ut_ad(lsn >= log_sys.last_checkpoint_lsn);
 
   block->page.set_oldest_modification(lsn);
   MEM_CHECK_DEFINED(block->page.zip.data

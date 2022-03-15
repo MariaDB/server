@@ -1481,6 +1481,7 @@ static void fil_name_commit_durable(mtr_t *mtr)
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
   auto lsn= mtr->commit_files();
   log_sys.latch.wr_unlock();
+  mtr->flag_wr_unlock();
   log_write_up_to(lsn, true);
 }
 
