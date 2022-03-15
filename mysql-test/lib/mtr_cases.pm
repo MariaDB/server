@@ -1037,7 +1037,7 @@ sub get_tags_from_file($$) {
     }
 
     # Check for a sourced include file.
-    if ($line =~ /^(--)?[[:space:]]*source[[:space:]]+([^;[:space:]]+)/)
+    if ($line =~ /^[[:space:]]*(--)?[[:space:]]*source[[:space:]]+([^;[:space:]]+)/)
     {
       my $include= $2;
       # The rules below must match open_file() function of mysqltest.cc
