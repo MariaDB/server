@@ -216,6 +216,12 @@ PARTITION BY HASH (a) PARTITIONS 2;
 SELECT * FROM tbl_a;
 ERROR HY000: Unable to connect to foreign data source: localhost
 DROP TABLE tbl_a;
+# MDEV-27860 SIGSEGV in spider_parse_connect_info on CREATE TABLE
+CREATE TABLE tbl_a ENGINE=SPIDER COMMENT="TABLE 'unknown_table'"
+PARTITION BY LIST COLUMNS (c) (
+PARTITION p DEFAULT COMMENT="srv 'unknown_server'" ENGINE=SPIDER
+);
+ERROR HY000: The foreign server name you are trying to reference does not exist. Data source error:  unknown_server
 connection child2_1;
 DROP DATABASE auto_test_remote;
 connection child2_2;

@@ -377,6 +377,7 @@ void mtr_t::start()
   new(&m_log) mtr_buf_t();
 
   m_made_dirty= false;
+  m_latch_ex= false;
   m_inside_ibuf= false;
   m_modifications= false;
   m_log_mode= MTR_LOG_ALL;
@@ -405,6 +406,7 @@ void mtr_t::commit()
   /* This is a dirty read, for debugging. */
   ut_ad(!m_modifications || !recv_no_log_write);
   ut_ad(!m_modifications || m_log_mode != MTR_LOG_NONE);
+  ut_ad(!m_latch_ex);
 
   if (m_modifications && (m_log_mode == MTR_LOG_NO_REDO || !m_log.empty()))
   {
@@ -414,8 +416,14 @@ void mtr_t::commit()
 
     if (UNIV_LIKELY(m_log_mode == MTR_LOG_ALL))
     {
-      lsns= do_write(false);
-      if (!m_made_dirty)
+      lsns= do_write();
+      if (m_made_dirty);
+      else if (m_latch_ex)
+      {
+        log_sys.latch.wr_unlock();
+        m_latch_ex= false;
+      }
+      else
         log_sys.latch.rd_unlock();
     }
     else
@@ -452,7 +460,13 @@ void mtr_t::commit()
 
     Iterate<ReleaseBlocks> rb{ReleaseBlocks{lsns.first, m_commit_lsn}};
     m_memo.for_each_block_in_reverse(rb);
-    if (m_made_dirty)
+    if (!m_made_dirty);
+    else if (m_latch_ex)
+    {
+      log_sys.latch.wr_unlock();
+      m_latch_ex= false;
+    }
+    else
       log_sys.latch.rd_unlock();
 
     m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>());
@@ -535,9 +549,10 @@ void mtr_t::commit_shrink(fil_space_t &space)
   ut_ad(UT_LIST_GET_LEN(space.chain) == 1);
 
   log_write_and_flush_prepare();
+  m_latch_ex= true;
   log_sys.latch.wr_lock(SRW_LOCK_CALL);
 
-  const lsn_t start_lsn= do_write(true).first;
+  const lsn_t start_lsn= do_write().first;
 
   /* Durably write the reduced FSP_SIZE before truncating the data file. */
   log_write_and_flush();
@@ -574,6 +589,7 @@ void mtr_t::commit_shrink(fil_space_t &space)
   m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
                                    (ReleaseBlocks{start_lsn, m_commit_lsn}));
   log_sys.latch.wr_unlock();
+  m_latch_ex= false;
 
   mysql_mutex_lock(&fil_system.mutex);
   ut_ad(space.is_being_truncated);
@@ -608,6 +624,9 @@ lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
   ut_ad(!m_freed_space);
   ut_ad(!m_freed_pages);
   ut_ad(!m_user_space);
+  ut_ad(!m_latch_ex);
+
+  m_latch_ex= true;
 
   if (checkpoint_lsn)
   {
@@ -632,7 +651,7 @@ lsn_t mtr_t::commit_files(lsn_t checkpoint_lsn)
   m_crc= 0;
   m_log.for_each_block([this](const mtr_buf_t::block_t *b)
   { m_crc= my_crc32c(m_crc, b->begin(), b->used()); return true; });
-  finish_write(size, true);
+  finish_write(size);
   release_resources();
 
   if (checkpoint_lsn)
@@ -883,12 +902,12 @@ static mtr_t::page_flush_ahead log_close(lsn_t lsn) noexcept
   return mtr_t::PAGE_FLUSH_SYNC;
 }
 
-std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write(bool ex)
+std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
 {
   ut_ad(!recv_no_log_write);
   ut_ad(m_log_mode == MTR_LOG_ALL);
 #ifndef SUX_LOCK_GENERIC
-  ut_ad(!ex || log_sys.latch.is_write_locked());
+  ut_ad(!m_latch_ex || log_sys.latch.is_write_locked());
 #endif
 
   size_t len= m_log.size() + 5;
@@ -906,28 +925,24 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write(bool ex)
     { m_crc= my_crc32c(m_crc, b->begin(), b->used()); return true; });
   }
 
-  if (!ex)
+  if (!m_latch_ex)
     log_sys.latch.rd_lock(SRW_LOCK_CALL);
 
   if (UNIV_UNLIKELY(m_user_space && !m_user_space->max_lsn &&
                     !is_predefined_tablespace(m_user_space->id)))
   {
-    if (!ex)
+    if (!m_latch_ex)
     {
+      m_latch_ex= true;
       log_sys.latch.rd_unlock();
       log_sys.latch.wr_lock(SRW_LOCK_CALL);
-      if (UNIV_LIKELY(!m_user_space->max_lsn))
-        name_write();
-      std::pair<lsn_t,mtr_t::page_flush_ahead> p{finish_write(len, true)};
-      log_sys.latch.wr_unlock();
-      log_sys.latch.rd_lock(SRW_LOCK_CALL);
-      return p;
+      if (UNIV_UNLIKELY(m_user_space->max_lsn))
+        goto func_exit;
     }
-    else
-      name_write();
+    name_write();
   }
-
-  return finish_write(len, ex);
+func_exit:
+  return finish_write(len);
 }
 
 inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
@@ -1042,20 +1057,24 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
 
 /** Write the mini-transaction log to the redo log buffer.
 @param len   number of bytes to write
-@param ex    whether log_sys.latch is exclusively locked
 @return {start_lsn,flush_ahead} */
 std::pair<lsn_t,mtr_t::page_flush_ahead>
-mtr_t::finish_write(size_t len, bool ex)
+mtr_t::finish_write(size_t len)
 {
   ut_ad(!recv_no_log_write);
   ut_ad(m_log_mode == MTR_LOG_ALL);
+#ifndef SUX_LOCK_GENERIC
+# ifndef _WIN32 // there is no accurate is_write_locked() on SRWLOCK
+  ut_ad(m_latch_ex == log_sys.latch.is_write_locked());
+# endif
+#endif
 
   const size_t size{m_commit_lsn ? 5U + 8U : 5U};
   std::pair<lsn_t, byte*> start;
 
   if (!log_sys.is_pmem())
   {
-    start= log_sys.append_prepare<false>(len, ex);
+    start= log_sys.append_prepare<false>(len, m_latch_ex);
     m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
     { log_sys.append(start.second, b->begin(), b->used()); return true; });
 
@@ -1075,7 +1094,7 @@ mtr_t::finish_write(size_t len, bool ex)
 #ifdef HAVE_PMEM
   else
   {
-    start= log_sys.append_prepare<true>(len, ex);
+    start= log_sys.append_prepare<true>(len, m_latch_ex);
     if (UNIV_LIKELY(start.second + len <= &log_sys.buf[log_sys.file_size]))
     {
       m_log.for_each_block([&start](const mtr_buf_t::block_t *b)

@@ -1,0 +1,38 @@
+#
+# MDEV-27228 Deprecate Spider plugin variables that result in excessive tweak
+#
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+# MDEV-27923 Deprecate spider_use_handler
+SET spider_use_handler= 3;
+Warnings:
+Warning	1287	'@@spider_use_handler' is deprecated and will be removed in a future release
+SHOW VARIABLES LIKE "spider_use_handler";
+Variable_name	Value
+spider_use_handler	3
+CREATE TABLE tbl_a (a INT) ENGINE=Spider COMMENT='uhd "3"';
+Warnings:
+Warning	1287	The table parameter 'uhd' is deprecated and will be removed in a future release
+CREATE TABLE tbl_b (a INT) ENGINE=Spider COMMENT='use_handler "3"';
+Warnings:
+Warning	1287	The table parameter 'use_handler' is deprecated and will be removed in a future release
+DROP DATABASE auto_test_local;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+child3_1
+child3_2
+child3_3
