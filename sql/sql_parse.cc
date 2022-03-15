@@ -9123,7 +9123,7 @@ void sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
     my_ok(thd, rows);
     break;
   case ER_KILL_DENIED_ERROR:
-    my_error(error, MYF(0), (unsigned long) thd->thread_id);
+    my_error(error, MYF(0), (long long) thd->thread_id);
     break;
   case ER_OUT_OF_RESOURCES:
   default:
