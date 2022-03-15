@@ -73,7 +73,7 @@ select pk1,pk2 from t1 where key1 = 10 and key2=10 and 2*pk1+1 < 2*96+1;
 explain select * from t1 where badkey=1 and key1=10;
 set @tmp_index_merge_ror_cpk=@@optimizer_switch;
 set optimizer_switch='extended_keys=off';
---replace_column 9 ROWS
+--replace_column 10 ROWS
 explain select * from t1 where pk1 < 7500 and key1 = 10;
 set optimizer_switch=@tmp_index_merge_ror_cpk;
 

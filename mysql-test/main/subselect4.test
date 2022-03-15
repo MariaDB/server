@@ -135,7 +135,7 @@ INSERT INTO t5 VALUES (NULL), (2);
 SET @old_optimizer_switch = @@session.optimizer_switch;
 SET SESSION optimizer_switch = 'materialization=off,in_to_exists=on,semijoin=off';
 
---replace_column 1 x 3 x 4 x 5 x 6 x 7 x 8 x 9 x 10 x
+--replace_column 1 x 3 x 4 x 5 x 6 x 7 x 8 x 9 x 10 x 11 x
 EXPLAIN
 SELECT * FROM t1 WHERE ( a, b ) NOT IN ( SELECT c, d FROM t2 );
 SELECT * FROM t1 WHERE ( a, b ) NOT IN ( SELECT c, d FROM t2 );
@@ -149,22 +149,22 @@ SELECT * FROM t1 WHERE (( a, b ) NOT IN ( SELECT c, d FROM t2 )) IS UNKNOWN;
 
 SELECT * FROM t1 WHERE 1 = 1 AND ( a, b ) NOT IN ( SELECT c, d FROM t2 );
 
---replace_column 1 x 3 x 4 x 5 x 6 x 7 x 8 x 9 x 10 x
+--replace_column 1 x 3 x 4 x 5 x 6 x 7 x 8 x 9 x 10 x 11 x
 EXPLAIN
 SELECT * FROM t1 WHERE ( a, b ) NOT IN ( SELECT e, f FROM t3 );
 SELECT * FROM t1 WHERE ( a, b ) NOT IN ( SELECT e, f FROM t3 );
 
---replace_column 1 x 3 x 4 x 5 x 6 x 7 x 8 x 9 x 10 x
+--replace_column 1 x 3 x 4 x 5 x 6 x 7 x 8 x 9 x 10 x 11 x
 EXPLAIN
 SELECT * FROM t2 WHERE ( c, d ) NOT IN ( SELECT a, b FROM t1 );
 SELECT * FROM t2 WHERE ( c, d ) NOT IN ( SELECT a, b FROM t1 );
 
---replace_column 1 x 3 x 4 x 5 x 6 x 7 x 8 x 9 x 10 x
+--replace_column 1 x 3 x 4 x 5 x 6 x 7 x 8 x 9 x 10 x 11 x
 EXPLAIN
 SELECT * FROM t3 WHERE ( e, f ) NOT IN ( SELECT c, d FROM t2 );
 SELECT * FROM t3 WHERE ( e, f ) NOT IN ( SELECT c, d FROM t2 );
 
---replace_column 1 x 3 x 4 x 5 x 6 x 7 x 8 x 9 x 10 x
+--replace_column 1 x 3 x 4 x 5 x 6 x 7 x 8 x 9 x 10 x 11 x
 EXPLAIN
 SELECT * FROM t2 WHERE ( c, d ) NOT IN ( SELECT e, f FROM t3 );
 SELECT * FROM t2 WHERE ( c, d ) NOT IN ( SELECT e, f FROM t3 );

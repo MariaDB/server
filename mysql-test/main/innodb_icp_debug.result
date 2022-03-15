@@ -17,8 +17,8 @@ engine
 InnoDB
 explain 
 select * from t2 where kp1 between 10 and 20 and kp2 +1 >100;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	kp1	kp1	5	NULL	11	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	kp1	kp1	5	NULL	11	Using index condition
 set debug_sync='handler_index_cond_check SIGNAL at_icp_check WAIT_FOR go';
 select * from t2 where kp1 between 10 and 20 and kp2 +1 >100;
 connect  con1, localhost, root,,;

@@ -1057,7 +1057,7 @@ EXPLAIN SELECT a FROM t1 IGNORE INDEX ();
 # without support for large files the rowid is shorter and its size affects 
 # the cost calculations. This causes the optimizer to choose loose index
 # scan over normal index access.
---replace_column 4 # 7 # 9 # 10 #
+--replace_column 5 # 8 # 10 # 11 #
 EXPLAIN SELECT a FROM t1 USE INDEX FOR JOIN (i2) 
   USE INDEX FOR GROUP BY (i2) GROUP BY a;
 EXPLAIN SELECT a FROM t1 FORCE INDEX FOR JOIN (i2) 

@@ -247,7 +247,7 @@ INSERT INTO t4 VALUES ('CD');
 
 set @@tmp_table_size=8192;
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN
 SELECT * FROM t3 AS tx JOIN t2 AS ty ON (tx.pk = ty.pk)
 WHERE

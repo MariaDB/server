@@ -64,12 +64,12 @@ select t1.id,t2.id from t2 left join t1 on t1.id>=74 and t1.id<=0 where t2.id=75
 id	id
 NULL	75
 explain select t1.id,t2.id from t2 left join t1 on t1.id>=74 and t1.id<=0 where t2.id=75 and t1.id is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	PRIMARY	NULL	NULL	NULL	1	Impossible ON condition
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	const	PRIMARY	NULL	NULL	NULL	1	Impossible ON condition
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
 explain select t1.id, t2.id from t1, t2 where t2.id = t1.id and t1.id <0 and t1.id > 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 drop table t1,t2;
 CREATE TABLE t1 (
 id int(11) NOT NULL auto_increment,
@@ -407,9 +407,9 @@ INSERT INTO t2 (a, d) SELECT a+8, a+8 FROM t2;
 EXPLAIN
 SELECT STRAIGHT_JOIN t2.e FROM t1,t2 WHERE t2.d=1 AND t1.b=t2.e
 ORDER BY t1.b, t1.c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	32	Using temporary; Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	16	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	32	Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where; Using join buffer (flat, BNL join)
 SELECT STRAIGHT_JOIN t2.e FROM t1,t2 WHERE t2.d=1 AND t1.b=t2.e
 ORDER BY t1.b, t1.c;
 e
@@ -854,10 +854,10 @@ flush status;
 select * from t1, t2, t3 where t3.a=t1.a and t2.a=t1.b;
 a	b	a	a
 explain select * from t1, t2, t3 where t3.a=t1.a and t2.a=t1.b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.b	1	Using index
-1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.b	1	Using index
+1	SIMPLE	t3	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	Using index
 We expect rnd_next=5, and read_key must be 0 because of short-cutting:
 show status like 'Handler_read%';
 Variable_name	Value
@@ -879,17 +879,17 @@ insert into t2
 select @a:= A.a + 10*(B.a + 10*C.a), @a, 'filler' from t1 A, t1 B, t1 C;
 insert into t3 select * from t2 where a < 800;
 explain select * from t2,t3 where t2.a < 200 and t2.b=t3.b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	a,b	NULL	NULL	NULL	1000	Using where
-1	SIMPLE	t3	ref	b	b	5	test.t2.b	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	a,b	NULL	NULL	NULL	1000	Using where
+1	SIMPLE	t3	NULL	ref	b	b	5	test.t2.b	1	
 drop table t1, t2, t3;
 create table t1 (a int);
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t2 (a int, b int, primary key(a));
 insert into t2 select @v:=A.a+10*B.a, @v  from t1 A, t1 B;
 explain select * from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	
 show status like '%cost%';
 Variable_name	Value
 Last_query_cost	4.016090
@@ -900,10 +900,10 @@ select 'vv: Following query must use ALL(t1), eq_ref(A), eq_ref(B): vv' Z;
 Z
 vv: Following query must use ALL(t1), eq_ref(A), eq_ref(B): vv
 explain select * from t1, t2 A, t2 B where A.a = t1.a and B.a=A.b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	A	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	Using where
-1	SIMPLE	B	eq_ref	PRIMARY	PRIMARY	4	test.A.b	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	A	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	Using where
+1	SIMPLE	B	NULL	eq_ref	PRIMARY	PRIMARY	4	test.A.b	1	
 show status like '%cost%';
 Variable_name	Value
 Last_query_cost	28.016090
@@ -921,13 +921,13 @@ INSERT INTO t1 SELECT a + 32, b FROM t1;
 INSERT INTO t1 SELECT a + 64, b FROM t1;
 INSERT INTO t2 SELECT a, b FROM t1;
 EXPLAIN SELECT * FROM t1 JOIN t2 ON b=c ORDER BY a LIMIT 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	2	Using where
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.b	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	2	Using where
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.b	1	
 EXPLAIN SELECT * FROM t1 JOIN t2 ON a=c ORDER BY a LIMIT 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	2	
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	PRIMARY	PRIMARY	4	NULL	2	
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	
 SELECT * FROM t1 JOIN t2 ON b=c ORDER BY a LIMIT 2;
 a	b	c	d
 SELECT * FROM t1 JOIN t2 ON a=c ORDER BY a LIMIT 2;
@@ -935,13 +935,13 @@ a	b	c	d
 1	NULL	1	NULL
 2	NULL	2	NULL
 EXPLAIN SELECT * FROM t1 JOIN t2 ON b=c ORDER BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	128	Using where; Using filesort
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.b	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	128	Using where; Using filesort
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.b	1	
 EXPLAIN SELECT * FROM t1 JOIN t2 ON a=c ORDER BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	128	Using filesort
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	PRIMARY	NULL	NULL	NULL	128	Using filesort
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	
 SELECT * FROM t1 JOIN t2 ON b=c ORDER BY a;
 a	b	c	d
 SELECT * FROM t1 JOIN t2 ON a=c ORDER BY a;
@@ -1105,13 +1105,13 @@ t5 LEFT JOIN t6 ON t5.a = t6.a
 ON t4.a = t5.a
 ) 
 ON t1.a = t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
-1	SIMPLE	t3	ref	a	a	5	test.t1.a	2	Using where; Using index
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	0	Using where
-1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	0	Using where
-1	SIMPLE	t6	ALL	NULL	NULL	NULL	NULL	0	Using where
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	t3	NULL	ref	a	a	5	test.t1.a	2	Using where; Using index
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	0	Using where
+1	SIMPLE	t5	NULL	ALL	NULL	NULL	NULL	NULL	0	Using where
+1	SIMPLE	t6	NULL	ALL	NULL	NULL	NULL	NULL	0	Using where
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 SELECT * 
 FROM 
 t1 JOIN t2 ON t1.a = t2.a 
@@ -1137,11 +1137,11 @@ INSERT INTO t1 VALUES (1),(2);
 CREATE VIEW v1 AS SELECT 1 FROM t1 LEFT JOIN t1 AS t2 on 1=1;
 EXPLAIN EXTENDED
 SELECT 1 FROM v1 right join v1 AS v2 ON RAND();
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select 1 AS `1` from `test`.`t1` left join `test`.`t1` `t2` on(1 = 1) left join (`test`.`t1` left join `test`.`t1` `t2` on(1 = 1)) on(rand()) where 1
 DROP VIEW v1;
@@ -1155,8 +1155,8 @@ FLUSH TABLES;
 EXPLAIN SELECT 1 FROM t1 LEFT JOIN t1 a ON 1
 WHERE ROW(t1.a, 1111.11) = ROW(1111.11, 1111.11) AND
 ROW(t1.b, 1111.11) <=> ROW('','');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 DROP TABLE t1;
 #
 # Bug #50335: Assertion `!(order->used & map)' in eq_ref_table
@@ -1260,11 +1260,11 @@ CREATE INDEX ix2 ON t2(v);
 INSERT INTO t1 VALUES (1,'a'),(2,NULL);
 INSERT INTO t2 VALUES (1,NULL);
 EXPLAIN SELECT * FROM t1 JOIN t2 ON t1.v = t2.v ORDER BY 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 EXPLAIN SELECT * FROM t1 JOIN t2 ON t1.v = t2.v;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 INSERT INTO t1 VALUES (3,'b'),(4,NULL),(5,'c'),(6,'cc'),(7,'d'),
 (8,'dd'),(9,'e'),(10,'ee');
 INSERT INTO t2 VALUES (2,NULL);
@@ -1312,31 +1312,31 @@ SELECT *
 FROM t4 JOIN
 (t1 JOIN t3 ON t3.ref_t1=t1.c1 JOIN t2 ON t2.ref_t1=t1.c1)
 ON t4.ref_t1=t1.c1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	system	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t1	NULL	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
 EXPLAIN
 SELECT STRAIGHT_JOIN * 
 FROM t4 JOIN
 (t1 JOIN t3 ON t3.ref_t1=t1.c1 JOIN t2 ON t2.ref_t1=t1.c1)
 ON t4.ref_t1=t1.c1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	
-1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	SIMPLE	t1	NULL	ALL	PRIMARY	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (incremental, BNL join)
 EXPLAIN
 SELECT * 
 FROM t4 STRAIGHT_JOIN
 (t1 JOIN t3 ON t3.ref_t1=t1.c1 JOIN t2 ON t2.ref_t1=t1.c1)
 ON t4.ref_t1=t1.c1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t4.ref_t1	1	
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t4.ref_t1	1	
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 drop table t1,t2,t3,t4;
 End of 5.2 tests
 #
@@ -1384,9 +1384,9 @@ INSERT INTO t2 VALUES (5,7), (8,9);
 EXPLAIN
 SELECT * FROM t1 STRAIGHT_JOIN t2 ON t2.f1 = t1.f1
 WHERE t1.f1<>0 OR t1.f2<>0 AND t1.f1 = t2.f2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t2	ALL	f2	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t2	NULL	ALL	f2	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 SELECT * FROM t1 STRAIGHT_JOIN t2 ON t2.f1 = t1.f1
 WHERE t1.f1<>0 OR t1.f2<>0 AND t1.f1 = t2.f2;
 f1	f2	f1	f2
@@ -1399,10 +1399,10 @@ INSERT INTO t2 VALUES (9,4), (10,9);
 EXPLAIN
 SELECT STRAIGHT_JOIN * FROM t1 JOIN t2 ON t2.f2 = t1.f1
 WHERE t1.f1 IN (SELECT f1 FROM t1) AND t1.f1 = t2.f1 OR t1.f1 = 9;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	2	Using where
-1	PRIMARY	t2	ALL	PRIMARY	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-2	DEPENDENT SUBQUERY	t1	unique_subquery	PRIMARY	PRIMARY	4	func	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	PRIMARY	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t2	NULL	ALL	PRIMARY	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+2	DEPENDENT SUBQUERY	t1	NULL	unique_subquery	PRIMARY	PRIMARY	4	func	1	Using index
 SELECT STRAIGHT_JOIN * FROM t1 JOIN t2 ON t2.f2 = t1.f1
 WHERE t1.f1 IN (SELECT f1 FROM t1) AND t1.f1 = t2.f1 OR t1.f1 = 9;
 f1	f2	f1	f2
@@ -1469,12 +1469,12 @@ EXPLAIN
 SELECT * FROM t5 DU, t1 D, t4 DT, t2 DSA, t3 DSAR
 WHERE DU.dog_id=D.dog_id AND D.dog_id=DT.dog_id AND D.birthday=DT.birthday AND
 DT.t_id=DSA.t_id AND DT.birthday=DSA.birthday AND DSA.dog_id=DSAR.dog_id;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	DU	system	dog_id	NULL	NULL	NULL	1	
-1	SIMPLE	D	system	PRIMARY	NULL	NULL	NULL	1	
-1	SIMPLE	DSAR	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	DSA	ref	PRIMARY	PRIMARY	4	const	3	Using where; Using index
-1	SIMPLE	DT	ALL	t_id	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	DU	NULL	system	dog_id	NULL	NULL	NULL	1	
+1	SIMPLE	D	NULL	system	PRIMARY	NULL	NULL	NULL	1	
+1	SIMPLE	DSAR	NULL	system	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	DSA	NULL	ref	PRIMARY	PRIMARY	4	const	3	Using where; Using index
+1	SIMPLE	DT	NULL	ALL	t_id	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
 SELECT * FROM t5 DU, t1 D, t4 DT, t2 DSA, t3 DSAR
 WHERE DU.dog_id=D.dog_id AND D.dog_id=DT.dog_id AND D.birthday=DT.birthday AND
 DT.t_id=DSA.t_id AND DT.birthday=DSA.birthday AND DSA.dog_id=DSAR.dog_id;
@@ -1503,9 +1503,9 @@ SELECT * FROM t1 JOIN v2 ON i1 = i2 WHERE a < b;
 i1	i2	a	b
 EXPLAIN EXTENDED
 SELECT * FROM t1 JOIN v2 ON i1 = i2 WHERE a < b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select NULL AS `i1`,`v2`.`i2` AS `i2`,`v2`.`a` AS `a`,`v2`.`b` AS `b` from `test`.`v2` where `v2`.`i2` = NULL and `v2`.`a` < `v2`.`b`
 DROP VIEW v2;
@@ -1567,10 +1567,10 @@ create table t4 (a int);
 insert into t4 values (4), (7), (9), (5);
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join t2 join t3 on t2.a=t3.a on t1.a=t2.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t3`.`a` = `test`.`t1`.`a`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -1579,10 +1579,10 @@ t1_a	t2_a	t3_a
 7	7	7
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join t2 left join t3 on t2.a=t3.a on t1.a=t2.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t1`.`a`) where `test`.`t2`.`a` = `test`.`t1`.`a`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -1592,10 +1592,10 @@ t1_a	t2_a	t3_a
 5	5	NULL
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join t2 right join t3 on t2.a=t3.a on t1.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t3` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) where `test`.`t3`.`a` = `test`.`t1`.`a`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -1605,10 +1605,10 @@ t1_a	t2_a	t3_a
 3	NULL	3
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join t2 join t3 using(a) using(a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t3`.`a` = `test`.`t1`.`a`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -1617,10 +1617,10 @@ t1_a	t2_a	t3_a
 7	7	7
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join t2 left join t3 using(a) using(a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t1`.`a`) where `test`.`t2`.`a` = `test`.`t1`.`a`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -1630,10 +1630,10 @@ t1_a	t2_a	t3_a
 5	5	NULL
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join t2 right join t3 using(a) using(a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t3` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) where `test`.`t3`.`a` = `test`.`t1`.`a`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -1643,10 +1643,10 @@ t1_a	t2_a	t3_a
 3	NULL	3
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join t2 join t3 on t2.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t3`.`a` = `test`.`t2`.`a`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -1657,10 +1657,10 @@ t1_a	t2_a	t3_a
 3	7	7
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join t2 left join t3 on t2.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -1677,10 +1677,10 @@ t1_a	t2_a	t3_a
 3	1	NULL
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join t2 right join t3 on t2.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t3` left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -1693,10 +1693,10 @@ NULL	NULL	2
 NULL	NULL	3
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join t2 join t3 on t1.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t3`.`a` = `test`.`t1`.`a`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -1710,10 +1710,10 @@ t1_a	t2_a	t3_a
 3	7	3
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join t2 left join t3 on t1.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t1`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -1730,10 +1730,10 @@ t1_a	t2_a	t3_a
 5	7	NULL
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join t2 right join t3 on t1.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t3` left join (`test`.`t1` join `test`.`t2`) on(`test`.`t1`.`a` = `test`.`t3`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -1748,10 +1748,10 @@ t1_a	t2_a	t3_a
 NULL	NULL	2
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join (t2 join t3 on t2.a=t3.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t3`.`a` = `test`.`t2`.`a`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -1762,10 +1762,10 @@ t1_a	t2_a	t3_a
 3	7	7
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join (t2 left join t3 on t2.a=t3.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -1782,10 +1782,10 @@ t1_a	t2_a	t3_a
 3	1	NULL
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join (t2 right join t3 on t2.a=t3.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t3` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -1802,10 +1802,10 @@ t1_a	t2_a	t3_a
 3	NULL	3
 explain extended select *
 from s1 join t2 join t3 using(a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`s1`.`b` AS `b` from `test`.`s1` join `test`.`t2` join `test`.`t3` where `test`.`t3`.`a` = `test`.`t2`.`a`
 select *
@@ -1816,10 +1816,10 @@ a	b
 7	3
 explain extended select *
 from s1 join t2 left join t3 using(a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`s1`.`b` AS `b` from `test`.`s1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) where 1
 select *
@@ -1836,10 +1836,10 @@ a	b
 1	3
 explain extended select *
 from s1 join t2 right join t3 using(a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t3`.`a` AS `a`,`test`.`s1`.`b` AS `b` from `test`.`t3` left join (`test`.`s1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
 select *
@@ -1852,10 +1852,10 @@ a	b
 3	NULL
 explain extended select s1.b, t2.a as t2_a, t3.a as t3_a
 from s1 join t2 join t3 using(a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`s1`.`b` AS `b`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`s1` join `test`.`t2` join `test`.`t3` where `test`.`t3`.`a` = `test`.`t2`.`a`
 select s1.b, t2.a as t2_a, t3.a as t3_a
@@ -1866,10 +1866,10 @@ b	t2_a	t3_a
 3	7	7
 explain extended select s1.b, t2.a as t2_a, t3.a as t3_a
 from s1 join t2 left join t3 using(a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`s1`.`b` AS `b`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`s1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) where 1
 select s1.b, t2.a as t2_a, t3.a as t3_a
@@ -1886,10 +1886,10 @@ b	t2_a	t3_a
 3	1	NULL
 explain extended select s1.b, t2.a as t2_a, t3.a as t3_a
 from s1 join t2 right join t3 using(a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`s1`.`b` AS `b`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t3` left join (`test`.`s1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
 select s1.b, t2.a as t2_a, t3.a as t3_a
@@ -1902,10 +1902,10 @@ NULL	NULL	2
 NULL	NULL	3
 explain extended select s1.b, t2.a as t2_a, t3.a as t3_a
 from (s1 join t2) right join t3 using(a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`s1`.`b` AS `b`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t3` left join (`test`.`s1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
 select s1.b, t2.a as t2_a, t3.a as t3_a
@@ -1918,10 +1918,10 @@ NULL	NULL	2
 NULL	NULL	3
 explain extended select *
 from s1 join t2 natural join t3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`s1`.`b` AS `b` from `test`.`s1` join `test`.`t2` join `test`.`t3` where `test`.`t3`.`a` = `test`.`t2`.`a`
 select *
@@ -1932,10 +1932,10 @@ a	b
 7	3
 explain extended select *
 from s1 join t2 natural left join t3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`s1`.`b` AS `b` from `test`.`s1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) where 1
 select *
@@ -1952,10 +1952,10 @@ a	b
 1	3
 explain extended select *
 from s1 join t2 natural right join t3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t3`.`a` AS `a`,`test`.`s1`.`b` AS `b` from `test`.`t3` left join (`test`.`s1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
 select *
@@ -1968,10 +1968,10 @@ a	b
 3	NULL
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join t2 join t3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t2` join `test`.`t3`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -2007,10 +2007,10 @@ t1_a	t2_a	t3_a
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from t1 join t2 join t3
 where t1.a=t2.a and t2.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t2`.`a` = `test`.`t1`.`a` and `test`.`t3`.`a` = `test`.`t1`.`a`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -2020,11 +2020,11 @@ t1_a	t2_a	t3_a
 7	7	7
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 join t3 join t4 on t3.a=t4.a on t2.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` join `test`.`t4` where `test`.`t3`.`a` = `test`.`t2`.`a` and `test`.`t4`.`a` = `test`.`t2`.`a`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2035,11 +2035,11 @@ t1_a	t2_a	t3_a	t4_a
 3	7	7	7
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 left join t3 join t4 on t3.a=t4.a on t2.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` left join (`test`.`t3` join `test`.`t4`) on(`test`.`t3`.`a` = `test`.`t2`.`a` and `test`.`t4`.`a` = `test`.`t2`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2056,11 +2056,11 @@ t1_a	t2_a	t3_a	t4_a
 3	1	NULL	NULL
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 left join t3 left join t4 on t3.a=t4.a on t2.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` left join (`test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t2`.`a`)) on(`test`.`t3`.`a` = `test`.`t2`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2077,11 +2077,11 @@ t1_a	t2_a	t3_a	t4_a
 3	1	NULL	NULL
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 left join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` left join (`test`.`t4` join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t2`.`a` and `test`.`t4`.`a` = `test`.`t2`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2098,11 +2098,11 @@ t1_a	t2_a	t3_a	t4_a
 3	1	NULL	NULL
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 right join t3 join t4 on t3.a=t4.a on t2.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t3` join `test`.`t4` left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where `test`.`t4`.`a` = `test`.`t3`.`a`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2113,11 +2113,11 @@ t1_a	t2_a	t3_a	t4_a
 3	7	7	7
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 right join t3 left join t4 on t3.a=t4.a on t2.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2130,11 +2130,11 @@ NULL	NULL	2	NULL
 NULL	NULL	3	NULL
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 right join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t4`.`a`) left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2148,11 +2148,11 @@ NULL	NULL	NULL	9
 NULL	NULL	NULL	5
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 join t3 join t4 on t3.a=t4.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` join `test`.`t4` where `test`.`t4`.`a` = `test`.`t3`.`a`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2169,11 +2169,11 @@ t1_a	t2_a	t3_a	t4_a
 3	7	7	7
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 join t3 left join t4 on t3.a=t4.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2208,11 +2208,11 @@ t1_a	t2_a	t3_a	t4_a
 3	7	3	NULL
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 join t3 right join t4 on t3.a=t4.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join (`test`.`t1` join `test`.`t2` join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t4`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2232,11 +2232,11 @@ NULL	NULL	NULL	9
 NULL	NULL	NULL	5
 explain extended select s1.b as s1_b, s2.b as s2_b, t3.a as t3_a, t4.a as t4_a
 from s1 join s2 join t3 join t4 using(a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	s2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	s2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`s2`.`b` AS `s2_b`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`s1` join `test`.`s2` join `test`.`t3` join `test`.`t4` where `test`.`t4`.`a` = `test`.`t3`.`a`
 select s1.b as s1_b, s2.b as s2_b, t3.a as t3_a, t4.a as t4_a
@@ -2253,11 +2253,11 @@ s1_b	s2_b	t3_a	t4_a
 3	7	7	7
 explain extended select s1.b as s1_b, s2.b as s2_b, t3.a as t3_a, t4.a as t4_a
 from s1 join s2 join t3 left join t4 using(a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	s2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	s2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`s2`.`b` AS `s2_b`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`s1` join `test`.`s2` join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) where 1
 select s1.b as s1_b, s2.b as s2_b, t3.a as t3_a, t4.a as t4_a
@@ -2292,11 +2292,11 @@ s1_b	s2_b	t3_a	t4_a
 3	7	3	NULL
 explain extended select s1.b as s1_b, s2.b as s2_b, t3.a as t3_a, t4.a as t4_a
 from s1 join s2 join t3 right join t4 using(a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	s2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	s2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`s2`.`b` AS `s2_b`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join (`test`.`s1` join `test`.`s2` join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t4`.`a`) where 1
 select s1.b as s1_b, s2.b as s2_b, t3.a as t3_a, t4.a as t4_a
@@ -2316,11 +2316,11 @@ NULL	NULL	NULL	9
 NULL	NULL	NULL	5
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 join t3 on t2.a=t3.a join t4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` join `test`.`t4` where `test`.`t3`.`a` = `test`.`t2`.`a`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2340,11 +2340,11 @@ t1_a	t2_a	t3_a	t4_a
 3	7	7	5
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 left join t3 on t2.a=t3.a join t4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) join `test`.`t4` where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2388,11 +2388,11 @@ t1_a	t2_a	t3_a	t4_a
 3	1	NULL	5
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 right join t3 on t2.a=t3.a join t4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t3` left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) join `test`.`t4` where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2420,11 +2420,11 @@ NULL	NULL	2	5
 NULL	NULL	3	5
 explain extended select s1.b as s1_b, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from s1 join t2 join t3 using(a) join t4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`s1` join `test`.`t2` join `test`.`t3` join `test`.`t4` where `test`.`t3`.`a` = `test`.`t2`.`a`
 select s1.b as s1_b, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2444,11 +2444,11 @@ s1_b	t2_a	t3_a	t4_a
 3	7	7	5
 explain extended select s1.b as s1_b, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from s1 join t2 left join t3 using(a) join t4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`s1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t2`.`a`) join `test`.`t4` where 1
 select s1.b as s1_b, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2492,11 +2492,11 @@ s1_b	t2_a	t3_a	t4_a
 3	1	NULL	5
 explain extended select s1.b as s1_b, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from s1 join t2 right join t3 using(a) join t4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t3` left join (`test`.`s1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) join `test`.`t4` where 1
 select s1.b as s1_b, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2524,11 +2524,11 @@ NULL	NULL	2	5
 NULL	NULL	3	5
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 on t1.a=t2.a join t3 join t4 on t3.a=t4.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` join `test`.`t4` where `test`.`t4`.`a` = `test`.`t3`.`a` and `test`.`t2`.`a` = `test`.`t1`.`a`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2538,11 +2538,11 @@ t1_a	t2_a	t3_a	t4_a
 7	7	7	7
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 on t1.a=t2.a join t3 left join t4 on t3.a=t4.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) where `test`.`t2`.`a` = `test`.`t1`.`a`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2556,11 +2556,11 @@ t1_a	t2_a	t3_a	t4_a
 7	7	3	NULL
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 on t1.a=t2.a join t3 right join t4 on t3.a=t4.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join (`test`.`t1` join `test`.`t2` join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t4`.`a` and `test`.`t2`.`a` = `test`.`t1`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2573,11 +2573,11 @@ NULL	NULL	NULL	9
 NULL	NULL	NULL	5
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 left join t2 on t1.a=t2.a join t3 join t4 on t3.a=t4.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) join `test`.`t3` join `test`.`t4` where `test`.`t4`.`a` = `test`.`t3`.`a`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2588,11 +2588,11 @@ t1_a	t2_a	t3_a	t4_a
 3	NULL	7	7
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 left join t2 on t1.a=t2.a join t3 left join t4 on t3.a=t4.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2609,11 +2609,11 @@ t1_a	t2_a	t3_a	t4_a
 3	NULL	3	NULL
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 left join t2 on t1.a=t2.a join t3 right join t4 on t3.a=t4.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join (`test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t4`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2627,11 +2627,11 @@ NULL	NULL	NULL	9
 NULL	NULL	NULL	5
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 right join t2 on t1.a=t2.a join t3 join t4 on t3.a=t4.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t2` left join `test`.`t1` on(`test`.`t1`.`a` = `test`.`t2`.`a`) join `test`.`t3` join `test`.`t4` where `test`.`t4`.`a` = `test`.`t3`.`a`
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2642,11 +2642,11 @@ t1_a	t2_a	t3_a	t4_a
 NULL	1	7	7
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 right join t2 on t1.a=t2.a join t3 left join t4 on t3.a=t4.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t2` left join `test`.`t1` on(`test`.`t1`.`a` = `test`.`t2`.`a`) join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2663,11 +2663,11 @@ NULL	1	2	NULL
 NULL	1	3	NULL
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 right join t2 on t1.a=t2.a join t3 right join t4 on t3.a=t4.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join (`test`.`t2` left join `test`.`t1` on(`test`.`t1`.`a` = `test`.`t2`.`a`) join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t4`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2681,12 +2681,12 @@ NULL	NULL	NULL	9
 NULL	NULL	NULL	5
 explain extended select s1.b as s1_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from s1 join t1 left join t2 on s1.b=t2.a join t3 join t4 on t4.a=s1.b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`s1` join `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`s1`.`b`) join `test`.`t3` join `test`.`t4` where `test`.`t4`.`a` = `test`.`s1`.`b`
 select s1.b as s1_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2712,12 +2712,12 @@ s1_b	t1_a	t2_a	t3_a	t4_a
 5	3	5	3	5
 explain extended select s1.b as s1_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from s1 join t1 left join t2 on s1.b=t2.a join t3 left join t4 on t4.a=s1.b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`s1` join `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`s1`.`b`) join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`s1`.`b`) where 1
 select s1.b as s1_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2752,12 +2752,12 @@ s1_b	t1_a	t2_a	t3_a	t4_a
 3	3	NULL	3	NULL
 explain extended select s1.b as s1_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from s1 join t1 left join t2 on s1.b=t2.a join t3 right join t4 on t4.a=s1.b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join (`test`.`s1` join `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t4`.`a`) join `test`.`t3`) on(`test`.`s1`.`b` = `test`.`t4`.`a`) where 1
 select s1.b as s1_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2785,12 +2785,12 @@ NULL	NULL	NULL	NULL	4
 NULL	NULL	NULL	NULL	9
 explain extended select s1.b as s1_b, s2.b as s2_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from s1 join s2 on s1.b=s2.b join t1 right join t2 on t1.a=t2.a join t3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	s2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	s2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`s2`.`b` AS `s2_b`,`test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t2` left join (`test`.`s1` join `test`.`s2` join `test`.`t1`) on(`test`.`t1`.`a` = `test`.`t2`.`a` and `test`.`s2`.`b` = `test`.`s1`.`b`) join `test`.`t3` where 1
 select s1.b as s1_b, s2.b as s2_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -2813,12 +2813,12 @@ NULL	NULL	NULL	1	7
 NULL	NULL	NULL	1	3
 explain extended select s1.b as s1_b, s2.b as s2_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from s1 left join s2 on s1.b=s2.b join t1 right join t2 on t1.a=t2.a join t3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	s2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	s2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`s2`.`b` AS `s2_b`,`test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t2` left join (`test`.`s1` left join `test`.`s2` on(`test`.`s2`.`b` = `test`.`s1`.`b`) join `test`.`t1`) on(`test`.`t1`.`a` = `test`.`t2`.`a`) join `test`.`t3` where 1
 select s1.b as s1_b, s2.b as s2_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -2847,12 +2847,12 @@ NULL	NULL	NULL	1	7
 NULL	NULL	NULL	1	3
 explain extended select s1.b as s1_b, s2.b as s2_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
 from s1 right join s2 on s1.b=s2.b join t1 right join t2 on t1.a=t2.a join t3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	s2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	s1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	s2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	s1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`s1`.`b` AS `s1_b`,`test`.`s2`.`b` AS `s2_b`,`test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a` from `test`.`t2` left join (`test`.`s2` left join `test`.`s1` on(`test`.`s1`.`b` = `test`.`s2`.`b`) join `test`.`t1`) on(`test`.`t1`.`a` = `test`.`t2`.`a`) join `test`.`t3` where 1
 select s1.b as s1_b, s2.b as s2_b, t1.a as t1_a, t2.a as t2_a, t3.a as t3_a
@@ -2881,11 +2881,11 @@ NULL	NULL	NULL	1	7
 NULL	NULL	NULL	1	3
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1 join t2 right join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t4`.`a`) left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2899,11 +2899,11 @@ NULL	NULL	NULL	9
 NULL	NULL	NULL	5
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from (t1 join t2) right join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t4`.`a`) left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2917,11 +2917,11 @@ NULL	NULL	NULL	9
 NULL	NULL	NULL	5
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from (t1, t2) right join t3 right join t4 on t3.a=t4.a on t2.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t4` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t4`.`a`) left join (`test`.`t1` join `test`.`t2`) on(`test`.`t2`.`a` = `test`.`t3`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2951,11 +2951,11 @@ create table t5 (a int);
 insert into t5 values (3), (7), (9), (2);
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1, t2 join t3 left join t4 on t3.a=t4.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`a` = `test`.`t3`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -2990,11 +2990,11 @@ t1_a	t2_a	t3_a	t4_a
 3	7	3	NULL
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
 from t1, t2 join t3 right join t4 on t3.a=t4.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a` from `test`.`t1` join `test`.`t4` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t3`.`a` = `test`.`t4`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a
@@ -3020,12 +3020,12 @@ t1_a	t2_a	t3_a	t4_a
 3	NULL	NULL	5
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a, t5.a as t5_a
 from t1, t2 join t3 join t4 left join t5 on t4.a=t5.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t5	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a`,`test`.`t5`.`a` AS `t5_a` from `test`.`t1` join `test`.`t2` join `test`.`t3` join `test`.`t4` left join `test`.`t5` on(`test`.`t5`.`a` = `test`.`t4`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a, t5.a as t5_a
@@ -3141,12 +3141,12 @@ t1_a	t2_a	t3_a	t4_a	t5_a
 3	7	3	5	NULL
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a, t5.a as t5_a
 from t1, t2 join t3 join t4 right join t5 on t4.a=t5.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (flat, BNL join)
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t5	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a`,`test`.`t5`.`a` AS `t5_a` from `test`.`t1` join `test`.`t5` left join (`test`.`t2` join `test`.`t3` join `test`.`t4`) on(`test`.`t4`.`a` = `test`.`t5`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a, t5.a as t5_a
@@ -3214,12 +3214,12 @@ t1_a	t2_a	t3_a	t4_a	t5_a
 3	NULL	NULL	NULL	2
 explain extended select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a, t5.a as t5_a
 from t1 left join t2 on t1.a=t2.a, t3 join t4 right join t5 on t4.a=t5.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t5	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
-1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t5	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `t1_a`,`test`.`t2`.`a` AS `t2_a`,`test`.`t3`.`a` AS `t3_a`,`test`.`t4`.`a` AS `t4_a`,`test`.`t5`.`a` AS `t5_a` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`a` = `test`.`t1`.`a`) join `test`.`t5` left join (`test`.`t3` join `test`.`t4`) on(`test`.`t4`.`a` = `test`.`t5`.`a`) where 1
 select t1.a as t1_a, t2.a as t2_a, t3.a as t3_a, t4.a as t4_a, t5.a as t5_a
@@ -3272,9 +3272,9 @@ CREATE TABLE t2 (a int);
 INSERT INTO t2 (a) VALUES (1),(2),(3),(4);
 EXPLAIN
 SELECT t1.a FROM t1 NATURAL INNER JOIN t2 ORDER BY t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 SELECT t1.a FROM t1 NATURAL INNER JOIN t2 ORDER BY t1.a;
 a
 1
@@ -3283,9 +3283,9 @@ a
 4
 EXPLAIN
 SELECT t1.a FROM t1 STRAIGHT_JOIN t2 USING(a) ORDER BY t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using temporary; Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
 SELECT t1.a FROM t1 STRAIGHT_JOIN t2 USING(a) ORDER BY t1.a;
 a
 1
@@ -3294,9 +3294,9 @@ a
 4
 EXPLAIN
 SELECT t1.a FROM t1 NATURAL STRAIGHT_JOIN t2 ORDER BY t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using temporary; Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
 SELECT t1.a FROM t1 NATURAL STRAIGHT_JOIN t2 ORDER BY t1.a;
 a
 1
@@ -3345,9 +3345,9 @@ t1	0	PRIMARY	1	pk	A	1010	NULL	NULL		BTREE			NO
 t1	0	a	1	a	A	1010	NULL	NULL	YES	BTREE			NO
 # t1 must use eq_ref(t1.a=t0.a) and rows must be 1 (and not 45):
 explain select * from t0,t1 where t0.a=t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t1	eq_ref	a	a	5	test.t0.a	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	NULL	eq_ref	a	a	5	test.t0.a	1	
 drop table t0,t1;
 # 
 # MDEV-21383: Possible range plan is not used under certain conditions
@@ -3400,10 +3400,10 @@ t2.stationId = t1.stationId and
 (t1.stationid = 1 or t1.stationid = 2 or t1.stationid = 3) and
 key1 >0 and
 t2.key2=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t2	range	PRIMARY,key1,key2	PRIMARY	8	NULL	219	Using index condition; Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ref	a	a	5	test.t2.key2	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t2	NULL	range	PRIMARY,key1,key2	PRIMARY	8	NULL	219	Using index condition; Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ref	a	a	5	test.t2.key2	1	
 drop table t1,t2,t3;
 drop table t1000,t10,t03;
 # End of 10.3 tests

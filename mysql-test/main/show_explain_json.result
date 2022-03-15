@@ -159,8 +159,8 @@ SHOW EXPLAIN
 Warnings:
 Note	1003	explain select max(c) from t1 where a < 10
 connection con1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	10	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	10	Using index condition; Rowid-ordered scan
 # Same for EXPLAIN FOR CONNECTION
 explain select max(c) from t1 where a < 10;
 connection default;
@@ -190,8 +190,8 @@ SHOW EXPLAIN
 Warnings:
 Note	1003	explain select max(c) from t1 where a < 10
 connection con1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	10	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	10	Using index condition; Rowid-ordered scan
 set optimizer_switch= @show_expl_tmp;
 SET debug_dbug=@old_debug;
 # UNION, first branch
@@ -245,10 +245,10 @@ SHOW EXPLAIN
 Warnings:
 Note	1003	explain select a from t0 A union select a+1 from t0 B
 connection con1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	
-2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	NULL	ALL	NULL	NULL	NULL	NULL	10	
+2	UNION	B	NULL	ALL	NULL	NULL	NULL	NULL	10	
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 SET debug_dbug=@old_debug;
 # UNION, second branch
 set @show_explain_probe_select_id=2;
@@ -301,10 +301,10 @@ SHOW EXPLAIN
 Warnings:
 Note	1003	explain select a from t0 A union select a+1 from t0 B
 connection con1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	
-2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	NULL	ALL	NULL	NULL	NULL	NULL	10	
+2	UNION	B	NULL	ALL	NULL	NULL	NULL	NULL	10	
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 SET debug_dbug=@old_debug;
 # Uncorrelated  subquery, select
 set @show_explain_probe_select_id=1;
@@ -312,9 +312,9 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 select a, (select max(a) from t0 B) from t0 A where a<1;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	SUBQUERY	B	NULL	ALL	NULL	NULL	NULL	NULL	10	
 Warnings:
 Note	1003	select a, (select max(a) from t0 B) from t0 A where a<1
 connection con1;
@@ -327,15 +327,15 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 explain select a, (select max(a) from t0 B) from t0 A where a<1;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	SUBQUERY	B	NULL	ALL	NULL	NULL	NULL	NULL	10	
 Warnings:
 Note	1003	explain select a, (select max(a) from t0 B) from t0 A where a<1
 connection con1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	SUBQUERY	B	NULL	ALL	NULL	NULL	NULL	NULL	10	
 SET debug_dbug=@old_debug;
 # correlated  subquery, select
 set @show_explain_probe_select_id=1;
@@ -343,9 +343,9 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	b	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
 connection con1;
@@ -358,15 +358,15 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 explain select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	b	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	explain select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
 connection con1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	b	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 SET debug_dbug=@old_debug;
 # correlated  subquery, select, while inside the subquery
 set @show_explain_probe_select_id=2;
@@ -1109,8 +1109,8 @@ SET debug_dbug=@old_debug;
 # SHOW EXPLAIN for SELECT ... ORDER BY with "Using filesort"
 #
 explain select * from t0 order by a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using filesort
 SET debug_dbug='+d,show_explain_probe_join_exec_start';
 set @show_explain_probe_select_id=1;
 select * from t0 order by a;
@@ -1157,8 +1157,8 @@ SET debug_dbug=@old_debug;
 #
 connection default;
 explain select distinct a from t0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using temporary
 connection con1;
 SET debug_dbug='+d,show_explain_probe_join_exec_start';
 set @show_explain_probe_select_id=1;
@@ -1203,8 +1203,8 @@ SET debug_dbug=@old_debug;
 #
 connection default;
 explain select distinct a from t0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using temporary
 connection con1;
 SET debug_dbug='+d,show_explain_probe_join_exec_start';
 set @show_explain_probe_select_id=1;

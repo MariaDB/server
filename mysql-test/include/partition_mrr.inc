@@ -39,7 +39,7 @@ from t1 A, t1 B;
 set @save_optimizer_switch=@@optimizer_switch;
 
 set optimizer_switch='mrr=on';
---replace_column 9 #
+--replace_column 10 #
 explain 
 select * from t3 force index (key_col) where key_col < 3;
 select * from t3 force index (key_col) where key_col < 3;

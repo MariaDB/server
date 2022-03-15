@@ -24,8 +24,8 @@ select CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END;
 CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END
 one
 explain extended select CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select case 1 when 1 then 'one' when 2 then 'two' else 'more' end AS `CASE 1 when 1 then "one" WHEN 2 then "two" ELSE "more" END`
 select CASE 2.0 when 1 then "one" WHEN 2.0 then "two" ELSE "more" END;
@@ -71,8 +71,8 @@ fcase	count(*)
 2	1
 3	1
 explain extended select case a when 1 then 2 when 2 then 3 else 0 end as fcase, count(*) from t1 group by fcase;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using temporary; Using filesort
 Warnings:
 Note	1003	select case `test`.`t1`.`a` when 1 then 2 when 2 then 3 else 0 end AS `fcase`,count(0) AS `count(*)` from `test`.`t1` group by case `test`.`t1`.`a` when 1 then 2 when 2 then 3 else 0 end
 select case a when 1 then "one" when 2 then "two" else "nothing" end as fcase, count(*) from t1 group by fcase;
@@ -152,8 +152,8 @@ explain extended SELECT
 COALESCE(1), COALESCE(1.0),COALESCE('a'),
 COALESCE(1,1.0), COALESCE(1,'1'),COALESCE(1.1,'1'),
 COALESCE('a' COLLATE latin1_bin,'b');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select coalesce(1) AS `COALESCE(1)`,coalesce(1.0) AS `COALESCE(1.0)`,coalesce('a') AS `COALESCE('a')`,coalesce(1,1.0) AS `COALESCE(1,1.0)`,coalesce(1,'1') AS `COALESCE(1,'1')`,coalesce(1.1,'1') AS `COALESCE(1.1,'1')`,coalesce('a' collate latin1_bin,'b') AS `COALESCE('a' COLLATE latin1_bin,'b')`
 SHOW CREATE TABLE t1;
@@ -291,8 +291,8 @@ a
 # Multiple comparison types in CASE, not Ok to propagate
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE CASE a WHEN 1 THEN 1 ELSE 0 END AND a='5';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = '5' and case `test`.`t1`.`a` when 1 then 1 else 0 end
 DROP TABLE t1;
@@ -310,8 +310,8 @@ a
 # String comparison in CASE and in the equality, ok to propagate
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE CASE a WHEN 'a' THEN 1 ELSE 0 END AND a='a';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a'
 SELECT * FROM t1 WHERE a=3;
@@ -328,8 +328,8 @@ a
 # This can change in the future. See MDEV-8748.
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE CASE a WHEN 3 THEN 1 ELSE 0 END AND a=3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where case `test`.`t1`.`a` when 3 then 1 else 0 end and `test`.`t1`.`a` = 3
 SELECT * FROM t1 WHERE a=3;
@@ -344,8 +344,8 @@ a
 # String comparison in CASE, integer comparison in the equality, not Ok to propagate
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE CASE a WHEN '100' THEN 1 ELSE 0 END AND a=3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where case `test`.`t1`.`a` when '100' then 1 else 0 end and `test`.`t1`.`a` = 3
 SELECT * FROM t1 WHERE a='100';
@@ -360,8 +360,8 @@ a
 # Integer comparison in CASE, string comparison in the equality, not Ok to propagate
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE CASE a WHEN 3 THEN 1 ELSE 0 END AND a='100';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = '100' and case `test`.`t1`.`a` when 3 then 1 else 0 end
 SELECT * FROM t1 WHERE a='100';
@@ -376,8 +376,8 @@ a
 # Multiple type comparison in CASE, string comparison in the equality, not Ok to propagate
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE CASE a WHEN 3 THEN 1 WHEN '100' THEN 1 ELSE 0 END AND a='100';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = '100' and case `test`.`t1`.`a` when 3 then 1 when '100' then 1 else 0 end
 SELECT * FROM t1 WHERE a=3;
@@ -392,8 +392,8 @@ a
 # Multiple type comparison in CASE, integer comparison in the equality, not Ok to propagate
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE CASE a WHEN 3 THEN 1 WHEN '100' THEN 1 ELSE 0 END AND a=3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where case `test`.`t1`.`a` when 3 then 1 when '100' then 1 else 0 end and `test`.`t1`.`a` = 3
 DROP TABLE t1;
@@ -504,44 +504,44 @@ SET NAMES latin1;
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
 INSERT INTO t1 VALUES ('a'),('b'),('c');
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE a WHEN 'a' THEN 'a' ELSE 'a' END='a';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a'
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN a THEN 'a' ELSE 'a' END='a';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a'
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN 'a' THEN a ELSE 'a' END='a';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a' and case 'a' when 'a' then `test`.`t1`.`a` else 'a' end = 'a'
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN 'a' THEN 'a' ELSE a END='a';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a' and case 'a' when 'a' then 'a' else `test`.`t1`.`a` end = 'a'
 ALTER TABLE t1 MODIFY a VARBINARY(10);
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE a WHEN 'a' THEN 'a' ELSE 'a' END='a';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a'
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN a THEN 'a' ELSE 'a' END='a';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a'
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN 'a' THEN a ELSE 'a' END='a';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a'
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='a' AND CASE 'a' WHEN 'a' THEN 'a' ELSE a END='a';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'a'
 DROP TABLE t1;
@@ -567,8 +567,8 @@ EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE
 CASE      a WHEN b THEN 1 END=1 AND
 CASE WHEN a THEN b ELSE 1 END=3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where case `test`.`t1`.`a` when `test`.`t1`.`b` then 1 end = 1 and case when `test`.`t1`.`a` then `test`.`t1`.`b` else 1 end = 3
 DROP TABLE t1;

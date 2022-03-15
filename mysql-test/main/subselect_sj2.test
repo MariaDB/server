@@ -87,7 +87,7 @@ insert into t3 select
   A.a + 10*B.a, A.a + 10*B.a, A.a + 10*B.a, A.a + 10*B.a 
 from t0 A, t0 B where B.a <5;
 
---replace_column 9 #
+--replace_column 10 #
 explain select * from t3 where b in (select a from t0);
 select * from t3 where b in (select A.a+B.a from t0 A, t0 B where B.a<5);
 
@@ -997,7 +997,7 @@ INSERT INTO t3 VALUES ('r'),('s'),('t'),('v'),('w'),('x'),('y');
 analyze table t1,t2,t3 persistent for all;
 --echo # The following must use LooseScan but not join buffering
 
---replace_column 9 #
+--replace_column 10 #
 explain
 SELECT * FROM t3 
 WHERE f12 IN (SELECT alias2.f12 FROM t1 AS alias1, t2 AS alias2, t1 WHERE alias1.f13 = 24);
@@ -1228,7 +1228,7 @@ INSERT INTO t2 VALUES
 
 analyze table t1 persistent for all;
 analyze table t2 persistent for all;
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN
 SELECT COUNT(*) FROM t1 AS alias1, t1 AS alias2, t2 AS alias3
 WHERE alias3.d IN (
@@ -1248,7 +1248,7 @@ WHERE alias3.d IN (
 # Do the same EXPLAIN SELECT and SELECT
 # with "alias3.c != alias5.c" instead of "alias5.c != alias3.c"
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN
 SELECT COUNT(*) FROM t1 AS alias1, t1 AS alias2, t2 AS alias3
 WHERE alias3.d IN (

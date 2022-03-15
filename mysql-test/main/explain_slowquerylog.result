@@ -2,8 +2,8 @@ drop table if exists t0,t1;
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 explain select * from t0 where a < 3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 # 
 # MDEV-5045: Server crashes in QPF_query::print_explain with log_slow_verbosity='query_plan,explain'
 # 

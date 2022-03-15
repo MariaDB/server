@@ -7,8 +7,8 @@ Warning	1365	Division by 0
 Warning	1365	Division by 0
 Warning	1365	Division by 0
 explain extended select null,\N,isnull(null),isnull(1/0),isnull(1/0 = null),ifnull(null,1),ifnull(null,"TRUE"),ifnull("TRUE","ERROR"),1/0 is null,1 is not null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select NULL AS `NULL`,NULL AS `NULL`,NULL is null AS `isnull(null)`,1 / 0 is null AS `isnull(1/0)`,1 / 0 = NULL is null AS `isnull(1/0 = null)`,ifnull(NULL,1) AS `ifnull(null,1)`,ifnull(NULL,'TRUE') AS `ifnull(null,"TRUE")`,ifnull('TRUE','ERROR') AS `ifnull("TRUE","ERROR")`,1 / 0 is null AS `1/0 is null`,1 is not null AS `1 is not null`
 select 1 | NULL,1 & NULL,1+NULL,1-NULL;
@@ -33,8 +33,8 @@ select 2 between null and 1,2 between 3 AND NULL,NULL between 1 and 2,2 between 
 2 between null and 1	2 between 3 AND NULL	NULL between 1 and 2	2 between NULL and 3	2 between 1 AND null
 0	0	NULL	NULL	NULL
 explain extended select 2 between null and 1,2 between 3 AND NULL,NULL between 1 and 2,2 between NULL and 3, 2 between 1 AND null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select 2 between NULL and 1 AS `2 between null and 1`,2 between 3 and NULL AS `2 between 3 AND NULL`,NULL between 1 and 2 AS `NULL between 1 and 2`,2 between NULL and 3 AS `2 between NULL and 3`,2 between 1 and NULL AS `2 between 1 AND null`
 SELECT NULL AND NULL, 1 AND NULL, NULL AND 1, NULL OR NULL, 0 OR NULL, NULL OR 0;
@@ -50,8 +50,8 @@ select inet_ntoa(null),inet_aton(null),inet_aton("122.256"),inet_aton("122.226."
 inet_ntoa(null)	inet_aton(null)	inet_aton("122.256")	inet_aton("122.226.")	inet_aton("")
 NULL	NULL	NULL	NULL	NULL
 explain extended select inet_ntoa(null),inet_aton(null),inet_aton("122.256"),inet_aton("122.226."),inet_aton("");
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select inet_ntoa(NULL) AS `inet_ntoa(null)`,inet_aton(NULL) AS `inet_aton(null)`,inet_aton('122.256') AS `inet_aton("122.256")`,inet_aton('122.226.') AS `inet_aton("122.226.")`,inet_aton('') AS `inet_aton("")`
 select not null is true, not null or true, not null and false, not null <=> null;
@@ -154,11 +154,11 @@ insert into t1 values
 (1,1), (2,2), (3,3), (4,4), (5,5), (6,6),
 (7,7), (8,8), (9,9), (10,10), (11,11), (12,12);
 explain select * from t1 where a between 2 and 3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx	idx	4	NULL	2	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx	idx	4	NULL	2	Using index condition
 explain select * from t1 where a between 2 and 3 or b is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx	idx	4	NULL	2	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx	idx	4	NULL	2	Using index condition
 drop table t1;
 select cast(NULL as signed);
 cast(NULL as signed)
@@ -176,8 +176,8 @@ insert into t1 select i*2 from t1;
 insert into t1 select i*2 from t1;
 insert into t1 values(null);
 explain select * from t1 where i=2 or i is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref_or_null	i	i	5	const	9	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref_or_null	i	i	5	const	9	Using where; Using index
 select count(*) from t1 where i=2 or i is null;
 count(*)
 10
@@ -186,8 +186,8 @@ alter table t1 change i i int not null;
 Warnings:
 Warning	1265	Data truncated for column 'i' at row 513
 explain select * from t1 where i=2 or i is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	i	i	4	const	8	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	i	i	4	const	8	Using index
 select count(*) from t1 where i=2 or i is null;
 count(*)
 9
@@ -358,8 +358,8 @@ CREATE TABLE t1 (dt DATETIME NOT NULL);
 INSERT INTO t1 VALUES (NOW()),(NOW());
 EXPLAIN
 SELECT * FROM t1 WHERE concat( dt, '2012-12-21 12:12:12' ) IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT * FROM t1 WHERE concat( dt, '2012-12-21 12:12:12' ) IS NULL;
 dt
 DROP TABLE t1;
@@ -367,8 +367,8 @@ CREATE TABLE t1 (dt INT NOT NULL);
 INSERT INTO t1 VALUES (1),(2);
 EXPLAIN
 SELECT * FROM t1 WHERE concat( dt, '1' ) IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT * FROM t1 WHERE concat( dt, '1' ) IS NULL;
 dt
 DROP TABLE t1;
@@ -376,8 +376,8 @@ CREATE TABLE t1 (dt INT NOT NULL);
 INSERT INTO t1 VALUES (1),(2);
 EXPLAIN
 SELECT * FROM t1 WHERE NOT (concat( dt, '1' ) IS NOT NULL);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT * FROM t1 WHERE NOT (concat( dt, '1' ) IS NOT NULL);
 dt
 DROP TABLE t1;
@@ -1619,16 +1619,16 @@ SELECT * FROM t1 WHERE a=2010 AND NULLIF(10.1,a) IS NULL;
 a
 2010
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND NULLIF(10.1,a) IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010
 SELECT * FROM t1 WHERE a=2010 AND CASE WHEN 10.1=a THEN NULL ELSE 10.1 END IS NULL;
 a
 2010
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010 AND CASE WHEN 10.1=a THEN NULL ELSE 10.1 END IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010
 DROP TABLE t1;
@@ -1657,8 +1657,8 @@ CHARSET(NULLIF(a,_utf8'a' COLLATE utf8_bin))
 latin1
 latin1
 EXPLAIN EXTENDED SELECT NULLIF(a,_utf8'a' COLLATE utf8_bin) IS NULL AS expr FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
 Note	1003	select (case when convert(`test`.`t1`.`a` using utf8mb3) = _utf8mb3'a' collate utf8mb3_bin then NULL else `test`.`t1`.`a` end) is null AS `expr` from `test`.`t1`
 DROP TABLE t1;
@@ -1680,14 +1680,14 @@ SELECT * FROM t1 WHERE a=10 AND NULLIF(a,2011.1)='2011';
 a
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a=10 AND NULLIF(a,2011.1)='2011';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010 and (case when 2010 = 2011 then NULL else `test`.`t1`.`a` end) = '2011'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a=10 AND NULLIF(a,2011.1)=CONCAT('2011',RAND());
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010 and (case when 2010 = 2011 then NULL else `test`.`t1`.`a` end) = concat('2011',rand())
 DROP TABLE t1;
@@ -1707,14 +1707,14 @@ a
 2020
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a=2020 AND NULLIF(a,2010)='2020';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2020 and (case when 2020 = 2010 then NULL else `test`.`t1`.`a` end) = '2020'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a=2020 AND NULLIF(a,2010)=CONCAT('2020',RAND());
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2020 and (case when 2020 = 2010 then NULL else `test`.`t1`.`a` end) = concat('2020',rand())
 DROP TABLE t1;
@@ -1768,13 +1768,13 @@ SELECT @a;
 @a
 3
 EXPLAIN EXTENDED SELECT NULLIF(a,0) FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1003	select nullif(`test`.`t1`.`a`,0) AS `NULLIF(a,0)` from `test`.`t1`
 EXPLAIN EXTENDED SELECT NULLIF(AVG(a),0) FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1003	select nullif(<cache>(avg(`test`.`t1`.`a`)),0) AS `NULLIF(AVG(a),0)` from `test`.`t1`
 DROP TABLE t1;
@@ -1849,8 +1849,8 @@ CREATE TABLE t1 (c1 INT);
 INSERT INTO t1 VALUES (1),(2),(3);
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE ((c1 IS NOT NULL) >= (NOT TRUE)) IS NOT NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where `test`.`t1`.`c1` is not null >= 0 is not null
 SELECT * FROM t1 WHERE ((c1 IS NOT NULL) >= (NOT TRUE)) IS NOT NULL;

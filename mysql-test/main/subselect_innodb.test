@@ -564,7 +564,7 @@ alter table t2 add key(key2);
 analyze table t2;
 flush tables;
 --echo # Table tsubq must use 'ref' + Using filesort (not 'index' w/o filesort)
---replace_column 9 #
+--replace_column 10 #
 explain select 
    (SELECT 
       concat(id, '-', key1, '-', col1)

@@ -37,8 +37,8 @@ event_date	type	event_id
 1999-07-13	100600	26
 1999-07-14	100600	10
 explain select event_date,type,event_id from t1 WHERE type = 100601 and event_date >= "1999-07-01" AND event_date < "1999-07-15" AND (type=100600 OR type=100100) ORDER BY event_date;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 select event_date,type,event_id from t1 WHERE event_date >= "1999-07-01" AND event_date <= "1999-07-15" AND (type=100600 OR type=100100) or event_date >= "1999-07-01" AND event_date <= "1999-07-15" AND type=100099;
 event_date	type	event_id
 1999-07-10	100100	24
@@ -224,49 +224,49 @@ create table t1 (x int, y int, index(x), index(y));
 insert into t1 (x) values (1),(2),(3),(4),(5),(6),(7),(8),(9);
 update t1 set y=x;
 explain select * from t1, t1 t2 where t1.y = 8 and t2.x between 7 and t1.y+0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	y	y	5	const	1	
-1	SIMPLE	t2	range	x	x	5	NULL	2	Using index condition; Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	y	y	5	const	1	
+1	SIMPLE	t2	NULL	range	x	x	5	NULL	2	Using index condition; Using where; Using join buffer (flat, BNL join)
 explain select * from t1, t1 t2 where t1.y = 8 and t2.x >= 7 and t2.x <= t1.y+0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	y	y	5	const	1	
-1	SIMPLE	t2	range	x	x	5	NULL	2	Using index condition; Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	y	y	5	const	1	
+1	SIMPLE	t2	NULL	range	x	x	5	NULL	2	Using index condition; Using where; Using join buffer (flat, BNL join)
 explain select * from t1, t1 t2 where t1.y = 2 and t2.x between t1.y-1 and t1.y+1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	y	y	5	const	1	
-1	SIMPLE	t2	range	x	x	5	NULL	3	Using index condition; Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	y	y	5	const	1	
+1	SIMPLE	t2	NULL	range	x	x	5	NULL	3	Using index condition; Using where; Using join buffer (flat, BNL join)
 explain select * from t1, t1 t2 where t1.y = 2 and t2.x >= t1.y-1 and t2.x <= t1.y+1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	y	y	5	const	1	
-1	SIMPLE	t2	range	x	x	5	NULL	3	Using index condition; Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	y	y	5	const	1	
+1	SIMPLE	t2	NULL	range	x	x	5	NULL	3	Using index condition; Using where; Using join buffer (flat, BNL join)
 explain select * from t1, t1 t2 where t1.y = 2 and t2.x between 0 and t1.y;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	y	y	5	const	1	
-1	SIMPLE	t2	range	x	x	5	NULL	2	Using index condition; Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	y	y	5	const	1	
+1	SIMPLE	t2	NULL	range	x	x	5	NULL	2	Using index condition; Using where; Using join buffer (flat, BNL join)
 explain select * from t1, t1 t2 where t1.y = 2 and t2.x >= 0 and t2.x <= t1.y;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	y	y	5	const	1	
-1	SIMPLE	t2	range	x	x	5	NULL	2	Using index condition; Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	y	y	5	const	1	
+1	SIMPLE	t2	NULL	range	x	x	5	NULL	2	Using index condition; Using where; Using join buffer (flat, BNL join)
 explain select count(*) from t1 where x in (1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	x	x	5	const	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	x	x	5	const	1	Using index
 explain select count(*) from t1 where x in (1,2,3,4);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	x	x	5	NULL	4	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	x	x	5	NULL	4	Using where; Using index
 drop table t1;
 CREATE TABLE t1 (key1 int(11) NOT NULL default '0', KEY i1 (key1));
 INSERT INTO t1 VALUES (0),(0),(0),(0),(0),(1),(1);
 CREATE TABLE t2 (keya int(11) NOT NULL default '0', KEY j1 (keya));
 INSERT INTO t2 VALUES (0),(0),(1),(1),(2),(2);
 explain select * from t1, t2 where (t1.key1 <t2.keya + 1) and t2.keya=3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	j1	j1	4	const	1	Using index
-1	SIMPLE	t1	range	i1	i1	4	NULL	7	Using where; Using index; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ref	j1	j1	4	const	1	Using index
+1	SIMPLE	t1	NULL	range	i1	i1	4	NULL	7	Using where; Using index; Using join buffer (flat, BNL join)
 explain select * from t1 force index(i1), t2 force index(j1) where 
 (t1.key1 <t2.keya + 1) and t2.keya=3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	j1	j1	4	const	1	Using index
-1	SIMPLE	t1	range	i1	i1	4	NULL	7	Using where; Using index; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ref	j1	j1	4	const	1	Using index
+1	SIMPLE	t1	NULL	range	i1	i1	4	NULL	7	Using where; Using index; Using join buffer (flat, BNL join)
 DROP TABLE t1,t2;
 CREATE TABLE t1 (
 a int(11) default NULL,
@@ -280,8 +280,8 @@ INSERT INTO t1 VALUES
 (21,4),(22,5),(23,5),(24,5),(25,5),(26,5),(30,5),(31,5),(32,5),(33,5),
 (33,5),(33,5),(33,5),(33,5),(34,5),(35,5);
 EXPLAIN SELECT * FROM t1 WHERE a IN(1,2) AND b=5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref|filter	a,b	b|a	5|5	const	15 (5%)	Using where; Using rowid filter
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref|filter	a,b	b|a	5|5	const	15 (5%)	Using where; Using rowid filter
 SELECT * FROM t1 WHERE a IN(1,2) AND b=5;
 a	b
 DROP TABLE t1;
@@ -427,21 +427,21 @@ test.t1	analyze	status	OK
 test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
 explain select * from t1, t2  where t1.uid=t2.uid AND t1.uid > 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	uid_index	uid_index	4	NULL	111	Using index condition
-1	SIMPLE	t2	ref	uid_index	uid_index	4	test.t1.uid	38	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	uid_index	uid_index	4	NULL	111	Using index condition
+1	SIMPLE	t2	NULL	ref	uid_index	uid_index	4	test.t1.uid	38	
 explain select * from t1, t2  where t1.uid=t2.uid AND t2.uid > 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	uid_index	uid_index	4	NULL	111	Using index condition
-1	SIMPLE	t2	ref	uid_index	uid_index	4	test.t1.uid	38	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	uid_index	uid_index	4	NULL	111	Using index condition
+1	SIMPLE	t2	NULL	ref	uid_index	uid_index	4	test.t1.uid	38	
 explain select * from t1, t2  where t1.uid=t2.uid AND t1.uid != 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	uid_index	uid_index	4	NULL	112	Using index condition
-1	SIMPLE	t2	ref	uid_index	uid_index	4	test.t1.uid	38	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	uid_index	uid_index	4	NULL	112	Using index condition
+1	SIMPLE	t2	NULL	ref	uid_index	uid_index	4	test.t1.uid	38	
 explain select * from t1, t2  where t1.uid=t2.uid AND t2.uid != 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	uid_index	uid_index	4	NULL	112	Using index condition
-1	SIMPLE	t2	ref	uid_index	uid_index	4	test.t1.uid	38	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	uid_index	uid_index	4	NULL	112	Using index condition
+1	SIMPLE	t2	NULL	ref	uid_index	uid_index	4	test.t1.uid	38	
 select * from t1, t2  where t1.uid=t2.uid AND t1.uid > 0;
 id	name	uid	id	name	uid
 1001	A	1	1001	A	1
@@ -590,29 +590,29 @@ create index t1i on t1(a);
 insert into t1 select 18446744073709551615;
 insert into t1 select 18446744073709551614;
 explain select * from t1 where a <> -1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	t1i	t1i	9	NULL	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	t1i	t1i	9	NULL	2	Using where; Using index
 select * from t1 where a <> -1;
 a
 18446744073709551614
 18446744073709551615
 explain select * from t1 where a > -1 or a < -1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	t1i	t1i	9	NULL	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	t1i	t1i	9	NULL	2	Using where; Using index
 select * from t1 where a > -1 or a < -1;
 a
 18446744073709551614
 18446744073709551615
 explain select * from t1 where a > -1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	t1i	t1i	9	NULL	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	t1i	t1i	9	NULL	2	Using where; Using index
 select * from t1 where a > -1;
 a
 18446744073709551614
 18446744073709551615
 explain select * from t1 where a < -1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 select * from t1 where a < -1;
 a
 drop table t1;
@@ -621,17 +621,17 @@ create table t1 (a char(10), b text, key (a)) character set latin1;
 INSERT INTO t1 (a) VALUES
 ('111'),('222'),('222'),('222'),('222'),('444'),('aaa'),('AAA'),('bbb');
 explain select * from t1 where a='aaa';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	11	const	2	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	11	const	2	Using index condition
 explain select * from t1 where a=binary 'aaa';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	11	const	2	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	11	const	2	Using index condition
 explain select * from t1 where a='aaa' collate latin1_bin;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	11	const	2	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	11	const	2	Using index condition
 explain select * from t1 where a='aaa' collate latin1_german1_ci;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	9	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	a	NULL	NULL	NULL	9	Using where
 drop table t1;
 CREATE TABLE t1 (
 `CLIENT` char(3) character set latin1 collate latin1_bin NOT NULL default '000',
@@ -675,8 +675,8 @@ drop table t1, t2;
 create table t1(a char(2), key(a(1)));
 insert into t1 values ('x'), ('xx');
 explain select a from t1 where a > 'x';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	2	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	2	NULL	2	Using where
 select a from t1 where a > 'x';
 a
 xx
@@ -722,9 +722,9 @@ SELECT s.oxid FROM t1 v, t1 s
 WHERE 
 v.oxrootid ='d8c4177d09f8b11f5.52725521' AND
 s.oxleft > v.oxleft AND s.oxleft < v.oxright;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	v	ALL	OXLEFT,OXRIGHT,OXROOTID	NULL	NULL	NULL	12	Using where
-1	SIMPLE	s	ALL	OXLEFT	NULL	NULL	NULL	12	Range checked for each record (index map: 0x4)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	v	NULL	ALL	OXLEFT,OXRIGHT,OXROOTID	NULL	NULL	NULL	12	Using where
+1	SIMPLE	s	NULL	ALL	OXLEFT	NULL	NULL	NULL	12	Range checked for each record (index map: 0x4)
 SELECT s.oxid FROM t1 v, t1 s 
 WHERE
 v.oxrootid ='d8c4177d09f8b11f5.52725521' AND
@@ -902,11 +902,11 @@ INSERT INTO t1 VALUES
 (55,'C'), (56,'C'), (57,'C'), (58,'C'), (59,'C'), (60,'C');
 INSERT INTO t1(status) SELECT status FROM t1;
 EXPLAIN SELECT * FROM t1 WHERE status <> 'A' AND status <> 'B';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	status	status	23	NULL	18	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	status	status	23	NULL	18	Using index condition
 EXPLAIN SELECT * FROM t1 WHERE status NOT IN ('A','B');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	status	status	23	NULL	18	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	status	status	23	NULL	18	Using index condition
 SELECT * FROM t1 WHERE status <> 'A' AND status <> 'B';
 id	status
 53	C
@@ -944,17 +944,17 @@ id	status
 119	C
 120	C
 EXPLAIN SELECT status FROM t1 WHERE status <> 'A' AND status <> 'B';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	status	status	23	NULL	18	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	status	status	23	NULL	18	Using where; Using index
 EXPLAIN SELECT status FROM t1 WHERE status NOT IN ('A','B');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	status	status	23	NULL	18	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	status	status	23	NULL	18	Using where; Using index
 EXPLAIN SELECT * FROM t1 WHERE status NOT BETWEEN 'A' AND 'B';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	status	status	23	NULL	17	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	status	status	23	NULL	17	Using index condition
 EXPLAIN SELECT * FROM t1 WHERE status < 'A' OR status > 'B';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	status	status	23	NULL	17	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	status	status	23	NULL	17	Using index condition
 SELECT * FROM t1 WHERE status NOT BETWEEN 'A' AND 'B';
 id	status
 53	C
@@ -997,17 +997,17 @@ INSERT INTO  t1 VALUES
 (1,1),(1,2),(1,3),(2,1),(2,2),(2,3),(3,1),(3,2),(3,3),(4,1),(4,2),(4,3);
 CREATE VIEW v1 as SELECT a,b FROM t1 WHERE b=3;
 EXPLAIN SELECT a,b FROM t1 WHERE a < 2 and b=3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	3	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	4	NULL	3	Using where; Using index
 EXPLAIN SELECT a,b FROM v1 WHERE a < 2 and b=3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	3	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	4	NULL	3	Using where; Using index
 EXPLAIN SELECT a,b FROM t1 WHERE a < 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	3	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	4	NULL	3	Using where; Using index
 EXPLAIN SELECT a,b FROM v1 WHERE a < 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	3	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	4	NULL	3	Using where; Using index
 SELECT a,b FROM t1 WHERE a < 2 and b=3;
 a	b
 1	3
@@ -1046,17 +1046,17 @@ INSERT INTO `t1` VALUES
 (0,0),(1,0),(2,0),(3,0),(4,0),(5,1),(6,1),(7,1),(8,1),(9,1),(10,2),(11,2),(12,2)
 ,(13,2),(14,2),(15,3),(16,3),(17,3),(18,3),(19,3);
 explain select * from t1 where a in (3,4)  and b in (1,2,3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	8	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	8	NULL	#	Using where; Using index
 explain select * from v1 where a in (3,4)  and b in (1,2,3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	8	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	8	NULL	#	Using where; Using index
 explain select * from t1 where a between 3 and 4 and b between 1 and 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	8	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	8	NULL	#	Using where; Using index
 explain select * from v1 where a between 3 and 4 and b between 1 and 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	8	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	8	NULL	#	Using where; Using index
 drop view v1;
 drop table t1;
 create table t3 (a int);
@@ -1070,21 +1070,21 @@ insert into t1 select concat('a', 1000 + A.a + 10 * (B.a + 10 * C.a)), ''
 create table t2 (a varchar(10), filler char(200), key(a));
 insert into t2 select * from t1;
 explain select * from t1 where a between 'a' and 'a ';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	13	NULL	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	13	NULL	#	Using index condition
 explain select * from t1 where a = 'a' or a='a ';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	13	NULL	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	13	NULL	#	Using index condition
 explain select * from t2 where a between 'a' and 'a ';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	a	a	13	const	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ref	a	a	13	const	#	Using index condition
 explain select * from t2 where a = 'a' or a='a ';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	a	a	13	const	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ref	a	a	13	const	#	Using index condition
 update t1 set a='b' where a<>'a';
 explain select * from t1 where a not between 'b' and 'b';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	13	NULL	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	13	NULL	#	Using index condition
 select a, hex(filler) from t1 where a not between 'b' and 'b';
 a	hex(filler)
 a	0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -1105,11 +1105,11 @@ id	b	c
 0	3	4
 0	3	4
 EXPLAIN  SELECT * FROM t1 WHERE b<=3 AND 3<=c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx1,idx2	idx2	4	NULL	2	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx1,idx2	idx2	4	NULL	2	Using index condition; Using where
 EXPLAIN  SELECT * FROM t1 WHERE 3 BETWEEN b AND c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx1,idx2	idx2	4	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx1,idx2	idx2	4	NULL	2	Using where
 SELECT * FROM t1 WHERE 0 < b OR 0 > c;
 id	b	c
 0	3	4
@@ -1119,11 +1119,11 @@ id	b	c
 0	3	4
 0	3	4
 EXPLAIN SELECT * FROM t1 WHERE 0 < b OR 0 > c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	idx1,idx2	idx1,idx2	4,4	NULL	3	Using sort_union(idx1,idx2); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	idx1,idx2	idx1,idx2	4,4	NULL	3	Using sort_union(idx1,idx2); Using where
 EXPLAIN SELECT * FROM t1 WHERE 0 NOT BETWEEN b AND c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	idx1,idx2	idx1,idx2	4,4	NULL	3	Using sort_union(idx1,idx2); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	idx1,idx2	idx1,idx2	4,4	NULL	3	Using sort_union(idx1,idx2); Using where
 DROP TABLE t1;
 CREATE TABLE t1 (                                      
 item char(20) NOT NULL default '',                          
@@ -1137,8 +1137,8 @@ INSERT INTO t1 VALUES
 ('A1','2005-12-12 08:00:00',3000),
 ('A2','2005-12-01 08:00:00',1000);
 EXPLAIN SELECT * FROM t1 WHERE item='A1' AND started<='2005-12-01 24:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	PRIMARY	PRIMARY	20	const	3	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	PRIMARY	PRIMARY	20	const	3	Using index condition
 SELECT * FROM t1 WHERE item='A1' AND started<='2005-12-01 24:00:00';
 item	started	price
 Warnings:
@@ -1149,8 +1149,8 @@ A1	2005-11-01 08:00:00	1000.000
 A1	2005-11-15 00:00:00	2000.000
 DROP INDEX `PRIMARY` ON t1;
 EXPLAIN SELECT * FROM t1 WHERE item='A1' AND started<='2005-12-01 24:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
 SELECT * FROM t1 WHERE item='A1' AND started<='2005-12-01 24:00:00';
 item	started	price
 Warnings:
@@ -1175,8 +1175,8 @@ INSERT INTO t1 VALUES
 (9,'2007-01-09'),(10,'2007-01-10'),(11,'2007-01-11');
 This must use range access:
 explain select * from t1 where dateval >= '2007-01-01 00:00:00' and dateval <= '2007-01-02 23:59:59';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	dateval	dateval	4	NULL	2	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	dateval	dateval	4	NULL	2	Using index condition
 drop table t1;
 CREATE TABLE t1 (
 a varchar(32), index (a)
@@ -1189,8 +1189,8 @@ a
 B
 B
 EXPLAIN SELECT a FROM t1 WHERE a='b' OR a='B';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	35	NULL	3	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	35	NULL	3	Using where; Using index
 DROP TABLE t1;
 CREATE TABLE t1 (f1 TINYINT(11) UNSIGNED NOT NULL, PRIMARY KEY (f1));
 INSERT INTO t1 VALUES (127),(254),(0),(1),(255);
@@ -1242,8 +1242,8 @@ select 'In following EXPLAIN the access method should be ref, #rows~=500 (and no
 Z
 In following EXPLAIN the access method should be ref, #rows~=500 (and not 2)
 explain select * from t2 where a=1000 and b<11;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	a	a	5	const	503	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ref	a	a	5	const	503	Using index condition
 drop table t1, t2;
 CREATE TABLE t1( a INT, b INT, KEY( a, b ) );
 CREATE TABLE t2( a INT, b INT, KEY( a, b ) );
@@ -1282,8 +1282,8 @@ SELECT * FROM t1 WHERE
 23 <= a AND a < 25 OR
 25 < a AND b = 23 OR
 23 <= a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	2	Using where; Using index
 SELECT * FROM t1 WHERE
 23 <= a AND a < 25 OR
 25 <= a AND b = 23 OR
@@ -1296,8 +1296,8 @@ SELECT * FROM t1 WHERE
 23 <= a AND a < 25 OR
 25 <= a AND b = 23 OR
 23 <= a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	3	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	3	Using where; Using index
 SELECT * FROM t1 WHERE
 23 <= a AND a <= 25 OR
 25 <= a AND b = 23 OR
@@ -1310,8 +1310,8 @@ SELECT * FROM t1 WHERE
 23 <= a AND a <= 25 OR
 25 <= a AND b = 23 OR
 23 <= a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	2	Using where; Using index
 SELECT * FROM t1 WHERE
 23 <= a AND a <= 25 OR
 23 <= a;
@@ -1322,8 +1322,8 @@ EXPLAIN
 SELECT * FROM t1 WHERE
 23 <= a AND a <= 25 OR
 23 <= a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	2	Using where; Using index
 SELECT * FROM t2 WHERE
 5 <= a AND a < 10 AND b = 1 OR
 15 <= a AND a < 20 AND b = 3
@@ -1361,8 +1361,8 @@ SELECT * FROM t2 WHERE
 15 <= a AND a < 20 AND b = 3
 OR
 1 <= a AND b = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	a	a	10	NULL	49	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	a	a	10	NULL	49	Using where; Using index
 SELECT * FROM t2 WHERE
 5 <= a AND a < 10 AND b = 2 OR
 15 <= a AND a < 20 AND b = 3
@@ -1405,8 +1405,8 @@ SELECT * FROM t2 WHERE
 15 <= a AND a < 20 AND b = 3
 OR
 1 <= a AND b = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	a	a	10	NULL	49	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	a	a	10	NULL	49	Using where; Using index
 SELECT * FROM t3 WHERE
 5 <= a AND a < 10 AND b = 3 OR 
 a < 5 OR
@@ -1426,8 +1426,8 @@ SELECT * FROM t3 WHERE
 5 <= a AND a < 10 AND b = 3 OR 
 a < 5 OR
 a < 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	range	a	a	5	NULL	9	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	range	a	a	5	NULL	9	Using where; Using index
 DROP TABLE t1, t2, t3;
 #
 # Bug #47123: Endless 100% CPU loop with STRAIGHT_JOIN
@@ -1458,8 +1458,8 @@ INSERT INTO t2 VALUES ('2009-09-21 12:00:00'), ('2009-09-21 12:00:00'),
 # DATE vs DATE
 EXPLAIN
 SELECT * FROM t1 WHERE a >= '2009/09/23';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-X	X	X	range	a	a	X	X	X	X
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+X	X	X	X	range	a	a	X	X	X	X
 SELECT * FROM t1 WHERE a >= '2009/09/23';
 a
 2009-09-23
@@ -1493,8 +1493,8 @@ a
 # DATE vs DATETIME
 EXPLAIN
 SELECT * FROM t2 WHERE a >= '2009/09/23';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-X	X	X	range	a	a	X	X	X	X
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+X	X	X	X	range	a	a	X	X	X	X
 SELECT * FROM t2 WHERE a >= '2009/09/23';
 a
 2009-09-23 12:00:00
@@ -1533,8 +1533,8 @@ a
 # DATETIME vs DATETIME
 EXPLAIN
 SELECT * FROM t2 WHERE a >= '2009/09/23 12:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-X	X	X	range	a	a	X	X	X	X
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+X	X	X	X	range	a	a	X	X	X	X
 SELECT * FROM t2 WHERE a >= '2009/09/23 12:00:00';
 a
 2009-09-23 12:00:00
@@ -1568,8 +1568,8 @@ a
 # DATETIME vs DATE
 EXPLAIN
 SELECT * FROM t1 WHERE a >= '2009/09/23 00:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-X	X	X	range	a	a	X	X	X	X
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+X	X	X	X	range	a	a	X	X	X	X
 SELECT * FROM t1 WHERE a >= '2009/09/23 00:00:00';
 a
 2009-09-23
@@ -1682,8 +1682,8 @@ INSERT INTO t1 VALUES (0,0), (1,1);
 EXPLAIN 
 SELECT * FROM t1 FORCE INDEX (PRIMARY) 
 WHERE (a>=1 AND a<=2) OR (a>=4 AND a<=5) OR (a>=0 AND a <=10);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-@	@	@	range	@	@	@	@	@	@
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+@	@	@	@	range	@	@	@	@	@	@
 # Should return 2 rows
 SELECT * FROM t1 FORCE INDEX (PRIMARY) 
 WHERE (a>=1 AND a<=2) OR (a>=4 AND a<=5) OR (a>=0 AND a <=10);
@@ -1697,8 +1697,8 @@ DROP TABLE t1;
 CREATE TABLE t1 (c_key INT, c_notkey INT, KEY(c_key));
 INSERT INTO t1 VALUES (1, 1), (2, 2), (3, 3);
 EXPLAIN SELECT * FROM t1 WHERE 2 NOT BETWEEN c_notkey AND c_key;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	c_key	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	c_key	NULL	NULL	NULL	3	Using where
 SELECT * FROM t1 WHERE 2 NOT BETWEEN c_notkey AND c_key;
 c_key	c_notkey
 1	1
@@ -1713,37 +1713,37 @@ INSERT INTO t1 VALUES
 (1,10), (2,20), (3,30), (4,40), (5,50), (6,60), (7,70), (8,80);
 EXPLAIN
 SELECT * FROM t1 WHERE i4 BETWEEN 10 AND 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	i4_uq	i4_uq	5	const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	const	i4_uq	i4_uq	5	const	1	
 SELECT * FROM t1 WHERE i4 BETWEEN 10 AND 10;
 pk	i4
 1	10
 EXPLAIN
 SELECT * FROM t1 WHERE 10 BETWEEN i4 AND i4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	i4_uq	i4_uq	5	const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	const	i4_uq	i4_uq	5	const	1	
 SELECT * FROM t1 WHERE 10 BETWEEN i4 AND i4;
 pk	i4
 1	10
 EXPLAIN
 SELECT * FROM t1 WHERE 70 BETWEEN 70 AND i4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	i4_uq	i4_uq	5	NULL	2	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	i4_uq	i4_uq	5	NULL	2	Using index condition
 SELECT * FROM t1 WHERE 70 BETWEEN 70 AND i4;
 pk	i4
 7	70
 8	80
 EXPLAIN
 SELECT * FROM t1 WHERE 10 BETWEEN i4 AND 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	i4_uq	i4_uq	5	NULL	1	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	i4_uq	i4_uq	5	NULL	1	Using index condition
 SELECT * FROM t1 WHERE 10 BETWEEN i4 AND 10;
 pk	i4
 1	10
 EXPLAIN
 SELECT * FROM t1 WHERE 10 BETWEEN 10 AND 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	
 SELECT * FROM t1 WHERE 10 BETWEEN 10 AND 10;
 pk	i4
 1	10
@@ -1756,56 +1756,56 @@ pk	i4
 8	80
 EXPLAIN
 SELECT * FROM t1 WHERE 10 BETWEEN 11 AND 11;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 SELECT * FROM t1 WHERE 10 BETWEEN 11 AND 11;
 pk	i4
 EXPLAIN
 SELECT * FROM t1 WHERE 10 BETWEEN 100 AND 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 SELECT * FROM t1 WHERE 10 BETWEEN 100 AND 0;
 pk	i4
 EXPLAIN
 SELECT * FROM t1 WHERE i4 BETWEEN 100 AND 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT * FROM t1 WHERE i4 BETWEEN 100 AND 0;
 pk	i4
 EXPLAIN
 SELECT * FROM t1 WHERE i4 BETWEEN 70 AND 99999999999999999;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	i4_uq	i4_uq	5	NULL	2	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	i4_uq	i4_uq	5	NULL	2	Using index condition
 SELECT * FROM t1 WHERE i4 BETWEEN 70 AND 99999999999999999;
 pk	i4
 7	70
 8	80
 EXPLAIN
 SELECT * FROM t1 WHERE i4 BETWEEN 999999999999999 AND 30;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT * FROM t1 WHERE i4 BETWEEN 999999999999999 AND 30;
 pk	i4
 EXPLAIN
 SELECT * FROM t1 WHERE i4 BETWEEN 10 AND '20';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	i4_uq	i4_uq	5	NULL	2	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	i4_uq	i4_uq	5	NULL	2	Using index condition
 SELECT * FROM t1 WHERE i4 BETWEEN 10 AND '20';
 pk	i4
 1	10
 2	20
 EXPLAIN
 SELECT * FROM t1, t1 as t2 WHERE t2.pk BETWEEN t1.i4 AND t1.i4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	i4_uq	NULL	NULL	NULL	8	
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.i4	1	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	i4_uq	NULL	NULL	NULL	8	
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.i4	1	Using index condition
 SELECT * FROM t1, t1 as t2 WHERE t2.pk BETWEEN t1.i4 AND t1.i4;
 pk	i4	pk	i4
 EXPLAIN
 SELECT * FROM t1, t1 as t2 WHERE t1.i4 BETWEEN t2.pk AND t2.pk;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	i4_uq	NULL	NULL	NULL	8	
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.i4	1	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	i4_uq	NULL	NULL	NULL	8	
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.i4	1	Using index condition
 SELECT * FROM t1, t1 as t2 WHERE t1.i4 BETWEEN t2.pk AND t2.pk;
 pk	i4	pk	i4
 DROP TABLE t1;
@@ -1953,9 +1953,9 @@ insert into t2 select a+64 from t2;
 explain
 select count(*) from t2 left join t1
 on (t1.key1 < 3 or t1.key1 between 920 and 930) and t1.key2 < 1000;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	64	
-1	SIMPLE	t1	range	i1,i2	i1	4	NULL	12	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	64	
+1	SIMPLE	t1	NULL	range	i1,i2	i1	4	NULL	12	Using where; Using join buffer (flat, BNL join)
 select count(*) from t2 left join t1
 on (t1.key1 < 3 or t1.key1 between 920 and 930) and t1.key2 < 1000;
 count(*)
@@ -1963,9 +1963,9 @@ count(*)
 explain
 select count(*) from t2 left join t1
 on (t1.key1 < 3 or t1.key1 between 920 and 930) and t1.key2 < t2.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	64	
-1	SIMPLE	t1	range	i1,i2	i1	4	NULL	12	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	64	
+1	SIMPLE	t1	NULL	range	i1,i2	i1	4	NULL	12	Using where; Using join buffer (flat, BNL join)
 select count(*) from t2 left join t1
 on (t1.key1 < 3 or t1.key1 between 920 and 930) and t1.key2 < t2.a;
 count(*)
@@ -1980,8 +1980,8 @@ create table t1 (a int, b int, c int, key idx (a,b,c));
 insert into t1 values (0,0,0), (2,2,0), (1,1,1), (2,2,1);
 explain
 select * from t1 force index (idx) where a >=1 and c <= 1 and a=b and b > 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx	idx	5	NULL	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx	idx	5	NULL	2	Using where; Using index
 select * from t1 force index (idx) where a >=1 and c <= 1 and a=b and b > 1;
 a	b	c
 2	2	0
@@ -2010,8 +2010,8 @@ INSERT INTO t100(I,J) SELECT X.I, X.K+(10*Y.K) FROM t10 AS X,t10 AS Y;
 INSERT INTO t100(I,J) VALUES(8,26);
 
 EXPLAIN SELECT * FROM t100 WHERE I <> 6 OR (I <> 8 AND J = 5);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t100	range	I	I	10	NULL	3	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t100	NULL	range	I	I	10	NULL	3	Using index condition
 
 SELECT * FROM t100 WHERE I <> 6 OR (I <> 8 AND J = 5);
 K	I	J
@@ -2115,14 +2115,14 @@ INSERT INTO t1 (fd) SELECT fd FROM t1;
 # The following should show "Impossible WHERE" :
 explain
 SELECT * FROM t1 WHERE fd='😁';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT * FROM t1 WHERE fd='😁';
 id	fd
 # The following must not use range access:
 explain select count(*) from t1 where fd <'😁';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	ix_fd	ix_fd	63	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	ix_fd	ix_fd	63	NULL	#	Using where; Using index
 select count(*) from t1 where fd <'😁';
 count(*)
 40960
@@ -2185,8 +2185,8 @@ CREATE TABLE t1 (a INT, INDEX(a));
 INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 explain
 SELECT * FROM t1 WHERE a > 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	4	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	4	Using where; Using index
 SELECT * FROM t1 WHERE a > 5;
 a
 6
@@ -2224,8 +2224,8 @@ INSERT INTO t2 VALUES ('2001-01-01 11:22:33');
 # range/ref access cannot be used for this query
 
 EXPLAIN SELECT * FROM t2 WHERE b=CAST('2001-01-01' AS DATE);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	b	b	67	NULL	5	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	b	b	67	NULL	5	Using where; Using index
 SELECT * FROM t2 WHERE b=CAST('2001-01-01' AS DATE);
 b
 2001#01#01
@@ -2237,9 +2237,9 @@ b
 # See BUG#13814468 about 'Range checked for each record'
 
 EXPLAIN SELECT * FROM t1, t2 WHERE a=b ORDER BY BINARY a, BINARY b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
-1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	5	Range checked for each record (index map: 0x1)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ALL	b	NULL	NULL	NULL	5	Range checked for each record (index map: 0x1)
 SELECT * FROM t1, t2 WHERE a=b ORDER BY BINARY a, BINARY b;
 a	b
 2001-01-01 00:00:00	2001#01#01
@@ -2249,9 +2249,9 @@ a	b
 2001-01-01 11:22:33	2001-01-01 11:22:33
 
 EXPLAIN SELECT * FROM t1, t2 WHERE b=a ORDER BY BINARY a, BINARY b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
-1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	5	Range checked for each record (index map: 0x1)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ALL	b	NULL	NULL	NULL	5	Range checked for each record (index map: 0x1)
 SELECT * FROM t1, t2 WHERE b=a ORDER BY BINARY a, BINARY b;
 a	b
 2001-01-01 00:00:00	2001#01#01
@@ -2271,26 +2271,26 @@ insert into t2 select A.a + B.a* 10 + C.a * 100 from t1 A, t1 B, t1 C;
 alter table t2 add key(a);
 # Should have "range checked for each table" for second table:
 explain select * from t1, t2 where t2.a < t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
-1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	1000	Range checked for each record (index map: 0x1)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	NULL	ALL	a	NULL	NULL	NULL	1000	Range checked for each record (index map: 0x1)
 # Should have "range checked for each table" for second table:
 explain select * from t1, t2 where t1.a > t2.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
-1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	1000	Range checked for each record (index map: 0x1)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	NULL	ALL	a	NULL	NULL	NULL	1000	Range checked for each record (index map: 0x1)
 create table t3 (a int primary key, b int);
 insert into t3 select a,a from t1;
 # The second table should use 'range':
 explain select * from t3, t2 where t2.a < t3.b  and t3.a=1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	const	PRIMARY	PRIMARY	4	const	1	
-1	SIMPLE	t2	range	a	a	5	NULL	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	t2	NULL	range	a	a	5	NULL	1	Using where; Using index
 # The second table should use 'range':
 explain select * from t3, t2 where t3.b > t2.a   and t3.a=1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	const	PRIMARY	PRIMARY	4	const	1	
-1	SIMPLE	t2	range	a	a	5	NULL	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	t2	NULL	range	a	a	5	NULL	1	Using where; Using index
 drop table t1,t2,t3;
 #
 # MDEV-6480: Remove conditions for which range optimizer returned SEL_ARG::IMPOSSIBLE.
@@ -2307,33 +2307,33 @@ from
 t1 A, t1 B, t1 C;
 # EXPLAIN EXTENDED should show that 'b > 25 and b < 15' is removed from the WHERE:
 explain extended select * from t2 where (b > 25 and b < 15) or a<44;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	range	a,b	a	5	NULL	43	100.00	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	range	a,b	a	5	NULL	43	100.00	Using index condition
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where `test`.`t2`.`a` < 44
 # EXPLAIN EXTENDED should show that 'b > 25 and b < 15' is removed from the WHERE:
 explain extended select * from t2 where a < 44 or (b > 25 and b < 15);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	range	a,b	a	5	NULL	43	100.00	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	range	a,b	a	5	NULL	43	100.00	Using index condition
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where `test`.`t2`.`a` < 44
 # Here, conditions b will not be removed, because "c<44" is not sargable
 #   and hence (b.. and .. b) part is not analyzed at all:
 explain extended select * from t2 where c < 44 or (b > 25 and b < 15);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	1000	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	b	NULL	NULL	NULL	1000	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where `test`.`t2`.`c` < 44 or `test`.`t2`.`b` > 25 and `test`.`t2`.`b` < 15
 # EXPLAIN EXTENDED should show that 'b > 25 and b < 15' is removed from the WHERE:
 explain extended select * from t2 where (b > 25 and b < 15) or c < 44;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	1000	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	b	NULL	NULL	NULL	1000	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where `test`.`t2`.`c` < 44
 # Try a case where both OR parts produce SEL_ARG::IMPOSSIBLE:
 explain extended select * from t2 where (b > 25 and b < 15) or (a>55 and a<44);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Note	1003	select 44 AS `a`,15 AS `b`,NULL AS `c` from `test`.`t2` where 0
 drop table t1,t2;
@@ -2346,11 +2346,11 @@ drop table t1,t2;
 CREATE TABLE t1 (a INT, b INT, KEY(a));
 INSERT INTO t1 (a) VALUES (10),(10),(10),(10),(10),(10),(10),(10),(10),(10),(70);
 EXPLAIN SELECT * FROM t1 WHERE a<>10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	2	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	2	Using index condition
 EXPLAIN SELECT * FROM t1 WHERE 10<>a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	2	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	2	Using index condition
 SELECT * FROM t1 WHERE a<>10;
 a	b
 70	NULL
@@ -2365,8 +2365,8 @@ SET NAMES utf8;
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8, KEY(a)) ENGINE=MyISAM;
 INSERT INTO t1 VALUES ('a'),('b'),('c'),('d'),('e');
 EXPLAIN SELECT * FROM t1 WHERE a<=>'😎';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 DROP TABLE t1;
 #
 # MDEV-10185: Assertion `tree1->keys[key_no] && tree2->keys[key_no]' failed in 
@@ -2405,8 +2405,8 @@ insert into t1 values
 (82,12,'wxa'), (85,15,'xd');
 # range access to t1 by 2-component keys for index idx
 explain select * from t1 where (a,b) IN ((2, 3),(3,3),(8,8),(7,7));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx	idx	10	NULL	6	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx	idx	10	NULL	6	Using where
 explain format=json select * from t1 where (a,b) IN ((2, 3),(3,3),(8,8),(7,7));
 EXPLAIN
 {
@@ -2469,8 +2469,8 @@ a	b	c
 deallocate prepare stmt;
 # range access to t1 by 1-component keys for index idx
 explain select * from t1 where (a,b+a) IN ((4,9),(8,8),(7,7));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx	idx	5	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx	idx	5	NULL	5	Using where
 explain format=json select * from t1 where (a,b+a) IN ((4,9),(8,8),(7,7));
 EXPLAIN
 {
@@ -2499,8 +2499,8 @@ a	b	c
 4	5	wa
 # range access to t1 by 1-component keys for index idx
 explain select * from t1 where (a,b) IN ((4,a-1),(8,a+8),(7,a+7));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx	idx	5	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx	idx	5	NULL	5	Using where
 explain format=json select * from t1 where (a,b) IN ((4,a-1),(8,a+8),(7,a+7));
 EXPLAIN
 {
@@ -2541,9 +2541,9 @@ insert into t2 values
 # range access to t1 by keys for index idx1
 explain select * from t1,t2
 where a = d and (a,e) in ((3,3),(7,7),(2,2));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range|filter	idx1,idx2	idx1|idx2	5|5	NULL	3 (60%)	Using index condition; Using where; Using rowid filter
-1	SIMPLE	t1	ref	idx	idx	5	test.t2.d	8	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range|filter	idx1,idx2	idx1|idx2	5|5	NULL	3 (60%)	Using index condition; Using where; Using rowid filter
+1	SIMPLE	t1	NULL	ref	idx	idx	5	test.t2.d	8	
 explain format=json select * from t1,t2
 where a = d and (a,e) in ((3,3),(7,7),(2,2));
 EXPLAIN
@@ -2627,9 +2627,9 @@ insert into t2 values
 # range access to t1 by 1-component keys for index idx
 explain select * from t1,t2
 where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range|filter	idx1,idx2	idx1|idx2	5|5	NULL	8 (14%)	Using index condition; Using where; Using rowid filter
-1	SIMPLE	t1	ref	idx	idx	5	test.t2.d	8	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range|filter	idx1,idx2	idx1|idx2	5|5	NULL	8 (14%)	Using index condition; Using where; Using rowid filter
+1	SIMPLE	t1	NULL	ref	idx	idx	5	test.t2.d	8	
 explain format=json select * from t1,t2
 where a = d and (a,e) in ((3,3),(7,7),(8,8)) and length(f) = 1;
 EXPLAIN
@@ -2738,9 +2738,9 @@ insert into t1 select * from t1;
 # range access to t2 by keys for index idx2
 explain select * from t1,t2 
 where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range|filter	idx1,idx2	idx1|idx2	5|5	NULL	7 (7%)	Using index condition; Using where; Using rowid filter
-1	SIMPLE	t1	ref	idx	idx	5	test.t2.d	11	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range|filter	idx1,idx2	idx1|idx2	5|5	NULL	7 (7%)	Using index condition; Using where; Using rowid filter
+1	SIMPLE	t1	NULL	ref	idx	idx	5	test.t2.d	11	
 explain format=json select * from t1,t2 
 where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
 EXPLAIN
@@ -2802,9 +2802,9 @@ alter table t2 drop index idx1, drop index idx2, add index idx3(d,e);
 # range access to t2 by 2-component keys for index idx3
 explain select * from t1,t2 
 where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	idx3	idx3	10	NULL	5	Using index condition; Using where
-1	SIMPLE	t1	ref	idx	idx	5	test.t2.d	11	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	idx3	idx3	10	NULL	5	Using index condition; Using where
+1	SIMPLE	t1	NULL	ref	idx	idx	5	test.t2.d	11	
 explain format=json select * from t1,t2 
 where a = d and (a,e) in ((4,4),(7,7),(8,8)) and length(f) = 1;
 EXPLAIN
@@ -2857,9 +2857,9 @@ a	b	c	d	e	f
 # range access to t1 by 1-component keys for index idx
 explain select * from t1,t2
 where a = d and (a,e) in ((4,d+1),(7,d+1),(8,d+1)) and length(f) = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx	idx	5	NULL	15	Using index condition
-1	SIMPLE	t2	ref	idx3	idx3	5	test.t1.a	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx	idx	5	NULL	15	Using index condition
+1	SIMPLE	t2	NULL	ref	idx3	idx3	5	test.t1.a	3	Using where
 explain format=json select * from t1,t2
 where a = d and (a,e) in ((4,d+1),(7,d+1),(8,d+1)) and length(f) = 1;
 EXPLAIN
@@ -2920,9 +2920,9 @@ a	b	c	d	e	f
 # no range access
 explain select * from t1,t2
 where a = d and (a,e) in ((e,d+1),(7,7),(8,8)) and length(f) = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	idx	NULL	NULL	NULL	144	Using where
-1	SIMPLE	t2	ref	idx3	idx3	5	test.t1.a	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	idx	NULL	NULL	NULL	144	Using where
+1	SIMPLE	t2	NULL	ref	idx3	idx3	5	test.t1.a	3	Using where
 explain format=json select * from t1,t2
 where a = d and (a,e) in ((e,d+1),(7,7),(8,8)) and length(f) = 1;
 EXPLAIN
@@ -2973,9 +2973,9 @@ a	b	c	d	e	f
 explain select * from t1,t2
 where a = d and (a,2) in ((2,2),(7,7),(8,8)) and
 length(c) = 1 and length(f) = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx	idx	5	NULL	12	Using index condition; Using where
-1	SIMPLE	t2	ref	idx3	idx3	5	test.t1.a	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx	idx	5	NULL	12	Using index condition; Using where
+1	SIMPLE	t2	NULL	ref	idx3	idx3	5	test.t1.a	3	Using where
 explain format=json select * from t1,t2
 where a = d and (a,2) in ((2,2),(7,7),(8,8)) and
 length(c) = 1 and length(f) = 1;
@@ -3054,10 +3054,10 @@ explain select * from t1,t2,t3
 where id = 1 and a = d and
 (a,v+1) in ((2,2),(7,7),(8,8)) and
 length(c) = 1 and length(f) = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	const	PRIMARY	PRIMARY	4	const	1	
-1	SIMPLE	t1	range	idx	idx	5	NULL	12	Using index condition; Using where
-1	SIMPLE	t2	ref	idx3	idx3	5	test.t1.a	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	t1	NULL	range	idx	idx	5	NULL	12	Using index condition; Using where
+1	SIMPLE	t2	NULL	ref	idx3	idx3	5	test.t1.a	3	Using where
 explain format=json select * from t1,t2,t3
 where id = 1 and a = d and
 (a,v+1) in ((2,2),(7,7),(8,8)) and
@@ -3127,8 +3127,8 @@ explain select * from t1,t2,t3
 where id = 1 and a = d and
 (a,v+1) in ((9,9),(7,7),(8,8)) and
 length(c) = 1 and length(f) = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 prepare stmt from "select * from t1,t2,t3
 where id = 1 and a = d and
 (a,v+1) in ((9,9),(7,7),(8,8)) and
@@ -3160,8 +3160,8 @@ rec_per_key
 2
 set eq_range_index_dive_limit=0;
 explain select * from t1 where a in (8, 15, 31, 1, 9);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx	idx	5	NULL	7	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx	idx	5	NULL	7	Using index condition
 select * from t1 where a in (8, 15, 31, 1, 9);
 a	b
 1	yy
@@ -3171,8 +3171,8 @@ a	b
 15	ffffzz
 set eq_range_index_dive_limit=2;
 explain select * from t1 where a in (8, 15, 31, 1, 9);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx	idx	5	NULL	5	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx	idx	5	NULL	5	Using index condition
 select * from t1 where a in (8, 15, 31, 1, 9);
 a	b
 1	yy
@@ -3210,8 +3210,8 @@ set @query=concat('explain select * from t2 where a=1 or a in (', @query, ')');
 prepare s from @query;
 # This should not fail with an error:
 execute s;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	a	NULL	NULL	NULL	3	Using where
 set max_session_mem_used=@tmp_24117;
 deallocate prepare s;
 drop table t0,t1,t2;
@@ -3236,8 +3236,8 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 explain select * from t1 where ((a between 3 and 4) and b < 100) or (a between 2 and 5);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx1,idx2	idx1	5	NULL	11	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx1,idx2	idx1	5	NULL	11	Using index condition; Using where
 select * from t1 where ((a between 3 and 4) and b < 100) or (a between 2 and 5);
 pk	a	b
 7	2	20
@@ -3249,8 +3249,8 @@ pk	a	b
 1	5	50
 65	5	50
 explain select * from t1 where (a between 2 and 5) or ((a between 3 and 4) and b < 100);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx1,idx2	idx1	5	NULL	11	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx1,idx2	idx1	5	NULL	11	Using index condition; Using where
 select * from t1 where (a between 2 and 5) or ((a between 3 and 4) and b < 100);
 pk	a	b
 7	2	20
@@ -3262,8 +3262,8 @@ pk	a	b
 1	5	50
 65	5	50
 explain select * from t1 where (a between 3 and 4) or ((a between 2 and 5) and b < 100);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx1,idx2	idx1	5	NULL	11	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx1,idx2	idx1	5	NULL	11	Using index condition; Using where
 select * from t1 where (a between 3 and 4) or ((a between 2 and 5) and b < 100);
 pk	a	b
 7	2	20
@@ -3275,8 +3275,8 @@ pk	a	b
 1	5	50
 65	5	50
 explain select * from t1 where ((a between 2 and 5) and b < 100) or (a between 3 and 4);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx1,idx2	idx1	5	NULL	11	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx1,idx2	idx1	5	NULL	11	Using index condition; Using where
 select * from t1 where ((a between 2 and 5) and b < 100) or (a between 3 and 4);
 pk	a	b
 7	2	20
@@ -3300,8 +3300,8 @@ insert into t2 (pk, key1)
 select A.a+10 *B.a + 100*C.a, A.a+10 *B.a +100*C.a from t1 A, t1 B, t1 C;
 # This must use ALL, not range:
 explain select * from t2 force index (primary) where pk not in (1,2,3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	PRIMARY	NULL	NULL	NULL	1000	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	PRIMARY	NULL	NULL	NULL	1000	Using where
 drop table t1,t2;
 #
 # MDEV-24444: ASAN use-after-poison in Item_func_in::get_func_mm_tree with NOT IN
@@ -3321,8 +3321,8 @@ create table t1 (pk int primary key, a int);
 insert into t1 (pk) values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 # must not use range:
 explain select * from t1 force index (primary) where pk != 1 and pk!=2 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	PRIMARY	NULL	NULL	NULL	10	Using where
 drop table t1;
 #
 # MDEV-22251: get_key_scans_params: Conditional jump or move depends on uninitialised value
@@ -3333,9 +3333,9 @@ create table t2 (a int, b int);
 insert into t2 values (1,2),(2,4);
 EXPLAIN
 select * from t1 inner join t2 on ( t2.b = t1.v or t2.a = t1.pk);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t1	ALL	PRIMARY,v	NULL	NULL	NULL	8	Range checked for each record (index map: 0x3)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t1	NULL	ALL	PRIMARY,v	NULL	NULL	NULL	8	Range checked for each record (index map: 0x3)
 select * from t1 inner join t2 on ( t2.b = t1.v or t2.a = t1.pk);
 pk	i	v	a	b
 1	1	2	1	2
@@ -3380,13 +3380,13 @@ create table t2(a int, key(a));
 insert into t2 select A.a + B.a*10 + C.a*100 from ten A, ten B,ten C where A.a + B.a*10 + C.a*100 < 199;
 # expected type=range, rows=1487 , reason=using index dives
 analyze SELECT * FROM t1 where a in (0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	1487	1199.00	100.00	100.00	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	1487	1199.00	100.00	100.00	Using where; Using index
 insert into t2 values (200),(201);
 # expected type=range, rows=201 , reason=using index statistics
 analyze SELECT * FROM t1 where a in (0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115,116,117,118,119,120,121,122,123,124,125,126,127,128,129,130,131,132,133,134,135,136,137,138,139,140,141,142,143,144,145,146,147,148,149,150,151,152,153,154,155,156,157,158,159,160,161,162,163,164,165,166,167,168,169,170,171,172,173,174,175,176,177,178,179,180,181,182,183,184,185,186,187,188,189,190,191,192,193,194,195,196,197,198,200,201);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	201	1201.00	100.00	100.00	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	201	1201.00	100.00	100.00	Using where; Using index
 drop table t1,ten,t2;
 # End of 10.4 tests
 #
@@ -3418,9 +3418,9 @@ test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
 # expected for t1: range access and rows = 4 (not 1000)
 explain SELECT * FROM t1,t2 WHERE t1.subset_id=t2.id;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	t1_subset_id	t1_subset_id	5	NULL	3	Using index condition
-1	SIMPLE	t2	ref	id	id	5	test.t1.subset_id	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	t1_subset_id	t1_subset_id	5	NULL	3	Using index condition
+1	SIMPLE	t2	NULL	ref	id	id	5	test.t1.subset_id	1	
 SELECT * FROM t1,t2 WHERE t1.subset_id=t2.id;
 id	subset_id	id	col
 0	0	0	0
@@ -3431,9 +3431,9 @@ id	subset_id	id	col
 # with a subquery
 # expected the same plan as above
 explain SELECT * FROM t1 WHERE t1.subset_id IN (SELECT t2.id FROM t2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	t1_subset_id	t1_subset_id	5	NULL	3	Using index condition
-1	PRIMARY	t2	ref	id	id	5	test.t1.subset_id	1	Using index; FirstMatch(t1)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	range	t1_subset_id	t1_subset_id	5	NULL	3	Using index condition
+1	PRIMARY	t2	NULL	ref	id	id	5	test.t1.subset_id	1	Using index; FirstMatch(t1)
 SELECT * FROM t1 WHERE t1.subset_id IN (SELECT t2.id FROM t2);
 id	subset_id
 0	0
@@ -3445,10 +3445,10 @@ id	subset_id
 # expected for t1: range access and rows = 4 (not 1000)
 explain SELECT * FROM t1
 WHERE t1.subset_id IN (SELECT max(t2.id) FROM t2 group by t2.col);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	t1_subset_id	t1_subset_id	5	NULL	3	Using index condition
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	test.t1.subset_id	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	1000	Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	range	t1_subset_id	t1_subset_id	5	NULL	3	Using index condition
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	test.t1.subset_id	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	1000	Using temporary
 SELECT * FROM t1
 WHERE t1.subset_id IN (SELECT max(t2.id) FROM t2 group by t2.col);
 id	subset_id
@@ -3462,9 +3462,9 @@ create view v2 as SELECT t2.id FROM t2 group by t2.col;
 # with mergeable view
 # expected for t1: range access and rows = 4 (not 1000)
 explain SELECT * FROM t1, v1 where t1.subset_id=v1.id;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	t1_subset_id	t1_subset_id	5	NULL	3	Using index condition
-1	SIMPLE	t2	ref	id	id	5	test.t1.subset_id	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	t1_subset_id	t1_subset_id	5	NULL	3	Using index condition
+1	SIMPLE	t2	NULL	ref	id	id	5	test.t1.subset_id	1	Using index
 SELECT * FROM t1, v1 where t1.subset_id=v1.id;
 id	subset_id	id
 0	0	0
@@ -3475,10 +3475,10 @@ id	subset_id	id
 # with non-mergeable view
 # expected for t1: range access and rows = 4 (not 1000)
 explain SELECT * FROM t1, v2 where t1.subset_id=v2.id;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	t1_subset_id	t1_subset_id	5	NULL	3	Using index condition
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.subset_id	10	
-2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	1000	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	range	t1_subset_id	t1_subset_id	5	NULL	3	Using index condition
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t1.subset_id	10	
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	1000	Using temporary; Using filesort
 SELECT * FROM t1, v2 where t1.subset_id=v2.id;
 id	subset_id	id
 0	0	0
@@ -3488,9 +3488,9 @@ id	subset_id	id
 4	4	4
 # expected for t2 and for t1: range access
 explain SELECT * FROM t2 LEFT JOIN t1 ON t1.subset_id != 5 WHERE t2.id in (0,2,4);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	id	id	5	NULL	3	Using index condition
-1	SIMPLE	t1	range	t1_subset_id	t1_subset_id	5	NULL	4	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	id	id	5	NULL	3	Using index condition
+1	SIMPLE	t1	NULL	range	t1_subset_id	t1_subset_id	5	NULL	4	Using where; Using join buffer (flat, BNL join)
 SELECT * FROM t2 LEFT JOIN t1 ON t1.subset_id != 5 WHERE t2.id in (0,2,4);
 id	col	id	subset_id
 0	0	0	0
@@ -3510,9 +3510,9 @@ id	col	id	subset_id
 4	4	4	4
 # no range access expected for t1
 explain SELECT * FROM t1 LEFT JOIN t2 ON t1.subset_id=t2.id LIMIT 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	
-1	SIMPLE	t2	ref	id	id	5	test.t1.subset_id	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	1000	
+1	SIMPLE	t2	NULL	ref	id	id	5	test.t1.subset_id	1	Using where
 SELECT * FROM t1 LEFT JOIN t2 ON t1.subset_id=t2.id LIMIT 10;
 id	subset_id	id	col
 0	0	0	0
@@ -3527,10 +3527,10 @@ id	subset_id	id	col
 9	NULL	NULL	NULL
 # expected for t1: range access
 explain SELECT * FROM ten LEFT JOIN (t1,t2) ON ten.a=t2.col AND t1.subset_id=t2.id;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	ten	ALL	NULL	NULL	NULL	NULL	10	
-1	SIMPLE	t1	range	t1_subset_id	t1_subset_id	5	NULL	3	Using where
-1	SIMPLE	t2	ref	id	id	5	test.t1.subset_id	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	ten	NULL	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t1	NULL	range	t1_subset_id	t1_subset_id	5	NULL	3	Using where
+1	SIMPLE	t2	NULL	ref	id	id	5	test.t1.subset_id	1	Using where
 SELECT * FROM ten LEFT JOIN (t1,t2) ON ten.a=t2.col AND t1.subset_id=t2.id;
 a	id	subset_id	id	col
 0	0	0	0	0
@@ -3546,10 +3546,10 @@ a	id	subset_id	id	col
 # no range access expected for t1
 explain SELECT * FROM t1 LEFT JOIN (t2,ten) ON ten.a=t2.col AND t1.subset_id=t2.id
 LIMIT 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	
-1	SIMPLE	t2	ref	id	id	5	test.t1.subset_id	1	Using where
-1	SIMPLE	ten	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	1000	
+1	SIMPLE	t2	NULL	ref	id	id	5	test.t1.subset_id	1	Using where
+1	SIMPLE	ten	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 SELECT * FROM t1 LEFT JOIN (t2,ten) ON ten.a=t2.col AND t1.subset_id=t2.id
 LIMIT 10;
 id	subset_id	id	col	a
@@ -3566,9 +3566,9 @@ id	subset_id	id	col	a
 drop index id on t2;
 # expected for t1: range access
 explain SELECT * FROM t1,t2 WHERE t1.subset_id=t2.id;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	t1_subset_id	t1_subset_id	5	NULL	3	Using index condition
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1000	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	t1_subset_id	t1_subset_id	5	NULL	3	Using index condition
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1000	Using where; Using join buffer (flat, BNL join)
 SELECT * FROM t1,t2 WHERE t1.subset_id=t2.id;
 id	subset_id	id	col
 0	0	0	0
@@ -3578,14 +3578,14 @@ id	subset_id	id	col
 4	4	4	4
 # expected impossible where after reading const tables
 explain SELECT * FROM t1,t2 WHERE t1.subset_id > t2.id AND t1.subset_id IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT * FROM t1,t2 WHERE t1.subset_id > t2.id AND t1.subset_id IS NULL;
 id	subset_id	id	col
 # expected impossible where after reading const tables
 explain SELECT * FROM t1,t2 WHERE t1.subset_id > t2.id AND t2.id IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT * FROM t1,t2 WHERE t1.subset_id > t2.id AND t2.id IS NULL;
 id	subset_id	id	col
 drop index t1_subset_id on t1;
@@ -3601,9 +3601,9 @@ test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
 # expected for t1: range access by idx (keylen=9)
 explain SELECT * FROM t1,t2 WHERE t1.subset_id=t2.id and t1.m=0 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx	idx	9	NULL	4	Using index condition
-1	SIMPLE	t2	ref	id	id	5	test.t1.subset_id	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx	idx	9	NULL	4	Using index condition
+1	SIMPLE	t2	NULL	ref	id	id	5	test.t1.subset_id	1	
 SELECT * FROM t1,t2 WHERE t1.subset_id=t2.id and t1.m=0 ;
 id	subset_id	m	id	col
 0	0	0	0	0
@@ -3634,9 +3634,9 @@ test.t2	analyze	status	Table is already up to date
 # expected for t1 :range access by index key1
 # rows 4 instead of 500
 explain SELECT * FROM t1,t2 WHERE t1.id>=1 and t1.subset_id=t2.id;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	key1,t1_subset_id	key1	9	NULL	3	Using where; Using index
-1	SIMPLE	t2	ref	id	id	4	test.t1.subset_id	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	key1,t1_subset_id	key1	9	NULL	3	Using where; Using index
+1	SIMPLE	t2	NULL	ref	id	id	4	test.t1.subset_id	1	
 SELECT * FROM t1,t2 WHERE t1.id>=1 and t1.subset_id=t2.id;
 id	subset_id	id	col
 1	0	0	0
@@ -3660,9 +3660,9 @@ test.t2	analyze	status	OK
 # using key1 for range access on t1 and also using index for sorting,
 # no filesort, rows should be 75 not 500
 explain SELECT * FROM t1,t2 WHERE t1.id=t2.id AND t1.col=2 ORDER BY t2.id LIMIT 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	key1	key1	5	NULL	74	Using index condition; Using where
-1	SIMPLE	t2	ref	id	id	5	test.t1.id	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	key1	key1	5	NULL	74	Using index condition; Using where
+1	SIMPLE	t2	NULL	ref	id	id	5	test.t1.id	2	
 SELECT * FROM t1,t2 WHERE t1.id=t2.id AND t1.col=2 ORDER BY t2.id LIMIT 10;
 id	col	id	col
 0	2	0	0
@@ -3689,8 +3689,8 @@ CREATE TABLE t2 (pk INT, b INT, PRIMARY KEY(pk));
 INSERT INTO t2 VALUES (1,1),(2,2);
 SET optimizer_switch = 'not_null_range_scan=on';
 EXPLAIN EXTENDED SELECT * FROM t1 LEFT JOIN t2 ON a = pk WHERE b >= 0 AND pk IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Note	1003	select NULL AS `a`,0 AS `pk`,NULL AS `b` from `test`.`t1` join `test`.`t2` where 0
 SELECT * FROM t1 LEFT JOIN t2 ON a = pk WHERE b >= 0 AND pk IS NULL;

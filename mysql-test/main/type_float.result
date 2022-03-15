@@ -276,8 +276,8 @@ insert into t1 values
 (3, -4986.24), (3, 5.00), (3, 4857.34), (3, 123.74), (3,  0.16),
 (6, -1695.31), (6, 1003.77), (6, 499.72), (6, 191.82);
 explain select sum(b) s from t1 group by a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	26	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	26	Using temporary; Using filesort
 select sum(b) s from t1 group by a;
 s
 0.00
@@ -308,8 +308,8 @@ s
 0.00
 alter table t1 add key (a, b);
 explain select sum(b) s from t1 group by a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a	14	NULL	26	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	14	NULL	26	Using index
 select sum(b) s from t1 group by a;
 s
 0.00
@@ -535,9 +535,9 @@ a
 1999-01-01 00:00:00
 # t2 should NOT be eliminated
 EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.a=t2.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t2	index	PRIMARY	PRIMARY	8	NULL	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t2	NULL	index	PRIMARY	PRIMARY	8	NULL	2	Using where; Using index
 DROP TABLE t1,t2;
 #
 # MDEV-6971 Bad results with joins comparing TIME and DOUBLE/DECIMAL columns
@@ -565,9 +565,9 @@ a
 10:20:30.000000
 # t2 should NOT be elimitated
 EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t2	index	PRIMARY	PRIMARY	8	NULL	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t2	NULL	index	PRIMARY	PRIMARY	8	NULL	2	Using where; Using index
 DROP TABLE t1,t2;
 #
 # End of 10.0 tests
@@ -593,14 +593,14 @@ a
 100
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)!=6 AND a=100e0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 100e0
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)!=RAND() AND a=100e0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 100e0 and <cache>(octet_length(100)) <> rand()
 DROP TABLE t1;
@@ -612,15 +612,15 @@ SELECT * FROM t1 WHERE LENGTH(a)!=3 AND a=1.10e0;
 a
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)!=3 AND a=1.10e0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 0
 # Notice 1.1 instead of 1.10 in the final WHERE condition
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)!=RAND() AND a=1.10e0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1.10e0 and <cache>(octet_length(1.1)) <> rand()
 DROP TABLE t1;
@@ -632,15 +632,15 @@ SELECT * FROM t1 WHERE LENGTH(a)!=4 AND a=1.10e0;
 a
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)!=4 AND a=1.10e0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 0
 # Notice 1.10 in the final WHERE condition
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)!=RAND() AND a=1.10e0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1.10e0 and <cache>(octet_length(1.10)) <> rand()
 DROP TABLE t1;
@@ -652,15 +652,15 @@ SELECT * FROM t1 WHERE LENGTH(a)!=5 AND a=1.10e0;
 a
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)!=5 AND a=1.10e0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 0
 # Notice 1.100 rather than 1.10 in the final WHERE condition
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)!=RAND() AND a=1.10e0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1.10e0 and <cache>(octet_length(1.100)) <> rand()
 DROP TABLE t1;
@@ -670,8 +670,8 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DOUBLE ZEROFILL);
 INSERT INTO t1 VALUES (2010),(2020);
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2010e0 AND a>=2010e0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 2010e0
 DROP TABLE t1;
@@ -921,8 +921,8 @@ a
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 EXPLAIN EXTENDED SELECT CAST(0.671437 AS FLOAT);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select cast(0.671437 as float) AS `CAST(0.671437 AS FLOAT)`
 CREATE TABLE t1 AS SELECT CAST(0.671437 AS FLOAT) AS c1;
@@ -969,23 +969,23 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DOUBLE);
 INSERT INTO t1 VALUES (1),(2),(3);
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1e0+a<=>1e0+a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING 1e0,1e0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>1e0+a' USING 1e0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1e0+a<=>?+a' USING 1e0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
 DROP TABLE t1;

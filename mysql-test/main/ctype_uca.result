@@ -6749,8 +6749,8 @@ INSERT INTO t1 (ch) VALUES ('admin'),('admin1');
 SELECT ch FROM t1 WHERE ch='admin𝌆';
 ch
 EXPLAIN SELECT ch FROM t1 WHERE ch='admin𝌆';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch='admin𝌆';
 ch
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='admin𝌆';
@@ -6768,14 +6768,14 @@ SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 ch
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
 ch
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 ch
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
@@ -6818,8 +6818,8 @@ aЀ
 aր
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	ch	ch	183	NULL	#	Using where; Using index
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 ch
 a
@@ -6841,8 +6841,8 @@ aЀ
 aր
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆b' ORDER BY ch;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	ch	ch	183	NULL	#	Using where; Using index
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆b' ORDER BY ch;
 ch
 a
@@ -6870,15 +6870,15 @@ ch
 z
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	ch	ch	183	NULL	#	Using where; Using index
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 ch
 z
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆b' ORDER BY ch;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	ch	ch	183	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	ch	ch	183	NULL	#	Using where; Using index
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆b' ORDER BY ch;
 ch
 z
@@ -6968,8 +6968,8 @@ INSERT INTO t1 (ch) VALUES ('admin'),('admin1');
 SELECT ch FROM t1 WHERE ch='admin𝌆';
 ch
 EXPLAIN SELECT ch FROM t1 WHERE ch='admin𝌆';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch='admin𝌆';
 ch
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='admin𝌆';
@@ -6987,14 +6987,14 @@ SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 ch
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
 ch
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 ch
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
@@ -7037,8 +7037,8 @@ aЀ
 aր
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	ch	NULL	NULL	NULL	#	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	ch	NULL	NULL	NULL	#	Using where; Using filesort
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 ch
 a
@@ -7060,8 +7060,8 @@ aЀ
 aր
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆b' ORDER BY ch;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	ch	NULL	NULL	NULL	#	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	ch	NULL	NULL	NULL	#	Using where; Using filesort
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆b' ORDER BY ch;
 ch
 a
@@ -7089,15 +7089,15 @@ ch
 z
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	ch	NULL	NULL	NULL	#	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	ch	NULL	NULL	NULL	#	Using where; Using filesort
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 ch
 z
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆b' ORDER BY ch;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	ch	NULL	NULL	NULL	#	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	ch	NULL	NULL	NULL	#	Using where; Using filesort
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆b' ORDER BY ch;
 ch
 z
@@ -8379,8 +8379,8 @@ F0909080	30D2	𐐀
 F09090A8	30D2	𐐨
 ALTER TABLE t1 ADD KEY(c);
 EXPLAIN SELECT hex(c) FROM t1 WHERE c LIKE 'a%' ORDER BY c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	c	c	43	NULL	3	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	c	c	43	NULL	3	Using where; Using index
 SELECT hex(c), hex(weight_string(c)) FROM t1 WHERE c LIKE 'a%' ORDER BY c;
 hex(c)	hex(weight_string(c))
 61	120F
@@ -8425,8 +8425,8 @@ SELECT * FROM t1 WHERE CONCAT(c1)='a' AND CONCAT(c1) LIKE 'a ';
 c1
 a 
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE CONCAT(c1)='a' AND CONCAT(c1) LIKE 'a ';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where concat(`test`.`t1`.`c1`) = 'a' and concat(`test`.`t1`.`c1`) like 'a '
 DROP TABLE t1;
@@ -8448,8 +8448,8 @@ SELECT * FROM t1 WHERE 'a'=CONCAT(c1) AND 'a ' LIKE CONCAT(c1);
 c1
 a 
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE 'a'=CONCAT(c1) AND 'a ' LIKE CONCAT(c1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where 'a' = concat(`test`.`t1`.`c1`) and 'a ' like concat(`test`.`t1`.`c1`)
 DROP TABLE t1;
@@ -8471,8 +8471,8 @@ SELECT * FROM t1 WHERE '% '=CONCAT(c1) AND 'a' LIKE CONCAT(c1);
 c1
 %
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE '% '=CONCAT(c1) AND 'a' LIKE CONCAT(c1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where '% ' = concat(`test`.`t1`.`c1`) and 'a' like concat(`test`.`t1`.`c1`)
 DROP TABLE t1;
@@ -8494,8 +8494,8 @@ SELECT * FROM t1 WHERE '%'=CONCAT(c1) AND 'a' LIKE CONCAT(c1);
 c1
 %
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE '%'=CONCAT(c1) AND 'a' LIKE CONCAT(c1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where '%' = concat(`test`.`t1`.`c1`) and 'a' like concat(`test`.`t1`.`c1`)
 DROP TABLE t1;
@@ -8516,8 +8516,8 @@ SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ' AND a='a';
 a	LENGTH(a)
 a	1
 EXPLAIN EXTENDED SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ' AND a='a';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,octet_length(`test`.`t1`.`a`) AS `LENGTH(a)` from `test`.`t1` where `test`.`t1`.`a`  not like 'a ' and `test`.`t1`.`a` = 'a'
 DROP TABLE t1;
@@ -8543,8 +8543,8 @@ ae
 SELECT * FROM t1 WHERE c1='ä' AND c1 LIKE 'ae';
 c1
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE c1='ä' AND c1 LIKE 'ae';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where `test`.`t1`.`c1` = 'ä' and `test`.`t1`.`c1` like 'ae'
 SELECT * FROM t1 WHERE CONCAT(c1)='ä';
@@ -8556,8 +8556,8 @@ ae
 SELECT * FROM t1 WHERE CONCAT(c1)='ä' AND CONCAT(c1) LIKE 'ae';
 c1
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE CONCAT(c1)='ä' AND CONCAT(c1) LIKE 'ae';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where concat(`test`.`t1`.`c1`) = 'ä' and concat(`test`.`t1`.`c1`) like 'ae'
 DROP TABLE IF EXISTS t1;
@@ -8583,8 +8583,8 @@ SELECT * FROM t1 WHERE CONCAT(c1)='a' AND CONCAT(c1) LIKE 'a ';
 c1
 a 
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE CONCAT(c1)='a' AND CONCAT(c1) LIKE 'a ';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where concat(`test`.`t1`.`c1`) = 'a' and concat(`test`.`t1`.`c1`) like 'a '
 DROP TABLE t1;
@@ -8606,8 +8606,8 @@ SELECT * FROM t1 WHERE 'a'=CONCAT(c1) AND 'a ' LIKE CONCAT(c1);
 c1
 a 
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE 'a'=CONCAT(c1) AND 'a ' LIKE CONCAT(c1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where 'a' = concat(`test`.`t1`.`c1`) and 'a ' like concat(`test`.`t1`.`c1`)
 DROP TABLE t1;
@@ -8629,8 +8629,8 @@ SELECT * FROM t1 WHERE '% '=CONCAT(c1) AND 'a' LIKE CONCAT(c1);
 c1
 %
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE '% '=CONCAT(c1) AND 'a' LIKE CONCAT(c1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where '% ' = concat(`test`.`t1`.`c1`) and 'a' like concat(`test`.`t1`.`c1`)
 DROP TABLE t1;
@@ -8652,8 +8652,8 @@ SELECT * FROM t1 WHERE '%'=CONCAT(c1) AND 'a' LIKE CONCAT(c1);
 c1
 %
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE '%'=CONCAT(c1) AND 'a' LIKE CONCAT(c1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where '%' = concat(`test`.`t1`.`c1`) and 'a' like concat(`test`.`t1`.`c1`)
 DROP TABLE t1;
@@ -8674,8 +8674,8 @@ SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ' AND a='a';
 a	LENGTH(a)
 a	1
 EXPLAIN EXTENDED SELECT a, LENGTH(a) FROM t1 WHERE a NOT LIKE 'a ' AND a='a';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,octet_length(`test`.`t1`.`a`) AS `LENGTH(a)` from `test`.`t1` where `test`.`t1`.`a`  not like 'a ' and `test`.`t1`.`a` = 'a'
 DROP TABLE t1;
@@ -8703,8 +8703,8 @@ SELECT * FROM t1 WHERE c1='ä' AND c1 LIKE 'ae';
 c1
 ae
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE c1='ä' AND c1 LIKE 'ae';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where `test`.`t1`.`c1` = 'ä' and `test`.`t1`.`c1` like 'ae'
 SELECT * FROM t1 WHERE CONCAT(c1)='ä';
@@ -8718,8 +8718,8 @@ SELECT * FROM t1 WHERE CONCAT(c1)='ä' AND CONCAT(c1) LIKE 'ae';
 c1
 ae
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE CONCAT(c1)='ä' AND CONCAT(c1) LIKE 'ae';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`c1` AS `c1` from `test`.`t1` where concat(`test`.`t1`.`c1`) = 'ä' and concat(`test`.`t1`.`c1`) like 'ae'
 DROP TABLE IF EXISTS t1;
@@ -13901,13 +13901,13 @@ SELECT * FROM t1 WHERE a='oe' COLLATE utf8_german2_ci AND a='oe';
 a
 oe
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='oe' AND a='oe' COLLATE utf8_german2_ci;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'oe' and `test`.`t1`.`a` = 'oe'
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='oe' COLLATE utf8_german2_ci AND a='oe';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 'oe' and `test`.`t1`.`a` = 'oe'
 DROP TABLE t1;
@@ -14237,8 +14237,8 @@ t1	CREATE TABLE `t1` (
 # Ascending sort, using filesort
 #
 EXPLAIN SELECT a FROM t1 ORDER BY a, BINARY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a_id	97	NULL	96	Using index; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a_id	97	NULL	96	Using index; Using filesort
 SELECT a FROM t1 ORDER BY a, BINARY a;
 a
 -a
@@ -14341,8 +14341,8 @@ vice-versa
 # Descending sort, using filesort
 #
 EXPLAIN SELECT a FROM t1 ORDER BY a DESC, BINARY a DESC;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a_id	97	NULL	96	Using index; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a_id	97	NULL	96	Using index; Using filesort
 SELECT a FROM t1 ORDER BY a DESC, BINARY a DESC;
 a
 ฯพณฯ
@@ -14445,8 +14445,8 @@ A
 # Ascending sort, using index
 #
 EXPLAIN SELECT a FROM t1 ORDER BY a, id;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a_id	97	NULL	96	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a_id	97	NULL	96	Using index
 SELECT a FROM t1 ORDER BY a, id;
 a
 -a
@@ -14549,8 +14549,8 @@ vice-versa
 # Descending sort, using index
 #
 EXPLAIN SELECT a FROM t1 ORDER BY a DESC, id DESC;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a_id	97	NULL	96	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a_id	97	NULL	96	Using index
 SELECT a FROM t1 ORDER BY a DESC, id DESC;
 a
 ฯพณฯ
@@ -14931,8 +14931,8 @@ t1	CREATE TABLE `t1` (
 # Ascending sort, using filesort
 #
 EXPLAIN SELECT a FROM t1 ORDER BY a, BINARY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a_id	67	NULL	96	Using index; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a_id	67	NULL	96	Using index; Using filesort
 SELECT a FROM t1 ORDER BY a, BINARY a;
 a
 -a
@@ -15035,8 +15035,8 @@ vice-versa
 # Descending sort, using filesort
 #
 EXPLAIN SELECT a FROM t1 ORDER BY a DESC, BINARY a DESC;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a_id	67	NULL	96	Using index; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a_id	67	NULL	96	Using index; Using filesort
 SELECT a FROM t1 ORDER BY a DESC, BINARY a DESC;
 a
 ฯพณฯ
@@ -15139,8 +15139,8 @@ A
 # Ascending sort, using index
 #
 EXPLAIN SELECT a FROM t1 ORDER BY a, id;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a_id	67	NULL	96	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a_id	67	NULL	96	Using index
 SELECT a FROM t1 ORDER BY a, id;
 a
 -a
@@ -15243,8 +15243,8 @@ vice-versa
 # Descending sort, using index
 #
 EXPLAIN SELECT a FROM t1 ORDER BY a DESC, id DESC;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a_id	67	NULL	96	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a_id	67	NULL	96	Using index
 SELECT a FROM t1 ORDER BY a DESC, id DESC;
 a
 ฯพณฯ

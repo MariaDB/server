@@ -40,10 +40,10 @@ a	b	c	d
 EXPLAIN SELECT * FROM t1
 WHERE t1.c<25 AND
 (t1.a,t1.c) IN (SELECT t2.e,MAX(t2.g) FROM t2 WHERE t2.e<5 GROUP BY t2.e);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.c<25 AND
 (t1.a,t1.c) IN (SELECT t2.e,MAX(t2.g) FROM t2 WHERE t2.e<5 GROUP BY t2.e);
@@ -132,10 +132,10 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.c>55 AND t1.b<4 AND
 (t1.a,t1.b,t1.c) IN
@@ -233,10 +233,10 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.c>60 OR t1.c<25) AND
 (t1.a,t1.b,t1.c) IN
@@ -332,10 +332,10 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE ((t1.c>60 OR t1.c<25) AND t1.b>2) AND
 (t1.a,t1.b,t1.c) IN
@@ -433,10 +433,10 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE ((t1.a<2 OR t1.d>3) AND t1.b>1) AND
 (t1.a,t1.b,t1.c) IN
@@ -532,10 +532,10 @@ WHERE v1_x>1
 GROUP BY v1_x
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
-2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t3	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.c>20 AND
 (t1.a,t1.c) IN
@@ -631,11 +631,11 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	8	Using where
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t3.y	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t3.y	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1,v1
 WHERE t1.c>20 AND t1.c=v1_y AND
 (t1.a,t1.c) IN
@@ -747,10 +747,10 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.a<2 AND
 (t1.a,t1.c) IN
@@ -847,10 +847,10 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.a>2 AND t1.a<5 AND
 (t1.a,t1.c) IN
@@ -949,10 +949,10 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.a<2 OR t1.a>=4) AND
 (t1.a,t1.c) IN
@@ -1047,10 +1047,10 @@ WHERE t2.e<5
 GROUP BY t2.e,t2.f
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE ((t1.a<2 OR t1.a=5) AND t1.b>3) AND
 (t1.a,t1.b,t1.c) IN
@@ -1145,10 +1145,10 @@ WHERE t2.e<5
 GROUP BY t2.e,t2.f
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE ((t1.a<2 OR t1.a=5) AND t1.b>3) AND
 (t1.a,t1.b,t1.c) IN
@@ -1243,10 +1243,10 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE ((t1.b<3 OR t1.d>2) AND t1.a<2) AND
 (t1.a,t1.b,t1.c) IN
@@ -1341,10 +1341,10 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	const,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	const,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.d=1 AND t1.a=t1.d AND
 (t1.a,t1.c) IN
@@ -1437,10 +1437,10 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.d>1 AND t1.a=t1.d AND
 (t1.a,t1.c) IN
@@ -1533,10 +1533,10 @@ WHERE v1_x>1
 GROUP BY v1_x
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
-2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t3	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.a<3 AND
 (t1.a,t1.c) IN
@@ -1633,11 +1633,11 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	8	Using where
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t3.x,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t3.x,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1,v1
 WHERE t1.a=v1_x AND v1_x<2 AND v1_y>30 AND
 (t1.a,t1.c) IN
@@ -1747,10 +1747,10 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE ((t1.b<3 OR t1.b=4) AND t1.a<3) AND
 (t1.a,t1.b,t1.c) IN
@@ -1846,10 +1846,10 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.a+t1.c>41) AND
 (t1.a,t1.c) IN
@@ -1947,10 +1947,10 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.c-t1.a<35) AND
 (t1.a,t1.c) IN
@@ -2046,10 +2046,10 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.c*t1.a>100) AND
 (t1.a,t1.c) IN
@@ -2149,10 +2149,10 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.c/t1.a>30) AND
 (t1.a,t1.c) IN
@@ -2248,10 +2248,10 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.c BETWEEN 50 AND 100) AND
 (t1.a,t1.c) IN
@@ -2347,10 +2347,10 @@ WHERE t2.e<5
 GROUP BY t2.e,t2.f
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.a+t1.b > 5) AND
 (t1.a,t1.b,t1.c) IN
@@ -2445,10 +2445,10 @@ WHERE t2.e<5
 GROUP BY t2.e,t2.f
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.a-t1.b > 0) AND
 (t1.a,t1.b,t1.c) IN
@@ -2543,10 +2543,10 @@ WHERE t2.e<5
 GROUP BY t2.e,t2.f
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.a*t1.b > 6) AND
 (t1.a,t1.b,t1.c) IN
@@ -2643,10 +2643,10 @@ WHERE t2.e<5
 GROUP BY t2.e,t2.f
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.b/t1.a > 2) AND
 (t1.a,t1.b,t1.c) IN
@@ -2747,10 +2747,10 @@ WHERE t2.e<5
 GROUP BY t2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.a BETWEEN 1 AND 3) AND
 (t1.a,t1.c) IN
@@ -2848,11 +2848,11 @@ WHERE v2.e<5
 GROUP BY v2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.c>3 AND
 (t1.a,t1.b,t1.c) IN
@@ -2972,11 +2972,11 @@ WHERE v2.e<5
 GROUP BY v2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.a>1 AND
 (t1.a,t1.b,t1.c) IN
@@ -3096,11 +3096,11 @@ WHERE v2.e<5
 GROUP BY v2.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.a>1 AND t1.c<100 AND
 (t1.a,t1.b,t1.c) IN
@@ -3238,11 +3238,11 @@ WHERE d_tab.e<5
 GROUP BY d_tab.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.a>1 AND
 (t1.a,t1.b,t1.c) IN
@@ -3403,11 +3403,11 @@ WHERE d_tab.e<5
 GROUP BY d_tab.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.a>1 AND
 (t1.a,t1.b,t1.c) IN
@@ -3569,11 +3569,11 @@ WHERE d_tab.e<5
 GROUP BY d_tab.e
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+2	MATERIALIZED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE t1.a>1 AND
 (t1.a,t1.b,t1.c) IN
@@ -3716,12 +3716,12 @@ HAVING t2.f<5
 GROUP BY t1.a
 ) AS d_tab
 WHERE d_tab.a=t3.x AND d_tab.a<5 AND d_tab.max_c<70;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	8	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.x	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	16	Using where; Using temporary; Using filesort
-2	DERIVED	<subquery3>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t3.x	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where; Using temporary; Using filesort
+2	DERIVED	<subquery3>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+3	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT *
 FROM t3,
 (
@@ -3901,12 +3901,12 @@ HAVING t2.f<5
 GROUP BY t1.a
 ) AS d_tab
 WHERE d_tab.a=t3.x AND d_tab.a<5 AND d_tab.max_c<70;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	8	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.x	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	16	Using where; Using temporary; Using filesort
-2	DERIVED	<subquery3>	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t3.x	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where; Using temporary; Using filesort
+2	DERIVED	<subquery3>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.a,test.t1.b,test.t1.c	1	
+3	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT *
 FROM t3,
 (
@@ -4048,10 +4048,10 @@ FROM t2
 WHERE t2.e<5
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.b,test.t1.c	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.b,test.t1.c	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.b>1) AND
 (t1.b, t1.c) IN
@@ -4152,10 +4152,10 @@ FROM t2
 WHERE t2.e<5
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	16	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	12	test.t1.b,test.t1.c	1	Using where
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	12	test.t1.b,test.t1.c	1	Using where
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.b>1) AND
 (t1.b, t1.c) IN

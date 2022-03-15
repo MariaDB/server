@@ -353,16 +353,11 @@ int print_explain_row(select_result_sink *result,
                       mem_root);
   item_list.push_back(new (mem_root) Item_string_sys(thd, table_name),
                       mem_root);
-  if (options & DESCRIBE_PARTITIONS)
-  {
-    if (partitions)
-    {
-      item_list.push_back(new (mem_root) Item_string_sys(thd, partitions),
-                          mem_root);
-    }
-    else
-      item_list.push_back(item_null, mem_root);
-  }
+  if (partitions)
+    item_list.push_back(new (mem_root) Item_string_sys(thd, partitions),
+                        mem_root);
+  else
+    item_list.push_back(item_null, mem_root);
   
   const char *jtype_str= join_type_str[jtype];
   item_list.push_back(new (mem_root) Item_string_sys(thd, jtype_str),
@@ -530,8 +525,7 @@ int Explain_union::print_explain(Explain_query *query,
                       mem_root);
   
   /* `partitions` column */
-  if (explain_flags & DESCRIBE_PARTITIONS)
-    item_list.push_back(item_null, mem_root);
+  item_list.push_back(item_null, mem_root);
 
   /* `type` column */
   push_str(thd, &item_list, join_type_str[JT_ALL]);
@@ -797,8 +791,7 @@ int Explain_select::print_explain(Explain_query *query,
                         mem_root);
     for (uint i=0 ; i < 7; i++)
       item_list.push_back(item_null, mem_root);
-    if (explain_flags & DESCRIBE_PARTITIONS)
-      item_list.push_back(item_null, mem_root);
+    item_list.push_back(item_null, mem_root);
 
     /* filtered */
     if (is_analyze || explain_flags & DESCRIBE_EXTENDED)
@@ -1297,15 +1290,10 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
   push_string(thd, &item_list, &table_name);
   
   /* `partitions` column */
-  if (explain_flags & DESCRIBE_PARTITIONS)
-  {
-    if (used_partitions_set)
-    {
-      push_string(thd, &item_list, &used_partitions);
-    }
-    else
-      item_list.push_back(item_null, mem_root);
-  }
+  if (used_partitions_set)
+    push_string(thd, &item_list, &used_partitions);
+  else
+    item_list.push_back(item_null, mem_root);
 
   /* `type` column */
    StringBuffer<64> join_type_buf;

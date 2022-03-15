@@ -28,18 +28,18 @@ NULL	2	NULL
 explain extended
 select a, oref, a in (select max(ie) 
 from t1 where oref=t2.oref group by grp) Z from t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	DEPENDENT SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using temporary
 Warnings:
 Note	1276	Field or reference 'test.t2.oref' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`oref` AS `oref`,<expr_cache><`test`.`t2`.`a`,`test`.`t2`.`oref`>(<in_optimizer>(`test`.`t2`.`a`,<exists>(/* select#2 */ select max(`test`.`t1`.`ie`) from `test`.`t1` where `test`.`t1`.`oref` = `test`.`t2`.`oref` group by `test`.`t1`.`grp` having trigcond(<cache>(`test`.`t2`.`a`) = <ref_null_helper>(max(`test`.`t1`.`ie`)))))) AS `Z` from `test`.`t2`
 explain extended
 select a, oref from t2 
 where a in (select max(ie) from t1 where oref=t2.oref group by grp);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+2	DEPENDENT SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using temporary
 Warnings:
 Note	1276	Field or reference 'test.t2.oref' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`oref` AS `oref` from `test`.`t2` where <expr_cache><`test`.`t2`.`a`,`test`.`t2`.`oref`>(<in_optimizer>(`test`.`t2`.`a`,<exists>(/* select#2 */ select max(`test`.`t1`.`ie`) from `test`.`t1` where `test`.`t1`.`oref` = `test`.`t2`.`oref` group by `test`.`t1`.`grp` having <cache>(`test`.`t2`.`a`) = <ref_null_helper>(max(`test`.`t1`.`ie`)))))
@@ -69,9 +69,9 @@ Z
 set @save_optimizer_switch=@@optimizer_switch;
 set @@optimizer_switch="partial_match_rowid_merge=off,partial_match_table_scan=off";
 explain extended select a in (select max(ie) from t1 where oref=4 group by grp) from t3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DEPENDENT SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where; Using temporary
 Warnings:
 Note	1003	/* select#1 */ select <expr_cache><`test`.`t3`.`a`>(<in_optimizer>(`test`.`t3`.`a`,<exists>(/* select#2 */ select max(`test`.`t1`.`ie`) from `test`.`t1` where `test`.`t1`.`oref` = 4 group by `test`.`t1`.`grp` having trigcond(<cache>(`test`.`t3`.`a`) = <ref_null_helper>(max(`test`.`t1`.`ie`)))))) AS `a in (select max(ie) from t1 where oref=4 group by grp)` from `test`.`t3`
 set @@optimizer_switch=@save_optimizer_switch;
@@ -94,9 +94,9 @@ oref	a	Z
 4	NULL	0
 explain extended 
 select oref, a, a in (select a from t1 where oref=t2.oref) Z from t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	
-2	DEPENDENT SUBQUERY	t1	ALL	a	NULL	NULL	NULL	8	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DEPENDENT SUBQUERY	t1	NULL	ALL	a	NULL	NULL	NULL	8	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t2.oref' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t2`.`oref` AS `oref`,`test`.`t2`.`a` AS `a`,<expr_cache><`test`.`t2`.`a`,`test`.`t2`.`oref`>(<in_optimizer>(`test`.`t2`.`a`,<exists>(/* select#2 */ select `test`.`t1`.`a` from `test`.`t1` where `test`.`t1`.`oref` = `test`.`t2`.`oref` and trigcond(<cache>(`test`.`t2`.`a`) = `test`.`t1`.`a` or `test`.`t1`.`a` is null) having trigcond(`test`.`t1`.`a` is null)))) AS `Z` from `test`.`t2`
@@ -163,10 +163,10 @@ explain extended
 select a, oref, 
 t3.a in (select t1.a from t1, t2 where t1.b=t2.a and t2.b=t3.oref) Z 
 from t3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	
-2	DEPENDENT SUBQUERY	t1	ref_or_null	a	a	5	func	4	100.00	Using where; Full scan on NULL key
-2	DEPENDENT SUBQUERY	t2	ref	a	a	5	test.t1.b	1	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DEPENDENT SUBQUERY	t1	NULL	ref_or_null	a	a	5	func	4	100.00	Using where; Full scan on NULL key
+2	DEPENDENT SUBQUERY	t2	NULL	ref	a	a	5	test.t1.b	1	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t3.oref' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t3`.`a` AS `a`,`test`.`t3`.`oref` AS `oref`,<expr_cache><`test`.`t3`.`a`,`test`.`t3`.`oref`>(<in_optimizer>(`test`.`t3`.`a`,<exists>(/* select#2 */ select `test`.`t1`.`a` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`b` = `test`.`t3`.`oref` and trigcond(<cache>(`test`.`t3`.`a`) = `test`.`t1`.`a` or `test`.`t1`.`a` is null) and `test`.`t2`.`a` = `test`.`t1`.`b` having trigcond(`test`.`t1`.`a` is null)))) AS `Z` from `test`.`t3`
@@ -191,10 +191,10 @@ explain extended
 select a, oref, 
 t3.a in (select t1.a from t1, t2 where t1.b=t2.a and t2.b=t3.oref) Z 
 from t3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	
-2	DEPENDENT SUBQUERY	t1	ref	a	a	4	func	2	100.00	Using where; Full scan on NULL key
-2	DEPENDENT SUBQUERY	t2	ref	a	a	4	test.t1.b	1	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DEPENDENT SUBQUERY	t1	NULL	ref	a	a	4	func	2	100.00	Using where; Full scan on NULL key
+2	DEPENDENT SUBQUERY	t2	NULL	ref	a	a	4	test.t1.b	1	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t3.oref' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t3`.`a` AS `a`,`test`.`t3`.`oref` AS `oref`,<expr_cache><`test`.`t3`.`a`,`test`.`t3`.`oref`>(<in_optimizer>(`test`.`t3`.`a`,<exists>(/* select#2 */ select `test`.`t1`.`a` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`b` = `test`.`t3`.`oref` and trigcond(<cache>(`test`.`t3`.`a`) = `test`.`t1`.`a`) and `test`.`t2`.`a` = `test`.`t1`.`b`))) AS `Z` from `test`.`t3`
@@ -216,9 +216,9 @@ This must show a trig_cond:
 explain extended
 select a, oref, 
 a in (select count(*) from t1 group by grp having grp=t2.oref) Z from t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DEPENDENT SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary
 Warnings:
 Note	1276	Field or reference 't2.oref' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`oref` AS `oref`,<expr_cache><`test`.`t2`.`a`,`test`.`t2`.`oref`>(<in_optimizer>(`test`.`t2`.`a`,<exists>(/* select#2 */ select count(0) from `test`.`t1` group by `test`.`t1`.`grp` having `test`.`t1`.`grp` = `test`.`t2`.`oref` and trigcond(<cache>(`test`.`t2`.`a`) = <ref_null_helper>(count(0)))))) AS `Z` from `test`.`t2`
@@ -248,9 +248,9 @@ insert into t2 values (NULL,1, 100), (NULL,2, 100);
 create table t1 (a int, b int, c int, key(a,b));
 insert into t1 select 2*A, 2*A, 100 from t3;
 explain extended select a,b, oref, (a,b) in (select a,b from t1 where c=t2.oref) Z from t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	DEPENDENT SUBQUERY	t1	index_subquery	a	a	5	func	2	100.00	Using where; Full scan on NULL key
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DEPENDENT SUBQUERY	t1	NULL	index_subquery	a	a	5	func	2	100.00	Using where; Full scan on NULL key
 Warnings:
 Note	1276	Field or reference 'test.t2.oref' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`oref` AS `oref`,<expr_cache><`test`.`t2`.`a`,`test`.`t2`.`b`,`test`.`t2`.`oref`>(<in_optimizer>((`test`.`t2`.`a`,`test`.`t2`.`b`),<exists>(<index_lookup>(<cache>(`test`.`t2`.`a`) in t1 on a checking NULL where `test`.`t1`.`c` = `test`.`t2`.`oref` and trigcond(trigcond(<cache>(`test`.`t2`.`a`) = `test`.`t1`.`a` or `test`.`t1`.`a` is null)) and trigcond(trigcond(<cache>(`test`.`t2`.`b`) = `test`.`t1`.`b` or `test`.`t1`.`b` is null)) having trigcond(`test`.`t1`.`a` is null) and trigcond(`test`.`t1`.`b` is null))))) AS `Z` from `test`.`t2`
@@ -264,10 +264,10 @@ explain extended
 select a,b, oref, 
 (a,b) in (select a,b from t1,t4 where c=t2.oref) Z 
 from t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	DEPENDENT SUBQUERY	t1	ref_or_null	a	a	5	func	2	100.00	Using where; Full scan on NULL key
-2	DEPENDENT SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	100	100.00	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DEPENDENT SUBQUERY	t1	NULL	ref_or_null	a	a	5	func	2	100.00	Using where; Full scan on NULL key
+2	DEPENDENT SUBQUERY	t4	NULL	ALL	NULL	NULL	NULL	NULL	100	100.00	Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'test.t2.oref' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`oref` AS `oref`,<expr_cache><`test`.`t2`.`a`,`test`.`t2`.`b`,`test`.`t2`.`oref`>(<in_optimizer>((`test`.`t2`.`a`,`test`.`t2`.`b`),<exists>(/* select#2 */ select `test`.`t1`.`a`,`test`.`t1`.`b` from `test`.`t1` join `test`.`t4` where `test`.`t1`.`c` = `test`.`t2`.`oref` and trigcond(trigcond(<cache>(`test`.`t2`.`a`) = `test`.`t1`.`a` or `test`.`t1`.`a` is null)) and trigcond(trigcond(<cache>(`test`.`t2`.`b`) = `test`.`t1`.`b` or `test`.`t1`.`b` is null)) having trigcond(`test`.`t1`.`a` is null) and trigcond(`test`.`t1`.`b` is null)))) AS `Z` from `test`.`t2`
@@ -310,9 +310,9 @@ oref	a	b	Z
 new1	10	10	NULL
 explain extended
 select oref, a, b, (a,b) in (select ie1,ie2 from t1 where oref=t2.oref) Z from t2 where a=10 and b=10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
-2	DEPENDENT SUBQUERY	t1	index_subquery	idx	idx	5	func	4	100.00	Using where; Full scan on NULL key
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+2	DEPENDENT SUBQUERY	t1	NULL	index_subquery	idx	idx	5	func	4	100.00	Using where; Full scan on NULL key
 Warnings:
 Note	1276	Field or reference 'test.t2.oref' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t2`.`oref` AS `oref`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,<expr_cache><`test`.`t2`.`a`,`test`.`t2`.`b`,`test`.`t2`.`oref`>(<in_optimizer>((`test`.`t2`.`a`,`test`.`t2`.`b`),<exists>(<index_lookup>(<cache>(`test`.`t2`.`a`) in t1 on idx checking NULL where `test`.`t1`.`oref` = `test`.`t2`.`oref` and trigcond(trigcond(<cache>(`test`.`t2`.`a`) = `test`.`t1`.`ie1` or `test`.`t1`.`ie1` is null)) and trigcond(trigcond(<cache>(`test`.`t2`.`b`) = `test`.`t1`.`ie2` or `test`.`t1`.`ie2` is null)) having trigcond(`test`.`t1`.`ie1` is null) and trigcond(`test`.`t1`.`ie2` is null))))) AS `Z` from `test`.`t2` where `test`.`t2`.`a` = 10 and `test`.`t2`.`b` = 10
@@ -419,9 +419,9 @@ aa	1
 dd	NULL
 alter table t1 add index idx(ie);
 explain select oref, a, a in (select ie from t1 where oref=t2.oref) Z from t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	7	
-2	DEPENDENT SUBQUERY	t1	index_subquery	idx	idx	5	func	4	Using where; Full scan on NULL key
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	7	
+2	DEPENDENT SUBQUERY	t1	NULL	index_subquery	idx	idx	5	func	4	Using where; Full scan on NULL key
 select oref, a, a in (select ie from t1 where oref=t2.oref) Z from t2;
 oref	a	Z
 ee	NULL	NULL
@@ -442,9 +442,9 @@ dd	NULL
 alter table t1 drop index idx;
 alter table t1 add index idx(oref,ie);
 explain select oref, a, a in (select ie from t1 where oref=t2.oref) Z from t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	7	
-2	DEPENDENT SUBQUERY	t1	ref_or_null	idx	idx	10	test.t2.oref,func	4	Using where; Using index; Full scan on NULL key
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	7	
+2	DEPENDENT SUBQUERY	t1	NULL	ref_or_null	idx	idx	10	test.t2.oref,func	4	Using where; Using index; Full scan on NULL key
 select oref, a, a in (select ie from t1 where oref=t2.oref) Z from t2;
 oref	a	Z
 ee	NULL	NULL
@@ -467,9 +467,9 @@ select oref, a,
 a in (select min(ie) from t1 where oref=t2.oref 
 group by grp having min(ie) > 1) Z 
 from t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	7	
-2	DEPENDENT SUBQUERY	t1	ref	idx	idx	5	test.t2.oref	2	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	7	
+2	DEPENDENT SUBQUERY	t1	NULL	ref	idx	idx	5	test.t2.oref	2	Using where; Using temporary
 select oref, a, 
 a in (select min(ie) from t1 where oref=t2.oref 
 group by grp having min(ie) > 1) Z 
@@ -558,9 +558,9 @@ ff	2	2
 dd	1	NULL
 alter table t1 add index idx(ie1,ie2);
 explain select oref, a, b, (a,b) in (select ie1,ie2 from t1 where oref=t2.oref) Z from t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	7	
-2	DEPENDENT SUBQUERY	t1	index_subquery	idx	idx	5	func	4	Using where; Full scan on NULL key
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	7	
+2	DEPENDENT SUBQUERY	t1	NULL	index_subquery	idx	idx	5	func	4	Using where; Full scan on NULL key
 select oref, a, b, (a,b) in (select ie1,ie2 from t1 where oref=t2.oref) Z from t2;
 oref	a	b	Z
 ee	NULL	1	NULL
@@ -580,9 +580,9 @@ bb	2	1
 dd	1	NULL
 explain extended 
 select oref, a, b, (a,b) in (select ie1,ie2 from t1 where oref=t2.oref) Z from t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	7	100.00	
-2	DEPENDENT SUBQUERY	t1	index_subquery	idx	idx	5	func	4	100.00	Using where; Full scan on NULL key
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	
+2	DEPENDENT SUBQUERY	t1	NULL	index_subquery	idx	idx	5	func	4	100.00	Using where; Full scan on NULL key
 Warnings:
 Note	1276	Field or reference 'test.t2.oref' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t2`.`oref` AS `oref`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,<expr_cache><`test`.`t2`.`a`,`test`.`t2`.`b`,`test`.`t2`.`oref`>(<in_optimizer>((`test`.`t2`.`a`,`test`.`t2`.`b`),<exists>(<index_lookup>(<cache>(`test`.`t2`.`a`) in t1 on idx checking NULL where `test`.`t1`.`oref` = `test`.`t2`.`oref` and trigcond(trigcond(<cache>(`test`.`t2`.`a`) = `test`.`t1`.`ie1` or `test`.`t1`.`ie1` is null)) and trigcond(trigcond(<cache>(`test`.`t2`.`b`) = `test`.`t1`.`ie2` or `test`.`t1`.`ie2` is null)) having trigcond(`test`.`t1`.`ie1` is null) and trigcond(`test`.`t1`.`ie2` is null))))) AS `Z` from `test`.`t2`
@@ -605,9 +605,9 @@ insert into t2 values
 ('aa', 1),
 ('bb', NULL);
 explain select oref, a, a in (select ie from t1 where oref=t2.oref) Z from t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	7	
-2	DEPENDENT SUBQUERY	t1	unique_subquery	PRIMARY	PRIMARY	4	func	1	Using where; Full scan on NULL key
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	7	
+2	DEPENDENT SUBQUERY	t1	NULL	unique_subquery	PRIMARY	PRIMARY	4	func	1	Using where; Full scan on NULL key
 select oref, a, a in (select ie from t1 where oref=t2.oref) Z from t2;
 oref	a	Z
 ee	NULL	0
@@ -628,9 +628,9 @@ bb	2
 cc	2
 explain 
 select oref, a, a in (select min(ie) from t1 where oref=t2.oref group by grp) Z from t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	7	
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	6	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	7	
+2	DEPENDENT SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	6	Using where; Using temporary
 select oref, a, a in (select min(ie) from t1 where oref=t2.oref group by grp) Z from t2;
 oref	a	Z
 ee	NULL	0
@@ -711,10 +711,10 @@ INSERT INTO t1 VALUES (1), (NULL), (4);
 INSERT INTO t2 VALUES (3), (1),(2), (5), (4), (7), (6);
 EXPLAIN EXTENDED 
 SELECT a FROM t1, t2 WHERE a=b AND (b NOT IN (SELECT a FROM t1));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-1	PRIMARY	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	100.00	Using index
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	PRIMARY	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	100.00	Using index
+2	DEPENDENT SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`b` = `test`.`t1`.`a` and !<expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,<exists>(/* select#2 */ select `test`.`t1`.`a` from `test`.`t1` where trigcond(<cache>(`test`.`t2`.`b`) = `test`.`t1`.`a` or `test`.`t1`.`a` is null) having trigcond(`test`.`t1`.`a` is null))))
 SELECT a FROM t1, t2 WHERE a=b AND (b NOT IN (SELECT a FROM t1));
@@ -734,10 +734,10 @@ EXPLAIN
 SELECT * FROM t1
 WHERE t1.id NOT IN (SELECT t2.id FROM t2,t3 
 WHERE t3.name='xxx' AND t2.id=t3.id);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	DEPENDENT SUBQUERY	t2	eq_ref	PRIMARY	PRIMARY	4	func	1	Using where; Using index; Full scan on NULL key
-2	DEPENDENT SUBQUERY	t3	eq_ref	PRIMARY	PRIMARY	4	test.t2.id	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	func	1	Using where; Using index; Full scan on NULL key
+2	DEPENDENT SUBQUERY	t3	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t2.id	1	Using where
 SELECT * FROM t1
 WHERE t1.id NOT IN (SELECT t2.id FROM t2,t3 
 WHERE t3.name='xxx' AND t2.id=t3.id);
@@ -768,9 +768,9 @@ a
 1
 -1
 EXPLAIN SELECT a FROM t1 WHERE a NOT IN (SELECT a FROM t2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	DEPENDENT SUBQUERY	t2	unique_subquery	PRIMARY	PRIMARY	4	func	1	Using index; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	unique_subquery	PRIMARY	PRIMARY	4	func	1	Using index; Using where
 DROP TABLE t1, t2;
 set @@optimizer_switch=@save_optimizer_switch;
 CREATE TABLE t1 (a INT);
@@ -848,10 +848,10 @@ x	ROW(11, 12) = (SELECT MAX(x), 22)	ROW(11, 12) IN (SELECT MAX(x), 22)
 11	0	0
 # 2nd and 3rd columns should be same
 EXPLAIN SELECT a AS x, ROW(11, 12) = (SELECT MAX(x), 12), ROW(11, 12) IN (SELECT MAX(x), 12) FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
-3	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+3	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 SELECT a AS x, ROW(11, 12) = (SELECT MAX(x), 12), ROW(11, 12) IN (SELECT MAX(x), 12) FROM t1;
 x	ROW(11, 12) = (SELECT MAX(x), 12)	ROW(11, 12) IN (SELECT MAX(x), 12)
 1	0	0
@@ -1032,11 +1032,11 @@ set @@optimizer_switch='materialization=off';
 update t22 set c = '2005-12-08 15:58:27' where a = 255;
 explain select t21.* from t21,t22 where t21.a = t22.a and 
 t22.a in (select t12.a from t11, t12 where t11.a in(255,256) and t11.a = t12.a and t11.c is null) and t22.c is null order by t21.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t11	ALL	NULL	NULL	NULL	NULL	8	Using where; Start temporary; Using temporary; Using filesort
-1	PRIMARY	t12	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	t22	ALL	NULL	NULL	NULL	NULL	26	Using where; End temporary; Using join buffer (flat, BNL join)
-1	PRIMARY	t21	ALL	NULL	NULL	NULL	NULL	26	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t11	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Start temporary; Using temporary; Using filesort
+1	PRIMARY	t12	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t22	NULL	ALL	NULL	NULL	NULL	NULL	26	Using where; End temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t21	NULL	ALL	NULL	NULL	NULL	NULL	26	Using where; Using join buffer (flat, BNL join)
 select t21.* from t21,t22 where t21.a = t22.a and 
 t22.a in (select t12.a from t11, t12 where t11.a in(255,256) and t11.a = t12.a and t11.c is null) and t22.c is null order by t21.a;
 a	b	c
@@ -1048,10 +1048,10 @@ insert into t1 values (0),(1);
 set @@optimizer_switch='firstmatch=off,materialization=off';
 explain 
 select (select max(Y.a) from t1 Y where a in (select a from t1 Z) and a < X.a) as subq from t1 X;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	X	ALL	NULL	NULL	NULL	NULL	2	
-2	DEPENDENT SUBQUERY	Y	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	Z	ALL	NULL	NULL	NULL	NULL	2	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	X	NULL	ALL	NULL	NULL	NULL	NULL	2	
+2	DEPENDENT SUBQUERY	Y	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	Z	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
 select (select max(Y.a) from t1 Y where a in (select a from t1 Z) and a < X.a) as subq from t1 X;
 subq
 NULL
@@ -1065,9 +1065,9 @@ insert into t1 select a+10 from t0;
 set @@optimizer_switch='firstmatch=off,materialization=off';
 insert into t0 values(2);
 explain select * from t1 where 2 in (select a from t0);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	11	Using where; Start temporary; End temporary
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t0	NULL	ALL	NULL	NULL	NULL	NULL	11	Using where; Start temporary; End temporary
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
 select * from t1 where 2 in (select a from t0);
 a
 0
@@ -1093,9 +1093,9 @@ a
 set @@optimizer_switch=@save_optimizer_switch;
 set @@optimizer_switch='materialization=off';
 explain select * from t1 where 2 in (select a from t0);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	11	Using where; FirstMatch
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t0	NULL	ALL	NULL	NULL	NULL	NULL	11	Using where; FirstMatch
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
 select * from t1 where 2 in (select a from t0);
 a
 0
@@ -1124,10 +1124,10 @@ set @@optimizer_switch='materialization=off';
 set @tmp_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='derived_merge=off,derived_with_keys=off';
 explain select * from (select a from t0) X where a in (select a from t1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	11	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; FirstMatch(<derived2>); Using join buffer (flat, BNL join)
-2	DERIVED	t0	ALL	NULL	NULL	NULL	NULL	11	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	11	
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; FirstMatch(<derived2>); Using join buffer (flat, BNL join)
+2	DERIVED	t0	NULL	ALL	NULL	NULL	NULL	NULL	11	
 drop table t0, t1;
 set optimizer_switch=@tmp_optimizer_switch;
 create table t0 (a int);
@@ -1138,17 +1138,17 @@ insert into t1 select * from t1 where kp1 < 20;
 create table t3 (a int);
 insert into t3 select A.a + 10*B.a from t0 A, t0 B;
 explain select * from t3 where a in (select kp1 from t1 where kp1<20);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	100	Using where
-1	PRIMARY	t1	ref	kp1	kp1	5	test.t3.a	1	Using index; FirstMatch(t3)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	PRIMARY	t1	NULL	ref	kp1	kp1	5	test.t3.a	1	Using index; FirstMatch(t3)
 create table t4 (pk int primary key);
 insert into t4 select a from t3;
 explain select * from t3 where a in (select t1.kp1 from t1,t4 where kp1<20
 and t4.pk=t1.c);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	100	Using where
-1	PRIMARY	t1	ref	kp1	kp1	5	test.t3.a	1	Using where
-1	PRIMARY	t4	eq_ref	PRIMARY	PRIMARY	4	test.t1.c	1	Using index; FirstMatch(t3)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	PRIMARY	t1	NULL	ref	kp1	kp1	5	test.t3.a	1	Using where
+1	PRIMARY	t4	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.c	1	Using index; FirstMatch(t3)
 drop table t1, t3, t4;
 set @@optimizer_switch=@save_optimizer_switch;
 create table t1 (a int) as select * from t0 where a < 5;
@@ -1156,12 +1156,12 @@ set @save_max_heap_table_size=@@max_heap_table_size;
 set @@optimizer_switch='firstmatch=off,materialization=off';
 set @@max_heap_table_size= 16384;
 explain select count(*) from t0 A, t0 B, t0 C, t0 D where D.a in (select a from t1 E where a+1 < 10000 + A.a + B.a +C.a+D.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	
-1	PRIMARY	B	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
-1	PRIMARY	E	ALL	NULL	NULL	NULL	NULL	5	Start temporary; Using join buffer (flat, BNL join)
-1	PRIMARY	D	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	C	ALL	NULL	NULL	NULL	NULL	10	Using where; End temporary; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	NULL	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	B	NULL	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
+1	PRIMARY	E	NULL	ALL	NULL	NULL	NULL	NULL	5	Start temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	D	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	C	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where; End temporary; Using join buffer (flat, BNL join)
 flush status;
 select count(*) from t0 A, t0 B, t0 C, t0 D where D.a in (select a from t1 E where a+1 < 10000 + A.a + B.a +C.a+D.a);
 count(*)
@@ -1179,10 +1179,10 @@ insert into t2 values (1),(2);
 create table t3 ( a int , filler char(100), key(a));
 insert into t3 select A.a + 10*B.a, 'filler' from t0 A, t0 B;
 explain select * from t3 where a in (select a from t2) and (a > 5 or a < 10);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	ref	a	a	5	test.t2.a	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	2	
+1	PRIMARY	t3	NULL	ref	a	a	5	test.t2.a	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
 select * from t3 where a in (select a from t2);
 a	filler
 1	filler
@@ -1197,28 +1197,28 @@ create table t3 (a char(10));
 insert into t3 select * from t1;
 insert into t3 values (1),(2);
 explain select * from t2 where a in (select a from t1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
 explain select * from t2 where a in (select a from t2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
 explain select * from t2 where a in (select a from t3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	6	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	6	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
 explain select * from t1 where a in (select a from t3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	6	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	6	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
 drop table t1, t2, t3;
 create table t1 (a decimal);
 insert into t1 values (1),(2);
 explain select * from t1 where a in (select a from t1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
 drop table t1;
 set @@optimizer_switch=@save_optimizer_switch;
 set @@optimizer_switch=@save_optimizer_switch;
@@ -1229,45 +1229,45 @@ create table t2 as select * from t1;
 create table t3 (a int, b int, filler char(100), key(a));
 insert into t3 select A.a + 10*B.a, A.a + 10*B.a, 'filler' from t1 A, t1 B, t1 C;
 explain select * from t1, t3 where t3.a in (select a from t2) and (t3.a < 10 or t3.a >30) and t1.a =3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Start temporary; Using join buffer (flat, BNL join)
-1	PRIMARY	t3	ref	a	a	5	test.t2.a	10	End temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where; Start temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t3	NULL	ref	a	a	5	test.t2.a	10	End temporary
 explain select straight_join * from t1 A, t1 B where A.a in (select a from t2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	PRIMARY	B	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
-2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	PRIMARY	B	NULL	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 explain select * from t2 where a in (select straight_join A.a from t1 A, t1 B);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	DEPENDENT SUBQUERY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	DEPENDENT SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	A	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	B	NULL	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
 explain select * from t2 where a in (select straight_join A.a from t1 A, t1 B);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	DEPENDENT SUBQUERY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	DEPENDENT SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	A	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	B	NULL	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
 explain select straight_join * from t2 X, t2 Y 
 where X.a in (select straight_join A.a from t1 A, t1 B);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	X	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	PRIMARY	Y	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
-2	DEPENDENT SUBQUERY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	DEPENDENT SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	X	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	PRIMARY	Y	NULL	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
+2	DEPENDENT SUBQUERY	A	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	B	NULL	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
 create table t0 (a int, b int);
 insert into t0 values(1,1);
 explain select * from t0, t3 where t3.a in (select a from t2) and (t3.a < 10 or t3.a >30);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t0	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; Start temporary
-1	PRIMARY	t3	ref	a	a	5	test.t2.a	10	End temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t0	NULL	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where; Start temporary
+1	PRIMARY	t3	NULL	ref	a	a	5	test.t2.a	10	End temporary
 create table t4 as select a as x, a as y from t1;
 explain select * from t0, t3 where (t3.a, t3.b) in (select x,y from t4) and (t3.a < 10 or t3.a >30);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t0	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	10	Using where; Start temporary
-1	PRIMARY	t3	ref	a	a	5	test.t4.x	10	Using where; End temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t0	NULL	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t4	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where; Start temporary
+1	PRIMARY	t3	NULL	ref	a	a	5	test.t4.x	10	Using where; End temporary
 drop table t0,t1,t2,t3,t4;
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
@@ -1275,13 +1275,13 @@ create table t1 (a int, b int, filler char(100), key(a,b));
 insert into t1 select A.a, B.a, 'filler' from t0 A, t0 B;
 create table t2 as select * from t1;
 explain select * from t2 where a in (select b from t1 where a=3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	100	Using where
-1	PRIMARY	t1	ref	a	a	10	const,test.t2.a	1	Using index; FirstMatch(t2)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	PRIMARY	t1	NULL	ref	a	a	10	const,test.t2.a	1	Using index; FirstMatch(t2)
 explain select * from t2 where (b,a) in (select a,b from t1 where a=3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	100	Using where
-1	PRIMARY	t1	ref	a	a	10	const,test.t2.a	1	Using index; FirstMatch(t2)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	PRIMARY	t1	NULL	ref	a	a	10	const,test.t2.a	1	Using index; FirstMatch(t2)
 drop table t1,t2;
 set @@optimizer_switch=@save_optimizer_switch;
 create table t1 (a int, b int);
@@ -1290,17 +1290,17 @@ create table t2 (a int, b int);
 insert into t2 select A.a + 10*B.a, A.a + 10*B.a from t0 A, t0 B;
 set @@optimizer_switch='firstmatch=off,materialization=off';
 explain select * from t1 where (a,b) in (select a,b from t2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	100	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	100	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
 set @save_optimizer_search_depth=@@optimizer_search_depth;
 set @@optimizer_search_depth=63;
 Warnings:
 Warning	1292	Truncated incorrect optimizer_search_depth value: '63'
 explain select * from t1 where (a,b) in (select a,b from t2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	100	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	100	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
 set @@optimizer_search_depth=@save_optimizer_search_depth;
 set @@optimizer_switch=@save_optimizer_switch;
 drop table t0, t1, t2;
@@ -1310,9 +1310,9 @@ insert into t0 values (10.24), (22.11);
 create table t1 as select * from t0;
 insert into t1 select * from t0;
 explain select * from t0 where a in (select a from t1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; FirstMatch(t0); Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t0	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where; FirstMatch(t0); Using join buffer (flat, BNL join)
 select * from t0 where a in (select a from t1);
 a
 10.24
@@ -1323,9 +1323,9 @@ insert into t0 values ('2008-01-01'),('2008-02-02');
 create table t1 as select * from t0;
 insert into t1 select * from t0;
 explain select * from t0 where a in (select a from t1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; FirstMatch(t0); Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t0	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where; FirstMatch(t0); Using join buffer (flat, BNL join)
 select * from t0 where a in (select a from t1);
 a
 2008-01-01
@@ -1337,11 +1337,11 @@ create table t1 as select a as a, a as b, a as c from t0 where a < 3;
 create table t2 as select a as a, a as b from t0 where a < 3;
 insert into t2 select * from t2;
 explain select * from t1 where (a,b,c) in (select X.a, Y.a, Z.a from t2 X, t2 Y, t2 Z where X.b=33);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	X	ALL	NULL	NULL	NULL	NULL	6	Using where; Start temporary; Using join buffer (flat, BNL join)
-1	PRIMARY	Y	ALL	NULL	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	Z	ALL	NULL	NULL	NULL	NULL	6	Using where; End temporary; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+1	PRIMARY	X	NULL	ALL	NULL	NULL	NULL	NULL	6	Using where; Start temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	Y	NULL	ALL	NULL	NULL	NULL	NULL	6	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	Z	NULL	ALL	NULL	NULL	NULL	NULL	6	Using where; End temporary; Using join buffer (flat, BNL join)
 drop table t0,t1,t2;
 set @@optimizer_switch=@save_optimizer_switch;
 
@@ -1413,10 +1413,10 @@ WHERE a.idIndividual IN
 INNER JOIN t2 c ON c.idContact=cona.idContact 
 WHERE cona.postalStripped='T2H3B2'
 	);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	cona	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary
-1	PRIMARY	c	eq_ref	PRIMARY	PRIMARY	4	test.cona.idContact	1	100.00	Using where
-1	PRIMARY	a	eq_ref	PRIMARY	PRIMARY	4	test.c.idObj	1	100.00	Using index; End temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	cona	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary
+1	PRIMARY	c	NULL	eq_ref	PRIMARY	PRIMARY	4	test.cona.idContact	1	100.00	Using where
+1	PRIMARY	a	NULL	eq_ref	PRIMARY	PRIMARY	4	test.c.idObj	1	100.00	Using index; End temporary
 Warnings:
 Note	1003	select `test`.`a`.`idIndividual` AS `idIndividual` from `test`.`t1` `a` semi join (`test`.`t3` `cona` join `test`.`t2` `c`) where `test`.`cona`.`postalStripped` = 'T2H3B2' and `test`.`a`.`idIndividual` = `test`.`c`.`idObj` and `test`.`c`.`idContact` = `test`.`cona`.`idContact`
 set @@optimizer_switch=@save_optimizer_switch;
@@ -1476,10 +1476,10 @@ WHERE (
 SELECT b
 FROM t3
 );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-3	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	MATERIALIZED	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
 SELECT * FROM t1
@@ -1536,9 +1536,9 @@ SELECT i, v, (SELECT COUNT(DISTINCT i)
 FROM t1
 WHERE v  = t2.v) as subsel
 FROM t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	DEPENDENT SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t2.v' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t2`.`i` AS `i`,`test`.`t2`.`v` AS `v`,<expr_cache><`test`.`t2`.`v`>((/* select#2 */ select count(distinct `test`.`t1`.`i`) from `test`.`t1` where `test`.`t1`.`v` = `test`.`t2`.`v`)) AS `subsel` from `test`.`t2`

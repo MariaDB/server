@@ -50,10 +50,10 @@ a	b
 select * from (select * from t1 except all select * from t2) q1 except all select * from (select * from t1 except all select * from t2) q2;
 a	b
 EXPLAIN select * from t1 except all select * from t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	7	
-2	EXCEPT	t2	ALL	NULL	NULL	NULL	NULL	7	
-NULL	EXCEPT RESULT	<except1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	
+2	EXCEPT	t2	NULL	ALL	NULL	NULL	NULL	NULL	7	
+NULL	EXCEPT RESULT	<except1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 EXPLAIN format=json select * from t1 except all select * from t2;
 EXPLAIN
 {
@@ -98,18 +98,18 @@ EXPLAIN
   }
 }
 EXPLAIN extended (select * from t1) except all (select * from t2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	
-2	EXCEPT	t2	ALL	NULL	NULL	NULL	NULL	7	100.00	
-NULL	EXCEPT RESULT	<except1,2>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	
+2	EXCEPT	t2	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	
+NULL	EXCEPT RESULT	<except1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	(/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1`) except all (/* select#2 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2`)
 EXPLAIN extended select * from ((select * from t1) except all (select * from t2)) a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	7	100.00	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	
-3	EXCEPT	t2	ALL	NULL	NULL	NULL	NULL	7	100.00	
-NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	
+3	EXCEPT	t2	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	
+NULL	EXCEPT RESULT	<except2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `a`.`a` AS `a`,`a`.`b` AS `b` from ((/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1`) except all (/* select#3 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2`)) `a`
 ANALYZE format=json select * from ((select a,b from t1) except all (select c,d from t2)) a;
@@ -352,28 +352,28 @@ a	b	e
 2	2	4
 2	2	5
 EXPLAIN (select a,b,e,f from t1,t3) except all (select c,d,g,h from t2,t4);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
-2	EXCEPT	t2	ALL	NULL	NULL	NULL	NULL	2	
-2	EXCEPT	t4	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
-NULL	EXCEPT RESULT	<except1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
+2	EXCEPT	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+2	EXCEPT	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
+NULL	EXCEPT RESULT	<except1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 EXPLAIN select * from ((select a,b,e,f from t1,t3) except all (select c,d,g,h from t2,t4)) t;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	9	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
-3	EXCEPT	t2	ALL	NULL	NULL	NULL	NULL	2	
-3	EXCEPT	t4	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
-NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	9	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+2	DERIVED	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
+3	EXCEPT	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+3	EXCEPT	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
+NULL	EXCEPT RESULT	<except2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 EXPLAIN extended select * from ((select a,b,e,f from t1,t3) except all (select c,d,g,h from t2,t4)) t;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	9	100.00	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-2	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-3	EXCEPT	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-3	EXCEPT	t4	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
-NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	9	100.00	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DERIVED	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+3	EXCEPT	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	EXCEPT	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+NULL	EXCEPT RESULT	<except2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `t`.`a` AS `a`,`t`.`b` AS `b`,`t`.`e` AS `e`,`t`.`f` AS `f` from ((/* select#2 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t1` join `test`.`t3`) except all (/* select#3 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d`,`test`.`t4`.`g` AS `g`,`test`.`t4`.`h` AS `h` from `test`.`t2` join `test`.`t4`)) `t`
 EXPLAIN format=json select * from ((select a,b,e,f from t1,t3) except all (select c,d,g,h from t2,t4)) t;

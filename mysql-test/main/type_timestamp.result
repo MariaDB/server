@@ -568,8 +568,8 @@ a
 2010-02-01 09:31:02
 EXPLAIN
 SELECT * FROM t1 WHERE a >= '2010-02-01 09:31:02.0';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	range	x	x	x	x	x	x
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	range	x	x	x	x	x	x
 SELECT * FROM t1 WHERE a >= '2010-02-01 09:31:02.0';
 a
 2010-02-01 09:31:02
@@ -593,8 +593,8 @@ INSERT INTO t2 VALUES( '2010-02-01 09:31:11' );
 FLUSH STATUS;
 EXPLAIN
 SELECT * FROM t2 WHERE a < '2010-02-01 09:31:02.0';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	range	x	x	x	x	x	x
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	range	x	x	x	x	x	x
 SELECT * FROM t2 WHERE a < '2010-02-01 09:31:02.0';
 a
 2010-02-01 09:31:01
@@ -845,15 +845,15 @@ Warnings:
 Warning	1292	Truncated incorrect datetime value: '2001-01-01 00:00:00x'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a) != 20 AND a='2001-01-01 00:00:00x';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Warning	1292	Truncated incorrect datetime value: '2001-01-01 00:00:00x'
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)!=30+RAND() AND a='2001-01-01 00:00:00x';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Warning	1292	Truncated incorrect datetime value: '2001-01-01 00:00:00x'
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00' and <cache>(octet_length(TIMESTAMP'2001-01-01 00:00:00')) <> 30 + rand()
@@ -869,20 +869,20 @@ a
 2001-01-01 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=19 AND a=' 2001-01-01 00:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=19+RAND() AND a=' 2001-01-01 00:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00' and <cache>(octet_length(TIMESTAMP'2001-01-01 00:00:00')) = 19 + rand()
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=' garbage ';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Warning	1292	Incorrect datetime value: ' garbage '
 Warning	1292	Incorrect datetime value: ' garbage '
@@ -902,14 +902,14 @@ a
 2001-01-01 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=19 AND a=TIMESTAMP'2001-01-01 00:00:00.000000';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00.000000'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIMESTAMP'2001-01-01 00:00:00.000000';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00.000000' and <cache>(octet_length(TIMESTAMP'2001-01-01 00:00:00')) = 30 + rand()
 DROP TABLE t1;
@@ -927,14 +927,14 @@ a
 2001-01-01 00:00:00.000000
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=26 AND a=TIMESTAMP'2001-01-01 00:00:00.000000';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00.000000'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=40+RAND() AND a=TIMESTAMP'2001-01-01 00:00:00.000000';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00.000000' and <cache>(octet_length(TIMESTAMP'2001-01-01 00:00:00.000000')) = 40 + rand()
 DROP TABLE t1;
@@ -953,14 +953,14 @@ a
 2001-01-01 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=19 AND a=TIME'00:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=40+RAND() AND a=TIME'00:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'2001-01-01 00:00:00' and <cache>(octet_length(TIMESTAMP'2001-01-01 00:00:00')) = 40 + rand()
 DROP TABLE t1;
@@ -986,13 +986,13 @@ INSERT INTO t1 VALUES('2001-01-01'),('2002-02-02'),('2003-03-03');
 INSERT INTO t1 VALUES('2001-01-01'),('2002-02-02'),('2003-03-03');
 INSERT INTO t1 VALUES('2001-01-01'),('2002-02-02'),('2003-03-03');
 EXPLAIN SELECT * FROM t1 WHERE a >= DATE_ADD(TIMESTAMP'9999-01-01 00:00:00',INTERVAL 1000 YEAR);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Warning	1441	Datetime function: datetime field overflow
 EXPLAIN SELECT * FROM t1 WHERE a >= COALESCE(DATE_ADD(TIMESTAMP'9999-01-01 00:00:00',INTERVAL 1000 YEAR));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Warning	1441	Datetime function: datetime field overflow
 DROP TABLE t1;

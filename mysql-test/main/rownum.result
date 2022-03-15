@@ -100,15 +100,15 @@ a	b
 2	20
 1	10
 explain select * from t1 where rownum() <= 2 order by a desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Using filesort
 select t1.a,t1.b,rownum() from t1 where rownum() <= 2 order by a desc;
 a	b	rownum()
 2	20	2
 1	10	1
 explain select t1.a,t1.b,rownum() from t1 where rownum() <= 2 order by a desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Using temporary; Using filesort
 select *,rownum() from t1,t2;
 a	b	a	b	rownum()
 1	10	2	21	1
@@ -727,9 +727,9 @@ show status like "Rows_read";
 Variable_name	Value
 Rows_read	2
 explain extended select * from (select a from t1 where a < 1000) as tt where rownum() <= 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 limit 2) `tt` where rownum() <= 2 limit 2
 prepare stmt from "select * from (select a from t1 where a < 1000) as tt where rownum() <= 2";
@@ -759,9 +759,9 @@ show status like "Rows_read";
 Variable_name	Value
 Rows_read	5
 explain extended select * from (select a from t1 where a < 1000 group by a) as tt where rownum() <= 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 group by `test`.`t1`.`a` limit 2) `tt` where rownum() <= 2 limit 2
 prepare stmt from "select * from (select a from t1 where a < 1000 group by a) as tt where rownum() <= 2";
@@ -783,9 +783,9 @@ show status like "Rows_read";
 Variable_name	Value
 Rows_read	5
 explain extended select * from (select a from t1 where a < 1000 group by a order by 1) as tt where rownum() <= 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 group by `test`.`t1`.`a` order by 1 limit 2) `tt` where rownum() <= 2 limit 2
 prepare stmt from "select * from (select a from t1 where a < 1000 group by a order by 1) as tt where rownum() <= 2";
@@ -807,11 +807,11 @@ show status like "Rows_read";
 Variable_name	Value
 Rows_read	5
 explain extended select * from (select a from t1 where a < 1000 union select 10) as tt where rownum() <= 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
-3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 union /* select#3 */ select 10 AS `10` limit 2) `tt` where rownum() <= 2 limit 2
 prepare stmt from "select * from (select a from t1 where a < 1000 union select 10) as tt where rownum() <= 2";
@@ -829,9 +829,9 @@ select * from (select a from t1 where a < 1000 group by a order by 1 limit 1) as
 a
 1
 explain extended select * from (select a from t1 where a < 1000 group by a order by 1 limit 1) as tt where rownum() <= 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 group by `test`.`t1`.`a` order by 1 limit 1) `tt` where rownum() <= 2 limit 2
 prepare stmt from "select * from (select a from t1 where a < 1000 group by a order by 1 limit 1) as tt where rownum() <= 2";
@@ -848,9 +848,9 @@ a
 1
 2
 explain extended select * from (select a from t1 where a < 1000 group by a order by 1 limit 10) as tt where rownum() <= 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 group by `test`.`t1`.`a` order by 1 limit 2) `tt` where rownum() <= 2 limit 2
 prepare stmt from "select * from (select a from t1 where a < 1000 group by a order by 1 limit 10) as tt where rownum() <= 2";
@@ -867,11 +867,11 @@ select * from (select a from t1 where a < 1000 union select 10 limit 1) as tt wh
 a
 1
 explain extended select * from (select a from t1 where a < 1000 union select 10 limit 1) as tt where rownum() <= 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
-3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 union /* select#3 */ select 10 AS `10` limit 1) `tt` where rownum() <= 2 limit 2
 prepare stmt from "select * from (select a from t1 where a < 1000 union select 10 limit 1) as tt where rownum() <= 2";
@@ -887,9 +887,9 @@ select * from (select a from t1 where a < 1000) as tt where rownum() < 2;
 a
 1
 explain extended select * from (select a from t1 where a < 1000) as tt where rownum() < 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 limit 1) `tt` where rownum() < 2 limit 1
 prepare stmt from "select * from (select a from t1 where a < 1000) as tt where rownum() < 2";
@@ -906,9 +906,9 @@ a
 1
 2
 explain extended select * from (select a from t1 where a < 1000) as tt where rownum() <= 1+1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 limit 2) `tt` where rownum() <= <cache>(1 + 1) limit 2
 prepare stmt from "select * from (select a from t1 where a < 1000) as tt where rownum() <= 1+1";
@@ -927,9 +927,9 @@ a
 1
 2
 explain extended select * from (select a from t1 where a < 1000) as tt where  1+1 >= rownum();
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 limit 2) `tt` where <cache>(1 + 1) >= rownum() limit 2
 prepare stmt from "select * from (select a from t1 where a < 1000) as tt where  1+1 >= rownum()";
@@ -951,10 +951,10 @@ a
 4
 5
 explain extended select * from (select a from t1 where a < 1000) as tt where  (select max(a) from t1) >= rownum();
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
-3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+3	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 limit 5) `tt` where (/* select#3 */ select max(`test`.`t1`.`a`) from `test`.`t1`) >= rownum() limit 5
 prepare stmt from "select * from (select a from t1 where a < 1000) as tt where  (select max(a) from t1) >= rownum()";

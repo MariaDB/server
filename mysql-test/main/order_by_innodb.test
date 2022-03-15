@@ -48,14 +48,14 @@ from t0 A, t0 B, t0 C, t0 D;
 
 --echo # The following must NOT use 'index' on PK. 
 --echo # It should use index_merge(key1,key2) + filesort
---replace_column 9 #
+--replace_column 10 #
 explain 
 select * 
 from t1
 where key1<3 or key2<3
 order by pk;
 
---replace_column 9 #
+--replace_column 10 #
 explain 
 select * 
 from t1
@@ -224,7 +224,7 @@ from
 
 --echo # This must NOT have "Range checked for each record" without any
 --echo #   provisions to produce rows in the required ordering:
---replace_column 9 #
+--replace_column 10 #
 explain
 select
   t1.id,t2.id

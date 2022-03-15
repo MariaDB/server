@@ -9,8 +9,8 @@ select count(a) as b from t1 where a=0 having b >=0;
 b
 0
 explain extended select count(a) as b from t1 where a=0 having b >=0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Note	1003	select count(NULL) AS `b` from dual where 0 having `b` >= 0
 drop table t1;
@@ -152,11 +152,11 @@ a
 SELECT 0 AS x, a FROM t1 GROUP BY x,a HAVING x=1 AND a > 1;
 x	a
 EXPLAIN SELECT a FROM t1 GROUP BY a HAVING 1 != 1 AND a > 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
 EXPLAIN SELECT 0 AS x, a FROM t1 GROUP BY x,a HAVING x=1 AND a > 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
 DROP table t1;
 CREATE TABLE t1 (a int PRIMARY KEY);
 CREATE TABLE t2 (b int PRIMARY KEY, a int);
@@ -469,8 +469,8 @@ JOIN t1 AS table2 ON table1.f3 = table2.f3
 WHERE table2.f1 = 2
 GROUP BY table1.f1, table2.f2
 HAVING (table2.f2 = 8 AND table1.f1 >= 6);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Note	1003	select 0 AS `f1`,7 AS `f2` from `test`.`t1` `table1` join `test`.`t1` `table2` where 0 group by 0,7 having 1
 EXPLAIN EXTENDED
@@ -480,8 +480,8 @@ JOIN t1 AS table2 ON table1.f3 = table2.f3
 WHERE table2.f1 = 2
 GROUP BY table1.f1, table2.f2
 HAVING (table2.f2 = 8);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Note	1003	select `test`.`table1`.`f1` AS `f1`,7 AS `f2` from `test`.`t1` `table1` join `test`.`t1` `table2` where 0 group by `test`.`table1`.`f1`,7 having 1
 DROP TABLE t1;
@@ -595,8 +595,8 @@ SELECT MAX(t1.b)  FROM t1,t2 WHERE t2.a > 0 HAVING MAX(t1.b) IS NULL;
 MAX(t1.b)
 EXPLAIN
 SELECT MAX(t1.b)  FROM t1,t2 WHERE t2.a < 0 HAVING MAX(t1.b) <> 6;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT MAX(t1.b)  FROM t1,t2 WHERE t2.a < 0 HAVING MAX(t1.b) <> 6;
 MAX(t1.b)
 CREATE TABLE t3 ( f3 int) ;
@@ -626,10 +626,10 @@ SELECT MIN( t1.f10 ) AS field1
 FROM t1 , t2
 WHERE t2.f2 IN ( SELECT f3 FROM t3 )
 HAVING field1 < 's';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
-1	PRIMARY	t1	index	NULL	f10	4	NULL	2	100.00	Using index
-2	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t1	NULL	index	NULL	f10	4	NULL	2	100.00	Using index
+2	DEPENDENT SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select min(`test`.`t1`.`f10`) AS `field1` from `test`.`t1` where <expr_cache><7>(<in_optimizer>(7,<exists>(/* select#2 */ select `test`.`t3`.`f3` from `test`.`t3` where <cache>(7) = `test`.`t3`.`f3`))) having `field1` < 's'
 set optimizer_switch=@save_optimizer_switch;
@@ -715,8 +715,8 @@ drop table t1;
 #
 explain extended
 select * from mysql.help_topic where example = 'foo' having description is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible HAVING
 Warnings:
 Note	1003	select `mysql`.`help_topic`.`help_topic_id` AS `help_topic_id`,`mysql`.`help_topic`.`name` AS `name`,`mysql`.`help_topic`.`help_category_id` AS `help_category_id`,`mysql`.`help_topic`.`description` AS `description`,`mysql`.`help_topic`.`example` AS `example`,`mysql`.`help_topic`.`url` AS `url` from `mysql`.`help_topic` where `mysql`.`help_topic`.`example` = 'foo' having 0
 select * from mysql.help_topic where example = 'foo' having description is null;
@@ -838,8 +838,8 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 explain SELECT t, next_seq_value() r FROM t1 FORCE INDEX(t) GROUP BY t HAVING r = 1  ORDER BY t1.u;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using temporary; Using filesort
 SELECT t, next_seq_value() r FROM t1 FORCE INDEX(t) GROUP BY t HAVING r = 1  ORDER BY t1.u;
 t	r
 10	1

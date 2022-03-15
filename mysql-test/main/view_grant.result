@@ -143,8 +143,8 @@ grant select on mysqltest.t1 to mysqltest_1@localhost;
 revoke select on mysqltest.v5 from mysqltest_1@localhost;
 connection user1;
 explain select c from mysqltest.v1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
 show create view mysqltest.v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest`.`v1` AS select `mysqltest`.`t1`.`a` + 1 AS `c`,`mysqltest`.`t1`.`b` + 1 AS `d` from `mysqltest`.`t1`	latin1	latin1_swedish_ci
@@ -166,15 +166,15 @@ connection root;
 grant show view on mysqltest.* to mysqltest_1@localhost;
 connection user1;
 explain select c from mysqltest.v1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
 show create view mysqltest.v1;
 View	Create View	character_set_client	collation_connection
 v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest`.`v1` AS select `mysqltest`.`t1`.`a` + 1 AS `c`,`mysqltest`.`t1`.`b` + 1 AS `d` from `mysqltest`.`t1`	latin1	latin1_swedish_ci
 explain select c from mysqltest.v2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	Const row not found
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 show create view mysqltest.v2;
 View	Create View	character_set_client	collation_connection
 v2	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest`.`v2` AS select `mysqltest`.`t1`.`a` + 1 AS `c`,`mysqltest`.`t1`.`b` + 1 AS `d` from `mysqltest`.`t1`	latin1	latin1_swedish_ci
@@ -1206,8 +1206,8 @@ connection test11765687;
 select * from v1;
 i
 explain select * from v1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
 disconnect test11765687;
 ... as eugene
 connect  test11765687,localhost,eugene,,mysqltest1;
@@ -1254,13 +1254,13 @@ ERROR 42000: SELECT command denied to user 'han'@'localhost' for table 't3'
 select k from t3;
 k
 explain select k from t3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	system	NULL	NULL	NULL	NULL	0	Const row not found
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
 select * from v3;
 k
 explain select * from v3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	system	NULL	NULL	NULL	NULL	0	Const row not found
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
 disconnect test11765687;
 ... as inga
 connect  test11765687,localhost,inga,,mysqltest1;
@@ -1300,9 +1300,9 @@ connection test11765687;
 select * from v2;
 i	j
 explain select * from v2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	0	Const row not found
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	SIMPLE	t2	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
 disconnect test11765687;
 ... as noam
 connect  test11765687,localhost,noam,,mysqltest1;

@@ -93,12 +93,12 @@ grp	a	c	id	a	c	d
 2	3	c	NULL	NULL	NULL	NULL
 NULL	NULL		NULL	NULL	NULL	NULL
 explain select t1.*,t2.* from t1,t2 where t1.a=t2.a and isnull(t2.a)=1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 explain select t1.*,t2.* from t1 left join t2 on t1.a=t2.a where isnull(t2.a)=1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	7	
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	8	test.t1.a	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	8	test.t1.a	1	Using where
 select t1.*,t2.*,t3.a from t1 left join t2 on (t1.a=t2.a) left join t1 as t3 on (t2.a=t3.a);
 grp	a	c	id	a	c	d	a
 1	1	a	1	1	a	1	1
@@ -313,13 +313,13 @@ select t1.name, t2.name, t2.id from t1 left join t2 on (t1.id = t2.owner) where 
 name	name	id
 Lilliana Angelovska	NULL	NULL
 explain select t1.name, t2.name, t2.id from t1 left join t2 on (t1.id = t2.owner) where t2.id is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Not exists
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Not exists
 explain select t1.name, t2.name, t2.id from t1 left join t2 on (t1.id = t2.owner) where t2.name is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
 select count(*) from t1 left join t2 on (t1.id = t2.owner);
 count(*)
 4
@@ -333,13 +333,13 @@ select t1.name, t2.name, t2.id from t2 right join t1 on (t1.id = t2.owner) where
 name	name	id
 Lilliana Angelovska	NULL	NULL
 explain select t1.name, t2.name, t2.id from t2 right join t1 on (t1.id = t2.owner) where t2.id is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Not exists
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Not exists
 explain select t1.name, t2.name, t2.id from t2 right join t1 on (t1.id = t2.owner) where t2.name is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
 select count(*) from t2 right join t1 on (t1.id = t2.owner);
 count(*)
 4
@@ -609,9 +609,9 @@ UNIQUE id (id,idx)
 );
 INSERT INTO t2 VALUES (1,1);
 explain SELECT * from t1 left join t2 on t1.id=t2.id where t2.id IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t2	ref	id	id	4	test.t1.id	1	Using where; Using index; Not exists
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t2	NULL	ref	id	id	4	test.t1.id	1	Using where; Using index; Not exists
 SELECT * from t1 left join t2 on t1.id=t2.id where t2.id IS NULL;
 id	name	id	idx
 2	no	NULL	NULL
@@ -629,9 +629,9 @@ create table t2 (fooID smallint unsigned not null, barID smallint unsigned not n
 insert into t1 (fooID) values (10),(20),(30);
 insert into t2 values (10,1),(20,2),(30,3);
 explain select * from t2 left join t1 on t1.fooID = t2.fooID and t1.fooID = 30;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	PRIMARY	4	NULL	3	Using index
-1	SIMPLE	t1	const	PRIMARY	PRIMARY	2	const	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	NULL	PRIMARY	4	NULL	3	Using index
+1	SIMPLE	t1	NULL	const	PRIMARY	PRIMARY	2	const	1	Using where; Using index
 select * from t2 left join t1 on t1.fooID = t2.fooID and t1.fooID = 30;
 fooID	barID	fooID
 10	1	NULL
@@ -687,10 +687,10 @@ a1	a2	b1	b2	c1	c2
 2	2	2	3	NULL	NULL
 3	2	NULL	NULL	3	4
 explain select * from t1 left join t2  on  b1 = a1 left join t3  on  c1 = a1  and  b1 is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
 drop table t1, t2, t3;
 create table t1 (
 a int(11),
@@ -737,15 +737,15 @@ insert into t2 values("10", "10");
 explain select s.*, '*', m.*, (s.match_1_h - m.home) UUX from 
 (t2 s left join t1 m on m.match_id = 1) 
 order by m.match_id desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	s	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
-1	SIMPLE	m	const	match_id,match_id_2	match_id	1	const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	s	NULL	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
+1	SIMPLE	m	NULL	const	match_id,match_id_2	match_id	1	const	1	
 explain select s.*, '*', m.*, (s.match_1_h - m.home) UUX from 
 (t2 s left join t1 m on m.match_id = 1) 
 order by UUX desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	s	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
-1	SIMPLE	m	const	match_id,match_id_2	match_id	1	const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	s	NULL	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
+1	SIMPLE	m	NULL	const	match_id,match_id_2	match_id	1	const	1	
 select s.*, '*', m.*, (s.match_1_h - m.home) UUX from 
 (t2 s left join t1 m on m.match_id = 1) 
 order by UUX desc;
@@ -763,9 +763,9 @@ player_id	match_1_h	*	match_id	home	UUX
 explain select s.*, '*', m.*, (s.match_1_h - m.home) UUX from 
 t2 s straight_join t1 m where m.match_id = 1 
 order by UUX desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	s	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
-1	SIMPLE	m	const	match_id,match_id_2	match_id	1	const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	s	NULL	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
+1	SIMPLE	m	NULL	const	match_id,match_id_2	match_id	1	const	1	
 select s.*, '*', m.*, (s.match_1_h - m.home) UUX from 
 t2 s straight_join t1 m where m.match_id = 1 
 order by UUX desc;
@@ -858,37 +858,37 @@ SELECT * FROM t1 LEFT JOIN t2 ON a1=0;
 a1	a2
 1	NULL
 EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON a1=0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT * FROM t1 LEFT JOIN (t2,t3) ON a1=0;
 a1	a2	a3
 1	NULL	NULL
 EXPLAIN SELECT * FROM t1 LEFT JOIN (t2,t3) ON a1=0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	
 SELECT * FROM t0, t1 LEFT JOIN (t2,t3) ON a1=0 WHERE a0=a1;
 a0	a1	a2	a3
 1	1	NULL	NULL
 EXPLAIN SELECT * FROM t0, t1 LEFT JOIN (t2,t3) ON a1=0 WHERE a0=a1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	system	PRIMARY	NULL	NULL	NULL	1	
-1	SIMPLE	t1	system	PRIMARY	NULL	NULL	NULL	1	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	system	PRIMARY	NULL	NULL	NULL	1	
+1	SIMPLE	t1	NULL	system	PRIMARY	NULL	NULL	NULL	1	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	
 INSERT INTO t0 VALUES (0);
 INSERT INTO t1 VALUES (0);
 SELECT * FROM t0, t1 LEFT JOIN (t2,t3) ON a1=5 WHERE a0=a1 AND a0=1;
 a0	a1	a2	a3
 1	1	NULL	NULL
 EXPLAIN SELECT * FROM t0, t1 LEFT JOIN (t2,t3) ON a1=5 WHERE a0=a1 AND a0=1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	const	PRIMARY	PRIMARY	4	const	1	Using index
-1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	Using index
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	const	PRIMARY	PRIMARY	4	const	1	Using index
+1	SIMPLE	t1	NULL	const	PRIMARY	PRIMARY	4	const	1	Using index
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	
 drop table t1,t2;
 create table t1 (a int, b int);
 insert into t1 values (1,1),(2,2),(3,3);
@@ -977,10 +977,10 @@ insert t3 values (0, 1, 'a'), (1, 1, 'b'), (0, 2, 'c'), (1, 2, 'd'), (1, 3, 'e')
 explain select name from t1 left join t2 on t1.x = t2.x and t1.y = t2.y
 left join t3 on t1.art = t3.id where t2.id =1 and t2.x = -5 and t2.y =-8
 and t1.gid =1 and t2.gid =1 and t3.set_id =1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	PRIMARY	PRIMARY	10	const,const,const	1	
-1	SIMPLE	t2	const	PRIMARY,id	PRIMARY	14	const,const,const,const	1	Using index
-1	SIMPLE	t3	const	PRIMARY	PRIMARY	3	const,const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	const	PRIMARY	PRIMARY	10	const,const,const	1	
+1	SIMPLE	t2	NULL	const	PRIMARY,id	PRIMARY	14	const,const,const,const	1	Using index
+1	SIMPLE	t3	NULL	const	PRIMARY	PRIMARY	3	const,const	1	
 drop tables t1,t2,t3;
 CREATE TABLE t1 (EMPNUM INT, GRP INT);
 INSERT INTO t1 VALUES (0, 10);
@@ -1130,17 +1130,17 @@ a	b	a	b
 6	5	6	4
 7	8	7	5
 EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t1.a = t2.a OR t1.a = t2.b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	PRIMARY	NULL	NULL	NULL	4	
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	PRIMARY	NULL	NULL	NULL	4	
+1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	
 EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t1.a IN(t2.a, t2.b);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	PRIMARY	NULL	NULL	NULL	4	Using where
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	PRIMARY	NULL	NULL	NULL	4	Using where
+1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	
 EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t1.a = t2.a WHERE t1.a > IF(t1.a = t2.b-2, t2.b, t2.b-1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	PRIMARY	NULL	NULL	NULL	4	Using where
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	PRIMARY	NULL	NULL	NULL	4	Using where
+1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	
 DROP TABLE t1,t2;
 DROP VIEW IF EXISTS v1,v2;
 DROP TABLE IF EXISTS t1,t2;
@@ -1227,9 +1227,9 @@ INSERT INTO t2 VALUES
 (3,10), (2,20), (5,30), (3,20), (5,10), (3,40), (3,30), (2,10), (2,40);
 EXPLAIN
 SELECT t1.id, a FROM t1 LEFT JOIN t2 ON t1.id=t2.id WHERE t2.b IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	
-1	SIMPLE	t2	ref	idx	idx	4	test.t1.id	2	Using where; Not exists
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	
+1	SIMPLE	t2	NULL	ref	idx	idx	4	test.t1.id	2	Using where; Not exists
 flush status;
 SELECT t1.id, a FROM t1 LEFT JOIN t2 ON t1.id=t2.id WHERE t2.b IS NULL;
 id	a
@@ -1252,9 +1252,9 @@ INSERT INTO t1 VALUES (1,0), (2,1);
 CREATE TABLE t2 (d int PRIMARY KEY);
 INSERT INTO t2 VALUES (1), (2), (3);
 EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON e<>0 WHERE c=1 AND d IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	
-1	SIMPLE	t2	index	NULL	PRIMARY	4	NULL	3	Using where; Using index; Not exists
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	t2	NULL	index	NULL	PRIMARY	4	NULL	3	Using where; Using index; Not exists
 SELECT * FROM t1 LEFT JOIN t2 ON e<>0 WHERE c=1 AND d IS NULL;
 c	e	d
 1	0	NULL
@@ -1274,9 +1274,9 @@ EXPLAIN
 SELECT t1.a, COUNT( t2.b ), SUM( t2.b ), MAX( t2.b )
 FROM t1 LEFT JOIN t2 USING( a )
 GROUP BY t1.a WITH ROLLUP;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	Using temporary; Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	1	Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 SELECT t1.a, COUNT( t2.b ), SUM( t2.b ), MAX( t2.b )
 FROM t1 LEFT JOIN t2 USING( a )
 GROUP BY t1.a WITH ROLLUP;
@@ -1287,9 +1287,9 @@ EXPLAIN
 SELECT t1.a, COUNT( t2.b ), SUM( t2.b ), MAX( t2.b )
 FROM t1 JOIN t2 USING( a )
 GROUP BY t1.a WITH ROLLUP;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using filesort
 SELECT t1.a, COUNT( t2.b ), SUM( t2.b ), MAX( t2.b )
 FROM t1 JOIN t2 USING( a )
 GROUP BY t1.a WITH ROLLUP;
@@ -1306,9 +1306,9 @@ CREATE TABLE t2(f1 INT, f2 INT);
 INSERT INTO t2 VALUES (2, 1);
 EXPLAIN EXTENDED SELECT * FROM t1 LEFT JOIN t2 ON t1.f2 = t2.f2
 WHERE (COALESCE(t1.f1, t2.f1), f3) IN ((1, 3), (2, 2));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
-1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	1	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
 Warnings:
 Note	1003	select 1 AS `f1`,NULL AS `f2`,3 AS `f3`,NULL AS `f1`,NULL AS `f2` from `test`.`t2` where 1
 SELECT * FROM t1 LEFT JOIN t2 ON t1.f2 = t2.f2
@@ -1334,16 +1334,16 @@ LEFT  OUTER JOIN t1 tt8 ON 1
 RIGHT OUTER JOIN t1 tt2 ON 1
 RIGHT OUTER JOIN t1 tt1 ON 1
 STRAIGHT_JOIN    t1 tt9 ON 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tt1	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	tt2	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	tt3	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	tt4	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	tt5	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	tt6	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	tt7	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	tt8	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	tt9	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	tt1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	tt2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	tt3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	tt4	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	tt5	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	tt6	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	tt7	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	tt8	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	tt9	NULL	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
 SET optimizer_search_depth = DEFAULT;
 DROP TABLE t1;
 #
@@ -1360,10 +1360,10 @@ COUNT(*)
 476
 EXPLAIN SELECT STRAIGHT_JOIN COUNT(*) FROM t1 TA1
 RIGHT JOIN t2 TA2 JOIN t2 TA3 ON TA2.f1 ON TA3.f1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	TA2	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	SIMPLE	TA3	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
-1	SIMPLE	TA1	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	TA2	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+1	SIMPLE	TA3	NULL	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
+1	SIMPLE	TA1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
 DROP TABLE t1, t2;
 #
 # Bug#48971 Segfault in add_found_match_trig_cond () at sql_select.cc:5990
@@ -1378,13 +1378,13 @@ LEFT JOIN t1 AS jt5 ON 1
 ON 1
 RIGHT JOIN t1 AS jt6 ON jt6.f1
 ON 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	jt1	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
-1	SIMPLE	jt6	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index
-1	SIMPLE	jt3	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index
-1	SIMPLE	jt4	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
-1	SIMPLE	jt5	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index
-1	SIMPLE	jt2	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	jt1	NULL	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
+1	SIMPLE	jt6	NULL	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index
+1	SIMPLE	jt3	NULL	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index
+1	SIMPLE	jt4	NULL	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
+1	SIMPLE	jt5	NULL	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index
+1	SIMPLE	jt2	NULL	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index
 Warnings:
 Note	1003	select straight_join `test`.`jt1`.`f1` AS `f1` from `test`.`t1` `jt1` left join (`test`.`t1` `jt6` left join (`test`.`t1` `jt3` join `test`.`t1` `jt4` left join `test`.`t1` `jt5` on(1) left join `test`.`t1` `jt2` on(1)) on(`test`.`jt6`.`f1` <> 0 and 1)) on(1) where 1
 EXPLAIN EXTENDED SELECT STRAIGHT_JOIN jt1.f1 FROM t1 AS jt1
@@ -1395,13 +1395,13 @@ LEFT JOIN t1 AS jt5 ON 1
 ON 1
 RIGHT JOIN t1 AS jt6 ON jt6.f1
 ON 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	jt6	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
-1	SIMPLE	jt3	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index
-1	SIMPLE	jt4	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
-1	SIMPLE	jt5	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index
-1	SIMPLE	jt2	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index
-1	SIMPLE	jt1	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	jt6	NULL	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
+1	SIMPLE	jt3	NULL	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index
+1	SIMPLE	jt4	NULL	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
+1	SIMPLE	jt5	NULL	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index
+1	SIMPLE	jt2	NULL	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index
+1	SIMPLE	jt1	NULL	index	NULL	PRIMARY	4	NULL	2	100.00	Using where; Using index
 Warnings:
 Note	1003	select straight_join `test`.`jt1`.`f1` AS `f1` from `test`.`t1` `jt6` left join (`test`.`t1` `jt3` join `test`.`t1` `jt4` left join `test`.`t1` `jt5` on(1) left join `test`.`t1` `jt2` on(1)) on(`test`.`jt6`.`f1` <> 0 and 1) left join `test`.`t1` `jt1` on(1) where 1
 DROP TABLE t1;
@@ -1416,9 +1416,9 @@ INSERT INTO t2 VALUES (7, 7);
 EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t2.f1 = t1.f1
 WHERE t1.f1 = 4
 GROUP BY t2.f1, t2.f2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	PRIMARY	NULL	NULL	NULL	1	Using temporary; Using filesort
-1	SIMPLE	t2	ref	PRIMARY	PRIMARY	4	const	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	system	PRIMARY	NULL	NULL	NULL	1	Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ref	PRIMARY	PRIMARY	4	const	1	Using index
 SELECT * FROM t1 LEFT JOIN t2 ON t2.f1 = t1.f1
 WHERE t1.f1 = 4
 GROUP BY t2.f1, t2.f2;
@@ -1427,9 +1427,9 @@ f1	f1	f2
 EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t2.f1 = t1.f1
 WHERE t1.f1 = 4 AND t2.f1 IS NOT NULL AND t2.f2 IS NOT NULL
 GROUP BY t2.f1, t2.f2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	PRIMARY	NULL	NULL	NULL	1	
-1	SIMPLE	t2	ref	PRIMARY	PRIMARY	4	const	1	Using where; Using index; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	system	PRIMARY	NULL	NULL	NULL	1	
+1	SIMPLE	t2	NULL	ref	PRIMARY	PRIMARY	4	const	1	Using where; Using index; Using filesort
 SELECT * FROM t1 LEFT JOIN t2 ON t2.f1 = t1.f1
 WHERE t1.f1 = 4 AND t2.f1 IS NOT NULL AND t2.f2 IS NOT NULL
 GROUP BY t2.f1, t2.f2;
@@ -1450,9 +1450,9 @@ EXPLAIN
 SELECT * FROM t1 LEFT JOIN t2
 ON t1.col_int_unique = t2.col_int_unique AND t1.col_int = t2.col_int 
 WHERE t1.pk=1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	
-1	SIMPLE	t2	const	col_int_unique	col_int_unique	5	const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	t2	NULL	const	col_int_unique	col_int_unique	5	const	1	
 SELECT * FROM t1 LEFT JOIN t2
 ON t1.col_int_unique = t2.col_int_unique AND t1.col_int = t2.col_int 
 WHERE t1.pk=1;
@@ -1739,11 +1739,11 @@ where t3.pk=t2.pk+1000 limit 1 ) as t
 from t1,t2 
 where t2.pk=t1.pk+1000 and t1.pk>1000
 group by t2.pk;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	range	PRIMARY	PRIMARY	4	NULL	1	100.00	Using where; Using index; Using temporary; Using filesort
-1	PRIMARY	t2	eq_ref	PRIMARY	PRIMARY	4	func	1	100.00	Using where; Using index
-2	DEPENDENT SUBQUERY	t3	eq_ref	PRIMARY	PRIMARY	4	func	1	100.00	Using where; Using index
-2	DEPENDENT SUBQUERY	t4	eq_ref	PRIMARY	PRIMARY	4	test.t3.pk	1	100.00	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	range	PRIMARY	PRIMARY	4	NULL	1	100.00	Using where; Using index; Using temporary; Using filesort
+1	PRIMARY	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	func	1	100.00	Using where; Using index
+2	DEPENDENT SUBQUERY	t3	NULL	eq_ref	PRIMARY	PRIMARY	4	func	1	100.00	Using where; Using index
+2	DEPENDENT SUBQUERY	t4	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t3.pk	1	100.00	Using index
 Warnings:
 Note	1276	Field or reference 'test.t2.pk' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t2`.`pk` AS `pk`,<expr_cache><`test`.`t2`.`pk`>((/* select#2 */ select `test`.`t3`.`pk` + if(`test`.`t4`.`pk` is null,0,`test`.`t4`.`pk`) from `test`.`t3` left join `test`.`t4` on(`test`.`t4`.`pk` = `test`.`t3`.`pk`) where `test`.`t3`.`pk` = `test`.`t2`.`pk` + 1000 limit 1)) AS `t` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`pk` = `test`.`t1`.`pk` + 1000 and `test`.`t1`.`pk` > 1000 group by `test`.`t2`.`pk`
@@ -1838,9 +1838,9 @@ INSERT INTO t2 VALUES (7, 7);
 EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t2.f1 = t1.f1
 WHERE t1.f1 = 4
 GROUP BY t2.f1, t2.f2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	PRIMARY	NULL	NULL	NULL	1	Using temporary; Using filesort
-1	SIMPLE	t2	ref	PRIMARY	PRIMARY	4	const	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	system	PRIMARY	NULL	NULL	NULL	1	Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ref	PRIMARY	PRIMARY	4	const	1	Using index
 SELECT * FROM t1 LEFT JOIN t2 ON t2.f1 = t1.f1
 WHERE t1.f1 = 4
 GROUP BY t2.f1, t2.f2;
@@ -1849,9 +1849,9 @@ f1	f1	f2
 EXPLAIN SELECT * FROM t1 LEFT JOIN t2 ON t2.f1 = t1.f1
 WHERE t1.f1 = 4 AND t2.f1 IS NOT NULL AND t2.f2 IS NOT NULL
 GROUP BY t2.f1, t2.f2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	PRIMARY	NULL	NULL	NULL	1	
-1	SIMPLE	t2	ref	PRIMARY	PRIMARY	4	const	1	Using where; Using index; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	system	PRIMARY	NULL	NULL	NULL	1	
+1	SIMPLE	t2	NULL	ref	PRIMARY	PRIMARY	4	const	1	Using where; Using index; Using filesort
 SELECT * FROM t1 LEFT JOIN t2 ON t2.f1 = t1.f1
 WHERE t1.f1 = 4 AND t2.f1 IS NOT NULL AND t2.f2 IS NOT NULL
 GROUP BY t2.f1, t2.f2;
@@ -1929,10 +1929,10 @@ a
 NULL
 EXPLAIN EXTENDED
 SELECT t2.a FROM t1 LEFT JOIN t2 ON (6) IN (SELECT a FROM t3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	
-1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
-2	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select NULL AS `a` from `test`.`t2` where 1
 DROP TABLE t1,t2,t3;
@@ -1949,20 +1949,20 @@ insert into t3 values ('c','d');
 insert into t3 values ('c','d');
 EXPLAIN SELECT t2.b
 FROM t1 LEFT JOIN t2 ON t1.c = t2.a AND ( t2.b , t1.b ) IN (SELECT * from t3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t2	eq_ref	PRIMARY	PRIMARY	4	const	1	Using where
-2	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	const	1	Using where
+2	DEPENDENT SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT t2.b
 FROM t1 LEFT JOIN t2 ON t1.c = t2.a AND ( t2.b , t1.b ) IN (SELECT * from t3);
 b
 NULL
 EXPLAIN SELECT t2.b
 FROM t1 LEFT JOIN t2 ON (t2.b) IN (SELECT c2 from t3) AND t2.a = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t2	const	PRIMARY	PRIMARY	4	const	1	Using where
-2	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t2	NULL	const	PRIMARY	PRIMARY	4	const	1	Using where
+2	DEPENDENT SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
 SELECT t2.b
 FROM t1 LEFT JOIN t2 ON (t2.b) IN (SELECT c2 from t3) AND t2.a = 1;
 b
@@ -2007,10 +2007,10 @@ set @save_join_cache_level= @@join_cache_level;
 SET SESSION join_cache_level=4;
 EXPLAIN EXTENDED
 SELECT * FROM (t2 LEFT JOIN t1 ON t1.b = t2.b) JOIN t3 ON t1.b = t3.b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t3	hash_ALL	PRIMARY	#hash#PRIMARY	4	test.t1.b	10	10.00	Using join buffer (flat, BNLH join)
-1	SIMPLE	t2	hash_index	PRIMARY	#hash#PRIMARY:PRIMARY	4:4	test.t1.b	27	3.70	Using index; Using join buffer (incremental, BNLH join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t3	NULL	hash_ALL	PRIMARY	#hash#PRIMARY	4	test.t1.b	10	10.00	Using join buffer (flat, BNLH join)
+1	SIMPLE	t2	NULL	hash_index	PRIMARY	#hash#PRIMARY:PRIMARY	4:4	test.t1.b	27	3.70	Using index; Using join buffer (incremental, BNLH join)
 Warnings:
 Note	1003	select `test`.`t2`.`b` AS `b`,`test`.`t1`.`b` AS `b`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t2` join `test`.`t1` join `test`.`t3` where `test`.`t3`.`b` = `test`.`t1`.`b` and `test`.`t2`.`b` = `test`.`t1`.`b`
 PREPARE stmt FROM
@@ -2041,9 +2041,9 @@ EXPLAIN EXTENDED
 SELECT t1.pk FROM t2 JOIN t1 ON t2.pk = t1.a
 WHERE t1.b BETWEEN 5 AND 6 AND t1.pk IS NULL OR t1.pk = 5
 ORDER BY t1.pk;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	100.00	
-1	SIMPLE	t2	const	PRIMARY	PRIMARY	4	const	1	100.00	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	const	PRIMARY	PRIMARY	4	const	1	100.00	
+1	SIMPLE	t2	NULL	const	PRIMARY	PRIMARY	4	const	1	100.00	Using index
 Warnings:
 Note	1003	select 5 AS `pk` from `test`.`t2` join `test`.`t1` where 1 order by 5
 SELECT t1.pk FROM t2 JOIN t1 ON t2.pk = t1.a
@@ -2055,9 +2055,9 @@ EXPLAIN EXTENDED
 SELECT t1.pk FROM t2 LEFT JOIN t1 ON t2.pk = t1.a
 WHERE t1.b BETWEEN 5 AND 6 AND t1.pk IS NULL OR t1.pk = 5
 ORDER BY t1.pk;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	const	PRIMARY,idx	PRIMARY	4	const	1	100.00	
-1	SIMPLE	t2	const	PRIMARY	PRIMARY	4	const	1	100.00	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	const	PRIMARY,idx	PRIMARY	4	const	1	100.00	
+1	SIMPLE	t2	NULL	const	PRIMARY	PRIMARY	4	const	1	100.00	Using index
 Warnings:
 Note	1003	select 5 AS `pk` from `test`.`t2` join `test`.`t1` where 1 order by 5
 SELECT t1.pk FROM t2 LEFT JOIN t1 ON t2.pk = t1.a
@@ -2077,9 +2077,9 @@ EXPLAIN EXTENDED
 SELECT t1.b, t2.c, t2.d FROM t2 JOIN t1 ON t2.c = t1.a
 WHERE t1.pk BETWEEN 5 AND 6 AND t1.b IS NULL OR t1.b = 5
 ORDER BY t1.b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref	idx	idx	4	const	2	100.00	Using where
-1	SIMPLE	t2	ref	c	c	5	test.t1.a	2	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	idx	idx	4	const	2	100.00	Using where
+1	SIMPLE	t2	NULL	ref	c	c	5	test.t1.a	2	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2` join `test`.`t1` where `test`.`t2`.`c` = `test`.`t1`.`a` and `test`.`t1`.`b` = 5 order by `test`.`t1`.`b`
 SELECT t1.b, t2.c, t2.d FROM t2 JOIN t1 ON t2.c = t1.a
@@ -2094,9 +2094,9 @@ EXPLAIN EXTENDED
 SELECT t1.b, t2.c, t2.d FROM t2 LEFT JOIN t1 ON t2.c = t1.a
 WHERE t1.pk BETWEEN 5 AND 6 AND t1.b IS NULL OR t1.b = 5
 ORDER BY t1.b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref	PRIMARY,idx	idx	4	const	2	100.00	Using where
-1	SIMPLE	t2	ref	c	c	5	test.t1.a	2	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	PRIMARY,idx	idx	4	const	2	100.00	Using where
+1	SIMPLE	t2	NULL	ref	c	c	5	test.t1.a	2	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2` join `test`.`t1` where `test`.`t2`.`c` = `test`.`t1`.`a` and `test`.`t1`.`b` = 5 order by `test`.`t1`.`b`
 SELECT t1.b, t2.c, t2.d FROM t2 LEFT JOIN t1 ON t2.c = t1.a
@@ -2131,17 +2131,17 @@ alter table t0 add person_id varchar(255) not null;
 create table t1 (pk int not null primary key);
 insert into t1 select A.a + 10*B.a from t0 A, t0 B;
 explain select * from t1 left join t0 on t0.a=t1.pk where t0.person_id='fooo' or 'xyz' IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t0.a	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t0.a	1	Using index
 explain select * from t1 left join t0 on t0.a=t1.pk where t0.person_id='fooo';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t0.a	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t0.a	1	Using index
 explain select * from t1 left join t0 on t0.a=t1.pk where t0.person_id='fooo' or t0.person_id='bar';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t0.a	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t0.a	1	Using index
 drop table t0, t1;
 #
 # MDEV-4836: Wrong result on <not null date column> IS NULL (old documented hack stopped working)
@@ -2220,10 +2220,10 @@ i1	i2	i3	d3
 EXPLAIN EXTENDED
 SELECT * FROM t1 LEFT JOIN t2 LEFT JOIN t3 ON i2 = i3 ON i1 = i3
 WHERE d3 IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`i1` AS `i1`,`test`.`t2`.`i2` AS `i2`,`test`.`t3`.`i3` AS `i3`,`test`.`t3`.`d3` AS `d3` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t2`.`i2` = `test`.`t1`.`i1` and `test`.`t3`.`i3` = `test`.`t1`.`i1`) where `test`.`t3`.`d3` = 0 or `test`.`t3`.`d3` is null
 DROP TABLE t1,t2,t3;
@@ -2240,10 +2240,10 @@ INSERT INTO t3 VALUES (3),(8);
 EXPLAIN EXTENDED
 SELECT * FROM t1 INNER JOIN t2 ON c = b LEFT JOIN t3 ON d = a
 WHERE b IN (1,2,3) OR b = d;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select 10 AS `a`,8 AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t3`.`d` AS `d` from `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`d` = 10) where `test`.`t2`.`c` = 8 and `test`.`t3`.`d` = 8
 SELECT * FROM t1 INNER JOIN t2 ON c = b LEFT JOIN t3 ON d = a
@@ -2264,19 +2264,19 @@ from t1 A, t1 B, t1 C;
 delete from t1 where a=0;
 # Check that there are different #rows of NULLs for b and c, both !=10:
 explain select * from t2 force index (b) where b is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	b	b	5	const	780	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ref	b	b	5	const	780	Using index condition
 explain select * from t2 force index (c) where c is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	c	c	5	const	393	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ref	c	c	5	const	393	Using index condition
 explain select * from t1 left join t2 on t2.b is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	
-1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	1000	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	SIMPLE	t2	NULL	ALL	b	NULL	NULL	NULL	1000	Using where
 explain select * from t1 left join t2 on t2.c is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	
-1	SIMPLE	t2	ALL	c	NULL	NULL	NULL	1000	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	SIMPLE	t2	NULL	ALL	c	NULL	NULL	NULL	1000	Using where
 drop table t1,t2;
 #
 # MDEV-10006: optimizer doesn't convert outer join to inner on views with WHERE clause
@@ -2316,10 +2316,10 @@ FROM t1 JOIN t2 on t1.i1 = t2.i2
 LEFT JOIN t3 on t2.i2 = t3.i3
 ) as w1 
 WHERE v3 = 4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t3	ref	PRIMARY,v3	v3	5	const	1	100.00	
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t3.i3	1	100.00	
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t3.i3	1	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ref	PRIMARY,v3	v3	5	const	1	100.00	
+1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t3.i3	1	100.00	
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t3.i3	1	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`i1` AS `i1`,`test`.`t1`.`v1` AS `v1`,`test`.`t2`.`i2` AS `i2`,`test`.`t2`.`v2` AS `v2`,`test`.`t3`.`i3` AS `i3`,`test`.`t3`.`v3` AS `v3` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t3`.`v3` = 4 and `test`.`t1`.`i1` = `test`.`t3`.`i3` and `test`.`t2`.`i2` = `test`.`t3`.`i3`
 # This should have the same join order like the query above:
@@ -2334,10 +2334,10 @@ WHERE t1.i1 = t2.i2
 AND 1 = 1
 ) as w2 
 WHERE v3 = 4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t3	ref	PRIMARY,v3	v3	5	const	1	100.00	
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t3.i3	1	100.00	
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t3.i3	1	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ref	PRIMARY,v3	v3	5	const	1	100.00	
+1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t3.i3	1	100.00	
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t3.i3	1	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`i1` AS `i1`,`test`.`t1`.`v1` AS `v1`,`test`.`t2`.`i2` AS `i2`,`test`.`t2`.`v2` AS `v2`,`test`.`t3`.`i3` AS `i3`,`test`.`t3`.`v3` AS `v3` from `test`.`t1` join `test`.`t2` join `test`.`t3` where `test`.`t3`.`v3` = 4 and `test`.`t1`.`i1` = `test`.`t3`.`i3` and `test`.`t2`.`i2` = `test`.`t3`.`i3`
 drop table t1,t2,t3;
@@ -2358,9 +2358,9 @@ SELECT t1.x, t2.x, IFNULL(t2.x,0), f(t2.x,0)
 FROM t t1 LEFT JOIN t t2
 ON t1.x = t2.x
 WHERE IFNULL(t2.x,0)=0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`x` AS `x`,`test`.`t2`.`x` AS `x`,ifnull(`test`.`t2`.`x`,0) AS `IFNULL(t2.x,0)`,`f`(`test`.`t2`.`x`,0) AS `f(t2.x,0)` from `test`.`t` `t1` left join `test`.`t` `t2` on(`test`.`t2`.`x` = `test`.`t1`.`x`) where ifnull(`test`.`t2`.`x`,0) = 0
 SELECT t1.x, t2.x, IFNULL(t2.x,0), f(t2.x,0)
@@ -2374,9 +2374,9 @@ SELECT t1.x, t2.x, IFNULL(t2.x,0), f(t2.x,0)
 FROM t t1 LEFT JOIN t t2
 ON t1.x = t2.x
 WHERE f(t2.x,0)=0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`x` AS `x`,`test`.`t2`.`x` AS `x`,ifnull(`test`.`t2`.`x`,0) AS `IFNULL(t2.x,0)`,`f`(`test`.`t2`.`x`,0) AS `f(t2.x,0)` from `test`.`t` `t1` left join `test`.`t` `t2` on(`test`.`t2`.`x` = `test`.`t1`.`x`) where `f`(`test`.`t2`.`x`,0) = 0
 drop function f;
@@ -2414,9 +2414,9 @@ col1	col1	col3
 EXPLAIN EXTENDED SELECT t1.col1, t2.col1, t2.col3
 FROM t1 LEFT OUTER JOIN t2 ON t1.col1 = t2.col2
 WHERE IFNULL(t2.col3,0) = 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`col1` AS `col1`,`test`.`t2`.`col1` AS `col1`,`test`.`t2`.`col3` AS `col3` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`col2` = `test`.`t1`.`col1`) where ifnull(`test`.`t2`.`col3`,0) = 0
 SELECT t1.col1, t2.col1, t2.col3
@@ -2428,9 +2428,9 @@ col1	col1	col3
 EXPLAIN EXTENDED SELECT t1.col1, t2.col1, t2.col3
 FROM t1 LEFT OUTER JOIN t2 ON t1.col1 = t2.col2
 WHERE f1(t2.col3,0) = 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`col1` AS `col1`,`test`.`t2`.`col1` AS `col1`,`test`.`t2`.`col3` AS `col3` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`col2` = `test`.`t1`.`col1`) where `f1`(`test`.`t2`.`col3`,0) = 0
 DROP FUNCTION f1;
@@ -2487,8 +2487,8 @@ RIGHT JOIN
 ON t1.pk = t2.pk AND t2.v2 = tb1.v1
 WHERE tb1.pk = 40
 ORDER BY tb1.i1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Note	1003	select straight_join 'p' AS `v2` from `test`.`t1` join `test`.`t1` `tb1` left join `test`.`t1` `tb2` on(multiple equal(NULL, NULL)) where 0 order by NULL
 EXPLAIN EXTENDED
@@ -2500,8 +2500,8 @@ LEFT JOIN
 ON t1.pk = t2.pk AND t2.v2 = tb1.v1
 WHERE tb1.pk = 40
 ORDER BY tb1.i1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Note	1003	select straight_join 'p' AS `v2` from `test`.`t1` join `test`.`t1` `tb1` left join `test`.`t1` `tb2` on(multiple equal(NULL, NULL)) where 0 order by NULL
 SELECT STRAIGHT_JOIN DISTINCT t2.v2
@@ -2532,9 +2532,9 @@ a	b
 3	3
 1	NULL
 explain extended select * from t1 left join t2 on a=b where (b > 3) is not true;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`b` = `test`.`t1`.`a`) where `test`.`t2`.`b` > 3 is not true
 select * from t1 left join t2 on a=b where (b > 3) is not false;
@@ -2542,9 +2542,9 @@ a	b
 7	7
 1	NULL
 explain extended select * from t1 left join t2 on a=b where (b > 3) is not false;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`b` = `test`.`t1`.`a`) where `test`.`t2`.`b` > 3 is not false
 drop table t1,t2;
@@ -2642,11 +2642,11 @@ INNER JOIN t3 ON t3.id=t2.profile_id
 INNER JOIN t4 ON t4.id=t3.person_id
 WHERE t1.timestamp < 1294664900039 AND t1.timestamp > 1294644616416  AND
 t2.REVTYPE=2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	42	100.00	Using where
-1	SIMPLE	t3	ref	PRIMARY	PRIMARY	4	test.t2.profile_id	1	100.00	Using where
-1	SIMPLE	t4	ref	PRIMARY	PRIMARY	4	test.t3.person_id	1	100.00	Using index
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.REV	1	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	42	100.00	Using where
+1	SIMPLE	t3	NULL	ref	PRIMARY	PRIMARY	4	test.t2.profile_id	1	100.00	Using where
+1	SIMPLE	t4	NULL	ref	PRIMARY	PRIMARY	4	test.t3.person_id	1	100.00	Using index
+1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t2.REV	1	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`timestamp` AS `timestamp`,`test`.`t1`.`modifiedBy` AS `modifiedBy`,`test`.`t2`.`id` AS `id`,`test`.`t2`.`REV` AS `REV`,`test`.`t2`.`REVTYPE` AS `REVTYPE`,`test`.`t2`.`profile_id` AS `profile_id`,`test`.`t3`.`id` AS `id`,`test`.`t3`.`REV` AS `REV`,`test`.`t3`.`person_id` AS `person_id`,`test`.`t4`.`id` AS `id`,`test`.`t4`.`REV` AS `REV` from `test`.`t1` join `test`.`t2` join `test`.`t3` join `test`.`t4` where `test`.`t2`.`REVTYPE` = 2 and `test`.`t4`.`id` = `test`.`t3`.`person_id` and `test`.`t3`.`id` = `test`.`t2`.`profile_id` and `test`.`t1`.`id` = `test`.`t2`.`REV` and `test`.`t1`.`timestamp` < 1294664900039 and `test`.`t1`.`timestamp` > 1294644616416
 SELECT *
@@ -2667,11 +2667,11 @@ RIGHT JOIN t3 ON t3.id=t2.profile_id
 RIGHT JOIN t4 ON t4.id=t3.person_id
 WHERE t1.timestamp < 1294664900039 AND t1.timestamp > 1294644616416
 AND t2.REVTYPE=2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	42	100.00	Using where
-1	SIMPLE	t3	ref	PRIMARY	PRIMARY	4	test.t2.profile_id	1	100.00	Using where
-1	SIMPLE	t4	ref	PRIMARY	PRIMARY	4	test.t3.person_id	1	100.00	Using index
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.REV	1	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	42	100.00	Using where
+1	SIMPLE	t3	NULL	ref	PRIMARY	PRIMARY	4	test.t2.profile_id	1	100.00	Using where
+1	SIMPLE	t4	NULL	ref	PRIMARY	PRIMARY	4	test.t3.person_id	1	100.00	Using index
+1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t2.REV	1	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`timestamp` AS `timestamp`,`test`.`t1`.`modifiedBy` AS `modifiedBy`,`test`.`t2`.`id` AS `id`,`test`.`t2`.`REV` AS `REV`,`test`.`t2`.`REVTYPE` AS `REVTYPE`,`test`.`t2`.`profile_id` AS `profile_id`,`test`.`t3`.`id` AS `id`,`test`.`t3`.`REV` AS `REV`,`test`.`t3`.`person_id` AS `person_id`,`test`.`t4`.`id` AS `id`,`test`.`t4`.`REV` AS `REV` from `test`.`t4` join `test`.`t3` join `test`.`t2` join `test`.`t1` where `test`.`t2`.`REVTYPE` = 2 and `test`.`t1`.`id` = `test`.`t2`.`REV` and `test`.`t3`.`id` = `test`.`t2`.`profile_id` and `test`.`t4`.`id` = `test`.`t3`.`person_id` and `test`.`t1`.`timestamp` < 1294664900039 and `test`.`t1`.`timestamp` > 1294644616416
 SELECT *
@@ -2768,15 +2768,15 @@ create table t3 (a int, b int, key(a));
 insert into t3 select A.a + B.a* 10 + C.a * 100, 12345 from t1 A, t1 B, t1 C;
 # Uses range for table t3:
 explain select * from t1 left join t3 on t1.a=t3.b and t3.a<5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
-1	SIMPLE	t3	range	a	a	5	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t3	NULL	range	a	a	5	NULL	5	Using where
 # This must use range for table t3, too:
 explain select * from t1 left join (t3 join t2) on t1.a=t3.b and t3.a<5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t3	range	a	a	5	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t3	NULL	range	a	a	5	NULL	5	Using where
 #
 # .. part 2: make sure condition selectivity can use the condition too.
 #
@@ -2793,17 +2793,17 @@ test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 # t3.filtered is less than 100%:
 explain extended select * from t1 left join t3 on t1.a=t3.b and t3.a<5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	0.50	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	1000	0.50	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` left join `test`.`t3` on(`test`.`t3`.`b` = `test`.`t1`.`a` and `test`.`t3`.`a` < 5) where 1
 # t3.filtered must less than 100%, too:
 explain extended select * from t1 left join (t3 join t2) on t1.a=t3.b and t3.a<5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	100.00	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1000	0.50	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	1000	0.50	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b`,`test`.`t2`.`a` AS `a` from `test`.`t1` left join (`test`.`t3` join `test`.`t2`) on(`test`.`t3`.`b` = `test`.`t1`.`a` and `test`.`t3`.`a` < 5) where 1
 drop table t1,t2,t3;

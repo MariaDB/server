@@ -7587,7 +7587,7 @@ static void test_explain_bug()
   if (!opt_silent)
     fprintf(stdout, "\n total fields in the result: %d",
             mysql_num_fields(result));
-  DIE_UNLESS(10 == mysql_num_fields(result));
+  DIE_UNLESS(11 == mysql_num_fields(result));
 
   verify_prepare_field(result, 0, "id", "", MYSQL_TYPE_LONGLONG,
                        "", "", "", 3, 0);
@@ -7598,34 +7598,34 @@ static void test_explain_bug()
   verify_prepare_field(result, 2, "table", "", MYSQL_TYPE_VAR_STRING,
                        "", "", "", NAME_CHAR_LEN, 0);
 
-  verify_prepare_field(result, 3, "type", "", MYSQL_TYPE_VAR_STRING,
+  verify_prepare_field(result, 4, "type", "", MYSQL_TYPE_VAR_STRING,
                        "", "", "", 10, 0);
 
-  verify_prepare_field(result, 4, "possible_keys", "", MYSQL_TYPE_VAR_STRING,
+  verify_prepare_field(result, 5, "possible_keys", "", MYSQL_TYPE_VAR_STRING,
                        "", "", "", NAME_CHAR_LEN*MAX_KEY, 0);
 
-  verify_prepare_field(result, 5, "key", "", MYSQL_TYPE_VAR_STRING,
+  verify_prepare_field(result, 6, "key", "", MYSQL_TYPE_VAR_STRING,
                        "", "", "", NAME_CHAR_LEN, 0);
 
   if (mysql_get_server_version(mysql) <= 50000)
   {
-    verify_prepare_field(result, 6, "key_len", "", MYSQL_TYPE_LONGLONG, "",
+    verify_prepare_field(result, 7, "key_len", "", MYSQL_TYPE_LONGLONG, "",
                          "", "", 3, 0);
   }
   else
   {
-    verify_prepare_field(result, 6, "key_len", "", MYSQL_TYPE_VAR_STRING, "", 
+    verify_prepare_field(result, 7, "key_len", "", MYSQL_TYPE_VAR_STRING, "", 
                          "", "", NAME_CHAR_LEN*MAX_KEY, 0);
   }
 
   /* The length of this may verify between MariaDB versions (1024 / 2048) */
-  verify_prepare_field(result, 7, "ref", "", MYSQL_TYPE_VAR_STRING,
+  verify_prepare_field(result, 8, "ref", "", MYSQL_TYPE_VAR_STRING,
                        "", "", "", NAME_CHAR_LEN * HA_MAX_KEY_SEG, 0);
 
-  verify_prepare_field(result, 8, "rows", "", MYSQL_TYPE_VAR_STRING,
+  verify_prepare_field(result, 9, "rows", "", MYSQL_TYPE_VAR_STRING,
                        "", "", "", NAME_CHAR_LEN, 0);
 
-  verify_prepare_field(result, 9, "Extra", "", MYSQL_TYPE_VAR_STRING,
+  verify_prepare_field(result, 10, "Extra", "", MYSQL_TYPE_VAR_STRING,
                        "", "", "", 255, 0);
 
   mysql_free_result(result);
@@ -21003,10 +21003,10 @@ static void test_explain_meta()
 
   num_fields= mysql_stmt_field_count(stmt);
   mct_log("EXPALIN number of fields: %d\n", (int) num_fields);
-  if (num_fields != 10)
+  if (num_fields != 11)
   {
     mct_close_log();
-    DIE("num_fields != 10");
+    DIE("num_fields != 11");
   }
   print_metadata(rs_metadata, num_fields);
   mysql_free_result(rs_metadata);
@@ -21038,10 +21038,10 @@ static void test_explain_meta()
 
   num_fields= mysql_stmt_field_count(stmt);
   mct_log("ANALYZE number of fields: %d\n", (int) num_fields);
-  if (num_fields != 13)
+  if (num_fields != 14)
   {
     mct_close_log();
-    DIE("num_fields != 13");
+    DIE("num_fields != 14");
   }
   print_metadata(rs_metadata, num_fields);
   mysql_free_result(rs_metadata);
@@ -21075,10 +21075,10 @@ static void test_explain_meta()
 
   num_fields= mysql_stmt_field_count(stmt);
   mct_log("EXPALIN INSERT number of fields: %d\n", (int) num_fields);
-  if (num_fields != 10)
+  if (num_fields != 11)
   {
     mct_close_log();
-    DIE("num_fields != 10");
+    DIE("num_fields != 11");
   }
   print_metadata(rs_metadata, num_fields);
   mysql_free_result(rs_metadata);
@@ -21110,10 +21110,10 @@ static void test_explain_meta()
 
   num_fields= mysql_stmt_field_count(stmt);
   mct_log("ANALYZE INSERT number of fields: %d\n", (int) num_fields);
-  if (num_fields != 13)
+  if (num_fields != 14)
   {
     mct_close_log();
-    DIE("num_fields != 13");
+    DIE("num_fields != 14");
   }
   print_metadata(rs_metadata, num_fields);
   mysql_free_result(rs_metadata);
@@ -21145,10 +21145,10 @@ static void test_explain_meta()
 
   num_fields= mysql_stmt_field_count(stmt);
   mct_log("EXPALIN UPDATE number of fields: %d\n", (int) num_fields);
-  if (num_fields != 10)
+  if (num_fields != 11)
   {
     mct_close_log();
-    DIE("num_fields != 10");
+    DIE("num_fields != 11");
   }
   print_metadata(rs_metadata, num_fields);
   mysql_free_result(rs_metadata);
@@ -21180,10 +21180,10 @@ static void test_explain_meta()
 
   num_fields= mysql_stmt_field_count(stmt);
   mct_log("ANALYZE UPDATE number of fields: %d\n", (int) num_fields);
-  if (num_fields != 13)
+  if (num_fields !=14)
   {
     mct_close_log();
-    DIE("num_fields != 13");
+    DIE("num_fields != 14");
   }
   print_metadata(rs_metadata, num_fields);
   mysql_free_result(rs_metadata);
@@ -21215,10 +21215,10 @@ static void test_explain_meta()
 
   num_fields= mysql_stmt_field_count(stmt);
   mct_log("EXPALIN DELETE number of fields: %d\n", (int) num_fields);
-  if (num_fields != 10)
+  if (num_fields != 11)
   {
     mct_close_log();
-    DIE("num_fields != 10");
+    DIE("num_fields != 11");
   }
   print_metadata(rs_metadata, num_fields);
   mysql_free_result(rs_metadata);
@@ -21250,10 +21250,10 @@ static void test_explain_meta()
 
   num_fields= mysql_stmt_field_count(stmt);
   mct_log("ANALYZE DELETE number of fields: %d\n", (int) num_fields);
-  if (num_fields != 13)
+  if (num_fields != 14)
   {
     mct_close_log();
-    DIE("num_fields != 13");
+    DIE("num_fields != 14");
   }
   print_metadata(rs_metadata, num_fields);
   mysql_free_result(rs_metadata);

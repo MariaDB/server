@@ -34,8 +34,8 @@ CREATE TABLE t1 (pk INT PRIMARY KEY);
 INSERT INTO t1 VALUES (1),(2);
 explain
 SELECT * FROM t1 ORDER BY 'foo', CONVERT(pk, CHAR(0)) LIMIT 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	2	Using index; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	2	Using index; Using filesort
 SELECT * FROM t1 ORDER BY 'foo', Cast(pk as CHAR(0)) LIMIT 2;
 pk
 1

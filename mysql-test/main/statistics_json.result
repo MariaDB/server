@@ -4459,8 +4459,8 @@ select count(*) from t1;
 count(*)
 229376
 explain select * from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	229060	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	229060	
 set analyze_sample_percentage=100;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -4529,8 +4529,8 @@ t1	id	1	17384	0.0000	4.0000	14.0000	{
   ]
 }
 explain select * from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	229376	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	229376	
 drop table t0;
 drop table t1;
 set analyze_sample_percentage=@save_analyze_sample_percentage;
@@ -4555,13 +4555,13 @@ select hex(histogram) from mysql.column_stats where table_name='t1_bin';
 hex(histogram)
 00000000000000000000711C711C711C711C711CE338E338E338E338E33855555555555555555555C671C671C671C671C671388E388E388E388E388EAAAAAAAAAAAAAAAAAAAA1BC71BC71BC71BC71BC78DE38DE38DE38DE38DE3FFFFFFFFFFFFFFFFFFFF
 explain extended select * from t1_bin where a between 'a-3a' and 'zzzzzzzzz';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1_bin	ALL	NULL	NULL	NULL	NULL	10	58.82	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1_bin	NULL	ALL	NULL	NULL	NULL	NULL	10	58.82	Using where
 Warnings:
 Note	1003	select `test`.`t1_bin`.`a` AS `a` from `test`.`t1_bin` where `test`.`t1_bin`.`a` between 'a-3a' and 'zzzzzzzzz'
 analyze select * from t1_bin where a between 'a-3a' and 'zzzzzzzzz';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1_bin	ALL	NULL	NULL	NULL	NULL	10	10.00	58.82	60.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1_bin	NULL	ALL	NULL	NULL	NULL	NULL	10	10.00	58.82	60.00	Using where
 set histogram_type=json_hb;
 create table t1_json (a varchar(255));
 insert into t1_json select concat('a-', a) from ten;
@@ -4630,36 +4630,36 @@ test	t1_json	a	a-0	a-9	0.0000	3.0000	1.0000	10	JSON_HB	{
   ]
 }
 explain extended select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	60.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	60.00	Using where
 Warnings:
 Note	1003	select `test`.`t1_json`.`a` AS `a` from `test`.`t1_json` where `test`.`t1_json`.`a` between 'a-3a' and 'zzzzzzzzz'
 analyze select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	10.00	60.00	60.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	10.00	60.00	60.00	Using where
 explain extended select * from t1_json where a < 'b-1a';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1_json`.`a` AS `a` from `test`.`t1_json` where `test`.`t1_json`.`a` < 'b-1a'
 analyze select * from t1_json where a > 'zzzzzzzzz';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	10.00	0.00	0.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	10.00	0.00	0.00	Using where
 drop table ten;
 UPDATE mysql.column_stats 
 SET histogram='["not-what-you-expect"]' WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	
 Warnings:
 Warning	4186	Failed to parse histogram for table test.t1_json: Root JSON element must be a JSON object at offset 1.
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb":"not-histogram"}' WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	
 Warnings:
 Warning	4186	Failed to parse histogram for table test.t1_json: histogram_hb must contain an array at offset 32.
 UPDATE mysql.column_stats 
@@ -4667,8 +4667,8 @@ SET histogram='{"histogram_hb":["not-a-bucket"]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	
 Warnings:
 Warning	4186	Failed to parse histogram for table test.t1_json: Expected an object in the buckets array at offset 32.
 UPDATE mysql.column_stats 
@@ -4676,8 +4676,8 @@ SET histogram='{"histogram_hb":[{"no-expected-members":1}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	
 Warnings:
 Warning	4186	Failed to parse histogram for table test.t1_json: "start" element not present at offset 42.
 UPDATE mysql.column_stats 
@@ -4685,8 +4685,8 @@ SET histogram='{"histogram_hb":[{"start":{}}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	
 Warnings:
 Warning	4186	Failed to parse histogram for table test.t1_json: String or number expected at offset 27.
 UPDATE mysql.column_stats 
@@ -4694,8 +4694,8 @@ SET histogram='{"histogram_hb":[{"start":"aaa", "size":"not-an-integer"}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	
 Warnings:
 Warning	4186	Failed to parse histogram for table test.t1_json: "ndv" element not present at offset 57.
 UPDATE mysql.column_stats 
@@ -4703,8 +4703,8 @@ SET histogram='{"histogram_hb":[{"start":"aaa", "size":0.25}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	
 Warnings:
 Warning	4186	Failed to parse histogram for table test.t1_json: "ndv" element not present at offset 45.
 UPDATE mysql.column_stats 
@@ -4712,15 +4712,15 @@ SET histogram='{"histogram_hb":[{"start":"aaa", "size":0.25, "ndv":1}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb":[]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	
 Warnings:
 Warning	4186	Failed to parse histogram for table test.t1_json: Histogram must have at least one bucket at offset 19.
 create table t2 (
@@ -4735,24 +4735,24 @@ Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 explain extended select * from t2 where city = 'Moscow';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	101	98.02	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	101	98.02	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`city` AS `city` from `test`.`t2` where `test`.`t2`.`city` = 'Moscow'
 analyze select * from t2 where city = 'Moscow';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	101	101.00	98.02	98.02	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	101	101.00	98.02	98.02	Using where
 explain extended select * from t2 where city = 'Helsinki';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	101	1.98	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	101	1.98	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`city` AS `city` from `test`.`t2` where `test`.`t2`.`city` = 'Helsinki'
 analyze select * from t2 where city = 'helsinki';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	101	101.00	1.98	1.98	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	101	101.00	1.98	1.98	Using where
 explain extended select * from t2 where city < 'Lagos';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	101	1.98	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	101	1.98	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`city` AS `city` from `test`.`t2` where `test`.`t2`.`city` < 'Lagos'
 drop table t1_bin;
@@ -7728,11 +7728,11 @@ Percentage	0.0	99.9	47	JSON_HB	{
   ]
 }
 analyze select * from Country use index () where Code between 'BBC' and 'GGG';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	239.00	24.58	25.52	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	Country	NULL	ALL	NULL	NULL	NULL	NULL	239	239.00	24.58	25.52	Using where
 analyze select * from Country use index () where Code < 'BBC';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	239.00	8.37	7.11	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	Country	NULL	ALL	NULL	NULL	NULL	NULL	239	239.00	8.37	7.11	Using where
 set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
 DROP SCHEMA world;
@@ -7929,8 +7929,8 @@ JSON_HB	{
   ]
 }
 analyze select * from t1 where a=_cp1251 x'88';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	5.00	60.00	60.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	5.00	60.00	60.00	Using where
 drop table t1;
 #
 # ASAN use-after-poison my_strnxfrm_simple_internal / Histogram_json_hb::range_selectivity ...
@@ -8013,8 +8013,8 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 analyze
 select c from t1 where c > '1';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	16	16.00	75.00	75.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	16.00	75.00	75.00	Using where
 drop table t1;
 #
 # MDEV-26849: JSON Histograms: point selectivity estimates are off for non-existent values
@@ -8101,23 +8101,23 @@ test	t1	a	0	900	0.0000	4.0000	100.0000	10	JSON_HB	{
   ]
 }
 analyze select * from t1 where a=0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1000.00	10.00	10.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	1000	1000.00	10.00	10.00	Using where
 analyze select * from t1 where a=50;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1000.00	0.10	0.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	1000	1000.00	0.10	0.00	Using where
 analyze select * from t1 where a=70;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1000.00	0.10	0.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	1000	1000.00	0.10	0.00	Using where
 analyze select * from t1 where a=100;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1000.00	10.00	10.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	1000	1000.00	10.00	10.00	Using where
 analyze select * from t1 where a=150;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1000.00	0.10	0.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	1000	1000.00	0.10	0.00	Using where
 analyze select * from t1 where a=200;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1000.00	10.00	10.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	1000	1000.00	10.00	10.00	Using where
 drop table t0,t1;
 #
 # MDEV-26892: JSON histograms become invalid with a specific (corrupt) value in t
@@ -8160,17 +8160,17 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 analyze select * from t1 where a <= 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	33.00	33.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	100	100.00	33.00	33.00	Using where
 analyze select * from t1 where a < 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	1.00	0.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	100	100.00	1.00	0.00	Using where
 analyze select * from t1 where a > 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	67.00	67.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	100	100.00	67.00	67.00	Using where
 analyze select * from t1 where a >= 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	100.00	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	100	100.00	100.00	100.00	Using where
 drop table t1;
 #
 # More test coverage
@@ -8188,11 +8188,11 @@ Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 analyze select * from t2 where a < 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1011	1011.00	0.10	0.10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1011	1011.00	0.10	0.10	Using where
 analyze select * from t2 where a =100;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1011	1011.00	0.10	0.10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	1011	1011.00	0.10	0.10	Using where
 drop table t0,t1,t2;
 #
 # MDEV-27230: Estimation for filtered rows less precise ...
@@ -8205,11 +8205,11 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 analyze select COUNT(*) FROM t1 WHERE a <> 'a';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	99.00	99.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	100	100.00	99.00	99.00	Using where
 analyze select COUNT(*) FROM t1 WHERE a < 'a';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	50.00	50.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	100	100.00	50.00	50.00	Using where
 drop table t1;
 #
 # MDEV-27229: Estimation for filtered rows less precise ... #5
@@ -8223,32 +8223,32 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 analyze select COUNT(*) FROM t1 WHERE a > 'foo';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	200	200.00	50.00	50.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	200	200.00	50.00	50.00	Using where
 analyze select COUNT(*) FROM t1 WHERE a > 'aaa';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	200	200.00	100.00	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	200	200.00	100.00	100.00	Using where
 analyze select COUNT(*) FROM t1 WHERE a >='aaa';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	200	200.00	100.00	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	200	200.00	100.00	100.00	Using where
 analyze select COUNT(*) FROM t1 WHERE a > 'bar';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	200	200.00	50.00	50.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	200	200.00	50.00	50.00	Using where
 analyze select COUNT(*) FROM t1 WHERE a >='bar';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	200	200.00	100.00	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	200	200.00	100.00	100.00	Using where
 analyze select COUNT(*) FROM t1 WHERE a < 'aaa';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	200	200.00	0.50	0.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	200	200.00	0.50	0.00	Using where
 analyze select COUNT(*) FROM t1 WHERE a <='aaa';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	200	200.00	0.50	0.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	200	200.00	0.50	0.00	Using where
 analyze select COUNT(*) FROM t1 WHERE a < 'bar';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	200	200.00	0.50	0.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	200	200.00	0.50	0.00	Using where
 analyze select COUNT(*) FROM t1 WHERE a <='bar';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	200	200.00	50.00	50.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	200	200.00	50.00	50.00	Using where
 drop table t1;
 #
 # MDEV-27243: Estimation for filtered rows less precise ... #7
@@ -8261,8 +8261,8 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 ANALYZE SELECT * FROM t1 WHERE f > '00:01:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	1000.00	50.00	50.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	1000	1000.00	50.00	50.00	Using where
 drop table t1;
 #
 # MDEV-26901: Estimation for filtered rows less precise ... #4
@@ -8281,8 +8281,8 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 analyze select f from t1 where f in (77, 1, 144, 73, 14, 12);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	20	20.00	10.00	10.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	20.00	10.00	10.00	Using where
 drop table t1;
 #
 # Test that histograms over BIT fields use hex

@@ -21,15 +21,15 @@ INSERT INTO mysql.column_stats VALUES
 ('test','t0','a','0','9',0.0000,4.0000,1.0000,5,'DOUBLE_PREC_HB', x'5555AAAA00');
 flush tables;
 analyze select * from t0 where a<3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	30.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	30.00	Using where
 # restart
 select hex(histogram) from mysql.column_stats where table_name='t0' and db_name='test';
 hex(histogram)
 5555AAAA00
 analyze select * from t0 where a<3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	30.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	30.00	Using where
 create table t2 (a int);
 # This currently just pretends that the histogram was collected. 
 analyze table t2 persistent for all;
@@ -39,6 +39,6 @@ test.t2	analyze	status	Table is already up to date
 select * from mysql.column_stats where table_name='t2' and db_name='test';
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
 analyze select * from t0 where a<3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	10.00	33.33	30.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	10.00	33.33	30.00	Using where
 drop table t0, t1, t2;

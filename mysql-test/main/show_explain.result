@@ -39,8 +39,8 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 select count(*) from t1 where a < 100000;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	999	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	999	Using where; Using index
 Warnings:
 Note	1003	select count(*) from t1 where a < 100000
 connection con1;
@@ -49,8 +49,8 @@ count(*)
 select max(c) from t1 where a < 10;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	10	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	10	Using index condition
 Warnings:
 Note	1003	select max(c) from t1 where a < 10
 connection con1;
@@ -59,8 +59,8 @@ max(c)
 select max(c) from t1 where a < 10;
 connection default;
 explain for connection $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	10	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	10	Using index condition
 Warnings:
 Note	1003	select max(c) from t1 where a < 10
 connection con1;
@@ -72,24 +72,24 @@ set optimizer_switch='index_condition_pushdown=on,mrr=on,mrr_sort_keys=on';
 explain select max(c) from t1 where a < 10;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	10	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	10	Using index condition; Rowid-ordered scan
 Warnings:
 Note	1003	explain select max(c) from t1 where a < 10
 connection con1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	10	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	10	Using index condition; Rowid-ordered scan
 # Same for EXPLAIN FOR CONNECTION
 explain select max(c) from t1 where a < 10;
 connection default;
 explain for connection $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	10	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	10	Using index condition; Rowid-ordered scan
 Warnings:
 Note	1003	explain select max(c) from t1 where a < 10
 connection con1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	10	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	10	Using index condition; Rowid-ordered scan
 set optimizer_switch= @show_expl_tmp;
 SET debug_dbug=@old_debug;
 # UNION, first branch 
@@ -98,17 +98,17 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 explain select a from t0 A union select a+1 from t0 B;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	
-2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	NULL	ALL	NULL	NULL	NULL	NULL	10	
+2	UNION	B	NULL	ALL	NULL	NULL	NULL	NULL	10	
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	explain select a from t0 A union select a+1 from t0 B
 connection con1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	
-2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	NULL	ALL	NULL	NULL	NULL	NULL	10	
+2	UNION	B	NULL	ALL	NULL	NULL	NULL	NULL	10	
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 SET debug_dbug=@old_debug;
 # UNION, second branch
 set @show_explain_probe_select_id=2;
@@ -116,17 +116,17 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 explain select a from t0 A union select a+1 from t0 B;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	
-2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	NULL	ALL	NULL	NULL	NULL	NULL	10	
+2	UNION	B	NULL	ALL	NULL	NULL	NULL	NULL	10	
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	explain select a from t0 A union select a+1 from t0 B
 connection con1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	
-2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	NULL	ALL	NULL	NULL	NULL	NULL	10	
+2	UNION	B	NULL	ALL	NULL	NULL	NULL	NULL	10	
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 SET debug_dbug=@old_debug;
 # Uncorrelated  subquery, select
 set @show_explain_probe_select_id=1;
@@ -134,9 +134,9 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 select a, (select max(a) from t0 B) from t0 A where a<1;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	SUBQUERY	B	NULL	ALL	NULL	NULL	NULL	NULL	10	
 Warnings:
 Note	1003	select a, (select max(a) from t0 B) from t0 A where a<1
 connection con1;
@@ -149,15 +149,15 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 explain select a, (select max(a) from t0 B) from t0 A where a<1;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	SUBQUERY	B	NULL	ALL	NULL	NULL	NULL	NULL	10	
 Warnings:
 Note	1003	explain select a, (select max(a) from t0 B) from t0 A where a<1
 connection con1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	A	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	SUBQUERY	B	NULL	ALL	NULL	NULL	NULL	NULL	10	
 SET debug_dbug=@old_debug;
 # correlated  subquery, select
 set @show_explain_probe_select_id=1;
@@ -165,9 +165,9 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	b	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
 connection con1;
@@ -180,15 +180,15 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 explain select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	b	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	explain select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
 connection con1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	b	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 SET debug_dbug=@old_debug;
 # correlated  subquery, select, while inside the subquery
 set @show_explain_probe_select_id=2;
@@ -196,9 +196,9 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	b	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
 connection con1;
@@ -211,9 +211,9 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	b	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
 connection con1;
@@ -226,9 +226,9 @@ SET debug_dbug='+d,show_explain_probe_join_exec_end';
 select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	10	Using where
-2	DEPENDENT SUBQUERY	b	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	a	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+2	DEPENDENT SUBQUERY	b	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	select a, (select max(a) from t0 b where b.a+a.a<10) from t0 a where a<1
 connection con1;
@@ -257,15 +257,15 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3
 connection con1;
@@ -277,15 +277,15 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 explain for connection $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3
 explain for connection $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	update t2 set dummy=0 where (select max(a) from t0 where t2.a + t0.a <3) >3
 connection con1;
@@ -300,15 +300,15 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3
 connection con1;
@@ -323,15 +323,15 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3 ;
 connection default;
 explain for connection $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3
 explain for connection $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	delete from t2 where (select max(a) from t0 where t2.a + t0.a <3) >3
 connection con1;
@@ -346,21 +346,21 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	
-2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+2	DEPENDENT SUBQUERY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	
-2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+2	DEPENDENT SUBQUERY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	
-2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+2	DEPENDENT SUBQUERY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
 connection con1;
@@ -379,21 +379,21 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2;
 connection default;
 explain for connection $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	
-2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+2	DEPENDENT SUBQUERY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
 explain for connection $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	
-2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+2	DEPENDENT SUBQUERY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
 explain for connection $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	
-2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+2	DEPENDENT SUBQUERY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	select t2.a, ((select max(a) from t0 where t2.a + t0.a <3) >3) as SUBQ from t2
 connection con1;
@@ -407,15 +407,15 @@ SET debug_dbug=@old_debug;
 # SHOW EXPLAIN for SELECT ... ORDER BY with "Using filesort"
 #
 explain select * from t0 order by a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using filesort
 SET debug_dbug='+d,show_explain_probe_join_exec_start';
 set @show_explain_probe_select_id=1;
 select * from t0 order by a;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using filesort
 Warnings:
 Note	1003	select * from t0 order by a
 connection con1;
@@ -436,16 +436,16 @@ SET debug_dbug=@old_debug;
 #
 connection default;
 explain select distinct a from t0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using temporary
 connection con1;
 SET debug_dbug='+d,show_explain_probe_join_exec_start';
 set @show_explain_probe_select_id=1;
 select distinct a from t0;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using temporary
 Warnings:
 Note	1003	select distinct a from t0
 connection con1;
@@ -466,16 +466,16 @@ SET debug_dbug=@old_debug;
 #
 connection default;
 explain select distinct a from t0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using temporary
 connection con1;
 SET debug_dbug='+d,show_explain_probe_join_exec_start';
 set @show_explain_probe_select_id=1;
 select distinct a from t0;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using temporary
 Warnings:
 Note	1003	select distinct a from t0
 connection con1;
@@ -497,18 +497,18 @@ SET debug_dbug=@old_debug;
 CREATE TABLE t2 ( a INT );
 INSERT INTO t2 VALUES (1),(2),(1),(4),(2);
 explain SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
 SET debug_dbug='+d,show_explain_in_find_all_keys';
 SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a;
 connection default;
 # FIXED by "conservative assumptions about when QEP is available" fix:
 #    NOTE: current code will not show "Using join buffer": 
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a
 connection con1;
@@ -525,9 +525,9 @@ DROP TABLE t2;
 CREATE TABLE t2 (a INT);
 INSERT INTO t2 VALUES (1),(2),(1),(4),(2);
 EXPLAIN EXTENDED SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using temporary; Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t2` join `test`.`t2` group by `test`.`t2`.`a`
 set @show_explain_probe_select_id=1;
@@ -535,15 +535,15 @@ SET debug_dbug='+d,show_explain_probe_join_exec_end';
 EXPLAIN EXTENDED SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a ;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	EXPLAIN EXTENDED SELECT alias.a FROM t2, ( SELECT * FROM t2 ) AS alias GROUP BY alias.a
 connection con1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using temporary; Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a` from `test`.`t2` join `test`.`t2` group by `test`.`t2`.`a`
 SET debug_dbug=@old_debug;
@@ -558,10 +558,10 @@ INSERT INTO t3 VALUES (8);
 CREATE TABLE t2 (b INT);
 INSERT INTO t2 VALUES (4),(5),(6),(7),(8),(9);
 explain SELECT * FROM v1, t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	6	
-2	DERIVED	t3	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	
+2	DERIVED	t3	NULL	system	NULL	NULL	NULL	NULL	1	
 set @show_explain_probe_select_id=2;
 SET debug_dbug='+d,show_explain_probe_join_exec_end';
 SELECT * FROM v1, t2;
@@ -582,8 +582,8 @@ SET debug_dbug='+d,show_explain_probe_join_exec_end';
 select sleep(1);
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select sleep(1)
 connection con1;
@@ -598,8 +598,8 @@ SET debug_dbug='+d,show_explain_probe_join_exec_end';
 select * from t0 where 1>10;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
 Note	1003	select * from t0 where 1>10
 connection con1;
@@ -615,8 +615,8 @@ SET debug_dbug='+d,show_explain_probe_join_exec_end';
 select * from t0,t3 where t3.a=112233;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
 Note	1003	select * from t0,t3 where t3.a=112233
 connection con1;
@@ -635,10 +635,10 @@ explain SELECT * FROM t2 WHERE a =
 (SELECT MAX(a) FROM t2 
 WHERE pk= (SELECT MAX(pk) FROM t2 WHERE pk = 3)
 );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	Using where
-2	SUBQUERY	t2	const	PRIMARY	PRIMARY	4	const	1	
-3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+2	SUBQUERY	t2	NULL	const	PRIMARY	PRIMARY	4	const	1	
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_do_select';
 SELECT * FROM t2 WHERE a = 
@@ -647,10 +647,10 @@ WHERE pk= (SELECT MAX(pk) FROM t2 WHERE pk = 3)
 );
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	Using where
-2	SUBQUERY	t2	const	PRIMARY	PRIMARY	4	const	1	
-3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+2	SUBQUERY	t2	NULL	const	PRIMARY	PRIMARY	4	const	1	
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 Warnings:
 Note	1003	SELECT * FROM t2 WHERE a = 
 (SELECT MAX(a) FROM t2 
@@ -689,10 +689,10 @@ WHERE a1 < ALL (
 SELECT a1 FROM t2
 WHERE a1 IN ( SELECT a1 FROM t2, t4 )
 );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	index	NULL	a1	5	NULL	20	Using where; Using index
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	87	Using join buffer (flat, BNL join)
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	index	NULL	a1	5	NULL	20	Using where; Using index
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	87	Using join buffer (flat, BNL join)
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_do_select';
 SELECT count(*) FROM t2, t3
@@ -702,10 +702,10 @@ WHERE a1 IN ( SELECT a1 FROM t2, t4 )
 );
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	index	NULL	a1	5	NULL	20	Using where; Using index
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	87	Using join buffer (flat, BNL join)
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	index	NULL	a1	5	NULL	20	Using where; Using index
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	87	Using join buffer (flat, BNL join)
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
 Note	1003	SELECT count(*) FROM t2, t3
 WHERE a1 < ALL ( 
@@ -729,10 +729,10 @@ SET debug_dbug='+d,show_explain_probe_join_exec_end';
 SELECT * FROM t2 WHERE (5, 78) IN (SELECT `a1`, MAX(`a1`) FROM t2 GROUP BY `a1`);
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	const	distinct_key	distinct_key	8	const,const	1	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	index	NULL	a1	4	NULL	20	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	NULL	const	distinct_key	distinct_key	8	const,const	1	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
+2	MATERIALIZED	t2	NULL	index	NULL	a1	4	NULL	20	Using index
 Warnings:
 Note	1003	SELECT * FROM t2 WHERE (5, 78) IN (SELECT `a1`, MAX(`a1`) FROM t2 GROUP BY `a1`)
 connection con1;
@@ -750,8 +750,8 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 SELECT 'test' FROM t1 WHERE a=1;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	5	const	2	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	5	const	2	Using index
 Warnings:
 Note	1003	SELECT 'test' FROM t1 WHERE a=1
 connection con1;
@@ -772,35 +772,35 @@ update t1 set col1=3, col2=1000 where key1=4;
 set @tmp_mdev299_jcl= @@join_cache_level;
 set join_cache_level=0;
 explain select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	A	ALL	NULL	NULL	NULL	NULL	100	Using where
-1	SIMPLE	B	ALL	key1	NULL	NULL	NULL	100	Range checked for each record (index map: 0x1)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	A	NULL	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	B	NULL	ALL	key1	NULL	NULL	NULL	100	Range checked for each record (index map: 0x1)
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_test_if_quick_select';
 select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	A	ALL	NULL	NULL	NULL	NULL	100	Using where
-1	SIMPLE	B	ALL	key1	NULL	NULL	NULL	100	Range checked for each record (index map: 0x1)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	A	NULL	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	B	NULL	ALL	key1	NULL	NULL	NULL	100	Range checked for each record (index map: 0x1)
 Warnings:
 Note	1003	select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	A	ALL	NULL	NULL	NULL	NULL	100	Using where
-1	SIMPLE	B	ALL	key1	NULL	NULL	NULL	100	Range checked for each record (index map: 0x1)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	A	NULL	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	B	NULL	ALL	key1	NULL	NULL	NULL	100	Range checked for each record (index map: 0x1)
 Warnings:
 Note	1003	select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	A	ALL	NULL	NULL	NULL	NULL	100	Using where
-1	SIMPLE	B	ALL	key1	NULL	NULL	NULL	100	Range checked for each record (index map: 0x1)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	A	NULL	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	B	NULL	ALL	key1	NULL	NULL	NULL	100	Range checked for each record (index map: 0x1)
 Warnings:
 Note	1003	select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	A	ALL	NULL	NULL	NULL	NULL	100	Using where
-1	SIMPLE	B	ALL	key1	NULL	NULL	NULL	100	Range checked for each record (index map: 0x1)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	A	NULL	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	B	NULL	ALL	key1	NULL	NULL	NULL	100	Range checked for each record (index map: 0x1)
 Warnings:
 Note	1003	select count(*) from t1 A, t1 B where B.key1 < A.col2 and A.col1=3 AND B.col2 + 1 < 100
 connection con1;
@@ -819,8 +819,8 @@ SET debug_dbug='+d,show_explain_probe_join_exec_start';
 SHOW INDEX FROM t1;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	STATISTICS	ALL	NULL	TABLE_SCHEMA,TABLE_NAME	NULL	NULL	NULL	Open_full_table; Scanned 0 databases
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	STATISTICS	NULL	ALL	NULL	TABLE_SCHEMA,TABLE_NAME	NULL	NULL	NULL	Open_full_table; Scanned 0 databases
 Warnings:
 Note	1003	SHOW INDEX FROM t1
 connection con1;
@@ -838,17 +838,17 @@ CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2);
 CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
 EXPLAIN SELECT a + 1 FROM v1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
 SET debug_dbug='+d,show_explain_probe_join_tab_preread';
 set @show_explain_probe_select_id=1;
 SELECT a + 1 FROM v1;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
 Warnings:
 Note	1003	SELECT a + 1 FROM v1
 connection con1;
@@ -866,28 +866,28 @@ CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (4),(6);
 EXPLAIN 
 SELECT a FROM t1 WHERE a IN ( SELECT 1+SLEEP(0.01) UNION SELECT 2 );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 SET debug_dbug='+d,show_explain_probe_union_read';
 SELECT a FROM t1 WHERE a IN ( SELECT 1+SLEEP(0.01) UNION SELECT 2 );
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	SELECT a FROM t1 WHERE a IN ( SELECT 1+SLEEP(0.01) UNION SELECT 2 )
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	SELECT a FROM t1 WHERE a IN ( SELECT 1+SLEEP(0.01) UNION SELECT 2 )
 connection con1;
@@ -909,22 +909,22 @@ INSERT INTO t2 VALUES
 EXPLAIN
 SELECT * FROM t1, ( SELECT * FROM t2 ) AS alias
 WHERE a < ALL ( SELECT b FROM t1, t2 WHERE a = b );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	
-3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	20	
-3	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	20	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	20	
+3	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	
+3	SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_join_exec_start';
 SELECT * FROM t1, ( SELECT * FROM t2 ) AS alias
 WHERE a < ALL ( SELECT b FROM t1, t2 WHERE a = b );
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	
-3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	20	
-3	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	20	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	20	
+3	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	
+3	SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
 Warnings:
 Note	1003	SELECT * FROM t1, ( SELECT * FROM t2 ) AS alias
 WHERE a < ALL ( SELECT b FROM t1, t2 WHERE a = b )
@@ -948,17 +948,17 @@ insert into t3 select * from t4;
 insert into t4 select * from t3;
 insert into t3 select * from t4;
 explain select distinct t1.a from t1,t3 where t1.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	4	Using index; Using temporary
-1	SIMPLE	t3	ref	a	a	5	test.t1.a	7	Using index; Distinct
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	PRIMARY	PRIMARY	4	NULL	4	Using index; Using temporary
+1	SIMPLE	t3	NULL	ref	a	a	5	test.t1.a	7	Using index; Distinct
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_join_exec_start';
 select distinct t1.a from t1,t3 where t1.a=t3.a;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	4	Using index; Using temporary
-1	SIMPLE	t3	ref	a	a	5	test.t1.a	7	Using index; Distinct
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	PRIMARY	PRIMARY	4	NULL	4	Using index; Using temporary
+1	SIMPLE	t3	NULL	ref	a	a	5	test.t1.a	7	Using index; Distinct
 Warnings:
 Note	1003	select distinct t1.a from t1,t3 where t1.a=t3.a
 connection con1;
@@ -987,8 +987,8 @@ show explain for $thr2;
 ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	select * from t0 where a < 3
 connection con1;
@@ -1008,8 +1008,8 @@ select * from t0 where a < 3;
 connection con1;
 connection con3;
 show explain for $thr_con2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	select * from t0 where a < 3
 connection con2;
@@ -1033,8 +1033,8 @@ select * from t0 where a < 3;
 connection default;
 connection con2;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	select * from t0 where a < 3
 connection con1;
@@ -1116,8 +1116,8 @@ EXPLAIN
 SELECT a+SLEEP(0.01) FROM t1
 WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
 ORDER BY b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	a,b	a,b	5,5	NULL	8	Using sort_union(a,b); Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	a,b	a,b	5,5	NULL	8	Using sort_union(a,b); Using where; Using temporary; Using filesort
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_join_exec_start';
 SELECT a+SLEEP(0.01) FROM t1
@@ -1125,8 +1125,8 @@ WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
 ORDER BY b;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	a,b	a,b	5,5	NULL	8	Using sort_union(a,b); Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	a,b	a,b	5,5	NULL	8	Using sort_union(a,b); Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	SELECT a+SLEEP(0.01) FROM t1
 WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
@@ -1148,8 +1148,8 @@ WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
 ORDER BY b;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	a,b	a,b	5,5	NULL	8	Using sort_union(a,b); Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	a,b	a,b	5,5	NULL	8	Using sort_union(a,b); Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	SELECT a+SLEEP(0.01) FROM t1
 WHERE a IN ( 255, 0 ) OR b BETWEEN 6 AND 129
@@ -1174,15 +1174,15 @@ INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),
 (10),(11),(12),(13),(14),(15),(16);
 INSERT INTO t1 SELECT t11.a FROM t1 t11, t1 t12, t1 t13;
 EXPLAIN SELECT a FROM t1 GROUP BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4112	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4112	Using temporary; Using filesort
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_join_exec_start';
 SELECT a FROM t1 GROUP BY a;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4112	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4112	Using temporary; Using filesort
 Warnings:
 Note	1003	SELECT a FROM t1 GROUP BY a
 connection con1;
@@ -1213,17 +1213,17 @@ INSERT INTO t1 VALUES (3989,'Abilene'),(3873,'Akron');
 CREATE TABLE t2 (c INT, d VARCHAR(52) PRIMARY KEY, KEY(c)) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (86,'English'),(87,'Russian');
 explain SELECT SUM(a + SLEEP(0.1)) FROM t1 WHERE a IN ( SELECT c FROM t2 WHERE d < b ) OR b < 's';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t2	index_subquery	PRIMARY,c	c	5	func	1	Using index; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	index_subquery	PRIMARY,c	c	5	func	1	Using index; Using where
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_join_exec_start';
 SELECT SUM(a + SLEEP(0.1)) FROM t1 WHERE a IN ( SELECT c FROM t2 WHERE d < b ) OR b < 's';
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t2	index_subquery	PRIMARY,c	c	5	func	1	Using index; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	index_subquery	PRIMARY,c	c	5	func	1	Using index; Using where
 Warnings:
 Note	1003	SELECT SUM(a + SLEEP(0.1)) FROM t1 WHERE a IN ( SELECT c FROM t2 WHERE d < b ) OR b < 's'
 connection con1;
@@ -1262,19 +1262,19 @@ INSERT INTO t3 VALUES
 ('ESP','Spanish'),('FRA','French'),('VNM','Vietnamese');
 explain
 SELECT b AS field1, b AS field2 FROM t1, t2, t3 WHERE d = b ORDER BY field1, field2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t1	range	b	b	6	NULL	107	Using where; Using index
-1	SIMPLE	t3	ref	PRIMARY	PRIMARY	5	test.t1.b	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	system	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t1	NULL	range	b	b	6	NULL	107	Using where; Using index
+1	SIMPLE	t3	NULL	ref	PRIMARY	PRIMARY	5	test.t1.b	1	Using index
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_do_select';
 SELECT b AS field1, b AS field2 FROM t1, t2, t3 WHERE d = b ORDER BY field1, field2;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t1	range	b	b	6	NULL	107	Using where; Using index
-1	SIMPLE	t3	ref	PRIMARY	PRIMARY	5	test.t1.b	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	system	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t1	NULL	range	b	b	6	NULL	107	Using where; Using index
+1	SIMPLE	t3	NULL	ref	PRIMARY	PRIMARY	5	test.t1.b	1	Using index
 Warnings:
 Note	1003	SELECT b AS field1, b AS field2 FROM t1, t2, t3 WHERE d = b ORDER BY field1, field2
 connection con1;
@@ -1295,20 +1295,20 @@ insert into t3 select * from t2;
 explain 
 SELECT max(a+b+c) FROM t1 AS alias1, ( SELECT * FROM t2 ) AS alias 
 WHERE EXISTS ( SELECT * FROM t3 WHERE b = c )  OR a <= 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	alias1	ALL	NULL	NULL	NULL	NULL	14	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	
-3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	20	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	alias1	NULL	ALL	NULL	NULL	NULL	NULL	14	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	20	
+3	SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_join_exec_start';
 SELECT max(a+b+c) FROM t1 AS alias1, ( SELECT * FROM t2 ) AS alias 
 WHERE EXISTS ( SELECT * FROM t3 WHERE b = c )  OR a <= 10;
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	alias1	ALL	NULL	NULL	NULL	NULL	14	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	20	
-3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	20	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	alias1	NULL	ALL	NULL	NULL	NULL	NULL	14	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	20	
+3	SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
 Warnings:
 Note	1003	SELECT max(a+b+c) FROM t1 AS alias1, ( SELECT * FROM t2 ) AS alias 
 WHERE EXISTS ( SELECT * FROM t3 WHERE b = c )  OR a <= 10
@@ -1326,9 +1326,9 @@ CREATE TABLE t2 (b INT);
 INSERT INTO t2 VALUES (8),(9);
 EXPLAIN SELECT * FROM t1 
 WHERE ( 8, 89 ) IN ( SELECT b, SUM( DISTINCT b ) FROM t2 GROUP BY b );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+2	SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using filesort
 DROP TABLE t1,t2;
 #
 # Check if queries in non-default charsets work.
@@ -1346,8 +1346,8 @@ select * from t0 where length('ãû') = a;
 connection default;
 set names utf8;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 Warnings:
 Note	1003	select * from t0 where length('Ð³Ñ‹') = a
 set names default;
@@ -1374,11 +1374,11 @@ SELECT SUM(b) FROM ( SELECT * FROM t1 ) AS alias1, t2
 WHERE b <= ANY ( 
 SELECT a FROM t1 
 WHERE a = b + SLEEP(0.2) OR a >= ( SELECT SUM(b) FROM t2 ));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	NULL	a	4	NULL	2	Using index
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-3	DEPENDENT SUBQUERY	t1	ALL	a	NULL	NULL	NULL	2	Range checked for each record (index map: 0x1)
-4	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	index	NULL	a	4	NULL	2	Using index
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+3	DEPENDENT SUBQUERY	t1	NULL	ALL	a	NULL	NULL	NULL	2	Range checked for each record (index map: 0x1)
+4	SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
 set @show_explain_probe_select_id=1;
 SET debug_dbug='+d,show_explain_probe_join_exec_start';
 SELECT SUM(b) FROM ( SELECT * FROM t1 ) AS alias1, t2 
@@ -1387,11 +1387,11 @@ SELECT a FROM t1
 WHERE a = b + SLEEP(0.2) OR a >= ( SELECT SUM(b) FROM t2 ));
 connection default;
 show explain for $thr2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	NULL	a	4	NULL	2	Using index
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-3	DEPENDENT SUBQUERY	t1	ALL	a	NULL	NULL	NULL	2	Range checked for each record (index map: 0x1)
-4	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	index	NULL	a	4	NULL	2	Using index
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+3	DEPENDENT SUBQUERY	t1	NULL	ALL	a	NULL	NULL	NULL	2	Range checked for each record (index map: 0x1)
+4	SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
 Warnings:
 Note	1003	SELECT SUM(b) FROM ( SELECT * FROM t1 ) AS alias1, t2 
 WHERE b <= ANY ( 

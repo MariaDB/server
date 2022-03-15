@@ -39,14 +39,14 @@ select *
 from t1
 where key1<3 or key2<3
 order by pk;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	key1,key2	key1,key2	5,5	NULL	#	Using sort_union(key1,key2); Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	key1,key2	key1,key2	5,5	NULL	#	Using sort_union(key1,key2); Using where; Using filesort
 explain 
 select * 
 from t1
 where key1<3 or key2<3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	key1,key2	key1,key2	5,5	NULL	#	Using sort_union(key1,key2); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	key1,key2	key1,key2	5,5	NULL	#	Using sort_union(key1,key2); Using where
 drop table t0, t1;
 #
 # MDEV-18094: Query with order by limit picking index scan over filesort
@@ -63,15 +63,15 @@ KEY a_b (a,b)
 insert into t1 select A.a , B.a, C.a from t0 A, t0 B, t0 C;
 # should use ref access
 explain select a,b,c from t1 where a=1 and c=2 order by b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a_c,a_b	a_c	10	const,const	20	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a_c,a_b	a_c	10	const,const	20	Using where; Using filesort
 # both should use range access
 explain select a,b,c from t1 where a=1 and c=2 order by b limit 1000;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a_c,a_b	a_b	5	NULL	200	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a_c,a_b	a_b	5	NULL	200	Using where
 explain select a,b,c from t1 where a=1 and c=2 order by b limit 2000;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a_c,a_b	a_b	5	NULL	200	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a_c,a_b	a_b	5	NULL	200	Using where
 drop table t1,t0;
 # Start of 10.2 tests
 #
@@ -247,10 +247,10 @@ d1 > '2019-02-06 00:00:00'
                  order by
 dd.d1, dd.d2, dd.id limit 1
 );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	NULL	PRIMARY	4	NULL	#	Using index
-1	PRIMARY	t2	eq_ref	PRIMARY,id2	PRIMARY	4	func	#	Using where
-2	DEPENDENT SUBQUERY	dd	range	id2,for_latest_sort	for_latest_sort	6	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	index	NULL	PRIMARY	4	NULL	#	Using index
+1	PRIMARY	t2	NULL	eq_ref	PRIMARY,id2	PRIMARY	4	func	#	Using where
+2	DEPENDENT SUBQUERY	dd	NULL	range	id2,for_latest_sort	for_latest_sort	6	NULL	#	Using where
 drop table t1,t2,t3;
 # End of 10.2 tests
 #
@@ -260,11 +260,11 @@ create table t1 (a int, b int, c int, key r (a desc, b asc));
 insert t1 select seq % 10, seq div 10, seq from seq_1_to_55;
 insert t1 values (NULL, NULL, NULL), (9, NULL, NULL);
 explain select * from t1 force index(r) order by a,b limit 20;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	57	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	57	Using filesort
 explain select * from t1 force index(r) order by a desc,b limit 20;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	r	10	NULL	20	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	r	10	NULL	20	
 select * from t1 force index(r) order by a desc,b limit 20;
 a	b	c
 9	NULL	NULL

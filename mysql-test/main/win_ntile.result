@@ -413,9 +413,9 @@ explain
 select pk, a, b,
 ntile((select a from t1 where pk=13)) over (partition by b order by pk)
 from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	Using temporary
-2	SUBQUERY	t1	const	PRIMARY	PRIMARY	4	const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+2	SUBQUERY	t1	NULL	const	PRIMARY	PRIMARY	4	const	1	
 select a from t1;
 a
 0

@@ -2148,13 +2148,13 @@ ERROR 42S02: Table 'test.t' doesn't exist
 create table t1 (x int);
 insert into t1 values (1),(2);
 explain extended (SELECT x FROM t1 WINDOW w1 as () FOR UPDATE) LIMIT 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
 Note	1003	(select `test`.`t1`.`x` AS `x` from `test`.`t1` limit 1)
 explain extended (SELECT x FROM t1 FOR UPDATE) LIMIT 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
 Note	1003	(select `test`.`t1`.`x` AS `x` from `test`.`t1` limit 1)
 drop table t1;

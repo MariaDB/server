@@ -10,6 +10,7 @@ explain select * from t1 where c2 = 1 order by c1;
 id	1
 select_type	SIMPLE
 table	t1
+partitions	NULL
 type	ref
 possible_keys	c2
 key	c2

@@ -1,0 +1,39 @@
+drop table if exists t0, t1, t2, t3, t4;
+drop view if exists v1;
+SET @old_debug= @@session.debug;
+connect  con1, localhost, root,,;
+connection con1;
+SET @old_debug= @@session.debug;
+connection default;
+create table t1 (a int) partition by hash(a) partitions 4;
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+connection con1;
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+select count(*) from t1 where a in (1,2);
+connection default;
+# The point of this test: see that `partitions` column has correct info:
+show analyze for $thr2;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	p1,p2	ALL	NULL	NULL	NULL	NULL	5	5.00	100.00	40.00	Using where
+Warnings:
+Note	1003	select count(*) from t1 where a in (1,2)
+connection con1;
+count(*)
+2
+select count(*) from t1 where a in (1,2);
+connection default;
+# The point of this test: see that `partitions` column has correct info:
+show explain for $thr2;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1,p2	ALL	NULL	NULL	NULL	NULL	5	Using where
+Warnings:
+Note	1003	select count(*) from t1 where a in (1,2)
+connection con1;
+count(*)
+2
+connection default;
+SET debug_dbug=@old_debug;
+disconnect con1;
+set debug_sync='RESET';
+drop table t1;

@@ -477,7 +477,7 @@ SELECT Country.Name, IF(ISNULL(CountryLanguage.Country), NULL, CountryLanguage.P
        Country.Population > 10000000;
 
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN
 SELECT Country.Name, Country.Population, City.Name, City.Population 
   FROM Country LEFT JOIN City
@@ -974,7 +974,7 @@ SELECT City.Name, Country.Name FROM City,Country
 set join_cache_level=8;
 set join_buffer_size=384;
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN
 SELECT City.Name, Country.Name FROM City,Country
   WHERE City.Country=Country.Code AND City.Population > 3000000;

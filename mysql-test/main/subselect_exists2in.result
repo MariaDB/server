@@ -50,9 +50,9 @@ a
 c
 explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	index	aa	aa	4	NULL	2	100.00	Using index
-1	PRIMARY	t3	ALL	bb	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	index	aa	aa	4	NULL	2	100.00	Using index
+1	PRIMARY	t3	NULL	ALL	bb	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t3`) where `test`.`t3`.`b` = `test`.`t1`.`a`
@@ -63,9 +63,9 @@ a
 c
 explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	index	NULL	aa	4	NULL	2	100.00	Using where; Using index
-2	DEPENDENT SUBQUERY	t3	ALL	bb	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	index	NULL	aa	4	NULL	2	100.00	Using where; Using index
+2	DEPENDENT SUBQUERY	t3	NULL	ALL	bb	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <in_optimizer>(`test`.`t1`.`a`,<exists>(/* select#2 */ select `test`.`t3`.`b` from `test`.`t3` where <cache>(`test`.`t1`.`a`) = `test`.`t3`.`b`))
@@ -76,9 +76,9 @@ a
 c
 explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	index	NULL	aa	4	NULL	2	100.00	Using where; Using index
-2	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	index	NULL	aa	4	NULL	2	100.00	Using where; Using index
+2	MATERIALIZED	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <in_optimizer>(`test`.`t1`.`a`,`test`.`t1`.`a` in ( <materialize> (/* select#2 */ select `test`.`t3`.`b` from `test`.`t3` where 1 ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`b`)))
@@ -89,9 +89,9 @@ a
 c
 explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT a FROM t3 WHERE t3.b = t1.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	index	NULL	aa	4	NULL	2	100.00	Using where; Using index
-2	DEPENDENT SUBQUERY	t3	ALL	bb	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	index	NULL	aa	4	NULL	2	100.00	Using where; Using index
+2	DEPENDENT SUBQUERY	t3	NULL	ALL	bb	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where exists(/* select#2 */ select `test`.`t3`.`a` from `test`.`t3` where `test`.`t3`.`b` = `test`.`t1`.`a` limit 1)
@@ -239,10 +239,10 @@ where exists ( select * from t2
 where t2.c in (select c from t3 where t3.c > t1.b) and
 t2.c > 'b1' )
 group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
-2	DEPENDENT SUBQUERY	t2	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
-2	DEPENDENT SUBQUERY	t3	index	NULL	idx_t3_1	10	NULL	192	Using where; Using index; FirstMatch(t2); Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
+2	DEPENDENT SUBQUERY	t2	NULL	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
+2	DEPENDENT SUBQUERY	t3	NULL	index	NULL	idx_t3_1	10	NULL	192	Using where; Using index; FirstMatch(t2); Using join buffer (flat, BNL join)
 select a1,a2,b,c,min(c), max(c) from t1
 where exists ( select * from t2
 where t2.c in (select c from t3 where t3.c > t1.b) and
@@ -270,10 +270,10 @@ where exists ( select * from t2
 where t2.c in (select c from t3 where t3.c > t1.c) and
 t2.c > 'b1' )
 group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
-2	DEPENDENT SUBQUERY	t2	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
-2	DEPENDENT SUBQUERY	t3	index	NULL	idx_t3_1	10	NULL	192	Using where; Using index; FirstMatch(t2); Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
+2	DEPENDENT SUBQUERY	t2	NULL	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
+2	DEPENDENT SUBQUERY	t3	NULL	index	NULL	idx_t3_1	10	NULL	192	Using where; Using index; FirstMatch(t2); Using join buffer (flat, BNL join)
 select a1,a2,b,c,min(c), max(c) from t1
 where exists ( select * from t2
 where t2.c in (select c from t3 where t3.c > t1.c) and
@@ -311,9 +311,9 @@ explain extended
 SELECT * FROM t1 WHERE
 EXISTS ( SELECT * FROM t2 WHERE b = a )
 OR a > 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where <expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,`test`.`t1`.`a` in ( <materialize> (/* select#2 */ select `test`.`t2`.`b` from `test`.`t2` where 1 ), <primary_index_lookup>(`test`.`t1`.`a` in <temporary table> on distinct_key where `test`.`t1`.`a` = `<subquery2>`.`b`)))) or `test`.`t1`.`a` > 0
@@ -327,10 +327,10 @@ INSERT INTO t3 VALUES (4),(5);
 SET optimizer_switch='exists_to_in=on,subquery_cache=off,materialization=on,in_to_exists=off,semijoin=off';
 explain extended
 SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
-3	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	SUBQUERY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+3	MATERIALIZED	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t2.b' of SELECT #3 was resolved in SELECT #2
 Note	1003	/* select#1 */ select (/* select#2 */ select 1 from dual where !(1 is not null and <in_optimizer>(1,1 in (<primary_index_lookup>(1 in <temporary table> on distinct_key where 1 = `<subquery3>`.`c`))))) AS `( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )` from `test`.`t1`
@@ -341,10 +341,10 @@ SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FR
 SET optimizer_switch='exists_to_in=on,subquery_cache=off';
 explain extended
 SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
-3	MATERIALIZED	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	SUBQUERY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+3	MATERIALIZED	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t2.b' of SELECT #3 was resolved in SELECT #2
 Note	1003	/* select#1 */ select (/* select#2 */ select 1 from dual where !(1 is not null and <in_optimizer>(1,1 in (<primary_index_lookup>(1 in <temporary table> on distinct_key where 1 = `<subquery3>`.`c`))))) AS `( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )` from `test`.`t1`
@@ -355,10 +355,10 @@ SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FR
 SET optimizer_switch='exists_to_in=off,subquery_cache=off';
 explain extended
 SELECT ( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	100.00	
-3	SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	SUBQUERY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+3	SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t2.b' of SELECT #3 was resolved in SELECT #2
 Note	1003	/* select#1 */ select (/* select#2 */ select 1 from dual where !exists(/* select#3 */ select `test`.`t3`.`c` from `test`.`t3` where `test`.`t3`.`c` = 1 limit 1)) AS `( SELECT b FROM t2 WHERE NOT EXISTS ( SELECT c FROM t3 WHERE c = b ) )` from `test`.`t1`
@@ -384,9 +384,9 @@ a	a1
 c	c
 explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	index	bb	bb	8	NULL	2	100.00	Using where; Using index; LooseScan
-1	PRIMARY	t1	ref	aa	aa	8	test.t3.b,test.t3.b1	2	100.00	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	index	bb	bb	8	NULL	2	100.00	Using where; Using index; LooseScan
+1	PRIMARY	t1	NULL	ref	aa	aa	8	test.t3.b,test.t3.b1	2	100.00	Using index
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.t1.a1' of SELECT #2 was resolved in SELECT #1
@@ -398,9 +398,9 @@ a	a1
 c	c
 explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	index	NULL	aa	8	NULL	2	100.00	Using where; Using index
-2	DEPENDENT SUBQUERY	t3	index_subquery	bb	bb	8	func,func	2	100.00	Using index; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	index	NULL	aa	8	NULL	2	100.00	Using where; Using index
+2	DEPENDENT SUBQUERY	t3	NULL	index_subquery	bb	bb	8	func,func	2	100.00	Using index; Using where
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.t1.a1' of SELECT #2 was resolved in SELECT #1
@@ -412,9 +412,9 @@ a	a1
 c	c
 explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	index	NULL	aa	8	NULL	2	100.00	Using where; Using index
-2	MATERIALIZED	t3	index	NULL	bb	8	NULL	2	100.00	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	index	NULL	aa	8	NULL	2	100.00	Using where; Using index
+2	MATERIALIZED	t3	NULL	index	NULL	bb	8	NULL	2	100.00	Using index
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.t1.a1' of SELECT #2 was resolved in SELECT #1
@@ -426,9 +426,9 @@ a	a1
 c	c
 explain extended
 SELECT * FROM t1 WHERE EXISTS ( SELECT * FROM t3 WHERE t3.b = t1.a and t3.b1 = t1.a1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	index	NULL	aa	8	NULL	2	100.00	Using where; Using index
-2	DEPENDENT SUBQUERY	t3	ref	bb	bb	8	test.t1.a,test.t1.a1	2	100.00	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	index	NULL	aa	8	NULL	2	100.00	Using where; Using index
+2	DEPENDENT SUBQUERY	t3	NULL	ref	bb	bb	8	test.t1.a,test.t1.a1	2	100.00	Using index
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.t1.a1' of SELECT #2 was resolved in SELECT #1
@@ -462,10 +462,10 @@ WHERE EXISTS (
 SELECT * FROM t1, t2 
 WHERE a <= v.d AND b = v.b 
 );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'v.d' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'v.b' of SELECT #2 was resolved in SELECT #1
@@ -539,11 +539,11 @@ WHERE EXISTS (
 SELECT * FROM t1, t2 
 WHERE a <= alias2.a AND c = alias1.b 
 ) OR alias1 .a = 'foo';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	alias1	ALL	NULL	NULL	NULL	NULL	4	100.00	
-1	PRIMARY	alias2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
-2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	alias1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	alias2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'test.alias2.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.alias1.b' of SELECT #2 was resolved in SELECT #1
@@ -566,9 +566,9 @@ a
 8
 explain extended
 SELECT * FROM t1 WHERE NOT EXISTS ( SELECT * FROM t2 WHERE b = a );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
-2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where !(`test`.`t1`.`a` is not null and <expr_cache><`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`a`,<exists>(/* select#2 */ select `test`.`t2`.`b` from `test`.`t2` where `test`.`t2`.`b` is not null and <cache>(`test`.`t1`.`a`) = `test`.`t2`.`b`))))
@@ -589,9 +589,9 @@ s	v
 explain extended
 SELECT * FROM t1 AS alias
 WHERE EXISTS ( SELECT * FROM t1 WHERE a > alias.a AND a = alias.b );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	alias	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(alias); Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	alias	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(alias); Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'test.alias.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.alias.b' of SELECT #2 was resolved in SELECT #1
@@ -605,9 +605,9 @@ s	v
 explain extended
 SELECT * FROM t1 AS alias
 WHERE EXISTS ( SELECT * FROM t1 WHERE a > alias.a AND a = alias.b );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	alias	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	alias	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.alias.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.alias.b' of SELECT #2 was resolved in SELECT #1
@@ -620,9 +620,9 @@ s	v
 explain extended
 SELECT * FROM t1 AS alias
 WHERE EXISTS ( SELECT * FROM t1 WHERE a > alias.a AND a = alias.b );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	alias	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary; End temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	alias	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary; End temporary
 Warnings:
 Note	1276	Field or reference 'test.alias.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.alias.b' of SELECT #2 was resolved in SELECT #1
@@ -657,10 +657,10 @@ SELECT * FROM t1 AS alias1, t2 AS alias2
 WHERE EXISTS ( 
 SELECT 1 FROM t2 WHERE b = alias1.a AND b > alias2.b 
 ) OR a = 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	alias1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	PRIMARY	alias2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
-2	DEPENDENT SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	alias1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	alias2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.alias1.a' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.alias2.b' of SELECT #2 was resolved in SELECT #1
@@ -717,10 +717,10 @@ insert into t1 values (1,2,3),(2,3,4),(4,5,6);
 create table t2 as select * from t1;
 explain extended
 select * from t1 where exists (select col2 from t2 where t2.col1=t1.col1 and t2.col2=t1.col2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	func,func	1	100.00	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	func,func	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1276	Field or reference 'test.t1.col1' of SELECT #2 was resolved in SELECT #1
 Note	1276	Field or reference 'test.t1.col2' of SELECT #2 was resolved in SELECT #1
@@ -900,11 +900,11 @@ explain extended SELECT STRAIGHT_JOIN sq1.f2
 FROM ( SELECT * FROM t1 ) AS sq1
 WHERE EXISTS ( SELECT * FROM t1 AS sq2 
 WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-3	DEPENDENT SUBQUERY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-3	DEPENDENT SUBQUERY	sq2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
-4	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	DEPENDENT SUBQUERY	<subquery4>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+3	DEPENDENT SUBQUERY	sq2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+4	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
 Note	1276	Field or reference 'sq1.pk' of SELECT #3 was resolved in SELECT #1
 Note	1276	Field or reference 'sq1.f1' of SELECT #3 was resolved in SELECT #1
@@ -920,11 +920,11 @@ explain extended SELECT STRAIGHT_JOIN sq1.f2
 FROM ( SELECT * FROM t1 ) AS sq1
 WHERE EXISTS ( SELECT * FROM t1 AS sq2 
 WHERE sq1.`pk` IN ( SELECT f1 FROM t1 ) AND sq2.f1 = sq1.f1 );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-3	DEPENDENT SUBQUERY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-3	DEPENDENT SUBQUERY	sq2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
-4	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	DEPENDENT SUBQUERY	<subquery4>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+3	DEPENDENT SUBQUERY	sq2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+4	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
 Note	1276	Field or reference 'sq1.pk' of SELECT #3 was resolved in SELECT #1
 Note	1276	Field or reference 'sq1.f1' of SELECT #3 was resolved in SELECT #1
@@ -1115,9 +1115,9 @@ create table t2 (a int, b int);
 insert into t2 select a,a from t11;
 create table t3 as select * from t2;
 explain  select *  from t1  where    exists (select t2.a from t2 left join t3 on (t3.b=t1.b) where t2.a=t1.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	1000	Using where; Start temporary; Using join buffer (flat, BNL join)
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	1000	Using where; End temporary; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	1000	Using where; Start temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	1000	Using where; End temporary; Using join buffer (incremental, BNL join)
 drop table t1, t2, t3, t10, t11;
 set optimizer_switch=default;

@@ -21,12 +21,12 @@ connection default;
 GRANT INSERT ON privtest_db.t1 TO 'privtest'@'localhost';
 connection con1;
 EXPLAIN INSERT INTO t1 VALUES (10);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	INSERT	t1	ALL	NULL	NULL	NULL	NULL	NULL	NULL
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	INSERT	t1	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 INSERT INTO t1 VALUES (10);
 EXPLAIN INSERT INTO t1 SELECT * FROM t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
 INSERT INTO t1 SELECT * FROM t2;
 connection default;
 REVOKE ALL PRIVILEGES ON privtest_db.t1 FROM 'privtest'@'localhost';
@@ -66,12 +66,12 @@ connection default;
 GRANT INSERT, DELETE ON privtest_db.t1 TO 'privtest'@'localhost';
 connection con1;
 EXPLAIN REPLACE INTO t1 VALUES (10);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	INSERT	t1	ALL	NULL	NULL	NULL	NULL	NULL	NULL
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	INSERT	t1	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 REPLACE INTO t1 VALUES (10);
 EXPLAIN REPLACE INTO t1 SELECT * FROM t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
 REPLACE INTO t1 SELECT * FROM t2;
 connection default;
 REVOKE ALL PRIVILEGES ON privtest_db.t1 FROM 'privtest'@'localhost';
@@ -111,13 +111,13 @@ connection default;
 GRANT UPDATE, SELECT ON privtest_db.t1 TO 'privtest'@'localhost';
 connection con1;
 EXPLAIN UPDATE t1 SET a = a + 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	
 UPDATE t1 SET a = a + 1;
 EXPLAIN UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
 UPDATE t1, t2 SET t1.a = t1.a + 1 WHERE t1.a = t2.a;
 connection default;
 REVOKE ALL PRIVILEGES ON privtest_db.t1 FROM 'privtest'@'localhost';
@@ -158,13 +158,13 @@ REVOKE ALL PRIVILEGES ON privtest_db.t1 FROM 'privtest'@'localhost';
 GRANT DELETE, SELECT ON privtest_db.t1 TO 'privtest'@'localhost';
 connection con1;
 EXPLAIN DELETE FROM t1 WHERE a = 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
 DELETE FROM t1 WHERE a = 10;
 EXPLAIN DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	3	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
 DELETE FROM t1 USING t1, t2 WHERE t1.a = t2.a;
 connection default;
 REVOKE ALL PRIVILEGES ON privtest_db.t1 FROM 'privtest'@'localhost';

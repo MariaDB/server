@@ -73,17 +73,17 @@ select count(*) from t1 where t like 'a%';
 select count(*) from t1 where v like 'a %';
 # Test results differ for BDB, see comments in bdb.test
 # and they are also different from MySAM test results.
---replace_column 9 #
+--replace_column 10 #
 explain select count(*) from t1 where v='a  ';
---replace_column 9 #
+--replace_column 10 #
 explain select count(*) from t1 where c='a  ';
---replace_column 9 #
+--replace_column 10 #
 explain select count(*) from t1 where t='a  ';
---replace_column 9 #
+--replace_column 10 #
 explain select count(*) from t1 where v like 'a%';
---replace_column 9 #
+--replace_column 10 #
 explain select count(*) from t1 where v between 'a' and 'a ';
---replace_column 9 #
+--replace_column 10 #
 explain select count(*) from t1 where v between 'a' and 'a ' and v between 'a  ' and 'b\n';
 
 # Which duplicate entry triggers error is not deterministic.
@@ -93,7 +93,7 @@ alter table t1 add unique(v);
 show warnings;
 alter table t1 add key(v);
 select concat('*',v,'*',c,'*',t,'*') as qq from t1 where v='a';
---replace_column 6 # 9 # 10 #
+--replace_column 7 # 10 # 11 #
 explain select * from t1 where v='a';
 
 # GROUP BY
@@ -122,15 +122,15 @@ select count(*) from t1 where v between 'a' and 'a ';
 select count(*) from t1 where v between 'a' and 'a ' and v between 'a  ' and 'b\n';
 select count(*) from t1 where v like 'a%';
 select count(*) from t1 where v like 'a %';
---replace_column 9 #
+--replace_column 10 #
 explain select count(*) from t1 where v='a  ';
---replace_column 9 #
+--replace_column 10 #
 explain select count(*) from t1 where v like 'a%';
---replace_column 9 #
+--replace_column 10 #
 explain select count(*) from t1 where v between 'a' and 'a ';
---replace_column 9 #
+--replace_column 10 #
 explain select count(*) from t1 where v between 'a' and 'a ' and v between 'a  ' and 'b\n';
---replace_column 9 # 10 #
+--replace_column 10 # 11 #
 explain select * from t1 where v='a';
 
 # GROUP BY
@@ -151,15 +151,15 @@ select count(*) from t1 where v between 'a' and 'a ';
 select count(*) from t1 where v between 'a' and 'a ' and v between 'a  ' and 'b\n';
 select count(*) from t1 where v like 'a%';
 select count(*) from t1 where v like 'a %';
---replace_column 9 #
+--replace_column 10 #
 explain select count(*) from t1 where v='a  ';
---replace_column 9 #
+--replace_column 10 #
 explain select count(*) from t1 where v like 'a%';
---replace_column 9 #
+--replace_column 10 #
 explain select count(*) from t1 where v between 'a' and 'a ';
---replace_column 9 #
+--replace_column 10 #
 explain select count(*) from t1 where v between 'a' and 'a ' and v between 'a  ' and 'b\n';
---replace_column 9 # 10 #
+--replace_column 10 # 11 #
 explain select * from t1 where v='a';
 
 # GROUP BY

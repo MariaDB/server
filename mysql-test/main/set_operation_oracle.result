@@ -11,12 +11,12 @@ a	b
 3	3
 explain extended
 (select a,b from t1) union (select c,d from t2) intersect (select e,f from t3) union (select 4,4);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	UNION	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-3	INTERSECT	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
-4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNIT RESULT	<unit1,2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	INTERSECT	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNIT RESULT	<unit1,2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	(/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1") union (/* select#2 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2") intersect (/* select#3 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3") union (/* select#4 */ select 4 AS "4",4 AS "4")
 (select e,f from t3) intersect (select c,d from t2) union (select a,b from t1) union (select 4,4);
@@ -27,12 +27,12 @@ e	f
 4	4
 explain extended
 (select e,f from t3) intersect (select c,d from t2) union (select a,b from t1) union (select 4,4);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	INTERSECT	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNIT RESULT	<unit1,2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	INTERSECT	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNIT RESULT	<unit1,2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	(/* select#1 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3") intersect (/* select#2 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2") union (/* select#3 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1") union (/* select#4 */ select 4 AS "4",4 AS "4")
 create table t12(c1 int);
@@ -65,12 +65,12 @@ a	b
 3	3
 explain extended
 select a,b from t1 union all select c,d from t2 intersect select e,f from t3 union all select 4,'4' from dual;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	UNION	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-3	INTERSECT	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
-4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNIT RESULT	<unit1,2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	INTERSECT	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNIT RESULT	<unit1,2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" union all /* select#2 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2" intersect /* select#3 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3" union all /* select#4 */ select 4 AS "4",'4' AS "4"
 select a,b from t1 union all select c,d from t2 intersect all select e,f from t3 union all select 4,'4' from dual;
@@ -79,12 +79,12 @@ a	b
 4	4
 explain extended
 select a,b from t1 union all select c,d from t2 intersect all select e,f from t3 union all select 4,'4' from dual;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	UNION	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-3	INTERSECT	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
-4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNIT RESULT	<unit1,2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	INTERSECT	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNIT RESULT	<unit1,2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" union all /* select#2 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2" intersect all /* select#3 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3" union all /* select#4 */ select 4 AS "4",'4' AS "4"
 select e,f from t3 intersect select c,d from t2 union all select a,b from t1 union all select 4,'4' from dual;
@@ -95,12 +95,12 @@ e	f
 4	4
 explain extended
 select e,f from t3 intersect select c,d from t2 union all select a,b from t1 union all select 4,'4' from dual;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	INTERSECT	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNIT RESULT	<unit1,2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	INTERSECT	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNIT RESULT	<unit1,2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3" intersect /* select#2 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2" union all /* select#3 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" union all /* select#4 */ select 4 AS "4",'4' AS "4"
 select e,f from t3 intersect all select c,d from t2 union all select a,b from t1 union all select 4,'4' from dual;
@@ -111,12 +111,12 @@ e	f
 4	4
 explain extended
 select e,f from t3 intersect all select c,d from t2 union all select a,b from t1 union all select 4,'4' from dual;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	INTERSECT	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
-4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNIT RESULT	<unit1,2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	INTERSECT	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNIT RESULT	<unit1,2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select "test"."t3"."e" AS "e","test"."t3"."f" AS "f" from "test"."t3" intersect all /* select#2 */ select "test"."t2"."c" AS "c","test"."t2"."d" AS "d" from "test"."t2" union all /* select#3 */ select "test"."t1"."a" AS "a","test"."t1"."b" AS "b" from "test"."t1" union all /* select#4 */ select 4 AS "4",'4' AS "4"
 set SQL_MODE=default;

@@ -22,11 +22,11 @@ INTERSECT ALL
 select * from t2
 INTERSECT ALL
 select * from t3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
-2	INTERSECT	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	
-3	INTERSECT	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	
-NULL	INTERSECT RESULT	<intersect1,2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	INTERSECT	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	
+3	INTERSECT	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+NULL	INTERSECT RESULT	<intersect1,2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` intersect all /* select#2 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2` intersect all /* select#3 */ select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3`
 select * from t1
@@ -46,12 +46,12 @@ INTERSECT ALL
 select * from t3
 INTERSECT
 select * from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
-2	INTERSECT	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	
-3	INTERSECT	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	
-4	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
-NULL	INTERSECT RESULT	<intersect1,2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	INTERSECT	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	
+3	INTERSECT	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+4	INTERSECT	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+NULL	INTERSECT RESULT	<intersect1,2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` intersect /* select#2 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2` intersect /* select#3 */ select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3` intersect /* select#4 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1`
 select * from t1
@@ -71,12 +71,12 @@ INTERSECT ALL
 select * from t3
 EXCEPT ALL
 select * from t4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
-2	INTERSECT	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	
-3	INTERSECT	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	
-4	EXCEPT	t4	ALL	NULL	NULL	NULL	NULL	3	100.00	
-NULL	UNIT RESULT	<unit1,2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	INTERSECT	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	
+3	INTERSECT	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+4	EXCEPT	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+NULL	UNIT RESULT	<unit1,2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` intersect all /* select#2 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2` intersect all /* select#3 */ select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3` except all /* select#4 */ select `test`.`t4`.`g` AS `g`,`test`.`t4`.`h` AS `h` from `test`.`t4`
 select * from t1
@@ -91,11 +91,11 @@ INTERSECT
 select * from t2
 EXCEPT ALL
 select * from t4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
-2	INTERSECT	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	
-3	EXCEPT	t4	ALL	NULL	NULL	NULL	NULL	3	100.00	
-NULL	UNIT RESULT	<unit1,2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	INTERSECT	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	
+3	EXCEPT	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+NULL	UNIT RESULT	<unit1,2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` intersect /* select#2 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2` except /* select#3 */ select `test`.`t4`.`g` AS `g`,`test`.`t4`.`h` AS `h` from `test`.`t4`
 insert into t4 values (1,1),(9,9);
@@ -116,12 +116,12 @@ UNION ALL
 select * from t3
 EXCEPT
 select * from t4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
-2	UNION	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	
-3	UNION	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	
-4	EXCEPT	t4	ALL	NULL	NULL	NULL	NULL	5	100.00	
-NULL	UNIT RESULT	<unit1,2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	
+3	UNION	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+4	EXCEPT	t4	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+NULL	UNIT RESULT	<unit1,2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` union /* select#2 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2` union /* select#3 */ select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3` except /* select#4 */ select `test`.`t4`.`g` AS `g`,`test`.`t4`.`h` AS `h` from `test`.`t4`
 delete from t4;
@@ -158,15 +158,15 @@ EXCEPT
 select * from t3
 UNION ALL
 select * from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
-2	INTERSECT	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	
-3	UNION	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	
-4	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
-5	UNION	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	
-6	EXCEPT	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	
-7	UNION	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
-NULL	UNIT RESULT	<unit1,2,3,4,5,6,7>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	INTERSECT	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	
+3	UNION	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+4	EXCEPT	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+5	UNION	t4	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+6	EXCEPT	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+7	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+NULL	UNIT RESULT	<unit1,2,3,4,5,6,7>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` intersect all /* select#2 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2` union all /* select#3 */ select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3` except all /* select#4 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` union /* select#5 */ select `test`.`t4`.`g` AS `g`,`test`.`t4`.`h` AS `h` from `test`.`t4` except /* select#6 */ select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3` union all /* select#7 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1`
 drop table t4;
@@ -198,28 +198,28 @@ union all
 (select 9 union all select 10)
 except all
 select 11;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived8>	ALL	NULL	NULL	NULL	NULL	4	100.00	
-8	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	EXCEPT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNIT RESULT	<unit2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
-9	UNION	<derived5>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-6	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-7	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	INTERSECT RESULT	<intersect5,6,7>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
-12	EXCEPT	<derived10>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-10	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-11	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	INTERSECT RESULT	<intersect10,11>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
-NULL	UNIT RESULT	<unit8,9,12>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
-15	UNION	<derived13>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-13	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-14	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-16	EXCEPT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNIT RESULT	<unit1,15,16>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived8>	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+8	DERIVED	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	EXCEPT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+4	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNIT RESULT	<unit2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+9	UNION	<derived5>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+6	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+7	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	INTERSECT RESULT	<intersect5,6,7>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+12	EXCEPT	<derived10>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+10	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+11	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	INTERSECT RESULT	<intersect10,11>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+NULL	UNIT RESULT	<unit8,9,12>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+15	UNION	<derived13>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+13	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+14	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+16	EXCEPT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNIT RESULT	<unit1,15,16>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `__14`.`1` AS `1` from (/* select#8 */ select `__7`.`1` AS `1` from (/* select#2 */ select 1 AS `1` except /* select#3 */ select 5 AS `5` union /* select#4 */ select 6 AS `6`) `__7` union /* select#9 */ select `__8`.`2` AS `2` from (/* select#5 */ select 2 AS `2` intersect /* select#6 */ select 3 AS `3` intersect /* select#7 */ select 4 AS `4`) `__8` except /* select#12 */ select `__11`.`7` AS `7` from (/* select#10 */ select 7 AS `7` intersect /* select#11 */ select 8 AS `8`) `__11`) `__14` union all /* select#15 */ select `__15`.`9` AS `9` from (/* select#13 */ select 9 AS `9` union all /* select#14 */ select 10 AS `10`) `__15` except all /* select#16 */ select 11 AS `11`
 (select 1 union all select 2)
@@ -233,14 +233,14 @@ union
 EXPLAIN EXTENDED (select 1 union all select 2)
 union
 (select 3 union all select 4);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-6	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-5	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,6>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+6	UNION	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+5	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,6>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `__5`.`1` AS `1` from (/* select#2 */ select 1 AS `1` union /* select#3 */ select 2 AS `2`) `__5` union /* select#6 */ select `__6`.`3` AS `3` from (/* select#4 */ select 3 AS `3` union /* select#5 */ select 4 AS `4`) `__6`
 (select 1 intersect all select 2)
@@ -250,13 +250,13 @@ select 3;
 EXPLAIN EXTENDED (select 1 intersect all select 2)
 except
 select 3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
-4	EXCEPT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	EXCEPT RESULT	<except1,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	INTERSECT RESULT	<intersect2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+4	EXCEPT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	EXCEPT RESULT	<except1,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `__4`.`1` AS `1` from (/* select#2 */ select 1 AS `1` intersect /* select#3 */ select 2 AS `2`) `__4` except /* select#4 */ select 3 AS `3`
 (select 1 intersect all select 2 intersect all select 3)
@@ -266,17 +266,17 @@ intersect
 EXPLAIN EXTENDED (select 1 intersect all select 2 intersect all select 3)
 intersect
 (select 4 intersect all select 5);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-4	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	INTERSECT RESULT	<intersect2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
-7	INTERSECT	<derived5>	ALL	NULL	NULL	NULL	NULL	2	100.00	
-5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-6	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	INTERSECT RESULT	<intersect5,6>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
-NULL	INTERSECT RESULT	<intersect1,7>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+4	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	INTERSECT RESULT	<intersect2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+7	INTERSECT	<derived5>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+6	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	INTERSECT RESULT	<intersect5,6>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+NULL	INTERSECT RESULT	<intersect1,7>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `__6`.`1` AS `1` from (/* select#2 */ select 1 AS `1` intersect /* select#3 */ select 2 AS `2` intersect /* select#4 */ select 3 AS `3`) `__6` intersect /* select#7 */ select `__7`.`4` AS `4` from (/* select#5 */ select 4 AS `4` intersect /* select#6 */ select 5 AS `5`) `__7`
 # test set operations with table value constructor
@@ -523,24 +523,24 @@ UNION ALL
 select * from v0 where g < 4
 UNION ALL
 select * from t3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
-8	UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	5	
-2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	
-3	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-4	INTERSECT	<derived5>	ALL	NULL	NULL	NULL	NULL	10	
-5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	
-6	UNION	t1	ALL	NULL	NULL	NULL	NULL	5	
-NULL	INTERSECT RESULT	<intersect2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
-7	EXCEPT	t3	ALL	NULL	NULL	NULL	NULL	5	
-9	UNION	t2	ALL	NULL	NULL	NULL	NULL	6	
-10	UNION	t3	ALL	NULL	NULL	NULL	NULL	5	
-11	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	5	
-11	EXCEPT	t2	ALL	NULL	NULL	NULL	NULL	6	Using join buffer (flat, BNL join)
-12	UNION	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
-12	UNION	t2	ALL	NULL	NULL	NULL	NULL	6	Using join buffer (flat, BNL join)
-13	UNION	t3	ALL	NULL	NULL	NULL	NULL	5	
-NULL	UNIT RESULT	<unit1,8,7,9,10,11,12,13>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	
+8	UNION	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	5	
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	
+3	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+4	INTERSECT	<derived5>	NULL	ALL	NULL	NULL	NULL	NULL	10	
+5	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	
+6	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	
+NULL	INTERSECT RESULT	<intersect2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+7	EXCEPT	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	
+9	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	
+10	UNION	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	
+11	EXCEPT	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	
+11	EXCEPT	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	Using join buffer (flat, BNL join)
+12	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
+12	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	Using join buffer (flat, BNL join)
+13	UNION	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	
+NULL	UNIT RESULT	<unit1,8,7,9,10,11,12,13>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 EXPLAIN format=json
 select * from t1
 UNION ALL
@@ -837,24 +837,24 @@ UNION ALL
 select * from v0 where g < 4
 UNION ALL
 select * from t3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
-8	UNION	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	
-2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	
-3	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-4	INTERSECT	<derived5>	ALL	NULL	NULL	NULL	NULL	10	100.00	
-5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
-6	UNION	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
-NULL	INTERSECT RESULT	<intersect2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
-7	EXCEPT	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	
-9	UNION	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	
-10	UNION	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	
-11	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
-11	EXCEPT	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using join buffer (flat, BNL join)
-12	UNION	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
-12	UNION	t2	ALL	NULL	NULL	NULL	NULL	6	100.00	Using join buffer (flat, BNL join)
-13	UNION	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	
-NULL	UNIT RESULT	<unit1,8,7,9,10,11,12,13>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+8	UNION	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	
+3	INTERSECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+4	INTERSECT	<derived5>	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	
+5	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+6	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+NULL	INTERSECT RESULT	<intersect2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+7	EXCEPT	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+9	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	
+10	UNION	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+11	EXCEPT	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+11	EXCEPT	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	Using join buffer (flat, BNL join)
+12	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+12	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	Using join buffer (flat, BNL join)
+13	UNION	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+NULL	UNIT RESULT	<unit1,8,7,9,10,11,12,13>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` union all /* select#8 */ select `__8`.`c` AS `c`,`__8`.`d` AS `d` from (/* select#2 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2` intersect all (values (1,1),(2,2),(2,2),(5,5),(2,2)) intersect all /* select#4 */ select `sq`.`a` AS `a`,`sq`.`b` AS `b` from (/* select#5 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` union all /* select#6 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1`) `sq`) `__8` except all /* select#7 */ select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3` union /* select#9 */ select `test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d` from `test`.`t2` union /* select#10 */ select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3` except /* select#11 */ select `test`.`t1`.`a` AS `a`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` union all /* select#12 */ select `test`.`t1`.`a` AS `g`,`test`.`t2`.`c` AS `h` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` < 4 union all /* select#13 */ select `test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t3`
 PREPARE stmt from"

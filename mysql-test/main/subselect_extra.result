@@ -14,17 +14,17 @@ insert into t1 values ('2001-01-01 1:1:1', '1:1:1'),
 insert into t2 values ('2001-01-01 1:1:1'), ('2001-01-01 1:1:1');
 flush tables;
 EXPLAIN SELECT OUTR.dt FROM t1 AS OUTR WHERE OUTR.dt IN (SELECT INNR.dt FROM t2 AS INNR WHERE OUTR.dt IS NULL );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	OUTR	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	INNR	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(OUTR); Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	OUTR	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	INNR	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(OUTR); Using join buffer (flat, BNL join)
 flush tables;
 SELECT OUTR.dt FROM t1 AS OUTR WHERE OUTR.dt IN (SELECT INNR.dt FROM t2 AS INNR WHERE OUTR.dt IS NULL );
 dt
 flush tables;
 EXPLAIN SELECT OUTR.dt FROM t1 AS OUTR WHERE OUTR.dt IN ( SELECT INNR.dt FROM t2 AS INNR WHERE OUTR.t < '2005-11-13 7:41:31' );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	OUTR	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	INNR	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(OUTR); Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	OUTR	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	INNR	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(OUTR); Using join buffer (flat, BNL join)
 flush tables;
 SELECT OUTR.dt FROM t1 AS OUTR WHERE OUTR.dt IN ( SELECT INNR.dt FROM t2 AS INNR WHERE OUTR.t < '2005-11-13 7:41:31' );
 dt
@@ -42,8 +42,8 @@ insert into t2 (id, cur_date) values (1, '2007-04-25');
 explain extended
 select * from t1
 where id in (select id from t1 as x1 where (t1.cur_date is null));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Note	1276	Field or reference 'test.t1.cur_date' of SELECT #2 was resolved in SELECT #1
 Note	1003	select 1 AS `id`,'2007-04-25 18:30:22' AS `cur_date` from (dual) where 0
@@ -53,8 +53,8 @@ id	cur_date
 explain extended
 select * from t2
 where id in (select id from t2 as x1 where (t2.cur_date is null));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Note	1276	Field or reference 'test.t2.cur_date' of SELECT #2 was resolved in SELECT #1
 Note	1003	select 1 AS `id`,'2007-04-25' AS `cur_date` from (dual) where 0
@@ -66,9 +66,9 @@ insert into t2 (id, cur_date) values (2, '2007-04-26');
 explain extended
 select * from t1
 where id in (select id from t1 as x1 where (t1.cur_date is null));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	PRIMARY	x1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	x1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'test.t1.cur_date' of SELECT #2 was resolved in SELECT #1
 Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`cur_date` AS `cur_date` from `test`.`t1` semi join (`test`.`t1` `x1`) where `test`.`x1`.`id` = `test`.`t1`.`id` and `test`.`t1`.`cur_date` = 0
@@ -78,9 +78,9 @@ id	cur_date
 explain extended
 select * from t2
 where id in (select id from t2 as x1 where (t2.cur_date is null));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	PRIMARY	x1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(t2); Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	x1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(t2); Using join buffer (flat, BNL join)
 Warnings:
 Note	1276	Field or reference 'test.t2.cur_date' of SELECT #2 was resolved in SELECT #1
 Note	1003	select `test`.`t2`.`id` AS `id`,`test`.`t2`.`cur_date` AS `cur_date` from `test`.`t2` semi join (`test`.`t2` `x1`) where `test`.`x1`.`id` = `test`.`t2`.`id` and `test`.`t2`.`cur_date` = 0
@@ -229,10 +229,10 @@ where exists ( select * from t2
 where t2.c in (select c from t3 where t3.c > t1.b) and
 t2.c > 'b1' )
 group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
-2	DEPENDENT SUBQUERY	t2	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
-2	DEPENDENT SUBQUERY	t3	index	NULL	idx_t3_1	10	NULL	192	Using where; Using index; FirstMatch(t2); Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
+2	DEPENDENT SUBQUERY	t2	NULL	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
+2	DEPENDENT SUBQUERY	t3	NULL	index	NULL	idx_t3_1	10	NULL	192	Using where; Using index; FirstMatch(t2); Using join buffer (flat, BNL join)
 select a1,a2,b,c,min(c), max(c) from t1
 where exists ( select * from t2
 where t2.c in (select c from t3 where t3.c > t1.b) and
@@ -260,10 +260,10 @@ where exists ( select * from t2
 where t2.c in (select c from t3 where t3.c > t1.c) and
 t2.c > 'b1' )
 group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
-2	DEPENDENT SUBQUERY	t2	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
-2	DEPENDENT SUBQUERY	t3	index	NULL	idx_t3_1	10	NULL	192	Using where; Using index; FirstMatch(t2); Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
+2	DEPENDENT SUBQUERY	t2	NULL	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
+2	DEPENDENT SUBQUERY	t3	NULL	index	NULL	idx_t3_1	10	NULL	192	Using where; Using index; FirstMatch(t2); Using join buffer (flat, BNL join)
 select a1,a2,b,c,min(c), max(c) from t1
 where exists ( select * from t2
 where t2.c in (select c from t3 where t3.c > t1.c) and
@@ -309,24 +309,24 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN SELECT 1 FROM t1 WHERE a IN
 (SELECT a FROM t1 USE INDEX (i2) IGNORE INDEX (i2));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	PRIMARY,i2	PRIMARY	4	NULL	144	Using index
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	144	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	index	PRIMARY,i2	PRIMARY	4	NULL	144	Using index
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	144	
 CREATE TABLE t2 (a INT, b INT, KEY(a));
 INSERT INTO t2 VALUES (1, 1), (2, 2), (3,3), (4,4);
 EXPLAIN SELECT a, SUM(b) FROM t2 GROUP BY a LIMIT 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	a	5	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	NULL	a	5	NULL	2	
 EXPLAIN SELECT a, SUM(b) FROM t2 IGNORE INDEX (a) GROUP BY a LIMIT 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
 EXPLAIN SELECT 1 FROM t2 WHERE a IN
 (SELECT a FROM t1 USE INDEX (i2) IGNORE INDEX (i2));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	index	a	a	5	NULL	4	Using index
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	144	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	index	a	a	5	NULL	4	Using index
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	144	
 DROP TABLE t1, t2;
 # 
 # From derived_view.test
@@ -348,10 +348,10 @@ NULL	0	0
 EXPLAIN EXTENDED
 SELECT * FROM t2 RIGHT JOIN (SELECT * FROM t1) AS t ON t.a != 0
 WHERE t.a IN (SELECT b FROM t1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a`,0 AS `a`,0 AS `b` from `test`.`t2` semi join (dual) where 1
 SELECT * FROM t2 RIGHT JOIN v1 AS t ON t.a != 0
@@ -361,10 +361,10 @@ NULL	0	0
 EXPLAIN EXTENDED
 SELECT * FROM t2 RIGHT JOIN v1 AS t ON t.a != 0
 WHERE t.a IN (SELECT b FROM t1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a`,0 AS `a`,0 AS `b` from `test`.`t2` semi join (dual) where 1
 DROP VIEW v1;
@@ -391,10 +391,10 @@ a
 2
 EXPLAIN 
 SELECT a FROM t1 WHERE (a,b) IN (SELECT * FROM v1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	10	test.t1.a,test.t1.b	2	FirstMatch(t1)
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	10	test.t1.a,test.t1.b	2	FirstMatch(t1)
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	Using temporary; Using filesort
 SELECT * FROM v2;
 a	b
 9	3
@@ -411,12 +411,12 @@ a
 2
 EXPLAIN 
 SELECT a FROM t1 WHERE (a,b) IN (SELECT * FROM v2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	10	test.t1.a,test.t1.b	1	FirstMatch(t1)
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	
-4	UNION	t3	ALL	NULL	NULL	NULL	NULL	4	
-NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	10	test.t1.a,test.t1.b	1	FirstMatch(t1)
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	
+4	UNION	t3	NULL	ALL	NULL	NULL	NULL	NULL	4	
+NULL	UNION RESULT	<union3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 DROP VIEW v1,v2;
 DROP TABLE t1,t2,t3;
 #
@@ -434,11 +434,11 @@ EXPLAIN
 SELECT * FROM t3 
 WHERE t3.b IN (SELECT v1.b FROM  v1, t2 
 WHERE t2.c = v1.c AND t2.c = v1.b AND v1.b = t3.c);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	3	Using where; FirstMatch(t3); Using join buffer (flat, BNL join)
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; FirstMatch(t3); Using join buffer (flat, BNL join)
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT * FROM t3 
 WHERE t3.b IN (SELECT v1.b FROM  v1, t2 
 WHERE t2.c = v1.c AND t2.c = v1.b AND v1.b = t3.c);
@@ -449,11 +449,11 @@ EXPLAIN
 SELECT * FROM t3 
 WHERE t3.b IN (SELECT v1.b FROM  v1, t2 
 WHERE t2.c = v1.c AND t2.c = v1.b AND v1.b = t3.c);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	<derived3>	ref	key1	key1	8	const,const	0	Start temporary
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; End temporary; Using join buffer (flat, BNL join)
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	<derived3>	NULL	ref	key1	key1	8	const,const	0	Start temporary
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; End temporary; Using join buffer (flat, BNL join)
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT * FROM t3 
 WHERE t3.b IN (SELECT v1.b FROM  v1, t2 
 WHERE t2.c = v1.c AND t2.c = v1.b AND v1.b = t3.c);
@@ -472,10 +472,10 @@ CREATE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT * FROM t2;
 SET SESSION optimizer_switch='derived_with_keys=on';
 EXPLAIN
 SELECT * FROM t1 WHERE t1.b IN (SELECT v2.a FROM v2 WHERE v2.b = t1.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	10	test.t1.b,test.t1.a	2	FirstMatch(t1)
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	10	test.t1.b,test.t1.a	2	FirstMatch(t1)
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
 SELECT * FROM t1 WHERE t1.b IN (SELECT v2.a FROM v2 WHERE v2.b = t1.a);
 a	b
 5	4

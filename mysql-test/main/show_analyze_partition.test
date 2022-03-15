@@ -1,0 +1,60 @@
+
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/not_embedded.inc
+--source include/have_partition.inc
+
+# Using valgrind can cause 'reap' to fail. See comment below
+--source include/not_valgrind.inc
+
+--disable_warnings
+drop table if exists t0, t1, t2, t3, t4;
+drop view if exists v1;
+--enable_warnings
+SET @old_debug= @@session.debug;
+
+#
+# Setup two threads and their ids
+#
+let $thr1=`select connection_id()`;
+connect (con1, localhost, root,,);
+connection con1;
+let $thr2=`select connection_id()`;
+SET @old_debug= @@session.debug;
+connection default;
+
+let $wait_condition= select State='show_explain_trap' from information_schema.processlist where id=$thr2;
+
+create table t1 (a int) partition by hash(a) partitions 4;
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+connection con1;
+set @show_explain_probe_select_id=1;
+SET debug_dbug='+d,show_explain_probe_join_exec_end';
+send select count(*) from t1 where a in (1,2);
+
+connection default;
+--source include/wait_condition.inc
+--echo # The point of this test: see that `partitions` column has correct info:
+evalp show analyze for $thr2;
+connection con1;
+reap;
+
+send select count(*) from t1 where a in (1,2);
+
+
+connection default;
+--source include/wait_condition.inc
+--echo # The point of this test: see that `partitions` column has correct info:
+evalp show explain for $thr2;
+connection con1;
+reap;
+
+
+connection default;
+SET debug_dbug=@old_debug;
+disconnect con1;
+set debug_sync='RESET';
+
+drop table t1;
+

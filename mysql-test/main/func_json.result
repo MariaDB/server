@@ -1375,9 +1375,9 @@ drop table t1;
 CREATE TABLE t1 (e INT, a VARCHAR(255), v VARCHAR(255));
 INSERT INTO t1 VALUES (0, 'a1', '1') , (0, 'a2', '2') , (1, 'b1', '3');
 EXPLAIN SELECT B.e, JSON_OBJECTAGG(B.a, B.v) FROM t1 A, t1 B GROUP BY B.e, B.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	A	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
-1	SIMPLE	B	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	A	NULL	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
+1	SIMPLE	B	NULL	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
 SELECT B.e, JSON_OBJECTAGG(B.a, B.v) FROM t1 A, t1 B GROUP BY B.e, B.a;
 e	JSON_OBJECTAGG(B.a, B.v)
 0	{"a1":"1", "a1":"1", "a1":"1"}

@@ -680,8 +680,8 @@ group by first_name, last_name
 order by first_name
 offset 1 rows
 fetch first 2 rows with ties;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using temporary; Using filesort
 select first_name, last_name, sum(score)
 from t1
 group by first_name, last_name
@@ -717,14 +717,14 @@ from t1
 order by first_name
 offset 1 rows
 fetch first 2 rows with ties;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	t1_name	206	NULL	3	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	t1_name	206	NULL	3	Using index
 explain select first_name, last_name
 from t1
 order by first_name desc
 fetch first 2 rows with ties;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	t1_name	206	NULL	2	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	t1_name	206	NULL	2	Using index
 select first_name, last_name
 from t1
 order by first_name
@@ -781,8 +781,8 @@ from t1
 where first_name != 'John'
 order by first_name
 fetch first 2 rows with ties;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	t1_name	t1_name	103	NULL	3	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	t1_name	t1_name	103	NULL	3	Using where; Using index
 select first_name, last_name
 from t1
 where first_name != 'John'
@@ -813,9 +813,9 @@ fetch first 2 rows with ties
 )
 select * from temp_table
 order by first_name, last_name;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using filesort
-2	DERIVED	t1	range	t1_name	t1_name	103	NULL	3	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	Using filesort
+2	DERIVED	t1	NULL	range	t1_name	t1_name	103	NULL	3	Using where; Using index
 with temp_table as (
 select first_name, last_name
 from t1
@@ -1088,15 +1088,15 @@ explain select a, b, count(*)
 from t1
 group by a, b
 order by a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a	10	NULL	6	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	10	NULL	6	Using index
 explain select a, b, count(*)
 from t1
 group by a, b
 order by a
 fetch first 1 rows with ties;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a	10	NULL	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	10	NULL	1	Using index
 #
 # Test FETCH ... WITH TIES / ONLY with prepared statements
 #
@@ -1341,8 +1341,8 @@ drop table t1;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 values (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
 explain SELECT SQL_BUFFER_RESULT 1 AS f FROM t1 ORDER BY f FETCH NEXT 2 ROW WITH TIES;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using temporary
 SELECT SQL_BUFFER_RESULT 1 AS f FROM t1 ORDER BY f FETCH NEXT 2 ROW WITH TIES;
 f
 1

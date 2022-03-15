@@ -60,7 +60,7 @@ order by revenue desc, o_orderdate
 limit 10;
 
 set use_stat_tables='never';
---replace_column 9 #
+--replace_column 10 #
 eval EXPLAIN $Q3S;
 
 set use_stat_tables='preferably';

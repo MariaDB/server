@@ -153,8 +153,8 @@ t5	12:13:14.12345
 t6	12:13:14.123456
 drop table t1;
 explain extended select cast(cast(@a as datetime(4)) as time(0));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select cast(cast(@`a` as datetime(4)) as time) AS `cast(cast(@a as datetime(4)) as time(0))`
 select cast(cast(@a as time(2)) as time(6));

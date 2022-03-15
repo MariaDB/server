@@ -295,15 +295,15 @@ create table t1 (a int not null, b int, c varchar(10), key (a, b, c));
 insert into t1 values (1, NULL, NULL), (1, NULL, 'b'), (1, 1, NULL), (1, 1, 'b'), (1, 1, 'b'), (2, 1, 'a'), (2, 1, 'b'), (2, 2, 'a'), (2, 2, 'b'), (2, 3, 'c'),(1,3,'b');
 insert into t1 select * from t1;
 explain select * from t1 where (a = 1 and b is null and c = 'b') or (a > 2) order by a desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	22	NULL	3	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	22	NULL	3	Using where; Using index
 select * from t1 where (a = 1 and b is null and c = 'b') or (a > 2) order by a desc;
 a	b	c
 1	NULL	b
 1	NULL	b
 explain select * from t1 where a >= 1 and a < 3 order by a desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	22	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	4	NULL	22	Using where; Using index
 select * from t1 where a >= 1 and a < 3 order by a desc;
 a	b	c
 2	3	c
@@ -329,8 +329,8 @@ a	b	c
 1	NULL	NULL
 1	NULL	NULL
 explain select * from t1 where a = 1 order by a desc, b desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	4	const	12	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	4	const	12	Using where; Using index
 select * from t1 where a = 1 order by a desc, b desc;
 a	b	c
 1	3	b
@@ -346,8 +346,8 @@ a	b	c
 1	NULL	NULL
 1	NULL	NULL
 explain select * from t1 where a = 1 and b is null order by a desc, b desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	9	const,const	4	Using where; Using index; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	9	const,const	4	Using where; Using index; Using filesort
 select * from t1 where a = 1 and b is null order by a desc, b desc;
 a	b	c
 1	NULL	NULL
@@ -355,33 +355,33 @@ a	b	c
 1	NULL	b
 1	NULL	b
 explain select * from t1 where a >= 1 and a < 3 and b >0 order by a desc,b desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	9	NULL	18	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	9	NULL	18	Using where; Using index
 explain select * from t1 where a = 2 and b >0 order by a desc,b desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	9	NULL	10	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	9	NULL	10	Using where; Using index
 explain select * from t1 where a = 2 and b is null order by a desc,b desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	9	const,const	1	Using where; Using index; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	9	const,const	1	Using where; Using index; Using filesort
 explain select * from t1 where a = 2 and (b is null or b > 0) order by a
 desc,b desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	9	NULL	11	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	9	NULL	11	Using where; Using index
 explain select * from t1 where a = 2 and b > 0 order by a desc,b desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	9	NULL	10	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	9	NULL	10	Using where; Using index
 explain select * from t1 where a = 2 and b < 2 order by a desc,b desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	9	NULL	4	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	9	NULL	4	Using where; Using index
 explain select * from t1 where a = 1 order by b desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	4	const	12	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	4	const	12	Using where; Using index
 explain select * from t1 where a = 2 and b > 0 order by a desc,b desc,b,a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	9	NULL	10	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	9	NULL	10	Using where; Using index
 explain select * from t1 where a = 2 and b < 2 order by a desc,a,b desc,a,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	9	NULL	4	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	9	NULL	4	Using where; Using index
 select * from t1 where a = 1 order by b desc;
 a	b	c
 1	3	b
@@ -408,8 +408,8 @@ Warning	1265	Data truncated for column 'c' at row 12
 Warning	1265	Data truncated for column 'b' at row 13
 Warning	1265	Data truncated for column 'c' at row 14
 explain select * from t1 order by a, b, c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a	20	NULL	22	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	20	NULL	22	Using index
 select * from t1 order by a, b, c;
 a	b	c
 1	0	
@@ -435,8 +435,8 @@ a	b	c
 2	3	c
 2	3	c
 explain select * from t1 order by a desc, b desc, c desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a	20	NULL	22	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	20	NULL	22	Using index
 select * from t1 order by a desc, b desc, c desc;
 a	b	c
 2	3	c
@@ -462,8 +462,8 @@ a	b	c
 1	0	
 1	0	
 explain select * from t1 where (a = 1 and b = 1 and c = 'b') or (a > 2) order by a desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	20	NULL	5	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	20	NULL	5	Using where; Using index
 select * from t1 where (a = 1 and b = 1 and c = 'b') or (a > 2) order by a desc;
 a	b	c
 1	1	b
@@ -471,8 +471,8 @@ a	b	c
 1	1	b
 1	1	b
 explain select * from t1 where a < 2 and b <= 1 order by a desc, b desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	12	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	4	NULL	12	Using where; Using index
 select * from t1 where a < 2 and b <= 1 order by a desc, b desc;
 a	b	c
 1	1	b
@@ -509,8 +509,8 @@ a	b	c
 1	1	
 1	1	
 explain select * from t1 where a between 1 and 3 and b <= 1 order by a desc, b desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	8	NULL	22	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	8	NULL	22	Using where; Using index
 select * from t1 where a between 1 and 3 and b <= 1 order by a desc, b desc;
 a	b	c
 2	1	b
@@ -528,8 +528,8 @@ a	b	c
 1	0	
 1	0	
 explain select * from t1 where a between 0 and 1 order by a desc, b desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	12	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	4	NULL	12	Using where; Using index
 select * from t1 where a between 0 and 1 order by a desc, b desc;
 a	b	c
 1	3	b
@@ -585,27 +585,27 @@ gid	sid	uid
 104505	5	117
 103853	5	250
 EXPLAIN select t1.gid, t2.sid, t3.uid from t3, t2, t1 where t2.gid = t1.gid and t2.uid = t3.uid order by t1.gid, t3.uid;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	PRIMARY,uid	NULL	NULL	NULL	6	Using temporary; Using filesort
-1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	2	test.t2.uid	1	Using where; Using index
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.gid	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	PRIMARY,uid	NULL	NULL	NULL	6	Using temporary; Using filesort
+1	SIMPLE	t3	NULL	eq_ref	PRIMARY	PRIMARY	2	test.t2.uid	1	Using where; Using index
+1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t2.gid	1	Using index
 EXPLAIN SELECT t1.gid, t3.uid from t1, t3 where t1.gid = t3.uid order by t1.gid,t3.skr;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	ALL	PRIMARY	NULL	NULL	NULL	6	Using temporary; Using filesort
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t3.uid	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	ALL	PRIMARY	NULL	NULL	NULL	6	Using temporary; Using filesort
+1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t3.uid	1	Using where; Using index
 EXPLAIN SELECT t1.gid, t2.sid, t3.uid from t2, t1, t3 where t2.gid = t1.gid and t2.uid = t3.uid order by t3.uid, t1.gid;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	PRIMARY,uid	NULL	NULL	NULL	6	Using temporary; Using filesort
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.gid	1	Using index
-1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	2	test.t2.uid	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	PRIMARY,uid	NULL	NULL	NULL	6	Using temporary; Using filesort
+1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t2.gid	1	Using index
+1	SIMPLE	t3	NULL	eq_ref	PRIMARY	PRIMARY	2	test.t2.uid	1	Using where; Using index
 EXPLAIN SELECT t1.gid, t3.uid from t1, t3 where t1.gid = t3.uid order by t3.skr,t1.gid;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	ALL	PRIMARY	NULL	NULL	NULL	6	Using temporary; Using filesort
-1	SIMPLE	t1	eq_ref	PRIMARY	PRIMARY	4	test.t3.uid	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	ALL	PRIMARY	NULL	NULL	NULL	6	Using temporary; Using filesort
+1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t3.uid	1	Using where; Using index
 EXPLAIN SELECT t1.gid, t3.uid from t1, t3 where t1.skr = t3.uid order by t1.gid,t3.skr;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using temporary; Using filesort
-1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	2	test.t1.skr	1	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	6	Using temporary; Using filesort
+1	SIMPLE	t3	NULL	eq_ref	PRIMARY	PRIMARY	2	test.t1.skr	1	Using index condition
 drop table t1,t2,t3;
 CREATE TABLE t1 (
 `titre` char(80) NOT NULL default '',
@@ -675,11 +675,11 @@ a	b
 DROP TABLE t1;
 create table t1(id int not null auto_increment primary key, t char(12));
 explain select id,t from t1 order by id;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	1000	Using filesort
 explain select id,t from t1 force index (primary) order by id;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	1000	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	1000	
 drop table t1;
 CREATE TABLE t1 (
 FieldKey varchar(36) NOT NULL default '',
@@ -691,8 +691,8 @@ KEY StringField (FieldKey,StringVal(32))
 );
 INSERT INTO t1 VALUES ('0',3,'0'),('0',2,'1'),('0',1,'2'),('1',2,'1'),('1',1,'3'), ('1',0,'2'),('2',3,'0'),('2',2,'1'),('2',1,'2'),('2',3,'0'),('2',2,'1'),('2',1,'2'),('3',2,'1'),('3',1,'2'),('3','3','3');
 EXPLAIN SELECT * FROM t1 WHERE FieldKey = '1' ORDER BY LongVal;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	FieldKey,LongField,StringField	LongField	38	const	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	FieldKey,LongField,StringField	LongField	38	const	3	Using where
 SELECT * FROM t1 WHERE FieldKey = '1' ORDER BY LongVal;
 FieldKey	LongVal	StringVal
 1	0	2
@@ -701,19 +701,19 @@ FieldKey	LongVal	StringVal
 DS-MRR: use two IGNORE INDEX queries, otherwise we get cost races, because
 DS-MRR: records_in_range/read_time return the same numbers for all three indexes
 EXPLAIN SELECT * FROM t1 IGNORE INDEX (LongField, StringField) WHERE FieldKey > '2' ORDER BY LongVal;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	FieldKey	FieldKey	38	NULL	3	Using index condition; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	FieldKey	FieldKey	38	NULL	3	Using index condition; Using filesort
 EXPLAIN SELECT * FROM t1 IGNORE INDEX (FieldKey, LongField) WHERE FieldKey > '2' ORDER BY LongVal;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	StringField	StringField	38	NULL	3	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	StringField	StringField	38	NULL	3	Using where; Using filesort
 SELECT * FROM t1 WHERE FieldKey > '2' ORDER BY LongVal;
 FieldKey	LongVal	StringVal
 3	1	2
 3	2	1
 3	3	3
 EXPLAIN SELECT * FROM t1 WHERE FieldKey > '2' ORDER BY FieldKey, LongVal;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	FieldKey,LongField,StringField	LongField	38	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	FieldKey,LongField,StringField	LongField	38	NULL	3	Using where
 SELECT * FROM t1 WHERE FieldKey > '2' ORDER BY FieldKey, LongVal;
 FieldKey	LongVal	StringVal
 3	1	2
@@ -734,8 +734,8 @@ create table t1(a int, b int, index(b));
 insert into t1 values (2, 1), (1, 1), (4, NULL), (3, NULL), (6, 2), (5, 2);
 insert into t1 values (12, 11), (11, 11), (14, 3), (13, 5), (16, 12), (15, 12);
 explain select * from t1 where b=1 or b is null order by a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref_or_null	b	b	5	const	4	Using index condition; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref_or_null	b	b	5	const	4	Using index condition; Using filesort
 select * from t1 where b=1 or b is null order by a;
 a	b
 1	1
@@ -743,8 +743,8 @@ a	b
 3	NULL
 4	NULL
 explain select * from t1 where b=2 or b is null order by a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref_or_null	b	b	5	const	4	Using index condition; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref_or_null	b	b	5	const	4	Using index condition; Using filesort
 select * from t1 where b=2 or b is null order by a;
 a	b
 3	NULL
@@ -880,8 +880,8 @@ insert into t1 (`sid`, `wnid`) values
 ('25292','02071450000'),('25293','02071460000'),('25294','02071470000'),
 ('25295','02071491000'),('25296','02071491000'),('25297','02071499000');
 explain select * from t1 where wnid like '0101%' order by wnid;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	wnid14,wnid	wnid	13	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	wnid14,wnid	wnid	13	NULL	4	Using where
 select * from t1 where wnid like '0101%' order by wnid;
 sid	wnid
 10100	01019000000
@@ -1093,9 +1093,9 @@ INSERT INTO t1 VALUES (1,1), (2,2), (3,3);
 explain SELECT t1.b as a, t2.b as c FROM 
 t1 LEFT JOIN t1 t2 ON (t1.a = t2.a AND t2.a = 2) 
 ORDER BY c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
-1	SIMPLE	t2	const	PRIMARY	PRIMARY	4	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
+1	SIMPLE	t2	NULL	const	PRIMARY	PRIMARY	4	const	1	Using where
 SELECT t2.b as c FROM 
 t1 LEFT JOIN t1 t2 ON (t1.a = t2.a AND t2.a = 2) 
 ORDER BY c;
@@ -1106,9 +1106,9 @@ NULL
 explain SELECT t1.b as a, t2.b as c FROM 
 t1 JOIN t1 t2 ON (t1.a = t2.a AND t2.a = 2)  
 ORDER BY c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	
-1	SIMPLE	t2	const	PRIMARY	PRIMARY	4	const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	t2	NULL	const	PRIMARY	PRIMARY	4	const	1	
 CREATE TABLE t2 LIKE t1;
 INSERT INTO t2 SELECT * from t1;
 CREATE TABLE t3 LIKE t1;
@@ -1160,9 +1160,9 @@ INSERT INTO t1 VALUES (1,1),(2,2);
 CREATE TABLE t2 (a INT, b INT, KEY a (a,b));
 INSERT INTO t2 VALUES (1,1),(1,2),(2,1),(2,2);
 EXPLAIN SELECT 1 FROM t1,t2 WHERE t1.b=2 AND t1.a=t2.a ORDER BY t2.b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	PRIMARY,b	b	5	const	1	
-1	SIMPLE	t2	ref	a	a	5	const	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	const	PRIMARY,b	b	5	const	1	
+1	SIMPLE	t2	NULL	ref	a	a	5	const	2	Using where; Using index
 DROP TABLE t1,t2;
 CREATE TABLE t1(
 id int auto_increment PRIMARY KEY, c2 int, c3 int, INDEX k2(c2), INDEX k3(c3));
@@ -1188,17 +1188,17 @@ COUNT(*)
 CREATE TABLE t2 LIKE t1;
 INSERT INTO t2 SELECT * FROM t1 ORDER BY id;
 EXPLAIN SELECT id,c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 20;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	k2	k3	5	NULL	111	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	k2	k3	5	NULL	111	Using where
 EXPLAIN SELECT id,c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 4000;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	k2	k3	5	NULL	22318	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	k2	k3	5	NULL	22318	Using where
 EXPLAIN SELECT id,c3 FROM t2 WHERE c2 BETWEEN 10 AND 12 ORDER BY c3 LIMIT 20;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	k2	k3	5	NULL	73	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	k2	k3	5	NULL	73	Using where
 EXPLAIN SELECT id,c3 FROM t2 WHERE c2 BETWEEN 20 AND 30 ORDER BY c3 LIMIT 4000;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	k2	k2	5	NULL	386	Using index condition; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	k2	k2	5	NULL	386	Using index condition; Using filesort
 SELECT id,c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 20;
 id	c3
 6	14
@@ -1235,8 +1235,8 @@ INSERT INTO t1 SELECT a +16, b +16 FROM t1;
 INSERT INTO t1 SELECT a +32, b +32 FROM t1;
 INSERT INTO t1 SELECT a +64, b +64 FROM t1;
 EXPLAIN SELECT a FROM t1 IGNORE INDEX FOR GROUP BY (a, ab) GROUP BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	128	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	128	Using index
 SELECT a FROM t1 IGNORE INDEX FOR GROUP BY (a, ab) GROUP BY a;
 a
 1
@@ -1371,8 +1371,8 @@ SELECT @tmp_tables_after = @tmp_tables_before ;
 @tmp_tables_after = @tmp_tables_before
 1
 EXPLAIN SELECT a FROM t1 IGNORE INDEX FOR ORDER BY (a, ab) ORDER BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	128	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	128	Using index
 SELECT a FROM t1 IGNORE INDEX FOR ORDER BY (a, ab) ORDER BY a;
 a
 1
@@ -1550,8 +1550,8 @@ INSERT INTO t1 VALUES (1, 10), (2, NULL);
 # Must use ref-or-null on the a_c index
 EXPLAIN
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref_or_null	a_c,a	a_c	10	const,const	2	Using where; Using index; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref_or_null	a_c,a	a_c	10	const,const	2	Using where; Using index; Using filesort
 # Must return 1 row
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
 col
@@ -1559,8 +1559,8 @@ col
 # Must use ref-or-null on the a_c index
 EXPLAIN
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c DESC;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	ref_or_null	a_c,a	x	x	x	x	x
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	ref_or_null	a_c,a	x	x	x	x	x
 # Must return 1 row
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c DESC;
 col
@@ -1576,9 +1576,9 @@ EXPLAIN
 SELECT d FROM t1, t2
 WHERE t2.b=14 AND t2.a=t1.a AND 5.1<t2.c AND t1.b='DE'
 ORDER BY t2.c LIMIT 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a,b	b	4	const	4	Using index condition; Using where; Using temporary; Using filesort
-1	SIMPLE	t2	ref	a,b,c	a	40	test.t1.a,const	11	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a,b	b	4	const	4	Using index condition; Using where; Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ref	a,b,c	a	40	test.t1.a,const	11	Using index condition
 SELECT d FROM t1, t2
 WHERE t2.b=14 AND t2.a=t1.a AND 5.1<t2.c AND t1.b='DE'
 ORDER BY t2.c LIMIT 1;
@@ -1588,9 +1588,9 @@ EXPLAIN
 SELECT d FROM t3 AS t1, t2 AS t2 
 WHERE t2.b=14 AND t2.a=t1.a AND 5.1<t2.c AND t1.b='DE'
 ORDER BY t2.c LIMIT 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	a,b,c	c	5	NULL	420	Using where
-1	SIMPLE	t1	eq_ref	a	a	39	test.t2.a,const	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	a,b,c	c	5	NULL	420	Using where
+1	SIMPLE	t1	NULL	eq_ref	a	a	39	test.t2.a,const	1	Using where; Using index
 SELECT d FROM t3 AS t1, t2 AS t2 
 WHERE t2.b=14 AND t2.a=t1.a AND 5.1<t2.c AND t1.b='DE'
 ORDER BY t2.c LIMIT 1;
@@ -2516,8 +2516,8 @@ INSERT INTO t1 VALUES (25, 7, 1), (26, 7, 2), (27, 7, 3), (28, 7, 4);
 INSERT INTO t1 VALUES (29, 8, 1), (30, 8, 2), (31, 8, 3), (32, 8, 4);
 INSERT INTO t1 VALUES (33, 9, 1), (34, 9, 2), (35, 9, 3), (36, 9, 4);
 EXPLAIN SELECT id1 FROM t1 WHERE id2 = 4 ORDER BY id1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	id2_j_id1	id2_j_id1	4	const	4	Using where; Using index; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	id2_j_id1	id2_j_id1	4	const	4	Using where; Using index; Using filesort
 SELECT id1 FROM t1 WHERE id2 = 4 ORDER BY id1;
 id1
 13
@@ -2553,8 +2553,8 @@ INSERT INTO t1 SELECT a + 640, b, c FROM t1;
 INSERT INTO t1 SELECT a + 1280, b, c FROM t1 LIMIT 80;
 EXPLAIN
 SELECT a FROM t1 WHERE b = 1 ORDER BY c DESC LIMIT 9;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	b,b_2	b	4	NULL	226	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	b,b_2	b	4	NULL	226	Using where
 SELECT a FROM t1 WHERE b = 1 ORDER BY c DESC LIMIT 9;
 a
 2071
@@ -2568,8 +2568,8 @@ a
 1991
 EXPLAIN
 SELECT DISTINCT a FROM t1 WHERE b = 1 ORDER BY c DESC LIMIT 0, 9;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	b,b_2	b	4	NULL	226	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	b,b_2	b	4	NULL	226	Using where; Using temporary
 SELECT DISTINCT a FROM t1 WHERE b = 1 ORDER BY c DESC LIMIT 0, 9;
 a
 2071
@@ -2596,21 +2596,21 @@ INSERT INTO t2 SELECT a+4, b FROM t2;
 # shouldn't have "using filesort"
 EXPLAIN 
 SELECT * FROM t1 FORCE INDEX FOR ORDER BY (a), t2 WHERE t1.a < 2 ORDER BY t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	2	Using index condition; Using temporary; Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	2	Using index condition; Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
 # should have "using filesort"
 EXPLAIN 
 SELECT * FROM t1 USE INDEX FOR ORDER BY (a), t2 WHERE t1.a < 2 ORDER BY t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	2	Using index condition; Using temporary; Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	2	Using index condition; Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
 # should have "using filesort"
 EXPLAIN 
 SELECT * FROM t1 FORCE INDEX FOR JOIN (a), t2 WHERE t1.a < 2 ORDER BY t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	2	Using index condition; Using temporary; Using filesort
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	2	Using index condition; Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
 DROP TABLE t1, t2;
 #
 # Bug #50394: Regression in EXPLAIN with index scan, LIMIT, GROUP BY and
@@ -2629,9 +2629,9 @@ WHERE t2.b = 1
 GROUP BY t1.a
 ORDER by c
 LIMIT 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a	8	NULL	10	Using index; Using temporary; Using filesort
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.b	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	8	NULL	10	Using index; Using temporary; Using filesort
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.b	1	Using where
 DROP TABLE t1, t2;
 #
 # Bug #707848: WHERE condition with OR + ORDER BY + field substitution  
@@ -2643,9 +2643,9 @@ EXPLAIN EXTENDED
 SELECT * FROM t1 r JOIN t1 s ON r.a = s.a 
 WHERE s.a IN (2,9) OR s.a < 100  AND s.a != 0
 ORDER BY 1 LIMIT 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	r	range	PRIMARY	PRIMARY	4	NULL	12	100.00	Using where; Using index
-1	SIMPLE	s	eq_ref	PRIMARY	PRIMARY	4	test.r.a	1	100.00	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	r	NULL	range	PRIMARY	PRIMARY	4	NULL	12	100.00	Using where; Using index
+1	SIMPLE	s	NULL	eq_ref	PRIMARY	PRIMARY	4	test.r.a	1	100.00	Using index
 Warnings:
 Note	1003	select `test`.`r`.`a` AS `a`,`test`.`s`.`a` AS `a` from `test`.`t1` `r` join `test`.`t1` `s` where `test`.`s`.`a` = `test`.`r`.`a` and (`test`.`r`.`a` in (2,9) or `test`.`r`.`a` < 100 and `test`.`r`.`a` <> 0) order by 1 limit 10
 SELECT * FROM t1 r JOIN t1 s ON r.a = s.a 
@@ -2674,8 +2674,8 @@ SELECT DISTINCT <col>... ORDER BY <col> DESC
 CREATE TABLE t1 (a INT,KEY (a));
 INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 EXPLAIN SELECT DISTINCT a,1 FROM t1 WHERE a <> 1 ORDER BY a DESC;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	10	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	10	Using where; Using index
 SELECT DISTINCT a,1 FROM t1 WHERE a <> 1 ORDER BY a DESC;
 a	1
 10	1
@@ -2709,10 +2709,10 @@ EXPLAIN EXTENDED
 SELECT t1.*, t2.* FROM t1 JOIN t2 ON t1.i1 = t2.i2 
 LEFT JOIN t3 ON t2.i2 = t3.i3
 ORDER BY t1.i1 LIMIT 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t3	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
-1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	5	100.00	Using index
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.i1	1	100.00	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+1	SIMPLE	t1	NULL	index	PRIMARY	PRIMARY	4	NULL	5	100.00	Using index
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.i1	1	100.00	Using index
 Warnings:
 Note	1003	select `test`.`t1`.`i1` AS `i1`,`test`.`t2`.`i2` AS `i2` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`i2` = `test`.`t1`.`i1` order by `test`.`t1`.`i1` limit 5
 SELECT t1.*, t2.* FROM t1 JOIN t2 ON t1.i1 = t2.i2 
@@ -2751,30 +2751,30 @@ b
 # field1 removed from ORDER BY
 explain extended
 SELECT t2.b AS field1 FROM t1, t2 WHERE t1.b = t2.a GROUP BY field1 ORDER BY t1.b, field1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using temporary; Using filesort
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.b	1	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using temporary; Using filesort
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.b	1	100.00	
 Warnings:
 Note	1003	select `test`.`t2`.`b` AS `field1` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`b` group by `test`.`t2`.`b` order by `test`.`t1`.`b`
 explain extended
 SELECT t2.b, t1.b FROM t1, t2 WHERE t1.b = t2.a GROUP BY t2.b ORDER BY t1.b, t2.b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using temporary; Using filesort
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.b	1	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using temporary; Using filesort
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.b	1	100.00	
 Warnings:
 Note	1003	select `test`.`t2`.`b` AS `b`,`test`.`t1`.`b` AS `b` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`b` group by `test`.`t2`.`b` order by `test`.`t1`.`b`
 explain extended
 SELECT t2.b,t1.b FROM t1, t2 WHERE t1.b = t2.a GROUP BY t2.b ORDER BY t1.b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using temporary; Using filesort
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.b	1	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using temporary; Using filesort
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.b	1	100.00	
 Warnings:
 Note	1003	select `test`.`t2`.`b` AS `b`,`test`.`t1`.`b` AS `b` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`b` group by `test`.`t2`.`b` order by `test`.`t1`.`b`
 explain extended
 SELECT t2.b FROM t1, t2 WHERE t1.b = t2.a GROUP BY t2.b ORDER BY t1.b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using temporary; Using filesort
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.b	1	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using temporary; Using filesort
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.b	1	100.00	
 Warnings:
 Note	1003	select `test`.`t2`.`b` AS `b` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`b` group by `test`.`t2`.`b` order by `test`.`t1`.`b`
 drop table t1,t2;
@@ -2925,8 +2925,8 @@ analyze table t1;
 explain
 select b, count(*) num_cnt from t1
 where a > 9750 group by b order by num_cnt;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx1	idx1	5	NULL	503	Using where; Using index; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx1	idx1	5	NULL	503	Using where; Using index; Using temporary; Using filesort
 flush status;
 select b, count(*) num_cnt from t1
 where a > 9750 group by b order by num_cnt;
@@ -2944,8 +2944,8 @@ Handler_read_rnd_next	250
 explain
 select b, count(*) num_cnt from t1 
 where a > 9750 group by b order by num_cnt limit 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	idx1	idx1	5	NULL	503	Using where; Using index; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	idx1	idx1	5	NULL	503	Using where; Using index; Using temporary; Using filesort
 flush status;
 select b, count(*) num_cnt from t1 
 where a > 9750 group by b order by num_cnt limit 1;
@@ -2974,19 +2974,19 @@ INSERT INTO t2 VALUES
 (107, 7), (105, 1), (101, 3), (100, 7), (110, 1);
 EXPLAIN 
 SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a ORDER BY t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	8	Using index
-1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	2	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	8	Using index
+1	SIMPLE	t2	NULL	ref	i_a	i_a	5	test.t1.a	2	Using index
 EXPLAIN 
 SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a ORDER BY t1.a LIMIT 8;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	4	Using index
-1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	2	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	4	Using index
+1	SIMPLE	t2	NULL	ref	i_a	i_a	5	test.t1.a	2	Using index
 EXPLAIN 
 SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a ORDER BY t1.a LIMIT 100;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	8	Using index
-1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	2	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	8	Using index
+1	SIMPLE	t2	NULL	ref	i_a	i_a	5	test.t1.a	2	Using index
 DROP TABLE t1,t2;
 #
 # MDEV-4974 memory leak in 5.5.32-MariaDB-1~wheezy-log
@@ -3060,12 +3060,12 @@ LEFT JOIN ( t3 AS t3a, t3 AS t3b )
 ON ( t3b.f3_key = t3a.f3 )
 WHERE t3a.f3 < f1 OR t3b.f3 != f1 )
 ORDER BY field;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	Using temporary; Using filesort
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-1	PRIMARY	t3a	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary
-1	PRIMARY	t3b	ref	f3_key	f3_key	6	test.t3a.f3	1	100.00	Using where; End temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	Using temporary; Using filesort
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t3a	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary
+1	PRIMARY	t3b	NULL	ref	f3_key	f3_key	6	test.t3a.f3	1	100.00	Using where; End temporary
 Warnings:
 Note	1003	select concat('foo',`test`.`t2`.`f2`) AS `field` from `test`.`t2` semi join ((`test`.`t3` `t3a` join `test`.`t3` `t3b`)) where `test`.`t3a`.`f3` < 'foo' or `test`.`t3b`.`f3` <> 'foo' order by concat('foo',`test`.`t2`.`f2`)
 DROP TABLE t1,t2,t3;
@@ -3080,8 +3080,8 @@ insert into t1
 select A.a + 10 * B.a + 100 * C.a, 1234 from t2 A, t2 B, t2 C;
 # Should show rows=2, not rows=100
 explain update t1 set key1=key1+1 where key1 between 10 and 110 order by key1 limit 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	key1	key1	5	NULL	2	Using where; Using buffer
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	key1	key1	5	NULL	2	Using where; Using buffer
 drop table t1,t2;
 #
 # MDEV-465: Optimizer : wrong index choice, leading to strong performances issues
@@ -3114,12 +3114,12 @@ INSERT INTO t2 (id2,id3,id4) VALUES (1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,0,1),(1,2
 INSERT INTO t2 (id2,id3,id4) VALUES (1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,0,1),(1,2,1),(1,3,1);
 # The following two must both use id_23_date and no "using filesort":
 EXPLAIN SELECT id1 FROM t1 WHERE id2=1 AND id3=1 ORDER BY date DESC LIMIT 0,4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	id_234_date,id_23_date	id_23_date	2	NULL	8	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	id_234_date,id_23_date	id_23_date	2	NULL	8	Using where
 # See above query
 EXPLAIN SELECT id1 FROM t2 WHERE id2=1 AND id3=1 ORDER BY date DESC LIMIT 0,4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	id_23_date,id_234_date	id_23_date	2	NULL	8	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	id_23_date,id_234_date	id_23_date	2	NULL	8	Using where
 drop table t1,t2;
 #
 # MDEV-8989: ORDER BY optimizer ignores equality propagation
@@ -3152,9 +3152,9 @@ insert into t3 select a+1000, 1000+a, 1000+a, repeat('abc-',50) from t1;
 explain
 select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
 from t2, t3 where t2.a=t3.a order by t2.a limit 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	a	a	5	NULL	5	Using where
-1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	a	a	5	NULL	5	Using where
+1	SIMPLE	t3	NULL	ref	a	a	5	test.t2.a	1	
 # 
 # This is Q2 which used to have "Using temporary; using filesort" but
 #   has the same query plan as Q1:
@@ -3162,9 +3162,9 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 explain
 select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
 from t2, t3 where t2.a=t3.a order by t3.a limit 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	a	a	5	NULL	5	Using where
-1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	a	a	5	NULL	5	Using where
+1	SIMPLE	t3	NULL	ref	a	a	5	test.t2.a	1	
 select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
 from t2, t3 where t2.a=t3.a order by t2.a limit 5;
 pk	a	b	pk	a	b
@@ -3187,15 +3187,15 @@ pk	a	b	pk	a	b
 explain
 select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
 from t2, t3 where t2.a=t3.a order by t2.a limit 25;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	200	Using where; Using filesort
-1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	a	NULL	NULL	NULL	200	Using where; Using filesort
+1	SIMPLE	t3	NULL	ref	a	a	5	test.t2.a	1	
 explain
 select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
 from t2, t3 where t2.a=t3.a order by t3.a limit 25;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	200	Using where; Using filesort
-1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	a	NULL	NULL	NULL	200	Using where; Using filesort
+1	SIMPLE	t3	NULL	ref	a	a	5	test.t2.a	1	
 select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
 from t2, t3 where t2.a=t3.a order by t2.a limit 25;
 pk	a	b	pk	a	b
@@ -3257,12 +3257,12 @@ pk	a	b	pk	a	b
 #          "Using temporary" is not invoked)
 #
 explain select * from t3 where b=a order by a limit 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	index	NULL	a	5	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	index	NULL	a	5	NULL	10	Using where
 # This must not use filesort. The query plan should be like the query above:
 explain select * from t3 where b=a order by b limit 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	index	NULL	a	5	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	index	NULL	a	5	NULL	10	Using where
 drop table t0,t1,t2,t3;
 set @@optimizer_switch=@tmp_8989;
 set optimizer_switch='orderby_uses_equalities=on';
@@ -3448,9 +3448,9 @@ CREATE TABLE t1 (a INT PRIMARY KEY, b INT, KEY(b));
 INSERT INTO t1 VALUES (0, 1),(1, 2);
 CREATE TABLE t2 SELECT * FROM t1;
 EXPLAIN SELECT (SELECT 1 FROM t1 WHERE t1.a=t2.b ORDER BY t1.b LIMIT 1) AS c FROM t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
-2	DEPENDENT SUBQUERY	t1	index	PRIMARY	b	5	NULL	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+2	DEPENDENT SUBQUERY	t1	NULL	index	PRIMARY	b	5	NULL	1	Using where
 SELECT (SELECT 1 FROM t1 WHERE t1.a=t2.b ORDER BY t1.b LIMIT 1) AS c FROM t2;
 c
 1
@@ -3497,10 +3497,10 @@ WHERE wings.id IN ( SELECT books.wings_id FROM books
 WHERE books.library_id = 8663 AND
 books.scheduled_for_removal=0 )
 ORDER BY wings.id;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	100.00	Using filesort
-1	PRIMARY	wings	eq_ref	PRIMARY	PRIMARY	4	test.books.wings_id	1	100.00	
-2	MATERIALIZED	books	ref	library_idx	library_idx	4	const	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	2	100.00	Using filesort
+1	PRIMARY	wings	NULL	eq_ref	PRIMARY	PRIMARY	4	test.books.wings_id	1	100.00	
+2	MATERIALIZED	books	NULL	ref	library_idx	library_idx	4	const	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`wings`.`id` AS `wing_id`,`test`.`wings`.`department_id` AS `department_id` from `test`.`wings` semi join (`test`.`books`) where `test`.`books`.`library_id` = 8663 and `test`.`books`.`scheduled_for_removal` = 0 and `test`.`wings`.`id` = `test`.`books`.`wings_id` order by `test`.`wings`.`id`
 set optimizer_switch= @save_optimizer_switch;
@@ -3546,9 +3546,9 @@ DROP TABLE t1;
 create table t1 (a int);
 insert into t1 values (3), (7), (1);
 explain (select a from t1 limit 2) order by a desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using filesort
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	Using filesort
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
 (select a from t1 limit 2) order by a desc;
 a
 7
@@ -3556,9 +3556,9 @@ a
 create table t2 (a int, b int);
 insert into t2 values (3,70), (7,10), (1,40), (4,30);
 explain (select b,a from t2 order by a limit 3) order by b desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	Using filesort
-2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	4	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using filesort
 (select b,a from t2 order by a limit 3) order by b desc;
 b	a
 70	3
@@ -3616,9 +3616,9 @@ ORDER BY
 t2.key2 ASC
 LIMIT 1)
 from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
-2	DEPENDENT SUBQUERY	t2	ref	key1	key1	5	test.t1.a	10	Using index condition; Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	
+2	DEPENDENT SUBQUERY	t2	NULL	ref	key1	key1	5	test.t1.a	10	Using index condition; Using where; Using filesort
 select
 (SELECT  concat(id, '-', key1, '-', col1)
 FROM t2
@@ -3677,8 +3677,8 @@ test.t4	analyze	status	Table is already up to date
 # rows must be around 1200, not 600:
 explain extended 
 select * from t4 where b < 5000 order by a limit 600;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t4	index	NULL	a	5	NULL	1188	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	index	NULL	a	5	NULL	1188	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t4`.`a` AS `a`,`test`.`t4`.`b` AS `b`,`test`.`t4`.`c` AS `c`,`test`.`t4`.`filler1` AS `filler1`,`test`.`t4`.`filler2` AS `filler2` from `test`.`t4` where `test`.`t4`.`b` < 5000 order by `test`.`t4`.`a` limit 600
 set histogram_size=@tmp_h, histogram_type=@tmp_ht, use_stat_tables=@tmp_u,
@@ -4366,10 +4366,10 @@ EXPLAIN SELECT t1.a
 FROM t1
 WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
 ORDER BY t1.a DESC;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	Using filesort
-1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	Using index
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	3	Using filesort
+1	PRIMARY	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	Using index
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
 EXPLAIN FORMAT=JSON SELECT t1.a
 FROM t1
 WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
@@ -4439,10 +4439,10 @@ EXPLAIN SELECT t1.a, group_concat(t1.b)
 FROM t1
 WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
 GROUP BY t1.a DESC;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	3	Using filesort
-1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	3	Using filesort
+1	PRIMARY	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
 EXPLAIN FORMAT=JSON SELECT t1.a, group_concat(t1.b)
 FROM t1
 WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
@@ -4516,11 +4516,11 @@ create table t1 (a int, b int, c int, key r (a desc, b asc));
 insert t1 select seq % 10, seq div 10, seq from seq_1_to_55;
 insert t1 values (NULL, NULL, NULL), (9, NULL, NULL);
 explain select * from t1 force index(r) order by a,b limit 20;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	57	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	57	Using filesort
 explain select * from t1 force index(r) order by a desc,b limit 20;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	r	10	NULL	20	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	r	10	NULL	20	
 select * from t1 force index(r) order by a desc,b limit 20;
 a	b	c
 9	NULL	NULL

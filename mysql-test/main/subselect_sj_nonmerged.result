@@ -7,10 +7,10 @@ insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 as select * from t0;
 # The following should use full scan on <subquery2> and it must scan 1 row:
 explain select * from t0 where a in (select max(a) from t1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	1	
-1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	1	
+1	PRIMARY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	
 select * from t0 where a in (select max(a) from t1);
 a
 9
@@ -39,51 +39,51 @@ alter table t3 add primary key(a);
 # The following should have do a full scan on <subquery2> and scan 5 rows 
 #   (despite that subquery's join output estimate is 50 rows)
 explain select * from t3 where a in (select max(t2.a) from t1, t2 group by t2.b);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	5	
-1	PRIMARY	t3	eq_ref	PRIMARY	PRIMARY	8	<subquery2>.max(t2.a)	1	Using where; Using index
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	5	
+1	PRIMARY	t3	NULL	eq_ref	PRIMARY	PRIMARY	8	<subquery2>.max(t2.a)	1	Using where; Using index
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary
+2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
 # Compare to this which really will have 50 record combinations:
 explain select * from t3 where a in (select max(t2.a) from t1, t2 group by t2.b, t1.b);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	index	PRIMARY	PRIMARY	8	NULL	100	Using index
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	test.t3.a	1	Using where
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	NULL	index	PRIMARY	PRIMARY	8	NULL	100	Using index
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	test.t3.a	1	Using where
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary
+2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
 SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='outer_join_with_cache=off';
 # Outer joins also work:
 explain select * from t3 
 where a in (select max(t2.a) from t1 left join t2 on t1.a=t2.a group by t2.b, t1.b);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	index	PRIMARY	PRIMARY	8	NULL	100	Using index
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	test.t3.a	1	Using where
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	10	Using temporary
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	NULL	index	PRIMARY	PRIMARY	8	NULL	100	Using index
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	test.t3.a	1	Using where
+2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using temporary
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 SET optimizer_switch=@save_optimizer_switch;
 create table t4 (a int, b int, filler char(20), unique key(a,b));
 insert into t4 select A.a + 10*B.a, A.a + 10*B.a, 'filler' from t0 A, t0 B;
 explain select * from t0, t4 where 
 t4.b=t0.a and t4.a in (select max(t2.a) from t1, t2 group by t2.b);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	5	
-1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	t4	eq_ref	a	a	10	<subquery2>.max(t2.a),test.t0.a	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	5	
+1	PRIMARY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t4	NULL	eq_ref	a	a	10	<subquery2>.max(t2.a),test.t0.a	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary
+2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
 insert into t4 select 100 + (B.a *100 + A.a), 100 + (B.a*100 + A.a), 'filler' from t4 A, t0 B;
 explain select * from t4 where 
 t4.a in (select max(t2.a) from t1, t2 group by t2.b) and 
 t4.b in (select max(t2.a) from t1, t2 group by t2.b);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery3>	ALL	distinct_key	NULL	NULL	NULL	5	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-1	PRIMARY	t4	eq_ref	a	a	10	<subquery2>.max(t2.a),<subquery3>.max(t2.a)	1	
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary
-3	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery3>	NULL	ALL	distinct_key	NULL	NULL	NULL	5	
+1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
+1	PRIMARY	t4	NULL	eq_ref	a	a	10	<subquery2>.max(t2.a),<subquery3>.max(t2.a)	1	
+3	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary
+3	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary
+2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using join buffer (flat, BNL join)
 drop table t1,t2,t3,t4;
 drop table t0;
 #
@@ -113,10 +113,10 @@ create table t1(a int, key(a));
 insert into t1 select A.a + 10*B.a + 100*C.a from t0 A, t0 B, t0 C;
 # The following must use non-merged SJ-Materialization:
 explain select * from t1 X join t0 Y on X.a < Y.a where X.a in (select max(a) from t0);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	1	
-1	PRIMARY	X	ref	a	a	5	<subquery2>.max(a)	1	Using index
-1	PRIMARY	Y	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t0	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	1	
+1	PRIMARY	X	NULL	ref	a	a	5	<subquery2>.max(a)	1	Using index
+1	PRIMARY	Y	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+2	MATERIALIZED	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	
 drop table t0, t1;
 set optimizer_switch=@save_optimizer_switch;

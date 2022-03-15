@@ -8,8 +8,8 @@ CREATE DATABASE dbt3_s001;
 use dbt3_s001;
 explain
 select count(*) from lineitem where l_orderkey=130 and l_shipdate='1992-07-01';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate	8	const,const	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate	8	const,const	1	Using index
 flush status;
 select count(*) from lineitem where l_orderkey=130 and l_shipdate='1992-07-01';
 count(*)
@@ -28,8 +28,8 @@ Handler_read_rnd_next	0
 explain
 select count(*) from lineitem use index(primary)
 where l_orderkey=130 and l_linenumber=2 and l_shipdate='1992-07-01';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	const	PRIMARY	PRIMARY	8	const,const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	lineitem	NULL	const	PRIMARY	PRIMARY	8	const,const	1	
 flush status;
 select count(*) from lineitem use index(primary)
 where l_orderkey=130 and l_linenumber=2 and l_shipdate='1992-07-01';
@@ -49,8 +49,8 @@ Handler_read_rnd_next	0
 explain 
 select count(*) from lineitem
 where l_shipdate='1992-07-01' and l_orderkey between 1 and 1000;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	range	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate	8	NULL	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	lineitem	NULL	range	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate	8	NULL	1	Using where; Using index
 flush status;
 select count(*) from lineitem
 where l_shipdate='1992-07-01' and l_orderkey between 1 and 1000;
@@ -70,8 +70,8 @@ Handler_read_rnd_next	0
 explain
 select l_orderkey, l_linenumber from lineitem
 where l_shipdate='1992-07-01' and l_orderkey between 1001 and 2000;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	range	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate	8	NULL	3	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	lineitem	NULL	range	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate	8	NULL	3	Using where; Using index
 flush status;
 select l_orderkey, l_linenumber from lineitem
 where l_shipdate='1992-07-01' and l_orderkey between 1001 and 2000;
@@ -92,8 +92,8 @@ Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 explain
 select min(l_orderkey) from lineitem where l_shipdate='1992-07-01';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 flush status;
 select min(l_orderkey) from lineitem where l_shipdate='1992-07-01';
 min(l_orderkey)
@@ -112,8 +112,8 @@ Handler_read_rnd_next	0
 explain
 select min(l_orderkey) from lineitem 
 where l_shipdate='1992-07-01' and l_orderkey between 1001 and 2000;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 flush status;
 select min(l_orderkey) from lineitem 
 where l_shipdate='1992-07-01' and l_orderkey between 1001 and 2000;
@@ -133,8 +133,8 @@ Handler_read_rnd_next	0
 explain
 select max(l_linenumber) from lineitem 
 where l_shipdate='1992-07-01' and l_orderkey=130;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 flush status;
 select max(l_linenumber) from lineitem 
 where l_shipdate='1992-07-01' and l_orderkey=130;
@@ -156,8 +156,8 @@ select l_orderkey, l_linenumber
 from lineitem use index (i_l_shipdate, i_l_receiptdate)
 where l_shipdate='1992-07-01' and l_orderkey=130 
 or l_receiptdate='1992-07-01' and l_orderkey=5603;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	index_merge	i_l_shipdate,i_l_receiptdate	i_l_shipdate,i_l_receiptdate	8,8	NULL	2	Using union(i_l_shipdate,i_l_receiptdate); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	lineitem	NULL	index_merge	i_l_shipdate,i_l_receiptdate	i_l_shipdate,i_l_receiptdate	8,8	NULL	2	Using union(i_l_shipdate,i_l_receiptdate); Using where
 flush status;
 select l_orderkey, l_linenumber 
 from lineitem use index (i_l_shipdate, i_l_receiptdate)
@@ -182,8 +182,8 @@ select l_orderkey, l_linenumber
 from lineitem use index (i_l_shipdate, i_l_receiptdate)
 where l_shipdate='1992-07-01' and l_orderkey between 1 and 1000
 or l_receiptdate='1992-07-01' and l_orderkey between 5001 and 6000;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	index_merge	i_l_shipdate,i_l_receiptdate	i_l_shipdate,i_l_receiptdate	#	NULL	3	Using sort_union(i_l_shipdate,i_l_receiptdate); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	lineitem	NULL	index_merge	i_l_shipdate,i_l_receiptdate	i_l_shipdate,i_l_receiptdate	#	NULL	3	Using sort_union(i_l_shipdate,i_l_receiptdate); Using where
 flush status;
 select l_orderkey, l_linenumber
 from lineitem use index (i_l_shipdate, i_l_receiptdate)
@@ -208,8 +208,8 @@ explain
 select l_orderkey, l_linenumber from lineitem 
 where l_shipdate='1992-07-01' and l_orderkey between 1 and 1000
 or l_receiptdate='1992-07-01' and l_orderkey between 5001 and 6000;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	index_merge	PRIMARY,i_l_shipdate,i_l_receiptdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate,i_l_receiptdate	#	NULL	#	Using
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	lineitem	NULL	index_merge	PRIMARY,i_l_shipdate,i_l_receiptdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate,i_l_receiptdate	#	NULL	#	Using
 flush status;
 select l_orderkey, l_linenumber from lineitem 
 where l_shipdate='1992-07-01' and l_orderkey between 1 and 1000
@@ -224,8 +224,8 @@ Handler_read_next	3
 explain 
 select max(l_orderkey) from lineitem
 where l_partkey between 1 and 10 group by l_partkey;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	range	i_l_suppkey_partkey,i_l_partkey	i_l_partkey	5	NULL	#	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	lineitem	NULL	range	i_l_suppkey_partkey,i_l_partkey	i_l_partkey	5	NULL	#	Using where; Using index for group-by
 flush status;
 select max(l_orderkey) from lineitem
 where l_partkey between 1 and 10 group by l_partkey;
@@ -254,8 +254,8 @@ Handler_read_rnd_next	0
 explain 
 select max(l_orderkey) from lineitem
 where l_suppkey in (1,4) group by l_suppkey;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	range	i_l_suppkey	i_l_suppkey	5	NULL	#	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	lineitem	NULL	range	i_l_suppkey	i_l_suppkey	5	NULL	#	Using where; Using index for group-by
 flush status;
 select max(l_orderkey) from lineitem
 where l_suppkey in (1,4) group by l_suppkey;
@@ -280,10 +280,10 @@ from part use index (i_p_retailprice),
 lineitem use index (i_l_partkey), orders
 where p_retailprice > 1100 and o_orderdate='1997-01-01' 
 and o_orderkey=l_orderkey and p_partkey=l_partkey;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	part	range	i_p_retailprice	i_p_retailprice	9	NULL	#	Using where; Using index
-1	SIMPLE	orders	ref	PRIMARY,i_o_orderdate	i_o_orderdate	4	const	#	Using index
-1	SIMPLE	lineitem	ref	i_l_partkey	i_l_partkey	9	dbt3_s001.part.p_partkey,dbt3_s001.orders.o_orderkey	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	part	NULL	range	i_p_retailprice	i_p_retailprice	9	NULL	#	Using where; Using index
+1	SIMPLE	orders	NULL	ref	PRIMARY,i_o_orderdate	i_o_orderdate	4	const	#	Using index
+1	SIMPLE	lineitem	NULL	ref	i_l_partkey	i_l_partkey	9	dbt3_s001.part.p_partkey,dbt3_s001.orders.o_orderkey	#	Using index
 flush status;
 select o_orderkey, p_partkey
 from part use index (i_p_retailprice),
@@ -313,9 +313,9 @@ create index i_p_size on part(p_size);
 explain
 select * from t0, part ignore index (primary)
 where p_partkey=t0.a and p_size=1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	5	Using where
-1	SIMPLE	part	eq_ref	i_p_size	i_p_size	9	const,dbt3_s001.t0.a	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	SIMPLE	part	NULL	eq_ref	i_p_size	i_p_size	9	const,dbt3_s001.t0.a	1	
 select * from t0,  part ignore index (primary)
 where p_partkey=t0.a and p_size=1;
 a	p_partkey	p_name	p_mfgr	p_brand	p_type	p_size	p_container	p_retailprice	p_comment
@@ -338,11 +338,11 @@ a	b
 2	2
 EXPLAIN
 SELECT * FROM t1 WHERE 2 IN (SELECT MAX(s1.a) FROM t1 AS s1, t1 AS s2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	const	distinct_key	distinct_key	4	const	1	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
-2	MATERIALIZED	s1	ALL	NULL	NULL	NULL	NULL	2	
-2	MATERIALIZED	s2	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	NULL	const	distinct_key	distinct_key	4	const	1	
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
+2	MATERIALIZED	s1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+2	MATERIALIZED	s2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (flat, BNL join)
 DROP TABLE t1;
 set optimizer_switch=@save_optimizer_switch;
 #
@@ -383,11 +383,11 @@ INSERT INTO t2 VALUES
 EXPLAIN
 SELECT a FROM t1 AS t, t2 
 WHERE c = a AND b IN (SELECT b FROM t1, t2 WHERE b = t.b);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t	index	a,b	b	7	NULL	10	Using index
-1	PRIMARY	t1	ref	b	b	3	test.t.b	2	Using index; Start temporary
-1	PRIMARY	t2	index	NULL	PRIMARY	4	NULL	11	Using index; End temporary; Using join buffer (flat, BNL join)
-1	PRIMARY	t2	eq_ref	PRIMARY	PRIMARY	4	test.t.a	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t	NULL	index	a,b	b	7	NULL	10	Using index
+1	PRIMARY	t1	NULL	ref	b	b	3	test.t.b	2	Using index; Start temporary
+1	PRIMARY	t2	NULL	index	NULL	PRIMARY	4	NULL	11	Using index; End temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t.a	1	Using index
 SELECT a FROM t1 AS t, t2 
 WHERE c = a AND b IN (SELECT b FROM t1, t2 WHERE b = t.b);
 a
@@ -406,9 +406,9 @@ SET optimizer_switch='join_cache_hashed=on';
 SET optimizer_switch='join_cache_bka=on';
 EXPLAIN
 SELECT * FROM t1, t2 WHERE b=a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t2	hash_ALL	NULL	#hash#$hj	5	test.t1.a	2	Using where; Using join buffer (flat, BNLH join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t2	NULL	hash_ALL	NULL	#hash#$hj	5	test.t1.a	2	Using where; Using join buffer (flat, BNLH join)
 SELECT * FROM t1, t2 WHERE b=a;
 a	b
 set join_cache_level=@save_join_cache_level;
@@ -449,9 +449,9 @@ A.a + 10 * B.a, A.a + 10 * B.a, A.a + 10 * B.a
 from t1 A, t1 B;
 explain 
 select * from t1, t2 where t2.a=t1.a and t2.b < 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	
-1	SIMPLE	t2	eq_ref	a	a	4	test.t1.a	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	
+1	SIMPLE	t2	NULL	eq_ref	a	a	4	test.t1.a	#	Using where
 flush status;
 select * from t1, t2 where t2.a=t1.a and t2.b < 2;
 a	pk	a	b
@@ -487,14 +487,14 @@ test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 explain 
 select * from t1, t3 where t3.col1=t1.a and  t3.col2=t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
-1	SIMPLE	t3	ref	col1	col1	8	test.t1.a,test.t1.a	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	Using where
+1	SIMPLE	t3	NULL	ref	col1	col1	8	test.t1.a,test.t1.a	#	Using index
 explain 
 select * from t1, t3 where t3.col1=t1.a and  t3.col2=t1.a and t3.pk1=t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using where
-1	SIMPLE	t3	ref	PRIMARY,col1	col1	12	test.t1.a,test.t1.a,test.t1.a	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	Using where
+1	SIMPLE	t3	NULL	ref	PRIMARY,col1	col1	12	test.t1.a,test.t1.a,test.t1.a	#	Using index
 drop table t1,t2,t3;
 #
 # Bug mdev-4340: performance regression with extended_keys=on   
@@ -617,10 +617,10 @@ EXPLAIN
 SELECT *  FROM t1, t2 IGNORE INDEX (PRIMARY), t3 
 WHERE page_id=rev_page AND  rev_text_id=old_id  AND page_namespace=4 AND page_title='Sandbox'
 ORDER BY rev_timestamp ASC LIMIT 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	PRIMARY,name_title	name_title	261	const,const	1	
-1	SIMPLE	t2	ref	page_timestamp	page_timestamp	4	const	10	Using where
-1	SIMPLE	t3	eq_ref	PRIMARY	PRIMARY	4	test.t2.rev_text_id	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	const	PRIMARY,name_title	name_title	261	const,const	1	
+1	SIMPLE	t2	NULL	ref	page_timestamp	page_timestamp	4	const	10	Using where
+1	SIMPLE	t3	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t2.rev_text_id	1	
 DROP TABLE t1,t2,t3;
 #
 # MDEV-5424 SELECT using ORDER BY DESC and LIMIT produces unexpected
@@ -637,30 +637,30 @@ test.t1	analyze	status	OK
 test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 explain select a from t1 where b is null order by a desc limit 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	b	PRIMARY	8	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	b	PRIMARY	8	NULL	2	Using where
 select a from t1 where b is null order by a desc limit 2;
 a
 3
 2
 explain select a from t2 where b is null order by a desc limit 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	b	b	9	NULL	3	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	b	b	9	NULL	3	Using where; Using filesort
 select a from t2 where b is null order by a desc limit 2;
 a
 3
 2
 explain select a from t2 where b is null order by a desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	b	PRIMARY	8	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	b	PRIMARY	8	NULL	3	Using where
 select a from t2 where b is null order by a desc;
 a
 3
 2
 1
 explain select a from t2 where b is null order by a desc,a,a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	b	PRIMARY	8	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	b	PRIMARY	8	NULL	3	Using where
 select a from t2 where b is null order by a desc,a,a;
 a
 3
@@ -724,14 +724,14 @@ insert into t2 select * from t1;
 explain 
 select * from t1 force index(index_date_updated) 
 where index_date_updated= 10 and index_id < 800;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	index_date_updated	index_date_updated	13	NULL	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	index_date_updated	index_date_updated	13	NULL	#	Using index condition
 # This used to work from the start:
 explain 
 select * from t2 force index(index_date_updated) 
 where index_date_updated= 10 and index_id < 800;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	index_date_updated	index_date_updated	13	NULL	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	index_date_updated	index_date_updated	13	NULL	#	Using index condition
 drop table t0,t1,t2;
 #
 # MDEV-11196: Error:Run-Time Check Failure #2 - Stack around the variable 'key_buff'
@@ -831,8 +831,8 @@ PRIMARY KEY(pk)
 )ENGINE=INNODB;
 INSERT INTO t2 SELECT a,a FROM t1;
 EXPLAIN SELECT pk FROM t2 FORCE INDEX(k1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	k1	23	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	NULL	k1	23	NULL	#	Using index
 DROP TABLE t1,t2;
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages= @innodb_stats_persistent_sample_pages_save;

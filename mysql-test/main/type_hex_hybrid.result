@@ -14,8 +14,8 @@ utf8mb3	binary	17.100	16.100
 SELECT * FROM t1 WHERE LENGTH(CHARSET('a'))+a<=>LENGTH(CHARSET(0x61))+a;
 a
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(CHARSET('a'))+a<=>LENGTH(CHARSET(0x61))+a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where <cache>(octet_length(charset('a'))) + `test`.`t1`.`a` <=> <cache>(octet_length(charset(0x61))) + `test`.`t1`.`a`
 DROP TABLE t1;

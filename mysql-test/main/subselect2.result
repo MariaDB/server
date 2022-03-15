@@ -124,15 +124,15 @@ SELECT t2.*, t4.DOCTYPENAME, t1.CONTENTSIZE,t1.MIMETYPE FROM t2 INNER JOIN t4 ON
 DOCID	DOCNAME	DOCTYPEID	FOLDERID	AUTHOR	CREATED	TITLE	SUBTITLE	DOCABSTRACT	PUBLISHDATE	EXPIRATIONDATE	LOCKEDBY	STATUS	PARENTDOCID	REPID	MODIFIED	MODIFIER	PUBLISHSTATUS	ORIGINATOR	DOCTYPENAME	CONTENTSIZE	MIMETYPE
 c373e9f5ad07993f3859444553544200	Last Discussion	c373e9f5ad079174ff17444553544200	c373e9f5ad0796c0eca4444553544200	Goldilocks	2003-06-09 11:21:06	Title: Last Discussion	NULL	Setting new abstract and keeping doc checked out	2003-06-09 10:51:26	2003-06-09 10:51:26	NULL	NULL	NULL	03eea05112b845949f3fd03278b5fe43	2003-06-09 11:21:06	admin	0	NULL	Discussion	NULL	NULL
 EXPLAIN SELECT t2.*, t4.DOCTYPENAME, t1.CONTENTSIZE,t1.MIMETYPE FROM t2 INNER JOIN t4 ON t2.DOCTYPEID = t4.DOCTYPEID LEFT OUTER JOIN t1 ON t2.DOCID = t1.DOCID WHERE t2.FOLDERID IN(SELECT t3.FOLDERID FROM t3 WHERE t3.PARENTID IN(SELECT t3.FOLDERID FROM t3 WHERE t3.PARENTID IN(SELECT t3.FOLDERID FROM t3 WHERE t3.PARENTID IN(SELECT t3.FOLDERID FROM t3 WHERE t3.PARENTID IN(SELECT t3.FOLDERID FROM t3 WHERE t3.PARENTID='2f6161e879db43c1a5b82c21ddc49089' AND t3.FOLDERNAME = 'Level1') AND t3.FOLDERNAME = 'Level2') AND t3.FOLDERNAME = 'Level3') AND t3.FOLDERNAME = 'CopiedFolder') AND t3.FOLDERNAME = 'Movie Reviews') AND t2.DOCNAME = 'Last Discussion';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	DDOCTYPEID_IDX,DFOLDERID_IDX	NULL	NULL	NULL	9	Using where
-1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	34	test.t2.DOCID	1	
-1	PRIMARY	t4	eq_ref	PRIMARY	PRIMARY	34	test.t2.DOCTYPEID	1	
-1	PRIMARY	t3	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t2.FOLDERID	1	Using where
-1	PRIMARY	t3	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3.PARENTID	1	Using where
-1	PRIMARY	t3	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3.PARENTID	1	Using where
-1	PRIMARY	t3	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3.PARENTID	1	Using where
-1	PRIMARY	t3	ref|filter	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	FFOLDERID_IDX|CMFLDRPARNT_IDX	34|35	test.t3.PARENTID	1 (29%)	Using where; Using rowid filter
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	DDOCTYPEID_IDX,DFOLDERID_IDX	NULL	NULL	NULL	9	Using where
+1	PRIMARY	t1	NULL	eq_ref	PRIMARY	PRIMARY	34	test.t2.DOCID	1	
+1	PRIMARY	t4	NULL	eq_ref	PRIMARY	PRIMARY	34	test.t2.DOCTYPEID	1	
+1	PRIMARY	t3	NULL	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t2.FOLDERID	1	Using where
+1	PRIMARY	t3	NULL	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3.PARENTID	1	Using where
+1	PRIMARY	t3	NULL	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3.PARENTID	1	Using where
+1	PRIMARY	t3	NULL	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3.PARENTID	1	Using where
+1	PRIMARY	t3	NULL	ref|filter	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	FFOLDERID_IDX|CMFLDRPARNT_IDX	34|35	test.t3.PARENTID	1 (29%)	Using where; Using rowid filter
 drop table t1, t2, t3, t4;
 CREATE TABLE t1 (a int(10) , PRIMARY KEY (a)) Engine=InnoDB;
 INSERT INTO t1 VALUES (1),(2);
@@ -160,19 +160,19 @@ SET @tmp_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='materialization=on,in_to_exists=on';
 EXPLAIN
 SELECT * FROM t2,t3 WHERE (2,9) IN (SELECT DISTINCT a,pk FROM t1) OR a = b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	index	a	a	5	NULL	2	Using where; Using index
-1	PRIMARY	t3	ref	b	b	5	test.t2.a	2	Using index
-2	SUBQUERY	t1	const	PRIMARY,a	PRIMARY	4	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	index	a	a	5	NULL	2	Using where; Using index
+1	PRIMARY	t3	NULL	ref	b	b	5	test.t2.a	2	Using index
+2	SUBQUERY	t1	NULL	const	PRIMARY,a	PRIMARY	4	const	1	Using where
 SELECT * FROM t2,t3 WHERE (2,9) IN (SELECT DISTINCT a,pk FROM t1) OR a = b;
 pk	a	b
 0	4	4
 EXPLAIN
 SELECT * FROM t2,t3 WHERE (2,9) IN (SELECT DISTINCT a,pk FROM v1) OR a = b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	index	a	a	5	NULL	2	Using where; Using index
-1	PRIMARY	t3	ref	b	b	5	test.t2.a	2	Using index
-2	SUBQUERY	t1	const	PRIMARY,a	PRIMARY	4	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	index	a	a	5	NULL	2	Using where; Using index
+1	PRIMARY	t3	NULL	ref	b	b	5	test.t2.a	2	Using index
+2	SUBQUERY	t1	NULL	const	PRIMARY,a	PRIMARY	4	const	1	Using where
 SELECT * FROM t2,t3 WHERE (2,9) IN (SELECT DISTINCT a,pk FROM v1) OR a = b;
 pk	a	b
 0	4	4
@@ -255,11 +255,11 @@ SELECT * FROM t1 WHERE c1 NOT IN (
 SELECT t2a.c2 FROM t2 AS t2a, t2 AS t2b, t2 AS t2c
 WHERE t2c.c2 = t2b.c2 AND ( t2a.m = t2b.n OR 0 ) AND
 ( t2b.m != a OR t2b.m = t2a.m ));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	DEPENDENT SUBQUERY	t2a	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-2	DEPENDENT SUBQUERY	t2b	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
-2	DEPENDENT SUBQUERY	t2c	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t2a	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t2b	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+2	DEPENDENT SUBQUERY	t2c	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (incremental, BNL join)
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t1`.`c1` AS `c1` from `test`.`t1` where !<expr_cache><`test`.`t1`.`c1`,`test`.`t1`.`a`>(<in_optimizer>(`test`.`t1`.`c1`,<exists>(/* select#2 */ select `test`.`t2a`.`c2` from `test`.`t2` `t2a` join `test`.`t2` `t2b` join `test`.`t2` `t2c` where (`test`.`t2b`.`m` <> `test`.`t1`.`a` or `test`.`t2b`.`m` = `test`.`t2a`.`m`) and trigcond(<cache>(`test`.`t1`.`c1`) = `test`.`t2a`.`c2` or `test`.`t2a`.`c2` is null) and `test`.`t2c`.`c2` = `test`.`t2b`.`c2` and `test`.`t2b`.`n` = `test`.`t2a`.`m` having trigcond(`test`.`t2a`.`c2` is null))))
@@ -285,9 +285,9 @@ WHERE date < '2012-12-12 12:12:12'
     AND node_uid in (2085, 2084)
 ORDER BY mirror_date ASC
 ) AS calculated_result;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	t1	range	date	date	6	NULL	3	Using index condition; Using where; Rowid-ordered scan; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	
+2	DERIVED	t1	NULL	range	date	date	6	NULL	3	Using index condition; Using where; Rowid-ordered scan; Using filesort
 SELECT * FROM (
 SELECT node_uid, date, mirror_date, @result := 0 AS result
 FROM t1
@@ -308,9 +308,9 @@ WHERE date < '2012-12-12 12:12:12'
     AND node_uid in (2085, 2084)
 ORDER BY mirror_date ASC
 ) AS calculated_result;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	t1	range	date	date	6	NULL	3	Using index condition; Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	
+2	DERIVED	t1	NULL	range	date	date	6	NULL	3	Using index condition; Using where; Using filesort
 SELECT * FROM (
 SELECT node_uid, date, mirror_date, @result := 0 AS result
 FROM t1
@@ -336,11 +336,11 @@ create index idx on t3(a);
 explain extended
 select * from t1, t2 left join t3 on ( t2.a = t3.a )
 where t1.a = t2.a and ( t1.a = ( select min(a) from t1 ) or 0 );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	t3	ref	idx	idx	6	func	2	100.00	Using where; Using index
-2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t3	NULL	ref	idx	idx	6	func	2	100.00	Using where; Using index
+2	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`test`.`t2`.`a` AS `a`,`test`.`t3`.`a` AS `a` from `test`.`t1` join `test`.`t2` left join `test`.`t3` on(`test`.`t3`.`a` = `test`.`t1`.`a`) where `test`.`t1`.`a` = (/* select#2 */ select min(`test`.`t1`.`a`) from `test`.`t1`) and `test`.`t2`.`a` = (/* select#2 */ select min(`test`.`t1`.`a`) from `test`.`t1`)
 select * from t1, t2 left join t3 on ( t2.a = t3.a )

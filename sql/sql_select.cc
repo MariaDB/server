@@ -26895,8 +26895,7 @@ int print_explain_message_line(select_result_sink *result,
   item_list.push_back(item_null, mem_root);
   
   /* `partitions` */
-  if (options & DESCRIBE_PARTITIONS)
-    item_list.push_back(item_null, mem_root);
+  item_list.push_back(item_null, mem_root);
   
   /* type, possible_keys, key, key_len, ref */
   for (uint i=0 ; i < 5; i++)

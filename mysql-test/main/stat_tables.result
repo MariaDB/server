@@ -68,13 +68,13 @@ and r_name = 'AMERICA' and o_orderdate >= date '1995-01-01'
       and o_orderdate < date '1995-01-01' + interval '1' year
 group by n_name
 order by revenue desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	region	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
-1	SIMPLE	nation	ref	PRIMARY,i_n_regionkey	i_n_regionkey	5	dbt3_s001.region.r_regionkey	5	
-1	SIMPLE	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	
-1	SIMPLE	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	6	
-1	SIMPLE	orders	ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	15 (12%)	Using where; Using rowid filter
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	region	NULL	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+1	SIMPLE	nation	NULL	ref	PRIMARY,i_n_regionkey	i_n_regionkey	5	dbt3_s001.region.r_regionkey	5	
+1	SIMPLE	supplier	NULL	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	
+1	SIMPLE	customer	NULL	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	6	
+1	SIMPLE	orders	NULL	ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	15 (12%)	Using where; Using rowid filter
+1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	4	Using where
 select n_name, sum(l_extendedprice * (1 - l_discount)) as revenue
 from customer, orders, lineitem, supplier, nation, region
 where c_custkey = o_custkey and l_orderkey = o_orderkey
@@ -175,13 +175,13 @@ and r_name = 'AMERICA' and o_orderdate >= date '1995-01-01'
       and o_orderdate < date '1995-01-01' + interval '1' year
 group by n_name
 order by revenue desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	region	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
-1	SIMPLE	nation	ref	PRIMARY,i_n_regionkey	i_n_regionkey	5	dbt3_s001.region.r_regionkey	5	
-1	SIMPLE	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	
-1	SIMPLE	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	6	
-1	SIMPLE	orders	ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	15 (12%)	Using where; Using rowid filter
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	region	NULL	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+1	SIMPLE	nation	NULL	ref	PRIMARY,i_n_regionkey	i_n_regionkey	5	dbt3_s001.region.r_regionkey	5	
+1	SIMPLE	supplier	NULL	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	
+1	SIMPLE	customer	NULL	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	6	
+1	SIMPLE	orders	NULL	ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	15 (12%)	Using where; Using rowid filter
+1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	4	Using where
 select n_name, sum(l_extendedprice * (1 - l_discount)) as revenue
 from customer, orders, lineitem, supplier, nation, region
 where c_custkey = o_custkey and l_orderkey = o_orderkey
@@ -211,15 +211,15 @@ and o_orderdate between date '1995-01-01' and date '1996-12-31'
             and p_type = 'STANDARD BRUSHED STEEL' ) as all_nations
 group by o_year
 order by o_year;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	region	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
-1	SIMPLE	part	ALL	PRIMARY	NULL	NULL	NULL	200	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_partkey	5	dbt3_s001.part.p_partkey	30	Using where
-1	SIMPLE	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.lineitem.l_suppkey	1	Using where
-1	SIMPLE	orders	eq_ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	PRIMARY|i_o_orderdate	4|4	dbt3_s001.lineitem.l_orderkey	1 (27%)	Using where; Using rowid filter
-1	SIMPLE	n2	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	
-1	SIMPLE	customer	eq_ref	PRIMARY,i_c_nationkey	PRIMARY	4	dbt3_s001.orders.o_custkey	1	Using where
-1	SIMPLE	n1	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.customer.c_nationkey	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	region	NULL	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+1	SIMPLE	part	NULL	ALL	PRIMARY	NULL	NULL	NULL	200	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_partkey	5	dbt3_s001.part.p_partkey	30	Using where
+1	SIMPLE	supplier	NULL	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.lineitem.l_suppkey	1	Using where
+1	SIMPLE	orders	NULL	eq_ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	PRIMARY|i_o_orderdate	4|4	dbt3_s001.lineitem.l_orderkey	1 (27%)	Using where; Using rowid filter
+1	SIMPLE	n2	NULL	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	
+1	SIMPLE	customer	NULL	eq_ref	PRIMARY,i_c_nationkey	PRIMARY	4	dbt3_s001.orders.o_custkey	1	Using where
+1	SIMPLE	n1	NULL	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.customer.c_nationkey	1	Using where
 select o_year,
 sum(case when nation = 'UNITED STATES' then volume else 0 end) /
 sum(volume) as mkt_share
@@ -250,13 +250,13 @@ and o_orderkey = l_orderkey and s_nationkey = n_nationkey
 and p_name like '%green%') as profit
 group by nation, o_year
 order by nation, o_year desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	supplier	ALL	PRIMARY,i_s_nationkey	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
-1	SIMPLE	nation	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	
-1	SIMPLE	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	i_ps_suppkey	4	dbt3_s001.supplier.s_suppkey	70	
-1	SIMPLE	part	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.partsupp.ps_partkey	1	Using where
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.supplier.s_suppkey	8	
-1	SIMPLE	orders	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	supplier	NULL	ALL	PRIMARY,i_s_nationkey	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
+1	SIMPLE	nation	NULL	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	
+1	SIMPLE	partsupp	NULL	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	i_ps_suppkey	4	dbt3_s001.supplier.s_suppkey	70	
+1	SIMPLE	part	NULL	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.partsupp.ps_partkey	1	Using where
+1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.supplier.s_suppkey	8	
+1	SIMPLE	orders	NULL	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	
 select nation, o_year, sum(amount) as sum_profit
 from (select n_name as nation, 
 extract(year from o_orderdate) as o_year,
@@ -334,10 +334,10 @@ EXPLAIN select o_orderkey, p_partkey
 from part, lineitem, orders
 where p_retailprice > 1100 and o_orderdate='1997-01-01' 
 and o_orderkey=l_orderkey and p_partkey=l_partkey;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	part	range	PRIMARY,i_p_retailprice	i_p_retailprice	9	NULL	1	Using index condition
-1	SIMPLE	orders	ref	PRIMARY,i_o_orderdate	i_o_orderdate	4	const	1	
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	part	NULL	range	PRIMARY,i_p_retailprice	i_p_retailprice	9	NULL	1	Using index condition
+1	SIMPLE	orders	NULL	ref	PRIMARY,i_o_orderdate	i_o_orderdate	4	const	1	
+1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	4	Using where
 select o_orderkey, p_partkey
 from part, lineitem, orders
 where p_retailprice > 1100 and o_orderdate='1997-01-01' 
@@ -379,13 +379,13 @@ INSERT INTO t1 VALUES (1),(2);
 FLUSH TABLE t1;
 SET use_stat_tables='never';
 EXPLAIN SELECT * FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
 FLUSH TABLES;
 SET use_stat_tables='preferably';
 EXPLAIN SELECT * FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
 DROP TABLE t1;
 set use_stat_tables=@save_use_stat_tables;
 #
@@ -410,9 +410,9 @@ id	name
 1	AUS
 EXPLAIN
 SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE name IN ( 'AUS','YEM' ) AND id = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	Using index
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	0	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	const	PRIMARY	PRIMARY	4	const	1	Using index
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	0	Using where
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	Engine-independent statistics collected
@@ -422,9 +422,9 @@ id	name
 1	AUS
 EXPLAIN
 SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE name IN ( 'AUS','YEM' ) AND id = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	Using index
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	const	PRIMARY	PRIMARY	4	const	1	Using index
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
 DROP TABLE t1,t2;
 #
 # MDEV-7370: Server deadlocks on renaming a table for which persistent statistics exists
@@ -590,9 +590,9 @@ set @@optimizer_use_condition_selectivity=4;
 set @@use_stat_tables= PREFERABLY;
 explain
 SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.user;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	PROFILING	ALL	NULL	NULL	NULL	NULL	NULL	
-1	SIMPLE	global_priv	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	PROFILING	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+1	SIMPLE	global_priv	NULL	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
 set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 set use_stat_tables=@save_use_stat_tables;
 #
@@ -769,8 +769,8 @@ select HEX(RIGHT(max_value, 1)), length(max_value) from mysql.column_stats where
 HEX(RIGHT(max_value, 1))	length(max_value)
 A5	254
 analyze select * from t1 where a  >= 'ӥ';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	2.00	50.00	50.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	2.00	50.00	50.00	Using where
 set @save_sql_mode= @@sql_mode;
 set sql_mode='ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION';
 update mysql.column_stats set min_value= REPEAT('ӥ',255) where db_name='test' and table_name='t1';
@@ -780,8 +780,8 @@ select HEX(RIGHT(min_value, 1)), length(min_value) from mysql.column_stats where
 HEX(RIGHT(min_value, 1))	length(min_value)
 D3	255
 analyze select * from t1 where a  >= 'ӥ';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	2.00	50.00	50.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	2.00	50.00	50.00	Using where
 set names latin1;
 drop table t1;
 CREATE TABLE t1 (col1 date);
@@ -864,8 +864,8 @@ select * from mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
 analyze
 select * from t1 where a = 1 and b=3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	10.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	10.00	Using where
 #
 # with use_stat_tables= PREFERABLY_FOR_QUERIES
 # analyze table t1 will  collect statistics if we use PERSISTENT
@@ -881,8 +881,8 @@ test	t1	a	1	4	0.0000	4.0000	2.5000	0	NULL	NULL
 # filtered shows that we used the data from stat tables
 analyze
 select * from t1 where a = 1 and b=3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	25.00	10.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	10.00	25.00	10.00	Using where
 #
 # with use_stat_tables= PREFERABLY
 # analyze table t1 will collect statistics
@@ -899,8 +899,8 @@ test	t1	b	2	10	0.0000	4.0000	1.1111	0	NULL	NULL
 # filtered shows that we used the data from stat tables
 analyze
 select * from t1 where a=1 and b=3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	2.78	10.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	10.00	2.78	10.00	Using where
 drop table t1;
 set @@global.histogram_size=@save_histogram_size;
 # End of 10.4 tests

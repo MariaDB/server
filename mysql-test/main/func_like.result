@@ -2,13 +2,13 @@ drop table if exists t1;
 create table t1 (a varchar(10), key(a));
 insert into t1 values ("a"),("abc"),("abcd"),("hello"),("test");
 explain extended select * from t1 where a like 'abc%';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	range	a	a	13	NULL	2	100.00	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	13	NULL	2	100.00	Using where; Using index
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` like 'abc%'
 explain extended select * from t1 where a like concat('abc','%');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	range	a	a	13	NULL	2	100.00	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	13	NULL	2	100.00	Using where; Using index
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` like <cache>(concat('abc','%'))
 select * from t1 where a like "abc%";
@@ -221,8 +221,8 @@ SELECT * FROM t1 WHERE a=10.0 AND a LIKE 10.00;
 a
 10.00
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=10.0 AND a LIKE 10.00;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 10.0 and `test`.`t1`.`a` like 10.00
 DROP TABLE t1;
@@ -239,11 +239,11 @@ INSERT INTO t1 VALUES ('00:00:05');
 INSERT INTO t1 VALUES ('00:00:06');
 INSERT INTO t1 VALUES ('00:00:07');
 EXPLAIN SELECT * FROM t1 WHERE a LIKE '00:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	13	NULL	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	13	NULL	1	Using where; Using index
 EXPLAIN SELECT * FROM t1 WHERE a LIKE TIME'00:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	13	NULL	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	13	NULL	1	Using where; Using index
 SELECT * FROM t1 WHERE a LIKE '00:00:00';
 a
 00:00:00
@@ -418,8 +418,8 @@ SELECT * FROM v1;
 1	1	0	1	1	1	0	0	0	0	1
 0	0	1	0	1	0	1	1	1	1	0
 EXPLAIN EXTENDED SELECT * FROM v1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using filesort
 Warnings:
 Note	1003	select 1 like `test`.`t1`.`c1` | `test`.`t1`.`c2` AS `1 LIKE c1|c2`,1 like `test`.`t1`.`c1` & `test`.`t1`.`c2` AS `1 LIKE c1&c2`,1 like `test`.`t1`.`c2` >> `test`.`t1`.`c1` AS `1 LIKE c2>>c1`,2 like `test`.`t1`.`c2` << `test`.`t1`.`c1` AS `2 LIKE c2<<c1`,1 like `test`.`t1`.`c1` or `test`.`t1`.`c2` <> 0 AS `1 LIKE c1||c2`,2 like `test`.`t1`.`c1` + `test`.`t1`.`c2` AS `2 LIKE c1+c2`,-1 like `test`.`t1`.`c1` - `test`.`t1`.`c2` AS `-1 LIKE c1-c2`,2 like `test`.`t1`.`c1` * `test`.`t1`.`c2` AS `2 LIKE c1*c2`,0.5000 like `test`.`t1`.`c1` / `test`.`t1`.`c2` AS `0.5000 LIKE c1/c2`,0 like `test`.`t1`.`c1` DIV `test`.`t1`.`c2` AS `0 LIKE c1 DIV c2`,0 like `test`.`t1`.`c1` MOD `test`.`t1`.`c2` AS `0 LIKE c1 MOD c2` from `test`.`t1` order by `test`.`t1`.`c2`
 DROP VIEW v1;

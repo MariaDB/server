@@ -179,14 +179,14 @@ SELECT * FROM t1
 
 set optimizer_switch='index_merge_sort_intersection=on';
 eval $q;
---replace_column 9 #
+--replace_column 10 #
 eval EXPLAIN EXTENDED $q;
 
 set optimizer_switch='index_merge_sort_intersection=off';
 # execution of $q and explain for it led to an assertion failure in 10.4
 # (with the optimizer switch rowid_filter set to 'on')
 eval $q;
---replace_column 9 #
+--replace_column 10 #
 eval EXPLAIN EXTENDED $q;
 
 let $q=
@@ -195,12 +195,12 @@ SELECT * FROM t1
 
 set optimizer_switch='index_merge_sort_intersection=on';
 eval $q;
---replace_column 9 #
+--replace_column 10 #
 eval EXPLAIN EXTENDED $q;
 
 set optimizer_switch='index_merge_sort_intersection=off';
 eval $q;
---replace_column 9 #
+--replace_column 10 #
 eval EXPLAIN EXTENDED $q;
 
 set optimizer_switch='index_merge_sort_intersection=default';

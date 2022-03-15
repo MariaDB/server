@@ -13,8 +13,8 @@ insert into t2 select A.a*1000 + B.a, A.a*1000 + B.a from t0 A, t1 B;
 #
 explain 
 update t2 set b=b+1 order by b limit 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10000	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	10000	Using filesort
 explain format=json
 update t2 set b=b+1 order by b limit 5;
 EXPLAIN
@@ -62,8 +62,8 @@ ANALYZE
 #
 explain
 update t2 set a=a+1 where a<10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	a	a	5	NULL	9	Using where; Using buffer
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	a	a	5	NULL	9	Using where; Using buffer
 explain format=json
 update t2 set a=a+1 where a<10;
 EXPLAIN
@@ -115,8 +115,8 @@ ANALYZE
 #
 explain 
 delete from t2 order by b limit 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10000	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	10000	Using filesort
 explain format=json
 delete from t2 order by b limit 5;
 EXPLAIN
@@ -164,9 +164,9 @@ ANALYZE
 #
 explain
 select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
-1	SIMPLE	t2	ref	a	a	5	test.t0.a	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ref	a	a	5	test.t0.a	1	
 explain format=json
 select * from t0,t2 where t2.a=t0.a order by t2.b limit 4;
 EXPLAIN
@@ -264,9 +264,9 @@ ANALYZE
 #
 explain
 select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where; Using filesort
-1	SIMPLE	t2	ref	a	a	5	test.t0.a	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where; Using filesort
+1	SIMPLE	t2	NULL	ref	a	a	5	test.t0.a	1	
 explain format=json
 select * from t0,t2 where t2.a=t0.a order by t0.a limit 4;
 EXPLAIN
@@ -418,14 +418,14 @@ delete from t3 order by a;
 # EXPLAIN thinks it will use delete_all_rows():
 explain
 delete from t3 order by a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	1	Deleting all rows
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	1	Deleting all rows
 # ANALYZE shows that delete_all_rows() didn't work and we deleted rows
 # one-by-one:
 analyze
 delete from t3 order by a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	1	0.00	100.00	100.00	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	1	0.00	100.00	100.00	Using filesort
 drop table t3;
 #
 # A test for duplicate_removal()
@@ -625,12 +625,12 @@ INSERT INTO t2(col1, col2) VALUES
 flush status;
 explain
 select col1 f1, col2 f2, col1 f3 from t2 group by f1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx	5	NULL	7	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx	5	NULL	7	Using index for group-by
 analyze
 select col1 f1, col2 f2, col1 f3 from t2 group by f1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t2	range	NULL	idx	5	NULL	7	20.00	100.00	100.00	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx	5	NULL	7	20.00	100.00	100.00	Using index for group-by
 analyze format=json
 select col1 f1, col2 f2, col1 f3 from t2 group by f1;
 ANALYZE

@@ -5596,8 +5596,8 @@ t1	CREATE TABLE `t1` (
 # Ascending sort, using filesort
 #
 EXPLAIN SELECT a FROM t1 ORDER BY a, BINARY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a_id	127	NULL	96	Using index; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a_id	127	NULL	96	Using index; Using filesort
 SELECT a FROM t1 ORDER BY a, BINARY a;
 a
 -a
@@ -5700,8 +5700,8 @@ vice-versa
 # Descending sort, using filesort
 #
 EXPLAIN SELECT a FROM t1 ORDER BY a DESC, BINARY a DESC;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a_id	127	NULL	96	Using index; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a_id	127	NULL	96	Using index; Using filesort
 SELECT a FROM t1 ORDER BY a DESC, BINARY a DESC;
 a
 ฯพณฯ
@@ -5804,8 +5804,8 @@ A
 # Ascending sort, using index
 #
 EXPLAIN SELECT a FROM t1 ORDER BY a, id;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a_id	127	NULL	96	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a_id	127	NULL	96	Using index
 SELECT a FROM t1 ORDER BY a, id;
 a
 -a
@@ -5908,8 +5908,8 @@ vice-versa
 # Descending sort, using index
 #
 EXPLAIN SELECT a FROM t1 ORDER BY a DESC, id DESC;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a_id	127	NULL	96	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a_id	127	NULL	96	Using index
 SELECT a FROM t1 ORDER BY a DESC, id DESC;
 a
 ฯพณฯ

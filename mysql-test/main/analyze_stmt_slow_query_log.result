@@ -10,9 +10,9 @@ a
 1
 2
 drop table t1;
-# explain: id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-# explain: 1	INSERT	t1	ALL	NULL	NULL	NULL	NULL	NULL	NULL	100.00	100.00	NULL
-# explain: id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-# explain: 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	30.00	Using where
-# explain: id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-# explain: 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+# explain: id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+# explain: 1	INSERT	t1	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	100.00	100.00	NULL
+# explain: id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+# explain: 1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	30.00	Using where
+# explain: id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+# explain: 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used

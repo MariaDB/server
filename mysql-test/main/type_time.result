@@ -413,15 +413,15 @@ Warnings:
 Warning	1292	Truncated incorrect time value: '00:00:00x'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='00:00:00x';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Warning	1292	Truncated incorrect time value: '00:00:00x'
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'00:00:00'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='00:00:00x';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Warning	1292	Truncated incorrect time value: '00:00:00x'
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'00:00:00' and <cache>(octet_length(TIME'00:00:00')) = 30 + rand()
@@ -438,14 +438,14 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='00:00:00.000000';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'00:00:00'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='00:00:00.000000';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'00:00:00' and <cache>(octet_length(TIME'00:00:00')) = 30 + rand()
 DROP TABLE t1;
@@ -461,14 +461,14 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'00:00:00.000000';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'00:00:00.000000'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIME'00:00:00.000000';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'00:00:00.000000' and <cache>(octet_length(TIME'00:00:00')) = 30 + rand()
 DROP TABLE t1;
@@ -481,14 +481,14 @@ SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'00:00:00.000000';
 a
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'00:00:00.000000';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 0
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIME'00:00:00.000000';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'00:00:00.000000' and <cache>(octet_length(TIME'00:00:00.000000')) = 30 + rand()
 DROP TABLE t1;
@@ -504,14 +504,14 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=' 00:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'00:00:00'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=' 00:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'00:00:00' and <cache>(octet_length(TIME'00:00:00')) = 30 + rand()
 DROP TABLE t1;
@@ -527,14 +527,14 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='000000';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'00:00:00'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='000000';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'00:00:00' and <cache>(octet_length(TIME'00:00:00')) = 30 + rand()
 DROP TABLE t1;
@@ -556,14 +556,14 @@ a
 10:20:31
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIMESTAMP'2001-01-01 10:20:31';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:31'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIMESTAMP'2001-01-01 10:20:31';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:31' and <cache>(octet_length(TIME'10:20:31')) = 30 + rand()
 DROP TABLE t1;
@@ -580,14 +580,14 @@ SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIMESTAMP'2001-01-01 10:20:31.123';
 a
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIMESTAMP'2001-01-01 10:20:31.123';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:31.123000'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIMESTAMP'2001-01-01 10:20:31.123';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:31.123000' and <cache>(octet_length(TIME'10:20:31')) = 30 + rand()
 DROP TABLE t1;
@@ -606,14 +606,14 @@ a
 10:20:31
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIMESTAMP'2001-01-01 10:20:31.000';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:31'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIMESTAMP'2001-01-01 10:20:31.000';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:31' and <cache>(octet_length(TIME'10:20:31')) = 30 + rand()
 DROP TABLE t1;
@@ -629,14 +629,14 @@ SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIMESTAMP'2001-01-01 10:20:31.123';
 a
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIMESTAMP'2001-01-01 10:20:31.123';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 0
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIMESTAMP'2001-01-01 10:20:31.123';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:31.123000' and <cache>(octet_length(TIME'10:20:31.123000')) = 30 + rand()
 DROP TABLE t1;
@@ -653,14 +653,14 @@ SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'10:20:31.123';
 a
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'10:20:31.123';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:31.123'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIME'10:20:31.123';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:31.123' and <cache>(octet_length(TIME'10:20:31')) = 30 + rand()
 DROP TABLE t1;
@@ -679,14 +679,14 @@ a
 10:20:31
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'10:20:31.000';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:31.000'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIME'10:20:31.000';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:31.000' and <cache>(octet_length(TIME'10:20:31')) = 30 + rand()
 DROP TABLE t1;
@@ -702,14 +702,14 @@ SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'10:20:31.123';
 a
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=8 AND a=TIME'10:20:31.123';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 0
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a=TIME'10:20:31.123';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:31.123' and <cache>(octet_length(TIME'10:20:31.123000')) = 30 + rand()
 DROP TABLE t1;
@@ -726,14 +726,14 @@ SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='10:20:31.123';
 a
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='10:20:31.123';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:31.123000'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='10:20:31.123';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:31.123000' and <cache>(octet_length(TIME'10:20:31')) = 30 + rand()
 DROP TABLE t1;
@@ -752,14 +752,14 @@ a
 10:20:31
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='10:20:31.000';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:31'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='10:20:31.000';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:31' and <cache>(octet_length(TIME'10:20:31')) = 30 + rand()
 DROP TABLE t1;
@@ -775,14 +775,14 @@ SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='10:20:31.123';
 a
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=8 AND a='10:20:31.123';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 0
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE LENGTH(a)=30+RAND() AND a='10:20:31.123';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:31.123000' and <cache>(octet_length(TIME'10:20:31.123000')) = 30 + rand()
 DROP TABLE t1;
@@ -812,14 +812,14 @@ a
 10:20:30
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a=TIMESTAMP'0000-00-00 10:20:30' AND LENGTH(a)=8;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:30'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a=TIMESTAMP'0000-00-00 10:20:30' AND LENGTH(a)=30+RAND();
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:30' and <cache>(octet_length(TIME'10:20:30')) = 30 + rand()
 # Old mode, TIMESTAMP literal, non-zero YYYYMMDD, no propagation
@@ -831,26 +831,26 @@ a
 34:20:30
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a=TIMESTAMP'0000-00-01 10:20:30' AND LENGTH(a)=8;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'0000-00-01 10:20:30' and octet_length(`test`.`t1`.`a`) = 8
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a=TIMESTAMP'0000-00-01 10:20:30' AND LENGTH(a)=30+RAND();
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'0000-00-01 10:20:30' and octet_length(`test`.`t1`.`a`) = 30 + rand()
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a=TIMESTAMP'0000-01-00 10:20:30' AND LENGTH(a)=8;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'0000-01-00 10:20:30' and octet_length(`test`.`t1`.`a`) = 8
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a=TIMESTAMP'0001-00-00 10:20:30' AND LENGTH(a)=8;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIMESTAMP'0001-00-00 10:20:30' and octet_length(`test`.`t1`.`a`) = 8
 # Old mode, TIMESTAMP-alike string literal, zero YYYYMMDD, Ok to propagate
@@ -862,14 +862,14 @@ a
 10:20:30
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a='0000-00-00 10:20:30' AND LENGTH(a)=8;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:30'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a='0000-00-00 10:20:30' AND LENGTH(a)=30+RAND();
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'10:20:30' and <cache>(octet_length(TIME'10:20:30')) = 30 + rand()
 # Old mode, TIMESTAMP-alike literal, non-zero YYYYMMDD, no propagation
@@ -881,14 +881,14 @@ a
 34:20:30
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a='0000-00-01 10:20:30' AND LENGTH(a)=8;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = '0000-00-01 10:20:30' and octet_length(`test`.`t1`.`a`) = 8
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a='0000-00-01 10:20:30' AND LENGTH(a)=30+RAND();
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = '0000-00-01 10:20:30' and octet_length(`test`.`t1`.`a`) = 30 + rand()
 DROP TABLE t1;
@@ -913,8 +913,8 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a>=TIMESTAMP'2015-08-30 00:00:00' AND a='00:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'00:00:00'
 DROP TABLE t1;
@@ -926,20 +926,20 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE DATE(a)<=TIMESTAMP'2015-08-30 00:00:00.1' AND a='00:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'00:00:00'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE TIMESTAMP('2015-08-08',a+RAND())<=TIMESTAMP'2015-08-30 00:00:00.1' AND a='00:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'00:00:00' and timestamp('2015-08-08',TIME'00:00:00' + rand()) <= TIMESTAMP'2015-08-30 00:00:00.1'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE TIMESTAMP('2015-08-08',a+RAND())<=TIMESTAMP'2015-08-30 00:00:00.1' AND a='00:00:00.1';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'00:00:00.100000' and timestamp('2015-08-08',TIME'00:00:00' + rand()) <= TIMESTAMP'2015-08-30 00:00:00.1'
 DROP TABLE t1;
@@ -951,20 +951,20 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE DATE(a)<=DATE'2015-08-30' AND a='00:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'00:00:00'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE TIMESTAMP('2015-08-08',a+RAND())<=DATE'2015-08-30' AND a='00:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'00:00:00' and timestamp('2015-08-08',TIME'00:00:00' + rand()) <= DATE'2015-08-30'
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE TIMESTAMP('2015-08-08',a+RAND())<=DATE'2015-08-30' AND a='00:00:00.1';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = TIME'00:00:00.100000' and timestamp('2015-08-08',TIME'00:00:00' + rand()) <= DATE'2015-08-30'
 DROP TABLE t1;
@@ -975,8 +975,8 @@ SET timestamp=DEFAULT;
 CREATE TABLE t1 (a TIME);
 INSERT INTO t1 VALUES ('00:00:01'),('00:00:02');
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(a)=TIME'00:00:01' AND COALESCE(a)>=TIME'00:00:01';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = TIME'00:00:01'
 DROP TABLE t1;
@@ -998,8 +998,8 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(a)=TIME('00:00:00') AND COALESCE(a)=DATE('2015-09-11');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = '00:00:00'
 # TIME cast + DATE literal
@@ -1008,8 +1008,8 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(a)=TIME('00:00:00') AND COALESCE(a)=DATE'2015-09-11';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = '00:00:00'
 # TIME literal + DATE cast
@@ -1018,8 +1018,8 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(a)=TIME'00:00:00' AND COALESCE(a)=DATE('2015-09-11');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = TIME'00:00:00'
 # TIME literal + DATE literal
@@ -1028,8 +1028,8 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(a)=TIME'00:00:00' AND COALESCE(a)=DATE'2015-09-11';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = TIME'00:00:00'
 # TIME-alike string literal + DATE cast
@@ -1038,8 +1038,8 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(a)='00:00:00' AND COALESCE(a)=DATE('2015-09-11');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = '00:00:00' and coalesce(`test`.`t1`.`a`) = '2015-09-11 00:00:00'
 # TIME-alike string literal + DATE literal
@@ -1048,8 +1048,8 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(a)='00:00:00' AND COALESCE(a)=DATE'2015-09-11';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = '00:00:00' and coalesce(`test`.`t1`.`a`) = DATE'2015-09-11'
 # TIME-alike integer literal + DATE cast
@@ -1058,8 +1058,8 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(a)=0 AND COALESCE(a)=DATE('2015-09-11');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = 0 and coalesce(`test`.`t1`.`a`) = '2015-09-11 00:00:00'
 # TIME-alike integer literal + DATE literal
@@ -1068,8 +1068,8 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(a)=0 AND COALESCE(a)=DATE'2015-09-11';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = 0 and coalesce(`test`.`t1`.`a`) = DATE'2015-09-11'
 # DATE cast + TIME cast
@@ -1078,8 +1078,8 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)=TIME('00:00:00');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = '2015-09-11 00:00:00'
 # DATE cast + TIME literal
@@ -1088,8 +1088,8 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)=TIME'00:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = '2015-09-11 00:00:00'
 # DATE cast + TIME-alike string literal
@@ -1098,8 +1098,8 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)='00:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = '2015-09-11 00:00:00' and coalesce(`test`.`t1`.`a`) = '00:00:00'
 # DATE cast + TIME-alike integer literal
@@ -1108,8 +1108,8 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(a)=DATE('2015-09-11') AND COALESCE(a)=0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = '2015-09-11 00:00:00' and coalesce(`test`.`t1`.`a`) = 0
 # DATE literal + TIME cast
@@ -1118,8 +1118,8 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(a)=DATE'2015-09-11' AND COALESCE(a)=TIME('00:00:00');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = DATE'2015-09-11'
 # DATE literal + TIME literal
@@ -1128,8 +1128,8 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(a)=DATE'2015-09-11' AND COALESCE(a)=TIME'00:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = DATE'2015-09-11'
 # DATE literal + TIME-alike string literal
@@ -1138,8 +1138,8 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(a)=DATE'2015-09-11' AND COALESCE(a)='00:00:00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = DATE'2015-09-11' and coalesce(`test`.`t1`.`a`) = '00:00:00'
 # DATE literal + TIME-alike integer literal
@@ -1148,8 +1148,8 @@ a
 00:00:00
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE COALESCE(a)=DATE'2015-09-11' AND COALESCE(a)=0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(`test`.`t1`.`a`) = DATE'2015-09-11' and coalesce(`test`.`t1`.`a`) = 0
 DROP TABLE t1;
@@ -1241,8 +1241,8 @@ SELECT * FROM t1 WHERE a='0000-00-01 10:20:30' AND LENGTH(a)=8;
 a
 34:20:30
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='0000-00-01 10:20:30' AND LENGTH(a)=8;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = '0000-00-01 10:20:30' and octet_length(`test`.`t1`.`a`) = 8
 SET @@optimizer_use_condition_selectivity=4;
@@ -1250,8 +1250,8 @@ SELECT * FROM t1 WHERE a='0000-00-01 10:20:30' AND LENGTH(a)=8;
 a
 34:20:30
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='0000-00-01 10:20:30' AND LENGTH(a)=8;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = '0000-00-01 10:20:30' and octet_length(`test`.`t1`.`a`) = 8
 drop table t1;
@@ -1373,8 +1373,8 @@ DROP FUNCTION  f1;
 CREATE TABLE t1 (f TIME, KEY(f));
 INSERT INTO t1 VALUES ('10:10:10'),('20:20:20');
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1995.0000000 BETWEEN f AND '23:59:59';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	range	f	f	4	NULL	1	100.00	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	f	f	4	NULL	1	100.00	Using where; Using index
 Warnings:
 Warning	1292	Truncated incorrect time value: '1995.0000000'
 Note	1003	select `test`.`t1`.`f` AS `f` from `test`.`t1` where '00:00:00.000000' between `test`.`t1`.`f` and <cache>('23:59:59')
@@ -1697,8 +1697,8 @@ INSERT INTO t1 VALUES ('23:00:02', 'no');
 INSERT INTO t1 VALUES ('23:00:03', 'yes');
 INSERT INTO t1 VALUES ('23:00:04', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('23:00:01','23:00:02');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	4	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('23:00:01','23:00:02');
 a	filler
 23:00:03	yes
@@ -1736,8 +1736,8 @@ INSERT INTO t1 VALUES ('-23:00:02', 'no');
 INSERT INTO t1 VALUES ('-23:00:03', 'yes');
 INSERT INTO t1 VALUES ('-23:00:04', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-23:00:01','-23:00:02');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	4	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('-23:00:01','-23:00:02');
 a	filler
 -23:00:04	yes
@@ -1775,8 +1775,8 @@ INSERT INTO t1 VALUES ('24:00:02', 'no');
 INSERT INTO t1 VALUES ('24:00:03', 'yes');
 INSERT INTO t1 VALUES ('24:00:04', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('24:00:01','24:00:02');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	4	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('24:00:01','24:00:02');
 a	filler
 24:00:03	yes
@@ -1814,8 +1814,8 @@ INSERT INTO t1 VALUES ('-24:00:02', 'no');
 INSERT INTO t1 VALUES ('-24:00:03', 'yes');
 INSERT INTO t1 VALUES ('-24:00:04', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-24:00:01','-24:00:02');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	4	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('-24:00:01','-24:00:02');
 a	filler
 -24:00:04	yes
@@ -1853,8 +1853,8 @@ INSERT INTO t1 VALUES ('838:00:02', 'no');
 INSERT INTO t1 VALUES ('838:00:03', 'yes');
 INSERT INTO t1 VALUES ('838:00:04', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('838:00:01','838:00:02');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	4	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('838:00:01','838:00:02');
 a	filler
 838:00:03	yes
@@ -1892,8 +1892,8 @@ INSERT INTO t1 VALUES ('-838:00:02', 'no');
 INSERT INTO t1 VALUES ('-838:00:03', 'yes');
 INSERT INTO t1 VALUES ('-838:00:04', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-838:00:01','-838:00:02');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	4	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	4	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('-838:00:01','-838:00:02');
 a	filler
 -838:00:04	yes
@@ -1931,8 +1931,8 @@ INSERT INTO t1 VALUES ('23:00:02.1', 'no');
 INSERT INTO t1 VALUES ('23:00:03.1', 'yes');
 INSERT INTO t1 VALUES ('23:00:04.1', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('23:00:01.1','23:00:02.1');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('23:00:01.1','23:00:02.1');
 a	filler
 23:00:03.1	yes
@@ -1970,8 +1970,8 @@ INSERT INTO t1 VALUES ('-23:00:02.1', 'no');
 INSERT INTO t1 VALUES ('-23:00:03.1', 'yes');
 INSERT INTO t1 VALUES ('-23:00:04.1', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-23:00:01.1','-23:00:02.1');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('-23:00:01.1','-23:00:02.1');
 a	filler
 -23:00:04.1	yes
@@ -2009,8 +2009,8 @@ INSERT INTO t1 VALUES ('838:00:02.1', 'no');
 INSERT INTO t1 VALUES ('838:00:03.1', 'yes');
 INSERT INTO t1 VALUES ('838:00:04.1', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('838:00:01.1','838:00:02.1');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('838:00:01.1','838:00:02.1');
 a	filler
 838:00:03.1	yes
@@ -2048,8 +2048,8 @@ INSERT INTO t1 VALUES ('-838:00:02.1', 'no');
 INSERT INTO t1 VALUES ('-838:00:03.1', 'yes');
 INSERT INTO t1 VALUES ('-838:00:04.1', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-838:00:01.1','-838:00:02.1');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	4	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('-838:00:01.1','-838:00:02.1');
 a	filler
 -838:00:04.1	yes
@@ -2065,44 +2065,44 @@ CREATE TABLE t1 (a TIME);
 INSERT INTO t1 VALUES (1),(2),(3);
 # Equal values
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(TIME'10:20:30',a)<=>COALESCE(TIME'10:20:30',a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(?,a)' USING TIME'10:20:30',TIME'10:20:30';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(TIME''10:20:30'',a)<=>COALESCE(?,a)' USING TIME'10:20:30';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(TIME''10:20:30'',a)' USING TIME'10:20:30';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
 # Not equal values
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(TIME'10:20:30',a)<=>COALESCE(TIME'10:20:31',a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(TIME'10:20:30',`test`.`t1`.`a`) <=> coalesce(TIME'10:20:31',`test`.`t1`.`a`)
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(?,a)' USING TIME'10:20:30',TIME'10:20:31';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(<cache>(TIME'10:20:30'),`test`.`t1`.`a`) <=> coalesce(<cache>(TIME'10:20:31'),`test`.`t1`.`a`)
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(TIME''10:20:30'',a)<=>COALESCE(?,a)' USING TIME'10:20:31';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(TIME'10:20:30',`test`.`t1`.`a`) <=> coalesce(<cache>(TIME'10:20:31'),`test`.`t1`.`a`)
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE COALESCE(?,a)<=>COALESCE(TIME''10:20:30'',a)' USING TIME'10:20:31';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where coalesce(<cache>(TIME'10:20:31'),`test`.`t1`.`a`) <=> coalesce(TIME'10:20:30',`test`.`t1`.`a`)
 DROP TABLE t1;
@@ -2118,8 +2118,8 @@ a
 00:00:01
 00:00:02
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(COALESCE(TIME'00:00:00.0',a))<=>LENGTH(COALESCE(TIME'00:00:00.0',a));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
 EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE LENGTH(COALESCE(TIME''00:00:00.0'',a))<=>LENGTH(COALESCE(?,a))' USING TIME'00:00:00.0';
@@ -2128,8 +2128,8 @@ a
 00:00:01
 00:00:02
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(COALESCE(TIME''00:00:00.0'',a))<=>LENGTH(COALESCE(?,a))' USING TIME'00:00:00.0';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
 Values with different formats
@@ -2141,15 +2141,15 @@ LENGTH(COALESCE(TIME'00:00:00.0',a))	LENGTH(COALESCE(TIME'00:00:00.00',a))
 SELECT * FROM t1 WHERE LENGTH(COALESCE(TIME'00:00:00.0',a))<=>LENGTH(COALESCE(TIME'00:00:00.00',a));
 a
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(COALESCE(TIME'00:00:00.0',a))<=>LENGTH(COALESCE(TIME'00:00:00.00',a));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where octet_length(coalesce(TIME'00:00:00.0',`test`.`t1`.`a`)) <=> octet_length(coalesce(TIME'00:00:00.00',`test`.`t1`.`a`))
 EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE LENGTH(COALESCE(TIME''00:00:00.0'',a))<=>LENGTH(COALESCE(?,a))' USING TIME'00:00:00.00';
 a
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(COALESCE(TIME''00:00:00.0'',a))<=>LENGTH(COALESCE(?,a))' USING TIME'00:00:00.00';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where octet_length(coalesce(TIME'00:00:00.0',`test`.`t1`.`a`)) <=> octet_length(coalesce(<cache>(TIME'00:00:00.00'),`test`.`t1`.`a`))
 DROP TABLE t1;

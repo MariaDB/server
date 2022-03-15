@@ -74,8 +74,8 @@ ENGINE=MyISAM
 PARTITION BY KEY (a) PARTITIONS 1;
 INSERT INTO t1 VALUES ('a'),('b'),('c');
 EXPLAIN EXTENDED SELECT 1 FROM t1 WHERE a > 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select 1 AS `1` from `test`.`t1` where `test`.`t1`.`a` > 1
 DROP TABLE t1;
@@ -2360,12 +2360,12 @@ b	c
 1	15
 EXPLAIN
 SELECT b, c FROM t1 WHERE b = 1 GROUP BY b, c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	bc	bc	10	NULL	8	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0,p1,p2	range	bc	bc	10	NULL	8	Using where; Using index for group-by
 EXPLAIN
 SELECT b, c FROM t1 WHERE b = 1 or b=2 GROUP BY b, c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	bc	bc	10	NULL	8	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p0,p1,p2	range	bc	bc	10	NULL	8	Using where; Using index for group-by
 DROP TABLE t1;
 #
 # Bug #45807: crash accessing partitioned table and sql_mode 
@@ -2682,32 +2682,32 @@ set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectiv
 # Tests using stats provided by the storage engine
 #
 explain extended select * from t2 where part_key=1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	200	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	p1	ALL	NULL	NULL	NULL	NULL	200	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`part_key` AS `part_key`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`part_key` = 1
 explain partitions select * from t2 where part_key=1;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	p1	ALL	NULL	NULL	NULL	NULL	200	Using where
 explain extended select * from t2 where  part_key in (1,2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	400	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	p1,p2	ALL	NULL	NULL	NULL	NULL	400	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`part_key` AS `part_key`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`part_key` in (1,2)
 explain partitions select * from t2 where  part_key in (1,2);
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	p1,p2	ALL	NULL	NULL	NULL	NULL	400	Using where
 explain extended select * from t2 where b=5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1000	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	p0,p1,p2,p3,p4	ALL	NULL	NULL	NULL	NULL	1000	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`part_key` AS `part_key`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`b` = 5
 explain partitions select * from t2 where b=5;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	p0,p1,p2,p3,p4	ALL	NULL	NULL	NULL	NULL	1000	Using where
 explain extended select * from t2 partition(p0)  where b=1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	200	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	p0	ALL	NULL	NULL	NULL	NULL	200	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`part_key` AS `part_key`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` PARTITION (`p0`) where `test`.`t2`.`b` = 1
 set @save_histogram_size=@@histogram_size;
@@ -2723,8 +2723,8 @@ test.t2	analyze	status	OK
 #
 # filtered should be 100
 explain extended select * from t2 where part_key=1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	200	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	p1	ALL	NULL	NULL	NULL	NULL	200	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`part_key` AS `part_key`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`part_key` = 1
 explain partitions select * from t2 where part_key=1;
@@ -2732,24 +2732,24 @@ id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	p1	ALL	NULL	NULL	NULL	NULL	200	Using where
 # filtered should be 100
 explain extended select * from t2 where  part_key in (1,2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	400	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	p1,p2	ALL	NULL	NULL	NULL	NULL	400	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`part_key` AS `part_key`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`part_key` in (1,2)
 explain partitions select * from t2 where  part_key in (1,2);
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	p1,p2	ALL	NULL	NULL	NULL	NULL	400	Using where
 explain extended select * from t2 where b=5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1000	0.10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	p0,p1,p2,p3,p4	ALL	NULL	NULL	NULL	NULL	1000	0.10	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`part_key` AS `part_key`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` where `test`.`t2`.`b` = 5
 explain partitions select * from t2 where b=5;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	p0,p1,p2,p3,p4	ALL	NULL	NULL	NULL	NULL	1000	Using where
 explain extended select * from t2 partition(p0)  where b=1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	200	20.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	p0	ALL	NULL	NULL	NULL	NULL	200	20.00	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`part_key` AS `part_key`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b` from `test`.`t2` PARTITION (`p0`) where `test`.`t2`.`b` = 1
 set @@use_stat_tables= @save_use_stat_tables;

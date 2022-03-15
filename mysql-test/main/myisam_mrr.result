@@ -188,8 +188,8 @@ select 'zz-1',NULL,'cc-2', 'filler-data' from t2 order by a limit 500;
 explain 
 select * from t4 where a IS NULL and b IS NULL and (c IS NULL or c='no-such-row1'
                                                       or c='no-such-row2');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	range	idx1	idx1	29	NULL	10	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	NULL	range	idx1	idx1	29	NULL	10	Using index condition; Rowid-ordered scan
 select * from t4 where a IS NULL and b IS NULL and (c IS NULL or c='no-such-row1'
                                                     or c='no-such-row2');
 a	b	c	filler
@@ -210,8 +210,8 @@ NULL	NULL	NULL	NULL-2
 NULL	NULL	NULL	NULL-1
 explain 
 select * from t4 where (a ='b-1' or a='bb-1') and b IS NULL and (c='c-1' or c='cc-2');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	range	idx1	idx1	29	NULL	20	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	NULL	range	idx1	idx1	29	NULL	20	Using index condition; Rowid-ordered scan
 select * from t4 where (a ='b-1' or a='bb-1') and b IS NULL and (c='c-1' or c='cc-2');
 a	b	c	filler
 b-1	NULL	c-1	NULL-15
@@ -351,9 +351,9 @@ FROM t2
 WHERE t2.int_key IS NULL
 GROUP BY t2.pk
 );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	t2	ref	int_key	int_key	5	const	1	100.00	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+2	SUBQUERY	t2	NULL	ref	int_key	int_key	5	const	1	100.00	Using index condition
 Warnings:
 Note	1003	/* select#1 */ select min(`test`.`t1`.`pk`) AS `MIN(t1.pk)` from `test`.`t1` where 0
 DROP TABLE t1, t2;
@@ -367,8 +367,8 @@ insert into t1 select A.a + 10*(B.a + 10*C.a), 'bbb','filler' from t0 A, t0 B, t
 update t1 set b=repeat(char(65+a), 20) where a < 25;
 This must show range + using index condition:
 explain select * from t1 where a < 10 and b = repeat(char(65+a), 20);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	19	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	19	Using index condition; Using where
 select * from t1 where a < 10 and b = repeat(char(65+a), 20);
 a	b	filler
 0	AAAAAAAAAAAAAAAAAAAA	filler
@@ -391,8 +391,8 @@ create table t1 (a int, b int, key(a));
 insert into t1 select A.a + 10 *(B.a + 10*C.a), A.a + 10 *(B.a + 10*C.a) from t0 A, t0 B, t0 C;
 This mustn't show "Using MRR":
 explain select * from t1 where a < 20  order by a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	20	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	20	Using index condition
 drop table t0, t1;
 #
 # Part of MWL#67: DS-MRR backport: add an @@optimizer_switch flag for
@@ -407,17 +407,17 @@ create table t1 (a int, b int, key(a));
 insert into t1 select A.a + 10 *(B.a + 10*C.a), A.a + 10 *(B.a + 10*C.a) from t0 A, t0 B, t0 C;
 A query that will use ICP: 
 explain select * from t1 where a < 20;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	20	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	20	Using index condition; Rowid-ordered scan
 set @save_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='index_condition_pushdown=off';
 explain select * from t1 where a < 20;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	20	Using where; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	20	Using where; Rowid-ordered scan
 set optimizer_switch='index_condition_pushdown=on';
 explain select * from t1 where a < 20;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	20	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	20	Using index condition; Rowid-ordered scan
 set optimizer_switch=@save_optimizer_switch;
 # 
 # BUG#629684: Unreachable code in multi_range_read.cc in maria-5.3-dsmrr-cpk
@@ -429,9 +429,9 @@ set @save_join_cache_level=@@join_cache_level;
 set @@join_cache_level=6;
 explain 
 select * from t0, t1 where t0.a<=>t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	5	
-1	SIMPLE	t1	ref	a	a	5	test.t0.a	1	Using index condition(BKA); Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	5	
+1	SIMPLE	t1	NULL	ref	a	a	5	test.t0.a	1	Using index condition(BKA); Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 select * from t0, t1 where t0.a<=>t1.a;
 a	a	b
 0	0	0
@@ -515,9 +515,9 @@ where
 table3.col_varchar_key = table2.col_varchar_key AND 
 table3.col_varchar_key = table2.col_varchar_nokey AND 
 table3.pk<>0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	table2	ALL	col_varchar_key	NULL	NULL	NULL	40	Using where
-1	SIMPLE	table3	ref	PRIMARY,col_varchar_key	col_varchar_key	3	test.table2.col_varchar_key	5	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	table2	NULL	ALL	col_varchar_key	NULL	NULL	NULL	40	Using where
+1	SIMPLE	table3	NULL	ref	PRIMARY,col_varchar_key	col_varchar_key	3	test.table2.col_varchar_key	5	Using where; Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 set join_cache_level= @save_join_cache_level;
 set join_buffer_size= @save_join_buffer_size;
 drop table t1;
@@ -543,10 +543,10 @@ t1 AS alias2 FORCE KEY (f4)
 WHERE 
 alias2.f4=alias3.f5  AND 
 alias2.f3 > alias3.f1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	f4	10	NULL	12	Using index
-1	SIMPLE	alias3	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	alias2	ref	f4	f4	5	test.alias3.f5	2	Using index condition(BKA); Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	f4	10	NULL	12	Using index
+1	SIMPLE	alias3	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	alias2	NULL	ref	f4	f4	5	test.alias3.f5	2	Using index condition(BKA); Using join buffer (incremental, BKA join); Key-ordered Rowid-ordered scan
 SELECT COUNT(alias2.f2) 
 FROM 
 t1 STRAIGHT_JOIN 
@@ -575,8 +575,8 @@ create table t1 (a int, b int, filler char(200), key(a));
 insert into t1 
 select A.a+10*B.a+100*C.a+1000*D.a, 123,'filler' from t0 A, t0 B, t0 C, t0 D;
 explain select sum(b) from t1 where a < 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	9	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	9	Using index condition; Rowid-ordered scan
 # This should show one MRR scan and no re-fills:
 flush status;
 select sum(b) from t1 where a < 10;
@@ -590,8 +590,8 @@ Handler_mrr_rowid_refills	0
 set @mrr_buffer_size_save= @@mrr_buffer_size;
 set mrr_buffer_size=128;
 explain select sum(b) from t1 where a < 1600;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	5	NULL	1380	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	1380	Using index condition; Rowid-ordered scan
 # This should show one MRR scan and one extra rowid sort:
 flush status;
 select sum(b) from t1 where a < 1600;
@@ -608,9 +608,9 @@ set @join_cache_level_save= @@join_cache_level;
 set @join_buffer_size_save= @@join_buffer_size;
 set join_cache_level=6;
 explain select sum(t1.b) from t0,t1 where t0.a=t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t1	ref	a	a	5	test.t0.a	1	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	NULL	ref	a	a	5	test.t0.a	1	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 flush status;
 select sum(t1.b) from t0,t1 where t0.a=t1.a;
 sum(t1.b)
@@ -622,9 +622,9 @@ Handler_mrr_key_refills	1
 Handler_mrr_rowid_refills	1
 set join_buffer_size=10;
 explain select sum(t1.b) from t0,t1 where t0.a=t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t1	ref	a	a	5	test.t0.a	1	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t1	NULL	ref	a	a	5	test.t0.a	1	Using join buffer (flat, BKA join); Key-ordered Rowid-ordered scan
 flush status;
 select sum(t1.b) from t0,t1 where t0.a=t1.a;
 sum(t1.b)

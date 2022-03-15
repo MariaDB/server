@@ -31,9 +31,9 @@ create table t1 (a int, b int, c int, key(a));
 insert into t1 select A.a*10 + B.a, A.a*10 + B.a, A.a*10 + B.a from t0 A, t0 B;
 analyze
 select * from t0, t1 where t1.a=t0.a and t0.a > 9;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	0.00	Using where
-1	SIMPLE	t1	ref	a	a	5	test.t0.a	1	NULL	100.00	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	0.00	Using where
+1	SIMPLE	t1	NULL	ref	a	a	5	test.t0.a	1	NULL	100.00	NULL	
 analyze format=json 
 select * from t0, t1 where t1.a=t0.a and t0.a > 9;
 ANALYZE
@@ -78,9 +78,9 @@ ANALYZE
 }
 analyze
 select * from t0, t1 where t1.a=t0.a and t1.b<4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	100.00	Using where
-1	SIMPLE	t1	ref	a	a	5	test.t0.a	1	1.00	100.00	40.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	100.00	Using where
+1	SIMPLE	t1	NULL	ref	a	a	5	test.t0.a	1	1.00	100.00	40.00	Using where
 analyze format=json
 select * from t0, t1 where t1.a=t0.a and t1.b<4;
 ANALYZE
@@ -128,9 +128,9 @@ ANALYZE
 }
 analyze 
 select * from t1 tbl1, t1 tbl2 where tbl1.b<2 and tbl2.b>5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	tbl1	ALL	NULL	NULL	NULL	NULL	100	100.00	100.00	2.00	Using where
-1	SIMPLE	tbl2	ALL	NULL	NULL	NULL	NULL	100	100.00	100.00	94.00	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	tbl1	NULL	ALL	NULL	NULL	NULL	NULL	100	100.00	100.00	2.00	Using where
+1	SIMPLE	tbl2	NULL	ALL	NULL	NULL	NULL	NULL	100	100.00	100.00	94.00	Using where; Using join buffer (flat, BNL join)
 analyze format=json
 select * from t1 tbl1, t1 tbl2 where tbl1.b<20 and tbl2.b<60;
 ANALYZE

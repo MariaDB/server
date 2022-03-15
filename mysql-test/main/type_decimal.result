@@ -1225,44 +1225,44 @@ CREATE TABLE t1 (a DECIMAL(10,1));
 INSERT INTO t1 VALUES (1),(2),(3);
 # Equal values
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1.0+a<=>1.0+a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING 1.0,1.0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1.0+a<=>?+a' USING 1.0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>1.0+a' USING 1.0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
 # Not equal values
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1.0+a<=>1.1+a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1.0 + `test`.`t1`.`a` <=> 1.1 + `test`.`t1`.`a`
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>?+a' USING 1.0,1.1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1.0 + `test`.`t1`.`a` <=> 1.1 + `test`.`t1`.`a`
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1.0+a<=>?+a' USING 1.1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1.0 + `test`.`t1`.`a` <=> 1.1 + `test`.`t1`.`a`
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE ?+a<=>1.0+a' USING 1.1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1.1 + `test`.`t1`.`a` <=> 1.0 + `test`.`t1`.`a`
 DROP TABLE t1;
@@ -1277,8 +1277,8 @@ a
 10.000
 10.100
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(10.0)+a<=>LENGTH(10.0)+a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
 EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE LENGTH(10.0)+a<=>LENGTH(?)+a' USING 10.0;
@@ -1286,23 +1286,23 @@ a
 10.000
 10.100
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(10.0)+a<=>LENGTH(?)+a' USING 10.0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where 1
 Values with different formats
 SELECT * FROM t1 WHERE LENGTH(10.0)+a<=>LENGTH(10.00)+a;
 a
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(10.0)+a<=>LENGTH(10.00)+a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where <cache>(octet_length(10.0)) + `test`.`t1`.`a` <=> <cache>(octet_length(10.00)) + `test`.`t1`.`a`
 EXECUTE IMMEDIATE 'SELECT * FROM t1 WHERE LENGTH(10.0)+a<=>LENGTH(?)+a' USING 10.00;
 a
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT * FROM t1 WHERE LENGTH(10.0)+a<=>LENGTH(?)+a' USING 10.00;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where <cache>(octet_length(10.0)) + `test`.`t1`.`a` <=> <cache>(octet_length(10.00)) + `test`.`t1`.`a`
 DROP TABLE t1;

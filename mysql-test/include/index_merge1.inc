@@ -332,7 +332,7 @@ update t0 set key2=1, key3=1, key4=1, key5=1,key6=1,key7=1 where key7 < 500;
 # The next query will not use index i7 in intersection if the OS doesn't
 # support file sizes > 2GB. (ha_myisam::ref_length depends on this and index
 # scan cost estimates depend on ha_myisam::ref_length)
---replace_column 9 #
+--replace_column 10 #
 --replace_result "4,4,4,4,4,4,4" X "4,4,4,4,4,4" X "i6,i7" "i6,i7?" "i6" "i6,i7?"
 explain select max(A.key1 + B.key1 + A.key2 + B.key2 + A.key3 + B.key3 + A.key4 + B.key4 + A.key5 + B.key5)
  from t0 as A straight_join t0 as B
@@ -401,9 +401,9 @@ create table t3 (
   key(a),key(b)
 ) engine=merge union=(t1,t2);
 
---replace_column 9 #
+--replace_column 10 #
 explain select * from t1 where a=1 and b=1;
---replace_column 9 #
+--replace_column 10 #
 explain select * from t3 where a=1 and b=1;
 
 drop table t1, t2, t3;
@@ -474,7 +474,7 @@ insert into t2 select * from t1;
 
 
 --echo must use sort-union rather than union:
---replace_column 9 #
+--replace_column 10 #
 explain select * from t1 where a=4 or b=4;
 --sorted_result
 select * from t1 where a=4 or b=4;
@@ -482,7 +482,7 @@ select * from t1 where a=4 or b=4;
 select * from t1 ignore index(a,b) where a=4 or b=4;
 
 --echo must use union, not sort-union:
---replace_column 9 #
+--replace_column 10 #
 explain select * from t2 where a=2 or b=2;
 --sorted_result
 select * from t2 where a=2 or b=2;

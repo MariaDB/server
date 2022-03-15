@@ -113,10 +113,10 @@ a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	8	64	248	107
 6	20	315	279.3333	8	80	800	314
 explain select * from v1,t2 where (v1.max_c>214) and (t2.a>v1.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where (v1.max_c>214) and (t2.a>v1.a);
 EXPLAIN
 {
@@ -196,10 +196,10 @@ explain select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
 group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
 group by a,b having max_c < 707) v1,
@@ -287,10 +287,10 @@ a	b	max_c	avg_c	a	b	c	d
 5	27	132	132.0000	3	12	231	190
 explain select * from v1,t2 where
 ((v1.max_c>400) and (t2.a>v1.a)) or ((v1.max_c<135) and (t2.a<v1.a));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 ((v1.max_c>400) and (t2.a>v1.a)) or ((v1.max_c<135) and (t2.a<v1.a));
 EXPLAIN
@@ -364,10 +364,10 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where
 ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
 ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 ((v1.max_c>300) and (v1.avg_c>t2.d) and (v1.b=t2.b)) or
 ((v1.max_c<135) and (v1.max_c<t2.c) and (v1.a=t2.a));
@@ -433,10 +433,10 @@ a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	8	64	248	107
 8	33	404	213.6667	8	80	800	314
 explain select * from v1,t2 where (v1.a>6) and (t2.b>v1.b);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where (v1.a>6) and (t2.b>v1.b);
 EXPLAIN
 {
@@ -510,10 +510,10 @@ a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	3	12	231	190
 8	33	404	213.6667	6	23	303	909
 explain select * from v2,t2 where (v2.b>25) and (t2.a<v2.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v2,t2 where (v2.b>25) and (t2.a<v2.a);
 EXPLAIN
 {
@@ -607,10 +607,10 @@ a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	6	23	303	909
 explain select * from v1,t2 where
 ((v1.a>7) and (t2.c<v1.max_c)) or ((v1.a<2) and (t2.b<v1.b));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 ((v1.a>7) and (t2.c<v1.max_c)) or ((v1.a<2) and (t2.b<v1.b));
 EXPLAIN
@@ -698,10 +698,10 @@ a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	6	23	303	909
 explain select * from v2,t2 where
 ((v2.a>7) and (t2.c<v2.max_c)) or ((v2.a>5) and (t2.b<v2.b));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v2,t2 where
 ((v2.a>7) and (t2.c<v2.max_c)) or ((v2.a>5) and (t2.b<v2.b));
 EXPLAIN
@@ -774,10 +774,10 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where
 ((v1.a>4) and (v1.b>t2.b) and (v1.max_c=t2.d)) or
 ((v1.a<2) and (v1.max_c<t2.c) and (v1.max_c=t2.d));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 ((v1.a>4) and (v1.b>t2.b) and (v1.max_c=t2.d)) or
 ((v1.a<2) and (v1.max_c<t2.c) and (v1.max_c=t2.d));
@@ -846,10 +846,10 @@ a	b	max_c	avg_c	a	b	c	d
 1	21	500	234.6000	8	80	800	314
 1	21	500	234.6000	6	23	303	909
 explain select * from v1,t2 where (v1.a<2) and (v1.max_c>400) and (t2.b>v1.b);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where (v1.a<2) and (v1.max_c>400) and (t2.b>v1.b);
 EXPLAIN
 {
@@ -926,10 +926,10 @@ a	avg_a	b	c	a	b	c
 10	2.62500000	33.4	13.65	10	31.4	13.65
 explain select * from v_double as v,t2_double as t where
 (v.a=t.a) and (v.avg_a>0.45) and (v.b>10);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t.a	2	Using where
-2	DERIVED	t1_double	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t.a	2	Using where
+2	DERIVED	t1_double	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
 explain format=json select * from v_double as v,t2_double as t where
 (v.a=t.a) and (v.avg_a>0.45) and (v.b>10);
 EXPLAIN
@@ -995,10 +995,10 @@ a	b	avg_c	a	b	c
 3.0	3.0	16.0000	3.0	3.0	16
 explain select * from v_decimal as v,t2_decimal as t where
 (v.a=t.a) and (v.avg_c>15) and (v.b>1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	3	test.t.a	2	Using where
-2	DERIVED	t1_decimal	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	3	test.t.a	2	Using where
+2	DERIVED	t1_decimal	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
 explain format=json select * from v_decimal as v,t2_decimal as t where
 (v.a=t.a) and (v.avg_c>15) and (v.b>1);
 EXPLAIN
@@ -1086,10 +1086,10 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where
 ((v1.a>7) and (v1.max_c>300) and (t2.c<v1.max_c)) or
 ((v1.a<4) and (v1.max_c<500) and (t2.b<v1.b));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 ((v1.a>7) and (v1.max_c>300) and (t2.c<v1.max_c)) or
 ((v1.a<4) and (v1.max_c<500) and (t2.b<v1.b));
@@ -1187,10 +1187,10 @@ a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	3	12	231	190
 8	33	404	213.6667	6	23	303	909
 explain select * from v1,t2 where ((v1.a<2) and (v1.max_c>120)) or (v1.a>7);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where ((v1.a<2) and (v1.max_c>120)) or (v1.a>7);
 EXPLAIN
 {
@@ -1274,10 +1274,10 @@ a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	6	23	303	909
 explain select * from v1,t2 where
 ((v1.a<2) and (v1.max_c>120) and (v1.b=t2.b)) or (v1.a>7);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 ((v1.a<2) and (v1.max_c>120) and (v1.b=t2.b)) or (v1.a>7);
 EXPLAIN
@@ -1350,10 +1350,10 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where
 ((v1.a<2) and (v1.max_c<200) and (t2.c>v1.max_c) and (v1.max_c=t2.d)) or
 ((v1.a>4) and (v1.max_c<500) and (t2.b<v1.b) and (v1.max_c=t2.c));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 ((v1.a<2) and (v1.max_c<200) and (t2.c>v1.max_c) and (v1.max_c=t2.d)) or
 ((v1.a>4) and (v1.max_c<500) and (t2.b<v1.b) and (v1.max_c=t2.c));
@@ -1561,10 +1561,10 @@ a	b	max_c	avg_c	a	b	c	d
 1	21	500	234.6000	1	21	909	12
 1	19	107	107.0000	1	19	203	107
 explain select * from v1,t2 where (t2.a=v1.a) and (v1.b=t2.b) and (v1.a=1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.b	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where (t2.a=v1.a) and (v1.b=t2.b) and (v1.a=1);
 EXPLAIN
 {
@@ -1626,10 +1626,10 @@ select * from v1,t2 where (v1.a=5) and (v1.max_c=t2.d);
 a	b	max_c	avg_c	a	b	c	d
 5	16	207	207.0000	2	3	207	207
 explain select * from v1,t2 where (v1.a=5) and (v1.max_c=t2.d);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.d	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.d	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where (v1.a=5) and (v1.max_c=t2.d);
 EXPLAIN
 {
@@ -1698,10 +1698,10 @@ a	b	max_c	avg_c	a	b	c	d
 1	21	500	234.6000	1	19	203	107
 1	19	107	107.0000	1	19	203	107
 explain select * from v1,t2 where (t2.a<5) and (v1.a=t2.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where (t2.a<5) and (v1.a=t2.a);
 EXPLAIN
 {
@@ -1760,10 +1760,10 @@ a	b	max_c	avg_c	a	b	c	d
 select * from v1,t2 where (v1.a=v1.b) and (v1.a=t2.a);
 a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (v1.a=v1.b) and (v1.a=t2.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.a	2	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	10	test.t2.a,test.t2.a	2	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where (v1.a=v1.b) and (v1.a=t2.a);
 EXPLAIN
 {
@@ -1827,10 +1827,10 @@ a	b	max_c	avg_c	a	b	c	d
 5	16	207	207.0000	2	3	207	207
 6	20	315	279.3333	6	20	315	279
 explain select * from v1,t2 where (t2.c>150) and (v1.max_c=t2.c);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	2	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.c	2	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where (t2.c>150) and (v1.max_c=t2.c);
 EXPLAIN
 {
@@ -1890,10 +1890,10 @@ a	b	max_c	avg_c	a	b	c	d
 select * from v1,t2 where (v1.a=v1.b) and (v1.a=t2.a) and (v1.a=3);
 a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (v1.a=v1.b) and (v1.a=t2.a) and (v1.a=3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
 explain format=json select * from v1,t2 where (v1.a=v1.b) and (v1.a=t2.a) and (v1.a=3);
 EXPLAIN
 {
@@ -1950,10 +1950,10 @@ select * from v1,t2 where (v1.a=1) and (v1.b=21) and (t2.a=2);
 a	b	max_c	avg_c	a	b	c	d
 1	21	500	234.6000	2	3	207	207
 explain select * from v1,t2 where (v1.a=1) and (v1.b=21) and (t2.a=2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
 explain format=json select * from v1,t2 where (v1.a=1) and (v1.b=21) and (t2.a=2);
 EXPLAIN
 {
@@ -2015,10 +2015,10 @@ c	Harry	4	d	Harry	1
 c	Harry	4	b	Harry	4
 explain select * from v_char as v,t2_char as t where
 (v.a='c') and (v.b<'Hermes') and ((v.b=t.b) or (v.max_c>20));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	12	Using where
-1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1_char	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where
+1	PRIMARY	t	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1_char	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
 explain format=json select * from v_char as v,t2_char as t where
 (v.a='c') and (v.b<'Hermes') and ((v.b=t.b) or (v.max_c>20));
 EXPLAIN
@@ -2098,10 +2098,10 @@ a	b	avg_c	a	b	c
 3.0	3.0	16.0000	2.0	3.0	16
 explain select * from v_decimal as v,t2_decimal as t where
 (v.a=v.b) and (v.b=t.b) and ((t.b>1) or (v.a=1));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	6	test.t.b,test.t.b	2	
-2	DERIVED	t1_decimal	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	6	test.t.b,test.t.b	2	
+2	DERIVED	t1_decimal	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
 explain format=json select * from v_decimal as v,t2_decimal as t where
 (v.a=v.b) and (v.b=t.b) and ((t.b>1) or (v.a=1));
 EXPLAIN
@@ -2177,10 +2177,10 @@ a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	6	20	315	279
 explain select * from v1,t2
 where ((t2.a<4) and (v1.a=t2.a)) or ((t2.c>150) and (v1.max_c=t2.c));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2
 where ((t2.a<4) and (v1.a=t2.a)) or ((t2.c>150) and (v1.max_c=t2.c));
 EXPLAIN
@@ -2246,10 +2246,10 @@ a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	6	20	315	279
 explain select * from v1,t2
 where ((t2.a>5) and (v1.a=t2.a)) and ((t2.c>250) and (v1.max_c=t2.c));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.c	2	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	10	test.t2.a,test.t2.c	2	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2
 where ((t2.a>5) and (v1.a=t2.a)) and ((t2.c>250) and (v1.max_c=t2.c));
 EXPLAIN
@@ -2324,10 +2324,10 @@ explain select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
 group by a,b having max_c < 707) v1,
 t2 where (v1.a=8) and (v1.a=t2.a) and (v1.max_c=404);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
 group by a,b having max_c < 707) v1,
@@ -2396,10 +2396,10 @@ a	b	max_c	avg_c	a	b	c	d
 5	16	207	207.0000	2	3	207	207
 explain select * from v1,t2 where
 (v1.a>3) and (v1.max_c>200) and (t2.b<v1.b) and (t2.d=v1.max_c);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.d	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.d	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 (v1.a>3) and (v1.max_c>200) and (t2.b<v1.b) and (t2.d=v1.max_c);
 EXPLAIN
@@ -2466,10 +2466,10 @@ select * from v_double as v,t2_double as t where
 a	avg_a	b	c	a	b	c
 explain select * from v_double as v,t2_double as t where
 (v.b=v.c) and (v.c=t.c) and ((t.c>10) or (v.a=1));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	18	test.t.c,test.t.c	2	Using where
-2	DERIVED	t1_double	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	18	test.t.c,test.t.c	2	Using where
+2	DERIVED	t1_double	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
 explain format=json select * from v_double as v,t2_double as t where
 (v.b=v.c) and (v.c=t.c) and ((t.c>10) or (v.a=1));
 EXPLAIN
@@ -2541,10 +2541,10 @@ a	avg_a	b	c	a	b	c
 1	0.50000000	12.5	18.9	7	17.89	18.9
 explain select * from v_double as v,t2_double as t where
 (((v.a>0.2) or (v.b<17)) or (t.c>17)) and (t.c=v.c) and (v.c>18);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	9	test.t.c	2	Using where
-2	DERIVED	t1_double	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	9	test.t.c	2	Using where
+2	DERIVED	t1_double	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
 explain format=json select * from v_double as v,t2_double as t where
 (((v.a>0.2) or (v.b<17)) or (t.c>17)) and (t.c=v.c) and (v.c>18);
 EXPLAIN
@@ -2647,10 +2647,10 @@ a	b	avg_c	a	b	c
 2.0	3.0	13.0000	2.0	3.0	16
 explain select * from v_decimal as v,t2_decimal as t where
 (((v.a>4) or (v.a=2)) or (v.b>3)) and (v.avg_c=13);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (flat, BNL join)
-2	DERIVED	t1_decimal	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	t	NULL	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (flat, BNL join)
+2	DERIVED	t1_decimal	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where; Using temporary; Using filesort
 explain format=json select * from v_decimal as v,t2_decimal as t where
 (((v.a>4) or (v.a=2)) or (v.b>3)) and (v.avg_c=13);
 EXPLAIN
@@ -2719,10 +2719,10 @@ explain select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
 where t1.a>5 group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300) and (v1.a=v1.b);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.a	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	10	test.t2.a,test.t2.a	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
 where t1.a>5 group by a,b having max_c < 707) v1,
@@ -2798,10 +2798,10 @@ a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	1	21	909	12
 8	33	404	213.6667	1	21	909	12
 explain select * from v1,t2 where (t2.a<2) and (t2.c>900);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where (t2.a<2) and (t2.c>900);
 EXPLAIN
 {
@@ -2865,10 +2865,10 @@ a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	6	20	315	279
 1	19	107	107.0000	1	19	203	107
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.b=t2.b);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	10	test.t2.a,test.t2.b	2	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	10	test.t2.a,test.t2.b	2	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.b=t2.b);
 EXPLAIN
 {
@@ -2945,10 +2945,10 @@ a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	8	80	800	314
 explain select * from v1,t2 where
 (t2.a=v1.a) or (v1.b=t2.b) and ((v1.a=1) or (v1.a=6));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 (t2.a=v1.a) or (v1.b=t2.b) and ((v1.a=1) or (v1.a=6));
 EXPLAIN
@@ -3051,10 +3051,10 @@ a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	2	3	207	207
 8	33	404	213.6667	2	3	207	207
 explain select * from v1,t2 where (v1.a=1) or (v1.b=21) or (t2.a=2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where (v1.a=1) or (v1.b=21) or (t2.a=2);
 EXPLAIN
 {
@@ -3127,10 +3127,10 @@ a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	1	21	909	12
 explain select * from v1,t2 where
 (t2.a<2) and (t2.c>900) and ((v1.a<t2.a) or (t2.a<11));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,t2 where
 (t2.a<2) and (t2.c>900) and ((v1.a<t2.a) or (t2.a<11));
 EXPLAIN
@@ -3202,12 +3202,12 @@ a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 6	20	315	279.3333	6	20	315	279.3333	6	23	303	909
 explain select * from v1,v2,t2 where
 (v1.a=v2.a) and (v1.a=t2.a) and (v2.b<50);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1	key1	5	test.t2.a	2	
-1	PRIMARY	<derived3>	ref	key0	key0	5	test.t2.a	2	Using where
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key1	key1	5	test.t2.a	2	
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,v2,t2 where
 (v1.a=v2.a) and (v1.a=t2.a) and (v2.b<50);
 EXPLAIN
@@ -3333,12 +3333,12 @@ a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	8	33	404	213.6667	6	23	303	909
 explain select * from v1,v2,t2 where
 ((v1.a=v2.a) or (v1.a=t2.a)) and (t2.b<50) and (v1.b=v2.b);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<derived3>	ref	key0	key0	5	v1.b	2	Using where
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	5	v1.b	2	Using where
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,v2,t2 where
 ((v1.a=v2.a) or (v1.a=t2.a)) and (t2.b<50) and (v1.b=v2.b);
 EXPLAIN
@@ -3445,12 +3445,12 @@ a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 8	33	404	213.6667	8	33	404	213.6667	8	80	800	314
 explain select * from v1,v2,t2 where
 ((v1.a=v2.a) and (v1.a=t2.a)) or ((v2.b>13) and (t2.c<115));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (incremental, BNL join)
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (incremental, BNL join)
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,v2,t2 where
 ((v1.a=v2.a) and (v1.a=t2.a)) or ((v2.b>13) and (t2.c<115));
 EXPLAIN
@@ -3560,12 +3560,12 @@ a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 1	19	107	107.0000	8	33	404	213.6667	1	19	203	107
 explain select * from v1,v2,t2 where ((v1.a=v2.a) or (v1.a=t2.a)) and
 ((v2.b<50) or (v2.b=19)) and (v1.max_c<300);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (incremental, BNL join)
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (incremental, BNL join)
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,v2,t2 where ((v1.a=v2.a) or (v1.a=t2.a)) and
 ((v2.b<50) or (v2.b=19)) and (v1.max_c<300);
 EXPLAIN
@@ -3667,12 +3667,12 @@ select * from v1,v2,t2 where
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,v2,t2 where
 (v1.a=t2.a) and (v1.a=v1.b) and (v1.a=v2.a) and (v2.max_c<300);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1	key1	10	test.t2.a,test.t2.a	2	
-1	PRIMARY	<derived3>	ref	key0	key0	5	test.t2.a	2	Using where
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key1	key1	10	test.t2.a,test.t2.a	2	
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,v2,t2 where
 (v1.a=t2.a) and (v1.a=v1.b) and (v1.a=v2.a) and (v2.max_c<300);
 EXPLAIN
@@ -3772,12 +3772,12 @@ a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 select * from v1,v2,t2 where (v1.a=1) and (v1.b>10) and (v1.b=v2.b);
 a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,v2,t2 where (v1.a=1) and (v1.b>10) and (v1.b=v2.b);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<derived3>	ref	key0	key0	5	v1.b	2	
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	5	v1.b	2	
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v1,v2,t2 where (v1.a=1) and (v1.b>10) and (v1.b=v2.b);
 EXPLAIN
 {
@@ -3888,10 +3888,10 @@ b	Vika	2	b	Ivan	11
 b	Vika	2	b	Harry	4
 explain select * from v_char as v,t2_char as t where
 (v.a=t.a) and (t.a='b') and ((v.b='Vika') or (v.b='Ali'));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	12	Using where
-1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1_char	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where
+1	PRIMARY	t	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1_char	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
 explain format=json select * from v_char as v,t2_char as t where
 (v.a=t.a) and (t.a='b') and ((v.b='Vika') or (v.b='Ali'));
 EXPLAIN
@@ -3990,14 +3990,14 @@ a	b	max_c	avg_c	a	b	max_c	avg_c	a	b	min_c	a	b	c	d
 explain select * from v1,v2,v3,t2 where
 ((v1.a=v2.a) or (v1.a=t2.a)) and ((v3.b<50) or (v3.b=33))
 and (v1.max_c<500) and (v3.a=t2.a) and (v2.max_c>300);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	test.t2.a	2	Using where
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (incremental, BNL join)
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived4>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+1	PRIMARY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (incremental, BNL join)
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
 explain format=json select * from v1,v2,v3,t2 where
 ((v1.a=v2.a) or (v1.a=t2.a)) and ((v3.b<50) or (v3.b=33))
 and (v1.max_c<500) and (v3.a=t2.a) and (v2.max_c>300);
@@ -4148,12 +4148,12 @@ where t1.a>5 group by a,b having max_c < 707) v1,
 (select a, b, min(c) as min_c from t1
 where t1.a>5 group by a,b having min_c < 707) v2,
 t2 where (v1.a=v2.a) and (v1.b=t2.b) and (v1.max_c>130) and (v2.min_c<130);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1	key1	5	test.t2.b	2	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	5	v1.a	2	Using where
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key1	key1	5	test.t2.b	2	Using where
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	5	v1.a	2	Using where
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
 where t1.a>5 group by a,b having max_c < 707) v1,
@@ -4299,14 +4299,14 @@ where t1.a>5 group by a,b having min_c < 707) v2,
 where t1.a<8 group by a,b) v3,
 t2 where (v1.a=v2.a) and (v1.b=v3.b) and ((v3.avg_c>170) or (v3.a<5))
 and ((v1.avg_c<400) or (v1.a>1)) and (v2.min_c<200);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<derived3>	ref	key0	key0	5	v1.a	2	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	v1.b	2	Using where
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	5	v1.a	2	Using where
+1	PRIMARY	<derived4>	NULL	ref	key0	key0	5	v1.b	2	Using where
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
 where t1.a>5 group by a,b having max_c < 707) v1,
@@ -4475,10 +4475,10 @@ explain select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
 group by a,b having max_c < 707) v1,
 t2 where ((v1.a=1) or (v1.max_c<300)) and (v1.b>25);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
 group by a,b having max_c < 707) v1,
@@ -4556,10 +4556,10 @@ explain select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
 where t1.a>5 group by a,b having max_c < 707) v1,
 t2 where (v1.a=t2.a) and (v1.max_c>300) and (v1.b<30);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from
 (select a, b, max(c) as max_c, avg(c) as avg_c from t1
 where t1.a>5 group by a,b having max_c < 707) v1,
@@ -4635,14 +4635,14 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (v1.a<5) and (v1.b=t2.b) and (t2.c>800)
 union
 select * from v1,t2 where (v1.max_c>100) and (v1.a>7) and (t2.d>800);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	5	test.t2.b	2	Using where
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	UNION	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-2	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	5	test.t2.b	2	Using where
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+2	UNION	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a<5) and (v1.b=t2.b) and (t2.c>800)
 union
 select * from v1,t2 where (v1.max_c>100) and (v1.a>7) and (t2.d>800);
@@ -4799,14 +4799,14 @@ a	b	max_c	avg_c	a	b	c	d
 explain select * from v1,t2 where (v1.a<5) and (v1.b=t2.b) and (v1.b=19)
 union
 select * from v1,t2 where ((v1.max_c>400) or (v1.avg_c>270)) and (v1.a<t2.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	UNION	t2	ALL	NULL	NULL	NULL	NULL	9	
-2	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+2	UNION	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a<5) and (v1.b=t2.b) and (v1.b=19)
 union
 select * from v1,t2 where ((v1.max_c>400) or (v1.avg_c>270)) and (v1.a<t2.a);
@@ -4973,14 +4973,14 @@ explain select * from v1,t2 where
 ((t2.a=v1.a) or (v1.b=t2.b)) and ((v1.a=1) or (v1.a=6))
 union
 select * from v1,t2 where ((v1.a>3) and (v1.b>27)) or (v1.max_c>550);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	UNION	t2	ALL	NULL	NULL	NULL	NULL	9	
-2	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+2	UNION	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where
 ((t2.a=v1.a) or (v1.b=t2.b)) and ((v1.a=1) or (v1.a=6))
 union
@@ -5142,17 +5142,17 @@ select * from v2,t2 where
 union
 select * from v2,t2 where
 (v2.max_c=t2.c) and (v2.b<10);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	UNION	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-2	UNION	<derived5>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	UNION	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-3	UNION	<derived6>	ref	key0	key0	5	test.t2.c	2	Using where
-6	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-NULL	UNION RESULT	<union1,2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+2	UNION	<derived5>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+5	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+3	UNION	<derived6>	NULL	ref	key0	key0	5	test.t2.c	2	Using where
+6	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+NULL	UNION RESULT	<union1,2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where
 ((v1.a=1) and (v1.a=t2.a)) and ((v1.max_c<500) or (v1.avg_c>500))
 union
@@ -5357,12 +5357,12 @@ a	b	c	a	b	c	d
 1	19	107	3	12	231	190
 1	19	107	6	23	303	909
 explain select * from v_union,t2 where (v_union.a<3) and (v_union.c>100);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	40	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	40	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v_union,t2 where (v_union.a<3) and (v_union.c>100);
 EXPLAIN
 {
@@ -5478,12 +5478,12 @@ a	b	c	a	b	c	d
 1	19	107	6	23	303	909
 explain select * from v_union,t2 where
 ((v_union.a<2) or (v_union.c>800)) and (v_union.b>12);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	40	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	40	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v_union,t2 where
 ((v_union.a<2) or (v_union.c>800)) and (v_union.b>12);
 EXPLAIN
@@ -5588,12 +5588,12 @@ a	b	c	a	b	c	d
 1	19	107	1	19	203	107
 explain select * from v_union,t2 where
 (v_union.a=1) and (v_union.a=t2.a) and (v_union.c<200);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	40	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	40	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v_union,t2 where
 (v_union.a=1) and (v_union.a=t2.a) and (v_union.c<200);
 EXPLAIN
@@ -5698,10 +5698,10 @@ c	Vika	7	c	Ivan	2
 c	Vika	7	c	Inga	2
 explain select * from v_char as v,t2_char as t where
 (v.a=t.a) and (v.b='Vika') and (v.max_c>2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	12	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	2	test.t.a	2	Using where
-2	DERIVED	t1_char	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	2	test.t.a	2	Using where
+2	DERIVED	t1_char	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using temporary; Using filesort
 explain format=json select * from v_char as v,t2_char as t where
 (v.a=t.a) and (v.b='Vika') and (v.max_c>2);
 EXPLAIN
@@ -5776,14 +5776,14 @@ a	b	c	a	b	max_c	avg_c	a	b	c	d
 explain select * from v_union,v1,t2 where
 (v_union.a=v1.a) and (v1.a=t2.a) and (t2.a=1)
 and ((v_union.c>800) or (v1.max_c>200));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	40	Using where; Using join buffer (incremental, BNL join)
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	40	Using where; Using join buffer (incremental, BNL join)
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v_union,v1,t2 where
 (v_union.a=v1.a) and (v1.a=t2.a) and (t2.a=1)
 and ((v_union.c>800) or (v1.max_c>200));
@@ -5934,13 +5934,13 @@ a	b	c	a	b	c	d
 6	20	214.0000	6	23	303	909
 explain select * from v2_union as v,t2 where
 ((v.a=6) or (v.a=8)) and (v.c>200) and (v.a=t2.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	6	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-4	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-NULL	UNION RESULT	<union2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	6	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+4	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+NULL	UNION RESULT	<union2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v2_union as v,t2 where
 ((v.a=6) or (v.a=8)) and (v.c>200) and (v.a=t2.a);
 EXPLAIN
@@ -6123,12 +6123,12 @@ a	b	c	a	b	c	d
 6	20	309	6	23	303	909
 6	20	7	6	23	303	909
 explain select * from v3_union as v,t2 where (v.a=t2.a) and (v.c>6);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	4	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	4	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v3_union as v,t2 where (v.a=t2.a) and (v.c>6);
 EXPLAIN
 {
@@ -6255,12 +6255,12 @@ a	b	c	a	b	c	d
 6	20	309	6	23	303	909
 6	20	7	6	23	303	909
 explain select * from v3_union as v,t2 where (v.a=t2.a) and ((t2.a>1) or (v.b<20));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	4	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	4	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v3_union as v,t2 where (v.a=t2.a) and ((t2.a>1) or (v.b<20));
 EXPLAIN
 {
@@ -6354,12 +6354,12 @@ a	b	c	a	b	c	d
 1	21	2	1	19	203	107
 explain select * from v3_union as v,t2 where
 (v.a=t2.a) and ((v.b=19) or (v.b=21)) and ((v.c<3) or (v.c>600));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	4	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	4	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v3_union as v,t2 where
 (v.a=t2.a) and ((v.b=19) or (v.b=21)) and ((v.c<3) or (v.c>600));
 EXPLAIN
@@ -6452,12 +6452,12 @@ a	b	c	a	b	c	d
 7	11	608	7	13	312	406
 1	19	207	1	19	203	107
 explain select * from v4_union as v,t2 where (v.a=t2.a) and (v.b<20);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	4	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	4	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v4_union as v,t2 where (v.a=t2.a) and (v.b<20);
 EXPLAIN
 {
@@ -6573,12 +6573,12 @@ a	b	c	a	b	c	d
 8	33	504	8	80	800	314
 explain select * from v4_union as v,t2 where
 (v.a=t2.a) and ((t2.a<3) or (v.b<40)) and (v.c>500);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	4	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	20	Using where
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	4	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v4_union as v,t2 where
 (v.a=t2.a) and ((t2.a<3) or (v.b<40)) and (v.c>500);
 EXPLAIN
@@ -6697,12 +6697,12 @@ a	b	min_c	a	b	max_c	avg_c
 8	33	404	8	33	404	213.6667
 explain select * from v4,v1 where
 (v4.a<13) and (v1.a>5) and (v1.b>12);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+1	PRIMARY	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v1 where
 (v4.a<13) and (v1.a>5) and (v1.b>12);
 EXPLAIN
@@ -6816,13 +6816,13 @@ a	b	min_c	a	b	max_c	avg_c	a	b	c	d
 8	33	404	8	33	404	213.6667	8	80	800	314
 explain select * from v4,v1,t2 where
 (v4.a=t2.a) and (v4.a=v1.a) and (v1.b>30);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1	key1	5	test.t2.a	2	
-1	PRIMARY	<derived4>	ref	key0	key0	5	test.t2.a	2	Using where
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key1	key1	5	test.t2.a	2	
+1	PRIMARY	<derived4>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v1,t2 where
 (v4.a=t2.a) and (v4.a=v1.a) and (v1.b>30);
 EXPLAIN
@@ -6951,13 +6951,13 @@ a	b	min_c	a	b	max_c	avg_c	a	b	c	d
 6	20	315	6	20	315	279.3333	6	23	303	909
 explain select * from v4,v1,t2 where
 (v4.a=t2.a) and (v4.a>1) and (v4.a=v1.a) and (v4.min_c>100) and (v1.b<30);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key1	key1	5	test.t2.a	2	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	test.t2.a	2	Using where
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key1	key1	5	test.t2.a	2	Using where
+1	PRIMARY	<derived4>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v1,t2 where
 (v4.a=t2.a) and (v4.a>1) and (v4.a=v1.a) and (v4.min_c>100) and (v1.b<30);
 EXPLAIN
@@ -7173,13 +7173,13 @@ a	b	min_c	a	b	max_c	avg_c	a	b	c	d
 8	33	404	8	33	404	213.6667	6	23	303	909
 explain select * from v4,v1,t2 where
 (((v4.b>10) and (v4.a>1)) or (v4.b<20)) and (v1.max_c>200) and (v1.a=v4.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<derived4>	ref	key0	key0	5	v4.a	2	Using where
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<derived4>	NULL	ref	key0	key0	5	v4.a	2	Using where
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using temporary; Using filesort
+2	DERIVED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v1,t2 where
 (((v4.b>10) and (v4.a>1)) or (v4.b<20)) and (v1.max_c>200) and (v1.a=v4.a);
 EXPLAIN
@@ -7303,12 +7303,12 @@ select * from v4,v2 where
 a	b	min_c	a	b	max_c	avg_c
 explain select * from v4,v2 where
 ((v4.a>12) and (v4.min_c<300) and (v4.b>13)) or (v4.a<1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+1	PRIMARY	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v2 where
 ((v4.a>12) and (v4.min_c<300) and (v4.b>13)) or (v4.a<1);
 EXPLAIN
@@ -7420,12 +7420,12 @@ select * from v4,v2 where
 a	b	min_c	a	b	max_c	avg_c
 explain select * from v4,v2 where
 (v4.a=v2.b) and (v4.a=v4.b) and (v4.min_c<100);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	v4.a	2	
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+1	PRIMARY	<derived4>	NULL	ref	key0	key0	5	v4.a	2	
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v2 where
 (v4.a=v2.b) and (v4.a=v4.b) and (v4.min_c<100);
 EXPLAIN
@@ -7537,12 +7537,12 @@ select * from v4,v2 where
 a	b	min_c	a	b	max_c	avg_c
 explain select * from v4,v2 where
 (v4.a=v2.b) and (v4.a=v4.b) and (v2.b<30);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	v4.a	2	
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+1	PRIMARY	<derived4>	NULL	ref	key0	key0	5	v4.a	2	
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v2 where
 (v4.a=v2.b) and (v4.a=v4.b) and (v2.b<30);
 EXPLAIN
@@ -7653,12 +7653,12 @@ select * from v4,v2 where
 a	b	min_c	a	b	max_c	avg_c
 explain select * from v4,v2 where
 (v4.a=v2.b) and (v4.a=v4.b) and ((v2.b<30) or (v4.a>2));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	v4.a	2	
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+1	PRIMARY	<derived4>	NULL	ref	key0	key0	5	v4.a	2	
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v2 where
 (v4.a=v2.b) and (v4.a=v4.b) and ((v2.b<30) or (v4.a>2));
 EXPLAIN
@@ -7776,12 +7776,12 @@ a	b	min_c	a	b	max_c	avg_c
 explain select * from v4,v2 where
 (((v4.a<12) and (v4.b>13)) or (v4.a>10)) and
 (v4.min_c=v2.max_c) and (v4.min_c>100);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived4>	ref	key0	key0	5	v4.min_c	2	
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+1	PRIMARY	<derived4>	NULL	ref	key0	key0	5	v4.min_c	2	
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v2 where
 (((v4.a<12) and (v4.b>13)) or (v4.a>10)) and
 (v4.min_c=v2.max_c) and (v4.min_c>100);
@@ -7899,13 +7899,13 @@ a	b	min_c	a	b	max_c	avg_c	a	b	c	d
 explain select * from v4,v2,t2 where
 (((v4.a<12) and (t2.b>13)) or (v4.a>10)) and
 (v4.min_c=t2.c) and (t2.c>100);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	2	Using where
-1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.c	2	Using where
+1	PRIMARY	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using join buffer (flat, BNL join)
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+2	DERIVED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from v4,v2,t2 where
 (((v4.a<12) and (t2.b>13)) or (v4.a>10)) and
 (v4.min_c=t2.c) and (t2.c>100);
@@ -8033,9 +8033,9 @@ EXPLAIN EXTENDED
 SELECT *
 FROM ( SELECT * FROM ( SELECT MIN(i) as f FROM t1 ) sq1 ) AS sq2
 WHERE f = 8;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `sq1`.`f` AS `f` from (/* select#3 */ select min(`test`.`t1`.`i`) AS `f` from `test`.`t1` having `f` = 8) `sq1` where `sq1`.`f` = 8
 SELECT *
@@ -8243,11 +8243,11 @@ SELECT b FROM v2 WHERE b < a OR b IN (
 SELECT d FROM v4 WHERE s > a
 )
 );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1)
-3	DEPENDENT SUBQUERY	<derived5>	index_subquery	key0	key0	5	func	2	Using where
-5	DERIVED	t4	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; FirstMatch(t1)
+3	DEPENDENT SUBQUERY	<derived5>	NULL	index_subquery	key0	key0	5	func	2	Using where
+5	DERIVED	t4	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
 explain format=json SELECT * FROM t1 WHERE a IN (
 SELECT b FROM v2 WHERE b < a OR b IN (
 SELECT d FROM v4 WHERE s > a
@@ -10232,10 +10232,10 @@ HAVING max_c > 37
 ) AS v1
 WHERE (v1.a=1) AND (v1.b=v1.a) AND
 (v1.a=t2.x) AND (v1.max_c>30);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
 EXPLAIN FORMAT=JSON SELECT *
 FROM t2,
 (
@@ -10317,10 +10317,10 @@ HAVING max_c > 37
 ) AS v1
 WHERE (v1.a=1) AND (v1.b=v1.a) AND (v1.b=v1.d) AND
 (v1.a=t2.x) AND (v1.max_c>30);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
 EXPLAIN FORMAT=JSON SELECT *
 FROM t2,
 (
@@ -10431,10 +10431,10 @@ HAVING max_f>18
 WHERE d_tab.e>1
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	10	test.t1.a,test.t1.b	2	FirstMatch(t1)
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	10	test.t1.a,test.t1.b	2	FirstMatch(t1)
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.a,t1.b) IN
 (
@@ -10530,10 +10530,10 @@ HAVING max_f>18
 WHERE d_tab.max_f<25
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	10	test.t1.a,test.t1.b	2	FirstMatch(t1)
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	10	test.t1.a,test.t1.b	2	FirstMatch(t1)
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.a,t1.b) IN
 (
@@ -10627,11 +10627,11 @@ WHERE d_tab.e>1
 GROUP BY d_tab.g
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.b	1	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.b	1	
+2	MATERIALIZED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.a,t1.b) IN
 (
@@ -10743,11 +10743,11 @@ WHERE d_tab.max_f>20
 GROUP BY d_tab.g
 )
 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.b	1	
-2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.b	1	
+2	MATERIALIZED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
 EXPLAIN FORMAT=JSON SELECT * FROM t1
 WHERE (t1.a,t1.b) IN
 (
@@ -11738,11 +11738,11 @@ INSERT INTO t1
 SELECT * FROM ( SELECT t1.f FROM v1 JOIN t1 ) AS t WHERE f IS NOT NULL;
 EXPLAIN INSERT INTO t1
 SELECT * FROM ( SELECT t1.f FROM v1 JOIN t1 ) AS t WHERE f IS NOT NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	144	Using where
-2	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	12	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	12	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	144	Using where
+2	DERIVED	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	12	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	12	
 EXPLAIN FORMAT=JSON INSERT INTO t1
 SELECT * FROM ( SELECT t1.f FROM v1 JOIN t1 ) AS t WHERE f IS NOT NULL;
 EXPLAIN
@@ -12147,10 +12147,10 @@ x
 explain extended select *
 from (select min(a) as x from t1 union all select max(a) as y from t1) t
 where x>0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `t`.`x` AS `x` from (/* select#2 */ select min(`test`.`t1`.`a`) AS `x` from `test`.`t1` having `x` > 0 union all /* select#3 */ select max(`test`.`t1`.`a`) AS `x` from `test`.`t1` having `x` > 0) `t` where `t`.`x` > 0
 prepare stmt from "select *
@@ -12190,9 +12190,9 @@ a	f	g
 1	1	1
 3	3	3
 explain extended select * from (select * from v1) as dt where a=f and a=g;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `v1`.`a` AS `a`,`v1`.`f` AS `f`,`v1`.`g` AS `g` from `test`.`v1` where `v1`.`a` = `v1`.`f` and `v1`.`a` = `v1`.`g`
 create view v2 as select a, min(1) as f, min(1) as g from t1 group by a;
@@ -12205,9 +12205,9 @@ select * from (select * from v2) as dt where a=f and a=g;
 a	f	g
 1	1	1
 explain extended select * from (select * from v2) as dt where a=f and a=g;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `v2`.`a` AS `a`,`v2`.`f` AS `f`,`v2`.`g` AS `g` from `test`.`v2` where `v2`.`a` = `v2`.`f` and `v2`.`a` = `v2`.`g`
 drop view v1,v2;
@@ -12244,10 +12244,10 @@ select col2, col1 from v1
 union all
 select col2, col1 from v2;
 explain select * from v3 where col1=123;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DERIVED	t1	ref	a	a	5	const	1	
-3	UNION	t1	ref	a	a	5	const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DERIVED	t1	NULL	ref	a	a	5	const	1	
+3	UNION	t1	NULL	ref	a	a	5	const	1	
 # This must use ref accesses for reading table t1, not full scans:
 explain format=json
 select * from v3 where col1=123 and col2=321;
@@ -12480,12 +12480,12 @@ a	b	c	a	b	c
 1	21	101	1	19	132
 1	19	117	1	19	132
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
 EXPLAIN
 {
@@ -12582,12 +12582,12 @@ select * from v1,t2 where (v1.a=t2.a) and (v1.a=8);
 a	b	c	a	b	c
 8	33	114	8	33	117
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a=8);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a=8);
 EXPLAIN
 {
@@ -12684,12 +12684,12 @@ select * from v1,t2 where (v1.a=t2.a) and (t2.a=8);
 a	b	c	a	b	c
 8	33	114	8	33	117
 explain select * from v1,t2 where (v1.a=t2.a) and (t2.a=8);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (t2.a=8);
 EXPLAIN
 {
@@ -12788,12 +12788,12 @@ a	b	c	a	b	c
 5	16	207	5	14	312
 5	16	207	5	33	207
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.c>200);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.c>200);
 EXPLAIN
 {
@@ -12893,12 +12893,12 @@ a	b	c	a	b	c
 1	19	117	1	16	909
 1	19	117	1	19	132
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>110);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>110);
 EXPLAIN
 {
@@ -12999,12 +12999,12 @@ a	b	c	a	b	c
 5	16	207	5	33	207
 8	33	114	8	33	117
 explain select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
 EXPLAIN
 {
@@ -13110,12 +13110,12 @@ a	b	c	a	b	c
 1	21	101	1	19	132
 explain select * from v1,t2 where
 (v1.a=t2.a) and ((v1.c>200) or (v1.c<105));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where
 (v1.a=t2.a) and ((v1.c>200) or (v1.c<105));
 EXPLAIN
@@ -13243,12 +13243,12 @@ a	b	c	a	b	c
 explain select * from v1,t2 where
 ((v1.a>3) and (t2.c>110) and (v1.c=t2.c)) or
 ((v1.a=1) and (v1.c<110));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where
 ((v1.a>3) and (t2.c>110) and (v1.c=t2.c)) or
 ((v1.a=1) and (v1.c<110));
@@ -13398,12 +13398,12 @@ where
 (d1.b=t2.b) and
 (((t2.b>13) and (t2.c=909)) or
 ((d1.a<4) and (d1.c<200)));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.b	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select *
 from t2,
 (select a, b, min(c) as c from t1
@@ -13523,12 +13523,12 @@ a	b	c	a	b	c
 1	33	988	1	19	132
 1	21	500	1	19	132
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a<5);
 EXPLAIN
 {
@@ -13627,12 +13627,12 @@ a	b	c	a	b	c
 6	20	315	6	20	211
 6	20	315	6	23	303
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a=6);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a=6);
 EXPLAIN
 {
@@ -13731,12 +13731,12 @@ a	b	c	a	b	c
 6	20	315	6	20	211
 6	20	315	6	23	303
 explain select * from v1,t2 where (v1.a=t2.a) and (t2.a=6);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (t2.a=6);
 EXPLAIN
 {
@@ -13839,12 +13839,12 @@ a	b	c	a	b	c
 5	14	787	5	33	207
 1	33	988	1	19	132
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.c>500);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.c>500);
 EXPLAIN
 {
@@ -13944,12 +13944,12 @@ a	b	c	a	b	c
 1	33	988	1	16	909
 1	33	988	1	19	132
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>500);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a<5) and (v1.c>500);
 EXPLAIN
 {
@@ -14052,12 +14052,12 @@ a	b	c	a	b	c
 5	14	787	5	33	207
 1	33	988	1	19	132
 explain select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and ((v1.b>27) or (v1.b<19));
 EXPLAIN
 {
@@ -14163,12 +14163,12 @@ a	b	c	a	b	c
 6	20	315	6	23	303
 explain select * from v1,t2 where
 (v1.a=t2.a) and ((v1.c<400) or (v1.c>800));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where
 (v1.a=t2.a) and ((v1.c<400) or (v1.c>800));
 EXPLAIN
@@ -14293,12 +14293,12 @@ explain select * from v1,t2 where
 (v1.c=t2.c) and
 ((v1.a>1) and (t2.c<500)) or
 ((v1.a=1) and (v1.c>500));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where
 (v1.c=t2.c) and
 ((v1.a>1) and (t2.c<500)) or
@@ -14445,12 +14445,12 @@ where
 (d1.b=t2.b) and
 (((t2.b>13) and (t2.c=988)) or
 ((d1.a>4) and (d1.c>500)));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.b	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select *
 from t2,
 (select a, b, max(c) as c from t1
@@ -14569,15 +14569,15 @@ a	b	c	a	b	c
 6	20	309	6	20	211
 6	20	309	6	23	303
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	3	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	UNION	<derived4>	ALL	NULL	NULL	NULL	NULL	18	Using where
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-5	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	INTERSECT RESULT	<intersect4,5>	ALL	NULL	NULL	NULL	NULL	NULL	
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	3	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	UNION	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+5	INTERSECT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect4,5>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
 EXPLAIN
 {
@@ -14737,13 +14737,13 @@ a	b	c	a	b	c
 5	27	132	5	33	207
 8	33	123	8	33	117
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	3	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-4	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	UNIT RESULT	<unit2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	3	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+4	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	UNIT RESULT	<unit2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
 EXPLAIN
 {
@@ -14875,13 +14875,13 @@ a	b	c	a	b	c
 6	20	309	6	20	211
 6	20	309	6	23	303
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	3	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-4	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	UNIT RESULT	<unit2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	3	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+4	EXCEPT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	UNIT RESULT	<unit2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a>5) and (v1.c>200);
 EXPLAIN
 {
@@ -15015,13 +15015,13 @@ a	b	c	a	b	c
 5	27	132	5	33	207
 8	33	123	8	33	117
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	3	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-4	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	UNIT RESULT	<unit2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	3	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+4	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	UNIT RESULT	<unit2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<200);
 EXPLAIN
 {
@@ -15153,13 +15153,13 @@ a	b	c	a	b	c
 5	27	132	5	14	312
 5	27	132	5	33	207
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<150);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-4	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	UNIT RESULT	<unit2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+4	EXCEPT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	UNIT RESULT	<unit2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<150);
 EXPLAIN
 {
@@ -15289,15 +15289,15 @@ select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
 a	b	c	a	b	c
 8	33	123	8	33	117
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	EXCEPT	<derived4>	ALL	NULL	NULL	NULL	NULL	18	Using where
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-5	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	INTERSECT RESULT	<intersect4,5>	ALL	NULL	NULL	NULL	NULL	NULL	
-NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+5	INTERSECT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect4,5>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+NULL	EXCEPT RESULT	<except2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
 EXPLAIN
 {
@@ -15456,16 +15456,16 @@ select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
 a	b	c	a	b	c
 8	33	123	8	33	117
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	3	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	EXCEPT	<derived4>	ALL	NULL	NULL	NULL	NULL	18	Using where
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-5	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	INTERSECT RESULT	<intersect4,5>	ALL	NULL	NULL	NULL	NULL	NULL	
-6	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	UNIT RESULT	<unit2,3,6>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	3	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+5	INTERSECT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect4,5>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+6	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	UNIT RESULT	<unit2,3,6>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.c<130);
 EXPLAIN
 {
@@ -15647,13 +15647,13 @@ a	b	c	a	b	c
 5	27	132	5	14	312
 5	27	132	5	33	207
 explain select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-4	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	INTERSECT RESULT	<intersect3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+4	INTERSECT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
 EXPLAIN
 {
@@ -15785,13 +15785,13 @@ a	b	c	a	b	c
 5	27	132	5	14	312
 5	27	132	5	33	207
 explain select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
-2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-4	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	EXCEPT RESULT	<except3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+4	EXCEPT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v2,t2 where (v2.a=t2.a) and (v2.a>4) and (v2.c<150);
 EXPLAIN
 {
@@ -15920,12 +15920,12 @@ a	b	c	a	b	c
 6	20	315	6	20	211
 6	20	315	6	23	303
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.b>12) and (v1.c<450);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	INTERSECT RESULT	<intersect2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	INTERSECT RESULT	<intersect2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a>4) and (v1.b>12) and (v1.c<450);
 EXPLAIN
 {
@@ -16032,12 +16032,12 @@ a	b	c	a	b	c
 1	21	988	1	16	909
 1	21	988	1	19	132
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a<2) and (v1.b<30) and (v1.c>450);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a<2) and (v1.b<30) and (v1.c>450);
 EXPLAIN
 {
@@ -16146,12 +16146,12 @@ a	b	c	a	b	c
 1	21	988	1	16	909
 1	21	988	1	19	132
 explain select * from v1,t2 where (v1.a=t2.a) and ((v1.a<2) or (v1.a<5)) and (v1.c>450);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	EXCEPT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	EXCEPT RESULT	<except2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	EXCEPT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	EXCEPT RESULT	<except2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and ((v1.a<2) or (v1.a<5)) and (v1.c>450);
 EXPLAIN
 {
@@ -16261,13 +16261,13 @@ a	b	c	a	b	c
 5	14	787	5	14	312
 5	14	787	5	33	207
 explain select * from v1,t2 where (v1.a=t2.a) and (v1.a>1) and (v1.b > 12) and (v1.c>400);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.a	3	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-3	INTERSECT	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-4	UNION	t1	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
-NULL	UNIT RESULT	<unit2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.a	3	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+3	INTERSECT	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+4	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	18	Using where; Using temporary; Using filesort
+NULL	UNIT RESULT	<unit2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.a=t2.a) and (v1.a>1) and (v1.b > 12) and (v1.c>400);
 EXPLAIN
 {
@@ -16408,10 +16408,10 @@ a	b	max_c	a	b	c
 3	21	500	3	21	231
 1	21	345	3	21	231
 explain select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	2	Using where
-2	DERIVED	t3	range	i1	i1	5	NULL	5	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.b	2	Using where
+2	DERIVED	t3	NULL	range	i1	i1	5	NULL	5	Using index condition
 explain format=json select * from v1,t2 where (v1.b=t2.b) and (v1.a<5);
 EXPLAIN
 {
@@ -16485,12 +16485,12 @@ a	b	c	a	b	c
 2	33	7	8	33	117
 3	21	500	3	21	231
 explain select * from v1,t2 where (v1.b=t2.b) and (v1.a<4);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t3	range	i1	i1	5	NULL	2	Using index condition
-3	UNION	t3	range	i1	i1	5	NULL	1	Using index condition
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t3	NULL	range	i1	i1	5	NULL	2	Using index condition
+3	UNION	t3	NULL	range	i1	i1	5	NULL	1	Using index condition
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.b=t2.b) and (v1.a<4);
 EXPLAIN
 {
@@ -16595,12 +16595,12 @@ a	b	c	a	b	c
 1	19	107	1	19	132
 2	33	7	8	33	117
 explain select * from v1,t2 where (v1.b=t2.b) and (v1.a<3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.b	2	Using where
-2	DERIVED	t3	range	i1	i1	5	NULL	1	Using index condition
-3	UNION	t3	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.b	2	Using where
+2	DERIVED	t3	NULL	range	i1	i1	5	NULL	1	Using index condition
+3	UNION	t3	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain format=json select * from v1,t2 where (v1.b=t2.b) and (v1.a<3);
 EXPLAIN
 {
@@ -16730,9 +16730,9 @@ a	c	sum(b) over (partition by a,c)
 7	cc	28
 explain select * from (select a, c, sum(b) over (partition by a,c) from t2) as t
 where t.a > 2 and t.c in ('aa','bb','cc');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	16	Using where
-2	DERIVED	t2	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+2	DERIVED	t2	NULL	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary
 explain format=json select * from (select a, c, sum(b) over (partition by a,c) from t2) as t
 where t.a > 2 and t.c in ('aa','bb','cc');
 EXPLAIN
@@ -16839,10 +16839,10 @@ union all
 select 2 as n, a, c, sum(b) over (partition by a) as s from t2
 ) as t
 where t.a > 2 and t.c in ('aa','bb','cc');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	32	Using where
-2	DERIVED	t2	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary
-3	UNION	t2	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	32	Using where
+2	DERIVED	t2	NULL	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary
+3	UNION	t2	NULL	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary
 explain format=json select * from
 (
 select 1 as n, a, c, sum(b) over (partition by a,c) as s from t2
@@ -16953,10 +16953,10 @@ a	c	s	a	c
 explain select *
 from (select a, c, sum(b) over (partition by a,c) as s from t2) as t, t1
 where t1.a=t.a and t1.c=t.c and t1.c in ('aa','bb','cc');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	24	test.t1.a,test.t1.c	2	
-2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	24	test.t1.a,test.t1.c	2	
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary
 explain format=json select *
 from (select a, c, sum(b) over (partition by a,c) as s from t2) as t, t1
 where t1.a=t.a and t1.c=t.c and t1.c in ('aa','bb','cc');
@@ -17086,11 +17086,11 @@ union all
 select 3 as n, a, c, sum(b) as s from t2 group by a
 ) as t
 where t.a > 2 and t.c in ('aa','bb','cc');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	48	Using where
-2	DERIVED	t2	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary
-3	UNION	t2	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary
-4	UNION	t2	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	48	Using where
+2	DERIVED	t2	NULL	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary
+3	UNION	t2	NULL	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary
+4	UNION	t2	NULL	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary; Using filesort
 explain format=json select * from
 (
 select 1 as n, a, c, sum(b) over (partition by a,c) as s from t2
@@ -17243,9 +17243,9 @@ sum(b) over (partition by a,c) as sum_b,
 avg(b) over (partition by a,c) as avg_b
 from t2 ) as t
 where t.a > 2 and t.c in ('aa','bb','cc');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	16	Using where
-2	DERIVED	t2	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+2	DERIVED	t2	NULL	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary
 explain format=json select * from (select a, c,
 sum(b) over (partition by a,c) as sum_b,
 avg(b) over (partition by a,c) as avg_b
@@ -17331,9 +17331,9 @@ sum(b) over (partition by a,c) as sum_b,
 avg(b) over (partition by a) as avg_b
 from t2 ) as t
 where t.a > 2 and t.c in ('aa','bb','cc');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	16	Using where
-2	DERIVED	t2	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
+2	DERIVED	t2	NULL	ALL	idx	NULL	NULL	NULL	20	Using where; Using temporary
 explain format=json select * from (select a, c,
 sum(b) over (partition by a,c) as sum_b,
 avg(b) over (partition by a) as avg_b
@@ -17419,9 +17419,9 @@ sum(b) over (partition by a,c) as sum_b,
 avg(b) over (partition by c) as avg_b
 from t2 ) as t
 where t.a > 2 and t.c in ('aa','bb','cc');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	20	Using where
-2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	20	Using where; Using temporary
 explain format=json select * from (select a, c,
 sum(b) over (partition by a,c) as sum_b,
 avg(b) over (partition by c) as avg_b
@@ -17531,10 +17531,10 @@ from t1 join
 (select a, sum(t2.b) as s, min(t2.c) as m from t2 group by t2.a) t
 on t1.a=t.a
 where t1.b < 3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	range	idx_b	idx_b	5	NULL	4	100.00	Using index condition; Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	100.00	
-2	LATERAL DERIVED	t2	ref	idx_a	idx_a	5	test.t1.a	1	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	range	idx_b	idx_b	5	NULL	4	100.00	Using index condition; Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t1.a	2	100.00	
+2	LATERAL DERIVED	t2	NULL	ref	idx_a	idx_a	5	test.t1.a	1	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`t`.`s` AS `s`,`t`.`m` AS `m` from `test`.`t1` join (/* select#2 */ select `test`.`t2`.`a` AS `a`,sum(`test`.`t2`.`b`) AS `s`,min(`test`.`t2`.`c`) AS `m` from `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` group by `test`.`t2`.`a`) `t` where `t`.`a` = `test`.`t1`.`a` and `test`.`t1`.`b` < 3
 explain format=json select t1.a,t.s,t.m
@@ -17652,10 +17652,10 @@ from t1 join
 (select a, sum(t2.b) as s, min(t2.b) as m from t2 group by t2.a) t
 on t1.a=t.a
 where t1.b <= 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	idx_b	NULL	NULL	NULL	12	83.33	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	100.00	
-2	LATERAL DERIVED	t2	ref	idx_a	idx_a	5	test.t1.a	1	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	idx_b	NULL	NULL	NULL	12	83.33	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t1.a	2	100.00	
+2	LATERAL DERIVED	t2	NULL	ref	idx_a	idx_a	5	test.t1.a	1	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`t`.`s` AS `s`,`t`.`m` AS `m` from `test`.`t1` join (/* select#2 */ select `test`.`t2`.`a` AS `a`,sum(`test`.`t2`.`b`) AS `s`,min(`test`.`t2`.`b`) AS `m` from `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`a` group by `test`.`t2`.`a`) `t` where `t`.`a` = `test`.`t1`.`a` and `test`.`t1`.`b` <= 5
 explain format=json select t1.a,t.s,t.m
@@ -17767,10 +17767,10 @@ explain extended select t1.a,t.max,t.min
 from t1 left join
 (select a, max(t2.b) max, min(t2.b) min from t2 group by t2.a) t
 on t1.a=t.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	12	100.00	
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	9	100.00	Using where
-2	DERIVED	t2	ALL	idx_a	NULL	NULL	NULL	90	100.00	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t1.a	9	100.00	Using where
+2	DERIVED	t2	NULL	ALL	idx_a	NULL	NULL	NULL	90	100.00	Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t1` left join (/* select#2 */ select `test`.`t2`.`a` AS `a`,max(`test`.`t2`.`b`) AS `max`,min(`test`.`t2`.`b`) AS `min` from `test`.`t2` group by `test`.`t2`.`a`) `t` on(`t`.`a` = `test`.`t1`.`a` and `test`.`t1`.`a` is not null) where 1
 explain format=json select t1.a,t.max,t.min
@@ -17868,10 +17868,10 @@ from t3 join
 (select a, c, max(b) max, min(b) min from t4 group by a,c) t
 on t3.a=t.a and t3.c=t.c
 where t3.b > 15;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	range	idx_b	idx_b	5	NULL	2	100.00	Using index condition; Using where
-1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	2	100.00	
-2	LATERAL DERIVED	t4	ref	idx	idx	133	test.t3.a,test.t3.c	1	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	range	idx_b	idx_b	5	NULL	2	100.00	Using index condition; Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	133	test.t3.a,test.t3.c	2	100.00	
+2	LATERAL DERIVED	t4	NULL	ref	idx	idx	133	test.t3.a,test.t3.c	1	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t3`.`a` AS `a`,`test`.`t3`.`c` AS `c`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t3` join (/* select#2 */ select `test`.`t4`.`a` AS `a`,`test`.`t4`.`c` AS `c`,max(`test`.`t4`.`b`) AS `max`,min(`test`.`t4`.`b`) AS `min` from `test`.`t4` where `test`.`t4`.`a` = `test`.`t3`.`a` and `test`.`t4`.`c` = `test`.`t3`.`c` group by `test`.`t4`.`a`,`test`.`t4`.`c`) `t` where `t`.`a` = `test`.`t3`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t3`.`b` > 15
 explain format=json select t3.a,t3.c,t.max,t.min
@@ -17957,10 +17957,10 @@ from t3 join
 (select a, c, max(b) max, min(b) min from t4 group by a,c) t
 on t3.a=t.a and t3.c=t.c
 where t3.b <= 15;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	idx_b	NULL	NULL	NULL	12	83.33	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	4	100.00	
-2	DERIVED	t4	ALL	idx	NULL	NULL	NULL	40	100.00	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	ALL	idx_b	NULL	NULL	NULL	12	83.33	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	133	test.t3.a,test.t3.c	4	100.00	
+2	DERIVED	t4	NULL	ALL	idx	NULL	NULL	NULL	40	100.00	Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t3`.`a` AS `a`,`test`.`t3`.`c` AS `c`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t3` join (/* select#2 */ select `test`.`t4`.`a` AS `a`,`test`.`t4`.`c` AS `c`,max(`test`.`t4`.`b`) AS `max`,min(`test`.`t4`.`b`) AS `min` from `test`.`t4` group by `test`.`t4`.`a`,`test`.`t4`.`c`) `t` where `t`.`a` = `test`.`t3`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t3`.`b` <= 15
 explain format=json select t3.a,t3.c,t.max,t.min
@@ -18041,10 +18041,10 @@ from t3 join
 (select a, c, max(b) max, min(b) min from t4 group by c,a) t
 on t3.a=t.a and t3.c=t.c
 where t3.b > 15;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	range	idx_b	idx_b	5	NULL	2	100.00	Using index condition; Using where
-1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	2	100.00	
-2	LATERAL DERIVED	t4	ref	idx	idx	133	test.t3.a,test.t3.c	1	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	range	idx_b	idx_b	5	NULL	2	100.00	Using index condition; Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	133	test.t3.a,test.t3.c	2	100.00	
+2	LATERAL DERIVED	t4	NULL	ref	idx	idx	133	test.t3.a,test.t3.c	1	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t3`.`a` AS `a`,`test`.`t3`.`c` AS `c`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t3` join (/* select#2 */ select `test`.`t4`.`a` AS `a`,`test`.`t4`.`c` AS `c`,max(`test`.`t4`.`b`) AS `max`,min(`test`.`t4`.`b`) AS `min` from `test`.`t4` where `test`.`t4`.`a` = `test`.`t3`.`a` and `test`.`t4`.`c` = `test`.`t3`.`c` group by `test`.`t4`.`c`,`test`.`t4`.`a`) `t` where `t`.`a` = `test`.`t3`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t3`.`b` > 15
 explain format=json select t3.a,t3.c,t.max,t.min
@@ -18130,10 +18130,10 @@ from t3 join
 (select a, c, max(b) max, min(b) min from t4 group by c,a) t
 on t3.a=t.a and t3.c=t.c
 where t3.b <= 15;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	idx_b	NULL	NULL	NULL	12	83.33	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	133	test.t3.a,test.t3.c	4	100.00	
-2	DERIVED	t4	ALL	idx	NULL	NULL	NULL	40	100.00	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	ALL	idx_b	NULL	NULL	NULL	12	83.33	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	133	test.t3.a,test.t3.c	4	100.00	
+2	DERIVED	t4	NULL	ALL	idx	NULL	NULL	NULL	40	100.00	Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t3`.`a` AS `a`,`test`.`t3`.`c` AS `c`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t3` join (/* select#2 */ select `test`.`t4`.`a` AS `a`,`test`.`t4`.`c` AS `c`,max(`test`.`t4`.`b`) AS `max`,min(`test`.`t4`.`b`) AS `min` from `test`.`t4` group by `test`.`t4`.`c`,`test`.`t4`.`a`) `t` where `t`.`a` = `test`.`t3`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t3`.`b` <= 15
 explain format=json select t3.a,t3.c,t.max,t.min
@@ -18226,11 +18226,11 @@ a	b	c	t_c	max	min
 explain extended select t2.a,t2.b,t2.c,t.c as t_c,t.max,t.min
 from t2, t3, (select c, max(b) max, min(b) min from t4 group by c) t
 where t2.b between 80 and 85 and t2.c in ('y','z') and t2.a=t3.a and t3.c=t.c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	range	idx	idx	133	NULL	2	100.00	Using index condition; Using where
-1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	2	100.00	
-2	LATERAL DERIVED	t4	ref	idx_c	idx_c	128	test.t3.c	2	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	range	idx	idx	133	NULL	2	100.00	Using index condition; Using where
+1	PRIMARY	t3	NULL	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	128	test.t3.c	2	100.00	
+2	LATERAL DERIVED	t4	NULL	ref	idx_c	idx_c	128	test.t3.c	2	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`t`.`c` AS `t_c`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t2` join `test`.`t3` join (/* select#2 */ select `test`.`t4`.`c` AS `c`,max(`test`.`t4`.`b`) AS `max`,min(`test`.`t4`.`b`) AS `min` from `test`.`t4` where `test`.`t4`.`c` = `test`.`t3`.`c` group by `test`.`t4`.`c`) `t` where `test`.`t3`.`a` = `test`.`t2`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t2`.`b` between 80 and 85 and `test`.`t2`.`c` in ('y','z')
 explain format=json select t2.a,t2.b,t2.c,t.c as t_c,t.max,t.min
@@ -18386,11 +18386,11 @@ a	b	c	t_c	max	min
 explain extended select t2.a,t2.b,t2.c,t.c as t_c,t.max,t.min
 from t2, t3, (select c, max(b) max, min(b) min from t4 group by c) t
 where t2.b < 40 and t2.a=t3.a and t3.c=t.c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	90	60.00	Using where
-1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	10	100.00	
-2	DERIVED	t4	ALL	idx_c	NULL	NULL	NULL	160	100.00	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	90	60.00	Using where
+1	PRIMARY	t3	NULL	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	128	test.t3.c	10	100.00	
+2	DERIVED	t4	NULL	ALL	idx_c	NULL	NULL	NULL	160	100.00	Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`t`.`c` AS `t_c`,`t`.`max` AS `max`,`t`.`min` AS `min` from `test`.`t2` join `test`.`t3` join (/* select#2 */ select `test`.`t4`.`c` AS `c`,max(`test`.`t4`.`b`) AS `max`,min(`test`.`t4`.`b`) AS `min` from `test`.`t4` group by `test`.`t4`.`c`) `t` where `test`.`t3`.`a` = `test`.`t2`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t2`.`b` < 40
 explain format=json select t2.a,t2.b,t2.c,t.c as t_c,t.max,t.min
@@ -18498,11 +18498,11 @@ a	b	c	a	b	c	c	b	sum(b) over (partition by c)
 explain extended select *
 from t2, t3, (select c, b, sum(b) over (partition by c) from t4 ) t
 where t2.b between 80 and 85 and t2.c in ('y','z') and t2.a=t3.a and t3.c=t.c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	range	idx	idx	133	NULL	2	100.00	Using index condition; Using where
-1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	2	100.00	
-2	LATERAL DERIVED	t4	ref	idx_c	idx_c	128	test.t3.c	2	100.00	Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	range	idx	idx	133	NULL	2	100.00	Using index condition; Using where
+1	PRIMARY	t3	NULL	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	128	test.t3.c	2	100.00	
+2	LATERAL DERIVED	t4	NULL	ref	idx_c	idx_c	128	test.t3.c	2	100.00	Using temporary
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b`,`test`.`t3`.`c` AS `c`,`t`.`c` AS `c`,`t`.`b` AS `b`,`t`.`sum(b) over (partition by c)` AS `sum(b) over (partition by c)` from `test`.`t2` join `test`.`t3` join (/* select#2 */ select `test`.`t4`.`c` AS `c`,`test`.`t4`.`b` AS `b`,sum(`test`.`t4`.`b`) over ( partition by `test`.`t4`.`c`) AS `sum(b) over (partition by c)` from `test`.`t4` where `test`.`t4`.`c` = `test`.`t3`.`c`) `t` where `test`.`t3`.`a` = `test`.`t2`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t2`.`b` between 80 and 85 and `test`.`t2`.`c` in ('y','z')
 explain format=json select *
@@ -18909,11 +18909,11 @@ a	b	c	a	b	c	c	b	sum(b) over (partition by c)
 explain extended select *
 from t2, t3, (select c, b, sum(b) over (partition by c) from t4 ) t
 where t2.b < 40 and t2.a=t3.a and t3.c=t.c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	90	60.00	Using where
-1	PRIMARY	t3	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	128	test.t3.c	10	100.00	
-2	DERIVED	t4	ALL	idx_c	NULL	NULL	NULL	160	100.00	Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	90	60.00	Using where
+1	PRIMARY	t3	NULL	ref	idx_a	idx_a	5	test.t2.a	1	100.00	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	128	test.t3.c	10	100.00	
+2	DERIVED	t4	NULL	ALL	idx_c	NULL	NULL	NULL	160	100.00	Using temporary
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b`,`test`.`t3`.`c` AS `c`,`t`.`c` AS `c`,`t`.`b` AS `b`,`t`.`sum(b) over (partition by c)` AS `sum(b) over (partition by c)` from `test`.`t2` join `test`.`t3` join (/* select#2 */ select `test`.`t4`.`c` AS `c`,`test`.`t4`.`b` AS `b`,sum(`test`.`t4`.`b`) over ( partition by `test`.`t4`.`c`) AS `sum(b) over (partition by c)` from `test`.`t4`) `t` where `test`.`t3`.`a` = `test`.`t2`.`a` and `t`.`c` = `test`.`t3`.`c` and `test`.`t2`.`b` < 40
 explain format=json select *
@@ -19026,13 +19026,13 @@ SELECT * FROM t4 WHERE c IN ( SELECT c FROM v1 ) and a < 2;
 a	c
 1	foo
 explain extended SELECT * FROM t4 WHERE c IN ( SELECT c FROM v1 ) and a < 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t4	range	a	a	5	NULL	1	100.00	Using index condition; Using where
-1	PRIMARY	<derived3>	ref	key0	key0	128	test.t4.c	2	100.00	FirstMatch(t4)
-3	LATERAL DERIVED	t3	ref	c	c	128	test.t4.c	2	100.00	
-3	LATERAL DERIVED	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-4	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-4	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t4	NULL	range	a	a	5	NULL	1	100.00	Using index condition; Using where
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	128	test.t4.c	2	100.00	FirstMatch(t4)
+3	LATERAL DERIVED	t3	NULL	ref	c	c	128	test.t4.c	2	100.00	
+3	LATERAL DERIVED	<subquery4>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+4	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+4	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t4`.`a` AS `a`,`test`.`t4`.`c` AS `c` from `test`.`t4` semi join (`test`.`v1`) where `v1`.`c` = `test`.`t4`.`c` and `test`.`t4`.`a` < 2
 explain format=json SELECT * FROM t4 WHERE c IN ( SELECT c FROM v1 ) and a < 2;
@@ -19180,9 +19180,9 @@ SELECT * FROM cte;
 pk
 EXPLAIN EXTENDED WITH cte AS ( SELECT pk FROM t1 WHERE pk IS NULL GROUP BY pk )
 SELECT * FROM cte;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
 Note	1003	with cte as (/* select#2 */ select `test`.`t1`.`pk` AS `pk` from `test`.`t1` where 0 group by `test`.`t1`.`pk`)/* select#1 */ select NULL AS `pk` from `cte`
 DROP TABLE t1;
@@ -19199,10 +19199,10 @@ pk1	f	pk2	cnt
 1	0	1	1
 2	0	2	1
 EXPLAIN EXTENDED SELECT * FROM t1 INNER JOIN v2 ON pk1 = pk2 WHERE f <> 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	2	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	4	test.t1.pk1	2	100.00	
-2	LATERAL DERIVED	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.pk1	1	100.00	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	PRIMARY	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	4	test.t1.pk1	2	100.00	
+2	LATERAL DERIVED	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.pk1	1	100.00	Using index
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`pk1` AS `pk1`,`test`.`t1`.`f` AS `f`,`v2`.`pk2` AS `pk2`,`v2`.`cnt` AS `cnt` from `test`.`t1` join `test`.`v2` where `v2`.`pk2` = `test`.`t1`.`pk1` and `test`.`t1`.`f` <> 5
 EXPLAIN FORMAT=JSON SELECT * FROM t1 INNER JOIN v2 ON pk1 = pk2 WHERE f <> 5;
@@ -19282,9 +19282,9 @@ SELECT * FROM v1 JOIN v2 ON v1.f = v2.f;
 f	f
 EXPLAIN EXTENDED
 SELECT * FROM v1 JOIN v2 ON v1.f = v2.f;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 Warnings:
 Note	1003	/* select#1 */ select NULL AS `f`,`v2`.`f` AS `f` from `test`.`t1` `a` straight_join `test`.`t1` `b` join `test`.`v2` where 0
 DROP VIEW v1,v2;
@@ -19329,11 +19329,11 @@ explain with
 cte as (select  median(f2) over (partition by f1) as k1 from t1 order by f1),
 cte1 as (select median(f4) over (partition by f1) as k2 from t1)
 select k1,k2 from cte1, cte;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	5	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	5	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
 drop table t1;
 #
 # MDEV-16104: embedded splittable materialized derived/views
@@ -19350,11 +19350,11 @@ t1 AS a2
 USING (f);
 EXPLAIN EXTENDED
 SELECT * FROM ( SELECT STRAIGHT_JOIN f, COUNT(*) as c FROM v1 GROUP BY f ) AS s;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	7	100.00	
-2	DERIVED	<derived4>	ALL	NULL	NULL	NULL	NULL	7	100.00	Using temporary; Using filesort
-2	DERIVED	a2	eq_ref	PRIMARY	PRIMARY	4	a1.f	1	100.00	Using index
-4	DERIVED	t1	index	PRIMARY	PRIMARY	4	NULL	7	100.00	Using index; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	
+2	DERIVED	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	Using temporary; Using filesort
+2	DERIVED	a2	NULL	eq_ref	PRIMARY	PRIMARY	4	a1.f	1	100.00	Using index
+4	DERIVED	t1	NULL	index	PRIMARY	PRIMARY	4	NULL	7	100.00	Using index; Using temporary; Using filesort
 Warnings:
 Note	1003	/* select#1 */ select `s`.`f` AS `f`,`s`.`c` AS `c` from (/* select#2 */ select straight_join `a2`.`f` AS `f`,count(0) AS `c` from (/* select#4 */ select `test`.`t1`.`f` AS `f`,count(0) AS `c` from `test`.`t1` group by `test`.`t1`.`f`) `a1` join `test`.`t1` `a2` where `a2`.`f` = `a1`.`f` group by `a2`.`f`) `s`
 SELECT * FROM ( SELECT STRAIGHT_JOIN f, COUNT(*) as c FROM v1 GROUP BY f ) AS s;
@@ -19417,11 +19417,11 @@ FROM t3,
 FROM  t1, t2
 GROUP BY t1.b,t2.c) dt
 WHERE t3.d = dt.b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.d	2	100.00	
-2	LATERAL DERIVED	t1	ref	idx_b	idx_b	5	test.t3.d	1	100.00	Using index; Using temporary; Using filesort
-2	LATERAL DERIVED	t2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t3.d	2	100.00	
+2	LATERAL DERIVED	t1	NULL	ref	idx_b	idx_b	5	test.t3.d	1	100.00	Using index; Using temporary; Using filesort
+2	LATERAL DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t3`.`d` AS `d`,`dt`.`b` AS `b`,`dt`.`c` AS `c` from `test`.`t3` join (/* select#2 */ select `test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`b` = `test`.`t3`.`d` group by `test`.`t1`.`b`,`test`.`t2`.`c`) `dt` where `dt`.`b` = `test`.`t3`.`d`
 DROP TABLE t1,t2,t3;
@@ -19452,10 +19452,10 @@ EXPLAIN select * from t1 as u
 left join
 (select * from t2 as au group by au.userid) as auditlastlogin
 on u.id=auditlastlogin.userid;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	u	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.u.id	2	
-2	DERIVED	au	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	u	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.u.id	2	
+2	DERIVED	au	NULL	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
 select * from t1 as u
 left join
 (select * from t2 as au group by au.userid) as auditlastlogin
@@ -19507,11 +19507,11 @@ id	a
 19	119
 20	120
 explain extended select id, a from t1 where  id in (select id from v1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	20	100.00	
-1	PRIMARY	<derived3>	ref	key0	key0	4	test.t1.id	2	100.00	FirstMatch(t1)
-3	LATERAL DERIVED	t1	eq_ref	PRIMARY	PRIMARY	4	test.t1.id	1	100.00	
-3	LATERAL DERIVED	t2	ref	ro_id	ro_id	4	test.t1.id	1	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	PRIMARY	NULL	NULL	NULL	20	100.00	
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	4	test.t1.id	2	100.00	FirstMatch(t1)
+3	LATERAL DERIVED	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.id	1	100.00	
+3	LATERAL DERIVED	t2	NULL	ref	ro_id	ro_id	4	test.t1.id	1	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`v1`) where `v1`.`id` = `test`.`t1`.`id`
 select id, a from t1
@@ -19545,11 +19545,11 @@ where id in (select id
 from (select t1.* from t1 left join t2
 on (t1.id = t2.ro_id AND t2.flag = 1)
 group by t1.id) dt);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	20	100.00	
-1	PRIMARY	<derived3>	ref	key0	key0	4	test.t1.id	2	100.00	FirstMatch(t1)
-3	LATERAL DERIVED	t1	eq_ref	PRIMARY	PRIMARY	4	test.t1.id	1	100.00	
-3	LATERAL DERIVED	t2	ref	ro_id	ro_id	4	test.t1.id	1	100.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	PRIMARY	NULL	NULL	NULL	20	100.00	
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	4	test.t1.id	2	100.00	FirstMatch(t1)
+3	LATERAL DERIVED	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.id	1	100.00	
+3	LATERAL DERIVED	t2	NULL	ref	ro_id	ro_id	4	test.t1.id	1	100.00	Using where
 Warnings:
 Note	1003	/* select#1 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` semi join ((/* select#3 */ select `test`.`t1`.`id` AS `id`,`test`.`t1`.`a` AS `a` from `test`.`t1` left join `test`.`t2` on(`test`.`t2`.`ro_id` = `test`.`t1`.`id` and `test`.`t2`.`flag` = 1) where `test`.`t1`.`id` = `test`.`t1`.`id` group by `test`.`t1`.`id`) `dt`) where `dt`.`id` = `test`.`t1`.`id`
 drop view v1;
@@ -19745,13 +19745,13 @@ id	a	a	id
 21	2	2	2
 explain select * from t1, (select a from t1 cp2 group by a) dt, t3
 where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	t1	ref	a	a	5	test.t3.id	1	
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.id	2	
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	cp2	range	NULL	a	5	NULL	8	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	NULL	ref	a	a	5	test.t3.id	1	
+1	PRIMARY	<subquery3>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t3.id	2	
+3	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+2	DERIVED	cp2	NULL	range	NULL	a	5	NULL	8	Using index for group-by
 explain format=json select * from t1, (select a from t1 cp2 group by a) dt, t3
 where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
 EXPLAIN
@@ -19853,13 +19853,13 @@ id	a	a	id
 21	2	2	2
 explain select * from t1, (select a from t1 cp2 group by a) dt, t3
 where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	t1	ref	a	a	5	test.t3.id	1	
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.id	2	
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
-2	LATERAL DERIVED	cp2	ref	a	a	5	test.t1.a	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	NULL	ref	a	a	5	test.t3.id	1	
+1	PRIMARY	<subquery3>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t3.id	2	
+3	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+2	LATERAL DERIVED	cp2	NULL	ref	a	a	5	test.t1.a	1	Using where; Using index
 explain format=json select * from t1, (select a from t1 cp2 group by a) dt, t3
 where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
 EXPLAIN
@@ -20061,11 +20061,11 @@ ON t3.t1_id = t1.id
 JOIN (SELECT t1_id FROM t2 WHERE reporting_person = 1 GROUP BY t1_id) tx
 ON tx.t1_id = t1.id
 WHERE t1.id BETWEEN 200 AND 100000;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	range	t1_id	t1_id	5	NULL	47	Using where; Using index
-1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	test.t3.t1_id	1	Using index
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.t1_id	2	
-2	LATERAL DERIVED	t2	ref	t1_id	t1_id	5	test.t1.id	3	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	NULL	range	t1_id	t1_id	5	NULL	47	Using where; Using index
+1	PRIMARY	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t3.t1_id	1	Using index
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t3.t1_id	2	
+2	LATERAL DERIVED	t2	NULL	ref	t1_id	t1_id	5	test.t1.id	3	Using index condition; Using where
 EXPLAIN FORMAT=JSON SELECT t1.id
 FROM t1
 JOIN t3
@@ -20275,11 +20275,11 @@ GROUP BY transactions.ledger_id, transaction_items.charge_id
 ON from_agg_items.charge_id = charges.id AND
 from_agg_items.ledger_id = charges.from_ledger_id
 WHERE charges.to_ledger_id = 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	charges	ALL	PRIMARY,fk_charge_from_ledger,fk_charge_to_ledger	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	17	test.charges.from_ledger_id,test.charges.id	2	
-2	LATERAL DERIVED	transaction_items	ref	fk_items_transaction,fk_items_charge	fk_items_charge	9	test.charges.id	2	
-2	LATERAL DERIVED	transactions	eq_ref	PRIMARY,fk_transactions_ledger	PRIMARY	8	test.transaction_items.transaction_id	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	charges	NULL	ALL	PRIMARY,fk_charge_from_ledger,fk_charge_to_ledger	NULL	NULL	NULL	20	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	17	test.charges.from_ledger_id,test.charges.id	2	
+2	LATERAL DERIVED	transaction_items	NULL	ref	fk_items_transaction,fk_items_charge	fk_items_charge	9	test.charges.id	2	
+2	LATERAL DERIVED	transactions	NULL	eq_ref	PRIMARY,fk_transactions_ledger	PRIMARY	8	test.transaction_items.transaction_id	1	Using where
 EXPLAIN FORMAT=JSON SELECT
 charges.id,
 charges.from_ledger_id,
@@ -20414,11 +20414,11 @@ GROUP BY transactions.ledger_id, transaction_items.charge_id
 ON from_agg_items.charge_id = charges.id AND
 from_agg_items.ledger_id = charges.from_ledger_id
 WHERE charges.to_ledger_id = 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	charges	ALL	PRIMARY,fk_charge_from_ledger,fk_charge_to_ledger	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	17	test.charges.from_ledger_id,test.charges.id	4	
-2	DERIVED	transaction_items	ALL	fk_items_transaction	NULL	NULL	NULL	40	Using temporary; Using filesort
-2	DERIVED	transactions	eq_ref	PRIMARY	PRIMARY	8	test.transaction_items.transaction_id	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	charges	NULL	ALL	PRIMARY,fk_charge_from_ledger,fk_charge_to_ledger	NULL	NULL	NULL	20	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	17	test.charges.from_ledger_id,test.charges.id	4	
+2	DERIVED	transaction_items	NULL	ALL	fk_items_transaction	NULL	NULL	NULL	40	Using temporary; Using filesort
+2	DERIVED	transactions	NULL	eq_ref	PRIMARY	PRIMARY	8	test.transaction_items.transaction_id	1	
 INSERT INTO charges (id, from_ledger_id, to_ledger_id, amount) VALUES
 (101, 4, 2, 100), (102, 7, 2, 200);
 set optimizer_switch='split_materialized=on';
@@ -20469,11 +20469,11 @@ GROUP BY transactions.ledger_id, transaction_items.charge_id
 ON from_agg_items.charge_id = charges.id AND
 from_agg_items.ledger_id = charges.from_ledger_id
 WHERE charges.to_ledger_id = 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	charges	ALL	fk_charge_to_ledger	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	18	test.charges.from_ledger_id,test.charges.id	2	
-2	LATERAL DERIVED	transaction_items	ref	fk_items_transaction,fk_items_charge	fk_items_charge	9	test.charges.id	2	
-2	LATERAL DERIVED	transactions	eq_ref	PRIMARY,fk_transactions_ledger	PRIMARY	8	test.transaction_items.transaction_id	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	charges	NULL	ALL	fk_charge_to_ledger	NULL	NULL	NULL	20	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	18	test.charges.from_ledger_id,test.charges.id	2	
+2	LATERAL DERIVED	transaction_items	NULL	ref	fk_items_transaction,fk_items_charge	fk_items_charge	9	test.charges.id	2	
+2	LATERAL DERIVED	transactions	NULL	eq_ref	PRIMARY,fk_transactions_ledger	PRIMARY	8	test.transaction_items.transaction_id	1	Using where
 EXPLAIN FORMAT=JSON SELECT
 charges.id,
 charges.from_ledger_id,
@@ -20606,11 +20606,11 @@ GROUP BY transactions.ledger_id, transaction_items.charge_id
 ON from_agg_items.charge_id = charges.id AND
 from_agg_items.ledger_id = charges.from_ledger_id
 WHERE charges.to_ledger_id = 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	charges	ALL	fk_charge_to_ledger	NULL	NULL	NULL	20	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	18	test.charges.from_ledger_id,test.charges.id	4	
-2	DERIVED	transaction_items	ALL	fk_items_transaction	NULL	NULL	NULL	40	Using temporary; Using filesort
-2	DERIVED	transactions	eq_ref	PRIMARY	PRIMARY	8	test.transaction_items.transaction_id	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	charges	NULL	ALL	fk_charge_to_ledger	NULL	NULL	NULL	20	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	18	test.charges.from_ledger_id,test.charges.id	4	
+2	DERIVED	transaction_items	NULL	ALL	fk_items_transaction	NULL	NULL	NULL	40	Using temporary; Using filesort
+2	DERIVED	transactions	NULL	eq_ref	PRIMARY	PRIMARY	8	test.transaction_items.transaction_id	1	
 set optimizer_switch='split_materialized=default';
 DROP TABLE transaction_items;
 DROP TABLE transactions;
@@ -20632,10 +20632,10 @@ group by t1.f;
 select * from v1;
 f
 explain select * from v1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	Const row not found
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using temporary
 drop view v1;
 drop table t1;
 # End of 10.4 tests

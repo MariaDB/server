@@ -37,7 +37,7 @@ set session optimizer_switch='index_merge_sort_intersection=off';
 # The following 4 queries are added for code coverage 
 
 #the exptected # of rows differ on 32-bit and 64-bit platforms for innodb 
---replace_column 9 4079
+--replace_column 10 4079
 EXPLAIN
 SELECT * FROM City
   WHERE (Population >= 100000 OR Name LIKE 'P%' OR Population < 100000);
@@ -693,7 +693,7 @@ CREATE INDEX Name ON City(Name);
 CREATE INDEX Population ON City(Population);
 
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN 
 SELECT * FROM City
   WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
@@ -705,7 +705,7 @@ SELECT * FROM City
 SHOW STATUS LIKE 'Handler_read_%';
 
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN 
 SELECT * FROM City
   WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
@@ -721,7 +721,7 @@ SHOW STATUS LIKE 'Handler_read_%';
 
 set @tmp_mdev585=@@optimizer_use_condition_selectivity;
 set optimizer_use_condition_selectivity=1;
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN 
 SELECT * FROM City
   WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
@@ -739,7 +739,7 @@ set optimizer_use_condition_selectivity=@tmp_mdev585;
 
 set optimizer_switch='index_merge=off';
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN 
 SELECT * FROM City
   WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))

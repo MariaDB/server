@@ -1219,8 +1219,8 @@ WEEK('2000-01-01')
 create table t1 (a date);
 insert t1 values ('2000-01-01');
 explain extended select week(a) from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
 Warnings:
 Note	1003	select week('2000-01-01') AS `week(a)` from dual
 prepare stmt1 from "select week(a) from t1";
@@ -1247,13 +1247,13 @@ set statement OLD_PASSWORDS = 1 for select password('test');
 password('test')
 378b243e220ca493
 set statement OLD_PASSWORDS = 0 for explain extended select password('test');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select password('test') AS `password('test')`
 set statement OLD_PASSWORDS = 1 for explain extended select password('test');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select password('test') AS `password('test')`
 create table t1 (a char(10));

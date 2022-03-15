@@ -58,10 +58,10 @@ a	b	a	b
 3	c	3	c
 3	c	3	c
 explain select * from t1 as x1, (select * from t1) as x2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	x1	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	4	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	x1	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
 drop table if exists  t2,t3;
 select * from (select 1) as a;
 1
@@ -92,16 +92,16 @@ a	b
 1	a
 2	b
 explain select * from (select * from t1 union select * from t1) a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	8	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	4	
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	4	
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	8	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain select * from (select * from t1 union all select * from t1) a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	8	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	4	
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	4	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	8	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
 CREATE TABLE t2 (a int not null);
 insert into t2 values(1);
 select * from (select * from t1 where t1.a=(select a from t2 where t2.a=t1.a)) a;
@@ -113,10 +113,10 @@ a	b
 2	b
 3	c
 explain select * from (select t1.*, t2.a as t2a from t1,t2 where t1.a=t2.a) t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	
-2	DERIVED	t2	system	NULL	NULL	NULL	NULL	1	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	4	
+2	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
 drop table t1, t2;
 create table t1(a int not null, t char(8), index(a));
 SELECT * FROM (SELECT * FROM t1) as b ORDER BY a  ASC LIMIT 0,20;
@@ -142,10 +142,10 @@ a	t
 19	19
 20	20
 explain select count(*) from t1 as tt1, (select * from t1) as tt2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	tt1	index	NULL	a	4	NULL	10000	Using index
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10000	Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	10000	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	tt1	NULL	index	NULL	a	4	NULL	10000	Using index
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	10000	Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	10000	
 drop table t1;
 SELECT * FROM (SELECT (SELECT * FROM (SELECT 1 as a) as a )) as b;
 (SELECT * FROM (SELECT 1 as a) as a )
@@ -164,9 +164,9 @@ ERROR 42S22: Unknown column '0' in 'order clause'
 create table t1 (id int);
 insert into t1 values (1),(2),(3);
 describe select * from (select * from t1 group by id) bar;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
 drop table t1;
 create table t1 (mat_id MEDIUMINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, matintnum CHAR(6) NOT NULL, test MEDIUMINT UNSIGNED NULL);
 create table t2 (mat_id MEDIUMINT UNSIGNED NOT NULL, pla_id MEDIUMINT UNSIGNED NOT NULL);
@@ -189,17 +189,17 @@ pla_id	test
 104	2
 105	3
 explain SELECT STRAIGHT_JOIN d.pla_id, m2.mat_id FROM t1 m2 INNER JOIN (SELECT mp.pla_id, MIN(m1.matintnum) AS matintnum FROM t2 mp INNER JOIN t1 m1 ON mp.mat_id=m1.mat_id GROUP BY mp.pla_id) d ON d.matintnum=m2.matintnum;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	m2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	mp	ALL	NULL	NULL	NULL	NULL	9	Using temporary; Using filesort
-2	DERIVED	m1	eq_ref	PRIMARY	PRIMARY	3	test.mp.mat_id	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	m2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	mp	NULL	ALL	NULL	NULL	NULL	NULL	9	Using temporary; Using filesort
+2	DERIVED	m1	NULL	eq_ref	PRIMARY	PRIMARY	3	test.mp.mat_id	1	
 explain SELECT STRAIGHT_JOIN d.pla_id, m2.test FROM t1 m2  INNER JOIN (SELECT mp.pla_id, MIN(m1.matintnum) AS matintnum FROM t2 mp INNER JOIN t1 m1 ON mp.mat_id=m1.mat_id GROUP BY mp.pla_id) d ON d.matintnum=m2.matintnum;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	m2	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	mp	ALL	NULL	NULL	NULL	NULL	9	Using temporary; Using filesort
-2	DERIVED	m1	eq_ref	PRIMARY	PRIMARY	3	test.mp.mat_id	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	m2	NULL	ALL	NULL	NULL	NULL	NULL	9	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	mp	NULL	ALL	NULL	NULL	NULL	NULL	9	Using temporary; Using filesort
+2	DERIVED	m1	NULL	eq_ref	PRIMARY	PRIMARY	3	test.mp.mat_id	1	
 drop table t1,t2;
 SELECT a.x FROM (SELECT 1 AS x) AS a HAVING a.x = 1;
 x
@@ -234,11 +234,11 @@ select count(*) from t1 INNER JOIN (SELECT A.E1, A.E2, A.E3 FROM t1 AS A WHERE A
 count(*)
 2
 explain select count(*) from t1 INNER JOIN (SELECT A.E1, A.E2, A.E3 FROM t1 AS A WHERE A.E3 = (SELECT MAX(B.E3) FROM t1 AS B WHERE A.E2 = B.E2)) AS THEMAX ON t1.E1 = THEMAX.E2 AND t1.E1 = t1.E2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	t1	eq_ref	PRIMARY	PRIMARY	4	THEMAX.E2	1	Using where
-2	DERIVED	A	ALL	NULL	NULL	NULL	NULL	2	Using where
-3	DEPENDENT SUBQUERY	B	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	THEMAX.E2	1	Using where
+2	DERIVED	A	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+3	DEPENDENT SUBQUERY	B	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
 drop table t1;
 create table t1 (a int);
 insert into t1 values (1),(2);
@@ -249,15 +249,15 @@ a	a
 1	2
 2	2
 explain select * from ( select * from t1 union select * from t1) a,(select * from t1 union select * from t1) b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
-5	UNION	t1	ALL	NULL	NULL	NULL	NULL	2	
-NULL	UNION RESULT	<union4,5>	ALL	NULL	NULL	NULL	NULL	NULL	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	2	
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+5	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+NULL	UNION RESULT	<union4,5>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 drop table t1;
 CREATE TABLE `t1` (
 `N` int(11) unsigned NOT NULL default '0',
@@ -315,20 +315,20 @@ name	median
 a	7.0000
 b	3.5000
 explain SELECT s.name, AVG(s.val) AS median FROM (SELECT x.name, x.val FROM t1 x, t1 y WHERE x.name=y.name GROUP BY x.name, x.val HAVING SUM(y.val <= x.val) >= COUNT(*)/2 AND SUM(y.val >= x.val) >= COUNT(*)/2) AS s GROUP BY s.name;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	289	Using temporary; Using filesort
-2	DERIVED	x	ALL	NULL	NULL	NULL	NULL	17	Using temporary; Using filesort
-2	DERIVED	y	ALL	NULL	NULL	NULL	NULL	17	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	289	Using temporary; Using filesort
+2	DERIVED	x	NULL	ALL	NULL	NULL	NULL	NULL	17	Using temporary; Using filesort
+2	DERIVED	y	NULL	ALL	NULL	NULL	NULL	NULL	17	Using where; Using join buffer (flat, BNL join)
 drop table t1;
 create table t2 (a int, b int, primary key (a));
 insert into t2 values (1,7),(2,7);
 explain select a from t2 where a>1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index
 explain select a from (select a from t2 where a>1) tt;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
-2	DERIVED	t2	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	
+2	DERIVED	t2	NULL	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index
 drop table t2;
 CREATE TABLE `t1` ( `itemid` int(11) NOT NULL default '0', `grpid` varchar(15) NOT NULL default '', `vendor` int(11) NOT NULL default '0', `date_` date NOT NULL default '0000-00-00', `price` decimal(12,2) NOT NULL default '0.00', PRIMARY KEY  (`itemid`,`grpid`,`vendor`,`date_`), KEY `itemid` (`itemid`,`vendor`), KEY `itemid_2` (`itemid`,`date_`));
 insert into t1 values (128, 'rozn', 2, curdate(), 10),
@@ -518,14 +518,14 @@ CREATE algorithm=temptable VIEW v1 AS
 SELECT 1 FROM t1 LEFT JOIN t1 t3 ON 1 > (SELECT 1 FROM t1);
 CREATE algorithm=temptable VIEW v2 AS SELECT 1 FROM t2;
 EXPLAIN SELECT 1 FROM t1 JOIN v1 ON 1 > (SELECT 1 FROM v2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
-3	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-4	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	
-2	SUBQUERY	<derived5>	ALL	NULL	NULL	NULL	NULL	2	
-5	DERIVED	t2	index	NULL	b	5	NULL	2	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+3	DERIVED	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+4	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+2	SUBQUERY	<derived5>	NULL	ALL	NULL	NULL	NULL	NULL	2	
+5	DERIVED	t2	NULL	index	NULL	b	5	NULL	2	Using index
 SELECT 1 FROM t1 JOIN v1 ON 1 > (SELECT 1 FROM v2);
 ERROR 21000: Subquery returns more than 1 row
 DROP TABLE t1, t2;
@@ -551,10 +551,10 @@ CREATE TABLE t2 (b INT) ENGINE=MyISAM;
 INSERT INTO t2 VALUES (1),(7);
 EXPLAIN SELECT * FROM (SELECT * FROM t1) AS table1,
 (SELECT DISTINCT * FROM t2) AS table2 WHERE b = a AND a <> ANY (SELECT 9);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	<derived3>	ref	key0	key0	5	const	0	
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	5	const	0	
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; Using temporary
 Warnings:
 Note	1249	Select 4 was reduced during optimization
 DROP TABLE t1, t2;
@@ -611,11 +611,11 @@ explain extended
 select x.id, message from (select id from t1) x left join
 (select id, 1 as message from t2) y on x.id=y.id
 where message <> 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	PRIMARY	<derived3>	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	3	100.00	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 Warnings:
 Note	1003	/* select#1 */ select `x`.`id` AS `id`,`y`.`message` AS `message` from (/* select#2 */ select `test`.`t1`.`id` AS `id` from `test`.`t1`) `x` join (/* select#3 */ select `test`.`t2`.`id` AS `id`,1 AS `message` from `test`.`t2`) `y` where `y`.`id` = `x`.`id` and `y`.`message` <> 0
 drop table t1,t2;
@@ -635,12 +635,12 @@ SELECT f3 FROM t2 WHERE f2 IN (
 SELECT f3 FROM t2 HAVING f3 >= 8
 )
 );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	1	100.00	
-1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	4	const	1	100.00	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(<subquery4>); Using join buffer (flat, BNL join)
-4	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
-2	DERIVED	t1	system	NULL	NULL	NULL	NULL	1	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	<subquery4>	NULL	eq_ref	distinct_key	distinct_key	4	const	1	100.00	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(<subquery4>); Using join buffer (flat, BNL join)
+4	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
 Warnings:
 Note	1276	Field or reference 'sq.f2' of SELECT #3 was resolved in SELECT #1
 Note	1003	/* select#1 */ select 6 AS `f1` from  <materialize> (/* select#4 */ select `test`.`t2`.`f3` from `test`.`t2` having `test`.`t2`.`f3` >= 8) semi join (`test`.`t2`) where `<subquery4>`.`f3` = 9 and `test`.`t2`.`f3` = 6
@@ -906,63 +906,63 @@ FROM `t2`
 WHERE REF IS NULL AND DIVISION="MIS" GROUP BY RECEIVABLE_GROUP,DIVISION,CLIENT_NUMBER,CREDIT_LIMIT) AS C1 ON A.CLIENT_NUMBER=C1.CLIENT_NUMBER AND 
 A.DIVISION=C1.DIVISION AND A.RECEIVABLE_GROUP=C1.RECEIVABLE_GROUP AND A.CREDIT_LIMIT=C1.CREDIT_LIMIT
 ORDER BY TOTAL DESC;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived3>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived4>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived5>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived6>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived7>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived8>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived9>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived10>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived11>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived12>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived13>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived14>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived15>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived16>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived17>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived18>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived19>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived20>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived21>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived22>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived23>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived24>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived25>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived26>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived27>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived28>	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	PRIMARY	<derived29>	system	NULL	NULL	NULL	NULL	0	Const row not found
-29	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-28	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-27	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-26	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-25	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-24	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-23	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-22	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-21	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-20	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-19	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-18	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-17	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-16	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-15	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-14	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-13	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-12	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-11	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-10	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-9	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-8	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-7	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-6	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived3>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived4>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived5>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived6>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived7>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived8>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived9>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived10>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived11>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived12>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived13>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived14>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived15>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived16>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived17>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived18>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived19>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived20>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived21>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived22>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived23>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived24>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived25>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived26>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived27>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived28>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	PRIMARY	<derived29>	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+29	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+28	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+27	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+26	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+25	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+24	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+23	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+22	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+21	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+20	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+19	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+18	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+17	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+16	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+15	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+14	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+13	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+12	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+11	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+10	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+9	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+8	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+7	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+6	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+5	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+4	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
 DROP TABLES t1,t2;
 set optimizer_switch=@save_derived_optimizer_switch;
 #
@@ -1071,12 +1071,12 @@ set @save_join_cache_level= @@join_cache_level;
 SET join_cache_level= 8;
 explain
 SELECT * FROM v1, t2, v3 WHERE a = c AND b = d;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	1002	
-1	PRIMARY	<derived3>	hash_ALL	NULL	#hash#$hj	3075	func	1002	Using where; Using join buffer (flat, BNLH join)
-1	PRIMARY	t2	eq_ref	PRIMARY	PRIMARY	4	v3.d	1	Using index
-3	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	1002	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	1002	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	1002	
+1	PRIMARY	<derived3>	NULL	hash_ALL	NULL	#hash#$hj	3075	func	1002	Using where; Using join buffer (flat, BNLH join)
+1	PRIMARY	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	v3.d	1	Using index
+3	DERIVED	t3	NULL	ALL	NULL	NULL	NULL	NULL	1002	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	1002	
 SELECT * FROM v1, t2, v3 WHERE a = c AND b = d;
 a	b	c	d
 DROP VIEW v1, v3;
@@ -1107,10 +1107,10 @@ CREATE TABLE t2 (c1 text, c2 int);
 INSERT INTO t2 VALUES ('b',2), ('c',3);
 CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
 explain SELECT v1.c1, v1.c2, t2.c1, t2.c2 FROM v1, t2 WHERE v1.c1=t2.c1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	
 SELECT v1.c1, v1.c2, t2.c1, t2.c2 FROM v1, t2 WHERE v1.c1=t2.c1;
 c1	c2	c1	c2
 c	3	c	3
@@ -1118,10 +1118,10 @@ c	3	c	3
 set @save_join_cache_level= @@join_cache_level;
 set @@join_cache_level=4;
 explain SELECT v1.c1, v1.c2, t2.c1, t2.c2 FROM v1, t2 WHERE v1.c1=t2.c1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	<derived2>	hash_ALL	NULL	#hash#$hj	3	test.t2.c1	5	Using where; Using join buffer (flat, BNLH join)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	<derived2>	NULL	hash_ALL	NULL	#hash#$hj	3	test.t2.c1	5	Using where; Using join buffer (flat, BNLH join)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	
 SELECT v1.c1, v1.c2, t2.c1, t2.c2 FROM v1, t2 WHERE v1.c1=t2.c1;
 c1	c2	c1	c2
 c	3	c	3
@@ -1275,24 +1275,24 @@ table "<derived2>" should have type=ref and rows=1
 one select in derived table
 with distinct
 analyze select * from t1 , ((select distinct t2.a from t2 order by c))q  where t1.a=q.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	1.00	100.00	100.00	
-2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t1.a	1	1.00	100.00	100.00	
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using temporary; Using filesort
 analyze select * from t1 , ((select distinct t2.a, t2.b from t2 order by c))q  where t1.a=q.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	1.00	100.00	100.00	
-2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t1.a	2	1.00	100.00	100.00	
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using temporary; Using filesort
 # multiple selects in derived table
 # NO UNION ALL
 analyze select * from t1 , ( (select t2.a from t2 order by c) union  (select t2.a from t2 order by c))q  where t1.a=q.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	1.00	100.00	100.00	
-2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
-3	UNION	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	6.00	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t1.a	1	1.00	100.00	100.00	
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
+3	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	6.00	NULL	NULL	
 select * from t1 , ( (select t2.a from t2 order by c) union  (select t2.a from t2 order by c))q  where t1.a=q.a;
 a	a
 1	1
@@ -1303,13 +1303,13 @@ a	a
 6	6
 # UNION ALL and EXCEPT
 analyze select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except(select t3.a from t3 order by b))q  where t1.a=q.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	0.50	100.00	100.00	
-2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
-3	UNION	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
-4	EXCEPT	t3	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
-NULL	UNIT RESULT	<unit2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	3.00	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t1.a	1	0.50	100.00	100.00	
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
+3	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
+4	EXCEPT	t3	NULL	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
+NULL	UNIT RESULT	<unit2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	3.00	NULL	NULL	
 select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except(select t3.a from t3 order by b))q  where t1.a=q.a;
 a	a
 3	3

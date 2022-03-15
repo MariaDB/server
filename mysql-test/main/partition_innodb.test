@@ -741,7 +741,7 @@ INSERT INTO `t1` VALUES (2,2,'2013-03-12 10:11:48');
 SELECT * FROM t1 WHERE col1 = 1 AND col2 = 2
     AND col3 BETWEEN '2013-03-08 00:00:00' AND '2013-03-12 12:00:00'
 GROUP BY 1, 2, 3;
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT * FROM t1 WHERE col1 = 1 AND col2 = 2
     AND col3 BETWEEN '2013-03-08 00:00:00' AND '2013-03-12 12:00:00'
 GROUP BY 1, 2, 3;
@@ -783,7 +783,7 @@ insert into t1 select 10+A.a + 10*B.a + 100*C.a + 1000*D.a,
                        from t2 A, t2 B, t2 C ,t2 D;
 
 # This should show index_merge, using intersect
---replace_column 9 #
+--replace_column 10 #
 set statement optimizer_switch='rowid_filter=off' for
 explain select * from t1 where a=1 and b=2 and  pk between 1 and 999999 ;
 # 794 rows in output

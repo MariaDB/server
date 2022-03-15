@@ -22,15 +22,15 @@ c	a
 explain 
 with t as (select a from t1 where b >= 'c') 
 select * from t2,t where t2.c=t.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 explain
 select * from t2, (select a from t1 where b >= 'c') as t
 where t2.c=t.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 # select '*' in the specification of t
 with t as (select * from t1 where b >= 'c') 
 select * from t2,t where t2.c=t.a;
@@ -47,15 +47,15 @@ c	a	b
 explain
 with t as (select * from t1 where b >= 'c') 
 select * from t2,t where t2.c=t.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 explain
 select * from t2, (select * from t1 where b >= 'c') as t
 where t2.c=t.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 # rename fields returned by the specication when defining t
 with t(f1,f2) as (select * from t1 where b >= 'c') 
 select * from t2,t where t2.c=t.f1;
@@ -66,9 +66,9 @@ c	f1	f2
 explain
 with t(f1,f2) as (select * from t1 where b >= 'c') 
 select * from t2,t where t2.c=t.f1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 # materialized query specifying t
 with t as (select a, count(*) from t1 where b >= 'c' group by a) 
 select * from t2,t where t2.c=t.a;
@@ -83,17 +83,17 @@ c	a	count(*)
 explain
 with t as (select a, count(*) from t1 where b >= 'c' group by a) 
 select * from t2,t where t2.c=t.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	2	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.c	2	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 explain
 select * from t2, (select a, count(*) from t1 where b >= 'c' group by a) as t 
 where t2.c=t.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	2	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.c	2	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 # specivication of t contains having
 with t as (select a, count(*) from t1 where b >= 'c'
              group by a having count(*)=1 ) 
@@ -149,17 +149,17 @@ c
 explain
 with t as (select a from t1 where a<5)
 select * from t2 where c in (select a from t);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
-3	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	<subquery3>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
+3	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
 explain
 select * from t2 
 where c in (select a from (select a from t1 where a<5) as t);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
 # materialized t is used in a subquery
 with t as (select count(*) as c from t1 where b >= 'c' group by a)
 select * from t2 where c in (select c from t);
@@ -173,18 +173,18 @@ c
 explain
 with t as (select count(*) as c from t1 where b >= 'c' group by a)
 select * from t2 where c in (select c from t);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	8	test.t2.c	2	Using where; FirstMatch(t2)
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	8	test.t2.c	2	Using where; FirstMatch(t2)
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 explain
 select * from t2
 where c in (select c from (select count(*) as c from t1
 where b >= 'c' group by a) as t);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	8	test.t2.c	2	Using where; FirstMatch(t2)
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	8	test.t2.c	2	Using where; FirstMatch(t2)
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 # two references to t specified by a query
 # selecting a field:  both in main query
 with t as (select a from t1 where b >= 'c')
@@ -215,16 +215,16 @@ a	a
 explain
 with t as (select a from t1 where b >= 'c')
 select * from t as r1, t as r2 where r1.a=r2.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 explain
 select * from (select a from t1 where b >= 'c') as r1,
 (select a from t1 where b >= 'c') as r2 
 where r1.a=r2.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 # two references to materialized t: both in main query
 with t as (select distinct a from t1 where b >= 'c')
 select * from t as r1, t as r2 where r1.a=r2.a;
@@ -242,20 +242,20 @@ a	a
 explain
 with t as (select distinct a from t1 where b >= 'c')
 select * from t as r1, t as r2 where r1.a=r2.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	8	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	5	r1.a	1	
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	5	r1.a	1	
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
 explain
 select * from (select distinct a from t1 where b >= 'c') as r1,
 (select distinct a from t1 where b >= 'c') as r2 
 where r1.a=r2.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	8	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	5	r1.a	1	
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	5	r1.a	1	
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary
 # two references to t specified by a query
 # selecting all fields:  both in main query
 with t as (select * from t1 where b >= 'c')
@@ -286,16 +286,16 @@ a	b	a	b
 explain
 with t as (select * from t1 where b >= 'c')
 select * from t as r1, t as r2 where r1.a=r2.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 explain
 select * from (select * from t1 where b >= 'c') as r1,
 (select * from t1 where b >= 'c') as r2
 where r1.a=r2.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 # two references to t specifying explicitly column names
 with t(c) as (select a from t1 where b >= 'c')
 select * from t r1, t r2 where r1.c=r2.c;
@@ -330,20 +330,20 @@ with t as (select a from t1 where b >= 'c')
 select * from t where a < 2
 union
 select * from t where a >= 4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
-NULL	UNION RESULT	<union1,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+NULL	UNION RESULT	<union1,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain
 select * from (select a from t1 where b >= 'c') as t
 where t.a < 2
 union
 select * from (select a from t1 where b >= 'c') as t
 where t.a >= 4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
-3	UNION	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
-NULL	UNION RESULT	<union1,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+NULL	UNION RESULT	<union1,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 # specification of t contains union
 with t as (select a from t1 where b >= 'f' 
 union
@@ -367,24 +367,24 @@ with t as (select a from t1 where b >= 'f'
 union
 select c as a from t2 where c < 4) 
 select * from t2,t where t2.c=t.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	1	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
-3	UNION	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.c	1	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+3	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 explain
 select * from t2, 
 (select a from t1 where b >= 'f' 
 union
 select c as a from t2 where c < 4) as t 
 where t2.c=t.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	1	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
-3	UNION	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.c	1	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+3	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 # t is defined in the with clause of a subquery
 select t1.a,t1.b from t1,t2
 where t1.a>t2.c and
@@ -416,24 +416,24 @@ select t1.a,t1.b from t1,t2
 where t1.a>t2.c and
 t2.c in (with t as (select * from t1 where t1.a<5)
 select t2.c from t2,t where t2.c=t.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-3	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	<subquery3>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+3	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+3	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 explain
 select t1.a,t1.b from t1,t2
 where t1.a>t2.c and
 t2.c in (select t2.c
 from t2,(select * from t1 where t1.a<5) as t
 where t2.c=t.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 # two different definitions of t: one in the with clause of the main query,
 # the other in the with clause of a subquery 
 with t as (select c from t2 where c >= 4)
@@ -459,23 +459,23 @@ select t1.a,t1.b from t1,t
 where t1.a=t.c and
 t.c in (with t as (select * from t1 where t1.a<5)
 select t2.c from t2,t where t2.c=t.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	4	func	1	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
-4	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-4	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	<subquery4>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+4	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+4	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 explain
 select t1.a,t1.b from t1, (select c from t2 where c >= 4) as t
 where t1.a=t.c and
 t.c in (select t2.c from t2,  (select * from t1 where t1.a<5) as t
 where t2.c=t.a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-3	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	<subquery3>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+3	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+3	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 # another with table tt is defined in the with clause of a subquery
 # from the specification of t
 with t as (select * from t1
@@ -504,12 +504,12 @@ where a>2 and
 b in (with tt as (select * from t2 where t2.c<5)
 select t1.b from t1,tt where t1.a=tt.c))
 select t.a, count(*) from t1,t where t1.a=t.a  group by t.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	35	func	1	
-4	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-4	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<subquery4>	NULL	eq_ref	distinct_key	distinct_key	35	func	1	
+4	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+4	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 explain
 select t.a, count(*)
 from t1,
@@ -520,12 +520,12 @@ from t1,
 (select * from t2 where t2.c<5) as tt
 where t1.a=tt.c)) as t
 where t1.a=t.a  group by t.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	35	func	1	
-3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-3	MATERIALIZED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	<subquery3>	NULL	eq_ref	distinct_key	distinct_key	35	func	1	
+3	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+3	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 # with clause in the specification of a derived table
 select *
 from t1, 
@@ -550,10 +550,10 @@ from t1,
 (with t as (select a from t1 where b >= 'c') 
 select * from t2,t where t2.c=t.a) as tt
 where t1.b > 'f' and tt.a=t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (incremental, BNL join)
 explain
 select *
 from t1, 
@@ -561,10 +561,10 @@ from t1,
 (select a from t1 where b >= 'c') as t
 where t2.c=t.a) as tt
 where t1.b > 'f' and tt.a=t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (incremental, BNL join)
 # with claused in the specification of a view
 create view v1 as 
 with t as (select a from t1 where b >= 'c') 
@@ -579,9 +579,9 @@ c	a
 4	4
 explain
 select * from v1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 # with claused in the specification of a materialized view
 create view v2 as 
 with t as (select a, count(*) from t1 where b >= 'c' group by a) 
@@ -595,10 +595,10 @@ c	a	count(*)
 3	3	1
 explain
 select * from v2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.c	2	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.c	2	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using temporary; Using filesort
 # with clause in the specification of a view that whose definition
 # table alias for a with table
 create view v3 as
@@ -627,9 +627,9 @@ c	d
 4	4
 explain
 select * from v4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 drop view v1,v2,v3,v4;
 # currently any views containing with clause are not updatable
 create view v1(a) as 
@@ -787,15 +787,15 @@ ERROR 42S21: Duplicate column name 'f1'
 explain 
 with t as (select a from t1 where b >= 'c') 
 select t1.b from t2,t1 where t1.a = t2.c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 explain 
 with t as (select a, count(*) from t1 where b >= 'c' group by a)
 select t1.b from t2,t1 where t1.a = t2.c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (flat, BNL join)
 # too many with elements in with clause
 with s65 as (select * from t1), s64 as (select * from t1) , s63 as (select * from t1) , s62 as (select * from t1) , s61 as (select * from t1) , s60 as (select * from t1) , s59 as (select * from t1) , s58 as (select * from t1) , s57 as (select * from t1) , s56 as (select * from t1) , s55 as (select * from t1) , s54 as (select * from t1) , s53 as (select * from t1) , s52 as (select * from t1) , s51 as (select * from t1) , s50 as (select * from t1) , s49 as (select * from t1) , s48 as (select * from t1) , s47 as (select * from t1) , s46 as (select * from t1) , s45 as (select * from t1) , s44 as (select * from t1) , s43 as (select * from t1) , s42 as (select * from t1) , s41 as (select * from t1) , s40 as (select * from t1) , s39 as (select * from t1) , s38 as (select * from t1) , s37 as (select * from t1) , s36 as (select * from t1) , s35 as (select * from t1) , s34 as (select * from t1) , s33 as (select * from t1) , s32 as (select * from t1) , s31 as (select * from t1) , s30 as (select * from t1) , s29 as (select * from t1) , s28 as (select * from t1) , s27 as (select * from t1) , s26 as (select * from t1) , s25 as (select * from t1) , s24 as (select * from t1) , s23 as (select * from t1) , s22 as (select * from t1) , s21 as (select * from t1) , s20 as (select * from t1) , s19 as (select * from t1) , s18 as (select * from t1) , s17 as (select * from t1) , s16 as (select * from t1) , s15 as (select * from t1) , s14 as (select * from t1) , s13 as (select * from t1) , s12 as (select * from t1) , s11 as (select * from t1) , s10 as (select * from t1) , s9 as (select * from t1) , s8 as (select * from t1) , s7 as (select * from t1) , s6 as (select * from t1) , s5 as (select * from t1) , s4 as (select * from t1) , s3 as (select * from t1) , s2 as (select * from t1) , s1 as (select * from t1)  select * from s65;
 ERROR HY000: Too many WITH elements in WITH clause
@@ -862,9 +862,9 @@ SELECT * FROM (WITH a AS (SELECT * FROM t1) SELECT 1) AS t1;
 1
 1
 EXPLAIN SELECT * FROM (WITH a AS (SELECT * FROM t1) SELECT 1) AS t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived3>	system	NULL	NULL	NULL	NULL	1	
-3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived3>	NULL	system	NULL	NULL	NULL	NULL	1	
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 DROP TABLE t1;
 #
 # MDEV-10058: Suspicious EXPLAIN output for a derived table + WITH + joined table	
@@ -878,9 +878,9 @@ INSERT INTO t3 VALUES (1),(2),(3);
 EXPLAIN SELECT * FROM (WITH a AS (SELECT * FROM t1) (t2 NATURAL JOIN t3));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 't2 NATURAL JOIN t3))' at line 1
 explain SELECT * FROM (WITH a AS (SELECT * FROM t1) SELECT * FROM t2 NATURAL JOIN t3) AS d1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
 DROP TABLE t1,t2,t3;
 #
 # MDEV-10729: Server crashes in st_select_lex::set_explain_type
@@ -936,8 +936,8 @@ CREATE TABLE t1 (i INT, c VARCHAR(3));
 INSERT INTO t1 VALUES (1,'foo');
 EXPLAIN EXTENDED
 WITH cte AS ( SELECT * FROM t1 ) SELECT i FROM cte;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
 Warnings:
 Note	1003	with cte as (select `test`.`t1`.`i` AS `i`,`test`.`t1`.`c` AS `c` from `test`.`t1`)select 1 AS `i` from dual
 DROP TABLE t1;
@@ -1070,14 +1070,14 @@ SUM(k)
 explain WITH d1 AS (SELECT SUM(k) FROM t1, t2 as t2 WHERE t1.id = t2.id),
 d2 AS (SELECT SUM(k) FROM t1, t2 as t2 WHERE t1.id = t2.id)
 SELECT * FROM d1 UNION  SELECT * FROM d2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	9	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
-4	UNION	<derived3>	ALL	NULL	NULL	NULL	NULL	9	
-3	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	
-3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
-NULL	UNION RESULT	<union1,4>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	9	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+4	UNION	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	9	
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+NULL	UNION RESULT	<union1,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 DROP TABLE t1,t2;
 #
 # MDEV-13780: tower of embedding CTEs with multiple usage of them
@@ -1115,16 +1115,16 @@ select * from cte_o as cto_o2 where a > 4
 select * from cte_e as cte_e1 where a > 1
 union
 select * from cte_e as cte_e2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<derived4>	ALL	NULL	NULL	NULL	NULL	14	100.00	Using where
-4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
-5	UNION	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
-NULL	UNION RESULT	<union4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
-6	UNION	<derived11>	ALL	NULL	NULL	NULL	NULL	14	100.00	
-11	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
-12	UNION	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
-NULL	UNION RESULT	<union11,12>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
-NULL	UNION RESULT	<union1,6>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	14	100.00	Using where
+4	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+5	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+NULL	UNION RESULT	<union4,5>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+6	UNION	<derived11>	NULL	ALL	NULL	NULL	NULL	NULL	14	100.00	
+11	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+12	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+NULL	UNION RESULT	<union11,12>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+NULL	UNION RESULT	<union1,6>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	with cte_e as (with cte_o as (with cte_i as (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 7)/* select#3 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1)/* select#4 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 3 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 and `test`.`t1`.`a` > 1 union /* select#5 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 4 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 and `test`.`t1`.`a` > 1)/* select#1 */ select `cte_e1`.`a` AS `a` from `cte_e` `cte_e1` where `cte_e1`.`a` > 1 union /* select#6 */ select `cte_e2`.`a` AS `a` from `cte_e` `cte_e2`
 drop table t1;

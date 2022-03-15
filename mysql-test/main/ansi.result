@@ -57,13 +57,13 @@ SELECT -1||0<<1 AS a FROM DUAL;
 a
 18446744073709551596
 EXPLAIN EXTENDED SELECT -1<<1||1 AS a FROM DUAL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select -1 << concat(1,1) AS "a"
 EXPLAIN EXTENDED SELECT -1||0<<1 AS a FROM DUAL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select concat(-1,0) << 1 AS "a"
 SELECT -1+1||1 AS a FROM DUAL;
@@ -73,13 +73,13 @@ SELECT -1||0+1 AS a FROM DUAL;
 a
 -9
 EXPLAIN EXTENDED SELECT -1+1||1 AS a FROM DUAL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select -1 + concat(1,1) AS "a"
 EXPLAIN EXTENDED SELECT -1||0+1 AS a FROM DUAL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select concat(-1,0) + 1 AS "a"
 SELECT 1*1||-1 AS a FROM DUAL;
@@ -91,13 +91,13 @@ SELECT 1||1*-1 AS a FROM DUAL;
 a
 -11
 EXPLAIN EXTENDED SELECT 1*1||-1 AS a FROM DUAL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select 1 * concat(1,-1) AS "a"
 EXPLAIN EXTENDED SELECT 1||1*-1 AS a FROM DUAL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select concat(1,1) * -1 AS "a"
 SELECT -1^1||1 AS a FROM DUAL;
@@ -107,12 +107,12 @@ SELECT -1||0^1 AS a FROM DUAL;
 a
 18446744073709551607
 EXPLAIN EXTENDED SELECT -1^1||1 AS a FROM DUAL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select -1 ^ concat(1,1) AS "a"
 EXPLAIN EXTENDED SELECT -1||0^1 AS a FROM DUAL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select concat(-1,0) ^ 1 AS "a"

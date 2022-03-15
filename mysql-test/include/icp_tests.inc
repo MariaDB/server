@@ -228,7 +228,7 @@ EXPLAIN
 SELECT c1 FROM t3 WHERE c1 >= 'c-1004=w' and c1 <= 'c-1006=w' and i1 > 2;
 SELECT c1 FROM t3 WHERE c1 >= 'c-1004=w' and c1 <= 'c-1006=w' and i1 > 2;
 
---replace_column 9 100
+--replace_column 10 100
 EXPLAIN
 SELECT c1 FROM t3 WHERE c1 >= 'c-1004=w' and c1 <= 'c-1006=w' or i1 > 2;
 SELECT c1 FROM t3 WHERE c1 >= 'c-1004=w' and c1 <= 'c-1006=w' or i1 > 2;
@@ -461,7 +461,7 @@ INSERT INTO t2 VALUES (15,4);
 set @save_optimizer_switch= @@optimizer_switch;
 set optimizer_switch='semijoin=off';
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN
 SELECT * FROM t1
 WHERE pk IN (SELECT it.pk FROM t2 JOIN t2 AS it ON it.i=it.i WHERE it.pk-t1.i<10);
@@ -696,7 +696,7 @@ INSERT INTO t1 VALUES
   ('fkxdmbdkpjdanpje','o'), ('f','Pennsylvan'), ('Virginia','ei');
 
 SET SESSION optimizer_switch='index_condition_pushdown=off';
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN
 SELECT * FROM t1 
   WHERE NOT(b = 'Texas') AND b BETWEEN 'wy' AND 'y' OR b = 'Pennsylvania'
@@ -706,7 +706,7 @@ SELECT * FROM t1
   ORDER BY a;
 
 SET SESSION optimizer_switch='index_condition_pushdown=on';
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN
 SELECT * FROM t1 
   WHERE NOT(b = 'Texas') AND b BETWEEN 'wy' AND 'y' OR b = 'Pennsylvania'
@@ -731,7 +731,7 @@ INSERT INTO t2 VALUES
 insert into t2 select seq from seq_1_to_100;
 
 SET SESSION optimizer_switch='index_condition_pushdown=off';
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN
 SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)
   HAVING t1.c != 5 ORDER BY t1.c;
@@ -739,7 +739,7 @@ SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)
   HAVING t1.c != 5 ORDER BY t1.c;
 
 SET SESSION optimizer_switch='index_condition_pushdown=on';
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN
 SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)
   HAVING t1.c != 5 ORDER BY t1.c;

@@ -780,9 +780,9 @@ EXPLAIN
 # 
 explain
 select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	Using where; FirstMatch(t2); Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where; FirstMatch(t2); Using join buffer (flat, BNL join)
 explain format=json
 select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
 EXPLAIN
@@ -823,9 +823,9 @@ set @tmp= @@optimizer_switch;
 set optimizer_switch='firstmatch=off';
 explain
 select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	10	
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where; Start temporary; End temporary; Using join buffer (flat, BNL join)
 explain format=json
 select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
 EXPLAIN
@@ -1110,11 +1110,11 @@ DROP TABLE t1, t2;
 CREATE TABLE t1 (i INT);
 INSERT INTO t1 VALUES (1),(2);
 EXPLAIN SELECT * FROM t1 WHERE 3 IN ( SELECT 4 UNION SELECT 5 );
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 DROP TABLE t1;
 #
 # MDEV-7860: EXPLAIN FORMAT=JSON crashes for loose scan query
@@ -1124,8 +1124,8 @@ insert into t2 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t1 (a int, b int, c int, d int, key(a,b,c));
 insert into t1 select  A.a, B.a, C.a, D.a from t2 A, t2 B, t2 C, t2 D;
 explain select count(distinct b) from t1 group by a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	a	10	NULL	101	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	a	10	NULL	101	Using index for group-by
 explain format=json select count(distinct b) from t1 group by a;
 EXPLAIN
 {
@@ -1223,11 +1223,11 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 explain select count(distinct a1,a2,b) from t1 where (a2 >= 'b') and (b = 'a');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	147	NULL	17	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx_t1_1	147	NULL	17	Using where; Using index for group-by
 explain select count(distinct a1,a2,b,c) from t1 where (a2 >= 'b') and (b = 'a') and (c = 'i121');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	65	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx_t1_1	163	NULL	65	Using where; Using index for group-by
 explain format=json select count(distinct a1,a2,b) from t1 where (a2 >= 'b') and (b = 'a');
 EXPLAIN
 {
@@ -1423,8 +1423,8 @@ drop table t0, t1, t2;
 create table t1 (i int) engine=myisam;
 explain 
 select * from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
 explain format=json
 select * from t1;
 EXPLAIN
@@ -1463,9 +1463,9 @@ insert into t1 values (1),(2);
 insert into t2 values (1),(2);
 explain 
 select * from t1 left join t2 on t2.pk > 10 and t2.pk < 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	const	PRIMARY	NULL	NULL	NULL	1	Impossible ON condition
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	const	PRIMARY	NULL	NULL	NULL	1	Impossible ON condition
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
 explain format=json
 select * from t1 left join t2 on t2.pk > 10 and t2.pk < 0;
 EXPLAIN
@@ -1537,9 +1537,9 @@ ANALYZE
 # Check ET_NOT_EXISTS:
 explain
 select * from t1 left join t2 on t2.pk=t1.a where  t2.pk is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	Using where; Using index; Not exists
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	Using where; Using index; Not exists
 explain format=json
 select * from t1 left join t2 on t2.pk=t1.a where  t2.pk is null;
 EXPLAIN
@@ -1623,9 +1623,9 @@ ANALYZE
 # Check ET_DISTINCT
 explain
 select distinct t1.a from t1 join t2 on t2.pk=t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Using temporary
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	Using index; Distinct
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; Using temporary
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	Using index; Distinct
 explain format=json
 select distinct t1.a from t1 join t2 on t2.pk=t1.a;
 EXPLAIN
@@ -1726,9 +1726,9 @@ set optimizer_switch='mrr=on';
 set join_cache_level=6;
 explain
 select * from t3,t4 where t3.a=t4.a and (t4.b+1 <= t3.b+1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t4	ref	a	a	5	test.t3.a	1	Using index condition(BKA); Using join buffer (flat, BKA join); Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	t4	NULL	ref	a	a	5	test.t3.a	1	Using index condition(BKA); Using join buffer (flat, BKA join); Rowid-ordered scan
 explain format=json
 select * from t3,t4 where t3.a=t4.a and (t4.b+1 <= t3.b+1);
 EXPLAIN

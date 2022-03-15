@@ -583,8 +583,8 @@ create view v1 as select a from t1 group by b;
 create view v2 as select a from t2;
 # Mergeable view
 explain select * from v2 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	10	
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from v2	{
   "steps": [
@@ -694,9 +694,9 @@ explain select * from v2	{
 }	0	0
 # Non-Mergeable view
 explain select * from v1 ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	10	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from v1	{
   "steps": [
@@ -902,9 +902,9 @@ Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
 explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	100	Using where
-1	SIMPLE	t2	ref	a	a	5	test.t1.b	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	a	NULL	NULL	NULL	100	Using where
+1	SIMPLE	t2	NULL	ref	a	a	5	test.t1.b	1	Using where
 select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from t1,t2 where t1.a=t2.b+2 and t2.a= t1.b	{
@@ -1154,8 +1154,8 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN SELECT DISTINCT a FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	a	4	NULL	5	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	a	4	NULL	5	Using index for group-by
 select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 EXPLAIN SELECT DISTINCT a FROM t1	{
@@ -1319,8 +1319,8 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	a	20	NULL	8	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	a	20	NULL	8	Using where; Using index for group-by
 select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 EXPLAIN SELECT MIN(d) FROM t1 where b=2 and c=3  group by a	{
@@ -1518,8 +1518,8 @@ INSERT INTO t1 values (1,'2001-01-01'),(1,'2001-01-02'),
 (4,'2001-01-03'),(4,'2001-01-04');
 set optimizer_trace='enabled=on';
 EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	id	8	NULL	9	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	id	8	NULL	9	Using where; Using index for group-by
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
@@ -1706,8 +1706,8 @@ EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>=20010104e0 GROUP BY id	{
   ]
 }	0	0
 EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	id	8	NULL	9	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	id	8	NULL	9	Using where; Using index for group-by
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 EXPLAIN SELECT * FROM t1 WHERE a = 20010104e0 GROUP BY id	{
@@ -1921,8 +1921,8 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 set optimizer_trace='enabled=on';
 explain  select * from t1 where a=1 and b=2 order by c limit 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a_c,a_b	a_c	5	NULL	180	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a_c,a_b	a_c	5	NULL	180	Using where
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain  select * from t1 where a=1 and b=2 order by c limit 1	{
@@ -2298,8 +2298,8 @@ test.t3	analyze	status	OK
 # table t2 should be eliminated
 explain
 select t1.a from t1 left join t2 on t1.a=t2.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain
@@ -2436,9 +2436,9 @@ select t1.a from t1 left join t2 on t1.a=t2.a	{
 }	0	0
 # no tables should be eliminated
 explain select * from t1 left join t2 on t2.a=t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
+1	SIMPLE	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	Using where
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from t1 left join t2 on t2.a=t1.a	{
@@ -2617,8 +2617,8 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
 }	0	0
 # multiple tables are eliminated
 explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and t3.a=t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and t3.a=t1.a	{
@@ -2804,10 +2804,10 @@ test.t10	analyze	status	Engine-independent statistics collected
 test.t10	analyze	status	OK
 set optimizer_trace='enabled=on';
 explain extended select * from t1 where a in (select pk from t10);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
-2	MATERIALIZED	t10	ALL	NULL	NULL	NULL	NULL	10	100.00	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t10	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` semi join (`test`.`t10`) where 1
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
@@ -3133,8 +3133,8 @@ set @@optimizer_use_condition_selectivity=4;
 set @@use_stat_tables= PREFERABLY;
 set optimizer_trace='enabled=on';
 explain select * from t1 where pk = 2 and a=5 and b=1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	pk,pk_a,pk_a_b	pk_a_b	15	const,const,const	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	pk,pk_a,pk_a_b	pk_a_b	15	const,const,const	1	Using index
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from t1 where pk = 2 and a=5 and b=1	{
@@ -3737,8 +3737,8 @@ insert into t0 select a,a from ten;
 alter table t0 add key(a);
 set optimizer_trace=1;
 explain delete from t0 where t0.a<3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	range	a	a	5	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	range	a	a	5	NULL	3	Using where
 select * from information_schema.optimizer_trace;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain delete from t0 where t0.a<3	{
@@ -3806,9 +3806,9 @@ alter table t0 add key(a);
 create table t1 like t0;
 insert into t1 select * from t0;
 explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	range	a	a	5	NULL	3	Using where
-1	SIMPLE	t1	ref	a	a	5	test.t0.a	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	range	a	a	5	NULL	3	Using where
+1	SIMPLE	t1	NULL	ref	a	a	5	test.t0.a	1	
 select * from information_schema.optimizer_trace;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
@@ -4172,9 +4172,9 @@ set optimizer_trace=1;
 create table t1 (a int);
 insert into t1 values (1),(2),(3);
 explain select * from (select rand() from t1)q;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from (select rand() from t1)q	{
@@ -4379,11 +4379,11 @@ create table t2(a int);
 insert into t2 values (1),(2),(3),(1),(2),(3),(1),(2),(3);
 set @save_optimizer_switch= @@optimizer_switch;
 explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_inner_2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t_inner_1	ALL	NULL	NULL	NULL	NULL	3	
-2	MATERIALIZED	t_inner_2	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t_inner_1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+2	MATERIALIZED	t_inner_2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_inner_2)	{
@@ -4827,13 +4827,13 @@ explain select * from t1 where a in (select t_inner_1.a from t1 t_inner_1, t1 t_
 set optimizer_switch='materialization=off';
 explain select * from t1 t_outer_1,t2 t_outer_2  where t_outer_1.a in (select t_inner_1.a from t2 t_inner_2, t1 t_inner_1) and
 t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t_outer_1	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	t_inner_1	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary; Using join buffer (flat, BNL join)
-1	PRIMARY	t_inner_2	ALL	NULL	NULL	NULL	NULL	9	End temporary; Using join buffer (incremental, BNL join)
-1	PRIMARY	t_inner_4	ALL	NULL	NULL	NULL	NULL	3	Start temporary; Using join buffer (incremental, BNL join)
-1	PRIMARY	t_outer_2	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (incremental, BNL join)
-1	PRIMARY	t_inner_3	ALL	NULL	NULL	NULL	NULL	9	Using where; End temporary; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t_outer_1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+1	PRIMARY	t_inner_1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary; Using join buffer (flat, BNL join)
+1	PRIMARY	t_inner_2	NULL	ALL	NULL	NULL	NULL	NULL	9	End temporary; Using join buffer (incremental, BNL join)
+1	PRIMARY	t_inner_4	NULL	ALL	NULL	NULL	NULL	NULL	3	Start temporary; Using join buffer (incremental, BNL join)
+1	PRIMARY	t_outer_2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (incremental, BNL join)
+1	PRIMARY	t_inner_3	NULL	ALL	NULL	NULL	NULL	NULL	9	Using where; End temporary; Using join buffer (incremental, BNL join)
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from t1 t_outer_1,t2 t_outer_2  where t_outer_1.a in (select t_inner_1.a from t2 t_inner_2, t1 t_inner_1) and
@@ -6405,15 +6405,15 @@ t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4)	{
 set optimizer_switch='materialization=on';
 explain select * from t1 t_outer_1,t2 t_outer_2  where t_outer_1.a in (select t_inner_1.a from t2 t_inner_2, t1 t_inner_1) and
 t_outer_2.a in (select t_inner_3.a from t2 t_inner_3, t1 t_inner_4);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t_outer_1	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
-1	PRIMARY	t_outer_2	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (flat, BNL join)
-1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t_inner_1	ALL	NULL	NULL	NULL	NULL	3	
-2	MATERIALIZED	t_inner_2	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (flat, BNL join)
-3	MATERIALIZED	t_inner_4	ALL	NULL	NULL	NULL	NULL	3	
-3	MATERIALIZED	t_inner_3	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t_outer_1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	t_outer_2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (flat, BNL join)
+1	PRIMARY	<subquery3>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t_inner_1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+2	MATERIALIZED	t_inner_2	NULL	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (flat, BNL join)
+3	MATERIALIZED	t_inner_4	NULL	ALL	NULL	NULL	NULL	NULL	3	
+3	MATERIALIZED	t_inner_3	NULL	ALL	NULL	NULL	NULL	NULL	9	Using join buffer (flat, BNL join)
 select * from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from t1 t_outer_1,t2 t_outer_2  where t_outer_1.a in (select t_inner_1.a from t2 t_inner_2, t1 t_inner_1) and
@@ -7522,8 +7522,8 @@ create table t1 ( a int, b int, key a_b(a,b));
 insert into t1 select a,a from one_k;
 set optimizer_trace='enabled=on';
 explain select * from t1 force index (a_b) where a=2 and b=4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a_b	a_b	10	const,const	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a_b	a_b	10	const,const	1	Using index
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
@@ -7556,8 +7556,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
     }
 ]
 explain select * from t1 where a >= 900 and b between 10 and 20;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a_b	a_b	10	NULL	107	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a_b	a_b	10	NULL	107	Using where; Using index
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
@@ -7593,8 +7593,8 @@ drop table t0,t1;
 create table t1 (start_date date, end_date date, filler char(100), key(start_date, end_date)) ;
 insert into t1 select date_add(now(), interval a day), date_add(now(), interval (a+7) day), 'data' from one_k;
 explain select * from t1 force index(start_date) where start_date >= '2019-02-10' and end_date <'2019-04-01';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	start_date	start_date	8	NULL	1000	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	start_date	start_date	8	NULL	1000	Using index condition
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
@@ -7638,8 +7638,8 @@ key a_b_c(a,b,c)
 );
 insert into t1 select a,a, a,a from ten;
 explain select * from t1 force index(a_b_c) where a between 1 and 4 and b < 50;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a_b_c	a_b_c	8	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a_b_c	a_b_c	8	NULL	4	Using index condition
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
@@ -7677,8 +7677,8 @@ CREATE TABLE t1(i INT PRIMARY KEY, b BINARY(16), INDEX i_b(b));
 INSERT INTO t1 VALUES (1, x'D95B94336A9946A39CF5B58CFE772D8C');
 INSERT INTO t1 VALUES (2, NULL);
 EXPLAIN SELECT * FROM t1 WHERE b IN (0xD95B94336A9946A39CF5B58CFE772D8C);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	i_b	i_b	17	const	1	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	i_b	i_b	17	const	1	Using index condition
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
@@ -7711,8 +7711,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
     }
 ]
 EXPLAIN SELECT * FROM t1 WHERE b IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	i_b	i_b	17	const	1	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	i_b	i_b	17	const	1	Using index condition
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
@@ -7753,8 +7753,8 @@ INSERT INTO t1 VALUES (1, 'ab\n');
 INSERT INTO t1 VALUES (2, NULL);
 set optimizer_trace=1;
 EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	i_b	i_b	13	const	1	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	i_b	i_b	13	const	1	Using index condition
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
@@ -7788,8 +7788,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 ]
 ALTER TABLE t1 modify column b BINARY(10) AFTER i;
 EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	i_b	i_b	11	const	1	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	i_b	i_b	11	const	1	Using index condition
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
@@ -7823,8 +7823,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 ]
 ALTER TABLE t1 modify column b VARBINARY(10) AFTER i;
 EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	i_b	i_b	13	const	1	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	i_b	i_b	13	const	1	Using index condition
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
@@ -7861,8 +7861,8 @@ CREATE TABLE t1(i INT PRIMARY KEY, b CHAR(10), INDEX i_b(b));
 INSERT INTO t1 VALUES (1, 'ab\n');
 INSERT INTO t1 VALUES (2, NULL);
 EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	i_b	i_b	11	const	1	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	i_b	i_b	11	const	1	Using index condition
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
@@ -7902,8 +7902,8 @@ INSERT INTO t1 VALUES (1, 'ab\n');
 INSERT INTO t1 VALUES (2, NULL);
 set optimizer_trace=1;
 EXPLAIN SELECT * FROM t1 WHERE b= 'ab\n';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	i_b	i_b	1003	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	i_b	i_b	1003	const	1	Using where
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
@@ -7941,8 +7941,8 @@ INSERT INTO t1 VALUES (1, 'ab\n');
 INSERT INTO t1 VALUES (2, 'ab\n');
 set optimizer_trace=1;
 EXPLAIN SELECT * FROM t1 WHERE b='ab\n';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	i_b	i_b	13	const	2	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	i_b	i_b	13	const	2	Using index condition
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives'))
 [
@@ -8064,9 +8064,9 @@ set optimizer_trace=1;
 #   but for joins using condition selectivity it is not as trivial. So,
 #   now we are printing it)
 explain select * from t0 A, one_k B where A.a<5 and B.a<800;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	A	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	B	ALL	NULL	NULL	NULL	NULL	1000	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	A	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	B	NULL	ALL	NULL	NULL	NULL	NULL	1000	Using where
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
 [
@@ -8170,9 +8170,9 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
 set join_cache_level=@tmp_jcl;
 # This shows post-join selectivity
 explain select * from t0 A, one_k B where A.a=B.b and B.a<800;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	A	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	B	ref	b	b	5	test.A.a	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	A	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	SIMPLE	B	NULL	ref	b	b	5	test.A.a	1	Using where
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
 [
@@ -8291,8 +8291,8 @@ drop table t0, one_k;
 CREATE TABLE t1 ( a blob, KEY (a(255)));
 insert into t1 values ('foo'), ('bar');
 EXPLAIN SELECT * FROM t1 WHERE a= REPEAT('a', 0);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	258	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	258	const	1	Using where
 SELECT * FROM t1 WHERE a= REPEAT('a', 0);
 a
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.analyzing_range_alternatives')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
@@ -8338,10 +8338,10 @@ create table t3 (a int);
 insert into t3 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 explain 
 select * from t3 where (a,a) in (select t1.a, t2.a from t1, t2 where t1.b=t2.b);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	5	
-1	PRIMARY	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	Using where
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	PRIMARY	NULL	NULL	NULL	5	
+1	PRIMARY	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	Using where
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.semijoin_table_pullout')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.semijoin_table_pullout'))
 [
@@ -8394,9 +8394,9 @@ CREATE TABLE t2(a INT, b INT, key(a));
 INSERT INTO t2 SELECT seq, seq from seq_1_to_100;
 SET OPTIMIZER_TRACE=1;
 EXPLAIN SELECT * FROM t1, t2 WHERE t1.a=t2.a ORDER BY t2.b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
-1	SIMPLE	t2	ref	a	a	5	test.t1.a	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	a	NULL	NULL	NULL	10	Using where; Using temporary; Using filesort
+1	SIMPLE	t2	NULL	ref	a	a	5	test.t1.a	1	
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.considered_execution_plans'))
 [
@@ -8565,8 +8565,8 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN EXTENDED SELECT * from t1 WHERE a between 1 and 5 and b <= 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	0.25	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	100	0.25	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` between 1 and 5 and `test`.`t1`.`b` <= 5
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
@@ -8595,8 +8595,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns'))
     ]
 ]
 EXPLAIN EXTENDED SELECT * from t1 WHERE a != 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	99.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	100	99.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`a` <> 5
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
@@ -8617,8 +8617,8 @@ JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns'))
     ]
 ]
 EXPLAIN EXTENDED SELECT * from t1 WHERE b >= 10 and b < 25;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	15.00	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	100	15.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b` from `test`.`t1` where `test`.`t1`.`b` >= 10 and `test`.`t1`.`b` < 25
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.selectivity_for_columns')) from INFORMATION_SCHEMA.OPTIMIZER_TRACE;
@@ -8835,10 +8835,10 @@ create table t3 (pk int primary key, a int);
 insert into t3 select a,a from t0;
 explain
 select * from t1 left join (t2 join t3 on t3.pk=1000) on t2.a=t1.a and t2.pk is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	const	PRIMARY	NULL	NULL	NULL	1	Impossible ON condition
-1	SIMPLE	t2	const	PRIMARY	NULL	NULL	NULL	1	Impossible ON condition
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	const	PRIMARY	NULL	NULL	NULL	1	Impossible ON condition
+1	SIMPLE	t2	NULL	const	PRIMARY	NULL	NULL	NULL	1	Impossible ON condition
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	
 select JSON_DETAILED(JSON_EXTRACT(trace, '$**.mark_join_nest_as_const'))
 from information_schema.optimizer_trace;
 JSON_DETAILED(JSON_EXTRACT(trace, '$**.mark_join_nest_as_const'))
@@ -8861,10 +8861,10 @@ INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 set @tmp=@@in_predicate_conversion_threshold;
 set in_predicate_conversion_threshold=3;
 explain select * from t0 where a in (1,2,3,4,5,6);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	PRIMARY	<derived3>	ref	key0	key0	4	test.t0.a	2	FirstMatch(t0)
-3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	4	test.t0.a	2	FirstMatch(t0)
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
 from information_schema.optimizer_trace;
 json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
@@ -8922,8 +8922,8 @@ json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
     }
 ]
 explain select * from t0 where a in (1,2,3,4,5,a+1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
 from information_schema.optimizer_trace;
 json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
@@ -8936,8 +8936,8 @@ json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
     }
 ]
 explain select * from t0 where a in ('1','2','3','4','5','6');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
 select json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
 from information_schema.optimizer_trace;
 json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
@@ -8964,10 +8964,10 @@ insert into t2 values (1,1),(2,2);
 create table t3 (a int, b int, c int);
 insert into t3 values (0,0,0),(1,1,1),(2,2,2),(3,3,3),(4,4,4);
 explain select * from t2,t1,t3 where t2.b= t1.b and t1.a=t3.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t1	ref	PRIMARY	PRIMARY	8	test.t3.a,test.t2.b	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	NULL	ref	PRIMARY	PRIMARY	8	test.t3.a,test.t2.b	1	Using index
 set @trace=(select trace from information_schema.optimizer_trace);
 set @path= (select json_search(@trace, 'one', 'no predicate for first keypart'));
 set @sub_path= substr(@path, 2, locate('.best_access_path', @path)-2);
@@ -9006,8 +9006,8 @@ from t1
 where a=3
 group by b,b
 having a+b < 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; Using temporary; Using filesort
 select
 json_detailed(json_extract(trace, '$**.substitute_best_equal'))
 from
@@ -9032,9 +9032,9 @@ select
 from t1 left join t2 on t2.a=t1.a and t2.a<3 
 where 
 t1.b > 5555;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
 select
 json_detailed(json_extract(trace, '$**.substitute_best_equal'))
 from
@@ -9060,10 +9060,10 @@ select
 from t1 left join (t2,t3) on t2.a=t1.a and t3.a=t2.a and t3.a + t2.a <1000
 where 
 t1.b > 5555;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where; Using join buffer (incremental, BNL join)
 select
 json_detailed(json_extract(trace, '$**.substitute_best_equal'))
 from
@@ -9155,10 +9155,10 @@ from t1 join
 (select a, sum(t2.b) as s, min(t2.c) as m from t2 group by t2.a) t
 on t1.a=t.a
 where t1.b < 3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	idx_b	idx_b	5	NULL	4	Using index condition; Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	
-2	LATERAL DERIVED	t2	ref	idx_a	idx_a	5	test.t1.a	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	range	idx_b	idx_b	5	NULL	4	Using index condition; Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t1.a	2	
+2	LATERAL DERIVED	t2	NULL	ref	idx_a	idx_a	5	test.t1.a	1	
 select
 json_detailed(json_extract(trace, '$**.choose_best_splitting')) 
 from

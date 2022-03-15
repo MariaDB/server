@@ -142,14 +142,14 @@ id	parent_id	level
 1010	102	2
 1015	102	2
 explain select level from t1 where level=1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	level	level	1	const	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	level	level	1	const	#	Using index
 explain select level,id from t1 where level=1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	level	level	1	const	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	level	level	1	const	#	
 explain select level,id,parent_id from t1 where level=1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	level	level	1	const	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	level	level	1	const	#	
 select level,id from t1 where level=1;
 level	id
 1	1003
@@ -504,8 +504,8 @@ id	parent_id	level
 1025	102	2
 1016	102	2
 explain select level from t1 where level=1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	level	level	1	const	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	level	level	1	const	#	Using index
 select level,id from t1 where level=1;
 level	id
 1	1004
@@ -671,8 +671,8 @@ DROP TABLE t1;
 create table t1 (a int  primary key,b int, c int, d int, e int, f int, g int, h int, i int, j int, k int, l int, m int, n int, o int, p int, q int, r int, s int, t int, u int, v int, w int, x int, y int, z int, a1 int, a2 int, a3 int, a4 int, a5 int, a6 int, a7 int, a8 int, a9 int, b1 int, b2 int, b3 int, b4 int, b5 int, b6 int) engine = MyISAM;
 insert into t1 values (1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1);
 explain select * from t1 where a > 0 and a < 50;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	system	PRIMARY	NULL	NULL	NULL	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	system	PRIMARY	NULL	NULL	NULL	#	
 drop table t1;
 create table t1 (id int NOT NULL,id2 int NOT NULL,id3 int NOT NULL,dummy1 char(30),primary key (id,id2),index index_id3 (id3)) engine=MyISAM;
 insert into t1 values (0,0,0,'ABCDEFGHIJ'),(2,2,2,'BCDEFGHIJK'),(1,1,1,'CDEFGHIJKL');
@@ -811,29 +811,29 @@ drop table t1;
 create table t1 (a int not null, b int not null, c int not null, primary key (a),key(b)) engine=MyISAM;
 insert into t1 values (3,3,3),(1,1,1),(2,2,2),(4,4,4);
 explain select * from t1 order by a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	Using filesort
 explain select * from t1 order by b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	Using filesort
 explain select * from t1 order by c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	Using filesort
 explain select a from t1 order by a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	#	Using index
 explain select b from t1 order by b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	b	4	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	b	4	NULL	#	Using index
 explain select a,b from t1 order by b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	Using filesort
 explain select a,b from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	
 explain select a,b,c from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	
 drop table t1;
 create table t1 (t int not null default 1, key (t)) engine=MyISAM;
 desc t1;
@@ -1119,12 +1119,12 @@ select count(*) from t1;
 count(*)
 29267
 explain select * from t1 where c between 1 and 2500;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	c	c	5	NULL	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	c	c	5	NULL	#	Using index condition
 update t1 set c=a;
 explain select * from t1 where c between 1 and 2500;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	c	c	5	NULL	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	c	c	5	NULL	#	Using index condition
 drop table t1,t2;
 create table t1 (id int primary key auto_increment, fk int, index index_fk (fk)) engine=MyISAM;
 insert into t1 (id) values (null),(null),(null),(null),(null);
@@ -1364,8 +1364,8 @@ a	b	c	d	e
 2	2	b	2	2
 3	3	ab	3	3
 explain select * from t1 order by a,b,c,d;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using filesort
 drop table t1;
 create table t1 (a char(1), b char(1), key(a, b)) engine=MyISAM;
 insert into t1 values ('8', '6'), ('4', '7');
@@ -1398,8 +1398,8 @@ select count(*) from t1 where x = -16;
 count(*)
 0
 explain select count(*) from t1 where x > -16;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	PRIMARY	PRIMARY	8	NULL	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	PRIMARY	PRIMARY	8	NULL	2	Using where; Using index
 select count(*) from t1 where x > -16;
 count(*)
 2
@@ -1531,23 +1531,23 @@ select count(*) from t1 where v like 'a %';
 count(*)
 9
 explain select count(*) from t1 where v='a  ';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	v	v	13	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	v	v	13	const	#	Using where; Using index
 explain select count(*) from t1 where c='a  ';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	c	c	11	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	c	c	11	const	#	Using where; Using index
 explain select count(*) from t1 where t='a  ';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	t	t	13	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	t	t	13	const	#	Using where
 explain select count(*) from t1 where v like 'a%';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	v	v	13	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	v	v	13	NULL	#	Using where; Using index
 explain select count(*) from t1 where v between 'a' and 'a ';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	v	v	13	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	v	v	13	const	#	Using where; Using index
 explain select count(*) from t1 where v between 'a' and 'a ' and v between 'a  ' and 'b\n';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	v	v	13	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	v	v	13	const	#	Using where; Using index
 alter table t1 add unique(v);
 ERROR 23000: Duplicate entry '{ ' for key 'v_2'
 show warnings;
@@ -1569,8 +1569,8 @@ qq
 *a        *a*a        *
 *a         *a*a         *
 explain select * from t1 where v='a';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	v,v_2	#	13	const	#	#
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	v,v_2	#	13	const	#	#
 select v,count(*) from t1 group by v limit 10;
 v	count(*)
 a	1
@@ -1733,20 +1733,20 @@ select count(*) from t1 where v like 'a %';
 count(*)
 9
 explain select count(*) from t1 where v='a  ';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	v	v	303	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	v	v	303	const	#	Using where; Using index
 explain select count(*) from t1 where v like 'a%';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	v	v	303	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	v	v	303	NULL	#	Using where; Using index
 explain select count(*) from t1 where v between 'a' and 'a ';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	v	v	303	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	v	v	303	const	#	Using where; Using index
 explain select count(*) from t1 where v between 'a' and 'a ' and v between 'a  ' and 'b\n';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	v	v	303	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	v	v	303	const	#	Using where; Using index
 explain select * from t1 where v='a';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	v	v	303	const	#	#
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	v	v	303	const	#	#
 select v,count(*) from t1 group by v limit 10;
 v	count(*)
 a	1
@@ -1813,20 +1813,20 @@ select count(*) from t1 where v like 'a %';
 count(*)
 9
 explain select count(*) from t1 where v='a  ';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	v	v	33	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	v	v	33	const	#	Using where
 explain select count(*) from t1 where v like 'a%';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	v	v	33	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	v	v	33	NULL	#	Using where
 explain select count(*) from t1 where v between 'a' and 'a ';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	v	v	33	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	v	v	33	const	#	Using where
 explain select count(*) from t1 where v between 'a' and 'a ' and v between 'a  ' and 'b\n';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	v	v	33	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	v	v	33	const	#	Using where
 explain select * from t1 where v='a';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	v	v	33	const	#	#
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	v	v	33	const	#	#
 select v,count(*) from t1 group by v limit 10;
 v	count(*)
 a	1
@@ -1982,8 +1982,8 @@ drop table t1;
 create table t1(a int, b varchar(12), key ba(b, a));
 insert into t1 values (1, 'A'), (20, NULL);
 explain select * from t1 where a=20 and b is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	ba	ba	20	const,const	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	ba	ba	20	const,const	1	Using where; Using index
 select * from t1 where a=20 and b is null;
 a	b
 20	NULL

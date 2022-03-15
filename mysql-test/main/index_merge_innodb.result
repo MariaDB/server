@@ -18,8 +18,8 @@ INDEX i2(key2)
 );
 INSERT INTO t1 SELECT seq,200-seq FROM seq_0_to_200;
 explain select * from t1 where key1 < 5 or key2 > 197;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	i1,i2	i1,i2	4,4	NULL	8	Using sort_union(i1,i2); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	i1,i2	i1,i2	4,4	NULL	8	Using sort_union(i1,i2); Using where
 select * from t1 where key1 < 5 or key2 > 197;
 key1	key2
 0	200
@@ -28,8 +28,8 @@ key1	key2
 3	197
 4	196
 explain select * from t1 where key1 < 3 or key2 > 195;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	i1,i2	i1,i2	4,4	NULL	8	Using sort_union(i1,i2); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	i1,i2	i1,i2	4,4	NULL	8	Using sort_union(i1,i2); Using where
 select * from t1 where key1 < 3 or key2 > 195;
 key1	key2
 0	200
@@ -44,8 +44,8 @@ add str3 char (255) not null;
 update t1 set str1='aaa', str2='bbb', str3=concat(key2, '-', key1 div 2, '_' ,if(key1 mod 2 = 0, 'a', 'A'));
 alter table t1 add primary key (str1, zeroval, str2, str3);
 explain select * from t1 where key1 < 5 or key2 > 197;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	i1,i2	i1,i2	4,4	NULL	8	Using sort_union(i1,i2); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	i1,i2	i1,i2	4,4	NULL	8	Using sort_union(i1,i2); Using where
 select * from t1 where key1 < 5 or key2 > 197;
 key1	key2	str1	zeroval	str2	str3
 4	196	aaa	0	bbb	196-2_a
@@ -54,8 +54,8 @@ key1	key2	str1	zeroval	str2	str3
 1	199	aaa	0	bbb	199-0_A
 0	200	aaa	0	bbb	200-0_a
 explain select * from t1 where key1 < 3 or key2 > 195;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	i1,i2	i1,i2	4,4	NULL	8	Using sort_union(i1,i2); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	i1,i2	i1,i2	4,4	NULL	8	Using sort_union(i1,i2); Using where
 select * from t1 where key1 < 3 or key2 > 195;
 key1	key2	str1	zeroval	str2	str3
 4	196	aaa	0	bbb	196-2_a
@@ -77,8 +77,8 @@ Level	Code	Message
 INSERT INTO t1 (key1, key2, filler)
 SELECT seq/4, seq/8, 'filler-data' FROM seq_30_to_0;
 explain select pk from t1 where key1 = 1 and key2 = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	key1,key2	key1,key2	5,4	NULL	1	Using intersect(key1,key2); Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	key1,key2	key1,key2	5,4	NULL	1	Using intersect(key1,key2); Using where; Using index
 select pk from t1 where key2 = 1 and key1 = 1;
 pk
 26
@@ -122,16 +122,16 @@ count(*)
 5184
 explain select count(*) from t1 where
 key1a = 2 and key1b is null and  key2a = 2 and key2b is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	i1,i2	i1,i2	10,10	NULL	REF	Using intersect(i1,i2); Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	i1,i2	i1,i2	10,10	NULL	REF	Using intersect(i1,i2); Using where; Using index
 select count(*) from t1 where
 key1a = 2 and key1b is null and key2a = 2 and key2b is null;
 count(*)
 4
 explain select count(*) from t1 where
 key1a = 2 and key1b is null and key3a = 2 and key3b is null;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	i1,i3	i1,i3	10,10	NULL	REF	Using intersect(i1,i3); Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	i1,i3	i1,i3	10,10	NULL	REF	Using intersect(i1,i3); Using where; Using index
 select count(*) from t1 where
 key1a = 2 and key1b is null and key3a = 2 and key3b is null;
 count(*)
@@ -312,8 +312,8 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 explain select * from t1 where (key3 > 30 and key3<35) or (key2 >32 and key2 < 40);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	i2,i3	i3,i2	4,4	NULL	REF	Using sort_union(i3,i2); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	i2,i3	i3,i2	4,4	NULL	REF	Using sort_union(i3,i2); Using where
 select * from t1 where (key3 > 30 and key3<35) or (key2 >32 and key2 < 40);
 key1	key2	key3
 31	31	31
@@ -347,8 +347,8 @@ EXPLAIN
 SELECT a
 FROM t1
 WHERE c = 1 AND b = 1 AND d = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	c,bd	bd	10	const,const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	c,bd	bd	10	const,const	2	Using where
 CREATE TABLE t2 ( a INT )
 SELECT a
 FROM t1
@@ -546,8 +546,8 @@ key (pktail5bad, pk1, pk2, pk2copy),
 primary key (pk1, pk2)
 );
 explain select * from t1 where pk1 = 1 and pk2 < 80  and key1=0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY,key1	PRIMARY	8	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY,key1	PRIMARY	8	NULL	10	Using where
 select * from t1 where pk1 = 1 and pk2 < 80  and key1=0;
 pk1	pk2	key1	key2	pktail1ok	pktail2ok	pktail3bad	pktail4bad	pktail5bad	pk2copy	badkey	filler1	filler2
 1	10	0	0	0	0	0	0	0	10	0	filler-data-10	filler2
@@ -561,8 +561,8 @@ pk1	pk2	key1	key2	pktail1ok	pktail2ok	pktail3bad	pktail4bad	pktail5bad	pk2copy	b
 1	18	0	0	0	0	0	0	0	18	0	filler-data-18	filler2
 1	19	0	0	0	0	0	0	0	19	0	filler-data-19	filler2
 explain select pk1,pk2 from t1 where key1 = 10 and key2=10 and 2*pk1+1 < 2*96+1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	key1,key2	key1,key2	4,4	NULL	1	Using intersect(key1,key2); Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	key1,key2	key1,key2	4,4	NULL	1	Using intersect(key1,key2); Using where; Using index
 select pk1,pk2 from t1 where key1 = 10 and key2=10 and 2*pk1+1 < 2*96+1;
 pk1	pk2
 95	50
@@ -576,35 +576,35 @@ pk1	pk2
 95	58
 95	59
 explain select * from t1 where badkey=1 and key1=10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	key1	key1	4	const	100	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	key1	key1	4	const	100	Using where
 set @tmp_index_merge_ror_cpk=@@optimizer_switch;
 set optimizer_switch='extended_keys=off';
 explain select * from t1 where pk1 < 7500 and key1 = 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	PRIMARY,key1	key1,PRIMARY	4,4	NULL	ROWS	Using intersect(key1,PRIMARY); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	PRIMARY,key1	key1,PRIMARY	4,4	NULL	ROWS	Using intersect(key1,PRIMARY); Using where
 set optimizer_switch=@tmp_index_merge_ror_cpk;
 explain select * from t1 where pktail1ok=1 and key1=10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	key1,pktail1ok	key1,pktail1ok	4,4	NULL	1	Using intersect(key1,pktail1ok); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	key1,pktail1ok	key1,pktail1ok	4,4	NULL	1	Using intersect(key1,pktail1ok); Using where
 explain select * from t1 where pktail2ok=1 and key1=10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	key1,pktail2ok	key1,pktail2ok	4,4	NULL	1	Using intersect(key1,pktail2ok); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	key1,pktail2ok	key1,pktail2ok	4,4	NULL	1	Using intersect(key1,pktail2ok); Using where
 explain select * from t1 where (pktail2ok=1 and pk1< 50000) or key1=10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	PRIMARY,key1,pktail2ok	pktail2ok,key1	8,4	NULL	200	Using sort_union(pktail2ok,key1); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	PRIMARY,key1,pktail2ok	pktail2ok,key1	8,4	NULL	200	Using sort_union(pktail2ok,key1); Using where
 explain select * from t1 where pktail3bad=1 and key1=10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	key1,pktail3bad	key1	4	const	100	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	key1,pktail3bad	key1	4	const	100	Using where
 explain select * from t1 where pktail4bad=1 and key1=10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	key1,pktail4bad	key1	4	const	100	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	key1,pktail4bad	key1	4	const	100	Using where
 explain select * from t1 where pktail5bad=1 and key1=10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	key1,pktail5bad	key1	4	const	100	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	key1,pktail5bad	key1	4	const	100	Using where
 explain select pk1,pk2,key1,key2 from t1 where key1 = 10 and key2=10 limit 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	key1,key2	key1,key2	4,4	NULL	1	Using intersect(key1,key2); Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	key1,key2	key1,key2	4,4	NULL	1	Using intersect(key1,key2); Using where; Using index
 select pk1,pk2,key1,key2 from t1 where key1 = 10 and key2=10 limit 10;
 pk1	pk2	key1	key2
 95	50	10	10
@@ -653,9 +653,9 @@ f1
 2
 EXPLAIN SELECT t1.f1 FROM t1
 WHERE (SELECT COUNT(*) FROM t2 WHERE t2.f3 = 'h' AND t2.f2 = t1.f1) = 0 AND t1.f1 = 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	const	PRIMARY	PRIMARY	4	const	1	Using index
-2	SUBQUERY	t2	index_merge	f2,f3	f3,f2	2,5	NULL	1	Using intersect(f3,f2); Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	const	PRIMARY	PRIMARY	4	const	1	Using index
+2	SUBQUERY	t2	NULL	index_merge	f2,f3	f3,f2	2,5	NULL	1	Using intersect(f3,f2); Using where; Using index
 DROP TABLE t1,t2;
 # 
 # BUG#56862/640419: Wrong result with sort_union index merge when one
@@ -688,9 +688,9 @@ EXPLAIN
 SELECT COUNT(*) FROM 
 (SELECT * FROM t1 FORCE INDEX(primary,idx)
 WHERE a BETWEEN 2 AND 7 OR pk=1000000) AS t;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	#	
-2	DERIVED	t1	index_merge	PRIMARY,idx	idx,PRIMARY	5,4	NULL	#	Using sort_union(idx,PRIMARY); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	#	
+2	DERIVED	t1	NULL	index_merge	PRIMARY,idx	idx,PRIMARY	5,4	NULL	#	Using sort_union(idx,PRIMARY); Using where
 SELECT COUNT(*) FROM 
 (SELECT * FROM t1 FORCE INDEX(primary,idx)
 WHERE a BETWEEN 2 AND 7 OR pk=1000000) AS t;
@@ -700,9 +700,9 @@ EXPLAIN
 SELECT COUNT(*) FROM 
 (SELECT * FROM t1 IGNORE INDEX(idx)
 WHERE a BETWEEN 2 AND 7 OR pk=1000000) AS t;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	#	
-2	DERIVED	t1	ALL	PRIMARY	NULL	NULL	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	#	
+2	DERIVED	t1	NULL	ALL	PRIMARY	NULL	NULL	NULL	#	Using where
 SELECT COUNT(*) FROM 
 (SELECT * FROM t1 IGNORE INDEX(idx)
 WHERE a BETWEEN 2 AND 7 OR pk=1000000) AS t;
@@ -738,8 +738,8 @@ EXPLAIN
 SELECT v2
 FROM t1
 WHERE v1  IN  ('f', 'd', 'h', 'u' ) AND i  =  2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	i,v	i	5	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	i,v	i	5	const	2	Using where
 DROP TABLE t1;
 #
 # BUG#1006164: Multi-table DELETE that uses innodb + index_merge/intersect may fail to delete rows
@@ -826,8 +826,8 @@ INDEX (b)
 ) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
 INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_100;
 EXPLAIN SELECT * FROM t1 WHERE a='1' OR b < 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index_merge	PRIMARY,b	b,PRIMARY	5,3074	NULL	5	Using sort_union(b,PRIMARY); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index_merge	PRIMARY,b	b,PRIMARY	5,3074	NULL	5	Using sort_union(b,PRIMARY); Using where
 SELECT * FROM t1 WHERE a='1' OR b < 5;
 a	b	c
 2	2	2

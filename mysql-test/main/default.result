@@ -3275,8 +3275,8 @@ DROP TABLE t1;
 # The output of this query in 'Note' is a syntactically incorrect query.
 # But as it's never logged, it's ok. It should be human readable only.
 EXECUTE IMMEDIATE 'EXPLAIN EXTENDED SELECT ?' USING IGNORE;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select ignore AS `?`
 CREATE TABLE t1 (a INT);

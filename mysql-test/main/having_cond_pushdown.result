@@ -24,8 +24,8 @@ explain SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
 HAVING (t1.a>2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
@@ -95,8 +95,8 @@ explain SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
 HAVING (t1.a=2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
@@ -158,8 +158,8 @@ explain SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
 HAVING (t1.a>1) AND (t1.a<4);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
@@ -231,8 +231,8 @@ explain SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
 HAVING (t1.a>1) OR (a IN (SELECT 3));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 Warnings:
 Note	1249	Select 2 was reduced during optimization
 explain format=json SELECT t1.a,MAX(t1.b)
@@ -309,8 +309,8 @@ explain SELECT t1.a,MAX(t1.b),MIN(t1.c)
 FROM t1
 GROUP BY t1.a
 HAVING ((t1.a>2) AND (MAX(t1.b)>13)) OR ((t1.a<3) AND (MIN(t1.c)>1));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b),MIN(t1.c)
 FROM t1
 GROUP BY t1.a
@@ -383,8 +383,8 @@ explain SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
 HAVING (t1.a>1) AND (MAX(t1.a)<3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
@@ -456,8 +456,8 @@ explain SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
 HAVING (t1.a>1) AND (MAX(t1.b)>13);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
@@ -529,8 +529,8 @@ explain SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
 HAVING (t1.a=3) AND (MAX(t1.a)=3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
@@ -592,8 +592,8 @@ explain SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
 HAVING (t1.a=2) AND (MAX(t1.b)>12);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
@@ -655,8 +655,8 @@ explain SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
 HAVING (t1.a>1) AND (MAX(t1.b)=13);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
@@ -730,8 +730,8 @@ explain SELECT t1.a,MIN(t1.c)
 FROM t1
 GROUP BY t1.a
 HAVING (t1.a>1) AND (MIN(t1.c)<3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MIN(t1.c)
 FROM t1
 GROUP BY t1.a
@@ -803,8 +803,8 @@ explain SELECT t1.a,MAX(t1.b),MIN(t1.c)
 FROM t1
 GROUP BY t1.a
 HAVING (t1.a=2) AND (MAX(t1.b)=13) AND (MIN(t1.c)=2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT t1.a,MAX(t1.b),MIN(t1.c)
 FROM t1
 GROUP BY t1.a
@@ -867,8 +867,8 @@ explain SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
 HAVING (t1.a>1) AND (a=test.f1());
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b)
 FROM t1
 GROUP BY t1.a
@@ -946,10 +946,10 @@ FROM t2,v1
 WHERE (t2.x=v1.a)
 GROUP BY v1.a
 HAVING (v1.a>1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where; Using temporary; Using filesort
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.x	2	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where; Using temporary; Using filesort
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.x	2	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT v1.a
 FROM t2,v1
 WHERE (t2.x=v1.a)
@@ -1093,10 +1093,10 @@ FROM t2,v1
 WHERE (t2.x=v1.a)
 GROUP BY v1.c
 HAVING (v1.c>2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where; Using temporary; Using filesort
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t2.x	2	Using where
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where; Using temporary; Using filesort
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.x	2	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
 explain format=json SELECT v1.a,v1.c
 FROM t2,v1
 WHERE (t2.x=v1.a)
@@ -1243,10 +1243,10 @@ WHERE
 (t1.a,t1.b) IN (SELECT t2.x,MAX(t2.y) FROM t2 WHERE t2.x<5 GROUP BY t2.x)
 GROUP BY t1.a
 HAVING (t1.a>1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.b	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.b	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where; Using temporary
 explain format=json SELECT * FROM t1
 WHERE
 (t1.a,t1.b) IN (SELECT t2.x,MAX(t2.y) FROM t2 WHERE t2.x<5 GROUP BY t2.x)
@@ -1386,10 +1386,10 @@ WHERE
 (t1.a,t1.b) IN (SELECT t2.x,MAX(t2.y) FROM t2 WHERE t2.x<5 GROUP BY t2.x)
 GROUP BY t1.b
 HAVING (t1.b<14);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.b	1	
-2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	4	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	test.t1.a,test.t1.b	1	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where; Using temporary
 explain format=json SELECT * FROM t1
 WHERE
 (t1.a,t1.b) IN (SELECT t2.x,MAX(t2.y) FROM t2 WHERE t2.x<5 GROUP BY t2.x)
@@ -1528,8 +1528,8 @@ explain SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 GROUP BY t1.a
 HAVING (t1.c=2) AND (t1.a>1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 GROUP BY t1.a
@@ -1600,8 +1600,8 @@ explain SELECT MAX(t1.a),t1.a,t1.b,t1.c
 FROM t1
 GROUP BY t1.b
 HAVING (t1.a=2) AND (t1.b=13) AND (t1.c=2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT MAX(t1.a),t1.a,t1.b,t1.c
 FROM t1
 GROUP BY t1.b
@@ -1664,8 +1664,8 @@ explain SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 GROUP BY t1.a
 HAVING (t1.a=t1.c) AND (t1.c>1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 GROUP BY t1.a
@@ -1733,8 +1733,8 @@ explain SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 GROUP BY t1.a
 HAVING (t1.a=t1.c) AND (t1.c=2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 GROUP BY t1.a
@@ -1793,8 +1793,8 @@ explain SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 GROUP BY t1.a
 HAVING ((t1.a=t1.c) AND (t1.a>1)) OR ((t1.a<3) AND (t1.c>3));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 GROUP BY t1.a
@@ -1872,8 +1872,8 @@ FROM t1
 WHERE (t1.a=t1.c)
 GROUP BY t1.a
 HAVING (t1.c<3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a=t1.c)
@@ -1947,8 +1947,8 @@ FROM t1
 WHERE (t1.a=t1.c)
 GROUP BY t1.a
 HAVING (t1.a>1) AND (t1.c<3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a=t1.c)
@@ -2021,8 +2021,8 @@ FROM t1
 WHERE (t1.a=t1.c)
 GROUP BY t1.a
 HAVING (((t1.a>1) AND (MAX(t1.c)<3)) OR (t1.c<4)) AND (t1.a<2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a=t1.c)
@@ -2101,8 +2101,8 @@ FROM t1
 WHERE (t1.a=t1.c)
 GROUP BY t1.a
 HAVING ((t1.a>1) AND (MAX(t1.c)<3)) OR (t1.c<4);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a=t1.c)
@@ -2171,8 +2171,8 @@ SELECT a FROM t1 WHERE b = 1 AND b = 2 GROUP BY a HAVING a <= 3;
 a
 EXPLAIN
 SELECT a FROM t1 WHERE b = 1 AND b = 2 GROUP BY a HAVING a <= 3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 DROP TABLE t1;
 #
 # MDEV-18769: unfixed OR condition pushed from HAVING into WHERE
@@ -2198,8 +2198,8 @@ explain SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a
 HAVING t1.b = 13 AND MAX(t1.c) > 2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
 explain format=json SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a
@@ -2271,8 +2271,8 @@ explain SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a,t1.b
 HAVING (t1.a = 1 OR t1.b > 10) AND (t1.b < 14);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a,t1.b
@@ -2345,8 +2345,8 @@ explain SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a,t1.b
 HAVING (t1.a = 1 OR t1.b > 10) AND (t1.b < 14 OR t1.b > 15);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a,t1.b
@@ -2418,8 +2418,8 @@ explain SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a,t1.b
 HAVING (t1.a = 1 OR t1.b > 10) AND (t1.b < 14 OR (t1.b > 15 AND t1.a = 2));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a,t1.b
@@ -2493,8 +2493,8 @@ explain SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a,t1.b
 HAVING (t1.a < 2) OR (t1.b = 13 AND t1.a > 2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a,t1.b
@@ -2565,8 +2565,8 @@ explain SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a,t1.b
 HAVING (t1.a < 2 AND t1.b = 14) OR (t1.a > 2 AND t1.b = 13);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a,t1.b
@@ -2639,8 +2639,8 @@ explain SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a,t1.b
 HAVING (t1.a < 2 AND t1.b = 14) OR (t1.a > 2 AND (t1.b = 13 OR t1.b = 14));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a,t1.b
@@ -2709,8 +2709,8 @@ explain SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a
 HAVING (t1.a < 2 AND MAX(t1.c) = 2) OR (MAX(t1.c) > 2 AND (t1.a = 1 OR t1.a = 2));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a
@@ -2784,8 +2784,8 @@ explain SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a
 HAVING (t1.a = 2 AND MAX(t1.c) = 2) OR (MAX(t1.c) > 2 AND (t1.a = 1 OR t1.a = 2));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a
@@ -2858,8 +2858,8 @@ explain SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a
 HAVING (t1.a = 1) AND (MAX(t1.c) = 3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a
@@ -2922,8 +2922,8 @@ explain SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a,t1.c
 HAVING (t1.a = 1) AND (t1.c = 3) AND MAX(t1.b = 14);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a,t1.c
@@ -2985,8 +2985,8 @@ explain SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a,t1.c
 HAVING (t1.a = 1) AND (t1.c = 1) AND MAX(t1.b = 14);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 GROUP BY t1.a,t1.c
@@ -3057,8 +3057,8 @@ FROM t1
 WHERE (t1.b > 2)
 GROUP BY t1.a
 HAVING (t1.a < 3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 WHERE (t1.b > 2)
@@ -3132,8 +3132,8 @@ FROM t1
 WHERE (t1.b > 2)
 GROUP BY t1.a
 HAVING (t1.a = 3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 WHERE (t1.b > 2)
@@ -3197,8 +3197,8 @@ FROM t1
 WHERE (t1.b = 14)
 GROUP BY t1.a
 HAVING (t1.a < 3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 WHERE (t1.b = 14)
@@ -3272,8 +3272,8 @@ FROM t1
 WHERE (t1.b = 14)
 GROUP BY t1.a
 HAVING (t1.a = 1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT t1.a,t1.b,MAX(t1.c)
 FROM t1
 WHERE (t1.b = 14)
@@ -3335,8 +3335,8 @@ FROM t1
 WHERE (t1.a = 3)
 GROUP BY t1.a
 HAVING (t1.a = 1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 explain format=json SELECT t1.a,MAX(t1.c)
 FROM t1
 WHERE (t1.a = 3)
@@ -3384,8 +3384,8 @@ FROM t1
 WHERE (t1.c = 1)
 GROUP BY t1.a
 HAVING (t1.a = 1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.c = 1)
@@ -3451,8 +3451,8 @@ FROM t1
 WHERE (t1.c > 0) AND (t1.c < 3)
 GROUP BY t1.a
 HAVING (t1.a > 1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.c > 0) AND (t1.c < 3)
@@ -3526,8 +3526,8 @@ FROM t1
 WHERE (t1.c > 0) AND (t1.c < 3)
 GROUP BY t1.a
 HAVING (t1.a = 1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.c > 0) AND (t1.c < 3)
@@ -3591,8 +3591,8 @@ FROM t1
 WHERE (t1.a > 0) AND (t1.c < 3)
 GROUP BY t1.a
 HAVING (t1.a = 1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a > 0) AND (t1.c < 3)
@@ -3654,8 +3654,8 @@ FROM t1
 WHERE (t1.a = 0) AND (t1.a = 3)
 GROUP BY t1.a
 HAVING (t1.a = 1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 explain format=json SELECT t1.a,MAX(t1.b)
 FROM t1
 WHERE (t1.a = 0) AND (t1.a = 3)
@@ -3702,8 +3702,8 @@ FROM t3
 WHERE (t3.b = 2) AND (t3.d = 1)
 GROUP BY t3.a,t3.b,t3.d
 HAVING (t3.a = 1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
 explain format=json SELECT t3.a,t3.b,MAX(t3.c),t3.d
 FROM t3
 WHERE (t3.b = 2) AND (t3.d = 1)
@@ -3767,8 +3767,8 @@ FROM t1
 WHERE (t1.a > 1) OR (t1.c < 3)
 GROUP BY t1.a
 HAVING (t1.a < 2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a > 1) OR (t1.c < 3)
@@ -3839,8 +3839,8 @@ FROM t1
 WHERE (t1.a = 1) OR (t1.a = 3)
 GROUP BY t1.a
 HAVING (t1.a = 2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 explain format=json SELECT t1.a,MAX(t1.b)
 FROM t1
 WHERE (t1.a = 1) OR (t1.a = 3)
@@ -3890,8 +3890,8 @@ FROM t1
 WHERE (t1.a > 1)
 GROUP BY t1.a
 HAVING (t1.a < 4) AND (t1.a > 0);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a > 1)
@@ -3965,8 +3965,8 @@ FROM t1
 WHERE (t1.a = 1)
 GROUP BY t1.a
 HAVING (t1.a < 4) AND (t1.a > 0);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a = 1)
@@ -4033,8 +4033,8 @@ FROM t1
 WHERE (t1.a > 1)
 GROUP BY t1.a
 HAVING (t1.a < 4) OR (t1.a > 0);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a > 1)
@@ -4108,8 +4108,8 @@ FROM t1
 WHERE (t1.a = 1)
 GROUP BY t1.a
 HAVING (t1.a < 4) OR (t1.a > 0);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a = 1)
@@ -4176,8 +4176,8 @@ FROM t1
 WHERE (t1.a > 1) AND (t1.c < 3)
 GROUP BY t1.a
 HAVING (t1.a < 4) AND (t1.c > 1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a > 1) AND (t1.c < 3)
@@ -4252,8 +4252,8 @@ FROM t1
 WHERE (t1.a = 1) AND (t1.c < 3)
 GROUP BY t1.a,t1.c
 HAVING (t1.a < 4) AND (t1.c > 1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a = 1) AND (t1.c < 3)
@@ -4328,8 +4328,8 @@ FROM t1
 WHERE (t1.a = 1) AND (t1.c = 3)
 GROUP BY t1.a,t1.c
 HAVING (t1.a < 4) AND (t1.c > 1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a = 1) AND (t1.c = 3)
@@ -4394,8 +4394,8 @@ FROM t3
 WHERE (t3.a = 1) AND (t3.d = 1)
 GROUP BY t3.a,t3.b
 HAVING (t3.b = 2) AND (t3.d > 0);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
 explain format=json SELECT t3.a,t3.b,MAX(t3.c),t3.d
 FROM t3
 WHERE (t3.a = 1) AND (t3.d = 1)
@@ -4462,8 +4462,8 @@ FROM t3
 WHERE (t3.a = 1) AND (t3.d = 1)
 GROUP BY t3.a,t3.b,t3.d
 HAVING (t3.b = 2) AND (t3.d > 0);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
 explain format=json SELECT t3.a,t3.b,MAX(t3.c),t3.d
 FROM t3
 WHERE (t3.a = 1) AND (t3.d = 1)
@@ -4531,8 +4531,8 @@ FROM t1
 WHERE (t1.a > 1) OR (t1.c < 3)
 GROUP BY t1.a
 HAVING (t1.a < 4) AND (t1.c > 1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a > 1) OR (t1.c < 3)
@@ -4613,8 +4613,8 @@ FROM t1
 WHERE (t1.a > 1) OR (t1.c < 3)
 GROUP BY t1.a,t1.c
 HAVING (t1.a < 4) AND (t1.c > 1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a > 1) OR (t1.c < 3)
@@ -4692,8 +4692,8 @@ FROM t1
 WHERE (t1.a = 1) OR (t1.a = 3)
 GROUP BY t1.a,t1.c
 HAVING (t1.a = 4) OR (t1.c > 1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a = 1) OR (t1.a = 3)
@@ -4768,8 +4768,8 @@ FROM t1
 WHERE (t1.a = 1) AND (t1.a = t1.c)
 GROUP BY t1.a
 HAVING (t1.c = 1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a = 1) AND (t1.a = t1.c)
@@ -4833,8 +4833,8 @@ FROM t1
 WHERE (t1.a = 1) AND (t1.a = t1.c)
 GROUP BY t1.a
 HAVING (t1.c = 1) OR (t1.c = 2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a = 1) AND (t1.a = t1.c)
@@ -4897,8 +4897,8 @@ FROM t1
 WHERE (t1.a = 1) AND (t1.a = t1.c)
 GROUP BY t1.a
 HAVING (t1.c = 3) OR (t1.c = 2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a = 1) AND (t1.a = t1.c)
@@ -4945,8 +4945,8 @@ FROM t1
 WHERE (t1.a = 1)
 GROUP BY t1.a,t1.c
 HAVING (t1.c = 3) AND (t1.a > 2) AND (t1.a = t1.c);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a = 1)
@@ -4992,8 +4992,8 @@ FROM t1
 WHERE (t1.a = 1)
 GROUP BY t1.a
 HAVING (t1.c = 3) AND (t1.a > 2) AND (t1.a = t1.c);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 explain format=json SELECT t1.a,MAX(t1.b),t1.c
 FROM t1
 WHERE (t1.a = 1)
@@ -5040,8 +5040,8 @@ FROM t3
 WHERE (t3.a > 1) AND ((t3.c = 3) OR (t3.c < 2))
 GROUP BY t3.a
 HAVING (t3.a = t3.d) AND ((t3.d = 1) OR (t3.d > 1));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Using temporary; Using filesort
 explain format=json SELECT t3.a,MAX(t3.b),t3.c,t3.d
 FROM t3
 WHERE (t3.a > 1) AND ((t3.c = 3) OR (t3.c < 2))
@@ -5114,8 +5114,8 @@ FROM t3
 WHERE (t3.a > 1) AND ((t3.c = 3) OR (t3.c < 2))
 GROUP BY t3.a
 HAVING (t3.a = t3.d) AND (((t3.d = t3.c) AND (t3.c < 15)) OR (t3.d > 1));
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Using temporary; Using filesort
 explain format=json SELECT t3.a,MAX(t3.b),t3.c,t3.d
 FROM t3
 WHERE (t3.a > 1) AND ((t3.c = 3) OR (t3.c < 2))
@@ -5229,8 +5229,8 @@ d1
 explain extended select d1 from t1
 group by d1
 having d1 between (inet_aton('1978-04-27')) and '2018-08-26';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	select `test`.`t1`.`d1` AS `d1` from `test`.`t1` where `test`.`t1`.`d1` between <cache>(inet_aton('1978-04-27')) and <cache>('2018-08-26') group by `test`.`t1`.`d1` having 1
 explain format=json select d1 from t1
@@ -5271,8 +5271,8 @@ Warning	1292	Truncated incorrect datetime value: '1'
 explain extended select d1 from t1
 group by d1
 having d1 not between 0 AND exp(0);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	select `test`.`t1`.`d1` AS `d1` from `test`.`t1` where `test`.`t1`.`d1` not between <cache>(0) and <cache>(exp(0)) group by `test`.`t1`.`d1` having 1
 explain format=json select d1 from t1
@@ -5309,40 +5309,40 @@ CREATE TABLE t1 (a INT, b INT, c INT);
 INSERT INTO t1 VALUES (1,2,1),(3,2,2),(5,6,4),(3,4,1);
 EXPLAIN SELECT t1.a,MAX(t1.b) FROM t1
 WHERE t1.a > 3 GROUP BY t1.a HAVING t1.a = 3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 EXPLAIN SELECT t1.a,MAX(t1.b) FROM t1
 WHERE t1.a = 3 GROUP BY t1.a HAVING t1.a > 3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 EXPLAIN SELECT t1.a,MAX(t1.b) FROM t1
 WHERE t1.a > 3 AND t1.a = 3 GROUP BY t1.a ;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 EXPLAIN SELECT t1.a,MAX(t1.b) FROM t1
 WHERE (t1.a < 2 OR t1.c > 1) GROUP BY t1.a HAVING t1.a = 3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
 EXPLAIN SELECT t1.a,MAX(t1.b) FROM t1
 WHERE t1.a = 3 GROUP BY t1.a HAVING (t1.a < 2 OR t1.a > 3);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 EXPLAIN SELECT t1.a,MAX(t1.b) FROM t1
 WHERE t1.a = 3 AND (t1.a < 2 OR t1.a > 3) GROUP BY t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 EXPLAIN SELECT t1.a,MAX(t1.b),t1.c FROM t1
 WHERE (t1.a < 2 AND t1.c > 1) GROUP BY t1.a HAVING t1.a = 3;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 EXPLAIN SELECT t1.a,MAX(t1.b),t1.c FROM t1
 WHERE t1.a = 3 GROUP BY t1.a HAVING (t1.a < 2 AND t1.c > 1);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 EXPLAIN SELECT t1.a,MAX(t1.b),t1.c FROM t1
 WHERE t1.a = 3 AND (t1.a < 2 AND t1.b > 3) GROUP BY t1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 DROP TABLE t1;
 #
 # MDEV-21184: Constant subquery in condition movable to WHERE
