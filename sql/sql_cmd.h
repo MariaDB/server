@@ -348,7 +348,7 @@ protected:
 
   virtual DML_prelocking_strategy *get_dml_prelocking_strategy() = 0;
 
-   uint table_count;
+  uint table_count;
 
  protected:
   LEX *lex;              ///< Pointer to LEX for this statement

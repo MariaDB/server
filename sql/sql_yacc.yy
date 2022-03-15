@@ -70,6 +70,7 @@
 #include "sql_type_json.h"
 #include "json_table.h"
 #include "sql_update.h"
+#include "sql_insert.h"
 
 /* this is to get the bison compilation windows warnings out */
 #ifdef _MSC_VER
@@ -13191,6 +13192,10 @@ insert:
           insert_field_spec opt_insert_update opt_returning
           stmt_end
           {
+            if (Lex->sql_command == SQLCOM_INSERT &&
+                Lex->query_tables->lock_type != TL_WRITE_DELAYED &&
+                !(Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_insert()))
+              MYSQL_YYABORT;
             Lex->mark_first_table_as_inserting();
           }
           ;

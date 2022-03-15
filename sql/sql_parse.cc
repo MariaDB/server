@@ -4392,11 +4392,21 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     break;
   }
   case SQLCOM_REPLACE:
+  {
     if ((res= generate_incident_event(thd)))
       break;
     /* fall through */
   case SQLCOM_INSERT:
-  {
+    if (lex->sql_command == SQLCOM_INSERT &&
+        all_tables->lock_type != TL_WRITE_DELAYED)
+    {
+      WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
+      DBUG_ASSERT(first_table == all_tables && first_table != 0);
+      WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
+      res= lex->m_sql_cmd->execute(thd);
+      break;
+    }
+    /* insert */
     WSREP_SYNC_WAIT(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE);
     select_result *sel_result= NULL;
     DBUG_ASSERT(first_table == all_tables && first_table != 0);

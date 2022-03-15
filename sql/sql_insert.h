@@ -18,6 +18,7 @@
 
 #include "sql_class.h"                          /* enum_duplicates */
 #include "sql_list.h"
+#include "sql_base.h"
 
 /* Instead of including sql_lex.h we add this typedef here */
 typedef List<Item> List_item;
@@ -50,4 +51,35 @@ bool binlog_drop_table(THD *thd, TABLE *table);
 inline void kill_delayed_threads(void) {}
 #endif
 
+class Sql_cmd_insert final : public Sql_cmd_dml
+{
+public:
+  Sql_cmd_insert():
+    save_protocol(NULL), sel_result(NULL), readbuff(NULL),
+    table(NULL) {}
+
+  enum_sql_command sql_command_code() const override { return SQLCOM_INSERT; }
+
+  DML_prelocking_strategy *get_dml_prelocking_strategy()
+  {
+    return &insert_prelocking_strategy;
+  }
+
+protected:
+  bool precheck(THD *thd) override;
+
+  bool prepare_inner(THD *thd) override;
+
+  bool execute_inner(THD *thd) override;
+
+private:
+  DML_prelocking_strategy insert_prelocking_strategy;
+  Protocol *save_protocol;
+  select_result *sel_result;
+  unsigned char *readbuff;
+  bool was_insert_delayed;
+  TABLE *table;
+  uint value_count;
+  void cleanup(THD *thd, int ret);
+};
 #endif /* SQL_INSERT_INCLUDED */
