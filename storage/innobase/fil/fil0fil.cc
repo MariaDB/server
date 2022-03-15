@@ -83,7 +83,9 @@ bool fil_space_t::try_to_close(bool print_info)
     of fil_system.space_list, so that they would be less likely to be
     closed here. */
     fil_node_t *node= UT_LIST_GET_FIRST(space.chain);
-    ut_ad(node);
+    if (!node)
+      /* fil_ibd_create() did not invoke fil_space_t::add() yet */
+      continue;
     ut_ad(!UT_LIST_GET_NEXT(chain, node));
 
     if (!node->is_open())
@@ -444,6 +446,8 @@ static bool fil_node_open_file(fil_node_t *node)
       /* Flush tablespaces so that we can close modified files. */
       fil_flush_file_spaces();
       mysql_mutex_lock(&fil_system.mutex);
+      if (node->is_open())
+        return true;
     }
   }
 

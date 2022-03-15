@@ -902,12 +902,13 @@ struct xid_t {
     if ((bqual_length= bl))
       memcpy(data+gl, b, bl);
   }
-  void set(ulonglong xid)
+  // Populate server_id if it's specified, otherwise use the current server_id
+  void set(ulonglong xid, decltype(::server_id) trx_server_id= server_id)
   {
     my_xid tmp;
     formatID= 1;
     set(MYSQL_XID_PREFIX_LEN, 0, MYSQL_XID_PREFIX);
-    memcpy(data+MYSQL_XID_PREFIX_LEN, &server_id, sizeof(server_id));
+    memcpy(data+MYSQL_XID_PREFIX_LEN, &trx_server_id, sizeof(trx_server_id));
     tmp= xid;
     memcpy(data+MYSQL_XID_OFFSET, &tmp, sizeof(tmp));
     gtrid_length=MYSQL_XID_GTRID_LEN;
@@ -932,6 +933,12 @@ struct xid_t {
     return gtrid_length == MYSQL_XID_GTRID_LEN && bqual_length == 0 &&
            !memcmp(data, MYSQL_XID_PREFIX, MYSQL_XID_PREFIX_LEN) ?
            quick_get_my_xid() : 0;
+  }
+  decltype(::server_id) get_trx_server_id()
+  {
+    decltype(::server_id) trx_server_id;
+    memcpy(&trx_server_id, data+MYSQL_XID_PREFIX_LEN, sizeof(trx_server_id));
+    return trx_server_id;
   }
   uint length()
   {
@@ -974,11 +981,12 @@ struct xid_recovery_member
   bool decided_to_commit;
   Binlog_offset binlog_coord; // semisync recovery binlog offset
   XID *full_xid;           // needed by wsrep or past it recovery
+  decltype(::server_id) server_id;         // server id of orginal server
 
   xid_recovery_member(my_xid xid_arg, uint prepare_arg, bool decided_arg,
-                      XID *full_xid_arg)
+                      XID *full_xid_arg, decltype(::server_id) server_id_arg)
     : xid(xid_arg), in_engine_prepare(prepare_arg),
-      decided_to_commit(decided_arg), full_xid(full_xid_arg) {};
+      decided_to_commit(decided_arg), full_xid(full_xid_arg) , server_id(server_id_arg) {};
 };
 
 /* for recover() handlerton call */
