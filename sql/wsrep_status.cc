@@ -42,7 +42,7 @@ void Wsrep_status::init_once(const std::string& file_name)
   {
     mysql_mutex_init(key_LOCK_wsrep_status, &LOCK_wsrep_status,
                      MY_MUTEX_INIT_FAST);
-    m_mutex    = new Wsrep_mutex(LOCK_wsrep_status);
+    m_mutex    = new Wsrep_mutex(&LOCK_wsrep_status);
     m_instance = new wsrep::reporter(*m_mutex, file_name, 4);
   }
 }
