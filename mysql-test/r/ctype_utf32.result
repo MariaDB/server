@@ -2913,5 +2913,30 @@ t1	CREATE TABLE `t1` (
 DROP TABLE t1;
 SET NAMES utf8;
 #
+# MDEV-28078 Garbage on multiple equal ENUMs with tricky character sets
+#
+CREATE TABLE t1 (
+c1 ENUM ('a','b') CHARACTER SET utf32 DEFAULT 'a',
+c2 ENUM ('a','b') CHARACTER SET utf32 DEFAULT 'a'
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` enum('a','b') CHARACTER SET utf32 DEFAULT 'a',
+  `c2` enum('a','b') CHARACTER SET utf32 DEFAULT 'a'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 (
+c1 ENUM ('00000061','00000062') DEFAULT '00000061' COLLATE latin1_bin,
+c2 ENUM ('a','b') DEFAULT 'a' COLLATE utf32_general_ci
+);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` enum('00000061','00000062') CHARACTER SET latin1 COLLATE latin1_bin DEFAULT '00000061',
+  `c2` enum('a','b') CHARACTER SET utf32 DEFAULT 'a'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #
