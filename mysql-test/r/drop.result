@@ -205,14 +205,10 @@ Warnings:
 Note	1051	Unknown table 'test.table1'
 DROP TABLE IF EXISTS table1,table2;
 Warnings:
-Note	1051	Unknown table 'test.table1'
-Note	1051	Unknown table 'test.table2'
+Note	1051	Unknown table 'test.table1,test.table2'
 DROP VIEW IF EXISTS view1,view2,view3,view4;
 Warnings:
-Note	1051	Unknown table 'test.view1'
-Note	1051	Unknown table 'test.view2'
-Note	1051	Unknown table 'test.view3'
-Note	1051	Unknown table 'test.view4'
+Note	1051	Unknown table 'test.view1,test.view2,test.view3,test.view4'
 
 # Test error message when trigger does not find table
 CREATE TABLE table1(a int);

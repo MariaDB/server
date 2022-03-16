@@ -43,7 +43,7 @@ update t1 set f1=3 where f2=2;
 --error ER_CANT_CREATE_TABLE
 create table t3(f1 int not null)engine=innodb;
 
---error ER_BAD_TABLE_ERROR
+--error ER_OPEN_AS_READONLY
 drop table t3;
 
 --error ER_ERROR_ON_RENAME
@@ -81,7 +81,7 @@ update t2 set f1=3 where f2=2;
 --error ER_CANT_CREATE_TABLE
 create table t3(f1 int not null)engine=innodb;
 
---error ER_BAD_TABLE_ERROR
+--error ER_OPEN_AS_READONLY
 drop table t3;
 
 --error ER_ERROR_ON_RENAME

@@ -1637,7 +1637,7 @@ int binlog_init(void *p)
   binlog_hton->rollback= binlog_rollback;
   binlog_hton->prepare= binlog_prepare;
   binlog_hton->start_consistent_snapshot= binlog_start_consistent_snapshot;
-  binlog_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN;
+  binlog_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN | HTON_AUTOMATIC_DELETE_TABLE;
   return 0;
 }
 

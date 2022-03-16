@@ -1,3 +1,5 @@
+--source include/have_innodb.inc
+
 # BUG#13684: 
 #   SP: DROP PROCEDURE|FUNCTION IF EXISTS not binlogged if routine 
 #   does not exist
@@ -128,3 +130,33 @@ DROP TABLE IF EXISTS /* */ t1;
 
 --source include/show_binlog_events.inc
 
+--echo #
+--echo # MDEV-22820 Bogus "Unknown table" warnings produced upon attempt to
+--echo #            drop parent table referenced by FK
+--echo #
+
+let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+
+create table t1 (a int, key(a)) engine=InnoDB;
+create table t2 (b int, foreign key(b) references t1(a)) engine=InnoDB;
+--error ER_ROW_IS_REFERENCED_2
+drop table if exists t1;
+--error ER_ROW_IS_REFERENCED_2
+drop table if exists t1,t0;
+show warnings;
+drop table t2,t1;
+
+create table t3 (a int) engine=aria;
+
+# This is not logged
+--error ER_BAD_TABLE_ERROR
+drop table t10,t20;
+# This is logged
+--error ER_BAD_TABLE_ERROR
+drop table t10,t20,t3;
+
+# These are both logged
+drop table if exists t10,t20;
+drop table if exists t10,t20,t3;
+
+--source include/show_binlog_events.inc

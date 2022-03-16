@@ -68,10 +68,15 @@ public:
 
   /* open/close/locking */
   int create(const char *name, TABLE *table_arg,
-             HA_CREATE_INFO *create_info) { return HA_ERR_WRONG_COMMAND; }
+             HA_CREATE_INFO *create_info)
+  { return HA_ERR_WRONG_COMMAND; }
 
   int open(const char *name, int mode, uint test_if_locked);
   int close(void);
+  int delete_table(const char *name)
+  {
+    return 0;
+  }
   THR_LOCK_DATA **store_lock(THD *, THR_LOCK_DATA **, enum thr_lock_type);
 
   /* table scan */
@@ -493,6 +498,7 @@ static int init(void *p)
   hton->savepoint_set= hton->savepoint_rollback= hton->savepoint_release=
     dummy_savepoint;
   hton->create_group_by= create_group_by_handler;
+  hton->flags= HTON_AUTOMATIC_DELETE_TABLE;
   return 0;
 }
 
@@ -516,4 +522,3 @@ maria_declare_plugin(sequence)
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
-

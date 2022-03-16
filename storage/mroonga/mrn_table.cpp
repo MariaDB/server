@@ -1080,6 +1080,7 @@ TABLE_SHARE *mrn_create_tmp_table_share(TABLE_LIST *table_list, const char *path
   if (open_table_def(thd, share, GTS_TABLE))
   {
     *error = ER_CANT_OPEN_FILE;
+    mrn_free_tmp_table_share(share);
     DBUG_RETURN(NULL);
   }
   DBUG_RETURN(share);

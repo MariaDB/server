@@ -1427,6 +1427,13 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 */
 #define HTON_REQUIRES_CLOSE_AFTER_TRUNCATE (1 << 18)
 
+/*
+  The engine doesn't keep track of tables, delete_table() is not
+  needed and delete_table() always returns 0 (table deleted). This flag
+  mainly used to skip storage engines in case of ha_delete_table_force()
+*/
+#define HTON_AUTOMATIC_DELETE_TABLE (1 << 19)
+
 class Ha_trx_info;
 
 struct THD_TRANS
@@ -4306,6 +4313,8 @@ int ha_create_table(THD *thd, const char *path,
                     HA_CREATE_INFO *create_info, LEX_CUSTRING *frm);
 int ha_delete_table(THD *thd, handlerton *db_type, const char *path,
                     const char *db, const char *alias, bool generate_warning);
+int ha_delete_table_force(THD *thd, const char *path, const char *db,
+                          const char *alias);
 
 /* statistics and info */
 bool ha_show_status(THD *thd, handlerton *db_type, enum ha_stat_type stat);
@@ -4421,5 +4430,5 @@ int del_global_table_stat(THD *thd, LEX_STRING *db, LEX_STRING *table);
 @note This does not need to be multi-byte safe or anything */
 char *xid_to_str(char *buf, const XID &xid);
 #endif // !DBUG_OFF
-
+bool non_existing_table_error(int error);
 #endif /* HANDLER_INCLUDED */

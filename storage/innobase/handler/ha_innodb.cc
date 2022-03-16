@@ -13341,6 +13341,19 @@ ha_innobase::discard_or_import_tablespace(
 }
 
 /**
+   @return 1 if frm file exists
+   @return 0 if it doesn't exists
+*/
+
+static bool frm_file_exists(const char *path)
+{
+  char buff[FN_REFLEN];
+  strxnmov(buff, FN_REFLEN, path, reg_ext, NullS);
+  return !access(buff, F_OK);
+}
+
+
+/**
 Drops a table from an InnoDB database. Before calling this function,
 MySQL calls innobase_commit to commit the transaction of the current user.
 Then the current user cannot have locks set on the table. Drop table
@@ -13434,7 +13447,9 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 		}
 	}
 
-	if (err == DB_TABLE_NOT_FOUND) {
+	if (err == DB_TABLE_NOT_FOUND &&
+            frm_file_exists(name))
+        {
 		/* Test to drop all tables which matches db/tablename + '#'.
 		Only partitions can have '#' as non-first character in
 		the table name!

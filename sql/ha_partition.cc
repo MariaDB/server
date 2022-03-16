@@ -2277,7 +2277,7 @@ uint ha_partition::del_ren_table(const char *from, const char *to)
   DBUG_ENTER("ha_partition::del_ren_table");
 
   if (get_from_handler_file(from, ha_thd()->mem_root, false))
-    DBUG_RETURN(TRUE);
+    DBUG_RETURN(my_errno ? my_errno : ENOENT);
   DBUG_ASSERT(m_file_buffer);
   DBUG_PRINT("enter", ("from: (%s) to: (%s)", from, to ? to : "(nil)"));
   name_buffer_ptr= m_name_buffer_ptr;

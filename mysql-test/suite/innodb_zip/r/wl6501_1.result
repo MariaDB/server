@@ -3,11 +3,7 @@ set global innodb_file_per_table=on;
 # of .ibd file is equal to the initial size after truncation.
 drop table if exists t1,t2,t3,t4,t6;
 Warnings:
-Note	1051	Unknown table 'test.t1'
-Note	1051	Unknown table 'test.t2'
-Note	1051	Unknown table 'test.t3'
-Note	1051	Unknown table 'test.t4'
-Note	1051	Unknown table 'test.t6'
+Note	1051	Unknown table 'test.t1,test.t2,test.t3,test.t4,test.t6'
 create table t1(c1 int not null,
 c2 int not null,
 c3 char(255) not null,

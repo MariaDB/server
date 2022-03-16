@@ -5274,7 +5274,8 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
         } // endif pos
 
       } // endif open_table_def
-
+      else
+        rc= ENOENT;
     free_table_share(share);
   } else              // Temporary file
     ok= true;

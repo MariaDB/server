@@ -198,7 +198,7 @@ c	d
 drop view v100;
 ERROR 42S02: Unknown table 'test.v100'
 drop view t1;
-ERROR HY000: 'test.t1' is not VIEW
+ERROR 42S02: Unknown table 'test.t1'
 drop table v1;
 ERROR 42S02: 'test.v1' is a view
 drop view v1,v2;
@@ -2899,7 +2899,11 @@ Tables_in_test
 t1
 CREATE VIEW v1 AS SELECT id FROM t1;
 DROP VIEW t1,v1;
-ERROR HY000: 'test.t1' is not VIEW
+ERROR 42S02: Unknown table 'test.t1'
+show warnings;
+Level	Code	Message
+Warning	1347	'test.t1' is not VIEW
+Error	1051	Unknown table 'test.t1'
 SHOW TABLES;
 Tables_in_test
 t1

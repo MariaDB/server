@@ -22,7 +22,7 @@ ERROR HY000: Running in read-only mode
 create table t3(f1 int not null)engine=innodb;
 ERROR HY000: Can't create table `test`.`t3` (errno: 165 "Table is read only")
 drop table t3;
-ERROR 42S02: Unknown table 'test.t3'
+ERROR HY000: Table 't3' is read only
 rename table t1 to t3;
 ERROR HY000: Error on rename of './test/t1' to './test/t3' (errno: 165 "Table is read only")
 truncate table t1;
@@ -50,7 +50,7 @@ ERROR HY000: Running in read-only mode
 create table t3(f1 int not null)engine=innodb;
 ERROR HY000: Can't create table `test`.`t3` (errno: 165 "Table is read only")
 drop table t3;
-ERROR 42S02: Unknown table 'test.t3'
+ERROR HY000: Table 't3' is read only
 rename table t2 to t3;
 ERROR HY000: Error on rename of './test/t2' to './test/t3' (errno: 165 "Table is read only")
 truncate table t2;

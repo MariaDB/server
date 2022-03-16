@@ -130,7 +130,7 @@ select * from v2;
 drop view v100;
 
 # try to drop table with DROP VIEW
--- error ER_WRONG_OBJECT
+-- error ER_BAD_TABLE_ERROR
 drop view t1;
 
 # try to drop VIEW with DROP TABLE
@@ -2790,8 +2790,9 @@ DROP VIEW v2,v1;
 SHOW TABLES;
 
 CREATE VIEW v1 AS SELECT id FROM t1;
---error ER_WRONG_OBJECT
+--error ER_BAD_TABLE_ERROR
 DROP VIEW t1,v1;
+show warnings;
 SHOW TABLES;
 
 DROP TABLE t1;
