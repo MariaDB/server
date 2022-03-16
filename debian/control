@@ -5,7 +5,7 @@ Maintainer: MariaDB Developers <maria-developers@lists.launchpad.net>
 Build-Depends: bison,
                cmake,
                cracklib-runtime <!nocheck>,
-               debhelper (>= 9.20160709~),
+               debhelper (>= 10),
                dh-exec,
                flex [amd64],
                gdb <!nocheck>,

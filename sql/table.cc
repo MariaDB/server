@@ -1517,21 +1517,6 @@ bool TABLE_SHARE::init_period_from_extra2(period_info_t *period,
 }
 
 
-static size_t extra2_read_len(const uchar **extra2, const uchar *extra2_end)
-{
-  size_t length= *(*extra2)++;
-  if (length)
-    return length;
-
-  if ((*extra2) + 2 >= extra2_end)
-    return 0;
-  length= uint2korr(*extra2);
-  (*extra2)+= 2;
-  if (length < 256 || *extra2 + length > extra2_end)
-    return 0;
-  return length;
-}
-
 static
 bool read_extra2_section_once(const uchar *extra2, size_t len, LEX_CUSTRING *section)
 {
@@ -1827,7 +1812,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (frm_image[61] && !share->default_part_plugin)
   {
     enum legacy_db_type db_type= (enum legacy_db_type) (uint) frm_image[61];
-    share->default_part_plugin= ha_lock_engine(NULL, ha_checktype(thd, db_type));
+    share->default_part_plugin= ha_lock_engine(NULL, ha_checktype(thd, db_type, 1));
     if (!share->default_part_plugin)
       goto err;
   }

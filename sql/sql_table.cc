@@ -2880,17 +2880,13 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
                     const char *table_path)
 {
   char path[FN_REFLEN + 1];
+  const size_t pathmax = sizeof(path) - 1 - reg_ext_length;
   int error= 0;
   DBUG_ENTER("quick_rm_table");
 
   size_t path_length= table_path ?
-    (strxnmov(path, sizeof(path) - 1, table_path, reg_ext, NullS) - path) :
-    build_table_filename(path, sizeof(path)-1, db->str, table_name->str,
-                         reg_ext, flags);
-  if (!(flags & NO_FRM_RENAME))
-    if (mysql_file_delete(key_file_frm, path, MYF(0)))
-      error= 1; /* purecov: inspected */
-  path[path_length - reg_ext_length]= '\0'; // Remove reg_ext
+    (strxnmov(path, pathmax, table_path, NullS) - path) :
+    build_table_filename(path, pathmax, db->str, table_name->str, "", flags);
   if ((flags & (NO_HA_TABLE | NO_PAR_TABLE)) == NO_HA_TABLE)
   {
     handler *file= get_new_handler((TABLE_SHARE*) 0, thd->mem_root, base);
@@ -2900,8 +2896,14 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
     delete file;
   }
   if (!(flags & (FRM_ONLY|NO_HA_TABLE)))
-    if (ha_delete_table(thd, base, path, db, table_name, 0) > 0)
-    error= 1;
+    error|= ha_delete_table(thd, base, path, db, table_name, 0) > 0;
+
+  if (!(flags & NO_FRM_RENAME))
+  {
+    memcpy(path + path_length, reg_ext, reg_ext_length + 1);
+    if (mysql_file_delete(key_file_frm, path, MYF(0)))
+      error= 1; /* purecov: inspected */
+  }
 
   if (likely(error == 0))
   {
