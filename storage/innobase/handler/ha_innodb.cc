@@ -11427,7 +11427,7 @@ ha_innobase::update_create_info(
 		return;
 	}
 
-	dict_get_and_save_data_dir_path(m_prebuilt->table, false);
+	dict_get_and_save_data_dir_path(m_prebuilt->table);
 
 	if (m_prebuilt->table->data_dir_path) {
 		create_info->data_file_name = m_prebuilt->table->data_dir_path;
@@ -13842,7 +13842,7 @@ int ha_innobase::truncate()
 
 	mem_heap_t*	heap = mem_heap_create(1000);
 
-	dict_get_and_save_data_dir_path(ib_table, false);
+	dict_get_and_save_data_dir_path(ib_table);
 	info.data_file_name = ib_table->data_dir_path;
 	const char* temp_name = dict_mem_create_temporary_tablename(
 		heap, ib_table->name.m_name, ib_table->id);

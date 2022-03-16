@@ -2078,74 +2078,26 @@ const char *dict_load_table_low(const span<const char> &name,
 	return(NULL);
 }
 
-/********************************************************************//**
-Using the table->heap, copy the null-terminated filepath into
-table->data_dir_path and replace the 'databasename/tablename.ibd'
-portion with 'tablename'.
-This allows SHOW CREATE TABLE to return the correct DATA DIRECTORY path.
-Make this data directory path only if it has not yet been saved. */
-static
-void
-dict_save_data_dir_path(
-/*====================*/
-	dict_table_t*	table,		/*!< in/out: table */
-	const char*	filepath)	/*!< in: filepath of tablespace */
-{
-	ut_ad(dict_sys.frozen());
-	ut_a(DICT_TF_HAS_DATA_DIR(table->flags));
-
-	ut_a(!table->data_dir_path);
-	ut_a(filepath);
-
-	/* Be sure this filepath is not the default filepath. */
-	if (char* default_filepath = fil_make_filepath(nullptr, table->name,
-						       IBD, false)) {
-		if (0 != strcmp(filepath, default_filepath)) {
-			ulint pathlen = strlen(filepath);
-			ut_a(pathlen < OS_FILE_MAX_PATH);
-			ut_a(0 == strcmp(filepath + pathlen - 4, DOT_IBD));
-
-			table->data_dir_path = mem_heap_strdup(
-				table->heap, filepath);
-			os_file_make_data_dir_path(table->data_dir_path);
-		}
-
-		ut_free(default_filepath);
-	}
-}
-
 /** Make sure the data_file_name is saved in dict_table_t if needed.
-@param[in,out]	table		Table object
-@param[in]	dict_locked	dict_sys.frozen() */
-void dict_get_and_save_data_dir_path(dict_table_t* table, bool dict_locked)
+@param[in,out]	table		Table object */
+void dict_get_and_save_data_dir_path(dict_table_t *table)
 {
-	ut_ad(!table->is_temporary());
-	ut_ad(!table->space || table->space->id == table->space_id);
+  ut_ad(!table->is_temporary());
+  ut_ad(!table->space || table->space->id == table->space_id);
 
-	if (!table->data_dir_path && table->space_id && table->space) {
-		if (!dict_locked) {
-			dict_sys.freeze(SRW_LOCK_CALL);
-		}
-
-		table->flags |= 1 << DICT_TF_POS_DATA_DIR
-			& ((1U << DICT_TF_BITS) - 1);
-		dict_save_data_dir_path(table,
-					table->space->chain.start->name);
-
-		if (table->data_dir_path == NULL) {
-			/* Since we did not set the table data_dir_path,
-			unset the flag.  This does not change
-			SYS_TABLES or FSP_SPACE_FLAGS on the header page
-			of the tablespace, but it makes dict_table_t
-			consistent. */
-			table->flags &= ~DICT_TF_MASK_DATA_DIR
-				& ((1U << DICT_TF_BITS) - 1);
-		}
-
-		if (!dict_locked) {
-			dict_sys.unfreeze();
-		}
-	}
+  if (!table->data_dir_path && table->space_id && table->space)
+  {
+    const char *filepath= table->space->chain.start->name;
+    if (strncmp(fil_path_to_mysql_datadir, filepath,
+                strlen(fil_path_to_mysql_datadir)))
+    {
+      table->lock_mutex_lock();
+      table->flags|= 1 << DICT_TF_POS_DATA_DIR & ((1U << DICT_TF_BITS) - 1);
+      table->data_dir_path= mem_heap_strdup(table->heap, filepath);
+      os_file_make_data_dir_path(table->data_dir_path);
+      table->lock_mutex_unlock();
+    }
+  }
 }
 
 /** Opens a tablespace for dict_load_table_one()
@@ -2199,7 +2151,7 @@ dict_load_tablespace(
 	char* filepath = NULL;
 	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 		/* This will set table->data_dir_path from fil_system */
-		dict_get_and_save_data_dir_path(table, true);
+		dict_get_and_save_data_dir_path(table);
 
 		if (table->data_dir_path) {
 			filepath = fil_make_filepath(
