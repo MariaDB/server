@@ -184,6 +184,8 @@ enum extra2_field_flags {
   VERS_OPTIMIZED_UPDATE= 1 << INVISIBLE_MAX_BITS,
 };
 
+size_t extra2_read_len(const uchar **extra2, const uchar *end);
+
 LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
                              HA_CREATE_INFO *create_info,
                              List<Create_field> &create_fields,

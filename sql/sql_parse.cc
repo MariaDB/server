@@ -9382,15 +9382,17 @@ void sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
   }
 #endif /* WITH_WSREP */
-  if (likely(!(error= kill_threads_for_user(thd, user, state, &rows))))
-    my_ok(thd, rows);
-  else
+  switch (error= kill_threads_for_user(thd, user, state, &rows))
   {
-    /*
-      This is probably ER_OUT_OF_RESOURCES, but in the future we may
-      want to write the name of the user we tried to kill
-    */
-    my_error(error, MYF(0), user->host.str, user->user.str);
+  case 0:
+    my_ok(thd, rows);
+    break;
+  case ER_KILL_DENIED_ERROR:
+    my_error(error, MYF(0), (long long) thd->thread_id);
+    break;
+  case ER_OUT_OF_RESOURCES:
+  default:
+    my_error(error, MYF(0));
   }
 #ifdef WITH_WSREP
   return;
