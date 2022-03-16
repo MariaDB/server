@@ -460,7 +460,7 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
         {
           memcpy_aligned<16>(resize_buf, buf, (buf_free + 15) & ~15);
           start_lsn= first_lsn +
-            (~lsn_t{block_size - 1} & (write_lsn - first_lsn));
+            (~lsn_t{get_block_size() - 1} & (write_lsn - first_lsn));
         }
       }
       resize_lsn.store(start_lsn, std::memory_order_relaxed);
@@ -713,21 +713,22 @@ inline void log_t::persist(lsn_t lsn) noexcept
 @param length  the used length of resize_buf */
 ATTRIBUTE_COLD void log_t::resize_write_buf(size_t length) noexcept
 {
-  ut_ad(!(resize_target & (block_size - 1)));
-  ut_ad(!(length & (block_size - 1)));
-  ut_ad(length >= block_size);
+  const size_t block_size_1= get_block_size() - 1;
+  ut_ad(!(resize_target & block_size_1));
+  ut_ad(!(length & block_size_1));
+  ut_ad(length > block_size_1);
   ut_ad(length <= resize_target);
   const lsn_t resizing{resize_in_progress()};
   ut_ad(resizing <= write_lsn);
   lsn_t offset= START_OFFSET +
-    ((write_lsn - resizing) & ~lsn_t{block_size - 1}) %
+    ((write_lsn - resizing) & ~lsn_t{block_size_1}) %
     (resize_target - START_OFFSET);
 
   if (UNIV_UNLIKELY(offset + length > resize_target))
   {
     offset= START_OFFSET;
     resize_lsn.store(first_lsn +
-                     (~lsn_t{block_size - 1} & (write_lsn - first_lsn)),
+                     (~lsn_t{block_size_1} & (write_lsn - first_lsn)),
                      std::memory_order_relaxed);
   }
 
