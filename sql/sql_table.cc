@@ -2422,6 +2422,8 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
       */
       local_non_tmp_error= 1;
       error= table_type == FRMTYPE_ERROR ? ENOENT : -1;
+      tdc_remove_table(thd, TDC_RT_REMOVE_ALL, table->db, table->table_name,
+                       false);
     }
     else
     {
@@ -2835,7 +2837,8 @@ bool quick_rm_table(THD *thd, handlerton *base, const char *db,
     delete file;
   }
   if (!(flags & (FRM_ONLY|NO_HA_TABLE)))
-    error|= ha_delete_table(current_thd, base, path, db, table_name, 0);
+    if (ha_delete_table(current_thd, base, path, db, table_name, 0) > 0)
+      error= 1;
 
   if (likely(error == 0))
   {

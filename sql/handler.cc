@@ -2535,7 +2535,8 @@ int ha_delete_table(THD *thd, handlerton *hton, const char *path,
       error= -1;
     }
   }
-
+  if (error)
+    DBUG_PRINT("exit", ("error: %d", error));
   DBUG_RETURN(error);
 }
 
