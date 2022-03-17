@@ -1290,13 +1290,13 @@ os_file_create_func(
 
 #if (defined(UNIV_SOLARIS) && defined(DIRECTIO_ON)) || defined O_DIRECT
 	if (type == OS_DATA_FILE) {
+# ifdef __linux__
+use_o_direct:
+# endif
 		switch (srv_file_flush_method) {
 		case SRV_O_DSYNC:
 		case SRV_O_DIRECT:
 		case SRV_O_DIRECT_NO_FSYNC:
-# ifdef __linux__
-use_o_direct:
-# endif
 			os_file_set_nocache(file, name, mode_str);
 			break;
 		default:
@@ -1349,9 +1349,7 @@ use_o_direct:
 				goto skip_o_direct;
 			}
 			log_sys.set_block_size(uint32_t(s));
-			if (srv_file_flush_method == SRV_O_DSYNC) {
-				goto use_o_direct;
-			}
+			goto use_o_direct;
 		} else {
 skip_o_direct:
 			log_sys.set_block_size(0);
