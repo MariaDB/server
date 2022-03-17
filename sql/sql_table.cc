@@ -9191,22 +9191,24 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     create_info->used_fields |= HA_CREATE_USED_ROW_FORMAT;
   }
 
+  handlerton * const old_db_type= table->s->db_type();
+  handlerton *new_db_type= create_info->db_type;
+
   DBUG_PRINT("info", ("old type: %s  new type: %s",
-             ha_resolve_storage_engine_name(table->s->db_type()),
-             ha_resolve_storage_engine_name(create_info->db_type)));
-  if (ha_check_storage_engine_flag(table->s->db_type(), HTON_ALTER_NOT_SUPPORTED))
+             ha_resolve_storage_engine_name(old_db_type),
+             ha_resolve_storage_engine_name(new_db_type)));
+  if (ha_check_storage_engine_flag(old_db_type, HTON_ALTER_NOT_SUPPORTED))
   {
     DBUG_PRINT("info", ("doesn't support alter"));
-    my_error(ER_ILLEGAL_HA, MYF(0), hton_name(table->s->db_type())->str,
+    my_error(ER_ILLEGAL_HA, MYF(0), hton_name(old_db_type)->str,
              alter_ctx.db, alter_ctx.table_name);
     DBUG_RETURN(true);
   }
 
-  if (ha_check_storage_engine_flag(create_info->db_type,
-                                   HTON_ALTER_NOT_SUPPORTED))
+  if (ha_check_storage_engine_flag(new_db_type, HTON_ALTER_NOT_SUPPORTED))
   {
     DBUG_PRINT("info", ("doesn't support alter"));
-    my_error(ER_ILLEGAL_HA, MYF(0), hton_name(create_info->db_type)->str,
+    my_error(ER_ILLEGAL_HA, MYF(0), hton_name(new_db_type)->str,
              alter_ctx.new_db, alter_ctx.new_name);
     DBUG_RETURN(true);
   }
@@ -9349,6 +9351,17 @@ do_continue:;
       DBUG_RETURN(true);
     }
   }
+  /*
+    If the old table had partitions and we are doing ALTER TABLE ...
+    engine= <new_engine>, the new table must preserve the original
+    partitioning. This means that the new engine is still the
+    partitioning engine, not the engine specified in the parser.
+    This is discovered in prep_alter_part_table, which in such case
+    updates create_info->db_type.
+    It's therefore important that the assignment below is done
+    after prep_alter_part_table.
+  */
+  new_db_type= create_info->db_type;
 #endif
 
   if (mysql_prepare_alter_table(thd, table, create_info, alter_info,
@@ -9424,7 +9437,7 @@ do_continue:;
        Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
       || is_inplace_alter_impossible(table, create_info, alter_info)
       || IF_PARTITIONING((partition_changed &&
-          !(table->s->db_type()->partition_flags() & HA_USE_AUTO_PARTITION)), 0))
+          !(old_db_type->partition_flags() & HA_USE_AUTO_PARTITION)), 0))
   {
     if (alter_info->requested_algorithm ==
         Alter_info::ALTER_TABLE_ALGORITHM_INPLACE)
@@ -9441,22 +9454,10 @@ do_continue:;
     request table rebuild. Set ALTER_RECREATE flag to force table
     rebuild.
   */
-  if (create_info->db_type == table->s->db_type() &&
+  if (new_db_type == old_db_type &&
       create_info->used_fields & HA_CREATE_USED_ENGINE)
     alter_info->flags|= Alter_info::ALTER_RECREATE;
 
-  /*
-    If the old table had partitions and we are doing ALTER TABLE ...
-    engine= <new_engine>, the new table must preserve the original
-    partitioning. This means that the new engine is still the
-    partitioning engine, not the engine specified in the parser.
-    This is discovered in prep_alter_part_table, which in such case
-    updates create_info->db_type.
-    It's therefore important that the assignment below is done
-    after prep_alter_part_table.
-  */
-  handlerton *new_db_type= create_info->db_type;
-  handlerton *old_db_type= table->s->db_type();
   TABLE *new_table= NULL;
   ha_rows copied=0,deleted=0;
 
