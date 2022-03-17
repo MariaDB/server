@@ -936,7 +936,7 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
       m_latch_ex= true;
       log_sys.latch.rd_unlock();
       log_sys.latch.wr_lock(SRW_LOCK_CALL);
-      if (UNIV_UNLIKELY(m_user_space->max_lsn))
+      if (UNIV_UNLIKELY(m_user_space->max_lsn != 0))
         goto func_exit;
     }
     name_write();
