@@ -24,15 +24,15 @@ SELECT * FROM t1 WHERE a='::ff';
 a
 ::ff
 EXPLAIN SELECT * FROM t1 WHERE a='::ff';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	a	a	17	const	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	a	a	17	const	1	Using where; Using index
 SELECT * FROM t1 WHERE a='garbage';
 a
 Warnings:
 Warning	1292	Incorrect inet6 value: 'garbage'
 EXPLAIN SELECT * FROM t1 WHERE a='garbage';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Warning	1292	Incorrect inet6 value: 'garbage'
 SELECT * FROM t1 WHERE a>='::fe';
@@ -40,21 +40,21 @@ a
 ::fe
 ::ff
 EXPLAIN SELECT * FROM t1 WHERE a>='::fe';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	17	NULL	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	17	NULL	2	Using where; Using index
 SELECT * FROM t1 WHERE a>='garbage';
 a
 EXPLAIN SELECT * FROM t1 WHERE a>='garbage';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT * FROM t1 WHERE a IN ('::80','::a0','::f0');
 a
 ::80
 ::a0
 ::f0
 EXPLAIN SELECT * FROM t1 WHERE a IN ('::80','::a0','::f0');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	17	NULL	3	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	17	NULL	3	Using where; Using index
 SELECT * FROM t1 WHERE a IN ('::80','::a0','garbage');
 a
 ::80
@@ -62,8 +62,8 @@ a
 Warnings:
 Warning	1292	Incorrect inet6 value: 'garbage'
 EXPLAIN SELECT * FROM t1 WHERE a IN ('::80','::a0','garbage');
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	17	NULL	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	17	NULL	2	Using where; Using index
 Warnings:
 Warning	1292	Incorrect inet6 value: 'garbage'
 SELECT * FROM t1 WHERE a BETWEEN '::80' AND '::81';
@@ -71,19 +71,19 @@ a
 ::80
 ::81
 EXPLAIN SELECT * FROM t1 WHERE a BETWEEN '::80' AND '::81';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	17	NULL	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	a	a	17	NULL	2	Using where; Using index
 SELECT * FROM t1 WHERE a BETWEEN '::80' AND 'garbage';
 a
 EXPLAIN SELECT * FROM t1 WHERE a BETWEEN '::80' AND 'garbage';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT * FROM t1 WHERE a=CAST('::ff' AS INET6);
 a
 ::ff
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST('::ff' AS INET6);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ref	a	a	17	const	1	100.00	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	a	a	17	const	1	100.00	Using where; Using index
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = INET6'::ff'
 DROP TABLE t1;

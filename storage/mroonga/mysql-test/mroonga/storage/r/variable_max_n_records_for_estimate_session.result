@@ -14,7 +14,7 @@ INSERT INTO ids VALUES (9);
 INSERT INTO ids VALUES (10);
 SET mroonga_max_n_records_for_estimate = 1;
 EXPLAIN SELECT * FROM ids WHERE id > 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	ids	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	ids	NULL	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index
 SET mroonga_max_n_records_for_estimate = DEFAULT;
 DROP TABLE ids;

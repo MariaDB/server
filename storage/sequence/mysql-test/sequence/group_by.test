@@ -27,7 +27,7 @@ explain select count(seq) as c from seq_1_to_15_step_2 having c > 1000;
 select distinct count(*) from seq_1_to_15_step_2;
 explain select distinct count(*) from seq_1_to_15_step_2;
 select * from seq_1_to_15_step_2, (select count(*) from seq_1_to_15_step_2) as t1;
---replace_column 9 #
+--replace_column 10 #
 explain select * from seq_1_to_15_step_2, (select count(*) from seq_1_to_15_step_2) as t1;
 
 create view v1 as select count(*) from seq_1_to_15_step_2;
