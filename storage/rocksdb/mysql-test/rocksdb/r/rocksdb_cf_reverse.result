@@ -35,8 +35,8 @@ pk	a	b
 19	19	19
 explain 
 select a from t1 order by a limit 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a	4	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	4	NULL	#	Using index
 select a from t1 order by a limit 5;
 a
 0
@@ -46,8 +46,8 @@ a
 4
 explain 
 select b from t1 order by b limit 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	b	4	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	b	4	NULL	#	Using index
 select a from t1 order by a limit 5;
 a
 0
@@ -57,8 +57,8 @@ a
 4
 explain 
 select a from t1 order by a desc limit 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a	4	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	4	NULL	#	Using index
 select a from t1 order by a desc limit 5;
 a
 19
@@ -68,8 +68,8 @@ a
 15
 explain 
 select b from t1 order by b desc limit 5;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	b	4	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	b	4	NULL	#	Using index
 select b from t1 order by b desc limit 5;
 b
 19

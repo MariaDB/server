@@ -196,8 +196,8 @@ test.t1	analyze	status	OK
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
 select col1, hex(col1) from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	col1	67	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	col1	67	NULL	#	Using index
 select col1, hex(col1) from t1;
 col1	hex(col1)
 a  		61202009
@@ -207,8 +207,8 @@ ab	6162
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
 select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	#	col1	col1	67	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	#	col1	col1	67	NULL	#	Using where; Using index
 select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
 col1	hex(col1)
 a  		61202009
@@ -226,8 +226,8 @@ insert into t1 values(22, repeat(' ',17), '17x-space');
 insert into t1 values(23, repeat(' ',18), '18x-space');
 explain
 select pk, col1, hex(col1), length(col1) from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	#	NULL	col1	67	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	#	NULL	col1	67	NULL	#	Using index
 select pk, col1, hex(col1), length(col1) from t1;
 pk	col1	hex(col1)	length(col1)
 10			0
@@ -312,8 +312,8 @@ test.t1	analyze	status	OK
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
 select col1, hex(col1) from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	col1	195	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	col1	195	NULL	#	Using index
 select col1, hex(col1) from t1;
 col1	hex(col1)
 a  		61202009
@@ -323,8 +323,8 @@ ab	6162
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
 select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	#	col1	col1	195	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	#	col1	col1	195	NULL	#	Using where; Using index
 select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
 col1	hex(col1)
 a  		61202009
@@ -342,8 +342,8 @@ insert into t1 values(22, repeat(' ',17), '17x-space');
 insert into t1 values(23, repeat(' ',18), '18x-space');
 explain
 select pk, col1, hex(col1), length(col1) from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	#	NULL	col1	195	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	#	NULL	col1	195	NULL	#	Using index
 select pk, col1, hex(col1), length(col1) from t1;
 pk	col1	hex(col1)	length(col1)
 10			0
@@ -428,8 +428,8 @@ test.t1	analyze	status	OK
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
 select col1, hex(col1) from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	
 select col1, hex(col1) from t1;
 col1	hex(col1)
 ab	00610062
@@ -439,8 +439,8 @@ a  		0061002000200009
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
 select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	#	col1	col1	131	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	#	col1	col1	131	NULL	#	Using where
 select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
 col1	hex(col1)
 a  		0061002000200009
@@ -458,8 +458,8 @@ insert into t1 values(22, repeat(' ',17), '17x-space');
 insert into t1 values(23, repeat(' ',18), '18x-space');
 explain
 select pk, col1, hex(col1), length(col1) from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	#	NULL	NULL	NULL	NULL	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	#	NULL	NULL	NULL	NULL	#	
 select pk, col1, hex(col1), length(col1) from t1;
 pk	col1	hex(col1)	length(col1)
 10			0
@@ -544,8 +544,8 @@ test.t1	analyze	status	OK
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
 select col1, hex(col1) from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	
 select col1, hex(col1) from t1;
 col1	hex(col1)
 ab	6162
@@ -555,8 +555,8 @@ a  		61202009
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
 select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	#	col1	col1	259	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	#	col1	col1	259	NULL	#	Using where
 select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
 col1	hex(col1)
 a  		61202009
@@ -574,8 +574,8 @@ insert into t1 values(22, repeat(' ',17), '17x-space');
 insert into t1 values(23, repeat(' ',18), '18x-space');
 explain
 select pk, col1, hex(col1), length(col1) from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	#	NULL	NULL	NULL	NULL	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	#	NULL	NULL	NULL	NULL	#	
 select pk, col1, hex(col1), length(col1) from t1;
 pk	col1	hex(col1)	length(col1)
 10			0
@@ -660,8 +660,8 @@ test.t1	analyze	status	OK
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
 select col1, hex(col1) from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	
 select col1, hex(col1) from t1;
 col1	hex(col1)
 ab	00610062
@@ -671,8 +671,8 @@ a  		0061002000200009
 # Must show 'using index' for latin1_bin and utf8_bin:
 explain
 select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	#	col1	col1	259	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	#	col1	col1	259	NULL	#	Using where
 select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
 col1	hex(col1)
 a  		0061002000200009
@@ -690,8 +690,8 @@ insert into t1 values(22, repeat(' ',17), '17x-space');
 insert into t1 values(23, repeat(' ',18), '18x-space');
 explain
 select pk, col1, hex(col1), length(col1) from t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	#	NULL	NULL	NULL	NULL	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	#	NULL	NULL	NULL	NULL	#	
 select pk, col1, hex(col1), length(col1) from t1;
 pk	col1	hex(col1)	length(col1)
 10			0
@@ -739,8 +739,8 @@ drop table t1;
 create table t (id int primary key, email varchar(100), KEY email_i (email(30)));
 insert into t values (1, 'abcabcabcabcabcabcabcabcabcabcabc  ');
 explain select 'email_i' as index_name, count(*) AS count from t force index(email_i);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	ALL	NULL	NULL	NULL	NULL	#	
 select 'email_i' as index_name, count(*) AS count from t force index(email_i);
 index_name	count
 email_i	1
@@ -752,8 +752,8 @@ set session rocksdb_verify_row_debug_checksums = on;
 create table t (id int primary key, email varchar(100), KEY email_i (email(30)));
 insert into t values (1, 'a');
 explain select 'email_i' as index_name, count(*) AS count from t force index(email_i);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	ALL	NULL	NULL	NULL	NULL	#	
 select 'email_i' as index_name, count(*) AS count from t force index(email_i);
 index_name	count
 email_i	1

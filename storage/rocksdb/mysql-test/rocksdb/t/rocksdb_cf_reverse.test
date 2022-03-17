@@ -22,22 +22,22 @@ insert into t1 select a+10,a+10,a+10  from t0;
 --echo #   returns rows in ascending order:
 select * from t1;
 
---replace_column 9 #
+--replace_column 10 #
 explain 
 select a from t1 order by a limit 5;
 select a from t1 order by a limit 5;
 
---replace_column 9 #
+--replace_column 10 #
 explain 
 select b from t1 order by b limit 5;
 select a from t1 order by a limit 5;
 
---replace_column 9 #
+--replace_column 10 #
 explain 
 select a from t1 order by a desc limit 5;
 select a from t1 order by a desc limit 5;
 
---replace_column 9 #
+--replace_column 10 #
 explain 
 select b from t1 order by b desc limit 5;
 select b from t1 order by b desc limit 5;

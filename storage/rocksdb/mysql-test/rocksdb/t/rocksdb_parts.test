@@ -59,7 +59,7 @@ insert into t1 values (12,20,20);
 set @tmp_rfirr= @@rocksdb_force_index_records_in_range;
 set rocksdb_force_index_records_in_range= 12;
 
---replace_column 9 #
+--replace_column 10 #
 explain select * from t1 force index(col1) where col1=10;
 select * from t1 force index(col1) where col1=10;
 select * from t1 use index () where col1=10;

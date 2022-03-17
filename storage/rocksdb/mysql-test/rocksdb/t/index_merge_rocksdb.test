@@ -79,7 +79,7 @@ ANALYZE TABLE t1;
 -- enable_result_log
 -- enable_query_log
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN UPDATE t1 SET filler1='to be deleted' WHERE key1=100 AND key2=100;
 UPDATE t1 SET filler1='to be deleted' WHERE key1=100 and key2=100;
 
@@ -99,9 +99,9 @@ while ($i <= 1000) {
 set global rocksdb_force_flush_memtable_now=1;
 analyze table t1;
 
---replace_column 9 #
+--replace_column 10 #
 explain select * from t1 where key1 = 1;
---replace_column 9 #
+--replace_column 10 #
 explain select key1,key2 from t1 where key1 = 1 or key2 = 1;
 select * from t1 where key1 = 1;
 select key1,key2 from t1 where key1 = 1 or key2 = 1;

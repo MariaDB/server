@@ -45,13 +45,13 @@ insert into t1 values (3, 'a  \t', 'a-tab');
 
 analyze table t1;
 --echo # Must show 'using index' for latin1_bin and utf8_bin:
---replace_column 9 #
+--replace_column 10 #
 explain
 select col1, hex(col1) from t1;
 select col1, hex(col1) from t1;
 
 --echo # Must show 'using index' for latin1_bin and utf8_bin:
---replace_column 4 # 9 #
+--replace_column 5 # 10 #
 explain
 select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
 select col1, hex(col1) from t1 force index(col1) where col1 < 'b';
@@ -67,7 +67,7 @@ insert into t1 values(21, repeat(' ', 9), '9x-space');
 insert into t1 values(22, repeat(' ',17), '17x-space');
 insert into t1 values(23, repeat(' ',18), '18x-space');
 
---replace_column 4 # 9 #
+--replace_column 5 # 10 #
 explain
 select pk, col1, hex(col1), length(col1) from t1;
 select pk, col1, hex(col1), length(col1) from t1;

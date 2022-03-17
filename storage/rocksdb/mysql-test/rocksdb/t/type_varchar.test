@@ -52,7 +52,7 @@ drop table t1;
 # Issue #306 - Do not store trailing spaces for prefixed keys.
 create table t (id int primary key, email varchar(100), KEY email_i (email(30)));
 insert into t values (1, 'abcabcabcabcabcabcabcabcabcabcabc  ');
---replace_column 9 #
+--replace_column 10 #
 explain select 'email_i' as index_name, count(*) AS count from t force index(email_i);
 select 'email_i' as index_name, count(*) AS count from t force index(email_i);
 drop table t;
@@ -63,7 +63,7 @@ set global rocksdb_checksums_pct = 100;
 set session rocksdb_verify_row_debug_checksums = on;
 create table t (id int primary key, email varchar(100), KEY email_i (email(30)));
 insert into t values (1, 'a');
---replace_column 9 #
+--replace_column 10 #
 explain select 'email_i' as index_name, count(*) AS count from t force index(email_i);
 select 'email_i' as index_name, count(*) AS count from t force index(email_i);
 drop table t;
