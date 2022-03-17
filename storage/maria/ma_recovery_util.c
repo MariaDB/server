@@ -59,11 +59,12 @@ void tprint(FILE *trace_file __attribute__ ((unused)),
   va_list args;
 #ifndef DBUG_OFF
   {
-    char buff[1024], *end;
+    char buff[1024];
+    size_t length;
     va_start(args, format);
-    vsnprintf(buff, sizeof(buff)-1, format, args);
-    if (*(end= strend(buff)) == '\n')
-      *end= 0;                                  /* Don't print end \n */
+    length= my_vsnprintf(buff, sizeof(buff)-1, format, args);
+    if (length && buff[length-1] == '\n')
+      buff[length-1]= 0;                      /* Don't print end \n */
     DBUG_PRINT("info", ("%s", buff));
     va_end(args);
   }
@@ -95,6 +96,7 @@ void eprint(FILE *trace_file __attribute__ ((unused)),
   fputc('\n', trace_file);
   if (trace_file != stderr)
   {
+    va_start(args, format);
     my_printv_error(HA_ERR_INITIALIZATION, format, MYF(0), args);
   }
   va_end(args);
