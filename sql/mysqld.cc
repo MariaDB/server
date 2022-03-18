@@ -3640,12 +3640,17 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
       /* Ensure we don't get called here again */
       char buf[50], *buf2;
       thd->set_killed(KILL_QUERY);
-      my_snprintf(buf, sizeof(buf), "--max-thread-mem-used=%llu",
+      my_snprintf(buf, sizeof(buf), "--max-session-mem-used=%llu",
                   thd->variables.max_mem_used);
       if ((buf2= (char*) thd->alloc(256)))
       {
         my_snprintf(buf2, 256, ER_THD(thd, ER_OPTION_PREVENTS_STATEMENT), buf);
         thd->set_killed(KILL_QUERY, ER_OPTION_PREVENTS_STATEMENT, buf2);
+      }
+      else
+      {
+        thd->set_killed(KILL_QUERY, ER_OPTION_PREVENTS_STATEMENT,
+                        "--max-session-mem-used");
       }
     }
     DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0 ||
