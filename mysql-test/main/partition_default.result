@@ -229,18 +229,18 @@ a	b
 20	20
 10	10
 explain partitions select * from t1 where a=10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	100.00	
 explain partitions select * from t1 where a=5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	100.00	
 select * from t1 where a=10 or a=5;
 a	b
 5	5
 10	10
 explain partitions select * from t1 where a=10 or a=5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p2,p0	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p2,p0	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 drop table t1;
 create table t1 (a int, b int)
 PARTITION BY LIST COLUMNS(a,b)
@@ -270,14 +270,14 @@ select * from t1 where a=10 and b=10;
 a	b
 10	10
 explain partitions select * from t1 where a=10 and b=10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	100.00	
 select * from t1 where a=10;
 a	b
 10	10
 explain partitions select * from t1 where a=10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	100.00	
 select * from t1 where a<=10;
 a	b
 10	10
@@ -294,15 +294,15 @@ select * from t1 where a=10 and b=10;
 a	b
 10	10
 explain partitions select * from t1 where a=10 and b=10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	100.00	
 select * from t1 where a=10 and b=10 or a=20 and b=20;
 a	b
 20	20
 10	10
 explain partitions select * from t1 where a=10 and b=10 or a=20 and b=20;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1,p0	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p1,p0	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 drop table t1;
 create table t1 (a int, b int);
 insert into t1 values (10,10),(2,5),(0,0);
@@ -335,11 +335,11 @@ a	b
 0	0
 10	10
 explain partitions select * from t1 where a=2 and b=5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	100.00	
 explain partitions select * from t1 where a=10 and b=10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	100.00	
 drop table t1;
 create table t1 (a int, b int);
 insert into t1 values (10,10),(2,5),(0,0);
@@ -377,14 +377,14 @@ p0	2
 p1	0
 p2	1
 explain partitions select * from t1 where a>=2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p2,p1,p0	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p2,p1,p0	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 explain partitions select * from t1 where a>=2 and a<=3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p2,p0	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p2,p0	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 explain partitions select * from t1 where a=10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 drop table t1;
 CREATE TABLE t1 (a DATE, KEY(a))
 PARTITION BY LIST (TO_DAYS(a))
@@ -847,11 +847,11 @@ p0	1
 p1	1
 p2	1
 explain partitions select * from t1 where a=2 and b=5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	100.00	
 explain partitions select * from t1 where a=10 and b=10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	100.00	
 alter table t1
 PARTITION BY LIST (a)
 (
@@ -881,11 +881,11 @@ p0	1
 p1	1
 p2	1
 explain partitions select * from t1 where a=2 and b=5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	100.00	
 explain partitions select * from t1 where a=10 and b=10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	100.00	
 alter table t1
 PARTITION BY LIST (a)
 (
@@ -915,11 +915,11 @@ p0	1
 p1	1
 p2	1
 explain partitions select * from t1 where a=2 and b=5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	100.00	
 explain partitions select * from t1 where a=10 and b=10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	100.00	
 alter table t1 drop partition p2;
 show create table t1;
 Table	Create Table
@@ -992,11 +992,11 @@ p0	1
 p1	1
 p2	1
 explain partitions select * from t1 where a=2 and b=5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	100.00	
 explain partitions select * from t1 where a=10 and b=10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	100.00	
 alter table t1
 PARTITION BY LIST COLUMNS(a,b)
 (
@@ -1026,11 +1026,11 @@ p0	1
 p1	1
 p2	1
 explain partitions select * from t1 where a=2 and b=5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	100.00	
 explain partitions select * from t1 where a=10 and b=10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	100.00	
 alter table t1
 PARTITION BY LIST COLUMNS(a,b)
 (
@@ -1060,11 +1060,11 @@ p0	1
 p1	1
 p2	1
 explain partitions select * from t1 where a=2 and b=5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	100.00	
 explain partitions select * from t1 where a=10 and b=10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	100.00	
 alter table t1 drop partition p2;
 show create table t1;
 Table	Create Table
@@ -1154,23 +1154,23 @@ i	j
 10	1
 explain partitions
 select * from t1 where i = 10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1,p2	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p1,p2	system	NULL	NULL	NULL	NULL	1	100.00	
 select * from t1 where i = 10 and j=1;
 i	j
 10	1
 explain partitions
 select * from t1 where i = 10 and j=1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	100.00	
 insert into t1 values (10,10);
 select * from t1 where i = 10 and j=10;
 i	j
 10	10
 explain partitions
 select * from t1 where i = 10 and j=10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p1	system	NULL	NULL	NULL	NULL	1	100.00	
 drop table t1;
 create table t1
 ( 
@@ -1195,8 +1195,8 @@ insert into t1 values
 explain partitions 
 select * from t1 
 where a>=10  and (a <=10 and b <=30);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1,p2,p3	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p1,p2,p3	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 drop table t1;
 #
 # MDEV-10763: Wrong result - server does not return NULL values
@@ -1213,8 +1213,8 @@ i
 NULL
 explain partitions 
 select * from t1 where i is null;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p2	system	NULL	NULL	NULL	NULL	1	100.00	
 alter table t1 partition by list (i) (
 partition p0 values in (NULL),
 partition p1 values in (1),
@@ -1224,8 +1224,8 @@ i
 NULL
 explain partitions 
 select * from t1 where i is null;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	100.00	
 drop table t1;
 #
 # MDEV-12395: DROP PARTITION does not work as expected when

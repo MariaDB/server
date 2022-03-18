@@ -16,17 +16,17 @@ insert into t1 values ('2001-01-01 1:1:1', '1:1:1'),
 insert into t2 values ('2001-01-01 1:1:1'), ('2001-01-01 1:1:1');
 flush tables;
 EXPLAIN SELECT OUTR.dt FROM t1 AS OUTR WHERE OUTR.dt IN (SELECT INNR.dt FROM t2 AS INNR WHERE OUTR.dt IS NULL );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	OUTR	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	INNR	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	OUTR	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	INNR	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 flush tables;
 SELECT OUTR.dt FROM t1 AS OUTR WHERE OUTR.dt IN (SELECT INNR.dt FROM t2 AS INNR WHERE OUTR.dt IS NULL );
 dt
 flush tables;
 EXPLAIN SELECT OUTR.dt FROM t1 AS OUTR WHERE OUTR.dt IN ( SELECT INNR.dt FROM t2 AS INNR WHERE OUTR.t < '2005-11-13 7:41:31' );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	OUTR	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	INNR	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	OUTR	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	INNR	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 flush tables;
 SELECT OUTR.dt FROM t1 AS OUTR WHERE OUTR.dt IN ( SELECT INNR.dt FROM t2 AS INNR WHERE OUTR.t < '2005-11-13 7:41:31' );
 dt
@@ -233,10 +233,10 @@ where exists ( select * from t2
 where t2.c in (select c from t3 where t3.c > t1.b) and
 t2.c > 'b1' )
 group by a1,a2,b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
-2	DEPENDENT SUBQUERY	t2	NULL	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
-3	DEPENDENT SUBQUERY	t3	NULL	index	NULL	idx_t3_1	10	NULL	192	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	index	NULL	idx_t1_1	163	NULL	128	100.00	Using where; Using index
+2	DEPENDENT SUBQUERY	t2	NULL	index	NULL	idx_t2_1	163	NULL	164	76.83	Using where; Using index
+3	DEPENDENT SUBQUERY	t3	NULL	index	NULL	idx_t3_1	10	NULL	192	100.00	Using where; Using index
 select a1,a2,b,c,min(c), max(c) from t1
 where exists ( select * from t2
 where t2.c in (select c from t3 where t3.c > t1.b) and
@@ -264,10 +264,10 @@ where exists ( select * from t2
 where t2.c in (select c from t3 where t3.c > t1.c) and
 t2.c > 'b1' )
 group by a1,a2,b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
-2	DEPENDENT SUBQUERY	t2	NULL	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
-3	DEPENDENT SUBQUERY	t3	NULL	index	NULL	idx_t3_1	10	NULL	192	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	index	NULL	idx_t1_1	163	NULL	128	100.00	Using where; Using index
+2	DEPENDENT SUBQUERY	t2	NULL	index	NULL	idx_t2_1	163	NULL	164	76.83	Using where; Using index
+3	DEPENDENT SUBQUERY	t3	NULL	index	NULL	idx_t3_1	10	NULL	192	100.00	Using where; Using index
 select a1,a2,b,c,min(c), max(c) from t1
 where exists ( select * from t2
 where t2.c in (select c from t3 where t3.c > t1.c) and
@@ -313,22 +313,22 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN SELECT 1 FROM t1 WHERE a IN
 (SELECT a FROM t1 USE INDEX (i2) IGNORE INDEX (i2));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	index	NULL	PRIMARY	4	NULL	144	Using where; Using index
-2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	144	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	index	NULL	PRIMARY	4	NULL	144	100.00	Using where; Using index
+2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	144	100.00	
 CREATE TABLE t2 (a INT, b INT, KEY(a));
 INSERT INTO t2 VALUES (1, 1), (2, 2), (3,3), (4,4);
 EXPLAIN SELECT a, SUM(b) FROM t2 GROUP BY a LIMIT 2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	index	NULL	a	5	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	index	NULL	a	5	NULL	2	100.00	
 EXPLAIN SELECT a, SUM(b) FROM t2 IGNORE INDEX (a) GROUP BY a LIMIT 2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using temporary; Using filesort
 EXPLAIN SELECT 1 FROM t2 WHERE a IN
 (SELECT a FROM t1 USE INDEX (i2) IGNORE INDEX (i2));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	NULL	index	NULL	a	5	NULL	4	Using where; Using index
-2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	144	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	index	NULL	a	5	NULL	4	100.00	Using where; Using index
+2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	144	100.00	
 DROP TABLE t1, t2;
 # 
 # From derived_view.test
@@ -393,10 +393,10 @@ a
 2
 EXPLAIN 
 SELECT a FROM t1 WHERE (a,b) IN (SELECT * FROM v1);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	<derived3>	NULL	index_subquery	key0	key0	10	func,func	2	Using where
-3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	<derived3>	NULL	index_subquery	key0	key0	10	func,func	2	100.00	Using where
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	Using temporary; Using filesort
 SELECT * FROM v2;
 a	b
 9	3
@@ -413,12 +413,12 @@ a
 2
 EXPLAIN 
 SELECT a FROM t1 WHERE (a,b) IN (SELECT * FROM v2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	<derived3>	NULL	index_subquery	key0	key0	10	func,func	1	Using where
-3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	
-4	UNION	t3	NULL	ALL	NULL	NULL	NULL	NULL	4	
-NULL	UNION RESULT	<union3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	<derived3>	NULL	index_subquery	key0	key0	10	func,func	1	100.00	Using where
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	
+4	UNION	t3	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+NULL	UNION RESULT	<union3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 DROP VIEW v1,v2;
 DROP TABLE t1,t2,t3;
 #
@@ -436,11 +436,11 @@ EXPLAIN
 SELECT * FROM t3 
 WHERE t3.b IN (SELECT v1.b FROM  v1, t2 
 WHERE t2.c = v1.c AND t2.c = v1.b AND v1.b = t3.c);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
-3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 SELECT * FROM t3 
 WHERE t3.b IN (SELECT v1.b FROM  v1, t2 
 WHERE t2.c = v1.c AND t2.c = v1.b AND v1.b = t3.c);
@@ -451,11 +451,11 @@ EXPLAIN
 SELECT * FROM t3 
 WHERE t3.b IN (SELECT v1.b FROM  v1, t2 
 WHERE t2.c = v1.c AND t2.c = v1.b AND v1.b = t3.c);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	<derived3>	NULL	ref	key1	key1	8	const,const	0	Using where
-3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	<derived3>	NULL	ref	key1	key1	8	const,const	0	0.00	Using where
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 SELECT * FROM t3 
 WHERE t3.b IN (SELECT v1.b FROM  v1, t2 
 WHERE t2.c = v1.c AND t2.c = v1.b AND v1.b = t3.c);
@@ -474,10 +474,10 @@ CREATE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT * FROM t2;
 SET SESSION optimizer_switch='derived_with_keys=on';
 EXPLAIN
 SELECT * FROM t1 WHERE t1.b IN (SELECT v2.a FROM v2 WHERE v2.b = t1.a);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	<derived3>	NULL	ref	key0	key0	5	test.t1.a	2	Using where
-3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	<derived3>	NULL	ref	key0	key0	5	test.t1.a	2	100.00	Using where
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 SELECT * FROM t1 WHERE t1.b IN (SELECT v2.a FROM v2 WHERE v2.b = t1.a);
 a	b
 5	4

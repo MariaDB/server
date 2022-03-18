@@ -53,10 +53,10 @@ LEFT JOIN bug30243_3 sa_opportunities
 ON orgs.org_id=sa_opportunities.org_id
 LEFT JOIN bug30243_2 contacts
 ON orgs.org_id=contacts.org_id ;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	orgs	NULL	index	NULL	org_id	4	NULL	ROWS	Using index
-1	SIMPLE	sa_opportunities	NULL	ref	org_id	org_id	5	test.orgs.org_id	ROWS	Using index
-1	SIMPLE	contacts	NULL	ref	contacts$org_id	contacts$org_id	5	test.orgs.org_id	ROWS	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	orgs	NULL	index	NULL	org_id	4	NULL	ROWS	100.00	Using index
+1	SIMPLE	sa_opportunities	NULL	ref	org_id	org_id	5	test.orgs.org_id	ROWS	100.00	Using index
+1	SIMPLE	contacts	NULL	ref	contacts$org_id	contacts$org_id	5	test.orgs.org_id	ROWS	100.00	Using index
 select @@innodb_stats_method;
 @@innodb_stats_method
 nulls_ignored
@@ -82,10 +82,10 @@ LEFT JOIN bug30243_3 sa_opportunities
 ON orgs.org_id=sa_opportunities.org_id
 LEFT JOIN bug30243_2 contacts
 ON orgs.org_id=contacts.org_id;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	orgs	NULL	index	NULL	org_id	4	NULL	ROWS	Using index
-1	SIMPLE	sa_opportunities	NULL	ref	org_id	org_id	5	test.orgs.org_id	ROWS	Using index
-1	SIMPLE	contacts	NULL	ref	contacts$org_id	contacts$org_id	5	test.orgs.org_id	ROWS	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	orgs	NULL	index	NULL	org_id	4	NULL	ROWS	100.00	Using index
+1	SIMPLE	sa_opportunities	NULL	ref	org_id	org_id	5	test.orgs.org_id	ROWS	100.00	Using index
+1	SIMPLE	contacts	NULL	ref	contacts$org_id	contacts$org_id	5	test.orgs.org_id	ROWS	100.00	Using index
 SELECT COUNT(*) FROM table_bug30423 WHERE org_id IS NULL;
 COUNT(*)
 1024

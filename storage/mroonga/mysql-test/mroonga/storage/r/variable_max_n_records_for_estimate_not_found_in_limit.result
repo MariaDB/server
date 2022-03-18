@@ -10,7 +10,7 @@ INSERT INTO ids VALUES (4),(5),(6),(7);
 DELETE FROM ids WHERE id < 2;
 SET mroonga_max_n_records_for_estimate = 1;
 EXPLAIN SELECT * FROM ids WHERE id > 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	ids	NULL	range	id	id	5	NULL	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	ids	NULL	range	id	id	5	NULL	1	100.00	Using where; Using index
 SET mroonga_max_n_records_for_estimate = DEFAULT;
 DROP TABLE ids;

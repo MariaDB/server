@@ -172,10 +172,10 @@ b
 INSERT INTO t2 values (1),(2),(3);
 INSERT INTO t3 VALUES (1,'1'),(2,'2'),(1,'1'),(2,'2');
 explain SELECT distinct t3.a FROM t3,t2,t1 WHERE t3.a=t1.b AND t1.a=t2.a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	index	a	a	4	NULL	5	Using index; Using temporary
-1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	Using where
-1	SIMPLE	t3	NULL	ref	a	a	5	test.t1.b	2	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	index	a	a	4	NULL	5	100.00	Using index; Using temporary
+1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t2.a	1	100.00	Using where
+1	SIMPLE	t3	NULL	ref	a	a	5	test.t1.b	2	100.00	Using index
 SELECT distinct t3.a FROM t3,t2,t1 WHERE t3.a=t1.b AND t1.a=t2.a;
 a
 1
@@ -188,9 +188,9 @@ insert into t3 select * from t4;
 insert into t4 select * from t3;
 insert into t3 select * from t4;
 explain select distinct t1.a from t1,t3 where t1.a=t3.a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	PRIMARY	PRIMARY	4	NULL	4	Using index; Using temporary
-1	SIMPLE	t3	NULL	ref	a	a	5	test.t1.a	11	Using index; Distinct
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	PRIMARY	PRIMARY	4	NULL	4	100.00	Using index; Using temporary
+1	SIMPLE	t3	NULL	ref	a	a	5	test.t1.a	11	100.00	Using index; Distinct
 select distinct t1.a from t1,t3 where t1.a=t3.a;
 a
 1
@@ -199,29 +199,29 @@ select distinct 1 from t1,t3 where t1.a=t3.a;
 1
 1
 explain SELECT distinct t1.a from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	4	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	4	100.00	Using index
 explain SELECT distinct t1.a from t1 order by a desc;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	4	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	4	100.00	Using index
 explain SELECT t1.a from t1 group by a order by a desc;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	4	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	4	100.00	Using index
 explain SELECT distinct t1.a from t1 order by a desc limit 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	1	100.00	Using index
 explain SELECT distinct a from t3 order by a desc limit 2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	index	NULL	a	5	NULL	40	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	index	NULL	a	5	NULL	40	25.00	Using index
 explain SELECT distinct a,b from t3 order by a+1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	204	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	204	100.00	Using temporary; Using filesort
 explain SELECT distinct a,b from t3 order by a limit 2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	index	NULL	a	5	NULL	2	Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	index	NULL	a	5	NULL	2	100.00	Using temporary
 explain SELECT a,b from t3 group by a,b order by a+1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	204	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	204	100.00	Using temporary; Using filesort
 drop table t1,t2,t3,t4;
 CREATE TABLE t1 (name varchar(255));
 INSERT INTO t1 VALUES ('aa'),('ab'),('ac'),('ad'),('ae');
@@ -300,14 +300,14 @@ on j_lj_t3.id=t3_lj.id
 WHERE
 ((t1.id=j_lj_t2.id AND t2_lj.id IS NULL) OR (t1.id=t2.id AND t2.idx=2))
 AND ((t1.id=j_lj_t3.id AND t3_lj.id IS NULL) OR (t1.id=t3.id AND t3.idx=2));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	id	id	4	NULL	2	Using index; Using temporary
-1	SIMPLE	t2	NULL	index	id	id	8	NULL	1	Using index; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	NULL	index	id	id	8	NULL	1	Using index; Using join buffer (flat, BNL join)
-1	SIMPLE	j_lj_t2	NULL	index	id	id	4	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
-1	SIMPLE	t2_lj	NULL	ref	id	id	4	test.j_lj_t2.id	1	Using where; Using index
-1	SIMPLE	j_lj_t3	NULL	index	id	id	4	NULL	2	Using where; Using index; Using join buffer (flat, BNL join)
-1	SIMPLE	t3_lj	NULL	ref	id	id	4	test.j_lj_t3.id	1	Using where; Using index; Distinct
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	id	id	4	NULL	2	100.00	Using index; Using temporary
+1	SIMPLE	t2	NULL	index	id	id	8	NULL	1	100.00	Using index; Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	index	id	id	8	NULL	1	100.00	Using index; Using join buffer (flat, BNL join)
+1	SIMPLE	j_lj_t2	NULL	index	id	id	4	NULL	2	100.00	Using where; Using index; Using join buffer (flat, BNL join)
+1	SIMPLE	t2_lj	NULL	ref	id	id	4	test.j_lj_t2.id	1	100.00	Using where; Using index
+1	SIMPLE	j_lj_t3	NULL	index	id	id	4	NULL	2	100.00	Using where; Using index; Using join buffer (flat, BNL join)
+1	SIMPLE	t3_lj	NULL	ref	id	id	4	test.j_lj_t3.id	1	100.00	Using where; Using index; Distinct
 SELECT DISTINCT
 t1.id
 from
@@ -510,54 +510,54 @@ DROP TABLE t1,t2;
 CREATE TABLE t1(a INT PRIMARY KEY, b INT);
 INSERT INTO t1 VALUES (1,1), (2,1), (3,1);
 EXPLAIN SELECT DISTINCT a FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	3	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	3	100.00	Using index
 EXPLAIN SELECT DISTINCT a,b FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 EXPLAIN SELECT DISTINCT t1_1.a, t1_1.b FROM t1 t1_1, t1 t1_2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using temporary
-1	SIMPLE	t1_2	NULL	index	NULL	PRIMARY	4	NULL	3	Using index; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1_1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using temporary
+1	SIMPLE	t1_2	NULL	index	NULL	PRIMARY	4	NULL	3	100.00	Using index; Using join buffer (flat, BNL join)
 EXPLAIN SELECT DISTINCT t1_1.a, t1_1.b FROM t1 t1_1, t1 t1_2
 WHERE t1_1.a = t1_2.a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_1	NULL	ALL	PRIMARY	NULL	NULL	NULL	3	Using temporary
-1	SIMPLE	t1_2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1_1.a	1	Using index; Distinct
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1_1	NULL	ALL	PRIMARY	NULL	NULL	NULL	3	100.00	Using temporary
+1	SIMPLE	t1_2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1_1.a	1	100.00	Using index; Distinct
 EXPLAIN SELECT a FROM t1 GROUP BY a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	3	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	3	100.00	Using index
 EXPLAIN SELECT a,b FROM t1 GROUP BY a,b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 EXPLAIN SELECT DISTINCT a,b FROM t1 GROUP BY a,b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 CREATE TABLE t2(a INT, b INT NOT NULL, c INT NOT NULL, d INT, 
 PRIMARY KEY (a,b));
 INSERT INTO t2 VALUES (1,1,1,50), (1,2,3,40), (2,1,3,4);
 EXPLAIN SELECT DISTINCT a FROM t2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	range	NULL	PRIMARY	4	NULL	4	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	range	NULL	PRIMARY	4	NULL	4	100.00	Using index for group-by
 EXPLAIN SELECT DISTINCT a,a FROM t2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	range	NULL	PRIMARY	4	NULL	4	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	range	NULL	PRIMARY	4	NULL	4	100.00	Using index for group-by
 EXPLAIN SELECT DISTINCT b,a FROM t2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	index	NULL	PRIMARY	8	NULL	3	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	index	NULL	PRIMARY	8	NULL	3	100.00	Using index
 EXPLAIN SELECT DISTINCT a,c FROM t2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using temporary
 EXPLAIN SELECT DISTINCT c,a,b FROM t2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 EXPLAIN SELECT DISTINCT a,b,d FROM t2 GROUP BY c,b,d;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using temporary; Using filesort
 CREATE UNIQUE INDEX c_b_unq ON t2 (c,b);
 EXPLAIN SELECT DISTINCT a,b,d FROM t2 GROUP BY c,b,d;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 DROP TABLE t1,t2;
 create table t1 (id int, dsc varchar(50));
 insert into t1 values (1, "line number one"), (2, "line number two"), (3, "line number three");
@@ -570,8 +570,8 @@ drop table t1;
 CREATE TABLE t1 (a int primary key, b int);
 INSERT INTO t1 (a,b) values (1,1), (2,3), (3,2);
 explain SELECT DISTINCT a, b FROM t1 ORDER BY b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 SELECT DISTINCT a, b FROM t1 ORDER BY b;
 a	b
 1	1
@@ -606,8 +606,8 @@ INSERT INTO t1 SELECT a + 2, a + 102 FROM t1;
 INSERT INTO t1 SELECT a + 4, a + 104 FROM t1;
 INSERT INTO t1 SELECT a + 8, a + 108 FROM t1;
 EXPLAIN SELECT DISTINCT a,a FROM t1 WHERE b < 12 ORDER BY a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	PRIMARY	8	NULL	16	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	8	NULL	16	100.00	Using where; Using index
 SELECT DISTINCT a,a FROM t1 WHERE b < 12 ORDER BY a;
 a	a
 DROP TABLE t1;
@@ -688,14 +688,14 @@ DROP TABLE t1;
 CREATE TABLE t1 (a DATE);
 INSERT INTO t1 VALUES ('1972-07-29'), ('1972-02-06');
 EXPLAIN SELECT (SELECT DISTINCT a FROM t1 WHERE a = '2002-08-03');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 EXPLAIN SELECT (SELECT DISTINCT ADDDATE(a,1) FROM t1
 WHERE ADDDATE(a,1) = '2002-08-03');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 CREATE TABLE t2 (a CHAR(5) CHARACTER SET latin1 COLLATE latin1_general_ci);
 INSERT INTO t2 VALUES (0xf6);
 INSERT INTO t2 VALUES ('oe');
@@ -710,8 +710,8 @@ DROP TABLE t1, t2;
 CREATE TABLE t1 (a INT, UNIQUE (a));
 INSERT INTO t1 VALUES (4),(null),(2),(1),(null),(3);
 EXPLAIN SELECT DISTINCT a FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	a	5	NULL	6	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	5	NULL	6	100.00	Using index
 SELECT DISTINCT a FROM t1;
 a
 NULL
@@ -720,8 +720,8 @@ NULL
 3
 4
 EXPLAIN SELECT a FROM t1 GROUP BY a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	a	5	NULL	6	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	5	NULL	6	100.00	Using index
 SELECT a FROM t1 GROUP BY a;
 a
 NULL
@@ -755,8 +755,8 @@ INSERT INTO t1(a, b, c) VALUES (1, 1, 1),
 (1, 2, 2),
 (1, 2, 3);
 EXPLAIN SELECT DISTINCT a, b, d, c FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	NULL	PRIMARY	16	NULL	7	Using index for group-by; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	NULL	PRIMARY	16	NULL	7	100.00	Using index for group-by; Using temporary
 SELECT DISTINCT a, b, d, c FROM t1;
 a	b	d	c
 1	1	0	1
@@ -808,31 +808,31 @@ a
 2010-10-10
 20101010
 explain select distinct a from t1 where a = DATE('2010-10-10');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using temporary
 drop table t1;
 # date = string
 create table t1 (a date);
 insert t1 values ('2010-10-10'), ('20101010');
 explain select distinct a from t1 where a = '2010-10-10';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 drop table t1;
 # double = string
 create table t1 (a double);
 insert t1 values (2), (2);
 explain select distinct a from t1 where a = '2';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 # double = int
 explain select distinct a from t1 where a = 2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 # string = double
 alter table t1 modify a varchar(100);
 explain select distinct a from t1 where a = 2e0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using temporary
 drop table t1;
 create table t1 (f1 varchar(40));
 insert into t1 values ('2010-10-10 00:00:00.0001'),('2010-10-10 00:00:00.0002'),('2010-10-10 00:00:00.0003');
@@ -1059,10 +1059,10 @@ explain
 ( SELECT DISTINCT 1 FROM t1 ORDER BY BENCHMARK(1, MIN(pk)) )
 UNION
 ( SELECT DISTINCT 1 FROM t1 ORDER BY BENCHMARK(1, MIN(pk)) );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	index	NULL	PRIMARY	4	NULL	2	Using index; Using temporary
-2	UNCACHEABLE UNION	t1	NULL	index	NULL	PRIMARY	4	NULL	2	Using index; Using temporary
-NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	index	NULL	PRIMARY	4	NULL	2	100.00	Using index; Using temporary
+2	UNCACHEABLE UNION	t1	NULL	index	NULL	PRIMARY	4	NULL	2	100.00	Using index; Using temporary
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 ( SELECT DISTINCT 1 FROM t1 ORDER BY BENCHMARK(1, MIN(pk)) )
 UNION
 ( SELECT DISTINCT 1 FROM t1 ORDER BY BENCHMARK(1, MIN(pk)) );
@@ -1100,9 +1100,9 @@ id
 # Test the second part of the fix: just check that "LIMIT 0 OFFSET n" is
 # handled in the same way as "LIMIT 0"
 explain select * from t1 limit 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Zero limit
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Zero limit
 explain select * from t1 limit 0 offset 10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Zero limit
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Zero limit
 drop table t1, t2;

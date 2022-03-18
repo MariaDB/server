@@ -63,9 +63,9 @@ WHERE (EXISTS (select 1 from City where City.Population > 100000 and
 Code = Country) OR
 Name LIKE 'L%') AND
 surfacearea > 1000000;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	Country	NULL	ALL	Name,SurfaceArea	NULL	NULL	NULL	239	Using where
-2	MATERIALIZED	City	NULL	ALL	Population,Country	NULL	NULL	NULL	4079	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	Country	NULL	ALL	Name,SurfaceArea	NULL	NULL	NULL	239	29.71	Using where
+2	MATERIALIZED	City	NULL	ALL	Population,Country	NULL	NULL	NULL	4079	87.45	Using where
 SELECT Name FROM Country
 WHERE (EXISTS (select 1 from City where City.Population > 100000 and
 Code = Country) OR

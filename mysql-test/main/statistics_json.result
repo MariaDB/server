@@ -4459,8 +4459,8 @@ select count(*) from t1;
 count(*)
 229376
 explain select * from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	229060	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	229060	100.00	
 set analyze_sample_percentage=100;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -4529,8 +4529,8 @@ t1	id	1	17384	0.0000	4.0000	14.0000	{
   ]
 }
 explain select * from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	229376	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	229376	100.00	
 drop table t0;
 drop table t1;
 set analyze_sample_percentage=@save_analyze_sample_percentage;
@@ -4650,16 +4650,16 @@ UPDATE mysql.column_stats
 SET histogram='["not-what-you-expect"]' WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	
 Warnings:
 Warning	4186	Failed to parse histogram for table test.t1_json: Root JSON element must be a JSON object at offset 1.
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb":"not-histogram"}' WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	
 Warnings:
 Warning	4186	Failed to parse histogram for table test.t1_json: histogram_hb must contain an array at offset 32.
 UPDATE mysql.column_stats 
@@ -4667,8 +4667,8 @@ SET histogram='{"histogram_hb":["not-a-bucket"]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	
 Warnings:
 Warning	4186	Failed to parse histogram for table test.t1_json: Expected an object in the buckets array at offset 32.
 UPDATE mysql.column_stats 
@@ -4676,8 +4676,8 @@ SET histogram='{"histogram_hb":[{"no-expected-members":1}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	
 Warnings:
 Warning	4186	Failed to parse histogram for table test.t1_json: "start" element not present at offset 42.
 UPDATE mysql.column_stats 
@@ -4685,8 +4685,8 @@ SET histogram='{"histogram_hb":[{"start":{}}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	
 Warnings:
 Warning	4186	Failed to parse histogram for table test.t1_json: String or number expected at offset 27.
 UPDATE mysql.column_stats 
@@ -4694,8 +4694,8 @@ SET histogram='{"histogram_hb":[{"start":"aaa", "size":"not-an-integer"}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	
 Warnings:
 Warning	4186	Failed to parse histogram for table test.t1_json: "ndv" element not present at offset 57.
 UPDATE mysql.column_stats 
@@ -4703,8 +4703,8 @@ SET histogram='{"histogram_hb":[{"start":"aaa", "size":0.25}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	
 Warnings:
 Warning	4186	Failed to parse histogram for table test.t1_json: "ndv" element not present at offset 45.
 UPDATE mysql.column_stats 
@@ -4712,15 +4712,15 @@ SET histogram='{"histogram_hb":[{"start":"aaa", "size":0.25, "ndv":1}]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	
 UPDATE mysql.column_stats 
 SET histogram='{"histogram_hb":[]}'
 WHERE table_name='t1_json';
 FLUSH TABLES;
 explain select * from t1_json limit 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1_json	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	
 Warnings:
 Warning	4186	Failed to parse histogram for table test.t1_json: Histogram must have at least one bucket at offset 19.
 create table t2 (

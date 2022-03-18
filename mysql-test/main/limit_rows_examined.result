@@ -15,9 +15,9 @@ Simple nested loops join without blocking
 set @@join_cache_level=0;
 explain
 select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 2;
 c1	c2
 bb	bb
@@ -25,9 +25,9 @@ Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 3 rows, which exceeds LIMIT ROWS EXAMINED (2). The query result may be incomplete
 explain
 select * from t1i, t2i where c1 = c2 LIMIT ROWS EXAMINED 4;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1i	NULL	index	PRIMARY	PRIMARY	2	NULL	4	Using index
-1	SIMPLE	t2i	NULL	eq_ref	PRIMARY	PRIMARY	2	test.t1i.c1	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1i	NULL	index	PRIMARY	PRIMARY	2	NULL	4	100.00	Using index
+1	SIMPLE	t2i	NULL	eq_ref	PRIMARY	PRIMARY	2	test.t1i.c1	1	100.00	Using index
 select * from t1i, t2i where c1 = c2 LIMIT ROWS EXAMINED 4;
 c1	c2
 bb	bb
@@ -37,9 +37,9 @@ Blocked nested loops join, empty result set because of blocking
 set @@join_cache_level=1;
 explain
 select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 6;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where; Using join buffer (flat, BNL join)
 select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 6;
 c1	c2
 bb	bb
@@ -47,9 +47,9 @@ Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 7 rows, which exceeds LIMIT ROWS EXAMINED (6). The query result may be incomplete
 explain
 select * from t1i, t2i where c1 = c2 LIMIT ROWS EXAMINED 6;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1i	NULL	index	PRIMARY	PRIMARY	2	NULL	4	Using index
-1	SIMPLE	t2i	NULL	eq_ref	PRIMARY	PRIMARY	2	test.t1i.c1	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1i	NULL	index	PRIMARY	PRIMARY	2	NULL	4	100.00	Using index
+1	SIMPLE	t2i	NULL	eq_ref	PRIMARY	PRIMARY	2	test.t1i.c1	1	100.00	Using index
 select * from t1i, t2i where c1 = c2 LIMIT ROWS EXAMINED 6;
 c1	c2
 bb	bb
@@ -59,18 +59,18 @@ Warning	1931	Query execution was interrupted. The query examined at least 7 rows
 set @@join_cache_level=6;
 explain
 select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	SIMPLE	t2	NULL	hash_ALL	NULL	#hash#$hj	3	test.t1.c1	4	Using where; Using join buffer (flat, BNLH join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+1	SIMPLE	t2	NULL	hash_ALL	NULL	#hash#$hj	3	test.t1.c1	4	100.00	Using where; Using join buffer (flat, BNLH join)
 select * from t1, t2 where c1 = c2 LIMIT ROWS EXAMINED 3;
 c1	c2
 Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 4 rows, which exceeds LIMIT ROWS EXAMINED (3). The query result may be incomplete
 explain
 select * from t1i, t2i where c1 = c2 LIMIT ROWS EXAMINED 6;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1i	NULL	index	PRIMARY	PRIMARY	2	NULL	4	Using index
-1	SIMPLE	t2i	NULL	eq_ref	PRIMARY	PRIMARY	2	test.t1i.c1	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1i	NULL	index	PRIMARY	PRIMARY	2	NULL	4	100.00	Using index
+1	SIMPLE	t2i	NULL	eq_ref	PRIMARY	PRIMARY	2	test.t1i.c1	1	100.00	Using index
 select * from t1i, t2i where c1 = c2 LIMIT ROWS EXAMINED 6;
 c1	c2
 bb	bb
@@ -81,17 +81,17 @@ Mix LIMIT ROWS EXAMINED with LIMIT
 set @@join_cache_level=0;
 explain
 select * from t1, t2 where c1 < c2 LIMIT 1 ROWS EXAMINED 4;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 select * from t1, t2 where c1 < c2 LIMIT 1 ROWS EXAMINED 4;
 c1	c2
 bb	cc
 explain
 select * from t1, t2 where c1 < c2 LIMIT 1,1 ROWS EXAMINED 4;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 select * from t1, t2 where c1 < c2 LIMIT 1,1 ROWS EXAMINED 4;
 c1	c2
 bb	dd
@@ -99,12 +99,12 @@ Empty table optimized away during constant optimization
 create table t0 (c0 int);
 explain
 select * from t0 LIMIT ROWS EXAMINED 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t0	NULL	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 explain
 select * from t0 LIMIT ROWS EXAMINED 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t0	NULL	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 select * from t0 LIMIT ROWS EXAMINED 1;
 c0
 drop table t0;
@@ -112,16 +112,16 @@ create table t0 (c0 char(2) primary key);
 insert into t0 values  ('bb'), ('cc'), ('aa');
 explain
 select * from t0 where c0 = 'bb' LIMIT ROWS EXAMINED 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	NULL	const	PRIMARY	PRIMARY	2	const	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t0	NULL	const	PRIMARY	PRIMARY	2	const	1	100.00	Using index
 select * from t0 where c0 = 'bb' LIMIT ROWS EXAMINED 0;
 c0
 bb
 explain
 select * from t0, t1 where c0 = 'bb' and c1 > c0 LIMIT ROWS EXAMINED 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	NULL	const	PRIMARY	PRIMARY	2	const	1	Using index
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t0	NULL	const	PRIMARY	PRIMARY	2	const	1	100.00	Using index
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 select * from t0, t1 where c0 = 'bb' and c1 > c0 LIMIT ROWS EXAMINED 0;
 c0	c1
 Warnings:
@@ -210,10 +210,10 @@ Subqueries, semi-join
 explain
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 11);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	2	func	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	2	func	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 11);
 c1
@@ -224,10 +224,10 @@ explain
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ')
 LIMIT ROWS EXAMINED 11;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	2	func	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	2	func	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ')
 LIMIT ROWS EXAMINED 11;
@@ -239,10 +239,10 @@ explain
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)
 LIMIT ROWS EXAMINED 11;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	2	func	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	2	func	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)
 LIMIT ROWS EXAMINED 11;
@@ -254,9 +254,9 @@ explain
 select * from t1i
 where c1 IN (select * from t2i where c2 > ' ')
 LIMIT ROWS EXAMINED 6;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1i	NULL	range	PRIMARY	PRIMARY	2	NULL	4	Using where; Using index
-1	PRIMARY	t2i	NULL	eq_ref	PRIMARY	PRIMARY	2	test.t1i.c1	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1i	NULL	range	PRIMARY	PRIMARY	2	NULL	4	100.00	Using where; Using index
+1	PRIMARY	t2i	NULL	eq_ref	PRIMARY	PRIMARY	2	test.t1i.c1	1	100.00	Using index
 select * from t1i
 where c1 IN (select * from t2i where c2 > ' ')
 LIMIT ROWS EXAMINED 6;
@@ -270,9 +270,9 @@ set @@optimizer_switch='semijoin=off,in_to_exists=on,materialization=off';
 explain
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 4);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 4);
 c1
@@ -283,9 +283,9 @@ explain
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ')
 LIMIT ROWS EXAMINED 4;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ')
 LIMIT ROWS EXAMINED 4;
@@ -297,9 +297,9 @@ explain
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)
 LIMIT ROWS EXAMINED 4;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)
 LIMIT ROWS EXAMINED 4;
@@ -311,9 +311,9 @@ explain
 select * from t1i
 where c1 IN (select * from t2i where c2 > ' ')
 LIMIT ROWS EXAMINED 9;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1i	NULL	index	NULL	PRIMARY	2	NULL	4	Using where; Using index
-2	DEPENDENT SUBQUERY	t2i	NULL	unique_subquery	PRIMARY	PRIMARY	2	func	1	Using index; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1i	NULL	index	NULL	PRIMARY	2	NULL	4	100.00	Using where; Using index
+2	DEPENDENT SUBQUERY	t2i	NULL	unique_subquery	PRIMARY	PRIMARY	2	func	1	100.00	Using index; Using where
 select * from t1i
 where c1 IN (select * from t2i where c2 > ' ')
 LIMIT ROWS EXAMINED 9;
@@ -355,9 +355,9 @@ set @@optimizer_switch='semijoin=off,in_to_exists=off,materialization=on,subquer
 explain
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 13);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 13);
 c1
@@ -367,9 +367,9 @@ Warning	1931	Query execution was interrupted. The query examined at least 14 row
 explain
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ') LIMIT ROWS EXAMINED 13;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ') LIMIT ROWS EXAMINED 13;
 c1
@@ -380,9 +380,9 @@ explain
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)
 LIMIT ROWS EXAMINED 13;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)
 LIMIT ROWS EXAMINED 13;
@@ -393,9 +393,9 @@ Warning	1931	Query execution was interrupted. The query examined at least 14 row
 explain
 select * from t1i
 where c1 IN (select * from t2i where c2 > ' ') LIMIT ROWS EXAMINED 17;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1i	NULL	index	NULL	PRIMARY	2	NULL	4	Using where; Using index
-2	MATERIALIZED	t2i	NULL	range	PRIMARY	PRIMARY	2	NULL	4	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1i	NULL	index	NULL	PRIMARY	2	NULL	4	100.00	Using where; Using index
+2	MATERIALIZED	t2i	NULL	range	PRIMARY	PRIMARY	2	NULL	4	100.00	Using where; Using index
 select * from t1i
 where c1 IN (select * from t2i where c2 > ' ') LIMIT ROWS EXAMINED 17;
 c1
@@ -440,10 +440,10 @@ select *
 from (select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)) as tmp
 LIMIT ROWS EXAMINED 11;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery3>	NULL	eq_ref	distinct_key	distinct_key	2	func	1	
-3	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	<subquery3>	NULL	eq_ref	distinct_key	distinct_key	2	func	1	100.00	
+3	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 select *
 from (select * from t1
 where c1 IN (select * from t2 where c2 > ' ' LIMIT ROWS EXAMINED 0)) as tmp
@@ -461,16 +461,16 @@ insert into t3 values
 ('bb', 3), ('bb', 4), ('bb', 5);
 explain
 select c1, sum(c2) from t3 group by c1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using temporary; Using filesort
 select c1, sum(c2) from t3 group by c1;
 c1	sum(c2)
 aa	3
 bb	12
 explain
 select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using temporary; Using filesort
 select c1, sum(c2) from t3 group by c1 LIMIT ROWS EXAMINED 0;
 c1	sum(c2)
 Warnings:
@@ -496,8 +496,8 @@ insert into t3i values
 ('bb', 3), ('bb', 4), ('bb', 5);
 explain
 select c1, sum(c2) from t3i group by c1 LIMIT ROWS EXAMINED 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3i	NULL	index	NULL	it3j	8	NULL	5	Using index; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3i	NULL	index	NULL	it3j	8	NULL	5	100.00	Using index; Using temporary; Using filesort
 select c1, sum(c2) from t3i group by c1 LIMIT ROWS EXAMINED 0;
 c1	sum(c2)
 Warnings:
@@ -518,8 +518,8 @@ bb	12
 Aggregation without grouping
 explain
 select min(c2) from t3 LIMIT ROWS EXAMINED 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
 select min(c2) from t3 LIMIT ROWS EXAMINED 5;
 min(c2)
 Warnings:
@@ -533,8 +533,8 @@ Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 1 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete
 explain
 select max(c2) from t3 where c2 > 10 LIMIT ROWS EXAMINED 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 select max(c2) from t3 where c2 > 10 LIMIT ROWS EXAMINED 5;
 max(c2)
 Warnings:
@@ -548,8 +548,8 @@ Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 1 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete
 explain
 select count(c2) from t3 LIMIT ROWS EXAMINED 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
 select count(c2) from t3 LIMIT ROWS EXAMINED 5;
 count(c2)
 Warnings:
@@ -563,8 +563,8 @@ Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 1 rows, which exceeds LIMIT ROWS EXAMINED (0). The query result may be incomplete
 explain
 select count(c2) from t3 where c2 > 10 LIMIT ROWS EXAMINED 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 select count(c2) from t3 where c2 > 10 LIMIT ROWS EXAMINED 5;
 count(c2)
 Warnings:
@@ -574,8 +574,8 @@ count(c2)
 0
 explain
 select sum(c2) from t3 LIMIT ROWS EXAMINED 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
 select sum(c2) from t3 LIMIT ROWS EXAMINED 5;
 sum(c2)
 Warnings:
@@ -586,16 +586,16 @@ sum(c2)
 The query result is found during optimization, LIMIT ROWS EXAMINED has no effect.
 explain
 select max(c1) from t3i LIMIT ROWS EXAMINED 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 select max(c1) from t3i LIMIT ROWS EXAMINED 0;
 max(c1)
 bb
 create table t3_empty like t3;
 explain
 select max(c1) from t3_empty LIMIT ROWS EXAMINED 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3_empty	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3_empty	NULL	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 select max(c1) from t3_empty LIMIT ROWS EXAMINED 0;
 max(c1)
 NULL
@@ -605,14 +605,14 @@ Sorting
 =========================================================================
 explain
 select c1, c2 from t3 order by c2, c1 LIMIT ROWS EXAMINED 2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using filesort
 select c1, c2 from t3 order by c2, c1 LIMIT ROWS EXAMINED 2;
 ERROR HY000: Sort aborted: 
 explain
 select c1, c2 from t3i order by c2, c1 LIMIT ROWS EXAMINED 2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3i	NULL	index	NULL	it3j	8	NULL	5	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3i	NULL	index	NULL	it3j	8	NULL	5	100.00	Using index
 select c1, c2 from t3i order by c2, c1 LIMIT ROWS EXAMINED 2;
 c1	c2
 aa	1
@@ -621,8 +621,8 @@ Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 3 rows, which exceeds LIMIT ROWS EXAMINED (2). The query result may be incomplete
 explain
 select c1, c2 from t3i order by c2, c1 desc LIMIT ROWS EXAMINED 2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3i	NULL	index	NULL	it3j	8	NULL	5	Using index; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3i	NULL	index	NULL	it3j	8	NULL	5	100.00	Using index; Using filesort
 select c1, c2 from t3i order by c2, c1 desc LIMIT ROWS EXAMINED 2;
 ERROR HY000: Sort aborted: 
 drop table t3,t3i;
@@ -682,11 +682,11 @@ EXPLAIN
 SELECT DISTINCT a AS field1 FROM t1, t2 
 WHERE EXISTS (SELECT c FROM t3 LEFT JOIN t2 ON b = d) 
 HAVING field1 > 'aaa' LIMIT ROWS EXAMINED 20;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using temporary
-1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
-2	SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	
-2	SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+2	SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
 SELECT DISTINCT a AS field1 FROM t1, t2 
 WHERE EXISTS (SELECT c FROM t3 LEFT JOIN t2 ON b = d) 
 HAVING field1 > 'aaa' LIMIT ROWS EXAMINED 20;
@@ -695,9 +695,9 @@ Warnings:
 Warning	1931	Query execution was interrupted. The query examined at least 21 rows, which exceeds LIMIT ROWS EXAMINED (20). The query result may be incomplete
 EXPLAIN
 SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 14;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using temporary
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using temporary
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
 SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 14;
 a
 USA
@@ -738,13 +738,13 @@ FROM t1, t2 AS alias2, t2 AS alias3
 WHERE alias3.c IN ( SELECT 1 UNION SELECT 6 ) 
 GROUP BY field1, field2, field3, field4, field5
 LIMIT ROWS EXAMINED 120;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
-1	PRIMARY	alias2	NULL	ALL	NULL	NULL	NULL	NULL	7	Using join buffer (flat, BNL join)
-1	PRIMARY	alias3	NULL	index	NULL	c	5	NULL	7	Using where; Using index; Using join buffer (incremental, BNL join)
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using temporary; Using filesort
+1	PRIMARY	alias2	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	alias3	NULL	index	NULL	c	5	NULL	7	100.00	Using where; Using index; Using join buffer (incremental, BNL join)
+2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 FLUSH STATUS;
 SELECT a AS field1, alias2.d AS field2, alias2.f AS field3, alias2.e AS field4, b AS field5
 FROM t1, t2 AS alias2, t2 AS alias3 

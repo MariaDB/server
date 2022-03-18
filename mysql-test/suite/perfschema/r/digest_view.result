@@ -148,20 +148,20 @@ CREATE TABLE test.t1 (a int, b int);
 INSERT INTO test.t1 VALUES (1, 100), (2, 200), (3, 300);
 TRUNCATE TABLE performance_schema.events_statements_summary_by_digest;
 EXPLAIN SELECT * from test.v1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	v1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	v1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 EXPLAIN SELECT * from test.v1 where a = 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	v1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	v1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 EXPLAIN SELECT * from test.v1 where b > 100;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	v1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	v1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 EXPLAIN SELECT a, b from test.v1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	v1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	v1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 EXPLAIN SELECT b, a from test.v1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	v1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	v1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 SELECT * from test.v1;
 a	b
 1	100
@@ -205,20 +205,20 @@ test	61e13f96828d862446f5e8ee1cade61d	TRUNCATE TABLE `performance_schema` . `eve
 DROP TABLE test.v1;
 CREATE VIEW test.v1 AS SELECT * FROM test.t1;
 EXPLAIN SELECT * from test.v1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 EXPLAIN SELECT * from test.v1 where a = 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 EXPLAIN SELECT * from test.v1 where b > 100;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 EXPLAIN SELECT a, b from test.v1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 EXPLAIN SELECT b, a from test.v1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 SELECT * from test.v1;
 a	b
 1	100

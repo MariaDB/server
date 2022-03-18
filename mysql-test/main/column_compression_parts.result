@@ -54,11 +54,11 @@ SELECT i,SUBSTRING(a,1,10) FROM t1 where (a between 'h' and 'z') and (i=9) ORDER
 i	SUBSTRING(a,1,10)
 9	M
 EXPLAIN PARTITIONS SELECT i,SUBSTRING(a,1,10) FROM t1 where (a>'m');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p2,p3,p4	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p2,p3,p4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 EXPLAIN PARTITIONS SELECT i,SUBSTRING(a,1,10) FROM t1 where (a<'w');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0,p1,p2,p3	ALL	NULL	NULL	NULL	NULL	7	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0,p1,p2,p3	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
 ALTER TABLE t1 TRUNCATE PARTITION p2;
 ALTER TABLE t1 DROP PARTITION p0;
 SHOW CREATE TABLE t1;

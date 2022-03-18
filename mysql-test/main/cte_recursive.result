@@ -84,12 +84,12 @@ union
 select t2.a from t1,t2 where t1.a+1=t2.a
 )
 select * from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	30	
-2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
-3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	
-3	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
-NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	30	100.00	
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+3	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 #WITH RECURSIVE : defined t1 is recursive and uses only base table t2
 with recursive
 t1 as
@@ -112,12 +112,12 @@ union
 select t2.a from t1,t2 where t1.a+1=t2.a
 )
 select * from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	5	
-2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
-3	RECURSIVE UNION	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	5	
-3	RECURSIVE UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
-NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+3	RECURSIVE UNION	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+3	RECURSIVE UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 # just WITH : types of t1 columns are determined by all parts of union 
 create view v1 as
 with
@@ -1234,14 +1234,14 @@ from folks as p, ancestors as ma
 where p.id = ma.mother
 )
 select * from ancestors;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	12	
-2	DERIVED	folks	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where
-3	RECURSIVE UNION	p	NULL	ALL	PRIMARY	NULL	NULL	NULL	12	
-3	RECURSIVE UNION	<derived2>	NULL	ref	key0	key0	5	test.p.id	2	
-4	RECURSIVE UNION	p	NULL	ALL	PRIMARY	NULL	NULL	NULL	12	
-4	RECURSIVE UNION	<derived2>	NULL	ref	key0	key0	5	test.p.id	2	
-NULL	UNION RESULT	<union2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	
+2	DERIVED	folks	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
+3	RECURSIVE UNION	p	NULL	ALL	PRIMARY	NULL	NULL	NULL	12	100.00	
+3	RECURSIVE UNION	<derived2>	NULL	ref	key0	key0	5	test.p.id	2	100.00	
+4	RECURSIVE UNION	p	NULL	ALL	PRIMARY	NULL	NULL	NULL	12	100.00	
+4	RECURSIVE UNION	<derived2>	NULL	ref	key0	key0	5	test.p.id	2	100.00	
+NULL	UNION RESULT	<union2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 with recursive
 ancestors
 as
@@ -1298,16 +1298,16 @@ select *
 from prev_gen
 )
 select ancestors.name, ancestors.dob from ancestors;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	24	
-4	DERIVED	folks	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where
-6	UNION	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	12	
-5	RECURSIVE UNION	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	24	
-NULL	UNION RESULT	<union4,6,5>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
-3	DERIVED	folks	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where
-2	RECURSIVE UNION	folks	NULL	ALL	PRIMARY	NULL	NULL	NULL	12	
-2	RECURSIVE UNION	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
-NULL	UNION RESULT	<union3,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	24	100.00	
+4	DERIVED	folks	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
+6	UNION	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	
+5	RECURSIVE UNION	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	24	100.00	
+NULL	UNION RESULT	<union4,6,5>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+3	DERIVED	folks	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
+2	RECURSIVE UNION	folks	NULL	ALL	PRIMARY	NULL	NULL	NULL	12	100.00	
+2	RECURSIVE UNION	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where; Using join buffer (flat, BNL join)
+NULL	UNION RESULT	<union3,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 explain FORMAT=JSON
 with recursive 
 prev_gen
@@ -1930,12 +1930,12 @@ union
 select t2.a from t1,t2 where t1.a+1=t2.a
 )
 select * from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	5	
-2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
-4	RECURSIVE UNION	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	5	
-4	RECURSIVE UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
-NULL	UNION RESULT	<union2,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+4	RECURSIVE UNION	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+4	RECURSIVE UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
+NULL	UNION RESULT	<union2,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 drop table t1,t2;
 #
 # MDEV-11278: non-mergeable view in the spec of recursive CTE
@@ -3254,14 +3254,14 @@ SELECT t2.*, concat(tree_of_a.path,",",t2.id)
 FROM t2 JOIN tree_of_a ON t2.id=tree_of_a.rightpar)
 SELECT * FROM tree_of_a
 ORDER BY path;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	15	Using filesort
-2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	15	Using where
-3	RECURSIVE UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	15	Using where
-3	RECURSIVE UNION	<derived2>	NULL	ref	key0	key0	5	test.t2.id	2	
-4	RECURSIVE UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	15	Using where
-4	RECURSIVE UNION	<derived2>	NULL	ref	key0	key0	5	test.t2.id	2	
-NULL	UNION RESULT	<union2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	15	100.00	Using filesort
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	15	100.00	Using where
+3	RECURSIVE UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	15	100.00	Using where
+3	RECURSIVE UNION	<derived2>	NULL	ref	key0	key0	5	test.t2.id	2	100.00	
+4	RECURSIVE UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	15	100.00	Using where
+4	RECURSIVE UNION	<derived2>	NULL	ref	key0	key0	5	test.t2.id	2	100.00	
+NULL	UNION RESULT	<union2,3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 DROP TABLE t1,t2;
 set tmp_memory_table_size=default;
 #
@@ -3816,8 +3816,8 @@ explain
 with recursive cte as
 ( select * from t2 union select s1.* from t2 as s1, cte where s1.i1 = cte.i2 )
 select * from t2 as t;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 drop table t1,t2;
 #
 # MDEV-22042: ANALYZE of query using stored function and recursive CTE
@@ -3847,13 +3847,13 @@ from (select t1.a1, f1(t1.a2) fv from t1) dt
 where (dt.a1) in (with recursive cte as (select a2 from t2 where a2='2'
    union select tt2.a2 from t2 tt2 join cte on tt2.b1=cte.a2)
 select a2 from cte);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	PRIMARY	<derived3>	NULL	ref	key0	key0	23	test.t1.a1	1	FirstMatch(t1)
-3	DERIVED	t2	NULL	const	PRIMARY	PRIMARY	22	const	1	Using index
-4	RECURSIVE UNION	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-4	RECURSIVE UNION	tt2	NULL	ref	b1	b1	23	cte.a2	2	
-NULL	UNION RESULT	<union3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	23	test.t1.a1	1	100.00	FirstMatch(t1)
+3	DERIVED	t2	NULL	const	PRIMARY	PRIMARY	22	const	1	100.00	Using index
+4	RECURSIVE UNION	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+4	RECURSIVE UNION	tt2	NULL	ref	b1	b1	23	cte.a2	2	100.00	
+NULL	UNION RESULT	<union3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 analyze format=json select fv
 from (select t1.a1, f1(t1.a2) fv from t1) dt
 where (dt.a1) in (with recursive cte as (select a2 from t2 where a2='2'
@@ -4095,13 +4095,13 @@ explain with recursive r_cte as
 union
 select t1.* from t1, r_cte as r where t1.c = r.a )
 select 0 as b FROM dual union all select b FROM r_cte as t;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	DERIVED	s	NULL	ALL	NULL	NULL	NULL	NULL	4	
-3	RECURSIVE UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
-3	RECURSIVE UNION	<derived2>	NULL	ref	key0	key0	9	test.t1.c	2	
-NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
-4	UNION	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	4	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	DERIVED	s	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+3	RECURSIVE UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+3	RECURSIVE UNION	<derived2>	NULL	ref	key0	key0	9	test.t1.c	2	100.00	
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+4	UNION	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
 with recursive r_cte as
 ( select * from t1 as s
 union
@@ -4266,8 +4266,8 @@ union
 select t1.* from t1, r_cte as r where t1.c = r.a )
 select 0 as b FROM dual union all select b FROM r_cte as t)
 select * from t1 as tt;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	tt	NULL	ALL	NULL	NULL	NULL	NULL	4	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	tt	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
 with h_cte as
 ( with recursive r_cte as
 ( select * from t1 as s
@@ -4353,11 +4353,11 @@ a
 explain with recursive cte as
 (select * from db1.t1 union select * from (select * from cte) as t)
 select * from cte;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
-3	RECURSIVE UNION	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	
-NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+3	RECURSIVE UNION	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 prepare stmt from "with recursive cte as
 (select * from db1.t1 union select * from (select * from cte) as t)
 select * from cte";
@@ -4450,18 +4450,18 @@ from ancestor_couples
 )
 select h_name, h_dob, w_name, w_dob
 from ancestor_couples;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	1728	
-4	DERIVED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	1728	
-5	RECURSIVE UNION	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	1728	
-NULL	UNION RESULT	<union4,5>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
-3	DERIVED	v	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where
-3	DERIVED	h	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
-3	DERIVED	w	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (incremental, BNL join)
-2	RECURSIVE UNION	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	RECURSIVE UNION	h	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
-2	RECURSIVE UNION	w	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (incremental, BNL join)
-NULL	UNION RESULT	<union3,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	1728	100.00	
+4	DERIVED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	1728	100.00	
+5	RECURSIVE UNION	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	1728	100.00	
+NULL	UNION RESULT	<union4,5>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+3	DERIVED	v	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
+3	DERIVED	h	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where; Using join buffer (flat, BNL join)
+3	DERIVED	w	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where; Using join buffer (incremental, BNL join)
+2	RECURSIVE UNION	<derived4>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	RECURSIVE UNION	h	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where; Using join buffer (flat, BNL join)
+2	RECURSIVE UNION	w	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where; Using join buffer (incremental, BNL join)
+NULL	UNION RESULT	<union3,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 prepare stmt from "with recursive
 ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
 w_id, w_name, w_dob, w_father, w_mother)
@@ -4550,15 +4550,15 @@ from ancestor_couples
 )
 select h_name, h_dob, w_name, w_dob
 from ancestor_couples;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	
-3	DERIVED	folks	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where
-4	RECURSIVE UNION	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	
-5	RECURSIVE UNION	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	
-NULL	UNION RESULT	<union3,4,5>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
-2	DERIVED	h	NULL	ALL	NULL	NULL	NULL	NULL	12	
-2	DERIVED	w	NULL	ALL	NULL	NULL	NULL	NULL	12	Using join buffer (flat, BNL join)
-2	DERIVED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	DERIVED	folks	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
+4	RECURSIVE UNION	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+5	RECURSIVE UNION	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+NULL	UNION RESULT	<union3,4,5>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+2	DERIVED	h	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	
+2	DERIVED	w	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	Using join buffer (flat, BNL join)
+2	DERIVED	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where; Using join buffer (incremental, BNL join)
 prepare stmt from "with recursive
 ancestor_couples(h_id, h_name, h_dob, h_father, h_mother,
 w_id, w_name, w_dob, w_father, w_mother)

@@ -24,8 +24,8 @@ INSERT INTO t1 (ch) VALUES ('admin'),('admin1');
 SELECT ch FROM t1 WHERE ch='admin𝌆';
 ch
 EXPLAIN SELECT ch FROM t1 WHERE ch='admin𝌆';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch='admin𝌆';
 ch
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='admin𝌆';
@@ -43,14 +43,14 @@ SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 ch
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	Impossible WHERE noticed after reading const tables
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆' ORDER BY ch;
 ch
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	#	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	Impossible WHERE noticed after reading const tables
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch='a𝌆b' ORDER BY ch;
 ch
 SELECT ch FROM t1 IGNORE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
@@ -93,8 +93,8 @@ aЀ
 aր
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	ch	ch	183	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	ch	ch	183	NULL	#	100.00	Using where; Using index
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆' ORDER BY ch;
 ch
 a
@@ -116,8 +116,8 @@ aЀ
 aր
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆b' ORDER BY ch;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	ch	ch	183	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	ch	ch	183	NULL	#	100.00	Using where; Using index
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch<'a𝌆b' ORDER BY ch;
 ch
 a
@@ -145,15 +145,15 @@ ch
 z
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	ch	ch	183	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	ch	ch	183	NULL	#	100.00	Using where; Using index
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆' ORDER BY ch;
 ch
 z
 EXPLAIN
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆b' ORDER BY ch;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	ch	ch	183	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	ch	ch	183	NULL	#	100.00	Using where; Using index
 SELECT ch FROM t1 FORCE KEY (ch) WHERE ch>'a𝌆b' ORDER BY ch;
 ch
 z

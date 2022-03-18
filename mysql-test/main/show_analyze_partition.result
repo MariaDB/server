@@ -25,8 +25,8 @@ select count(*) from t1 where a in (1,2);
 connection default;
 # The point of this test: see that `partitions` column has correct info:
 show explain for $thr2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1,p2	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p1,p2	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 Warnings:
 Note	1003	select count(*) from t1 where a in (1,2)
 connection con1;

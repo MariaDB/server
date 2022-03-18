@@ -5,8 +5,8 @@ a int not null
 ) partition by key(a);
 insert into t1 select a from t2;
 explain partitions select * from t1 where a in (2,3,4);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 explain format=json select * from t1 where a in (2,3,4);
 EXPLAIN
 {

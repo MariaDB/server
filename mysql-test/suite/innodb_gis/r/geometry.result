@@ -180,40 +180,40 @@ CREATE UNIQUE INDEX idx2 on tab(c8(5) ASC) ;
 #check equality predicate on the index columns
 EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab
 WHERE c2=ST_LineFromText('LINESTRING(10 10,20 20,30 30)');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	NULL	ref	idx1	idx1	8	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tab	NULL	ref	idx1	idx1	8	const	#	100.00	Using where
 #check index with  WKB function
 EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8)
 FROM tab WHERE c2=ST_LineStringFromWKB(ST_AsWKB(ST_LineFromText('LINESTRING(10 10,20 20,30 30)')));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	NULL	ref	idx1	idx1	8	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tab	NULL	ref	idx1	idx1	8	const	#	100.00	Using where
 #check index with  WKT function
 EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab
 WHERE c3=ST_PolyFromText('POLYGON((0 0,5 5,10 10,15 15,0 0),(10 10,20 20,30 30,40 40,10 10))');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	NULL	ref	idx3	idx3	8	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tab	NULL	ref	idx3	idx3	8	const	#	100.00	Using where
 #check index with  WKB function
 EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8)
 FROM tab
 WHERE c3=ST_PolyFromWKB(ST_AsWkB(ST_PolyFromText('POLYGON((0 0,5 5,10 10,15 15,0 0),(10 10,20 20,30 30,40 40,10 10))')));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	NULL	ref	idx3	idx3	8	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tab	NULL	ref	idx3	idx3	8	const	#	100.00	Using where
 #check index with  WKT function
 EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab
 WHERE c8=ST_GeomCollFromText('GeometryCollection(Point(1 1),LineString(2 2, 3 3))');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	NULL	const	idx2	idx2	8	const	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tab	NULL	const	idx2	idx2	8	const	#	100.00	
 #check index with  WKB function
 EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8)
 FROM tab
 WHERE c8=ST_GeometryFromWKB(ST_AsWKB(ST_GeomCollFromText('GeometryCollection(Point(1 1),LineString(2 2, 3 3))')));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	NULL	const	idx2	idx2	8	const	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tab	NULL	const	idx2	idx2	8	const	#	100.00	
 #check index with DELETE operation
 EXPLAIN DELETE FROM tab
 WHERE c8=ST_GeometryFromWKB(ST_AsWKB(ST_GeomCollFromText('GeometryCollection(Point(1 1),LineString(2 2, 3 3))')));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab	NULL	range	idx2	idx2	8	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tab	NULL	range	idx2	idx2	8	NULL	#	100.00	Using where
 #check the spatial values
 SELECT ST_AsText(c1) FROM tab;
 ST_AsText(c1)
@@ -704,40 +704,40 @@ CREATE UNIQUE INDEX idx2 on tab3(c8(5) ASC) ;
 #check equality predicate on the index columns
 EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab3
 WHERE c2=ST_LineFromText('LINESTRING(10 10,20 20,30 30)');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab3	NULL	ref	idx1	idx1	8	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tab3	NULL	ref	idx1	idx1	8	const	#	100.00	Using where
 #check index with  WKB function
 EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8)
 FROM tab3 WHERE c2=ST_LineStringFromWKB(ST_AsWKB(ST_LineFromText('LINESTRING(10 10,20 20,30 30)')));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab3	NULL	ref	idx1	idx1	8	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tab3	NULL	ref	idx1	idx1	8	const	#	100.00	Using where
 #check index with  WKT function
 EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab3
 WHERE c3=ST_PolyFromText('POLYGON((0 0,5 5,10 10,15 15,0 0),(10 10,20 20,30 30,40 40,10 10))');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab3	NULL	ref	idx3	idx3	8	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tab3	NULL	ref	idx3	idx3	8	const	#	100.00	Using where
 #check index with  WKB function
 EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8)
 FROM tab3
 WHERE c3=ST_PolyFromWKB(ST_AsWkB(ST_PolyFromText('POLYGON((0 0,5 5,10 10,15 15,0 0),(10 10,20 20,30 30,40 40,10 10))')));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab3	NULL	ref	idx3	idx3	8	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tab3	NULL	ref	idx3	idx3	8	const	#	100.00	Using where
 #check index with  WKT function
 EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab3
 WHERE c8=ST_GeomCollFromText('GeometryCollection(Point(1 1),LineString(2 2, 3 3))');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab3	NULL	const	idx2	idx2	8	const	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tab3	NULL	const	idx2	idx2	8	const	#	100.00	
 #check index with  WKB function
 EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8)
 FROM tab3
 WHERE c8=ST_GeometryFromWKB(ST_AsWKB(ST_GeomCollFromText('GeometryCollection(Point(1 1),LineString(2 2, 3 3))')));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab3	NULL	const	idx2	idx2	8	const	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tab3	NULL	const	idx2	idx2	8	const	#	100.00	
 #check index with DELETE operation
 EXPLAIN DELETE FROM tab3
 WHERE c8=ST_GeometryFromWKB(ST_AsWKB(ST_GeomCollFromText('GeometryCollection(Point(1 1),LineString(2 2, 3 3))')));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab3	NULL	range	idx2	idx2	8	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tab3	NULL	range	idx2	idx2	8	NULL	#	100.00	Using where
 #check the spatial values
 SELECT ST_AsText(c1) FROM tab3;
 ST_AsText(c1)
@@ -784,13 +784,13 @@ tab3	CREATE TABLE `tab3` (
 #check index with  WKB function
 EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8)
 FROM tab3 WHERE c2=ST_LineStringFromWKB(ST_AsWKB(ST_LineFromText('LINESTRING(10 10,20 20,30 30)')));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab3	NULL	ref	idx1	idx1	8	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tab3	NULL	ref	idx1	idx1	8	const	#	100.00	Using where
 #check index with  WKT function
 EXPLAIN SELECT ST_ASText(c1),ST_AsText(c2),ST_AsText(c8) FROM tab3
 WHERE c3=ST_PolyFromText('POLYGON((0 0,5 5,10 10,15 15,0 0),(10 10,20 20,30 30,40 40,10 10))');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	tab3	NULL	ref	idx3	idx3	8	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	tab3	NULL	ref	idx3	idx3	8	const	#	100.00	Using where
 #check the Geometry property functions
 SELECT fid, ST_Dimension(g) FROM gis_geometry;
 fid	ST_Dimension(g)

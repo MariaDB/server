@@ -71,8 +71,8 @@ correct_r_filtered_when_using_l_shipdate
 set statement optimizer_switch='rowid_filter=on' for EXPLAIN SELECT l_orderkey, l_linenumber, l_shipdate, l_quantity FROM lineitem
 WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
 l_quantity > 45;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	NULL	range|filter	i_l_shipdate,i_l_quantity	i_l_shipdate|i_l_quantity	4|9	NULL	510 (10%)	Using index condition; Using where; Using rowid filter
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	lineitem	NULL	range|filter	i_l_shipdate,i_l_quantity	i_l_shipdate|i_l_quantity	4|9	NULL	510 (10%)	10.07	Using index condition; Using where; Using rowid filter
 set statement optimizer_switch='rowid_filter=on' for EXPLAIN FORMAT=JSON SELECT l_orderkey, l_linenumber, l_shipdate, l_quantity FROM lineitem
 WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
 l_quantity > 45;
@@ -222,8 +222,8 @@ l_orderkey	l_linenumber	l_shipdate	l_quantity
 set statement optimizer_switch='rowid_filter=off' for EXPLAIN SELECT l_orderkey, l_linenumber, l_shipdate, l_quantity FROM lineitem
 WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
 l_quantity > 45;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	NULL	range	i_l_shipdate,i_l_quantity	i_l_shipdate	4	NULL	510	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	lineitem	NULL	range	i_l_shipdate,i_l_quantity	i_l_shipdate	4	NULL	510	10.07	Using index condition; Using where
 set statement optimizer_switch='rowid_filter=off' for EXPLAIN FORMAT=JSON SELECT l_orderkey, l_linenumber, l_shipdate, l_quantity FROM lineitem
 WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
 l_quantity > 45;
@@ -354,9 +354,9 @@ set statement optimizer_switch='rowid_filter=on' for EXPLAIN SELECT o_orderkey, 
 FROM orders JOIN lineitem ON o_orderkey=l_orderkey
 WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-01-31' AND
 o_totalprice between 200000 and 230000;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	NULL	range	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate	4	NULL	98	Using where; Using index
-1	SIMPLE	orders	NULL	eq_ref	PRIMARY,i_o_totalprice	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	lineitem	NULL	range	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate	4	NULL	98	100.00	Using where; Using index
+1	SIMPLE	orders	NULL	eq_ref	PRIMARY,i_o_totalprice	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	4.73	Using where
 set statement optimizer_switch='rowid_filter=on' for EXPLAIN FORMAT=JSON SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
 FROM orders JOIN lineitem ON o_orderkey=l_orderkey
 WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-01-31' AND
@@ -486,9 +486,9 @@ set statement optimizer_switch='rowid_filter=off' for EXPLAIN SELECT o_orderkey,
 FROM orders JOIN lineitem ON o_orderkey=l_orderkey
 WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-01-31' AND
 o_totalprice between 200000 and 230000;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	NULL	range	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate	4	NULL	98	Using where; Using index
-1	SIMPLE	orders	NULL	eq_ref	PRIMARY,i_o_totalprice	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	lineitem	NULL	range	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_shipdate	4	NULL	98	100.00	Using where; Using index
+1	SIMPLE	orders	NULL	eq_ref	PRIMARY,i_o_totalprice	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	4.73	Using where
 set statement optimizer_switch='rowid_filter=off' for EXPLAIN FORMAT=JSON SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
 FROM orders JOIN lineitem ON o_orderkey=l_orderkey
 WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-01-31' AND
@@ -619,9 +619,9 @@ FROM orders JOIN lineitem ON o_orderkey=l_orderkey
 WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
 l_quantity > 45 AND
 o_totalprice between 180000 and 230000;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	NULL	range|filter	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity,i_l_quantity	i_l_shipdate|i_l_quantity	4|9	NULL	510 (10%)	Using index condition; Using where; Using rowid filter
-1	SIMPLE	orders	NULL	eq_ref	PRIMARY,i_o_totalprice	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	lineitem	NULL	range|filter	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity,i_l_quantity	i_l_shipdate|i_l_quantity	4|9	NULL	510 (10%)	10.07	Using index condition; Using where; Using rowid filter
+1	SIMPLE	orders	NULL	eq_ref	PRIMARY,i_o_totalprice	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	9.60	Using where
 set statement optimizer_switch='rowid_filter=on' for EXPLAIN FORMAT=JSON SELECT o_orderkey, l_linenumber, l_shipdate, l_quantity, o_totalprice
 FROM orders JOIN lineitem ON o_orderkey=l_orderkey
 WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
@@ -783,9 +783,9 @@ FROM orders JOIN lineitem ON o_orderkey=l_orderkey
 WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
 l_quantity > 45 AND
 o_totalprice between 180000 and 230000;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	orders	NULL	range	PRIMARY,i_o_totalprice	i_o_totalprice	9	NULL	144	Using where; Using index
-1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity,i_l_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	orders	NULL	range	PRIMARY,i_o_totalprice	i_o_totalprice	9	NULL	144	100.00	Using where; Using index
+1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity,i_l_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	0.86	Using where
 set statement optimizer_switch='rowid_filter=off' for EXPLAIN FORMAT=JSON SELECT o_orderkey, l_linenumber, l_shipdate, l_quantity, o_totalprice
 FROM orders JOIN lineitem ON o_orderkey=l_orderkey
 WHERE  l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
@@ -926,9 +926,9 @@ set statement optimizer_switch='rowid_filter=on' for EXPLAIN SELECT o_orderkey, 
 FROM orders JOIN lineitem ON o_orderkey=l_orderkey
 WHERE l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
 o_totalprice between 200000 and 230000;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	orders	NULL	range	PRIMARY,i_o_totalprice	i_o_totalprice	9	NULL	71	Using where; Using index
-1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	orders	NULL	range	PRIMARY,i_o_totalprice	i_o_totalprice	9	NULL	71	100.00	Using where; Using index
+1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	8.49	Using where
 set statement optimizer_switch='rowid_filter=on' for EXPLAIN FORMAT=JSON SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
 FROM orders JOIN lineitem ON o_orderkey=l_orderkey
 WHERE l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
@@ -1084,9 +1084,9 @@ set statement optimizer_switch='rowid_filter=off' for EXPLAIN SELECT o_orderkey,
 FROM orders JOIN lineitem ON o_orderkey=l_orderkey
 WHERE l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
 o_totalprice between 200000 and 230000;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	orders	NULL	range	PRIMARY,i_o_totalprice	i_o_totalprice	9	NULL	71	Using where; Using index
-1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	orders	NULL	range	PRIMARY,i_o_totalprice	i_o_totalprice	9	NULL	71	100.00	Using where; Using index
+1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	8.49	Using where
 set statement optimizer_switch='rowid_filter=off' for EXPLAIN FORMAT=JSON SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
 FROM orders JOIN lineitem ON o_orderkey=l_orderkey
 WHERE l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
@@ -1251,9 +1251,9 @@ WHERE o_orderkey=l_orderkey AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-10-10' AND
 l_receiptdate BETWEEN '1996-10-05' AND '1996-10-10' AND
 o_totalprice BETWEEN 200000 AND 250000;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	NULL	range	PRIMARY,i_l_shipdate,i_l_receiptdate,i_l_orderkey,i_l_orderkey_quantity	i_l_receiptdate	4	NULL	18	Using index condition; Using where
-1	SIMPLE	orders	NULL	eq_ref	PRIMARY,i_o_totalprice	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	lineitem	NULL	range	PRIMARY,i_l_shipdate,i_l_receiptdate,i_l_orderkey,i_l_orderkey_quantity	i_l_receiptdate	4	NULL	18	0.57	Using index condition; Using where
+1	SIMPLE	orders	NULL	eq_ref	PRIMARY,i_o_totalprice	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	5.67	Using where
 set statement optimizer_switch='rowid_filter=on' for EXPLAIN FORMAT=JSON SELECT l_shipdate, l_receiptdate, o_totalprice
 FROM orders, lineitem
 WHERE o_orderkey=l_orderkey AND
@@ -1385,9 +1385,9 @@ WHERE o_orderkey=l_orderkey AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-10-10' AND
 l_receiptdate BETWEEN '1996-10-05' AND '1996-10-10' AND
 o_totalprice BETWEEN 200000 AND 250000;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	NULL	range	PRIMARY,i_l_shipdate,i_l_receiptdate,i_l_orderkey,i_l_orderkey_quantity	i_l_receiptdate	4	NULL	18	Using index condition; Using where
-1	SIMPLE	orders	NULL	eq_ref	PRIMARY,i_o_totalprice	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	lineitem	NULL	range	PRIMARY,i_l_shipdate,i_l_receiptdate,i_l_orderkey,i_l_orderkey_quantity	i_l_receiptdate	4	NULL	18	0.57	Using index condition; Using where
+1	SIMPLE	orders	NULL	eq_ref	PRIMARY,i_o_totalprice	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	5.67	Using where
 set statement optimizer_switch='rowid_filter=off' for EXPLAIN FORMAT=JSON SELECT l_shipdate, l_receiptdate, o_totalprice
 FROM orders, lineitem
 WHERE o_orderkey=l_orderkey AND
@@ -1526,9 +1526,9 @@ WHERE o_orderkey=l_orderkey AND
 o_totaldiscount BETWEEN 18000 AND 20000 AND
 o_totalprice BETWEEN 200000 AND 220000 AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	orders	NULL	range	PRIMARY,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	41	Using index condition; Using where
-1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	orders	NULL	range	PRIMARY,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	41	3.33	Using index condition; Using where
+1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	3.05	Using where
 set statement optimizer_switch='rowid_filter=on' for EXPLAIN FORMAT=JSON SELECT o_totaldiscount, o_totalprice, l_shipdate
 FROM orders, lineitem
 WHERE o_orderkey=l_orderkey AND
@@ -1661,9 +1661,9 @@ WHERE o_orderkey=l_orderkey AND
 o_totaldiscount BETWEEN 18000 AND 20000 AND
 o_totalprice BETWEEN 200000 AND 220000 AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	orders	NULL	range	PRIMARY,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	41	Using index condition; Using where
-1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	orders	NULL	range	PRIMARY,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	41	3.33	Using index condition; Using where
+1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	3.05	Using where
 set statement optimizer_switch='rowid_filter=off' for EXPLAIN FORMAT=JSON SELECT o_totaldiscount, o_totalprice, l_shipdate
 FROM orders, lineitem
 WHERE o_orderkey=l_orderkey AND
@@ -1799,9 +1799,9 @@ WHERE o_orderkey=l_orderkey AND
 o_totaldiscount BETWEEN 18000 AND 20000 AND
 o_totalprice BETWEEN 200000 AND 220000 AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	orders	NULL	range	PRIMARY,i_o_orderdate,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	41	Using index condition; Using where
-1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	orders	NULL	range	PRIMARY,i_o_orderdate,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	41	2.07	Using index condition; Using where
+1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	3.05	Using where
 set statement optimizer_switch='rowid_filter=on' for EXPLAIN FORMAT=JSON SELECT o_totaldiscount, o_totalprice, l_shipdate
 FROM v1, lineitem
 WHERE o_orderkey=l_orderkey AND
@@ -1944,9 +1944,9 @@ WHERE o_orderkey=l_orderkey AND
 o_totaldiscount BETWEEN 18000 AND 20000 AND
 o_totalprice BETWEEN 200000 AND 220000 AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	orders	NULL	range	PRIMARY,i_o_orderdate,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	41	Using index condition; Using where
-1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	orders	NULL	range	PRIMARY,i_o_orderdate,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	41	2.07	Using index condition; Using where
+1	SIMPLE	lineitem	NULL	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	3.05	Using where
 set statement optimizer_switch='rowid_filter=off' for EXPLAIN FORMAT=JSON SELECT o_totaldiscount, o_totalprice, l_shipdate
 FROM v1, lineitem
 WHERE o_orderkey=l_orderkey AND
@@ -2296,8 +2296,8 @@ test.t1	analyze	status	OK
 explain
 select * from t1
 where el_index like '10%' and (el_index_60 like '10%' or el_index_60 like '20%');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	el_index,el_index_60	el_index	62	NULL	1000	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	el_index,el_index_60	el_index	62	NULL	1000	10.01	Using where
 drop table t10, t11, t1;
 #
 # MDEV-22160: SIGSEGV in st_join_table::save_explain_data on SELECT
@@ -2308,8 +2308,8 @@ CREATE TABLE t1 (a INT, b INT, INDEX(a), INDEX(b));
 INSERT INTO t1 VALUES (0,0),(1,0),(-1,1), (-2,1), (-2,3), (-3,4), (-2,4);
 explain
 SELECT * FROM t1 WHERE a > 0 AND b=0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref|filter	a,b	b|a	5|5	const	2 (14%)	Using where; Using rowid filter
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref|filter	a,b	b|a	5|5	const	2 (14%)	14.29	Using where; Using rowid filter
 SELECT * FROM t1 WHERE a > 0 AND b=0;
 a	b
 1	0
@@ -2351,10 +2351,10 @@ where (f1 is null and f2 is null) and (f2 between 'a' and 'z' or f1 in ('a')))
 union
 ( select * from t1
 where (f1 is null and f2 is null) and (f2 between 'a' and 'z' or f1 in ('a')));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ref|filter	f1,f2	f1|f1	13|13	const	1 (2%)	Using index condition; Using where; Using rowid filter
-2	UNION	t1	NULL	ref|filter	f1,f2	f1|f1	13|13	const	1 (2%)	Using index condition; Using where; Using rowid filter
-NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ref|filter	f1,f2	f1|f1	13|13	const	1 (2%)	1.59	Using index condition; Using where; Using rowid filter
+2	UNION	t1	NULL	ref|filter	f1,f2	f1|f1	13|13	const	1 (2%)	1.59	Using index condition; Using where; Using rowid filter
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 explain format=json ( select * from t1
 where (f1 is null and f2 is null) and (f2 between 'a' and 'z' or f1 in ('a')))
 union

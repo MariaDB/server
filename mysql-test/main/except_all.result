@@ -50,10 +50,10 @@ a	b
 select * from (select * from t1 except all select * from t2) q1 except all select * from (select * from t1 except all select * from t2) q2;
 a	b
 EXPLAIN select * from t1 except all select * from t2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	
-2	EXCEPT	t2	NULL	ALL	NULL	NULL	NULL	NULL	7	
-NULL	EXCEPT RESULT	<except1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	
+2	EXCEPT	t2	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	
+NULL	EXCEPT RESULT	<except1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 EXPLAIN format=json select * from t1 except all select * from t2;
 EXPLAIN
 {
@@ -352,20 +352,20 @@ a	b	e
 2	2	4
 2	2	5
 EXPLAIN (select a,b,e,f from t1,t3) except all (select c,d,g,h from t2,t4);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
-2	EXCEPT	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	EXCEPT	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
-NULL	EXCEPT RESULT	<except1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+2	EXCEPT	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	EXCEPT	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+NULL	EXCEPT RESULT	<except1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 EXPLAIN select * from ((select a,b,e,f from t1,t3) except all (select c,d,g,h from t2,t4)) t;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	9	
-2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
-3	EXCEPT	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
-3	EXCEPT	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
-NULL	EXCEPT RESULT	<except2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	9	100.00	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DERIVED	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+3	EXCEPT	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	EXCEPT	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+NULL	EXCEPT RESULT	<except2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 EXPLAIN extended select * from ((select a,b,e,f from t1,t3) except all (select c,d,g,h from t2,t4)) t;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	9	100.00	

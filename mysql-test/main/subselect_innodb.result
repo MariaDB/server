@@ -310,10 +310,10 @@ SELECT 1 FROM t1 WHERE NOT EXISTS
 1
 EXPLAIN SELECT 1 FROM t1 WHERE NOT EXISTS
 (SELECT 1 FROM t2 WHERE d = (SELECT d FROM t2 WHERE a >= 1) ORDER BY d);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	Using where
-2	DEPENDENT SUBQUERY	t2	NULL	unique_subquery	PRIMARY,d	PRIMARY	1	func	1	Using where
-3	DEPENDENT SUBQUERY	t2	NULL	index	NULL	d	2	NULL	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	unique_subquery	PRIMARY,d	PRIMARY	1	func	1	100.00	Using where
+3	DEPENDENT SUBQUERY	t2	NULL	index	NULL	d	2	NULL	1	100.00	Using index
 DROP TABLE t2;
 CREATE TABLE t2 (b INT, c INT, UNIQUE KEY (b), UNIQUE KEY (b, c )) ENGINE=INNODB;
 INSERT INTO t2 VALUES (1, 1);
@@ -343,9 +343,9 @@ LIMIT 10,1
 ) AS maxkey
 FROM t1
 LIMIT 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ref	t1_id,t1_id_position	t1_id_position	5	test.t1.id	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ref	t1_id,t1_id_position	t1_id_position	5	test.t1.id	1	100.00	Using where; Using index
 SELECT
 (SELECT position FROM t2
 WHERE t2.t1_id = t1.id
@@ -370,10 +370,10 @@ WHERE t1.a = (
 SELECT SUM( c )
 FROM t2
 WHERE (SELECT DISTINCT b FROM t3) > 0);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-3	SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	1	Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+3	SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	Using temporary
 SELECT *
 FROM t1
 WHERE t1.a = (
@@ -399,10 +399,10 @@ FROM t3
 GROUP BY 1
 )
 );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-3	SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+3	SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	
 SELECT MAX( f1 ) FROM t2
 WHERE f2 >= (
 SELECT SUM( f1 )
@@ -423,10 +423,10 @@ create table t1(a1 int) ENGINE=InnoDB;
 insert into t1 values (1);
 explain
 select 1 from t1 where 1 like (select 1 from t1 where 1 <=> (select 1 from t1 group by a1));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	
-3	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	
+2	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	
+3	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	Using temporary; Using filesort
 select 1 from t1 where 1 like (select 1 from t1 where 1 <=> (select 1 from t1 group by a1));
 1
 1
@@ -456,10 +456,10 @@ CREATE TABLE t2 (b INT PRIMARY KEY, c INT) ENGINE=InnoDB;
 CREATE TABLE t3 (d INT) ENGINE=InnoDB;
 EXPLAIN 
 SELECT * FROM t1 WHERE EXISTS ( SELECT b FROM t2, t3 GROUP BY b HAVING b != 3 );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	t2	NULL	index	NULL	PRIMARY	4	NULL	1	Using index; Using temporary
-2	SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	1	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+2	SUBQUERY	t2	NULL	index	NULL	PRIMARY	4	NULL	1	100.00	Using index; Using temporary
+2	SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	Using join buffer (flat, BNL join)
 SELECT * FROM t1 WHERE EXISTS ( SELECT b FROM t2, t3 GROUP BY b HAVING b != 3 );
 a
 DROP TABLE t1,t2,t3;
@@ -478,10 +478,10 @@ t1 AS SQ2_alias2 ON (SQ2_alias2 . col_int_key = SQ2_alias1 . col_int_key )
 GROUP BY SQ2_field1 
 HAVING SQ2_alias1 . col_int_key >= 7
 );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	SQ2_alias2	NULL	index	NULL	col_int_key	5	NULL	1	Using index; Using temporary
-2	SUBQUERY	SQ2_alias1	NULL	ref	col_int_key	col_int_key	5	test.SQ2_alias2.col_int_key	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+2	SUBQUERY	SQ2_alias2	NULL	index	NULL	col_int_key	5	NULL	1	100.00	Using index; Using temporary
+2	SUBQUERY	SQ2_alias1	NULL	ref	col_int_key	col_int_key	5	test.SQ2_alias2.col_int_key	1	100.00	Using where; Using index
 SELECT 1 FROM t1 AS alias1 
 WHERE EXISTS ( SELECT SQ2_alias1 . col_int_key AS SQ2_field1 
 FROM ( t1 AS SQ2_alias1 RIGHT OUTER JOIN 
@@ -550,9 +550,9 @@ WHERE t2.key1 = t1.a
 ORDER BY t2.id ASC LIMIT 1)
 from 
 t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	
-2	DEPENDENT SUBQUERY	t2	NULL	ref	key1	key1	5	test.t1.a	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ref	key1	key1	5	test.t1.a	1	100.00	Using where
 #
 # MDEV-6081: ORDER BY+ref(const): selectivity is very incorrect (MySQL Bug#14338686)
 #
@@ -573,9 +573,9 @@ WHERE t2.key1 = t1.a
 ORDER BY t2.key2 ASC LIMIT 1)
 from 
 t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	
-2	DEPENDENT SUBQUERY	t2	NULL	ref	key1	key1	5	test.t1.a	#	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ref	key1	key1	5	test.t1.a	#	100.00	Using where; Using filesort
 drop table t1,t2;
 #
 # mdev-12931: semi-join in ON expression of STRAIGHT_JOIN 

@@ -100,15 +100,15 @@ a	b
 2	20
 1	10
 explain select * from t1 where rownum() <= 2 order by a desc;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using filesort
 select t1.a,t1.b,rownum() from t1 where rownum() <= 2 order by a desc;
 a	b	rownum()
 2	20	2
 1	10	1
 explain select t1.a,t1.b,rownum() from t1 where rownum() <= 2 order by a desc;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using temporary; Using filesort
 select *,rownum() from t1,t2;
 a	b	a	b	rownum()
 1	10	2	21	1

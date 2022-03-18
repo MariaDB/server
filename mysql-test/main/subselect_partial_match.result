@@ -72,49 +72,49 @@ insert into t2 values ('o',   'z', 'p');
 set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=off';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 c	NULL	a	NULL
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
 a1	a2	a3
 set @@optimizer_switch='partial_match_rowid_merge=off,partial_match_table_scan=on';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 c	NULL	a	NULL
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
 a1	a2	a3
 set @@optimizer_switch=@in_exists;
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 c	NULL	a	NULL
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
 a1	a2	a3
 set @@optimizer_switch = @test_default_opt_switch;
@@ -127,49 +127,49 @@ insert into t2 values (NULL, 'y', 'w');
 set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=off';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 NULL	y	NULL	NULL
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
 a1	a2	a3
 set @@optimizer_switch='partial_match_rowid_merge=off,partial_match_table_scan=on';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 NULL	y	NULL	NULL
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
 a1	a2	a3
 set @@optimizer_switch=@in_exists;
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 NULL	y	NULL	NULL
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
 a1	a2	a3
 set @@optimizer_switch = @test_default_opt_switch;
@@ -186,49 +186,49 @@ insert into t2 values (NULL, 'z', 'y');
 set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=off';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 NULL	g	NULL	NULL
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
 a1	a2	a3
 set @@optimizer_switch='partial_match_rowid_merge=off,partial_match_table_scan=on';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 NULL	g	NULL	NULL
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
 a1	a2	a3
 set @@optimizer_switch=@in_exists;
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 NULL	g	NULL	NULL
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
 a1	a2	a3
 set @@optimizer_switch = @test_default_opt_switch;
@@ -245,51 +245,51 @@ insert into t2 values (NULL, 'z', 'y');
 set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=off';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 b	g	NULL	0
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
 a1	a2	a3
 b	g	NULL
 set @@optimizer_switch='partial_match_rowid_merge=off,partial_match_table_scan=on';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 b	g	NULL	0
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
 a1	a2	a3
 b	g	NULL
 set @@optimizer_switch=@in_exists;
 EXPLAIN
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 SELECT t1.*, (a1, a2, a3) IN (select * from t2) as in_res from t1;
 a1	a2	a3	in_res
 b	g	NULL	0
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 SELECT * from t1 where (a1, a2, a3) NOT IN (select * from t2);
 a1	a2	a3
 b	g	NULL
@@ -307,49 +307,49 @@ insert into t2 values ('x',  'w', 'z', NULL);
 set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=off';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 a	g	x	NULL	NULL
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 a1	a2	a3	a4
 set @@optimizer_switch='partial_match_rowid_merge=off,partial_match_table_scan=on';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 a	g	x	NULL	NULL
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 a1	a2	a3	a4
 set @@optimizer_switch=@in_exists;
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 a	g	x	NULL	NULL
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 a1	a2	a3	a4
 drop table t1, t2;
@@ -371,51 +371,51 @@ insert into t2 values ('34',  'q', 'y', 'x');
 set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=off';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 99	NULL	j	f	0
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 a1	a2	a3	a4
 99	NULL	j	f
 set @@optimizer_switch='partial_match_rowid_merge=off,partial_match_table_scan=on';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 99	NULL	j	f	0
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 a1	a2	a3	a4
 99	NULL	j	f
 set @@optimizer_switch=@in_exists;
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 99	NULL	j	f	0
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	8	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 a1	a2	a3	a4
 99	NULL	j	f
@@ -469,52 +469,52 @@ insert into t2 values ('34',  'qq', 'y', 'x');
 set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=off';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	100.00	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 NULL	98	NULL	b	NULL
 NULL	99	NULL	c	NULL
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	100.00	Using where
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 a1	a2	a3	a4
 set @@optimizer_switch='partial_match_rowid_merge=off,partial_match_table_scan=on';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	100.00	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 NULL	98	NULL	b	NULL
 NULL	99	NULL	c	NULL
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	100.00	Using where
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 a1	a2	a3	a4
 set @@optimizer_switch=@in_exists;
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	100.00	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 NULL	98	NULL	b	NULL
 NULL	99	NULL	c	NULL
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	100.00	Using where
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 a1	a2	a3	a4
 change the mathcing row to be the last one in the first bitmap word
@@ -523,52 +523,52 @@ update t2 set b2 = NULL where b1 = 31;
 set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=off';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	100.00	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 NULL	98	NULL	b	NULL
 NULL	99	NULL	c	NULL
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	100.00	Using where
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 a1	a2	a3	a4
 set @@optimizer_switch='partial_match_rowid_merge=off,partial_match_table_scan=on';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	100.00	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 NULL	98	NULL	b	NULL
 NULL	99	NULL	c	NULL
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	100.00	Using where
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 a1	a2	a3	a4
 set @@optimizer_switch=@in_exists;
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	100.00	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 NULL	98	NULL	b	NULL
 NULL	99	NULL	c	NULL
 EXPLAIN
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	35	100.00	Using where
 SELECT * from t1 where (a1, a2, a3, a4) NOT IN (select * from t2);
 a1	a2	a3	a4
 drop table t1, t2;
@@ -732,9 +732,9 @@ insert into t2 values ('03',  'qq', 'y', 'x');
 set @@optimizer_switch='partial_match_rowid_merge=on,partial_match_table_scan=off';
 EXPLAIN
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 SELECT t1.*, (a1, a2, a3, a4) IN (select * from t2) as in_res from t1;
 a1	a2	a3	a4	in_res
 NULL	98	NULL	b	0
@@ -785,9 +785,9 @@ set @@optimizer_switch='materialization=on,semijoin=off,partial_match_rowid_merg
 create table t1 (a1 char(3) DEFAULT NULL, a2 char(3) DEFAULT NULL);
 insert into t1 values (NULL, 'a21'), (NULL, 'a22');
 explain select * from t1 where (a1, a2) not in (select a1, a2 from t1);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 select * from t1 where (a1, a2) not in (select a1, a2 from t1);
 a1	a2
 drop table t1;
@@ -819,10 +819,10 @@ FROM t1
 WHERE (t1.d , t1.d) NOT IN (
 SELECT t3.d , t2.c
 FROM t3 LEFT JOIN t2 ON t3.a = t2.a);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t3	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t2	NULL	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t3	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
 SELECT *
 FROM t1
 WHERE (t1.d , t1.d) NOT IN (
@@ -836,10 +836,10 @@ FROM t1
 WHERE (t1.d , t1.d) NOT IN (
 SELECT t3.d , t2.c
 FROM t3 LEFT JOIN t2 ON t3.a = t2.a);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t3	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t3	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
 SELECT *
 FROM t1
 WHERE (t1.d , t1.d) NOT IN (
@@ -858,18 +858,18 @@ INSERT INTO t2 VALUES (6,3), (9,NULL);
 set @@optimizer_switch='materialization=on,partial_match_rowid_merge=on,partial_match_table_scan=off,in_to_exists=off';
 EXPLAIN
 SELECT * FROM t1 WHERE (6, 4 ) NOT IN (SELECT b, a FROM t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 SELECT * FROM t1 WHERE (6, 4 ) NOT IN (SELECT b, a FROM t2);
 c
 0
 0
 EXPLAIN
 SELECT * FROM t1 WHERE (6, 4 ) NOT IN (SELECT a, b FROM t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 SELECT * FROM t1 WHERE (6, 4 ) NOT IN (SELECT a, b FROM t2);
 c
 0
@@ -877,18 +877,18 @@ c
 set @@optimizer_switch='materialization=off,in_to_exists=on';
 EXPLAIN
 SELECT * FROM t1 WHERE (6, 4 ) NOT IN (SELECT b, a FROM t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 SELECT * FROM t1 WHERE (6, 4 ) NOT IN (SELECT b, a FROM t2);
 c
 0
 0
 EXPLAIN
 SELECT * FROM t1 WHERE (6, 4 ) NOT IN (SELECT a, b FROM t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 SELECT * FROM t1 WHERE (6, 4 ) NOT IN (SELECT a, b FROM t2);
 c
 0
@@ -903,17 +903,17 @@ CREATE TABLE t2 ( f3 int) ;
 INSERT INTO t2 VALUES (5);
 set @@optimizer_switch='in_to_exists=off,materialization=on,partial_match_rowid_merge=on,partial_match_table_scan=off';
 EXPLAIN SELECT * FROM t2 WHERE ( 3 , 1 ) NOT IN ( SELECT f1 , f2 FROM t1 );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 SELECT * FROM t2 WHERE ( 3 , 1 ) NOT IN ( SELECT f1 , f2 FROM t1 );
 f3
 5
 set @@optimizer_switch='in_to_exists=on,materialization=off';
 EXPLAIN SELECT * FROM t2 WHERE ( 3 , 1 ) NOT IN ( SELECT f1 , f2 FROM t1 );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 SELECT * FROM t2 WHERE ( 3 , 1 ) NOT IN ( SELECT f1 , f2 FROM t1 );
 f3
 5
@@ -960,9 +960,9 @@ CREATE TABLE t2 (c int, d int);
 INSERT INTO t2 VALUES (2,3),(4,5),(6, NULL);
 set @@optimizer_switch='materialization=on,partial_match_rowid_merge=on,partial_match_table_scan=off,in_to_exists=off';
 EXPLAIN SELECT * FROM t1 WHERE (a, b) NOT IN (SELECT c, d FROM t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 SELECT * FROM t1 WHERE (a, b) NOT IN (SELECT c, d FROM t2);
 a	b
 0	NULL
@@ -971,9 +971,9 @@ a	b	subq_res
 0	NULL	1
 2	NULL	NULL
 EXPLAIN SELECT * FROM t1 WHERE (a, b) NOT IN (SELECT c, d FROM t2 WHERE d is not NULL);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 SELECT * FROM t1 WHERE (a, b) NOT IN (SELECT c, d FROM t2 WHERE d is not NULL);
 a	b
 0	NULL

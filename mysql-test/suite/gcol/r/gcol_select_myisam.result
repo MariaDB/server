@@ -31,45 +31,45 @@ select * from t2;
 a	b	c
 1	-1	-1
 explain select * from t2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
 select * from t2 where c=-1;
 a	b	c
 1	-1	-1
 explain select * from t2 where c=-1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	system	c	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	system	c	NULL	NULL	NULL	1	100.00	
 # select_type=SIMPLE, type=ALL
 select * from t1 where b=-1;
 a	b	c
 1	-1	-1
 1	-1	-1
 explain select * from t1 where b=-1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	40.00	Using where
 # select_type=SIMPLE, type=const
 select * from t3 where a=1;
 a	b	c
 1	-1	-1
 explain select * from t3 where a=1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	const	PRIMARY	PRIMARY	4	const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	const	PRIMARY	PRIMARY	4	const	1	100.00	
 # select_type=SIMPLE, type=range
 select * from t3 where c>=-1;
 a	b	c
 1	-1	-1
 explain select * from t3 where c>=-1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	range	c	c	5	NULL	1	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	range	c	c	5	NULL	1	100.00	Using index condition
 # select_type=SIMPLE, type=ref
 select * from t1,t3 where t1.c=t3.c and t3.c=-1;
 a	b	c	a	b	c
 1	-1	-1	1	-1	-1
 1	-1	-1	1	-1	-1
 explain select * from t1,t3 where t1.c=t3.c and t3.c=-1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	const	c	c	5	const	1	
-1	SIMPLE	t1	NULL	ref	c	c	5	const	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	const	c	c	5	const	1	100.00	
+1	SIMPLE	t1	NULL	ref	c	c	5	const	2	100.00	
 # select_type=PRIMARY, type=index,ALL
 select * from t1 where b in (select c from t3);
 a	b	c
@@ -78,9 +78,9 @@ a	b	c
 2	-2	-2
 3	-3	-3
 explain select * from t1 where b in (select c from t3);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
-1	PRIMARY	t3	NULL	eq_ref	c	c	5	test.t1.b	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+1	PRIMARY	t3	NULL	eq_ref	c	c	5	test.t1.b	1	100.00	Using index
 # select_type=PRIMARY, type=range,ref
 select * from t1 where c in (select c from t3 where c between -2 and -1);
 a	b	c
@@ -88,9 +88,9 @@ a	b	c
 1	-1	-1
 2	-2	-2
 explain select * from t1 where c in (select c from t3 where c between -2 and -1);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	NULL	range	c	c	5	NULL	2	Using where; Using index
-1	PRIMARY	t1	NULL	ref	c	c	5	test.t3.c	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	range	c	c	5	NULL	2	100.00	Using where; Using index
+1	PRIMARY	t1	NULL	ref	c	c	5	test.t3.c	1	100.00	
 # select_type=UNION, type=system
 # select_type=UNION RESULT, type=<union1,2>
 select * from t1 union select * from t2;
@@ -100,10 +100,10 @@ a	b	c
 3	-3	-3
 NULL	NULL	NULL
 explain select * from t1 union select * from t2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	
-2	UNION	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	UNION	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 # select_type=DERIVED, type=system
 select * from (select a,b,c from t1) as t11;
 a	b	c
@@ -113,9 +113,9 @@ a	b	c
 3	-3	-3
 NULL	NULL	NULL
 explain select * from (select a,b,c from t1) as t11;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	5	
-2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
 ###
 ### Using aggregate functions with/without DISTINCT
 ###
@@ -124,29 +124,29 @@ select count(*) from t1;
 count(*)
 5
 explain select count(*) from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 # SELECT COUNT(DISTINCT <non-gcol>) FROM tbl_name
 select count(distinct a) from t1;
 count(distinct a)
 3
 explain select count(distinct a) from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
 # SELECT COUNT(DISTINCT <non-stored gcol>) FROM tbl_name
 select count(distinct b) from t1;
 count(distinct b)
 3
 explain select count(distinct b) from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
 # SELECT COUNT(DISTINCT <stored gcol>) FROM tbl_name
 select count(distinct c) from t1;
 count(distinct c)
 3
 explain select count(distinct c) from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	NULL	c	5	NULL	6	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	NULL	c	5	NULL	6	100.00	Using index for group-by
 ###
 ### filesort & range-based utils
 ###
@@ -156,32 +156,32 @@ a	b	c
 1	-1	-1
 2	-2	-2
 explain select * from t3 where c >= -2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	range	c	c	5	NULL	2	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	range	c	c	5	NULL	2	100.00	Using index condition
 # SELECT * FROM tbl_name WHERE <non-gcol expr>
 select * from t3 where a between 1 and 2;
 a	b	c
 1	-1	-1
 2	-2	-2
 explain select * from t3 where a between 1 and 2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	range	PRIMARY	PRIMARY	4	NULL	2	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	range	PRIMARY	PRIMARY	4	NULL	2	100.00	Using index condition
 # SELECT * FROM tbl_name WHERE <non-indexed gcol expr>
 select * from t3 where b between -2 and -1;
 a	b	c
 1	-1	-1
 2	-2	-2
 explain select * from t3 where b between -2 and -1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	6	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	6	33.33	Using where
 # SELECT * FROM tbl_name WHERE <indexed gcol expr>
 select * from t3 where c between -2 and -1;
 a	b	c
 1	-1	-1
 2	-2	-2
 explain select * from t3 where c between -2 and -1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	range	c	c	5	NULL	2	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	range	c	c	5	NULL	2	100.00	Using index condition
 # bug#20022189: WL411:DEBUG ASSERT AT FIELD_LONG::VAL_INT IN SQL/FIELD.CC
 CREATE TABLE t4 (
 `pk` int(11) NOT NULL ,
@@ -210,56 +210,56 @@ a	b	c
 2	-2	-2
 1	-1	-1
 explain select * from t3 where a between 1 and 2 order by c;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	range	PRIMARY	PRIMARY	4	NULL	2	Using index condition; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	range	PRIMARY	PRIMARY	4	NULL	2	100.00	Using index condition; Using filesort
 # SELECT * FROM tbl_name WHERE <non-indexed gcol expr> ORDER BY <non-gcol>
 select * from t3 where b between -2 and -1 order by a;
 a	b	c
 1	-1	-1
 2	-2	-2
 explain select * from t3 where b between -2 and -1 order by a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	6	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	6	33.33	Using where; Using filesort
 # SELECT * FROM tbl_name WHERE <indexed gcol expr> ORDER BY <non-gcol>
 select * from t3 where c between -2 and -1 order by a;
 a	b	c
 1	-1	-1
 2	-2	-2
 explain select * from t3 where c between -2 and -1 order by a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	range	c	c	5	NULL	2	Using index condition; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	range	c	c	5	NULL	2	100.00	Using index condition; Using filesort
 # SELECT * FROM tbl_name WHERE <non-indexed gcol expr> ORDER BY <non-indexed gcol>
 select * from t3 where b between -2 and -1 order by b;
 a	b	c
 2	-2	-2
 1	-1	-1
 explain select * from t3 where b between -2 and -1 order by b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	6	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	6	33.33	Using where; Using filesort
 # SELECT * FROM tbl_name WHERE <indexed gcol expr> ORDER BY <non-indexed gcol>
 select * from t3 where c between -2 and -1 order by b;
 a	b	c
 2	-2	-2
 1	-1	-1
 explain select * from t3 where c between -2 and -1 order by b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	range	c	c	5	NULL	2	Using index condition; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	range	c	c	5	NULL	2	100.00	Using index condition; Using filesort
 # SELECT * FROM tbl_name WHERE <non-indexed gcol expr> ORDER BY <indexed gcol>
 select * from t3 where b between -2 and -1 order by c;
 a	b	c
 2	-2	-2
 1	-1	-1
 explain select * from t3 where b between -2 and -1 order by c;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	6	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	6	33.33	Using where; Using filesort
 # SELECT * FROM tbl_name WHERE <indexed gcol expr> ORDER BY <indexed gcol>
 select * from t3 where c between -2 and -1 order by c;
 a	b	c
 2	-2	-2
 1	-1	-1
 explain select * from t3 where c between -2 and -1 order by c;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	range	c	c	5	NULL	2	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	range	c	c	5	NULL	2	100.00	Using index condition
 # SELECT sum(<non-indexed gcol>) FROM tbl_name GROUP BY <non-indexed gcol>
 select sum(b) from t1 group by b;
 sum(b)
@@ -268,8 +268,8 @@ NULL
 -2
 -2
 explain select sum(b) from t1 group by b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using temporary; Using filesort
 # SELECT sum(<indexed gcol>) FROM tbl_name GROUP BY <indexed gcol>
 select sum(c) from t1 group by c;
 sum(c)
@@ -278,8 +278,8 @@ NULL
 -2
 -2
 explain select sum(c) from t1 group by c;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	c	5	NULL	5	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	c	5	NULL	5	100.00	Using index
 # SELECT sum(<non-indexed gcol>) FROM tbl_name GROUP BY <indexed gcol>
 select sum(b) from t1 group by c;
 sum(b)
@@ -288,8 +288,8 @@ NULL
 -2
 -2
 explain select sum(b) from t1 group by c;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using temporary; Using filesort
 # SELECT sum(<indexed gcol>) FROM tbl_name GROUP BY <non-indexed gcol>
 select sum(c) from t1 group by b;
 sum(c)
@@ -298,8 +298,8 @@ NULL
 -2
 -2
 explain select sum(c) from t1 group by b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using temporary; Using filesort
 drop table t1;
 #
 # Bug#20241655: WL411:FAILING ASSERTION ASSERTION
@@ -590,10 +590,10 @@ FROM (c AS subquery2_t1 RIGHT JOIN
 (subquery2_t3.col_int_nokey = subquery2_t2.col_int_key )) ON
 (subquery2_t3.col_varchar_key = subquery2_t2.col_varchar_key))
 ORDER BY subquery2_field1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	subquery2_t2	NULL	index	NULL	col_int_key_2	10	NULL	#	#
-1	SIMPLE	subquery2_t3	NULL	ALL	NULL	NULL	NULL	NULL	#	#
-1	SIMPLE	subquery2_t1	NULL	index	NULL	PRIMARY	4	NULL	#	#
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	subquery2_t2	NULL	index	NULL	col_int_key_2	10	NULL	#	#	#
+1	SIMPLE	subquery2_t3	NULL	ALL	NULL	NULL	NULL	NULL	#	#	#
+1	SIMPLE	subquery2_t1	NULL	index	NULL	PRIMARY	4	NULL	#	#	#
 SELECT subquery2_t2.col_int_key AS subquery2_field1
 FROM (c AS subquery2_t1 RIGHT JOIN
 (c AS subquery2_t2 LEFT JOIN cc AS subquery2_t3 ON
@@ -793,16 +793,16 @@ KEY (col_int_key)
 );
 INSERT INTO cc (col_int_nokey) VALUES (0),(1),(7),(0),(4),(5);
 EXPLAIN SELECT pk FROM cc WHERE col_int_key > 3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	cc	NULL	range	col_int_key	col_int_key	5	NULL	#	#
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	cc	NULL	range	col_int_key	col_int_key	5	NULL	#	#	#
 SELECT pk FROM cc WHERE col_int_key > 3;
 pk
 5
 6
 3
 EXPLAIN SELECT pk FROM cc WHERE col_int_key > 3 ORDER BY 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	cc	NULL	range	col_int_key	col_int_key	5	NULL	#	#
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	cc	NULL	range	col_int_key	col_int_key	5	NULL	#	#	#
 SELECT pk FROM cc WHERE col_int_key > 3 ORDER BY 1;
 pk
 3
@@ -875,13 +875,13 @@ WHERE SUBQUERY1_t2.pk >= 9 ) AS table3
 ON (table3.col_int_key = table2.col_int_key  ) ) )
 ON (table3.col_int_nokey = table2.pk  ) )
 GROUP BY field1, field2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	table1	NULL	system	NULL	NULL	NULL	NULL	#	
-1	PRIMARY	table2	NULL	ALL	PRIMARY,col_int_key,col_int_key_2	NULL	NULL	NULL	#	Using where
-1	PRIMARY	<derived2>	NULL	ref	key0	key0	9	test.table2.pk,test.table2.col_int_key	#	
-2	DERIVED	SUBQUERY1_t2	NULL	ALL	PRIMARY,col_int_key,col_varchar_key,col_int_key_2	NULL	NULL	NULL	#	Using where
-2	DERIVED	SUBQUERY1_t3	NULL	ref	PRIMARY,col_varchar_key	col_varchar_key	5	test.SUBQUERY1_t2.col_varchar_key	#	
-2	DERIVED	SUBQUERY1_t1	NULL	ALL	col_int_key,col_int_key_2	NULL	NULL	NULL	#	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	table1	NULL	system	NULL	NULL	NULL	NULL	#	100.00	
+1	PRIMARY	table2	NULL	ALL	PRIMARY,col_int_key,col_int_key_2	NULL	NULL	NULL	#	100.00	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	9	test.table2.pk,test.table2.col_int_key	#	100.00	
+2	DERIVED	SUBQUERY1_t2	NULL	ALL	PRIMARY,col_int_key,col_varchar_key,col_int_key_2	NULL	NULL	NULL	#	57.89	Using where
+2	DERIVED	SUBQUERY1_t3	NULL	ref	PRIMARY,col_varchar_key	col_varchar_key	5	test.SUBQUERY1_t2.col_varchar_key	#	100.00	
+2	DERIVED	SUBQUERY1_t1	NULL	ALL	col_int_key,col_int_key_2	NULL	NULL	NULL	#	100.00	Using where; Using join buffer (flat, BNL join)
 SELECT
 table1.pk AS field1 ,
 table1.col_datetime_key AS field2
@@ -954,11 +954,11 @@ FROM ( cc AS SQ1_alias1 , c AS SQ1_alias2 )
 GROUP BY SQ1_field1 , SQ1_field2
 )
 GROUP BY field1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	alias1	NULL	index	NULL	col_int_key_3	10	NULL	#	Using index; Using temporary; Using filesort
-1	PRIMARY	alias2	NULL	index	NULL	col_int_key_2	10	NULL	#	Using where; Using index; Using join buffer (flat, BNL join)
-2	MATERIALIZED	SQ1_alias1	NULL	index	col_int_key,col_int_key_2,col_int_key_3	col_int_key	5	NULL	#	Using index
-2	MATERIALIZED	SQ1_alias2	NULL	ALL	NULL	NULL	NULL	NULL	#	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	alias1	NULL	index	NULL	col_int_key_3	10	NULL	#	100.00	Using index; Using temporary; Using filesort
+1	PRIMARY	alias2	NULL	index	NULL	col_int_key_2	10	NULL	#	100.00	Using where; Using index; Using join buffer (flat, BNL join)
+2	MATERIALIZED	SQ1_alias1	NULL	index	col_int_key,col_int_key_2,col_int_key_3	col_int_key	5	NULL	#	100.00	Using index
+2	MATERIALIZED	SQ1_alias2	NULL	ALL	NULL	NULL	NULL	NULL	#	100.00	Using join buffer (flat, BNL join)
 SELECT
 alias2 . col_varchar_key AS field1
 FROM ( cc AS alias1 , cc AS alias2 )
@@ -1017,8 +1017,8 @@ KEY cover_key1 (col_int, col_varchar_255_utf8_key));
 INSERT INTO j(col_int, pk, col_varchar_10_utf8) VALUES(9, 1, '951910400'),
 (-1934295040, 2, '1235025920'),(-584581120, 3, '-1176633344'),(3, 4, '1074462720');
 EXPLAIN SELECT col_varchar_255_utf8_key FROM j ORDER BY 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	j	NULL	index	NULL	cover_key1	773	NULL	#	Using index; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	j	NULL	index	NULL	cover_key1	773	NULL	#	100.00	Using index; Using filesort
 SELECT col_varchar_255_utf8_key FROM j ORDER BY col_varchar_255_utf8_key;
 col_varchar_255_utf8_key
 -117663334
@@ -1105,23 +1105,23 @@ INSERT INTO t1 (id) VALUES(NULL);
 ERROR 23000: Column 'id' cannot be null
 INSERT INTO t1 (id) VALUES(2),(3);
 EXPLAIN SELECT * FROM t1 FORCE INDEX(b) WHERE b=3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	const	b	b	5	const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	const	b	b	5	const	1	100.00	
 EXPLAIN SELECT * FROM t1 AS t2 STRAIGHT_JOIN t1 FORCE INDEX(b) WHERE t1.b=t2.b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	b	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t1	NULL	eq_ref	b	b	5	test.t2.b	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	b	NULL	NULL	NULL	2	100.00	Using where
+1	SIMPLE	t1	NULL	eq_ref	b	b	5	test.t2.b	1	100.00	
 EXPLAIN SELECT b FROM t1 FORCE INDEX(b);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	b	5	NULL	2	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	b	5	NULL	2	100.00	Using index
 INSERT INTO t1 (id) VALUES(4),(5),(6),(7),(8),(9),(10);
 EXPLAIN SELECT b FROM t1 FORCE INDEX(b) WHERE b BETWEEN 1 AND 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	b	b	5	NULL	3	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	b	b	5	NULL	3	100.00	Using where; Using index
 EXPLAIN SELECT * FROM t2 AS t1 WHERE b NOT IN (SELECT b FROM t1 FORCE INDEX(b));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t1	NULL	index_subquery	b	b	5	func	3	Using index; Full scan on NULL key
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	SUBQUERY	t1	NULL	index_subquery	b	b	5	func	3	100.00	Using index; Full scan on NULL key
 DROP TABLE t1;
 DROP TABLE t2, t3;
 #
@@ -1175,8 +1175,8 @@ UNIQUE KEY i0008 (a)
 INSERT INTO t(a,b) VALUES(1,'cccc');
 EXPLAIN SELECT /*+ bka() */ 1 AS c FROM t AS b RIGHT JOIN t AS c ON b.a > c.c
 WHERE b.b>c.a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'cccc'
 Warning	1292	Truncated incorrect DOUBLE value: 'cccc'
@@ -1211,8 +1211,8 @@ a0.i1 + a1.i1*10
 FROM t0 AS a0, t0 AS a1, t0 AS a2;
 EXPLAIN SELECT * FROM t1
 WHERE i1 > 41 AND i1 <= 43;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	idx	idx	4	NULL	20	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	idx	idx	4	NULL	20	100.00	Using index condition
 SELECT * FROM t1
 WHERE i1 > 41 AND i1 <= 43;
 pk	i1	i2	v1	v2
@@ -1239,8 +1239,8 @@ pk	i1	i2	v1	v2
 ALTER TABLE t1 ADD INDEX idx2(v1);
 EXPLAIN SELECT * FROM t1
 WHERE v1 > 41 AND v1 <= 43;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	idx2	idx2	5	NULL	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	idx2	idx2	5	NULL	#	100.00	Using index condition
 SELECT * FROM t1
 WHERE v1 > 41 AND v1 <= 43;
 pk	i1	i2	v1	v2
@@ -1324,12 +1324,12 @@ WHERE t4.c1 < 'o'
   )
 )
 AND t1.i1 <= t3.i2_key;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	NULL	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where
-1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t3	NULL	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	100.00	Using where
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
+2	MATERIALIZED	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
@@ -1380,12 +1380,12 @@ WHERE t4.c1 < 'o'
   )
 )
 AND t1.i1 <= t3.i2_key;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	NULL	eq_ref	PRIMARY,v_idx,v_idx2	PRIMARY	4	test.t4.i1	1	Using where
-1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t3	NULL	eq_ref	PRIMARY,v_idx,v_idx2	PRIMARY	4	test.t4.i1	1	100.00	Using where
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
+2	MATERIALIZED	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
@@ -1438,12 +1438,12 @@ WHERE t4.c1 < 'o'
   )
 )
 AND t1.i1 <= t3.i2_key;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	NULL	eq_ref	PRIMARY,v_idx2	PRIMARY	4	test.t4.i1	1	Using where
-1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t3	NULL	eq_ref	PRIMARY,v_idx2	PRIMARY	4	test.t4.i1	1	100.00	Using where
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
+2	MATERIALIZED	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
@@ -1505,12 +1505,12 @@ WHERE t4.c1 < 'o'
   )
 )
 AND t1.i1 <= t3.i2_key;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	NULL	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where
-1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t3	NULL	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	100.00	Using where
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
+2	MATERIALIZED	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1, t3.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
@@ -1561,11 +1561,11 @@ WHERE t4.c1 < 'o' and t4.i1 < (t2.i1 + 1)
 )
 )
 AND t1.i1 <= t3.i2_key;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
-1	PRIMARY	t3	NULL	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where
-1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; End temporary; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t4	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Start temporary
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	t3	NULL	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	100.00	Using where
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; End temporary; Using join buffer (flat, BNL join)
 SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN

@@ -3175,8 +3175,8 @@ Warning	4038	Syntax error in JSON text in argument 1 to function 'json_extract' 
 # Crash in Item_copy_json::~Item_copy_json
 # ----------------------------------------------------------------------
 EXPLAIN SELECT COUNT(*), JSON_KEYS('{}');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 select json_search( '{ "a": "foo" }', 'one', 'foo', 'a' );
 json_search( '{ "a": "foo" }', 'one', 'foo', 'a' )
 "$.a"

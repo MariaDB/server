@@ -23,8 +23,8 @@ connect con1,localhost,root;
 select sleep(100000);
 connection default;
 SHOW EXPLAIN FOR $con_id;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select sleep(100000)
 KILL QUERY $con_id;

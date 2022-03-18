@@ -108,6 +108,7 @@ select A.a+10*B.a, A.a+10*B.a, A.a+10*B.a+100*C.a
 from t0 A, t0 B, t0 C, t0 D where D.a<5;
 SET @saved_dbug = @@GLOBAL.debug_dbug;
 set @@global.debug_dbug="+d,ha_index_init_fail";
+--replace_column 11 FLTRD
 explain select * from t1 where a=10 and b=10;
 --error ER_TABLE_DEF_CHANGED
 select * from t1 where a=10 and b=10;

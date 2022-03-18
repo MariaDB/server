@@ -90,27 +90,27 @@ insert into t0 values
 create table t1 like t0;
 insert into t1 select * from t0;
 explain select * from t0, t1 where t0.a<5 and t1.a<5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where; Using join buffer (flat, BNL join)
 # These should have filtered=50
 analyze select * from t0, t1 where t0.a<5 and t1.a<5;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	50.00	Using where
 1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	50.00	Using where; Using join buffer (flat, BNL join)
 explain select * from t0, t1 where t0.a<5 and t1.b=t0.b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where; Using join buffer (flat, BNL join)
 # Now, t1 should have filtered=10
 analyze select * from t0, t1 where t0.a<5 and t1.b=t0.b;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	50.00	Using where
 1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	10.00	100.00	10.00	Using where; Using join buffer (flat, BNL join)
 explain select * from t0, t1 where t0.a<5 and t1.a<5 and t1.b=t0.b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where; Using join buffer (flat, BNL join)
 # Now, t1 should have filtered=10
 analyze select * from t0, t1 where t0.a<5 and t1.a<5 and t1.b=t0.b;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
@@ -328,8 +328,8 @@ select * from t1;
 i
 insert into t1 values (1),(2);
 explain delete from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	2	Deleting all rows
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	2	NULL	Deleting all rows
 select * from t1;
 i
 1

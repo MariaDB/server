@@ -118,6 +118,7 @@ key	NULL
 key_len	NULL
 ref	NULL
 rows	2
+filtered	100.00
 Extra	
 id	1
 select_type	PRIMARY
@@ -129,6 +130,7 @@ key	PRIMARY
 key_len	4
 ref	t2.a
 rows	1
+filtered	100.00
 Extra	Using where
 id	2
 select_type	DERIVED
@@ -140,6 +142,7 @@ key	NULL
 key_len	NULL
 ref	NULL
 rows	NULL
+filtered	NULL
 Extra	No tables used
 id	3
 select_type	UNION
@@ -151,6 +154,7 @@ key	NULL
 key_len	NULL
 ref	NULL
 rows	NULL
+filtered	NULL
 Extra	No tables used
 #
 # Demonstrate that the reported SELECT statement
@@ -313,6 +317,7 @@ key	NULL
 key_len	NULL
 ref	NULL
 rows	2
+filtered	100.00
 Extra	
 id	1
 select_type	PRIMARY
@@ -324,6 +329,7 @@ key	PRIMARY
 key_len	4
 ref	t2.a
 rows	1
+filtered	100.00
 Extra	Using where
 id	2
 select_type	DERIVED
@@ -335,6 +341,7 @@ key	NULL
 key_len	NULL
 ref	NULL
 rows	NULL
+filtered	NULL
 Extra	No tables used
 id	3
 select_type	UNION
@@ -346,6 +353,7 @@ key	NULL
 key_len	NULL
 ref	NULL
 rows	NULL
+filtered	NULL
 Extra	No tables used
 # Lock the record.
 select 1 from t1 natural join (select 3 as a, 2 as b union all

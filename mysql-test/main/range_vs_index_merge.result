@@ -40,56 +40,56 @@ set session optimizer_switch='index_merge_sort_intersection=off';
 EXPLAIN
 SELECT * FROM City
 WHERE (Population >= 100000 OR Name LIKE 'P%' OR Population < 100000);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	ALL	Population,Name	NULL	NULL	NULL	4079	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	ALL	Population,Name	NULL	NULL	NULL	4079	100.00	Using where
 EXPLAIN
 SELECT * FROM City
 WHERE (Population >= 100000 OR Name LIKE 'P%') AND Country='CAN' OR
 (Population < 100000 OR Name Like 'T%') AND Country='ARG';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Population,Country,Name	Country	3	NULL	104	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Population,Country,Name	Country	3	NULL	104	100.00	Using index condition; Using where
 EXPLAIN
 SELECT * FROM City
 WHERE Population < 200000 AND Name LIKE 'P%' AND
 (Population > 300000 OR Name LIKE 'T%') AND
 (Population < 100000 OR Name LIKE 'Pa%');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Population,Name	Name	35	NULL	135	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Population,Name	Name	35	NULL	135	59.38	Using index condition; Using where
 EXPLAIN
 SELECT * FROM City
 WHERE Population > 100000 AND Name LIKE 'Aba%' OR
 Country IN ('CAN', 'ARG') AND  ID BETWEEN 120 AND 130 OR
 Country <= 'ALB' AND Name LIKE 'L%' OR
 ID BETWEEN 3807 AND 3810;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	PRIMARY,Population,Country,Name	Name,PRIMARY,Country	35,4,3	NULL	30	Using sort_union(Name,PRIMARY,Country); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	PRIMARY,Population,Country,Name	Name,PRIMARY,Country	35,4,3	NULL	30	100.00	Using sort_union(Name,PRIMARY,Country); Using where
 EXPLAIN 
 SELECT * FROM City
 WHERE (Population > 101000 AND Population < 115000);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Population	Population	4	NULL	459	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Population	Population	4	NULL	459	100.00	Using index condition
 EXPLAIN 
 SELECT * FROM City
 WHERE (Population > 101000 AND Population < 102000);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Population	Population	4	NULL	39	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Population	Population	4	NULL	39	100.00	Using index condition
 EXPLAIN 
 SELECT * FROM City
 WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'F'));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	Country,Name	Name,Country	35,3	NULL	172	Using sort_union(Name,Country); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	Country,Name	Name,Country	35,3	NULL	172	100.00	Using sort_union(Name,Country); Using where
 EXPLAIN 
 SELECT * FROM City
 WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'F'))
 AND (Population > 101000 AND Population < 115000);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	Population,Country,Name	Name,Country	35,3	NULL	172	Using sort_union(Name,Country); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	Population,Country,Name	Name,Country	35,3	NULL	172	11.25	Using sort_union(Name,Country); Using where
 EXPLAIN 
 SELECT * FROM City
 WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'F'))
 AND (Population > 101000 AND Population < 102000);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Population,Country,Name	Population	4	NULL	39	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Population,Country,Name	Population	4	NULL	39	100.00	Using index condition; Using where
 SELECT * FROM City USE INDEX ()
 WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'F'))
 AND (Population > 101000 AND Population < 115000);
@@ -168,56 +168,56 @@ ID	Name	Country	Population
 637	Mit Ghamr	EGY	101801
 EXPLAIN
 SELECT  * FROM City WHERE (Name < 'Ac');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Name	Name	35	NULL	13	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Name	Name	35	NULL	13	100.00	Using index condition
 EXPLAIN
 SELECT  * FROM City WHERE (Name < 'Bb');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Name	Name	35	NULL	207	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Name	Name	35	NULL	207	100.00	Using index condition
 EXPLAIN
 SELECT  * FROM City WHERE (Country > 'A' AND Country < 'B');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Country	Country	3	NULL	104	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Country	Country	3	NULL	104	100.00	Using index condition
 EXPLAIN
 SELECT  * FROM City WHERE (Name BETWEEN 'P' AND 'Pb');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Name	Name	35	NULL	39	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Name	Name	35	NULL	39	100.00	Using index condition
 EXPLAIN
 SELECT  * FROM City WHERE (Name BETWEEN 'P' AND 'S');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Name	Name	35	NULL	221	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Name	Name	35	NULL	221	100.00	Using index condition
 EXPLAIN
 SELECT  * FROM City WHERE (Population > 101000 AND Population < 110000);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Population	Population	4	NULL	328	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Population	Population	4	NULL	328	100.00	Using index condition
 EXPLAIN
 SELECT  * FROM City WHERE (Population > 103000 AND Population < 104000);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Population	Population	4	NULL	37	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Population	Population	4	NULL	37	100.00	Using index condition
 EXPLAIN
 SELECT  * FROM City 
 WHERE (Name < 'Ac' AND (Country > 'A' AND Country < 'B')) OR
 (Name BETWEEN 'P' AND 'Pb' AND (Population > 101000 AND Population < 110000));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Population,Country,Name	Name	35	NULL	52	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Population,Country,Name	Name	35	NULL	52	100.00	Using index condition; Using where
 EXPLAIN
 SELECT  * FROM City
 WHERE (Name < 'Ac' AND (Country > 'A' AND Country < 'B')) OR
 (Name BETWEEN 'P' AND 'S' AND (Population > 103000 AND Population < 104000));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	Population,Country,Name	Name,Population	35,4	NULL	50	Using sort_union(Name,Population); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	Population,Country,Name	Name,Population	35,4	NULL	50	5.74	Using sort_union(Name,Population); Using where
 EXPLAIN
 SELECT  * FROM City
 WHERE (Name < 'Bb' AND (Country > 'A' AND Country < 'B')) OR
 (Name BETWEEN 'P' AND 'Pb' AND (Population > 101000 AND Population < 110000));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	Population,Country,Name	Country,Name	3,35	NULL	143	Using sort_union(Country,Name); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	Population,Country,Name	Country,Name	3,35	NULL	143	6.03	Using sort_union(Country,Name); Using where
 EXPLAIN
 SELECT  * FROM City
 WHERE (Name < 'Bb' AND (Country > 'A' AND Country < 'B')) OR
 (Name BETWEEN 'P' AND 'S' AND (Population > 103000 AND Population < 104000));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	Population,Country,Name	Country,Population	3,4	NULL	141	Using sort_union(Country,Population); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	Population,Country,Name	Country,Population	3,4	NULL	141	10.49	Using sort_union(Country,Population); Using where
 SELECT  * FROM City USE INDEX ()
 WHERE (Name < 'Ac' AND (Country > 'A' AND Country < 'B')) OR
 (Name BETWEEN 'P' AND 'Pb' AND (Population > 101000 AND Population < 110000));
@@ -324,49 +324,49 @@ ID	Name	Country	Population
 2663	Río Bravo	MEX	103901
 EXPLAIN
 SELECT * FROM City WHERE (ID < 10) OR (ID BETWEEN 100 AND 110);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	20	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	20	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE (ID < 200) OR (ID BETWEEN 100 AND 200);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	200	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	200	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE (ID < 600) OR (ID BETWEEN 900 AND 1500);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	ALL	PRIMARY	NULL	NULL	NULL	4079	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	ALL	PRIMARY	NULL	NULL	NULL	4079	29.42	Using where
 EXPLAIN
 SELECT * FROM City WHERE Country > 'A' AND Country < 'ARG';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Country	Country	3	NULL	20	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Country	Country	3	NULL	20	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE Name LIKE 'H%' OR Name LIKE 'P%' ;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Name	Name	35	NULL	223	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Name	Name	35	NULL	223	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE Name LIKE 'Ha%' OR Name LIKE 'Pa%' ;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Name	Name	35	NULL	72	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Name	Name	35	NULL	72	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City
 WHERE ((ID < 10) AND (Name LIKE 'H%' OR (Country > 'A' AND Country < 'ARG')))
 OR ((ID BETWEEN 100 AND 110) AND 
 (Name LIKE 'P%' OR (Population > 103000 AND Population < 104000)));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	PRIMARY,Population,Country,Name	PRIMARY	4	NULL	20	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	PRIMARY,Population,Country,Name	PRIMARY	4	NULL	20	100.00	Using index condition; Using where
 EXPLAIN
 SELECT * FROM City
 WHERE ((ID < 800) AND (Name LIKE 'Ha%' OR (Country > 'A' AND Country < 'ARG')))
 OR ((ID BETWEEN 900 AND 1500) AND 
 (Name LIKE 'Pa%' OR (Population > 103000 AND Population < 105000)));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	PRIMARY,Population,Country,Name	Name,Country,Population	35,3,4	NULL	151	Using sort_union(Name,Country,Population); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	PRIMARY,Population,Country,Name	Name,Country,Population	35,3,4	NULL	151	34.32	Using sort_union(Name,Country,Population); Using where
 EXPLAIN
 SELECT * FROM City
 WHERE ((ID < 200) AND (Name LIKE 'Ha%' OR (Country > 'A' AND Country < 'ARG')))
 OR ((ID BETWEEN 100 AND 200) AND 
 (Name LIKE 'Pa%' OR (Population > 103200 AND Population < 104000)));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	PRIMARY,Population,Country,Name	Name,Country,Population	35,3,4	NULL	124	Using sort_union(Name,Country,Population); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	PRIMARY,Population,Country,Name	Name,Country,Population	35,3,4	NULL	124	4.90	Using sort_union(Name,Country,Population); Using where
 SELECT * FROM City USE INDEX ()
 WHERE ((ID < 10) AND (Name LIKE 'H%' OR (Country > 'A' AND Country < 'ARG')))
 OR ((ID BETWEEN 100 AND 110) AND 
@@ -573,56 +573,56 @@ ID	Name	Country	Population
 191	Hamilton	BMU	1200
 EXPLAIN 
 SELECT * FROM City WHERE Population > 101000 AND Population < 102000;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Population	Population	4	NULL	39	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Population	Population	4	NULL	39	100.00	Using index condition
 EXPLAIN 
 SELECT * FROM City WHERE Population > 101000 AND Population < 110000;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Population	Population	4	NULL	328	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Population	Population	4	NULL	328	100.00	Using index condition
 EXPLAIN 
 SELECT * FROM City WHERE Country < 'C';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Country	Country	3	NULL	435	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Country	Country	3	NULL	435	100.00	Using index condition
 EXPLAIN 
 SELECT * FROM City WHERE Country < 'AGO';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Country	Country	3	NULL	5	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Country	Country	3	NULL	5	100.00	Using index condition
 EXPLAIN 
 SELECT * FROM City WHERE Name BETWEEN 'P' AND 'S';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Name	Name	35	NULL	221	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Name	Name	35	NULL	221	100.00	Using index condition
 EXPLAIN 
 SELECT * FROM City WHERE Name BETWEEN 'P' AND 'Pb';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Name	Name	35	NULL	39	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Name	Name	35	NULL	39	100.00	Using index condition
 EXPLAIN 
 SELECT * FROM City WHERE ID BETWEEN 3400 AND 3800;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	401	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	401	100.00	Using index condition
 EXPLAIN 
 SELECT * FROM City WHERE ID BETWEEN 3790 AND 3800;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	11	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	11	100.00	Using index condition
 EXPLAIN 
 SELECT * FROM City WHERE Name LIKE 'P%';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Name	Name	35	NULL	135	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Name	Name	35	NULL	135	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City
 WHERE ((Population > 101000 AND Population < 102000) AND
 (Country < 'C' OR Name BETWEEN 'P' AND 'S')) OR
 ((ID BETWEEN 3400 AND 3800) AND 
 (Country < 'AGO' OR Name LIKE 'Pa%'));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	PRIMARY,Population,Country,Name	Country,Name,Population	3,35,4	NULL	83	Using sort_union(Country,Name,Population); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	PRIMARY,Population,Country,Name	Country,Name,Population	3,35,4	NULL	83	100.00	Using sort_union(Country,Name,Population); Using where
 EXPLAIN
 SELECT * FROM City
 WHERE ((Population > 101000 AND Population < 110000) AND
 (Country < 'AGO' OR Name BETWEEN 'P' AND 'Pb')) OR
 ((ID BETWEEN 3790 AND 3800) AND 
 (Country < 'C' OR Name LIKE 'P%'));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	PRIMARY,Population,Country,Name	Country,Name,PRIMARY	3,35,4	NULL	55	Using sort_union(Country,Name,PRIMARY); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	PRIMARY,Population,Country,Name	Country,Name,PRIMARY	3,35,4	NULL	55	100.00	Using sort_union(Country,Name,PRIMARY); Using where
 SELECT * FROM City USE INDEX ()
 WHERE ((Population > 101000 AND Population < 102000) AND
 (Country < 'C' OR Name BETWEEN 'P' AND 'S')) OR
@@ -676,36 +676,36 @@ ID	Name	Country	Population
 CREATE INDEX CountryPopulation ON City(Country,Population);
 EXPLAIN
 SELECT * FROM City WHERE Name LIKE 'Pas%';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Name	Name	35	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Name	Name	35	NULL	4	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE Name LIKE 'P%';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Name	Name	35	NULL	135	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Name	Name	35	NULL	135	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE (Population > 101000 AND Population < 103000);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Population	Population	4	NULL	81	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Population	Population	4	NULL	81	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE Country='USA';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	ref	Country,CountryPopulation	Country	3	const	267	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	ref	Country,CountryPopulation	Country	3	const	267	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE Country='FIN';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	ref	Country,CountryPopulation	Country	3	const	7	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	ref	Country,CountryPopulation	Country	3	const	7	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City 
 WHERE ((Population > 101000 AND Population < 103000) OR Name LIKE 'Pas%')
 AND Country='USA';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	Population,Country,Name,CountryPopulation	CountryPopulation,Name	7,35	NULL	14	Using sort_union(CountryPopulation,Name); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	Population,Country,Name,CountryPopulation	CountryPopulation,Name	7,35	NULL	14	6.55	Using sort_union(CountryPopulation,Name); Using where
 EXPLAIN
 SELECT * FROM City 
 WHERE ((Population > 101000 AND Population < 103000) OR Name LIKE 'P%')
 AND Country='EST';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	ref	Population,Country,Name,CountryPopulation	Country	3	const	2	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	ref	Population,Country,Name,CountryPopulation	Country	3	const	2	100.00	Using index condition; Using where
 SELECT * FROM City 
 WHERE ((Population > 101000 AND Population < 103000) OR Name LIKE 'Pas%')
 AND Country='USA';
@@ -749,52 +749,52 @@ ID	Name	Country	Population
 CREATE INDEX CountryName ON City(Country,Name);
 EXPLAIN
 SELECT * FROM City WHERE Country='USA';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	ref	Country,CountryPopulation,CountryName	Country	3	const	267	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	ref	Country,CountryPopulation,CountryName	Country	3	const	267	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE Country='FIN';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	ref	Country,CountryPopulation,CountryName	CountryName	3	const	5	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	ref	Country,CountryPopulation,CountryName	CountryName	3	const	5	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE Country='BRA';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	ref	Country,CountryPopulation,CountryName	CountryName	3	const	221	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	ref	Country,CountryPopulation,CountryName	CountryName	3	const	221	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE ID BETWEEN 3790 AND 3800;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	11	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	11	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE ID BETWEEN 4025 AND 4035;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	11	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	11	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE ID BETWEEN 4028 AND 4032;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	5	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	5	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE ID BETWEEN 3500 AND 3800;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	301	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	301	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE ID BETWEEN 4000 AND 4300;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	80	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	80	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE ID BETWEEN 250 and 260 ;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	11	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	PRIMARY	PRIMARY	4	NULL	11	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE (Population > 101000 AND Population < 102000);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Population	Population	4	NULL	39	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Population	Population	4	NULL	39	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE (Population > 101000 AND Population < 103000);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Population	Population	4	NULL	81	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Population	Population	4	NULL	81	100.00	Using index condition
 EXPLAIN
 SELECT * FROM City WHERE Name LIKE 'Pa%';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Name	Name	35	NULL	41	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Name	Name	35	NULL	41	100.00	Using index condition
 set @tmp_range_vs_index_merge=@@optimizer_switch;
 set optimizer_switch='extended_keys=off';
 EXPLAIN
@@ -802,22 +802,22 @@ SELECT * FROM City
 WHERE ((Population > 101000 AND Population < 102000) OR
 ID BETWEEN 3790 AND 3800) AND Country='USA'
         AND (Name LIKE 'Pa%' OR ID BETWEEN 4025 AND 4035);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	PRIMARY,Population,Country,Name,CountryPopulation,CountryName	CountryPopulation,PRIMARY	7,4	NULL	14	Using sort_union(CountryPopulation,PRIMARY); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	PRIMARY,Population,Country,Name,CountryPopulation,CountryName	CountryPopulation,PRIMARY	7,4	NULL	14	6.55	Using sort_union(CountryPopulation,PRIMARY); Using where
 EXPLAIN
 SELECT * FROM City
 WHERE ((Population > 101000 AND Population < 103000) OR
 ID BETWEEN 3790 AND 3800) AND Country='USA'
         AND (Name LIKE 'Pa%' OR ID BETWEEN 4028 AND 4032);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	PRIMARY,Population,Country,Name,CountryPopulation,CountryName	CountryName,PRIMARY	38,4	NULL	11	Using sort_union(CountryName,PRIMARY); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	PRIMARY,Population,Country,Name,CountryPopulation,CountryName	CountryName,PRIMARY	38,4	NULL	11	6.55	Using sort_union(CountryName,PRIMARY); Using where
 EXPLAIN
 SELECT * FROM City
 WHERE ((Population > 101000 AND Population < 110000) OR
 ID BETWEEN 3500 AND 3800) AND Country='FIN'
         AND (Name BETWEEN 'P' AND 'T' OR ID BETWEEN 4000 AND 4300);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	ref	PRIMARY,Population,Country,Name,CountryPopulation,CountryName	CountryName	3	const	5	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	ref	PRIMARY,Population,Country,Name,CountryPopulation,CountryName	CountryName	3	const	5	100.00	Using index condition; Using where
 SELECT * FROM City USE INDEX ()
 WHERE ((Population > 101000 AND Population < 102000) OR
 ID BETWEEN 3790 AND 3800) AND Country='USA'
@@ -865,8 +865,8 @@ SELECT * FROM City
 WHERE ((Population > 101000 and Population < 102000) OR
 ID BETWEEN 3790 AND 3800) AND Country='USA'
         OR (Name LIKE 'Pa%' OR ID BETWEEN 250 AND 260) AND Country='BRA';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	PRIMARY,Population,Country,Name,CountryPopulation,CountryName	CountryPopulation,PRIMARY,CountryName	7,4,38	NULL	35	Using sort_union(CountryPopulation,PRIMARY,CountryName); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	PRIMARY,Population,Country,Name,CountryPopulation,CountryName	CountryPopulation,PRIMARY,CountryName	7,4,38	NULL	35	12.53	Using sort_union(CountryPopulation,PRIMARY,CountryName); Using where
 SELECT * FROM City USE INDEX ()
 WHERE ((Population > 101000 and Population < 102000) OR
 ID BETWEEN 3790 AND 3800) AND Country='USA'
@@ -948,15 +948,15 @@ SELECT * FROM City
 WHERE ((Population > 101000 AND Population < 11000) OR
 ID BETWEEN 3500 AND 3800) AND Country='USA'
         AND (Name LIKE 'P%' OR ID BETWEEN 4000 AND 4300);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range|filter	PRIMARY,Population,Country,Name,CountryPopulation,CountryName	CountryName|PRIMARY	38|4	NULL	23 (7%)	Using index condition; Using where; Using rowid filter
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range|filter	PRIMARY,Population,Country,Name,CountryPopulation,CountryName	CountryName|PRIMARY	38|4	NULL	23 (7%)	0.62	Using index condition; Using where; Using rowid filter
 EXPLAIN
 SELECT * FROM City
 WHERE ((Population > 101000 AND Population < 11000) OR
 ID BETWEEN 3500 AND 3800) AND Country='USA'
         AND (Name LIKE 'Pho%' OR ID BETWEEN 4000 AND 4300);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	PRIMARY,Population,Country,Name,CountryPopulation,CountryName	Name	35	NULL	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	PRIMARY,Population,Country,Name,CountryPopulation,CountryName	Name	35	NULL	1	7.38	Using where
 SELECT * FROM City USE INDEX ()
 WHERE ((Population > 101000 AND Population < 11000) OR
 ID BETWEEN 3500 AND 3800) AND Country='USA'
@@ -990,8 +990,8 @@ EXPLAIN
 SELECT * FROM City
 WHERE Country='USA' AND Population BETWEEN 101000 AND 102000 OR
 Country='USA' AND Name LIKE 'Pa%';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	Country,CountryPopulation,CountryName	CountryPopulation,CountryName	7,38	NULL	10	Using sort_union(CountryPopulation,CountryName); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	Country,CountryPopulation,CountryName	CountryPopulation,CountryName	7,38	NULL	10	6.55	Using sort_union(CountryPopulation,CountryName); Using where
 SELECT * FROM City USE INDEX()
 WHERE Country='USA' AND Population BETWEEN 101000 AND 102000 OR
 Country='USA' AND Name LIKE 'Pa%';
@@ -1020,8 +1020,8 @@ EXPLAIN
 SELECT * FROM City
 WHERE Country='USA' AND 
 (Population BETWEEN 101000 AND 102000 OR Name LIKE 'Pa%');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	Country,CountryPopulation,CountryName	CountryPopulation,CountryName	7,38	NULL	10	Using sort_union(CountryPopulation,CountryName); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	Country,CountryPopulation,CountryName	CountryPopulation,CountryName	7,38	NULL	10	6.55	Using sort_union(CountryPopulation,CountryName); Using where
 SELECT * FROM City
 WHERE Country='USA' AND 
 (Population BETWEEN 101000 AND 102000 OR Name LIKE 'Pa%');
@@ -1076,8 +1076,8 @@ EXPLAIN SELECT Name, Country, Population FROM City WHERE
 (Name='Caracas' AND Country='VEN') OR  
 (Name='Samara' AND Country='RUS') OR  
 (Name='Seattle' AND Country='USA');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	Country,CountryPopulation,CountryName,CityName	CountryName,CityName	38,35	NULL	28	Using sort_union(CountryName,CityName); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	Country,CountryPopulation,CountryName,CityName	CountryName,CityName	38,35	NULL	28	0.69	Using sort_union(CountryName,CityName); Using where
 SELECT Name, Country, Population FROM City WHERE
 (Name='Manila' AND Country='PHL') OR
 (Name='Addis Abeba' AND Country='ETH') OR          
@@ -1163,8 +1163,8 @@ EXPLAIN SELECT Name, Country, Population FROM City WHERE
 (Name='Caracas' AND Country='VEN') OR  
 (Name='Samara' AND Country='RUS') OR  
 (Name='Seattle' AND Country='USA');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Country,CountryPopulation,CountryName,CityName	CountryName	38	NULL	28	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Country,CountryPopulation,CountryName,CityName	CountryName	38	NULL	28	100.00	Using index condition
 SELECT Name, Country, Population FROM City WHERE
 (Name='Manila' AND Country='PHL') OR
 (Name='Addis Abeba' AND Country='ETH') OR          
@@ -1235,8 +1235,8 @@ EXPLAIN
 SELECT * FROM City
 WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
 AND (Population >= 100000 AND Population < 120000);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	Country,Name,Population	Name,Country	35,3	NULL	#	Using sort_union(Name,Country); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	Country,Name,Population	Name,Country	35,3	NULL	#	15.69	Using sort_union(Name,Country); Using where
 FLUSH STATUS;
 SELECT * FROM City
 WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
@@ -1317,8 +1317,8 @@ SELECT * FROM City
 WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
 AND (Population >= 100000 AND Population < 120000)
 ORDER BY Population LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Country,Name,Population	Population	4	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Country,Name,Population	Population	4	NULL	#	8.29	Using where
 FLUSH STATUS;
 SELECT * FROM City
 WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
@@ -1348,8 +1348,8 @@ SELECT * FROM City
 WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
 AND (Population >= 100000 AND Population < 120000)
 ORDER BY Population LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Country,Name,Population	Population	4	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Country,Name,Population	Population	4	NULL	#	52.81	Using where
 FLUSH STATUS;
 SELECT * FROM City
 WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
@@ -1379,8 +1379,8 @@ SELECT * FROM City
 WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
 AND (Population >= 100000 AND Population < 120000)
 ORDER BY Population LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Country,Name,Population	Population	4	NULL	#	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Country,Name,Population	Population	4	NULL	#	100.00	Using index condition; Using where
 FLUSH STATUS;
 SELECT * FROM City
 WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'H'))
@@ -1477,8 +1477,8 @@ id	account_id	first_name	middle_name	last_name	home_address_1	home_city	home_sta
 explain
 select * from t1
 where (home_state = 'ia' or work_state='ia') and account_id = 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index_merge	account_id,user_home_state_indx,user_work_state_indx	user_home_state_indx,user_work_state_indx	3,3	NULL	6	Using union(user_home_state_indx,user_work_state_indx); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index_merge	account_id,user_home_state_indx,user_work_state_indx	user_home_state_indx,user_work_state_indx	3,3	NULL	6	99.87	Using union(user_home_state_indx,user_work_state_indx); Using where
 drop table t1;
 CREATE TABLE t1 (
 c1 int(11) NOT NULL auto_increment,
@@ -1526,18 +1526,18 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 explain
 select * from t1 where (c2=1 and c3=1) or (c4=2 and c5=1);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index_merge	k1,k2	k1,k2	12,12	NULL	2	Using sort_union(k1,k2); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index_merge	k1,k2	k1,k2	12,12	NULL	2	100.00	Using sort_union(k1,k2); Using where
 explain
 select * from t1
 where (c2=1 and c3=1 and cp=1) or (c4=2 and c5=1 and cp=1);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index_merge	k1,k2	k1,k2	14,14	NULL	2	Using sort_union(k1,k2); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index_merge	k1,k2	k1,k2	14,14	NULL	2	0.03	Using sort_union(k1,k2); Using where
 explain
 select * from t1
 where ((c2=1 and c3=1) or (c4=2 and c5=1)) and cp=1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index_merge	k1,k2	k1,k2	14,14	NULL	2	Using sort_union(k1,k2); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index_merge	k1,k2	k1,k2	14,14	NULL	2	0.03	Using sort_union(k1,k2); Using where
 select * from t1
 where (c2=1 and c3=1 and cp=1) or (c4=2 and c5=1 and cp=1);
 c1	c2	c3	c4	c5	cp	ce	cdata
@@ -1585,12 +1585,12 @@ count(*)
 3840
 explain
 select distinct c1 from t1 where (c2='e' OR c3='q');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index_merge	k1,k2	k1,k2	21,21	NULL	2	Using union(k1,k2); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index_merge	k1,k2	k1,k2	21,21	NULL	2	100.00	Using union(k1,k2); Using where
 explain
 select distinct c1 from t1 where (c4!= 0) AND (c2='e' OR c3='q');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index_merge	k1,k2,k3	k1,k2	21,21	NULL	2	Using union(k1,k2); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index_merge	k1,k2,k3	k1,k2	21,21	NULL	2	93.70	Using union(k1,k2); Using where
 drop table t1;
 create table t1 (
 id int unsigned auto_increment primary key,
@@ -1619,12 +1619,12 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 explain
 select * from t1 where (c1='      100000' or c2='         2000000');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index_merge	c1,c2	c1,c2	13,16	NULL	2	Using union(c1,c2); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index_merge	c1,c2	c1,c2	13,16	NULL	2	100.00	Using union(c1,c2); Using where
 explain
 select * from t1 where (c1='      100000' or c2='         2000000') and c3='2';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index_merge	c1,c2,c3	c1,c2	13,16	NULL	2	Using union(c1,c2); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index_merge	c1,c2,c3	c1,c2	13,16	NULL	2	50.37	Using union(c1,c2); Using where
 select * from t1 where (c1='      100000' or c2='         2000000');
 id	c1	c2	c3
 select * from t1 where (c1='      100000' or c2='         2000000') and c3='2';
@@ -1653,8 +1653,8 @@ EXPLAIN
 SELECT COUNT(*) FROM t1 
 WHERE c  = 'i'  OR b IN ( 'Arkansas' , 'd' , 'pdib' , 'can' )  OR
 (pk BETWEEN 120 AND 79 + 255 OR a IN ( 4 , 179 , 1 ) ) AND a > 8 ;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index_merge	PRIMARY,idx1,idx2,idx3	idx3,idx2,PRIMARY,idx1	67,13,4,3	NULL	9	Using sort_union(idx3,idx2,PRIMARY,idx1); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index_merge	PRIMARY,idx1,idx2,idx3	idx3,idx2,PRIMARY,idx1	67,13,4,3	NULL	9	100.00	Using sort_union(idx3,idx2,PRIMARY,idx1); Using where
 DROP TABLE t1;
 CREATE TABLE t1 (
 f1 int, f2 int, f3 int, f4 int, f5 int,
@@ -1686,8 +1686,8 @@ EXPLAIN
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
 WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
 OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	PRIMARY,f3,f4	NULL	NULL	NULL	306	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	PRIMARY,f3,f4	NULL	NULL	NULL	306	100.00	Using where
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
 WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
 OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
@@ -1698,8 +1698,8 @@ EXPLAIN
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
 WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
 OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index_merge	PRIMARY,f3,f4	f3,PRIMARY,f3	5,4,5	NULL	3	Using union(f3,PRIMARY,f3); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index_merge	PRIMARY,f3,f4	f3,PRIMARY,f3	5,4,5	NULL	3	100.00	Using union(f3,PRIMARY,f3); Using where
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
 WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
 OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
@@ -1719,8 +1719,8 @@ EXPLAIN
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
 WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
 OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	PRIMARY,f3,f4	NULL	NULL	NULL	320	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	PRIMARY,f3,f4	NULL	NULL	NULL	320	100.00	Using where
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
 WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
 OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
@@ -1731,8 +1731,8 @@ EXPLAIN
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
 WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
 OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index_merge	PRIMARY,f3,f4	f3,PRIMARY,f3	5,4,5	NULL	3	Using union(f3,PRIMARY,f3); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index_merge	PRIMARY,f3,f4	f3,PRIMARY,f3	5,4,5	NULL	3	100.00	Using union(f3,PRIMARY,f3); Using where
 SELECT * FROM t1 FORCE KEY (PRIMARY,f3,f4)
 WHERE ( f3 = 1 OR f1 = 7 ) AND f1 < 10
 OR f3 BETWEEN 2 AND 2 AND ( f3 = 1 OR f4 < 7 );
@@ -1765,8 +1765,8 @@ SET SESSION optimizer_switch='index_merge_sort_union=off';
 EXPLAIN
 SELECT * FROM t1 
 WHERE t1.b>7 AND t1.d>1 AND t1.d<>8  OR t1.d>=7 AND t1.d<8 OR t1.d>7;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	PRIMARY,idx1,idx2	NULL	NULL	NULL	9	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	PRIMARY,idx1,idx2	NULL	NULL	NULL	9	55.56	Using where
 SELECT * FROM t1 
 WHERE t1.b>7 AND t1.d>1 AND t1.d<>8  OR t1.d>=7 AND t1.d<8 OR t1.d>7;
 a	b	c	d
@@ -1779,8 +1779,8 @@ SET SESSION optimizer_switch='index_merge_sort_union=on';
 EXPLAIN
 SELECT * FROM t1 
 WHERE t1.b>7 AND t1.d>1 AND t1.d<>8  OR t1.d>=7 AND t1.d<8 OR t1.d>7;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	PRIMARY,idx1,idx2	NULL	NULL	NULL	9	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	PRIMARY,idx1,idx2	NULL	NULL	NULL	9	55.56	Using where
 SELECT * FROM t1 
 WHERE t1.b>7 AND t1.d>1 AND t1.d<>8  OR t1.d>=7 AND t1.d<8 OR t1.d>7;
 a	b	c	d
@@ -1797,8 +1797,8 @@ EXPLAIN
 SELECT * FROM t1
 WHERE t1.a>300 AND t1.c!=0 AND t1.b>=350 AND t1.b<=400 AND
 (t1.c=0 OR t1.a=500);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	PRIMARY,idx	PRIMARY	4	NULL	1	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY,idx	PRIMARY	4	NULL	1	100.00	Using index condition; Using where
 SELECT * FROM t1
 WHERE t1.a>300 AND t1.c!=0 AND t1.b>=350 AND t1.b<=400 AND
 (t1.c=0 OR t1.a=500);
@@ -1809,8 +1809,8 @@ INSERT INTO t1 VALUES (167,9999), (168,10000);
 EXPLAIN
 SELECT * FROM t1
 WHERE a BETWEEN 4 AND 5 AND b IN (255,4) OR a IN (2,14,25) OR (a<2 or a>2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	PRIMARY,idx	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	PRIMARY,idx	NULL	NULL	NULL	2	100.00	Using where
 SELECT * FROM t1
 WHERE a BETWEEN 4 AND 5 AND b IN (255,4) OR a IN (2,14,25) OR (a<2 or a>2);
 a	b
@@ -1846,8 +1846,8 @@ EXPLAIN
 SELECT * FROM t1 FORCE KEY (state,capital) 
 WHERE ( state = 'Alabama' OR state >= 'Colorado' ) AND (id<9 or id>9) 
 OR ( capital >= 'Topeka' OR state = 'Kansas' ) AND state != 'Texas';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	state,capital	state	71	NULL	8	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	state,capital	state	71	NULL	8	100.00	Using index condition; Using where
 SELECT * FROM t1 FORCE KEY (state,capital) 
 WHERE ( state = 'Alabama' OR state >= 'Colorado' ) AND (id<9 or id>9)
 OR ( capital >= 'Topeka' OR state = 'Kansas' ) AND state != 'Texas';
@@ -1937,7 +1937,7 @@ Country='FRA' AND Name IN ('Paris', 'Marcel') OR
 Country='POL' AND Name IN ('Warszawa', 'Wroclaw') OR
 Country='NOR' AND Name IN ('Oslo', 'Bergen') OR
 Country='ITA' AND Name IN ('Napoli', 'Venezia');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	CountryName,Name	CountryName	38	NULL	20	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	CountryName,Name	CountryName	38	NULL	20	100.00	Using index condition
 DROP DATABASE world;
 set session optimizer_switch='index_merge_sort_intersection=default';

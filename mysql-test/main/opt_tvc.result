@@ -692,8 +692,8 @@ create table t1(a int, b int);
 insert into t1 select seq-1, seq-1 from seq_1_to_10;
 set in_predicate_conversion_threshold=2;
 explain select * from t1 where t1.a IN ("1","2","3","4");
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 select * from t1 where t1.a IN ("1","2","3","4");
 a	b
 1	1
@@ -702,8 +702,8 @@ a	b
 4	4
 set in_predicate_conversion_threshold=0;
 explain select * from t1 where t1.a IN ("1","2","3","4");
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 select * from t1 where t1.a IN ("1","2","3","4");
 a	b
 1	1
@@ -712,8 +712,8 @@ a	b
 4	4
 set in_predicate_conversion_threshold=2;
 explain select * from t1 where (t1.a,t1.b) in (("1","1"),(2,2),(3,3),(4,4));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 select * from t1 where (t1.a,t1.b) in (("1","1"),(2,2),(3,3),(4,4));
 a	b
 1	1
@@ -722,8 +722,8 @@ a	b
 4	4
 set in_predicate_conversion_threshold=0;
 explain select * from t1 where (t1.a,t1.b) in (("1","1"),(2,2),(3,3),(4,4));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 select * from t1 where (t1.a,t1.b) in (("1","1"),(2,2),(3,3),(4,4));
 a	b
 1	1

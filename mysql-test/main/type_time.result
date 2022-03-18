@@ -1697,8 +1697,8 @@ INSERT INTO t1 VALUES ('23:00:02', 'no');
 INSERT INTO t1 VALUES ('23:00:03', 'yes');
 INSERT INTO t1 VALUES ('23:00:04', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('23:00:01','23:00:02');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	a	a	4	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	4	NULL	4	100.00	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('23:00:01','23:00:02');
 a	filler
 23:00:03	yes
@@ -1736,8 +1736,8 @@ INSERT INTO t1 VALUES ('-23:00:02', 'no');
 INSERT INTO t1 VALUES ('-23:00:03', 'yes');
 INSERT INTO t1 VALUES ('-23:00:04', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-23:00:01','-23:00:02');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	a	a	4	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	4	NULL	4	100.00	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('-23:00:01','-23:00:02');
 a	filler
 -23:00:04	yes
@@ -1775,8 +1775,8 @@ INSERT INTO t1 VALUES ('24:00:02', 'no');
 INSERT INTO t1 VALUES ('24:00:03', 'yes');
 INSERT INTO t1 VALUES ('24:00:04', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('24:00:01','24:00:02');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	a	a	4	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	4	NULL	4	100.00	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('24:00:01','24:00:02');
 a	filler
 24:00:03	yes
@@ -1814,8 +1814,8 @@ INSERT INTO t1 VALUES ('-24:00:02', 'no');
 INSERT INTO t1 VALUES ('-24:00:03', 'yes');
 INSERT INTO t1 VALUES ('-24:00:04', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-24:00:01','-24:00:02');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	a	a	4	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	4	NULL	4	100.00	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('-24:00:01','-24:00:02');
 a	filler
 -24:00:04	yes
@@ -1853,8 +1853,8 @@ INSERT INTO t1 VALUES ('838:00:02', 'no');
 INSERT INTO t1 VALUES ('838:00:03', 'yes');
 INSERT INTO t1 VALUES ('838:00:04', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('838:00:01','838:00:02');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	a	a	4	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	4	NULL	4	100.00	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('838:00:01','838:00:02');
 a	filler
 838:00:03	yes
@@ -1892,8 +1892,8 @@ INSERT INTO t1 VALUES ('-838:00:02', 'no');
 INSERT INTO t1 VALUES ('-838:00:03', 'yes');
 INSERT INTO t1 VALUES ('-838:00:04', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-838:00:01','-838:00:02');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	a	a	4	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	4	NULL	4	100.00	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('-838:00:01','-838:00:02');
 a	filler
 -838:00:04	yes
@@ -1931,8 +1931,8 @@ INSERT INTO t1 VALUES ('23:00:02.1', 'no');
 INSERT INTO t1 VALUES ('23:00:03.1', 'yes');
 INSERT INTO t1 VALUES ('23:00:04.1', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('23:00:01.1','23:00:02.1');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	a	a	5	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	4	100.00	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('23:00:01.1','23:00:02.1');
 a	filler
 23:00:03.1	yes
@@ -1970,8 +1970,8 @@ INSERT INTO t1 VALUES ('-23:00:02.1', 'no');
 INSERT INTO t1 VALUES ('-23:00:03.1', 'yes');
 INSERT INTO t1 VALUES ('-23:00:04.1', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-23:00:01.1','-23:00:02.1');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	a	a	5	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	4	100.00	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('-23:00:01.1','-23:00:02.1');
 a	filler
 -23:00:04.1	yes
@@ -2009,8 +2009,8 @@ INSERT INTO t1 VALUES ('838:00:02.1', 'no');
 INSERT INTO t1 VALUES ('838:00:03.1', 'yes');
 INSERT INTO t1 VALUES ('838:00:04.1', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('838:00:01.1','838:00:02.1');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	a	a	5	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	4	100.00	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('838:00:01.1','838:00:02.1');
 a	filler
 838:00:03.1	yes
@@ -2048,8 +2048,8 @@ INSERT INTO t1 VALUES ('-838:00:02.1', 'no');
 INSERT INTO t1 VALUES ('-838:00:03.1', 'yes');
 INSERT INTO t1 VALUES ('-838:00:04.1', 'yes');
 EXPLAIN SELECT * FROM t1 WHERE a NOT IN ('-838:00:01.1','-838:00:02.1');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	a	a	5	NULL	4	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	4	100.00	Using index condition
 SELECT * FROM t1 WHERE a NOT IN ('-838:00:01.1','-838:00:02.1');
 a	filler
 -838:00:04.1	yes

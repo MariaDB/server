@@ -199,8 +199,8 @@ ISBN	Language	Subject	AuthorFN	AuthorLN	Title	Translation	TranslatorFN	Translato
 9782212090819	fr	applications	François	Knab	Construire une application XML	NULL	NULL	NULL	Eyrolles	Paris	1999
 9782840825685	fr	applications	William J.	Pardi	XML en Action	adapté de l'anglais par	James	Guerin	Microsoft Press	Paris	2001
 DESCRIBE SELECT * FROM t1 WHERE ISBN = '9782212090819';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	IX	IX	15	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	IX	IX	15	const	1	100.00	Using where
 UPDATE t1 SET AuthorFN = 'Philippe' WHERE ISBN = '9782212090819';
 ERROR HY000: Got error 122 'Cannot write expanded column when Pretty is not 2' from CONNECT
 DROP TABLE t1;

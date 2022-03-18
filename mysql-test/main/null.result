@@ -154,11 +154,11 @@ insert into t1 values
 (1,1), (2,2), (3,3), (4,4), (5,5), (6,6),
 (7,7), (8,8), (9,9), (10,10), (11,11), (12,12);
 explain select * from t1 where a between 2 and 3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	idx	idx	4	NULL	2	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	idx	idx	4	NULL	2	100.00	Using index condition
 explain select * from t1 where a between 2 and 3 or b is null;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	idx	idx	4	NULL	2	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	idx	idx	4	NULL	2	100.00	Using index condition
 drop table t1;
 select cast(NULL as signed);
 cast(NULL as signed)
@@ -176,8 +176,8 @@ insert into t1 select i*2 from t1;
 insert into t1 select i*2 from t1;
 insert into t1 values(null);
 explain select * from t1 where i=2 or i is null;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref_or_null	i	i	5	const	9	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref_or_null	i	i	5	const	9	100.00	Using where; Using index
 select count(*) from t1 where i=2 or i is null;
 count(*)
 10
@@ -186,8 +186,8 @@ alter table t1 change i i int not null;
 Warnings:
 Warning	1265	Data truncated for column 'i' at row 513
 explain select * from t1 where i=2 or i is null;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	i	i	4	const	8	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	i	i	4	const	8	100.00	Using index
 select count(*) from t1 where i=2 or i is null;
 count(*)
 9
@@ -358,8 +358,8 @@ CREATE TABLE t1 (dt DATETIME NOT NULL);
 INSERT INTO t1 VALUES (NOW()),(NOW());
 EXPLAIN
 SELECT * FROM t1 WHERE concat( dt, '2012-12-21 12:12:12' ) IS NULL;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 SELECT * FROM t1 WHERE concat( dt, '2012-12-21 12:12:12' ) IS NULL;
 dt
 DROP TABLE t1;
@@ -367,8 +367,8 @@ CREATE TABLE t1 (dt INT NOT NULL);
 INSERT INTO t1 VALUES (1),(2);
 EXPLAIN
 SELECT * FROM t1 WHERE concat( dt, '1' ) IS NULL;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 SELECT * FROM t1 WHERE concat( dt, '1' ) IS NULL;
 dt
 DROP TABLE t1;
@@ -376,8 +376,8 @@ CREATE TABLE t1 (dt INT NOT NULL);
 INSERT INTO t1 VALUES (1),(2);
 EXPLAIN
 SELECT * FROM t1 WHERE NOT (concat( dt, '1' ) IS NOT NULL);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 SELECT * FROM t1 WHERE NOT (concat( dt, '1' ) IS NOT NULL);
 dt
 DROP TABLE t1;

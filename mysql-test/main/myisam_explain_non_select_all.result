@@ -10,8 +10,8 @@ INSERT INTO t1 VALUES (1), (2), (3);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t1 SET a = 10 WHERE a < 10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t1 SET a = 10 WHERE a < 10;
@@ -53,8 +53,8 @@ INSERT INTO t1 VALUES (1), (2), (3);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 WHERE a < 10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 WHERE a < 10;
@@ -96,8 +96,8 @@ INSERT INTO t1 VALUES (1), (2), (3);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 USING t1 WHERE a = 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 USING t1 WHERE a = 1;
@@ -141,9 +141,9 @@ INSERT INTO t2 VALUES (1), (2), (3);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE        t1, t2 SET t1.a = 10 WHERE t1.a = 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE        t1, t2 SET t1.a = 10 WHERE t1.a = 1;
@@ -189,10 +189,10 @@ INSERT INTO t2 VALUES (1), (2), (3);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE        t1 t11, (SELECT * FROM t2) t12 SET t11.a = 10 WHERE t11.a = 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t11	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t11	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE        t1 t11, (SELECT * FROM t2) t12 SET t11.a = 10 WHERE t11.a = 1;
@@ -239,9 +239,9 @@ INSERT INTO t2 VALUES (1), (2), (3);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE        t1 SET a = 10 WHERE 1 IN (SELECT 1 FROM t2 WHERE t2.b < 3);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
-2	SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE        t1 SET a = 10 WHERE 1 IN (SELECT 1 FROM t2 WHERE t2.b < 3);
@@ -289,9 +289,9 @@ INSERT INTO t2 VALUES (1), (2), (3);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE        t1 SET a = 10 WHERE a IN (SELECT b FROM t2 WHERE t1.a < 3);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE        t1 SET a = 10 WHERE a IN (SELECT b FROM t2 WHERE t1.a < 3);
@@ -340,11 +340,11 @@ INSERT INTO t2 VALUES (1), (2), (3);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE        t1, t2 SET a = 10 WHERE a IN (SELECT b FROM t2 WHERE t2.b < 3);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
-1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
-2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE        t1, t2 SET a = 10 WHERE a IN (SELECT b FROM t2 WHERE t2.b < 3);
@@ -394,10 +394,10 @@ INSERT INTO t2 VALUES (1), (2), (3);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE        t1 t11, (SELECT * FROM t2) t12 SET t11.a = t11.a + 10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t11	NULL	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t11	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE        t1 t11, (SELECT * FROM t2) t12 SET t11.a = t11.a + 10;
@@ -446,10 +446,10 @@ INSERT INTO t2 VALUES (1), (2), (3);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE        t1 t11, (SELECT 1 FROM DUAL) t12 SET t11.a = t11.a + 10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t11	NULL	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t11	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE        t1 t11, (SELECT 1 FROM DUAL) t12 SET t11.a = t11.a + 10;
@@ -500,10 +500,10 @@ INSERT INTO t2 VALUES (1), (2), (3);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE        t1 t11, (SELECT * FROM t2) t12 SET t11.a = 10 WHERE t11.a > 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t11	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t11	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE        t1 t11, (SELECT * FROM t2) t12 SET t11.a = 10 WHERE t11.a > 1;
@@ -548,8 +548,8 @@ INSERT INTO t1 VALUES (1), (2), (3);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 WHERE a > 1 LIMIT 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 WHERE a > 1 LIMIT 1;
@@ -591,8 +591,8 @@ INSERT INTO t1 VALUES (1), (2), (3);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 WHERE 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 WHERE 0;
@@ -631,8 +631,8 @@ INSERT INTO t1 VALUES (1), (2), (3);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 USING t1 WHERE 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 USING t1 WHERE 0;
@@ -671,8 +671,8 @@ INSERT INTO t1 VALUES (3, 3), (7, 7);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 WHERE a = 3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	a	a	5	NULL	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	1	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 WHERE a = 3;
@@ -712,8 +712,8 @@ INSERT INTO t1 VALUES (3, 3), (7, 7);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 WHERE a < 3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	a	a	5	NULL	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	1	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 WHERE a < 3;
@@ -751,8 +751,8 @@ CREATE TABLE t1 ( a int PRIMARY KEY );
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 WHERE t1.a > 0 ORDER BY t1.a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 WHERE t1.a > 0 ORDER BY t1.a;
@@ -790,8 +790,8 @@ INSERT INTO t1 VALUES (1), (2), (3), (-1), (-2), (-3);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 WHERE t1.a > 0 ORDER BY t1.a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	4	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	4	NULL	3	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 WHERE t1.a > 0 ORDER BY t1.a;
@@ -833,8 +833,8 @@ INSERT INTO t1 VALUES (4),(3),(1),(2);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 WHERE (@a:= a) ORDER BY a LIMIT 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	1	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 WHERE (@a:= a) ORDER BY a LIMIT 1;
@@ -877,8 +877,8 @@ UPDATE t1 SET a = c, b = c;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 ORDER BY a ASC, b ASC LIMIT 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 ORDER BY a ASC, b ASC LIMIT 1;
@@ -930,10 +930,10 @@ INSERT INTO t3 VALUES (1,1), (2,1), (1,3);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE t1,t2,t3 FROM t1,t2,t3 WHERE a1=a2 AND b2=a3 AND b1=b3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
-1	SIMPLE	t2	NULL	ref	PRIMARY	PRIMARY	4	test.t1.a1	1	
-1	SIMPLE	t3	NULL	eq_ref	PRIMARY	PRIMARY	8	test.t2.b2,test.t1.b1	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	SIMPLE	t2	NULL	ref	PRIMARY	PRIMARY	4	test.t1.a1	1	100.00	
+1	SIMPLE	t3	NULL	eq_ref	PRIMARY	PRIMARY	8	test.t2.b2,test.t1.b1	1	100.00	
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE t1,t2,t3 FROM t1,t2,t3 WHERE a1=a2 AND b2=a3 AND b1=b3;
@@ -984,9 +984,9 @@ INSERT INTO t2 VALUES (1), (2), (3);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t1 SET a = 10 WHERE a IN (SELECT a FROM t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t1 SET a = 10 WHERE a IN (SELECT a FROM t2);
@@ -1034,9 +1034,9 @@ SET @save_optimizer_switch= @@optimizer_switch;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 WHERE a1 IN (SELECT a2 FROM t2 WHERE a2 > 2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 WHERE a1 IN (SELECT a2 FROM t2 WHERE a2 > 2);
@@ -1079,9 +1079,9 @@ INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 WHERE a1 IN (SELECT a2 FROM t2 WHERE a2 > 2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 WHERE a1 IN (SELECT a2 FROM t2 WHERE a2 > 2);
@@ -1125,8 +1125,8 @@ INSERT INTO t1 VALUES (1, 1), (2, 2), (3, 3), (4, 4), (5, 5);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t1 SET i = 10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t1 SET i = 10;
@@ -1168,8 +1168,8 @@ INSERT INTO t1 VALUES (1, 1), (2, 2), (3, 3), (4, 4), (5, 5);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	5	Deleting all rows
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	5	NULL	Deleting all rows
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE FROM t1;
@@ -1214,8 +1214,8 @@ INSERT INTO t2 (a, b, c) SELECT t1.i, t1.i, t1.i FROM t1, t1 x1, t1 x2;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t2 WHERE b = 10 ORDER BY a, c LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	index	NULL	a	15	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	index	NULL	a	15	NULL	5	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t2 WHERE b = 10 ORDER BY a, c LIMIT 5;
@@ -1260,8 +1260,8 @@ CREATE TABLE t2 (i INT);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN INSERT INTO t2 SELECT * FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED INSERT INTO t2 SELECT * FROM t1;
@@ -1304,8 +1304,8 @@ CREATE TABLE t2 (i INT);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN REPLACE INTO t2 SELECT * FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED REPLACE INTO t2 SELECT * FROM t1;
@@ -1344,8 +1344,8 @@ CREATE TABLE t1 (i INT);
 # select: 
 #
 EXPLAIN INSERT INTO t1 SET i = 10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	INSERT	t1	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	INSERT	t1	NULL	ALL	NULL	NULL	NULL	NULL	NULL	100.00	NULL
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED INSERT INTO t1 SET i = 10;
@@ -1367,8 +1367,8 @@ CREATE TABLE t1 (i INT);
 # select: 
 #
 EXPLAIN REPLACE INTO t1 SET i = 10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	INSERT	t1	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	INSERT	t1	NULL	ALL	NULL	NULL	NULL	NULL	NULL	100.00	NULL
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED REPLACE INTO t1 SET i = 10;
@@ -1395,8 +1395,8 @@ INSERT INTO t1 (i) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19),
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	4	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	4	NULL	5	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 5;
@@ -1440,8 +1440,8 @@ INSERT INTO t1 (i) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19),
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	26	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 5;
@@ -1493,8 +1493,8 @@ INSERT INTO t2 (a, b, c) SELECT i, i, i FROM t1;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t2 WHERE b = 10 ORDER BY a, c LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	26	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t2 WHERE b = 10 ORDER BY a, c LIMIT 5;
@@ -1547,8 +1547,8 @@ INSERT INTO t2 (a, b, c) SELECT t1.i, t1.i, t1.i FROM t1, t1 x1, t1 x2;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t2 WHERE b = 10 ORDER BY a, c LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	index	NULL	a	15	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	index	NULL	a	15	NULL	5	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t2 WHERE b = 10 ORDER BY a, c LIMIT 5;
@@ -1596,8 +1596,8 @@ INSERT INTO t2 SELECT i, i, i, i FROM t1;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t2 WHERE b = 10 ORDER BY a, c LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	26	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t2 WHERE b = 10 ORDER BY a, c LIMIT 5;
@@ -1650,8 +1650,8 @@ INSERT INTO t2 SELECT i, i, i, i FROM t1;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t2 WHERE b = 10 ORDER BY a, c LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	26	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t2 WHERE b = 10 ORDER BY a, c LIMIT 5;
@@ -1705,8 +1705,8 @@ INSERT INTO t2 (key1, key2) SELECT i, i FROM t1;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t2 WHERE key1 < 13 or key2 < 14 ORDER BY key1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	index_merge	key1,key2	key1,key2	5,5	NULL	7	Using sort_union(key1,key2); Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	index_merge	key1,key2	key1,key2	5,5	NULL	7	100.00	Using sort_union(key1,key2); Using where; Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t2 WHERE key1 < 13 or key2 < 14 ORDER BY key1;
@@ -1758,8 +1758,8 @@ INSERT INTO t2 (i) SELECT i FROM t1;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t2 WHERE i > 10 AND i <= 18 ORDER BY i DESC LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	range	PRIMARY	PRIMARY	4	NULL	5	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	range	PRIMARY	PRIMARY	4	NULL	5	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t2 WHERE i > 10 AND i <= 18 ORDER BY i DESC LIMIT 5;
@@ -1805,8 +1805,8 @@ INSERT INTO t2 SELECT i, i, i FROM t1;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t2 ORDER BY a, b DESC LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	26	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	26	100.00	Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t2 ORDER BY a, b DESC LIMIT 5;
@@ -1859,8 +1859,8 @@ INSERT INTO t2 (a, b) SELECT t1.i, t1.i FROM t1, t1 x1, t1 x2;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t2 ORDER BY a DESC, b DESC LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	index	NULL	a	6	NULL	5	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	index	NULL	a	6	NULL	5	100.00	
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t2 ORDER BY a DESC, b DESC LIMIT 5;
@@ -1908,8 +1908,8 @@ INSERT INTO t2 (i) SELECT i FROM t1;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t2 SET a = 10 WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	range	PRIMARY	PRIMARY	4	NULL	5	Using where; Using buffer
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	range	PRIMARY	PRIMARY	4	NULL	5	100.00	Using where; Using buffer
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t2 SET a = 10 WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 5;
@@ -1956,8 +1956,8 @@ INSERT INTO t2 (i) SELECT i FROM t1;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t2 SET a = 10 WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	26	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t2 SET a = 10 WHERE i > 10 AND i <= 18 ORDER BY i LIMIT 5;
@@ -2010,8 +2010,8 @@ INSERT INTO t2 (a, b, c) SELECT i, i, i FROM t1;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t2 SET d = 10 WHERE b = 10 ORDER BY a, c LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	26	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t2 SET d = 10 WHERE b = 10 ORDER BY a, c LIMIT 5;
@@ -2065,8 +2065,8 @@ INSERT INTO t2 (a, b, c) SELECT t1.i, t1.i, t1.i FROM t1, t1 x1, t1 x2;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t2 SET d = 10 WHERE b = 10 ORDER BY a, c LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	index	NULL	a	15	NULL	5	Using where; Using buffer
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	index	NULL	a	15	NULL	5	100.00	Using where; Using buffer
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t2 SET d = 10 WHERE b = 10 ORDER BY a, c LIMIT 5;
@@ -2115,8 +2115,8 @@ INSERT INTO t2 SELECT i, i, i, i FROM t1;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t2 SET d = 10 WHERE b = 10 ORDER BY a, c LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	26	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t2 SET d = 10 WHERE b = 10 ORDER BY a, c LIMIT 5;
@@ -2169,8 +2169,8 @@ INSERT INTO t2 SELECT i, i, i, i FROM t1;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t2 SET d = 10 WHERE b = 10 ORDER BY a, c LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	26	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	26	100.00	Using where; Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t2 SET d = 10 WHERE b = 10 ORDER BY a, c LIMIT 5;
@@ -2224,8 +2224,8 @@ INSERT INTO t2 (key1, key2) SELECT i, i FROM t1;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t2 SET i = 123 WHERE key1 < 13 or key2 < 14 ORDER BY key1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	index_merge	key1,key2	key1,key2	5,5	NULL	7	Using sort_union(key1,key2); Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	index_merge	key1,key2	key1,key2	5,5	NULL	7	100.00	Using sort_union(key1,key2); Using where; Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t2 SET i = 123 WHERE key1 < 13 or key2 < 14 ORDER BY key1;
@@ -2277,8 +2277,8 @@ INSERT INTO t2 (i) SELECT i FROM t1;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t2 SET a = 10 WHERE i > 10 AND i <= 18 ORDER BY i DESC LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	range	PRIMARY	PRIMARY	4	NULL	5	Using where; Using buffer
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	range	PRIMARY	PRIMARY	4	NULL	5	100.00	Using where; Using buffer
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t2 SET a = 10 WHERE i > 10 AND i <= 18 ORDER BY i DESC LIMIT 5;
@@ -2325,8 +2325,8 @@ INSERT INTO t2 SELECT i, i, i FROM t1;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t2 SET c = 10 ORDER BY a, b DESC LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	26	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	26	100.00	Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t2 SET c = 10 ORDER BY a, b DESC LIMIT 5;
@@ -2380,8 +2380,8 @@ INSERT INTO t2 (a, b) SELECT t1.i, t1.i FROM t1, t1 x1, t1 x2;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t2 SET c = 10 ORDER BY a DESC, b DESC LIMIT 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	index	NULL	a	6	NULL	5	Using buffer
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	index	NULL	a	6	NULL	5	100.00	Using buffer
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t2 SET c = 10 ORDER BY a DESC, b DESC LIMIT 5;
@@ -2432,8 +2432,8 @@ INSERT INTO t1 VALUES (1,'y',1), (2,'n',2), (3,'y',3), (4,'n',4);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t1 SET c2 = 0 WHERE c1_idx = 'y' ORDER BY pk DESC LIMIT 2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	c1_idx	c1_idx	2	NULL	2	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	c1_idx	c1_idx	2	NULL	2	100.00	Using where; Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t1 SET c2 = 0 WHERE c1_idx = 'y' ORDER BY pk DESC LIMIT 2;
@@ -2478,8 +2478,8 @@ Sort_rows	2
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM t1 WHERE c1_idx = 'y' ORDER BY pk DESC LIMIT 2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	c1_idx	c1_idx	2	NULL	2	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	c1_idx	c1_idx	2	NULL	2	100.00	Using where; Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM t1 WHERE c1_idx = 'y' ORDER BY pk DESC LIMIT 2;
@@ -2527,8 +2527,8 @@ INSERT INTO t1 VALUES (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t1 SET a=a+10 WHERE a > 34;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	4	NULL	2	Using where; Using buffer
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	4	NULL	2	100.00	Using where; Using buffer
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t1 SET a=a+10 WHERE a > 34;
@@ -2572,9 +2572,9 @@ INSERT INTO t1 VALUES (1, 1, 10), (2, 2, 20);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE        t1 LEFT JOIN t2 ON t1.c1 = t2.c1 SET t2.c2 = 10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE        t1 LEFT JOIN t2 ON t1.c1 = t2.c1 SET t2.c2 = 10;
@@ -2615,9 +2615,9 @@ Handler_read_rnd_next	4
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE        t1 LEFT JOIN t2 ON t1.c1 = t2.c1 SET t2.c2 = 10 WHERE t1.c3 = 10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE        t1 LEFT JOIN t2 ON t1.c1 = t2.c1 SET t2.c2 = 10 WHERE t1.c3 = 10;
@@ -2665,9 +2665,9 @@ INSERT INTO t2 VALUES(1,1),(2,2);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t1 SET t1.f2=(SELECT MAX(t2.f4) FROM t2 WHERE t2.f3=t1.f1);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	IDX	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	IDX	NULL	NULL	NULL	2	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t1 SET t1.f2=(SELECT MAX(t2.f4) FROM t2 WHERE t2.f3=t1.f1);
@@ -2709,8 +2709,8 @@ CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (1);
 SET @a = NULL;
 EXPLAIN DELETE FROM t1 WHERE (@a:= a);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
 DROP TABLE t1;
 #56
 CREATE TABLE t1 (a INT);
@@ -2738,9 +2738,9 @@ CREATE VIEW v1 AS SELECT t11.a, t12.a AS b FROM t1 t11, t1 t12;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE        v1 SET a = 1 WHERE a > 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t11	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t12	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t11	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	SIMPLE	t12	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE        v1 SET a = 1 WHERE a > 0;
@@ -2781,10 +2781,10 @@ Handler_read_rnd_next	8
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE        t1, v1 SET v1.a = 1 WHERE t1.a = v1.a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t11	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t12	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t11	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	SIMPLE	t12	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE        t1, v1 SET v1.a = 1 WHERE t1.a = v1.a;
@@ -2834,8 +2834,8 @@ CREATE VIEW v1 (a) AS SELECT a FROM t1;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE   FROM v1 WHERE a < 4;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	4	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	4	NULL	3	100.00	Using where
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE   FROM v1 WHERE a < 4;
@@ -2883,9 +2883,9 @@ CREATE VIEW v1 (a,c) AS SELECT a, b+1 FROM t1;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE v1 FROM t2, v1 WHERE t2.x = v1.a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t2.x	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t2.x	1	100.00	
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE v1 FROM t2, v1 WHERE t2.x = v1.a;
@@ -2934,9 +2934,9 @@ CREATE VIEW v1 (a,c) AS SELECT a, b+1 FROM t1;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN DELETE v1 FROM t2, v1 WHERE t2.x = v1.a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	Using where
-1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t2.x	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
+1	SIMPLE	t1	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t2.x	1	100.00	
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED DELETE v1 FROM t2, v1 WHERE t2.x = v1.a;
@@ -2980,8 +2980,8 @@ CREATE VIEW v1 (x) AS SELECT a FROM t1;
 # select: SELECT NULL
 #
 EXPLAIN INSERT INTO v1 VALUES (10);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	INSERT	t1	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	INSERT	t1	NULL	ALL	NULL	NULL	NULL	NULL	NULL	100.00	NULL
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED INSERT INTO v1 VALUES (10);
@@ -3020,8 +3020,8 @@ CREATE VIEW v1 (x) AS SELECT b FROM t2;
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN INSERT INTO v1 SELECT * FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED INSERT INTO v1 SELECT * FROM t1;
@@ -3058,8 +3058,8 @@ DROP VIEW v1;
 #68
 CREATE TABLE t1 (i INT);
 EXPLAIN INSERT DELAYED INTO t1 VALUES (1);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	INSERT	t1	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	INSERT	t1	NULL	ALL	NULL	NULL	NULL	NULL	NULL	100.00	NULL
 DROP TABLE t1;
 #69
 CREATE TABLE t1 (a INT);
@@ -3073,10 +3073,10 @@ INSERT INTO t2 VALUES (1), (2), (3);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE        t1 SET a = 10 WHERE a IN (SELECT * FROM (SELECT b FROM t2 ORDER BY b LIMIT 2,2) x);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
-2	DEPENDENT SUBQUERY	<derived3>	NULL	index_subquery	key0	key0	5	func	2	
-3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	DEPENDENT SUBQUERY	<derived3>	NULL	index_subquery	key0	key0	5	func	2	100.00	
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE        t1 SET a = 10 WHERE a IN (SELECT * FROM (SELECT b FROM t2 ORDER BY b LIMIT 2,2) x);
@@ -3124,11 +3124,11 @@ Sort_scan	1
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE        t1, t2 SET a = 10 WHERE a IN (SELECT * FROM (SELECT b FROM t2 ORDER BY b LIMIT 2,2) x);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	PRIMARY	<derived3>	NULL	ref	key0	key0	5	test.t1.a	2	FirstMatch(t1)
-1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
-3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	5	test.t1.a	2	100.00	FirstMatch(t1)
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE        t1, t2 SET a = 10 WHERE a IN (SELECT * FROM (SELECT b FROM t2 ORDER BY b LIMIT 2,2) x);
@@ -3177,12 +3177,12 @@ Sort_scan	1
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE        t1, (SELECT * FROM t2) y SET a = 10 WHERE a IN (SELECT * FROM (SELECT b FROM t2 ORDER BY b LIMIT 2,2) x);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	PRIMARY	<derived4>	NULL	ref	key0	key0	5	test.t1.a	2	FirstMatch(t1)
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	
-4	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using filesort
-2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	PRIMARY	<derived4>	NULL	ref	key0	key0	5	test.t1.a	2	100.00	FirstMatch(t1)
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+4	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE        t1, (SELECT * FROM t2) y SET a = 10 WHERE a IN (SELECT * FROM (SELECT b FROM t2 ORDER BY b LIMIT 2,2) x);
@@ -3247,9 +3247,9 @@ CREATE TABLE t1 (id INT);
 CREATE TABLE t2 (id INT);
 INSERT INTO t1 VALUES (1), (2);
 EXPLAIN SELECT * FROM t1 LEFT JOIN t2 USING(id) GROUP BY t1.id;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found; Using temporary; Using filesort
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found; Using temporary; Using filesort
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 DROP TABLE t1,t2;
 #74
 CREATE TABLE t1(a INT PRIMARY KEY);
@@ -3262,8 +3262,8 @@ INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t1 SET a=a+1 WHERE a>10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using buffer
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	4	NULL	1	100.00	Using where; Using buffer
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t1 SET a=a+1 WHERE a>10;
@@ -3299,8 +3299,8 @@ Handler_read_key	4
 Warnings:
 Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 EXPLAIN UPDATE t1 SET a=a+1 WHERE a>10 ORDER BY a+20;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY	PRIMARY	4	NULL	1	100.00	Using where; Using filesort
 FLUSH STATUS;
 FLUSH TABLES;
 EXPLAIN EXTENDED UPDATE t1 SET a=a+1 WHERE a>10 ORDER BY a+20;
@@ -3356,50 +3356,50 @@ CREATE PROCEDURE p16() BEGIN         DELETE FROM t1 USING t1;END|
 CALL p16();
 DROP PROCEDURE p16;
 CALL p15();
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	0	Const row not found
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
 DROP PROCEDURE p15;
 CALL p14();
 DROP PROCEDURE p14;
 CALL p13();
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	Deleting all rows
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	NULL	Deleting all rows
 DROP PROCEDURE p13;
 CALL p12();
 DROP PROCEDURE p12;
 CALL p11();
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 DROP PROCEDURE p11;
 CALL p10();
 DROP PROCEDURE p10;
 CALL p9();
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	0	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	0	100.00	
 DROP PROCEDURE p9;
 CALL p8();
 DROP PROCEDURE p8;
 CALL p7();
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 DROP PROCEDURE p7;
 CALL p6();
 DROP PROCEDURE p6;
 CALL p5();
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	INSERT	t1	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	INSERT	t1	NULL	ALL	NULL	NULL	NULL	NULL	NULL	100.00	NULL
 DROP PROCEDURE p5;
 CALL p4();
 DROP PROCEDURE p4;
 CALL p3();
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 DROP PROCEDURE p3;
 CALL p2();
 DROP PROCEDURE p2;
 CALL p1();
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	INSERT	t1	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	INSERT	t1	NULL	ALL	NULL	NULL	NULL	NULL	NULL	100.00	NULL
 DROP PROCEDURE p1;
 DROP TABLE t1, t2;
 #

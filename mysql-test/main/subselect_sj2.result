@@ -53,10 +53,10 @@ a	b
 18	13
 19	14
 explain select * from t2 where b in (select a from t1);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	NULL	ALL	b	NULL	NULL	NULL	20	
-1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	b	NULL	NULL	NULL	20	100.00	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 select * from t2 where b in (select a from t1);
 a	b
 1	1
@@ -81,10 +81,10 @@ test.t2	analyze	status	OK
 test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 explain select * from t3 where b in (select a from t1);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	NULL	ALL	b	NULL	NULL	NULL	20	
-1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	ALL	b	NULL	NULL	NULL	20	100.00	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 select * from t3 where b in (select a from t1);
 a	b	pk1	pk2	pk3
 1	1	1	1	1
@@ -107,10 +107,10 @@ insert into t3 select
 A.a + 10*B.a, A.a + 10*B.a, A.a + 10*B.a, A.a + 10*B.a 
 from t0 A, t0 B where B.a <5;
 explain select * from t3 where b in (select a from t0);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	NULL	ALL	b	NULL	NULL	NULL	#	
-1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	#	
-2	MATERIALIZED	t0	NULL	ALL	NULL	NULL	NULL	NULL	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	ALL	b	NULL	NULL	NULL	#	100.00	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	#	100.00	
+2	MATERIALIZED	t0	NULL	ALL	NULL	NULL	NULL	NULL	#	100.00	
 select * from t3 where b in (select A.a+B.a from t0 A, t0 B where B.a<5);
 a	b	pk1	pk2
 0	0	0	0
@@ -130,10 +130,10 @@ a	b	pk1	pk2
 set join_buffer_size= @save_join_buffer_size;
 set max_heap_table_size= @save_max_heap_table_size;
 explain select * from t1 where a in (select b from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t2	NULL	index	b	b	5	NULL	20	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t2	NULL	index	b	b	5	NULL	20	100.00	Using index
 select * from t1;
 a	b
 1	1
@@ -159,10 +159,10 @@ insert into t2 values (19, 'duplicate ok', 'duplicate ok');
 explain select 
 a, mid(filler1, 1,10), length(filler1)=length(filler2) as Z 
 from t1 ot where a in (select a from t2 it);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	ot	NULL	ALL	NULL	NULL	NULL	NULL	32	
-1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	it	NULL	ALL	NULL	NULL	NULL	NULL	22	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	ot	NULL	ALL	NULL	NULL	NULL	NULL	32	100.00	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	it	NULL	ALL	NULL	NULL	NULL	NULL	22	100.00	
 select 
 a, mid(filler1, 1,10), length(filler1)=length(filler2) as Z 
 from t1 ot where a in (select a from t2 it);
@@ -192,10 +192,10 @@ a	mid(filler1, 1,10)	Z
 explain select 
 a, mid(filler1, 1,10), length(filler1)=length(filler2) 
 from t2 ot where a in (select a from t1 it);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	ot	NULL	ALL	NULL	NULL	NULL	NULL	22	
-1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	it	NULL	ALL	NULL	NULL	NULL	NULL	32	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	ot	NULL	ALL	NULL	NULL	NULL	NULL	22	100.00	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	it	NULL	ALL	NULL	NULL	NULL	NULL	32	100.00	
 select 
 a, mid(filler1, 1,10), length(filler1)=length(filler2) 
 from t2 ot where a in (select a from t1 it);
@@ -227,10 +227,10 @@ insert into t1 select a+20, 'filler123456', 'filler123456' from t0;
 explain select 
 a, mid(filler1, 1,10), length(filler1)=length(filler2) as Z 
 from t1 ot where a in (select a from t2 it);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	ot	NULL	ALL	NULL	NULL	NULL	NULL	52	
-1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	it	NULL	ALL	NULL	NULL	NULL	NULL	22	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	ot	NULL	ALL	NULL	NULL	NULL	NULL	52	100.00	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	it	NULL	ALL	NULL	NULL	NULL	NULL	22	100.00	
 select 
 a, mid(filler1, 1,10), length(filler1)=length(filler2) as Z 
 from t1 ot where a in (select a from t2 it);
@@ -260,10 +260,10 @@ a	mid(filler1, 1,10)	Z
 explain select 
 a, mid(filler1, 1,10), length(filler1)=length(filler2) 
 from t2 ot where a in (select a from t1 it);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	ot	NULL	ALL	NULL	NULL	NULL	NULL	22	
-1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	it	NULL	ALL	NULL	NULL	NULL	NULL	52	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	ot	NULL	ALL	NULL	NULL	NULL	NULL	22	100.00	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	it	NULL	ALL	NULL	NULL	NULL	NULL	52	100.00	
 select 
 a, mid(filler1, 1,10), length(filler1)=length(filler2) 
 from t2 ot where a in (select a from t1 it);
@@ -301,12 +301,12 @@ t2 and t3 must be use 'ref', not 'ALL':
 explain select * 
 from t0 where a in
 (select t2.a+t3.a from t1 left join (t2 join t3) on t2.a=t1.a and t3.a=t1.a);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	
-1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	func	1	Using where
-2	MATERIALIZED	t1	NULL	range	a	a	5	NULL	10	Using where; Using index
-2	MATERIALIZED	t2	NULL	ref	a	a	5	test.t1.a	1	Using index
-2	MATERIALIZED	t3	NULL	ref	a	a	5	test.t1.a	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	func	1	100.00	Using where
+2	MATERIALIZED	t1	NULL	range	a	a	5	NULL	10	100.00	Using where; Using index
+2	MATERIALIZED	t2	NULL	ref	a	a	5	test.t1.a	1	100.00	Using index
+2	MATERIALIZED	t3	NULL	ref	a	a	5	test.t1.a	1	100.00	Using index
 drop table t0, t1,t2,t3;
 CREATE TABLE t1 (
 ID int(11) NOT NULL auto_increment,
@@ -343,10 +343,10 @@ AND
 t2.Code IN (SELECT Country FROM t3 
 WHERE Language='English' AND Percentage > 10 AND
 t2.Population > 100000);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	range	Population,Country	Population	4	NULL	1	Using index condition; Rowid-ordered scan; Start temporary
-1	PRIMARY	t2	NULL	eq_ref	PRIMARY,Population	PRIMARY	3	test.t1.Country	1	Using where; End temporary
-1	PRIMARY	t3	NULL	eq_ref	PRIMARY,Percentage	PRIMARY	33	test.t1.Country,const	1	Using index condition; Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	range	Population,Country	Population	4	NULL	1	100.00	Using index condition; Rowid-ordered scan; Start temporary
+1	PRIMARY	t2	NULL	eq_ref	PRIMARY,Population	PRIMARY	3	test.t1.Country	1	75.00	Using where; End temporary
+1	PRIMARY	t3	NULL	eq_ref	PRIMARY,Percentage	PRIMARY	33	test.t1.Country,const	1	95.45	Using index condition; Using where
 set optimizer_switch=@bug35674_save_optimizer_switch;
 DROP TABLE t1,t2,t3;
 CREATE TABLE t1 (
@@ -381,10 +381,10 @@ This must not use LooseScan:
 EXPLAIN SELECT Name FROM t1 
 WHERE t1.Code IN (
 SELECT t2.CountryCode FROM t2 WHERE Population > 5000000);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	PRIMARY	NULL	NULL	NULL	31	
-1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	3	func	1	
-2	MATERIALIZED	t2	NULL	ALL	CountryCode	NULL	NULL	NULL	545	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	PRIMARY	NULL	NULL	NULL	31	100.00	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	3	func	1	100.00	
+2	MATERIALIZED	t2	NULL	ALL	CountryCode	NULL	NULL	NULL	545	100.00	Using where
 SELECT Name FROM t1 
 WHERE t1.Code IN (
 SELECT t2.CountryCode FROM t2 WHERE Population > 5000000);
@@ -616,10 +616,10 @@ create table t3 (pk int, a int, primary key(pk));
 insert into t3 select a,a from t0;
 explain 
 select * from t1 left join t2 on (t2.a= t1.a and t2.a in (select pk from t3));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
-2	MATERIALIZED	t3	NULL	index	PRIMARY	PRIMARY	4	NULL	10	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	MATERIALIZED	t3	NULL	index	PRIMARY	PRIMARY	4	NULL	10	100.00	Using index
 drop table t0, t1, t2, t3;
 create table t1 (a int);
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
@@ -730,10 +730,10 @@ insert into t3 select @a:=@a+1, t2.a from t2, t0;
 alter table t3 add primary key(id), add key(a);
 The following must use loose index scan over t3, key a:
 explain select count(a) from t2 where a in ( SELECT  a FROM t3);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	NULL	index	a	a	5	NULL	1000	Using index
-1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
-2	MATERIALIZED	t3	NULL	index	a	a	5	NULL	30000	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	index	a	a	5	NULL	1000	100.00	Using index
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t3	NULL	index	a	a	5	NULL	30000	100.00	Using index
 select count(a) from t2 where a in ( SELECT  a FROM t3);
 count(a)
 1000
@@ -744,8 +744,8 @@ BUG#42740: crash in optimize_semijoin_nests
 create table t1 (c6 timestamp,key (c6)) engine=innodb;
 create table t2 (c2 double) engine=innodb;
 explain select 1 from t2 where c2 = any (select log10(null) from t1 where c6 <null)  ;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 drop table t1, t2;
 # 
 # BUG#42742: crash in setup_sj_materialization, Copy_field::set
@@ -757,12 +757,12 @@ create table t2 (c1 tinytext,c2 text,c6 timestamp) engine=innodb;
 explain select 1 from t2 where 
 c2 in (select 1 from t3, t2) and
 c1 in (select convert(c6,char(1)) from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	1	Using where
-1	PRIMARY	<subquery3>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	Using where
-1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	FirstMatch((sj-nest))
-3	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+1	PRIMARY	<subquery3>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	100.00	Using where
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	FirstMatch((sj-nest))
+3	MATERIALIZED	t2	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	
 drop table t2, t3;
 #
 # BUG#761598: InnoDB: Error: row_search_for_mysql() is called without ha_innobase::external_lock() in maria-5.3
@@ -825,11 +825,11 @@ test.t3	analyze	status	OK
 explain
 SELECT * FROM t3 
 WHERE f12 IN (SELECT alias2.f12 FROM t1 AS alias1, t2 AS alias2, t1 WHERE alias1.f13 = 24);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	alias1	NULL	const	PRIMARY	PRIMARY	4	const	#	Using index
-1	PRIMARY	alias2	NULL	index	f12	f12	7	NULL	#	Using index; LooseScan
-1	PRIMARY	t1	NULL	index	NULL	PRIMARY	4	NULL	#	Using index; FirstMatch(alias2)
-1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	#	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	alias1	NULL	const	PRIMARY	PRIMARY	4	const	#	100.00	Using index
+1	PRIMARY	alias2	NULL	index	f12	f12	7	NULL	#	100.00	Using index; LooseScan
+1	PRIMARY	t1	NULL	index	NULL	PRIMARY	4	NULL	#	100.00	Using index; FirstMatch(alias2)
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	#	100.00	Using where; Using join buffer (flat, BNL join)
 SELECT * FROM t3 
 WHERE f12 IN (SELECT alias2.f12 FROM t1 AS alias1, t2 AS alias2, t1 WHERE alias1.f13 = 24);
 f12
@@ -896,13 +896,13 @@ CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
 EXPLAIN
 SELECT * FROM t3 LEFT JOIN (v1,t2) ON t3.a = t2.a
 WHERE t3.b IN (SELECT b FROM t4);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	
-1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	1	Using where
-1	PRIMARY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	MATERIALIZED	t4	NULL	ALL	NULL	NULL	NULL	NULL	2	
-3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+1	PRIMARY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	MATERIALIZED	t4	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	
 SELECT * FROM t3 LEFT JOIN (v1,t2) ON t3.a = t2.a
 WHERE t3.b IN (SELECT b FROM t4);
 a	b	b	a
@@ -956,11 +956,11 @@ SELECT * FROM t1 WHERE b IN (
 SELECT d FROM t2, t1
 WHERE a = d AND ( pk < 2 OR d = 'z' )
 );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t1	NULL	ref	b	b	4	test.t2.d	1	
-2	MATERIALIZED	t2	NULL	index_merge	PRIMARY,d	d,PRIMARY	4,4	NULL	2	Using sort_union(d,PRIMARY); Using where
-2	MATERIALIZED	t1	NULL	ref	a	a	5	test.t2.d	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t1	NULL	ref	b	b	4	test.t2.d	1	100.00	
+2	MATERIALIZED	t2	NULL	index_merge	PRIMARY,d	d,PRIMARY	4,4	NULL	2	100.00	Using sort_union(d,PRIMARY); Using where
+2	MATERIALIZED	t1	NULL	ref	a	a	5	test.t2.d	1	100.00	Using where; Using index
 SELECT * FROM t1 WHERE b IN (
 SELECT d FROM t2, t1
 WHERE a = d AND ( pk < 2 OR d = 'z' )
@@ -1029,11 +1029,11 @@ WHERE (a, a) IN (SELECT alias2.b, alias2.a FROM t1 AS alias1, t1 AS alias2
 WHERE 
 alias2.b = alias1.a AND 
 (alias1.b >= alias1.a OR alias2.b = 'z'));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	NULL	ALL	a	NULL	NULL	NULL	38	
-1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	func,func	1	
-2	MATERIALIZED	alias1	NULL	ALL	a	NULL	NULL	NULL	19	Using where
-2	MATERIALIZED	alias2	NULL	ref	a	a	4	test.alias1.a	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	a	NULL	NULL	NULL	38	100.00	
+1	PRIMARY	<subquery2>	NULL	eq_ref	distinct_key	distinct_key	8	func,func	1	100.00	
+2	MATERIALIZED	alias1	NULL	ALL	a	NULL	NULL	NULL	19	100.00	Using where
+2	MATERIALIZED	alias2	NULL	ref	a	a	4	test.alias1.a	1	100.00	Using where
 SELECT * FROM t2 
 WHERE (a, a) IN (SELECT alias2.b, alias2.a FROM t1 AS alias1, t1 AS alias2 
 WHERE 
@@ -1125,12 +1125,12 @@ SELECT alias4.c FROM t2 AS alias4, t2 AS alias5
 WHERE alias5.b = alias4.b
 AND ( alias5.b >= alias3.b OR alias5.c != alias3.c )
 );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	alias3	NULL	ALL	PRIMARY	NULL	NULL	NULL	#	Using where
-1	PRIMARY	alias4	NULL	ref	PRIMARY,c	c	4	test.alias3.d	#	Using index
-1	PRIMARY	alias5	NULL	eq_ref	PRIMARY	PRIMARY	4	test.alias4.b	#	Using where; FirstMatch(alias3)
-1	PRIMARY	alias2	NULL	ALL	NULL	NULL	NULL	NULL	#	Using join buffer (flat, BNL join)
-1	PRIMARY	alias1	NULL	ALL	NULL	NULL	NULL	NULL	#	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	alias3	NULL	ALL	PRIMARY	NULL	NULL	NULL	#	100.00	Using where
+1	PRIMARY	alias4	NULL	ref	PRIMARY,c	c	4	test.alias3.d	#	100.00	Using index
+1	PRIMARY	alias5	NULL	eq_ref	PRIMARY	PRIMARY	4	test.alias4.b	#	100.00	Using where; FirstMatch(alias3)
+1	PRIMARY	alias2	NULL	ALL	NULL	NULL	NULL	NULL	#	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	alias1	NULL	ALL	NULL	NULL	NULL	NULL	#	100.00	Using join buffer (flat, BNL join)
 SELECT COUNT(*) FROM t1 AS alias1, t1 AS alias2, t2 AS alias3
 WHERE alias3.d IN (
 SELECT alias4.c FROM t2 AS alias4, t2 AS alias5
@@ -1146,12 +1146,12 @@ SELECT alias4.c FROM t2 AS alias4, t2 AS alias5
 WHERE alias5.b = alias4.b
 AND ( alias5.b >= alias3.b OR alias3.c != alias5.c )
 );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	alias3	NULL	ALL	PRIMARY	NULL	NULL	NULL	#	Using where
-1	PRIMARY	alias4	NULL	ref	PRIMARY,c	c	4	test.alias3.d	#	Using index
-1	PRIMARY	alias5	NULL	eq_ref	PRIMARY	PRIMARY	4	test.alias4.b	#	Using where; FirstMatch(alias3)
-1	PRIMARY	alias2	NULL	ALL	NULL	NULL	NULL	NULL	#	Using join buffer (flat, BNL join)
-1	PRIMARY	alias1	NULL	ALL	NULL	NULL	NULL	NULL	#	Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	alias3	NULL	ALL	PRIMARY	NULL	NULL	NULL	#	100.00	Using where
+1	PRIMARY	alias4	NULL	ref	PRIMARY,c	c	4	test.alias3.d	#	100.00	Using index
+1	PRIMARY	alias5	NULL	eq_ref	PRIMARY	PRIMARY	4	test.alias4.b	#	100.00	Using where; FirstMatch(alias3)
+1	PRIMARY	alias2	NULL	ALL	NULL	NULL	NULL	NULL	#	100.00	Using join buffer (flat, BNL join)
+1	PRIMARY	alias1	NULL	ALL	NULL	NULL	NULL	NULL	#	100.00	Using join buffer (flat, BNL join)
 SELECT COUNT(*) FROM t1 AS alias1, t1 AS alias2, t2 AS alias3
 WHERE alias3.d IN (
 SELECT alias4.c FROM t2 AS alias4, t2 AS alias5
@@ -1188,9 +1188,9 @@ CREATE TABLE t3 (c INT, INDEX(c)) engine=innodb;
 INSERT INTO t2 VALUES (4),(5);
 explain
 SELECT * FROM t1 WHERE 9 IN ( SELECT b FROM t2 WHERE 1 IN ( SELECT MIN(c) FROM t3 ) );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-3	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No matching min/max row
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+3	MATERIALIZED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No matching min/max row
 SELECT * FROM t1 WHERE 9 IN ( SELECT b FROM t2 WHERE 1 IN ( SELECT MIN(c) FROM t3 ) );
 a
 DROP TABLE t1,t2,t3;
@@ -1210,11 +1210,11 @@ SELECT * FROM t1, t3 WHERE t3_c IN ( SELECT t1_pk2 FROM t4, t2 WHERE t2_c = t1_p
 t1_pk1	t1_pk2	t3_i	t3_c
 explain
 SELECT * FROM t1, t3 WHERE t3_c IN ( SELECT t1_pk2 FROM t4, t2 WHERE t2_c = t1_pk2 AND t2_i >= t3_i ) AND ( t1_pk1 = 'POL' );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ref	PRIMARY	PRIMARY	5	const	1	Using where; Using index
-1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	1	Start temporary
-1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	t4	NULL	index	NULL	PRIMARY	59	NULL	2	Using where; Using index; End temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ref	PRIMARY	PRIMARY	5	const	1	100.00	Using where; Using index
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	Start temporary
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	t4	NULL	index	NULL	PRIMARY	59	NULL	2	100.00	Using where; Using index; End temporary
 DROP TABLE t1,t2,t3,t4;
 #
 # MDEV-6263: Wrong result when using IN subquery with order by
@@ -1331,11 +1331,11 @@ ON T2_1_.t1idref=T1_1_.t1id
 WHERE
 T3_0_.t3idref= 1
 );
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	T3_0_	NULL	ref	PRIMARY,FK_T3_T2Id	PRIMARY	8	const	3	Using index; Start temporary
-1	PRIMARY	T2_1_	NULL	eq_ref	PRIMARY,FK_T2_T1Id	PRIMARY	8	test.T3_0_.t2idref	1	
-1	PRIMARY	T1_1_	NULL	eq_ref	PRIMARY	PRIMARY	8	test.T2_1_.t1idref	1	Using index
-1	PRIMARY	T2_0_	NULL	ref	FK_T2_T1Id	FK_T2_T1Id	8	test.T2_1_.t1idref	1	Using index; End temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	T3_0_	NULL	ref	PRIMARY,FK_T3_T2Id	PRIMARY	8	const	3	100.00	Using index; Start temporary
+1	PRIMARY	T2_1_	NULL	eq_ref	PRIMARY,FK_T2_T1Id	PRIMARY	8	test.T3_0_.t2idref	1	100.00	
+1	PRIMARY	T1_1_	NULL	eq_ref	PRIMARY	PRIMARY	8	test.T2_1_.t1idref	1	100.00	Using index
+1	PRIMARY	T2_0_	NULL	ref	FK_T2_T1Id	FK_T2_T1Id	8	test.T2_1_.t1idref	1	100.00	Using index; End temporary
 drop table t3,t2,t1;
 set optimizer_search_depth=@tmp7474;
 #

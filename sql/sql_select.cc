@@ -2411,7 +2411,7 @@ JOIN::optimize_inner()
         conjunctions.
         Preserve conditions for EXPLAIN.
       */
-      if (conds && !(thd->lex->describe & DESCRIBE_EXTENDED))
+      if (conds && !thd->lex->describe)
       {
         COND *table_independent_conds=
           make_cond_for_table(thd, conds, PSEUDO_TABLE_BITS, 0, -1,
@@ -4995,7 +4995,7 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
     goto err;					// 1
   }
 
-  if (thd->lex->describe & DESCRIBE_EXTENDED)
+  if (thd->lex->describe)
   {
     join->conds_history= join->conds;
     join->having_history= (join->having?join->having:join->tmp_having);
@@ -5006,7 +5006,7 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
 
   join->exec();
 
-  if (thd->lex->describe & DESCRIBE_EXTENDED)
+  if (thd->lex->describe)
   {
     select_lex->where= join->conds_history;
     select_lex->having= join->having_history;
@@ -26918,8 +26918,7 @@ int print_explain_message_line(select_result_sink *result,
     item_list.push_back(item_null, mem_root);
 
   /* `filtered` */
-  if (is_analyze || options & DESCRIBE_EXTENDED)
-    item_list.push_back(item_null, mem_root);
+  item_list.push_back(item_null, mem_root);
   
   /* `r_filtered` */
   if (is_analyze)

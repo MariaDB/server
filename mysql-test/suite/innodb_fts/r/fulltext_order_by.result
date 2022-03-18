@@ -66,8 +66,8 @@ if(a in (4,7),2,1)	rel
 alter table t1 add key m (message);
 ANALYZE TABLE t1;
 explain SELECT message FROM t1 WHERE MATCH (message) AGAINST ('steve') ORDER BY message;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	fulltext	message	message	0		1	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	fulltext	message	message	0		1	100.00	Using where; Using filesort
 SELECT message FROM t1 WHERE MATCH (message) AGAINST ('steve') ORDER BY message desc;
 message
 steve is cool

@@ -283,8 +283,8 @@ DROP TABLE t1;
 CREATE TABLE t1 (a TEST_INT8, KEY(a));
 INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7);
 EXPLAIN SELECT * FROM t1 WHERE a=3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	a	a	9	const	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	a	a	9	const	1	100.00	Using index
 DROP TABLE t1;
 # Testing aggregation for result
 CREATE TABLE t1 (a TEST_INT8);

@@ -65,6 +65,7 @@ explain select * from t1 where pk1 = 1 and pk2 < 80  and key1=0;
 select * from t1 where pk1 = 1 and pk2 < 80  and key1=0;
 
 # Verify that CPK fields are considered to be covered by index scans
+--replace_column 11 FLTRD
 explain select pk1,pk2 from t1 where key1 = 10 and key2=10 and 2*pk1+1 < 2*96+1;
 select pk1,pk2 from t1 where key1 = 10 and key2=10 and 2*pk1+1 < 2*96+1;
 
@@ -78,7 +79,9 @@ explain select * from t1 where pk1 < 7500 and key1 = 10;
 set optimizer_switch=@tmp_index_merge_ror_cpk;
 
 # Verify that keys with 'tails' of PK members are ok.
+--replace_column 11 FLTRD
 explain select * from t1 where pktail1ok=1 and key1=10;
+--replace_column 11 FLTRD
 explain select * from t1 where pktail2ok=1 and key1=10;
 
 # Note: The following is actually a deficiency, it uses sort_union currently.
@@ -86,12 +89,16 @@ explain select * from t1 where pktail2ok=1 and key1=10;
 explain select * from t1 where (pktail2ok=1 and pk1< 50000) or key1=10;
 
 # The expected rows differs a bit from platform to platform
+--replace_column 11 FLTRD
 --replace_result 98 ROWS 99 ROWS
 explain select * from t1 where pktail3bad=1 and key1=10;
+--replace_column 11 FLTRD
 explain select * from t1 where pktail4bad=1 and key1=10;
+--replace_column 11 FLTRD
 explain select * from t1 where pktail5bad=1 and key1=10;
 
 # Test for problem with innodb key values prefetch buffer:
+--replace_column 11 FLTRD
 explain select pk1,pk2,key1,key2 from t1 where key1 = 10 and key2=10 limit 10;
 select pk1,pk2,key1,key2 from t1 where key1 = 10 and key2=10 limit 10;
 

@@ -507,7 +507,7 @@ INSERT /*! IGNORE */ INTO cc (
 (6, '2008-10-10', NULL, '2000-05-22 00:00:00', 'i'),
 (8, '2002-01-19', '05:18:40.006865', '2009-02-12 00:00:00', 'v');
 
---replace_column 10 # 11 #
+--replace_column 10 # 11 # 12 #
 EXPLAIN
 SELECT subquery2_t2.col_int_key AS subquery2_field1
 FROM (c AS subquery2_t1 RIGHT JOIN
@@ -544,10 +544,10 @@ CREATE TABLE cc (
   KEY (col_int_key)
 );
 INSERT INTO cc (col_int_nokey) VALUES (0),(1),(7),(0),(4),(5);
---replace_column 10 # 11 #
+--replace_column 10 # 11 # 12 #
 EXPLAIN SELECT pk FROM cc WHERE col_int_key > 3;
 SELECT pk FROM cc WHERE col_int_key > 3;
---replace_column 10 # 11 #
+--replace_column 10 # 11 # 12 #
 EXPLAIN SELECT pk FROM cc WHERE col_int_key > 3 ORDER BY 1;
 SELECT pk FROM cc WHERE col_int_key > 3 ORDER BY 1;
 DROP TABLE cc;

@@ -185,8 +185,8 @@ select 'zz-1',NULL,'cc-2', 'filler-data' from t2 order by a limit 500;
 explain 
 select * from t4 where a IS NULL and b IS NULL and (c IS NULL or c='no-such-row1'
                                                       or c='no-such-row2');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	NULL	range	idx1	idx1	29	NULL	16	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	range	idx1	idx1	29	NULL	16	2.86	Using index condition; Rowid-ordered scan
 select * from t4 where a IS NULL and b IS NULL and (c IS NULL or c='no-such-row1'
                                                     or c='no-such-row2');
 a	b	c	filler
@@ -207,8 +207,8 @@ NULL	NULL	NULL	NULL-2
 NULL	NULL	NULL	NULL-1
 explain 
 select * from t4 where (a ='b-1' or a='bb-1') and b IS NULL and (c='c-1' or c='cc-2');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	NULL	range	idx1	idx1	29	NULL	32	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t4	NULL	range	idx1	idx1	29	NULL	32	100.00	Using index condition; Rowid-ordered scan
 select * from t4 where (a ='b-1' or a='bb-1') and b IS NULL and (c='c-1' or c='cc-2');
 a	b	c	filler
 b-1	NULL	c-1	NULL-15
@@ -312,8 +312,8 @@ concat('c-', 1000 + C.a, '-c'),
 from t1 A, t1 B, t1 C;
 explain
 select count(length(a) + length(filler)) from t2 force index (a) where a>='a-1000-a' and a <'a-1001-a';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	range	a	a	9	NULL	100	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	range	a	a	9	NULL	100	100.00	Using index condition; Rowid-ordered scan
 select count(length(a) + length(filler)) from t2 force index (a) where a>='a-1000-a' and a <'a-1001-a';
 count(length(a) + length(filler))
 100
@@ -322,8 +322,8 @@ create table t2 (a char(100), b char(100), c char(100), d int,
 filler char(10), key(d), primary key (a,b,c)) engine= innodb;
 insert into t2 select A.a, B.a, B.a, A.a, 'filler' from t1 A, t1 B;
 explain select * from t2 force index (d) where d < 10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	range	d	d	5	NULL	#	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	range	d	d	5	NULL	#	100.00	Using index condition; Rowid-ordered scan
 drop table t2;
 drop table t1;
 set @@mrr_buffer_size= @mrr_buffer_size_save;
@@ -401,8 +401,8 @@ id
 60
 This must show type=index, extra=Using where
 explain SELECT * FROM t1 FORCE INDEX (PRIMARY) WHERE parent_id IS NOT NULL ORDER BY id DESC LIMIT 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	1	100.00	Using where
 SELECT * FROM t1 WHERE parent_id IS NOT NULL ORDER BY id DESC LIMIT 1;
 id	parent_id	name
 60	40	F
@@ -751,8 +751,8 @@ insert into t1(pk,b) values (3, 30), (2, 20), (9, 90), (7, 70), (4, 40), (5, 50)
 set @bug665669_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=off';
 explain select * from t1 where b > 1000;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	idx	idx	5	NULL	1	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	idx	idx	5	NULL	1	100.00	Using index condition
 # The following two must produce indentical results:
 select * from t1 where pk < 2 or pk between 3 and 4;
 pk	b	c

@@ -1868,8 +1868,8 @@ select count(*) from t1;
 count(*)
 229376
 explain select * from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	229060	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	229060	100.00	
 set analyze_sample_percentage=100;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -1881,8 +1881,8 @@ from mysql.column_stats;
 table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	DECODE_HISTOGRAM(hist_type, histogram)
 t1	id	1	17384	0.0000	4.0000	14.0000	0.15705,0.15711,0.21463,0.15705,0.15711,0.15706
 explain select * from t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	229376	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	229376	100.00	
 drop table t0;
 drop table t1;
 set analyze_sample_percentage=@save_analyze_sample_percentage;

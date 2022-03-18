@@ -21,8 +21,8 @@ set optimizer_trace="enabled=on";
 set @tmp_index_merge_ror_cpk=@@optimizer_switch;
 set optimizer_switch='extended_keys=off';
 explain select * from t1 where pk1 != 0  and key1 = 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	PRIMARY,key1	key1	4	const	1	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	PRIMARY,key1	key1	4	const	1	100.00	Using index condition
 select * from information_schema.OPTIMIZER_TRACE;
 QUERY	TRACE	MISSING_BYTES_BEYOND_MAX_MEM_SIZE	INSUFFICIENT_PRIVILEGES
 explain select * from t1 where pk1 != 0  and key1 = 1	{

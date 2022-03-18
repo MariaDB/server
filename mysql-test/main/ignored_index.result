@@ -41,23 +41,23 @@ test.t1	analyze	status	OK
 test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
 EXPLAIN SELECT a FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	a	5	NULL	5	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	5	NULL	5	100.00	Using index
 ALTER TABLE t1 ALTER INDEX a IGNORED;
 EXPLAIN SELECT a FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
 ALTER TABLE t1 ALTER INDEX a NOT IGNORED;
 EXPLAIN SELECT a FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	a	5	NULL	5	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	5	NULL	5	100.00	Using index
 EXPLAIN SELECT a FROM t2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
 ALTER TABLE t2 ALTER INDEX a NOT IGNORED;
 EXPLAIN SELECT a FROM t2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	index	NULL	a	5	NULL	5	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	index	NULL	a	5	NULL	5	100.00	Using index
 DROP TABLE t1, t2;
 # Test that renaming an index does not change ignorability and vice versa.
 CREATE TABLE t1 (
@@ -244,12 +244,12 @@ SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			YES
 EXPLAIN SELECT a FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
 ALTER TABLE t1 ALTER INDEX a NOT IGNORED;
 EXPLAIN SELECT a FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	a	5	NULL	4	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	5	NULL	4	100.00	Using index
 DROP TABLE t1;
 #
 # IGNORED fulltext indexes.
@@ -262,8 +262,8 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'b'
 test.t1	analyze	status	OK
 EXPLAIN SELECT * FROM t1 WHERE MATCH(a, b) AGAINST ("collections");
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	fulltext	a	a	0		1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	fulltext	a	a	0		1	100.00	Using where
 ALTER TABLE t1 ALTER INDEX a IGNORED;
 EXPLAIN SELECT * FROM t1 WHERE MATCH(a, b) AGAINST ("collections");
 ERROR HY000: Can't find FULLTEXT index matching the column list
@@ -278,15 +278,15 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN SELECT a FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	a	4	NULL	3	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	4	NULL	3	100.00	Using index
 ALTER TABLE t1 ALTER INDEX a IGNORED;
 SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	3	NULL	NULL		BTREE			YES
 EXPLAIN SELECT a FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 DROP TABLE t1;
 #
 # IGNORED spatial indexes
@@ -298,8 +298,8 @@ SPATIAL KEY key1(g)
 );
 EXPLAIN SELECT fid, AsText(g) FROM t1
 WHERE Within(g, GeomFromText('Polygon((140 140,160 140,160 160,140 160,140 140))'));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	key1	key1	34	NULL	8	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	key1	key1	34	NULL	8	100.00	Using where
 ALTER TABLE t1 ALTER INDEX key1 IGNORED;
 SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
@@ -307,8 +307,8 @@ t1	0	PRIMARY	1	fid	A	150	NULL	NULL		BTREE			NO
 t1	1	key1	1	g	A	NULL	32	NULL		SPATIAL			YES
 EXPLAIN SELECT fid, AsText(g) FROM t1
 WHERE Within(g, GeomFromText('Polygon((140 140,160 140,160 160,140 160,140 140))'));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	150	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	150	100.00	Using where
 DROP TABLE t1;
 CREATE TABLE t1 ( a INT GENERATED ALWAYS AS (1), KEY key1(a));
 INSERT INTO t1 VALUES (),(),();
@@ -316,15 +316,15 @@ SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	key1	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
 EXPLAIN SELECT a FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	key1	5	NULL	3	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	key1	5	NULL	3	100.00	Using index
 ALTER TABLE t1 ALTER INDEX key1 IGNORED;
 SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	key1	1	a	A	NULL	NULL	NULL	YES	BTREE			YES
 EXPLAIN SELECT a FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 DROP TABLE t1;
 #
 # Partitioning on keys with an IGNORED index, IGNORED indexes over
@@ -359,25 +359,25 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN SELECT a FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18,p19	ALL	NULL	NULL	NULL	NULL	14	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18,p19	ALL	NULL	NULL	NULL	NULL	14	100.00	
 EXPLAIN SELECT b FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18,p19	index	NULL	b	2	NULL	14	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18,p19	index	NULL	b	2	NULL	14	100.00	Using index
 EXPLAIN SELECT * FROM t1 WHERE a = '04';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p9	ALL	NULL	NULL	NULL	NULL	8	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p9	ALL	NULL	NULL	NULL	NULL	8	100.00	Using where
 ALTER TABLE t1 ALTER INDEX a NOT IGNORED;
 EXPLAIN SELECT a FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18,p19	index	NULL	a	2	NULL	14	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18,p19	index	NULL	a	2	NULL	14	100.00	Using index
 EXPLAIN SELECT * FROM t1 WHERE a = '04';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p9	ref	a	a	2	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p9	ref	a	a	2	const	2	100.00	Using where
 ALTER TABLE t1 ALTER INDEX b IGNORED;
 EXPLAIN SELECT b FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18,p19	ALL	NULL	NULL	NULL	NULL	14	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18,p19	ALL	NULL	NULL	NULL	NULL	14	100.00	
 DROP TABLE t1;
 #
 # Using FORCE INDEX for an IGNORED index
@@ -385,8 +385,8 @@ DROP TABLE t1;
 CREATE TABLE t1(a INT, key k1(a));
 INSERT INTO t1 VALUES (1),(2),(3);
 EXPLAIN SELECT * FROM t1 FORCE INDEX(k1);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	k1	5	NULL	3	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	k1	5	NULL	3	100.00	Using index
 ALTER TABLE t1 ALTER INDEX k1 IGNORED;
 SHOW CREATE TABLE t1;
 Table	Create Table

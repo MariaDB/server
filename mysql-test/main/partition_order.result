@@ -788,8 +788,8 @@ drop table t1;
 create table t1 (a int, b int, key(a desc)) partition by hash(a) partitions 4;
 insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6);
 explain select * from t1 order by a limit 3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0,p1,p2,p3	index	NULL	a	5	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0,p1,p2,p3	index	NULL	a	5	NULL	3	100.00	
 select * from t1 order by a limit 3;
 a	b
 1	1

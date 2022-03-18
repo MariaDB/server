@@ -385,14 +385,14 @@ insert into t1(a,b,c) values(22,22,24);
 insert into t1(a,b,c) values(32,32,33);
 insert into t1(a,b,c) values(42,42,43);
 explain select * from t1 where b=3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	const	b	b	5	const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	const	b	b	5	const	1	100.00	
 select * from t1 where b=3;
 a
 3
 explain select * from t1 where c=3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	const	c	c	5	const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	const	c	c	5	const	1	100.00	
 select * from t1 where c=3;
 a
 3
@@ -403,9 +403,9 @@ a	int(11)	YES		NULL
 b	int(11)	YES		NULL	
 c	int(11)	YES		NULL	
 explain select * from t1,t2 where t1.b = t2.c and t1.c = t2.b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
-1	SIMPLE	t1	NULL	eq_ref	b,c	b	5	test.t2.c	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t1	NULL	eq_ref	b,c	b	5	test.t2.c	1	100.00	Using where
 select * from t1,t2 where t1.b = t2.c and t1.c = t2.b;
 a	a	b	c
 1	1	1	1

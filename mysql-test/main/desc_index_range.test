@@ -119,6 +119,7 @@ insert into t1 values (10000, NULL, 255);
 insert into t1 select seq+20000, seq+20000, seq+20000 from seq_1_to_1500;
 
 --echo # Must use ROR-intersect:
+--replace_column 11 FLTRD
 explain select * from t1 where b = 255 AND a IS NULL;
 select * from t1 where b = 255 AND a IS NULL;
 

@@ -216,8 +216,8 @@ create table t1 (a int, b int as (a+1), c int, index(b));
 insert t1 (a,c) values (0x7890abcd, 0x76543210);
 insert t1 (a,c) select seq, sin(seq)*10000 from seq_1_to_1000;
 explain select * from t1 where b=10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	b	b	5	const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	b	b	5	const	1	100.00	
 select * from t1 where b=10;
 a	b	c
 9	10	4121

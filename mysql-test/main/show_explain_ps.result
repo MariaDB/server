@@ -22,8 +22,8 @@ SET debug_dbug='d,show_explain_probe_join_exec_start';
 select count(*) from t0 where a < 100000;
 connection default;
 show explain for $thr2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
 Warnings:
 Note	1003	select count(*) from t0 where a < 100000
 connection con1;

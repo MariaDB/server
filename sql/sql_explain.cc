@@ -419,8 +419,7 @@ int print_explain_row(select_result_sink *result,
 
   /* 'filtered' */
   const double filtered=100.0;
-  if (options & DESCRIBE_EXTENDED || is_analyze)
-    item_list.push_back(new (mem_root) Item_float(thd, filtered, 2), mem_root);
+  item_list.push_back(new (mem_root) Item_float(thd, filtered, 2), mem_root);
   
   /* 'r_filtered' */
   if (is_analyze)
@@ -560,8 +559,7 @@ int Explain_union::print_explain(Explain_query *query,
   }
 
   /* `filtered` */
-  if (explain_flags & DESCRIBE_EXTENDED || is_analyze)
-    item_list.push_back(item_null, mem_root);
+  item_list.push_back(item_null, mem_root);
 
   /* `r_filtered` */
   if (is_analyze)
@@ -794,8 +792,7 @@ int Explain_select::print_explain(Explain_query *query,
     item_list.push_back(item_null, mem_root);
 
     /* filtered */
-    if (is_analyze || explain_flags & DESCRIBE_EXTENDED)
-      item_list.push_back(item_null, mem_root);
+    item_list.push_back(item_null, mem_root);
     
     if (is_analyze)
     {
@@ -1406,16 +1403,13 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
   }
 
   /* `filtered` */
-  if (explain_flags & DESCRIBE_EXTENDED || is_analyze)
+  if (filtered_set)
   {
-    if (filtered_set)
-    {
-      item_list.push_back(new (mem_root) Item_float(thd, filtered, 2),
-                          mem_root);
-    }
-    else
-      item_list.push_back(item_null, mem_root);
+    item_list.push_back(new (mem_root) Item_float(thd, filtered, 2),
+                        mem_root);
   }
+  else
+    item_list.push_back(item_null, mem_root);
 
   /* `r_filtered` */
   if (is_analyze)

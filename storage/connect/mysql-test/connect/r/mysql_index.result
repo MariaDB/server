@@ -172,8 +172,8 @@ matricule	nom	prenom
 4080	FOCH	SERGE
 3368	MOGADOR	ALAIN
 explain SELECT matricule, nom, prenom FROM t2 WHERE nom IN ('FOCH','MOGADOR');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	range	NP	NP	18	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	range	NP	NP	18	NULL	4	100.00	Using where
 SELECT matricule, nom, prenom FROM t2 WHERE nom = 'FOCH' OR nom = 'MOGADOR';
 matricule	nom	prenom
 1977	FOCH	BERNADETTE

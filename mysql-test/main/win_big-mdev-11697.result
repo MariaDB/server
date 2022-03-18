@@ -16,9 +16,9 @@ Table	Op	Msg_type	Msg_text
 test.test_table	analyze	status	Engine-independent statistics collected
 test.test_table	analyze	status	OK
 explain select * from (select id, lead(id) over(order by id) next_id from test_table order by id) a limit 10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	1000	
-2	DERIVED	test_table	NULL	ALL	NULL	NULL	NULL	NULL	1000	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	1000	100.00	
+2	DERIVED	test_table	NULL	ALL	NULL	NULL	NULL	NULL	1000	100.00	Using temporary; Using filesort
 select * from (select id, lead(id) over(order by id) next_id from test_table order by id) a limit 10;
 id	next_id
 1	2
@@ -49,9 +49,9 @@ Table	Op	Msg_type	Msg_text
 test.test_table	analyze	status	Engine-independent statistics collected
 test.test_table	analyze	status	OK
 explain select * from (select id, lead(id) over(order by id) next_id from test_table order by id) a limit 10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	100000	
-2	DERIVED	test_table	NULL	ALL	NULL	NULL	NULL	NULL	100000	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	100000	100.00	
+2	DERIVED	test_table	NULL	ALL	NULL	NULL	NULL	NULL	100000	100.00	Using temporary; Using filesort
 flush status;
 select * from (select id, lead(id) over(order by id) next_id from test_table order by id) a limit 10;
 id	next_id

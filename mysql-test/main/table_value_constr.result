@@ -1296,8 +1296,8 @@ deallocate prepare stmt1;
 # explain query that uses VALUES structure(s): single VALUES structure
 explain
 values (1,2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 explain format=json
 values (1,2);
 EXPLAIN
@@ -1324,26 +1324,26 @@ explain
 select 1,2
 union
 values (1,2),(3,4);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 explain
 values (1,2),(3,4)
 union
 select 1,2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 explain
 values (5,6)
 union
 values (1,2),(3,4);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 explain format=json
 select 1,2
 union
@@ -1446,11 +1446,11 @@ union
 values (3,4)
 union
 values (1,2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 explain format=json
 select 1,2
 union
@@ -1499,24 +1499,24 @@ explain
 select 1,2
 union
 values (1,2),(3,4);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 explain
 values (1,2),(3,4)
 union all
 select 1,2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 explain
 values (1,2)
 union all
 values (1,2),(3,4);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 explain format=json
 values (1,2),(3,4)
 union all
@@ -1619,10 +1619,10 @@ union all
 values (3,4)
 union all
 values (1,2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 explain format=json
 select 1,2
 union all
@@ -2112,9 +2112,9 @@ select * from (values (7), (5), (8), (1), (3), (8), (1)) t;
 8
 1
 explain select * from (values (7), (5), (8), (1), (3), (8), (1)) t;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	7	
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 select * from (values (1,11), (7,77), (3,31), (4,42)) t;
 1	11
 1	11
@@ -2122,9 +2122,9 @@ select * from (values (1,11), (7,77), (3,31), (4,42)) t;
 3	31
 4	42
 explain select * from (values (1,11), (7,77), (3,31), (4,42)) t;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	4	
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 select * from (values (7), (5), (8), (1) union values (3), (8), (1)) t;
 7
 7
@@ -2133,11 +2133,11 @@ select * from (values (7), (5), (8), (1) union values (3), (8), (1)) t;
 1
 3
 explain select * from (values (7), (5), (8), (1) union values (3), (8), (1)) t;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	7	
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 select * from (values (7), (5), (8), (1) union select * from t1) t;
 7
 7
@@ -2148,11 +2148,11 @@ select * from (values (7), (5), (8), (1) union select * from t1) t;
 3
 2
 explain select * from (values (7), (5), (8), (1) union select * from t1) t;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	7	
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
-NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 drop table t1;
 #
 # MDEV-16930: expression in the first row of TVC specifying derived table
@@ -2752,9 +2752,9 @@ values (8), ((select * from t1 where a between 2 and 4));
 8
 3
 explain values (8), ((select * from t1 where a between 2 and 4));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 values  ((select * from t1 where a between 2 and 4)),
 ((select * from t1 where a > 10));
 (select * from t1 where a between 2 and 4)
@@ -2762,18 +2762,18 @@ values  ((select * from t1 where a between 2 and 4)),
 NULL
 explain values  ((select * from t1 where a between 2 and 4)),
 ((select * from t1 where a > 10));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
-2	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 values (10,11), ((select * from t1 where a = 7) + 1, 21);
 10	11
 10	11
 8	21
 explain values (10,11), ((select * from t1 where a = 7) + 1, 21);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 drop table t1;
 #
 # MDEV-24910: TVC containing subquery used as a subselect
@@ -2787,10 +2787,10 @@ select (values ((select 2))) from t2;
 2
 2
 explain select (values ((select 2))) from t2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
-4	SUBQUERY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	SUBQUERY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1249	Select 3 was reduced during optimization
 prepare stmt from "select (values ((select 2))) from t2";
@@ -2808,11 +2808,11 @@ select (values ((select * from t1 where a > 10))) from t2;
 NULL
 NULL
 explain select (values ((select * from t1 where a > 10))) from t2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
-4	SUBQUERY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+4	SUBQUERY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 prepare stmt from "select (values ((select * from t1 where a > 10))) from t2";
 execute stmt;
 (values ((select * from t1 where a > 10)))
@@ -2833,13 +2833,13 @@ select
 1
 explain select
 (values ((select * from t3 where a in (select * from v1))));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-6	SUBQUERY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	11	Using where
-3	SUBQUERY	<derived5>	NULL	ref	key0	key0	8	test.t3.a	2	Using where; FirstMatch(t3)
-5	DERIVED	t3	NULL	ALL	NULL	NULL	NULL	NULL	11	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+6	SUBQUERY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
+3	SUBQUERY	<derived5>	NULL	ref	key0	key0	8	test.t3.a	2	100.00	Using where; FirstMatch(t3)
+5	DERIVED	t3	NULL	ALL	NULL	NULL	NULL	NULL	11	100.00	Using temporary; Using filesort
 prepare stmt from "select
 (values ((select * from t3 where a in (select * from v1))))";
 execute stmt;
@@ -2858,13 +2858,13 @@ NULL
 explain select
 (values ((select * from t3
 where a > 10 and a in (select * from v1))));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-6	SUBQUERY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-3	SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	11	Using where
-3	SUBQUERY	<derived5>	NULL	ref	key0	key0	8	test.t3.a	2	Using where; FirstMatch(t3)
-5	DERIVED	t3	NULL	ALL	NULL	NULL	NULL	NULL	11	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+6	SUBQUERY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	SUBQUERY	t3	NULL	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
+3	SUBQUERY	<derived5>	NULL	ref	key0	key0	8	test.t3.a	2	100.00	Using where; FirstMatch(t3)
+5	DERIVED	t3	NULL	ALL	NULL	NULL	NULL	NULL	11	100.00	Using temporary; Using filesort
 prepare stmt from "select
 (values ((select * from t3
 where a > 10 and a in (select * from v1))))";

@@ -16,8 +16,8 @@ Tests:
 for merged derived tables
 explain for simple derived
 explain select * from (select * from t1) tt;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	11	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	11	100.00	
 select * from (select * from t1) tt;
 f1	f11
 1	1
@@ -226,10 +226,10 @@ f1	f11	f2	f22
 explain showing late materialization
 flush status;
 explain select * from t1 join (select * from t2 group by f2) tt on f1=f2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	11	Using where
-1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t1.f1	2	
-2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	11	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t1.f1	2	100.00	
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	11	100.00	Using temporary; Using filesort
 show status like 'Handler_read%';
 Variable_name	Value
 Handler_read_first	0
@@ -337,10 +337,10 @@ Handler_read_rnd_next	60
 explain showing late materialization
 flush status;
 explain select * from t1 join v2 on f1=f2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	11	Using where
-1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t1.f1	2	
-2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	11	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t1.f1	2	100.00	
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	11	100.00	Using temporary; Using filesort
 show status like 'Handler_read%';
 Variable_name	Value
 Handler_read_first	0
@@ -992,11 +992,11 @@ f2	f22	f1	f11
 2	2	2	2
 test two keys
 explain select * from t1 join (select * from t2 group by f2) tt on t1.f1=tt.f2 join t1 xx on tt.f22=xx.f1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	11	Using where
-1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t1.f1	2	
-1	PRIMARY	xx	NULL	ALL	NULL	NULL	NULL	NULL	11	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	11	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t1.f1	2	100.00	
+1	PRIMARY	xx	NULL	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	11	100.00	Using temporary; Using filesort
 select * from t1 join (select * from t2 group by f2) tt on t1.f1=tt.f2 join t1 xx on tt.f22=xx.f1;
 f1	f11	f2	f22	f1	f11
 1	1	1	1	1	1
@@ -1017,10 +1017,10 @@ INSERT INTO t2 VALUES (149), (NULL), (224);
 CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
 EXPLAIN
 SELECT * FROM v1 JOIN t2 ON v1.f1 = t2.f1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	NULL	index	f1	f1	5	NULL	3	Using where; Using index
-1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.f1	2	
-2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	index	f1	f1	5	NULL	3	100.00	Using where; Using index
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t2.f1	2	100.00	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
 SELECT * FROM v1 JOIN t2 ON v1.f1 = t2.f1;
 f1	f1
 149	149
@@ -1069,43 +1069,43 @@ MIN(a)
 5
 EXPLAIN
 SELECT MIN(a) FROM t1 WHERE a >= 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 SELECT MIN(a) FROM (SELECT * FROM t1) t WHERE a >= 5;
 MIN(a)
 5
 EXPLAIN
 SELECT MIN(a) FROM(SELECT * FROM t1) t WHERE a >= 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 SELECT MIN(a) FROM v1 WHERE a >= 5;
 MIN(a)
 5
 EXPLAIN
 SELECT MIN(a) FROM v1 WHERE a >= 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 SELECT MAX(b) FROM t1 WHERE a=7 AND b<75;
 MAX(b)
 74
 EXPLAIN
 SELECT MAX(b) FROM t1 WHERE a=7 AND b<75;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 SELECT MAX(b) FROM (SELECT * FROM t1) t WHERE a=7 AND b<75;
 MAX(b)
 74
 EXPLAIN
 SELECT MAX(b) FROM (SELECT * FROM t1) t WHERE a=7 AND b<75;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 SELECT MAX(b) FROM v1 WHERE a=7 AND b<75;
 MAX(b)
 74
 EXPLAIN
 SELECT MAX(b) FROM v1 WHERE a=7 AND b<75;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 DROP VIEW v1;
 DROP TABLE t1;
 #
@@ -1180,11 +1180,11 @@ INSERT INTO t3 VALUES
 CREATE VIEW v1 AS SELECT a, MIN(b) AS b FROM t3 GROUP BY a;
 EXPLAIN
 SELECT * FROM t1, t2, v1 WHERE t2.a=t1.a AND t2.a=v1.a AND t2.a=v1.b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t2	NULL	ref	a	a	4	const	1	Using index
-1	PRIMARY	<derived2>	NULL	ref	key0	key0	8	const,const	1	
-2	DERIVED	t3	NULL	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t2	NULL	ref	a	a	4	const	1	100.00	Using index
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	8	const,const	1	100.00	
+2	DERIVED	t3	NULL	ALL	NULL	NULL	NULL	NULL	12	100.00	Using temporary; Using filesort
 SELECT * FROM t1, t2, v1 WHERE t2.a=t1.a AND t2.a=v1.a AND t2.a=v1.b;
 a	a	a	b
 c	c	c	c
@@ -1247,12 +1247,12 @@ EXPLAIN
 SELECT t.f1 AS f 
 FROM (SELECT DISTINCT t1.* FROM t1,t2 WHERE t2.f2 = t1.f2) t,t3,t4
 WHERE t4.f2 = t3.f2  AND t4.f2 = t.f1 ORDER BY f;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; Using filesort
-1	PRIMARY	t4	NULL	ref	f2	f2	4	t.f1	1	Using index
-1	PRIMARY	t3	NULL	ref	f2	f2	4	t.f1	2	Using index
-2	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	Using temporary
-2	DERIVED	t1	NULL	ref	f2	f2	4	const	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using filesort
+1	PRIMARY	t4	NULL	ref	f2	f2	4	t.f1	1	100.00	Using index
+1	PRIMARY	t3	NULL	ref	f2	f2	4	t.f1	2	100.00	Using index
+2	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	Using temporary
+2	DERIVED	t1	NULL	ref	f2	f2	4	const	2	100.00	Using where
 SELECT t.f1 AS f 
 FROM (SELECT DISTINCT t1.* FROM t1,t2 WHERE t2.f2 = t1.f2) t,t3,t4
 WHERE t4.f2 = t3.f2  AND t4.f2 = t.f1 ORDER BY f;
@@ -1274,10 +1274,10 @@ a	b	a	b
 SET SESSION optimizer_switch='derived_with_keys=on';
 EXPLAIN
 SELECT * FROM t1 AS t JOIN v1 AS v WHERE t.a = v.b AND t.b = v.b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
-1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t.a	2	
-2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	test.t.a	2	100.00	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 SELECT * FROM t1 AS t JOIN v1 AS v WHERE t.a = v.b AND t.b = v.b;
 a	b	a	b
 0	0	1	0
@@ -1333,10 +1333,10 @@ EXPLAIN
 SELECT * FROM  t1 t
 WHERE EXISTS (SELECT t3.a FROM t3, t2
 WHERE t2.a = t3.b AND t.a != 0);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t3	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t3	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 SELECT * FROM (SELECT * FROM t1) t
 WHERE EXISTS (SELECT t3.a FROM t3, t2
 WHERE t2.a = t3.b AND t.a != 0);
@@ -1346,10 +1346,10 @@ EXPLAIN
 SELECT * FROM (SELECT * FROM t1) t
 WHERE EXISTS (SELECT t3.a FROM t3, t2
 WHERE t2.a = t3.b AND t.a != 0);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-3	DEPENDENT SUBQUERY	t3	NULL	system	NULL	NULL	NULL	NULL	1	
-3	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+3	DEPENDENT SUBQUERY	t3	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+3	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 SELECT * FROM v1 t
 WHERE EXISTS (SELECT t3.a FROM t3, t2
 WHERE t2.a = t3.b AND t.a != 0);
@@ -1359,10 +1359,10 @@ EXPLAIN
 SELECT * FROM v1 t
 WHERE EXISTS (SELECT t3.a FROM t3, t2
 WHERE t2.a = t3.b AND t.a != 0);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t3	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t3	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 DROP VIEW v1;
 DROP TABLE t1,t2,t3;
 #
@@ -1390,10 +1390,10 @@ NULL
 174
 EXPLAIN
 SELECT DISTINCT t2.a FROM t1 LEFT JOIN (t3,t2) ON t1.b = 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using temporary
-1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using temporary
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 SELECT DISTINCT v1.a FROM t1 LEFT JOIN v1 ON t1.b = 0;
 a
 NULL
@@ -1401,10 +1401,10 @@ NULL
 174
 EXPLAIN
 SELECT DISTINCT v1.a FROM t1 LEFT JOIN v1 ON t1.b = 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using temporary
-1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using temporary
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 DROP VIEW v1;
 DROP TABLE t1,t2,t3;
 #
@@ -1463,32 +1463,32 @@ b
 29
 EXPLAIN 
 SELECT DISTINCT t2.b FROM t1,t2,t3 WHERE t3.a = t2.a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	1	Using temporary
-1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	SIMPLE	t2	NULL	ref	a	a	35	test.t3.a	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	Using temporary
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	SIMPLE	t2	NULL	ref	a	a	35	test.t3.a	2	100.00	
 SELECT * FROM (SELECT DISTINCT t2.b FROM t1,t2,t3 WHERE t3.a = t2.a) t;
 b
 28
 29
 EXPLAIN
 SELECT * FROM (SELECT DISTINCT t2.b FROM t1,t2,t3 WHERE t3.a = t2.a) t;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	4	
-2	DERIVED	t1	NULL	system	NULL	NULL	NULL	NULL	1	Using temporary
-2	DERIVED	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DERIVED	t2	NULL	ref	a	a	35	test.t3.a	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	Using temporary
+2	DERIVED	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t2	NULL	ref	a	a	35	test.t3.a	2	100.00	
 SELECT * FROM v1;
 b
 28
 29
 EXPLAIN 
 SELECT * FROM v1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	4	
-2	DERIVED	t1	NULL	system	NULL	NULL	NULL	NULL	1	Using temporary
-2	DERIVED	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DERIVED	t2	NULL	ref	a	a	35	test.t3.a	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	DERIVED	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	Using temporary
+2	DERIVED	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t2	NULL	ref	a	a	35	test.t3.a	2	100.00	
 DROP VIEW v1;
 DROP TABLE t1,t2,t3;
 #
@@ -1580,10 +1580,10 @@ a
 2
 EXPLAIN 
 SELECT a FROM t1 WHERE (a,b) IN (SELECT * FROM v1);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	<derived3>	NULL	ref	key0	key0	10	test.t1.a,test.t1.b	2	FirstMatch(t1)
-3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	10	test.t1.a,test.t1.b	2	100.00	FirstMatch(t1)
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	Using temporary; Using filesort
 SELECT * FROM v2;
 a	b
 9	3
@@ -1600,12 +1600,12 @@ a
 2
 EXPLAIN 
 SELECT a FROM t1 WHERE (a,b) IN (SELECT * FROM v2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	<derived3>	NULL	ref	key0	key0	10	test.t1.a,test.t1.b	1	FirstMatch(t1)
-3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	
-4	UNION	t3	NULL	ALL	NULL	NULL	NULL	NULL	4	
-NULL	UNION RESULT	<union3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	10	test.t1.a,test.t1.b	1	100.00	FirstMatch(t1)
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	
+4	UNION	t3	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+NULL	UNION RESULT	<union3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 DROP VIEW v1,v2;
 DROP TABLE t1,t2,t3;
 #
@@ -1646,10 +1646,10 @@ DROP TABLE t1;
 set optimizer_switch='derived_merge=off';
 EXPLAIN
 SELECT * FROM (SELECT * FROM (SELECT @b) AS t) AS s;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DERIVED	<derived3>	NULL	system	NULL	NULL	NULL	NULL	1	
-3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DERIVED	<derived3>	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+3	DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 SELECT * FROM (SELECT * FROM (SELECT @b) AS t) AS s;
 @b
 NULL
@@ -1664,18 +1664,18 @@ INSERT INTO t2 VALUES (9), (NULL), (7);
 CREATE VIEW v1 AS SELECT * FROM t1,t2;
 EXPLAIN
 SELECT * FROM (SELECT * FROM t1,t2) t WHERE b IS NULL;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
 SELECT * FROM (SELECT * FROM t1,t2) t WHERE b IS NULL;
 a	b
 1	NULL
 1	NULL
 EXPLAIN
 SELECT * FROM v1 WHERE b IS NULL;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
 SELECT * FROM v1 WHERE b IS NULL;
 a	b
 1	NULL
@@ -1878,17 +1878,17 @@ SET SESSION optimizer_switch='derived_merge=on,subquery_cache=off,materializatio
 EXPLAIN
 SELECT * FROM t1 , t2
 WHERE (t2.a ,t1.b) NOT IN (SELECT DISTINCT c,a  FROM t3 t);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-2	DEPENDENT SUBQUERY	t	NULL	unique_subquery	PRIMARY,c	PRIMARY	4	func	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+2	DEPENDENT SUBQUERY	t	NULL	unique_subquery	PRIMARY,c	PRIMARY	4	func	1	100.00	Using where
 EXPLAIN 
 SELECT * FROM t1 , t2
 WHERE (t2.a ,t1.b) NOT IN (SELECT DISTINCT c,a  FROM (SELECT * FROM t3) t);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-2	DEPENDENT SUBQUERY	t3	NULL	unique_subquery	PRIMARY,c	PRIMARY	4	func	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+2	DEPENDENT SUBQUERY	t3	NULL	unique_subquery	PRIMARY,c	PRIMARY	4	func	1	100.00	Using where
 SELECT * FROM t1 , t2
 WHERE (t2.a ,t1.b) NOT IN (SELECT DISTINCT c,a  FROM (SELECT * FROM t3) t);
 b	a
@@ -1914,11 +1914,11 @@ EXPLAIN
 SELECT * FROM t3 
 WHERE t3.b IN (SELECT v1.b FROM  v1, t2 
 WHERE t2.c = v1.c AND t2.c = v1.b AND v1.b = t3.c);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary; End temporary
-3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Start temporary; End temporary
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 SELECT * FROM t3 
 WHERE t3.b IN (SELECT v1.b FROM  v1, t2 
 WHERE t2.c = v1.c AND t2.c = v1.b AND v1.b = t3.c);
@@ -1929,11 +1929,11 @@ EXPLAIN
 SELECT * FROM t3 
 WHERE t3.b IN (SELECT v1.b FROM  v1, t2 
 WHERE t2.c = v1.c AND t2.c = v1.b AND v1.b = t3.c);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	<derived3>	NULL	ref	key1	key1	8	const,const	0	Start temporary
-1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; End temporary; Using join buffer (flat, BNL join)
-3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	<derived3>	NULL	ref	key1	key1	8	const,const	0	0.00	Start temporary
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; End temporary; Using join buffer (flat, BNL join)
+3	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
 SELECT * FROM t3 
 WHERE t3.b IN (SELECT v1.b FROM  v1, t2 
 WHERE t2.c = v1.c AND t2.c = v1.b AND v1.b = t3.c);
@@ -1953,10 +1953,10 @@ CREATE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT * FROM t2;
 SET SESSION optimizer_switch='derived_with_keys=on';
 EXPLAIN
 SELECT * FROM t1 WHERE t1.b IN (SELECT v2.a FROM v2 WHERE v2.b = t1.a);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-1	PRIMARY	<derived3>	NULL	ref	key0	key0	10	test.t1.b,test.t1.a	2	FirstMatch(t1)
-3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	10	test.t1.b,test.t1.a	2	100.00	FirstMatch(t1)
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
 SELECT * FROM t1 WHERE t1.b IN (SELECT v2.a FROM v2 WHERE v2.b = t1.a);
 a	b
 5	4
@@ -1977,9 +1977,9 @@ a
 EXPLAIN
 SELECT t1.a FROM t1
 WHERE EXISTS (SELECT t2.a FROM t2 WHERE t2.b < t1.b);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 SELECT v1.a FROM v1
 WHERE EXISTS (SELECT t2.a FROM t2 WHERE t2.b < v1.b);
 a
@@ -1987,9 +1987,9 @@ a
 EXPLAIN
 SELECT v1.a FROM v1
 WHERE EXISTS (SELECT t2.a FROM t2 WHERE t2.b < v1.b);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DEPENDENT SUBQUERY	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 DROP VIEW v1;
 DROP TABLE t1,t2;
 #
@@ -2007,11 +2007,11 @@ a
 7
 EXPLAIN
 SELECT v1.a FROM v1,v2 WHERE v2.b = v1.b ORDER BY 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Using filesort
-1	PRIMARY	<derived3>	NULL	ref	key0	key0	4	v1.b	2	
-3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
-2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using filesort
+1	PRIMARY	<derived3>	NULL	ref	key0	key0	4	v1.b	2	100.00	
+3	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using temporary; Using filesort
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using temporary; Using filesort
 DROP VIEW v1,v2;
 DROP TABLE t1,t2;
 #
@@ -2040,12 +2040,12 @@ SET SESSION join_cache_level = 1;
 SET SESSION join_buffer_size = 512;
 EXPLAIN
 SELECT t2.d FROM t1,t2,v3 WHERE v3.e = t2.d AND v3.i < 3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t5	NULL	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
-1	SIMPLE	t3	NULL	ref	e	e	3	test.t2.d	1	Using index
-1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t5	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	NULL	ref	e	e	3	test.t2.d	1	100.00	Using index
+1	SIMPLE	t4	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using join buffer (flat, BNL join)
 SELECT t2.d FROM t1,t2,v3 WHERE v3.e = t2.d AND v3.i < 3;
 d
 w
@@ -2163,10 +2163,10 @@ SET SESSION optimizer_switch = 'derived_with_keys=on';
 SET SESSION join_cache_level = 4;
 EXPLAIN
 SELECT t1.b,v2.a  FROM t1 LEFT JOIN v2 ON v2.a = t1.a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	1	Using where
-2	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+2	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
 SELECT t1.b,v2.a  FROM t1 LEFT JOIN v2 ON v2.a = t1.a;
 b	a
 NULL	NULL
@@ -2177,11 +2177,11 @@ INSERT INTO t3 VALUES (8,'x'), (5,'r'), (9,'y');
 EXPLAIN
 SELECT * FROM t3
 WHERE t3.b <> ANY (SELECT t1.b  FROM t1 LEFT JOIN v2 ON v2.a = t1.a);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
-2	DEPENDENT SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
-2	DEPENDENT SUBQUERY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	1	Using where
-3	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	DEPENDENT SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	DEPENDENT SUBQUERY	<derived3>	NULL	ALL	NULL	NULL	NULL	NULL	1	100.00	Using where
+3	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
 SELECT * FROM t3
 WHERE t3.b <> ANY (SELECT t1.b  FROM t1 LEFT JOIN v2 ON v2.a = t1.a);
 a	b
@@ -2205,10 +2205,10 @@ CREATE VIEW v3 AS SELECT * FROM t3;
 SET SESSION optimizer_switch='semijoin=on';
 EXPLAIN 
 SELECT * FROM t1 WHERE a IN (SELECT v3.b FROM t2 RIGHT JOIN v3 ON v3.a = t2.a);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	NULL	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t2	NULL	const	PRIMARY	PRIMARY	4	const	1	Using index
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t2	NULL	const	PRIMARY	PRIMARY	4	const	1	100.00	Using index
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 SELECT * FROM t1 WHERE a IN (SELECT v3.b FROM t2 RIGHT JOIN v3 ON v3.a = t2.a);
 a
 x
@@ -2260,10 +2260,10 @@ SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch = 'derived_with_keys=on';
 SET @@tmp_table_size=1024*4;
 explain SELECT * FROM (SELECT t1.* FROM t1, t2) AS t JOIN t3 ON t3.a = t.b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	NULL	system	NULL	NULL	NULL	NULL	1	
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	21	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	21	100.00	Using where; Using join buffer (flat, BNL join)
 SELECT * FROM (SELECT t1.* FROM t1, t2) AS t JOIN t3 ON t3.a = t.b;
 a	b	a
 USA	Miami	Miami
@@ -2328,9 +2328,9 @@ a
 4
 EXPLAIN
 SELECT * FROM (SELECT * FROM t1 LIMIT 3) t;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	8	100.00	
 DROP TABLE t1;
 #
 # LP BUG#921878 incorrect check of items during columns union types
@@ -2368,10 +2368,10 @@ GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX ASC) AS COL_NAMES
 FROM INFORMATION_SCHEMA.STATISTICS
 GROUP BY TABLE_SCHEMA) AS UNIQUES
 ON ( COLUMNS.TABLE_SCHEMA = UNIQUES.TABLE_SCHEMA);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	COLUMNS	NULL	ALL	NULL	NULL	NULL	NULL	NULL	Open_frm_only; Scanned all databases
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
-2	DERIVED	STATISTICS	NULL	ALL	NULL	NULL	NULL	NULL	NULL	Open_frm_only; Scanned all databases; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	COLUMNS	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Open_frm_only; Scanned all databases
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Using join buffer (flat, BNL join)
+2	DERIVED	STATISTICS	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Open_frm_only; Scanned all databases; Using filesort
 SELECT COUNT(*) > 0
 FROM INFORMATION_SCHEMA.COLUMNS
 INNER JOIN
@@ -2406,10 +2406,10 @@ SET SESSION optimizer_switch='derived_merge=off';
 SET SESSION optimizer_switch='derived_with_keys=off';
 EXPLAIN
 SELECT * FROM t1, v WHERE a = b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where
-2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 SELECT * FROM t1, v WHERE a = b;
 a	b	gc
 132	132	test1,text3
@@ -2417,10 +2417,10 @@ SET SESSION optimizer_switch='derived_merge=on';
 SET SESSION optimizer_switch='derived_with_keys=on';
 EXPLAIN
 SELECT * FROM t1, v WHERE a = b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	const	0	
-2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	5	const	0	0.00	
+2	DERIVED	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using filesort
 SELECT * FROM t1, v WHERE a = b;
 a	b	gc
 132	132	test1,text3
@@ -2771,11 +2771,11 @@ LEFT JOIN pictures p
 ON p.id = g.p_random 
 ORDER BY gallery_name ASC 
 ;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	10	Using temporary; Using filesort
-1	PRIMARY	p	NULL	eq_ref	PRIMARY	PRIMARY	4	g.p_random	1	Using where
-2	DERIVED	gal	NULL	ALL	NULL	NULL	NULL	NULL	10	
-3	DEPENDENT SUBQUERY	pi	NULL	ref	gallery_id	gallery_id	4	test.gal.id	4	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	Using temporary; Using filesort
+1	PRIMARY	p	NULL	eq_ref	PRIMARY	PRIMARY	4	g.p_random	1	100.00	Using where
+2	DERIVED	gal	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	
+3	DEPENDENT SUBQUERY	pi	NULL	ref	gallery_id	gallery_id	4	test.gal.id	4	100.00	Using temporary; Using filesort
 drop table galleries, pictures;
 #
 # MDEV-5740: Assertion 
@@ -2843,11 +2843,11 @@ SELECT * FROM t2 x,
 (SELECT t2.useraccessfamily, t2.serialized AS picturesubuser, COUNT(*)
 FROM t2, t1 GROUP BY t2.useraccessfamily, picturesubuser) y
 WHERE x.useraccessfamily = y.useraccessfamily;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	x	NULL	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-2	DERIVED	t1	NULL	index	NULL	index_td_familyid_id	772	NULL	2	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	x	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+2	DERIVED	t1	NULL	index	NULL	index_td_familyid_id	772	NULL	2	100.00	Using index
 SELECT * FROM t2 x,
 (SELECT t2.useraccessfamily, t2.serialized AS picturesubuser, COUNT(*)
 FROM t2, t1 GROUP BY t2.useraccessfamily, picturesubuser) y
@@ -2898,10 +2898,10 @@ FROM t2
 RIGHT JOIN ( SELECT * FROM t1 ) AS dt
 ON t2.col_varchar = dt.col_varchar
 WHERE t2.col_int IS NOT NULL ;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	11	Using where
-2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	11	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	11	100.00	Using where
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	11	100.00	
 SET @@max_heap_table_size= @save_heap_size;
 SET optimizer_switch=@save_optimizer_switch;
 DROP TABLE t1,t2;
@@ -2938,11 +2938,11 @@ INNER JOIN
 FROM t2 mp INNER JOIN t1 m1 ON mp.mat_id=m1.mat_id
 GROUP BY mp.pla_id) d
 ON d.matintnum=m2.matintnum;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	m2	NULL	ALL	NULL	NULL	NULL	NULL	9	
-1	PRIMARY	<derived2>	NULL	ref	key0	key0	7	test.m2.matintnum	2	
-2	DERIVED	mp	NULL	ALL	NULL	NULL	NULL	NULL	9	Using temporary; Using filesort
-2	DERIVED	m1	NULL	eq_ref	PRIMARY	PRIMARY	3	test.mp.mat_id	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	m2	NULL	ALL	NULL	NULL	NULL	NULL	9	100.00	
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	7	test.m2.matintnum	2	100.00	
+2	DERIVED	mp	NULL	ALL	NULL	NULL	NULL	NULL	9	100.00	Using temporary; Using filesort
+2	DERIVED	m1	NULL	eq_ref	PRIMARY	PRIMARY	3	test.mp.mat_id	1	100.00	
 prepare stmt1 from
 "SELECT STRAIGHT_JOIN d.pla_id, m2.mat_id
    FROM t1 m2 
@@ -3019,18 +3019,18 @@ test.t1	analyze	status	OK
 test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 explain select a from t1 where a in (select b from t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	Using where
-1	PRIMARY	t2	NULL	ref	idx	idx	5	test.t1.a	139	Using index; FirstMatch(t1)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+1	PRIMARY	t2	NULL	ref	idx	idx	5	test.t1.a	139	100.00	Using index; FirstMatch(t1)
 explain select * from (select a from t1 where a in (select b from t2)) t;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	Using where
-1	PRIMARY	t2	NULL	ref	idx	idx	5	test.t1.a	139	Using index; FirstMatch(t1)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+1	PRIMARY	t2	NULL	ref	idx	idx	5	test.t1.a	139	100.00	Using index; FirstMatch(t1)
 create view v1 as select a from t1 where a in (select b from t2);
 explain select * from v1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	Using where
-1	PRIMARY	t2	NULL	ref	idx	idx	5	test.t1.a	139	Using index; FirstMatch(t1)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+1	PRIMARY	t2	NULL	ref	idx	idx	5	test.t1.a	139	100.00	Using index; FirstMatch(t1)
 drop view v1;
 drop table t1,t2;
 #
@@ -3348,154 +3348,154 @@ JOIN t1 p6 ON p6.r=6 AND p6.uid=t2.id
 JOIN t1 p7 ON p7.r=7 AND p7.uid=t2.id
 JOIN t1 p8 ON p8.r=8 AND p8.uid=t2.id
 ) gp_20 ON gp_20.id=t2.id ;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-1	PRIMARY	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where
-1	PRIMARY	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (flat, BNL join)
-1	PRIMARY	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p1	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p3	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p1	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p3	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p1	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p3	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	<derived17>	NULL	ALL	NULL	NULL	NULL	NULL	50328437500000	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	<derived14>	NULL	ALL	NULL	NULL	NULL	NULL	27680640625000000	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	<derived9>	NULL	ALL	NULL	NULL	NULL	NULL	15224352343750000640	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	<derived10>	NULL	ALL	NULL	NULL	NULL	NULL	15224352343750000640	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	<derived11>	NULL	ALL	NULL	NULL	NULL	NULL	15224352343750000640	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	<derived12>	NULL	ALL	NULL	NULL	NULL	NULL	15224352343750000640	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	<derived13>	NULL	ALL	NULL	NULL	NULL	NULL	15224352343750000640	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	<derived15>	NULL	ALL	NULL	NULL	NULL	NULL	15224352343750000640	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	<derived16>	NULL	ALL	NULL	NULL	NULL	NULL	15224352343750000640	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	<derived7>	NULL	ALL	NULL	NULL	NULL	NULL	18446744073709551615	Using where; Using join buffer (incremental, BNL join)
-1	PRIMARY	<derived8>	NULL	ALL	NULL	NULL	NULL	NULL	18446744073709551615	Using where; Using join buffer (incremental, BNL join)
-17	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-17	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where
-17	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (flat, BNL join)
-17	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-17	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-17	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-16	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-16	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where
-16	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (flat, BNL join)
-16	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-16	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-16	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-16	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-16	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-15	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-15	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where
-15	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (flat, BNL join)
-15	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-15	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-15	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-15	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-15	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-14	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-14	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where
-14	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (flat, BNL join)
-14	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-14	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-14	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-14	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-13	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-13	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where
-13	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (flat, BNL join)
-13	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-13	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-13	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-13	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-13	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-12	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-12	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where
-12	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (flat, BNL join)
-12	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-12	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-12	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-12	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-12	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-11	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-11	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where
-11	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (flat, BNL join)
-11	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-11	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-11	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-11	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-11	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-10	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-10	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where
-10	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (flat, BNL join)
-10	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-10	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-10	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-10	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-10	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-9	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-9	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where
-9	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (flat, BNL join)
-9	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-9	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-9	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-9	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-9	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-8	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-8	DERIVED	p1	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where
-8	DERIVED	p3	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (flat, BNL join)
-8	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-8	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-8	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-8	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-8	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-8	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-8	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-7	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	
-7	DERIVED	p1	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where
-7	DERIVED	p3	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (flat, BNL join)
-7	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-7	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-7	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-7	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-7	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-7	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
-7	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	Using where; Using join buffer (incremental, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+1	PRIMARY	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where
+1	PRIMARY	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p1	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p3	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p1	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p3	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p1	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p3	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<derived17>	NULL	ALL	NULL	NULL	NULL	NULL	50328437500000	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<derived14>	NULL	ALL	NULL	NULL	NULL	NULL	27680640625000000	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<derived9>	NULL	ALL	NULL	NULL	NULL	NULL	15224352343750000640	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<derived10>	NULL	ALL	NULL	NULL	NULL	NULL	15224352343750000640	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<derived11>	NULL	ALL	NULL	NULL	NULL	NULL	15224352343750000640	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<derived12>	NULL	ALL	NULL	NULL	NULL	NULL	15224352343750000640	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<derived13>	NULL	ALL	NULL	NULL	NULL	NULL	15224352343750000640	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<derived15>	NULL	ALL	NULL	NULL	NULL	NULL	15224352343750000640	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<derived16>	NULL	ALL	NULL	NULL	NULL	NULL	15224352343750000640	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<derived7>	NULL	ALL	NULL	NULL	NULL	NULL	18446744073709551615	100.00	Using where; Using join buffer (incremental, BNL join)
+1	PRIMARY	<derived8>	NULL	ALL	NULL	NULL	NULL	NULL	18446744073709551615	100.00	Using where; Using join buffer (incremental, BNL join)
+17	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+17	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where
+17	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (flat, BNL join)
+17	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+17	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+17	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+16	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+16	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where
+16	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (flat, BNL join)
+16	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+16	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+16	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+16	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+16	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+15	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+15	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where
+15	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (flat, BNL join)
+15	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+15	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+15	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+15	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+15	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+14	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+14	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where
+14	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (flat, BNL join)
+14	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+14	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+14	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+14	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+13	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+13	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where
+13	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (flat, BNL join)
+13	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+13	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+13	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+13	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+13	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+12	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+12	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where
+12	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (flat, BNL join)
+12	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+12	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+12	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+12	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+12	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+11	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+11	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where
+11	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (flat, BNL join)
+11	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+11	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+11	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+11	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+11	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+10	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+10	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where
+10	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (flat, BNL join)
+10	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+10	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+10	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+10	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+10	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+9	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+9	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where
+9	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (flat, BNL join)
+9	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+9	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+9	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+9	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+9	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+8	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+8	DERIVED	p1	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where
+8	DERIVED	p3	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (flat, BNL join)
+8	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+8	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+8	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+8	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+8	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+8	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+8	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+7	DERIVED	t2	NULL	system	NULL	NULL	NULL	NULL	1	100.00	
+7	DERIVED	p1	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where
+7	DERIVED	p3	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (flat, BNL join)
+7	DERIVED	p4	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+7	DERIVED	p5	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+7	DERIVED	p6	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+7	DERIVED	p7	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+7	DERIVED	p8	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+7	DERIVED	p9	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
+7	DERIVED	p10	NULL	ALL	NULL	NULL	NULL	NULL	550	100.00	Using where; Using join buffer (incremental, BNL join)
 DROP TABLE  t1, t2;
 #
 # MDEV-19778: equality condition for mergeable view returning constants

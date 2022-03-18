@@ -124,15 +124,15 @@ SELECT t2.*, t4.DOCTYPENAME, t1.CONTENTSIZE,t1.MIMETYPE FROM t2 INNER JOIN t4 ON
 DOCID	DOCNAME	DOCTYPEID	FOLDERID	AUTHOR	CREATED	TITLE	SUBTITLE	DOCABSTRACT	PUBLISHDATE	EXPIRATIONDATE	LOCKEDBY	STATUS	PARENTDOCID	REPID	MODIFIED	MODIFIER	PUBLISHSTATUS	ORIGINATOR	DOCTYPENAME	CONTENTSIZE	MIMETYPE
 c373e9f5ad07993f3859444553544200	Last Discussion	c373e9f5ad079174ff17444553544200	c373e9f5ad0796c0eca4444553544200	Goldilocks	2003-06-09 11:21:06	Title: Last Discussion	NULL	Setting new abstract and keeping doc checked out	2003-06-09 10:51:26	2003-06-09 10:51:26	NULL	NULL	NULL	03eea05112b845949f3fd03278b5fe43	2003-06-09 11:21:06	admin	0	NULL	Discussion	NULL	NULL
 EXPLAIN SELECT t2.*, t4.DOCTYPENAME, t1.CONTENTSIZE,t1.MIMETYPE FROM t2 INNER JOIN t4 ON t2.DOCTYPEID = t4.DOCTYPEID LEFT OUTER JOIN t1 ON t2.DOCID = t1.DOCID WHERE t2.FOLDERID IN(SELECT t3.FOLDERID FROM t3 WHERE t3.PARENTID IN(SELECT t3.FOLDERID FROM t3 WHERE t3.PARENTID IN(SELECT t3.FOLDERID FROM t3 WHERE t3.PARENTID IN(SELECT t3.FOLDERID FROM t3 WHERE t3.PARENTID IN(SELECT t3.FOLDERID FROM t3 WHERE t3.PARENTID='2f6161e879db43c1a5b82c21ddc49089' AND t3.FOLDERNAME = 'Level1') AND t3.FOLDERNAME = 'Level2') AND t3.FOLDERNAME = 'Level3') AND t3.FOLDERNAME = 'CopiedFolder') AND t3.FOLDERNAME = 'Movie Reviews') AND t2.DOCNAME = 'Last Discussion';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	NULL	ALL	DDOCTYPEID_IDX,DFOLDERID_IDX	NULL	NULL	NULL	9	Using where
-1	PRIMARY	t1	NULL	eq_ref	PRIMARY	PRIMARY	34	test.t2.DOCID	1	
-1	PRIMARY	t4	NULL	eq_ref	PRIMARY	PRIMARY	34	test.t2.DOCTYPEID	1	
-1	PRIMARY	t3	NULL	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t2.FOLDERID	1	Using where
-1	PRIMARY	t3	NULL	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3.PARENTID	1	Using where
-1	PRIMARY	t3	NULL	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3.PARENTID	1	Using where
-1	PRIMARY	t3	NULL	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3.PARENTID	1	Using where
-1	PRIMARY	t3	NULL	ref|filter	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	FFOLDERID_IDX|CMFLDRPARNT_IDX	34|35	test.t3.PARENTID	1 (29%)	Using where; Using rowid filter
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	ALL	DDOCTYPEID_IDX,DFOLDERID_IDX	NULL	NULL	NULL	9	100.00	Using where
+1	PRIMARY	t1	NULL	eq_ref	PRIMARY	PRIMARY	34	test.t2.DOCID	1	100.00	
+1	PRIMARY	t4	NULL	eq_ref	PRIMARY	PRIMARY	34	test.t2.DOCTYPEID	1	100.00	
+1	PRIMARY	t3	NULL	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t2.FOLDERID	1	100.00	Using where
+1	PRIMARY	t3	NULL	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3.PARENTID	1	100.00	Using where
+1	PRIMARY	t3	NULL	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3.PARENTID	1	100.00	Using where
+1	PRIMARY	t3	NULL	eq_ref	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	PRIMARY	34	test.t3.PARENTID	1	100.00	Using where
+1	PRIMARY	t3	NULL	ref|filter	PRIMARY,FFOLDERID_IDX,CMFLDRPARNT_IDX	FFOLDERID_IDX|CMFLDRPARNT_IDX	34|35	test.t3.PARENTID	1 (29%)	28.57	Using where; Using rowid filter
 drop table t1, t2, t3, t4;
 CREATE TABLE t1 (a int(10) , PRIMARY KEY (a)) Engine=InnoDB;
 INSERT INTO t1 VALUES (1),(2);
@@ -160,19 +160,19 @@ SET @tmp_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='materialization=on,in_to_exists=on';
 EXPLAIN
 SELECT * FROM t2,t3 WHERE (2,9) IN (SELECT DISTINCT a,pk FROM t1) OR a = b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	NULL	index	a	a	5	NULL	2	Using where; Using index
-1	PRIMARY	t3	NULL	ref	b	b	5	test.t2.a	2	Using index
-2	SUBQUERY	t1	NULL	const	PRIMARY,a	PRIMARY	4	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	index	a	a	5	NULL	2	100.00	Using where; Using index
+1	PRIMARY	t3	NULL	ref	b	b	5	test.t2.a	2	100.00	Using index
+2	SUBQUERY	t1	NULL	const	PRIMARY,a	PRIMARY	4	const	1	100.00	Using where
 SELECT * FROM t2,t3 WHERE (2,9) IN (SELECT DISTINCT a,pk FROM t1) OR a = b;
 pk	a	b
 0	4	4
 EXPLAIN
 SELECT * FROM t2,t3 WHERE (2,9) IN (SELECT DISTINCT a,pk FROM v1) OR a = b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t2	NULL	index	a	a	5	NULL	2	Using where; Using index
-1	PRIMARY	t3	NULL	ref	b	b	5	test.t2.a	2	Using index
-2	SUBQUERY	t1	NULL	const	PRIMARY,a	PRIMARY	4	const	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t2	NULL	index	a	a	5	NULL	2	100.00	Using where; Using index
+1	PRIMARY	t3	NULL	ref	b	b	5	test.t2.a	2	100.00	Using index
+2	SUBQUERY	t1	NULL	const	PRIMARY,a	PRIMARY	4	const	1	100.00	Using where
 SELECT * FROM t2,t3 WHERE (2,9) IN (SELECT DISTINCT a,pk FROM v1) OR a = b;
 pk	a	b
 0	4	4
@@ -285,9 +285,9 @@ WHERE date < '2012-12-12 12:12:12'
     AND node_uid in (2085, 2084)
 ORDER BY mirror_date ASC
 ) AS calculated_result;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	t1	NULL	range	date	date	6	NULL	3	Using index condition; Using where; Rowid-ordered scan; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DERIVED	t1	NULL	range	date	date	6	NULL	3	100.00	Using index condition; Using where; Rowid-ordered scan; Using filesort
 SELECT * FROM (
 SELECT node_uid, date, mirror_date, @result := 0 AS result
 FROM t1
@@ -308,9 +308,9 @@ WHERE date < '2012-12-12 12:12:12'
     AND node_uid in (2085, 2084)
 ORDER BY mirror_date ASC
 ) AS calculated_result;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	
-2	DERIVED	t1	NULL	range	date	date	6	NULL	3	Using index condition; Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	DERIVED	t1	NULL	range	date	date	6	NULL	3	100.00	Using index condition; Using where; Using filesort
 SELECT * FROM (
 SELECT node_uid, date, mirror_date, @result := 0 AS result
 FROM t1

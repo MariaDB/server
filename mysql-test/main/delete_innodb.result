@@ -16,9 +16,9 @@ c1
 a
 b
 EXPLAIN DELETE b FROM t1 AS a JOIN t1 AS b;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	a	NULL	index	NULL	PRIMARY	255	NULL	3	Using index
-1	SIMPLE	b	NULL	ALL	NULL	NULL	NULL	NULL	3	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	a	NULL	index	NULL	PRIMARY	255	NULL	3	100.00	Using index
+1	SIMPLE	b	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
 DELETE b FROM t1 AS a JOIN t1 AS b;
 SELECT * FROM t1;
 c1

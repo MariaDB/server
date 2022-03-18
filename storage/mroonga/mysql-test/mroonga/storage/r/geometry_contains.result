@@ -162,6 +162,6 @@ EXPLAIN
 SELECT id, name, ST_AsText(location) AS location_text FROM shops
 WHERE MBRContains(ST_GeomFromText('LineString(139.7727 35.6684, 139.7038 35.7121)'), location)
 ORDER BY id;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	shops	NULL	range	location_index	location_index	34	NULL	36	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	shops	NULL	range	location_index	location_index	34	NULL	36	100.00	Using where; Using filesort
 DROP TABLE shops;

@@ -3099,8 +3099,8 @@ BEGIN
 EXPLAIN SELECT 1 INTO a.a;
 END;
 $$
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 #
 # MDEV-14139 Anchored data types for variables
 #

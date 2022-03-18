@@ -17,5 +17,6 @@ key	c2
 key_len	5
 ref	const
 rows	1
+filtered	100.00
 Extra	Using where; Using index
 drop table t1;

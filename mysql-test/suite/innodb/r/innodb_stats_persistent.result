@@ -22,8 +22,8 @@ connection default;
 # With innodb_stats_include_delete_marked=ON,
 # DELETE must not affect statistics before COMMIT.
 EXPLAIN SELECT * FROM t1 WHERE val=4;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	val	val	4	const	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	val	val	4	const	1	100.00	Using index
 connection con1;
 COUNT(*)
 0
@@ -32,8 +32,8 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 16
 EXPLAIN SELECT * FROM t1 WHERE val=4;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	val	val	4	const	16	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	val	val	4	const	16	100.00	Using index
 BEGIN;
 DELETE FROM t1;
 COMMIT;
@@ -45,8 +45,8 @@ BEGIN;
 INSERT INTO t2 (val) SELECT 4 FROM seq_1_to_16;
 # The INSERT will show up before COMMIT.
 EXPLAIN SELECT * FROM t2 WHERE val=4;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ref	val	val	4	const	16	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ref	val	val	4	const	16	100.00	Using index
 SELECT COUNT(*) FROM t2;
 COUNT(*)
 16
@@ -57,29 +57,29 @@ COUNT(*)
 0
 connection con1;
 EXPLAIN SELECT * FROM t2 WHERE val=4;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ref	val	val	4	const	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ref	val	val	4	const	1	100.00	Using index
 InnoDB		0 transactions not purged
 # After COMMIT and purge, the DELETE must show up.
 EXPLAIN SELECT * FROM t1 WHERE val=4;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	val	val	4	const	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	val	val	4	const	1	100.00	Using index
 SET GLOBAL innodb_stats_include_delete_marked = OFF;
 BEGIN;
 INSERT INTO t1 (val) SELECT 4 FROM seq_1_to_16;
 EXPLAIN SELECT * FROM t1 WHERE val=4;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	val	val	4	const	16	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	val	val	4	const	16	100.00	Using index
 ROLLBACK;
 EXPLAIN SELECT * FROM t1 WHERE val=4;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	val	val	4	const	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	val	val	4	const	1	100.00	Using index
 BEGIN;
 INSERT INTO t1 (val) SELECT 4 FROM seq_1_to_16;
 COMMIT;
 EXPLAIN SELECT * FROM t1 WHERE val=4;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	val	val	4	const	16	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	val	val	4	const	16	100.00	Using index
 BEGIN;
 DELETE FROM t1;
 SELECT COUNT(*) FROM t1;
@@ -90,12 +90,12 @@ COUNT(*)
 # However, if there was a WHERE condition,
 # ha_innobase::records_in_range() would count the delete-marked records.
 EXPLAIN SELECT * FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	val	4	NULL	16	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	val	4	NULL	16	100.00	Using index
 ROLLBACK;
 EXPLAIN SELECT * FROM t1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	val	4	NULL	16	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	val	4	NULL	16	100.00	Using index
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 16

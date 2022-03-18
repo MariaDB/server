@@ -79,14 +79,14 @@ drop table t1;
 create table t1 (a int);
 insert into t1 values (1),(2),(3),(4),(5),(6),(7);
 explain select count(*) c FROM t1 WHERE a > 0 ORDER BY c LIMIT 3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
 select count(*) c FROM t1 WHERE a > 0 ORDER BY c LIMIT 3;
 c
 7
 explain select sum(a) c FROM t1 WHERE a > 0 ORDER BY c LIMIT 3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
 select sum(a) c FROM t1 WHERE a > 0 ORDER BY c LIMIT 3;
 c
 28
@@ -151,14 +151,14 @@ End of 5.1 tests
 #
 EXPLAIN
 SELECT * FROM mysql.slow_log WHERE sql_text != 'foo' LIMIT 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Zero limit
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Zero limit
 SELECT * FROM mysql.slow_log WHERE sql_text != 'foo' LIMIT 0;
 start_time	user_host	query_time	lock_time	rows_sent	rows_examined	db	last_insert_id	insert_id	server_id	sql_text	thread_id	rows_affected
 EXPLAIN
 SELECT * FROM mysql.help_topic WHERE help_category_id != example LIMIT 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Zero limit
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Zero limit
 SELECT * FROM mysql.help_topic WHERE help_category_id != example LIMIT 0;
 help_topic_id	name	help_category_id	description	example	url
 End of 5.5 tests

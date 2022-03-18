@@ -41,9 +41,9 @@ CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=Aria ROW_FORMAT=COMPRESSED;
 INSERT INTO t1 VALUES(1);
 CREATE TEMPORARY TABLE t2(b INT);
 EXPLAIN SELECT * FROM t1 WHERE a IN (SELECT MAX(a) FROM t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	Using index
-2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	1	100.00	Using index
+2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
 DROP TABLE t1,t2;
 SET SQL_MODE='';
 CREATE TABLE t1 (c INT PRIMARY KEY) ENGINE=Aria;

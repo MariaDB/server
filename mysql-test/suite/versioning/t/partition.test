@@ -313,7 +313,7 @@ explain partitions select * from t1;
 explain partitions select * from t1 for system_time as of '2001-02-04 10:20:30';
 set @ts=(select row_end from t1 for system_time all where i=1);
 select * from t1 for system_time all where row_end = @ts;
---replace_column 5 # 10 # 11 #
+--replace_column 5 # 10 # 11 # 12 #
 explain partitions select * from t1 for system_time all where row_end = @ts;
 
 --echo #
@@ -1026,7 +1026,7 @@ update t1 set x= x + 1;
 select *, row_start, row_end from t1 for system_time as of '2000-01-01 02:00:00';
 --replace_column 10 #
 explain partitions select * from t1 for system_time as of '2000-01-01 02:00:00';
---replace_column 5 # 10 # 11 #
+--replace_column 5 # 10 # 11 # 12 #
 explain partitions select * from t1;
 drop table t1;
 

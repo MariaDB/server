@@ -5,22 +5,22 @@ drop table if exists t1, t2;
 CREATE TABLE t1 (a INT,b INT,KEY a (a,b));
 INSERT INTO `t1` VALUES (0,580092),(3000,894076),(4000,805483),(4000,913540),(6000,611137),(8000,171602),(9000,599495),(9000,746305),(10000,272829),(10000,847519),(12000,258869),(12000,929028),(13000,288970),(15000,20971),(15000,105839),(16000,788272),(17000,76914),(18000,827274),(19000,802258),(20000,123677),(20000,587729),(22000,701449),(25000,31565),(25000,230782),(25000,442887),(25000,733139),(25000,851020);
 EXPLAIN SELECT a, MAX(b) FROM t1 WHERE a IN (10000, 1000000, 3000) GROUP BY a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	a	a	5	NULL	1	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	1	100.00	Using where; Using index for group-by
 alter table t1 partition by hash(a) partitions 1;
 EXPLAIN SELECT a, MAX(b) FROM t1 WHERE a IN (10000, 1000000, 3000) GROUP BY a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	range	a	a	5	NULL	1	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	range	a	a	5	NULL	1	100.00	Using where; Using index for group-by
 alter table t1 remove partitioning;
 insert into t1 (a,b) select seq,seq from seq_4001_to_4100;
 insert into t1 (a,b) select seq,seq from seq_10001_to_10100;
 EXPLAIN SELECT a, MAX(b) FROM t1 WHERE a IN (10000, 1000000, 3000) GROUP BY a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	a	a	5	NULL	4	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	5	NULL	4	100.00	Using where; Using index
 alter table t1 partition by hash(a) partitions 1;
 EXPLAIN SELECT a, MAX(b) FROM t1 WHERE a IN (10000, 1000000, 3000) GROUP BY a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	range	a	a	5	NULL	4	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	range	a	a	5	NULL	4	100.00	Using where; Using index
 DROP TABLE t1;
 create table t1 (a DATETIME)
 partition by range (TO_DAYS(a))
@@ -52,20 +52,20 @@ RANGE	to_seconds(`a`)	63342604800
 INSERT INTO t1 VALUES ('2007-03-01 12:00:00'), ('2007-03-07 12:00:00');
 INSERT INTO t1 VALUES ('2007-03-08 12:00:00'), ('2007-03-15 12:00:00');
 explain partitions select * from t1 where a < '2007-03-08 00:00:00';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 explain partitions select * from t1 where a < '2007-03-08 00:00:01';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0,p1	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0,p1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 explain partitions select * from t1 where a <= '2007-03-08 00:00:00';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0,p1	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0,p1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 explain partitions select * from t1 where a <= '2007-03-07 23:59:59';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 explain partitions select * from t1 where a < '2007-03-07 23:59:59';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -85,14 +85,14 @@ a
 2003-12-30
 2004-12-31
 explain partitions select * from t1 where a <= '2003-12-31';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	100.00	
 select * from t1 where a <= '2003-12-31';
 a
 2003-12-30
 explain partitions select * from t1 where a <= '2005-01-01';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0,p1	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0,p1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 select * from t1 where a <= '2005-01-01';
 a
 2003-12-30
@@ -116,14 +116,14 @@ a
 2004-01-01 11:59:29
 2005-01-01 11:59:59
 explain partitions select * from t1 where a <= '2004-01-01 11:59.59';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	system	NULL	NULL	NULL	NULL	1	100.00	
 select * from t1 where a <= '2004-01-01 11:59:59';
 a
 2004-01-01 11:59:29
 explain partitions select * from t1 where a <= '2005-01-01';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0,p1	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0,p1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 select * from t1 where a <= '2005-01-01';
 a
 2004-01-01 11:59:29
@@ -208,20 +208,20 @@ a
 select * from t1 where a > 1;
 a
 explain partitions select * from t1 where a is null;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	pnull	system	NULL	NULL	NULL	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	pnull	system	NULL	NULL	NULL	NULL	1	100.00	
 explain partitions select * from t1 where a >= 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0,p1	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0,p1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 explain partitions select * from t1 where a < 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 explain partitions select * from t1 where a <= 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	pnull,p0	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	pnull,p0	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 explain partitions select * from t1 where a > 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 drop table t1;
 create table t1 (a int unsigned, b int unsigned)
 partition by range (a)
@@ -250,20 +250,20 @@ a	b
 select * from t1 where a > 1;
 a	b
 explain partitions select * from t1 where a is null;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	pnull_pnullsp0,pnull_pnullsp1	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	pnull_pnullsp0,pnull_pnullsp1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 explain partitions select * from t1 where a >= 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0_p0sp0,p0_p0sp1,p1_p1sp0,p1_p1sp1	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0_p0sp0,p0_p0sp1,p1_p1sp0,p1_p1sp1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 explain partitions select * from t1 where a < 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	pnull_pnullsp0,pnull_pnullsp1	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	pnull_pnullsp0,pnull_pnullsp1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 explain partitions select * from t1 where a <= 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	pnull_pnullsp0,pnull_pnullsp1,p0_p0sp0,p0_p0sp1	ALL	NULL	NULL	NULL	NULL	4	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	pnull_pnullsp0,pnull_pnullsp1,p0_p0sp0,p0_p0sp1	ALL	NULL	NULL	NULL	NULL	4	100.00	Using where
 explain partitions select * from t1 where a > 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 drop table t1;
 CREATE TABLE t1 (
 a int not null,
@@ -897,8 +897,8 @@ a
 2004-09-30
 EXPLAIN PARTITIONS SELECT * FROM t1
 WHERE a >= '2004-07-01' AND a <= '2004-09-30';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p3xx,p407,p408,p409	ALL	NULL	NULL	NULL	NULL	18	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p3xx,p407,p408,p409	ALL	NULL	NULL	NULL	NULL	18	100.00	Using where
 SELECT * from t1
 WHERE (a >= '2004-07-01' AND a <= '2004-09-30') OR
 (a >= '2005-07-01' AND a <= '2005-09-30');
@@ -924,8 +924,8 @@ a
 EXPLAIN PARTITIONS SELECT * from t1
 WHERE (a >= '2004-07-01' AND a <= '2004-09-30') OR
 (a >= '2005-07-01' AND a <= '2005-09-30');
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p3xx,p407,p408,p409,p507,p508,p509	ALL	NULL	NULL	NULL	NULL	27	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p3xx,p407,p408,p409,p507,p508,p509	ALL	NULL	NULL	NULL	NULL	27	100.00	Using where
 DROP TABLE t1;
 create table t1 (a int);
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
@@ -975,11 +975,11 @@ test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
 # plans should be identical
 EXPLAIN SELECT a, MAX(b) FROM t1 WHERE a IN (10,100) GROUP BY a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0	range	a	a	5	NULL	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0	range	a	a	5	NULL	2	100.00	Using where; Using index
 EXPLAIN SELECT a, MAX(b) FROM t2 WHERE a IN (10,100) GROUP BY a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	range	a	a	5	NULL	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	range	a	a	5	NULL	2	100.00	Using where; Using index
 FLUSH status;
 SELECT a, MAX(b) FROM t1 WHERE a IN (10, 100) GROUP BY a;
 a	MAX(b)

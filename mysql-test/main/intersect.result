@@ -18,11 +18,11 @@ insert into t3 values (1,1),(2,2),(5,5);
 a	b
 2	2
 EXPLAIN (select a,b from t1) intersect (select c,d from t2) intersect (select e,f from t3);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
-2	INTERSECT	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
-3	INTERSECT	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	
-NULL	INTERSECT RESULT	<intersect1,2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	INTERSECT	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+3	INTERSECT	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+NULL	INTERSECT RESULT	<intersect1,2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 EXPLAIN extended (select a,b from t1) intersect (select c,d from t2) intersect (select e,f from t3);
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
@@ -306,11 +306,11 @@ a	b
 a	b
 2	2
 EXPLAIN (select a,b from t1) intersect (select c,e from t2,t3);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	
-2	INTERSECT	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	
-2	INTERSECT	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
-NULL	INTERSECT RESULT	<intersect1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	INTERSECT	t2	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	
+2	INTERSECT	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using join buffer (flat, BNL join)
+NULL	INTERSECT RESULT	<intersect1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 EXPLAIN extended (select a,b from t1) intersect (select c,e from t2,t3);
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	

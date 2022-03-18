@@ -2,8 +2,8 @@ drop table if exists t1;
 CREATE TABLE t1 (id CHAR(12) not null, PRIMARY KEY (id));
 insert into t1 values ('000000000001'),('000000000002');
 explain select * from t1 where id=000000000001;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	PRIMARY	PRIMARY	12	NULL	2	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	PRIMARY	PRIMARY	12	NULL	2	100.00	Using where; Using index
 select * from t1 where id=000000000001;
 id
 000000000001
@@ -114,9 +114,9 @@ select * from t1 where a>="aaa";
 a
 bb
 explain select * from t1 where a="aaa";
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	a	a	3	const	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	a	a	3	const	1	100.00	Using where; Using index
 explain select * from t1 where a="aa ";
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	a	a	3	const	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	a	a	3	const	1	100.00	Using where; Using index
 drop table t1;

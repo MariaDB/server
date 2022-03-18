@@ -34,9 +34,9 @@ test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 # The following must not use "Range checked for each record":
 explain select * from t0 left join t2 on t2.a <t0.a and t2.b between 50 and 250;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	
-1	SIMPLE	t2	NULL	range	a,b	b	5	NULL	201	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t0	NULL	ALL	NULL	NULL	NULL	NULL	10	100.00	
+1	SIMPLE	t2	NULL	range	a,b	b	5	NULL	201	100.00	Using where; Using join buffer (flat, BNL join)
 drop table t0,t1,t2;
 #
 # MDEV-10466: constructing an invalid SEL_ARG
@@ -56,10 +56,10 @@ set @save_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='extended_keys=on';
 explain
 select pk, a, b from t1,t2,t3 where b >= d and pk < c and b = '0';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t1	NULL	ref	PRIMARY,idx1,idx2	idx1	5	const	3	Using index condition
-1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	SIMPLE	t1	NULL	ref	PRIMARY,idx1,idx2	idx1	5	const	3	100.00	Using index condition
+1	SIMPLE	t3	NULL	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
 select pk, a, b from t1,t2,t3 where b >= d and pk < c and b = '0';
 pk	a	b
 1	6	0
@@ -101,8 +101,8 @@ from t0 A, t0 B, t0 C, t0 D where D.a<5;
 SET @saved_dbug = @@GLOBAL.debug_dbug;
 set @@global.debug_dbug="+d,ha_index_init_fail";
 explain select * from t1 where a=10 and b=10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index_merge	a,b	a,b	5,5	NULL	1	Using intersect(a,b); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index_merge	a,b	a,b	5,5	NULL	1	FLTRD	Using intersect(a,b); Using where
 select * from t1 where a=10 and b=10;
 ERROR HY000: Table definition has changed, please retry transaction
 DROP TABLE t0,t1;
@@ -228,8 +228,8 @@ KEY (a,b)
 ) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1,'a',1),(2,'b',2);
 explain SELECT a FROM t1 WHERE pk < 0 AND a <= 'w' and b > 0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	PRIMARY,a	PRIMARY	4	NULL	1	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY,a	PRIMARY	4	NULL	1	100.00	Using where
 SELECT a FROM t1 WHERE pk < 0 AND a <= 'w' and b > 0;
 a
 drop table t1;

@@ -90,8 +90,8 @@ id	name
 1	zzz
 EXPLAIN
 SELECT id FROM federated.t1 WHERE id < 5;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 EXPLAIN EXTENDED
 SELECT id FROM federated.t1 WHERE id < 5;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
@@ -145,10 +145,10 @@ EXPLAIN
 SELECT *
 FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
 WHERE federated.t3.name=t.name;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	7	
-1	PRIMARY	<derived2>	NULL	ref	key0	key0	18	federated.t3.name	2	
-2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	18	federated.t3.name	2	100.00	
+2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 EXPLAIN FORMAT=JSON
 SELECT *
 FROM federated.t3, (SELECT * FROM federated.t1 WHERE id > 3) t
@@ -211,10 +211,10 @@ FROM federated.t3, (SELECT t1.name FROM federated.t1
 WHERE id IN (SELECT count(*)
 FROM federated.t2 GROUP BY name)) t
 WHERE federated.t3.name=t.name;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	7	
-1	PRIMARY	<derived2>	NULL	ref	key0	key0	18	federated.t3.name	2	
-2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	18	federated.t3.name	2	100.00	
+2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 ANALYZE FORMAT=JSON
 SELECT *
 FROM federated.t3, (SELECT t1.name FROM federated.t1
@@ -290,10 +290,10 @@ FROM federated.t3,
 UNION
 SELECT * FROM federated.t1 WHERE id >= 5) t
 WHERE federated.t3.name=t.name;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	7	
-1	PRIMARY	<derived2>	NULL	ref	key0	key0	18	federated.t3.name	2	
-2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t3	NULL	ALL	NULL	NULL	NULL	NULL	7	100.00	
+1	PRIMARY	<derived2>	NULL	ref	key0	key0	18	federated.t3.name	2	100.00	
+2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 #
 # MDEV-21887: federatedx crashes on SELECT ... INTO query in select_handler code
 #
@@ -320,8 +320,8 @@ select name into outfile 'tmp.txt' from federated.t1;
 explain
 select * from federated.t1
 where name in (select name from federated.t2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PUSHED SELECT	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 explain format=json
 select * from federated.t1
 where name in (select name from federated.t2);
@@ -345,10 +345,10 @@ explain
 select * from t5, 
 (select id from federated.t1
 where name in (select name from federated.t2) or name like 'foo%') as TQ;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t5	NULL	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t5	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	5	100.00	Using join buffer (flat, BNL join)
+2	PUSHED DERIVED	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 # Must not show elements with select_id=3
 explain format=json
 select * from t5, 

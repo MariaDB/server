@@ -345,8 +345,8 @@ invisible	a	b
 9	6	6
 9	7	7
 explain select * from t1 where invisible =9;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	invisible	NULL	NULL	NULL	7	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	invisible	NULL	NULL	NULL	7	100.00	Using where
 alter table t1 add x int default 3;
 select invisible, a ,b from t1;
 invisible	a	b
@@ -367,12 +367,12 @@ set debug_dbug= "+d,test_completely_invisible,test_invisible_index";
 drop index invisible on t1;
 ERROR 42000: Can't DROP INDEX `invisible`; check that it exists
 explain select * from t1 where invisible =9;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	invisible	NULL	NULL	NULL	7	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	invisible	NULL	NULL	NULL	7	100.00	Using where
 create index invisible on t1(c);
 explain select * from t1 where invisible =9;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	invisible_2	NULL	NULL	NULL	7	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	invisible_2	NULL	NULL	NULL	7	100.00	Using where
 show indexes in t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE			NO

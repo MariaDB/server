@@ -64,9 +64,9 @@ b
 -2
 -3
 explain select * from v1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	6	
-2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	6	Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	Using temporary
 select * from t1;
 a	b	c
 1	-1	-1
@@ -83,9 +83,9 @@ c
 -2
 -3
 explain select * from v1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	6	
-2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	6	Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	6	100.00	Using temporary
 select * from t1;
 a	b	c
 1	-1	-1
@@ -108,9 +108,9 @@ b+1
 MariaDB-5.3: the following EXPLAIN produces incorrect #rows for table t1.
 MariaDB-5.3: this is expected to go away when FROM subquery optimizations are pushed
 explain select * from v1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using filesort
 drop view v1;
 create view v1 as select c+1 from t1 order by 1 desc limit 2;
 select * from v1;
@@ -120,9 +120,9 @@ c+1
 MariaDB-5.3: the following EXPLAIN produces incorrect #rows for table t1.
 MariaDB-5.3: this is expected to go away when FROM subquery optimizations are pushed
 explain select * from v1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	
-2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	NULL	ALL	NULL	NULL	NULL	NULL	2	100.00	
+2	DERIVED	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using filesort
 drop view v1;
 drop table t1;
 create table t1 (a int,

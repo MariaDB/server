@@ -19,35 +19,35 @@ INSERT INTO t1 VALUES ('h','h');
 INSERT INTO t1 VALUES ('i','i');
 INSERT INTO t1 VALUES ('j','j');
 EXPLAIN SELECT * FROM t1 WHERE s1='a';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	s1	s1	11	const	1	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	s1	s1	11	const	1	100.00	Using index condition
 EXPLAIN SELECT * FROM t1 WHERE s2='a';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	s2	s2	11	const	1	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	s2	s2	11	const	1	100.00	Using index condition
 EXPLAIN SELECT * FROM t1 WHERE s1='a' COLLATE latin1_german1_ci;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	s1	s1	11	const	1	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	s1	s1	11	const	1	100.00	Using index condition
 EXPLAIN SELECT * FROM t1 WHERE s2='a' COLLATE latin1_german1_ci;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	s2	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	s2	NULL	NULL	NULL	10	100.00	Using where
 EXPLAIN SELECT * FROM t1 WHERE s1 BETWEEN 'a' AND 'b' COLLATE latin1_german1_ci;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	s1	s1	11	NULL	2	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	s1	s1	11	NULL	2	100.00	Using index condition; Rowid-ordered scan
 EXPLAIN SELECT * FROM t1 WHERE s2 BETWEEN 'a' AND 'b' COLLATE latin1_german1_ci;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	s2	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	s2	NULL	NULL	NULL	10	100.00	Using where
 EXPLAIN SELECT * FROM t1 WHERE s1 IN  ('a','b' COLLATE latin1_german1_ci);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	s1	s1	11	NULL	2	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	s1	s1	11	NULL	2	100.00	Using index condition; Rowid-ordered scan
 EXPLAIN SELECT * FROM t1 WHERE s2 IN  ('a','b' COLLATE latin1_german1_ci);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	s2	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	s2	NULL	NULL	NULL	10	100.00	Using where
 EXPLAIN SELECT * FROM t1 WHERE s1 LIKE 'a' COLLATE latin1_german1_ci;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	s1	s1	11	NULL	1	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	s1	s1	11	NULL	1	100.00	Using index condition; Rowid-ordered scan
 EXPLAIN SELECT * FROM t1 WHERE s2 LIKE 'a' COLLATE latin1_german1_ci;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	s2	NULL	NULL	NULL	10	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	s2	NULL	NULL	NULL	10	100.00	Using where
 DROP TABLE t1;
 #
 #
@@ -60,8 +60,8 @@ EXPLAIN
 SELECT d FROM t1, t2
 WHERE t2.b=14 AND t2.a=t1.a AND 5.1<t2.c AND t1.b='DE'
 ORDER BY t2.c LIMIT 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 SELECT d FROM t1, t2
 WHERE t2.b=14 AND t2.a=t1.a AND 5.1<t2.c AND t1.b='DE'
 ORDER BY t2.c LIMIT 1;
@@ -73,8 +73,8 @@ create table t1(a int, b int, index(b));
 insert into t1 values (2, 1), (1, 1), (4, NULL), (3, NULL), (6, 2), (5, 2);
 insert into t1 values (2, 11), (1, 11), (4, 14), (3, 14), (6, 12), (5, 12);
 explain select * from t1 where b=1 or b is null order by a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref_or_null	b	b	5	const	4	Using index condition; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref_or_null	b	b	5	const	4	100.00	Using index condition; Using filesort
 select * from t1 where b=1 or b is null order by a;
 a	b
 1	1
@@ -82,8 +82,8 @@ a	b
 3	NULL
 4	NULL
 explain select * from t1 where b=2 or b is null order by a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref_or_null	b	b	5	const	4	Using index condition; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref_or_null	b	b	5	const	4	100.00	Using index condition; Using filesort
 select * from t1 where b=2 or b is null order by a;
 a	b
 3	NULL
@@ -103,11 +103,11 @@ KEY StringField (FieldKey,StringVal(32))
 );
 INSERT INTO t1 VALUES ('0',3,'0'),('0',2,'1'),('0',1,'2'),('1',2,'1'),('1',1,'3'), ('1',0,'2'),('2',3,'0'),('2',2,'1'),('2',1,'2'),('2',3,'0'),('2',2,'1'),('2',1,'2'),('3',2,'1'),('3',1,'2'),('3','3','3');
 EXPLAIN SELECT * FROM t1 IGNORE INDEX (LongField, StringField) WHERE FieldKey > '2' ORDER BY LongVal;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	FieldKey	FieldKey	38	NULL	3	Using index condition; Rowid-ordered scan; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	FieldKey	FieldKey	38	NULL	3	100.00	Using index condition; Rowid-ordered scan; Using filesort
 EXPLAIN SELECT * FROM t1 IGNORE INDEX (FieldKey, LongField) WHERE FieldKey > '2' ORDER BY LongVal;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	StringField	StringField	38	NULL	3	Using where; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	StringField	StringField	38	NULL	3	100.00	Using where; Using filesort
 SELECT * FROM t1 WHERE FieldKey > '2' ORDER BY LongVal;
 FieldKey	LongVal	StringVal
 3	1	2
@@ -124,8 +124,8 @@ optimize table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
 explain select * from t1 force index (a) where a=0 or a=2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	a	a	4	NULL	5	Using index condition; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	4	NULL	5	100.00	Using index condition; Rowid-ordered scan
 select * from t1 force index (a) where a=0 or a=2;
 a	b	c
 0	NULL	0
@@ -161,8 +161,8 @@ key (pktail5bad, pk1, pk2, pk2copy),
 primary key (pk1, pk2)
 );
 explain select * from t1 where pk1 = 1 and pk2 < 80  and key1=0;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	PRIMARY,key1	PRIMARY	8	NULL	7	Using index condition; Using where; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY,key1	PRIMARY	8	NULL	7	0.30	Using index condition; Using where; Rowid-ordered scan
 select * from t1 where pk1 = 1 and pk2 < 80  and key1=0;
 pk1	pk2	key1	key2	pktail1ok	pktail2ok	pktail3bad	pktail4bad	pktail5bad	pk2copy	badkey	filler1	filler2
 1	19	0	0	0	0	0	0	0	19	0	filler-data-19	filler2
@@ -202,8 +202,8 @@ INSERT INTO t1 VALUES
 EXPLAIN
 SELECT * FROM t1
 WHERE (f1 < 535  OR  f1 > 985) AND ( f4='r' OR f4 LIKE 'a%' ) ;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	PRIMARY,f4	f4	35	NULL	5	Using index condition; Using where; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY,f4	f4	35	NULL	5	38.46	Using index condition; Using where; Rowid-ordered scan
 SELECT * FROM t1
 WHERE (f1 < 535  OR  f1 > 985) AND ( f4='r' OR f4 LIKE 'a%' ) ;
 f1	f4	f5
@@ -332,23 +332,23 @@ select count(*) from t1 where v like 'a %';
 count(*)
 9
 explain select count(*) from t1 where v='a  ';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	v	v	13	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	v	v	13	const	#	100.00	Using where; Using index
 explain select count(*) from t1 where c='a  ';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	c	c	11	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	c	c	11	const	#	100.00	Using where; Using index
 explain select count(*) from t1 where t='a  ';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	t	t	13	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	t	t	13	const	#	100.00	Using where
 explain select count(*) from t1 where v like 'a%';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	v	v	13	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	v	v	13	NULL	#	100.00	Using where; Using index
 explain select count(*) from t1 where v between 'a' and 'a ';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	v	v	13	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	v	v	13	const	#	100.00	Using where; Using index
 explain select count(*) from t1 where v between 'a' and 'a ' and v between 'a  ' and 'b\n';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	v	v	13	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	v	v	13	const	#	100.00	Using where; Using index
 alter table t1 add unique(v);
 ERROR 23000: Duplicate entry '{ ' for key 'v_2'
 show warnings;
@@ -370,8 +370,8 @@ qq
 *a        *a*a        *
 *a         *a*a         *
 explain select * from t1 where v='a';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	v,v_2	#	13	const	#	#
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	v,v_2	#	13	const	#	#	Using index condition
 select v,count(*) from t1 group by v limit 10;
 v	count(*)
 a	1
@@ -534,20 +534,20 @@ select count(*) from t1 where v like 'a %';
 count(*)
 9
 explain select count(*) from t1 where v='a  ';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	v	v	303	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	v	v	303	const	#	100.00	Using where; Using index
 explain select count(*) from t1 where v like 'a%';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	v	v	303	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	v	v	303	NULL	#	100.00	Using where; Using index
 explain select count(*) from t1 where v between 'a' and 'a ';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	v	v	303	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	v	v	303	const	#	100.00	Using where; Using index
 explain select count(*) from t1 where v between 'a' and 'a ' and v between 'a  ' and 'b\n';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	v	v	303	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	v	v	303	const	#	100.00	Using where; Using index
 explain select * from t1 where v='a';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	v	v	303	const	#	#
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	v	v	303	const	#	#	Using index condition
 select v,count(*) from t1 group by v limit 10;
 v	count(*)
 a	1
@@ -614,20 +614,20 @@ select count(*) from t1 where v like 'a %';
 count(*)
 9
 explain select count(*) from t1 where v='a  ';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	v	v	33	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	v	v	33	const	#	100.00	Using where
 explain select count(*) from t1 where v like 'a%';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	v	v	33	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	v	v	33	NULL	#	100.00	Using where
 explain select count(*) from t1 where v between 'a' and 'a ';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	v	v	33	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	v	v	33	const	#	100.00	Using where
 explain select count(*) from t1 where v between 'a' and 'a ' and v between 'a  ' and 'b\n';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	v	v	33	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	v	v	33	const	#	100.00	Using where
 explain select * from t1 where v='a';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	v	v	33	const	#	#
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	v	v	33	const	#	#	Using where
 select v,count(*) from t1 group by v limit 10;
 v	count(*)
 a	1
@@ -783,8 +783,8 @@ drop table t1;
 create table t1(a int, b varchar(12), key ba(b, a));
 insert into t1 values (1, 'A'), (20, NULL);
 explain select * from t1 where a=20 and b is null;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	ba	ba	20	const,const	1	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	ba	ba	20	const,const	1	100.00	Using where; Using index
 select * from t1 where a=20 and b is null;
 a	b
 20	NULL
@@ -831,14 +831,14 @@ explain
 SELECT * FROM City
 WHERE ((Name > 'Ca' AND Name < 'Cf') OR (Country > 'E' AND Country < 'F'))
 AND (Population > 101000 AND Population < 102000);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Population,Country	Population	4	NULL	#	Using index condition; Using where; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Population,Country	Population	4	NULL	#	100.00	Using index condition; Using where; Rowid-ordered scan
 explain
 SELECT  * FROM City 
 WHERE (Name < 'Ac' AND (Country > 'A' AND Country < 'B')) OR
 (Name BETWEEN 'P' AND 'Pb' AND (Population > 101000 AND Population < 110000));
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	index_merge	Population,Country	Country,Population	3,4	NULL	#	Using sort_union(Country,Population); Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	index_merge	Population,Country	Country,Population	3,4	NULL	#	1.88	Using sort_union(Country,Population); Using where
 SELECT  * FROM City 
 WHERE (Name < 'Ac' AND (Country > 'A' AND Country < 'B')) OR
 (Name BETWEEN 'P' AND 'Pb' AND (Population > 101000 AND Population < 110000));
@@ -856,13 +856,13 @@ ID	Name	Country	Population
 explain
 SELECT * FROM City
 WHERE Name LIKE 'M%' AND Population > 7000000;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Population	Population	4	NULL	#	Using index condition; Using where; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Population	Population	4	NULL	#	7.50	Using index condition; Using where; Rowid-ordered scan
 explain 
 SELECT * FROM City 
 WHERE Name BETWEEN 'G' AND 'K' AND Population > 500000 AND Country LIKE 'C%';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Population,Country	#	#	NULL	#	Using index condition; Using where; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Population,Country	#	#	NULL	#	1.67	Using index condition; Using where; Rowid-ordered scan
 SELECT * FROM City 
 WHERE Name BETWEEN 'G' AND 'K' AND Population > 500000 AND Country LIKE 'C%';
 ID	Name	Country	Population
@@ -881,8 +881,8 @@ ID	Name	Country	Population
 explain
 SELECT * FROM City 
 WHERE  Name BETWEEN 'G' AND 'J' AND Population > 500000 AND Country LIKE 'C%';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	City	NULL	range	Population,Country	#	#	NULL	#	Using index condition; Using where; Rowid-ordered scan
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	City	NULL	range	Population,Country	#	#	NULL	#	1.33	Using index condition; Using where; Rowid-ordered scan
 SELECT * FROM City 
 WHERE  Name BETWEEN 'G' AND 'J' AND Population > 500000 AND Country LIKE 'C%';
 ID	Name	Country	Population

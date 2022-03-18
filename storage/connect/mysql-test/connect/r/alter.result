@@ -13,8 +13,8 @@ c	d
 3	Three
 CREATE INDEX xc ON t1(c);
 DESCRIBE SELECT * FROM t1 WHERE c = 2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ref	xc	xc	4	const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ref	xc	xc	4	const	1	100.00	
 DROP INDEX xc ON t1;
 CREATE INDEX xd ON t1(d);
 DROP INDEX xd ON t1;

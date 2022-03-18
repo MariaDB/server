@@ -112,9 +112,9 @@ select found_rows();
 found_rows()
 8
 explain select a,b from t1 union all select a,b from t2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
-2	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	UNION	t2	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
 explain select xx from t1 union select 1;
 ERROR 42S22: Unknown column 'xx' in 'field list'
 explain select a,b from t1 union select 1;
@@ -503,10 +503,10 @@ select length(version()) > 1 as `*` UNION select 2;
 create table t1 (a int);
 insert into t1 values (0), (3), (1), (2);
 explain (select * from t1) union (select * from t1) order by a;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
-2	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
-NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+2	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	Using filesort
 drop table t1;
 CREATE TABLE t1 (  id int(3) unsigned default '0') ENGINE=MyISAM;
 INSERT INTO t1 (id) VALUES("1");
@@ -563,17 +563,17 @@ a	b
 set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity,@save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='outer_join_with_cache=off',@@optimizer_use_condition_selectivity=4;
 explain (select * from t1 where a=1 and b=10) union (select straight_join t1.a,t2.a from t1,t2 where t1.a=t2.a);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-2	UNION	t1	NULL	index	PRIMARY	PRIMARY	4	NULL	4	Using index
-2	UNION	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	Using index
-NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	UNION	t1	NULL	index	PRIMARY	PRIMARY	4	NULL	4	100.00	Using index
+2	UNION	t2	NULL	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	100.00	Using index
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity,@@optimizer_switch=@save_optimizer_switch;
 explain (select * from t1 where a=1) union (select * from t1 where b=1);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	const	PRIMARY	PRIMARY	4	const	1	
-2	UNION	t1	NULL	ref	b	b	5	const	1	
-NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	const	PRIMARY	PRIMARY	4	const	1	100.00	
+2	UNION	t1	NULL	ref	b	b	5	const	1	100.00	
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 drop table t1,t2;
 create table t1 (   id int not null auto_increment, primary key (id)   ,user_name text );
 create table t2 (    id int not null auto_increment, primary key (id)   ,group_name text );
@@ -2035,11 +2035,11 @@ DROP TABLE t1,t2;
 create table t1 (a int);
 insert t1 values (1),(2),(3),(1);
 explain select 1 from dual where exists (select max(a) from t1 group by a union select a+2 from t1);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	Using temporary
-3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	
-NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	SUBQUERY	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	Using temporary
+3	UNION	t1	NULL	ALL	NULL	NULL	NULL	NULL	4	100.00	
+NULL	UNION RESULT	<union2,3>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 drop table t1;
 #
 # MDEV-6868:MariaDB  server crash ( select with union and order by
@@ -2172,14 +2172,14 @@ union
 select userid from t2 where product_id = (
 select id from t5 where name = (select name from t3 where id = t1.product_id)) limit 1 )
 ) as x  from t1 where (t1.bug_id=45199);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	NULL	system	PRIMARY	NULL	NULL	NULL	1	
-2	SUBQUERY	t4	NULL	eq_ref	PRIMARY	PRIMARY	4	func	1	Using where
-3	SUBQUERY	t2	NULL	ref	PRIMARY	PRIMARY	4	const	4	Using index
-4	UNION	t2	NULL	ref	PRIMARY	PRIMARY	4	func	1	Using where; Using index
-5	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-6	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
-NULL	UNION RESULT	<union3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	NULL	system	PRIMARY	NULL	NULL	NULL	1	100.00	
+2	SUBQUERY	t4	NULL	eq_ref	PRIMARY	PRIMARY	4	func	1	100.00	Using where
+3	SUBQUERY	t2	NULL	ref	PRIMARY	PRIMARY	4	const	4	100.00	Using index
+4	UNION	t2	NULL	ref	PRIMARY	PRIMARY	4	func	1	100.00	Using where; Using index
+5	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+6	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+NULL	UNION RESULT	<union3,4>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 select
 (
 select login_name from t4 where userId = (
@@ -2196,9 +2196,9 @@ End of 5.5 tests
 # WL#1763 Avoid creating temporary table in UNION ALL
 #
 EXPLAIN SELECT 1 UNION ALL SELECT 1 LIMIT 1 OFFSET 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 # Bug #17579498 CHANGES IN DATATYPE OF THE RESULT QUERY IN UNION.
 CREATE TABLE t1 (a TIME);
 CREATE TABLE t2 (b DATETIME);

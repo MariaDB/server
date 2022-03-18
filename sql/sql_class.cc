@@ -2753,6 +2753,7 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
   field_list.push_back(item=new (mem_root)
                        Item_empty_string(this, "rows", NAME_CHAR_LEN, cs),
                        mem_root);
+  item->set_maybe_null();
   if (is_analyze)
   {
     field_list.push_back(item= new (mem_root)
@@ -2761,13 +2762,10 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
     item->set_maybe_null();
   }
 
-  if (is_analyze || (explain_flags & DESCRIBE_EXTENDED))
-  {
-    field_list.push_back(item= new (mem_root)
-                         Item_float(this, "filtered", 0.1234, 2, 4),
-                         mem_root);
-    item->set_maybe_null();
-  }
+  field_list.push_back(item= new (mem_root)
+                       Item_float(this, "filtered", 0.1234, 2, 4),
+                       mem_root);
+  item->set_maybe_null();
 
   if (is_analyze)
   {
@@ -2777,7 +2775,6 @@ void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
     item->set_maybe_null();
   }
 
-  item->set_maybe_null();
   field_list.push_back(new (mem_root)
                        Item_empty_string(this, "Extra", 255, cs),
                        mem_root);

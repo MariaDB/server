@@ -453,12 +453,12 @@ HANDLER_TMP_WRITE	132
 EXPLAIN PARTITIONS SELECT * FROM t1 PARTITION (pNonexistent);
 ERROR HY000: Unknown partition 'pNonexistent' in table 't1'
 EXPLAIN PARTITIONS SELECT * FROM t1 PARTITION (subp2);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0-9_subp2	index	NULL	b	71	NULL	2	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0-9_subp2	index	NULL	b	71	NULL	2	100.00	Using index
 FLUSH STATUS;
 EXPLAIN PARTITIONS SELECT * FROM t1 PARTITION (subp2,pNeg) AS TableAlias;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	TableAlias	pNeg_subp0,pNeg_subp1,p0-9_subp2	index	NULL	b	71	NULL	4	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	TableAlias	pNeg_subp0,pNeg_subp1,p0-9_subp2	index	NULL	b	71	NULL	4	100.00	Using index
 SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS
 WHERE VARIABLE_NAME LIKE 'HANDLER_%' AND VARIABLE_VALUE > 0;
 VARIABLE_NAME	VARIABLE_VALUE
@@ -466,17 +466,17 @@ HANDLER_COMMIT	1
 HANDLER_TMP_WRITE	24
 # 8 locks (1 ha_partition + 3 ha_innobase) x 2 (lock/unlock)
 EXPLAIN PARTITIONS SELECT * FROM t1 PARTITION (subp3) AS TableAlias;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	TableAlias	p0-9_subp3	index	NULL	b	71	NULL	3	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	TableAlias	p0-9_subp3	index	NULL	b	71	NULL	3	100.00	Using index
 EXPLAIN PARTITIONS SELECT COUNT(*) FROM t1 PARTITION (`p10-99`);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p10-99_subp4,p10-99_subp5	index	NULL	PRIMARY	4	NULL	2	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p10-99_subp4,p10-99_subp5	index	NULL	PRIMARY	4	NULL	2	100.00	Using index
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE a = 1000000;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 EXPLAIN PARTITIONS SELECT * FROM t1 PARTITION (pNeg) WHERE a = 100;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 # Test how it changes the alias/keywords/reserved words
 SELECT * FROM t1 PARTITION;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
@@ -1616,17 +1616,17 @@ drop table t1,t2,t3,t4,t5;
 create table t1 (a int) partition by hash(a) partitions 3;
 insert into t1 values(1),(2),(3);
 explain partitions select * from t1 where a=1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 explain partitions select * from t1 partition (p1) where a=1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 explain partitions select * from t1 partition (p1) where a=1 or a=2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p1	ALL	NULL	NULL	NULL	NULL	2	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 explain partitions select * from t1 partition (p2) where a=1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
 drop table t1;
 #
 # Bug#59864: Crash if table empty: DELETE FROM t2 PARTITION (subp3).

@@ -9663,6 +9663,7 @@ ST_FIELD_INFO show_explain_tabular_fields_info[]=
   Column("key_len",      Varchar(NAME_CHAR_LEN*MAX_KEY), NULLABLE, "key_len"),
   Column("ref",     Varchar(NAME_CHAR_LEN*MAX_REF_PARTS),NULLABLE, "ref"),
   Column("rows",          SLonglong(10),                 NULLABLE, "rows"),
+  Column("filtered",      Decimal(502),                  NULLABLE, "filtered"),
   Column("Extra",         Varchar(255),                  NOT_NULL, "Extra"),
   CEnd()
 };
