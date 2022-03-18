@@ -223,7 +223,9 @@ void log_t::attach(log_file_t file, os_offset_t size)
   if (!block_size)
     set_block_size(512);
 # ifdef __linux__
-  else if (srv_file_flush_method != SRV_O_DSYNC)
+  else if (srv_file_flush_method != SRV_O_DSYNC &&
+           srv_file_flush_method != SRV_O_DIRECT &&
+           srv_file_flush_method != SRV_O_DIRECT_NO_FSYNC)
     sql_print_information("InnoDB: Buffered log writes (block size=%u bytes)",
                           block_size);
 #endif
