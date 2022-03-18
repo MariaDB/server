@@ -51,6 +51,19 @@ remove_rocksdb_tools()
   fi
 }
 
+replace_uring_with_aio()
+{
+  sed 's/liburing-dev/libaio-dev/g' -i debian/control
+  sed -e '/-DIGNORE_AIO_CHECK=YES/d' \
+      -e '/-DWITH_URING=yes/d' -i debian/rules
+}
+
+disable_pmem()
+{
+  sed '/libpmem-dev/d' -i debian/control
+  sed '/-DWITH_PMEM=yes/d' -i debian/rules
+}
+
 architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
 
 CODENAME="$(lsb_release -sc)"
@@ -60,22 +73,38 @@ case "${CODENAME}" in
     sed -e '/libzstd-dev/d' \
         -e 's/libcurl4/libcurl3/g' -i debian/control
     remove_rocksdb_tools
+    disable_pmem
     ;&
   buster)
+    replace_uring_with_aio
+    if [ ! "$architecture" = amd64 ]
+    then
+      disable_pmem
+    fi
     ;&
   bullseye|bookworm)
     # mariadb-plugin-rocksdb in control is 4 arches covered by the distro rocksdb-tools
     # so no removal is necessary.
+    if [[ ! "$architecture" =~ amd64|arm64|ppc64el ]]
+    then
+      disable_pmem
+    fi
+    if [[ ! "$architecture" =~ amd64|arm64|armel|armhf|i386|mips64el|mipsel|ppc64el|s390x ]]
+    then
+      replace_uring_with_aio
+    fi
     ;&
   sid)
     # should always be empty here.
     # need to match here to avoid the default Error however
     ;;
-  # UBUNTU
+    # UBUNTU
   bionic)
     remove_rocksdb_tools
+    [ "$architecture" != amd64 ] && disable_pmem
     ;&
   focal)
+    replace_uring_with_aio
     ;&
   impish|jammy)
     # mariadb-plugin-rocksdb s390x not supported by us (yet)
@@ -85,27 +114,19 @@ case "${CODENAME}" in
     then
       remove_rocksdb_tools
     fi
+    if [[ ! "$architecture" =~ amd64|arm64|ppc64el ]]
+    then
+      disable_pmem
+    fi
+    if [[ ! "$architecture" =~ amd64|arm64|armhf|ppc64el|s390x ]]
+    then
+      replace_uring_with_aio
+    fi
     ;;
   *)
     echo "Error - unknown release codename $CODENAME" >&2
     exit 1
 esac
-
-# From Debian Bullseye/Ubuntu Groovy, liburing replaces libaio
-if ! apt-cache madison liburing-dev | grep 'liburing-dev' >/dev/null 2>&1
-then
-  sed 's/liburing-dev/libaio-dev/g' -i debian/control
-  sed '/-DIGNORE_AIO_CHECK=YES/d' -i debian/rules
-  sed '/-DWITH_URING=yes/d' -i debian/rules
-fi
-
-# From Debian Buster/Ubuntu Focal onwards libpmem-dev is available
-# Don't reference it when built in distro releases that lack it
-if ! apt-cache madison libpmem-dev | grep 'libpmem-dev' >/dev/null 2>&1
-then
-  sed '/libpmem-dev/d' -i debian/control
-  sed '/-DWITH_PMEM=yes/d' -i debian/rules
-fi
 
 # Adjust changelog, add new version
 echo "Incrementing changelog and starting build scripts"
