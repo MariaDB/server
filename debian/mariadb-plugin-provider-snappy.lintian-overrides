@@ -1,0 +1,3 @@
+# It's intentional that Snappy compression plugin doesn't have symbols from libc
+# More info https://jira.mariadb.org/browse/MDEV-28120
+library-not-linked-against-libc usr/lib/mysql/plugin/provider_snappy.so
