@@ -28,11 +28,11 @@ INSERT INTO t1 (a,b,c) VALUES
 ('Asia','test5','50'),
 ('Europe,S.America','test1,','39');
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT c FROM t1 ORDER BY c;
 SELECT c FROM t1 ORDER BY c;
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT c FROM t1 IGNORE INDEX FOR ORDER BY (PRIMARY) ORDER BY c;
 SELECT c FROM t1 IGNORE INDEX FOR ORDER BY (PRIMARY) ORDER BY c;
 
@@ -63,7 +63,7 @@ INSERT INTO t1 (a,b,c,pk) VALUES
 ('Asia','test5','50',6),
 ('Europe,S.America','test1,','39',7);
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT a FROM t1 WHERE FIND_IN_SET('Europe',a) > 0;
 --sorted_result
 SELECT a FROM t1 WHERE FIND_IN_SET('Europe',a) > 0;
@@ -90,7 +90,7 @@ INSERT INTO t1 (a,b,c,pk) VALUES
 ('Asia','test5','50',6),
 ('Europe,S.America','test1,','39',7);
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT DISTINCT a, b FROM t1 ORDER BY b DESC, a;
 --sorted_result
 SELECT DISTINCT a, b FROM t1 ORDER BY b DESC, a;

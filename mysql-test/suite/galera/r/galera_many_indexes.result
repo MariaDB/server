@@ -73,20 +73,20 @@ SELECT LENGTH(f1) = 767 FROM t1;
 LENGTH(f1) = 767
 1
 EXPLAIN SELECT COUNT(*) = 1 FROM t1 FORCE KEY (PRIMARY) WHERE f1 = REPEAT('a', 767);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	PRIMARY	PRIMARY	769	const	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	const	PRIMARY	PRIMARY	769	const	1	Using index
 SELECT COUNT(*) = 1 FROM t1 FORCE KEY (PRIMARY) WHERE f1 = REPEAT('a', 767);
 COUNT(*) = 1
 1
 EXPLAIN SELECT COUNT(*) = 1 FROM t1 FORCE KEY (i1) WHERE f1 = REPEAT('a', 767);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	i1	i1	769	const	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	const	i1	i1	769	const	1	Using index
 SELECT COUNT(*) = 1 FROM t1 FORCE KEY (i1) WHERE f1 = REPEAT('a', 767);
 COUNT(*) = 1
 1
 EXPLAIN SELECT COUNT(*) = 1 FROM t1 FORCE KEY (i63) WHERE f1 = REPEAT('a', 767);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	i63	i63	769	const	1	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	const	i63	i63	769	const	1	Using index
 SELECT COUNT(*) = 1 FROM t1 FORCE KEY (i63) WHERE f1 = REPEAT('a', 767);
 COUNT(*) = 1
 1

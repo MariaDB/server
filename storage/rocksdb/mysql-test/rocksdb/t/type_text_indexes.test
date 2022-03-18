@@ -35,11 +35,11 @@ INSERT INTO t1 (t,tt,m,l) VALUES
 (REPEAT('b',128),REPEAT('f',128),REPEAT('e',128),REPEAT('d',128)),
 (REPEAT('c',128),REPEAT('b',128),REPEAT('c',128),REPEAT('e',128));
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT SUBSTRING(t,16) AS f FROM t1 WHERE t IN ('test1','test2') ORDER BY f;
 SELECT SUBSTRING(t,16) AS f FROM t1 WHERE t IN ('test1','test2') ORDER BY f;
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT SUBSTRING(t,16) AS f FROM t1 IGNORE INDEX (PRIMARY) WHERE t IN ('test1','test2') ORDER BY f;
 SELECT SUBSTRING(t,16) AS f FROM t1 IGNORE INDEX (PRIMARY) WHERE t IN ('test1','test2') ORDER BY f;
 DROP TABLE t1;
@@ -78,7 +78,7 @@ INSERT INTO t1 (t,tt,m,l,pk) VALUES
 (REPEAT('b',128),REPEAT('f',128),REPEAT('e',128),REPEAT('d',128),'8'),
 (REPEAT('c',128),REPEAT('b',128),REPEAT('c',128),REPEAT('e',128),'9');
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT SUBSTRING(m,128) AS f FROM t1 WHERE m = 'test1' ORDER BY f DESC;
 SELECT SUBSTRING(m,128) AS f FROM t1 WHERE m = 'test1' ORDER BY f DESC;
 

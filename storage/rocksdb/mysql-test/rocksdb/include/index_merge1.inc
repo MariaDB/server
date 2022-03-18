@@ -76,13 +76,13 @@ select * from t0 where key1 < 3 or key2 > 1020;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where key1 < 2 or key2 <3;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain
 select * from t0 where (key1 > 30 and key1<35) or (key2 >32 and key2 < 40);
@@ -92,31 +92,31 @@ select * from t0 where (key1 > 30 and key1<35) or (key2 >32 and key2 < 40);
 # 3. Check that index_merge doesn't break "ignore/force/use index"
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 ignore index (i2) where key1 < 3 or key2 <4;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where (key1 < 3 or key2 <4) and key3 = 50;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 use index (i1,i2) where (key1 < 2 or key2 <3) and key3 = 50;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where (key1 > 1 or key2  > 2);
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 force index (i1,i2) where (key1 > 1 or key2  > 2);
 
@@ -124,7 +124,7 @@ explain select * from t0 force index (i1,i2) where (key1 > 1 or key2  > 2);
 # 4. Check if conjuncts are grouped by keyuse
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain
   select * from t0 where key1<2 or key2<3 or (key1>5 and key1<7) or
@@ -134,33 +134,33 @@ explain
 #    verify fallback to "range" if there is only one non-confluent condition
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where key2 = 45 or key1 <=> null;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where key2 = 45 or key1 is not null;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where key2 = 45 or key1 is null;
 
 #   the last conj. is always false and will be discarded
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where key2=10 or key3=3 or key4 <=> null;
 
 #   the last conj. is always true and will cause 'all' scan
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where key2=10 or key3=3 or key4 is null;
 
@@ -168,14 +168,14 @@ explain select * from t0 where key2=10 or key3=3 or key4 is null;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select key1 from t0 where (key1 <=> null) or (key2 < 2) or
                                    (key3=10) or (key4 <=> null);
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select key1 from t0 where (key1 <=> null) or (key1 < 5) or
                                    (key3=10) or (key4 <=> null);
@@ -183,14 +183,14 @@ explain select key1 from t0 where (key1 <=> null) or (key1 < 5) or
 # 6.Several ways to do index_merge, (ignored) index_merge vs. range
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where
   (key1 < 2 or key2 < 2) and (key3 < 3 or key4 < 3) and (key5 < 5 or key6 < 5);
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain
 select * from t0 where (key1 < 2 or key2 < 4) and (key1 < 5 or key3 < 3);
@@ -200,21 +200,21 @@ select * from t0 where (key1 < 2 or key2 < 4) and (key1 < 5 or key3 < 3);
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where
   (key1 < 3 or key2 < 2) and (key3 < 3 or key4 < 3) and (key5 < 2 or key6 < 2);
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where
   (key1 < 3 or key2 < 3) and (key3 < 70);
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where
   (key1 < 3 or key2 < 3) and (key3 < 1000);
@@ -224,7 +224,7 @@ explain select * from t0 where
 #   tree_or(List<SEL_IMERGE>, range SEL_TREE).
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where
     ((key1 < 3 or key2 < 3) and (key2 <4 or key3 < 3))
@@ -233,7 +233,7 @@ explain select * from t0 where
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where
     ((key1 < 4 or key2 < 4) and (key2 <4 or key3 < 3))
@@ -248,7 +248,7 @@ select * from t0 where
 #   tree_or(List<SEL_IMERGE>, List<SEL_IMERGE>).
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where
     ((key1 < 2 or key2 < 2) and (key3 <4 or key5 < 3))
@@ -257,7 +257,7 @@ explain select * from t0 where
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where
     ((key3 <3 or key5 < 4) and (key1 < 3 or key2 < 3))
@@ -266,7 +266,7 @@ explain select * from t0 where
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where
     ((key3 <3 or key5 < 4) and (key1 < 3 or key2 < 4))
@@ -275,7 +275,7 @@ explain select * from t0 where
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where
     ((key3 <4 or key5 < 3) and (key1 < 3 or key2 < 3))
@@ -284,7 +284,7 @@ explain select * from t0 where
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 where
     ((key3 <5 or key5 < 4) and (key1 < 4 or key2 < 4))
@@ -293,7 +293,7 @@ explain select * from t0 where
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 force index(i1, i2, i3, i4, i5, i6 ) where
     ((key3 <3 or key5 < 4) and (key1 < 3 or key2 < 3))
@@ -303,7 +303,7 @@ explain select * from t0 force index(i1, i2, i3, i4, i5, i6 ) where
 # Can't merge any indexes here (predicate on key3 is always true)
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 force index(i1, i2, i3, i4, i5, i6 ) where
     ((key3 <5 or key5 < 4) and (key1 < 4 or key2 < 4))
@@ -315,7 +315,7 @@ select * from t0 where key1 < 3 or key8 < 2 order by key1;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain
 select * from t0 where key1 < 3 or key8 < 2 order by key1;
@@ -343,21 +343,21 @@ if ($engine_type == RocksDB)
 #   index_merge vs 'index', index_merge is better.
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select key3 from t2 where key1 = 100 or key2 = 100;
 
 #   index_merge vs 'index', 'index' is better.
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select key3 from t2 where key1 <100 or key2 < 100;
 
 #   index_merge vs 'all', index_merge is better.
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select key7 from t2 where key1 <100 or key2 < 100;
 
@@ -398,7 +398,7 @@ explain select * from t4 where key2 = 1 and (key2_1 = 1 or key2_2 = 5);
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t4 where key2_1 = 1 or key2_2 = 5;
 
@@ -420,7 +420,7 @@ analyze table t1;
 #  index_merge on first table in join
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0 left join t1 on (t0.key1=t1.key1)
   where t0.key1=3 or t0.key2=4;
@@ -430,7 +430,7 @@ select * from t0 left join t1 on (t0.key1=t1.key1)
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain
 select * from t0,t1 where (t0.key1=t1.key1) and ( t0.key1=3 or t0.key2=4);
@@ -456,7 +456,7 @@ explain select * from t0,t1 where t0.key1 = 5 and
 # Fix for bug#1974
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t0,t1 where t0.key1 < 3 and
   (t1.key1 = t0.key1 or t1.key8 = t0.key1);
@@ -550,7 +550,7 @@ set join_buffer_size= 4096;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select max(A.key1 + B.key1 + A.key2 + B.key2 + A.key3 + B.key3 + A.key4 + B.key4 + A.key5 + B.key5)
  from t0 as A force index(i1,i2), t0 as B force index (i1,i2)
@@ -575,7 +575,7 @@ analyze table t0;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select max(A.key1 + B.key1 + A.key2 + B.key2 + A.key3 + B.key3 + A.key4 + B.key4 + A.key5 + B.key5)
  from t0 as A force index(i1,i2), t0 as B force index (i1,i2)
@@ -606,7 +606,7 @@ analyze table t0;
 if (!$index_merge_random_rows_in_EXPLAIN)
 {
   # Too unstable for innodb
-  --replace_column 9 #
+  --replace_column 10 #
   --replace_result "4,4,4,4,4,4,4" X "4,4,4,4,4,4" X "i6,i7" "i6,i7?" "i6" "i6,i7?"
   explain select max(A.key1 + B.key1 + A.key2 + B.key2 + A.key3 + B.key3 + A.key4 + B.key4 + A.key5 + B.key5)
    from t0 as A, t0 as B
@@ -662,13 +662,13 @@ analyze table t1;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t1 WHERE cola = 'foo' AND colb = 'bar';
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t1 force index(cola,colb) WHERE cola = 'foo' AND colb = 'bar';
 drop table t1;
@@ -707,9 +707,9 @@ analyze table t3;
 -- enable_result_log
 -- enable_query_log
 
---replace_column 9 #
+--replace_column 10 #
 explain select * from t1 where a=1 and b=1;
---replace_column 9 #
+--replace_column 10 #
 explain select * from t3 where a=1 and b=1;
 
 drop table t3;
@@ -791,7 +791,7 @@ analyze table t2;
 -- enable_query_log
 
 --echo must use sort-union rather than union:
---replace_column 9 #
+--replace_column 10 #
 explain select * from t1 where a=4 or b=4;
 --sorted_result
 select * from t1 where a=4 or b=4;
@@ -799,7 +799,7 @@ select * from t1 where a=4 or b=4;
 select * from t1 ignore index(a,b) where a=4 or b=4;
 
 --echo must use union, not sort-union:
---replace_column 9 #
+--replace_column 10 #
 explain select * from t2 where a=4 or b=4;
 --sorted_result
 select * from t2 where a=4 or b=4;
@@ -852,7 +852,7 @@ analyze table t3;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t1 
 where exists (select 1 from t2, t3 
@@ -891,7 +891,7 @@ analyze table t1;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 EXPLAIN 
 SELECT * FROM t1 FORCE INDEX(a,b) WHERE a LIKE 'a%' OR b LIKE 'b%' 

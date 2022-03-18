@@ -28,11 +28,11 @@ INSERT INTO t1 (a,b,c,pk) VALUES
 
 SHOW INDEX IN t1;
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT a FROM t1 WHERE b > 'test2' ORDER BY a;
 SELECT a FROM t1 WHERE b > 'test2' ORDER BY a;
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT a FROM t1 FORCE INDEX (a_b) WHERE b > 'test2' ORDER BY a;
 SELECT a FROM t1 FORCE INDEX (a_b) WHERE b > 'test2' ORDER BY a;
 
@@ -52,12 +52,12 @@ INSERT INTO t1 (a,b,c) VALUES
 
 SHOW INDEX IN t1;
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT c FROM t1 WHERE c BETWEEN '1d' AND '6u';
 --sorted_result
 SELECT c FROM t1 WHERE c BETWEEN '1d' AND '6u';
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT c FROM t1 USE INDEX () WHERE c BETWEEN '1d' AND '6u';
 --sorted_result
 SELECT c FROM t1 USE INDEX () WHERE c BETWEEN '1d' AND '6u';
@@ -78,12 +78,12 @@ INSERT INTO t1 (a,b,c,pk) VALUES
 
 SHOW INDEX IN t1;
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT DISTINCT b FROM t1;
 --sorted_result
 SELECT DISTINCT b FROM t1;
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT DISTINCT b FROM t1 IGNORE INDEX (b);
 --sorted_result
 SELECT DISTINCT b FROM t1 IGNORE INDEX (b);

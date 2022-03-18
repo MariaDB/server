@@ -20,7 +20,7 @@ insert into t1 select 1,1,1,1,0;
 insert into t1 select 2,1,1,1,0;
 insert into t1 select 3,1,1,1,0;
  
---replace_column 9 #
+--replace_column 10 #
 explain
 select a from t1 force index(e) where e<10000;
 select a from t1;
@@ -38,7 +38,7 @@ CREATE TABLE t1(
   KEY (a) 
 ) ENGINE=ROCKSDB DEFAULT CHARSET=utf8;
 insert into t1 values (1,1,1),(2,2,2);
---replace_column 9 #
+--replace_column 10 #
 explain select a from t1 where a <'zzz';
 
 CREATE TABLE t2(
@@ -48,7 +48,7 @@ CREATE TABLE t2(
   KEY (a)
 ) ENGINE=ROCKSDB DEFAULT CHARSET=utf8;
 insert into t2 values (1,1,1),(2,2,2);
---replace_column 9 #
+--replace_column 10 #
 explain select a from t2 where a <'zzz';
 
 drop table t1,t2;

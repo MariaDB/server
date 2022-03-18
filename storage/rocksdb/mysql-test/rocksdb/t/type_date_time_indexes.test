@@ -32,11 +32,11 @@ INSERT INTO t1 (d,dt,ts,t,y) VALUES
 ('2011-03-31', '2011-08-28 20:33:56', '1997-01-31 11:54:01', '22:04:10', '1994'),
 (DATE(@tm),@tm,TIMESTAMP(@tm),TIME(@tm),YEAR(@tm)); 
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT dt FROM t1 ORDER BY dt LIMIT 3;
 SELECT dt FROM t1 ORDER BY dt LIMIT 3;
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT dt FROM t1 FORCE INDEX FOR ORDER BY (PRIMARY) ORDER BY dt LIMIT 3;
 SELECT dt FROM t1 FORCE INDEX FOR ORDER BY (PRIMARY) ORDER BY dt LIMIT 3;
 
@@ -67,12 +67,12 @@ INSERT INTO t1 (d,dt,ts,t,y,pk) VALUES
 ('2011-03-31', '2011-08-28 20:33:56', '1997-01-31 11:54:01', '22:04:10', '1994','12:04:00'),
 (DATE(@tm),@tm,TIMESTAMP(@tm),TIME(@tm),YEAR(@tm),'12:05:00');
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT ts FROM t1 WHERE ts > NOW();
 --sorted_result
 SELECT ts FROM t1 WHERE ts > NOW();
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT ts FROM t1 USE INDEX () WHERE ts > NOW();
 --sorted_result
 SELECT ts FROM t1 USE INDEX () WHERE ts > NOW();
@@ -103,12 +103,12 @@ INSERT INTO t1 (d,dt,ts,t,y,pk) VALUES
 ('2011-03-31', '2011-08-28 20:33:56', '1997-01-31 11:54:01', '22:04:10', '1994','1994'),
 (DATE(@tm),@tm,TIMESTAMP(@tm),TIME(@tm),YEAR(@tm),'1995');
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT d, t FROM t1 WHERE CONCAT(d,' ',t) != CURRENT_DATE();
 --sorted_result
 SELECT d, t FROM t1 WHERE CONCAT(d,' ',t) != CURRENT_DATE();
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT d, t FROM t1 IGNORE INDEX (d_t) WHERE CONCAT(d,' ',t) != CURRENT_DATE();
 --sorted_result
 SELECT d, t FROM t1 IGNORE INDEX (d_t) WHERE CONCAT(d,' ',t) != CURRENT_DATE();
@@ -142,12 +142,12 @@ INSERT INTO t1 (d,dt,ts,t,y,pk) VALUES
 ('2011-03-31', '2011-08-28 20:33:56', '1997-01-31 11:54:01', '22:04:10', '1994','22:18:18'),
 (DATE(@tm),@tm,TIMESTAMP(@tm),TIME(@tm),YEAR(@tm),'23:18:18');
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT y, COUNT(*) FROM t1 GROUP BY y;
 --sorted_result
 SELECT y, COUNT(*) FROM t1 GROUP BY y;
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT y, COUNT(*) FROM t1 USE INDEX FOR GROUP BY () GROUP BY y;
 --sorted_result
 SELECT y, COUNT(*) FROM t1 USE INDEX FOR GROUP BY () GROUP BY y;

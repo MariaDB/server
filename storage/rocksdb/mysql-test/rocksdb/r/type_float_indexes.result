@@ -17,8 +17,8 @@ INSERT INTO t1 (f,r,d,dp) VALUES
 (17.5843,4953453454.44,29229114.0,1111111.23),
 (4644,1422.22,466664.999,0.5);
 EXPLAIN SELECT f FROM t1 ORDER BY f;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	4	NULL	#	Using index
 SELECT f FROM t1 ORDER BY f;
 f
 -1
@@ -27,8 +27,8 @@ f
 17.5843
 4644
 EXPLAIN SELECT f FROM t1 IGNORE INDEX (PRIMARY) ORDER BY f;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	Using filesort
 SELECT f FROM t1 IGNORE INDEX (PRIMARY) ORDER BY f;
 f
 -1
@@ -57,8 +57,8 @@ INSERT INTO t1 (f,r,d,dp,pk) VALUES
 (17.5843,4953453454.44,29229114.0,1111111.23,4),
 (4644,1422.22,466664.999,0.5,5);
 EXPLAIN SELECT r, dp FROM t1 WHERE r > 0 or dp > 0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	r_dp	r_dp	18	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	r_dp	r_dp	18	NULL	#	Using where; Using index
 SELECT r, dp FROM t1 WHERE r > 0 or dp > 0;
 r	dp
 1422.220	0.5000000000
@@ -84,8 +84,8 @@ INSERT INTO t1 (f,r,d,dp,pk) VALUES
 (17.5843,4953453454.44,29229114.0,1111111.23,4),
 (4644,1422.22,466664.999,0.5,5);
 EXPLAIN SELECT DISTINCT d FROM t1 ORDER BY d;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	d	9	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	d	9	NULL	#	Using index
 SELECT DISTINCT d FROM t1 ORDER BY d;
 d
 -1
@@ -113,8 +113,8 @@ INSERT INTO t1 (f,r,d,dp,pk) VALUES
 (17.5843,4953453454.44,29229114.0,1111111.23,4),
 (4644,1422.22,466664.999,0.5,5);
 EXPLAIN SELECT DISTINCT d FROM t1 ORDER BY d;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	d	9	NULL	#	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	d	9	NULL	#	Using index for group-by
 SELECT DISTINCT d FROM t1 ORDER BY d;
 d
 -1
@@ -145,8 +145,8 @@ INSERT INTO t1 (f,r,d,dp,pk) VALUES
 (1.2345,0,0,0,6);
 ERROR 23000: Duplicate entry '1.2345' for key 'f'
 EXPLAIN SELECT DISTINCT f FROM t1 ORDER BY f;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	f	5	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	f	5	NULL	#	Using index
 SELECT DISTINCT f FROM t1 ORDER BY f;
 f
 -1
@@ -176,8 +176,8 @@ INSERT INTO t1 (f,r,d,dp,pk) VALUES
 INSERT INTO t1 (f,r,d,dp,pk) VALUES
 (1.2345,0,0,0,6);
 EXPLAIN SELECT DISTINCT f FROM t1 ORDER BY f;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	f	5	NULL	#	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	f	5	NULL	#	Using index for group-by
 SELECT DISTINCT f FROM t1 ORDER BY f;
 f
 -1

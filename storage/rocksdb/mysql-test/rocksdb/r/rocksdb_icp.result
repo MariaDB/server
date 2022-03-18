@@ -17,8 +17,8 @@ insert into t2 select a,a,a,a from t1;
 # Try a basic case:
 explain 
 select * from t2 where kp1 between 1 and 10 and mod(kp2,2)=0;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	kp1	kp1	5	NULL	#	Using index condition
 select * from t2 where kp1 between 1 and 10 and mod(kp2,2)=0;
 pk	kp1	kp2	col1
 2	2	2	2
@@ -39,8 +39,8 @@ insert into t3 select a,a/10,a,a from t1;
 # This must not use ICP:
 explain
 select * from t3 where kp1=3 and kp2 like '%foo%';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	ref	kp1	kp1	5	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	ref	kp1	kp1	5	const	#	Using where
 explain format=json
 select * from t3 where kp1 between 2 and 4 and mod(kp1,3)=0 and kp2 like '%foo%';
 EXPLAIN
@@ -69,22 +69,22 @@ EXPLAIN
 # than matched index condition
 explain 
 select * from t2 where kp1< 3 and kp2+1>50000;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	kp1	kp1	5	NULL	#	Using index condition
 select * from t2 where kp1< 3 and kp2+1>50000;
 pk	kp1	kp2	col1
 explain
 select * from t2 where kp1< 3 and kp2+1>50000;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	kp1	kp1	5	NULL	#	Using index condition
 select * from t2 where kp1< 3 and kp2+1>50000;
 pk	kp1	kp2	col1
 # Try doing backwards scans
 #  MariaDB: ICP is not supported for reverse scans.
 explain 
 select * from t2 where kp1 between 1 and 10 and mod(kp2,2)=0 order by kp1 desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	kp1	kp1	5	NULL	#	Using where
 select * from t2 where kp1 between 1 and 10 and mod(kp2,2)=0 order by kp1 desc;
 pk	kp1	kp2	col1
 10	10	10	10
@@ -94,8 +94,8 @@ pk	kp1	kp2	col1
 2	2	2	2
 explain 
 select * from t2 where kp1 >990 and mod(kp2,2)=0 order by kp1 desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	kp1	kp1	5	NULL	#	Using where
 select * from t2 where kp1 >990 and mod(kp2,2)=0 order by kp1 desc;
 pk	kp1	kp2	col1
 998	998	998	998
@@ -104,8 +104,8 @@ pk	kp1	kp2	col1
 992	992	992	992
 explain 
 select * from t2 where kp1< 3 and kp2+1>50000 order by kp1 desc;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	kp1	kp1	5	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	kp1	kp1	5	NULL	#	Using where
 select * from t2 where kp1< 3 and kp2+1>50000 order by kp1 desc;
 pk	kp1	kp2	col1
 drop table t0,t1,t2,t3;
@@ -178,8 +178,8 @@ ROWS_READ_DIFF	ROWS_INDEX_FIRST	ROWS_INDEX_NEXT	ICP_ATTEMPTS	ICP_MATCHES
 # ============== index-only query ==============
 explain
 select id1,id2 from t4 force index (id1_id2) where id1=1 and id2 % 10 = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	ref	id1_id2	id1_id2	5	const	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	NULL	ref	id1_id2	id1_id2	5	const	#	Using where; Using index
 call save_read_stats();
 select id1,id2 from t4 force index (id1_id2) where id1=1 and id2 % 10 = 1;
 id1	id2
@@ -194,8 +194,8 @@ ICP_MATCHES	0
 set optimizer_switch='index_condition_pushdown=off';
 explain
 select * from t4 force index (id1_id2) where id1=1 and id2 % 10 = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	ref	id1_id2	id1_id2	5	const	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	NULL	ref	id1_id2	id1_id2	5	const	#	Using where
 call save_read_stats();
 select * from t4 force index (id1_id2) where id1=1 and id2 % 10 = 1;
 id	id1	id2	value	value2
@@ -210,8 +210,8 @@ ICP_MATCHES	0
 set optimizer_switch='index_condition_pushdown=on';
 explain
 select * from t4 force index (id1_id2) where id1=1 and id2 % 10 = 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t4	ref	id1_id2	id1_id2	5	const	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t4	NULL	ref	id1_id2	id1_id2	5	const	#	Using index condition
 call save_read_stats();
 select * from t4 force index (id1_id2) where id1=1 and id2 % 10 = 1;
 id	id1	id2	value	value2
@@ -245,8 +245,8 @@ from t0 A, t0 B, t0 C;
 set @count=0;
 explain 
 select * from t1 force index(key1) where key1=1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	key1	key1	9	const	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ref	key1	key1	9	const	#	
 set @count_diff =(select (value - @count) from information_schema.rocksdb_perf_context 
 where table_schema=database() and table_name='t1' and stat_type='INTERNAL_KEY_SKIPPED_COUNT');
 select * from t1 force index(key1) where key1=1;

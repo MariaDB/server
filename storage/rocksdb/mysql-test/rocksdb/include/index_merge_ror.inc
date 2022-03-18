@@ -129,7 +129,7 @@ analyze table t1;
 -- enable_query_log
 
 # One row results tests for cases where a single row matches all conditions
---replace_column 9 #
+--replace_column 10 #
 explain select key1,key2 from t1 where key1=100 and key2=100;
 select key1,key2 from t1 where key1=100 and key2=100;
 if (!$skip_ror_EXPLAIN_for_MyRocks)
@@ -323,68 +323,68 @@ if (!$skip_ror_EXPLAIN_for_MyRocks)
 # Different value on 32 and 64 bit
 if ($random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 --replace_result sta_swt12a sta_swt21a sta_swt12a, sta_swt12a,
 explain select * from t1 where st_a=1 and swt1a=1 and swt2a=1;
 
 if ($random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t1 where st_b=1 and swt1b=1 and swt2b=1;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t1 where st_a=1 and swt1a=1 and swt2a=1 and st_b=1 and swt1b=1 and swt2b=1;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t1 ignore index (sta_swt21a, stb_swt1a_2b)
   where st_a=1 and swt1a=1 and swt2a=1 and st_b=1 and swt1b=1 and swt2b=1;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t1 ignore index (sta_swt21a, sta_swt12a, stb_swt1a_2b)
   where st_a=1 and swt1a=1 and swt2a=1 and st_b=1 and swt1b=1 and swt2b=1;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t1 ignore index (sta_swt21a, sta_swt12a, stb_swt1a_2b, stb_swt1b)
   where st_a=1 and swt1a=1 and swt2a=1 and st_b=1 and swt1b=1 and swt2b=1;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t1
   where st_a=1 and swt1a=1 and swt2a=1 and st_b=1 and swt1b=1;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select * from t1
   where st_a=1 and swt1a=1 and st_b=1 and swt1b=1 and swt1b=1;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select st_a from t1
   where st_a=1 and swt1a=1 and st_b=1 and swt1b=1 and swt1b=1;
 
 if ($index_merge_random_rows_in_EXPLAIN)
 {
-  --replace_column 9 #
+  --replace_column 10 #
 }
 explain select st_a from t1
   where st_a=1 and swt1a=1 and st_b=1 and swt1b=1 and swt1b=1;

@@ -114,7 +114,7 @@ select * from t4;
 set session debug_dbug= "-d,myrocks_simulate_bad_pk_checksum2";
 
 --echo # 3. Check if we catch checksum mismatches for secondary indexes
---replace_column 9 #
+--replace_column 10 #
 explain
 select * from t3 force index(a) where a<4;
 select * from t3 force index(a) where a<4;
@@ -130,7 +130,7 @@ set session debug_dbug= "-d,myrocks_simulate_bad_key_checksum1";
 --disable_query_log
 set global rocksdb_force_flush_memtable_now=1;
 --enable_query_log
---replace_column 9 #
+--replace_column 10 #
 explain 
 select a from t3 force index(a) where a<4;
 select a from t3 force index(a) where a<4;

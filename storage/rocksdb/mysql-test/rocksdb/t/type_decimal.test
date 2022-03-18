@@ -33,18 +33,18 @@ insert into t1 select pk+100000, 9.0, 9.0, 'extra-data' from t1;
 analyze table t1;
 
 --echo # The following can't use index-only:
---replace_column 9 #
+--replace_column 10 #
 explain select * from t1 where col1 between -8 and 8;
 
 --echo # This will use index-only:
---replace_column 9 #
+--replace_column 10 #
 explain
 select col1, col2 from t1 where col1 between -8 and 8;
 select col1, col2 from t1 where col1 between -8 and 8;
 
 insert into t1 values (11, NULL, 0.9, 'row1-with-null');
 insert into t1 values (10, -8.4, NULL, 'row2-with-null');
---replace_column 9 #
+--replace_column 10 #
 explain
 select col1, col2 from t1 force index(key1) where col1 is null or col1 < -7;
 select col1, col2 from t1 force index(key1) where col1 is null or col1 < -7;
@@ -80,7 +80,7 @@ insert into t1 select pk+10000, col1+20000, col2+20000, 'extra-data' from t1;
 insert into t1 select pk+100000, col1+20000, col2+20000, 'extra-data' from t1;
 analyze table t1;
 
---replace_column 9 #
+--replace_column 10 #
 explain
 select col1, col2 from t1 force index(key1) where col1 between -800 and 800;
 select col1, col2 from t1 force index(key1) where col1 between -800 and 800;

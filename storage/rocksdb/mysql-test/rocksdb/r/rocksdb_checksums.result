@@ -93,8 +93,8 @@ set session debug_dbug= "-d,myrocks_simulate_bad_pk_checksum2";
 # 3. Check if we catch checksum mismatches for secondary indexes
 explain
 select * from t3 force index(a) where a<4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	range	a	a	5	NULL	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	range	a	a	5	NULL	#	Using index condition
 select * from t3 force index(a) where a<4;
 pk	a	b
 1	1	1
@@ -109,8 +109,8 @@ set session debug_dbug= "-d,myrocks_simulate_bad_key_checksum1";
 # 4. The same for index-only reads?
 explain 
 select a from t3 force index(a) where a<4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t3	range	a	a	5	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	NULL	range	a	a	5	NULL	#	Using where; Using index
 select a from t3 force index(a) where a<4;
 a
 1

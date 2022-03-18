@@ -1016,26 +1016,26 @@ a	h112	a111
 b	h212	a211
 c	h312	a311
 explain select a1,a2,b,min(c) from t2 where (a2 = 'a') and b is NULL group by a1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	163	NULL	6	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	163	NULL	6	Using where; Using index for group-by
 explain select a1,a2,b,min(c) from t2 where (a2 = 'a' or a2 = 'b') and b is NULL group by a1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
 explain select a1,a2,b,max(c) from t2 where (a2 = 'a') and b is NULL group by a1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	146	NULL	6	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	146	NULL	6	Using where; Using index for group-by
 explain select a1,a2,b,max(c) from t2 where (a2 = 'a' or a2 = 'b') and b is NULL group by a1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
 explain select a1,a2,b,min(c) from t2 where b is NULL group by a1,a2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	163	NULL	10	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	163	NULL	10	Using where; Using index for group-by
 explain select a1,a2,b,max(c) from t2 where b is NULL group by a1,a2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	146	NULL	10	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	146	NULL	10	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t2 where b is NULL group by a1,a2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	163	NULL	10	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	163	NULL	10	Using where; Using index for group-by
 select a1,a2,b,min(c) from t2 where (a2 = 'a') and b is NULL group by a1;
 a1	a2	b	min(c)
 a	a	NULL	a777
@@ -1069,98 +1069,98 @@ a1	a2	b	min(c)	max(c)
 a	a	NULL	a777	a999
 c	a	NULL	c777	c999
 explain select a1,a2,b,       max(c) from t1 where (c > 'b1') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	147	NULL	#	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx_t1_1	147	NULL	#	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t1 where (c > 'b1') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
 explain select a1,a2,b,       max(c) from t1 where (c > 'f123') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	147	NULL	17	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx_t1_1	147	NULL	17	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t1 where (c > 'f123') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
 explain select a1,a2,b,       max(c) from t1 where (c < 'a0') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t1 where (c < 'a0') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
 explain select a1,a2,b,       max(c) from t1 where (c < 'k321') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t1 where (c < 'k321') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
 explain select a1,a2,b,       max(c) from t1 where (c < 'a0') or (c > 'b1') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t1 where (c < 'a0') or (c > 'b1') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
 explain select a1,a2,b,       max(c) from t1 where (c > 'b1') or (c <= 'g1') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	147	NULL	17	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx_t1_1	147	NULL	17	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t1 where (c > 'b1') or (c <= 'g1') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	147	NULL	17	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx_t1_1	147	NULL	17	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t1 where (c > 'b111') and (c <= 'g112') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t1 where (c < 'c5') or (c = 'g412') or (c = 'k421') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t1 where ((c > 'b111') and (c <= 'g112')) or ((c > 'd000') and (c <= 'i110')) group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t1 where (c between 'b111' and 'g112') or (c between 'd000' and 'i110') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx_t1_1	163	NULL	17	Using where; Using index for group-by
 explain select a1,a2,b,       max(c) from t2 where (c > 'b1') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	146	NULL	#	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	146	NULL	#	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t2 where (c > 'b1') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
 explain select a1,a2,b,       max(c) from t2 where (c > 'f123') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	146	NULL	#	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	146	NULL	#	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t2 where (c > 'f123') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
 explain select a1,a2,b,       max(c) from t2 where (c < 'a0') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t2 where (c < 'a0') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
 explain select a1,a2,b,       max(c) from t2 where (c < 'k321') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t2 where (c < 'k321') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
 explain select a1,a2,b,       max(c) from t2 where (c < 'a0') or (c > 'b1') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t2 where (c < 'a0') or (c > 'b1') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
 explain select a1,a2,b,       max(c) from t2 where (c > 'b1') or (c <= 'g1') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	146	NULL	#	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	146	NULL	#	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t2 where (c > 'b1') or (c <= 'g1') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t2 where (c > 'b111') and (c <= 'g112') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t2 where (c < 'c5') or (c = 'g412') or (c = 'k421') group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
 explain select a1,a2,b,min(c),max(c) from t2 where ((c > 'b111') and (c <= 'g112')) or ((c > 'd000') and (c <= 'i110')) group by a1,a2,b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	idx_t2_1	163	NULL	#	Using where; Using index for group-by
 select a1,a2,b,       max(c) from t1 where (c > 'b1') group by a1,a2,b;
 a1	a2	b	max(c)
 a	a	a	d111
@@ -2240,8 +2240,8 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t1`.`a1` AS `a1`,`test`.`t1`.`a2` AS `a2`,`test`.`t1`.`b` AS `b` from `test`.`t1` where (`test`.`t1`.`a1` = 'b' or `test`.`t1`.`a1` = 'd' or `test`.`t1`.`a1` = 'a' or `test`.`t1`.`a1` = 'c') and `test`.`t1`.`a2` > 'a' and `test`.`t1`.`c` > 'a111' group by `test`.`t1`.`a1`,`test`.`t1`.`a2`,`test`.`t1`.`b`
 explain select a1,a2,min(b),c from t2 where (a2 = 'a') and (c = 'a111') group by a1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
 select a1,a2,min(b),c from t2 where (a2 = 'a') and (c = 'a111') group by a1;
 a1	a2	min(b)	c
 a	a	a	a111
@@ -2549,49 +2549,49 @@ Handler_read_next	0
 Handler_read_retry	0
 EXPLAIN (SELECT max(b), a FROM t1 GROUP BY a) UNION 
 (SELECT max(b), a FROM t1 GROUP BY a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	NULL	a	5	NULL	6	Using index for group-by
-2	UNION	t1	range	NULL	a	5	NULL	6	Using index for group-by
-NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	NULL	range	NULL	a	5	NULL	6	Using index for group-by
+2	UNION	t1	NULL	range	NULL	a	5	NULL	6	Using index for group-by
+NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 EXPLAIN SELECT (SELECT max(b) FROM t1 GROUP BY a HAVING a < 2) x
 FROM t1 AS t1_outer;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1_outer	index	NULL	a	10	NULL	15	Using index
-2	SUBQUERY	t1	range	a	a	5	NULL	6	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1_outer	NULL	index	NULL	a	10	NULL	15	Using index
+2	SUBQUERY	t1	NULL	range	a	a	5	NULL	6	Using where; Using index for group-by
 EXPLAIN SELECT 1 FROM t1 AS t1_outer WHERE EXISTS 
 (SELECT max(b) FROM t1 GROUP BY a HAVING a < 2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1_outer	index	NULL	a	10	NULL	15	Using index
-2	SUBQUERY	t1	index	NULL	a	10	NULL	15	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1_outer	NULL	index	NULL	a	10	NULL	15	Using index
+2	SUBQUERY	t1	NULL	index	NULL	a	10	NULL	15	Using index
 EXPLAIN SELECT 1 FROM t1 AS t1_outer WHERE 
 (SELECT max(b) FROM t1 GROUP BY a HAVING a < 2) > 12;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
-2	SUBQUERY	t1	range	a	a	5	NULL	6	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+2	SUBQUERY	t1	NULL	range	a	a	5	NULL	6	Using where; Using index for group-by
 EXPLAIN SELECT 1 FROM t1 AS t1_outer WHERE 
 a IN (SELECT max(b) FROM t1 GROUP BY a HAVING a < 2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	6	
-1	PRIMARY	t1_outer	ref	a	a	5	<subquery2>.max(b)	3	Using index
-2	MATERIALIZED	t1	range	a	a	5	NULL	6	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<subquery2>	NULL	ALL	distinct_key	NULL	NULL	NULL	6	
+1	PRIMARY	t1_outer	NULL	ref	a	a	5	<subquery2>.max(b)	3	Using index
+2	MATERIALIZED	t1	NULL	range	a	a	5	NULL	6	Using where; Using index for group-by
 EXPLAIN SELECT 1 FROM t1 AS t1_outer GROUP BY a HAVING 
 a > (SELECT max(b) FROM t1 GROUP BY a HAVING a < 2);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1_outer	range	NULL	a	5	NULL	6	Using index for group-by
-2	SUBQUERY	t1	range	a	a	5	NULL	6	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1_outer	NULL	range	NULL	a	5	NULL	6	Using index for group-by
+2	SUBQUERY	t1	NULL	range	a	a	5	NULL	6	Using where; Using index for group-by
 EXPLAIN SELECT 1 FROM t1 AS t1_outer1 JOIN t1 AS t1_outer2 
 ON t1_outer1.a = (SELECT max(b) FROM t1 GROUP BY a HAVING a < 2) 
 AND t1_outer1.b = t1_outer2.b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1_outer2	index	NULL	a	10	NULL	15	Using where; Using index
-1	PRIMARY	t1_outer1	ref	a	a	10	const,test.t1_outer2.b	1	Using where; Using index
-2	SUBQUERY	t1	range	a	a	5	NULL	6	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1_outer2	NULL	index	NULL	a	10	NULL	15	Using where; Using index
+1	PRIMARY	t1_outer1	NULL	ref	a	a	10	const,test.t1_outer2.b	1	Using where; Using index
+2	SUBQUERY	t1	NULL	range	a	a	5	NULL	6	Using where; Using index for group-by
 EXPLAIN SELECT (SELECT (SELECT max(b) FROM t1 GROUP BY a HAVING a < 2) x
 FROM t1 AS t1_outer) x2 FROM t1 AS t1_outer2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1_outer2	index	NULL	a	10	NULL	15	Using index
-2	SUBQUERY	t1_outer	index	NULL	a	10	NULL	15	Using index
-3	SUBQUERY	t1	range	a	a	5	NULL	6	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1_outer2	NULL	index	NULL	a	10	NULL	15	Using index
+2	SUBQUERY	t1_outer	NULL	index	NULL	a	10	NULL	15	Using index
+3	SUBQUERY	t1	NULL	range	a	a	5	NULL	6	Using where; Using index for group-by
 CREATE TABLE t3 LIKE t1;
 FLUSH STATUS;
 INSERT INTO t3 SELECT a,MAX(b) FROM t1 GROUP BY a;
@@ -2635,16 +2635,16 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN SELECT DISTINCT(a) FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx	5	NULL	4	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx	5	NULL	4	Using index for group-by
 SELECT DISTINCT(a) FROM t1;
 a
 1
 2
 4
 EXPLAIN SELECT SQL_BIG_RESULT DISTINCT(a) FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx	5	NULL	4	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	idx	5	NULL	4	Using index for group-by
 SELECT SQL_BIG_RESULT DISTINCT(a) FROM t1;
 a
 1
@@ -2661,8 +2661,8 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN
 SELECT a, MIN(b), MAX(b) FROM t1 GROUP BY a ORDER BY a DESC;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	12	Using temporary; Using filesort
 SELECT a, MIN(b), MAX(b) FROM t1 GROUP BY a ORDER BY a DESC;
 a	MIN(b)	MAX(b)
 4	1	3
@@ -2672,8 +2672,8 @@ a	MIN(b)	MAX(b)
 CREATE INDEX break_it ON t1 (a, b);
 EXPLAIN
 SELECT a, MIN(b), MAX(b) FROM t1 GROUP BY a ORDER BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	break_it	10	NULL	4	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	break_it	10	NULL	4	Using index for group-by
 SELECT a, MIN(b), MAX(b) FROM t1 GROUP BY a ORDER BY a;
 a	MIN(b)	MAX(b)
 1	1	3
@@ -2682,8 +2682,8 @@ a	MIN(b)	MAX(b)
 4	1	3
 EXPLAIN
 SELECT a, MIN(b), MAX(b) FROM t1 GROUP BY a ORDER BY a DESC;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	break_it	10	NULL	4	Using index for group-by; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	break_it	10	NULL	4	Using index for group-by; Using temporary; Using filesort
 SELECT a, MIN(b), MAX(b) FROM t1 GROUP BY a ORDER BY a DESC;
 a	MIN(b)	MAX(b)
 4	1	3
@@ -2692,8 +2692,8 @@ a	MIN(b)	MAX(b)
 1	1	3
 EXPLAIN
 SELECT a, MIN(b), MAX(b), AVG(b) FROM t1 GROUP BY a ORDER BY a DESC;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	break_it	10	NULL	12	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	break_it	10	NULL	12	Using index
 SELECT a, MIN(b), MAX(b), AVG(b) FROM t1 GROUP BY a ORDER BY a DESC;
 a	MIN(b)	MAX(b)	AVG(b)
 4	1	3	2.0000
@@ -2776,8 +2776,8 @@ a	b
 3	12
 3	13
 explain extended select sql_buffer_result a, max(b)+1 from t1 where a = 0 group by a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	range	PRIMARY,index	PRIMARY	4	NULL	1	100.00	Using where; Using index for group-by; Using temporary
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	PRIMARY,index	PRIMARY	4	NULL	1	100.00	Using where; Using index for group-by; Using temporary
 Warnings:
 Note	1003	select sql_buffer_result `test`.`t1`.`a` AS `a`,max(`test`.`t1`.`b`) + 1 AS `max(b)+1` from `test`.`t1` where `test`.`t1`.`a` = 0 group by `test`.`t1`.`a`
 drop table t1;
@@ -2792,8 +2792,8 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN SELECT DISTINCT c FROM t1 WHERE d=4;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	foo	10	NULL	3	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	foo	10	NULL	3	Using where; Using index for group-by
 SELECT DISTINCT c FROM t1 WHERE d=4;
 c
 1
@@ -2815,8 +2815,8 @@ test.t	analyze	status	OK
 #should use range with index for group by
 EXPLAIN
 SELECT a, MIN(b) FROM t WHERE b <> 0 GROUP BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	range	NULL	a	10	NULL	2	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	range	NULL	a	10	NULL	2	Using where; Using index for group-by
 #should return 1 row
 SELECT a, MIN(b) FROM t WHERE b <> 0 GROUP BY a;
 a	MIN(b)
@@ -2825,8 +2825,8 @@ a	MIN(b)
 #should use range with index for group by
 EXPLAIN
 SELECT a, MAX(b) FROM t WHERE b <> 1 GROUP BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	range	NULL	a	10	NULL	2	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	range	NULL	a	10	NULL	2	Using where; Using index for group-by
 #should return 1 row
 SELECT a, MAX(b) FROM t WHERE b <> 1 GROUP BY a;
 a	MAX(b)
@@ -2836,8 +2836,8 @@ INSERT INTO t SELECT a, 2 FROM t;
 #should use range with index for group by
 EXPLAIN
 SELECT a, MAX(b) FROM t WHERE b > 0 AND b < 2 GROUP BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	range	NULL	a	10	NULL	2	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	range	NULL	a	10	NULL	2	Using where; Using index for group-by
 #should return 1 row
 SELECT a, MAX(b) FROM t WHERE b > 0 AND b < 2 GROUP BY a;
 a	MAX(b)
@@ -2897,72 +2897,72 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a = NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a = NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a <> NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a <> NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a > NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a > NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a < NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a < NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a <=> NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	No matching min/max row
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	No matching min/max row
 SELECT MIN( a ) FROM t1 WHERE a <=> NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a BETWEEN NULL AND 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a BETWEEN NULL AND 10;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a BETWEEN NULL AND NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a BETWEEN NULL AND NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a BETWEEN 10 AND NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a BETWEEN 10 AND NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a = (SELECT a FROM t1 WHERE a < 0);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
-x	x	x	x	x	x	x	x	x	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+x	x	x	x	x	x	x	x	x	x	Using where; Using index
 SELECT MIN( a ) FROM t1 WHERE a = (SELECT a FROM t1 WHERE a < 0);
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	No matching min/max row
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	No matching min/max row
 SELECT MIN( a ) FROM t1 WHERE a IS NULL;
 MIN( a )
 NULL
@@ -2973,72 +2973,72 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a = NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a = NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a <> NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a <> NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a > NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a > NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a < NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a < NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a <=> NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Select tables optimized away
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Select tables optimized away
 SELECT MIN( a ) FROM t1 WHERE a <=> NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a BETWEEN NULL AND 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a BETWEEN NULL AND 10;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a BETWEEN NULL AND NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a BETWEEN NULL AND NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a BETWEEN 10 AND NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a BETWEEN 10 AND NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a = (SELECT a FROM t1 WHERE a < 0);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
-x	x	x	x	x	x	x	x	x	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+x	x	x	x	x	x	x	x	x	x	Using where; Using index
 SELECT MIN( a ) FROM t1 WHERE a = (SELECT a FROM t1 WHERE a < 0);
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Select tables optimized away
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Select tables optimized away
 SELECT MIN( a ) FROM t1 WHERE a IS NULL;
 MIN( a )
 NULL
@@ -3063,65 +3063,65 @@ test.t1	analyze	status	OK
 #
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a = NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a = NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a <> NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a <> NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a > NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a > NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a < NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a < NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a BETWEEN NULL AND 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a BETWEEN NULL AND 10;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a BETWEEN NULL AND NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a BETWEEN NULL AND NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a BETWEEN 10 AND NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
 SELECT MIN( a ) FROM t1 WHERE a BETWEEN 10 AND NULL;
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a = (SELECT a FROM t1 WHERE a < 0);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
-x	x	x	x	x	x	x	x	x	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE noticed after reading const tables
+x	x	x	x	x	x	x	x	x	x	Using where; Using index
 SELECT MIN( a ) FROM t1 WHERE a = (SELECT a FROM t1 WHERE a < 0);
 MIN( a )
 NULL
 EXPLAIN
 SELECT MIN( a ) FROM t1 WHERE a IS NULL;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-x	x	x	x	x	x	x	x	x	Impossible WHERE
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+x	x	x	x	x	x	x	x	x	x	Impossible WHERE
 SELECT MIN( a ) FROM t1 WHERE a IS NULL;
 MIN( a )
 NULL
@@ -3161,46 +3161,46 @@ Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 EXPLAIN SELECT COUNT(DISTINCT a) FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	a	5	NULL	3	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	a	5	NULL	3	Using index for group-by
 SELECT COUNT(DISTINCT a) FROM t1;
 COUNT(DISTINCT a)
 2
 EXPLAIN SELECT COUNT(DISTINCT a,b) FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	a	10	NULL	17	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	a	10	NULL	17	Using index for group-by
 SELECT COUNT(DISTINCT a,b) FROM t1;
 COUNT(DISTINCT a,b)
 16
 EXPLAIN SELECT COUNT(DISTINCT b,a) FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	a	10	NULL	17	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	a	10	NULL	17	Using index for group-by
 SELECT COUNT(DISTINCT b,a) FROM t1;
 COUNT(DISTINCT b,a)
 16
 EXPLAIN SELECT COUNT(DISTINCT b) FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a	10	NULL	16	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	10	NULL	16	Using index
 SELECT COUNT(DISTINCT b) FROM t1;
 COUNT(DISTINCT b)
 8
 EXPLAIN SELECT COUNT(DISTINCT a) FROM t1 GROUP BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	a	5	NULL	3	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	a	5	NULL	3	Using index for group-by
 SELECT COUNT(DISTINCT a) FROM t1 GROUP BY a;
 COUNT(DISTINCT a)
 1
 1
 EXPLAIN SELECT COUNT(DISTINCT b) FROM t1 GROUP BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	a	10	NULL	17	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	a	10	NULL	17	Using index for group-by
 SELECT COUNT(DISTINCT b) FROM t1 GROUP BY a;
 COUNT(DISTINCT b)
 8
 8
 EXPLAIN SELECT COUNT(DISTINCT a) FROM t1 GROUP BY b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a	10	NULL	16	Using index; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	10	NULL	16	Using index; Using filesort
 SELECT COUNT(DISTINCT a) FROM t1 GROUP BY b;
 COUNT(DISTINCT a)
 2
@@ -3212,95 +3212,95 @@ COUNT(DISTINCT a)
 2
 2
 EXPLAIN SELECT DISTINCT COUNT(DISTINCT a) FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a	10	NULL	16	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	10	NULL	16	Using index
 SELECT DISTINCT COUNT(DISTINCT a) FROM t1;
 COUNT(DISTINCT a)
 2
 EXPLAIN SELECT COUNT(DISTINCT a, b + 0) FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a	10	NULL	16	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	10	NULL	16	Using index
 SELECT COUNT(DISTINCT a, b + 0) FROM t1;
 COUNT(DISTINCT a, b + 0)
 16
 EXPLAIN SELECT COUNT(DISTINCT a) FROM t1 HAVING COUNT(DISTINCT b) < 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	a	10	NULL	16	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	a	10	NULL	16	Using index
 SELECT COUNT(DISTINCT a) FROM t1 HAVING COUNT(DISTINCT b) < 10;
 COUNT(DISTINCT a)
 2
 EXPLAIN SELECT COUNT(DISTINCT a) FROM t1 HAVING COUNT(DISTINCT c) < 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	16	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	16	
 SELECT COUNT(DISTINCT a) FROM t1 HAVING COUNT(DISTINCT c) < 10;
 COUNT(DISTINCT a)
 2
 EXPLAIN SELECT 1 FROM t1 HAVING COUNT(DISTINCT a) < 10;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	a	5	NULL	3	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	a	5	NULL	3	Using index for group-by
 SELECT 1 FROM t1 HAVING COUNT(DISTINCT a) < 10;
 1
 1
 EXPLAIN SELECT 1 FROM t1 GROUP BY a HAVING COUNT(DISTINCT b) > 1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	a	10	NULL	17	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	a	10	NULL	17	Using index for group-by
 SELECT 1 FROM t1 GROUP BY a HAVING COUNT(DISTINCT b) > 1;
 1
 1
 1
 EXPLAIN SELECT COUNT(DISTINCT t1_1.a) FROM t1 t1_1, t1 t1_2 GROUP BY t1_1.a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1_1	index	NULL	a	10	NULL	16	Using index; Using temporary; Using filesort
-1	SIMPLE	t1_2	index	NULL	a	10	NULL	16	Using index; Using join buffer (flat, BNL join)
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1_1	NULL	index	NULL	a	10	NULL	16	Using index; Using temporary; Using filesort
+1	SIMPLE	t1_2	NULL	index	NULL	a	10	NULL	16	Using index; Using join buffer (flat, BNL join)
 SELECT COUNT(DISTINCT t1_1.a) FROM t1 t1_1, t1 t1_2 GROUP BY t1_1.a;
 COUNT(DISTINCT t1_1.a)
 1
 1
 EXPLAIN SELECT COUNT(DISTINCT a), 12 FROM t1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	a	5	NULL	3	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	NULL	a	5	NULL	3	Using index for group-by
 SELECT COUNT(DISTINCT a), 12 FROM t1;
 COUNT(DISTINCT a)	12
 2	12
 EXPLAIN SELECT COUNT(DISTINCT a, b, c) FROM t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	a	15	NULL	17	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	a	15	NULL	17	Using index for group-by
 SELECT COUNT(DISTINCT a, b, c) FROM t2;
 COUNT(DISTINCT a, b, c)
 16
 EXPLAIN SELECT COUNT(DISTINCT a), SUM(DISTINCT a), AVG(DISTINCT a) FROM t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	a	5	NULL	3	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	a	5	NULL	3	Using index for group-by
 SELECT COUNT(DISTINCT a), SUM(DISTINCT a), AVG(DISTINCT a) FROM t2;
 COUNT(DISTINCT a)	SUM(DISTINCT a)	AVG(DISTINCT a)
 2	3	1.5000
 EXPLAIN SELECT COUNT(DISTINCT a), SUM(DISTINCT a), AVG(DISTINCT f) FROM t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	16	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	16	
 SELECT COUNT(DISTINCT a), SUM(DISTINCT a), AVG(DISTINCT f) FROM t2;
 COUNT(DISTINCT a)	SUM(DISTINCT a)	AVG(DISTINCT f)
 2	3	1.0000
 EXPLAIN SELECT COUNT(DISTINCT a, b), COUNT(DISTINCT b, a) FROM t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	a	10	NULL	17	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	a	10	NULL	17	Using index for group-by
 SELECT COUNT(DISTINCT a, b), COUNT(DISTINCT b, a) FROM t2;
 COUNT(DISTINCT a, b)	COUNT(DISTINCT b, a)
 16	16
 EXPLAIN SELECT COUNT(DISTINCT a, b), COUNT(DISTINCT b, f) FROM t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	16	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	16	
 SELECT COUNT(DISTINCT a, b), COUNT(DISTINCT b, f) FROM t2;
 COUNT(DISTINCT a, b)	COUNT(DISTINCT b, f)
 16	8
 EXPLAIN SELECT COUNT(DISTINCT a, b), COUNT(DISTINCT b, d) FROM t2;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	16	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	16	
 SELECT COUNT(DISTINCT a, b), COUNT(DISTINCT b, d) FROM t2;
 COUNT(DISTINCT a, b)	COUNT(DISTINCT b, d)
 16	8
 EXPLAIN SELECT a, c, COUNT(DISTINCT c, a, b) FROM t2 GROUP BY a, b, c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	a	15	NULL	17	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	a	15	NULL	17	Using index for group-by
 SELECT a, c, COUNT(DISTINCT c, a, b) FROM t2 GROUP BY a, b, c;
 a	c	COUNT(DISTINCT c, a, b)
 1	1	1
@@ -3321,63 +3321,63 @@ a	c	COUNT(DISTINCT c, a, b)
 2	1	1
 EXPLAIN SELECT COUNT(DISTINCT c, a, b) FROM t2
 WHERE a > 5 AND b BETWEEN 10 AND 20 GROUP BY a, b, c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	a	a	15	NULL	17	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	a	a	15	NULL	17	Using where; Using index for group-by
 SELECT COUNT(DISTINCT c, a, b) FROM t2
 WHERE a > 5 AND b BETWEEN 10 AND 20 GROUP BY a, b, c;
 COUNT(DISTINCT c, a, b)
 EXPLAIN SELECT COUNT(DISTINCT b), SUM(DISTINCT b) FROM t2 WHERE a = 5
 GROUP BY b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	a	a	5	const	16	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ref	a	a	5	const	16	Using where; Using index
 SELECT COUNT(DISTINCT b), SUM(DISTINCT b) FROM t2 WHERE a = 5
 GROUP BY b;
 COUNT(DISTINCT b)	SUM(DISTINCT b)
 EXPLAIN SELECT a, COUNT(DISTINCT b), SUM(DISTINCT b) FROM t2 GROUP BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	a	10	NULL	17	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	a	10	NULL	17	Using index for group-by
 SELECT a, COUNT(DISTINCT b), SUM(DISTINCT b) FROM t2 GROUP BY a;
 a	COUNT(DISTINCT b)	SUM(DISTINCT b)
 1	8	36
 2	8	36
 EXPLAIN SELECT COUNT(DISTINCT b), SUM(DISTINCT b) FROM t2 GROUP BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	a	10	NULL	17	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	a	10	NULL	17	Using index for group-by
 SELECT COUNT(DISTINCT b), SUM(DISTINCT b) FROM t2 GROUP BY a;
 COUNT(DISTINCT b)	SUM(DISTINCT b)
 8	36
 8	36
 EXPLAIN SELECT COUNT(DISTINCT a, b) FROM t2 WHERE c = 13 AND d = 42;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	16	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	ALL	NULL	NULL	NULL	NULL	16	Using where
 SELECT COUNT(DISTINCT a, b) FROM t2 WHERE c = 13 AND d = 42;
 COUNT(DISTINCT a, b)
 0
 EXPLAIN SELECT a, COUNT(DISTINCT a), SUM(DISTINCT a) FROM t2
 WHERE b = 13 AND c = 42 GROUP BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	a	15	NULL	3	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	a	15	NULL	3	Using where; Using index for group-by
 SELECT a, COUNT(DISTINCT a), SUM(DISTINCT a) FROM t2
 WHERE b = 13 AND c = 42 GROUP BY a;
 a	COUNT(DISTINCT a)	SUM(DISTINCT a)
 # This query could have been resolved using loose index scan since
 # the second part of count(..) is defined by a constant predicate
 EXPLAIN SELECT COUNT(DISTINCT a, b), SUM(DISTINCT a) FROM t2 WHERE b = 42;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	a	15	NULL	16	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	NULL	a	15	NULL	16	Using where; Using index
 SELECT COUNT(DISTINCT a, b), SUM(DISTINCT a) FROM t2 WHERE b = 42;
 COUNT(DISTINCT a, b)	SUM(DISTINCT a)
 0	NULL
 EXPLAIN SELECT SUM(DISTINCT a), MAX(b) FROM t2 GROUP BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	a	15	NULL	16	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	NULL	a	15	NULL	16	Using index
 SELECT SUM(DISTINCT a), MAX(b) FROM t2 GROUP BY a;
 SUM(DISTINCT a)	MAX(b)
 1	8
 2	8
 EXPLAIN SELECT 42 * (a + c + COUNT(DISTINCT c, a, b)) FROM t2 GROUP BY a, b, c;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	range	NULL	a	15	NULL	17	Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	range	NULL	a	15	NULL	17	Using index for group-by
 SELECT 42 * (a + c + COUNT(DISTINCT c, a, b)) FROM t2 GROUP BY a, b, c;
 42 * (a + c + COUNT(DISTINCT c, a, b))
 126
@@ -3397,8 +3397,8 @@ SELECT 42 * (a + c + COUNT(DISTINCT c, a, b)) FROM t2 GROUP BY a, b, c;
 168
 168
 EXPLAIN SELECT (SUM(DISTINCT a) + MAX(b)) FROM t2 GROUP BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	a	15	NULL	16	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	NULL	index	NULL	a	15	NULL	16	Using index
 SELECT (SUM(DISTINCT a) + MAX(b)) FROM t2 GROUP BY a;
 (SUM(DISTINCT a) + MAX(b))
 9
@@ -3426,8 +3426,8 @@ f1	COUNT(DISTINCT f2)
 2	1
 3	4
 explain SELECT f1, COUNT(DISTINCT f2) FROM t1 GROUP BY f1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	5	NULL	8	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	5	NULL	8	Using index
 drop table t1;
 # End of test#50539.
 #
@@ -3451,8 +3451,8 @@ a	SUM(DISTINCT a)	MIN(b)
 3	3	2
 4	4	4
 EXPLAIN SELECT a, SUM(DISTINCT a), MIN(b) FROM t GROUP BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	a	10	NULL	7	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	index	NULL	a	10	NULL	7	Using index
 SELECT a, SUM(DISTINCT a), MAX(b) FROM t GROUP BY a;
 a	SUM(DISTINCT a)	MAX(b)
 1	1	1
@@ -3460,8 +3460,8 @@ a	SUM(DISTINCT a)	MAX(b)
 3	3	3
 4	4	5
 EXPLAIN SELECT a, SUM(DISTINCT a), MAX(b) FROM t GROUP BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	a	10	NULL	7	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	index	NULL	a	10	NULL	7	Using index
 SELECT a, MAX(b) FROM t GROUP BY a HAVING SUM(DISTINCT a);
 a	MAX(b)
 1	1
@@ -3469,14 +3469,14 @@ a	MAX(b)
 3	3
 4	5
 EXPLAIN SELECT a, MAX(b) FROM t GROUP BY a HAVING SUM(DISTINCT a);
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	a	10	NULL	7	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	index	NULL	a	10	NULL	7	Using index
 SELECT SUM(DISTINCT a), MIN(b), MAX(b) FROM t;
 SUM(DISTINCT a)	MIN(b)	MAX(b)
 10	0	5
 EXPLAIN SELECT SUM(DISTINCT a), MIN(b), MAX(b) FROM t;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	a	10	NULL	7	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	index	NULL	a	10	NULL	7	Using index
 SELECT a, SUM(DISTINCT a), MIN(b), MAX(b) FROM t GROUP BY a;
 a	SUM(DISTINCT a)	MIN(b)	MAX(b)
 1	1	0	1
@@ -3484,8 +3484,8 @@ a	SUM(DISTINCT a)	MIN(b)	MAX(b)
 3	3	2	3
 4	4	4	5
 EXPLAIN SELECT a, SUM(DISTINCT a), MIN(b), MAX(b) FROM t GROUP BY a;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	index	NULL	a	10	NULL	7	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	NULL	index	NULL	a	10	NULL	7	Using index
 DROP TABLE t;
 #
 # Bug#18109609: LOOSE INDEX SCAN IS NOT USED WHEN IT SHOULD
@@ -3504,8 +3504,8 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 EXPLAIN SELECT MAX(c2), c1 FROM t1 WHERE c1 = 4 GROUP BY c1;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	c1	c1	5	NULL	6	Using where; Using index for group-by
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	NULL	range	c1	c1	5	NULL	6	Using where; Using index for group-by
 FLUSH STATUS;
 SELECT MAX(c2), c1 FROM t1 WHERE c1 = 4 GROUP BY c1;
 MAX(c2)	c1

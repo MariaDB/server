@@ -27,11 +27,11 @@ INSERT INTO t1 (f,r,d,dp) VALUES
 (17.5843,4953453454.44,29229114.0,1111111.23),
 (4644,1422.22,466664.999,0.5);
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT f FROM t1 ORDER BY f;
 SELECT f FROM t1 ORDER BY f;
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT f FROM t1 IGNORE INDEX (PRIMARY) ORDER BY f;
 SELECT f FROM t1 IGNORE INDEX (PRIMARY) ORDER BY f;
 
@@ -58,7 +58,7 @@ INSERT INTO t1 (f,r,d,dp,pk) VALUES
 (17.5843,4953453454.44,29229114.0,1111111.23,4),
 (4644,1422.22,466664.999,0.5,5);
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT r, dp FROM t1 WHERE r > 0 or dp > 0;
 --sorted_result
 SELECT r, dp FROM t1 WHERE r > 0 or dp > 0;
@@ -83,7 +83,7 @@ INSERT INTO t1 (f,r,d,dp,pk) VALUES
 (17.5843,4953453454.44,29229114.0,1111111.23,4),
 (4644,1422.22,466664.999,0.5,5);
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT DISTINCT d FROM t1 ORDER BY d;
 SELECT DISTINCT d FROM t1 ORDER BY d;
 
@@ -109,7 +109,7 @@ INSERT INTO t1 (f,r,d,dp,pk) VALUES
 (17.5843,4953453454.44,29229114.0,1111111.23,4),
 (4644,1422.22,466664.999,0.5,5);
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT DISTINCT d FROM t1 ORDER BY d;
 SELECT DISTINCT d FROM t1 ORDER BY d;
 
@@ -138,7 +138,7 @@ INSERT INTO t1 (f,r,d,dp,pk) VALUES
 INSERT INTO t1 (f,r,d,dp,pk) VALUES
 (1.2345,0,0,0,6);
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT DISTINCT f FROM t1 ORDER BY f;
 SELECT DISTINCT f FROM t1 ORDER BY f;
 
@@ -166,7 +166,7 @@ INSERT INTO t1 (f,r,d,dp,pk) VALUES
 INSERT INTO t1 (f,r,d,dp,pk) VALUES
 (1.2345,0,0,0,6);
 
---replace_column 9 #
+--replace_column 10 #
 EXPLAIN SELECT DISTINCT f FROM t1 ORDER BY f;
 SELECT DISTINCT f FROM t1 ORDER BY f;
 
