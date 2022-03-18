@@ -13547,29 +13547,26 @@ int ha_innobase::delete_table(const char *name)
       dict_sys.unfreeze();
     }
 
-    auto &timeout= THDVAR(thd, lock_wait_timeout);
-    const auto save_timeout= timeout;
-    if (table->name.is_temporary())
-      timeout= 0;
+    const bool skip_wait{table->name.is_temporary()};
 
     if (table_stats && index_stats &&
         !strcmp(table_stats->name.m_name, TABLE_STATS_NAME) &&
         !strcmp(index_stats->name.m_name, INDEX_STATS_NAME) &&
-        !(err= lock_table_for_trx(table_stats, trx, LOCK_X)))
-      err= lock_table_for_trx(index_stats, trx, LOCK_X);
+        !(err= lock_table_for_trx(table_stats, trx, LOCK_X, skip_wait)))
+      err= lock_table_for_trx(index_stats, trx, LOCK_X, skip_wait);
 
-    if (err != DB_SUCCESS && !timeout)
+    if (err != DB_SUCCESS && skip_wait)
     {
       /* We may skip deleting statistics if we cannot lock the tables,
       when the table carries a temporary name. */
+      ut_ad(err == DB_LOCK_WAIT);
+      ut_ad(trx->error_state == DB_SUCCESS);
       err= DB_SUCCESS;
       dict_table_close(table_stats, false, thd, mdl_table);
       dict_table_close(index_stats, false, thd, mdl_index);
       table_stats= nullptr;
       index_stats= nullptr;
     }
-
-    timeout= save_timeout;
   }
 
   if (err == DB_SUCCESS)
@@ -14075,17 +14072,15 @@ ha_innobase::rename_table(
 		if (error == DB_SUCCESS && table_stats && index_stats
 		    && !strcmp(table_stats->name.m_name, TABLE_STATS_NAME)
 		    && !strcmp(index_stats->name.m_name, INDEX_STATS_NAME)) {
-			auto &timeout = THDVAR(thd, lock_wait_timeout);
-			const auto save_timeout = timeout;
-			if (from_temp) {
-				timeout = 0;
-			}
-			error = lock_table_for_trx(table_stats, trx, LOCK_X);
+			error = lock_table_for_trx(table_stats, trx, LOCK_X,
+						   from_temp);
 			if (error == DB_SUCCESS) {
 				error = lock_table_for_trx(index_stats, trx,
-							   LOCK_X);
+							   LOCK_X, from_temp);
 			}
 			if (error != DB_SUCCESS && from_temp) {
+				ut_ad(error == DB_LOCK_WAIT);
+				ut_ad(trx->error_state == DB_SUCCESS);
 				error = DB_SUCCESS;
 				/* We may skip renaming statistics if
 				we cannot lock the tables, when the
@@ -14098,7 +14093,6 @@ ha_innobase::rename_table(
 				table_stats = nullptr;
 				index_stats = nullptr;
 			}
-			timeout = save_timeout;
 		}
 	}
 
