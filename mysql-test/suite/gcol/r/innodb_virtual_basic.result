@@ -362,8 +362,8 @@ Warnings:
 Note	1265	Data truncated for column 'col_time_key' at row 1
 Note	1265	Data truncated for column 'col_time_key' at row 2
 EXPLAIN SELECT col_INT_key FROM b;
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	b	index	NULL	col_INT_key	5	NULL	2	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	b	NULL	index	NULL	col_INT_key	5	NULL	2	Using index
 SELECT col_INT_key FROM b;
 col_INT_key
 0

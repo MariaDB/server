@@ -617,7 +617,7 @@ pk	i1	i2	v1	v2
 EXPLAIN SELECT * FROM t1
 WHERE v1 > 41 AND v1 <= 43;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	#	1000	Using where
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	Using where
 SELECT * FROM t1
 WHERE v1 > 41 AND v1 <= 43;
 pk	i1	i2	v1	v2

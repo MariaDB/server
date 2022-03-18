@@ -120,7 +120,7 @@ insert into t1 values (21,2,2,0x12FFFFFFFFFF,1);
 
 --source include/restart_mysqld.inc
 
---replace_column 9 #
+--replace_column 10 #
 explain 
 select * from t1 where kp0=1 and kp1=1 and kp2=0x12FFFFFFFFFF order by kp3 desc;
 show status like '%rocksdb_bloom_filter_prefix%';

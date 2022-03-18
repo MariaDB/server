@@ -61,7 +61,7 @@ ALTER TABLE t1 IMPORT TABLESPACE;
 --enable_warnings
 SHOW CREATE TABLE t1;
 UPDATE t1 set b = repeat("de", 100) where b = repeat("cd", 200);
---replace_column 9 #
+--replace_column 10 #
 explain SELECT a FROM t1 where b = repeat("de", 100);
 SELECT a FROM t1 where b = repeat("de", 100);
 SELECT COUNT(*) FROM t1;
