@@ -26,8 +26,8 @@ set global rocksdb_force_flush_memtable_now=1;
 # Full table scan
 explain 
 select * from t1 limit 10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10000	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	10000	100.00	
 select * from t1 limit 10;
 id1	id2	id3	id4	id5	value	value2
 1000	2000	2000	10000	10000	1000	aaabbbccc
@@ -43,8 +43,8 @@ id1	id2	id3	id4	id5	value	value2
 # An index scan starting from the end of the table:
 explain 
 select * from t1 order by id1 desc,id2 desc, id3 desc, id4 desc limit 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	PRIMARY	122	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	122	NULL	1	100.00	
 select * from t1 order by id1 desc,id2 desc, id3 desc, id4 desc limit 1;
 id1	id2	id3	id4	id5	value	value2
 1000	2000	2000	10000	10000	1000	aaabbbccc
@@ -77,8 +77,8 @@ set global rocksdb_force_flush_memtable_now=1;
 # An index scan starting from the end of the table:
 explain
 select * from t5 order by id1 desc,id2 desc, id3 desc, id4 desc limit 1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t5	NULL	index	NULL	PRIMARY	122	NULL	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t5	NULL	index	NULL	PRIMARY	122	NULL	1	100.00	
 select * from t5 order by id1 desc,id2 desc, id3 desc, id4 desc limit 1;
 id1	id2	id3	id4	id5	value	value2
 1000	2000	2000	10000	10000	1000	aaabbbccc

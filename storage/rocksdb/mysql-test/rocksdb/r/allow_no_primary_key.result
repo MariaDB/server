@@ -242,8 +242,8 @@ SELECT * FROM t1 WHERE a = 2;
 a	b
 2	b
 EXPLAIN SELECT * FROM t1 WHERE a = 2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	const	a	a	5	const	1	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	const	a	a	5	const	1	100.00	
 DROP TABLE t1;
 CREATE TABLE t1 (a INT, b CHAR(8)) ENGINE=rocksdb;
 SHOW CREATE TABLE t1;

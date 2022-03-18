@@ -37,7 +37,7 @@ create table t2 (
 insert into t2 select A.a, FLOOR(A.a/10), A.a from t1 A;
 
 --echo # This must have type=range, index=a, and must not have 'Using filesort':
---replace_column 10 #
+--replace_column 10 # 11 FLTRD
 explain select * from t2 force index (a) where a=0 and pk>=3 order by pk;
 
 drop table t0,t1,t2;

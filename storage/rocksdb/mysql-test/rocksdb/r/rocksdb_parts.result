@@ -48,8 +48,8 @@ insert into t1 values (12,20,20);
 set @tmp_rfirr= @@rocksdb_force_index_records_in_range;
 set rocksdb_force_index_records_in_range= 12;
 explain select * from t1 force index(col1) where col1=10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0,p1	ref	col1	col1	5	const	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0,p1	ref	col1	col1	5	const	#	100.00	
 select * from t1 force index(col1) where col1=10;
 pk	col1	col2
 1	10	10
@@ -75,8 +75,8 @@ insert into t1 values (11,20,20);
 insert into t1 values (12,20,20);
 # The following must use "Using index"
 explain select pk from t1 force index(col1) where col1=10;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	p0,p1	ref	col1	col1	5	const	2000	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	p0,p1	ref	col1	col1	5	const	2000	100.00	Using index
 drop table t1;
 #
 # Issue #214: subqueries cause crash

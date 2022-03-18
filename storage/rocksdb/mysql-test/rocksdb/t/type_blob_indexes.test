@@ -35,7 +35,7 @@ INSERT INTO t1 (b,t,m,l) VALUES
 (REPEAT('b',128),REPEAT('f',128),REPEAT('e',128),REPEAT('d',128)),
 (REPEAT('c',128),REPEAT('b',128),REPEAT('c',128),REPEAT('e',128));
 
---replace_column 1 # 2 # 3 # 4 # 5 # 7 # 8 # 9 # 10 # 11 #
+--replace_column 1 # 2 # 3 # 4 # 5 # 7 # 8 # 9 # 10 # 11 # 12 #
 EXPLAIN SELECT SUBSTRING(b,16) AS f FROM t1 WHERE b IN ('test1','test2') ORDER BY f;
 SELECT SUBSTRING(b,16) AS f FROM t1 WHERE b IN ('test1','test2') ORDER BY f;
 

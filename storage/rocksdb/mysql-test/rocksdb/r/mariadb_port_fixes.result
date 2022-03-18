@@ -17,8 +17,8 @@ insert into t1 select 2,1,1,1,0;
 insert into t1 select 3,1,1,1,0;
 explain
 select a from t1 force index(e) where e<10000;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	e	e	5	NULL	#	Using index condition
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	e	e	5	NULL	#	100.00	Using index condition
 select a from t1;
 a
 1
@@ -41,8 +41,8 @@ KEY (a)
 ) ENGINE=ROCKSDB DEFAULT CHARSET=utf8;
 insert into t1 values (1,1,1),(2,2,2);
 explain select a from t1 where a <'zzz';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	a	a	32	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	a	a	32	NULL	#	100.00	Using where
 CREATE TABLE t2(
 pk int,
 a varchar(10) NOT NULL,
@@ -51,8 +51,8 @@ KEY (a)
 ) ENGINE=ROCKSDB DEFAULT CHARSET=utf8;
 insert into t2 values (1,1,1),(2,2,2);
 explain select a from t2 where a <'zzz';
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	NULL	range	a	a	32	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t2	NULL	range	a	a	32	NULL	#	100.00	Using where
 drop table t1,t2;
 set global rocksdb_strict_collation_check=@tmp_rscc;
 #

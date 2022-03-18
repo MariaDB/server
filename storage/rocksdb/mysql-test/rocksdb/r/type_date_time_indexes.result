@@ -20,16 +20,16 @@ INSERT INTO t1 (d,dt,ts,t,y) VALUES
 ('2011-03-31', '2011-08-28 20:33:56', '1997-01-31 11:54:01', '22:04:10', '1994'),
 (DATE(@tm),@tm,TIMESTAMP(@tm),TIME(@tm),YEAR(@tm));
 EXPLAIN SELECT dt FROM t1 ORDER BY dt LIMIT 3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	PRIMARY	5	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	5	NULL	#	100.00	Using index
 SELECT dt FROM t1 ORDER BY dt LIMIT 3;
 dt
 2010-11-22 11:43:14
 2010-11-22 12:33:54
 2011-08-27 21:33:56
 EXPLAIN SELECT dt FROM t1 FORCE INDEX FOR ORDER BY (PRIMARY) ORDER BY dt LIMIT 3;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	PRIMARY	5	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	PRIMARY	5	NULL	#	100.00	Using index
 SELECT dt FROM t1 FORCE INDEX FOR ORDER BY (PRIMARY) ORDER BY dt LIMIT 3;
 dt
 2010-11-22 11:43:14
@@ -61,13 +61,13 @@ INSERT INTO t1 (d,dt,ts,t,y,pk) VALUES
 ('2011-03-31', '2011-08-28 20:33:56', '1997-01-31 11:54:01', '22:04:10', '1994','12:04:00'),
 (DATE(@tm),@tm,TIMESTAMP(@tm),TIME(@tm),YEAR(@tm),'12:05:00');
 EXPLAIN SELECT ts FROM t1 WHERE ts > NOW();
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	range	ts	ts	5	NULL	#	Using where; Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	range	ts	ts	5	NULL	#	100.00	Using where; Using index
 SELECT ts FROM t1 WHERE ts > NOW();
 ts
 EXPLAIN SELECT ts FROM t1 USE INDEX () WHERE ts > NOW();
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	Using where
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	ALL	NULL	NULL	NULL	NULL	#	100.00	Using where
 SELECT ts FROM t1 USE INDEX () WHERE ts > NOW();
 ts
 DROP TABLE t1;
@@ -94,8 +94,8 @@ INSERT INTO t1 (d,dt,ts,t,y,pk) VALUES
 ('2011-03-31', '2011-08-28 20:33:56', '1997-01-31 11:54:01', '22:04:10', '1994','22:18:18'),
 (DATE(@tm),@tm,TIMESTAMP(@tm),TIME(@tm),YEAR(@tm),'23:18:18');
 EXPLAIN SELECT y, COUNT(*) FROM t1 GROUP BY y;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	y	6	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	y	6	NULL	#	100.00	Using index
 SELECT y, COUNT(*) FROM t1 GROUP BY y;
 y	COUNT(*)
 1994	1
@@ -105,8 +105,8 @@ y	COUNT(*)
 2001	1
 2012	1
 EXPLAIN SELECT y, COUNT(*) FROM t1 USE INDEX FOR GROUP BY () GROUP BY y;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	NULL	index	NULL	y	6	NULL	#	Using index; Using temporary; Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	NULL	index	NULL	y	6	NULL	#	100.00	Using index; Using temporary; Using filesort
 SELECT y, COUNT(*) FROM t1 USE INDEX FOR GROUP BY () GROUP BY y;
 y	COUNT(*)
 1994	1

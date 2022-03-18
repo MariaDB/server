@@ -4,8 +4,8 @@ c varchar(8) CHARACTER SET utf8 COLLATE utf8_general_ci,
 key sk (c));
 insert into t (c) values ('☀'), ('ß');
 explain select c from t;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	NULL	index	NULL	sk	27	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t	NULL	index	NULL	sk	27	NULL	#	100.00	Using index
 select c from t;
 c
 ß
@@ -19,17 +19,17 @@ primary key (id),
 key sk1 (c1),
 key sk2 (c2));
 explain select hex(c1) from t order by c1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	NULL	index	NULL	sk1	4	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t	NULL	index	NULL	sk1	4	NULL	#	100.00	Using index
 explain select hex(c1) from t IGNORE INDEX (sk1) order by c1;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	NULL	ALL	NULL	NULL	NULL	NULL	#	Using filesort
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t	NULL	ALL	NULL	NULL	NULL	NULL	#	100.00	Using filesort
 explain select hex(c2) from t order by c2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	NULL	index	NULL	sk2	2	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t	NULL	index	NULL	sk2	2	NULL	#	100.00	Using index
 explain select hex(c2) from t IGNORE INDEX (sk1) order by c2;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	NULL	index	NULL	sk2	2	NULL	#	Using index
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t	NULL	index	NULL	sk2	2	NULL	#	100.00	Using index
 truncate t;
 insert into t (c1, c2) values ('Asdf    ', 'Asdf    ');
 Warnings:
@@ -66,8 +66,8 @@ insert into t (c1) values ('bbbb ');
 insert into t (c1) values ('a    ');
 ERROR 23000: Duplicate entry 'a' for key 'sk1'
 explain select c1 from t;
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	NULL	ALL	NULL	NULL	NULL	NULL	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t	NULL	ALL	NULL	NULL	NULL	NULL	#	100.00	
 select c1 from t;
 c1
 Asdf
@@ -77,8 +77,8 @@ set session rocksdb_verify_row_debug_checksums = on;
 create table t (id int primary key, email varchar(100), KEY email_i (email(30))) engine=rocksdb default charset=latin1;
 insert into t values (1, '                                  a');
 explain select 'email_i' as index_name, count(*) AS count from t force index(email_i);
-id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t	NULL	ALL	NULL	NULL	NULL	NULL	#	
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t	NULL	ALL	NULL	NULL	NULL	NULL	#	100.00	
 select 'email_i' as index_name, count(*) AS count from t force index(email_i);
 index_name	count
 email_i	1
